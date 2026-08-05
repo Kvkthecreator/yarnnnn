@@ -33,10 +33,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlignCenterHorizontal,
+  AlignCenterVertical,
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignStartHorizontal,
+  AlignStartVertical,
+  AlignVerticalSpaceBetween,
   ArrowDown,
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronRight,
   Copy,
   FolderInput,
   Link2,
@@ -44,7 +52,9 @@ import {
   MoreHorizontal,
   Palette,
   Pencil,
+  StretchHorizontal,
   Trash2,
+  type LucideIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import {
@@ -54,7 +64,8 @@ import {
   type StudioVocabulary,
 } from './StudioToolbar';
 import { studioShapeStyle } from './studioShapes';
-import { STRUCTURAL_PAGE_SEL } from './structureLabels';
+import { climbChain } from './SelectionBreadcrumb';
+import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
 // ADR-487 D9: the Design tab reads the skin only to PAINT the controls
 // (skinVarMap + resolveSkinVar). The var-LIST parse belongs to the manage panel
 // alone now — the system-as-object register. Importing it here again would
@@ -155,6 +166,15 @@ interface StudioDesignTabProps {
   /** ADR-485 follow-on: reset a size measure to Auto (the absence-default) — the
    *  read-back's clear affordance, since the drag is the authoring path. */
   onClearMeasure: (key: 'w' | 'h') => void;
+  /** ADR-520 D3 — numeric measure entry (keyboard beside the drag): commit a
+   *  clamped value for the selected element (block OR staged container — the
+   *  op is id-addressed). Same two-clamp specs as the gesture. */
+  onSetMeasure: (key: 'w' | 'h' | 'x' | 'y', value: number) => void;
+  /** ADR-520 D4 — the structure affordances (path + Contents) select through
+   *  the SAME reaches the breadcrumb and navigator use (a new mount, not a
+   *  new op): a node by identity, a page by index. */
+  onSelectNode: (node: { blockId: string; label: string; kind: string | null }) => void;
+  onSelectPage: (index: number) => void;
   /** EXECUTE: apply a design system's composed skin element (resolve + write). */
   onApplyDesignSystem: (manifestPath: string) => Promise<void>;
   /** EXECUTE: remove the marked skin element. */
@@ -546,6 +566,138 @@ function VerbRow({ noun, onVerb }: { noun: string; onVerb: (v: StructVerb) => vo
 const SECTION = 'space-y-2 border-b border-border p-3';
 const HEADING = 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground';
 
+/** ADR-520 D3 — a measure as a NUMERIC FIELD (the Figma detail grammar):
+ *  editable within the served two-clamp bounds, keyboard instead of drag.
+ *  Empty commits the clear (Auto) where a clear exists; the value shown is
+ *  always the substrate's own (derived at render, never stored). */
+function MeasureField({
+  m,
+  value,
+  onCommit,
+  onClear,
+}: {
+  m: StudioMeasure;
+  value: number | null;
+  onCommit: (v: number) => void;
+  onClear?: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-0.5">
+      <span className="text-[11px] text-muted-foreground" title={m.description}>
+        {m.label}
+      </span>
+      <span className="flex items-center gap-1">
+        <input
+          key={value ?? 'auto'}
+          type="number"
+          min={m.min}
+          max={m.max}
+          defaultValue={value ?? ''}
+          placeholder="Auto"
+          aria-label={m.label}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          onBlur={(e) => {
+            const raw = e.currentTarget.value.trim();
+            if (raw === '') {
+              if (value != null) onClear?.();
+              return;
+            }
+            const v = Math.max(m.min, Math.min(m.max, Math.round(Number(raw))));
+            if (!Number.isFinite(v) || v === value) return;
+            onCommit(v);
+          }}
+          className="w-14 rounded border border-border bg-background px-1.5 py-0.5 text-right text-xs tabular-nums outline-none focus:border-indigo-400/60"
+        />
+        <span className="w-3 shrink-0 text-[10px] text-muted-foreground">{m.unit}</span>
+      </span>
+    </div>
+  );
+}
+
+/** ADR-520 D4 — one row of the selection's structure (the walk the navigator's
+ *  tree used before it moved here): a container (identity, no vocabulary) or a
+ *  block (leaf). Operator words; the tree bottoms out at the block grammar. */
+interface StructNode {
+  blockId: string;
+  label: string;
+  kind: string | null;
+  depth: number;
+  text: string;
+}
+
+/** Walk an element's subtree into the flat, indented contents list.
+ *  Containers recurse; blocks are leaves; unaddressed wrappers are
+ *  transparent (their children surface at the same depth). */
+function walkContents(root: Element): StructNode[] {
+  const out: StructNode[] = [];
+  const walk = (el: Element, depth: number) => {
+    for (const child of Array.from(el.children)) {
+      const id = child.getAttribute('data-block-id');
+      const isBlock = child.hasAttribute('data-block');
+      if (isBlock && id) {
+        out.push({
+          blockId: id,
+          label: labelForElement(child),
+          kind: child.getAttribute('data-block'),
+          depth,
+          text: (child.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
+        });
+        continue; // blocks are leaves — the tree floor
+      }
+      if (!isBlock && id && child.tagName === 'DIV') {
+        out.push({ blockId: id, label: labelForElement(child), kind: null, depth, text: '' });
+        walk(child, depth + 1);
+        continue;
+      }
+      walk(child, depth); // transparent wrapper — children at the same depth
+    }
+  };
+  walk(root, 0);
+  return out;
+}
+
+/** The Contents rows — the selection's own hierarchy, click-to-select. */
+function ContentsRows({
+  nodes,
+  onSelect,
+}: {
+  nodes: StructNode[];
+  onSelect: (n: { blockId: string; label: string; kind: string | null }) => void;
+}) {
+  if (!nodes.length) return null;
+  return (
+    <ul className="space-y-px">
+      {nodes.map((n) => (
+        <li key={n.blockId}>
+          <button
+            type="button"
+            onClick={() => onSelect(n)}
+            title={n.text || n.label}
+            style={{ paddingLeft: `${n.depth * 10}px` }}
+            className="flex w-full items-baseline gap-1.5 truncate rounded px-1 py-px text-left text-[10px] transition-colors hover:bg-muted/40"
+          >
+            <span
+              className={
+                n.kind
+                  ? 'shrink-0 text-muted-foreground'
+                  : 'shrink-0 font-medium text-emerald-700 dark:text-emerald-500'
+              }
+            >
+              {n.label}
+            </span>
+            {n.text && <span className="truncate text-muted-foreground/70">{n.text}</span>}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** ADR-516 D1/D3 — the ONE layout-row presentation, at every grain that has
  *  layout (container AND page). Bounded presets writing literal CSS through
  *  `setContainerLayout`; pressed-state reads the element's inline style first,
@@ -560,7 +712,7 @@ function LayoutRows({
     key: string;
     label: string;
     css: string;
-    options: ReadonlyArray<{ v: string; l: string }>;
+    options: ReadonlyArray<{ v: string; l: string; Icon?: LucideIcon }>;
   }>;
   styleAttr: string;
   legacy?: (cssProp: string) => string | null;
@@ -584,13 +736,18 @@ function LayoutRows({
                   key={o.v}
                   type="button"
                   onClick={() => onSet({ [row.key]: cur === o.v ? null : o.v })}
+                  // ADR-520 D3 — the glyphable options wear the conventional
+                  // alignment icons (the Figma detail grammar); the label
+                  // survives as the tooltip. Value + mechanism untouched.
+                  title={o.l}
+                  aria-label={o.l}
                   className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
                     cur === o.v
                       ? 'border-foreground/50 text-foreground'
                       : 'border-border text-muted-foreground hover:bg-muted/40'
                   }`}
                 >
-                  {o.l}
+                  {o.Icon ? <o.Icon className="h-3.5 w-3.5" /> : o.l}
                 </button>
               ))}
             </div>
@@ -614,6 +771,9 @@ export function StudioDesignTab({
   onContainerLayout,
   measures,
   onClearMeasure,
+  onSetMeasure,
+  onSelectNode,
+  onSelectPage,
   onApplyDesignSystem,
   onRemoveDesignSystem,
   onOpenSystem,
@@ -706,9 +866,18 @@ export function StudioDesignTab({
   // transient in-gesture frame label). The position measures (x/y) render in
   // the spine's Position section (ADR-519 Phase A), not here.
   const sizeMeasures = useMemo(() => {
-    if (scope !== 'block') return [];
-    const isMedia = !!selection?.blockKind && mediaKinds.includes(selection.blockKind);
+    if (scope !== 'block' && scope !== 'container') return [];
     const framed = !!selectedEl?.closest('.slide');
+    // ADR-520 D2 — a STAGED container carries w/h too (the ops are
+    // id-addressed; the runtime's gate was the only block-only half).
+    if (scope === 'container') {
+      return framed
+        ? (measures ?? []).filter(
+            (m) => (m.key === 'w' || m.key === 'h') && m.applies.includes('block-staged'),
+          )
+        : [];
+    }
+    const isMedia = !!selection?.blockKind && mediaKinds.includes(selection.blockKind);
     return (measures ?? []).filter(
       (m) =>
         (m.key === 'w' || m.key === 'h') &&
@@ -726,6 +895,57 @@ export function StudioDesignTab({
       (m) => (m.key === 'x' || m.key === 'y') && m.applies.includes('block-staged'),
     );
   }, [scope, measures, selectedEl]);
+
+  // ADR-520 D4 — the structure's one home: the ancestor PATH (the breadcrumb's
+  // own climbChain — one derivation, two mounts) + the selection's CONTENTS
+  // (the walk the navigator's tree carried before it moved here). Derived from
+  // the parsed SOURCE at render, never stored.
+  const pageEl = useMemo(
+    () => (selectedEl ? (selectedEl.closest(PAGE_SEL) ?? null) : null),
+    [selectedEl],
+  );
+  const pageOfSelection = useMemo(() => {
+    if (!doc || !pageEl) return null;
+    const i = Array.from(doc.querySelectorAll(PAGE_SEL)).indexOf(pageEl);
+    return i >= 0 ? i : null;
+  }, [doc, pageEl]);
+  const pathChain = useMemo(() => {
+    if (!selectedEl || !pageEl || (scope !== 'block' && scope !== 'container')) return [];
+    return climbChain(selectedEl, pageEl)
+      .map((el) => ({
+        blockId: el.getAttribute('data-block-id') ?? '',
+        label: labelForElement(el),
+      }))
+      .filter((c) => c.blockId);
+  }, [selectedEl, pageEl, scope]);
+  const contents = useMemo(() => {
+    if (!selectedEl || (scope !== 'page' && scope !== 'container')) return [];
+    return walkContents(selectedEl);
+  }, [selectedEl, scope]);
+  const pathRow =
+    (scope === 'block' || scope === 'container') && pageOfSelection != null ? (
+      <div className="flex flex-wrap items-center gap-0.5 text-[10px] text-muted-foreground">
+        <button
+          type="button"
+          onClick={() => onSelectPage(pageOfSelection)}
+          className="rounded px-0.5 transition-colors hover:bg-muted/40 hover:text-foreground"
+        >
+          {pageNoun} {pageOfSelection + 1}
+        </button>
+        {pathChain.map((c) => (
+          <span key={c.blockId} className="flex items-center gap-0.5">
+            <ChevronRight className="h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
+            <button
+              type="button"
+              onClick={() => onSelectNode({ blockId: c.blockId, label: c.label, kind: null })}
+              className="rounded px-0.5 text-emerald-700 transition-colors hover:bg-muted/40 dark:text-emerald-500"
+            >
+              {c.label}
+            </button>
+          </span>
+        ))}
+      </div>
+    ) : null;
 
   // The current value of a measure, parsed from the block's own --y* style —
   // derived at render, never stored (the ADR-453 D1 convention every token uses).
@@ -1338,6 +1558,9 @@ export function StudioDesignTab({
               {pageNoun} {selection?.slideIndex != null ? selection.slideIndex + 1 : ''}
             </p>
             <VerbRow noun={pageNoun} onVerb={onPageVerb} />
+            {/* ADR-520 D4 — the page's Contents: the within-page hierarchy,
+                absorbed from the navigator (whose rail is the SEQUENCE now). */}
+            <ContentsRows nodes={contents} onSelect={onSelectNode} />
           </div>
           {/* ADR-516 D3 — the page IS a container: layout rows in the same
               language as container scope (bounded CSS presets, one op). The
@@ -1352,7 +1575,9 @@ export function StudioDesignTab({
                     { v: '2rem 2.5rem', l: 'S' }, { v: '3.5rem 4rem', l: 'M' }, { v: '4.5rem 5.5rem', l: 'L' },
                   ] },
                   { key: 'justify', label: 'Vertical align', css: 'justify-content', options: [
-                    { v: 'flex-start', l: 'Top' }, { v: 'center', l: 'Middle' }, { v: 'flex-end', l: 'Bottom' },
+                    { v: 'flex-start', l: 'Top', Icon: AlignStartHorizontal },
+                    { v: 'center', l: 'Middle', Icon: AlignCenterHorizontal },
+                    { v: 'flex-end', l: 'Bottom', Icon: AlignEndHorizontal },
                   ] },
                 ]}
                 styleAttr={selectedEl?.getAttribute('style') ?? ''}
@@ -1474,7 +1699,10 @@ export function StudioDesignTab({
         <>
           <div className={SECTION}>
             <p className={HEADING}>{selection?.label ?? 'group'}</p>
+            {pathRow}
             <VerbRow noun={selection?.label ?? 'group'} onVerb={onElementVerb} />
+            {/* ADR-520 D4 — the container's Contents (structure's one home). */}
+            <ContentsRows nodes={contents} onSelect={onSelectNode} />
           </div>
           <div className={SECTION}>
             <p className={HEADING}>Layout</p>
@@ -1486,13 +1714,20 @@ export function StudioDesignTab({
                 { key: 'gap', label: 'Gap', css: 'gap', options: [
                   { v: '0', l: 'None' }, { v: '0.5rem', l: 'S' }, { v: '1rem', l: 'M' }, { v: '2rem', l: 'L' },
                 ] },
+                // ADR-520 D3 — the alignment rows wear the conventional glyphs
+                // (a column container: Align = the cross axis, Justify = the
+                // main axis). Values + the one op unchanged.
                 { key: 'align', label: 'Align', css: 'align-items', options: [
-                  { v: 'flex-start', l: 'Start' }, { v: 'center', l: 'Center' },
-                  { v: 'flex-end', l: 'End' }, { v: 'stretch', l: 'Stretch' },
+                  { v: 'flex-start', l: 'Start', Icon: AlignStartVertical },
+                  { v: 'center', l: 'Center', Icon: AlignCenterVertical },
+                  { v: 'flex-end', l: 'End', Icon: AlignEndVertical },
+                  { v: 'stretch', l: 'Stretch', Icon: StretchHorizontal },
                 ] },
                 { key: 'justify', label: 'Justify', css: 'justify-content', options: [
-                  { v: 'flex-start', l: 'Start' }, { v: 'center', l: 'Center' },
-                  { v: 'flex-end', l: 'End' }, { v: 'space-between', l: 'Between' },
+                  { v: 'flex-start', l: 'Start', Icon: AlignStartHorizontal },
+                  { v: 'center', l: 'Center', Icon: AlignCenterHorizontal },
+                  { v: 'flex-end', l: 'End', Icon: AlignEndHorizontal },
+                  { v: 'space-between', l: 'Between', Icon: AlignVerticalSpaceBetween },
                 ] },
                 // ADR-516 D4 — the container's width as intent: Hug | Fill,
                 // the ADR-461 D1 pair at the container grain (Fixed refused).
@@ -1503,6 +1738,17 @@ export function StudioDesignTab({
               styleAttr={selectedEl?.getAttribute('style') ?? ''}
               onSet={onContainerLayout}
             />
+            {/* ADR-520 D2/D3 — a STAGED container's W/H: the drag's keyboard
+                twin (the handles live on the canvas; empty = Auto). */}
+            {sizeMeasures.map((m) => (
+              <MeasureField
+                key={m.key}
+                m={m}
+                value={measureValue(m)}
+                onCommit={(v) => onSetMeasure(m.key as 'w' | 'h', v)}
+                onClear={() => onClearMeasure(m.key as 'w' | 'h')}
+              />
+            ))}
           </div>
           {/* Content — the media-role picker: the one job the old slot scope
               did that a plain container cannot, resolved from the registry
@@ -1549,9 +1795,10 @@ export function StudioDesignTab({
           implementation behind three entrances). */}
       {scope === 'block' && (
         <>
-          {/* Identity — the operator-word kind + the verb row. */}
+          {/* Identity — the operator-word kind + the ancestor path + verbs. */}
           <div className={SECTION}>
             <p className={HEADING}>{selection?.label ?? selection?.blockKind ?? 'block'}</p>
+            {pathRow}
             <VerbRow noun={selection?.label ?? 'block'} onVerb={onElementVerb} />
           </div>
           {/* Position (ADR-511 D4) — an explicit, visible, reversible state.
@@ -1588,19 +1835,16 @@ export function StudioDesignTab({
                 </div>
                 {positioned && posMeasures.length > 0 && (
                   <div className="space-y-0.5">
-                    {posMeasures.map((m) => {
-                      const v = measureValue(m);
-                      return (
-                        <div key={m.key} className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-muted-foreground" title={m.description}>
-                            {m.label}
-                          </span>
-                          <span className="text-xs tabular-nums text-foreground">
-                            {v == null ? '—' : `${v}${m.unit}`}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {/* ADR-520 D3 — X/Y as editable fields (two-clamp, the
+                        keyboard beside the drag). "In flow" stays the clear. */}
+                    {posMeasures.map((m) => (
+                      <MeasureField
+                        key={m.key}
+                        m={m}
+                        value={measureValue(m)}
+                        onCommit={(v) => onSetMeasure(m.key as 'x' | 'y', v)}
+                      />
+                    ))}
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground">
@@ -1627,40 +1871,18 @@ export function StudioDesignTab({
                   onSet={(v) => onSetToken('block', t.key, v)}
                 />
               ))}
-              {sizeMeasures.map((m) => {
-                const v = measureValue(m);
-                return (
-                  <div key={m.key} className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground" title={m.description}>
-                      {m.label}
-                    </span>
-                    {v == null ? (
-                      <span className="text-xs text-muted-foreground">Auto</span>
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-xs tabular-nums text-foreground">
-                          {v}
-                          {m.unit}
-                        </span>
-                        <button
-                          type="button"
-                          className={askBtn}
-                          onClick={() => onClearMeasure(m.key as 'w' | 'h')}
-                          title={`Reset ${m.label.toLowerCase()} to Auto`}
-                        >
-                          Auto
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-              {sizeMeasures.length > 0 && (
-                <p className="text-[10px] leading-snug text-muted-foreground">
-                  Drag the block&apos;s corner on the canvas to size it; the value
-                  shows here.
-                </p>
-              )}
+              {/* ADR-520 D3 — W/H as editable fields (two-clamp; emptying
+                  the field is the Auto reset). The corner drag still works;
+                  this is its keyboard twin. */}
+              {sizeMeasures.map((m) => (
+                <MeasureField
+                  key={m.key}
+                  m={m}
+                  value={measureValue(m)}
+                  onCommit={(v) => onSetMeasure(m.key as 'w' | 'h', v)}
+                  onClear={() => onClearMeasure(m.key as 'w' | 'h')}
+                />
+              ))}
             </div>
           )}
           {/* Typography (ADR-487 D3 v2) — the ramp as a visual select, on the

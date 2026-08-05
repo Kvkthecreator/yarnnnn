@@ -16,62 +16,14 @@
  * (no scripts); selecting a page is a parent click on the card, not in-frame.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
-import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
+import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 
-/** ADR-511 D3 — one row of the selected page's structure tree: a container
- *  (identity, no vocabulary) or a block (leaf). Labels are operator words
- *  (structureLabels.ts); the tree bottoms out at the block grammar — never
- *  text nodes or inline elements (the attribution floor is the tree floor). */
-interface StructureEntry {
-  blockId: string;
-  label: string;
-  kind: string | null;
-  depth: number;
-  text: string;
-}
-
-/** Walk one page's element tree into the flat, indented structure list.
- *  Containers recurse; blocks are leaves; unaddressed wrappers are transparent
- *  (their children surface at the same depth). */
-function buildStructure(html: string, pageIndex: number): StructureEntry[] {
-  if (typeof window === 'undefined' || !html) return [];
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const page = doc.querySelectorAll(PAGE_SEL)[pageIndex];
-  if (!page) return [];
-  const out: StructureEntry[] = [];
-  const walk = (el: Element, depth: number) => {
-    for (const child of Array.from(el.children)) {
-      const id = child.getAttribute('data-block-id');
-      const isBlock = child.hasAttribute('data-block');
-      if (isBlock && id) {
-        out.push({
-          blockId: id,
-          label: labelForElement(child),
-          kind: child.getAttribute('data-block'),
-          depth,
-          text: (child.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
-        });
-        continue; // blocks are leaves — the tree floor
-      }
-      if (!isBlock && id && child.tagName === 'DIV') {
-        out.push({
-          blockId: id,
-          label: labelForElement(child),
-          kind: null,
-          depth,
-          text: '',
-        });
-        walk(child, depth + 1);
-        continue;
-      }
-      walk(child, depth); // transparent wrapper — children at the same depth
-    }
-  };
-  walk(page, 0);
-  return out;
-}
+/* ADR-520 D4 — the per-page structure tree LEFT this rail: the pane's
+ * Identity section (path + Contents) is the structure's one home now; the
+ * navigator is the SEQUENCE — page cards, reorder, multi-select — and
+ * nothing below the page grain. (The ADR-511 D3 tree clause is superseded.) */
 
 // A deck slide is LANDSCAPE 16:9 (the skin: aspect-ratio 16/9). The preview
 // iframe renders the slide at its NATURAL landscape box (SLIDE_W×SLIDE_H) and
@@ -229,9 +181,6 @@ interface PagedNavigatorProps {
   /** Delete a selection of pages as ONE compound revision (multi-select
    *  Delete). The parent confirms when >1. */
   onDeletePages?: (indices: number[]) => void;
-  /** ADR-511 D3 — select a structure-tree node (container or block) on the
-   *  selected page: sets the parent selection + outlines it on the canvas. */
-  onSelectNode?: (node: { blockId: string; label: string; kind: string | null }) => void;
 }
 
 export function PagedNavigator({
@@ -243,7 +192,6 @@ export function PagedNavigator({
   onReorderSlide,
   onReorderPages,
   onDeletePages,
-  onSelectNode,
 }: PagedNavigatorProps) {
   const [previews, setPreviews] = useState<SlidePreview[] | null>(null);
   // Drag-to-reorder (PowerPoint): the index being dragged, and the gap the drop
@@ -296,17 +244,6 @@ export function PagedNavigator({
   const selectedList = useCallback(
     () => Array.from(selected).sort((a, b) => a - b),
     [selected],
-  );
-
-  // ADR-511 D3 — the selected page's structure tree (page → containers →
-  // blocks), from the SOURCE html (already load-normalized, so containers
-  // carry identity). Only the selected card expands: the strip stays a strip.
-  const structure = useMemo(
-    () =>
-      onSelectNode && selectedSlide != null
-        ? buildStructure(html, selectedSlide)
-        : [],
-    [onSelectNode, selectedSlide, html],
   );
 
   // A card click with modifiers (PowerPoint/Finder): plain = select-one (parent
@@ -623,38 +560,6 @@ export function PagedNavigator({
                 {s.title}
               </span>
             </div>
-            {/* ADR-511 D3 — the structure tree, under the SELECTED card only:
-                the page's real hierarchy in operator words, each row
-                selectable (containers included — they are elements with
-                identity now, not invisible scaffolding). */}
-            {selectedSlide === s.index && structure.length > 0 && (
-              <ul className="mt-1 space-y-px pb-1 pl-5 pr-1">
-                {structure.map((n) => (
-                  <li key={n.blockId}>
-                    <button
-                      type="button"
-                      onClick={() => onSelectNode?.(n)}
-                      title={n.text || n.label}
-                      style={{ paddingLeft: `${n.depth * 10}px` }}
-                      className="flex w-full items-baseline gap-1.5 truncate rounded px-1 py-px text-left text-[10px] transition-colors hover:bg-muted/40"
-                    >
-                      <span
-                        className={
-                          n.kind
-                            ? 'shrink-0 text-muted-foreground'
-                            : 'shrink-0 font-medium text-emerald-700 dark:text-emerald-500'
-                        }
-                      >
-                        {n.label}
-                      </span>
-                      {n.text && (
-                        <span className="truncate text-muted-foreground/70">{n.text}</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </li>
         ))}
         {/* The trailing drop-line — a drop AFTER the last slide. */}

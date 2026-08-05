@@ -236,8 +236,14 @@ def run() -> bool:
     # the slide's edge under the deck's fit-zoom, and vanished after every
     # optimistic write. Three structural fixes, each a falsifiable pin.
     _check(
-        "P9 grain gate: only a [data-block] is measurable — never a slot/page",
-        "if (!block.hasAttribute || !block.hasAttribute('data-block')) return false;" in proj,
+        # ADR-520 D2 amendment: a structural CONTAINER on the stage joins the
+        # measurable set (w/h). A PAGE still cannot — the admitting branch
+        # matches div[data-block-id]:not([data-block]) AND .slide ancestry
+        # only, and a section/page carries no data-block-id.
+        "P9 grain gate as amended: blocks + STAGED containers — never a page",
+        "if (!block.hasAttribute || !block.hasAttribute('data-block')) {" in proj
+        and "block.matches('div[data-block-id]:not([data-block])') &&" in proj
+        and "block.closest && block.closest('.slide'));" in proj,
     )
     # (Re-pinned for P10: the guards now restore the at-rest frame context on
     #  their refusal path instead of bare-returning.)

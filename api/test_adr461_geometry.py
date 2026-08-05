@@ -297,10 +297,13 @@ def run() -> bool:
     #  exception — it earns the STATIC box for selection legibility. Blocks
     #  stay measurable-gated; geometry ops fire for neither grain here.)
     _check(
+        # ADR-520 re-cut: the sync gate grew a VISIBILITY guard (a stage-view
+        # target on a hidden slide has no rect — no 0×0 box at the origin).
+        # The boundary itself is unchanged: measurable or container, else no box.
         "an UNFRAMED block gets no box (the boundary is felt, not just documented)",
         "function isMeasurable(block)" in proj
-        and "if (target && target.isConnected && (isMeasurable(target) || isContainerEl(target))) {"
-        in proj
+        and "if (visible && (isMeasurable(target) || isContainerEl(target))) {" in proj
+        and "target.getClientRects && target.getClientRects().length > 0" in proj
         and "showBox(target);" in proj,
     )
     # The handle follows the SELECTION, not the pointer: it draws at the block's

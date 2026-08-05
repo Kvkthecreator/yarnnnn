@@ -431,6 +431,28 @@ html[data-template="deck"] .slide {
   aspect-ratio: auto !important;
   flex: 0 0 auto;
 }
+/* ADR-520 D1 — the STAGE VIEW: a deck shows ONE slide (the PowerPoint/Figma
+   norm; the continuous scroll is a document idiom the staged medium never
+   asked for). Pure VIEW state — a class regime the runtime toggles, never
+   serialized (the zoom rule). The sequence lives in the navigator filmstrip;
+   the fixed nav buttons page the stage in-canvas. */
+body.yarnnn-stage section.slide:not(.yarnnn-current) { display: none !important; }
+.yarnnn-stagenav {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  display: none; align-items: center; gap: 6px; z-index: 2147483646;
+  font: 500 0.72rem system-ui, sans-serif; color: #6b7280;
+  background: rgba(255,255,255,0.92); border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 999px; padding: 3px 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+body.yarnnn-stage .yarnnn-stagenav { display: flex; }
+.yarnnn-stagenav button {
+  border: 0; background: transparent; cursor: pointer; color: inherit;
+  font: inherit; font-size: 0.9rem; line-height: 1; padding: 2px 6px;
+  border-radius: 999px;
+}
+.yarnnn-stagenav button:hover { background: rgba(0,0,0,0.06); color: #111; }
+.yarnnn-stagenav button:disabled { opacity: 0.35; cursor: default; }
 `;
 
 // ADR-472 D3 — the IMAGES stage: a fixed-SIZE box whose real pixel dimensions
@@ -884,10 +906,87 @@ const POINTER_SCRIPT = `
   // ADR-447 (2026-07-13): canvas commands — scroll to a slide (navigator
   // selection moves the center display) + zoom (a VIEW control; scales the
   // rendered document via CSS zoom, never touches the file).
+  // ── ADR-520 D1: the STAGE VIEW's runtime half ─────────────────────────
+  // The parent enables the mode (yarnnn-view-mode, deck only); the runtime
+  // owns WHICH slide is shown — transient view state (the zoom rule), fed
+  // back through yarnnn-scroll-pos's existing slide field so a srcdoc reload
+  // restores the same stage. Every slide-addressed command below becomes
+  // stage-aware: "scroll to" MEANS "show" when the stage is on.
+  var stageNav = null;
+  function stageMode() { return document.body.classList.contains('yarnnn-stage'); }
+  function stageCurrent() {
+    var s = document.querySelectorAll('section.slide');
+    for (var i = 0; i < s.length; i++) {
+      if (s[i].classList.contains('yarnnn-current')) return i;
+    }
+    return s.length ? 0 : -1;
+  }
+  function stageShow(index) {
+    var s = document.querySelectorAll('section.slide');
+    if (!s.length) return;
+    var i = Math.max(0, Math.min(s.length - 1, index));
+    for (var k = 0; k < s.length; k++) s[k].classList.toggle('yarnnn-current', k === i);
+    window.scrollTo(0, 0);
+    if (stageNav) {
+      stageNav.querySelector('[data-dir="-1"]').disabled = i === 0;
+      stageNav.querySelector('[data-dir="1"]').disabled = i === s.length - 1;
+      stageNav.querySelector('.yarnnn-stagenav-count').textContent =
+        (i + 1) + ' / ' + s.length;
+    }
+    reportScroll();
+  }
+  function stageShowFor(el) {
+    // A cross-slide reach (breadcrumb, pane, select re-command) switches the
+    // stage to the target's slide first — a hidden target is unreachable.
+    if (!stageMode() || !el || !el.closest) return;
+    var slide = el.closest('section.slide');
+    if (!slide || slide.classList.contains('yarnnn-current')) return;
+    var s = document.querySelectorAll('section.slide');
+    for (var i = 0; i < s.length; i++) {
+      if (s[i] === slide) { stageShow(i); return; }
+    }
+  }
+  function ensureStageNav() {
+    if (stageNav) return;
+    stageNav = document.createElement('div');
+    stageNav.className = 'yarnnn-stagenav';
+    var prev = document.createElement('button');
+    prev.type = 'button'; prev.textContent = '‹'; prev.title = 'Previous slide (PgUp)';
+    prev.setAttribute('data-dir', '-1');
+    var count = document.createElement('span');
+    count.className = 'yarnnn-stagenav-count';
+    var next = document.createElement('button');
+    next.type = 'button'; next.textContent = '›'; next.title = 'Next slide (PgDn)';
+    next.setAttribute('data-dir', '1');
+    prev.addEventListener('click', function () { stageShow(stageCurrent() - 1); });
+    next.addEventListener('click', function () { stageShow(stageCurrent() + 1); });
+    stageNav.appendChild(prev); stageNav.appendChild(count); stageNav.appendChild(next);
+    document.body.appendChild(stageNav);
+  }
+  // PgUp/PgDn page the stage (the caret never owns these keys).
+  document.addEventListener('keydown', function (e) {
+    if (!stageMode()) return;
+    if (e.key !== 'PageUp' && e.key !== 'PageDown') return;
+    e.preventDefault();
+    stageShow(stageCurrent() + (e.key === 'PageUp' ? -1 : 1));
+  }, true);
+
   window.addEventListener('message', function (e) {
     var d = e.data;
     if (!d || typeof d !== 'object') return;
-    if (d.type === 'yarnnn-scroll-to-slide') {
+    if (d.type === 'yarnnn-view-mode') {
+      // ADR-520 D1 — enable/disable the stage. Idempotent; the shown slide
+      // survives re-commands (restore-scroll carries the remembered index).
+      if (d.stage) {
+        var was = stageMode();
+        document.body.classList.add('yarnnn-stage');
+        ensureStageNav();
+        if (!was) stageShow(Math.max(0, stageCurrent()));
+      } else {
+        document.body.classList.remove('yarnnn-stage');
+      }
+    } else if (d.type === 'yarnnn-scroll-to-slide') {
+      if (stageMode()) { stageShow(d.index); return; }
       var slides = document.querySelectorAll('section.slide');
       var s = slides[d.index];
       if (s && s.scrollIntoView) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -896,7 +995,10 @@ const POINTER_SCRIPT = `
       try {
         var blk = document.querySelector('[data-block-id="' +
           (window.CSS && CSS.escape ? CSS.escape(d.blockId) : d.blockId) + '"]');
-        if (blk && blk.scrollIntoView) blk.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (blk) {
+          stageShowFor(blk);
+          if (blk.scrollIntoView) blk.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       } catch (err) {}
     } else if (d.type === 'yarnnn-zoom' && typeof d.scale === 'number') {
       // zoom scales layout + scrollable area (unlike transform) — the honest
@@ -909,7 +1011,10 @@ const POINTER_SCRIPT = `
       try {
         var selTarget = document.querySelector('[data-block-id="' +
           (window.CSS && CSS.escape ? CSS.escape(d.blockId) : d.blockId) + '"]');
-        if (selTarget) window.__yarnnnSelect(selTarget);
+        if (selTarget) {
+          stageShowFor(selTarget);
+          window.__yarnnnSelect(selTarget);
+        }
       } catch (err) {}
     } else if (d.type === 'yarnnn-restore-scroll') {
       // The parent captured the pre-reload position (the runtime reports it on
@@ -924,10 +1029,17 @@ const POINTER_SCRIPT = `
       try {
         var restored = false;
         if (typeof d.slide === 'number' && d.slide >= 0) {
-          var target = document.querySelectorAll('section.slide')[d.slide];
-          if (target && target.scrollIntoView) {
-            target.scrollIntoView({ block: 'start' });
+          if (stageMode()) {
+            // ADR-520 D1: on the stage, restoring the position IS restoring
+            // the shown slide — the anchoring unit made literal.
+            stageShow(d.slide);
             restored = true;
+          } else {
+            var target = document.querySelectorAll('section.slide')[d.slide];
+            if (target && target.scrollIntoView) {
+              target.scrollIntoView({ block: 'start' });
+              restored = true;
+            }
           }
         }
         if (!restored && typeof d.y === 'number') window.scrollTo(0, d.y);
@@ -940,6 +1052,8 @@ const POINTER_SCRIPT = `
   var currentSlideIndex = function () {
     var slides = document.querySelectorAll('section.slide');
     if (!slides.length) return null;
+    // ADR-520 D1: on the stage the shown slide IS the position.
+    if (stageMode()) { var sc = stageCurrent(); return sc >= 0 ? sc : null; }
     var mid = (window.scrollY || 0) + (window.innerHeight || 0) / 2;
     var best = 0;
     var bestDist = Infinity;
@@ -1259,12 +1373,15 @@ const EDIT_CSS = `
   text-transform: uppercase; color: var(--yarnnn-chrome-accent);
   pointer-events: none;
 }
-/* ADR-516 D5 — a selected structural CONTAINER is legible: the box, border
-   only. No handles, no move band — a container is flow structure, and the
+/* ADR-516 D5 — a selected structural CONTAINER off the stage is legible: the
+   box, border only. No handles, no move band — no frame, no measure, and the
    chrome must not promise gestures the grain lacks (the "honest about
-   inertness" rule at the new grain). Geometry stays measurable-gated. */
+   inertness" rule at the new grain). */
 .yarnnn-selbox-container .yarnnn-selh,
 .yarnnn-selbox-container .yarnnn-selmove { display: none; }
+/* ADR-520 D2 — a STAGED container is adjustable: the eight handles live, the
+   move band hidden (move stays reorder-shaped; a container never positions). */
+.yarnnn-selbox-container-sizable .yarnnn-selmove { display: none; }
 .yarnnn-selh {
   position: absolute; width: 10px; height: 10px;
   border: 1.5px solid var(--yarnnn-chrome-accent); background: #fff; border-radius: 50%;
@@ -2760,13 +2877,18 @@ const OBJECT_SCRIPT = `
    *  does — being a column does not create a frame). */
   function isMeasurable(block) {
     if (!block) return false;
-    // ADR-466 P9 grain gate: only a BLOCK is measurable. Selection can also
-    // land on a slot or a page (the pointer ladder's coarser grains) and both
-    // pass closest('.slide') — which put the bounding box on a SLOT and sent
-    // geometry ops with no data-block-id (the red "Could not apply that here").
-    // A slot keeps its own affordances (persistent dashed bound, add-here);
-    // the object chrome is the block's alone.
-    if (!block.hasAttribute || !block.hasAttribute('data-block')) return false;
+    // ADR-466 P9 grain gate, as amended by ADR-520 D2: a BLOCK is measurable
+    // (media anywhere; anything on a stage), and a structural CONTAINER on
+    // the stage is too — w/h only, the operator's "the main container is
+    // unadjustable" friction. The kernel CSS (.slide [data-w]) never gated
+    // on the block grammar; only this function did. A PAGE stays out (the
+    // pointer ladder's coarsest grain has its own ops), and an off-stage
+    // container keeps no frame, no measure (ADR-461's mode truth).
+    if (!block.hasAttribute || !block.hasAttribute('data-block')) {
+      return !!(block.matches &&
+        block.matches('div[data-block-id]:not([data-block])') &&
+        block.closest && block.closest('.slide'));
+    }
     var kind = block.getAttribute('data-block');
     if (kind && MEASURE_MEDIA[kind]) return true;
     return !!(block.closest && block.closest('.slide'));
@@ -3315,7 +3437,12 @@ const OBJECT_SCRIPT = `
     box.style.height = (r.height / z + 2) + 'px';
     // The band is honest about inertness: no move cursor where no move exists.
     if (isContainerEl(block)) {
-      box.className = 'yarnnn-selbox yarnnn-selbox-static yarnnn-selbox-container';
+      // ADR-520 D2: a STAGED container is adjustable — handles live, move
+      // band still hidden (move stays reorder-shaped; a container is never
+      // positioned). Off the stage it keeps ADR-516 D5's static box.
+      box.className = block.closest && block.closest('.slide')
+        ? 'yarnnn-selbox yarnnn-selbox-container-sizable'
+        : 'yarnnn-selbox yarnnn-selbox-static yarnnn-selbox-container';
       return;
     }
     box.className = positionable(block)
@@ -3423,7 +3550,11 @@ const OBJECT_SCRIPT = `
           (window.CSS && CSS.escape ? CSS.escape(editing) : editing) + '"]');
       } catch (err) { target = null; }
     }
-    if (target && target.isConnected && (isMeasurable(target) || isContainerEl(target))) {
+    // ADR-520 D1: a target on a HIDDEN slide (the stage shows one at a time)
+    // has no client rect — a box around it would be a 0×0 lie at the origin.
+    var visible = target && target.isConnected &&
+      target.getClientRects && target.getClientRects().length > 0;
+    if (visible && (isMeasurable(target) || isContainerEl(target))) {
       showBox(target);
       if (editing != null) box.className += ' yarnnn-selbox-editing';
       syncFrameContext();

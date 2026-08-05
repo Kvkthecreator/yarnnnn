@@ -113,14 +113,22 @@ _check("posMeasures derives x/y from the served measures, block-staged only",
        and "(m.key === 'x' || m.key === 'y') && m.applies.includes('block-staged')" in tab)
 _check("the readback renders only in the POSITIONED state (flow shows no coordinates)",
        "positioned && posMeasures.length > 0 && (" in block_r)
-_check("Phase C not smuggled: the position readback is text, no input field",
-       "<input" not in block_r.split(">Position</p>")[1].split(">Layout</p>")[0])
+# ADR-520 D3 re-cut: numeric ENTRY landed (the two-clamp MeasureField) —
+# X/Y fields commit through onSetMeasure; "In flow" stays the only x/y clear.
+_check("ADR-520 D3: X/Y entry rides MeasureField through onSetMeasure",
+       "onCommit={(v) => onSetMeasure(m.key as 'x' | 'y', v)}" in block_r
+       and re.search(r"onSetMeasure:\s*\(key: 'w' \| 'h' \| 'x' \| 'y', value: number\)", tab)
+       is not None)
 
 # ── Singular implementation (no duplicate mounts after the moves) ──────────
 _check("ONE Position section (the tail mount is deleted, not shadowed)",
        block_r.count(">Position</p>") == 1 and tab.count(">Position</p>") == 1)
-_check("ONE size readback (merged into Layout; the old Size section is gone)",
-       tab.count("sizeMeasures.map") == 1 and ">Size</p>" not in tab)
+# ADR-520 D2 re-cut: the size fields mount at BOTH sizing grains (block Layout
+# + staged-container Layout) — exactly two, and never a third Size section.
+_check("size fields at exactly the two sizing grains; no Size section revival",
+       tab.count("sizeMeasures.map") == 2 and ">Size</p>" not in tab
+       and container_r.count("sizeMeasures.map") == 1
+       and block_r.count("sizeMeasures.map") == 1)
 _check("ONE Turn into mount (moved to Content, not copied)",
        tab.count(">Turn into</p>") == 1)
 _check("ONE media-picker mount (moved to container Content, not copied)",

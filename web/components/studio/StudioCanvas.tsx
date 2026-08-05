@@ -209,6 +209,10 @@ interface StudioCanvasProps {
   /** ADR-447: zoom the rendered document (a VIEW control — 1 = 100%). Never a
    *  file change; the artifact's real dimensions are untouched. */
   zoom?: number;
+  /** ADR-520 D1: the STAGE VIEW — a deck shows one slide at a time. The
+   *  runtime owns WHICH slide (transient view state, restored through the
+   *  existing scroll-pos/restore channel); this only turns the mode on. */
+  stage?: boolean;
 }
 
 // A staged layout's natural width (ADR-447 D7.7; ADR-471) — the projection
@@ -256,6 +260,7 @@ export function StudioCanvas({
   slashInvoke,
   scrollToBlock,
   zoom = 1,
+  stage = false,
 }: StudioCanvasProps) {
   const [projected, setProjected] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -342,6 +347,8 @@ export function StudioCanvas({
   selectedRef.current = selectedBlockId ?? null;
   const zoomRef = useRef(effectiveZoom);
   zoomRef.current = effectiveZoom;
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
 
   // The latest position the runtime reported (opaque origin — the parent can't
   // read scrollTop, so the runtime posts it). Restored after a structural reload
@@ -390,6 +397,9 @@ export function StudioCanvas({
     }
     // Re-apply the current zoom on a fresh load (the runtime resets on reload).
     win.postMessage({ type: 'yarnnn-zoom', scale: zoomRef.current }, '*');
+    // ADR-520 D1: re-enable the stage view BEFORE the position restore — the
+    // restore's slide index is what re-shows the remembered stage.
+    win.postMessage({ type: 'yarnnn-view-mode', stage: stageRef.current }, '*');
     // Restore the pre-reload position (a no-op at slide 0 / y=0 / first load).
     const pos = scrollPosRef.current;
     if (pos.slide != null || pos.y > 0) {
@@ -418,6 +428,11 @@ export function StudioCanvas({
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: 'yarnnn-zoom', scale: effectiveZoom }, '*');
   }, [effectiveZoom]);
+
+  // ADR-520 D1: stage mode follows the template (deck ↔ on). View-only.
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'yarnnn-view-mode', stage }, '*');
+  }, [stage]);
 
   // ADR-447: when the navigator selects a slide, scroll the canvas to it (the
   // nonce re-fires even on re-selecting the same slide).

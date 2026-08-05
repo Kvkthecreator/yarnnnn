@@ -982,11 +982,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [vocabulary],
   );
   const handleAddArrangement = useCallback(
-    (fragment: string, label: string) =>
-      applyOp(
+    (fragment: string, label: string) => {
+      const p = applyOp(
         (html) => insertArrangement(html, fragment, anchor),
         `${app.label}: add ${label}`,
-      ),
+      );
+      // ADR-520 D1 — the stage follows the new page (it lands after the
+      // anchored page; unanchored it appends, which the restore keeps showing
+      // only if the member was already on the tail — so name it explicitly).
+      if (anchor.slideIndex != null || anchor.pageIndex != null) {
+        const at = (anchor.slideIndex ?? anchor.pageIndex ?? 0) + 1;
+        setScrollToSlide((s) => ({ index: at, nonce: (s?.nonce ?? 0) + 1 }));
+      }
+      return p;
+    },
     [applyOp, anchor],
   );
   const handleApplyArrangement = useCallback(
@@ -1202,6 +1211,23 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [applyOp, selection, geometrySpecs],
   );
+  // ADR-520 D3 — numeric measure entry: the drag's keyboard twin. Same
+  // id-addressed op, same served spec, same two-clamp (setMeasure clamps at
+  // the write; the field clamps the input). Works on blocks AND staged
+  // containers (ADR-511 D5 — the op never asked for a kind).
+  const handleSetMeasureValue = useCallback(
+    (key: 'w' | 'h' | 'x' | 'y', value: number) => {
+      const id = selection?.blockId;
+      const specs = geometrySpecs();
+      const s = specs?.[key];
+      if (!id || !s) return;
+      void applyOp(
+        (html) => setMeasure(html, id, key, value, s),
+        `${app.label}: set ${id} ${key} ${Math.round(value)}${s.unit}`,
+      );
+    },
+    [applyOp, selection, geometrySpecs],
+  );
   // The escape hatch (Properties block scope): a positioned block returns to
   // the page's flow — both measures cleared, one revision.
   const handleReturnToFlow = useCallback(() => {
@@ -1343,6 +1369,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         onPointClear();
       } else if (verb === 'duplicate') {
         void applyOp((html) => duplicatePage(html, anchor), `${app.label}: duplicate ${noun}`);
+        // ADR-520 D1 — the stage follows the copy (it lands right after the
+        // original; on the one-slide stage an unfollowed duplicate is
+        // invisible feedback).
+        const at = (anchor.slideIndex ?? anchor.pageIndex ?? 0) + 1;
+        setScrollToSlide((s) => ({ index: at, nonce: (s?.nonce ?? 0) + 1 }));
       } else {
         void applyOp((html) => movePage(html, anchor, verb), `${app.label}: move ${noun} ${verb}`);
       }
@@ -2328,7 +2359,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onReorderSlide={reorderSlideFromNavigator}
               onReorderPages={reorderPagesFromNavigator}
               onDeletePages={deletePagesFromNavigator}
-              onSelectNode={selectNodeFromNavigator}
             />
             {/* The resize divider — drag to set the strip width (persisted). A
                 hair-wide hit target over the right border; md+ only (on mobile
@@ -2577,6 +2607,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
                 zoom={zoom}
+                // ADR-520 D1 — a deck edits on the STAGE (one slide shown);
+                // web stays a scroll (bands are a viewport medium, ADR-505).
+                stage={template === 'deck'}
               />
               {/* STUDIO.md Phase 3 §3 — the ancestor chain at the selection,
                   paged media only (flow's chain is caret → block → clear).
@@ -2789,6 +2822,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onContainerLayout={handleContainerLayout}
               measures={vocabulary?.measures ?? []}
               onClearMeasure={handleClearMeasure}
+              onSetMeasure={handleSetMeasureValue}
+              // ADR-520 D4 — the pane's structure affordances select through
+              // the SAME reaches the breadcrumb uses (path/Contents → node;
+              // the path's page segment → the navigator's page select).
+              onSelectNode={selectNodeFromNavigator}
+              onSelectPage={selectSlideFromNavigator}
               onApplyDesignSystem={handleApplyDesignSystem}
               onRemoveDesignSystem={handleRemoveDesignSystem}
               // ADR-487 D9 — the applied-system cue routes to the manage panel

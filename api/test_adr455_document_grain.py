@@ -129,8 +129,11 @@ def run() -> bool:
     # navigator is the paged strip; block picks ride the structure tree
     # (onSelectNode) and the same scroll bridge below.
     nav = (web / "components/studio/PagedNavigator.tsx").read_text()
-    _check("navigator: structure-tree picks are clickable (onSelectNode)",
-           "onClick={() => onSelectNode?.(n)}" in nav)
+    # ADR-520 D4 re-cut: the structure tree LEFT the navigator (the rail is
+    # the sequence); structure picks are the PANE's Contents rows now.
+    tab_520 = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    _check("structure picks are clickable in their ONE home (the pane's Contents)",
+           "onClick={() => onSelect(n)}" in tab_520 and "onSelectNode" not in nav)
 
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
     _check("runtime: yarnnn-scroll-to-block (the outline's scroll bridge)",
