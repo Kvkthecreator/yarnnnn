@@ -239,7 +239,16 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <NarrativeProvider onSurfaceChange={handleSurfaceChange}>
-      <ShellCompositor>{children}</ShellCompositor>
+      {/* The deploy receipt (2026-08-05): which commit built the running
+          shell, readable by any probe (minified-identifier greps always
+          miss; chunk hashes don't compare across build envs). Vercel
+          injects the sha at build time; local builds render "dev". */}
+      <div
+        data-shell-deploy={process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev'}
+        className="contents"
+      >
+        <ShellCompositor>{children}</ShellCompositor>
+      </div>
 
       {/* Setup Confirmation Modal - rendered inside NarrativeProvider */}
       <SetupConfirmModalWrapper />
