@@ -102,6 +102,11 @@ export interface StudioSelection {
   text: string;
   /** ADR-511 D3 — the operator-word name (slide, columns, column, heading…). */
   label?: string | null;
+  /** ADR-522 D4 — the nearest heading at or above this block (flow only).
+   *  Docs has no section unit, so this heading is what "this section" means:
+   *  from here to the next heading. Null on paged media. */
+  headingId?: string | null;
+  headingText?: string | null;
 }
 
 /** ADR-466 D5 — the galleries forewarn instead of post-failing: a slotless

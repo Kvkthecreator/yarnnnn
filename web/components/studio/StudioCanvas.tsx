@@ -69,6 +69,11 @@ export interface PointerEvent2 {
    *  columns, column, heading…), from the runtime's inlined label ladder.
    *  blockId set + blockKind null = a structural CONTAINER selection. */
   label?: string | null;
+  /** ADR-522 D4 — the nearest heading at or above this block (flow only).
+   *  Docs has no section unit (flat sibling headings, no wrapper), so this
+   *  heading IS what "this section" resolves to: from here to the next one. */
+  headingId?: string | null;
+  headingText?: string | null;
 }
 
 interface StudioCanvasProps {
@@ -213,6 +218,13 @@ interface StudioCanvasProps {
    *  runtime owns WHICH slide (transient view state, restored through the
    *  existing scroll-pos/restore channel); this only turns the mode on. */
   stage?: boolean;
+  /** ADR-522 D3: what is ON SCREEN, reported by the runtime on every scroll
+   *  settle. Distinct from the selection — on a staged deck the member pages
+   *  with PgUp/PgDn and nothing is selected, so this is the ONLY signal that
+   *  says which slide they are looking at. The payload already existed (it
+   *  drives the post-reload position restore below); this lifts it out of the
+   *  ref so the surface can declare it as focus. */
+  onScrollPos?: (pos: { y: number; slide: number | null }) => void;
 }
 
 // A staged layout's natural width (ADR-447 D7.7; ADR-471) — the projection
@@ -261,6 +273,7 @@ export function StudioCanvas({
   scrollToBlock,
   zoom = 1,
   stage = false,
+  onScrollPos,
 }: StudioCanvasProps) {
   const [projected, setProjected] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -359,6 +372,10 @@ export function StudioCanvas({
   // (fluid document) is the pixel fallback. We hand back BOTH; the runtime
   // prefers the slide.
   const scrollPosRef = useRef<{ y: number; slide: number | null }>({ y: 0, slide: null });
+  // ADR-522 D3: the surface's viewport listener, held by ref so the message
+  // handler below stays stably bound (see the call site).
+  const onScrollPosRef = useRef(onScrollPos);
+  onScrollPosRef.current = onScrollPos;
 
   // FLOW caret restore (see commandEdit). `mode` as a ref because commandEdit is
   // a stable callback; `hadFocus` so we only ever RESTORE focus the member had,
@@ -490,6 +507,9 @@ export function StudioCanvas({
           slot: typeof d.slot === 'string' ? d.slot : null,
           arrange: typeof d.arrange === 'string' ? d.arrange : null,
           label: typeof d.label === 'string' ? d.label : null,
+          // ADR-522 D4 — the enclosing heading on flow ("this section").
+          headingId: typeof d.headingId === 'string' ? d.headingId : null,
+          headingText: typeof d.headingText === 'string' ? d.headingText : null,
         });
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();
@@ -514,6 +534,15 @@ export function StudioCanvas({
           y: d.y,
           slide: typeof d.slide === 'number' ? d.slide : null,
         };
+        // ADR-522 D3: the same reading, surfaced. The ref above is RESTORE
+        // state (it survives a reload); this is the live viewport the surface
+        // declares as focus. One payload, two consumers.
+        //
+        // Through a ref, NOT the dependency array below: this fires on every
+        // scroll settle, and mounts pass an inline callback — listing it as a
+        // dep would tear down and re-bind the whole message listener on each
+        // report.
+        onScrollPosRef.current?.(scrollPosRef.current);
       } else if (d.type === 'yarnnn-edit-exited') {
         onEditExited?.();
       } else if (d.type === 'yarnnn-edit-entered' && typeof d.blockId === 'string') {

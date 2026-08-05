@@ -38,6 +38,7 @@ import {
 } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { SurfaceFocusProvider } from '@/lib/shell/useSurfaceFocus';
 import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor/useComposition';
 import {
@@ -1027,7 +1028,16 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     ]
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  // ADR-522 — the focus declaration nests INSIDE the window manager, which is
+  // already the authority on what is foregrounded. An app declares what it is
+  // looking at; the chat mount reads the foregrounded app's declaration.
+  return (
+    <Ctx.Provider value={value}>
+      <SurfaceFocusProvider foregrounded={foregrounded}>
+        {children}
+      </SurfaceFocusProvider>
+    </Ctx.Provider>
+  );
 }
 
 export function useSurfacePreferences(): SurfacePreferences {

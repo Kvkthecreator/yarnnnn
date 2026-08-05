@@ -1910,12 +1910,82 @@ def extract_outline(artifact_content: str, limit: int = 24) -> list[str]:
     return out
 
 
-def build_studio_posture(artifact_path: str, artifact_content: str) -> str:
+def build_focus_line(focus: Optional[dict], template: str) -> str:
+    """ADR-522 D5 — one bullet naming where the member is standing.
+
+    The register is _POSTURE_FRAME's: operator words, "the member" as actor,
+    prose rather than key-value, and **1-indexed** page numbers (the state is
+    0-indexed; the member counts from one — the same conversion
+    SelectionBreadcrumb's `pageNoun` and Studio's `askAboutSelection` already
+    make).
+
+    This is NOT ADR-446 D5's auto-seed returning. That was cut because it
+    appended prose to the MEMBER'S composer on every click — visible spam they
+    had to delete. This is a server-rendered line in the system posture, once
+    per turn, which the member never sees and never has to clean up.
+
+    Returns "" when nothing is declared: an app that declares nothing costs
+    nothing.
+    """
+    if not focus:
+        return ""
+
+    scope = (focus.get("scope") or "document").strip()
+    label = (focus.get("label") or "").strip()
+    excerpt = (focus.get("excerpt") or "").strip()
+    page = focus.get("page_index")
+    viewport = focus.get("viewport_page_index")
+    # The member's word for a page unit; a deck has slides, everything else
+    # has sections (the SelectionBreadcrumb precedent).
+    page_noun = "slide" if template == "deck" else "section"
+
+    def _quoted(text: str) -> str:
+        clipped = text[:80].strip()
+        return f' — "{clipped}"' if clipped else ""
+
+    if scope == "block":
+        thing = label or "block"
+        # A heading names the SECTION the member is writing in (D4) — but ONLY
+        # on flow. Docs has no section unit, so the heading is the truest
+        # available answer there and "this section" means from it to the next.
+        # On a PAGED medium the page is already the unit, so a heading is just
+        # a selected block and saying "writing under" would be false.
+        if thing == "heading" and page_noun == "section":
+            named = f' "{excerpt[:80].strip()}"' if excerpt else " (untitled)"
+            return f"- The member is writing under the heading{named}."
+        return f"- The member has the {thing} block selected{_quoted(excerpt)}."
+    if scope == "container":
+        thing = label or "container"
+        # Operator words are sometimes plural ("columns"), so agree the article
+        # rather than always emitting "a".
+        article = "the" if thing.endswith("s") else "a"
+        return f"- The member has {article} {thing} selected{_quoted(excerpt)}."
+    if scope == "page":
+        if page is None:
+            return ""
+        # D3: "viewing" (it is on screen) vs "selected" (they picked it). When
+        # the page index came from the viewport alone, say viewing — that is
+        # the staged-deck case, where paging changes what is shown and nothing
+        # is selected.
+        verb = "is viewing" if page == viewport else "has selected"
+        return f"- The member {verb} {page_noun} {page + 1}."
+    return ""
+
+
+def build_studio_posture(
+    artifact_path: str,
+    artifact_content: str,
+    focus: Optional[dict] = None,
+) -> str:
     """The bound lane's authoring posture — pure, composed per turn.
 
     ``artifact_content`` is the artifact's CURRENT head (the runner reads it
     fresh each turn — derived, never stored). An empty/missing artifact still
     yields a posture: the lane can (re)create the file at the bound path.
+
+    ``focus`` (ADR-522) is what the member is looking at THIS turn — one
+    bullet, optional, transient. Absent → byte-identical to the pre-ADR-522
+    posture.
     """
     template = extract_template(artifact_content) or "document"
     # Registry-resolved fallback (ADR-518 D3): `document` is Docs' row now, and
@@ -1933,6 +2003,12 @@ def build_studio_posture(artifact_path: str, artifact_content: str) -> str:
         else "- The artifact is currently empty or missing — create it at the "
              "bound path from the member's direction."
     )
+    # ADR-522 D5: the focus bullet rides as a sibling of the outline, before
+    # the first `- PATCH` line — the member's PLACE reads next to the
+    # artifact's SHAPE, which is the order the two are used in.
+    focus_line = build_focus_line(focus, template)
+    if focus_line:
+        outline_section = f"{outline_section}\n{focus_line}"
     return _POSTURE_FRAME.format(
         path=artifact_path,
         template=template,

@@ -508,6 +508,30 @@ const POINTER_SCRIPT = `
     var page = el && el.closest ? el.closest('[data-arrange]') : null;
     return page ? (page.getAttribute('data-arrange') || null) : null;
   }
+  // ADR-522 D4 — the nearest heading at or above this point, in document
+  // order. Docs (flow) has NO section unit: headings are flat siblings with no
+  // containing element and no heading-to-body nesting, so "this section" can
+  // only honestly mean "from this heading to the next". We report the heading
+  // BLOCK — the thing that actually exists — and never claim a container the
+  // substrate cannot back. Real <section> wrappers are deferred to their own
+  // ADR (ADR-522 §5).
+  function headingAboveOf(el) {
+    if (!el || !el.closest) return null;
+    var blk = el.closest('[data-block]');
+    if (!blk) return null;
+    // The block itself is the heading — no walk needed.
+    if (/^h[1-6]$/i.test(blk.tagName || '')) return blk;
+    var heads = document.querySelectorAll('h1[data-block-id], h2[data-block-id]');
+    if (!heads.length) return null;
+    var best = null;
+    for (var i = 0; i < heads.length; i++) {
+      // DOCUMENT_POSITION_PRECEDING (2) — the heading comes before the block.
+      var rel = blk.compareDocumentPosition(heads[i]);
+      if (rel & 2) best = heads[i];
+      else break; // past the block in document order; the last hit is nearest.
+    }
+    return best;
+  }
 
   document.addEventListener('click', function (e) {
     var t = e.target;
@@ -591,6 +615,14 @@ const POINTER_SCRIPT = `
         slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
         arrange: arrangeOf(el),
       };
+      // ADR-522 D4: the enclosing "section" on flow — the nearest heading at
+      // or above this block. Null on a paged medium (a slide is the unit
+      // there) and null in a document with no headings yet.
+      var headEl = headingAboveOf(el);
+      payload.headingId = headEl ? (headEl.getAttribute('data-block-id') || null) : null;
+      payload.headingText = headEl
+        ? (headEl.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 80)
+        : null;
       // Single-click-to-edit (ADR audit F4): a click on a TEXT block enters
       // edit with the caret at the click point — the Notion default (click =
       // caret, no separate select step). Non-text blocks (media/structured/

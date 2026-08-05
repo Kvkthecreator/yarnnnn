@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { api } from '@/lib/api/client';
+import { useCurrentFocus, focusToWire } from '@/lib/shell/useSurfaceFocus';
 import { formatDaySeparator, formatAbsolute } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -213,6 +214,12 @@ export function LanePanel({
   // Phase-A turn controls: the in-flight stream's abort handle (stop), the
   // user message being edited (edit-and-resend), copy feedback.
   const abortRef = useRef<AbortController | null>(null);
+  // ADR-522 D2 — what the member is looking at, from the shell. Held by ref so
+  // the send callback stays stable: focus updates on every click and scroll
+  // settle, and listing it as a dep would rebuild the turn machinery each time.
+  const currentFocus = useCurrentFocus();
+  const focusRef = useRef(currentFocus);
+  focusRef.current = currentFocus;
   const [editing, setEditing] = useState<{ id: string; original: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Phase-A attachments: composer chips (upload → send as turn refs).
@@ -550,6 +557,15 @@ export function LanePanel({
             signal: controller.signal,
             replaceFromMessageId: opts.replaceFromMessageId,
             attachments: opts.attachments,
+            // ADR-522 D2: what the member is looking at, read at SEND time —
+            // focus is volatile (it changes between turns and within one), so
+            // the reading that matters is the one at the moment they ask.
+            //
+            // Read from the shell, NOT declared as a mount slot: focus is
+            // window-manager state (the foregrounded app's declaration), so a
+            // slot would make every mount re-plumb the same value. The ADR-441
+            // D2 rule is about the mount's FRAME, and this isn't one.
+            focus: focusRef.current ? focusToWire(focusRef.current) : undefined,
           });
         } else {
           await api.lanes.regenerateStream(laneId, handlers, {

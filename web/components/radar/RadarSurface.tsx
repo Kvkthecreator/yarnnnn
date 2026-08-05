@@ -31,6 +31,7 @@ import { api } from '@/lib/api/client';
 import {
   useSurfaceParam, useSurfacePreferences,
 } from '@/lib/shell/useSurfacePreferences';
+import { useDeclareFocus } from '@/lib/shell/useSurfaceFocus';
 
 // ---------------------------------------------------------------------------
 // Shapes (mirror routes/radar.py)
@@ -100,6 +101,31 @@ export default function RadarSurface() {
   const [viewLoading, setViewLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ADR-522 — Radar declares its focus DELIBERATELY. Before this, Radar
+  // contributed `radar.topic` to the ADR-398 locator by pure accident: that
+  // string is built by scraping the foregrounded surface's URL params, so an
+  // app with no chat integration at all still leaked context. Here the hub is
+  // named on purpose, and an app that declares nothing contributes nothing.
+  //
+  // The hub is the unit. A brief is NOT a Radar focus — briefs open in Files
+  // (Quick Look), because a brief is a plain markdown file and the record must
+  // never require the app.
+  useDeclareFocus(
+    'radar',
+    selected
+      ? {
+          app: 'radar',
+          path: view?.declaration_path ?? null,
+          scope: 'document',
+          id: null,
+          pageIndex: null,
+          label: selected,
+          excerpt: view?.latest_brief_title ?? null,
+          viewport: null,
+        }
+      : null,
+  );
 
   const loadHubs = useCallback(async (): Promise<HubSummary[]> => {
     try {

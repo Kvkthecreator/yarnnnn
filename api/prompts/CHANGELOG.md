@@ -6,6 +6,53 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.06.1] - ADR-522: the focus declaration — one bullet naming where the member stands
+
+### Changed
+- `services/studio.py`: new `build_focus_line(focus, template)` + a `focus`
+  parameter on `build_studio_posture`. When the shell declares what the member
+  is looking at, the posture gains **one bullet** as a sibling of the outline,
+  before the first `- PATCH` line:
+  - `- The member is viewing slide 4.` (on screen, nothing selected)
+  - `- The member has selected slide 4.` (picked, not merely shown)
+  - `- The member has the prose block selected — "Our pricing has…".`
+  - `- The member is writing under the heading "Pricing".` (flow only)
+- `services/lane_runner.py`: `focus` threaded through
+  `build_lane_conventions` + both runners to the posture. Rides the same
+  per-turn overlay as the artifact head — both are readings of the bound
+  artifact (what it IS, where the member IS in it).
+- `routes/lanes.py`: new `LaneFocus` model + optional `focus` on
+  `LaneTurnRequest`. Read off the REQUEST, never off `lane_meta`: the durable
+  binding says which artifact, the transient focus says where in it.
+
+### Why this is an addition (the ADR-306 bar)
+An **observed, repeated failure**, not a speculative one: a live Studio session
+where the operator wrote "tidy up this slide" with a deck open, a slide on the
+stage, and nothing selected — the agent could not act and had to ask *which
+slide*. The audit found the gap was structural (the lane wire had no field for
+view context and never had), so no amount of prompt prose could have fixed it.
+The deictic asks natural to an authoring surface — "this slide", "this
+section", "this block" — were all unanswerable.
+
+### Cost
+One line, ~15 tokens, only when an app declares focus. **Absent → the posture
+is byte-identical to pre-ADR-522** (verified: the no-focus posture composes
+unchanged, and the focus posture is exactly one line longer).
+
+### Expected behavior
+The lane resolves deictic reference without a clarifying round-trip: "tidy up
+this slide" acts on the slide on screen; "rewrite this section" acts on the
+heading the caret sits under. Page numbers are **1-indexed** for the member
+(the state is 0-indexed — the `pageNoun` / `askAboutSelection` precedent).
+
+### Not a return of ADR-446 D5
+That decision cut selection→chat because auto-seeding appended prose to the
+MEMBER'S composer on every click — visible spam they had to delete. This is a
+server-rendered line in the system posture, once per turn, which the member
+never sees and never cleans up.
+
+---
+
 ## [2026.08.04.1] - ADR-516: the layout tokens leave the lane's grammar
 
 ### Changed

@@ -31,6 +31,7 @@ import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { residentFor } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useDeclareFocus, type SurfaceFocus } from '@/lib/shell/useSurfaceFocus';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
@@ -605,6 +606,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       arrange: p.arrange,
       text: p.text,
       label: p.label ?? null,
+      headingId: p.headingId ?? null,
+      headingText: p.headingText ?? null,
     });
   }, []);
   const onPointClear = useCallback(() => {
@@ -746,6 +749,89 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // genuinely known, and runs the per-block grammar until then.
   const resolvedMode: 'flow' | 'paged' | undefined =
     vocabulary?.layouts.find((l) => l.slug === template)?.mode;
+
+  // ── ADR-522: the focus declaration — what the member is looking at ──────
+  //
+  // D3: the VIEWPORT, distinct from the selection. On a staged deck the member
+  // pages with PgUp/PgDn and selects nothing, so this is the only signal that
+  // says which slide is on screen. The runtime already reported it; ADR-522
+  // lifted it out of StudioCanvas's restore ref.
+  const [viewportPage, setViewportPage] = useState<number | null>(null);
+  const onScrollPos = useCallback((pos: { y: number; slide: number | null }) => {
+    setViewportPage(pos.slide);
+  }, []);
+
+  // Compose the declaration. Precedence (D3): the SELECTION wins where it
+  // exists — it is the finer, truer answer — and the viewport fills where it
+  // doesn't. `document` scope means "this artifact, nothing finer", which is
+  // the honest reading when the member has neither selected nor scrolled.
+  const focus = useMemo<SurfaceFocus | null>(() => {
+    if (!artifactPath) return null;
+    const viewport = viewportPage != null ? { pageIndex: viewportPage } : null;
+    const base = { app: app.slug, path: relPath(artifactPath), viewport };
+    const s = selection;
+
+    // Block grain — a vocabulary block.
+    if (s?.blockId && s.blockKind) {
+      // D4, flow only: name the SECTION the member is writing in — the nearest
+      // heading at or above the caret. Docs has no section unit (flat sibling
+      // headings, no wrapper), so the heading block IS the section, and "this
+      // section" means from it to the next. On a paged medium the slide is
+      // already the unit, so the heading adds nothing and we keep the block.
+      if (layoutMode === 'flow' && s.headingId && s.headingId !== s.blockId) {
+        return {
+          ...base,
+          scope: 'block' as const,
+          id: s.headingId,
+          pageIndex: null,
+          label: 'heading',
+          excerpt: s.headingText || null,
+        };
+      }
+      return {
+        ...base,
+        scope: 'block' as const,
+        id: s.blockId,
+        pageIndex: s.slideIndex ?? s.pageIndex ?? null,
+        label: s.label ?? s.blockKind,
+        excerpt: s.text || null,
+      };
+    }
+    // Container grain — identity but no vocabulary (ADR-511 D3).
+    if (s?.blockId) {
+      return {
+        ...base,
+        scope: 'container' as const,
+        id: s.blockId,
+        pageIndex: s.slideIndex ?? s.pageIndex ?? null,
+        label: s.label ?? null,
+        excerpt: s.text || null,
+      };
+    }
+    // Page grain — a selected slide/section, or (D3) merely the one on screen.
+    const pageIdx = s?.slideIndex ?? s?.pageIndex ?? viewportPage;
+    if (pageIdx != null) {
+      return {
+        ...base,
+        scope: 'page' as const,
+        id: null,
+        pageIndex: pageIdx,
+        label: s?.label ?? (template === 'deck' ? 'slide' : 'section'),
+        excerpt: s?.text || null,
+      };
+    }
+    // Nothing finer than the artifact itself.
+    return {
+      ...base,
+      scope: 'document' as const,
+      id: null,
+      pageIndex: null,
+      label: template || null,
+      excerpt: null,
+    };
+  }, [artifactPath, app.slug, selection, viewportPage, template, layoutMode]);
+
+  useDeclareFocus(app.slug, focus);
   // One payload, two lifetimes — and that was the bug (ADR-462 D12). Blocks /
   // arrangements / tokens are KERNEL CONSTANTS: fetch once, cache forever,
   // correct. `design_systems` is WORKSPACE STATE that changes while the member
@@ -2769,6 +2855,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 // ADR-520 D1 — a deck edits on the STAGE (one slide shown);
                 // web stays a scroll (bands are a viewport medium, ADR-505).
                 stage={template === 'deck'}
+                onScrollPos={onScrollPos}
               />
               {/* STUDIO.md Phase 3 §3 — the ancestor chain at the selection,
                   paged media only (flow's chain is caret → block → clear).

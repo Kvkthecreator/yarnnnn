@@ -322,6 +322,7 @@ def build_lane_conventions(
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
     agent: Optional[str] = None,
+    focus: Optional[dict] = None,
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -403,7 +404,12 @@ def build_lane_conventions(
         # rule the comment above states ("the binding postures below are the
         # JOB, this is the colleague") is now what the code does. Three
         # overlays, one rule: every binding APPENDS to the character.
-        posture_section += "\n" + build_studio_posture(artifact_path, artifact) + "\n"
+        # ADR-522: the focus rides the SAME overlay as the artifact head — both
+        # are per-turn readings of the bound artifact (what it IS, where the
+        # member IS in it), so they compose in one place.
+        posture_section += (
+            "\n" + build_studio_posture(artifact_path, artifact, focus) + "\n"
+        )
         # ADR-449 D4: when the workspace has a design system, the bound lane
         # learns the Skin contract as an ADDITIVE section (composed here, not
         # in build_studio_posture — the studio posture frame is the ADR-447
@@ -461,6 +467,9 @@ async def run_lane_turn(
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
+    # ADR-522 — what the member is looking at THIS turn (transient; never
+    # persisted). Threaded straight to the posture; None → byte-identical.
+    focus: Optional[dict] = None,
     # ADR-460 D4 — WHO the member is talking to: the kernel Agent slug whose
     # posture this turn composes. None on Studio/derive lanes and every
     # pre-registry lane (they run byte-identically).
@@ -520,6 +529,7 @@ async def run_lane_turn(
         artifact_path=artifact_path,
         derive_recipe=derive_recipe, derive_source=derive_source,
         agent=agent,
+        focus=focus,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
@@ -652,6 +662,8 @@ async def run_lane_turn_stream(
     artifact_path: Optional[str] = None,
     derive_recipe: Optional[str] = None,
     derive_source: Optional[str] = None,
+    # ADR-522 — the focus declaration; see ``run_lane_turn``.
+    focus: Optional[dict] = None,
     # ADR-460 D4 — the Agent slug; see ``run_lane_turn``.
     agent: Optional[str] = None,
     # W0 / ADR-457 D8 — the falsifier join key; see ``run_lane_turn``.
@@ -712,6 +724,7 @@ async def run_lane_turn_stream(
         artifact_path=artifact_path,
         derive_recipe=derive_recipe, derive_source=derive_source,
         agent=agent,
+        focus=focus,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.

@@ -64,6 +64,7 @@ import type {
 // SurfacesResponse (including surfaces[]), so useComposition can be primed
 // from it directly. Type-only import — erased at runtime, no layering cost.
 import type { SurfacesResponse } from "@/lib/compositor/types";
+import type { FocusWire } from "@/lib/shell/useSurfaceFocus";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -532,6 +533,9 @@ export const api = {
         replaceFromMessageId?: string;
         /** Phase-A attachments: raw upload refs this turn carries. */
         attachments?: Array<{ path: string; kind: "image" | "file"; name?: string }>;
+        /** ADR-522 D2: what the member is looking at — per-turn, because focus
+         *  is volatile. The durable lane↔artifact binding is separate. */
+        focus?: FocusWire;
       },
     ): Promise<void> =>
       streamLaneTurn(
@@ -542,6 +546,7 @@ export const api = {
             ? { replace_from_message_id: opts.replaceFromMessageId }
             : {}),
           ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
+          ...(opts?.focus ? { focus: opts.focus } : {}),
         },
         handlers,
         opts?.signal,

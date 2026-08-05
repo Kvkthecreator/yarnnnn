@@ -72,8 +72,36 @@ class LaneAttachment(BaseModel):
     name: Optional[str] = None
 
 
+class LaneFocus(BaseModel):
+    """ADR-522 — what the member is looking at when they ask.
+
+    Per-turn and transient: focus changes between turns and within one, so it
+    is never persisted (the durable lane↔artifact binding lives on
+    ``context_metadata.lane`` and answers a different question — WHICH file,
+    not WHERE in it).
+
+    ``scope`` is ADR-519 D1's four-grain hierarchy, not ADR-453's dissolved
+    block→slot→page ladder. The shell declares it; the server renders one
+    bullet from it and never parses ``path`` for authority (the lane binding
+    is the authority on which artifact this lane may write).
+    """
+
+    app: str
+    path: Optional[str] = None
+    scope: str = "document"  # document | page | container | block
+    id: Optional[str] = None
+    page_index: Optional[int] = None
+    label: Optional[str] = None
+    excerpt: Optional[str] = None
+    viewport_page_index: Optional[int] = None
+
+
 class LaneTurnRequest(BaseModel):
     content: str
+    # ADR-522 D2: the focus declaration for THIS turn. Optional throughout —
+    # an app that declares nothing sends nothing, and the posture simply
+    # carries no focus line.
+    focus: Optional[LaneFocus] = None
     # Phase-A turn controls: edit-and-resend. When set, the transcript tail is
     # truncated from this USER message (inclusive) before the turn runs. The
     # no-rewind rule (three-axes discourse §3): truncation is transcript-only —
@@ -935,6 +963,10 @@ def _turn_stream_response(
                 # ADR-450 D3 — a derive-bound lane's turns carry the recipe.
                 derive_recipe=lane_meta.get("derive_recipe"),
                 derive_source=lane_meta.get("derive_source"),
+                # ADR-522 — WHERE the member is standing, this turn. Read off
+                # the request (transient), never off `lane_meta` (durable):
+                # the binding says WHICH artifact, the focus says where in it.
+                focus=req.focus.model_dump() if req.focus else None,
                 # ADR-460 D4 — WHO the member is talking to: the Agent's
                 # posture composes at turn time from this slug. ADR-495 D3: the
                 # slug comes from the CAST (`responder`, resolved above), so an
