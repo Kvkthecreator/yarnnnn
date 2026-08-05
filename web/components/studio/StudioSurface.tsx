@@ -369,7 +369,21 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }, [artifactPath, lanesEnabled, boundLane]);
 
   // ── The artifact itself (the surface owns the load; canvas projects) ───
+  // TWO signals, because "refetch the file" and "my edit history is no longer
+  // valid" are different facts and only one of them is about authorship.
+  //
+  //   reloadKey  — refetch + drop the local override. Bumped by ANY reload:
+  //                a foreign write, an own server-side write (retitle), a
+  //                failed op, the member's explicit reload button.
+  //   foreignKey — a write this member did NOT make landed on this file. Only
+  //                THIS clears undo/redo, because a snapshot cannot be rebased
+  //                onto someone else's change.
+  //
+  // Before the split, history hung off reloadKey, so an own retitle — which
+  // touches no block content and invalidates nothing — silently threw away the
+  // member's whole undo stack.
   const [reloadKey, setReloadKey] = useState(0);
+  const [foreignKey, setForeignKey] = useState(0);
   // `error` is read, not discarded. useFileLoad deliberately separates a 404
   // ("no longer at this path") from a real load failure, and Studio was throwing
   // that distinction away: any 500 fell into the notFound branch and told the
@@ -440,8 +454,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // vocabulary. Populated by the effect below, once the vocabulary lands.
   const kernelStyleRef = useRef<string | undefined>(undefined);
 
-  // A path change or a foreign reload (reloadKey bump) starts fresh — drop any
-  // override so it can't shadow the authoritative reload.
+  // A path change or ANY refetch drops the override — it can't shadow content
+  // it did not descend from. This is the refetch signal's job and stays coupled
+  // to reloadKey; only the HISTORY signal is separate (see foreignKey).
   useEffect(() => {
     setLocalOverride(null);
   }, [artifactPath, reloadKey]);
@@ -450,8 +465,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (writtenPath: string) => {
       if (!artifactPath) return;
       if (relPath(writtenPath) === relPath(artifactPath)) {
-        // A FOREIGN write (the lane) genuinely changed the file — reload.
+        // A FOREIGN write (the lane) genuinely changed the file — refetch AND
+        // invalidate history: our snapshots predate a change we did not make.
         setReloadKey((k) => k + 1);
+        setForeignKey((k) => k + 1);
       }
     },
     [artifactPath],
@@ -756,13 +773,21 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // its own snapshot and clearing the redo branch it is walking.
   const undoStack = useRef<string[]>([]);
   const redoStack = useRef<string[]>([]);
-  const replaying = useRef(false);
+  // A COUNTER, not a boolean. A replay is async (the write queues), so a member
+  // holding ⌘Z overlaps them: with a boolean, the FIRST replay's `.finally()`
+  // cleared the flag while a later replay was still in flight, and the next
+  // press was then read as a fresh forward edit — it pushed the replayed state
+  // back onto the undo stack and CLEARED the redo branch. A fast undo run
+  // corrupted its own history and redo died mid-sequence. Counting depth means
+  // the flag is only clear once every replay has settled.
+  const replayDepth = useRef(0);
   useEffect(() => {
-    // A path change or foreign reload starts a fresh history — the same signal
-    // that drops the override (below), for the same reason.
+    // A path change or a FOREIGN write starts a fresh history. Not every
+    // reload: an own retitle refetches (reloadKey) but changes no block content,
+    // so the stack it used to discard was still perfectly valid.
     undoStack.current = [];
     redoStack.current = [];
-  }, [artifactPath, reloadKey]);
+  }, [artifactPath, foreignKey]);
 
   const writeAndAdvance = useCallback(
     (
@@ -787,7 +812,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // (that would make ⌘Z a no-op toggle) — replaying manages the stacks
       // itself. A fresh forward edit invalidates the redo branch, as every
       // editor does. Cap the depth so a long session can't grow unbounded.
-      if (!replaying.current && live) {
+      if (replayDepth.current === 0 && live) {
         undoStack.current.push(live.content);
         if (undoStack.current.length > 100) undoStack.current.shift();
         redoStack.current = [];
@@ -867,6 +892,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           );
           setLocalOverride(null);
           setReloadKey((k) => k + 1);
+          // The op did NOT land and we are about to take authoritative content
+          // from the server. Our snapshots describe a lineage that no longer
+          // exists (an unresolved 409 means a foreign write won), so the
+          // history is invalid here too — this is a foreign event, not a
+          // routine refetch.
+          setForeignKey((k) => k + 1);
           return false;
         }
       };
@@ -881,16 +912,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // ⌘Z — restore the previous snapshot; ⌘⇧Z — re-apply the one just undone.
   // Both replay a captured HTML string through the ONE write door as a full
   // replace, so the restore is a normal CAS-safe revision and the canvas
-  // re-projects (reload=true — the DOM shape may have changed). `replaying`
+  // re-projects (reload=true — the DOM shape may have changed). `replayDepth`
   // stops the door from pushing the replayed before-state back onto the stack.
   const handleUndo = useCallback(() => {
     const prev = undoStack.current.pop();
     if (prev == null) return; // nothing to undo — quiet no-op
     const current = liveRef.current?.content ?? '';
     redoStack.current.push(current);
-    replaying.current = true;
+    replayDepth.current += 1;
     void writeAndAdvance(() => prev, `${app.label}: undo`, true).finally(() => {
-      replaying.current = false;
+      replayDepth.current -= 1;
     });
   }, [writeAndAdvance]);
 
@@ -899,9 +930,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     if (nextState == null) return;
     const current = liveRef.current?.content ?? '';
     undoStack.current.push(current);
-    replaying.current = true;
+    replayDepth.current += 1;
     void writeAndAdvance(() => nextState, `${app.label}: redo`, true).finally(() => {
-      replaying.current = false;
+      replayDepth.current -= 1;
     });
   }, [writeAndAdvance]);
 
