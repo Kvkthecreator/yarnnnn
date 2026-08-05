@@ -103,6 +103,42 @@ import {
   type OpResult,
 } from './artifactOps';
 
+/**
+ * One step of the member's own edit lineage (ADR-523 D1).
+ *
+ * The snapshot is the restore mechanism; the rest is what a bare string could
+ * never carry. `structural` is the load-bearing field: a non-structural undo
+ * does NOT reload the iframe — it advances the override and lets the canvas
+ * re-project on content change, exactly the contract a text edit already uses.
+ * That is what removes the blink from the common case (typing, formatting,
+ * token changes) while leaving the structural path, which genuinely needs the
+ * reload, untouched.
+ */
+interface HistoryEntry {
+  /** The document BEFORE the op — what ⌘Z restores. */
+  content: string;
+  /** Operator-facing verb ("insert block", "type"), for coalescing + labels. */
+  label: string;
+  /** Did the DOM shape change? Gates the iframe reload on replay. */
+  structural: boolean;
+  /** What was selected when this happened — undo returns the member there. */
+  selectionId: string | null;
+  /** Capture time (ms) — the coalescing window's clock (ADR-523 D3). */
+  at: number;
+}
+
+/** ADR-523 D2: the history's memory ceiling, in bytes of retained document. */
+const HISTORY_BUDGET_BYTES = 24 * 1024 * 1024;
+/** Entries kept regardless of the byte budget, so a huge document still undoes. */
+const HISTORY_FLOOR = 20;
+/**
+ * ADR-523 D3: same-label text edits landing closer together than this fold into
+ * the open entry. A pause longer than this opens a new one, so ⌘Z rewinds the
+ * phrase the member paused after — the Google-Docs split between what gets
+ * SAVED (one revision per burst) and what gets UNDONE (a checkpoint per pause).
+ */
+const TEXT_COALESCE_MS = 600;
+
 interface LaneInfo {
   id: string;
   name: string;
@@ -765,14 +801,33 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // round-trip, no tree diff. `writeAndAdvance` is the single door every op
   // passes through, so it is where snapshots are captured.
   //
-  // Model (the ratified choices): whole ops one at a time (text edits already
-  // batch to one op on blur); session-scoped, cleared on any FOREIGN write to
-  // this file — you cannot undo across a conflict you did not make. An undo is
-  // itself a normal op (a full-content replace back through the door), so it is
-  // durable + CAS-safe like any other; the flag below just stops it re-pushing
-  // its own snapshot and clearing the redo branch it is walking.
-  const undoStack = useRef<string[]>([]);
-  const redoStack = useRef<string[]>([]);
+  // Model (the ratified choices): session-scoped, cleared on any FOREIGN write
+  // to this file — you cannot undo across a conflict you did not make (ADR-523
+  // §2 takes that ceiling deliberately rather than paying for 35 hand-written
+  // op inverses). An undo is itself a normal op (a full-content replace back
+  // through the door), so it is durable + CAS-safe like any other; the depth
+  // counter below just stops it re-pushing its own snapshot and clearing the
+  // redo branch it is walking.
+  //
+  // ADR-523 D1: an entry is a LINEAGE RECORD, not a bare string. The snapshot
+  // is still what makes restore correct, but a snapshot alone cannot say what
+  // the member did or where they were — so undo could only ever be a blunt
+  // whole-document swap that reloaded the iframe and dropped the selection.
+  const undoStack = useRef<HistoryEntry[]>([]);
+  const redoStack = useRef<HistoryEntry[]>([]);
+  // ADR-523 D2: bounded by BYTES, not by a count. A 100-entry cap is meaningless
+  // when one entry can be 40KB or 4MB — the old cap made memory proportional to
+  // document size. Evict oldest-first, but always keep a floor of recent entries
+  // so a huge document still has a usable history.
+  const trimHistory = useCallback((stack: HistoryEntry[]) => {
+    let bytes = 0;
+    for (const e of stack) bytes += e.content.length;
+    while (stack.length > HISTORY_FLOOR && bytes > HISTORY_BUDGET_BYTES) {
+      const dropped = stack.shift();
+      if (!dropped) break;
+      bytes -= dropped.content.length;
+    }
+  }, []);
   // A COUNTER, not a boolean. A replay is async (the write queues), so a member
   // holding ⌘Z overlaps them: with a boolean, the FIRST replay's `.finally()`
   // cleared the flag while a later replay was still in flight, and the next
@@ -781,6 +836,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // corrupted its own history and redo died mid-sequence. Counting depth means
   // the flag is only clear once every replay has settled.
   const replayDepth = useRef(0);
+  // Read the selection through a ref for the same reason as liveRef: the write
+  // door is a stable callback and must not re-bind every time the member clicks
+  // a different block, but it needs the selection as of THIS gesture.
+  const selectionIdRef = useRef<string | null>(null);
+  selectionIdRef.current = selection?.blockId ?? null;
   useEffect(() => {
     // A path change or a FOREIGN write starts a fresh history. Not every
     // reload: an own retitle refetches (reloadKey) but changes no block content,
@@ -807,14 +867,41 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const live = liveRef.current;
       const computed = compute(live?.content ?? '');
       if (computed == null) return Promise.resolve(false); // no-op against live state
-      // Snapshot the PRE-mutation content for undo (a whole op = one entry).
+      // Capture the PRE-mutation state as a lineage entry (ADR-523 D1).
       // Skipped while replaying: an undo/redo must not push its own before-state
-      // (that would make ⌘Z a no-op toggle) — replaying manages the stacks
+      // (that would make ⌘Z a no-op toggle) — the replay manages the stacks
       // itself. A fresh forward edit invalidates the redo branch, as every
-      // editor does. Cap the depth so a long session can't grow unbounded.
+      // editor does.
       if (replayDepth.current === 0 && live) {
-        undoStack.current.push(live.content);
-        if (undoStack.current.length > 100) undoStack.current.shift();
+        const now = Date.now();
+        const prev = undoStack.current[undoStack.current.length - 1];
+        // ADR-523 D3: COALESCE a fast run of same-label text edits into the
+        // entry already open, so history checkpoints at the member's pauses
+        // rather than at the write cadence. The write layer is untouched —
+        // revisions still batch on blur/idle-2s (ADR-444); this only decides
+        // how far ONE ⌘Z rewinds. Structural ops never coalesce: each is a
+        // discrete act the member expects to undo on its own.
+        const coalesce =
+          prev != null &&
+          !reload &&
+          !prev.structural &&
+          prev.label === message &&
+          now - prev.at < TEXT_COALESCE_MS;
+        if (coalesce) {
+          // Keep the OLDER content (the true before-state of the burst) and
+          // just extend the window — this is what makes ⌘Z rewind a phrase
+          // instead of a keystroke, without ever losing the burst's origin.
+          prev.at = now;
+        } else {
+          undoStack.current.push({
+            content: live.content,
+            label: message,
+            structural: reload,
+            selectionId: selectionIdRef.current,
+            at: now,
+          });
+          trimHistory(undoStack.current);
+        }
         redoStack.current = [];
       }
       // ADR-453 D2: the kernel element retrofits on first touch, at the one
@@ -909,32 +996,73 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [artifactPath, loadedFile],
   );
 
-  // ⌘Z — restore the previous snapshot; ⌘⇧Z — re-apply the one just undone.
-  // Both replay a captured HTML string through the ONE write door as a full
-  // replace, so the restore is a normal CAS-safe revision and the canvas
-  // re-projects (reload=true — the DOM shape may have changed). `replayDepth`
-  // stops the door from pushing the replayed before-state back onto the stack.
+  // ⌘Z — restore the previous state; ⌘⇧Z — re-apply the one just undone.
+  // Both replay a captured document through the ONE write door as a full
+  // replace, so the restore is a normal CAS-safe revision like any other op.
+  // `replayDepth` stops the door from pushing the replayed before-state back
+  // onto the stack.
+  //
+  // ADR-523 D1 — the reload is now CONDITIONAL on the entry's own `structural`
+  // flag. Every undo used to pass reload=true, so reverting a typo re-parsed the
+  // whole iframe, re-injected its runtimes and then restored scroll/caret/zoom
+  // by postMessage — a visible blink on the most common undo there is. A
+  // non-structural entry changed no DOM shape, so the canvas re-projects on the
+  // content change alone, exactly as it already does for a text edit.
+  //
+  // The replayed entry carries the SELECTION the member had at capture, so undo
+  // returns them to where the edit happened rather than leaving the canvas
+  // pointing at whatever was selected when they pressed ⌘Z.
+  const replay = useCallback(
+    (entry: HistoryEntry, verb: 'undo' | 'redo', onto: HistoryEntry[]) => {
+      const current = liveRef.current?.content ?? '';
+      // The counterpart entry mirrors the one being replayed: same lineage
+      // facts, so a redo blinks exactly as much (or as little) as its undo did.
+      onto.push({
+        content: current,
+        label: entry.label,
+        structural: entry.structural,
+        selectionId: selectionIdRef.current,
+        at: Date.now(),
+      });
+      trimHistory(onto);
+      replayDepth.current += 1;
+      void writeAndAdvance(
+        () => entry.content,
+        `${app.label}: ${verb}`,
+        entry.structural,
+      ).finally(() => {
+        replayDepth.current -= 1;
+      });
+      // Restore the member's place. Two guards, both load-bearing:
+      //   1. the block must still EXIST in the document being restored — a
+      //      structural undo can remove the very block that was selected;
+      //   2. we only ever RE-POINT an existing selection, never fabricate one.
+      //      StudioSelection carries kind/slide/page/slot/arrange that only the
+      //      canvas runtime can supply; synthesizing a partial here would put a
+      //      malformed selection into the toolbar's hands. When there is no
+      //      live selection the canvas re-points itself on re-projection.
+      if (entry.selectionId && entry.content.includes(entry.selectionId)) {
+        setSelection((sel) =>
+          sel && sel.blockId !== entry.selectionId
+            ? { ...sel, blockId: entry.selectionId }
+            : sel,
+        );
+      }
+    },
+    [writeAndAdvance, app.label, trimHistory],
+  );
+
   const handleUndo = useCallback(() => {
     const prev = undoStack.current.pop();
     if (prev == null) return; // nothing to undo — quiet no-op
-    const current = liveRef.current?.content ?? '';
-    redoStack.current.push(current);
-    replayDepth.current += 1;
-    void writeAndAdvance(() => prev, `${app.label}: undo`, true).finally(() => {
-      replayDepth.current -= 1;
-    });
-  }, [writeAndAdvance]);
+    replay(prev, 'undo', redoStack.current);
+  }, [replay]);
 
   const handleRedo = useCallback(() => {
     const nextState = redoStack.current.pop();
     if (nextState == null) return;
-    const current = liveRef.current?.content ?? '';
-    undoStack.current.push(current);
-    replayDepth.current += 1;
-    void writeAndAdvance(() => nextState, `${app.label}: redo`, true).finally(() => {
-      replayDepth.current -= 1;
-    });
-  }, [writeAndAdvance]);
+    replay(nextState, 'redo', undoStack.current);
+  }, [replay]);
 
   const applyOp = useCallback(
     async (compute: (html: string) => OpResult | null, message: string) => {
