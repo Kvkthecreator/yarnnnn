@@ -1,0 +1,184 @@
+eval_suite_schema_version: 3
+eval_suite: adr518-polish-click-pass
+
+# CURRENT (browser lane) — production sign-off for the ADR-518 polish pass
+# (c3f2a1e studio · a87a77c shell): the per-app voice actually serves per app
+# (landing glyph + tagline, revision-message attribution), the selection
+# breadcrumb renders and selects on paged media, and the cold-load bare-route
+# foreground race (recorded in run 1) is CLOSED — a fresh session navigating
+# a bare surface route foregrounds the surface the URL names.
+# Registered 2026-08-05; machine-checked by api/test_eval_suite_gate.py.
+#
+# NOTE ON THE LANE: `suite_kind: browser` — fired by a browser principal
+# (chrome-devtools MCP), never by run_eval_suite.py. Receipts are authed-API
+# reads executed from the principal's own page context. No governance surface
+# moved — single-principal by design (the playbook's principal-pair rule keys
+# on governance claims).
+status: current
+suite_kind: browser
+
+thesis: |
+  The polish pass is live end-to-end. Three-sided — all must hold:
+
+  1. THE COLD DOOR OPENS HONESTLY (the run-1 recorded race, fixed a87a77c).
+     A FRESH browser context cold-navigating the bare route /docs gets the
+     DOCS surface foregrounded — not the remembered foreground. The control
+     that reproduced the race (/studio) now foregrounds Studio.
+
+  2. THE VOICE IS THE APP'S OWN (c3f2a1e). Docs' landing wears the
+     file-text glyph and the writing invitation; Studio keeps the palette
+     glyph and the shaping invitation. A mechanical edit made in Docs lands
+     in the attributed record prefixed "Docs:", not "Studio:" — the record
+     names the door that was actually used.
+
+  3. THE BREADCRUMB WALKS THE CHAIN (STUDIO.md Phase 3 §3, c3f2a1e). On a
+     paged artifact with a selection, the crumb renders page › …chain… ›
+     selection in operator words; clicking an ancestor segment SELECTS it
+     through the existing selection paths. Flow shows no crumb.
+
+description: |
+  First browser pass over the ADR-518 polish commits (c3f2a1e + a87a77c,
+  pushed 2026-08-05). The unit gates (adr518_paged_navigator 9/9,
+  adr518_app_voice 10/10, studio_selection_breadcrumb 8/8,
+  shell_route_sync_cold_load 10/10 — all falsifier-receipted) cover the
+  source; THIS suite covers what they cannot: the deployed bundle serving
+  the voice, the breadcrumb rendering against a real artifact, and the
+  cold-load fix behaving in a real fresh session against production.
+
+  Deploy fingerprint: string literals only (minified identifier greps always
+  miss) — the Docs tagline "Name a document and start writing" ships only in
+  c3f2a1e — plus the GitHub commit status for a87a77c (Vercel).
+
+principals:
+  - owner:kvkthecreator@yarnnn.com   # 67c5c637-501d-43d1-836a-a15ff32b5901, owner of the rig
+
+workspace: bf5b25a9-477f-462e-b7f3-65812f489411   # kvk-yarnnn RIG — disposable
+artifact: |
+  (an existing rig deck for the breadcrumb lane; a document created by the
+  revision-voice lane — trashed at cleanup)
+
+baseline:
+  captured_at_run: true
+
+guardrails: |
+  - The RIG (bf5b25a9) is the subject; the LIVE workspace (d5b9029b) is never
+    touched.
+  - Login via api/scripts/operator/browser_login_link.py only (roster-guarded
+    in code). Never paste a minted URL anywhere that leaves this machine.
+  - THE COLD LANE IS THE POINT: the /docs cold-load observation must run in a
+    context whose module state has NOT visited any authoring surface this
+    page-load (a warm-session pass is a false positive — the run-1 lesson).
+    Hard-reload before the observation; re-snapshot after data lands (a11y
+    snapshots race fetches).
+  - In-canvas (inside-iframe) typing is NOT exercised (sandboxed iframe,
+    receipted 2026-08-01). The revision-voice op fires from PARENT chrome
+    (the toolbar Insert menu), which is legitimately drivable.
+  - The only mutations are the insert-op revisions on suite-created or
+    suite-cleaned artifacts; roster re-asserted at cleanup.
+
+known_deferred:
+  - "in-canvas editing (typing/drag) — human-owed, unchanged by this pass."
+  - "breadcrumb on a WEB artifact — same code path as deck (both paged, one
+    STRUCTURAL_PAGE_SEL); deck is the exercised instance this run."
+  - "member-pair lanes — no governance surface moved."
+
+steps:
+  # ------------------------------------------------------------ DEPLOY
+  - step: deploys-live-before-observations
+    principal: owner
+    surface: (GitHub commit status + the served bundle)
+    action: |
+      Assert a87a77c's Vercel status is success. Fingerprint the FE
+      behaviorally by string literal: the Docs landing serves the tagline
+      "Name a document and start writing" (ships only in c3f2a1e).
+    expect_dom: |
+      Commit status success; the tagline literal observed on /docs.
+    mutates: false
+
+  # ------------------------------------------------------------ COLD DOOR
+  - step: cold-bare-route-foregrounds-docs
+    principal: owner
+    surface: /docs (cold navigation, fresh page state)
+    action: |
+      Hard-load www.yarnnn.com/docs directly (no prior in-product
+      navigation this page-load). Wait for the roster to land; re-snapshot.
+    expect_dom: |
+      The DOCS surface is foregrounded (header "Docs", the writing
+      tagline) — NOT the remembered foreground surface. This exact
+      navigation showed Studio's landing in run 1.
+    mutates: false
+
+  - step: cold-bare-route-control-studio
+    principal: owner
+    surface: /studio (cold navigation)
+    action: |
+      Hard-load www.yarnnn.com/studio directly (fresh page state — the
+      run-1 control that rendered Files).
+    expect_dom: |
+      The STUDIO surface is foregrounded (header "Studio", the shaping
+      tagline).
+    mutates: false
+
+  # ------------------------------------------------------------ VOICE
+  - step: docs-landing-wears-the-writing-voice
+    principal: owner
+    surface: /docs
+    action: |
+      Observe the landing header glyph and subtitle.
+    expect_dom: |
+      The file-text glyph (not the palette); the subtitle invites WRITING
+      ("Name a document and start writing…"), not shape-picking.
+    mutates: false
+
+  - step: docs-revision-speaks-as-docs
+    principal: owner
+    surface: /docs (workbench on a suite-created document)
+    action: |
+      Create an untitled document in Docs. From PARENT chrome (toolbar
+      Insert), insert a block. Authed GET the file's revisions from the
+      session.
+    expect_dom: |
+      The head revision's message begins "Docs:" (was "Studio:" for every
+      app pre-c3f2a1e); authored_by=operator.
+    mutates: true
+    receipt: |
+      GET /api/workspace/file/revisions?path=<created>: head message
+      matches /^Docs: /.
+
+  # ------------------------------------------------------------ BREADCRUMB
+  - step: breadcrumb-walks-the-chain-on-a-deck
+    principal: owner
+    surface: /studio (workbench on a rig deck)
+    action: |
+      Open a rig deck. Select a slide from the navigator strip, then a
+      block via the structure tree (parent DOM). Observe the crumb over
+      the canvas; click its page segment.
+    expect_dom: |
+      With a page selected: the crumb reads "Slide N". With a block
+      selected: "Slide N › … › <operator-word>" — never "div". Clicking
+      the page segment re-selects the slide (crumb collapses to
+      "Slide N"). No crumb when nothing is selected.
+    mutates: false
+
+  - step: flow-earns-no-crumb
+    principal: owner
+    surface: /docs (workbench on the suite-created document)
+    action: |
+      With the document open, observe the canvas region for the crumb bar.
+    expect_dom: |
+      No selection breadcrumb renders on the flow medium (the mount is
+      paged-gated).
+    mutates: false
+
+  # ------------------------------------------------------------ CLEANUP
+  - step: cleanup-trash-test-document
+    principal: owner
+    surface: /files
+    action: |
+      Trash the suite-created document; re-read the artifact roster.
+    expect_dom: |
+      The roster matches the pre-run baseline.
+    mutates: true
+    receipt: |
+      Authed files listing equals the baseline roster captured before the
+      revision-voice step.
