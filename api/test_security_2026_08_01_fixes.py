@@ -176,6 +176,71 @@ def test_jwt_signature_verified():
         none_rejected = True
     _check(none_rejected, "jwt: alg=none downgrade rejected")
 
+    # Fail-closed (2026-08-05): an HS256 token with NO secret configured is
+    # rejected — the transitional unverified-decode fallback is deleted.
+    os.environ.pop("SUPABASE_JWT_SECRET", None)
+    unset_rejected = False
+    try:
+        sb.decode_jwt_payload(good)
+    except ValueError:
+        unset_rejected = True
+    _check(unset_rejected, "jwt: HS256 with no secret rejected (no unverified fallback)")
+    os.environ["SUPABASE_JWT_SECRET"] = secret
+
+
+def test_jwt_es256_jwks_verified():
+    # The prod lane (2026-08-05): Supabase's new-key system signs user tokens
+    # ES256; verification goes through the project JWKS. Stub the JWKS client
+    # with a locally generated P-256 pair so no network is needed.
+    import services.supabase as sb
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    priv = ec.generate_private_key(ec.SECP256R1())
+
+    class _Key:
+        def __init__(self, key):
+            self.key = key
+
+    class _StubJwks:
+        def get_signing_key_from_jwt(self, _tok):
+            return _Key(priv.public_key())
+
+    saved = sb._JWKS_CLIENT
+    sb._JWKS_CLIENT = _StubJwks()
+    try:
+        good = jwt.encode(
+            {"sub": "u2", "aud": "authenticated"}, priv, algorithm="ES256",
+            headers={"kid": "k1"},
+        )
+        _check(sb.decode_jwt_payload(good).get("sub") == "u2",
+               "jwt: ES256 via JWKS accepted")
+
+        other = ec.generate_private_key(ec.SECP256R1())
+        forged = jwt.encode(
+            {"sub": "attacker", "aud": "authenticated"}, other, algorithm="ES256",
+            headers={"kid": "k1"},
+        )
+        rejected = False
+        try:
+            sb.decode_jwt_payload(forged)
+        except ValueError:
+            rejected = True
+        _check(rejected, "jwt: ES256 forged signature rejected")
+
+        wrong_aud = jwt.encode(
+            {"sub": "u2", "aud": "anon"}, priv, algorithm="ES256",
+            headers={"kid": "k1"},
+        )
+        aud_rejected = False
+        try:
+            sb.decode_jwt_payload(wrong_aud)
+        except ValueError:
+            aud_rejected = True
+        _check(aud_rejected, "jwt: ES256 wrong audience rejected")
+    finally:
+        sb._JWKS_CLIENT = saved
+
 
 if __name__ == "__main__":
     print("test_security_2026_08_01_fixes")
@@ -189,6 +254,8 @@ if __name__ == "__main__":
     test_refresh_token_expiry_wired()
     print("E. main-api JWT signature verification")
     test_jwt_signature_verified()
+    print("F. main-api JWT ES256-via-JWKS verification")
+    test_jwt_es256_jwks_verified()
     if FAIL:
         print(f"\n{len(FAIL)} FAILED:")
         for f in FAIL:

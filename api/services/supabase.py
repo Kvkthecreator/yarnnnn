@@ -4,8 +4,6 @@ Supabase client configuration
 from __future__ import annotations
 
 import os
-import json
-import base64
 import logging
 from functools import lru_cache
 from typing import Iterator, Optional, Tuple
@@ -24,70 +22,82 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _unverified_payload(token: str) -> dict:
-    """Base64-decode the JWT payload WITHOUT signature verification. Internal —
-    callers must go through decode_jwt_payload, which verifies when it can."""
-    parts = token.split(".")
-    if len(parts) != 3:
-        raise ValueError("Invalid JWT format")
-    payload = parts[1]
-    padding = 4 - len(payload) % 4
-    if padding != 4:
-        payload += "=" * padding
-    return json.loads(base64.urlsafe_b64decode(payload))
+_JWKS_CLIENT = None
+
+
+def _get_jwks_client():
+    """The project's JWKS client, module-cached. The URL derives from
+    SUPABASE_URL, so ES256 verification needs no extra provisioning; the JWK set
+    itself is cached in-process (lifespan below) so steady-state requests never
+    refetch."""
+    global _JWKS_CLIENT
+    if _JWKS_CLIENT is None:
+        from jwt import PyJWKClient
+
+        _JWKS_CLIENT = PyJWKClient(
+            f"{get_supabase_url()}/auth/v1/.well-known/jwks.json",
+            cache_keys=True,
+            cache_jwk_set=True,
+            lifespan=3600,
+        )
+    return _JWKS_CLIENT
 
 
 def decode_jwt_payload(token: str) -> dict:
-    """Decode + VERIFY the Supabase user JWT.
+    """Decode + VERIFY the Supabase user JWT. Fail-closed: every token is
+    signature-checked before `sub` reaches any authorization decision
+    (resolve_workspace_for_principal, principal_id stamping) — the 2026-08-03
+    audit fix, completed 2026-08-05.
 
-    Security (2026-08-03): previously this base64-decoded the payload WITHOUT
-    checking the signature, trusting `sub` for the app's own authorization
-    (resolve_workspace_for_principal, principal_id stamping). PostgREST re-checks
-    the signature at the DB layer, but any service-client path that trusts
-    auth.user_id would accept a FORGED token. We now verify the HS256 signature
-    against SUPABASE_JWT_SECRET so a forged identity is rejected before it reaches
-    any authorization decision.
+    Two verification lanes, dispatched on the token's own header:
+    - ES256 → the project JWKS. Supabase's new-key system (the 2026-08-04
+      migration) signs user access tokens with asymmetric keys published at
+      /auth/v1/.well-known/jwks.json; there is no shared secret to configure.
+    - HS256 → SUPABASE_JWT_SECRET, for stacks still on the legacy shared
+      secret (local supabase). An HS256 token with no secret configured is
+      REJECTED, never unverified-decoded.
 
-    Rollout (2026-08-03): when SUPABASE_JWT_SECRET is present we verify and a
-    forged/invalid signature is REJECTED. When it is absent we fall back to the
-    old unverified decode but log an error every time — this keeps the deploy
-    NON-BREAKING while the env var is provisioned on the Render services. Once
-    the secret is confirmed set everywhere, flip `_REQUIRE_JWT_VERIFICATION` (or
-    set SUPABASE_JWT_REQUIRE=1) to fail closed on a missing secret. Tracked as
-    the follow-up to the 2026-08-03 JWT audit.
+    Each lane pins its algorithm list and key type, so a header-controlled
+    algorithm-confusion downgrade (ES256 key verified as HS256, alg=none)
+    cannot succeed.
     """
+    import jwt as _pyjwt
+
     try:
-        import jwt as _pyjwt
-
-        secret = os.environ.get("SUPABASE_JWT_SECRET")
-        if secret:
-            try:
-                # Supabase signs user JWTs HS256; audience is "authenticated".
-                return _pyjwt.decode(
-                    token,
-                    secret,
-                    algorithms=["HS256"],
-                    audience="authenticated",
-                    options={"verify_aud": True},
-                )
-            except _pyjwt.InvalidTokenError as e:
-                raise ValueError(f"JWT signature/claims invalid: {e}")
-
-        # No secret configured. Hard-fail only if explicitly required; otherwise
-        # fall back (logged) so provisioning the env var is a safe, ordered step.
-        if os.environ.get("SUPABASE_JWT_REQUIRE") == "1":
-            logger.error("[AUTH] SUPABASE_JWT_SECRET unset but SUPABASE_JWT_REQUIRE=1 — rejecting")
-            raise ValueError("JWT verification required but SUPABASE_JWT_SECRET unset")
-        logger.error(
-            "[AUTH] SUPABASE_JWT_SECRET unset — JWT decoded WITHOUT signature "
-            "verification (transitional). Set SUPABASE_JWT_SECRET on API + Scheduler, "
-            "then SUPABASE_JWT_REQUIRE=1 to fail closed."
-        )
-        return _unverified_payload(token)
-    except ValueError:
-        raise
-    except Exception as e:
+        header = _pyjwt.get_unverified_header(token)
+    except _pyjwt.InvalidTokenError as e:
         raise ValueError(f"Failed to decode JWT: {e}")
+
+    alg = header.get("alg")
+    try:
+        if alg == "ES256":
+            signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+            return _pyjwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["ES256"],
+                audience="authenticated",
+                options={"verify_aud": True},
+            )
+        if alg == "HS256":
+            secret = os.environ.get("SUPABASE_JWT_SECRET")
+            if not secret:
+                raise ValueError(
+                    "HS256 JWT but SUPABASE_JWT_SECRET unset — rejecting"
+                )
+            return _pyjwt.decode(
+                token,
+                secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+                options={"verify_aud": True},
+            )
+        raise ValueError(f"Unsupported JWT alg: {alg}")
+    except _pyjwt.PyJWKClientError as e:
+        logger.error("[AUTH] JWKS lookup failed: %s", e)
+        raise ValueError(f"JWT verification unavailable: {e}")
+    except _pyjwt.InvalidTokenError as e:
+        raise ValueError(f"JWT signature/claims invalid: {e}")
 
 
 @dataclass
