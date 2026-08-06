@@ -1907,13 +1907,45 @@ const EDIT_SCRIPT = `
   // change rather than captured on click, because the parent cannot tell the
   // runtime "I am about to steal focus".
   var lastLiveRange = null;
+  // The last block-set we told the parent about, as a joined id string — so a
+  // caret moving WITHIN one block does not re-post on every keystroke.
+  var lastRangeKey = '';
   document.addEventListener('selectionchange', function () {
     try {
       var s = window.getSelection();
-      if (!s || !s.rangeCount || s.isCollapsed) return; // a caret is not a range
-      var r = s.getRangeAt(0);
       var h = editHost();
-      if (h && h.contains(r.commonAncestorContainer)) lastLiveRange = r.cloneRange();
+      if (!s || !s.rangeCount || s.isCollapsed) {
+        // ADR-528 — the range collapsed (a click, an arrow key). The parent's
+        // range-scope must clear, or the pane keeps claiming a multi-block
+        // selection the member has already dismissed.
+        if (lastRangeKey) {
+          lastRangeKey = '';
+          parent.postMessage({ type: 'yarnnn-range', blockIds: [] }, '*');
+        }
+        return;
+      }
+      var r = s.getRangeAt(0);
+      if (!h || !h.contains(r.commonAncestorContainer)) return;
+      lastLiveRange = r.cloneRange();
+      // ADR-528 — REPORT THE BLOCK SET. The parent's selection was written
+      // only by a CLICK (yarnnn-point), so dragging across six blocks left the
+      // pane describing whichever block was clicked into last: it showed
+      // "HEADING · Heading 2 · Turn into" over a six-block range. Not
+      // wrong-looking, which is what made it hard to see — STALE.
+      //
+      // The block set is formatSegments' own derivation (ADR-521 D2's
+      // structure tier: the blocks a range intersects), so this reports what
+      // the format ops already act on rather than deriving a second answer.
+      var ids = [];
+      var segs = formatSegments();
+      for (var i = 0; i < segs.length; i++) {
+        var id = segs[i].block.getAttribute('data-block-id');
+        if (id) ids.push(id);
+      }
+      var key = ids.join(',');
+      if (key === lastRangeKey) return; // same blocks — nothing to re-say
+      lastRangeKey = key;
+      parent.postMessage({ type: 'yarnnn-range', blockIds: ids }, '*');
     } catch (err) {}
   });
 

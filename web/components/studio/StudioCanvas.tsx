@@ -95,6 +95,10 @@ interface StudioCanvasProps {
   onPoint?: (p: PointerEvent2) => void;
   /** The member clicked empty space — selection cleared. */
   onPointClear?: () => void;
+  /** ADR-528 — the blocks a live text range intersects (empty = collapsed).
+   *  The pane needs this because a RANGE is not a click: its scope must
+   *  follow the selection, not the last block the member clicked into. */
+  onRange?: (blockIds: string[]) => void;
   /** ADR-446: the block currently being edited in place (null = none). The
    *  surface holds this state; the canvas commands the iframe runtime. */
   editingBlockId?: string | null;
@@ -265,6 +269,7 @@ export function StudioCanvas({
   artifactPath,
   onPoint,
   onPointClear,
+  onRange,
   editingBlockId,
   selectedBlockId,
   onEdit,
@@ -582,6 +587,12 @@ export function StudioCanvas({
               ? d.tier
               : null,
         });
+      } else if (d.type === 'yarnnn-range' && Array.isArray(d.blockIds)) {
+        // ADR-528 — the blocks a live text RANGE intersects. Distinct from
+        // onPoint, which reports a CLICK: a drag across six blocks never
+        // fired onPoint again, so the pane kept describing the block that
+        // was clicked into. Empty array = the range collapsed.
+        onRange?.((d.blockIds as unknown[]).filter((x): x is string => typeof x === 'string'));
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();
       } else if (
@@ -722,7 +733,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
+  }, [onPoint, onPointClear, onRange, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
 
   return (
     <iframe

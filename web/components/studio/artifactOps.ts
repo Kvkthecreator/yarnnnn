@@ -1003,22 +1003,31 @@ function moveBlockTo(
   return { html: serialize(doc), landedId: blockId };
 }
 
-/** Move the selected block up/down among its sibling blocks — the Design tab's
+/** Move the selected element up/down among its siblings — the Design tab's
  *  accessible verb, now expressed on top of moveBlockTo (Singular Implementation
- *  with the drag). Up = before the previous block; down = before the block
- *  AFTER the next (so it lands past the next), or to the end. */
+ *  with the drag). Up = before the previous sibling; down = before the sibling
+ *  AFTER the next (so it lands past the next), or to the end.
+ *
+ *  The walk steps by `data-block-id`, NOT by `data-block`: after ADR-519 D1 the
+ *  hierarchy has four grains and TWO of them are movable siblings — a block
+ *  (`data-block`) and a structural container (`data-block-id` alone). Filtering
+ *  on `data-block` made a container invisible to its own reorder, so the
+ *  container verb row ADR-519 Phase A mounted answered Up/Down with silence
+ *  (moveBlockTo returned null; the button never disabled). `data-block-id` is
+ *  the right test because it is exactly what moveBlockTo addresses by — the
+ *  walk and the move now agree on what a sibling is. */
 export function moveBlock(html: string, blockId: string, dir: 'up' | 'down'): OpResult | null {
   const doc = parse(html);
   const block = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
   if (!block?.parentElement) return null;
   const prevBlock = (el: Element): Element | null => {
     let s = el.previousElementSibling;
-    while (s && !s.hasAttribute('data-block')) s = s.previousElementSibling;
+    while (s && !s.hasAttribute('data-block-id')) s = s.previousElementSibling;
     return s;
   };
   const nextBlock = (el: Element): Element | null => {
     let s = el.nextElementSibling;
-    while (s && !s.hasAttribute('data-block')) s = s.nextElementSibling;
+    while (s && !s.hasAttribute('data-block-id')) s = s.nextElementSibling;
     return s;
   };
   if (dir === 'up') {

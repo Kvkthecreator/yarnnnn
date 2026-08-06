@@ -106,7 +106,15 @@ t(
   'D4: the last live range is tracked (the pane steals focus)',
   /var lastLiveRange = null;/.test(proj) && /selectionchange/.test(proj),
 );
-t('D4: a COLLAPSED caret is not a range (never tracked)', /if \(!s \|\| !s\.rangeCount \|\| s\.isCollapsed\) return;/.test(proj));
+// ADR-528 gave the selectionchange handler a second job (reporting the block
+// set), so the collapsed guard became a BRANCH rather than an early return.
+// The invariant is unchanged and is what is pinned: a collapsed selection must
+// never become `lastLiveRange`.
+t(
+  'D4: a COLLAPSED caret is not a range (never tracked)',
+  /!s\.rangeCount \|\| s\.isCollapsed/.test(proj) &&
+    /lastLiveRange = r\.cloneRange\(\);/.test(proj),
+);
 t(
   'D4: with no usable range the op does NOTHING (never formats the unseen)',
   /if \(!usable\) return;/.test(proj),
@@ -167,6 +175,55 @@ t(
 t(
   'refusal: no line-spacing control',
   !/lineHeight|line-height/i.test(pane.slice(pane.indexOf('function TextSection'), pane.indexOf('function TextSection') + 4000)),
+);
+
+// ── 8. ADR-528 — the pane's scope follows the RANGE, not the last click ──
+// The defect: `selection` was written only by a click, so dragging across six
+// blocks left every block-scoped section describing whichever block was
+// clicked into. It did not look wrong — it was stale.
+t(
+  'ADR-528: the runtime reports the block set a range intersects',
+  /type: 'yarnnn-range', blockIds: ids/.test(proj),
+);
+t(
+  'ADR-528: it reuses formatSegments (the ops\' own derivation, not a second one)',
+  /var segs = formatSegments\(\);[\s\S]{0,400}?blockIds: ids/.test(proj),
+);
+t(
+  'ADR-528: a collapsed range CLEARS the parent scope',
+  /type: 'yarnnn-range', blockIds: \[\] \}/.test(proj),
+);
+t(
+  'ADR-528: the report is deduped (a caret moving in one block does not re-post)',
+  /if \(key === lastRangeKey\) return;/.test(proj),
+);
+t('ADR-528: the canvas forwards it', /d\.type === 'yarnnn-range'/.test(canvas));
+t(
+  'ADR-528: the surface holds it SEPARATELY from selection (different questions)',
+  /const \[rangeBlockIds, setRangeBlockIds\]/.test(surface),
+);
+t('ADR-528: the pane derives multiBlockRange', /const multiBlockRange = \(rangeBlockIds\?\.length \?\? 0\) > 1;/.test(pane));
+// The four single-block sections must all withdraw; Text must NOT.
+for (const [label, re] of [
+  ['the verb row', /\{!isTextTier && !multiBlockRange && \(/],
+  ['Layout', /\{!isTextTier && !multiBlockRange &&\s*\n\s*\(nonColorTokens/],
+  ['Typography', /\{!multiBlockRange &&\s*\n\s*selection\?\.blockKind &&\s*\n\s*\(selection\.blockKind === 'prose'/],
+  ['Tone', /\{!multiBlockRange && colorTokens\.length > 0/],
+  ['Turn into', /\{!multiBlockRange &&\s*\n\s*selection\?\.blockKind &&\s*\n\s*TURN_INTO_KINDS/],
+]) {
+  t(`ADR-528: ${label} withdraws over a multi-block range`, re.test(pane));
+}
+t(
+  'ADR-528: the TEXT section does NOT withdraw (it acts on the selection)',
+  /\{isTextTier && <TextSection/.test(pane) && !/\{isTextTier && !multiBlockRange && <TextSection/.test(pane),
+);
+t(
+  'ADR-528: the Identity heading names the COUNT, not a stale block label',
+  /blocks selected/.test(pane),
+);
+t(
+  'ADR-528: the withdrawal is EXPLAINED to the member, never silent',
+  /Block properties apply to one block/.test(pane),
 );
 
 console.log(`\nADR-527: ${pass} passed, ${fail} failed`);

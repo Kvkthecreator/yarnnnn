@@ -150,6 +150,10 @@ interface StudioDesignTabProps {
    *  the pane's. `value` carries a palette ROLE for mark/highlight (null
    *  clears) and is unused by the toggles. */
   onFormat: (op: string, value?: string | null) => void;
+  /** ADR-528 — the blocks a live text range intersects. When this holds MORE
+   *  THAN ONE, the block-scoped sections are describing a block the member is
+   *  no longer looking at, and must say so instead. */
+  rangeBlockIds?: string[];
   /** Page verbs (duplicate-page has no other mount; the navigator covers
    *  delete/reorder). */
   onPageVerb: (verb: StructVerb) => void;
@@ -959,6 +963,7 @@ export function StudioDesignTab({
   selection,
   onSetToken,
   onFormat,
+  rangeBlockIds,
   onPageVerb,
   onElementVerb,
   onTurnInto,
@@ -1074,6 +1079,23 @@ export function StudioDesignTab({
           ? 'text'
           : 'object')) === 'text'
     : false;
+
+  /** ADR-528 — a MULTI-BLOCK range is live.
+   *
+   *  The defect this closes: `selection` is written by a CLICK and nothing
+   *  updated it on a drag, so selecting six blocks left the pane showing
+   *  "HEADING · Typography: Heading 2 · Turn into" — describing whichever block
+   *  was last clicked into. It did not look wrong, which is precisely what made
+   *  it hard to see. It was STALE.
+   *
+   *  The root cause is a grammar collision, and it is worth naming here because
+   *  the fix reads as arbitrary without it: the pane's spine (ADR-519 D3) came
+   *  from Figma, where selection IS object selection, so every section presumes
+   *  ONE subject. A text range has no single subject. Until that is re-derived
+   *  (ADR-528 §the open question), the honest move is for block-scoped sections
+   *  to withdraw and SAY they have withdrawn, rather than answer for a block
+   *  the member is not looking at. */
+  const multiBlockRange = (rangeBlockIds?.length ?? 0) > 1;
 
   // ADR-485 follow-on — the SIZE measures a block can carry (w/h), and which of
   // them apply at this scope (ADR-461 D4 `applies`: block-staged = a block on a
@@ -2114,13 +2136,21 @@ export function StudioDesignTab({
               the same reason. Withdrawing the row whole is what makes the pane
               and the menu agree, because both now read one field. */}
           <div className={SECTION}>
-            <p className={HEADING}>{selection?.label ?? selection?.blockKind ?? 'block'}</p>
+            {/* ADR-528 — name the SUBJECT honestly. Over a multi-block range
+                the block label is the block that was clicked, not what the
+                member has selected, so it is replaced by the count. */}
+            <p className={HEADING}>
+              {multiBlockRange
+                ? `${rangeBlockIds!.length} blocks selected`
+                : (selection?.label ?? selection?.blockKind ?? 'block')}
+            </p>
             {/* ADR-526 D2 — `pathRow` on paged, the enclosing-heading crumb on
                 flow. Exactly one renders: pathRow needs a PAGE_SEL ancestor
-                (never present on flow) and headingRow gates on mode === 'flow'. */}
-            {pathRow}
-            {headingRow}
-            {!isTextTier && (
+                (never present on flow) and headingRow gates on mode === 'flow'.
+                Both name ONE block's ancestry, so both withdraw over a range. */}
+            {!multiBlockRange && pathRow}
+            {!multiBlockRange && headingRow}
+            {!isTextTier && !multiBlockRange && (
               <VerbRow
                 noun={selection?.label ?? 'block'}
                 onVerb={onElementVerb}
@@ -2142,7 +2172,19 @@ export function StudioDesignTab({
               not the browser's. This is the section that answers "referencing
               google docs is too thin" — the pane offered three controls on a
               heading and now offers the writer's set. */}
+          {/* ADR-528: Text is the ONE section that stays over a multi-block
+              range — every control in it acts on the SELECTION (ADR-521 D2's
+              text tier), which is exactly what the member has. The sections
+              that withdrew were the ones claiming a single block. */}
           {isTextTier && <TextSection onFormat={onFormat} swatch={swatchOf} />}
+          {multiBlockRange && (
+            <div className={SECTION}>
+              <p className="text-[10px] text-muted-foreground">
+                Block properties apply to one block — select inside a single block to
+                reach them.
+              </p>
+            </div>
+          )}
           {/* Position (ADR-511 D4) — an explicit, visible, reversible state.
               Flow is the default; dragging is what enters the positioned
               state; "In flow" is the reversal. Shown on every STAGED block so
@@ -2210,7 +2252,8 @@ export function StudioDesignTab({
               surface" — stated four times in canon, never true at the surface
               until now. Objects on flow (a figure) keep the section: they ARE
               boxes, and D4 re-keys the two tokens that were mis-declared. */}
-          {!isTextTier && (nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
+          {!isTextTier && !multiBlockRange &&
+            (nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
             <div className={SECTION}>
               <p className={HEADING}>Layout</p>
               {nonColorTokens.map((t) => (
@@ -2240,7 +2283,8 @@ export function StudioDesignTab({
               current rung read from the tag, previews derived from the
               artifact's own styles under the applied skin. Picking a rung IS
               the turn-into conversion (id + tokens survive). */}
-          {selection?.blockKind &&
+          {!multiBlockRange &&
+            selection?.blockKind &&
             (selection.blockKind === 'prose' || selection.blockKind === 'heading') &&
             (() => {
               const tag = selectedEl?.tagName?.toLowerCase() ?? null;
@@ -2303,7 +2347,7 @@ export function StudioDesignTab({
               Palette-backed tokens are lifted here; every other token keeps its
               existing home below, so this is a RELOCATION of one control, not a
               second mount of it. */}
-          {colorTokens.length > 0 && (
+          {!multiBlockRange && colorTokens.length > 0 && (
             <div className={SECTION}>
               {colorTokens.map((t) => (
                 <ColorTokenSwatches
@@ -2343,7 +2387,9 @@ export function StudioDesignTab({
               (prose/heading) the Typography select above OWNS the ramp, so
               this list carries only the STRUCTURAL targets; structural kinds
               keep the full list. */}
-          {selection?.blockKind && TURN_INTO_KINDS.includes(selection.blockKind) && (
+          {!multiBlockRange &&
+            selection?.blockKind &&
+            TURN_INTO_KINDS.includes(selection.blockKind) && (
             <div className={SECTION}>
               <p className={HEADING}>Turn into</p>
               <div className="flex flex-wrap gap-1">

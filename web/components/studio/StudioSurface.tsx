@@ -558,6 +558,15 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // surface, it anchors the toolbar's deterministic ops, drives the Design
   // tab's scope, AND informs the lane (via a visible composer seed). ──
   const [selection, setSelection] = useState<StudioSelection | null>(null);
+  /** ADR-528 — the blocks a live text RANGE intersects, when the member has
+   *  one. Deliberately SEPARATE state from `selection`, not a field on it:
+   *  `selection` answers "which block did you point at" (a click) and the
+   *  range answers "what have you got selected right now" (a drag). They are
+   *  different questions with different lifetimes, and collapsing them is what
+   *  produced the defect — the pane read the click answer while the member was
+   *  looking at a six-block range. Empty = no range. */
+  const [rangeBlockIds, setRangeBlockIds] = useState<string[]>([]);
+  const onRange = useCallback((ids: string[]) => setRangeBlockIds(ids), []);
 
   // Reconcile a stale page selection against the live content: if a slide/page
   // is deleted (on the canvas, via the Design tab, or by a lane write) the
@@ -2970,6 +2979,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 artifactPath={artifactPath}
                 onPoint={onPoint}
                 onPointClear={onPointClear}
+                onRange={onRange}
                 editingBlockId={editingBlockId}
                 selectedBlockId={selection?.blockId ?? null}
                 onEdit={onEdit}
@@ -3209,6 +3219,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               selection={selection}
               onSetToken={handleSetToken}
               onFormat={handleFormat}
+              rangeBlockIds={rangeBlockIds}
               onPageVerb={handlePageVerb}
               // ADR-519 D3 — the spine's Identity verb row at container + block
               // scope: the SAME id-addressed handler the right-click menu and

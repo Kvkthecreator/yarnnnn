@@ -109,11 +109,13 @@ t(
 );
 t(
   'D3: the verb row is withheld on the text tier',
-  /\{!isTextTier && \(\s*<VerbRow/.test(pane),
+  // ADR-528 added a second term (&& !multiBlockRange). The invariant pinned is
+  // that the row is gated on NOT-text-tier, not the full expression.
+  /\{!isTextTier &&[^)]*\(\s*<VerbRow/.test(pane),
 );
 t(
   'D3: the Layout section is withheld on the text tier',
-  /\{!isTextTier && \(nonColorTokens\.length > 0/.test(pane),
+  /\{!isTextTier &&[\s\S]{0,60}?\(nonColorTokens\.length > 0/.test(pane),
 );
 // The tiers that must be UNTOUCHED — Studio's pane is byte-identical (D3).
 t(

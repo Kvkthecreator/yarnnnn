@@ -84,7 +84,9 @@ t(
 t('D2: the empty state is honest, not invented', /No headings yet/.test(pane));
 t(
   'D2: the enclosing-heading crumb replaces the always-null pathRow on flow',
-  /const headingRow =/.test(pane) && /\{headingRow\}/.test(pane),
+  // ADR-528 put a multi-block-range guard in front of the mount, so the pin is
+  // the mount's PRESENCE, not its exact expression.
+  /const headingRow =/.test(pane) && /headingRow\}/.test(pane),
 );
 t(
   'D2: the crumb reads selection.headingId (ADR-522 derivation, second consumer)',
