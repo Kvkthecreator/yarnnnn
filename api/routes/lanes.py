@@ -1008,7 +1008,11 @@ def _turn_stream_response(
             persist_reply(stopped=True)
             raise
         except Exception as exc:  # provider/transport failure mid-stream
-            logger.warning("[LANE stream] turn failed: %s", exc)
+            # `exception()` not `warning()`: this is a catch-all, so it swallows
+            # our OWN bugs (NameError/AttributeError) alongside provider faults.
+            # Stringifying without the frame is how `name 'req' is not defined`
+            # reached an operator's chat surface with nothing to locate it by.
+            logger.exception("[LANE stream] turn failed (lane=%s)", lane_id[:8])
             errored = str(exc)
             yield sse({"error": errored})
 
