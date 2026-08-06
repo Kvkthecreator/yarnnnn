@@ -21,6 +21,17 @@ const nextConfig = {
   //   registry of mirrors). All three land on `/chat`, the new dock anchor +
   //   the steward's operating surface; the specific concerns (queue, activity,
   //   files) are reachable by name.
+  // ADR-530 D4 — the share link's machine address. A Next dynamic segment
+  // cannot carry a literal suffix, so `/s/{token}.txt` (the pasteable form,
+  // reachable by adding `.txt` to what is already in someone's clipboard) is
+  // expressed as the route `/s/[token]/txt`. An ALIAS of `/s/{token}`, never a
+  // second resource — it carries Link: rel="canonical" back to the share URL.
+  async rewrites() {
+    return [
+      { source: '/s/:token.txt', destination: '/s/:token/txt' },
+    ];
+  },
+
   async redirects() {
     return [
       { source: '/feed', destination: '/notifications?notifications.pane=understand', permanent: false },

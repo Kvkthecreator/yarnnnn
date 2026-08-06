@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+from services.machine_projection import file_type_of, project_for_machine
 from services.supabase import UserClient, principal_reaches_workspace, resolve_owner_workspace_id
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,14 @@ class SharePreviewResponse(BaseModel):
     artifact_content: Optional[str] = None   # current content only, capped
     truncated: bool = False
     walk: list[WalkEntry] = []
+    # ADR-530 D1/D3 — the file's MODEL-CONSUMABLE projection (DP34), beside the
+    # raw content the browser renders in its locked iframe. Not a widening of
+    # the ADR-513 D2 boundary: this is the same artifact, in the form a machine
+    # can read. `artifact_note` carries the honest marker when a format has no
+    # registered strategy yet (DP34's anti-silent-drop clause) — never a wall of
+    # raw bytes, which is what this boundary used to emit.
+    artifact_text: Optional[str] = None
+    artifact_note: Optional[str] = None
 
 
 class ShareAcceptResponse(BaseModel):
@@ -210,21 +219,20 @@ def _render_markdown(out: SharePreviewResponse) -> str:
     lines.append(f"*Shared from **{ws}** on yarnnn — {reach}.*")
     lines.append("")
 
-    if out.artifact_content:
-        # HTML artifacts are handed over verbatim inside a fenced block. We do
-        # NOT convert or strip: there is no sanitizer in this codebase (ADR-513
-        # §1), and a markdown reader that renders raw HTML would be handed
-        # member-authored script. The fence is this representation's sandbox.
-        if out.artifact_kind == "html":
-            lines.append("```html")
-            lines.append(out.artifact_content)
-            lines.append("```")
-        else:
-            lines.append(out.artifact_content)
+    # ADR-530 D1: the machine lane serves the PROJECTION, never the raw
+    # container. It previously fenced HTML verbatim, so an LLM asking for
+    # markdown received `<!doctype html><style>:root{--ink:#1a1a1a}…` — safe,
+    # and completely useless for the thing it was asked to do.
+    if out.artifact_text:
+        lines.append(out.artifact_text)
         lines.append("")
         if out.truncated:
             lines.append("*(Truncated — join the workspace to read the full document.)*")
             lines.append("")
+    elif out.artifact_note:
+        # DP34: legibly marked, never dropped and never fabricated.
+        lines.append(f"*{out.artifact_note}*")
+        lines.append("")
 
     if out.walk:
         lines.append("---")
@@ -239,6 +247,39 @@ def _render_markdown(out: SharePreviewResponse) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+@router.get("/s/{token}.txt", response_class=PlainTextResponse)
+async def preview_share_text(token: str, request: Request) -> PlainTextResponse:
+    """The share link's MACHINE ADDRESS (ADR-530 D4).
+
+    An ALIAS, not a second resource: same token, same capability, same
+    revocation, same lifecycle — and a `Link: rel="canonical"` back to
+    `/s/{token}` so no crawler, cache or agent treats it as separate content.
+
+    Why it exists beside content negotiation, which is the native mechanism:
+    **agents in the wild paste, they do not negotiate.** The live receipt
+    (2026-08-06) is that ChatGPT fetched a share link with `Accept: text/html`
+    and got what a browser gets. A representation nothing asks for is a
+    representation that does not exist, so the `Accept:` lane keeps being the
+    protocol and this is the pasteable affordance over it — the `llms.txt`
+    lesson: guessable, linkable, handable to an agent on purpose.
+
+    `.txt` and not `.md` because the derive-registry promises DP34's *text*
+    strategy — a PDF's projection is not markdown, and naming it `.md` would
+    claim a guarantee we do not make.
+
+    MUST stay declared ABOVE `/s/{token}` — FastAPI matches in declaration
+    order and the bare token pattern would otherwise swallow the suffix.
+    """
+    from services.deep_links import app_url
+
+    result = await preview_share(token=token, response=Response(), request=request, format="md")
+    body = result.body.decode("utf-8") if isinstance(result, PlainTextResponse) else ""
+    headers = dict(_CAPABILITY_HEADERS)
+    # The alias points home: one resource, one identity (ADR-530 D4).
+    headers["Link"] = f'<{app_url()}/s/{token}>; rel="canonical"'
+    return PlainTextResponse(body, media_type="text/plain; charset=utf-8", headers=headers)
 
 
 @router.get("/s/{token}", response_model=SharePreviewResponse)
@@ -326,10 +367,30 @@ async def preview_share(
         if rows:
             content = rows[0].get("content") or ""
             out.truncated = len(content) > PUBLIC_CONTENT_CAP
-            out.artifact_content = content[:PUBLIC_CONTENT_CAP]
             leaf = abs_path.rsplit("/", 1)[-1]
             out.artifact_name = share.get("label") or leaf
-            out.artifact_kind = "html" if leaf.lower().endswith((".html", ".htm")) else "text"
+
+            # ADR-530 D1 — the kind comes from the ONE derive-registry dispatcher,
+            # never from a call-site suffix test. The line this replaces was
+            #     "html" if leaf.endswith((".html",".htm")) else "text"
+            # which asserts everything not-HTML IS text, so a shared PDF/XLSX/ZIP
+            # had its RAW BYTES emitted into a <pre> — DP34's diagnostic test
+            # failing verbatim.
+            projection = project_for_machine(path=abs_path, content=content)
+            out.artifact_kind = "html" if file_type_of(abs_path) in ("html", "htm") else "text"
+
+            if projection.is_readable:
+                out.artifact_text = (projection.text or "")[:PUBLIC_CONTENT_CAP]
+                # The browser renders the raw form (locked iframe for html —
+                # ADR-513 D3, untouched); a machine reads `artifact_text`.
+                out.artifact_content = content[:PUBLIC_CONTENT_CAP]
+            else:
+                # DP34's anti-silent-drop clause: a format with no strategy is a
+                # KNOWN GAP, said out loud. No raw bytes cross for a container
+                # nothing can read.
+                out.artifact_note = projection.note
+                out.artifact_content = None
+                out.truncated = False
             walk_rows = (
                 svc.table("workspace_file_versions")
                 .select("authored_by, created_at, message")

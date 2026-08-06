@@ -29,6 +29,13 @@ export type SharePreview = {
   artifact_content?: string | null;
   truncated?: boolean;
   walk?: WalkEntry[];
+  /** ADR-530 — the file's model-consumable projection (DP34). The browser
+   *  renders `artifact_content` (html goes in the locked iframe); everything
+   *  that is not a browser reads THIS. */
+  artifact_text?: string | null;
+  /** The honest marker when a format has no registered strategy yet — DP34's
+   *  anti-silent-drop clause. Never accompanied by raw bytes. */
+  artifact_note?: string | null;
 };
 
 /** What the server learned about the link — including the honest dark states. */

@@ -116,12 +116,23 @@ def main() -> int:
         and re.search(r"PlainTextResponse\(.*?_CAPABILITY_HEADERS", src, re.DOTALL) is not None,
         "no-store + noindex on every exit (ADR-513 D4)"))
 
-    # HTML artifacts must be FENCED, never emitted raw into markdown — there is
-    # no sanitizer (ADR-513 §1) and a renderer that honors raw HTML would be
-    # handed member-authored script.
+    # SUPERSEDED BY ADR-530 D1, and re-cut rather than deleted.
+    #
+    # This asserted that HTML artifacts are FENCED in the markdown lane. That was
+    # the right call under ADR-529, where the lane served the RAW container: a
+    # fence was the only safe way to hand over markup. ADR-530 removed the
+    # premise — the lane now serves the file's model-consumable PROJECTION
+    # (DP34), so there is no markup to fence, and fencing raw HTML was itself the
+    # defect (an LLM asking for markdown received a stylesheet).
+    #
+    # The INVARIANT the old check was really defending — the machine lane never
+    # hands over raw member markup — is stronger now and is what gets asserted.
     results.append(_check(
-        "D2h html artifacts are fenced, not inlined",
-        '"```html"' in body or "'```html'" in body))
+        "D2h the machine lane serves the projection, never raw member markup",
+        "artifact_text" in body
+        and '"```html"' not in body
+        and "out.artifact_content" not in body,
+        "ADR-530 D1 removed the fence by removing the markup"))
 
     # ── D1 / D4: one cockpit mint path, and the deletions ───────────────────
     files_page = _strip_comments(_read("app/(authenticated)/files/page.tsx"))

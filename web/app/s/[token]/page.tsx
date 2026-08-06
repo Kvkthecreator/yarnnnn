@@ -75,6 +75,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // crawlers to treat a capability link as a public address.
     openGraph: { title, description, type: "article" },
     twitter: { card: "summary", title, description },
+    // ADR-530 D4 — discovery is DECLARED, not guessed. An agent that reads this
+    // page learns where its own representation lives, using the convention the
+    // web already has (and that this codebase already speaks via
+    // .well-known/mcp.json). The alias is not a second resource: it carries
+    // Link: rel="canonical" back here.
+    alternates: {
+      types: { "text/plain": `/s/${encodeURIComponent(params.token)}.txt` },
+    },
   };
 }
 
@@ -120,17 +128,30 @@ export default async function SharePublicPage({ params }: PageProps) {
             </div>
 
             {p.artifact_kind === "html" ? (
-              // ADR-513 D3: the locked sandbox is the ONLY renderer for member
-              // HTML. No scripts, no same-origin, no forms, no popups.
-              <iframe
-                title={name ?? "shared artifact"}
-                srcDoc={p.artifact_content ?? ""}
-                sandbox=""
-                className="h-[75vh] w-full bg-white"
-              />
+              <>
+                {/* ADR-513 D3: the locked sandbox is the ONLY renderer for
+                    member HTML. No scripts, no same-origin, no forms, no
+                    popups. ADR-530 does NOT loosen this. */}
+                <iframe
+                  title={name ?? "shared artifact"}
+                  srcDoc={p.artifact_content ?? ""}
+                  sandbox=""
+                  className="h-[75vh] w-full bg-white"
+                />
+                {/* ADR-530 D1/D2 — the projection, for readers that are not
+                    browsers. An iframe's srcDoc is opaque to every fetcher, so
+                    the document was invisible to the exact audience a share
+                    link is pasted to (the 2026-08-06 defect). This is TEXT and
+                    is rendered as text — never markup, never innerHTML. */}
+                <noscript>
+                  <pre className="max-h-[75vh] overflow-auto whitespace-pre-wrap px-5 py-4 text-sm leading-relaxed">
+                    {p.artifact_text}
+                  </pre>
+                </noscript>
+              </>
             ) : (
               <pre className="max-h-[75vh] overflow-auto whitespace-pre-wrap px-5 py-4 text-sm leading-relaxed">
-                {p.artifact_content}
+                {p.artifact_text ?? p.artifact_content}
               </pre>
             )}
 
@@ -141,6 +162,17 @@ export default async function SharePublicPage({ params }: PageProps) {
             )}
 
             <AttributionWalk walk={walk} />
+          </div>
+        ) : p.artifact_note ? (
+          // ADR-530 D3 — a format with no registered strategy yet. DP34's
+          // anti-silent-drop clause: a KNOWN GAP said out loud. This boundary
+          // used to emit the raw bytes of an xlsx/zip/pdf into a <pre>.
+          <div className="rounded-xl border border-border/60 bg-card p-8 text-center shadow-sm">
+            <div className="mb-2 flex items-center justify-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{name}</span>
+            </div>
+            <p className="text-sm text-muted-foreground">{p.artifact_note}</p>
           </div>
         ) : (
           // A bare workspace share (no artifact) — the preview facts only.
