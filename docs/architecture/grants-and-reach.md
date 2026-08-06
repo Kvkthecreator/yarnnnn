@@ -85,6 +85,7 @@ verb skipped even the reach check; any member could revoke anyone's link.
 | Grant shape | `member` (broad) or `viewer` (birth-narrowed) | `member` only |
 | Minted by | write-holders (dial-gated) | owner only |
 | Public preview | `/s/{token}` — anonymous, capped content + attribution walk, `no-store` + `noindex` on every status (ADR-513) | none |
+| Machine read | `/s/{token}` negotiated on `Accept`, or the alias `/s/{token}.txt` — the file's **model-consumable projection** (DP34/ADR-530), `Link: rel="canonical"` home. Same token, same capability, same revocation. | none |
 
 They never merged because invites carry no artifact scope — a missing capability, not
 vocabulary drift (ADR-515 §4). Extending invites to artifact scope is a real migration, owned
@@ -127,6 +128,13 @@ canonical-absolute at the write since migration 234); and the public link's legi
 page is server-rendered, so a machine handed the link can read it, and `Accept: text/markdown`
 serves the same projection as prose — one URL, two representations).
 
+**Closed 2026-08-06 by [ADR-530](../adr/ADR-530-the-projection-is-a-property-of-the-file.md)**: the
+public boundary now serves the file's **model-consumable projection** (DP34) rather than its raw
+container — closing a live defect where an `.html` share was readable only inside its locked
+iframe, and a shared PDF/XLSX/ZIP had its raw bytes emitted into a `<pre>`. Formats with no
+registered strategy are legibly marked, never dumped. The link gained a **machine address**
+(`/s/{token}.txt`, an alias with `rel="canonical"`).
+
 Still owed:
 
 - **FE convergence remainder** (ADR-515 D3/D4/D6 + the rail pass): the `Copy AI reference` verb
@@ -140,3 +148,10 @@ Still owed:
 - **Stale user docs**: gitbook expiry claim (false — no UI passes `ttl_days`), always-member
   claim (false since ADR-465 Phase D), view-only undocumented; AUTHORING.md Share placement.
 - **Invite-with-artifact-scope**: named, unowned (§5).
+- **Stored projections** (ADR-530 D6): v1 derives on read behind one seam
+  (`project_for_machine`). The conformant end state is a projection as a *cited substrate object*
+  (`derived_from`, per DP32/ADR-395) computed at write — cacheable, attributable, and what makes
+  ADR-512 D5's reserved `@{revision_id}` form reachable at this boundary.
+- **Image delivery + sub-part addressing** (ADR-530 D7): `passthrough` kinds are honestly marked
+  in v1; delivering the image itself, and addressing a figure *inside* a document, are named-
+  deferred.
