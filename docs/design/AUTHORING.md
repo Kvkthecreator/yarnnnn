@@ -68,8 +68,13 @@ Four, all real DOM elements; there is no parallel tree.
 | **Structural container** | `div[data-block-id]:not([data-block])` — a column, a columns row, a named region. Identity without vocabulary (ADR-511 D3), stamped by `normalizeStructure` at load + write | `container` | inline layout style; a *name* (a `data-slot` inert name, or class `cols`/`col`) feeding the label map; a media *role* via the registry |
 | **Block** | `[data-block]` + `data-block-id` | `block` | block tokens (`size`/`align`/`tone`/`variant`, media tokens), measures (`data-w/h/x/y` — deck-staged), `data-ref` citations |
 
-**The group is a transient selection, never markup** — shift/⌘-click on staged frames;
-the set moves as one revision (`setGeometryMany`); ungroup is deselection. A persisted
+**The group is a transient selection, never markup** — **⇧-click** on staged frames
+(⌘/ctrl deep-selects the innermost container instead — ADR-519 D4, 2026-08-06; the branch
+used to collapse all three modifiers into one job). The set is **state beside the
+selection** (`groupIds`), never a pane scope — ADR-519 D4.1: a set has no label, no box
+and no tier, so single-subject sections withdraw over it and say so, and align/distribute
+is the one section whose subject genuinely IS the set. The set moves — and aligns — as
+one revision (`setGeometryMany`); ungroup is deselection. A persisted
 group wrapper would be a second structural layer competing with the real tree (ADR-462
 D3's refusal, clarified by ADR-511: what it refuses is the *synthetic editor-side
 object*; selecting a real container was never the refused thing). Persistent grouping
@@ -399,10 +404,17 @@ shipped here only as they land.
   agree on what a sibling is. It survived a green 16/16 gate because that gate asserts
   the row MOUNTS; a grep cannot see an op return null. New executing gate:
   `adr519_container_reorder.mjs`.
-- **Phase B — selection completion**: onGroup wiring + multi scope (align/distribute) ·
-  Group/Ungroup verbs · ⌘-click deep select · **page identity stamped at the normalize
-  seam** (retires the ADR-516 page-anchor resolver by use) · chrome/breadcrumb/
-  navigator multi-select consistency.
+- **Phase B — selection completion**: ✅ **onGroup wiring + align/distribute** (2026-08-06,
+  ADR-519 **D4.1** — the "multi scope" D4 named is WITHDRAWN: a set has no label, no box
+  and no tier, so it cannot be a subject the inspector describes. It is **state beside the
+  selection** (`groupIds`), the same shape and reasoning as `rangeBlockIds`. Single-subject
+  sections withdraw over a set and SAY so; align/distribute is the one section whose
+  subject genuinely IS the set, and writes through the existing `setGeometryMany`) ·
+  ✅ **⌘-click deep select** (2026-08-06 — ⇧ adds to the selection, ⌘/ctrl deep-selects the
+  innermost container; the branch used to collapse all three modifiers into one) ·
+  Group/Ungroup verbs (needs D2.1's "re-arranging dissolves groups" warning first) ·
+  **page identity stamped at the normalize seam** (retires the ADR-516 page-anchor
+  resolver by use) · chrome/breadcrumb/navigator multi-select consistency.
 - **Phase C — layout completion**: Direction row (containers only) · align-self ·
   numeric X/Y/W/H entry (two-clamp) · then the standing pair: snap/alignment guides on
   block drag · container drag = reorder per medium (drop indicators, never positional).

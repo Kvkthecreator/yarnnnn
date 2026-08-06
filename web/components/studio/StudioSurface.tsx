@@ -567,6 +567,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
    *  looking at a six-block range. Empty = no range. */
   const [rangeBlockIds, setRangeBlockIds] = useState<string[]>([]);
   const onRange = useCallback((ids: string[]) => setRangeBlockIds(ids), []);
+  /** ADR-519 D4.1 — the blocks a ⇧-click SET holds, on a staged medium. The
+   *  same shape and the same reasoning as `rangeBlockIds` above, for the same
+   *  reason: a set answers "how many does the verb take", `selection` answers
+   *  "what is the subject". They are different questions, so they are different
+   *  state — a set is never a field on the selection and never a sixth scope.
+   *
+   *  The runtime already settled this (projection.ts: `group` rides ALONGSIDE
+   *  `cur`, and `cur` stays the primary the box/handles/pane follow), so this
+   *  is the parent half of a rule the substrate already keeps. The set's FIRST
+   *  member is the primary — `__yarnnnGroup()` returns `[cur].concat(group)` —
+   *  which is why `selection` stays valid and meaningful while a set is live.
+   *  Length < 2 means "no set": one block is a selection, not a group. */
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const onGroup = useCallback((ids: string[]) => setGroupIds(ids), []);
 
   // Reconcile a stale page selection against the live content: if a slide/page
   // is deleted (on the canvas, via the Design tab, or by a lane write) the
@@ -1655,6 +1669,114 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (el) blockClip.current = el.outerHTML;
     },
     [file],
+  );
+
+  /** ADR-519 D4.1 — align / distribute over the ⇧-click SET. The one control
+   *  whose subject genuinely IS the set, which is why it is the one thing the
+   *  pane mounts over a multi-selection while every single-subject section
+   *  withdraws.
+   *
+   *  Geometry is read from the SUBSTRATE (`data-x/y/w/h`, percentages of the
+   *  frame — ADR-461's two-clamp measures), never from the DOM rects in the
+   *  iframe: the substrate is what the op writes, so computing from anything
+   *  else would align to one coordinate space and write in another. Members
+   *  without geometry are SKIPPED, not defaulted to 0 — an in-flow block has no
+   *  x/y, and inventing one would fling it to the frame's corner.
+   *
+   *  Writes through the existing `setGeometryMany`: one gesture, one revision,
+   *  no new op (ADR-462 D1). */
+  const setGeometryOf = useCallback(
+    (
+      compute: (
+        boxes: Array<{ id: string; x: number; y: number; w: number; h: number }>,
+      ) => Array<{ blockId: string; geo: { x?: number; y?: number } }>,
+      describe: string,
+    ) => {
+      const specs = geometrySpecs();
+      if (!specs || !file?.content || groupIds.length < 2) return;
+      const doc = new DOMParser().parseFromString(file.content, 'text/html');
+      const num = (el: Element, a: string) => {
+        const v = el.getAttribute(a);
+        if (v == null) return null;
+        const n = parseFloat(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      const boxes = groupIds
+        .map((id) => {
+          const el = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+          if (!el) return null;
+          const x = num(el, 'data-x');
+          const y = num(el, 'data-y');
+          if (x == null || y == null) return null; // in flow — not positionable
+          return { id, x, y, w: num(el, 'data-w') ?? 0, h: num(el, 'data-h') ?? 0 };
+        })
+        .filter((b): b is { id: string; x: number; y: number; w: number; h: number } => !!b);
+      if (boxes.length < 2) return; // nothing to align a set against
+      const moves = compute(boxes);
+      if (!moves.length) return;
+      void applyOp(
+        (html) => setGeometryMany(html, moves, specs),
+        `${app.label}: ${describe} ${boxes.length} objects`,
+      );
+    },
+    [file, groupIds, applyOp, geometrySpecs],
+  );
+
+  const handleAlignMany = useCallback(
+    (edge: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom') => {
+      // Align to the SET's own bounding box — the Figma/PowerPoint default, and
+      // the only frame-independent answer (aligning to the slide would move the
+      // whole set, which is a different intent the member did not express).
+      setGeometryOf((boxes) => {
+        const minX = Math.min(...boxes.map((b) => b.x));
+        const maxR = Math.max(...boxes.map((b) => b.x + b.w));
+        const minY = Math.min(...boxes.map((b) => b.y));
+        const maxB = Math.max(...boxes.map((b) => b.y + b.h));
+        return boxes.map((b) => {
+          switch (edge) {
+            case 'left':
+              return { blockId: b.id, geo: { x: minX } };
+            case 'right':
+              return { blockId: b.id, geo: { x: maxR - b.w } };
+            case 'hcenter':
+              return { blockId: b.id, geo: { x: (minX + maxR) / 2 - b.w / 2 } };
+            case 'top':
+              return { blockId: b.id, geo: { y: minY } };
+            case 'bottom':
+              return { blockId: b.id, geo: { y: maxB - b.h } };
+            default:
+              return { blockId: b.id, geo: { y: (minY + maxB) / 2 - b.h / 2 } };
+          }
+        });
+      }, `align ${edge}`);
+    },
+    [setGeometryOf],
+  );
+
+  const handleDistributeMany = useCallback(
+    (axis: 'h' | 'v') => {
+      // Even GAPS between edges, not even centres: the conventional reading, and
+      // the one that looks right when the boxes differ in size. The two extremes
+      // hold still and everything between them is re-spaced.
+      setGeometryOf((boxes) => {
+        if (boxes.length < 3) return []; // with two, their spacing IS the spacing
+        const pos = (b: (typeof boxes)[number]) => (axis === 'h' ? b.x : b.y);
+        const size = (b: (typeof boxes)[number]) => (axis === 'h' ? b.w : b.h);
+        const sorted = [...boxes].sort((a, b) => pos(a) - pos(b));
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        const span = pos(last) + size(last) - pos(first);
+        const totalSize = sorted.reduce((s, b) => s + size(b), 0);
+        const gap = (span - totalSize) / (sorted.length - 1);
+        let cursor = pos(first);
+        return sorted.map((b) => {
+          const at = cursor;
+          cursor += size(b) + gap;
+          return { blockId: b.id, geo: axis === 'h' ? { x: at } : { y: at } };
+        });
+      }, `distribute ${axis === 'h' ? 'horizontally' : 'vertically'}`);
+    },
+    [setGeometryOf],
   );
 
   const pasteAfter = useCallback(
@@ -3010,6 +3132,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onRatio={handleRatio}
                 onGeometry={handleGeometry}
                 onGeometryMany={handleGeometryMany}
+                // ADR-519 D4.1 — the prop StudioCanvas has DECLARED and called
+                // since 2026-07-24 while no parent passed it: the ⇧-click set
+                // was built, moved and resized inside the iframe and then died
+                // at the React boundary, so pane and chrome saw one block.
+                onGroup={onGroup}
                 onContextMenu={setCtxMenu}
                 onKeyVerb={handleKeyVerb}
                 onUndo={handleUndo}
@@ -3238,6 +3365,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onSetToken={handleSetToken}
               onFormat={handleFormat}
               rangeBlockIds={rangeBlockIds}
+              groupIds={groupIds}
+              onAlignMany={handleAlignMany}
+              onDistributeMany={handleDistributeMany}
               onPageVerb={handlePageVerb}
               // ADR-519 D3 — the spine's Identity verb row at container + block
               // scope: the SAME id-addressed handler the right-click menu and

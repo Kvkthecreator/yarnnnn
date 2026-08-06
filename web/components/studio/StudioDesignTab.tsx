@@ -39,6 +39,7 @@ import {
   AlignEndVertical,
   AlignStartHorizontal,
   AlignStartVertical,
+  AlignHorizontalSpaceBetween,
   AlignVerticalSpaceBetween,
   ArrowDown,
   ArrowUp,
@@ -154,6 +155,14 @@ interface StudioDesignTabProps {
    *  THAN ONE, the block-scoped sections are describing a block the member is
    *  no longer looking at, and must say so instead. */
   rangeBlockIds?: string[];
+  /** ADR-519 D4.1 — the ⇧-click set on a staged medium. State beside the
+   *  selection, never a scope: a set has no label, no box and no tier, so it
+   *  cannot be a subject the inspector describes. Length < 2 = no set. */
+  groupIds?: string[];
+  /** Align/distribute over the set — the one control whose subject genuinely
+   *  IS the set. Writes through the existing setGeometryMany (one revision). */
+  onAlignMany?: (edge: 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom') => void;
+  onDistributeMany?: (axis: 'h' | 'v') => void;
   /** Page verbs (duplicate-page has no other mount; the navigator covers
    *  delete/reorder). */
   onPageVerb: (verb: StructVerb) => void;
@@ -606,6 +615,27 @@ function VerbRow({
 const SECTION = 'space-y-2 border-b border-border p-3';
 const HEADING = 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground';
 
+/** ADR-519 D4.1 — align/distribute over a ⇧-click SET. The conventional glyph
+ *  triplets per axis (ADR-520 D3's presentation rule: alignment is glyphable,
+ *  values with magnitudes are not), reusing the SAME six icons the container
+ *  align/justify rows already use — one visual vocabulary, two subjects.
+ *
+ *  The EDGE is the vocabulary, not a CSS property: these act on a set of boxes
+ *  through `setGeometryMany`, never through `setContainerLayout` (which moves
+ *  every child of one parent — the parent-side verb this is the complement of). */
+const ALIGN_MANY = [
+  { key: 'left' as const, title: 'Align left edges', Icon: AlignStartVertical },
+  { key: 'hcenter' as const, title: 'Align horizontal centres', Icon: AlignCenterVertical },
+  { key: 'right' as const, title: 'Align right edges', Icon: AlignEndVertical },
+  { key: 'top' as const, title: 'Align top edges', Icon: AlignStartHorizontal },
+  { key: 'vcenter' as const, title: 'Align vertical centres', Icon: AlignCenterHorizontal },
+  { key: 'bottom' as const, title: 'Align bottom edges', Icon: AlignEndHorizontal },
+];
+const DISTRIBUTE_MANY = [
+  { key: 'h' as const, title: 'Distribute horizontally', Icon: AlignHorizontalSpaceBetween },
+  { key: 'v' as const, title: 'Distribute vertically', Icon: AlignVerticalSpaceBetween },
+];
+
 /** ADR-527 D2 — the palette roles, as the kernel declares them. Text colour and
  *  highlight name the SAME roles; highlight tints them (the ADR-487 D2
  *  callout-variant precedent), so a skin needs no new variables. Closed sets:
@@ -964,6 +994,9 @@ export function StudioDesignTab({
   onSetToken,
   onFormat,
   rangeBlockIds,
+  groupIds,
+  onAlignMany,
+  onDistributeMany,
   onPageVerb,
   onElementVerb,
   onTurnInto,
@@ -1127,6 +1160,11 @@ export function StudioDesignTab({
    *  to withdraw and SAY they have withdrawn, rather than answer for a block
    *  the member is not looking at. */
   const multiBlockRange = (rangeBlockIds?.length ?? 0) > 1;
+  /** ADR-519 D4.1 — the same question at the OBJECT tier. A ⇧-click set on a
+   *  stage is the paged analogue of a multi-block range on flow: more than one
+   *  subject, so every single-subject section must withdraw and say it has.
+   *  One member is a selection, not a set — hence > 1, not > 0. */
+  const multiObject = (groupIds?.length ?? 0) > 1;
 
   // ADR-485 follow-on — the SIZE measures a block can carry (w/h), and which of
   // them apply at this scope (ADR-461 D4 `applies`: block-staged = a block on a
@@ -2337,22 +2375,90 @@ export function StudioDesignTab({
               A figure, table, chart, gallery or divider: these ARE boxes, and
               on a paged medium every block is one. */}
           <div className={SECTION}>
+            {/* ADR-519 D4.1 — name the SUBJECT honestly. Over a ⇧-click set the
+                block label names whichever block is the primary, not what the
+                member has selected: the same staleness `d878242` found on flow,
+                at the object tier. The count is the only honest label a set
+                has — a set carries no label, no box and no tier of its own. */}
             <p className={HEADING}>
-              {selection?.label ?? selection?.blockKind ?? 'block'}
+              {multiObject
+                ? `${groupIds!.length} objects selected`
+                : (selection?.label ?? selection?.blockKind ?? 'block')}
             </p>
-            {pathRow}
-            {headingRow}
-            <VerbRow
-              noun={selection?.label ?? 'block'}
-              onVerb={onElementVerb}
-              // ADR-525 follow-up: on FLOW the move verbs are withheld even
-              // for objects — the menu already refused them there and the
-              // pane must say the same thing. `moveBlock` still reaches a
-              // flow block through ⌥↑/⌥↓ (the structure-tier keyboard door);
-              // what is refused here is the ENCLOSURE presentation of it.
-              reorder={mode !== 'flow'}
-            />
+            {/* Single-subject rows: the path names ONE ancestry, the verbs act
+                on ONE id. Both withdraw over a set rather than answering for
+                the primary while the member is looking at five. */}
+            {!multiObject && pathRow}
+            {!multiObject && headingRow}
+            {!multiObject && (
+              <VerbRow
+                noun={selection?.label ?? 'block'}
+                onVerb={onElementVerb}
+                // ADR-525 follow-up: on FLOW the move verbs are withheld even
+                // for objects — the menu already refused them there and the
+                // pane must say the same thing. `moveBlock` still reaches a
+                // flow block through ⌥↑/⌥↓ (the structure-tier keyboard door);
+                // what is refused here is the ENCLOSURE presentation of it.
+                reorder={mode !== 'flow'}
+              />
+            )}
           </div>
+          {/* ADR-519 D4.1 — ALIGN / DISTRIBUTE: the one section whose subject
+              genuinely IS the set, which is exactly why it earns a mount here
+              while every single-subject section withdraws. It appears only when
+              the set has more than one member, and it writes through the
+              existing `setGeometryMany` — one gesture, one revision, no new op
+              (ADR-462 D1). Distribute needs three to mean anything: with two,
+              "even spacing between them" is just their current spacing. */}
+          {multiObject && (onAlignMany || onDistributeMany) && (
+            <div className={SECTION}>
+              <p className={HEADING}>Align</p>
+              {onAlignMany && (
+                <div className="flex gap-1">
+                  {ALIGN_MANY.map((a) => (
+                    <button
+                      key={a.key}
+                      type="button"
+                      title={a.title}
+                      aria-label={a.title}
+                      onClick={() => onAlignMany(a.key)}
+                      className="rounded border border-border px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted/40"
+                    >
+                      <a.Icon className="h-3.5 w-3.5" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {onDistributeMany && (groupIds?.length ?? 0) > 2 && (
+                <div className="mt-1 flex gap-1">
+                  {DISTRIBUTE_MANY.map((d) => (
+                    <button
+                      key={d.key}
+                      type="button"
+                      title={d.title}
+                      aria-label={d.title}
+                      onClick={() => onDistributeMany(d.key)}
+                      className="rounded border border-border px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted/40"
+                    >
+                      <d.Icon className="h-3.5 w-3.5" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Say WHY the rest is gone, rather than going quietly empty — the
+              `d878242` lesson: a pane that withdraws silently reads as broken,
+              and one that answers for the primary reads as correct while being
+              stale. Neither is acceptable; saying so is the fix. */}
+          {multiObject && (
+            <div className={SECTION}>
+              <p className="text-[10px] text-muted-foreground">
+                Align and distribute apply to everything selected. Identity,
+                position, layout and style apply to one object at a time.
+              </p>
+            </div>
+          )}
           {/* Position (ADR-511 D4) — an explicit, visible, reversible state.
               Flow is the default; dragging is what enters the positioned
               state; "In flow" is the reversal. Shown on every STAGED block so
@@ -2360,7 +2466,7 @@ export function StudioDesignTab({
               the kernel rule requires BOTH x and y — read the state the
               kernel reads. X/Y readback (ADR-519 Phase A): the drag's numeric
               receipt; entry lands in Phase C. */}
-          {!!selectedEl?.closest('.slide') && (() => {
+          {!multiObject && !!selectedEl?.closest('.slide') && (() => {
             const positioned =
               selectedEl.hasAttribute('data-x') && selectedEl.hasAttribute('data-y');
             const chip = (active: boolean) =>
@@ -2422,7 +2528,7 @@ export function StudioDesignTab({
               unreachable. A guard behind a scope that cannot be entered is dead
               code that reads as live policy. Objects (a figure) keep the
               section: they ARE boxes. */}
-          {(nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
+          {!multiObject && (nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
             <div className={SECTION}>
               <p className={HEADING}>Layout</p>
               {nonColorTokens.map((t) => (
@@ -2447,7 +2553,7 @@ export function StudioDesignTab({
               ))}
             </div>
           )}
-          {rampSection}
+          {!multiObject && rampSection}
           {/* COLOUR sits directly under TYPOGRAPHY — the two shaping questions a
               member asks in sequence ("how big / what role", then "what colour"),
               so they belong adjacent rather than separated by the structural
@@ -2457,7 +2563,7 @@ export function StudioDesignTab({
               Palette-backed tokens are lifted here; every other token keeps its
               existing home below, so this is a RELOCATION of one control, not a
               second mount of it. */}
-          {!multiBlockRange && colorTokens.length > 0 && (
+          {!multiBlockRange && !multiObject && colorTokens.length > 0 && (
             <div className={SECTION}>
               {colorTokens.map((t) => (
                 <ColorTokenSwatches
@@ -2492,7 +2598,7 @@ export function StudioDesignTab({
               />
             </div>
           )}
-          {turnIntoSection}
+          {!multiObject && turnIntoSection}
         </>
       )}
 

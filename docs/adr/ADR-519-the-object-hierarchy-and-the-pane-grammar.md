@@ -191,6 +191,61 @@ ever), **no clip toggle** (the slide clips by kernel rule).
 - Breadcrumb, navigator tree, and canvas chrome light multi-selection consistently
   (every member boxed, the shared parent named).
 
+### D4.1 — The set is STATE, not a scope (amended 2026-08-06, operator-directed)
+
+D4 above says *"the pane gains a **multi scope**"*. That is withdrawn. The affordances
+it names — align/distribute, Group/Ungroup, consistent chrome — all stand; only their
+**home** changes. Re-derived from first principles at the operator's instruction rather
+than by matching the ADR-528 precedent:
+
+**What is a selection for?** It answers *what does the next verb act on*. Two things
+follow, and they are different things:
+
+1. **A scope answers "what is this?"** The pane is an inspector, and every one of its
+   sections is a property *of a subject*: Identity is a label, Position is a box, Layout
+   is a container's own CSS, Style is the subject's tokens. A **set of N things has no
+   label, no box, no tier, and no `data-block-id`.** Asking the inspector to describe a
+   set forces it to answer a question the set does not have — which is exactly how the
+   pane came to show "HEADING · Typography: Heading 2" over a six-block range (`d878242`).
+2. **A set answers "how many does the verb take?"** That is a fact about the *gesture*,
+   not about the subject. `setGeometryMany` already proves the point: it accepts a list
+   and writes one revision, and it has existed since 2026-07-24 **with no scope at all**.
+   The op layer never needed one.
+
+**The runtime settled this before the ADR asked.** `group` rides *alongside* `cur`, and
+the comment at [projection.ts:988-994](../../web/components/workspace/viewers/projection.ts#L988-L994)
+states the rule outright: *"cur stays the primary (the block the box, handles and
+Properties scope follow), and group is the additional members. That keeps the
+one-selection rule intact — every existing reader of `__yarnnnSelected()` still gets
+exactly one element, and only the move gesture consults the group."* A multi scope would
+have contradicted the substrate that already ships.
+
+**And a scope is now unbuildable without breaking rule 11.** After ADR-528 D2.1, scope
+derives FROM the tier the runtime declares. A set has no single tier — select a heading
+and a figure and there is no honest answer — so a sixth scope would have to either invent
+a tier or bypass the derivation. Both are worse than not having one.
+
+**The decision.** A multi-selection is **state carried beside the selection**
+(`groupIds: string[]`), never a scope:
+
+- Single-subject sections **withdraw over a set and say they have withdrawn**, exactly as
+  they now do over a multi-block range. Silence and staleness are the two failure modes;
+  saying so is the fix.
+- **Align / distribute is a SECTION that appears when the set has more than one member** —
+  it is the one control whose subject genuinely *is* the set, so it is the one thing that
+  earns a mount there.
+- The Identity heading names the **count**, never a stale label.
+- Nothing about the tier derivation, the scope set, or rule 11 changes.
+
+**Where D4 was right, and stays right:** the multi-selection must become first-class —
+`onGroup` wired, chrome consistent, align/distribute reachable, Group/Ungroup available.
+The audit's finding was that the set is orphaned at the React boundary, and that is real.
+The correction is only that "first-class" means *visible state*, not *a sixth scope*.
+
+**Refused with it:** no synthetic set-subject (a fake label/box/tier standing in for N
+things) · no per-member pane fan-out (N inspectors is not an inspector) · no scope whose
+tier is invented rather than declared.
+
 ### D5 — Layout completion: the allowlist grows three rows, no new mechanism
 
 - **Direction**: `flex-direction` column \| row on containers — the explicit Flow
