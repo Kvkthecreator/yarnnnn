@@ -133,6 +133,30 @@ pane's container scope, and layout authority — Figma's "Group vs Frame" distin
 collapses into "container without vs with declared layout," which is the honest CSS
 truth Figma itself hides.
 
+**D2.1 — Re-arranging a slide dissolves its groups** (amended 2026-08-06, from the
+Phase B/C audit; operator-decided). D2 was ratified without seeing a refusal already
+written at `artifactOps.ts:719` (2026-07-24), which argued that no persisted group may
+exist at all. The audit tested both of its claims:
+
+- Its `carriedBlocksOf` objection — that a wrapper would hide its own children from
+  every content-redistributing sweep — is **false**. That filter tests `data-block`; a
+  group wrapper carries `data-block-id` alone, so it never trips it and the children
+  stay visible. Verified by execution, not by reading.
+- Its `applyArrangement` objection is **true**, and is resolved here rather than left
+  implicit: `applyArrangement` ends in `page.replaceWith(el)`, so the old page is
+  discarded wholesale and blocks survive only because they were re-parented into the
+  new arrangement first. A group wrapper is destroyed with the page that held it.
+
+The rule is therefore: **a group is durable until the arrangement is re-declared, and
+re-arranging dissolves it.** This costs no op-layer change and no cleanup pass — a
+wrapper can never be orphaned, because nothing of the old page survives. It is the same
+yielding AUTHORING.md already names: a slot is DECLARED by the arrangement, a group is
+AUTHORED ad hoc, and the ad-hoc structure yields when the declaration changes. **The
+surface owes the member that sentence before the re-arrange** — a group vanishing
+silently is the defect this decision must not produce. *Group-survives-as-a-carried-unit*
+was considered and refused: it would change the arrangement's carry semantics and open
+slot-fitting for a multi-block wrapper, for a durability no member has asked for.
+
 ### D3 — The pane spine: one ordered grammar at every scope
 
 The Design tab recomposes onto one spine; scopes differ only by which sections render:

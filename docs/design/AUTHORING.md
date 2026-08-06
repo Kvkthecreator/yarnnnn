@@ -64,7 +64,12 @@ object*; selecting a real container was never the refused thing). Persistent gro
 is **Group as a verb** (ADR-519 D2, declared — Phase B): wrap the multi-selection in a
 real `<div data-block-id>` as one authored revision; Ungroup unwraps. The wrapper *is*
 a structural container — Figma's Group ≡ a container with no layout declared; no group
-node type exists.
+node type exists. **A group is durable until the arrangement is re-declared: re-arranging
+a slide DISSOLVES its groups** (ADR-519 D2.1, 2026-08-06) — `applyArrangement` ends in
+`page.replaceWith(el)`, so the wrapper dies with the page that held it and can never be
+orphaned. A slot is DECLARED by the arrangement, a group is AUTHORED ad hoc; the ad-hoc
+structure yields. The surface must SAY so before the re-arrange — a group vanishing
+silently is the defect that rule must not produce.
 
 **The selection floor is the attribution floor** (ADR-511 D3, normative): text nodes,
 `<br>`, inline spans are never selection subjects — selection bottoms out at what can
@@ -331,7 +336,14 @@ shipped here only as they land.
   structure tree DELETED (the rail is the sequence).
 
 - **Phase A — the spine** (pure FE recomposition): the pane matrix above · container
-  verb-row parity · X/Y readback.
+  verb-row parity · X/Y readback. ✅ shipped 2026-08-05 — **with a defect fixed
+  2026-08-06**: the verb row mounted, but `moveBlock`'s sibling walk stepped by
+  `data-block`, so a container was invisible to its own reorder and Move up/down
+  answered with silence (`moveBlockTo` returned null; the button never disabled). The
+  walk now tests `data-block-id` — what `moveBlockTo` addresses by, so walk and move
+  agree on what a sibling is. It survived a green 16/16 gate because that gate asserts
+  the row MOUNTS; a grep cannot see an op return null. New executing gate:
+  `adr519_container_reorder.mjs`.
 - **Phase B — selection completion**: onGroup wiring + multi scope (align/distribute) ·
   Group/Ungroup verbs · ⌘-click deep select · **page identity stamped at the normalize
   seam** (retires the ADR-516 page-anchor resolver by use) · chrome/breadcrumb/

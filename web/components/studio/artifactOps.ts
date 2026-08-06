@@ -723,23 +723,35 @@ export function setGeometry(
   return { html: serialize(doc), landedId: blockId };
 }
 
-/** Move/resize SEVERAL blocks as ONE revision — the group gesture (2026-07-24).
+/** Move/resize SEVERAL blocks as ONE revision — the group gesture (2026-07-24;
+ *  reconciled with ADR-519 D2 on 2026-08-06).
  *
- *  A group is a TRANSIENT SELECTION, never markup. The substrate says so
- *  plainly: `applyArrangement` calls `returnToFlow()` on every block it
- *  carries, stripping x/y/w/h/z — so a persisted `<div data-group>` would be
- *  orphaned by the next re-arrange. And `carriedBlocksOf` skips any block
- *  nested inside another block, so a wrapper would hide its own children from
- *  every sweep that redistributes content. A group that survives in the file
- *  would be a second structural layer competing with the arrangement — the
- *  exact confusion the slot pass just removed (AUTHORING.md: a slot is DECLARED
- *  by the arrangement, a group is AUTHORED ad hoc; they are not the same kind
- *  of thing and must not become one).
+ *  THIS op's group is a TRANSIENT SELECTION: what it writes is what a group has
+ *  always written in PowerPoint — each member's OWN geometry, one revision, no
+ *  wrapper. That is unchanged, and it is why no `ungroup` op sits beside it.
  *
- *  So the group lives in the member's selection, and what it writes is what a
- *  group has always written in PowerPoint: each member's OWN geometry. Ungroup
- *  is deselection — there is nothing to undo, which is why no `ungroup` op
- *  exists here.
+ *  What DID change: this block used to argue that no persisted group may ever
+ *  exist. ADR-519 D2 decided the opposite — Group as a verb wraps a selection
+ *  in a real `<div data-block-id>`, which is simply a container with no declared
+ *  layout. The two coexist: a transient group is a gesture, a persisted group is
+ *  structure. Of the two objections recorded here, one was wrong and one was
+ *  right, so both are corrected rather than deleted:
+ *
+ *  WRONG — "`carriedBlocksOf` would hide a wrapper's children." It filters on
+ *  `data-block` (a BLOCK); a group wrapper carries `data-block-id` ALONE, so it
+ *  never trips that test and its children stay visible to every sweep. Verified
+ *  by execution, not by reading: [wrapper[b1,b2]] carries as `b1,b2`.
+ *
+ *  RIGHT — a persisted group does NOT survive `applyArrangement`, and this is
+ *  now the DECIDED, member-visible rule (2026-08-06): **re-arranging a slide
+ *  dissolves its groups.** The mechanism is `page.replaceWith(el)` below: the
+ *  old page is discarded wholesale and blocks survive only because they were
+ *  re-parented into the new arrangement first. A wrapper is therefore never
+ *  orphaned — it is destroyed with the page that held it, which is the honest
+ *  outcome and needs no cleanup pass. A group is AUTHORED ad hoc; a slot is
+ *  DECLARED by the arrangement (AUTHORING.md); when the arrangement is
+ *  re-declared, the ad-hoc structure yields to it. The surface owes the member
+ *  that sentence before the re-arrange, not a silent disappearance.
  *
  *  ONE revision, not N: the gesture is one act, and N revisions would make the
  *  history unreadable and a single undo insufficient. Blocks are applied in

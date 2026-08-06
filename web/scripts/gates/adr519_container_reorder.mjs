@@ -160,5 +160,67 @@ t('both sibling walks extracted and runnable', !!prevBlock && !!nextBlock);
   t('container scope still mounts the verb row (the affordance being fixed)', /<VerbRow/.test(region));
 }
 
+// ── 8. ADR-519 D2.1 — the group/re-arrange reconciliation, EXECUTED ───────
+// The refusal at artifactOps.ts:719 and ADR-519 D2 contradicted each other for
+// a day. Both claims are pinned here so neither can drift back.
+{
+  // (a) The FALSE claim, executed: a group wrapper does NOT hide its children.
+  // carriedBlocksOf = querySelectorAll('[data-block]') filtered by
+  // !parentElement?.closest('[data-block]'). A wrapper carries data-block-id
+  // ALONE, so it never trips that test.
+  const wrapper = { a: { 'data-block-id': 'g1' } };
+  const kids = [
+    { a: { 'data-block-id': 'b1', 'data-block': 'text' }, parent: wrapper },
+    { a: { 'data-block-id': 'b2', 'data-block': 'text' }, parent: wrapper },
+  ];
+  const carried = [wrapper, ...kids]
+    .filter((e) => 'data-block' in e.a)
+    .filter((e) => !(e.parent && 'data-block' in e.parent.a));
+  t(
+    "D2.1: a group wrapper does NOT hide its children (the refusal's false claim)",
+    carried.length === 2 && carried.every((e) => kids.includes(e)),
+  );
+  t('D2.1: a group wrapper is NOT carried as a unit (so it cannot survive)', !carried.includes(wrapper));
+
+  // (b) The TRUE claim, pinned at its mechanism: applyArrangement discards the
+  // whole page, which is WHY dissolve costs no cleanup pass. If this line ever
+  // stops being a wholesale replace, the "never orphaned" guarantee dies.
+  // Slice to the NEXT top-level declaration, not the first `\n}` — the body has
+  // nested blocks that close at column 0's predecessor and would truncate it.
+  const ai = ops.indexOf('export function applyArrangement(');
+  const aEnd = ops.indexOf('\nexport function', ai + 10);
+  const abody = ops.slice(ai, aEnd > 0 ? aEnd : undefined);
+  // Match the STATEMENT (line-anchored, semicolon-terminated), never the
+  // string as prose — the body quotes `page.replaceWith(el)` in a comment
+  // ABOVE the code, and matching that made the ordering check read backwards.
+  const stmt = /^\s*page\.replaceWith\(el\);$/m;
+  t('D2.1: applyArrangement discards the old page wholesale (no orphan possible)', stmt.test(abody));
+  t(
+    'D2.1: blocks survive only by being re-parented FIRST',
+    abody.indexOf('target.appendChild(b);') < abody.search(stmt),
+  );
+  // All THREE arrangement entrances replace the page — the dissolve rule is a
+  // property of re-arranging, not of one function.
+  const others = ['applyArrangementPlan(', 'applyArrangementMovingContent('].map((n) => {
+    const i = ops.indexOf('export function ' + n);
+    const e = ops.indexOf('\nexport function', i + 10);
+    return ops.slice(i, e > 0 ? e : undefined);
+  });
+  t(
+    'D2.1: every arrangement entrance replaces the page (dissolve is uniform)',
+    others.every((b) => stmt.test(b)),
+  );
+
+  // (c) The reconciliation is RECORDED where the contradiction lived — the
+  // comment must not silently revert to the old blanket refusal.
+  const mi2 = ops.indexOf('Move/resize SEVERAL blocks as ONE revision');
+  const cmt = ops.slice(mi2, ops.indexOf('export function setGeometryMany', mi2));
+  t('D2.1: the reconciliation is recorded at artifactOps.ts', /ADR-519 D2/.test(cmt));
+  t(
+    'D2.1: the corrected comment no longer claims a wrapper hides its children',
+    !/would hide its own children/.test(cmt),
+  );
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed`);
 process.exit(fail ? 1 : 0);
