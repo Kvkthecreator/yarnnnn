@@ -614,6 +614,24 @@ function VerbRow({
 
 const SECTION = 'space-y-2 border-b border-border p-3';
 const HEADING = 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground';
+// ADR-528 follow-up (2026-08-06) — MODULE scope, beside its two siblings.
+//
+// It was a component-body `const` ~450 lines below `turnIntoSection`, which
+// ADR-528 lifted out of the render to give `range` and `object` one mount. The
+// lift moved the JSX above this declaration and produced a TEMPORAL DEAD ZONE
+// crash in production: "Cannot access 't9' before initialization", thrown from
+// inside Array.map — the `.map()` in that very block.
+//
+// `tsc` passed and so did `next build`: the reference sits inside a JSX
+// expression, so it is not a direct read TypeScript's use-before-declaration
+// check can see (it caught `tagFontSize` in the same commit precisely because
+// that one WAS direct). Only executing the component finds it.
+//
+// It is a static string with no props, no state and no hooks, so a body-local
+// binding bought nothing and cost an ordering hazard. Here it cannot be lifted
+// past.
+const askBtn =
+  'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
 
 /** ADR-519 D4.1 — align/distribute over a ⇧-click SET. The conventional glyph
  *  triplets per axis (ADR-520 D3's presentation rule: alignment is glyphable,
@@ -1773,9 +1791,6 @@ export function StudioDesignTab({
       .then((c) => setSlotImages(c.images))
       .catch(() => setSlotImages([]));
   }, [scope, slotRole, slotImages]);
-
-  const askBtn =
-    'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
 
   return (
     <div className="flex-1 overflow-y-auto text-sm">
