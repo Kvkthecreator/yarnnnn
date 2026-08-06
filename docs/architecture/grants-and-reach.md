@@ -94,8 +94,12 @@ by no current ADR.
 
 - **`WorkspaceMembersCard`** (Settings → Access, both mounts): the roster of principals —
   humans + AI as peers — with invite/narrow/revoke/cap. Shows reach as workspace *regions*.
-- **Get Info / `NodeDetailsPanel`** (ADR-512 D6): per-file reach (`FileReach`) + this file's
-  live links with revoke (`FileShares`).
+- **Get Info / `NodeDetailsPanel`** (ADR-512 D6): per-file reach (`FileReach`).
+- **`ShareDialog`** (ADR-529 D1) — the singular mint surface, raised from the `FileVerbs`
+  bundle so every file surface opens the same act. It also carries **this file's live links
+  with revoke**, which is where the operator manages what they minted. (The old `FileShares`
+  block in `NodeDetailsPanel` is DELETED, ADR-529 D4 — do not reintroduce a second place to
+  revoke a link.)
 - **Known half-view (owed, named by ADR-515 D6)**: the rail is per-principal-never-per-file;
   Get Info is per-file-never-per-principal. The direction of resolution (ADR-517 discourse):
   render live share links as **principal-class rows in the roster** ("Anyone with link ·
@@ -116,11 +120,23 @@ own canon (FE door, ADR-328 Phase-1 package, stale PDF/PPTX doc repairs) is a se
 
 ## 8. Owed (tracked, not silently open)
 
-- **FE convergence** (ADR-515 phases 2–5 + the rail pass): the Share modal, the
-  `Copy AI reference` verb move, the precondition seam, links-as-roster-rows, the
+**Closed 2026-08-06 by [ADR-529](../adr/ADR-529-one-share-act-one-link-two-readers.md)**: the
+Share modal (one `ShareDialog` on the `FileVerbs` bundle, replacing three divergent surfaces);
+the `shareKey()` retirement (ADR-517 D5's named dead defence — paths have been
+canonical-absolute at the write since migration 234); and the public link's legibility (the
+page is server-rendered, so a machine handed the link can read it, and `Accept: text/markdown`
+serves the same projection as prose — one URL, two representations).
+
+Still owed:
+
+- **FE convergence remainder** (ADR-515 D3/D4/D6 + the rail pass): the `Copy AI reference` verb
+  move, the internal-referral ADR, the precondition seam, links-as-roster-rows, the
   `share_mint_policy` dial UI, viewer-promotion affordance. Click-pass lane.
-- **FE retirement of `shareKey()`** (`NodeDetailsPanel.tsx`) once no pre-234 client writes
-  relative paths.
+- **The click-pass for ADR-529 itself** — the dialog + the public view have not been driven in
+  a browser (opaque-origin iframe defeats CDP for the Studio mount; the Files mount and `/s`
+  are drivable).
+- **Rate limiting on `/api/s/{token}`** — named owed by ADR-513 D5 and slightly more owed now
+  that SSR makes the surface cheaper to scrape. The token's 192 bits still carry enumeration.
 - **Stale user docs**: gitbook expiry claim (false — no UI passes `ttl_days`), always-member
   claim (false since ADR-465 Phase D), view-only undocumented; AUTHORING.md Share placement.
 - **Invite-with-artifact-scope**: named, unowned (§5).

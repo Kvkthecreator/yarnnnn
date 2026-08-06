@@ -8,9 +8,10 @@ Asserts:
   1. /workspace/members?path= computes per-principal reach with the ONE
      powerbox matcher (path_under_scopes) — never a re-derived FE matcher —
      with the owner shortcut and the NULL-write → class-default fallback.
-  2. The FE Get Info panel (NodeDetailsPanel) mounts reach + per-file share
-     management (revoke — the "Manage Shared File" row) and computes no
-     scope-matching client-side.
+  2. The FE Get Info panel (NodeDetailsPanel) mounts per-file reach and
+     computes no scope-matching client-side; a live link's revoke is reachable
+     from the file — since ADR-529 D4, in the one `ShareDialog` rather than a
+     second block in the panel (the operator revokes where they mint).
   3. Attach-from-workspace is a BIND: the chip carries the existing path; the
      handler performs no upload; the picker mounts the ONE WorkspacePicker.
 """
@@ -46,17 +47,23 @@ def main():
 
     with open("../web/components/workspace/NodeDetailsPanel.tsx", encoding="utf-8") as f:
         panel = f.read()
+    with open("../web/components/workspace/ShareDialog.tsx", encoding="utf-8") as f:
+        dialog = f.read()
     results.append(_check(
-        "2a Get Info mounts reach + shares sections",
-        "function FileReach" in panel and "function FileShares" in panel
-        and "<FileReach" in panel and "<FileShares" in panel))
+        "2a Get Info mounts per-file reach",
+        "function FileReach" in panel and "<FileReach" in panel))
     results.append(_check(
         "2b no client-side scope matching (server computes; panel renders)",
         "startsWith" not in inspect.getsource(w.get_workspace_members) or
         ("path_under_scopes" in src and "can_write" in panel and "prefix" not in panel.lower())))
+    # ADR-529 D4 moved per-file share management out of Get Info and into the
+    # one ShareDialog: the operator revokes where they mint. This gate's INTENT
+    # — a live public link has an off switch reachable from the file — is
+    # unchanged and re-pointed, not weakened. Asserting BOTH halves (present in
+    # the dialog, absent from the panel) keeps it from passing on a duplicate.
     results.append(_check(
-        "2c per-file share revoke present (revocation = the public link's off switch)",
-        "revokeShare" in panel))
+        "2c per-file share revoke present, in the ONE dialog (ADR-529 D4)",
+        "revokeShare" in dialog and "revokeShare" not in panel))
 
     with open("../web/components/chat-surface/LanePanel.tsx", encoding="utf-8") as f:
         lane = f.read()
