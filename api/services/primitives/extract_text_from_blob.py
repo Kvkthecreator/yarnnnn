@@ -46,7 +46,12 @@ logger = logging.getLogger(__name__)
 # The derive-registry (ADR-395 D2), entry 1. MIME/extension → strategy. Only
 # `text` is implemented in Phase 1; `passthrough` needs no projection; `deferred`
 # means retained-but-not-yet-consumable (DP34 — a known gap, never a drop).
-_TEXT_FORMATS = {"pdf", "docx", "doc", "txt", "md", "csv"}
+#
+# ADR-530 D1: `html`/`htm` join the text family. A yarnnn artifact is very often
+# HTML (the Studio authoring apps emit it), and its markup is NOT what a model
+# reads — DP34. The extraction lives in `html_text.py`; see ADR-530 D2 for why
+# extraction is not sanitization and never licenses inlining.
+_TEXT_FORMATS = {"pdf", "docx", "doc", "txt", "md", "csv", "html", "htm"}
 _PASSTHROUGH_FORMATS = {"png", "jpg", "jpeg", "gif", "webp"}  # already model-consumable
 _DEFERRED_FORMATS = {"xlsx", "pptx", "zip", "mp3", "wav", "m4a"}
 
