@@ -250,6 +250,16 @@ the write seam, not enforced).
 - **Block vocabulary**: 13 kinds (prose · callout · quote · checklist · divider · toggle
   · button | table · metrics · chart | figure · gallery), served on
   `GET /studio/vocabulary`. Grammar, not schema — unannotated content stays valid.
+  **The roster is APP-SCOPED** (ADR-528 D5): a row may declare `apps`, and absent =
+  every app. **Docs offers 11 — not callout or toggle** (both are prose in a container
+  with its own caret; Google Docs has neither, and toggle is what a collapsible heading
+  would need, which ADR-526 §6 holds open pending evidence). Studio keeps both: on a
+  composed surface an offset aside is an authored object, and ADR-487 D2's variant
+  system is built on it there. This is the `app` dimension `layouts` has carried since
+  ADR-473 D2, finally present on blocks — **not** per-medium menu subsetting, which stays
+  refused: the roster is scoped, and every door of an app offers all of its roster.
+  Scoping never affects RECOGNITION — an existing callout in a document renders, edits,
+  and keeps its text tier; it is an inert name (ADR-511 D8).
 - **Arrangements are STARTER TEMPLATES** (ADR-511 D2): applying one is an authored
   transformation whose result is live, editable structure — selectable containers whose
   layout is CSS — never a frozen master. Role-aware content carry (media seeks media,

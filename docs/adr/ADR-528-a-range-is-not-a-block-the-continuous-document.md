@@ -191,13 +191,45 @@ withdrawals) becomes unreachable once those sections are not composed for `range
 A suppression guard behind a scope that cannot reach it is dead code that reads as live
 policy.
 
-**D5 — callout and toggle are dropped from the vocabulary** (operator, settled in the
-brief §5; Google Docs has neither). Both are prose in a container (`<aside>`, `<details>`)
-and both sit in `TEXT_BLOCK_KINDS` while being containers — they are the two kinds that
-most muddy the text/object line, so removing them makes `tierOf` sharper, not merely
-shorter. Existing instances survive as **inert names** (ADR-511 D8): they render, nothing
-gates on them, nothing writes them. Removed from `VOCABULARY`, from `TEXT_BLOCK_KINDS`,
-from the insert menus.
+**D5 — callout and toggle are not offered by Docs, via an APP-SCOPED vocabulary**
+(operator, settled in the brief §5; Google Docs has neither). Both are prose in a
+container (`<aside>`, `<details>`) and both sit in `TEXT_BLOCK_KINDS` while *being*
+containers — the two kinds that most muddy the text/object line this ADR carves.
+
+> **Amended during implementation (2026-08-06).** This decision was drafted as "dropped
+> from the vocabulary," on a Docs premise that did not survive contact with the machinery:
+> `STUDIO_BLOCKS` is **one registry serving all three authoring apps**, so deleting the
+> rows would have removed both kinds from decks and web pages too — and callout carries
+> ADR-487 D2's variant system (note/success/warning) plus the `block-callout` token grain
+> *there*. AUTHORING.md also refuses per-medium menu subsetting, which made filtering a
+> door the wrong lever. Operator direction on the fork: *"authoring should be app specific
+> or at least aim to do so. thus scope accordingly."*
+>
+> **The asymmetry underneath**: `STUDIO_LAYOUTS` rows have carried `app` since ADR-473 D2;
+> `STUDIO_BLOCKS` rows carried nothing. There was nowhere to *say* a kind belongs to one
+> app, so the only reachable lever looked like a menu filter. The fix is the dimension the
+> registry lacked. **The roster itself is app-scoped, and every door of every app still
+> offers all of ITS roster** — which is a different thing from a medium subsetting a
+> shared roster at the door, and leaves that refusal standing.
+
+- `apps` on a block row; **absent = every app** (all but the two rows).
+- `blocks_for_app()` / `app_for_layout()` — one derivation, read off the row, never a slug
+  list, so a new app inherits the shared roster with no edit and a kind changes hands by
+  moving one tuple.
+- **The lane posture is scoped too**, from the already-resolved layout row. This is
+  ADR-525 D4's lesson one level up (*"the lane reads this grammar too, so without D4 the
+  AI hand keeps being told a paragraph has a width"*): an unscoped roster is how the model
+  keeps offering a Docs member a callout.
+- Ownership is **served** (`apps` per block, `null` = every app) and the FE filters **once
+  at the vocabulary load site** — the chokepoint, never the three offering surfaces
+  (insert menu, slash palette, turn-into). ADR-484's recorded fault was a rule guarded at
+  two click sites while five other routes inherited nothing.
+
+**Recognition is deliberately untouched** — a grammar filter is never a schema gate. The
+kernel CSS, the ADR-487 D2 variants, the registry rows and `TEXT_BLOCK_KINDS` all survive,
+so an existing callout in a Docs document still renders, still edits, and **still gets the
+text tier so its prose stays editable**. The kinds become **inert names** (ADR-511 D8),
+which is exactly what this decision specifies for documents that already hold them.
 
 **D6 — metrics stay with the design system.** Restated because "closer to Google Docs" is
 exactly the phrase that would reopen it. Google Docs gives the writer a point-size box;
@@ -233,10 +265,26 @@ deleted (brief §3.4): `test_adr443_studio_model.py:61,85,140`, `test_adr481_flo
 `adr482_flow_promote.mjs:138,140`, `adr526_docs_structure.mjs:158`,
 `adr527_emphasis_tier.mjs:180-205` (the eight ADR-528 assertions `d878242` already landed).
 
-New gate `adr528_range_scope.mjs` must **execute the extracted body**, not grep a spelling
-(the discipline that broke six assertions this week), and must **falsify** — inject a
-`block` scope on flow and confirm the gate trips. A counting gate cannot defend a per-site
-invariant.
+New gate `adr528_range_scope.mjs` (**20/20**) **executes the extracted derivation** over a
+payload×tier matrix rather than grepping a spelling (the discipline that broke six
+assertions this week), asserts `block` is unreachable for *every* input — completeness,
+not two rows — and **falsifies** by running the pre-528 derivation and showing it reaches
+`block`.
+
+`test_adr528_app_scoped_vocabulary.py` (**25/25**) covers D5: the scoping, the completeness
+of every `apps` value against known apps, that exactly ONE FE filter site exists, that
+recognition survives, and two falsifiers.
+
+ADR-525 (**36/36**) and ADR-527 (**58/58**) were **re-cut with intent preserved**:
+suppression pins (`{!isTextTier && (<VerbRow`) became non-composition pins (the verb row
+is composed for `object` only, and a range cannot reach it). **Two of this session's own
+new assertions pinned spellings and had to be fixed** — one matched its own D4 explanatory
+*comment*, the other pinned `{headingRow}` while the branch renders
+`{!multiBlockRange && headingRow}`. Both are the failure mode §7's discipline names, caught
+by running the gates rather than by reading them.
+
+Verification: `tsc` clean · FE gates 182/182 across six suites · `test_adr443` 157/157 ·
+`test_adr521` 35/35 · **`next build` exit 0, 169/169 pages** from an isolated worktree.
 
 ---
 
