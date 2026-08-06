@@ -618,6 +618,11 @@ const POINTER_SCRIPT = `
       var gblk = el && el.closest ? el.closest('[data-block]') : null;
       var gstaged = gblk && gblk.closest ? !!gblk.closest('.slide') : false;
       if (gblk && gstaged) {
+        // __yarnnnSelect now posts an empty set when it clears one (below), so
+        // seeding through it can emit twice in one gesture. Harmless — the
+        // authoritative set is posted immediately after — but the second
+        // message is the one that must win, so keep them in this order and
+        // never reorder them.
         if (!cur) { window.__yarnnnSelect(gblk); }
         else { toggleGroup(gblk); }
         parent.postMessage({
@@ -901,6 +906,13 @@ const POINTER_SCRIPT = `
     }
     if (!up) {
       if (cur) cur.classList.remove('yarnnn-pointed');
+      // ADR-519 D4.1 — this branch clears to NOTHING without passing through
+      // __yarnnnSelect, so it must clear the set itself or Esc-to-nothing
+      // would leave the parent holding one.
+      if (group.length) {
+        clearGroup();
+        parent.postMessage({ type: 'yarnnn-group', blockIds: [] }, '*');
+      }
       cur = null;
       parent.postMessage({ type: 'yarnnn-point-clear' }, '*');
       return;
@@ -980,7 +992,20 @@ const POINTER_SCRIPT = `
   window.__yarnnnSelect = function (el) {
     if (!el || !el.classList) return;
     if (cur) cur.classList.remove('yarnnn-pointed');
-    clearGroup();
+    // ADR-519 D4.1 — the set dies here, and the PARENT must hear it. This
+    // function already cleared the runtime's own group; what it did not do was
+    // say so, and "yarnnn-group" is posted only from the ⇧ branch. So a plain
+    // click after a set left the parent holding stale ids: the pane kept
+    // reading "2 objects selected", every single-subject section stayed
+    // withdrawn, and there was NO gesture that could get back — the member was
+    // trapped in a set of one. Clearing at the chokepoint means every
+    // selection route (click, Esc-walk, breadcrumb, parent re-command,
+    // deep-select) is fixed by one line, which is the ADR-525 D2 lesson:
+    // a guard at the chokepoint is inherited by the next route for free.
+    if (group.length) {
+      clearGroup();
+      parent.postMessage({ type: 'yarnnn-group', blockIds: [] }, '*');
+    }
     cur = el;
     if (tierOf(el) !== 'text') el.classList.add('yarnnn-pointed');
   };

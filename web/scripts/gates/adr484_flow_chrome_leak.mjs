@@ -65,17 +65,25 @@ const TEXT_KINDS = ['prose', 'callout', 'quote', 'checklist', 'toggle', 'heading
 function selectIn(flow, blockKind) {
   const el = mkEl('div', blockKind);
   const win = { __yarnnnFlowMode: () => flow };
+  // ADR-519 D4.1 (2026-08-06) — __yarnnnSelect now also clears the multi-select
+  // SET and posts the empty set to the parent, so the harness supplies those
+  // two closures too. Shimmed rather than modelled on purpose: this gate is
+  // about the CUE (is prose boxed), and the set is adr519_d41's subject. An
+  // empty `group` means the clear branch is skipped, which is the state every
+  // case here runs in.
   const fn = new Function(
     'window',
     'TEXT_KINDS',
     'el',
     'cur',
     'clearGroup',
+    'group',
+    'parent',
     `function tierOf(el) {${tierBody}}
      var __sel = function (el) {${selBody}};
      __sel(el); return el;`,
   );
-  fn(win, TEXT_KINDS, el, null, () => {});
+  fn(win, TEXT_KINDS, el, null, () => {}, [], { postMessage: () => {} });
   return el.classList.contains('yarnnn-pointed');
 }
 
@@ -109,10 +117,12 @@ const falsified = (() => {
     'el',
     'cur',
     'clearGroup',
+    'group',
+    'parent',
     `function tierOf(el) {${tierBody}}
      var __sel = function (el) {${preFix}};
      __sel(el);`,
-  )(win, TEXT_KINDS, el, null, () => {});
+  )(win, TEXT_KINDS, el, null, () => {}, [], { postMessage: () => {} });
   return el.classList.contains('yarnnn-pointed');
 })();
 t('FALSIFIER: the pre-fix unconditional apply DOES box prose', falsified === true);

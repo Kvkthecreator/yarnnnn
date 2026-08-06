@@ -646,6 +646,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     setCtxMenu(null); // same reason as onPoint — a click on empty canvas
     setSelection(null);
     setEditingBlockId(null);
+    // ADR-519 D4.1 — a set cannot outlive the selection it rode alongside.
+    // The runtime clears it at its own chokepoint and says so; this is the
+    // parent-side backstop, because a STUCK set is uniquely bad: every
+    // single-subject section withdraws, so the member loses every editing
+    // affordance AND the gesture that would get them back.
+    setGroupIds([]);
   }, []);
 
   // ADR-446: which block is being edited in place (surface-held; the canvas

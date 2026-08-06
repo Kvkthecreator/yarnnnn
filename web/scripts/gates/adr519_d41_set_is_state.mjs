@@ -176,5 +176,47 @@ const runAlign = (edge, boxes) => {
     !/__yarnnnSelected = function \(\) \{ return \[/.test(proj));
 }
 
+// ── 9. THE SET MUST BE ESCAPABLE (the prod trap, 2026-08-06) ──────────────
+// Found in prod by the operator: after ⇧-selecting two objects, a plain click
+// left the pane reading "2 objects selected" forever. The runtime cleared its
+// OWN group in __yarnnnSelect but never told the parent — `yarnnn-group` was
+// posted only from the ⇧ branch — so `groupIds` went stale.
+//
+// A stuck set is uniquely bad, which is why this earns its own section: every
+// single-subject section withdraws over a set, so the member loses every
+// editing affordance AND the gesture that would give them back. Withdrawal is
+// only honest if it is reversible.
+{
+  // The emitter's shape, EXECUTED: __yarnnnGroup returns [cur].concat(group),
+  // so a lone selection reports 1 — which is why "> 1" is the set test and why
+  // toggling the last member OFF already reported correctly. The plain-click
+  // path was the only one that stranded the parent.
+  const emit = (cur, grp) => (cur ? [cur].concat(grp) : grp.slice()).length;
+  t('set-escape: a lone selection reports 1, not a set', emit('A', []) === 1);
+  t('set-escape: ⇧-adding one member reports 2 — a set', emit('A', ['B']) === 2);
+  t('set-escape: toggling the last member OFF drops back to 1', emit('A', []) === 1);
+
+  // The fix, at the chokepoint every selection route already passes through.
+  const si = proj.indexOf('window.__yarnnnSelect = function (el)');
+  const body = proj.slice(si, proj.indexOf('window.__yarnnnClearGroup', si));
+  t('set-escape: __yarnnnSelect clears the group', /clearGroup\(\);/.test(body));
+  t('set-escape: …and TELLS THE PARENT it cleared (the whole defect)',
+    /yarnnn-group'[\s\S]{0,40}blockIds: \[\]/.test(body));
+  t('set-escape: the post is guarded on there BEING a set (no chatter per click)',
+    /if \(group\.length\) \{/.test(body));
+
+  // Esc-to-nothing bypasses the chokepoint — it must clear the set itself.
+  const ei = proj.indexOf("if (e.key !== 'Escape') return;");
+  const esc = proj.slice(ei, proj.indexOf('window.__yarnnnSelect(up);', ei));
+  t('set-escape: Esc-to-nothing clears the set too (it bypasses the chokepoint)',
+    /clearGroup\(\);[\s\S]{0,120}blockIds: \[\]/.test(esc));
+
+  // The parent-side backstop: a set cannot outlive its selection.
+  const pi = surface.indexOf('const onPointClear = useCallback');
+  const pc = surface.slice(pi, surface.indexOf('}, []);', pi));
+  t('set-escape: the parent drops the set when the selection clears',
+    /setGroupIds\(\[\]\)/.test(pc));
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed`);
 process.exit(fail ? 1 : 0);
