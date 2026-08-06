@@ -2020,6 +2020,21 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     invokeNonce.current += 1;
     setSlashInvoke({ nonce: invokeNonce.current });
   }, []);
+  // ADR-527 D4 — the pane's entrance to the runtime's `applyFmt`. Same nonce
+  // shape as slashInvoke, and for the same reason: pressing the same button
+  // twice must fire twice. The runtime restores the member's last live range
+  // before applying (the pane steals focus, so the selection is gone by the
+  // time this arrives) and does nothing when there was never a range.
+  const [fmtCmd, setFmtCmd] = useState<{
+    op: string;
+    value: string | null;
+    nonce: number;
+  } | null>(null);
+  const fmtNonce = useRef(0);
+  const handleFormat = useCallback((op: string, value?: string | null) => {
+    fmtNonce.current += 1;
+    setFmtCmd({ op, value: value ?? null, nonce: fmtNonce.current });
+  }, []);
   const onSlashPick = useCallback(
     (kind: string, label: string, fragment: string) => {
       // The ref, not the state: the close that races this pick has already
@@ -2982,6 +2997,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onSlashTaken={onSlashTaken}
                 slashTake={slashTake}
                 slashInvoke={slashInvoke}
+                fmtCmd={fmtCmd}
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
                 patch={patch}
@@ -3192,6 +3208,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               html={file?.content ?? ''}
               selection={selection}
               onSetToken={handleSetToken}
+              onFormat={handleFormat}
               onPageVerb={handlePageVerb}
               // ADR-519 D3 — the spine's Identity verb row at container + block
               // scope: the SAME id-addressed handler the right-click menu and

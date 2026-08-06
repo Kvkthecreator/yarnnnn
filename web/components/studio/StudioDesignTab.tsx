@@ -145,6 +145,11 @@ interface StudioDesignTabProps {
   /** EXECUTE: set (value) / clear (null) a token on the selected block/page,
    *  or on the artifact ROOT (document grain — ADR-455). */
   onSetToken: (grain: 'block' | 'page' | 'document', key: string, value: string | null) => void;
+  /** ADR-527 D4 — drive a RANGE op in the canvas runtime. The pane's buttons
+   *  and the inline bar's buttons are two entrances to one `applyFmt`; this is
+   *  the pane's. `value` carries a palette ROLE for mark/highlight (null
+   *  clears) and is unused by the toggles. */
+  onFormat: (op: string, value?: string | null) => void;
   /** Page verbs (duplicate-page has no other mount; the navigator covers
    *  delete/reorder). */
   onPageVerb: (verb: StructVerb) => void;
@@ -597,6 +602,126 @@ function VerbRow({
 const SECTION = 'space-y-2 border-b border-border p-3';
 const HEADING = 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground';
 
+/** ADR-527 D2 — the palette roles, as the kernel declares them. Text colour and
+ *  highlight name the SAME roles; highlight tints them (the ADR-487 D2
+ *  callout-variant precedent), so a skin needs no new variables. Closed sets:
+ *  the runtime validates against its own copy, so a raw value cannot reach the
+ *  DOM even if this list were edited carelessly. */
+const MARK_ROLES = [
+  { value: 'muted', label: 'Muted', varName: 'muted', fallback: '#6b6b6b' },
+  { value: 'accent', label: 'Accent', varName: 'accent', fallback: '#b4540a' },
+  { value: 'fresh', label: 'Success', varName: 'fresh', fallback: '#2e7d32' },
+  { value: 'warn', label: 'Warning', varName: 'warn', fallback: '#b45309' },
+  { value: 'danger', label: 'Danger', varName: 'danger', fallback: '#b3261e' },
+] as const;
+const HIGHLIGHT_ROLES = MARK_ROLES.filter((r) => r.value !== 'muted');
+
+/** The TEXT section (ADR-527 D4) — range emphasis, at the pane.
+ *
+ *  Every control here acts on the SELECTION, not the block: this is ADR-521
+ *  D2's text tier, given a home. The inline bar keeps B/I/code/link (it is the
+ *  at-the-caret affordance); the pane shows the full set. Two entrances, one
+ *  `applyFmt` — the ADR-521 D4 shape, never a second implementation.
+ *
+ *  Deliberately NOT here: point size, line spacing, font family. Those are
+ *  METRICS and the design system owns them (ADR-449) — §4 of the ADR records
+ *  the refusal rather than leaving the absence to look like an oversight. */
+function TextSection({
+  onFormat,
+  swatch,
+}: {
+  onFormat: (op: string, value?: string | null) => void;
+  swatch: (varName: string, fallback: string) => string;
+}) {
+  const btn =
+    'inline-flex h-6 min-w-6 items-center justify-center rounded border border-border px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
+  const dot =
+    'h-4 w-4 shrink-0 rounded-full border border-border transition-transform hover:scale-110';
+  return (
+    <div className={SECTION}>
+      <p className={HEADING}>Text</p>
+      <div className="flex flex-wrap items-center gap-1">
+        <button type="button" className={`${btn} font-semibold`} onClick={() => onFormat('bold')} title="Bold (⌘B)">
+          B
+        </button>
+        <button type="button" className={`${btn} italic`} onClick={() => onFormat('italic')} title="Italic (⌘I)">
+          I
+        </button>
+        <button type="button" className={`${btn} underline`} onClick={() => onFormat('underline')} title="Underline">
+          U
+        </button>
+        <button type="button" className={`${btn} line-through`} onClick={() => onFormat('strike')} title="Strikethrough">
+          S
+        </button>
+        <button type="button" className={`${btn} font-mono`} onClick={() => onFormat('code')} title="Code">
+          {'<>'}
+        </button>
+        <button
+          type="button"
+          className={btn}
+          onClick={() => onFormat('clear')}
+          title="Clear formatting (structure is kept — a heading stays a heading)"
+        >
+          Clear
+        </button>
+      </div>
+      {/* Colour is a ROLE, never a value — the one place this ADR chose canon
+          over the benchmark (Google Docs offers a picker; ADR-449 forbids one). */}
+      <div className="space-y-1">
+        <p className="text-[10px] text-muted-foreground">Colour</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onFormat('mark', null)}
+            title="Default"
+            className={`${dot} relative overflow-hidden bg-background`}
+          >
+            <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 rotate-45 bg-border" />
+          </button>
+          {MARK_ROLES.map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => onFormat('mark', r.value)}
+              title={r.label}
+              className={dot}
+              style={{ background: swatch(r.varName, r.fallback) }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1">
+        <p className="text-[10px] text-muted-foreground">Highlight</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onFormat('highlight', null)}
+            title="None"
+            className={`${dot} relative overflow-hidden bg-background`}
+          >
+            <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 rotate-45 bg-border" />
+          </button>
+          {HIGHLIGHT_ROLES.map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => onFormat('highlight', r.value)}
+              title={r.label}
+              className={dot}
+              style={{
+                background: `color-mix(in srgb, ${swatch(r.varName, r.fallback)} 30%, transparent)`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        emphasis via the palette variables — never raw color
+      </p>
+    </div>
+  );
+}
+
 /** ADR-520 D3 — a measure as a NUMERIC FIELD (the Figma detail grammar):
  *  editable within the served two-clamp bounds, keyboard instead of drag.
  *  Empty commits the clear (Auto) where a clear exists; the value shown is
@@ -833,6 +958,7 @@ export function StudioDesignTab({
   html,
   selection,
   onSetToken,
+  onFormat,
   onPageVerb,
   onElementVerb,
   onTurnInto,
@@ -1105,10 +1231,14 @@ export function StudioDesignTab({
       // the token half never did, so a token declaring the narrow grain would
       // have rendered everywhere. Same `.slide` ancestry test, one meaning.
       const isStaged = !!selectedEl?.closest('.slide');
+      // ADR-527 D3 — `block-flow` is finally consumed. ADR-525 D4 added the
+      // term to the vocabulary and nothing used it; align + indent are its
+      // first rows, and they are the reason it exists.
       return tokens.filter(
         (t) =>
           t.applies.includes('block') ||
           (isStaged && t.applies.includes('block-staged')) ||
+          (!isStaged && mode === 'flow' && t.applies.includes('block-flow')) ||
           (isMedia && t.applies.includes('media')) ||
           (isCallout && t.applies.includes('block-callout')),
       );
@@ -1242,6 +1372,15 @@ export function StudioDesignTab({
       sans: resolveSkinVar(skinMap, 'font-sans', FONT_STACKS.sans),
       mono: resolveSkinVar(skinMap, 'font-mono', FONT_STACKS.mono),
     }),
+    [skinMap],
+  );
+  /** ADR-527 D2 — resolve a palette ROLE to a paint colour, for the swatch
+   *  dots only. The document never receives this value: the write is the role
+   *  NAME, and the kernel's `span[data-mark=…]` rule resolves it through the
+   *  skin's custom property. So the pane shows the system's colour without ever
+   *  hard-coding one, and a skin change re-themes both at once. */
+  const swatchOf = useCallback(
+    (varName: string, fallback: string) => resolveSkinVar(skinMap, varName, fallback),
     [skinMap],
   );
   // Value→resolved-color per palette-backed token (tone; the D2 variant).
@@ -1994,6 +2133,16 @@ export function StudioDesignTab({
               />
             )}
           </div>
+          {/* ADR-527 D4 — the TEXT section: range emphasis, in the spine at
+              Identity → Text → Typography. Text precedes Typography because
+              emphasis is the more frequent act.
+
+              Text tier only: on an OBJECT (a figure, a table) there is no range
+              to emphasise, and on a staged block the caret is the runtime's,
+              not the browser's. This is the section that answers "referencing
+              google docs is too thin" — the pane offered three controls on a
+              heading and now offers the writer's set. */}
+          {isTextTier && <TextSection onFormat={onFormat} swatch={swatchOf} />}
           {/* Position (ADR-511 D4) — an explicit, visible, reversible state.
               Flow is the default; dragging is what enters the positioned
               state; "In flow" is the reversal. Shown on every STAGED block so

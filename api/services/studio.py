@@ -715,12 +715,16 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "how wide the block sits (absence = the flow's own width)",
     },
-    # ADR-525 D4 — re-keyed with `size`, same reasoning: alignment "within the
-    # block's region" presupposes a region, which a paragraph in a continuous
-    # surface does not have (its region is the measure, set at document scope).
+    # ADR-527 D3 AMENDS ADR-525 D4 on this row. The 525 reasoning ("alignment
+    # within the block's region presupposes a region") was written for `size`
+    # and applied to `align` by adjacency — but the kernel rule right above is
+    # `text-align`, i.e. arrangement of PROSE inside its own measure, which a
+    # flow block has. Every benchmark (Notion included) offers it on a
+    # paragraph. `block-flow` is the grain ADR-525 D4 added to the vocabulary
+    # and, until this row, nothing used.
     "align": {
         "label": "Align",
-        "applies": ["block-staged", "media"],
+        "applies": ["block-staged", "media", "block-flow"],
         # `start` is GONE (ADR-461 B1, 2026-07-15): it was declared here but no
         # `[data-align="start"]` rule ever existed in the kernel, so picking
         # "Left" wrote an attribute that rendered nothing — two UI states, one
@@ -735,6 +739,20 @@ STUDIO_TOKENS: dict[str, dict] = {
             {"value": "end", "label": "Right"},
         ],
         "description": "content alignment within the block's region (absence = left)",
+    },
+    # ADR-527 D3 — the bar's ⇤/⇥ at block grain. Enumerable steps, so a TOKEN
+    # (one kernel selector per value) and never a measure. Flow only: on a
+    # staged frame a block is positioned, and indenting it would compete with
+    # the coordinate space.
+    "indent": {
+        "label": "Indent",
+        "applies": ["block-flow"],
+        "values": [
+            {"value": "1", "label": "1"},
+            {"value": "2", "label": "2"},
+            {"value": "3", "label": "3"},
+        ],
+        "description": "steps the block in from the measure's edge (absence = flush left)",
     },
     "tone": {
         "label": "Tone",
@@ -1051,6 +1069,29 @@ div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
 [data-align="center"] img { margin-inline: auto; }
 [data-align="end"] { text-align: right; }
 [data-align="end"] img { margin-inline-start: auto; }
+/* ADR-527 D3 — paragraph INDENT, bounded to three enumerable steps. A token,
+   not a measure (ADR-461 D4's line: enumerable values get a pre-declared
+   selector each; continuous ones are the bounded staged exception). This is the
+   bar's ⇤/⇥ at BLOCK grain; Tab/⇧Tab inside a list (ADR-521 D4) is unchanged
+   and stays list-scoped. */
+[data-indent="1"] { margin-inline-start: 2rem; }
+[data-indent="2"] { margin-inline-start: 4rem; }
+[data-indent="3"] { margin-inline-start: 6rem; }
+/* ADR-527 D2 — the PALETTE MARKS: colour as a role, never a value. One rule per
+   role, so a design-system swap re-themes every document that used them — the
+   entire reason the picker is refused (ADR-449, "never raw color"). The span
+   carries a role NAME; no inline color:/background: is ever written. */
+span[data-mark="muted"] { color: var(--muted, #6b6b6b); }
+span[data-mark="accent"] { color: var(--accent, #b4540a); }
+span[data-mark="fresh"] { color: var(--fresh, #2e7d32); }
+span[data-mark="warn"] { color: var(--warn, #b45309); }
+span[data-mark="danger"] { color: var(--danger, #b3261e); }
+/* Highlight tints the SAME roles — the callout-variant precedent (ADR-487 D2),
+   reused rather than re-invented, so a skin needs no new variables. */
+span[data-highlight="accent"] { background: color-mix(in srgb, var(--accent, #b4540a) 15%, transparent); }
+span[data-highlight="fresh"] { background: color-mix(in srgb, var(--fresh, #2e7d32) 15%, transparent); }
+span[data-highlight="warn"] { background: color-mix(in srgb, var(--warn, #b45309) 15%, transparent); }
+span[data-highlight="danger"] { background: color-mix(in srgb, var(--danger, #b3261e) 15%, transparent); }
 /* Width as intent (ADR-461 D1) — the inspector's Hug | Fill, enumerated.
    `Fixed: 761px` is NOT here: a continuous value has no pre-declarable
    selector, which is the whole reason it is D3's bounded exception rather

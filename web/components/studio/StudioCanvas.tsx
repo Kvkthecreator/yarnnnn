@@ -216,6 +216,10 @@ interface StudioCanvasProps {
    *  second mechanism (ADR-505 D4). The runtime answers with the ordinary
    *  onSlashOpen, so everything downstream is unchanged. Nonce for repeats. */
   slashInvoke?: { nonce: number } | null;
+  /** ADR-527 D4 — a RANGE format op driven from the pane. Nonce-carrying so
+   *  the same button fires twice; the runtime restores the last live range
+   *  before applying, because the pane's click destroyed the selection. */
+  fmtCmd?: { op: string; value: string | null; nonce: number } | null;
   /** ADR-447: scroll the canvas to this slide (the navigator selected it). A
    *  monotonic nonce forces the scroll even when re-selecting the same slide. */
   scrollToSlide?: { index: number; nonce: number } | null;
@@ -290,6 +294,7 @@ export function StudioCanvas({
   scrollToSlide,
   slashTake,
   slashInvoke,
+  fmtCmd,
   scrollToBlock,
   patch,
   zoom = 1,
@@ -513,6 +518,13 @@ export function StudioCanvas({
     if (!win || !slashInvoke) return;
     win.postMessage({ type: 'yarnnn-slash-invoke' }, '*');
   }, [slashInvoke]);
+
+  // ADR-527 D4 — the pane's format op reaches the edit runtime.
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !fmtCmd) return;
+    win.postMessage({ type: 'yarnnn-fmt-op', op: fmtCmd.op, value: fmtCmd.value }, '*');
+  }, [fmtCmd]);
 
   // ADR-455: when the outline selects a heading, scroll the canvas to it.
   useEffect(() => {

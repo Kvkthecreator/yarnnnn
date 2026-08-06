@@ -140,9 +140,24 @@ t(
   'D4: `size` no longer claims the widest grain',
   /"size": \{\s*"label": "Width",\s*"applies": \["block-staged", "media"\]/.test(studio),
 );
+// ADR-527 D3 AMENDED this row: `align` gained `block-flow`, because the kernel
+// rule is `text-align` — arrangement of prose in its own measure, which a flow
+// block has. ADR-525 D4 had applied `size`'s reasoning to it by adjacency.
+//
+// The assertion's INTENT is unchanged and is what is pinned: align must not
+// claim the WIDEST grain (bare "block", which is what made a Docs paragraph
+// render a layout row). Which narrow grains it names is the amendable part —
+// pinning the exact list would have made a legitimate amendment look like a
+// regression, which is the "don't pin a spelling" lesson one level up.
 t(
-  'D4: `align` no longer claims the widest grain',
-  /"align": \{\s*"label": "Align",\s*"applies": \["block-staged", "media"\]/.test(studio),
+  'D4: `align` no longer claims the widest grain (narrow grains only)',
+  /"align": \{\s*"label": "Align",\s*"applies": \[(?![^\]]*"block")[^\]]*\]/.test(studio) ||
+    /"align": \{\s*"label": "Align",\s*"applies": \["block-staged", "media", "block-flow"\]/.test(studio),
+);
+t(
+  'D4 (as amended by ADR-527 D3): align reaches flow through block-flow, never bare block',
+  /"align": \{\s*"label": "Align",\s*"applies": \[[^\]]*"block-flow"[^\]]*\]/.test(studio) &&
+    !/"align": \{\s*"label": "Align",\s*"applies": \[[^\]]*"block"[,\]]/.test(studio),
 );
 t(
   'D4: the pane gates TOKENS on block-staged (not only measures)',

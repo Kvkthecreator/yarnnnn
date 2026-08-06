@@ -1901,6 +1901,21 @@ const EDIT_SCRIPT = `
   // range wrap, link swaps the bar to a URL input (the blur guard keeps the
   // edit session alive while it has focus).
   var fmtBar = null, fmtBtns = null, fmtInput = null, savedRange = null;
+  // ADR-527 D4 — the last range the member had inside the edit host. The pane
+  // lives outside the iframe, so a pane click destroys the selection before the
+  // command arrives; this is what it is restored from. Tracked on selection
+  // change rather than captured on click, because the parent cannot tell the
+  // runtime "I am about to steal focus".
+  var lastLiveRange = null;
+  document.addEventListener('selectionchange', function () {
+    try {
+      var s = window.getSelection();
+      if (!s || !s.rangeCount || s.isCollapsed) return; // a caret is not a range
+      var r = s.getRangeAt(0);
+      var h = editHost();
+      if (h && h.contains(r.commonAncestorContainer)) lastLiveRange = r.cloneRange();
+    } catch (err) {}
+  });
 
   function scheduleCommit() {
     // ADR-480: route to the grain's own commit — the block's inner (paged) or
@@ -1999,6 +2014,91 @@ const EDIT_SCRIPT = `
     }
   }
 
+  // ── ADR-527 D2 — the PALETTE MARK (colour, without a colour) ─────────────
+  //
+  // Google Docs offers an arbitrary picker; ADR-449 forbids one and the pane
+  // says so in its own words ("emphasis via the palette variables — never raw
+  // color"). Notion's answer is a fixed set of roles, and that is the shape:
+  // a span carrying a ROLE NAME, with one kernel rule per role. A design-system
+  // change therefore re-themes every document that used it — the entire reason
+  // for the constraint.
+  //
+  // Never an inline color:/background:. The value written is a role, and the
+  // role set is closed (validated below), so a raw value cannot reach the DOM
+  // even if the parent asks for one.
+  var MARK_ROLES = ['muted', 'accent', 'fresh', 'warn', 'danger'];
+  var HIGHLIGHT_ROLES = ['accent', 'fresh', 'warn', 'danger'];
+
+  function applyMark(attr, role, allowed) {
+    // Clearing (role null/empty) unwraps; setting re-marks. Both are per-block
+    // segments, so a mark never crosses a block boundary — the same rule the
+    // code op learned (ADR-521 D3's cross-block mangle).
+    if (role && allowed.indexOf(role) === -1) return; // closed set — never raw
+    var segs = formatSegments();
+    if (!segs.length) return;
+    var sel = window.getSelection();
+    var saved = null;
+    try { saved = sel.getRangeAt(0).cloneRange(); } catch (err) {}
+    for (var i = 0; i < segs.length; i++) {
+      sel.removeAllRanges();
+      sel.addRange(segs[i].range);
+      // Strip any existing mark of this attr inside the segment first, so
+      // re-marking never nests spans (the accreted-wrapper trap).
+      unwrapMarks(segs[i].range, attr);
+      if (!role) continue; // clear-only
+      try {
+        var span = document.createElement('span');
+        span.setAttribute(attr, role);
+        span.appendChild(segs[i].range.extractContents());
+        segs[i].range.insertNode(span);
+      } catch (err2) {}
+    }
+    if (saved) {
+      try { sel.removeAllRanges(); sel.addRange(saved); } catch (err3) {}
+    }
+  }
+
+  /** Unwrap every [attr] span intersecting a range — children survive. */
+  function unwrapMarks(range, attr) {
+    var root = range.commonAncestorContainer;
+    var el = root && root.nodeType === 1 ? root : (root ? root.parentElement : null);
+    if (!el || !el.querySelectorAll) return;
+    var hits = Array.prototype.slice.call(el.querySelectorAll('span[' + attr + ']'));
+    // The ancestor chain too: a range INSIDE one mark has no descendant to find.
+    var up = el.closest ? el.closest('span[' + attr + ']') : null;
+    if (up) hits.push(up);
+    for (var i = 0; i < hits.length; i++) {
+      var s = hits[i];
+      if (!range.intersectsNode || range.intersectsNode(s)) {
+        while (s.firstChild) s.parentNode.insertBefore(s.firstChild, s);
+        if (s.parentNode) s.parentNode.removeChild(s);
+      }
+    }
+  }
+
+  /** ADR-527 D1 — clear formatting. Emphasis goes; STRUCTURE stays: a heading
+   *  is still a heading, a list item still a list item. Clearing arrangement is
+   *  D3's job (the align/indent tokens), never this op's. */
+  function applyClear() {
+    var segs = formatSegments();
+    if (!segs.length) return;
+    var sel = window.getSelection();
+    var saved = null;
+    try { saved = sel.getRangeAt(0).cloneRange(); } catch (err) {}
+    for (var i = 0; i < segs.length; i++) {
+      sel.removeAllRanges();
+      sel.addRange(segs[i].range);
+      // removeFormat drops b/i/u/s reliably; it does NOT reliably drop
+      // attribute-carrying spans, so the palette marks are stripped by hand.
+      try { document.execCommand('removeFormat'); } catch (err2) {}
+      unwrapMarks(segs[i].range, 'data-mark');
+      unwrapMarks(segs[i].range, 'data-highlight');
+    }
+    if (saved) {
+      try { sel.removeAllRanges(); sel.addRange(saved); } catch (err3) {}
+    }
+  }
+
   function segmentCoded(seg) {
     var anc = seg.range.commonAncestorContainer;
     var el = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
@@ -2046,7 +2146,11 @@ const EDIT_SCRIPT = `
   // media is dropped — media enters as CITED figures (ADR-427/448), never as
   // anonymous pasted bytes.
   var PASTE_DROP = { SCRIPT: 1, STYLE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1, TITLE: 1, HEAD: 1, FORM: 1, INPUT: 1, BUTTON: 1, SELECT: 1, TEXTAREA: 1, IMG: 1, PICTURE: 1, VIDEO: 1, AUDIO: 1, SOURCE: 1, CANVAS: 1, SVG: 1, MATH: 1, TEMPLATE: 1, NOSCRIPT: 1 };
-  var PASTE_ALLOW = { P: 1, BR: 1, HR: 1, STRONG: 1, B: 1, EM: 1, I: 1, U: 1, S: 1, CODE: 1, PRE: 1, A: 1, UL: 1, OL: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, BLOCKQUOTE: 1, TABLE: 1, THEAD: 1, TBODY: 1, TFOOT: 1, TR: 1, TH: 1, TD: 1, CAPTION: 1, DL: 1, DT: 1, DD: 1, FIGCAPTION: 1, SUP: 1, SUB: 1 };
+  var PASTE_ALLOW = { P: 1, BR: 1, HR: 1, STRONG: 1, B: 1, EM: 1, I: 1, U: 1, S: 1, CODE: 1, PRE: 1, A: 1, UL: 1, OL: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, BLOCKQUOTE: 1, TABLE: 1, THEAD: 1, TBODY: 1, TFOOT: 1, TR: 1, TH: 1, TD: 1, CAPTION: 1, DL: 1, DT: 1, DD: 1, FIGCAPTION: 1, SUP: 1, SUB: 1,
+    // ADR-527 D2: a SPAN is allowed so a palette mark survives. It carries
+    // no meaning of its own — on a FOREIGN paste every attribute is still
+    // stripped, so a foreign span arrives as a bare, styleless wrapper.
+    SPAN: 1 };
 
   // ADR-526 D4 — the substrate attributes an INTERNAL paste keeps. The ADR-521
   // D5 allowlist strips every attribute but href, which is exactly right for
@@ -2061,6 +2165,11 @@ const EDIT_SCRIPT = `
     'data-block': 1, 'data-ref': 1, 'data-ref-kind': 1, 'data-src-html': 1,
     'data-tone': 1, 'data-variant': 1, 'data-size': 1, 'data-align': 1,
     'data-fit': 1, 'data-height': 1,
+    // ADR-527 D2 — the palette marks ride an internal paste like every
+    // other grammar attribute. Without this a member who cuts and pastes
+    // coloured text loses the colour, which is the ADR-526 D4 defect one
+    // vocabulary later. Role names only; the set is closed at write time.
+    'data-mark': 1, 'data-highlight': 1, 'data-indent': 1,
   };
 
   /** Is this clipboard payload OURS? The honest test is provenance by identity:
@@ -2168,12 +2277,22 @@ const EDIT_SCRIPT = `
     scheduleCommit();
   }
 
-  function applyFmt(op) {
+  function applyFmt(op, value) {
     if (!editHost()) return; // ADR-480: the host is the block (paged) or the root (flow)
     if (op === 'bold') applyToggle('bold');
     else if (op === 'italic') applyToggle('italic');
+    // ADR-527 D1 — underline and strikethrough are ONE ROW EACH, not new
+    // mechanisms: applyToggle is command-generic and already carries the
+    // per-block segmentation + the deterministic Word rule (ADR-521 D3).
+    else if (op === 'underline') applyToggle('underline');
+    else if (op === 'strike') applyToggle('strikeThrough');
     else if (op === 'code') applyCode();
+    // ADR-527 D2 — palette roles, never a colour. A null value clears.
+    else if (op === 'mark') applyMark('data-mark', value || null, MARK_ROLES);
+    else if (op === 'highlight') applyMark('data-highlight', value || null, HIGHLIGHT_ROLES);
+    else if (op === 'clear') applyClear();
     else if (op === 'link') { openLink(); return; }
+    else return; // unknown op — never fall through to a commit
     scheduleCommit();
   }
 
@@ -2968,6 +3087,34 @@ const EDIT_SCRIPT = `
     if (!d || typeof d !== 'object') return;
     if (d.type === 'yarnnn-edit-enter' && typeof d.blockId === 'string') enter(d.blockId);
     else if (d.type === 'yarnnn-edit-exit') exit(false);
+    // ── ADR-527 D4 — the PANE drives a range op ───────────────────────────
+    //
+    // The pane's buttons and the inline bar's buttons are two entrances to ONE
+    // applyFmt (the ADR-521 D4 shape). What the pane needs and the bar does not
+    // is range PRESERVATION: clicking a pane button moves focus out of the
+    // iframe entirely, so the selection is gone by the time the command
+    // arrives. The bar solves this with mousedown-preventDefault; across the
+    // frame boundary that is unavailable, so the runtime keeps its own last
+    // live range and restores it before applying.
+    //
+    // Refuses when nothing was ever selected — a pane click must never format
+    // a range the member cannot see.
+    else if (d.type === 'yarnnn-fmt-op' && typeof d.op === 'string') {
+      var host = editHost();
+      if (!host) return;
+      try {
+        var s = window.getSelection();
+        var live = s && s.rangeCount ? s.getRangeAt(0) : null;
+        var usable = live && host.contains(live.commonAncestorContainer) ? live : null;
+        if (!usable && lastLiveRange && host.contains(lastLiveRange.commonAncestorContainer)) {
+          s.removeAllRanges();
+          s.addRange(lastLiveRange);
+          usable = lastLiveRange;
+        }
+        if (!usable) return; // no range to act on — do nothing, silently
+        applyFmt(d.op, typeof d.value === 'string' ? d.value : null);
+      } catch (err) {}
+    }
     // ── Put the caret back after a structural op on FLOW ──────────────────
     // A slash-insert (or any op) rewrites the file content, which swaps the
     // iframe's srcDoc — the frame is destroyed and re-parsed, so the caret and

@@ -249,8 +249,15 @@ function sanitizeInner(doc: Document, inner: string): string {
   });
   // ADR-456 W2: the format bar rides execCommand, which emits <b>/<i> —
   // normalize to the semantic tags the source speaks (strong/em).
-  holder.querySelectorAll('b, i').forEach((el) => {
-    const repl = doc.createElement(el.tagName === 'B' ? 'strong' : 'em');
+  //
+  // ADR-527 D1 extends the same rule to the two new toggles. `underline` emits
+  // <u>, which IS the semantic tag and passes through. `strikeThrough` emits
+  // <strike> in some engines and <s> in others — one source vocabulary, so the
+  // legacy presentational tag normalizes to <s>. Attributes ride across on
+  // every branch (a mark span nested inside is untouched either way).
+  const NORMALIZE: Record<string, string> = { B: 'strong', I: 'em', STRIKE: 's' };
+  holder.querySelectorAll('b, i, strike').forEach((el) => {
+    const repl = doc.createElement(NORMALIZE[el.tagName] ?? el.tagName.toLowerCase());
     for (const attr of Array.from(el.attributes)) repl.setAttribute(attr.name, attr.value);
     while (el.firstChild) repl.appendChild(el.firstChild);
     el.replaceWith(repl);
