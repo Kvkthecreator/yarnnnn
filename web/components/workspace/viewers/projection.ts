@@ -1260,6 +1260,54 @@ const POINTER_SCRIPT = `
     return caretOwnsKeyIn(sel) ? null : sel;
   }
 
+  // ── ADR-526 D3 — ⌥↑ / ⌥↓ move the block (STRUCTURE tier) ────────────────
+  //
+  // A deliberate, argued reversal, and it is narrow. What stands: ADR-521 D7's
+  // "no drag handles / positional anything on flow", and ADR-525 D3's removal
+  // of Move up/down from the pane and the menu. Those refusals are about
+  // PRESENTATION — a drag handle asserts a box; a verb row presents the block
+  // as an enclosure with a position in a list. A keyboard chord asserts
+  // neither: it says "put this before the previous one", which is exactly what
+  // moveBlock already does, medium-agnostically.
+  //
+  // The precedent is ADR-521 D4's Tab-indent, which superseded this runtime's
+  // own written refusal on the reasoning that "a keyboard entrance to a
+  // structural op has exactly slash's legitimacy — the key is not the op, it
+  // is a door to it." Same tier, same shape, same reason.
+  //
+  // The subject is NOT selectedBlock(): that is the OBJECT-tier gate (ADR-521
+  // D6) and it refuses prose on flow by design. A structure-tier act addresses
+  // the block the caret is in — the ADR-521 D2 law, one rung over.
+  function structureSubject() {
+    var sel = window.__yarnnnSelected ? window.__yarnnnSelected() : null;
+    if (sel && sel.isConnected) return sel;
+    var s = window.getSelection();
+    if (!s || !s.rangeCount) return null;
+    var n = s.getRangeAt(0).startContainer;
+    var el = n && n.nodeType === 1 ? n : (n ? n.parentElement : null);
+    return el && el.closest ? el.closest('[data-block]') : null;
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    if (e.metaKey || e.ctrlKey) return;
+    var t = e.target;
+    if (t && t.closest && t.closest('.yarnnn-fmt')) return;
+    // Never steal a RANGE: a selection spanning blocks is the member's text
+    // selection and ⌥↑ there is the platform's (extend/move by paragraph).
+    var s = window.getSelection();
+    if (s && s.rangeCount && !s.getRangeAt(0).collapsed) return;
+    var subj = structureSubject();
+    if (!subj) return;
+    var sid = subj.getAttribute('data-block-id');
+    if (!sid) return;
+    e.preventDefault();
+    parent.postMessage({
+      type: 'yarnnn-key-verb',
+      verb: e.key === 'ArrowUp' ? 'up' : 'down',
+      blockId: sid,
+    }, '*');
+  }, true);
+
   document.addEventListener('keydown', function (e) {
     var blk = selectedBlock();
     if (!blk) return;
@@ -2000,7 +2048,36 @@ const EDIT_SCRIPT = `
   var PASTE_DROP = { SCRIPT: 1, STYLE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1, TITLE: 1, HEAD: 1, FORM: 1, INPUT: 1, BUTTON: 1, SELECT: 1, TEXTAREA: 1, IMG: 1, PICTURE: 1, VIDEO: 1, AUDIO: 1, SOURCE: 1, CANVAS: 1, SVG: 1, MATH: 1, TEMPLATE: 1, NOSCRIPT: 1 };
   var PASTE_ALLOW = { P: 1, BR: 1, HR: 1, STRONG: 1, B: 1, EM: 1, I: 1, U: 1, S: 1, CODE: 1, PRE: 1, A: 1, UL: 1, OL: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, BLOCKQUOTE: 1, TABLE: 1, THEAD: 1, TBODY: 1, TFOOT: 1, TR: 1, TH: 1, TD: 1, CAPTION: 1, DL: 1, DT: 1, DD: 1, FIGCAPTION: 1, SUP: 1, SUB: 1 };
 
-  function sanitizePastedHtml(html) {
+  // ADR-526 D4 — the substrate attributes an INTERNAL paste keeps. The ADR-521
+  // D5 allowlist strips every attribute but href, which is exactly right for
+  // FOREIGN html (it is a security gate) and wrong for a member cutting and
+  // pasting inside their own document: reorder-by-cut-paste is the only
+  // reorder flow has (projection.ts prices it as "the browser's own, priced and
+  // accepted"), and it silently discarded citations and tokens on the way.
+  //
+  // Kept: the grammar's own vocabulary. NOT kept: style, class, event handlers,
+  // or anything else — the foreign path is untouched and this list is closed.
+  var PASTE_KEEP_INTERNAL = {
+    'data-block': 1, 'data-ref': 1, 'data-ref-kind': 1, 'data-src-html': 1,
+    'data-tone': 1, 'data-variant': 1, 'data-size': 1, 'data-align': 1,
+    'data-fit': 1, 'data-height': 1,
+  };
+
+  /** Is this clipboard payload OURS? The honest test is provenance by identity:
+   *  the html carries a data-block-id that exists in THIS document, which no
+   *  foreign source can fabricate by accident. Note data-block-id itself is
+   *  never kept (ids are re-minted by normalizeStructure — a duplicate id is
+   *  worse than none); it is read only as the origin signal. */
+  function isInternalPaste(html) {
+    var m = /data-block-id="([^"]+)"/.exec(html || '');
+    if (!m) return false;
+    try {
+      return !!document.querySelector('[data-block-id="' +
+        (window.CSS && CSS.escape ? CSS.escape(m[1]) : m[1]) + '"]');
+    } catch (err) { return false; }
+  }
+
+  function sanitizePastedHtml(html, internal) {
     var doc;
     try { doc = document.implementation.createHTMLDocument(''); }
     catch (err) { return ''; }
@@ -2025,6 +2102,9 @@ const EDIT_SCRIPT = `
             if (v.indexOf('javascript:') === 0) el.removeAttribute('href');
             continue;
           }
+          // ADR-526 D4: on an internal paste the grammar's own attributes ride
+          // along. Every other attribute still goes, on both paths.
+          if (internal && PASTE_KEEP_INTERNAL[name.toLowerCase()] === 1) continue;
           el.removeAttribute(name);
         }
       }
@@ -2040,7 +2120,7 @@ const EDIT_SCRIPT = `
     var html = '';
     try { html = cb.getData('text/html') || ''; } catch (err) {}
     if (html) {
-      var clean = sanitizePastedHtml(html);
+      var clean = sanitizePastedHtml(html, isInternalPaste(html));
       if (clean) {
         try { document.execCommand('insertHTML', false, clean); return; } catch (err2) {}
       }

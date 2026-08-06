@@ -692,6 +692,44 @@ function walkContents(root: Element): StructNode[] {
   return out;
 }
 
+/** ADR-526 D2 — the OUTLINE: the flow document's headings, in document order.
+ *
+ *  Docs' structural grain is the heading, and a "section" is the span from one
+ *  heading to the next (D1) — so this is a projection of the prose, never a
+ *  second structure. It cannot drift: write a heading and it appears, delete one
+ *  and it goes. There is nothing to maintain and nothing to sync.
+ *
+ *  Derived CLIENT-side from the document the pane already parses, because every
+ *  heading carries `data-block-id` from normalizeStructure. The server's
+ *  `extract_outline` is NOT reused: it returns bare indented strings with no ids
+ *  (ADR-522 §182) because its reader is the lane posture, which needs prose.
+ *  Two readers, two derivations, each in its own register — never one function
+ *  bent to serve both.
+ *
+ *  Emits StructNode so the EXISTING ContentsRows renders it (one row component,
+ *  two mounts — the ADR-520 D4 pattern). `depth` is the heading LEVEL, so h2
+ *  indents under h1 without any wrapper existing. */
+function walkOutline(root: Element | null): StructNode[] {
+  if (!root) return [];
+  const out: StructNode[] = [];
+  // Document order, any depth: a heading inside a list or a callout still
+  // belongs to the outline. querySelectorAll is already document-ordered.
+  for (const h of Array.from(root.querySelectorAll('h1, h2, h3'))) {
+    const id = h.getAttribute('data-block-id');
+    if (!id) continue; // un-normalized (never written since ADR-511) — not addressable
+    const text = (h.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) continue; // an empty heading names nothing
+    out.push({
+      blockId: id,
+      label: text.slice(0, 60),
+      kind: h.tagName.toLowerCase(), // h1|h2|h3 — the level IS the kind here
+      depth: Number(h.tagName[1]) - 1,
+      text: '',
+    });
+  }
+  return out;
+}
+
 /** The Contents rows — the selection's own hierarchy, click-to-select. */
 function ContentsRows({
   nodes,
@@ -975,6 +1013,14 @@ export function StudioDesignTab({
     if (!selectedEl || (scope !== 'page' && scope !== 'container')) return [];
     return walkContents(selectedEl);
   }, [selectedEl, scope]);
+  /** ADR-526 D2 — the outline, on FLOW only. On a paged medium the navigator IS
+   *  the sequence (ADR-520 D4) and Contents carries the within-page structure;
+   *  a third view there would be the "second structure tree" ADR-520 D5
+   *  refused. Flow has neither, which is the whole gap this closes. */
+  const outline = useMemo(
+    () => (mode === 'flow' ? walkOutline(doc?.body ?? null) : []),
+    [doc, mode],
+  );
   const pathRow =
     (scope === 'block' || scope === 'container') && pageOfSelection != null ? (
       <div className="flex flex-wrap items-center gap-0.5 text-[10px] text-muted-foreground">
@@ -997,6 +1043,41 @@ export function StudioDesignTab({
             </button>
           </span>
         ))}
+      </div>
+    ) : null;
+
+  /** ADR-526 D2 — the flow analogue of `pathRow`, which is structurally ALWAYS
+   *  NULL on a document: it gates on `pageOfSelection`, resolved through
+   *  PAGE_SEL, and ADR-481 D1 flattened flow scaffolds so no <section> ancestor
+   *  exists. (STUDIO.md claimed "✅ path" for block(text) until `a862438`.)
+   *
+   *  The honest chain on flow is ONE rung — the enclosing heading — because the
+   *  document is one rung deep. Sourced from `selection.headingId`, which the
+   *  runtime already stamps on every point payload (ADR-522 D4) and which,
+   *  until now, only the lane ever read. Clicking it selects the heading
+   *  through the same reach the outline uses. */
+  const headingRow =
+    scope === 'block' &&
+    mode === 'flow' &&
+    selection?.headingId &&
+    selection.headingId !== selection.blockId ? (
+      <div className="flex flex-wrap items-center gap-0.5 text-[10px] text-muted-foreground">
+        <button
+          type="button"
+          onClick={() =>
+            onSelectNode({
+              blockId: selection.headingId!,
+              label: selection.headingText ?? 'heading',
+              kind: null,
+            })
+          }
+          title="Select this heading"
+          className="max-w-full truncate rounded px-0.5 text-emerald-700 transition-colors hover:bg-muted/40 dark:text-emerald-500"
+        >
+          {selection.headingText ?? 'heading'}
+        </button>
+        <ChevronRight className="h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
+        <span>{selection.label ?? selection.blockKind ?? 'block'}</span>
       </div>
     ) : null;
 
@@ -1461,11 +1542,39 @@ export function StudioDesignTab({
         <>
           <div className={SECTION}>
             <p className={HEADING}>Artifact</p>
+            {/* ADR-526: on flow the invitation named a grain the medium does not
+                have — `pageNoun` resolves to "section", and Docs has no section
+                unit (ADR-522 D4). Say what is actually selectable. */}
             <p className="text-xs text-muted-foreground">
-              {vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout} — select a{' '}
-              {pageNoun} or a block on the canvas to shape it here.
+              {vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout} —{' '}
+              {mode === 'flow'
+                ? 'select a block on the canvas to shape it here.'
+                : `select a ${pageNoun} or a block on the canvas to shape it here.`}
             </p>
           </div>
+          {/* ADR-526 D2 — the OUTLINE. The document's headings, read back in
+              order, click-to-jump. This is the structure the system already
+              derived twice and showed to nobody: `extract_outline` fed the lane
+              posture and ADR-522's headingId fed the focus line, whose own
+              docstring says "which the member never sees". The member had font
+              sizes. Housed in the pane per ADR-520 D4 ("the pane is the
+              structure's home") — the same reading that deleted Studio's
+              navigator tree, so Docs inherits it rather than growing a rail. */}
+          {mode === 'flow' && (
+            <div className={SECTION}>
+              <p className={HEADING}>Outline</p>
+              {outline.length > 0 ? (
+                <ContentsRows nodes={outline} onSelect={onSelectNode} />
+              ) : (
+                // The honest empty state: a document whose structure lives in
+                // bold paragraphs has none the system can name. Say that, never
+                // invent one (ADR-526 §7).
+                <p className="text-[10px] text-muted-foreground">
+                  No headings yet — add one and it appears here.
+                </p>
+              )}
+            </div>
+          )}
           {docTokens.length > 0 && (
             <div className={SECTION}>
               {docTokens.map((t) =>
@@ -1867,7 +1976,11 @@ export function StudioDesignTab({
               and the menu agree, because both now read one field. */}
           <div className={SECTION}>
             <p className={HEADING}>{selection?.label ?? selection?.blockKind ?? 'block'}</p>
+            {/* ADR-526 D2 — `pathRow` on paged, the enclosing-heading crumb on
+                flow. Exactly one renders: pathRow needs a PAGE_SEL ancestor
+                (never present on flow) and headingRow gates on mode === 'flow'. */}
             {pathRow}
+            {headingRow}
             {!isTextTier && (
               <VerbRow
                 noun={selection?.label ?? 'block'}

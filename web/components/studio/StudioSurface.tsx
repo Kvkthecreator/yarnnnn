@@ -42,7 +42,13 @@ import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { isColorValue, parseSkinVars } from './skinVars';
 import { OpenArtifactModal } from './OpenArtifactModal';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
-import { resolveArtifactHtml, projectBlock } from '@/components/workspace/viewers/projection';
+import {
+  resolveArtifactHtml,
+  projectBlock,
+  // ADR-525 D1 / ADR-526 D2 — the ONE text-kind list, shared with the runtime
+  // that declares the tier. Imported so a parent-side reach cannot drift.
+  TEXT_BLOCK_KINDS,
+} from '@/components/workspace/viewers/projection';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
@@ -1644,11 +1650,22 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // D10: the selected block's keyboard. Every verb already exists — the key is
   // a third entrance (after the menu and the Design tab), never a new op.
   const handleKeyVerb = useCallback(
-    (verb: 'copy' | 'paste' | 'duplicate' | 'delete', blockId: string) => {
+    (verb: 'copy' | 'paste' | 'duplicate' | 'delete' | 'up' | 'down', blockId: string) => {
       if (verb === 'copy') return copyBlock(blockId);
       if (verb === 'paste') return pasteAfter(blockId);
       if (verb === 'duplicate') {
         void applyOp((html) => duplicateBlock(html, blockId), `${app.label}: duplicate ${blockId} block`);
+        return;
+      }
+      // ADR-526 D3 — ⌥↑/⌥↓, the structure-tier reorder door. The SAME moveBlock
+      // the pane and menu call on paged media (one op, N entrances — ADR-511
+      // D5), never a second write path.
+      //
+      // This branch is explicit and precedes the delete fallthrough on purpose:
+      // the handler ends in an UNGUARDED deleteBlock, so a verb that reached
+      // here without its own branch would silently delete the member's block.
+      if (verb === 'up' || verb === 'down') {
+        void applyOp((html) => moveBlock(html, blockId, verb), `${app.label}: move ${blockId} block ${verb}`);
         return;
       }
       void applyOp((html) => deleteBlock(html, blockId), `${app.label}: delete ${blockId} block`);
@@ -2474,13 +2491,31 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (node: { blockId: string; label: string; kind: string | null }) => {
       setSelection({
         blockId: node.blockId,
-        blockKind: node.kind,
+        // The outline names a heading by its TAG (h1/h2/h3 — the level is the
+        // kind there); the vocabulary's kind is `heading`. Normalize at the
+        // seam so downstream readers see one vocabulary (the Typography ramp
+        // gates on blockKind === 'heading').
+        blockKind: node.kind && /^h[1-6]$/.test(node.kind) ? 'heading' : node.kind,
         slideIndex: null,
         pageIndex: null,
         slot: null,
         arrange: null,
         text: '',
         label: node.label,
+        // ADR-526 D2 — a parent-side reach must declare the tier like every
+        // other selection (ADR-525 D1), or the pane guesses for the frame
+        // before the runtime's own point payload lands. Same rule as the
+        // runtime's `tierOf`, reading the SAME exported kind list — never a
+        // second copy of the rule. The outline passes a heading tag (h1/h2/h3),
+        // which the ramp treats as `heading`; Contents passes real block kinds.
+        tier: !node.kind
+          ? 'structure'
+          : layoutMode === 'flow' &&
+              (TEXT_BLOCK_KINDS as readonly string[]).includes(
+                /^h[1-6]$/.test(node.kind) ? 'heading' : node.kind,
+              )
+            ? 'text'
+            : 'object',
       });
       setEditingBlockId(null);
       setScrollToBlock((s) => ({ blockId: node.blockId, nonce: (s?.nonce ?? 0) + 1 }));

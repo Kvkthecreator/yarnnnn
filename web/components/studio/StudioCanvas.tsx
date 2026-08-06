@@ -152,7 +152,7 @@ interface StudioCanvasProps {
   /** ADR-462 D10: a keyboard verb on the SELECTED block. The canvas is a
    *  sandboxed iframe — keys land in its document or nowhere — so the runtime
    *  hears them and posts an existing verb out. Never a new op. */
-  onKeyVerb?: (verb: 'copy' | 'paste' | 'duplicate' | 'delete', blockId: string) => void;
+  onKeyVerb?: (verb: 'copy' | 'paste' | 'duplicate' | 'delete' | 'up' | 'down', blockId: string) => void;
   /** ⌘Z / ⌘⇧Z from the runtime (fired only when no text caret is live — see
    *  projection.ts). The parent owns the snapshot stack; these just ask. */
   onUndo?: () => void;
@@ -635,7 +635,7 @@ export function StudioCanvas({
       } else if (d.type === 'yarnnn-group' && Array.isArray(d.blockIds)) {
         onGroup?.((d.blockIds as unknown[]).filter((b): b is string => typeof b === 'string'));
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
-        onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete', d.blockId);
+        onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete' | 'up' | 'down', d.blockId);
       } else if (d.type === 'yarnnn-undo') {
         onUndo?.();
       } else if (d.type === 'yarnnn-redo') {
