@@ -137,5 +137,5 @@ per-element, at the member's own write). No new op.
 - The operator's "can't grab it" resolves into: *selectable and visibly selected*
   (D5), *layout-editable in one language* (D1–D4), *not draggable* — the remaining
   Phase 3 items (container drag-reorder per medium, snap guides) stay declared in
-  `docs/design/STUDIO.md`'s interaction matrix, which this ADR's companion rewrite
+  `docs/design/AUTHORING.md`'s interaction matrix, which this ADR's companion rewrite
   makes the single contract surface.

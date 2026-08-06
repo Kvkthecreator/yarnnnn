@@ -137,7 +137,7 @@ functions it can wire without re-deriving the contract.
 - **Edited**: `api/services/lane_runner.py` (one additive posture-section call for bound lanes);
   `api/prompts/CHANGELOG.md`.
 - **Deliberately NOT touched** (in-flight ADR-447 files): `api/services/studio.py`,
-  `api/routes/studio.py`, `docs/design/STUDIO.md`, `web/components/studio/*` — STUDIO.md's Skin
+  `api/routes/studio.py`, `docs/design/AUTHORING.md`, `web/components/studio/*` — STUDIO.md's Skin
   row flips from "out of scope" to a pointer here as part of the D7 pass or a follow-on doc
   commit once that file is released.
 - **Schema**: none. **Migrations**: none. **New endpoints**: none (the posture builder queries

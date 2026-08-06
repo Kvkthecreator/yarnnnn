@@ -92,7 +92,7 @@ half (the Ag chips) into the document scope; this completes the consolidation:
 `web/components/workspace/viewers/projection.ts` (gutter runtime + CSS, pointer ignore +
 `__yarnnnSelect`) · `StudioCanvas` (`design` flag passthrough on the point payload) ·
 `StudioSurface` (onPoint flips to Design on the flag; File-actions button + menu deleted;
-`fileVerbs` passed down) · `StudioDesignTab` (the File section) · `docs/design/STUDIO.md` ·
+`fileVerbs` passed down) · `StudioDesignTab` (the File section) · `docs/design/AUTHORING.md` ·
 ADR-455 (amendment banner) · gate `api/test_adr458_studio_hover_layer.py` (+ the ADR-455 gate's
 placement pins updated). No backend change, no posture change, no CHANGELOG entry (nothing
 LLM-facing moves).

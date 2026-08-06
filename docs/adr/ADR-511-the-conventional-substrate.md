@@ -223,5 +223,5 @@ restated precisely: two annotations carry SEMANTICS nothing conventional can exp
   select.
 - The prompt layer sheds proprietary-grammar tax on the D6 schedule (slot/arrangement
   posture prose retires with Phase 2), per ADR-306's ablation discipline.
-- `docs/design/STUDIO.md` carries the interaction-contract rewrite; ADR-LEDGER gains
+- `docs/design/AUTHORING.md` carries the interaction-contract rewrite; ADR-LEDGER gains
   this entry; the three amended/superseded ADRs carry banners.

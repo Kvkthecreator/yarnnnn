@@ -2991,7 +2991,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 stage={template === 'deck'}
                 onScrollPos={onScrollPos}
               />
-              {/* STUDIO.md Phase 3 §3 — the ancestor chain at the selection,
+              {/* AUTHORING.md Phase 3 §3 — the ancestor chain at the selection,
                   paged media only (flow's chain is caret → block → clear).
                   Selecting an ancestor rides the navigator's existing
                   selection paths — no new op, a new reach (rule 7). */}

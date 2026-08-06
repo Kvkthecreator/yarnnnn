@@ -241,7 +241,7 @@ re-minted on paste, never duplicated (`normalizeStructure` already owns that rul
 | 5 | `projection.ts` | ⌥↑/⌥↓ → `yarnnn-key-verb move`, structure-tier scoped (D3) |
 | 6 | `StudioSurface.tsx` | route the move verb to the existing `moveBlock` op |
 | 7 | `projection.ts` | the internal-paste attribute carve (D4) |
-| 8 | `docs/design/STUDIO.md` | the Docs column gains its structural rows; rule 12 |
+| 8 | `docs/design/AUTHORING.md` | the Docs column gains its structural rows; rule 12 |
 | 9 | `docs/gitbook/apps/docs.md` | the outline sentence (already corrected in `a862438`) |
 
 New gate: `adr526_docs_structure.mjs` — executes the real outline derivation, the real

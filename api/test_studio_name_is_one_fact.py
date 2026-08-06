@@ -33,7 +33,7 @@ Two guards, because an h1 is not always a title:
 NOT built (and deliberately): editing the h1 in place does not rename the file.
 Pure Notion (title leads, file follows) would make every keystroke a MOVE of
 substrate identity, breaking every data-ref citation that points at the path —
-the citation graph is what the moat protects. See docs/design/STUDIO.md.
+the citation graph is what the moat protects. See docs/design/AUTHORING.md.
 """
 
 from __future__ import annotations

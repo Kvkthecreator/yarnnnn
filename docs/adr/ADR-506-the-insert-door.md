@@ -275,4 +275,4 @@ In ADR-482 §10's shape — **the act completes**, not the affordance appears:
 `web/components/studio/StudioToolbar.tsx` (Insert, last in the left cluster; the tri-state
 `mode`) · `api/test_studio_slash_anywhere.py` (+10, two re-cut) ·
 `api/test_studio_layout_mode.py` (+2) ·
-`docs/design/STUDIO.md` · `api/prompts/CHANGELOG.md`.
+`docs/design/AUTHORING.md` · `api/prompts/CHANGELOG.md`.

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * SelectionBreadcrumb — the ancestor chain at the selection (STUDIO.md
+ * SelectionBreadcrumb — the ancestor chain at the selection (AUTHORING.md
  * Phase 3 §3): the same chain the Esc-walk climbs (block → container → … →
  * page), rendered as a clickable crumb over the canvas so the walk is
  * visible and pointable. Paged media only — flow's chain is caret → block →
@@ -12,7 +12,7 @@
  * the crumb never says "div". Clicking an ancestor SELECTS it — the same
  * parent selection path the navigator's structure tree uses (ADR-511 D3) —
  * so the crumb adds no new op, only a new reach into existing ones
- * (STUDIO.md rule 7). The innermost segment is the current selection:
+ * (AUTHORING.md rule 7). The innermost segment is the current selection:
  * named, not clickable.
  */
 

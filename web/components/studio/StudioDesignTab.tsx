@@ -867,7 +867,7 @@ export function StudioDesignTab({
   // around the whole slide and offered one act — so it read as "you have
   // selected the layout master", an object the member cannot move, resize,
   // reorder or delete, because its geometry belongs to the arrangement (the
-  // layer rule, STUDIO.md). PowerPoint refuses the same thing: a layout's
+  // layer rule, AUTHORING.md). PowerPoint refuses the same thing: a layout's
   // content area is not selectable on the slide; you change it via Layout.
   //
   // The two cases where the slot IS a real region survive:
@@ -933,7 +933,7 @@ export function StudioDesignTab({
    *  medium term anywhere (one `mode` branch existed in this whole file, and it
    *  was document scope). So a Docs paragraph rendered the full enclosure
    *  grammar — Duplicate/Up/Down/Delete, Width Hug|Fill, Align — which is
-   *  exactly what ADR-521 D1 and STUDIO.md rule 10 mean by "no layout surface".
+   *  exactly what ADR-521 D1 and AUTHORING.md rule 10 mean by "no layout surface".
    *
    *  Read from the runtime's declaration, never re-derived (D1). The fallback
    *  covers only the frame before a tier-stamped payload arrives (an older
@@ -1049,7 +1049,7 @@ export function StudioDesignTab({
   /** ADR-526 D2 — the flow analogue of `pathRow`, which is structurally ALWAYS
    *  NULL on a document: it gates on `pageOfSelection`, resolved through
    *  PAGE_SEL, and ADR-481 D1 flattened flow scaffolds so no <section> ancestor
-   *  exists. (STUDIO.md claimed "✅ path" for block(text) until `a862438`.)
+   *  exists. (AUTHORING.md claimed "✅ path" for block(text) until `a862438`.)
    *
    *  The honest chain on flow is ONE rung — the enclosing heading — because the
    *  document is one rung deep. Sourced from `selection.headingId`, which the
@@ -2057,7 +2057,7 @@ export function StudioDesignTab({
               ADR-525 D3: withheld on the TEXT tier. Width Hug|Fill is a
               CONTAINER row (ADR-516 D4) and flow has no containers by
               derivation (ADR-481 D1); a paragraph in a continuous surface has
-              no box to size or align. This is STUDIO.md rule 10's "no layout
+              no box to size or align. This is AUTHORING.md rule 10's "no layout
               surface" — stated four times in canon, never true at the surface
               until now. Objects on flow (a figure) keep the section: they ARE
               boxes, and D4 re-keys the two tokens that were mis-declared. */}

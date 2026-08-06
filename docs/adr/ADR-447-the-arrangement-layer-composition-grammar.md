@@ -35,7 +35,7 @@
 > restructures the workbench UX so composition is spatial (thumbnail pickers, a right-side
 > inspector, click-to-drill, empty-slot affordances). Derivation:
 > `docs/analysis/the-composition-layer-arrangements-as-a-first-class-grammar-2026-07-12.md`. Living
-> design doc: `docs/design/STUDIO.md`.
+> design doc: `docs/design/AUTHORING.md`.
 
 **Date**: 2026-07-12
 **Dimension**: Substrate (Axiom 1 — the artifact carries its own composition semantics as

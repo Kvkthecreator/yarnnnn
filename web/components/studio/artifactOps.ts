@@ -725,7 +725,7 @@ export function setGeometry(
  *  nested inside another block, so a wrapper would hide its own children from
  *  every sweep that redistributes content. A group that survives in the file
  *  would be a second structural layer competing with the arrangement — the
- *  exact confusion the slot pass just removed (STUDIO.md: a slot is DECLARED
+ *  exact confusion the slot pass just removed (AUTHORING.md: a slot is DECLARED
  *  by the arrangement, a group is AUTHORED ad hoc; they are not the same kind
  *  of thing and must not become one).
  *

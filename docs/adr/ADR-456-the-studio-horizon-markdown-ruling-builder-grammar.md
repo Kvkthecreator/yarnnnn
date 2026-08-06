@@ -195,7 +195,7 @@ lane-performed layout change (every block and id preserved); what D7.5 deleted w
 
 ## 4. Cascade
 
-`docs/design/STUDIO.md` (blocks/arrangements/tokens tables + the md ruling + the wave plan
+`docs/design/AUTHORING.md` (blocks/arrangements/tokens tables + the md ruling + the wave plan
 pointer) · ADR-443 (amendment banner: D7 reconciliation + Wave-1 vocabulary growth) ·
 `api/prompts/CHANGELOG.md` (the posture derives from the registries — new kinds/arrangements/
 token families reach the lane).

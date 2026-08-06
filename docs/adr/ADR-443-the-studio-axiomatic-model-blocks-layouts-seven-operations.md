@@ -23,7 +23,7 @@
 > D7.5: the axiom survives as **block portability** — type change is a lane-performed judgment
 > act (blocks + ids preserved); what D7.5 deleted was the mechanical type toggle.
 
-> **Status**: **Accepted** (2026-07-12, operator-ratified; full-scope implementation delegated same-day). Ratifies the operator's six-axiom design philosophy for the Studio (HTML-native · component-native · layout-native · AI-native · format-agnostic · interoperable) **with the R1–R5 refinements** from the part-4 analysis, closes the universal feature set at **seven operations**, and flips the build sequence: the block/layout model lands **before** v1.2 tweak-gestures. Derivation: `docs/analysis/the-studio-axiomatic-model-components-and-layouts-2026-07-12.md` (part 4 of the probe series). Living design doc: `docs/design/STUDIO.md`.
+> **Status**: **Accepted** (2026-07-12, operator-ratified; full-scope implementation delegated same-day). Ratifies the operator's six-axiom design philosophy for the Studio (HTML-native · component-native · layout-native · AI-native · format-agnostic · interoperable) **with the R1–R5 refinements** from the part-4 analysis, closes the universal feature set at **seven operations**, and flips the build sequence: the block/layout model lands **before** v1.2 tweak-gestures. Derivation: `docs/analysis/the-studio-axiomatic-model-components-and-layouts-2026-07-12.md` (part 4 of the probe series). Living design doc: `docs/design/AUTHORING.md`.
 
 **Date**: 2026-07-12
 **Dimension**: Substrate (Axiom 1 — the artifact carries its own semantics) + Channel (Axiom 6 — the palette, switcher, pointing) + Mechanism (the lane transforms; nothing else writes)
@@ -48,7 +48,7 @@ The manifesto is canon, subject to:
 
 ## D3 — The operator-word rule (the surfacing principle)
 
-**The seven operations are internal vocabulary; the chrome speaks operator words.** The FE never surfaces "compose/transform/project/deixis" — it says **Create · Add · Edit (through the chat) · Select · Insert from workspace · Change layout · History**. The mapping is fixed in `docs/design/STUDIO.md` and is the contract for every future affordance: model-language in code and canon, human language in chrome. (The macOS rule: users never see the word "syscall.")
+**The seven operations are internal vocabulary; the chrome speaks operator words.** The FE never surfaces "compose/transform/project/deixis" — it says **Create · Add · Edit (through the chat) · Select · Insert from workspace · Change layout · History**. The mapping is fixed in `docs/design/AUTHORING.md` and is the contract for every future affordance: model-language in code and canon, human language in chrome. (The macOS rule: users never see the word "syscall.")
 
 ## D4 — The block annotation spec
 

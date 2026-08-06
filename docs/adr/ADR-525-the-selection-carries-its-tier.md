@@ -119,7 +119,7 @@ cannot see the other five sites. A green gate over the wrong extent.
 
 ### 1.4 The canon half is under-specified too
 
-`docs/design/STUDIO.md`'s pane matrix (the "The pane (Design tab)" section) columns by
+`docs/design/AUTHORING.md`'s pane matrix (the "The pane (Design tab)" section) columns by
 **grain** — `document | page | container | block` — while every other matrix in that
 document columns by **medium** (`deck | document | web`). There is therefore no way to
 express *block-on-flow ≠ block-on-deck*, and the Layout row reads
@@ -278,7 +278,7 @@ After D3 and D5 the pane and the menu are derived from one field and cannot disa
 | 8 | `StudioBlockMenu.tsx:290,293` | Duplicate/Delete read the tier (D5) |
 | 9 | `api/services/studio.py:635-648,694,703` | `block-flow` term; re-key `size`/`align` (D4) |
 | 10 | `web/scripts/gates/adr484_flow_chrome_leak.mjs` | re-point at the chokepoint + completeness assert (D2) |
-| 11 | `docs/design/STUDIO.md` | the pane matrix gains a medium axis (§1.4) |
+| 11 | `docs/design/AUTHORING.md` | the pane matrix gains a medium axis (§1.4) |
 
 New gate: `web/scripts/gates/adr525_selection_tier.mjs` — executes the real tier derivation
 and the real `__yarnnnSelect` body, with falsifiers for each of: prose-on-flow is `text`,

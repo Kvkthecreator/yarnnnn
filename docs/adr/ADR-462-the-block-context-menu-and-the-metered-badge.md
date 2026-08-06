@@ -358,7 +358,7 @@ here so the next reader knows it is canon-stale rather than code-broken.
 
 `web/components/workspace/viewers/projection.ts` (neutral selection + grip; contextmenu →
 `yarnnn-point` with `menu: true`) · `StudioCanvas` (the menu flag passthrough) · `StudioSurface`
-(the canvas menu mount + the two seeds) · `docs/design/STUDIO.md` (the interaction model line) ·
+(the canvas menu mount + the two seeds) · `docs/design/AUTHORING.md` (the interaction model line) ·
 ADR-458 (amendment banner: D4 narrowed) · gate `api/test_adr462_context_menu.py` · the ADR-458
 gate's stale `FileContextMenu` pin corrected. No backend change, no registry change, no posture
 change, no CHANGELOG entry (nothing LLM-facing moves — the seeds are member-authored text).

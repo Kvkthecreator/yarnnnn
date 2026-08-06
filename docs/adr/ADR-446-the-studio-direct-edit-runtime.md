@@ -25,7 +25,7 @@
 > lands through ADR-444's mechanical write door as a debounced, operator-attributed, CAS-guarded
 > revision. It also kills the selection→composer auto-seed spam. Derivation:
 > `docs/analysis/the-studio-direct-edit-projection-to-source-2026-07-12.md`. Living design doc:
-> `docs/design/STUDIO.md`.
+> `docs/design/AUTHORING.md`.
 
 **Date**: 2026-07-12
 **Dimension**: Mechanism (the member's keys drive a mechanical transform) + Channel (the canvas

@@ -1,4 +1,4 @@
-// Executing check of the selection breadcrumb (STUDIO.md Phase 3 §3).
+// Executing check of the selection breadcrumb (AUTHORING.md Phase 3 §3).
 //
 // The crumb renders the Esc-walk's ancestor chain (page → containers →
 // selection). The chain floor is the ATTRIBUTION floor (ADR-511 D3): only

@@ -9,7 +9,7 @@
  * had no host. This IS that host: picking Image/Table/Gallery in the slash /
  * located palette swaps to this panel at the same anchor, and the pick lands a
  * CITED block at the located insertion point. With no orphan kinds left, the
- * Media button retired (the STUDIO.md named follow-on, executed).
+ * Media button retired (the AUTHORING.md named follow-on, executed).
  *
  * The component picks; the surface routes and writes (one door, unchanged).
  */

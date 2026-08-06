@@ -122,5 +122,5 @@ own canon (FE door, ADR-328 Phase-1 package, stale PDF/PPTX doc repairs) is a se
 - **FE retirement of `shareKey()`** (`NodeDetailsPanel.tsx`) once no pre-234 client writes
   relative paths.
 - **Stale user docs**: gitbook expiry claim (false — no UI passes `ttl_days`), always-member
-  claim (false since ADR-465 Phase D), view-only undocumented; STUDIO.md Share placement.
+  claim (false since ADR-465 Phase D), view-only undocumented; AUTHORING.md Share placement.
 - **Invite-with-artifact-scope**: named, unowned (§5).

@@ -16,7 +16,7 @@
  * `Media ▾` is DELETED (ADR-466 D4): the picker-backed kinds (Image / Table /
  * Gallery) now live in the located palette, which opens StudioCitablePicker at
  * the insertion point; Chart seeds the lane from the same palette. Insert is
- * located, with no exceptions — the STUDIO.md named follow-on, executed.
+ * located, with no exceptions — the AUTHORING.md named follow-on, executed.
  *
  * The selection chip is GONE (2026-07-15) — ADR-453 D3's "acknowledgment" was
  * the receipt for a selection-gated world that ADR-458 replaced with hover.

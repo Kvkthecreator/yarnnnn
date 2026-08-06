@@ -316,7 +316,7 @@ editable this way. This is a permission widening, not a new write path; it rides
 mechanical door.
 
 **What this does NOT include** (the honest gap): the var-editor *UI* is unblocked but not built.
-The theme panel (STUDIO.md §Theme) shows the system's variables read-only, kernel-consumed
+The theme panel (AUTHORING.md §"Vocabulary, templates, skins") shows the system's variables read-only, kernel-consumed
 vocabulary first — and since ADR-487 D9 it lives **only** in the manage state (`studio.system=`),
 the system-as-object register; the artifact-side copy is deleted (inside an artifact the system
 is worn, never listed). Making a value *editable inline* needs a design pass
@@ -527,6 +527,6 @@ choice, not an accident.
 | FE creation modal (§6, the regroup — one entry, import+derive) | `web/components/studio/NewDesignSystemModal.tsx` (to build); the section stops calling `LearnFromFlowModal` |
 | FE learn-from (the GENERAL create path — all targets) | `web/components/studio/LearnFromFlowModal.tsx` + `LEARN_TARGETS` (`New ▾ · Learn from`; no longer the design-system entry) |
 | FE skin url() resolution | `web/components/workspace/viewers/projection.ts::resolveStyleUrls` |
-| The theme contract (the apply seam) | `docs/design/STUDIO.md` §Theme + the layer table |
+| The theme contract (the apply seam) | `docs/design/AUTHORING.md` §"Vocabulary, templates, skins" + the layer table |
 | The apply-gap coverage probe (§5 evidence) | `api/probe_design_system_coverage.py` |
 | Gates | `api/test_adr449_design_system.py` · `api/test_adr462_context_menu.py` (D13) |

@@ -173,18 +173,20 @@ _check("D6: the verb tier still reaches OBJECT kinds on flow "
        "(TEXT_KINDS excludes figure/table/chart/gallery/divider)",
        all(k not in TEXT_KINDS_DECL for k in ("figure", "table", "chart", "gallery", "divider")))
 
-# ── Canon: the ADR + STUDIO.md carry the ruling ─────────────────────────────
+# ── Canon: the ADR + AUTHORING.md carry the ruling ──────────────────────────
 adr = DOCS / "adr" / "ADR-521-the-flow-benchmark-notions-scope-the-continuous-surfaces-mechanics.md"
 _check("ADR-521 exists", adr.exists())
-studio = (DOCS / "design" / "STUDIO.md").read_text()
-_check("STUDIO.md: normative rule 10 (the two-axis benchmark) is present",
+# Renamed from STUDIO.md 2026-08-06 — the file was named for one of its two
+# consumers while being the contract for both. STUDIO.md is now a stub.
+studio = (DOCS / "design" / "AUTHORING.md").read_text()
+_check("AUTHORING.md: normative rule 10 (the two-axis benchmark) is present",
        "The flow benchmark is two-axis" in studio)
-_check("STUDIO.md: the Inline format matrix row exists",
+_check("AUTHORING.md: the Inline format matrix row exists",
        "### Inline format (the text tier follows the selection — ADR-521)" in studio)
-_check("STUDIO.md: cmd-B/I and text/html paste left the owed lists",
+_check("AUTHORING.md: cmd-B/I and text/html paste left the owed lists",
        "⌘B/⌘I on flow ·" not in studio
        and "`text/html` paste (a security carve" not in studio)
-_check("STUDIO.md: the block-set selection refusal is standing",
+_check("AUTHORING.md: the block-set selection refusal is standing",
        "no block-set selection mode on flow" in studio)
 
 print()

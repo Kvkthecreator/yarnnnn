@@ -299,4 +299,4 @@ declaration · the mode docstring re-cut) · `web/components/workspace/viewers/p
 (−284 lines: the gutter, the row band, the reorder gesture; `OBJECT_SCRIPT`) ·
 `web/components/studio/{StudioSurface,StudioCanvas,StudioDesignTab,StudioToolbar,studioShapes,artifactOps}.tsx|ts`
 · `api/test_studio_no_gutter_and_arrows.py` (renamed + inverted) · 10 updated gates ·
-`docs/design/STUDIO.md` · `api/prompts/CHANGELOG.md`.
+`docs/design/AUTHORING.md` · `api/prompts/CHANGELOG.md`.
