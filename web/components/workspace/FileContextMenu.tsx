@@ -43,7 +43,13 @@ export interface FileVerbs {
   onRename?: (t: { path: string; name: string }) => void;
   onMove?: (t: { path: string; name: string }) => void;
   onDelete?: (t: { path: string; name: string }) => void;
-  /** Share a link to this artifact (ADR-437 D4 — the cockpit share origin). */
+  /**
+   * OPEN the share dialog for this artifact (ADR-529 D1). It does not mint and
+   * it does not copy: the surface raises the one `ShareDialog`, where the two
+   * shapes are stated as consequence and nothing fires without a click. The
+   * previous one-click mint always granted full membership — the over-grant is
+   * closed by the dialog's existence, not by a check.
+   */
   onShare?: (t: { path: string; name: string }) => void;
   /** Duplicate as an attributed derivation (ADR-514 D1) — the kernel resolves
    *  the copy's name and writes the derived_from edge. */

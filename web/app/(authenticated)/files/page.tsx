@@ -68,6 +68,7 @@ import {
 } from '@/lib/file-types';
 import { resolveHandlers, applyDefaultOverride } from '@/lib/file-types/handlers';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
+import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
@@ -882,26 +883,18 @@ export default function ContextPage() {
   // hook — `openMove` opens the picker, `commitMove` is the drag fast-path.
   const commitMove = organizeVerbs.commitMove;
 
-  // ADR-437 D4: share a link to an artifact. The cockpit origin of the
-  // shared-artifact wedge — mints a link (a broad member grant on accept, the
-  // Figma default) and copies it to the clipboard. The recipient lands on the
-  // /s/{token} accept surface; accessing the artifact is the activation.
-  const handleShare = useCallback(async (t: { path: string; name: string }) => {
-    try {
-      const res = await runAction(
-        () => api.workspace.createShare(t.path, t.name),
-        {
-          pending: 'Creating share link…',
-          success: 'Share link copied — anyone with it can join the workspace',
-          error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Could not create a share link' : 'Could not create a share link'),
-        },
-      );
-      const link = res?.share_link;
-      if (link && typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(link).catch(() => { /* copy is best-effort */ });
-      }
-    } catch { /* error toast already surfaced; stop */ }
-  }, [runAction]);
+  // ADR-529 D1: share OPENS THE DIALOG — it no longer mints on click.
+  //
+  // This used to be a one-click mint-and-copy with NO role parameter, so every
+  // use granted full workspace membership and the toast reported a decision the
+  // operator was never asked to make ("anyone with it can join the workspace").
+  // That over-grant is closed by construction: the dialog always asks, and it
+  // is the single cockpit mint path (Studio's popover and the Properties
+  // panel's list/revoke are deleted in the same commit — ADR-529 D4).
+  const [shareTarget, setShareTarget] = useState<{ path: string; name: string } | null>(null);
+  const handleShare = useCallback((t: { path: string; name: string }) => {
+    setShareTarget({ path: t.path, name: t.name });
+  }, []);
 
   // ADR-400: the operator's file verbs as one bundle, threaded to every file
   // surface (tree + RecentsView grid + ContentViewer folder listing) so the
@@ -1261,6 +1254,11 @@ export default function ContextPage() {
         onSubmit={commitNewFolder}
         destinationName={newFolderParent?.name}
       />
+
+      {/* ADR-529 D1: the ONE share act. Reached from every file surface through
+          the FileVerbs bundle (tree, grid, listing) — and Studio mounts the
+          same component, so the act is identical wherever it is invoked. */}
+      <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />
 
     </>
   );

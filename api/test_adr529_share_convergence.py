@@ -144,9 +144,16 @@ def main() -> int:
         results.append(_check(
             "D1c the dialog renders the URL and a copy control",
             "share_link" in dialog and "Copy" in dialog))
+        # The invariant is "no role is pre-selected", not a quote style. Assert
+        # the STATE INITIALIZER is null and both shapes exist as choices —
+        # pinning `"member"` failed on a file that spells it 'member'.
         results.append(_check(
-            "D1d no role fires without a click (both shapes are explicit)",
-            '"member"' in dialog and '"viewer"' in dialog))
+            "D1d no role fires without a click (nothing pre-selected)",
+            re.search(r"useState<ShareRole\s*\|\s*null>\(null\)", dialog) is not None
+            and re.search(r"role:\s*['\"]member['\"]", dialog) is not None
+            and re.search(r"role:\s*['\"]viewer['\"]", dialog) is not None
+            and re.search(r"disabled=\{!role", dialog) is not None,
+            "role starts null; both shapes offered; submit disabled until chosen"))
         results.append(_check(
             "D1e revoke lives in the dialog (moved off the details panel)",
             "revokeShare" in dialog and "revokeShare" not in details))

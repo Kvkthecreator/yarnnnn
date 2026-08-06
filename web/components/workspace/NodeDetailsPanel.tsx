@@ -314,7 +314,10 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
           <FileProperties node={node} />
           <FileOpensWith path={node.path} />
           <FileReach path={node.path} />
-          <FileShares path={node.path} />
+          {/* The share list + revoke that sat here moved into the ShareDialog
+              (ADR-529 D1/D4): the operator manages links where they mint them,
+              not in a third surface. `FileReach` stays — it answers "who can
+              reach this file", which is a standing fact, not a link. */}
           <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
         </div>
       )}
@@ -455,75 +458,17 @@ function FileReach({ path }: { path: string }) {
 }
 
 
-// ── Shares — the "Manage Shared File…" row (ADR-465/513) ───────────────────
-// The live share links that point at THIS artifact: their shape (full access
-// vs view-only) and a revoke. Revocation is the control that makes a public
-// capability link honest (ADR-513 D4: dark means dark).
-
-/** Both spellings of one path compare equal.
- *
- *  A share row's `artifact_path` is whatever the minting origin passed —
- *  ABSOLUTE (`/workspace/operation/x.html`) from the cockpit + the MCP share
- *  verb, workspace-RELATIVE from callers that pre-strip. Comparing one spelling
- *  against the other silently matched nothing, so the whole share section
- *  (including its Revoke) rendered `null` while a live public link kept serving
- *  — found live 2026-08-03. Normalize both sides; never compare raw. */
-function shareKey(path: string): string {
-  return (path.startsWith('/workspace/') ? path.slice('/workspace/'.length) : path).replace(/^\/+/, '');
-}
-
-function FileShares({ path }: { path: string }) {
-  const rel = shareKey(path);
-  const [shares, setShares] = useState<Array<{
-    id: string; artifact_path: string | null; role: string; status: string;
-  }> | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  const load = () => {
-    api.workspace
-      .listShares()
-      .then((r) => setShares(r.shares.filter(
-        (s) => s.artifact_path != null && shareKey(s.artifact_path) === rel,
-      )))
-      .catch(() => setShares(null));
-  };
-  useEffect(load, [rel]);
-
-  const revoke = async (id: string) => {
-    setBusy(id);
-    try {
-      await api.workspace.revokeShare(id);
-      load();
-    } catch {
-      /* the row stays; the next load shows the truth */
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  if (!shares || shares.length === 0) return null;
-  return (
-    <div>
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Share links to this file
-      </p>
-      <ul className="space-y-1">
-        {shares.map((s) => (
-          <li key={s.id} className="flex items-center gap-2 text-xs">
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {s.role === 'viewer' ? 'View-only link' : 'Full-access link'}
-            </span>
-            <button
-              type="button"
-              onClick={() => void revoke(s.id)}
-              disabled={busy === s.id}
-              className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-            >
-              {busy === s.id ? 'Revoking…' : 'Revoke'}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+// ── Shares: DELETED (ADR-529 D4) ───────────────────────────────────────────
+// The `FileShares` list + revoke, and the `shareKey()` path normalizer that fed
+// it, both lived here. They moved into `ShareDialog`: the operator manages the
+// links they minted in the surface where they mint them, not in a third place.
+//
+// `shareKey()` is not merely relocated — it is RETIRED. It existed because a
+// share row's `artifact_path` could arrive in either spelling, so comparing one
+// against the other silently matched nothing (found live 2026-08-03: the whole
+// section rendered `null` while a public link kept serving). ADR-517 D5 fixed
+// that AT THE WRITE — one canonical absolute spelling, normalized in
+// `create_share`, backfilled by migration 234 — and named this normalizer dead
+// defence to retire in the FE phase. This is that phase. The dialog compares
+// raw, which is now correct, and keeping a compensator would hide it if that
+// ever stopped being true.

@@ -41,6 +41,8 @@ import { studioShapeStyle } from './studioShapes';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { isColorValue, parseSkinVars } from './skinVars';
 import { OpenArtifactModal } from './OpenArtifactModal';
+// ADR-529 D1 — the one share act, shared with Files and every file surface.
+import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import {
   resolveArtifactHtml,
@@ -2696,24 +2698,23 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(relPath(artifactPath))}`;
     void navigator.clipboard.writeText(url);
   }, [artifactPath]);
-  // Share — mint a /s/{token} grant link for THIS artifact and copy it
-  // (ADR-437 D4 / ADR-465). Unlike copyArtifactLink (the in-app member
-  // deep-link), the recipient becomes a principal of the commons on accept —
-  // broad member by default, or a read-only viewer (ADR-465 D3 second shape).
-  // Throws on failure so the Share panel surfaces the error.
-  const shareArtifact = useCallback(async (mode: 'member' | 'viewer' = 'member') => {
-    if (!artifactPath) throw new Error('No artifact open');
-    const res = await api.workspace.createShare(
-      relPath(artifactPath), undefined, undefined, mode,
-    );
-    if (!res.share_link) throw new Error('No share link returned');
-    // Clipboard may be denied in a non-secure context; the link still exists
-    // (listed under Files/Shares), so a copy failure is not a share failure.
-    try {
-      await navigator.clipboard.writeText(res.share_link);
-    } catch {
-      /* link minted; copy denied — the caller still reports success */
-    }
+  // Share — OPENS THE SHARED DIALOG (ADR-529 D1). Studio no longer owns a
+  // share implementation: its two-button popover is deleted (ADR-529 D4), and
+  // the act it performed now lives in the one `ShareDialog` that every file
+  // surface mounts. The header placement is unchanged — ADR-515 §2.0's
+  // two-mount carve is correct and preserved (Share belongs beside Export as a
+  // boundary act); what changes is that the header verb and the file-verb are
+  // ONE component rather than two implementations of one idea.
+  //
+  // The dialog resolves the path itself, so no mode parameter crosses here —
+  // the choice is made in the dialog, where the consequence is stated.
+  const [shareTarget, setShareTarget] = useState<{ path: string; name: string } | null>(null);
+  const shareArtifact = useCallback(() => {
+    if (!artifactPath) return;
+    setShareTarget({
+      path: artifactPath,
+      name: artifactPath.split('/').filter(Boolean).pop() || artifactPath,
+    });
   }, [artifactPath]);
 
   // ── Export (ADR-466 D6) ────────────────────────────────────────────────
@@ -3071,7 +3072,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             {/* The boundary acts (2026-07-24) — Share/Export left the
                 Properties pane for the header, right of zoom: document-global
                 verbs with their own anchored panels (the StudioToolbar popover
-                grammar). The Properties sections are deleted, not mirrored. */}
+                grammar). The Properties sections are deleted, not mirrored.
+                ADR-529 D1: Share is now a trigger for the shared dialog — the
+                popover it used to open is deleted; Export keeps its panel. */}
             <StudioShareExport
               share={shareArtifact}
               print={() => void exportPrint()}
@@ -3436,6 +3439,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           stay mounted — the entrances moved to the Design tab's File section;
           the surface-bar menu is gone. */}
       {organizeModals}
+
+      {/* ADR-529 D1: the SAME share dialog Files mounts. Studio's own
+          two-button popover is deleted — one act, one component, every
+          surface. */}
+      <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />
     </div>
   );
 }

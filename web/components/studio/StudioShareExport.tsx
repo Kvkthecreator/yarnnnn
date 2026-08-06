@@ -8,27 +8,37 @@
  * sections (ADR-458 D3 / ADR-466 D6). But the Properties pane is the SHAPING
  * home — tokens, measures, scopes — and the boundary acts were the only rows
  * there that never touch the artifact's form. They now sit in the toolbar row,
- * right of the zoom cluster, each with its own anchored panel — the same
- * popover grammar as New-‹noun›/Re-arrange (StudioToolbar) and for the same
- * reason: a header verb answers where the eye already is, without opening a
- * side pane. The Properties sections are DELETED, not mirrored (Singular
- * Implementation — the Re-arrange dual-mount was deleted the same way,
- * 2026-07-21).
+ * right of the zoom cluster — a header verb answers where the eye already is,
+ * without opening a side pane. The Properties sections are DELETED, not
+ * mirrored (Singular Implementation).
+ *
+ * ADR-515 §2.0's two-mount carve is PRESERVED: Share belongs beside Export
+ * because both are boundary acts (the file crossing out of the workspace, one
+ * way or another). What ADR-529 D1 changed is the asymmetry inside that
+ * placement — **Export owns a panel here; Share owns nothing here.** Share is
+ * a trigger for the one `ShareDialog` that Files and every file surface mount,
+ * so the act is identical wherever it is invoked (the operator's rule:
+ * "the concept should feel the same regardless of ANY surface").
+ *
+ * DELETED by ADR-529 D4: this component's own share popover — two shape
+ * buttons + `runShare` + the `sharing`/`shareState`/`sharedMode` state. It
+ * dismissed on outclick (a governance act should not), never showed the minted
+ * URL, and pointed at "Files" for management — a surface that never managed
+ * shares.
  *
  * The verbs still RUN in the parent (StudioSurface owns artifactPath + api);
- * this component owns only the transient per-act state (working / copied /
- * error), lifted verbatim from the deleted sections.
+ * this component owns only Export's transient state.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileOutput, Share2 } from 'lucide-react';
 
 interface StudioShareExportProps {
-  /** Mint a /s/{token} membership link for this artifact and copy it
-   *  (ADR-437 D4 / ADR-465). `mode` picks the grant shape (ADR-465 D3):
-   *  'member' = full access (default) · 'viewer' = read-only (the artifact +
-   *  its trace, no write membership). Resolves on success, rejects on failure. */
-  share: (mode?: 'member' | 'viewer') => Promise<void>;
+  /** OPEN the share dialog for this artifact (ADR-529 D1). Studio no longer
+   *  mints here: the two-button popover this component used to own is deleted,
+   *  and the act lives in the one `ShareDialog` every file surface mounts.
+   *  Fire-and-forget — the dialog owns the outcome, the error and the link. */
+  share: () => void;
   /** The browser's print over the resolved projection (ADR-466 D6). */
   print: () => void;
   /** Copy the interop-face reference (recall/trace via the yarnnn connector). */
@@ -39,7 +49,8 @@ interface StudioShareExportProps {
 }
 
 export function StudioShareExport({ share, print, copyAiRef, exportPng }: StudioShareExportProps) {
-  const [open, setOpen] = useState<null | 'share' | 'export'>(null);
+  // Only Export has a panel now — Share is a dialog trigger (ADR-529 D1).
+  const [open, setOpen] = useState<null | 'export'>(null);
   // The trigger cluster (buttons + panels) — the click-away boundary, same
   // shape as StudioToolbar's menuRef (and the same iframe caveat: the canvas
   // bridges in-frame presses out as `yarnnn-canvas-press`).
@@ -67,30 +78,13 @@ export function StudioShareExport({ share, print, copyAiRef, exportPng }: Studio
     };
   }, [open]);
 
-  // ── Share: mint-and-copy with transient copied/error state ──────────────
-  // Two shapes, one act (ADR-465 D3): full-access member link | read-only
-  // viewer link. The transient state remembers which was minted so the honest-
-  // consequence line below matches the link on the clipboard.
-  const [sharing, setSharing] = useState(false);
-  const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle');
-  const [sharedMode, setSharedMode] = useState<'member' | 'viewer'>('member');
-  const runShare = useCallback(async (mode: 'member' | 'viewer') => {
-    setSharing(true);
-    setShareState('idle');
-    setSharedMode(mode);
-    try {
-      await share(mode);
-      setShareState('copied');
-      setTimeout(() => setShareState('idle'), 2500);
-    } catch {
-      setShareState('error');
-      setTimeout(() => setShareState('idle'), 3000);
-    } finally {
-      setSharing(false);
-    }
-  }, [share]);
-
   // ── Export: AI reference copy + raster state ────────────────────────────
+  //
+  // The share panel that used to live here — two buttons, `runShare`, and the
+  // `sharing`/`shareState`/`sharedMode` transient state — is DELETED (ADR-529
+  // D4). It offered the right two shapes but dismissed on outclick, showed the
+  // operator no URL, and told them to "manage or revoke shares from Files",
+  // which was never the surface that managed shares. Share is now a trigger.
   const [aiRefState, setAiRefState] = useState<'idle' | 'copied'>('idle');
   const runCopyAiRef = useCallback(async () => {
     try {
@@ -126,13 +120,16 @@ export function StudioShareExport({ share, print, copyAiRef, exportPng }: Studio
 
   return (
     <div ref={menuRef} className="relative flex shrink-0 items-center gap-1 pr-2">
+      {/* ADR-529 D1: opens the dialog. It does NOT mint, and it does not copy
+          anything on click — the word "Share" is reserved for the act that
+          changes who can reach the file (ADR-515 D1), and that act always asks. */}
       <button
         type="button"
         className={btn}
-        onClick={() => setOpen(open === 'share' ? null : 'share')}
-        title="Share this artifact — a link that invites someone into your workspace"
+        onClick={() => { setOpen(null); share(); }}
+        title="Share this artifact — choose who can reach it, and get a link"
       >
-        <Share2 className="h-3 w-3" /> Share
+        <Share2 className="h-3 w-3" /> Share…
       </button>
       <button
         type="button"
@@ -142,55 +139,6 @@ export function StudioShareExport({ share, print, copyAiRef, exportPng }: Studio
       >
         <FileOutput className="h-3 w-3" /> Export
       </button>
-
-      {/* Share (ADR-437 D4 wedge / ADR-465 — the membership act, distinct from
-          the File section's Copy link, an in-app member deep-link). */}
-      {open === 'share' && (
-        <div className={panel}>
-          <p className="px-1 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Share
-          </p>
-          <div className="space-y-1.5 px-1 pb-1">
-            <div className="flex flex-wrap gap-1">
-              <button
-                type="button"
-                className={act}
-                onClick={() => void runShare('member')}
-                disabled={sharing}
-                title="A link that adds whoever opens it to your workspace with full access"
-              >
-                {sharing && sharedMode === 'member'
-                  ? 'Creating link…'
-                  : shareState === 'copied' && sharedMode === 'member'
-                    ? 'Link copied ✓'
-                    : 'Full access link'}
-              </button>
-              <button
-                type="button"
-                className={act}
-                onClick={() => void runShare('viewer')}
-                disabled={sharing}
-                title="A read-only link — they see this artifact and its history, and can change nothing"
-              >
-                {sharing && sharedMode === 'viewer'
-                  ? 'Creating link…'
-                  : shareState === 'copied' && sharedMode === 'viewer'
-                    ? 'Link copied ✓'
-                    : 'View-only link'}
-              </button>
-            </div>
-            <p className="text-[10px] leading-snug text-muted-foreground">
-              {shareState === 'error'
-                ? 'Could not create the share link. Try again.'
-                : shareState === 'copied'
-                  ? sharedMode === 'viewer'
-                    ? 'Anyone with the link can see this artifact and who changed it — read-only, no write access. Manage or revoke shares from Files.'
-                    : 'Anyone with the link can open this and join your workspace with full access. Manage or revoke shares from Files.'
-                  : 'Full access lets them work in your workspace; view-only shows this artifact and its history without write access.'}
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Export (ADR-466 D6) — the boundary projections: Print/PDF over the
           resolved projection (no render engine, ADR-417) + the AI reference
