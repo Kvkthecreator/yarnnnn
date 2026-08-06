@@ -150,18 +150,45 @@ def main():
         '"/s",' not in mw and "ADR-513" in mw))
 
     # 5. FE rendering discipline
+    #
+    # ADR-529 D3 split this surface into a server page + a client island, so
+    # the discipline is asserted over BOTH files. Reading only page.tsx would
+    # let the accept bounce (or a looser sandbox) move into the island and go
+    # unchecked — a gate that reads one file cannot defend a two-file surface.
     with open("../web/app/s/[token]/page.tsx", encoding="utf-8") as f:
         page = f.read()
+    with open("../web/app/s/[token]/ShareClient.tsx", encoding="utf-8") as f:
+        island = f.read()
+    surface = page + "\n" + island
     results.append(_check(
-        "5a locked sandbox only",
-        'sandbox=""' in page and "allow-scripts" not in page
-        and "allow-same-origin" not in page))
+        "5a locked sandbox only (page + island)",
+        'sandbox=""' in surface and "allow-scripts" not in surface
+        and "allow-same-origin" not in surface))
     results.append(_check(
-        "5b no inline injection of member HTML",
-        "dangerouslySetInnerHTML" not in page))
+        "5b no inline injection of member HTML (page + island)",
+        "dangerouslySetInnerHTML" not in surface))
     results.append(_check(
         "5c the 401-accept bounce preserves ?next through login",
-        re.search(r"/auth/login\?next=", page) is not None))
+        re.search(r"/auth/login\?next=", surface) is not None))
+    # ADR-529 D3 — the read path must be SERVER-side. This is the assertion
+    # that would have caught the original defect: a `"use client"` page that
+    # fetches in useEffect ships `Loading…` to every non-JS reader.
+    results.append(_check(
+        "5d the page is a server component (no 'use client')",
+        not page.lstrip().startswith('"use client"')
+        and not page.lstrip().startswith("'use client'")))
+    # Strip comments before asserting on CODE. The first cut of this check
+    # failed on page.tsx's own doc-comment, which NAMES `useEffect` to explain
+    # the defect being closed — an assertion matching its own explanation is
+    # the documented trap, not a finding.
+    page_code = re.sub(r"/\*.*?\*/", "", page, flags=re.DOTALL)
+    page_code = re.sub(r"^\s*//.*$", "", page_code, flags=re.MULTILINE)
+    results.append(_check(
+        "5e the artifact is fetched server-side, not in an effect",
+        "useEffect" not in page_code and "fetchSharePreview" in page_code))
+    results.append(_check(
+        "5f the capability link is noindex at the HTML layer",
+        "index: false" in page and "follow: false" in page))
 
     ok = all(results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(results)}/{len(results)}")

@@ -14,7 +14,8 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from services.supabase import UserClient, principal_reaches_workspace, resolve_owner_workspace_id
@@ -186,8 +187,67 @@ _CAPABILITY_HEADERS = {
 }
 
 
+def _render_markdown(out: SharePreviewResponse) -> str:
+    """The ADR-513 D2 projection, serialized as markdown (ADR-529 D2).
+
+    THE SAME PROJECTION, a different representation — this function receives the
+    already-built `SharePreviewResponse` and never reads the database, so the
+    two representations cannot drift and markdown can never carry a field JSON
+    does not. That is precisely why ADR-529 amends ADR-513 **D3** (rendering)
+    and not **D2** (the boundary): no new information crosses.
+
+    The reader this exists for is a machine that cannot execute JavaScript — an
+    LLM handed the link, a fetcher, a script. It gets prose, not a JSON blob it
+    has to be taught to parse.
+    """
+    lines: list[str] = []
+    name = out.artifact_name or out.label
+    if name:
+        lines.append(f"# {name}")
+        lines.append("")
+    ws = out.workspace_name or "a shared workspace"
+    reach = "read-only" if out.role == "viewer" else "full access on joining"
+    lines.append(f"*Shared from **{ws}** on yarnnn — {reach}.*")
+    lines.append("")
+
+    if out.artifact_content:
+        # HTML artifacts are handed over verbatim inside a fenced block. We do
+        # NOT convert or strip: there is no sanitizer in this codebase (ADR-513
+        # §1), and a markdown reader that renders raw HTML would be handed
+        # member-authored script. The fence is this representation's sandbox.
+        if out.artifact_kind == "html":
+            lines.append("```html")
+            lines.append(out.artifact_content)
+            lines.append("```")
+        else:
+            lines.append(out.artifact_content)
+        lines.append("")
+        if out.truncated:
+            lines.append("*(Truncated — join the workspace to read the full document.)*")
+            lines.append("")
+
+    if out.walk:
+        lines.append("---")
+        lines.append("")
+        lines.append("**Every change, signed**")
+        lines.append("")
+        for w in out.walk:
+            when = (w.when or "")[:10]
+            who = w.authored_by or "unknown"
+            change = f" — {w.change}" if w.change else ""
+            lines.append(f"- `{when}` **{who}**{change}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 @router.get("/s/{token}", response_model=SharePreviewResponse)
-async def preview_share(token: str, response: Response) -> SharePreviewResponse:
+async def preview_share(
+    token: str,
+    response: Response,
+    request: Request,
+    format: Optional[str] = None,
+) -> SharePreviewResponse | PlainTextResponse:
     """The PUBLIC artifact view (ADR-513) — no auth: the token is the capability.
 
     A stranger clicking a share link sees the artifact + its attribution walk
@@ -201,6 +261,13 @@ async def preview_share(token: str, response: Response) -> SharePreviewResponse:
     the share's own workspace, projected through the response model (D2 — the
     narrow boundary: no shared_by, no workspace_id, no revision content/diffs,
     no second file).
+
+    ADR-529 D2 — ONE URL, TWO REPRESENTATIONS. A reader that cannot execute
+    JavaScript (`Accept: text/markdown`, or `?format=md`) gets this same
+    projection as markdown instead of JSON. Same token, same capability, same
+    revocation, same fields — the serialization differs, the boundary does not.
+    Deliberately NOT a second link: a sibling URL or an "AI link" would mint a
+    second thing to revoke, explain, and drift.
     """
     from datetime import datetime, timezone
 
@@ -280,6 +347,24 @@ async def preview_share(token: str, response: Response) -> SharePreviewResponse:
                 )
                 for r in walk_rows
             ]
+
+    # ADR-529 D2 — negotiate the REPRESENTATION, having already built the one
+    # projection. Explicit `?format=md` wins; otherwise honor an Accept header
+    # that asks for markdown/plain over JSON. A browser sends `text/html,…`
+    # and is unaffected; `*/*` (curl's default) stays JSON so no existing
+    # machine caller changes shape underneath itself.
+    accept = (request.headers.get("accept") or "").lower()
+    wants_md = (format or "").lower() in {"md", "markdown", "text"} or (
+        format is None
+        and ("text/markdown" in accept or "text/plain" in accept)
+        and "application/json" not in accept
+    )
+    if wants_md:
+        return PlainTextResponse(
+            _render_markdown(out),
+            media_type="text/markdown; charset=utf-8",
+            headers=dict(_CAPABILITY_HEADERS),
+        )
     return out
 
 
