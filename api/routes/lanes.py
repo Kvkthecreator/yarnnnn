@@ -744,6 +744,11 @@ def _turn_stream_response(
     # always keeps the plain text + attachments metadata.
     model_message=None,
     attachments_meta: Optional[list[dict]] = None,
+    # ADR-522 D2 — WHERE the member is standing, this turn. Transient: it is
+    # read off the request and threaded in, never off `lane_meta` (durable).
+    # A regenerate passes None — focus is per-turn and never persisted, so
+    # there is nothing to replay.
+    focus: Optional[LaneFocus] = None,
 ) -> StreamingResponse:
     """The one streaming turn core — serves POST messages AND regenerate.
 
@@ -966,7 +971,7 @@ def _turn_stream_response(
                 # ADR-522 — WHERE the member is standing, this turn. Read off
                 # the request (transient), never off `lane_meta` (durable):
                 # the binding says WHICH artifact, the focus says where in it.
-                focus=req.focus.model_dump() if req.focus else None,
+                focus=focus.model_dump() if focus else None,
                 # ADR-460 D4 — WHO the member is talking to: the Agent's
                 # posture composes at turn time from this slug. ADR-495 D3: the
                 # slug comes from the CAST (`responder`, resolved above), so an
@@ -1093,6 +1098,7 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
         renamed=renamed,
         model_message=model_message,
         attachments_meta=attachments_meta,
+        focus=req.focus,
     )
 
 
