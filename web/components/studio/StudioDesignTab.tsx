@@ -1016,10 +1016,64 @@ export function StudioDesignTab({
   // its registry region-gate are DELETED — a slot-div now selects as a
   // container with real affordances (layout properties, the id-addressed
   // verbs), so there is no grain left to hide.
-  const scope: 'document' | 'block' | 'container' | 'page' = !selection
+  /** The layout's composition mode, read from the SERVED kernel row (ADR-466).
+   *
+   *  This pane used to spell the flow/paged split out longhand, testing the two
+   *  flow slugs by name — which is exactly the flow set, re-enumerated. That
+   *  made the kernel's claim "the FE never learns another slug" (studio.py)
+   *  false here: a new flow layout registering `mode: "flow"` would get correct
+   *  chrome everywhere else and SILENTLY lose its `document-flow` tokens in
+   *  this panel. Derive it; never re-enumerate it.
+   *
+   *  Undefined until the vocabulary lands — the `?? 'flow'` default matches the
+   *  surface's own `layoutMode` (show the flowing, less-chrome reading first).
+   *
+   *  ADR-528: hoisted above the scope computation — scope is now DERIVED from
+   *  the tier, and the tier needs the medium. */
+  const mode = vocabulary?.layouts.find((l) => l.slug === layout)?.mode ?? 'flow';
+
+  /** ADR-525 D3 — the TEXT tier: prose on a continuous writing surface.
+   *
+   *  Read from the runtime's declaration, never re-derived (D1). The fallback
+   *  covers only the frame before a tier-stamped payload arrives (an older
+   *  projection still live in the iframe). It reads the SAME exported kind list
+   *  the runtime derives from — not a second copy of the rule — so an added
+   *  block kind cannot make the two disagree. */
+  const isTextTier = selection
+    ? (selection.tier ??
+        (mode === 'flow' &&
+        selection.blockKind &&
+        (TEXT_BLOCK_KINDS as readonly string[]).includes(selection.blockKind)
+          ? 'text'
+          : 'object')) === 'text'
+    : false;
+
+  // ADR-528 D2 — on FLOW the scope set is `document | range | object`. `block`
+  // is not a scope a continuous document can produce.
+  //
+  // The fault this closes: scope used to be committed from `blockId &&
+  // blockKind` alone, and the TIER — which the runtime had already declared
+  // (ADR-525 D1) — arrived 50 lines later and could only SUBTRACT from a
+  // decision already made. That is why the pane matrix's `block (text)` column
+  // was defined almost entirely by absence: no path, no verb row, no Hug|Fill,
+  // no W/H, no Position. A column of withdrawals is a scope that was never
+  // meant to be entered.
+  //
+  // On a stage `block` genuinely IS a selection scope — a slide object is a
+  // thing with a box. On a continuous surface the selection is a RANGE, which
+  // may cover half a paragraph or six paragraphs; there is no "the selected
+  // block". One word doing two jobs across two media was the whole grammar
+  // collision ADR-519 D3 imported from Figma.
+  //
+  // Derived FROM the declared tier, never re-derived (rule 11 intact — the
+  // runtime remains the only party that reads the DOM and the medium together).
+  // `container`/`page` never applied to flow anyway (ADR-481 D1).
+  const scope: 'document' | 'range' | 'object' | 'container' | 'page' = !selection
     ? 'document'
     : selection.blockId && selection.blockKind
-      ? 'block'
+      ? isTextTier
+        ? 'range'
+        : 'object'
       : selection.blockId
         ? 'container'
         : selection.slideIndex != null || selection.pageIndex != null
@@ -1055,30 +1109,7 @@ export function StudioDesignTab({
    *
    *  Undefined until the vocabulary lands — the `?? 'flow'` default matches the
    *  surface's own `layoutMode` (show the flowing, less-chrome reading first). */
-  const mode = vocabulary?.layouts.find((l) => l.slug === layout)?.mode ?? 'flow';
   const pageNoun = mode === 'paged' && layout === 'deck' ? 'slide' : 'section';
-
-  /** ADR-525 D3 — the TEXT tier: prose on a continuous writing surface.
-   *
-   *  The pane used to compose block scope from `applies` + kind alone, with no
-   *  medium term anywhere (one `mode` branch existed in this whole file, and it
-   *  was document scope). So a Docs paragraph rendered the full enclosure
-   *  grammar — Duplicate/Up/Down/Delete, Width Hug|Fill, Align — which is
-   *  exactly what ADR-521 D1 and AUTHORING.md rule 10 mean by "no layout surface".
-   *
-   *  Read from the runtime's declaration, never re-derived (D1). The fallback
-   *  covers only the frame before a tier-stamped payload arrives (an older
-   *  projection still live in the iframe). It reads the SAME exported kind list
-   *  the runtime derives from — not a second copy of the rule — so an added
-   *  block kind cannot make the two disagree. */
-  const isTextTier = selection
-    ? (selection.tier ??
-        (mode === 'flow' &&
-        selection.blockKind &&
-        (TEXT_BLOCK_KINDS as readonly string[]).includes(selection.blockKind)
-          ? 'text'
-          : 'object')) === 'text'
-    : false;
 
   /** ADR-528 — a MULTI-BLOCK range is live.
    *
@@ -1105,7 +1136,8 @@ export function StudioDesignTab({
   // transient in-gesture frame label). The position measures (x/y) render in
   // the spine's Position section (ADR-519 Phase A), not here.
   const sizeMeasures = useMemo(() => {
-    if (scope !== 'block' && scope !== 'container') return [];
+    // ADR-528 D2: `object`, never `range` — a range has no box to size.
+    if (scope !== 'object' && scope !== 'container') return [];
     const framed = !!selectedEl?.closest('.slide');
     // ADR-520 D2 — a STAGED container carries w/h too (the ops are
     // id-addressed; the runtime's gate was the only block-only half).
@@ -1129,7 +1161,7 @@ export function StudioDesignTab({
   // shown in the Position section when the block is out of flow. Deck-staged
   // only (the one coordinate space, ADR-505 D3); numeric ENTRY is Phase C.
   const posMeasures = useMemo(() => {
-    if (scope !== 'block' || !selectedEl?.closest('.slide')) return [];
+    if (scope !== 'object' || !selectedEl?.closest('.slide')) return [];
     return (measures ?? []).filter(
       (m) => (m.key === 'x' || m.key === 'y') && m.applies.includes('block-staged'),
     );
@@ -1149,7 +1181,7 @@ export function StudioDesignTab({
     return i >= 0 ? i : null;
   }, [doc, pageEl]);
   const pathChain = useMemo(() => {
-    if (!selectedEl || !pageEl || (scope !== 'block' && scope !== 'container')) return [];
+    if (!selectedEl || !pageEl || (scope !== 'object' && scope !== 'container')) return [];
     return climbChain(selectedEl, pageEl)
       .map((el) => ({
         blockId: el.getAttribute('data-block-id') ?? '',
@@ -1170,7 +1202,9 @@ export function StudioDesignTab({
     [doc, mode],
   );
   const pathRow =
-    (scope === 'block' || scope === 'container') && pageOfSelection != null ? (
+    // ADR-528 D2: pathRow is a PAGE_SEL ancestry chain — structurally never
+    // present on flow (ADR-481 D1), so `object` here means a paged block.
+    (scope === 'object' || scope === 'container') && pageOfSelection != null ? (
       <div className="flex flex-wrap items-center gap-0.5 text-[10px] text-muted-foreground">
         <button
           type="button"
@@ -1205,7 +1239,10 @@ export function StudioDesignTab({
    *  until now, only the lane ever read. Clicking it selects the heading
    *  through the same reach the outline uses. */
   const headingRow =
-    scope === 'block' &&
+    // ADR-528 D2: `range` — the flow crumb belongs to the text scope, which is
+    // the only scope a flow medium can produce for prose. An object on flow
+    // (a figure) keeps its own Identity without a heading rung.
+    (scope === 'range' || scope === 'object') &&
     mode === 'flow' &&
     selection?.headingId &&
     selection.headingId !== selection.blockId ? (
@@ -1229,6 +1266,50 @@ export function StudioDesignTab({
       </div>
     ) : null;
 
+  /** ADR-528 D2 — the STRUCTURE-tier sections, lifted so `range` and `object`
+   *  mount ONE implementation (rule 7: one op, N entrances). They were inline
+   *  in the old `block` branch; splitting that branch in two would otherwise
+   *  have duplicated them, which is exactly the forked-machinery shape ADR-518
+   *  D2 refuses.
+   *
+   *  Both address a SINGLE block (`selectedEl`), which is why range scope
+   *  gates them on `!multiBlockRange` rather than rendering them over a span.
+   *
+   *  Content — Turn into (ADR-456 W2): the id and tokens survive the
+   *  conversion (a block with a citation refuses). On ramp blocks
+   *  (prose/heading) the Typography select OWNS the ramp, so this list carries
+   *  only the STRUCTURAL targets; structural kinds keep the full list. */
+  const turnIntoSection =
+    selection?.blockKind && TURN_INTO_KINDS.includes(selection.blockKind) ? (
+      <div className={SECTION}>
+        <p className={HEADING}>Turn into</p>
+        <div className="flex flex-wrap gap-1">
+          {turnIntoTargets(
+            vocabulary?.blocks ?? [],
+            selection.blockKind,
+            selectedEl?.tagName ?? null,
+          )
+            .filter(
+              (b) =>
+                !(
+                  (selection.blockKind === 'prose' || selection.blockKind === 'heading') &&
+                  (b.kind === 'heading' || b.kind === 'prose')
+                ),
+            )
+            .map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                className={askBtn}
+                onClick={() => onTurnInto(b.kind, b.label, b.fragment)}
+              >
+                {b.label}
+              </button>
+            ))}
+        </div>
+      </div>
+    ) : null;
+
   // The current value of a measure, parsed from the block's own --y* style —
   // derived at render, never stored (the ADR-453 D1 convention every token uses).
   const measureValue = useCallback(
@@ -1243,7 +1324,11 @@ export function StudioDesignTab({
 
   // Which token families apply at the current scope (ADR-453 D1 `applies`).
   const applicable = useMemo(() => {
-    if (scope === 'block') {
+    // ADR-528 D2: both block-derived scopes compute their token set here — a
+    // `range` still reaches tone + align/indent (meaning and arrangement in the
+    // measure, ADR-527 D3), it is the BOX tokens it never had. Which of these
+    // actually render is decided per-section below, not by narrowing here.
+    if (scope === 'range' || scope === 'object') {
       const isMedia = !!selection?.blockKind && mediaKinds.includes(selection.blockKind);
       // ADR-487 D2: kind-gated grain (the `media` precedent) — the callout's
       // semantic register applies to callouts alone.
@@ -1429,14 +1514,20 @@ export function StudioDesignTab({
   // hard-coded key list, so a new palette token joins by supplying swatches
   // rather than by editing this condition.
   const colorTokens = useMemo(
-    () => (scope === 'block' ? applicable.filter((t) => !!tokenSwatches[t.key]) : []),
+    () =>
+      scope === 'range' || scope === 'object'
+        ? applicable.filter((t) => !!tokenSwatches[t.key])
+        : [],
     [scope, applicable, tokenSwatches],
   );
   // ...and its complement, so each token renders EXACTLY ONCE. Lifting without
   // this would leave the control mounted twice in one panel — the duplicate-mount
   // defect ADR-466 P12 and ADR-505 D5 each had to delete.
   const nonColorTokens = useMemo(
-    () => (scope === 'block' ? applicable.filter((t) => !tokenSwatches[t.key]) : applicable),
+    () =>
+      scope === 'range' || scope === 'object'
+        ? applicable.filter((t) => !tokenSwatches[t.key])
+        : applicable,
     [scope, applicable, tokenSwatches],
   );
 
@@ -1482,6 +1573,69 @@ export function StudioDesignTab({
     while ((m = rx.exec(allCss))) last = m[1];
     return last ? resolveCssValue(last) : FONT_STACKS.serif;
   }, [allCss, doc, resolvedFontStacks, resolveCssValue]);
+
+  /** ADR-528 D2 — Typography, the second STRUCTURE-tier section (see
+   *  `turnIntoSection` above for why both are lifted out of the render).
+   *  Declared HERE rather than beside its sibling because it reads
+   *  `tagFontSize` and `bodyFace`, both of which derive from the artifact's
+   *  own resolved CSS and cannot be hoisted above it.
+   *
+   *  ADR-487 D3 v2 — the ramp as a visual select, on the two ramp-shaped kinds
+   *  (prose/heading), UNIVERSAL across layouts: current rung read from the tag,
+   *  previews derived from the artifact's own styles under the applied skin.
+   *  Picking a rung IS the turn-into conversion (id + tokens survive). */
+  const rampSection =
+    selection?.blockKind &&
+    (selection.blockKind === 'prose' || selection.blockKind === 'heading')
+      ? (() => {
+          const tag = selectedEl?.tagName?.toLowerCase() ?? null;
+          const curTag =
+            selection.blockKind === 'heading' && tag && ['h1', 'h2', 'h3'].includes(tag)
+              ? tag
+              : 'p';
+          const AG_SCALE: Record<string, number> = { h1: 18, h2: 16, h3: 14, p: 12 };
+          const ag = (t: string) => (
+            <span
+              className="w-6 shrink-0 text-center leading-none"
+              style={{
+                fontFamily: bodyFace,
+                fontSize: AG_SCALE[t] ?? 12,
+                fontWeight: t === 'p' ? 400 : 600,
+              }}
+            >
+              Ag
+            </span>
+          );
+          const proseRow = vocabulary?.blocks.find((b) => b.kind === 'prose');
+          const curRow =
+            TEXT_STYLE_ROWS.find((r) => r.key === curTag) ??
+            TEXT_STYLE_ROWS[TEXT_STYLE_ROWS.length - 1];
+          return (
+            <div className={SECTION}>
+              <StyleSelect
+                label="Typography"
+                description="The block's place on the type ramp — sized by the layout, themed by the design system"
+                current={{ preview: ag(curTag), label: curRow.label, detail: tagFontSize(curTag) }}
+                options={TEXT_STYLE_ROWS.map((r) => ({
+                  key: r.key,
+                  preview: ag(r.key),
+                  label: r.label,
+                  detail: tagFontSize(r.key),
+                  active: r.key === curTag,
+                  onPick: () => {
+                    if (r.key === curTag) return;
+                    if (r.key === 'p') {
+                      if (proseRow) onTurnInto(proseRow.kind, proseRow.label, proseRow.fragment);
+                    } else {
+                      onTurnInto('heading', r.label, `<${r.key} data-block="heading">…</${r.key}>`);
+                    }
+                  },
+                }))}
+              />
+            </div>
+          );
+        })()
+      : null;
 
   // ADR-456 W3: the page background — cited image on the page element.
   const pageBgRef =
@@ -2122,69 +2276,83 @@ export function StudioDesignTab({
           spine puts every scope's verbs in its Identity section so the
           panel reads the same at every grain, and it is still the one
           implementation behind three entrances). */}
-      {scope === 'block' && (
-        <>
-          {/* Identity — the operator-word kind + the ancestor path + verbs.
+      {/* ADR-528 D2 — RANGE scope: a text selection on a continuous surface.
+          Collapsed (a caret) or spanning six paragraphs, it is the same scope;
+          the count is the only thing that varies.
 
-              ADR-525 D3: the VERB ROW is withdrawn on the text tier. Duplicate/
-              Up/Down/Delete are ENCLOSURE verbs, and on flow the block is an
-              annotation, not an enclosure (ADR-480). Up/Down are the two the
-              right-click menu ALREADY refuses on flow (StudioBlockMenu: "on
-              flow the member edits one continuous surface") — the pane offered
-              them anyway, so one op had two contradictory answers on one block.
-              Delete/Duplicate are what ADR-521 D6 retired from the keyboard for
-              the same reason. Withdrawing the row whole is what makes the pane
-              and the menu agree, because both now read one field. */}
+          This scope composes ONLY what a range can answer for. There is no
+          verb row, no path, no Layout section and no Position — not because
+          they are "withdrawn on the text tier" (ADR-525 D3's apparatus, now
+          DELETED per D4) but because a range has no box and no single subject
+          to hang them on. The previous shape reached this scope through
+          `block` and then subtracted, which is why the pane matrix's
+          block(text) column was a column of absences. */}
+      {scope === 'range' && (
+        <>
           <div className={SECTION}>
-            {/* ADR-528 — name the SUBJECT honestly. Over a multi-block range
-                the block label is the block that was clicked, not what the
-                member has selected, so it is replaced by the count. */}
+            {/* Name the SUBJECT honestly: over a multi-block range the block
+                label names whichever block was clicked, not what the member
+                has selected. */}
             <p className={HEADING}>
               {multiBlockRange
                 ? `${rangeBlockIds!.length} blocks selected`
-                : (selection?.label ?? selection?.blockKind ?? 'block')}
+                : (selection?.label ?? selection?.blockKind ?? 'text')}
             </p>
-            {/* ADR-526 D2 — `pathRow` on paged, the enclosing-heading crumb on
-                flow. Exactly one renders: pathRow needs a PAGE_SEL ancestor
-                (never present on flow) and headingRow gates on mode === 'flow'.
-                Both name ONE block's ancestry, so both withdraw over a range. */}
-            {!multiBlockRange && pathRow}
+            {/* ADR-526 D2 — the enclosing-heading crumb, flow's one honest
+                ancestry rung. Names ONE block's ancestor, so it withdraws over
+                a multi-block range. */}
             {!multiBlockRange && headingRow}
-            {!isTextTier && !multiBlockRange && (
-              <VerbRow
-                noun={selection?.label ?? 'block'}
-                onVerb={onElementVerb}
-                // ADR-525 follow-up: on FLOW the move verbs are withheld even
-                // for objects — the menu already refused them there and the
-                // pane must say the same thing. `moveBlock` still reaches a
-                // flow block through ⌥↑/⌥↓ (the structure-tier keyboard door);
-                // what is refused here is the ENCLOSURE presentation of it.
-                reorder={mode !== 'flow'}
-              />
-            )}
           </div>
-          {/* ADR-527 D4 — the TEXT section: range emphasis, in the spine at
-              Identity → Text → Typography. Text precedes Typography because
-              emphasis is the more frequent act.
+          {/* ADR-527 D4 — the TEXT section. Under ADR-528 this is the PRIMARY
+              section of range scope rather than a guest in a block scope:
+              every control in it acts on the SELECTION (ADR-521 D2's text
+              tier), which is exactly what the member has, at any span. */}
+          <TextSection onFormat={onFormat} swatch={swatchOf} />
+          {/* The STRUCTURE tier (rule 10's second axis): the ramp and turn-into
+              address the BLOCKS the range intersects, not the range itself.
+              Over a single block — the overwhelmingly common case, since a
+              caret is a collapsed range — that block is unambiguous and both
+              render. Over a multi-block range they withdraw and SAY so: the
+              ops are single-subject (`selectedEl`), and answering for one of
+              six silently is the `d878242` defect this ADR closes.
 
-              Text tier only: on an OBJECT (a figure, a table) there is no range
-              to emphasise, and on a staged block the caret is the runtime's,
-              not the browser's. This is the section that answers "referencing
-              google docs is too thin" — the pane offered three controls on a
-              heading and now offers the writer's set. */}
-          {/* ADR-528: Text is the ONE section that stays over a multi-block
-              range — every control in it acts on the SELECTION (ADR-521 D2's
-              text tier), which is exactly what the member has. The sections
-              that withdrew were the ones claiming a single block. */}
-          {isTextTier && <TextSection onFormat={onFormat} swatch={swatchOf} />}
+              Making them span-aware is a real op change (N blocks, one
+              revision), not a re-parenting — deliberately not smuggled in
+              here. */}
+          {!multiBlockRange && rampSection}
+          {!multiBlockRange && turnIntoSection}
           {multiBlockRange && (
             <div className={SECTION}>
               <p className="text-[10px] text-muted-foreground">
-                Block properties apply to one block — select inside a single block to
-                reach them.
+                Formatting applies to everything selected. Structure — the
+                heading ramp and Turn into — applies to one block at a time.
               </p>
             </div>
           )}
+        </>
+      )}
+      {scope === 'object' && (
+        <>
+          {/* Identity — the operator-word kind + the ancestor path + verbs.
+              A figure, table, chart, gallery or divider: these ARE boxes, and
+              on a paged medium every block is one. */}
+          <div className={SECTION}>
+            <p className={HEADING}>
+              {selection?.label ?? selection?.blockKind ?? 'block'}
+            </p>
+            {pathRow}
+            {headingRow}
+            <VerbRow
+              noun={selection?.label ?? 'block'}
+              onVerb={onElementVerb}
+              // ADR-525 follow-up: on FLOW the move verbs are withheld even
+              // for objects — the menu already refused them there and the
+              // pane must say the same thing. `moveBlock` still reaches a
+              // flow block through ⌥↑/⌥↓ (the structure-tier keyboard door);
+              // what is refused here is the ENCLOSURE presentation of it.
+              reorder={mode !== 'flow'}
+            />
+          </div>
           {/* Position (ADR-511 D4) — an explicit, visible, reversible state.
               Flow is the default; dragging is what enters the positioned
               state; "In flow" is the reversal. Shown on every STAGED block so
@@ -2245,15 +2413,16 @@ export function StudioDesignTab({
               live in Style, and `nonColorTokens` is their complement, so
               every token still renders exactly once.
 
-              ADR-525 D3: withheld on the TEXT tier. Width Hug|Fill is a
-              CONTAINER row (ADR-516 D4) and flow has no containers by
-              derivation (ADR-481 D1); a paragraph in a continuous surface has
-              no box to size or align. This is AUTHORING.md rule 10's "no layout
-              surface" — stated four times in canon, never true at the surface
-              until now. Objects on flow (a figure) keep the section: they ARE
-              boxes, and D4 re-keys the two tokens that were mis-declared. */}
-          {!isTextTier && !multiBlockRange &&
-            (nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
+              ADR-528 D4: the `!isTextTier && !multiBlockRange` guard is DELETED,
+              not re-gated. Width Hug|Fill is a CONTAINER row (ADR-516 D4) and
+              flow has no containers by derivation (ADR-481 D1); a paragraph in
+              a continuous surface has no box to size or align. That is
+              AUTHORING.md rule 10's "no layout surface" — and under D2 a range
+              cannot reach this scope at all, so the suppression it needed is
+              unreachable. A guard behind a scope that cannot be entered is dead
+              code that reads as live policy. Objects (a figure) keep the
+              section: they ARE boxes. */}
+          {(nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
             <div className={SECTION}>
               <p className={HEADING}>Layout</p>
               {nonColorTokens.map((t) => (
@@ -2278,66 +2447,7 @@ export function StudioDesignTab({
               ))}
             </div>
           )}
-          {/* Typography (ADR-487 D3 v2) — the ramp as a visual select, on the
-              two ramp-shaped kinds (prose/heading), UNIVERSAL across layouts:
-              current rung read from the tag, previews derived from the
-              artifact's own styles under the applied skin. Picking a rung IS
-              the turn-into conversion (id + tokens survive). */}
-          {!multiBlockRange &&
-            selection?.blockKind &&
-            (selection.blockKind === 'prose' || selection.blockKind === 'heading') &&
-            (() => {
-              const tag = selectedEl?.tagName?.toLowerCase() ?? null;
-              const curTag =
-                selection.blockKind === 'heading' && tag && ['h1', 'h2', 'h3'].includes(tag)
-                  ? tag
-                  : 'p';
-              const AG_SCALE: Record<string, number> = { h1: 18, h2: 16, h3: 14, p: 12 };
-              const ag = (t: string) => (
-                <span
-                  className="w-6 shrink-0 text-center leading-none"
-                  style={{
-                    fontFamily: bodyFace,
-                    fontSize: AG_SCALE[t] ?? 12,
-                    fontWeight: t === 'p' ? 400 : 600,
-                  }}
-                >
-                  Ag
-                </span>
-              );
-              const proseRow = vocabulary?.blocks.find((b) => b.kind === 'prose');
-              const curRow =
-                TEXT_STYLE_ROWS.find((r) => r.key === curTag) ??
-                TEXT_STYLE_ROWS[TEXT_STYLE_ROWS.length - 1];
-              return (
-                <div className={SECTION}>
-                  <StyleSelect
-                    label="Typography"
-                    description="The block's place on the type ramp — sized by the layout, themed by the design system"
-                    current={{ preview: ag(curTag), label: curRow.label, detail: tagFontSize(curTag) }}
-                    options={TEXT_STYLE_ROWS.map((r) => ({
-                      key: r.key,
-                      preview: ag(r.key),
-                      label: r.label,
-                      detail: tagFontSize(r.key),
-                      active: r.key === curTag,
-                      onPick: () => {
-                        if (r.key === curTag) return;
-                        if (r.key === 'p') {
-                          if (proseRow) onTurnInto(proseRow.kind, proseRow.label, proseRow.fragment);
-                        } else {
-                          onTurnInto(
-                            'heading',
-                            r.label,
-                            `<${r.key} data-block="heading">…</${r.key}>`,
-                          );
-                        }
-                      },
-                    }))}
-                  />
-                </div>
-              );
-            })()}
+          {rampSection}
           {/* COLOUR sits directly under TYPOGRAPHY — the two shaping questions a
               member asks in sequence ("how big / what role", then "what colour"),
               so they belong adjacent rather than separated by the structural
@@ -2382,42 +2492,7 @@ export function StudioDesignTab({
               />
             </div>
           )}
-          {/* Content — Turn into (ADR-456 W2): the id and tokens survive the
-              conversion (a block with a citation refuses). On ramp blocks
-              (prose/heading) the Typography select above OWNS the ramp, so
-              this list carries only the STRUCTURAL targets; structural kinds
-              keep the full list. */}
-          {!multiBlockRange &&
-            selection?.blockKind &&
-            TURN_INTO_KINDS.includes(selection.blockKind) && (
-            <div className={SECTION}>
-              <p className={HEADING}>Turn into</p>
-              <div className="flex flex-wrap gap-1">
-                {turnIntoTargets(
-                  vocabulary?.blocks ?? [],
-                  selection.blockKind,
-                  selectedEl?.tagName ?? null,
-                )
-                  .filter(
-                    (b) =>
-                      !(
-                        (selection.blockKind === 'prose' || selection.blockKind === 'heading') &&
-                        (b.kind === 'heading' || b.kind === 'prose')
-                      ),
-                  )
-                  .map((b) => (
-                    <button
-                      key={b.key}
-                      type="button"
-                      className={askBtn}
-                      onClick={() => onTurnInto(b.kind, b.label, b.fragment)}
-                    >
-                      {b.label}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
+          {turnIntoSection}
         </>
       )}
 

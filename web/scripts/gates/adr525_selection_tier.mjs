@@ -107,15 +107,31 @@ t(
   'D3: the pane READS selection.tier (never re-derives the rule)',
   /selection\.tier \?\?/.test(pane),
 );
+// ADR-528 D2/D4 RE-CUT (2026-08-06) — the INTENT is preserved, the mechanism
+// changed. These two assertions pinned SUPPRESSION: `{!isTextTier && (<VerbRow`
+// and the same guard on Layout. ADR-528 made the text tier its own scope
+// (`range`), so those sections are no longer composed for prose at all and the
+// suppression guards were DELETED as dead code (a guard behind an unreachable
+// scope reads as live policy).
+//
+// The invariant D3 actually protects — prose never gets the enclosure grammar —
+// is now stronger and is asserted here by NON-COMPOSITION: the verb row and the
+// Layout section live inside the `object` branch, and a text-tier selection
+// cannot reach it. `adr528_range_scope.mjs` proves the derivation EXECUTES that
+// way over the full payload×tier matrix; these two pin the structural half.
+const rangeBranch = pane.match(/\{scope === 'range' && \(([\s\S]*?)\n\s*<\/>/);
+const objectBranch = pane.match(/\{scope === 'object' && \(([\s\S]*?)\n\s*<\/>/);
+t('D3 (re-cut): the pane has a distinct range branch', !!rangeBranch);
+t('D3 (re-cut): the pane has a distinct object branch', !!objectBranch);
 t(
-  'D3: the verb row is withheld on the text tier',
-  // ADR-528 added a second term (&& !multiBlockRange). The invariant pinned is
-  // that the row is gated on NOT-text-tier, not the full expression.
-  /\{!isTextTier &&[^)]*\(\s*<VerbRow/.test(pane),
+  'D3 (re-cut): the verb row is composed for OBJECT only — prose cannot reach it',
+  !!objectBranch && /<VerbRow/.test(objectBranch[1]) &&
+    (!rangeBranch || !/<VerbRow/.test(rangeBranch[1])),
 );
 t(
-  'D3: the Layout section is withheld on the text tier',
-  /\{!isTextTier &&[\s\S]{0,60}?\(nonColorTokens\.length > 0/.test(pane),
+  'D3 (re-cut): the Layout section is composed for OBJECT only',
+  !!objectBranch && /nonColorTokens\.length > 0/.test(objectBranch[1]) &&
+    (!rangeBranch || !/nonColorTokens\.length > 0/.test(rangeBranch[1])),
 );
 // The tiers that must be UNTOUCHED — Studio's pane is byte-identical (D3).
 t(

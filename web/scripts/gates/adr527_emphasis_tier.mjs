@@ -121,11 +121,43 @@ t(
 );
 t('D4: the canvas forwards the command', /type: 'yarnnn-fmt-op', op: fmtCmd\.op/.test(canvas));
 t('D4: the surface mints a nonce so the same button fires twice', /fmtNonce\.current \+= 1;/.test(surface));
-t('D4: the pane renders the Text section on the TEXT tier only', /\{isTextTier && <TextSection/.test(pane));
+// ADR-528 D2 RE-CUT — the intent is preserved, the mechanism changed. This
+// pinned `{isTextTier && <TextSection`; the text tier is now its own SCOPE
+// (`range`), so the section is composed unconditionally inside that branch and
+// is unreachable from any other. That is a stronger form of "text tier only".
 t(
-  'D4: the section sits between Identity and Typography (the spine)',
-  pane.indexOf('<TextSection') > pane.indexOf('{headingRow}') &&
-    pane.indexOf('<TextSection') < pane.indexOf('label="Typography"'),
+  'D4 (re-cut): the Text section is composed in the RANGE scope',
+  (() => {
+    const rb = pane.match(/\{scope === 'range' && \(([\s\S]*?)\n\s*<\/>/);
+    return !!rb && /<TextSection/.test(rb[1]);
+  })(),
+);
+t(
+  'D4 (re-cut): the Text section is composed NOWHERE ELSE (one mount)',
+  (pane.match(/<TextSection/g) ?? []).length === 1,
+);
+// ADR-528 RE-CUT — the spine order is unchanged (Identity → Text → Typography)
+// but it must be read at the RENDER site, not from source order. ADR-528 lifted
+// the Typography ramp into a `rampSection` value so range and object scope
+// mount one implementation (ADR-518 D2); that declaration necessarily sits
+// above the branches, so `indexOf('label="Typography"')` now finds the
+// declaration rather than the mount and orders it before everything.
+//
+// The member-visible order is the order of the MOUNTS inside the range branch.
+t(
+  'D4 (re-cut): the section sits between Identity and Typography (the spine)',
+  (() => {
+    const rb = pane.match(/\{scope === 'range' && \(([\s\S]*?)\n\s*<\/>/);
+    if (!rb) return false;
+    const b = rb[1];
+    // Identity is the section, not one spelling of its contents — range scope
+    // renders the heading crumb as `{!multiBlockRange && headingRow}`, so
+    // pinning `{headingRow}` matched nothing and reported a false failure.
+    const identity = b.indexOf('headingRow');
+    const text = b.indexOf('<TextSection');
+    const ramp = b.indexOf('rampSection');
+    return identity !== -1 && text !== -1 && ramp !== -1 && identity < text && text < ramp;
+  })(),
 );
 t(
   'D4: the pane resolves roles for the SWATCH only — the doc gets the role name',
@@ -203,19 +235,55 @@ t(
   /const \[rangeBlockIds, setRangeBlockIds\]/.test(surface),
 );
 t('ADR-528: the pane derives multiBlockRange', /const multiBlockRange = \(rangeBlockIds\?\.length \?\? 0\) > 1;/.test(pane));
-// The four single-block sections must all withdraw; Text must NOT.
+// RE-CUT for ADR-528 D2/D4 — the INVARIANT is unchanged: a section that can
+// answer for only ONE block must never answer over a multi-block range. What
+// changed is WHERE the withdrawal happens.
+//
+// Before: every such section sat in one `block` branch and was suppressed by a
+// `!multiBlockRange` (and often `!isTextTier`) guard — the five regexes this
+// loop used to pin.
+//
+// Now: the enclosure sections (verb row, Layout, Tone) are not composed for
+// prose AT ALL — they live in the `object` branch, which a text-tier selection
+// cannot reach (proven by execution in adr528_range_scope.mjs). Only the two
+// STRUCTURE-tier sections are reachable from a range, because they are the two
+// a caret legitimately wants; those keep an explicit guard.
+const rangeBranch = pane.match(/\{scope === 'range' && \(([\s\S]*?)\n\s*<\/>/);
+const objectBranch = pane.match(/\{scope === 'object' && \(([\s\S]*?)\n\s*<\/>/);
+t('ADR-528: the range branch exists', !!rangeBranch);
+t('ADR-528: the object branch exists', !!objectBranch);
+
+// The enclosure sections: composed for object, unreachable from a range.
 for (const [label, re] of [
-  ['the verb row', /\{!isTextTier && !multiBlockRange && \(/],
-  ['Layout', /\{!isTextTier && !multiBlockRange &&\s*\n\s*\(nonColorTokens/],
-  ['Typography', /\{!multiBlockRange &&\s*\n\s*selection\?\.blockKind &&\s*\n\s*\(selection\.blockKind === 'prose'/],
-  ['Tone', /\{!multiBlockRange && colorTokens\.length > 0/],
-  ['Turn into', /\{!multiBlockRange &&\s*\n\s*selection\?\.blockKind &&\s*\n\s*TURN_INTO_KINDS/],
+  ['the verb row', /<VerbRow/],
+  ['Layout', /nonColorTokens\.length > 0/],
+  ['Tone', /colorTokens\.length > 0/],
 ]) {
-  t(`ADR-528: ${label} withdraws over a multi-block range`, re.test(pane));
+  t(
+    `ADR-528: ${label} is object-only — a range cannot reach it`,
+    !!objectBranch && re.test(objectBranch[1]) &&
+      (!rangeBranch || !re.test(rangeBranch[1])),
+  );
 }
+
+// The structure-tier sections: reachable from a range, but only over ONE
+// block. Both ops address `selectedEl` (a single element), so a span would
+// silently answer for one of six — the very defect ADR-528 closes.
+for (const [label, ref] of [
+  ['Typography', 'rampSection'],
+  ['Turn into', 'turnIntoSection'],
+]) {
+  t(
+    `ADR-528: ${label} withdraws over a multi-block range`,
+    !!rangeBranch && new RegExp(`\\{!multiBlockRange && ${ref}\\}`).test(rangeBranch[1]),
+  );
+}
+
 t(
   'ADR-528: the TEXT section does NOT withdraw (it acts on the selection)',
-  /\{isTextTier && <TextSection/.test(pane) && !/\{isTextTier && !multiBlockRange && <TextSection/.test(pane),
+  !!rangeBranch &&
+    /<TextSection/.test(rangeBranch[1]) &&
+    !/!multiBlockRange && <TextSection/.test(rangeBranch[1]),
 );
 t(
   'ADR-528: the Identity heading names the COUNT, not a stale block label',
@@ -223,7 +291,7 @@ t(
 );
 t(
   'ADR-528: the withdrawal is EXPLAINED to the member, never silent',
-  /Block properties apply to one block/.test(pane),
+  /Structure — the\s*\n?\s*heading ramp and Turn into — applies to one block at a time/.test(pane),
 );
 
 console.log(`\nADR-527: ${pass} passed, ${fail} failed`);
