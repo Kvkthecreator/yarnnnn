@@ -598,7 +598,7 @@ const POINTER_SCRIPT = `
     var el = t && t.closest ? t.closest(SEL) : null;
     e.preventDefault();
 
-    // ── GROUP click (2026-07-24) — shift/⌘ adds to the selection ──────────
+    // ── GROUP click (2026-07-24) — ⇧ adds to the selection ────────────────
     // Intercepted BEFORE the ladder: a modifier-click is not a navigation
     // gesture, so it must never place a caret, enter a block, or re-run the
     // grain ladder. Staged frames only (a deck slide / canvas artboard) —
@@ -606,7 +606,15 @@ const POINTER_SCRIPT = `
     // ADR-461 D4's rule (a slide has a frame, a page has a viewport) and the
     // same reason x/y are block-staged. On flow, shift-click stays the
     // browser's range-selection and we do not touch it.
-    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+    //
+    // ADR-519 D4 (2026-08-06) — ⌘ SPLIT OUT of this branch. It used to read
+    // "shift || meta || ctrl", three modifiers doing one job; only ⇧ was ever
+    // argued for (the comment above justifies shift alone) and ⌘ was swept in
+    // incidentally, never chosen. Every reference tool separates them — ⇧ adds
+    // to the selection (Figma, Keynote, PowerPoint, Illustrator, Finder,
+    // universally) and ⌘ deep-selects (Figma, Illustrator, Sketch). The split
+    // therefore costs no learned behaviour and imports the convention whole.
+    if (e.shiftKey) {
       var gblk = el && el.closest ? el.closest('[data-block]') : null;
       var gstaged = gblk && gblk.closest ? !!gblk.closest('.slide') : false;
       if (gblk && gstaged) {
@@ -617,6 +625,47 @@ const POINTER_SCRIPT = `
           blockIds: (window.__yarnnnGroup() || []).map(function (n) {
             return n.getAttribute('data-block-id');
           }).filter(Boolean),
+        }, '*');
+        return;
+      }
+    }
+
+    // ── DEEP SELECT (ADR-519 D4) — ⌘/ctrl reaches the container ───────────
+    // §2.4's gap: the ladder's container rung lives in the pointable-MISS
+    // branch below, so a container fully tiled by its children has no
+    // clickable "thing" and canon's "down is clicking the thing" (ADR-511 D3)
+    // fails for exactly it. Breadcrumb / Esc-walk / pane path were the only
+    // routes in. ⌘-click is the conventional modifier for this, and it does
+    // NOT disturb the default ladder — it is a separate gesture, own branch.
+    //
+    // ctrl follows ⌘, never ⇧: it is the Windows/Linux stand-in for the same
+    // intent, and splitting them would give one gesture two meanings by OS.
+    //
+    // The target is the INNERMOST container enclosing the hit — closest()
+    // walks outward from the click, so its first match IS the innermost. A
+    // page is not a deep-select target: the ladder already reaches it, and
+    // ADR-519 D6 keeps pages out of the container grain.
+    if (e.metaKey || e.ctrlKey) {
+      var dcont = t && t.closest ? t.closest(CONTAINER_SEL) : null;
+      if (dcont) {
+        var dslot = dcont.closest ? dcont.closest('[data-slot]') : null;
+        // The SAME payload shape the miss-branch container rung emits — one
+        // derivation, two entrances (the label-map precedent). A second shape
+        // here is how the pane starts reading two answers for one grain.
+        window.__yarnnnSelect(dcont);
+        parent.postMessage({
+          type: 'yarnnn-point',
+          tag: dcont.tagName.toLowerCase(),
+          text: '',
+          dataRef: null,
+          blockId: dcont.getAttribute('data-block-id') || null,
+          blockKind: null,
+          label: labelFor(dcont),
+          slideIndex: slideIndexOf(dcont),
+          pageIndex: pageIndexOf(dcont),
+          slot: dslot ? (dslot.getAttribute('data-slot') || null) : null,
+          arrange: arrangeOf(dcont),
+          tier: tierOf(dcont), // structure — a container always earns its frame
         }, '*');
         return;
       }
