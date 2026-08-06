@@ -1,5 +1,15 @@
 # ADR-481 — The flow chrome rebuild: a blank document is a blank page
 
+> **D4 restored by [ADR-526](ADR-526-the-document-shows-its-shape.md) (2026-08-06).** D4
+> kept the flow outline explicitly — *"a heading outline is exactly the Word/Docs nav-pane
+> contract … the navigator was already mode-native. No work."* It was removed in `c3f2a1e`
+> (the ADR-518 polish pass) as dead-code hygiene, behind an `isPaged` flag, and **no ADR
+> reversed this approval** — the framing (*"a derived table of contents wearing a
+> navigator's clothes"*) is a HOUSING argument, correct on its own terms: a slide
+> filmstrip is the wrong home for an outline. ADR-526 D2 rehouses it in the pane
+> (ADR-520 D4) rather than restoring the rail. D1's flattening is unchanged and is
+> precisely why the outline needs no `<section>` wrapper.
+
 - **Status**: **Accepted** (2026-07-22, operator-ratified through the flow-chrome discourse —
   *"a lot of our front end scaffold on document type was predicated on the legacy, Notion-like
   benchmark and block type… now that's simply out of date and goes against our recent

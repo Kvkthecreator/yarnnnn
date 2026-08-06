@@ -1,6 +1,17 @@
 # ADR-526: The document shows its shape — the outline the member never got
 
-> **Status**: **Proposed** (2026-08-06). Derived from the operator's directive to
+> **Status**: **Accepted + Implemented** (2026-08-06). All nine sites in §5 shipped.
+> Gates: new `adr526_docs_structure.mjs` **35/35** — the outline walk, the paste-provenance
+> test and the sanitizer's attribute carve all EXECUTE the real extracted bodies, with a
+> falsifier on the id guard; ADR-525 33/33 · ADR-484 19/19 · ADR-521 **35/35, and it earned
+> its keep**: it caught three backticks in comments added inside the runtime template
+> literal, which would have broken the build; ADR-519 16/16 · ADR-520 23/23 · ADR-522 all.
+> `next build` **exit 0**, 169/169 pages, from an isolated worktree.
+> Two operator decisions were taken at ratification: the outline lives **in the pane**
+> (not a rail), and ⌥↑/⌥↓ ships as a **structure-tier act** (D3's argued reversal).
+> **The operator click-pass is the one open item** — human-driven by necessity (the flow
+> runtime lives in an opaque-origin iframe that synthesized keys cannot drive).
+> Derived from the operator's directive to
 > cross-compare Studio's Figma-benchmarked hierarchy work against Docs and *"re-apply
 > features that pertain to the work flow type processing for docs app"* — technically
 > different, equivalent in end-user experience. The audit that followed found the gap is

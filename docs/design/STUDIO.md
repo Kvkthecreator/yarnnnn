@@ -101,7 +101,7 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 
 | | deck | document | web |
 |---|---|---|---|
-| block | ✅ drag → positioned (`data-x/y`, absolute — the stage's grammar); frame-clamped; snap to column dividers | 🚫 positional drag (no frame); reorder = cut/paste in continuous prose (the medium's own reorder) | 🚫 positional (viewport ≠ frame, ADR-461 D4 — the per-breakpoint refusal); 🔜 reorder-drag between bands |
+| block | ✅ drag → positioned (`data-x/y`, absolute — the stage's grammar); frame-clamped; snap to column dividers | 🚫 positional drag (no frame) — reorder is **⌥↑/⌥↓** (ADR-526 D3, structure tier) or cut/paste; the D7 no-drag refusal is unchanged, because a chord asserts no box | 🚫 positional (viewport ≠ frame, ADR-461 D4 — the per-breakpoint refusal); 🔜 reorder-drag between bands |
 | container | 🔜 **Phase 3: drag = REORDER within flow, per medium** (extends ADR-509 "the gesture follows the medium" — never positional on any medium) | — | 🔜 same |
 | resize | ✅ blocks: 8 handles, `w/h` measures (deck; media anywhere — an image's intrinsic ratio is its own frame); group resize scales the bounding box (Figma) | media only | media only |
 | snap guides | 🔜 Phase 3 (siblings + frame during drag) | — | 🔜 |
@@ -114,6 +114,7 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 | Esc-walk | ✅ editing → block → container → … → page → clear (the real ancestor chain, ADR-511 D3; no drill-down gesture — down is clicking the thing) | ✅ caret → block → clear | ✅ |
 | undo | ✅ ⌘Z/⇧⌘Z — a lineage stack in the SURFACE (ADR-523 D1; the runtime only forwards the key, and yields it entirely to the browser while a flow caret is live per ADR-482 D2). An entry carries `structural`, so a non-structural undo does not reload the frame; text edits coalesce at the member's pauses (600ms, D3), so ⌘Z rewinds a phrase, not the whole blur-batched revision. Bounded by bytes (D2); cleared only by a FOREIGN write (D4) | ✅ | ✅ |
 | list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab in prose = a literal tab; Tab never ends the session | — |
+| move block | 🔜 (arrows nudge — owed) | ✅ **⌥↑/⌥↓** → the existing `moveBlock`, one op N entrances (ADR-526 D3). Subject = the block holding the caret (structure tier), NOT `selectedBlock()` (the object gate). Yields to a live range | 🔜 band reorder keys |
 | owed | arrows nudge/resize, ⌘]/[ z-order, Tab cycle (declared since ADR-477) | — | band reorder keys |
 
 ### Inline format (the text tier follows the selection — ADR-521)
@@ -148,7 +149,7 @@ medium.**
 
 | section | document | page | container | block (text) | block (object) | mechanism |
 |---|---|---|---|---|---|---|
-| **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) | ✅ verbs · Contents | ✅ path · verbs · Contents | 🚫 no path (`PAGE_SEL` never matches a flattened flow doc — ADR-481 D1; the 2026-08-05 "✅ path" here was an over-claim) · **NO verb row** (ADR-525 D3 — Duplicate/Up/Down/Delete are enclosure verbs; the menu already refused Move on flow) | ✅ path · verbs — **move verbs withheld on flow** (a figure has a box but sits in continuous prose; the menu always refused them there) | existing id-addressed ops; path = the breadcrumb's climbChain |
+| **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) · **OUTLINE on flow** (ADR-526 D2 — the document's headings in order, click-to-jump; derived client-side, empty state says so) | ✅ verbs · Contents | ✅ path · verbs · Contents | 🚫 no path (`PAGE_SEL` never matches a flattened flow doc — ADR-481 D1) · ✅ **enclosing-heading crumb** (ADR-526 D2 — the flow analogue, one rung, from `headingId`) · **NO verb row** (ADR-525 D3 — Duplicate/Up/Down/Delete are enclosure verbs; the menu already refused Move on flow) | ✅ path · verbs — **move verbs withheld on flow** (a figure has a box but sits in continuous prose; the menu always refused them there) | existing id-addressed ops; path = the breadcrumb's climbChain |
 | **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | — | ✅ deck-staged only | measures, two-clamp |
 | **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | 🚫 **the whole section** (ADR-525 D3 — "no layout surface", rule 10; Hug\|Fill is a container row and flow has no containers) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
 | **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | ✅ typography ramp · tone (meaning, not geometry) | ✅ typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
@@ -244,6 +245,16 @@ the write seam, not enforced).
     block refused it. **One chokepoint may paint the selection cue** (`__yarnnnSelect`),
     defended by a completeness assertion, because a per-site invariant cannot be defended
     by executing one site.
+12. **A document's structure is the heading tree, derived and never authored** (ADR-526) —
+    Docs' structural grain is the HEADING, and a "section" is the span from one heading to
+    the next. There is no `<section>` wrapper and no section node: the span is computed by
+    document position, the way ADR-519 D2 dissolved Group into "a container with no
+    declared layout" rather than adding a node type. The outline is therefore a
+    *projection* of the prose — it cannot drift, because it has no independent existence.
+    **What the system derives about structure, the member sees**: the outline and the
+    enclosing heading were both computed and routed only to the lane posture until
+    ADR-526 gave each a second consumer. A derivation with exactly one reader is a
+    question about who else should be reading it.
 
 ## Standing refusals
 
@@ -252,6 +263,11 @@ not NL round-trips) · no fourth type / no positioned web (ADR-505) · no pagina
 (ADR-480 D6) · no keystroke CRDT · no per-breakpoint editing · no web-font CDNs · no
 forms · no JS carousels · no databases/linked views · no synced blocks (that is `data-ref`
 at block grain, later) · no second source format (markdown is a projection — ADR-456 D1)
+· **no `<section>` wrapper in Docs** (ADR-526 D1/§6 — a section IS the span between
+headings; the wrapper is what collapsible headings and move-a-whole-section would
+need, and those two are the stated evidence that would reopen it) · **no outline
+rail** (ADR-526 D2 — the pane is the structure's home, ADR-520 D4; a second
+structural view is the tree ADR-520 D5 refused)
 · no editing viewer-owned formats · no owned render engine (ADR-417) · no forked
 machinery per app (ADR-518 D2 — the split is housing; a second write path or a forked
 runtime is the refused shape) · no block-set selection mode on flow (ADR-521 — the
