@@ -1119,7 +1119,33 @@ export function StudioDesignTab({
   // Derived FROM the declared tier, never re-derived (rule 11 intact — the
   // runtime remains the only party that reads the DOM and the medium together).
   // `container`/`page` never applied to flow anyway (ADR-481 D1).
-  const scope: 'document' | 'range' | 'object' | 'container' | 'page' = !selection
+  //
+  // ── THE RANGE IS ITSELF A SELECTION (fix, 2026-08-06) ────────────────────
+  //
+  // ADR-528 shipped `range` scope and left it UNREACHABLE from the gesture it
+  // was built for. Operator screenshot: a live multi-block selection, the bar
+  // showing B/I/code/Link, and the pane reading "Document — select a block on
+  // the canvas to shape it here" — `document` scope, the nothing-selected
+  // state, while the member had six blocks selected.
+  //
+  // The cause: every branch below keys off `selection`, which is written ONLY
+  // by a click (`yarnnn-point`). A drag posts `yarnnn-range` into
+  // `rangeBlockIds` — separate state, correctly so (they answer "what did you
+  // point at" vs "what have you got"). But nothing bridged them, so a range
+  // with no preceding click left `selection` null and the whole TextSection —
+  // the ADR-527 D1/D2 emphasis set, the Google Docs half of the benchmark —
+  // never mounted.
+  //
+  // A live range IS a selection on a continuous surface. `!selection` cannot
+  // mean "nothing selected" here; it means "nothing CLICKED". Checked FIRST,
+  // before the click-derived ladder, because a range outranks a stale click:
+  // if the member has both, what they are looking at is the range (which is
+  // the `d878242` finding, one gesture earlier).
+  const liveRange = (rangeBlockIds?.length ?? 0) > 0;
+  const scope: 'document' | 'range' | 'object' | 'container' | 'page' =
+    liveRange && mode === 'flow'
+      ? 'range'
+      : !selection
     ? 'document'
     : selection.blockId && selection.blockKind
       ? isTextTier
@@ -2345,11 +2371,16 @@ export function StudioDesignTab({
           <div className={SECTION}>
             {/* Name the SUBJECT honestly: over a multi-block range the block
                 label names whichever block was clicked, not what the member
-                has selected. */}
+                has selected.
+
+                A range reached WITHOUT a preceding click has no `selection` at
+                all (the 2026-08-06 entrance fix), so the last fallback says
+                "Selection" rather than the kind-shaped placeholder "text" —
+                which would have named a kind nothing had reported. */}
             <p className={HEADING}>
               {multiBlockRange
                 ? `${rangeBlockIds!.length} blocks selected`
-                : (selection?.label ?? selection?.blockKind ?? 'text')}
+                : (selection?.label ?? selection?.blockKind ?? 'Selection')}
             </p>
             {/* ADR-526 D2 — the enclosing-heading crumb, flow's one honest
                 ancestry rung. Names ONE block's ancestor, so it withdraws over

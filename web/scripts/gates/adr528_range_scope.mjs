@@ -35,8 +35,14 @@ const t = (label, cond) => {
 // ── 1. Extract the REAL scope derivation from the source ──────────────────
 // Anchored on the declaration, terminated at the first `;` — the whole
 // ternary chain, whatever its formatting.
+// Anchored on the ASSIGNMENT and terminated at the statement's `;`, never on
+// the expression's first token. The first cut pinned `(!selection`, and the
+// 2026-08-06 entrance fix prepended a `liveRange && mode === 'flow' ?` rung —
+// so the extractor stopped matching and the gate reported "not extractable"
+// rather than testing anything. Pin the shape that cannot change (a const with
+// this name), not the shape you happen to expect today.
 const scopeSrc = pane.match(
-  /const scope:[^=]*=\s*(!selection[\s\S]*?);\n/,
+  /const scope:[^=]*=\s*([\s\S]*?);\n\n/,
 );
 t('ADR-528: the scope derivation is present and extractable', !!scopeSrc);
 if (!scopeSrc) {
@@ -67,7 +73,13 @@ t(
 let deriveScope;
 try {
   // eslint-disable-next-line no-new-func
-  deriveScope = new Function('selection', 'isTextTier', `return (${scopeExpr});`);
+  deriveScope = new Function(
+    'selection',
+    'isTextTier',
+    'rangeBlockIds',
+    'mode',
+    `const liveRange = (rangeBlockIds?.length ?? 0) > 0; return (${scopeExpr});`,
+  );
 } catch (e) {
   t(`ADR-528: the extracted derivation evaluates (${e.message})`, false);
   console.log(`\n${pass} passed, ${fail} failed`);
@@ -79,31 +91,56 @@ const blk = { blockId: 'b1', blockKind: 'prose' };
 const fig = { blockId: 'b2', blockKind: 'figure' };
 const cont = { blockId: 'c1' };
 const page = { slideIndex: 0 };
+// Convenience: the click-derived ladder, with no live range.
+const S = (sel, tier, m = 'flow') => deriveScope(sel, tier, [], m);
 
 // The load-bearing rows: same payload, different tier → different scope.
-t(
-  "ADR-528 D2: a TEXT-tier block derives 'range' (prose on flow)",
-  deriveScope(blk, true) === 'range',
-);
+t("ADR-528 D2: a TEXT-tier block derives 'range' (prose on flow)", S(blk, true) === 'range');
 t(
   "ADR-528 D2: an OBJECT-tier block derives 'object' (a figure, or any paged block)",
-  deriveScope(fig, false) === 'object',
+  S(fig, false, 'paged') === 'object',
 );
 t(
   "ADR-528 D2: the SAME payload flips scope with the tier — the tier is load-bearing",
-  deriveScope(blk, true) !== deriveScope(blk, false),
+  S(blk, true) !== S(blk, false),
 );
-t(
-  "ADR-528 D2: no selection derives 'document'",
-  deriveScope(null, false) === 'document',
-);
+t("ADR-528 D2: no selection and no range derives 'document'", S(null, false) === 'document');
 t(
   "ADR-528 D2: identity without vocabulary still derives 'container' (ADR-511 D3)",
-  deriveScope(cont, false) === 'container',
+  S(cont, false, 'paged') === 'container',
+);
+t("ADR-528 D2: a page selection still derives 'page'", S(page, false, 'paged') === 'page');
+
+// ── 2b. THE ENTRANCE (fix 2026-08-06) — a range must be REACHABLE ─────────
+//
+// ADR-528 shipped `range` and left it unreachable from the gesture it exists
+// for. Every branch keyed off `selection`, which only a CLICK writes; a drag
+// posts `yarnnn-range` into separate state. So a range with no preceding click
+// left `selection` null → 'document' scope → the whole TextSection (the
+// ADR-527 emphasis set) never mounted. The operator caught it in production:
+// six blocks selected, pane reading "Document — select a block on the canvas".
+//
+// Asserting the scope EXISTS is not asserting it can be ENTERED. These rows
+// are the difference.
+t(
+  "ENTRANCE: a live range with NO click derives 'range' (the defect: it derived 'document')",
+  deriveScope(null, false, ['b1', 'b2'], 'flow') === 'range',
 );
 t(
-  "ADR-528 D2: a page selection still derives 'page'",
-  deriveScope(page, false) === 'page',
+  'ENTRANCE: a SINGLE-block range with no click also derives range (a caret drag)',
+  deriveScope(null, false, ['b1'], 'flow') === 'range',
+);
+t(
+  'ENTRANCE: a live range OUTRANKS a stale click (what the member is looking at wins)',
+  deriveScope(fig, false, ['b1', 'b2'], 'flow') === 'range',
+);
+t(
+  'ENTRANCE: the range entrance is FLOW-only — a paged medium is unaffected',
+  deriveScope(fig, false, ['b1', 'b2'], 'paged') === 'object',
+);
+t(
+  "ENTRANCE: an EMPTY range list does not force range scope (a collapsed caret clears it)",
+  deriveScope(null, false, [], 'flow') === 'document',
 );
 
 // COMPLETENESS: 'block' must be unreachable for EVERY input, not merely absent
@@ -111,10 +148,14 @@ t(
 const everyPayload = [null, blk, fig, cont, page, {}, { blockId: 'x', blockKind: 'heading' }];
 const everyScope = new Set();
 for (const s of everyPayload) {
-  for (const tier of [true, false]) everyScope.add(deriveScope(s, tier));
+  for (const tier of [true, false]) {
+    for (const ids of [[], ['b1'], ['b1', 'b2']]) {
+      for (const m of ['flow', 'paged']) everyScope.add(deriveScope(s, tier, ids, m));
+    }
+  }
 }
 t(
-  `ADR-528 D2: 'block' is unreachable across every payload×tier (got: ${[...everyScope].sort().join(', ')})`,
+  `ADR-528 D2: 'block' is unreachable across every payload×tier×range×medium (got: ${[...everyScope].sort().join(', ')})`,
   !everyScope.has('block'),
 );
 
@@ -138,6 +179,26 @@ t(
 t(
   "ADR-528 FALSIFY: the pre-528 derivation reaches 'block' — this gate would trip on it",
   defectScope(blk, true) === 'block',
+);
+
+// FALSIFY THE ENTRANCE — the shipped-but-unreachable shape. This is ADR-528 as
+// it actually landed: `range` exists and is derived from the tier, but only a
+// CLICK can reach it. It passes every structural check above and still leaves
+// the member looking at "Document" over a six-block selection.
+const unreachable = new Function(
+  'selection',
+  'isTextTier',
+  `return (!selection ? 'document'
+     : selection.blockId && selection.blockKind ? (isTextTier ? 'range' : 'object')
+     : selection.blockId ? 'container'
+     : (selection.slideIndex != null || selection.pageIndex != null) ? 'page'
+     : 'document');`,
+);
+t(
+  "ENTRANCE FALSIFY: the shipped-unreachable shape derives 'document' for a click-less " +
+    'range — the exact production defect, and it passes every check that only ' +
+    'asserts the scope EXISTS',
+  unreachable(null, false) === 'document' && unreachable(null, true) === 'document',
 );
 
 // ── 4. The D4 deletion — the withdrawal apparatus is GONE, not re-gated ───
