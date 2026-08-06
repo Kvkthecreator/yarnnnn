@@ -142,8 +142,28 @@ export function arrangementCarryNote(
   a: Pick<StudioArrangement, 'slots'>,
   carriedCount: number | null,
   pageNoun: string,
+  /** ADR-519 D2.1 — does this page hold an authored GROUP? Re-arranging
+   *  dissolves it, and the member is owed that sentence BEFORE the gesture. */
+  groupCount?: number | null,
 ): string | null {
   const n = carriedCount ?? 0;
+  const g = groupCount ?? 0;
+  // ADR-519 D2.1 — the debt the dissolve rule carries. `applyArrangement` ends
+  // in `page.replaceWith(el)`, so a group wrapper dies with the page that held
+  // it: never orphaned, no cleanup pass, but also never announced. A group
+  // vanishing silently is the defect the rule must not produce, and this is
+  // where the choice is made — the same place ADR-466 D5 warns about carried
+  // content, for the same reason.
+  //
+  // Ordered FIRST: a slotless arrangement moves content AND dissolves groups,
+  // and the dissolve is the less recoverable of the two (content lands on a
+  // new page; a group is gone). Say the surprising thing.
+  if (g > 0) {
+    const groups = g === 1 ? 'group' : 'groups';
+    return n > 0 && a.slots.length === 0
+      ? `ungroups ${g} ${groups} · content → new ${pageNoun}`
+      : `ungroups ${g} ${groups}`;
+  }
   if (n > 0 && a.slots.length === 0) {
     return `content → new ${pageNoun}`;
   }
@@ -181,6 +201,10 @@ interface StudioToolbarProps {
   /** Blocks the anchored page would carry through an arrangement change —
    *  drives the carry note on slotless thumbs. */
   carriedCount: number | null;
+  /** ADR-519 D2.1 — authored groups the anchored page holds. A re-arrange
+   *  DISSOLVES them (`page.replaceWith`), so the gallery says so BEFORE the
+   *  gesture, beside the carry note and for the same reason. */
+  groupCount?: number | null;
   /** The anchored page's current arrangement slug (highlighted in Layout). */
   currentArrange: string | null;
   /** Whether a page can be resolved from the selection — Layout disables
@@ -197,6 +221,7 @@ export function StudioToolbar({
   onApplyArrangement,
   planning,
   carriedCount,
+  groupCount,
   currentArrange,
   hasPageAnchor,
 }: StudioToolbarProps) {
@@ -368,7 +393,7 @@ export function StudioToolbar({
           </p>
           <div className="grid grid-cols-2 gap-1.5 p-1">
             {arrangements.map((a) => {
-              const note = arrangementCarryNote(a, carriedCount, pageNoun);
+              const note = arrangementCarryNote(a, carriedCount, pageNoun, groupCount);
               const current = currentArrange === a.slug;
               return (
                 <button

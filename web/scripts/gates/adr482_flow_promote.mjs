@@ -159,5 +159,102 @@ function scene() {
   t('FALSIFIER: without the promotion pass the bare div stays un-annotated', !s.bare1.hasAttribute('data-block'));
 }
 
+// ── ADR-519 §5 Q1 — PAGE identity, stamped at the normalize seam ───────────
+// Pages were the one grain addressed by INDEX while blocks and containers
+// carried ids, and ADR-516 built a second anchor-based resolver to cope.
+// Stamping them closes the split. Migration-by-use: on the NEXT write, never
+// a fleet sweep.
+//
+// Safe because a page is a <section> and every container selector in the
+// system is `div[data-block-id]:not([data-block])` — a stamped page can never
+// read as a container. Asserted below against the real source, not assumed.
+function pageScene() {
+  const body = El('body');
+  const s1 = El('section', { class: 'slide' });
+  const s2 = El('section', { class: 'slide' });
+  const col = El('div', { 'data-slot': 'main' });
+  const blk = El('div', { 'data-block': 'prose', 'data-block-id': 'b1' });
+  blk.textContent = 'kept';
+  col.append(blk);
+  s1.append(col);
+  body.append(s1, s2);
+  return { body, s1, s2, col, blk };
+}
+{
+  const s = pageScene();
+  run(body, s.body);
+  t('§5 Q1: a page is STAMPED with an id at the seam', !!s.s1.getAttribute('data-block-id'));
+  t('§5 Q1: an EMPTY page is stamped too (identity is not content-gated)',
+    !!s.s2.getAttribute('data-block-id'));
+  t('§5 Q1: page ids are UNIQUE across pages',
+    s.s1.getAttribute('data-block-id') !== s.s2.getAttribute('data-block-id'));
+  t('§5 Q1: a page never gains data-block (it is not a block)', !s.s1.hasAttribute('data-block'));
+  // The load-bearing safety property: a stamped page must not read as a
+  // CONTAINER. It cannot, because it is a <section> and every container
+  // selector is div-qualified — pinned here so a future un-qualified selector
+  // is caught by this gate rather than by a member selecting a slide as a box.
+  t('§5 Q1: the page stays a SECTION (container selectors are div-qualified)',
+    s.s1.tagName === 'SECTION');
+  t('§5 Q1: the block keeps its OWN id (stamping pages renumbers nothing)',
+    s.blk.getAttribute('data-block-id') === 'b1');
+  t('§5 Q1: containers are still stamped alongside', !!s.col.getAttribute('data-block-id'));
+}
+{
+  // Idempotence — an already-stamped page keeps its id on the next write, or
+  // "migration by use" would churn a fresh id into every revision.
+  const s = pageScene();
+  run(body, s.body);
+  const first = s.s1.getAttribute('data-block-id');
+  run(body, s.body);
+  t('§5 Q1: re-normalizing KEEPS the page id (no churn per revision)',
+    s.s1.getAttribute('data-block-id') === first);
+}
+{
+  // Every container selector in the app must stay div-qualified, or the
+  // safety argument above collapses. Enumerate, never count.
+  const files = [
+    'web/components/workspace/viewers/projection.ts',
+    'web/components/studio/artifactOps.ts',
+    'web/components/studio/StudioDesignTab.tsx',
+  ];
+  const bad = [];
+  for (const f of files) {
+    const text = readFileSync(f, 'utf8');
+    for (const m of text.matchAll(/(.{4})\[data-block-id\]:not\(\[data-block\]\)/g)) {
+      if (!m[1].endsWith('div')) bad.push(`${f}: …${m[0]}`);
+    }
+  }
+  t(`§5 Q1: every container selector is div-qualified${bad.length ? ` — ${bad[0]}` : ''}`,
+    bad.length === 0);
+}
+{
+  // FALSIFIER: drop the page pass — pages go back to being index-only.
+  const mutated = src.replace('for (const p of pages) if (!subjects.includes(p)) subjects.push(p);', '');
+  if (mutated === src) {
+    t('FALSIFIER: the page-pass removal actually mutated the source', false);
+  } else {
+    console.log('mutated: removed the page pass from normalizeStructure (in memory)');
+    const mBody =
+      prelude +
+      (function () {
+        let d = 0;
+        const i = mutated.indexOf('export function normalizeStructure');
+        const start = mutated.indexOf('{', i);
+        for (let j = start; j < mutated.length; j++) {
+          if (mutated[j] === '{') d++;
+          else if (mutated[j] === '}') { d--; if (d === 0) return mutated.slice(start + 1, j); }
+        }
+        throw new Error('gate: brace match failed');
+      })()
+        .replace(/: Element\b/g, '')
+        .replace(/: boolean\b/g, '')
+        .replace('new Set<string>()', 'new Set()');
+    const s = pageScene();
+    run(mBody, s.body);
+    t('FALSIFIER: without the page pass, a page is left UNSTAMPED (index-only)',
+      !s.s1.getAttribute('data-block-id'));
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

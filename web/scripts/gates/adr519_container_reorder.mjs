@@ -222,5 +222,58 @@ t('both sibling walks extracted and runnable', !!prevBlock && !!nextBlock);
   );
 }
 
+// ── 9. D2.1's DEBT — the surface SAYS the dissolve before the gesture ─────
+// The rule (re-arranging dissolves groups) is only honest if the member is
+// told. A group vanishing silently is the defect the rule would otherwise
+// produce, so the warning is part of the decision, not a nicety.
+{
+  const bar = readFileSync('web/components/studio/StudioToolbar.tsx', 'utf8');
+  const surface = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
+
+  // The note function, EXECUTED — the wording is the deliverable here.
+  const ni = bar.indexOf('export function arrangementCarryNote');
+  const body = bar.slice(bar.indexOf('{', bar.indexOf('): string | null', ni)) + 1, bar.indexOf('\n}', ni));
+  const note = new Function('a', 'carriedCount', 'pageNoun', 'groupCount', body + '\n');
+
+  t('D2.1: a page with a group is WARNED before the re-arrange',
+    note({ slots: [{}] }, 3, 'slide', 2) === 'ungroups 2 groups');
+  t('D2.1: the warning is singular for one group', note({ slots: [{}] }, 3, 'slide', 1) === 'ungroups 1 group');
+  t('D2.1: no group = no group warning (the ADR-466 note is untouched)',
+    note({ slots: [] }, 3, 'slide', 0) === 'content → new slide');
+  t('D2.1: both consequences are named when both apply',
+    note({ slots: [] }, 3, 'slide', 2) === 'ungroups 2 groups · content → new slide');
+  t('D2.1: nothing to say = no note', note({ slots: [{}] }, 0, 'slide', 0) === null);
+  t('D2.1: the count is OPTIONAL (older call sites keep working)',
+    note({ slots: [] }, 3, 'slide', undefined) === 'content → new slide');
+
+  // The counter, EXECUTED against the real predicate. A group IS a container
+  // with no declared layout (D2) — the three exclusions are the whole claim.
+  const ci = ops.indexOf('export function countGroupsOnPage');
+  const cbody = ops.slice(ops.indexOf('return Array.from', ci), ops.indexOf('\n}', ci));
+  const pred = new Function('els', `
+    const page = { querySelectorAll: () => els };
+    ${cbody.replace('page.querySelectorAll(\'div[data-block-id]:not([data-block])\')', 'els')}
+  `);
+  const mk = (attrs, hasBlock) => ({
+    _a: attrs,
+    hasAttribute: (k) => k in attrs,
+    getAttribute: (k) => attrs[k] ?? null,
+    querySelector: () => (hasBlock ? {} : null),
+  });
+  t('D2.1: a container with no layout holding blocks IS a group',
+    pred([mk({ 'data-block-id': 'g1' }, true)]) === 1);
+  t('D2.1: a container WITH declared layout is a frame, not a group',
+    pred([mk({ 'data-block-id': 'g1', style: 'display: flex' }, true)]) === 0);
+  t('D2.1: a DECLARED region (data-slot) is the arrangement\'s, not authored',
+    pred([mk({ 'data-block-id': 'g1', 'data-slot': 'main' }, true)]) === 0);
+  t('D2.1: an EMPTY wrapper is not a group (nothing was grouped)',
+    pred([mk({ 'data-block-id': 'g1' }, false)]) === 0);
+  t('D2.1: nested groups each count', pred([mk({ 'data-block-id': 'g1' }, true), mk({ 'data-block-id': 'g2' }, true)]) === 2);
+
+  t('D2.1: the count is derived at the surface and passed to the gallery',
+    /countGroupsOnPage\(file\.content, anchor\)/.test(surface) && /groupCount=\{groupCount\}/.test(surface));
+  t('D2.1: the gallery passes it to the note', /arrangementCarryNote\(a, carriedCount, pageNoun, groupCount\)/.test(bar));
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed`);
 process.exit(fail ? 1 : 0);

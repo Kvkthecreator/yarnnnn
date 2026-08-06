@@ -115,6 +115,12 @@ const PAGE_SEL = STRUCTURAL_PAGE_SEL;
  *  resolves a deck slide with no block (a title slide); `pageIndex` resolves
  *  any page. */
 function arrangedPageAt(doc: Document, anchor: OpAnchor): Element | null {
+  // ADR-519 §5 Q1 — the ID path, first. Since pages are stamped at the
+  // normalize seam (2026-08-06) an anchor's `blockId` may BE a page's own id,
+  // and `closest` includes the element itself, so this one lookup resolves
+  // both "the page holding this block" and "this page". The index fallbacks
+  // below serve artifacts not yet written since the stamp landed, and retire
+  // by attrition (migration-by-use — no fleet sweep).
   if (anchor.blockId) {
     const viaBlock = doc
       .querySelector(`[data-block-id="${CSS.escape(anchor.blockId)}"]`)
@@ -355,11 +361,31 @@ export function normalizeStructure(doc: Document): number {
       (!!el.querySelector('[data-block]') || el.hasAttribute('data-slot')),
   );
 
-  // Pass C — id discipline over blocks + containers, document order.
+  // Pass B2 — PAGE identity (ADR-519 §5 Q1, resolved YES at ratification;
+  // landed 2026-08-06). Pages were the one grain addressed by INDEX while
+  // blocks and containers carry ids, and ADR-516 built a second, anchor-based
+  // resolver to cope with it. Stamping the page closes that split: one
+  // resolver, and the breadcrumb / ops / set-membership all address every
+  // grain the same way.
+  //
+  // Migration-by-use, exactly like the ADR-511 annotation pattern: a page gets
+  // its id on the artifact's NEXT write, never by a fleet sweep and never by a
+  // write-on-open revision. The anchor path survives for artifacts not yet
+  // written (see `arrangedPageAt`, which tries blockId → id → index in that
+  // order), and retires by attrition.
+  //
+  // Safe because a page is a <section> and every container selector in the
+  // system is `div[data-block-id]:not([data-block])` — a stamped page can
+  // never read as a container. `climbChain` stops AT the page element, so its
+  // un-qualified test is never reached either.
+  const pages = Array.from(root.querySelectorAll(PAGE_SEL));
+
+  // Pass C — id discipline over pages + blocks + containers, document order.
   const seen = new Set<string>();
   let minted = 0;
   const subjects = Array.from(root.querySelectorAll('[data-block], [data-block-id]'));
   for (const c of containers) if (!subjects.includes(c)) subjects.push(c);
+  for (const p of pages) if (!subjects.includes(p)) subjects.push(p);
   // Document order matters for first-wins dedup; re-sort the merged set.
   subjects.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
   for (const el of subjects) {
@@ -1547,6 +1573,33 @@ export function countCarriedBlocks(html: string, anchor: OpAnchor): number | nul
   const page = arrangedPageAt(doc, anchor);
   if (!page) return null;
   return carriedBlocksOf(page).length;
+}
+
+/** ADR-519 D2.1 — how many authored GROUPS would a re-arrange of this page
+ *  dissolve? The galleries forewarn with it, exactly as ADR-466 D5 forewarns
+ *  carried content: `applyArrangement` ends in `page.replaceWith(el)`, so a
+ *  group wrapper dies with the page that held it. Never orphaned, no cleanup
+ *  pass — but a group vanishing SILENTLY is the defect the rule must not
+ *  produce, so the count exists to be said out loud before the gesture.
+ *
+ *  A group IS a container with no declared layout (D2 — Figma's Group ≡ a
+ *  `<div data-block-id>` without layout; there is no group node type). So:
+ *  identity, no vocabulary, no inline layout style, and it must actually hold
+ *  blocks — a declared-but-empty region (`data-slot`) is the arrangement's own
+ *  structure, not something the member authored, and it is not dissolved in
+ *  any sense worth warning about.
+ *
+ *  Nested groups each count: each is one wrapper the member made. */
+export function countGroupsOnPage(html: string, anchor: OpAnchor): number | null {
+  const doc = parse(html);
+  const page = arrangedPageAt(doc, anchor);
+  if (!page) return null;
+  return Array.from(page.querySelectorAll('div[data-block-id]:not([data-block])')).filter(
+    (el) =>
+      !el.hasAttribute('data-slot') && // a DECLARED region, not an authored group
+      !(el.getAttribute('style') || '').trim() && // layout declared → a frame, not a group
+      !!el.querySelector('[data-block]'),
+  ).length;
 }
 
 /** ADR-466 D5 — the refusal's RESOLUTION: apply a slotless arrangement (title /

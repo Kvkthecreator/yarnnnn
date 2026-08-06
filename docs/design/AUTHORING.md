@@ -415,9 +415,15 @@ shipped here only as they land.
   ✅ **chrome/breadcrumb multi-select consistency** (2026-08-06 — the canvas already boxed
   every member as the primary; the BREADCRUMB named the primary's ancestry while N were
   boxed. Over a set it climbs from the members' SHARED parent and its innermost rung is
-  the count) · Group/Ungroup verbs (needs D2.1's "re-arranging dissolves groups" warning
-  first) · **page identity stamped at the normalize seam** (retires the ADR-516
-  page-anchor resolver by use).
+  the count) · ✅ **page identity stamped at the normalize seam** (2026-08-06 — pages were
+  the one grain addressed by INDEX; `normalizeStructure` now stamps them on the next
+  write, migration-by-use, and `arrangedPageAt` tries the id first. Safe because a page is
+  a `<section>` and every container selector is `div`-qualified — enumerated by the gate,
+  not assumed) · ✅ **D2.1's dissolve warning** (2026-08-06 — the galleries say *"ungroups
+  2 groups"* on the thumb, beside ADR-466 D5's carry note; the dissolve is named first
+  where both apply) · **Group/Ungroup verbs** — the one Phase B cell still open, now
+  unblocked: its warning debt is paid, so the verbs can land whenever the wrap/unwrap op
+  is written.
 - **Phase C — layout completion**: Direction row (containers only) · align-self ·
   numeric X/Y/W/H entry (two-clamp) · then the standing pair: snap/alignment guides on
   block drag · container drag = reorder per medium (drop indicators, never positional).

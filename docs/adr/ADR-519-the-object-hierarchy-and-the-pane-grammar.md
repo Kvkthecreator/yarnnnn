@@ -153,7 +153,15 @@ wrapper can never be orphaned, because nothing of the old page survives. It is t
 yielding AUTHORING.md already names: a slot is DECLARED by the arrangement, a group is
 AUTHORED ad hoc, and the ad-hoc structure yields when the declaration changes. **The
 surface owes the member that sentence before the re-arrange** — a group vanishing
-silently is the defect this decision must not produce. *Group-survives-as-a-carried-unit*
+silently is the defect this decision must not produce. ✅ **The debt is paid (2026-08-06)**:
+`countGroupsOnPage` feeds the arrangement galleries, which say *"ungroups 2 groups"* on
+the thumb — the same home, and the same "say it where the choice is made" principle, as
+ADR-466 D5's carried-content note. Where both apply the dissolve is named FIRST: content
+lands on a new page, but a group is simply *gone*, so the less recoverable consequence
+leads. A group is counted as D2 defines it — a container with identity, **no declared
+layout**, actually holding blocks; a `data-slot` region is the arrangement's own
+structure, not something the member authored.
+*Group-survives-as-a-carried-unit*
 was considered and refused: it would change the arrangement's carry semantics and open
 slot-fitting for a multi-block wrapper, for a durability no member has asked for.
 
@@ -294,14 +302,21 @@ the STUDIO.md matrix is amended cell-by-cell as cells ship, never ahead of them.
 
 ## 5. Open questions — RESOLVED at ratification (2026-08-05, per recommendation)
 
-1. **Page identity** — **YES, stamp at the seam.** Pages are index-addressed (no
-   `data-block-id`); ADR-516 built a second resolver to cope. `normalizeStructure`
-   grows a page pass: pages get identity on the artifact's next write
+1. **Page identity** — **YES, stamp at the seam.** ✅ **Implemented 2026-08-06.** Pages
+   were index-addressed (no `data-block-id`); ADR-516 built a second resolver to cope.
+   `normalizeStructure` grew a page pass: pages get identity on the artifact's next write
    (migration-by-use, the ADR-511 annotation pattern — no fleet sweep). One resolver,
-   breadcrumb/ops/multi-select uniformity. Lands with **Phase B**, which is where
-   addressing uniformity is consumed; the ADR-516 page-anchor resolver retires when the
-   id path covers it (singular implementation — the anchor fallback survives only for
-   not-yet-written artifacts).
+   breadcrumb/ops/multi-select uniformity. The ADR-516 page-anchor resolver retires when
+   the id path covers it (singular implementation — the anchor fallback survives only for
+   not-yet-written artifacts, and `arrangedPageAt` now tries id first).
+
+   **Why stamping a page cannot make it read as a container**: a page is a `<section>`,
+   and every container selector in the system is `div[data-block-id]:not([data-block])`
+   — div-qualified, enumerated and asserted by the gate rather than assumed. The one
+   un-qualified JS test (`climbChain`) stops *at* the page element, so it never reaches
+   it. The gate pins the div-qualification across every file that carries the selector,
+   so a future un-qualified one is caught there rather than by a member selecting a slide
+   as a box.
 2. **⌘-click deep select** — **YES** (D4). Conventional, discoverable-by-habit for
    exactly the users who need it. Phase B.
 3. **Direction row** — **CONTAINERS ONLY** until a horizontal-page need is evidenced.

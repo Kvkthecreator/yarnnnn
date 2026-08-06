@@ -77,6 +77,7 @@ import {
   blocksForPlan,
   applySkin,
   countCarriedBlocks,
+  countGroupsOnPage,
   convertBlock,
   deleteBlock,
   deletePage,
@@ -1457,6 +1458,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // change on the anchored page carry? (null → no page anchored yet)
   const carriedCount = useMemo(
     () => (file?.content ? countCarriedBlocks(file.content, anchor) : null),
+    [file, anchor],
+  );
+  // ADR-519 D2.1 — how many authored groups a re-arrange would dissolve. Paid
+  // at the same seam and for the same reason as carriedCount: the galleries
+  // say it where the choice is made, before the gesture, never after.
+  const groupCount = useMemo(
+    () => (file?.content ? countGroupsOnPage(file.content, anchor) : null),
     [file, anchor],
   );
 
@@ -3033,6 +3041,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onApplyArrangement={handleApplyArrangement}
                 planning={planning}
                 carriedCount={carriedCount}
+                groupCount={groupCount}
                 currentArrange={selection?.arrange ?? null}
                 hasPageAnchor={
                   !!selection &&
