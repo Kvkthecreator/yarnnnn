@@ -92,5 +92,83 @@ t(
   }
 }
 
+// ── ADR-519 D4.1 — the SET's chain: shared parent + count ──────────────────
+// A set has no single innermost rung (that is what makes it a set), so the
+// crumb must climb from the members' SHARED parent and name the COUNT. Naming
+// the primary's own ancestry would be the staleness the pane withdrew: five
+// objects boxed on canvas while the crumb reads "› heading".
+const compileShared = (source) => {
+  const at = source.indexOf('export function sharedChain');
+  const body = source.slice(source.indexOf('{', source.indexOf('):', at)) + 1, source.indexOf('\n}', at));
+  const stripped = body
+    .replace(/const shared: ClimbableElement\[\]/, 'const shared')
+    .replace(/: ClimbableElement\[\]\[\]/g, '');
+  return new Function('chains', stripped + '\nreturn shared;');
+};
+const sharedChain = compileShared(src);
+
+{
+  // Two members under the SAME column: everything up to and including that
+  // column is shared.
+  const a = ['P', 'cols', 'colA'];
+  const b = ['P', 'cols', 'colA'];
+  t('D4.1: identical chains are shared whole', sharedChain([a, b]).join(',') === 'P,cols,colA');
+
+  // Members in DIFFERENT columns: shared stops at the divergence.
+  t('D4.1: divergent chains share only their common prefix',
+    sharedChain([['P', 'cols', 'colA'], ['P', 'cols', 'colB']]).join(',') === 'P,cols');
+
+  // Nothing in common below the page → empty chain, and the crumb then reads
+  // page › N objects, which is the honest answer.
+  t('D4.1: no shared container = empty chain (the page IS the shared parent)',
+    sharedChain([['colA'], ['colB']]).length === 0);
+
+  // A member sitting directly on the page truncates the whole shared chain —
+  // the shallowest member bounds it, never the first one listed.
+  t('D4.1: the SHALLOWEST member bounds the shared chain',
+    sharedChain([['P', 'cols', 'colA'], []]).length === 0);
+
+  // Three members, the third diverging: the pair's agreement must not win.
+  t('D4.1: EVERY member must agree, not just the first pair',
+    sharedChain([['P', 'x'], ['P', 'x'], ['P', 'y']]).join(',') === 'P');
+
+  t('D4.1: a single chain is entirely shared with itself', sharedChain([['P', 'x']]).join(',') === 'P,x');
+  t('D4.1: no chains = no shared chain', sharedChain([]).length === 0);
+}
+{
+  const mutated = src.replace('if (rest.every((c) => c[i] === first[i])) shared.push(first[i]);',
+    'if (rest.some((c) => c[i] === first[i])) shared.push(first[i]);');
+  console.log('mutated: every → some in sharedChain (in memory)');
+  if (mutated === src) {
+    t('FALSIFIER: the every→some swap actually mutated the source', false);
+  } else {
+    const s = compileShared(mutated)([['P', 'x'], ['P', 'x'], ['P', 'y']]);
+    t('FALSIFIER: with `some`, a chain only TWO members share leaks in', s.join(',') === 'P,x');
+  }
+}
+{
+  const mutated = src.replace('else break; // the chains diverge here', 'else continue; // ');
+  console.log('mutated: break → continue in sharedChain (in memory)');
+  if (mutated === src) {
+    t('FALSIFIER: the break→continue swap actually mutated the source', false);
+  } else {
+    // colB/colA diverge at index 2, but 'P' at index 0 and a later match would
+    // rejoin — a chain that is not a common PREFIX is not an ancestry.
+    const s = compileShared(mutated)([['P', 'q', 'z'], ['P', 'w', 'z']]);
+    t('FALSIFIER: without break, a non-prefix "ancestry" rejoins after divergence',
+      s.join(',') === 'P,z');
+  }
+}
+
+// ── The set's crumb is WIRED, and the count is the innermost rung ───────────
+t('D4.1: the crumb receives the set (groupIds passed from the surface)',
+  /groupIds=\{groupIds\}/.test(surface));
+t('D4.1: a set of ONE is not a set (the single-subject chain still renders)',
+  /ids\.length > 1/.test(src));
+t('D4.1: the innermost rung over a set is the COUNT, not the primary label',
+  /label: `\$\{ids\.length\} objects`/.test(src));
+t('D4.1: a set spanning pages draws no chain (no shared page, no ancestry)',
+  /every\(\(m\) => m\.closest\(STRUCTURAL_PAGE_SEL\) === pageEl\)/.test(src));
+
 console.log(`\nstudio selection breadcrumb: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

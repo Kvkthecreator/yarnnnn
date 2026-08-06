@@ -412,9 +412,12 @@ shipped here only as they land.
   subject genuinely IS the set, and writes through the existing `setGeometryMany`) ·
   ✅ **⌘-click deep select** (2026-08-06 — ⇧ adds to the selection, ⌘/ctrl deep-selects the
   innermost container; the branch used to collapse all three modifiers into one) ·
-  Group/Ungroup verbs (needs D2.1's "re-arranging dissolves groups" warning first) ·
-  **page identity stamped at the normalize seam** (retires the ADR-516 page-anchor
-  resolver by use) · chrome/breadcrumb/navigator multi-select consistency.
+  ✅ **chrome/breadcrumb multi-select consistency** (2026-08-06 — the canvas already boxed
+  every member as the primary; the BREADCRUMB named the primary's ancestry while N were
+  boxed. Over a set it climbs from the members' SHARED parent and its innermost rung is
+  the count) · Group/Ungroup verbs (needs D2.1's "re-arranging dissolves groups" warning
+  first) · **page identity stamped at the normalize seam** (retires the ADR-516
+  page-anchor resolver by use).
 - **Phase C — layout completion**: Direction row (containers only) · align-self ·
   numeric X/Y/W/H entry (two-clamp) · then the standing pair: snap/alignment guides on
   block drag · container drag = reorder per medium (drop indicators, never positional).

@@ -14,6 +14,14 @@
  * so the crumb adds no new op, only a new reach into existing ones
  * (AUTHORING.md rule 7). The innermost segment is the current selection:
  * named, not clickable.
+ *
+ * ADR-519 D4.1 — over a ⇧-click SET the innermost segment is the COUNT and the
+ * chain climbs from the members' SHARED parent. A set has no single innermost
+ * rung — that is what makes it a set — so naming the primary's own ancestry
+ * would be the same staleness the pane withdrew: five objects boxed on canvas
+ * while the crumb reads "› heading". The shared parent is real and is what D4
+ * asked the chrome to name; everything below the divergence point is not the
+ * set's ancestry and is dropped.
  */
 
 import { useMemo } from 'react';
@@ -60,10 +68,29 @@ function pageNoun(layout: string, index: number): string {
   return layout === 'deck' ? `Slide ${index + 1}` : `Section ${index + 1}`;
 }
 
+/** ADR-519 D4.1 — the deepest container that encloses EVERY member of a set.
+ *  The set's honest ancestry: a set has no single innermost rung (that is what
+ *  makes it a set), but it does have a shared parent, and D4 named it as the
+ *  thing the chrome should show. Returns null when the members share nothing
+ *  below the page — then the page IS the shared parent and the chain says so. */
+export function sharedChain(
+  chains: ClimbableElement[][],
+): ClimbableElement[] {
+  if (!chains.length) return [];
+  const [first, ...rest] = chains;
+  const shared: ClimbableElement[] = [];
+  for (let i = 0; i < first.length; i++) {
+    if (rest.every((c) => c[i] === first[i])) shared.push(first[i]);
+    else break; // the chains diverge here — everything below is not shared
+  }
+  return shared;
+}
+
 export function SelectionBreadcrumb({
   html,
   layout,
   selection,
+  groupIds,
   onSelectPage,
   onSelectNode,
 }: {
@@ -71,6 +98,10 @@ export function SelectionBreadcrumb({
   html: string;
   layout: string;
   selection: StudioSelection;
+  /** ADR-519 D4.1 — the ⇧-click set. Over a set the chain names the SHARED
+   *  parent and the count, never the primary's own label: the innermost rung
+   *  is a single subject and a set does not have one. Length < 2 = no set. */
+  groupIds?: string[];
   /** Select a page by index — the navigator's page-select path. */
   onSelectPage: (index: number) => void;
   /** Select a container/block — the navigator's structure-tree path. */
@@ -113,6 +144,39 @@ export function SelectionBreadcrumb({
       kind: node.getAttribute('data-block'),
       current,
     });
+
+    // ADR-519 D4.1 — over a SET the chain names the shared parent and the
+    // count. The primary's own ancestry below the shared parent is not the
+    // set's ancestry, and its label is not the set's label: showing either is
+    // the same staleness the pane withdrew (the crumb would read "› heading"
+    // while five objects are boxed). One member is a selection, not a set.
+    const ids = groupIds ?? [];
+    if (ids.length > 1) {
+      const members = ids
+        .map((id) => {
+          const e = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id;
+          return doc.querySelector(`[data-block-id="${e}"]`);
+        })
+        .filter((e): e is Element => !!e && !!e.closest(STRUCTURAL_PAGE_SEL));
+      // A set spanning pages has no shared page, so it has no chain to draw.
+      const samePage = members.length > 1 && members.every((m) => m.closest(STRUCTURAL_PAGE_SEL) === pageEl);
+      if (samePage) {
+        const shared = sharedChain(
+          members.map((m) =>
+            climbChain(m as unknown as ClimbableElement, pageEl as unknown as ClimbableElement),
+          ),
+        );
+        return {
+          pageIndex: idx,
+          segments: [
+            { blockId: null, label: pageNoun(layout, idx), kind: null, current: false },
+            ...shared.map((c) => seg(c as unknown as Element, false)),
+            { blockId: null, label: `${ids.length} objects`, kind: null, current: true },
+          ],
+        };
+      }
+    }
+
     return {
       pageIndex: idx,
       segments: [
@@ -121,7 +185,7 @@ export function SelectionBreadcrumb({
         seg(el, true),
       ],
     };
-  }, [html, layout, selection.blockId, selection.slideIndex, selection.pageIndex]);
+  }, [html, layout, groupIds, selection.blockId, selection.slideIndex, selection.pageIndex]);
 
   if (!segments.length) return null;
 

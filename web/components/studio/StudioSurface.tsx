@@ -3174,6 +3174,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   html={file.content ?? ''}
                   layout={template}
                   selection={selection}
+                  groupIds={groupIds}
                   onSelectPage={selectSlideFromNavigator}
                   onSelectNode={selectNodeFromNavigator}
                 />

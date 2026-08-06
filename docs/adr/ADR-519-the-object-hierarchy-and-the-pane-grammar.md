@@ -246,6 +246,16 @@ The correction is only that "first-class" means *visible state*, not *a sixth sc
 things) · no per-member pane fan-out (N inspectors is not an inspector) · no scope whose
 tier is invented rather than declared.
 
+**The chrome follows the same rule** (2026-08-06). The canvas already boxed every member
+identically to the primary (`.yarnnn-grouped` wears the primary's own outline — the set
+reads as one selection, which is the point). The breadcrumb did not: it named the
+primary's ancestry while N objects were boxed — the same staleness the pane withdrew, one
+surface over. Over a set the crumb climbs from the members' **shared parent** (the deepest
+container enclosing every member, `sharedChain`) and its innermost rung is the **count**.
+A set has no single innermost rung; that is what makes it a set. Where the members share
+nothing below the page, the page *is* the shared parent and the chain says exactly that.
+A set spanning pages draws no chain at all — no shared page, no ancestry to name.
+
 ### D5 — Layout completion: the allowlist grows three rows, no new mechanism
 
 - **Direction**: `flex-direction` column \| row on containers — the explicit Flow
