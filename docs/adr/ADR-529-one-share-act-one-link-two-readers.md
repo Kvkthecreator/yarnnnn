@@ -33,6 +33,23 @@ ADR-405 (species-blind) · ADR-513 D1/D2/D4 (the token is the capability; the na
 dark means dark) · ADR-514 D2.6 (the verb bundle is threaded whole) · ADR-517 (grants govern,
 share executes — the backend floor is untouched by this ADR).
 
+> **AMENDED 2026-08-06 by [ADR-530](ADR-530-the-projection-is-a-property-of-the-file.md)** — D2/D3
+> were **right in shape and wrong in source**.
+>
+> Both served `artifact_content` — the file's **raw container** — so they satisfied DP34 only for
+> formats that happen to already be text. Verified on prod against a `.md` artifact and declared
+> closed; the operator then hit the *same class of refusal* with an `.html` share, whose content
+> lives inside `<iframe srcDoc sandbox="">` and is opaque to every non-browser reader. The
+> markdown lane had the mirror defect (it fenced `<!doctype html><style>…`).
+>
+> The deeper finding: `artifact_kind` was derived from a **filename suffix**, so every non-`.html`
+> file was asserted to be text and a shared PDF/XLSX/ZIP had its **raw bytes emitted into a
+> `<pre>`** — DP34's diagnostic test failing verbatim.
+>
+> ADR-530 re-sources both lanes from the file's **model-consumable projection** (one registry, one
+> seam) and adds the machine address (`/s/{token}.txt`). **D1/D4/D5 — the ShareDialog, the four
+> deletions, the hierarchy — are unaffected and stand.**
+
 ---
 
 ## 1. Context — the operator's report, and what was actually wrong
