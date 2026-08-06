@@ -1,6 +1,14 @@
 # ADR-515 — Addressing Is Not Granting: the acts the Share button collapsed
 
-**Status**: Proposed (2026-08-03; **materially amended 2026-08-04** — §2.0 replaces the first
+**Status**: **Accepted + Implemented 2026-08-06** — D1/D2/D7 executed by
+[ADR-529](ADR-529-one-share-act-one-link-two-readers.md) (the singular `ShareDialog` on the
+`FileVerbs` bundle; `Share…` stops copying on click; the Files over-grant dies by construction).
+**D8 was executed earlier** by [ADR-517](ADR-517-grants-govern-share-executes.md) D7 (the dead
+`POST /api/share` deleted). **§6 open question 1** ("can a viewer grant a share?") was **ratified
+`no`** by ADR-517 D3. **Still open**: D3/D4 (the `Copy AI reference` move + the internal-referral
+ADR), D5 (Export's honest-copy pass), the D6 seam, and §6 questions 2–3 — all carried forward as
+named-owed in ADR-529 §5 rather than silently dropped.
+_Originally:_ Proposed (2026-08-03; **materially amended 2026-08-04** — §2.0 replaces the first
 draft's invented three-act reshuffle with the measured two-mount carve, and D6 adds the
 flow-vs-rail division. Doc-first: no code has moved.)
 **Date**: 2026-08-03 (amended 2026-08-04)

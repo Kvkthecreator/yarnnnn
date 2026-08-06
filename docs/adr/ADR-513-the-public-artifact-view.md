@@ -20,6 +20,27 @@ non-members) · ADR-478/476 (deletion — a revoked share must go dark).
 content-bearing; accept stays auth-gated. Fixes a pre-existing hole: preview did not
 check `status`/`expires_at` — a revoked or expired share still previewed.
 
+> **AMENDED 2026-08-06 by [ADR-529](ADR-529-one-share-act-one-link-two-readers.md)** — D3 gains
+> a **representation** axis, and the page becomes server-rendered.
+>
+> The **projection (D2) is unchanged, byte for byte**; the field set an anonymous reader receives
+> is exactly the table in §3. What changes is serialization and delivery:
+>
+> - **The same projection may be served as markdown** (`Accept: text/markdown` or `?format=md`)
+>   for a reader that cannot execute JavaScript. One token, one capability, one revocation — a
+>   representation change carries no new information across the boundary, so the boundary has not
+>   moved. **This is not a widening precedent**: additions to the *field set* still require the
+>   deliberateness D2 demands.
+> - **The page is server-rendered.** D3's rendering discipline is otherwise intact and
+>   non-negotiable: `html` kinds still render exclusively via `<iframe srcDoc sandbox="">`, never
+>   inlined, because there is still no sanitizer (§1). SSR renders the *page*; the artifact still
+>   goes in the locked frame.
+>
+> **Why**: measured live 2026-08-06 — the API returned `200` with full content while the page
+> shipped only `Loading…` to any non-JS reader, so an LLM handed the link inferred a *permissions
+> refusal* from a blank shell. D4's capability discipline also leaked at the HTML layer (the page
+> declared `index, follow`; `/s` was absent from `robots.txt`) — closed by ADR-529 D3.
+
 ---
 
 ## 1. Context
