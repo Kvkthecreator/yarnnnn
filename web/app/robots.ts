@@ -10,6 +10,13 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/api/",
           "/auth/",
+          // ADR-529 D3 / ADR-513 D4 — a capability link is legible to whoever
+          // was HANDED it and invisible to whoever was not. The API has always
+          // set X-Robots-Tag: noindex; the HTML surface leaked (it declared
+          // `index, follow` and /s was absent here). The page now emits
+          // noindex too — this is the second layer, not the only one.
+          "/s/",
+          "/invite/",
           "/admin/",
           "/dashboard/",
           "/orchestrator/",
