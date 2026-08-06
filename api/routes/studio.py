@@ -251,6 +251,14 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 "description": b["description"],
                 "group": b["group"],
                 "fragment": b["markup"],
+                # ADR-528 D5 — which apps offer this kind. Absent in the row =
+                # every app, served as null so the FE tests one field rather
+                # than distinguishing "missing" from "empty". The endpoint has
+                # no template context (it is the whole grammar, cached once and
+                # read by every surface), so ownership is SERVED and the FE
+                # filters by the layout it already knows — the same shape as
+                # `layouts[].app`, which has been served since ADR-473 D2.
+                "apps": list(b["apps"]) if "apps" in b else None,
             }
             for k, b in STUDIO_BLOCKS.items()
         ],

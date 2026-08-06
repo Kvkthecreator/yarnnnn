@@ -864,7 +864,25 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         // ADR-473 D3: publish the served type→app association so path-only
         // callers (the Finder's open verb, the Open picker) route correctly.
         registerKindApps(v.layouts);
-        if (live) setVocabulary(v);
+        // ADR-528 D5 — scope the block roster to THIS app, once, here.
+        //
+        // At the CHOKEPOINT, never at the offering sites (rule 11 / ADR-484's
+        // recorded fault: a rule guarded at two click sites left five other
+        // routes inheriting nothing while its gate stayed green). There are
+        // three offering surfaces today — the insert menu, the slash palette
+        // and turn-into — plus lookup-by-kind callers that must keep resolving
+        // fragments for kinds already IN the document. Filtering here gives
+        // every offering surface the app's roster and leaves the lookups
+        // alone, because a kind that is no longer offered still renders and
+        // still edits (an inert name, ADR-511 D8).
+        //
+        // `apps: null` = every app (the served default). Absent for all but
+        // the two rows Docs does not offer.
+        const scoped: StudioVocabulary = {
+          ...v,
+          blocks: v.blocks.filter((b) => !b.apps || b.apps.includes(app.slug)),
+        };
+        if (live) setVocabulary(scoped);
       })
       .catch(() => {
         /* toolbar menus stay empty — chat authoring unaffected */

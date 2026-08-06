@@ -65,7 +65,18 @@ export interface StudioMeasure {
 }
 
 export interface StudioVocabulary {
-  blocks: Array<{ kind: string; label: string; description: string; group: string; fragment: string }>;
+  /** ADR-528 D5 — `apps` names which apps OFFER this kind; null = every app
+   *  (the served default, carried by all but the two rows Docs does not
+   *  offer). The surface filters ONCE at the vocabulary load site, so every
+   *  consumer of this array already holds the app's own roster. */
+  blocks: Array<{
+    kind: string;
+    label: string;
+    description: string;
+    group: string;
+    fragment: string;
+    apps?: string[] | null;
+  }>;
   layouts: Array<{ slug: string; label: string; description: string; mode: 'flow' | 'paged' }>;
   arrangements: Record<string, StudioArrangement[]>;
   tokens: StudioToken[];

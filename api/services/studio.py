@@ -44,6 +44,22 @@ STUDIO_ARTIFACT_REGION = "/workspace/operation/"
 # The block vocabulary (ADR-443 D4) — one grammar, kernel-seeded.
 # `markup` is the teaching example the posture shows the lane; `label` is
 # the operator word the palette shows the member (ADR-443 D3).
+#
+# ADR-528 D5 — `apps` is the per-app dimension this registry lacked while
+# STUDIO_LAYOUTS has carried `app` since ADR-473 D2. That asymmetry is what
+# made "drop callout and toggle from Docs" read as a menu-filtering question:
+# there was nowhere to SAY a kind belongs to one app, so the only reachable
+# lever was subsetting the menu — which AUTHORING.md refuses ("both doors
+# offer every kind; what differs is which door, never what's in it"). The
+# refusal is about a MEDIUM subsetting a shared roster at the door. Declaring
+# ownership in the registry is the other thing entirely: the roster itself is
+# app-scoped, and every door of every app still offers all of ITS roster.
+#
+# Absent `apps` = every app (the default, and what all but two rows carry).
+# This is a grammar dimension, never a schema gate: an artifact holding a kind
+# its app no longer offers still renders and still edits — the kind becomes an
+# INERT NAME (ADR-511 D8), which is exactly what D5 specifies for the callout
+# and toggle already in members' documents.
 # ---------------------------------------------------------------------------
 
 STUDIO_BLOCKS: dict[str, dict[str, str]] = {
@@ -67,9 +83,17 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "description": "A heading + flowing paragraphs — the default content unit.",
         "markup": '<section data-block="prose" data-block-id="b1"><h2>Heading</h2><p>…</p></section>',
     },
+    # ADR-528 D5 — NOT offered by Docs. A callout is prose in a container
+    # (<aside>) with its own caret, and Google Docs has no equivalent; it sits
+    # in TEXT_BLOCK_KINDS while BEING a container, which is one of the two
+    # rows that most muddied the text/object line the ADR carves. Studio keeps
+    # it: a deck or a landing page is a composed surface where an offset aside
+    # is an authored object, and ADR-487 D2's variant system (note/success/
+    # warning) plus the `block-callout` token grain are built on it there.
     "callout": {
         "label": "Callout",
         "group": "content",
+        "apps": ("studio",),
         "description": "A visually offset aside that highlights one point.",
         "markup": '<aside data-block="callout" data-block-id="b2"><p>…</p></aside>',
     },
@@ -92,9 +116,15 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "description": "A horizontal rule between sections of content.",
         "markup": '<hr data-block="divider" data-block-id="b9">',
     },
+    # ADR-528 D5 — NOT offered by Docs, same reasoning as callout: prose in a
+    # container (<details>), a caret inside it, no Google Docs equivalent.
+    # It is also the kind ADR-526 §6 names as what a COLLAPSIBLE HEADING would
+    # need — and that affordance is explicitly awaiting evidence, so offering
+    # a collapsible container in the meantime answers the question by accident.
     "toggle": {
         "label": "Toggle",
         "group": "content",
+        "apps": ("studio",),
         "description": "A collapsible section — a summary line that expands.",
         "markup": '<details data-block="toggle" data-block-id="b10"><summary>Summary line</summary><p>…</p></details>',
     },
@@ -1500,6 +1530,41 @@ def resolve_layout(slug: str) -> dict | None:
     return _LAYOUT_REGISTRY.get(canonical_layout_slug(slug))
 
 
+def blocks_for_app(app: str | None) -> dict[str, dict]:
+    """The block vocabulary an APP offers (ADR-528 D5).
+
+    A row without ``apps`` belongs to every app — the default, and what all but
+    two rows carry. A row naming ``apps`` is offered only by those apps.
+
+    Derived from the row, never from a slug list: a new app registering a
+    layout inherits the whole shared roster without editing this function, and
+    a kind changes hands by moving one tuple. `app=None` (an unresolvable or
+    unregistered template) yields the full roster — the tolerant default, since
+    the vocabulary TEACHES and never validates (ADR-443 R4).
+
+    This is a grammar filter, not a schema gate. An artifact already holding a
+    kind its app no longer offers renders and edits exactly as before; the kind
+    is simply not offered again (an INERT NAME — ADR-511 D8).
+    """
+    if not app:
+        return dict(STUDIO_BLOCKS)
+    return {
+        kind: b
+        for kind, b in STUDIO_BLOCKS.items()
+        if app in b.get("apps", ())  # named → this app must be in the list
+        or "apps" not in b  # unnamed → every app
+    }
+
+
+def app_for_layout(slug: str | None) -> str | None:
+    """Which app owns a layout slug (ADR-473 D2's `app`, read back). None if
+    the slug is unknown — callers treat that as "no filtering"."""
+    if not slug:
+        return None
+    row = resolve_layout(slug)
+    return row.get("app") if row else None
+
+
 def all_layouts() -> dict[str, dict]:
     """Every registered layout across apps (the vocabulary surface reads this).
 
@@ -1631,10 +1696,18 @@ STUDIO_TEMPLATES: dict[str, dict[str, str]] = {
 # overlay, composed at turn time. PURE: caller supplies the artifact content.
 # ---------------------------------------------------------------------------
 
-def _blocks_grammar() -> str:
+def _blocks_grammar(app: str | None = None) -> str:
+    """The kind roster the lane is taught (ADR-443 R4 — grammar, not schema).
+
+    ADR-528 D5: scoped to the APP that owns the artifact's layout. The lane
+    reads this grammar to decide what to author, so an unscoped roster is how
+    the AI hand keeps offering a Docs member a callout the app does not offer —
+    the same fault ADR-525 D4 fixed for tokens ("the lane reads this grammar
+    too, so without D4 the AI hand keeps being told a paragraph has a width").
+    """
     return "\n".join(
         f"  - {kind} — {b['description']}\n    e.g. {b['markup']}"
-        for kind, b in STUDIO_BLOCKS.items()
+        for kind, b in blocks_for_app(app).items()
     )
 
 
@@ -2074,7 +2147,10 @@ def build_studio_posture(
         path=artifact_path,
         template=template,
         outline_section=outline_section,
-        blocks_grammar=_blocks_grammar(),
+        # ADR-528 D5 — the roster the OWNING app offers. `layout` is already
+        # resolved above (with the document fallback), so the app is read from
+        # the row rather than re-derived from the slug.
+        blocks_grammar=_blocks_grammar(layout.get("app")),
         arrangements_grammar=_arrangements_grammar(template),
         tokens_grammar=_tokens_grammar(),
         flow=layout["flow"],
