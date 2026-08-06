@@ -142,7 +142,10 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 |---|---|---|---|
 | bar + ⌘B/⌘I | ✅ within the editing block (the enclosure grain caps the range) | ✅ follows the range, cross-block: per-block-intersection, deterministic toggle (any eligible part unformatted → apply everywhere), heading-aware (bold on a heading is a no-op, never an un-bold) | ✅ as deck |
 | paste | ✅ `text/html` behind the allowlist — allowed tags only, every attribute stripped (`href` survives, `javascript:` rejected), media dropped (media enters as cited figures, never pasted bytes), plain-text fallback; commit-time `sanitizeInner` is the second gate (ADR-446 D2) | ✅ same | ✅ same |
-| refused | 🚫 caret-state formatting pipeline (collapsed ⌘B stays browser-native) · 🚫 block-set selection mode on flow (the browser range IS the selection) | | |
+| emphasis set | ✅ B · I · code · link (the bar) | ✅ **B · I · U · S · code · link · colour · highlight · clear** — the ADR-527 D1/D2 set, read off the Google Slides bar. U/S ride `applyToggle` unchanged (one row each, not a mechanism); clear keeps STRUCTURE (a heading stays a heading) | ✅ as deck |
+| colour | 🚫 (block `tone` only) | ✅ **palette ROLES at range grain** — `data-mark` / `data-highlight` spans, one kernel rule per role, so a design-system swap re-themes the document. Never a picker (ADR-449) | 🚫 |
+| home | the bar (at the caret) | **both**: the bar at the caret, the full set in the PANE's Text section (ADR-527 D4) — two entrances, one `applyFmt` | the bar |
+| refused | 🚫 caret-state formatting pipeline (collapsed ⌘B stays browser-native) · 🚫 block-set selection mode on flow (the browser range IS the selection) | 🚫 point size · line spacing · per-block font family · a colour picker — **metrics belong to the design system** (ADR-527 §4); the ruler presumes a page (ADR-480 D6) | |
 
 ### Insert (the route follows the medium — ADR-509)
 
@@ -170,7 +173,8 @@ medium.**
 |---|---|---|---|---|---|---|
 | **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) · **OUTLINE on flow** (ADR-526 D2 — the document's headings in order, click-to-jump; derived client-side, empty state says so) | ✅ verbs · Contents | ✅ path · verbs · Contents | 🚫 no path (`PAGE_SEL` never matches a flattened flow doc — ADR-481 D1) · ✅ **enclosing-heading crumb** (ADR-526 D2 — the flow analogue, one rung, from `headingId`) · **NO verb row** (ADR-525 D3 — Duplicate/Up/Down/Delete are enclosure verbs; the menu already refused Move on flow) | ✅ path · verbs — **move verbs withheld on flow** (a figure has a box but sits in continuous prose; the menu always refused them there) | existing id-addressed ops; path = the breadcrumb's climbChain |
 | **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | — | ✅ deck-staged only | measures, two-clamp |
-| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | 🚫 **the whole section** (ADR-525 D3 — "no layout surface", rule 10; Hug\|Fill is a container row and flow has no containers) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
+| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | ✅ **align + indent only** (ADR-527 D3 — `text-align` is arrangement in the measure, not box geometry; ADR-525 D3 had bundled align into a refusal written for `size`) · 🚫 Hug\|Fill, W/H (container/staged rows — "no layout surface" holds for those) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
+| **Text** (ADR-527 D4 — range emphasis; flow only) | — | — | — | ✅ **B · I · U · S · code · clear · colour · highlight** — palette roles, never a picker | — |
 | **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | ✅ typography ramp · tone (meaning, not geometry) | ✅ typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
 | **Content** | — | background citation | media picker (media-role regions) | ✅ turn-into (structure tier — ADR-521 D2) | ✅ turn-into | existing |
 
@@ -274,6 +278,16 @@ the write seam, not enforced).
     enclosing heading were both computed and routed only to the lane posture until
     ADR-526 gave each a second consumer. A derivation with exactly one reader is a
     question about who else should be reading it.
+13. **Metrics belong to the design system; emphasis belongs to the member** (ADR-527) —
+    the line every benchmark question resolves to. Notion says the system decides what
+    Heading 1 measures; Word and Google Docs give the writer a point-size box. yarnnn is
+    Notion here, because a document wears a WORKSPACE design system (ADR-449) rather than
+    being self-contained. **But holding that line was never a reason to be thin on
+    emphasis** — Notion holds it *and* ships underline, strikethrough, highlight and
+    colour. Docs had inherited the restriction without the richness. Colour therefore
+    ships as palette ROLES (one kernel rule each, so a skin swap re-themes the document),
+    never as a picker; point size, line spacing, per-block font and the ruler stay
+    refused, with the reason recorded rather than the absence left to look accidental.
 
 ## Standing refusals
 
@@ -287,7 +301,8 @@ headings; the wrapper is what collapsible headings and move-a-whole-section woul
 need, and those two are the stated evidence that would reopen it) · **no outline
 rail** (ADR-526 D2 — the pane is the structure's home, ADR-520 D4; a second
 structural view is the tree ADR-520 D5 refused)
-· no editing viewer-owned formats · no owned render engine (ADR-417) · no forked
+· **no colour picker / point size / line spacing / margin ruler in Docs** (ADR-527 §4 — metrics
+are the design system's; the ruler presumes a page, ADR-480 D6) · no editing viewer-owned formats · no owned render engine (ADR-417) · no forked
 machinery per app (ADR-518 D2 — the split is housing; a second write path or a forked
 runtime is the refused shape) · no block-set selection mode on flow (ADR-521 — the
 browser range IS the selection; a second selection mode would rebuild the deleted

@@ -1,6 +1,18 @@
 # ADR-527: The emphasis tier — read off the bar
 
-> **Status**: **Proposed** (2026-08-06). Derived from the operator's method, not a
+> **Status**: **Accepted + Implemented** (2026-08-06). All nine sites in §5 shipped.
+> Gates: new `adr527_emphasis_tier.mjs` **40/40** — D2's closed-set guard is EXECUTED
+> with a falsifier (a raw hex is refused; dropping the guard admits it), because
+> "colour is a role, never a value" is the invariant the whole design-system
+> commitment rests on. ADR-526 35/35 · ADR-525 **34/34** (its `align` assertion
+> re-pointed at its INTENT — "not the widest grain" — since D3 amends the exact list;
+> pinning the list made a legitimate amendment read as a regression) · ADR-521 35/35 ·
+> ADR-484 19/19 · ADR-519 16/16 · ADR-520 23/23. `next build` **exit 0**, 169/169
+> pages from an isolated worktree. `test_adr521` earned its keep again: it caught a
+> backtick inside a runtime template comment before the build did.
+> **The operator click-pass is the one open item** — human-driven by necessity (the
+> flow runtime lives in an opaque-origin iframe that synthesized keys cannot drive).
+> Derived from the operator's method, not a
 > principle: *"can't we cross compare to existing google slides feature than work our ways
 > backwards"* — supplied with a screenshot of the Google Slides/Docs format bar. The prior
 > cross-comparison (ADR-526) answered a **structure** question because the Studio work it

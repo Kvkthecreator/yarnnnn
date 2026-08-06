@@ -1,5 +1,14 @@
 # ADR-525: The selection carries its tier — one answer, read by every surface
 
+> **D3 partially amended by [ADR-527](ADR-527-the-emphasis-tier-read-off-the-bar.md)
+> (2026-08-06).** D3 withdrew the *whole* Layout section from the text tier, reasoning
+> that Hug|Fill is a container row and flow has no containers. That is right for `size`
+> and **does not reach `align`**: the kernel rule is `text-align`, i.e. arrangement of
+> prose inside its own measure, which a flow block has — and every benchmark, Notion
+> included, offers it on a paragraph. Align (and indent) return at block grain through
+> the `block-flow` grain D4 added and nothing had used. **D1/D2 are untouched**, `size`
+> stays withdrawn, and "no layout surface" still holds for the container/staged rows.
+
 > **Status**: **Accepted + Implemented** (2026-08-06). All eleven sites in §4 shipped.
 > Gates: `adr525_selection_tier.mjs` **29/29** (the tier derivation and both falsifiers
 > execute the real extracted bodies); `adr484_flow_chrome_leak.mjs` re-pointed at the

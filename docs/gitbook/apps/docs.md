@@ -14,6 +14,10 @@ You write at the caret, like any good editor. The **outline** in the right-hand 
 
 Text · Callout · Quote · Checklist · Divider · Toggle · Button · Table · Metrics · Chart · Figure · Gallery
 
+Select text and the **Text** panel on the right carries the writer's set: bold, italic, underline, strikethrough, code, and clear. Colour and highlight are there too — as your design system's palette, not a colour wheel, so changing the system re-colours every document that used them.
+
+What you won't find is a point-size box, line spacing, or a margin ruler. Those are your design system's job: you say *this is a Heading 1*, and the system says what a Heading 1 measures. It is the difference between a document that matches your workspace and one that drifts from it.
+
 Figures and galleries cite real workspace files — an image in your document is a live reference, not a pasted copy.
 
 ## The bound lane
