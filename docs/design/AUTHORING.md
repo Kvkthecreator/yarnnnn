@@ -45,6 +45,18 @@ provenance (`data-ref`), grammar (`data-block="<kind>"`, vocabulary blocks only)
 other `data-*` the file may carry is an **inert name** (ADR-511 D8): skins style it,
 labels read it, nothing gates on it, nothing writes it.
 
+> **`data-block-id` is a BROWSER-SIDE handle and has never crossed the write door**
+> (ADR-528 §2, measured). `authored_substrate.py` reads it zero times; `write_revision`
+> takes no block parameter; the ADR-448 citation lift is **path-grain** (`_DATA_REF_RX` →
+> `normalize_workspace_ref`); no `workspace_file_versions` column is block-aware. The 72
+> Python occurrences are seed markup and lane-posture prose. **Attribution, revisions,
+> parent pointers and reference edges are whole-FILE facts.** What identity actually buys
+> is *referability across a boundary* — the OS clipboard (`isInternalPaste`), the ADR-524
+> patch channel's async round-trip, and `mergeBlock`'s frame/source edge. Those three are
+> why stripping prose ids is refused; none of them is about provenance. Per-block
+> attribution does not exist and is a separate bet (the "synced blocks" refusal below
+> names where its mechanism would live).
+
 ## The objects
 
 Four, all real DOM elements; there is no parallel tree.
@@ -166,22 +178,39 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 only the sections its grain has — it never re-orders or renames a section. The member
 learns the panel once.
 
-**The block column is split by TIER (ADR-525 D1), not by grain.** A block on flow is an
-*annotation* and a block on a stage is an *enclosure* (ADR-480) — one column could not say
-that, so the pane composed the enclosure grammar for both and Docs rendered a layout
-surface it does not have. The runtime declares the tier on the selection; the pane, the
-right-click menu and the keyboard all READ it. **`block (text)` = prose on flow.
-`block (object)` = a figure/table/chart/divider anywhere, and every block on a paged
-medium.**
+**On flow the scope set is `document | range | object` (ADR-528 D2) — `block` is not a
+scope a continuous document can produce.** On a stage `block` genuinely IS a selection
+scope: a slide object is a thing with a box. On a continuous surface the selection is a
+**range**, which may cover half a paragraph or six; there is no "the selected block." One
+word doing two jobs across two media was the grammar collision ADR-519 D3 imported from
+Figma, where selection *is* object selection.
 
-| section | document | page | container | block (text) | block (object) | mechanism |
+Scope is **derived from the tier** the runtime declares (ADR-525 D1) at the one site that
+computes it — the pane reads, never re-derives (rule 11). It previously committed scope
+from `blockId && blockKind` and consulted the tier only afterwards, where it could just
+subtract; the `block (text)` column below was therefore a column of *absences*, which is
+the shape of a scope never meant to be entered.
+
+**`range`** = a text selection on flow, collapsed (a caret) or spanning many blocks.
+**`object`** = a figure/table/chart/gallery/divider anywhere, and every block on a paged
+medium. `container`/`page` never applied to flow (ADR-481 D1 — no containers by
+derivation, no page unit).
+
+| section | document | page | container | range (flow text) | object | mechanism |
 |---|---|---|---|---|---|---|
-| **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) · **OUTLINE on flow** (ADR-526 D2 — the document's headings in order, click-to-jump; derived client-side, empty state says so) | ✅ verbs · Contents | ✅ path · verbs · Contents | 🚫 no path (`PAGE_SEL` never matches a flattened flow doc — ADR-481 D1) · ✅ **enclosing-heading crumb** (ADR-526 D2 — the flow analogue, one rung, from `headingId`) · **NO verb row** (ADR-525 D3 — Duplicate/Up/Down/Delete are enclosure verbs; the menu already refused Move on flow) | ✅ path · verbs — **move verbs withheld on flow** (a figure has a box but sits in continuous prose; the menu always refused them there) | existing id-addressed ops; path = the breadcrumb's climbChain |
-| **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | — | ✅ deck-staged only | measures, two-clamp |
-| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | ✅ **align + indent only** (ADR-527 D3 — `text-align` is arrangement in the measure, not box geometry; ADR-525 D3 had bundled align into a refusal written for `size`) · 🚫 Hug\|Fill, W/H (container/staged rows — "no layout surface" holds for those) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
-| **Text** (ADR-527 D4 — range emphasis; flow only) | — | — | — | ✅ **B · I · U · S · code · clear · colour · highlight** — palette roles, never a picker | — |
-| **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | ✅ typography ramp · tone (meaning, not geometry) | ✅ typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
-| **Content** | — | background citation | media picker (media-role regions) | ✅ turn-into (structure tier — ADR-521 D2) | ✅ turn-into | existing |
+| **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) · **OUTLINE on flow** (ADR-526 D2 — the document's headings in order, click-to-jump; derived client-side, empty state says so) | ✅ verbs · Contents | ✅ path · verbs · Contents | ✅ **enclosing-heading crumb** (ADR-526 D2 — flow's one honest ancestry rung, from `headingId`; withdraws over a multi-block range) · label names the **count** over a span, never a stale block · 🚫 no path, no verb row — **not composed** (ADR-528 D4: a range has no box and no single subject; the suppression guards are DELETED, not re-gated) | ✅ path · verbs — **move verbs withheld on flow** (a figure has a box but sits in continuous prose; the menu always refused them there) | existing id-addressed ops; path = the breadcrumb's climbChain |
+| **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | 🚫 not composed | ✅ deck-staged only | measures, two-clamp |
+| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | 🚫 **not composed** — rule 10's "no layout surface", now true by non-composition rather than by suppression. (align + indent were ADR-527 D3's `block-flow` rows in the old `block (text)` column; they return as range-tier rows when a span-aware op exists — see the roster) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
+| **Text** (ADR-527 D4 — range emphasis) | — | — | — | ✅ **B · I · U · S · code · clear · colour · highlight** — palette roles, never a picker. The **primary** section of this scope (ADR-528), and the one that does NOT withdraw over a span: every control acts on the selection | — | one `applyFmt`, two entrances (bar + pane) |
+| **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | ✅ typography ramp (**structure tier** — addresses the block the caret is in; withdraws over a multi-block range and says so) | ✅ typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
+| **Content** | — | background citation | media picker (media-role regions) | ✅ turn-into (**structure tier** — ADR-521 D2; same single-block withdrawal) | ✅ turn-into | existing |
+
+> **The two structure-tier sections are one implementation, two entrances** (rule 7 /
+> ADR-518 D2): `rampSection` and `turnIntoSection` are lifted out of the render so `range`
+> and `object` mount the same values. Both address a single `selectedEl`, which is why
+> range scope gates them on `!multiBlockRange` and **explains the withdrawal** rather than
+> answering for one block of six — the `d878242` defect. Span-aware structure ops (N
+> blocks, one revision) are owed, not shipped.
 
 **The layout boundary (ADR-516 D6, normative): geometry converges on inline CSS; meaning
 stays tokens.** A layout value means itself (`padding: 3.5rem 4rem`); a meaning value is
@@ -272,7 +301,21 @@ the write seam, not enforced).
     answer — the pane offered Move up/down on a Docs paragraph while the menu on the same
     block refused it. **One chokepoint may paint the selection cue** (`__yarnnnSelect`),
     defended by a completeness assertion, because a per-site invariant cannot be defended
-    by executing one site.
+    by executing one site. **ADR-528 extends this**: the tier is not merely read, it is
+    what the pane's *scope* is DERIVED from. A surface that commits a scope first and
+    consults the tier afterwards can only subtract, and subtraction is how a scope
+    accumulates a column of absences.
+14. **A range is not a block** (ADR-528) — on a continuous surface the selection is a
+    range, which has no box and no single subject; on a stage a block is an object, which
+    has both. The flow scope set is therefore `document | range | object` and `block` is
+    not a scope Docs can produce. The corollary is a **deletion** rule: when a scope stops
+    being reachable, the guards that used to suppress its sections are deleted, never
+    re-gated — a guard behind an unreachable scope reads as live policy and is the shape
+    stale canon takes in code. **Blocks themselves are RETAINED** — `data-block-id`,
+    `data-block="kind"`, `normalizeStructure`. Google Docs is itself block-structured, and
+    a flow "block" is a paragraph or heading with a name written on it (`PROMOTE_KIND`).
+    What was wrong was never the unit; it was the chrome treating prose as addressable
+    because the paragraph happened to carry an id.
 12. **A document's structure is the heading tree, derived and never authored** (ADR-526) —
     Docs' structural grain is the HEADING, and a "section" is the span from one heading to
     the next. There is no `<section>` wrapper and no section node: the span is computed by
@@ -320,10 +363,12 @@ it just a better editor?*
 > **Scope note (2026-08-06)**: this roster is **Studio's** — ADR-519's phases are the
 > object-hierarchy arc, and D1 scoped them explicitly (*"document is Docs' housing
 > (ADR-518) and outside this ADR"*). It names Docs nowhere. Docs' own arc is ADR-521
-> (mechanics) → ADR-525 (the tier) → ADR-526 (the heading tree); what it still owes is
-> the two affordances §6 of ADR-526 names as reopening the `<section>` question
-> (collapsible headings, move-a-whole-section) — both awaiting evidence, neither
-> scheduled. **Phase A shipped; Phase B is 0/6 and Phase C is 2/6** (numeric entry +
+> (mechanics) → ADR-525 (the tier) → ADR-526 (the heading tree) → **ADR-528 (the scope
+> set)**, which closed the premise the first three were each paying interest on. What
+> Docs owes now: **span-aware structure ops** (the ramp and turn-into over a multi-block
+> range — N blocks, one revision), and the two affordances §6 of ADR-526 names as
+> reopening the `<section>` question (collapsible headings, move-a-whole-section) — both
+> awaiting evidence, neither scheduled. **Phase A shipped; Phase B is 0/6 and Phase C is 2/6** (numeric entry +
 > alignment glyphs, both pulled forward by ADR-520 D3).
 
 The standing Phase-3 cells are absorbed into ADR-519's schedule; cells are marked
