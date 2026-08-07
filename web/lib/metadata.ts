@@ -19,7 +19,15 @@ export const BRAND = {
   tagline: "Shared memory for AI + human work",
   description:
     "One shared workspace for your team's humans and AIs. Tell ChatGPT today, and Claude knows it tomorrow — everything lives in one place you own, every change carries its author's name, and the full history is yours to trace.",
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
+  // The CANONICAL host is `www` (ADR-530 D4.2, 2026-08-07). Vercel serves
+  // www as the primary domain and 308-redirects the apex AT THE EDGE —
+  // including /robots.txt. A crawler resolves robots.txt per HOST, and a
+  // robots.txt that redirects rather than returning 200 is widely read as
+  // "disallow everything": measured, `can_fetch("ChatGPT-User", "/s/…")` is
+  // False on the apex and True on www. This constant feeds the robots `Host:`
+  // directive, canonical/OG URLs and the rel="alternate" machine address, so
+  // naming the apex here hands crawlers the blocked host.
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
 };
 

@@ -197,6 +197,41 @@ auth-gated and has nothing to offer a fetcher.
 
 Gate: `D4g/D4h/D4i` in `test_adr530_machine_projection.py`, falsified by re-adding `/s/`.
 
+#### D4.2 — The canonical host is `www`, because robots.txt resolves per HOST (amendment, 2026-08-07)
+
+D4.1 was necessary and **not sufficient**. The operator retested and Claude read the document
+while ChatGPT still refused — **same token, different host**: Claude was handed
+`https://www.yarnnn.com/s/…`, ChatGPT `https://yarnnn.com/s/…`. That difference is the whole
+defect.
+
+Vercel serves `www` as the primary domain and **308-redirects the apex at the edge**, before any
+app code — including `/robots.txt`. A crawler resolves `robots.txt` **per host**, and a
+`robots.txt` that *redirects* rather than returning `200` is widely treated as **disallow
+everything**. Measured with a real robots parser:
+
+```
+https://yarnnn.com      -> can_fetch("ChatGPT-User", "/s/{token}") = False
+https://www.yarnnn.com  -> can_fetch("ChatGPT-User", "/s/{token}") = True
+```
+
+So a link **minted on the apex was robots-blocked at the host it was pasted from**, while the page
+itself served the document to every agent tested. **This is why a full HTTP verification pass
+missed it twice**: every probe fetched `www` (or followed the redirect, which a human does
+transparently), so the page always looked healthy. The failing condition was never the response —
+it was *which host's robots.txt the crawler consulted before making the request.*
+
+**Ruling**: the canonical host is `www`, and both minting sites say so —
+`deep_links.app_url()` (the link the Share dialog puts in the operator's clipboard, and the
+`rel="canonical"` header) and `BRAND.url` (the robots `Host:` directive, canonical/OG URLs, and
+the `rel="alternate"` machine address). The apex keeps working for humans via the redirect; it is
+simply never the host we *hand out*.
+
+**The generalizable lesson**: a redirect is transparent to a human and can be *disqualifying* to a
+machine. Anywhere the product hands out a URL, it must hand out the canonical one — testing the
+post-redirect host proves nothing about the address actually in circulation.
+
+Gate: `D4j/D4k`, falsified by reverting either constant to the apex.
+
 **A2A**: this does not breach ADR-404's deferral. Nothing calls out. It makes yarnnn's *inbound*
 face resolvable by any future agent protocol, because a capability URL returning text on request
 is the lowest common denominator every protocol can consume — and a future A2A binding resolves

@@ -31,9 +31,33 @@ from typing import Optional
 from urllib.parse import quote, urlencode
 
 
+#: The CANONICAL host, and it is `www` deliberately (ADR-530 D4.2, 2026-08-07).
+#:
+#: Vercel serves `www.yarnnn.com` as the primary domain and 308-redirects the
+#: apex — including `/robots.txt`, at the EDGE, before any app code runs. A
+#: crawler resolves robots.txt PER HOST, and a `robots.txt` that redirects
+#: instead of returning 200 is widely treated as "disallow everything". Measured
+#: with a real robots parser 2026-08-07:
+#:
+#:     https://yarnnn.com      -> can_fetch("ChatGPT-User", "/s/…") = False
+#:     https://www.yarnnn.com  -> can_fetch("ChatGPT-User", "/s/…") = True
+#:
+#: So a share link minted on the apex was robots-blocked at the host it was
+#: pasted from, even though the page itself served the document to every agent.
+#: The redirect preserves the path, so a HUMAN follows it fine — which is why
+#: this survived a full HTTP verification pass that only ever tested `www`.
+#: Minting on `www` puts the readable host in the operator's clipboard.
+_DEFAULT_APP_URL = "https://www.yarnnn.com"
+
+
 def app_url() -> str:
-    """Return the cockpit base URL (no trailing slash)."""
-    return os.environ.get("APP_URL", "https://yarnnn.com").rstrip("/")
+    """Return the cockpit base URL (no trailing slash).
+
+    Defaults to the canonical `www` host — see `_DEFAULT_APP_URL`. If `APP_URL`
+    is set in the environment it wins, but an apex value re-introduces the
+    robots trap above, so keep deployments on `www`.
+    """
+    return os.environ.get("APP_URL", _DEFAULT_APP_URL).rstrip("/")
 
 
 def overview_url(

@@ -216,6 +216,31 @@ def main() -> int:
         "D4i /invite/ stays disallowed (auth-gated, nothing to offer a fetcher)",
         '"/invite/"' in robots_code))
 
+    # D4.2 — THE HOST TRAP (2026-08-07, found in prod: Claude read a `www` link
+    # while ChatGPT failed the SAME token on the apex).
+    #
+    # Vercel serves www as the primary domain and 308-redirects the apex AT THE
+    # EDGE, including /robots.txt. A crawler resolves robots.txt PER HOST, and a
+    # robots.txt that redirects instead of returning 200 is widely treated as
+    # "disallow everything" — measured with a real parser:
+    #     apex -> can_fetch("ChatGPT-User", "/s/…") = False
+    #     www  -> True
+    # So a link MINTED on the apex is robots-blocked at the host it is pasted
+    # from, while the page itself serves the document to every agent. That is
+    # why a full HTTP verification pass missed it: it only ever tested `www`.
+    #
+    # Both minting sites must name the canonical host.
+    deep = Path(__file__).parent.joinpath("services/deep_links.py").read_text(encoding="utf-8")
+    results.append(_check(
+        "D4j the minted share link uses the canonical www host",
+        '"https://www.yarnnn.com"' in deep
+        and 'os.environ.get("APP_URL", "https://yarnnn.com")' not in deep,
+        "an apex link is robots-blocked at the host it is pasted from"))
+    meta = (WEB / "lib/metadata.ts").read_text(encoding="utf-8")
+    results.append(_check(
+        "D4k BRAND.url (robots Host, canonical/OG, rel=alternate) is the www host",
+        '"https://www.yarnnn.com"' in meta))
+
     ok = all(results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(results)}/{len(results)}")
     return 0 if ok else 1
