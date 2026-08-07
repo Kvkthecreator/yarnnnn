@@ -953,6 +953,13 @@ async def get_recent_artifacts(
 # route's prior private name to keep call sites below unchanged.
 from services.principals import class_default_write_regions as _class_default_write_regions
 
+#: ADR-532 D3 — what a NULL read axis actually reaches. The read gate
+#: (`primitives/workspace.py::_is_path_readable_for_principal`) returns True for
+#: a NULL axis without consulting any prefix, so the honest display is the whole
+#: substrate root, not the write class default. Kept as a named constant so the
+#: FE's "not narrowed" test is a value comparison, never a role re-derivation.
+READ_ALL_REGIONS: list[str] = ["/"]
+
 
 def _axis_state(scopes) -> str:
     """The powerbox three-way state of a scope axis: 'all' (NULL → class default),
@@ -1323,8 +1330,17 @@ async def get_workspace_members(
                 write_regions = []
             else:
                 write_regions = list(raw_write)
-            read_regions = list(raw_read) if read_state == "scoped" else (
-                [] if read_state == "none" else _class_default_write_regions(role)
+            # ADR-532 D3: the read display reads the READ gate. A NULL read axis
+            # is read-all (`_is_path_readable_for_principal` returns True before
+            # it ever consults a prefix) — NOT the write class default, which is
+            # what this reported until 2026-08-07. The pane said a member read
+            # `operation/` while the kernel let them read the whole commons: the
+            # ADR-501 D1 display/gate divergence, recurring on the read axis.
+            # `[]` on the read axis is the deny-all the operator explicitly set.
+            read_regions = (
+                list(raw_read) if read_state == "scoped"
+                else [] if read_state == "none"
+                else READ_ALL_REGIONS
             )
             # The combined operator-glance chip: the WIDER axis (read ⊇ write
             # norm). 'all' on either → 'all'; else 'scoped' unless both 'none'.

@@ -60,6 +60,34 @@ Two layers, each guaranteeing a different thing:
 > was deliberately deferred (ADR-517 R1); revisit only with evidence this contract is breached
 > in practice.
 
+## 3a. The axis-state display contract (ADR-532)
+
+The two axes are **three-state** (ADR-434 D3), and each state means something a
+surface must render differently. Any pane that displays reach reads this table —
+**do not re-derive it, and never compute a displayed reach from a different
+function than the one that enforces it.**
+
+| Axis value | Means | Enforced by | Displayed as |
+|---|---|---|---|
+| `NULL` | Not narrowed — falls through to the class default | write: `_is_path_locked_for_principal` (class policy) · read: `_is_path_readable_for_principal` → **True, read-all** | "Not narrowed". Read reach is **the whole substrate** (`READ_ALL_REGIONS`), NOT the write class default |
+| `[]` | Deny-all on that axis | both gates deny | "nothing" |
+| `[..]` | Exactly these prefixes, at any depth | `path_under_scopes` (longest-prefix) | the paths |
+
+Three rules follow, each of which was violated in production before ADR-532:
+
+1. **NULL is not a path list.** A surface must never seed, suggest, or default a
+   NULL axis into a concrete prefix row. `NULL` tracks the class policy as it
+   evolves; `['operation/']` pins a literal prefix. Collapsing them re-introduces
+   the polarity loss ADR-434 D3 removed — and, if the row is editable, lets an
+   operator narrow a principal merely by opening a dialog and pressing Apply.
+2. **The read display reads the READ gate.** Reporting the *write* class default
+   as read reach understates the kernel by the entire commons. (This was the
+   ADR-501 D1 display/gate divergence recurring on the second axis.)
+3. **The axes are independent.** `read ⊇ write` is the backfill default and a UI
+   nudge, never a constraint (ADR-434 D1). A surface that fuses them into one
+   ladder makes the read-only auditor and the sees-much-changes-little AI —
+   the shapes ADR-434 was built for — unreachable.
+
 ## 4. Mint / revoke authority (ADR-517 D3/D4)
 
 One gate — `services/workspace_shares.py::assert_may_mint_share` — called by **both** origins
