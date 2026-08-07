@@ -1564,7 +1564,12 @@ async def oauth_callback(
     if error:
         logger.warning(f"[INTEGRATIONS] OAuth error from {provider}: {error} - {error_description}")
         return RedirectResponse(
-            url=get_frontend_redirect_url(False, provider, error_description or error)
+            url=get_frontend_redirect_url(
+                False,
+                provider,
+                error_description or error,
+                error_reason="provider_denied",
+            )
         )
 
     try:
@@ -1697,14 +1702,26 @@ async def oauth_callback(
         )
 
     except ValueError as e:
-        logger.warning(f"[INTEGRATIONS] OAuth validation error: {e}")
+        # ADR-531: OAuthStateError carries WHICH state failure occurred. Logging
+        # the reason separates a deploy-lost state from a slow consent flow from
+        # a tampered token — three causes the old single message conflated.
+        reason = getattr(e, "reason", "invalid_request")
+        logger.warning(
+            f"[INTEGRATIONS] OAuth validation error for {provider} "
+            f"(reason={reason}): {e}"
+        )
         return RedirectResponse(
-            url=get_frontend_redirect_url(False, provider, str(e))
+            url=get_frontend_redirect_url(False, provider, str(e), error_reason=reason)
         )
     except Exception as e:
         logger.error(f"[INTEGRATIONS] OAuth callback error for {provider}: {e}")
         return RedirectResponse(
-            url=get_frontend_redirect_url(False, provider, "Failed to connect. Please try again.")
+            url=get_frontend_redirect_url(
+                False,
+                provider,
+                "Failed to connect. Please try again.",
+                error_reason="unexpected",
+            )
         )
 
 

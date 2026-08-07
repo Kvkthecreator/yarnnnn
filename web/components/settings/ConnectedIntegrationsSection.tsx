@@ -84,6 +84,46 @@ interface ConnectedIntegrationsSectionProps {
   onManageConnection?: (provider: string) => void;
   /** Back from the Manage subsurface to the connections list (clears the param). */
   onBackFromManage?: () => void;
+  /** ADR-531 — the outcome of a just-returned OAuth flow, read off the callback's
+   *  redirect params. Null when the operator arrived any other way. Only the
+   *  failure case is carried: success is self-evident (the connector's row is
+   *  now in the connected list), while a failure is otherwise INVISIBLE — which
+   *  was the defect. */
+  oauthOutcome?: OAuthOutcome | null;
+  /** Clear the OAuth params from the URL so a dismissed banner stays dismissed. */
+  onDismissOauthOutcome?: () => void;
+}
+
+// ADR-531 — the failure taxonomy the API emits as `error_reason`. Mapping a
+// STABLE TOKEN to copy (rather than parsing the human sentence in `error`)
+// means the operator-facing wording can change on either side independently.
+export interface OAuthOutcome {
+  status: "error";
+  provider: string | null;
+  error: string | null;
+  reason: string | null;
+}
+
+/** What actually went wrong, and what the operator can do about it. The `error`
+ *  sentence from the API is a fallback for reasons this map doesn't name. */
+function describeOauthFailure(reason: string | null, error: string | null): string {
+  switch (reason) {
+    case "expired":
+      return "The connection took too long to authorize and the request expired. Connecting again should work.";
+    case "bad_signature":
+    case "malformed":
+      return "The authorization response couldn't be verified. This usually means the connection was interrupted — connecting again should work.";
+    case "provider_mismatch":
+      return "The authorization came back for a different platform than the one requested. Please try connecting again.";
+    case "provider_denied":
+      return error
+        ? `The platform declined the connection: ${error}`
+        : "The platform declined the connection.";
+    case "unexpected":
+      return "Something went wrong completing the connection. Please try again.";
+    default:
+      return error || "The connection could not be completed. Please try again.";
+  }
 }
 
 export function ConnectedIntegrationsSection({
@@ -95,6 +135,8 @@ export function ConnectedIntegrationsSection({
   activeConnector = null,
   onManageConnection,
   onBackFromManage,
+  oauthOutcome = null,
+  onDismissOauthOutcome,
 }: ConnectedIntegrationsSectionProps) {
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -300,6 +342,39 @@ export function ConnectedIntegrationsSection({
       {/* No self-header — the pane-level PaneHeader ("Connections") owns the
           title + description. (Singular Implementation — its sole mount is the
           Channels Connections pane.) */}
+
+      {/* ADR-531 — a failed OAuth says so. Rendered ABOVE the loading branch so
+          the failure is visible on arrival rather than after the roster
+          resolves: the operator returns from the provider already wondering
+          what happened, and a spinner is not an answer. */}
+      {oauthOutcome?.status === "error" && (
+        <div
+          role="alert"
+          className="mb-6 flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">
+              {oauthOutcome.provider
+                ? `Couldn't connect ${connectorMeta(oauthOutcome.provider)?.displayName ?? oauthOutcome.provider}`
+                : "Couldn't complete the connection"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {describeOauthFailure(oauthOutcome.reason, oauthOutcome.error)}
+            </p>
+          </div>
+          {onDismissOauthOutcome && (
+            <button
+              type="button"
+              onClick={onDismissOauthOutcome}
+              className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
+      )}
+
       {isLoadingIntegrations ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

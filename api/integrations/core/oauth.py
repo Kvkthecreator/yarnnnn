@@ -5,11 +5,16 @@ Handles OAuth authorization flows for Slack, Notion, etc.
 Each provider has specific OAuth requirements and token formats.
 """
 
+import base64
+import binascii
+import hashlib
+import hmac
+import json
 import os
 import logging
 import secrets
 from typing import Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
@@ -168,50 +173,136 @@ def connection_is_write_ready(provider: str) -> bool:
 
 
 # =============================================================================
-# OAuth State Management
+# OAuth State Management (ADR-531)
 #
-# LIMITATION: In-memory state dict. OAuth flows started on one process/instance
-# will fail if the callback lands on a different one. Acceptable for single-instance
-# Render deployments. If scaling to multiple instances, migrate to Redis or DB.
+# The state parameter is SELF-CARRYING: a signed token holding its own payload,
+# not a lookup key into server memory. The predecessor was a module-global dict,
+# which made a successful callback conditional on landing in the same process
+# that issued the state — false on every redeploy (prod deploys from `main`),
+# and false ~(1 - 1/N) of the time under multi-worker serving. That produced
+# "Invalid or expired OAuth state" with no way to distinguish a lost state from
+# an expired one.
+#
+# Shape: base64url(payload_json) + "." + base64url(HMAC-SHA256(payload)).
+# Signed with INTEGRATION_ENCRYPTION_KEY — already required at boot (main.py)
+# and already present on API + Scheduler, so this adds no env var and no table.
+# The key is used as opaque HMAC key material here; this neither performs nor
+# weakens the Fernet token encryption that owns the same secret.
+#
+# CSRF protection is unchanged in kind: the payload carries a 32-byte nonce and
+# the signature makes the whole token unforgeable without the server secret.
+#
+# Not one-time-use. The dict version consumed state on read; a signed token
+# cannot without the storage this removes. The exposure is a replay of the SAME
+# user's own authorization inside the TTL window, which re-runs an idempotent
+# upsert for that user — meaningfully narrower than the outage it replaces.
 # =============================================================================
 
-# Maps state -> (user_id, provider, created_at, redirect_to)
-_oauth_states: dict[str, tuple[str, str, datetime, Optional[str]]] = {}
+OAUTH_STATE_TTL_SECONDS = 600  # 10 minutes — a consent flow, not a session
+
+
+class OAuthStateError(ValueError):
+    """An OAuth state failed validation.
+
+    `reason` names WHICH failure occurred, so a redirect and a log line can say
+    something diagnosable instead of collapsing malformed / tampered / expired
+    into one string.
+    """
+
+    def __init__(self, reason: str, message: str):
+        super().__init__(message)
+        self.reason = reason
+
+
+def _oauth_state_signing_key() -> bytes:
+    key = os.getenv("INTEGRATION_ENCRYPTION_KEY")
+    if not key:
+        # Boot already requires this (main.py). Failing loudly here beats
+        # signing with a default nobody rotates.
+        raise RuntimeError(
+            "INTEGRATION_ENCRYPTION_KEY is required to sign OAuth state"
+        )
+    return key.encode("utf-8")
+
+
+def _b64url_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _b64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
 
 
 def generate_oauth_state(user_id: str, provider: str, redirect_to: Optional[str] = None) -> str:
-    """Generate a secure state parameter for OAuth."""
-    state = secrets.token_urlsafe(32)
-    _oauth_states[state] = (user_id, provider, datetime.now(timezone.utc), redirect_to)
+    """Mint a signed, self-carrying state parameter for an OAuth flow.
 
-    # Clean up old states (>10 min)
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
-    expired = [k for k, v in _oauth_states.items() if v[2] < cutoff]
-    for k in expired:
-        del _oauth_states[k]
-
-    return state
-
-
-def validate_oauth_state(state: str) -> Optional[tuple[str, str, Optional[str]]]:
+    The token survives redeploys and multi-instance serving because it holds
+    its own payload — no server-side lookup is involved.
     """
-    Validate and consume an OAuth state.
+    payload = {
+        "uid": user_id,
+        "prv": provider,
+        "rdr": redirect_to,
+        "iat": int(datetime.now(timezone.utc).timestamp()),
+        "nonce": secrets.token_urlsafe(24),
+    }
+    body = _b64url_encode(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    signature = hmac.new(
+        _oauth_state_signing_key(), body.encode("ascii"), hashlib.sha256
+    ).digest()
+    return f"{body}.{_b64url_encode(signature)}"
 
-    Returns (user_id, provider, redirect_to) if valid, None otherwise.
+
+def validate_oauth_state(state: str) -> tuple[str, str, Optional[str]]:
+    """Verify a signed state and return (user_id, provider, redirect_to).
+
+    Raises OAuthStateError with a specific `reason` on failure:
+      malformed  — not a signed token at all (truncated / wrong shape)
+      bad_signature — signature mismatch (tampered, or a different deploy secret)
+      expired    — issued more than OAUTH_STATE_TTL_SECONDS ago
     """
-    if state not in _oauth_states:
-        return None
+    if not state or state.count(".") != 1:
+        raise OAuthStateError("malformed", "OAuth state is malformed")
 
-    user_id, provider, created_at, redirect_to = _oauth_states[state]
+    body, provided_signature = state.split(".", 1)
 
-    # Check expiration (10 min)
-    if datetime.now(timezone.utc) - created_at > timedelta(minutes=10):
-        del _oauth_states[state]
-        return None
+    expected = hmac.new(
+        _oauth_state_signing_key(), body.encode("ascii"), hashlib.sha256
+    ).digest()
+    try:
+        provided = _b64url_decode(provided_signature)
+    except (ValueError, binascii.Error):
+        raise OAuthStateError("malformed", "OAuth state is malformed")
 
-    # Consume the state (one-time use)
-    del _oauth_states[state]
-    return (user_id, provider, redirect_to)
+    # Constant-time — a signature check that leaks timing is not a check.
+    if not hmac.compare_digest(expected, provided):
+        raise OAuthStateError("bad_signature", "OAuth state signature is invalid")
+
+    try:
+        payload = json.loads(_b64url_decode(body))
+    except (ValueError, binascii.Error):
+        raise OAuthStateError("malformed", "OAuth state is malformed")
+
+    issued_at = payload.get("iat")
+    if not isinstance(issued_at, int):
+        raise OAuthStateError("malformed", "OAuth state is malformed")
+
+    age = datetime.now(timezone.utc).timestamp() - issued_at
+    if age > OAUTH_STATE_TTL_SECONDS:
+        raise OAuthStateError(
+            "expired",
+            "OAuth state expired — the connection took too long to authorize",
+        )
+
+    user_id = payload.get("uid")
+    provider = payload.get("prv")
+    if not user_id or not provider:
+        raise OAuthStateError("malformed", "OAuth state is malformed")
+
+    return (user_id, provider, payload.get("rdr"))
 
 
 # =============================================================================
@@ -296,14 +387,12 @@ async def exchange_code_for_token(
     Returns:
         Dict with token info and metadata to store
     """
-    # Validate state
-    state_data = validate_oauth_state(state)
-    if not state_data:
-        raise ValueError("Invalid or expired OAuth state")
-
-    user_id, expected_provider, redirect_to = state_data
+    # Validate state — raises OAuthStateError (a ValueError) naming the reason.
+    user_id, expected_provider, redirect_to = validate_oauth_state(state)
     if expected_provider != provider:
-        raise ValueError("Provider mismatch in OAuth state")
+        raise OAuthStateError(
+            "provider_mismatch", "OAuth state was issued for a different provider"
+        )
 
     config = OAUTH_CONFIGS.get(provider)
     if not config:
@@ -503,10 +592,20 @@ async def exchange_code_for_token(
             raise ValueError(f"Unsupported provider: {provider}")
 
 
+# The Connectors pane, spelled as the frontend actually reads it. ADR-358 D6
+# namespaces the account door's pane under `settings.pane`; a flat `?tab=` is a
+# legacy alias whose value must still be a real pane key. ADR-531: the error
+# branch used to emit `tab=integrations` — not a pane the settings page accepts
+# (ALL_PANES is ["account", "connectors"]), so every failed OAuth silently fell
+# back to the Account pane and the operator never saw the door they came from.
+CONNECTORS_PANE_PATH = "/settings?settings.pane=connectors"
+
+
 def get_frontend_redirect_url(
     success: bool,
     provider: str,
     error: Optional[str] = None,
+    error_reason: Optional[str] = None,
     redirect_to: Optional[str] = None,
 ) -> str:
     """
@@ -516,7 +615,11 @@ def get_frontend_redirect_url(
     Auto-selection + sync already kicked off in callback — user lands on
     workfloor to see bootstrap progress. If redirect_to is provided,
     return there instead — this handles reconnects from other pages.
-    On error, redirects to settings page.
+
+    On error, returns to the CONNECTORS pane (ADR-531) carrying provider +
+    status + error, and `error_reason` — a stable machine token the pane maps
+    to recovery copy, so the operator-facing text never depends on parsing a
+    human sentence.
     """
     base_url = os.getenv("FRONTEND_URL", "https://yarnnn.com")
 
@@ -528,16 +631,18 @@ def get_frontend_redirect_url(
         }
         # Use caller-specified path if provided, otherwise default to /workfloor
         target_path = redirect_to if redirect_to else "/workfloor"
-        # Handle redirect_to that already has query params (e.g. /settings?tab=connectors)
+        # Handle redirect_to that already has query params (e.g. /settings?settings.pane=connectors)
         separator = "&" if "?" in target_path else "?"
         return f"{base_url}{target_path}{separator}{urlencode(params)}"
-    else:
-        # On error, go to settings for troubleshooting
-        params = {
-            "tab": "integrations",
-            "provider": provider,
-            "status": "error",
-        }
-        if error:
-            params["error"] = error
-        return f"{base_url}/settings?{urlencode(params)}"
+
+    # On error, land back on the Connectors pane — the door the operator
+    # actually came from, where the failed connector's row is visible.
+    params = {
+        "provider": provider,
+        "status": "error",
+    }
+    if error:
+        params["error"] = error
+    if error_reason:
+        params["error_reason"] = error_reason
+    return f"{base_url}{CONNECTORS_PANE_PATH}&{urlencode(params)}"

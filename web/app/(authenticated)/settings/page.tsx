@@ -140,6 +140,16 @@ export default function SettingsPage() {
     ? (requestedPane as SettingsTab)
     : "account";
 
+  // ADR-531 — the OAuth outcome params. The callback has always encoded these
+  // (`provider`, `status`, and on failure `error` + `error_reason`); until now
+  // NOTHING read them, so a failed connection returned the operator to settings
+  // with no indication anything had gone wrong. They are flat params because
+  // the OAuth provider redirects to a bare URL the shell never namespaces.
+  const oauthProvider = searchParams.get("provider");
+  const oauthStatus = searchParams.get("status");
+  const oauthError = searchParams.get("error");
+  const oauthErrorReason = searchParams.get("error_reason");
+
   // ADR-215 R3: legacy `/settings?tab=memory` redirects to Files with
   // IDENTITY.md preselected. One edit surface for substrate (Files).
   // ADR-358: foreground the Files window (navigateToSurface) rather than
@@ -353,6 +363,27 @@ export default function SettingsPage() {
             activeConnector={accountParam.get("connector")}
             onManageConnection={(provider) => accountParam.set({ connector: provider })}
             onBackFromManage={() => accountParam.set({ connector: null })}
+            // ADR-531 — the OAuth outcome, surfaced. The section owns the
+            // banner because that is where the failed connector's own row is.
+            oauthOutcome={
+              oauthStatus === "error"
+                ? {
+                    status: "error",
+                    provider: oauthProvider,
+                    error: oauthError,
+                    reason: oauthErrorReason,
+                  }
+                : null
+            }
+            onDismissOauthOutcome={() => {
+              // Clear the flat OAuth params without touching pane state — a
+              // dismissed banner must not survive a reload (it would report a
+              // failure the operator has already retried past).
+              const next = new URLSearchParams(searchParams.toString());
+              ["provider", "status", "error", "error_reason"].forEach((k) => next.delete(k));
+              const qs = next.toString();
+              router.replace(qs ? `/settings?${qs}` : "/settings", { scroll: false });
+            }}
           />
 
           {/* ADR-496 D1 — the INBOUND half of this member's own connections.
