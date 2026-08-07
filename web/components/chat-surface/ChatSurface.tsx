@@ -33,7 +33,7 @@
  * the window-namespaced `chat.lane` param (ADR-358 D6).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
 import { ConversationHeader, type HeaderFace } from './ConversationHeader';
@@ -46,8 +46,18 @@ import { api, type Participant } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
-import { useViewport } from '@/lib/shell/useViewport';
+import { useNarrowContainer } from '@/lib/shell/useNarrowContainer';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
+
+/** The width below which the chat surface stops being two columns.
+ *
+ *  The rail is `w-72` (288px) and a transcript needs roughly as much again to
+ *  be readable, so under ~600px of surface the two-column layout is worse than
+ *  one screen at a time. Measured against the SURFACE's own box (see
+ *  `useNarrowContainer`), never the viewport — the viewport says "desktop" for
+ *  a 768px tablet and for a 320px window alike, and both leave the transcript
+ *  a sliver. */
+const CHAT_TWO_COLUMN_MIN_PX = 600;
 
 interface LaneInfo {
   id: string;
@@ -143,11 +153,22 @@ export function ChatSurface() {
         .map((m) => ({ principal_id: m.principal_id, label: m.label || `member-${m.principal_id.slice(0, 8)}` })),
     [wsMembers, userId],
   );
-  // One screen at a time on mobile (the Files/SettingsPaneShell principle):
-  // below 640px the two columns don't share — the lane list IS the screen
-  // until you pick a lane, then the conversation IS the screen. Same single
-  // width signal the rest of the OS reads; no parallel media query.
-  const isNarrow = useViewport().isMobile;
+  // One screen at a time when the space is tight (the Files/SettingsPaneShell
+  // principle): the lane list IS the screen until you pick a lane, then the
+  // conversation IS the screen.
+  //
+  // Measured on THIS surface's own box, not the viewport. Keying it to
+  // `useViewport().isMobile` asked the window a question only the container can
+  // answer, and got it wrong in both directions: a 768px tablet reads
+  // "desktop" (the threshold is 640) and gets a 288px `shrink-0` rail that can
+  // leave ~80px of transcript once the chat drawer takes its 400px; and a 320px
+  // WINDOW on a large monitor reads "desktop" too, leaving ~32px. Observing the
+  // element covers both, and is what the Studio canvas already does.
+  //
+  // The threshold is the width below which two columns stop being two columns:
+  // the 288px rail plus a transcript wide enough to read.
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const isNarrow = useNarrowContainer(surfaceRef, CHAT_TWO_COLUMN_MIN_PX);
 
   // Debounced transcript search — content matches union with name matches.
   useEffect(() => {
@@ -582,7 +603,7 @@ export function ChatSurface() {
   // list around. The inline panel that lived here is deleted, not hidden.
 
   return (
-    <div className="h-full flex min-h-0">
+    <div ref={surfaceRef} className="h-full flex min-h-0">
       {creating && (
         <NewChatModal
           agents={data?.agents ?? []}
