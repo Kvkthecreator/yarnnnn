@@ -828,13 +828,23 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # it's the operation-configuration door, the truest "settings" surface.
         # User Settings (the account) took the `user-circle` glyph, so the two
         # doors still read apart.
+        # 2026-08-07 icon swap #2 (operator call, ChatGPT reference): the gear →
+        # `building` (lucide Building2, the office block). The gear names the
+        # ACT (configuring); this door's subject is the WORKSPACE ITSELF — the
+        # organization you and your teammates share (Members · Billing · Usage ·
+        # the danger zone). ChatGPT/Slack/Linear all wear a building on the
+        # workspace/org door and reserve the gear for personal preferences. It
+        # also stops the two doors reading as "settings vs. settings": a
+        # building (the org) next to a user-circle (the person) is a difference
+        # of SUBJECT, which is the real distinction, where gear-vs-face only
+        # said "settings, but the other one".
         "slug": "workspace-settings",
         "launcher_tier": "workspace-config",  # ADR-349 D4 — the operation door (re-split from ADR-347's one `configure` tier)
         "register": "application",  # a windowed app like `settings`
         "title": "Workspace Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # constitution/ + governance/ + operation/ + persona/ reads
-        "icon_key": "settings",
+        "icon_key": "building",
         "default_pinned": False,
         "route": "/workspace-settings",
         "summary": "Workspace Settings — what this operation is and how it runs. Program, Access (members), Billing/Usage. (ADR-426 moved the System Agent dials to their own door; ADR-425 moved Connectors to the account door + hid Sources.)",

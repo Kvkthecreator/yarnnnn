@@ -18,6 +18,7 @@ import {
   BarChart3,
   Bell,
   Box,
+  Building2,
   Clock,
   CreditCard,
   FileText,
@@ -35,7 +36,6 @@ import {
   Rss,
   Scale,
   ScrollText,
-  Settings,
   ShieldCheck,
   Target,
   User,
@@ -74,6 +74,14 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // object. Singular Implementation: one canonical icon for Notifications,
   // used everywhere it surfaces (top-bar glance, Launcher tile, Dock icon).
   bell: Bell,
+  // 2026-08-07 — the Workspace Settings door (the operation). An office block:
+  // the door's subject is the WORKSPACE — the organization you share with your
+  // teammates (Members · Billing · Usage) — not the act of configuring. The
+  // gear it replaces named the act, which made it a near-twin of the account
+  // door; a building beside a user-circle reads as a difference of SUBJECT
+  // (the org vs. the person), which is the real one. Matches the convention in
+  // ChatGPT / Slack / Linear, where the gear is reserved for personal prefs.
+  building: Building2,
   clock: Clock,
   folder: FolderOpen,
   // ADR-349 D4: the Workspace Settings (operation) door — distinct from the
@@ -113,6 +121,11 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // Connectors + Settings surfaces, promoted from pages to atomic
   // kernel surfaces (windowed inside the workspace, not page-shaped).
   'link-2': Link2,
+  // 2026-08-07: the `settings` GEAR mapping is DELETED. Workspace Settings was
+  // its ONE consumer and now declares `building`; User Settings has worn
+  // `user-circle` since ADR-347. A mapping no surface declares is an orphan
+  // (CLAUDE.md §2, the same rule the `users-round` note below applies) — it
+  // returns if a surface declares it.
   'message-circle': MessageCircle,
   package: Package,
   palette: Palette,
@@ -125,7 +138,6 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // surface, disambiguating it from the universal ChatDrawer FAB
   // (which is hardcoded MessageCircle in Desktop.tsx).
   'scroll-text': ScrollText,
-  settings: Settings,
   'shield-check': ShieldCheck,
   // 2026-07-20: the `agents` roster glyph — a pair of ROUNDED people = the
   // colleagues you've hired and named. Object-like, so it sits in the family
