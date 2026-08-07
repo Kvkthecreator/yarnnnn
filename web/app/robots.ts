@@ -10,12 +10,27 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/api/",
           "/auth/",
-          // ADR-529 D3 / ADR-513 D4 — a capability link is legible to whoever
-          // was HANDED it and invisible to whoever was not. The API has always
-          // set X-Robots-Tag: noindex; the HTML surface leaked (it declared
-          // `index, follow` and /s was absent here). The page now emits
-          // noindex too — this is the second layer, not the only one.
-          "/s/",
+          // ADR-530 D4 amendment (2026-08-07) — `/s/` is deliberately NOT
+          // disallowed, and the distinction is the whole point:
+          //
+          //   Disallow  = do not FETCH        (blocks the reader entirely)
+          //   noindex   = do not LIST/RETAIN  (blocks the search result)
+          //
+          // A capability link needs the SECOND, never the first. ADR-529 D3
+          // added `/s/` here reasoning "a capability link must be invisible to
+          // whoever was not handed it" — true of *indexing*, and wrong as a
+          // fetch ban, because the audience a share link is PASTED TO is
+          // exactly a well-behaved fetcher. ChatGPT's crawler honors
+          // robots.txt, so it refused before ever reading the page: the same
+          // "I can't access this" the whole arc exists to eliminate, this time
+          // caused by our own policy file rather than by a blank shell.
+          //
+          // Un-indexability is carried where it belongs and is unweakened:
+          // `X-Robots-Tag: noindex, nofollow` on every API exit (ADR-513 D4)
+          // and `<meta name="robots" content="noindex, nofollow">` on the page
+          // (ADR-529 D3). Those forbid RETENTION; this file must not forbid
+          // READING. `/invite/` stays disallowed — it is auth-gated and has
+          // nothing to offer a fetcher.
           "/invite/",
           "/admin/",
           "/dashboard/",

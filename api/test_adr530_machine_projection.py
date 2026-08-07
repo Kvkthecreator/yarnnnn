@@ -189,6 +189,33 @@ def main() -> int:
         "D4f discovery is DECLARED on the page (rel=alternate text/plain)",
         '"text/plain"' in page and "alternates" in page))
 
+    # D4g — THE REGRESSION THAT SHIPPED (2026-08-07, found in prod by the
+    # operator). ADR-529 D3 added "/s/" to robots.txt reasoning that a
+    # capability link must be invisible to whoever was not handed it. True of
+    # INDEXING; wrong as a FETCH ban:
+    #
+    #     Disallow = do not FETCH        (blocks the reader entirely)
+    #     noindex  = do not LIST/RETAIN  (blocks the search result)
+    #
+    # ChatGPT's crawler honors robots.txt, so it refused before ever reading the
+    # page — the same "I can't access this" the whole arc exists to eliminate,
+    # this time caused by our own policy file. The share surface must be
+    # FETCHABLE and UNINDEXABLE at once; those are not in tension, and the two
+    # mechanisms below are what keep them apart.
+    robots = (WEB / "app/robots.ts").read_text(encoding="utf-8")
+    robots_code = _strip_comments(robots)
+    results.append(_check(
+        "D4g robots.txt does NOT forbid FETCHING the share surface",
+        '"/s/"' not in robots_code,
+        "Disallow blocks the reader; noindex blocks the index"))
+    results.append(_check(
+        "D4h un-indexability is carried by noindex, on the page AND the API",
+        "index: false" in page and "follow: false" in page
+        and "noindex" in shares_src))
+    results.append(_check(
+        "D4i /invite/ stays disallowed (auth-gated, nothing to offer a fetcher)",
+        '"/invite/"' in robots_code))
+
     ok = all(results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(results)}/{len(results)}")
     return 0 if ok else 1

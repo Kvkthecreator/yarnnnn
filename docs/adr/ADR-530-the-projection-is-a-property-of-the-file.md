@@ -171,6 +171,32 @@ it:
 format guarantee the registry does not make — a PDF's projection is not markdown. `.txt` is honest
 about what DP34 actually promises.
 
+#### D4.1 — `Disallow` is not `noindex` (amendment, 2026-08-07, found in prod)
+
+**The arc's own policy file was the last thing blocking the readers it was built for.** ADR-529 D3
+added `/s/` to `robots.txt`, reasoning that *"a capability link must be legible to whoever was
+handed it and invisible to whoever was not."* The reasoning is right and the mechanism was wrong,
+because it conflates two different controls:
+
+| | Effect | Correct for a capability link? |
+|---|---|---|
+| `Disallow: /s/` | do not **FETCH** — blocks the reader entirely | **No** |
+| `noindex, nofollow` | do not **LIST / RETAIN** — blocks the search result | **Yes** |
+
+ChatGPT's fetcher **honors `robots.txt`**, so it declined before ever reading the page and reported
+*"I can't access the contents behind the Yarnnn share"* — the exact symptom this arc exists to
+eliminate, produced this time by our own policy rather than by a blank shell. Everything
+underneath was working: the API returned the projection, and `/s/{token}.txt` returned clean prose.
+
+**Ruling**: `/s/` is **not** disallowed. Un-indexability is carried where it belongs and is
+unweakened — `X-Robots-Tag: noindex, nofollow` on every API exit (ADR-513 D4) and
+`<meta name="robots" content="noindex, nofollow">` on the page (ADR-529 D3). Those forbid
+*retention*; `robots.txt` must not forbid *reading*. **Fetchable and unindexable are not in
+tension**, and keeping them apart is the whole discipline. `/invite/` stays disallowed — it is
+auth-gated and has nothing to offer a fetcher.
+
+Gate: `D4g/D4h/D4i` in `test_adr530_machine_projection.py`, falsified by re-adding `/s/`.
+
 **A2A**: this does not breach ADR-404's deferral. Nothing calls out. It makes yarnnn's *inbound*
 face resolvable by any future agent protocol, because a capability URL returning text on request
 is the lowest common denominator every protocol can consume — and a future A2A binding resolves
