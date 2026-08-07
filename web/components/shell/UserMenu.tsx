@@ -113,7 +113,11 @@ export function UserMenu({ email }: UserMenuProps) {
   // The Workspace section ALWAYS renders once resolved (N=1 shows the single
   // binding — consistent chrome); rows are switchable only when there is an
   // alternative to switch to.
-  const { memberships } = useWorkspaceMemberships();
+  const {
+    memberships,
+    loaded,
+    failed: membershipsFailed,
+  } = useWorkspaceMemberships();
   const { members } = useWorkspaceMembers();
 
   // 2026-07-08 — the Budget glance, re-homed from the retired top-bar chip.
@@ -326,11 +330,29 @@ export function UserMenu({ email }: UserMenuProps) {
               ADR-373 rejection stands) folded onto the role, replacing the
               standalone who's-here list (2026-07-08). The Manage-access door
               into the Members pane carries the full roster. */}
-          {memberships.length > 0 && (
+          {/* The section renders whenever the read RESOLVED — a failed read
+              shows the failure, never silence. Hiding on `length === 0` meant
+              one transient 403 removed the operator's only way to see or change
+              which workspace they are in (observed on production 2026-08-07),
+              and removed it INVISIBLY: nothing was wrong on screen, the control
+              was simply absent. */}
+          {loaded && (memberships.length > 0 || membershipsFailed) && (
             <div className="border-b border-border py-1">
               <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
                 Workspace
               </div>
+              {membershipsFailed && memberships.length === 0 && (
+                <div className="px-3 py-2 text-[12px] text-muted-foreground">
+                  Couldn&rsquo;t load your workspaces.{' '}
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="underline hover:text-foreground"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
               {memberships.map((m) => (
                 <button
                   key={m.workspace_id}

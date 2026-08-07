@@ -118,11 +118,37 @@ async function fetchMembers(): Promise<WorkspaceMemberRow[]> {
   }
 }
 
+/** True when the LAST memberships fetch failed (as opposed to genuinely
+ *  returning no rows). Read by the switcher so a failed read degrades to
+ *  "we couldn't load this" instead of "you belong to nothing". */
+let membershipsFailed = false;
+
 async function fetchMemberships(): Promise<WorkspaceMembershipRow[]> {
   try {
     const res = await api.workspace.memberships();
+    membershipsFailed = false;
     return res.memberships || [];
   } catch {
+    // A FAILURE IS NOT AN EMPTY LIST, and — load-bearing — it must not be
+    // CACHED as one.
+    //
+    // Observed on production 2026-08-07: one transient 403 on
+    // `/api/workspace/memberships` (a stale `X-Workspace-Id` pin, which
+    // ADR-499's self-heal then cleared and retried successfully) emptied the
+    // switcher for the REST OF THE PAGE'S LIFE. The retry succeeded; nothing
+    // re-read it. `membershipsPromise` had already resolved to `[]`, and
+    // `syncCacheBinding` only invalidates on a BINDING change — the pin went
+    // from stale-value to null, which is a change the member never sees
+    // because the menu was already gone. The operator's whole WORKSPACE
+    // section vanished, including "My workspace", which every owner always
+    // has.
+    //
+    // The cache is dropped by the READER (see `useWorkspaceMemberships`), not
+    // here: this function runs INSIDE `membershipsPromise = fetchMemberships()`,
+    // so clearing the variable here is immediately overwritten by that pending
+    // assignment. Caught by executing the two orderings side by side rather
+    // than reasoning about them.
+    membershipsFailed = true;
     return [];
   }
 }
@@ -166,17 +192,27 @@ export function useWorkspaceRoster(): WorkspaceRoster {
 export function useWorkspaceMemberships(): {
   memberships: WorkspaceMembershipRow[];
   loaded: boolean;
+  /** True when the read FAILED, as opposed to returning no rows. `[]` alone
+   *  cannot be trusted to mean "you belong to nothing" — every owner belongs
+   *  to at least their own workspace, so an empty list is nearly always a
+   *  failure in disguise. */
+  failed: boolean;
 } {
   const [state, setState] = useState<{
     memberships: WorkspaceMembershipRow[];
     loaded: boolean;
-  }>({ memberships: [], loaded: false });
+    failed: boolean;
+  }>({ memberships: [], loaded: false, failed: false });
   useEffect(() => {
     let cancelled = false;
     syncCacheBinding();
     if (!membershipsPromise) membershipsPromise = fetchMemberships();
     membershipsPromise.then((memberships) => {
-      if (!cancelled) setState({ memberships, loaded: true });
+      // Drop the cache HERE, after the assignment above has settled, so a
+      // failed read is genuinely retried by the next mount instead of being
+      // served from cache for the rest of the page's life.
+      if (membershipsFailed) membershipsPromise = null;
+      if (!cancelled) setState({ memberships, loaded: true, failed: membershipsFailed });
     });
     return () => {
       cancelled = true;
