@@ -37,13 +37,31 @@ body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI",
 .yz-path { display: block; margin-top: 7px; color: var(--yz-muted); font-size: 11.5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
 
-/* remember receipt */
+/* remember receipt (shared by save-receipt — ADR-533 D4) */
 .yz-receipt { display: flex; align-items: flex-start; gap: 10px; background: var(--yz-card);
   border: 1px solid var(--yz-line); border-radius: 9px; padding: 11px 13px; }
 .yz-check { color: var(--yz-ok); font-weight: 700; font-size: 16px; line-height: 1.4; }
 .yz-receipt-body { flex: 1; }
 .yz-receipt-title { font-weight: 600; margin: 0 0 3px; }
 .yz-receipt-meta { color: var(--yz-muted); font-size: 12px; margin: 0; }
+
+/* save receipt — the conflict state (ADR-533 D4). A stale_write is the one
+   outcome the user must ACT on, so it gets the accent border + a warm marker;
+   everything else reuses the plain receipt above. */
+.yz-warn { color: var(--yz-mcp); }
+.yz-conflict { border-color: var(--yz-mcp); }
+.yz-change { margin-top: 5px; font-style: italic; }
+.yz-resolve { margin-top: 6px; color: var(--yz-fg); font-size: 12.5px; }
+
+/* file header (open — ADR-533 D4). Identity, not content: the host renders the
+   text; this renders whose version it is. */
+.yz-file { background: var(--yz-card); border: 1px solid var(--yz-line);
+  border-radius: 9px; padding: 11px 13px; }
+.yz-file-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.yz-file-name { font-weight: 650; font-size: 15px; word-break: break-all; }
+.yz-trunc { font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--yz-line); color: var(--yz-muted); }
+.yz-revcount { margin-top: 5px; }
 `;
 
 export function injectStyles(id: string): void {

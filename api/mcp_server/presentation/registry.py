@@ -79,6 +79,22 @@ WIDGETS: dict[str, Widget] = {
         invoking="Saving to your memory…",
         invoked="Saved to your memory",
     ),
+    # ADR-533 D4 — the file verbs join the roster. Before this, the three
+    # MEMORY verbs rendered rich on ChatGPT and the three ADR-512 FILE verbs
+    # rendered bare text, so the OpenAI Apps face still presented yarnnn as a
+    # memory product — the costume ADR-512 §10 declared ended.
+    "save-receipt": Widget(
+        uri="ui://yarnnn/save-receipt.html",
+        bundle_filename="save-receipt.html",
+        invoking="Saving to your workspace…",
+        invoked="Saved to your workspace",
+    ),
+    "file-header": Widget(
+        uri="ui://yarnnn/file-header.html",
+        bundle_filename="file-header.html",
+        invoking="Opening the file…",
+        invoked="Opened the file",
+    ),
 }
 
 

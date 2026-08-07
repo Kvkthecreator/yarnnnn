@@ -181,13 +181,34 @@ the costume ADR-512 §10 declared ended on 2026-07-30.
 
 The presentation *architecture* is not at fault and is not changed: host-as-data, one
 adapter file per dialect, the `test_adr379_host_profiles.py` name-leak gate. The gap is
-**roster coverage**. The file verbs get widgets covering open (the exact-version read),
-save (the attributed write receipt, including the `stale_write` conflict state — the one
-outcome a host most needs to render legibly), and share (the minted link + its reach).
+**roster coverage**.
+
+**Not every verb earns a widget — and that is the layer's own doctrine**, stated in
+`affordances.py` since ADR-372: *"a tool with no entry is text-only (the default, valid on
+every host)."* So D4 is not "widget everything"; it is "every verb has a **declared**
+rendering decision." Two get widgets, one is declared text-only:
+
+| Verb | Decision | Why |
+|---|---|---|
+| `save` | `save-receipt` | The verb's most important outcome is the **conflict** (`stale_write` / `base_required`): someone else holds the head, here is who, when, what they called it, and what to do. Four facts the user must act on, which a chat host renders as a paragraph they skim past. |
+| `open` | `file-header` | Renders the file's **identity** — whose version this is, when, how many attributed revisions — and deliberately **not** its content. The content is the host's to render (it does that better); the attribution is what a plain storage connector cannot show at all. |
+| `share` | **text-only, declared** | The result is a link plus a reach level: one line the host relays verbatim. A widget for a URL is ceremony — an iframe the user must look at to read what the sentence already said. |
+
+The text-only choice is recorded in `affordances.TEXT_ONLY` **with its reason**, and the
+D5 ratchet asserts every rostered verb is in `AFFORDANCES` *or* `TEXT_ONLY` (exactly one,
+never both, never neither). This is the point: a deliberate text-only decision and an
+unfinished one are indistinguishable in an empty map, and the gate makes them distinct.
+Moving a verb between the two maps is the entire cost of adding or dropping a widget.
 
 **Sequencing is load-bearing**: D4 ships **after** D1–D3. A widget renders a contract; the
 `save` widget must render the contract `save` actually has (including `derived_from`),
 not the one it had before this ADR.
+
+**The host gate still covers the new pointers.** ADR-372 D4's live break — claude.ai does
+NOT ignore a widget pointer; it fetches and fails on it — applies to any newly-advertised
+widget. Verified: `strip_widget_meta` removes every `openai/*` + `ui` key from both new
+tool definitions for `claude.ai` and for unidentified hosts, and `renders_widgets` remains
+True only for `chatgpt`. The text path is unchanged on every other host.
 
 ## 7. D5 — The ratchet, and what it must not become
 
@@ -202,7 +223,10 @@ The ratchet asserts, per surface:
 2. The interop verb table is **derived** from the registered tool set — no hand-written
    count, no hand-written verb list.
 3. Every write-capable surface threads `derived_from` to the primitive.
-4. Every registered verb has a presentation entry or an explicit declared exemption.
+4. Every registered verb has a presentation entry **or** an explicit declared
+   text-only reason — exactly one, never both, never neither. Every declared widget
+   resolves to a registered `Widget` whose bundle is actually built (a dangling id
+   would 500 at resource-read time on a live host).
 
 **What it must not be**: a gate that pins a spelling. Prior gates in this codebase have
 gone void by asserting an expression's first token or matching their own explanatory

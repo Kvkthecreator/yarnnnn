@@ -508,6 +508,26 @@ def remember_receipt_widget() -> str:
     return presentation_registry.widget_for("remember-receipt").read_bundle()
 
 
+@mcp.resource(
+    "ui://yarnnn/save-receipt.html",
+    mime_type=presentation_registry.RESOURCE_MIME,
+    meta=presentation_registry.served_resource_meta("save-receipt"),
+)
+def save_receipt_widget() -> str:
+    """Serve the save-receipt widget bundle (ADR-533 D4)."""
+    return presentation_registry.widget_for("save-receipt").read_bundle()
+
+
+@mcp.resource(
+    "ui://yarnnn/file-header.html",
+    mime_type=presentation_registry.RESOURCE_MIME,
+    meta=presentation_registry.served_resource_meta("file-header"),
+)
+def file_header_widget() -> str:
+    """Serve the file-header widget bundle (ADR-533 D4)."""
+    return presentation_registry.widget_for("file-header").read_bundle()
+
+
 # =============================================================================
 # The memory-first interop surface — remember / recall / trace (ADR-368)
 # =============================================================================
@@ -818,8 +838,11 @@ async def trace(
     # the Python symbol is `open_file` so the module never shadows the builtin.
     name="open",
     # open is a pure READ of one exact file — content + attribution + recent
-    # revisions, composed server-side in one round (ADR-512 D4). No widget
-    # (text/structured channels only); no affordance meta.
+    # revisions, composed server-side in one round (ADR-512 D4).
+    # ADR-533 D4: the file-header widget renders the file's IDENTITY (whose
+    # version, when, how many revisions) — never its content, which is the
+    # host's to render.
+    meta=presentation_registry.tool_definition_meta("file-header"),
     annotations=ToolAnnotations(
         title="Open",
         readOnlyHint=True,
@@ -883,6 +906,10 @@ async def open_file(
     # are never destructive in the ledger sense (every prior version stays on
     # the attributed chain, ADR-209) and blind overwrites are refused by the
     # base_revision contract, so destructiveHint stays False honestly.
+    # ADR-533 D4: the save-receipt widget exists for the CONFLICT state —
+    # stale_write/base_required carry who holds the head and what to do next,
+    # which a chat host renders as a paragraph the user skims past.
+    meta=presentation_registry.tool_definition_meta("save-receipt"),
     annotations=ToolAnnotations(
         title="Save",
         readOnlyHint=False,

@@ -234,6 +234,42 @@ def run() -> int:
         bool(remember_fn) and "derived_from" not in remember_fn.group(1),
     )
 
+    # ── D4: every rostered verb has a rendering story ─────────────────────────
+    # An affordance OR a declared text-only reason. This is what keeps a new verb
+    # from silently shipping with no rendering decision — and it keeps "we never
+    # got to it" from masquerading as "text is the right call". A text-only
+    # choice must be WRITTEN DOWN to count.
+    from mcp_server.presentation import affordances as aff
+    from mcp_server.presentation import registry as reg
+
+    for verb in sorted(roster):
+        has_widget = verb in aff.AFFORDANCES
+        has_reason = verb in aff.TEXT_ONLY
+        ok &= _check(
+            f"D4 {verb} has a rendering story",
+            has_widget != has_reason,  # exactly one, never both, never neither
+            "(widget)" if has_widget else ("(text-only, declared)" if has_reason else "MISSING"),
+        )
+
+    # Every declared widget resolves to a registered Widget with a BUILT bundle.
+    # A dangling widget id would 500 at resource-read time on a live host; a
+    # missing dist/ bundle is a deploy error the registry deliberately raises on.
+    for verb, affordance in sorted(aff.AFFORDANCES.items()):
+        w = reg.widget_for(affordance.widget)
+        ok &= _check(
+            f"D4 {verb} → {affordance.widget} is registered",
+            w is not None,
+        )
+        ok &= _check(
+            f"D4 {affordance.widget} bundle is built",
+            w is not None and w.bundle_path.exists(),
+            "" if (w and w.bundle_path.exists()) else "(run: node build.mjs)",
+        )
+
+    # A widget id must not be BOTH declared and exempt anywhere in the layer.
+    overlap = set(aff.AFFORDANCES) & set(aff.TEXT_ONLY)
+    ok &= _check("D4 no verb is both widgeted and exempt", not overlap, f"{sorted(overlap)}")
+
     print()
     print("ADR-533 participant-contract ratchet:", "PASS" if ok else "FAIL")
     return 0 if ok else 1

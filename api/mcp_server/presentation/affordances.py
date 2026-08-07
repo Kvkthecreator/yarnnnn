@@ -34,14 +34,44 @@ class Affordance:
     interactive: bool = False
 
 
-#: tool name → affordance. A tool absent from this map is text-only.
+#: tool name → affordance. A tool absent from this map is text-only — but as of
+#: ADR-533 D4 that absence must be DECLARED in TEXT_ONLY below, not merely
+#: implied, so a new verb cannot silently ship with no rendering story.
 AFFORDANCES: dict[str, Affordance] = {
     "trace": Affordance(widget="trace-timeline", fallback="text", interactive=True),
     "recall": Affordance(widget="recall-cards", fallback="text", interactive=False),
     "remember": Affordance(widget="remember-receipt", fallback="text", interactive=False),
+    # ADR-533 D4 — the file verbs.
+    # `save`: the widget exists for the CONFLICT (stale_write / base_required).
+    # Someone else holding the head is the one outcome the user must act on, and
+    # a chat host renders it as a paragraph they skim past.
+    "save": Affordance(widget="save-receipt", fallback="text", interactive=False),
+    # `open`: renders the file's IDENTITY (whose version, when, how many
+    # revisions) — never its content. The content is the host's to render; the
+    # attribution is what a plain storage connector cannot show.
+    "open": Affordance(widget="file-header", fallback="text", interactive=False),
+}
+
+#: tool name → why it is deliberately text-only (ADR-533 D4).
+#:
+#: An entry here is a DECISION, not an omission. `test_adr533_participant_contract`
+#: asserts every rostered verb is in AFFORDANCES *or* here — so the choice is
+#: always recorded, and "we never got to it" cannot masquerade as "text is right".
+#: Moving a verb from here to AFFORDANCES is the whole cost of adding a widget.
+TEXT_ONLY: dict[str, str] = {
+    "share": (
+        "The result is a link plus a reach level — one line the host relays "
+        "verbatim. A widget for a URL is ceremony: it adds an iframe the user "
+        "must look at to read something the sentence already said."
+    ),
 }
 
 
 def affordance_for(tool_name: str) -> Affordance | None:
     """Return the affordance for a tool, or None (text-only)."""
     return AFFORDANCES.get(tool_name)
+
+
+def text_only_reason(tool_name: str) -> str | None:
+    """Why this tool is deliberately text-only, or None if it has a widget."""
+    return TEXT_ONLY.get(tool_name)

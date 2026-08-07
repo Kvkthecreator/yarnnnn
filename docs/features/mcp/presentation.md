@@ -30,19 +30,39 @@ Presentation is declared as data adjacent to each tool. A tool with no declarati
 # Neutral, host-agnostic. No OpenAI/ChatGPT names appear here.
 
 AFFORDANCES: dict[str, Affordance] = {
-    # tool name → affordance. All three memory verbs render (2026-06-26):
     "trace":    Affordance(widget="trace-timeline",    fallback="text", interactive=True),
     "recall":   Affordance(widget="recall-cards",      fallback="text", interactive=False),
     "remember": Affordance(widget="remember-receipt",  fallback="text", interactive=False),
+    # ADR-533 D4 (2026-08-07) — the file verbs join the roster:
+    "save":     Affordance(widget="save-receipt",      fallback="text", interactive=False),
+    "open":     Affordance(widget="file-header",       fallback="text", interactive=False),
+}
+
+TEXT_ONLY: dict[str, str] = {          # ADR-533 D4 — a DECLARED decision, not a gap
+    "share": "the result is a link + a reach level — one line the host relays verbatim",
 }
 ```
 
-The three widgets, by display intent:
+> **ADR-533 D4 — why the roster was incomplete, and the rule that keeps it honest.**
+> Until 2026-08-07 the roster held only the three MEMORY verbs; the three ADR-512 FILE
+> verbs (`open`/`save`/`share`) had no entries. On ChatGPT — the only host with
+> `renders_widgets=True` — the memory verbs rendered rich and the file verbs rendered
+> bare text, so the OpenAI Apps face still presented yarnnn as a *memory* product, the
+> costume ADR-512 §10 declared ended. **Not every verb earns a widget** (text-only has
+> always been valid here) — but a deliberate text-only decision and an unfinished one are
+> indistinguishable in an empty map. So every rostered verb must now appear in
+> `AFFORDANCES` **or** `TEXT_ONLY` *with its reason* — exactly one, never both, never
+> neither — asserted by `test_adr533_participant_contract.py`, which also fails if a
+> declared widget's `dist/` bundle was never built.
+
+The widgets, by display intent:
 - **`trace-timeline`** — the revision chain as a provenance-colored vertical timeline with click-to-expand inline diffs (the differentiator).
 - **`recall-cards`** — ranked excerpts as scannable cards: each with a provenance chip, domain, timestamp, the excerpt, and the source path.
 - **`remember-receipt`** — a compact confirmation: ✓ saved, where it was filed, and the attributed source (makes the durable write *legible*).
+- **`save-receipt`** (ADR-533) — exists for the **conflict**: on `stale_write`/`base_required` it shows who holds the head, when, what they called their change, and that nothing was overwritten. The success path is a small receipt.
+- **`file-header`** (ADR-533) — the opened file's **identity**: name, provenance chip for whose version it is, timestamp, revision count. Deliberately **not** the content — the host renders text better, and the attribution is what a storage connector cannot show.
 
-All three are **display-only** (no buttons / no callbacks in v1) — pure presentation of returned substrate (D3), which keeps zero new action surface and zero review-risk. Shared widget code lives in `widgets/src/shared/` (the `useToolResult` reader, provenance bucketing, the `yz-` stylesheet); each widget is `widgets/src/<name>/`.
+All are **display-only** (no buttons / no callbacks in v1) — pure presentation of returned substrate (D3), which keeps zero new action surface and zero review-risk. Shared widget code lives in `widgets/src/shared/` (the `useToolResult` reader, provenance bucketing, the `yz-` stylesheet); each widget is `widgets/src/<name>/`.
 
 `Affordance` is a frozen dataclass. **Why data, not inline `_meta`:** the three verbs are subject to change (README §"Why these three verbs"); the affordance *mechanism* is the durable layer. A new verb opts in with one dict entry; a removed verb drops one. No tool body is rewired, and the vendor `_meta` shape is generated downstream (§4), never authored here.
 
