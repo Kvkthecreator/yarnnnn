@@ -187,12 +187,23 @@ PUBLIC_CONTENT_CAP = 400_000
 #: The walk is a demonstration, not an archive — the full chain is members-only.
 PUBLIC_WALK_CAP = 12
 
-#: ADR-513 D4 — a capability link is neither cacheable by intermediaries nor
-#: indexable, on EVERY status. One constant so an added `raise` cannot silently
-#: ship a bare error response (the 2026-08-03 live defect).
+#: ADR-513 D4, AMENDED BY ADR-531 — a capability link is not cacheable by
+#: intermediaries, on EVERY status. One constant so an added `raise` cannot
+#: silently ship a bare error response (the 2026-08-03 live defect).
+#:
+#: `X-Robots-Tag: noindex, nofollow` was REMOVED here (ADR-531 D1). It was the
+#: last thing blocking ChatGPT, whose link retrieval is search-index-mediated —
+#: isolated with a nine-character token that ruled out every other hypothesis
+#: (SSR, UA filtering, robots.txt, DNS, host, transcription all measured clean).
+#:
+#: The trade is named, not discovered later: revocation stays authoritative AT
+#: THE ORIGIN (`no-store` below + the status/expiry checks) and becomes
+#: best-effort in the world, because an index may retain a copy past the revoke.
+#: Accepted knowingly — see ADR-531 §3/§4. Confidentiality was already
+#: surrendered at mint (ADR-513 D1: "the sharer already decided the
+#: world-with-the-link may see this"), so this was never a privacy question.
 _CAPABILITY_HEADERS = {
     "Cache-Control": "no-store",
-    "X-Robots-Tag": "noindex, nofollow",
 }
 
 

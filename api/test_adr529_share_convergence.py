@@ -114,7 +114,7 @@ def main() -> int:
         "D2g the markdown exit carries the capability headers",
         "PlainTextResponse(" in src
         and re.search(r"PlainTextResponse\(.*?_CAPABILITY_HEADERS", src, re.DOTALL) is not None,
-        "no-store + noindex on every exit (ADR-513 D4)"))
+        "no-store on every exit (ADR-513 D4; noindex removed by ADR-531 D1)"))
 
     # SUPERSEDED BY ADR-530 D1, and re-cut rather than deleted.
     #

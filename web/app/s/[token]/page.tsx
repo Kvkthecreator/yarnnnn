@@ -53,7 +53,19 @@ type PageProps = { params: { token: string } };
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const result = await fetchSharePreview(params.token);
-  const robots = { index: false, follow: false };
+  // ADR-531 D1 — the share surface is INDEXABLE, deliberately.
+  //
+  // `noindex` was the last thing blocking ChatGPT, whose link retrieval is
+  // search-index-mediated (isolated with a nine-character token, after SSR,
+  // UA filtering, robots.txt, DNS, host and transcription were each measured
+  // clean). Claude fetches URLs directly and always worked; ChatGPT does not.
+  //
+  // This is NOT a privacy loosening — confidentiality was surrendered at mint
+  // (ADR-513 D1). It trades REVOCATION INTEGRITY: revoke stays authoritative at
+  // the origin (`no-store` + the status/expiry checks) and becomes best-effort
+  // in the world, since an index may retain a copy. Accepted knowingly for
+  // reach; see ADR-531 §3/§4.
+  const robots = { index: true, follow: false };
 
   if (result.kind !== "ok") {
     return { title: "Shared with you — yarnnn", robots };

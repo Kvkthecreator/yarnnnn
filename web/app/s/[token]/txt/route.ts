@@ -36,12 +36,16 @@ export async function GET(
     { cache: "no-store", headers: { Accept: "text/plain" } },
   ).catch(() => null);
 
-  // A capability link must be neither cached by intermediaries nor indexed, on
-  // EVERY status — the dark states most of all (ADR-513 D4).
+  // A capability link must not be cached by intermediaries, on EVERY status —
+  // the dark states most of all (ADR-513 D4).
+  //
+  // `X-Robots-Tag: noindex` is deliberately ABSENT (ADR-531 D1): it was what
+  // blocked ChatGPT, whose retrieval is search-index-mediated. Revocation stays
+  // authoritative at the origin and becomes best-effort in the world — a named,
+  // accepted trade, not an oversight.
   const headers: Record<string, string> = {
     "Content-Type": "text/plain; charset=utf-8",
     "Cache-Control": "no-store",
-    "X-Robots-Tag": "noindex, nofollow",
   };
 
   if (!upstream) {

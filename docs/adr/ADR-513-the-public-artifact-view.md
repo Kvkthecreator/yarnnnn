@@ -41,6 +41,20 @@ check `status`/`expires_at` — a revoked or expired share still previewed.
 > refusal* from a blank shell. D4's capability discipline also leaked at the HTML layer (the page
 > declared `index, follow`; `/s` was absent from `robots.txt`) — closed by ADR-529 D3.
 
+> **AMENDED AGAIN 2026-08-07 by [ADR-531](ADR-531-the-shared-artifact-is-indexable.md)** — D4's
+> **`noindex` is REMOVED** from the `/s/{token}` surface (page + API exits).
+>
+> `noindex` was the last thing blocking ChatGPT, whose link retrieval is **search-index-mediated**
+> — isolated with a nine-character token after SSR, UA filtering, `robots.txt`, DNS, host and
+> transcription were each measured clean. Claude fetches URLs directly and always worked.
+>
+> **`Cache-Control: no-store` and the status/expiry enforcement are UNCHANGED** — "dark means
+> dark" still holds at the origin. What changes is that an index may retain a copy, so
+> **revocation is authoritative at the origin and best-effort in the world**. This is not a
+> privacy loosening (D1 already surrendered confidentiality at mint); it trades **revocation
+> integrity** for reach, knowingly. See ADR-531 §3/§4 — including that the collaborator argued
+> against it and the operator ruled otherwise on market grounds.
+
 ---
 
 ## 1. Context

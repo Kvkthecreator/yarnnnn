@@ -7,8 +7,10 @@ Run: python3 test_adr513_public_view.py  (from api/)
 
 Asserts:
   1. GET /s/{token} is public (no auth dependency); POST accept stays gated.
-  2. Lifecycle honesty (D4): preview enforces status + expiry; no-store +
-     noindex headers set.
+  2. Lifecycle honesty (D4, as amended by ADR-531): preview enforces status +
+     expiry and sets `no-store` on every exit. `noindex` is deliberately GONE
+     (ADR-531 D1) and its absence is asserted — revocation is authoritative at
+     the origin and best-effort in the world, knowingly.
   3. The projection boundary (D2): the response model exposes no shared_by /
      workspace_id / share id; the walk entry is metadata-only (no content, no
      diff, no revision_id); caps exist.
@@ -57,7 +59,13 @@ def _check_capability_headers_execute():
                        f"could not import app ({exc}) — check did NOT run")]
 
     client = TestClient(app, raise_server_exceptions=False)
-    want = {"cache-control": "no-store", "x-robots-tag": "noindex, nofollow"}
+    # ADR-531 D1 amended D4: `noindex` is GONE from the share surface (it was
+    # what blocked ChatGPT's search-index-mediated retrieval). `no-store` is the
+    # half that survives and is the half that carries revocation at the origin —
+    # an intermediary must never serve a revoked link from cache. Asserting
+    # both directions so neither the removal nor the survivor can drift.
+    want = {"cache-control": "no-store"}
+    forbidden = "x-robots-tag"
 
     # (a) 404 — no share at that token.
     with patch("services.workspace_shares.get_share_by_token", return_value=None):
@@ -67,6 +75,9 @@ def _check_capability_headers_execute():
         out.append(_check(f"2c-404 carries {h}",
                           resp.headers.get(h) == v,
                           f"got {resp.headers.get(h)!r} (want {v!r})"))
+    out.append(_check(f"2c-404 does NOT carry {forbidden} (ADR-531 D1)",
+                      forbidden not in resp.headers,
+                      f"got {resp.headers.get(forbidden)!r}"))
 
     # (b) 410 — the revoked link. THE response revocation depends on.
     revoked = {"id": "s1", "token": "t", "status": "revoked", "role": "member",
@@ -79,6 +90,9 @@ def _check_capability_headers_execute():
         out.append(_check(f"2c-410 carries {h}",
                           resp.headers.get(h) == v,
                           f"got {resp.headers.get(h)!r} (want {v!r})"))
+    out.append(_check(f"2c-410 does NOT carry {forbidden} (ADR-531 D1)",
+                      forbidden not in resp.headers,
+                      f"got {resp.headers.get(forbidden)!r}"))
 
     # (c) 200 — the happy path must not regress.
     active = dict(revoked, status="active")
@@ -89,6 +103,9 @@ def _check_capability_headers_execute():
         out.append(_check(f"2c-200 carries {h}",
                           resp.headers.get(h) == v,
                           f"got {resp.headers.get(h)!r} (want {v!r})"))
+    out.append(_check(f"2c-200 does NOT carry {forbidden} (ADR-531 D1)",
+                      forbidden not in resp.headers,
+                      f"got {resp.headers.get(forbidden)!r}"))
     return out
 
 
@@ -186,9 +203,14 @@ def main():
     results.append(_check(
         "5e the artifact is fetched server-side, not in an effect",
         "useEffect" not in page_code and "fetchSharePreview" in page_code))
+    # ADR-531 D1 re-cut: the share surface is INDEXABLE on purpose (noindex was
+    # what blocked ChatGPT's search-index-mediated retrieval). `follow: false`
+    # survives — indexing this page must not turn a crawler loose on the links
+    # inside a member's document. Asserting the exact pair so an accidental
+    # revert to `index: false` is caught, not just a missing tag.
     results.append(_check(
-        "5f the capability link is noindex at the HTML layer",
-        "index: false" in page and "follow: false" in page))
+        "5f the capability link is indexable, and does not pass link equity",
+        "index: true" in page and "follow: false" in page))
 
     ok = all(results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(results)}/{len(results)}")

@@ -180,7 +180,7 @@ def main() -> int:
     results.append(_check(
         "D4d the app-domain alias is a pure transport hop (no second projection)",
         "project" not in _strip_comments(alias).lower()
-        and "no-store" in alias and "noindex" in alias))
+        and "no-store" in alias and "noindex" not in _strip_comments(alias)))
     cfg = (WEB / "next.config.js").read_text(encoding="utf-8")
     results.append(_check(
         "D4e /s/:token.txt rewrites to the route (a segment can't carry a suffix)",
@@ -208,10 +208,25 @@ def main() -> int:
         "D4g robots.txt does NOT forbid FETCHING the share surface",
         '"/s/"' not in robots_code,
         "Disallow blocks the reader; noindex blocks the index"))
+    # ADR-531 D1 re-cut. This asserted un-indexability; that ruling is REVERSED
+    # (noindex was what blocked ChatGPT's search-index-mediated retrieval). What
+    # the check really defended — the capability discipline surviving on every
+    # exit — is now carried by `no-store`, which is the half that actually keeps
+    # a revoked link from being served from cache. Asserting the reversal
+    # explicitly so a silent revert to noindex is caught.
+    # `_strip_comments` is the JS/TS stripper — it does NOT remove Python `#`
+    # comments, so running it on shares.py leaves the ADR-531 explanatory note
+    # (which NAMES `noindex`) in the text and the check fails on its own
+    # documentation. The documented trap, third occurrence. Assert on the
+    # HEADER DICT instead, which is the thing that actually ships.
+    cap_block = shares_src[shares_src.index("_CAPABILITY_HEADERS = {"):]
+    cap_block = cap_block[: cap_block.index("}") + 1]
     results.append(_check(
-        "D4h un-indexability is carried by noindex, on the page AND the API",
-        "index: false" in page and "follow: false" in page
-        and "noindex" in shares_src))
+        "D4h the surface is indexable; no-store still carries revocation",
+        "index: true" in page and "follow: false" in page
+        and "X-Robots-Tag" not in cap_block
+        and '"Cache-Control": "no-store"' in cap_block,
+        "the shipped header dict, not the prose around it"))
     results.append(_check(
         "D4i /invite/ stays disallowed (auth-gated, nothing to offer a fetcher)",
         '"/invite/"' in robots_code))
