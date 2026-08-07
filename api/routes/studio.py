@@ -123,10 +123,14 @@ async def list_artifacts(auth: UserClient, app: Optional[str] = None) -> dict:
     )
     from services.workspace_context import substrate_scope_filter
 
+    # The scope this request resolved to, computed ONCE so the query and the
+    # log line can never disagree about which workspace was actually read.
+    _scope = substrate_scope_filter(auth.user_id)
+
     rows = (
         auth.client.table("workspace_files")
         .select("path, updated_at, summary, content")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*_scope)
         .like("path", f"{STUDIO_ARTIFACT_REGION}%")
         .like("path", "%.html")
         # A trashed artifact leaves Recents. `lifecycle` is NULL on rows written
@@ -168,6 +172,29 @@ async def list_artifacts(auth: UserClient, app: Optional[str] = None) -> dict:
         )
         if len(items) >= _DISPLAY_LIMIT:
             break
+
+    # Scoping legibility (2026-08-07). A wrong-ANSWER is invisible to the
+    # observability stack: this route 200s whether it returns 12 artifacts or
+    # zero, so Sentry (exceptions only) and the Render request log (status
+    # codes only) both read it as healthy. A member seeing an empty Docs
+    # landing in a workspace holding 12 artifacts is exactly that shape.
+    #
+    # The two numbers split the only fork that matters:
+    #   rows=0            → the QUERY returned nothing (binding/RLS at runtime)
+    #   rows>0 returned=0 → the OWNERSHIP filter dropped them (app registry)
+    # Kept, not temporary: a scoping decision that cannot be read back is how
+    # this class stays invisible.
+    logger.info(
+        "[SCOPE] artifacts user=%s ws=%s scope=%s=%s app=%s rows=%d returned=%d",
+        auth.user_id,
+        auth.workspace_id,
+        _scope[0],
+        _scope[1],
+        app,
+        len(rows),
+        len(items),
+    )
+
     return {
         "artifacts": items
     }
