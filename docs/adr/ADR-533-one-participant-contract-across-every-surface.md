@@ -433,6 +433,33 @@ The operator refreshed the claude.ai/Desktop connector after `58d175e`. Receipts
   CONNECTING.md tells the user to have the host *call* a verb rather than trust its
   inventory.
 
+### 13f-bis. Correction — ChatGPT's staleness had a SECOND, different cause
+
+The §13b root cause (`listChanged: false`) is real and explains claude.ai. It does **not**
+explain ChatGPT, and the D2 runbook's original ChatGPT row was wrong.
+
+The operator's own hypothesis was correct: **ChatGPT pins a version snapshot of a
+dev-mode connector** (`Version Id: asdk_app_v_…`, `Review status: development`). A deploy
+never reaches that snapshot, and **remove + re-add does not help — it re-pins the same
+snapshot.** Only the dashboard's **`Refresh`** action pulls the current manifest; the
+`Version notes` field bumps (`dev-3` → `dev-4`) when it lands.
+
+**This was already documented in our own repo and I missed it while auditing.**
+`docs/features/mcp/SUBMISSION.md` §4 carries it as a labelled gotcha that cost a previous
+session ~a day — including the explicit line "Reconnecting (remove + re-add) does NOT do
+this." I read `mcp_server/`, the SDK wheel, and the presentation layer, but never the
+ChatGPT-specific doc sitting beside them. The audit's own lesson applies to itself:
+*consult the canonical home before re-deriving.*
+
+Confirmed live after Refresh: ChatGPT's panel now lists `open` (badged `READ` /
+`OPEN WORLD` — our `ToolAnnotations` rendering in a second host's UI) alongside the rest
+of the current surface.
+
+**Consequence for D2**: the runbook is per-host because the *mechanisms differ*, not just
+the click path — claude.ai caches a manifest, ChatGPT pins a version. CONNECTING.md now
+says so, and tells the reader to verify against a build-specific field (`save`'s
+`derived_from`; `confidence` in `recall`'s description) rather than trusting a toast.
+
 ### 13g. Still not verified
 
 - **Whether the refresh was CAUSED by `listChanged: true`.** A host re-read the list and

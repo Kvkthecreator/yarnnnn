@@ -94,9 +94,17 @@ already taken, so if your host is showing an old surface:
 
 | Host | How to force a fresh tool list |
 |---|---|
-| **ChatGPT** | Settings → Connectors → **remove** yarnnn entirely → re-add `https://mcp.yarnnn.com`. Toggling it off/on is often not enough — the connector must be removed so discovery re-runs. |
-| **claude.ai** | Settings → Connectors → toggle yarnnn off, then on. If the surface is still old, remove and re-add. |
-| **Claude Code / Desktop** | Restart the session — tool schemas are captured at session start and do not update mid-session. |
+| **ChatGPT** | Settings → Connectors → yarnnn → **`Refresh`**. ChatGPT pins a *version snapshot* of a dev-mode connector, so a deploy never reaches it on its own — and **remove + re-add does NOT help** (it re-pins the same snapshot). Refresh is the only action that pulls the current manifest; the `Version notes` field bumps (`dev-3` → `dev-4`) when it lands. See [SUBMISSION.md](SUBMISSION.md) §4. |
+| **claude.ai / Claude Desktop** | Settings → Connectors → toggle yarnnn off, then on. A "Tools list refreshed" toast confirms it. |
+| **Claude Code** | Restart the session — tool schemas are captured at session start and never update mid-session. |
+
+**Verify it actually landed — don't trust the toast.** The settings panel is the receipt.
+Check a field that only exists in the build you're expecting:
+
+- `save` should list **five** inputs — `reference · content · base_revision · message · derived_from`.
+- `recall`'s description should mention **`confidence`**.
+
+A refresh that bumps the version but leaves those unchanged did not pull the new manifest.
 
 **How to tell whether it worked:** ask your host to list the yarnnn tools it has.
 The current surface is **six** verbs — `open · save · share · recall · remember · trace`.
