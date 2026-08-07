@@ -331,3 +331,94 @@ and the substrate is confirmed present.
 - **The composed `instructions` were not observed as a host received them.** The
   render is verified locally (4,450 chars, every clause verbatim); no host has
   confirmed what it was actually served.
+
+---
+
+## 13. The discovery contract — we told every host our tools never change
+
+> **Amendment, 2026-08-07**, same session. Found because the operator reconnected
+> ChatGPT after the D1–D4 push and still saw the *memory-era* three verbs. This is a
+> distinct root cause from §1–§12 (that was *what a participant is told*; this is
+> *whether a host ever re-reads it*), recorded here rather than as its own ADR because
+> it is the same surface and the same session's work.
+
+### 13a. The finding — two hosts, two vintages, one server
+
+The operator's instinct was right that this was not a plain cache flush, and the
+decisive move was theirs: **test the host that works.**
+
+| Host | Verbs seen | `save` carried `derived_from`? | Manifest frozen |
+|---|---|---|---|
+| claude.ai | all six | **no** | after Aug 3, before Aug 7 04:34 |
+| ChatGPT | three (`recall`/`remember`/`trace`) | n/a | on or before **Aug 2** |
+
+Same server, same deploy, same `tools/list`. Ruled out with receipts: the deploy was
+live (`2c94789`, Render API); `list_tools` only strips widget `_meta` and never removes
+a tool; no `defer_loading` anywhere; both hosts authenticate and call tools
+successfully; and `open`/`save`/`share` shipped **Aug 2–3**, days before this session.
+
+### 13b. Root cause — ours, read from the pinned SDK
+
+Read from the `mcp 1.28.0` wheel, confirmed against installed **1.29.0** (what prod
+resolves to):
+
+1. `lowlevel/server.py` — `NotificationOptions.__init__` defaults `tools_changed: bool = False`.
+2. `lowlevel/server.py` — `ToolsCapability(listChanged=notification_options.tools_changed)`.
+3. `fastmcp/server.py:759,848` + `streamable_http_manager.py:200,302` — every transport
+   calls `create_initialization_options()` **with no arguments**, so it always received
+   the all-`False` default.
+
+**⇒ every `initialize` advertised `capabilities.tools.listChanged: false`.**
+
+A host told the tool list is immutable is *entitled* to cache it forever. **Neither
+ChatGPT nor claude.ai was misbehaving — they believed us.** The defect is a declaration
+we never made deliberately; it was an SDK default we inherited by never passing the
+argument.
+
+### 13c. D1 — Declare the tool list volatile
+
+`create_initialization_options` is overridden on the **lowlevel server instance** —
+the single seam all four SDK call sites route through, so stdio, SSE, and both
+streamable-HTTP paths are covered by one override. An explicit caller-supplied
+`NotificationOptions` is still honored.
+
+Verified against the real SDK: `listChanged=False` → `listChanged=True`, and the live
+`mcp_server.server` module reports `tools capability: listChanged=True` with all six
+verbs registered.
+
+### 13d. D2 — The runbook, because the declaration cannot reach backwards
+
+**`listChanged` alone does not fix this, and claiming otherwise would be the dishonest
+version of this amendment.** Our tool surface changes only on **deploy**, and a deploy
+replaces the process and drops every live session — there is no session alive to receive
+a notification about the change that just happened. `listChanged` exists for servers
+whose tools change *mid-session* (runtime registration); ours do not.
+
+So D1 makes us honest going forward and lets a compliant host re-check on its next
+connect. Getting an **already-stale** host unstuck is a human step, and it is now
+documented per host in [CONNECTING.md](../features/mcp/CONNECTING.md) §"The surface
+changed" — including the correction that reconnecting is often *not* enough for ChatGPT
+(that doc previously claimed disconnect+reconnect refreshes the list; the operator's
+own experience falsified it).
+
+### 13e. Rejected — emit `send_tool_list_changed()` on session start
+
+A host that has just run `initialize` already holds the current list, so firing at
+startup re-delivers what it just fetched: motion that reads as a fix and changes
+nothing. The D5 ratchet asserts this call is **absent** (matched against
+comment-stripped source — asserting on the bare name, then on `name(`, each matched
+this paragraph's own explanatory prose in turn).
+
+### 13f. Not verified
+
+- **Whether ChatGPT and claude.ai actually honor `listChanged: true`.** The spec says a
+  compliant host re-fetches; their real behavior is unmeasured. If they don't, D2's
+  runbook is the whole remedy and D1 is merely honest.
+- **The wire `tools/list` per host.** Needs a live OAuth token; unauthenticated root
+  returns `401 invalid_token`. The claude.ai reading is from this session's own tool
+  schemas, not a captured frame.
+- **Whether a full remove/re-add clears ChatGPT's cache.** Untested — the operator
+  doubted it, which is what prompted this audit.
+- The ChatGPT evidence is a **model self-report**, not a wire capture. What makes the
+  diagnosis solid is the claude.ai comparison plus the SDK source — not ChatGPT's
+  account of itself.

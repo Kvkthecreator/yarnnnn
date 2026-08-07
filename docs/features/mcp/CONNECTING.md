@@ -73,12 +73,48 @@ It's the **same account** either way — sign in here, and you can later open th
 
 ---
 
+## The surface changed — making your host see it
+
+**Your host caches yarnnn's tool list.** When we ship a new verb (or a new parameter
+on an existing one), a host that connected earlier keeps serving its cached copy —
+sometimes for days. It is not broken, and reconnecting usually does **not** clear it.
+
+Measured on 2026-08-07, both against the same live server on the same deploy:
+
+| Host | What it saw | Frozen since |
+|---|---|---|
+| claude.ai | all six verbs, but `save` was missing its newest parameter | ~4 days |
+| ChatGPT | only three verbs — the pre-`open`/`save`/`share` set | ~5 days |
+
+The cause was ours: yarnnn advertised `capabilities.tools.listChanged: false`, which
+told every host the list would never change — so caching it forever was the correct
+behavior. That declaration is fixed (ADR-533 §13), and a spec-compliant host will now
+re-check on its **next** connect. But the fix cannot reach back into a cache that was
+already taken, so if your host is showing an old surface:
+
+| Host | How to force a fresh tool list |
+|---|---|
+| **ChatGPT** | Settings → Connectors → **remove** yarnnn entirely → re-add `https://mcp.yarnnn.com`. Toggling it off/on is often not enough — the connector must be removed so discovery re-runs. |
+| **claude.ai** | Settings → Connectors → toggle yarnnn off, then on. If the surface is still old, remove and re-add. |
+| **Claude Code / Desktop** | Restart the session — tool schemas are captured at session start and do not update mid-session. |
+
+**How to tell whether it worked:** ask your host to list the yarnnn tools it has.
+The current surface is **six** verbs — `open · save · share · recall · remember · trace`.
+Fewer than six means the cache is still stale. (Ask it to *call* `open` too: a host can
+hold a tool it did not list.)
+
+> A host's own account of its tools is a self-report, not proof. If it insists a verb
+> is missing, have it attempt the call — the error it returns distinguishes "not in my
+> manifest" from "I did not think to list it."
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | "no MCP server found at the provided URL" / "token exchange failed … reverted" | A stale / half-connected connector left over from an earlier attempt | Remove the connector entirely, then re-add with `https://mcp.yarnnn.com` |
-| Connector shows connected but tools don't appear | Stale tool list cached by the host | Disconnect + reconnect to refresh the tool list |
+| Connector shows connected but a verb is missing, or a verb lacks a new parameter | The host cached an older tool list | See **The surface changed** above — reconnecting is often not enough; remove + re-add |
 | Sign-in loops / "could not establish session" | Cookies/session issue in the popup | Complete the sign-in in the same browser; retry the connect from your LLM |
 
 ---

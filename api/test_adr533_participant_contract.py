@@ -270,6 +270,49 @@ def run() -> int:
     overlap = set(aff.AFFORDANCES) & set(aff.TEXT_ONLY)
     ok &= _check("D4 no verb is both widgeted and exempt", not overlap, f"{sorted(overlap)}")
 
+    # ── §13: the discovery contract — the tool list is declared VOLATILE ──────
+    # We advertised `capabilities.tools.listChanged: false` (the SDK default,
+    # via FastMCP's arg-less create_initialization_options), which told every
+    # host the surface never changes — so they cached it forever, correctly.
+    # Measured: claude.ai froze post-Aug-3, ChatGPT pre-Aug-2, same server.
+    #
+    # Asserted as SOURCE STRUCTURE (this gate must run without the `mcp` SDK,
+    # which is not installed in the gate environment). The runtime capability
+    # itself was verified against the real SDK 1.29.0 — see ADR-533 §13.
+    ok &= _check(
+        "§13 the override wraps create_initialization_options",
+        "create_initialization_options" in server_src
+        and "_base_create_initialization_options" in server_src,
+    )
+    ok &= _check(
+        "§13 it declares tools_changed=True",
+        re.search(r"NotificationOptions\(\s*tools_changed\s*=\s*True\s*\)", server_src)
+        is not None,
+    )
+    # The override must be INSTALLED on the lowlevel server, not merely defined —
+    # a defined-but-unassigned helper would leave the false declaration shipping.
+    ok &= _check(
+        "§13 the override is assigned onto the lowlevel server",
+        re.search(
+            r"mcp\._mcp_server\.create_initialization_options\s*=", server_src
+        ) is not None,
+    )
+    # Deliberately NOT paired with an emit-on-startup send_tool_list_changed():
+    # a host that just ran `initialize` already holds the current list, so firing
+    # at startup re-delivers what it just fetched — motion that reads as a fix.
+    # Assert against CODE ONLY — comments stripped. The rationale for NOT doing
+    # this is written in a comment beside the override, so both a bare-name check
+    # AND a `name(` check matched their own explanatory prose (each did, in turn,
+    # on successive runs). Stripping comments is the fix that survives the next
+    # person explaining the same thing again.
+    code_only = "\n".join(
+        line.split("#", 1)[0] for line in server_src.splitlines()
+    )
+    ok &= _check(
+        "§13 no emit-on-startup send_tool_list_changed call (would be theatre)",
+        re.search(r"send_tool_list_changed\s*\(", code_only) is None,
+    )
+
     print()
     print("ADR-533 participant-contract ratchet:", "PASS" if ok else "FAIL")
     return 0 if ok else 1

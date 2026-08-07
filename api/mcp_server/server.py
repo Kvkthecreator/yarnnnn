@@ -469,6 +469,66 @@ mcp = HostGatedFastMCP(
 
 
 # =============================================================================
+# ADR-533 §13 — declare the tool list VOLATILE (`capabilities.tools.listChanged`)
+# =============================================================================
+# THE DEFECT THIS FIXES: we were telling every host our tool surface never
+# changes, so every host cached it forever — correctly.
+#
+# The chain, read from the pinned mcp 1.28.0 wheel:
+#   1. `lowlevel/server.py` NotificationOptions.__init__ defaults
+#      `tools_changed: bool = False`.
+#   2. `tools_capability = ToolsCapability(listChanged=notification_options.tools_changed)`.
+#   3. FastMCP calls `self._mcp_server.create_initialization_options()` with NO
+#      arguments (fastmcp/server.py:759,848; streamable_http_manager.py:200,302),
+#      so it always got the all-False default.
+# ⇒ every `initialize` advertised `capabilities.tools.listChanged: false`.
+#
+# Measured consequence (2026-08-07): claude.ai held a manifest from after Aug 3
+# (six verbs, but no `derived_from` on `save`); ChatGPT held one from on/before
+# Aug 2 (three verbs — pre-`open`/`save`/`share`). Same server, same deploy, two
+# frozen vintages. Neither host was misbehaving: a host told the list is
+# immutable is ENTITLED to cache it forever.
+#
+# WHY OVERRIDE HERE: all four SDK call sites (both transports) invoke this method
+# arg-less on the LOWLEVEL server, so this single override covers every path —
+# stdio, SSE, and the two streamable-HTTP paths we actually serve. Patching a
+# transport instead would leave the others lying.
+#
+# ⚠ WHAT THIS DOES *NOT* DO (ADR-533 §13 D2 — do not oversell it): it cannot
+# refresh a host that has ALREADY cached. Our surface changes only on DEPLOY, and
+# a deploy replaces the process and drops every live session — there is no
+# session alive to notify about the change that just happened. `listChanged` is
+# built for servers whose tools change mid-session (runtime registration); ours
+# do not. This makes us HONEST going forward and lets a compliant host re-check
+# on its next connect. Getting a stuck host unstuck is a human step — see
+# `docs/features/mcp/CONNECTING.md` §"The surface changed".
+#
+# Deliberately NOT paired with an emit-on-startup `send_tool_list_changed()`: a
+# host that just ran `initialize` has the current list already, so firing at
+# startup would re-deliver what it just fetched — motion that looks like a fix
+# and changes nothing.
+_base_create_initialization_options = mcp._mcp_server.create_initialization_options
+
+
+def _create_initialization_options_with_volatile_tools(
+    notification_options=None, experimental_capabilities=None, **kwargs
+):
+    """Declare `tools.listChanged: true` unless a caller states otherwise."""
+    from mcp.server.lowlevel.server import NotificationOptions
+
+    if notification_options is None:
+        notification_options = NotificationOptions(tools_changed=True)
+    return _base_create_initialization_options(
+        notification_options, experimental_capabilities, **kwargs
+    )
+
+
+mcp._mcp_server.create_initialization_options = (
+    _create_initialization_options_with_volatile_tools
+)
+
+
+# =============================================================================
 # ADR-372 — widget resources (the `ui://` rendering surface)
 # =============================================================================
 # Each presentation widget is served as an MCP resource at its `ui://` URI. A
