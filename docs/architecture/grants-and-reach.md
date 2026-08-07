@@ -83,10 +83,21 @@ Three rules follow, each of which was violated in production before ADR-532:
 2. **The read display reads the READ gate.** Reporting the *write* class default
    as read reach understates the kernel by the entire commons. (This was the
    ADR-501 D1 display/gate divergence recurring on the second axis.)
-3. **The axes are independent.** `read ⊇ write` is the backfill default and a UI
-   nudge, never a constraint (ADR-434 D1). A surface that fuses them into one
-   ladder makes the read-only auditor and the sees-much-changes-little AI —
-   the shapes ADR-434 was built for — unreachable.
+3. **The axes are independent in the KERNEL** (ADR-434 D1: `read ⊇ write` is the
+   backfill default, never a constraint) — and the cockpit deliberately does not
+   expose that. `narrow_grant` mirrors read from write by default and zero live
+   grants move them apart, so a per-path read control would be UI carrying a
+   distinction nothing sets. The read-only auditor stays representable in the
+   grant and reachable over the API. **Surface the axes separately only when a
+   real use case asks**; until then the cockpit sets both together.
+
+**What the cockpit may express at all** (ADR-532 §3a): `narrow` is
+**narrow-only** — `narrow_grant::_within` raises `ScopeEscalation` on any
+widening — and the class ceiling is `operation/`. So a grant-editing surface can
+offer exactly three states: the class default (`null`), a subset of the ceiling
+(`[..]`), or nothing (`[]`). **Never offer a path outside the principal's current
+reach**: the server refuses it, so the control is one that cannot be entered.
+Widening is a different act and needs its own deliberate path.
 
 ## 4. Mint / revoke authority (ADR-517 D3/D4)
 
@@ -112,12 +123,29 @@ verb skipped even the reach check; any member could revoke anyone's link.
 | Scope | workspace or one artifact (`artifact_path`, **absolute spelling**, normalized at `create_share`) | workspace only — no artifact column |
 | Grant shape | `member` (broad) or `viewer` (birth-narrowed) | `member` only |
 | Minted by | write-holders (dial-gated) | owner only |
-| Public preview | `/s/{token}` — anonymous, capped content + attribution walk, `no-store` + `noindex` on every status (ADR-513) | none |
+| Public preview | `/s/{token}` — anonymous, capped content + attribution walk, `no-store` on every status (ADR-513). **Indexable since ADR-531** — `noindex` removed so ChatGPT's search-mediated retrieval can read it. | none |
 | Machine read | `/s/{token}` negotiated on `Accept`, or the alias `/s/{token}.txt` — the file's **model-consumable projection** (DP34/ADR-530), `Link: rel="canonical"` home. Same token, same capability, same revocation. | none |
 
 They never merged because invites carry no artifact scope — a missing capability, not
 vocabulary drift (ADR-515 §4). Extending invites to artifact scope is a real migration, owned
 by no current ADR.
+
+## 5a. What a share link actually surrenders (ADR-531 — read before arguing "privacy")
+
+A capability link collapses three different properties that get called "privacy". Separating them
+is what makes any share decision arguable rather than vibes-based:
+
+| Property | Controlled by | State once a link is minted |
+|---|---|---|
+| **Confidentiality** — may a holder read it | the token | **already surrendered, deliberately** (ADR-513 D1: *"the sharer already decided the world-with-the-link may see this"*) |
+| **Discoverability** — may a non-holder find it | indexing | open since ADR-531 (indexable by searching; still not guessable — 192-bit token) |
+| **Revocability** — may I take it back | `status='revoked'` + `no-store` | **authoritative at the origin, best-effort in the world** |
+
+**The consequence to state plainly when anyone asks**: a revoked link goes dark at the origin
+immediately; a copy already retained by a third-party index may outlive the revoke. That cost was
+accepted knowingly for reach (ADR-531 §4), over a recorded objection — **not** discovered
+afterwards. A future session finding an indexed-but-revoked share is looking at a ratified
+trade-off, not a bug.
 
 ## 6. Standing-state surfaces (what answers "who can reach this?")
 

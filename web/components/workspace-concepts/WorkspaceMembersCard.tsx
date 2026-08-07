@@ -25,7 +25,7 @@
  * workspace."
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Users, ShieldCheck, Bot, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus, Wallet } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -819,6 +819,30 @@ function CapDialog({
 // The three access levels an operator assigns per path (powerbox two-axis).
 // 'none' = the path is not in either scope; 'read' = read-only (read scope only);
 // 'write' = read + write (in both scopes — read ⊇ write, the norm).
+/** ADR-532 (recut) — the three states a grant can be in, and the only three
+ *  the kernel can express: `narrow` never widens, so an operator picks the
+ *  class default, a subset of it, or nothing. */
+type AccessMode = 'full' | 'restricted' | 'none';
+
+/** True iff `path` is inside what this principal's grant can reach TODAY —
+ *  the same subset rule `narrow_grant::_within` enforces server-side.
+ *
+ *  Offering a quick-pick the server must refuse is the "a scope that exists is
+ *  not a scope you can enter" defect: the first cut shipped `+ Agents`, and
+ *  `agents/` is outside the `operation/` class ceiling, so it 400'd every time.
+ *  The gate still enforces; this only keeps unusable options off the screen. */
+function withinCeiling(path: string, member: Member): boolean {
+  const ceiling =
+    member.write_state === 'scoped' ? member.write_regions.map(normalizePrefix) : ['operation/'];
+  return ceiling.some((c) => path === c || path.startsWith(c));
+}
+
+/** Sentence-case opener for the dialog's lede. */
+function roleNounCap(role: string): string {
+  const n = roleNoun(role);
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+
 /** ADR-532 D1 — how to name a principal's class in the "not narrowed" line.
  *  Species-blind (ADR-405): this describes the CLASS DEFAULT the grant falls
  *  through to, never a permission derived from the role. */
@@ -835,18 +859,6 @@ function roleNoun(role: string): string {
     default:
       return 'a member';
   }
-}
-
-/** A path the operator is scoping, with its level. Paths are prefixes at
- *  arbitrary depth ('operation/', 'operation/marketing/', 'operation/x.md'). */
-/** ADR-532 D2 — one path, two INDEPENDENT axes. Replaces the fused
- *  `level: 'none' | 'read' | 'write'` ladder, which could not express
- *  ADR-434 D1's read-only auditor (read without write) at all. A row with
- *  neither axis set is meaningless and is removed rather than represented. */
-interface ScopeRow {
-  path: string;
-  read: boolean;
-  write: boolean;
 }
 
 function normalizePrefix(p: string): string {
@@ -876,89 +888,64 @@ function NarrowDialog({
   onCancel: () => void;
   onConfirm: (writeScopes: string[], readScopes: string[]) => void;
 }) {
-  // Seed the rows from the member's current two-axis grant. Union the read +
-  // write prefixes; a path in write_regions is 'write', a read-only path is
-  // 'read'. The quick-pick zones (Documents/Agents) seed as rows too, so the
-  // common case is one click, and deeper paths are added by hand.
-  const seedRows = (): ScopeRow[] => {
-    const write = new Set(member.write_regions.map(normalizePrefix).filter(Boolean));
-    const read = new Set((member.read_scopes ?? []).map(normalizePrefix).filter(Boolean));
-    // ADR-532 D1: an unconfigured principal (both axes NULL) opens with NO
-    // rows. This used to seed a synthetic `operation/ Read+Write` row, which
-    // was a grant the principal did not have — and not inert: it was seeded
-    // into dialog state, so opening the dialog to LOOK at a member and pressing
-    // Apply wrote `operation/` into a NULL grant, narrowing them by inspection.
-    //
-    // NULL and ['operation/'] are different grants, not different spellings of
-    // one: NULL tracks the class policy as it evolves, a path pins a literal
-    // prefix. ADR-434 D3 made that polarity load-bearing; seeding a row
-    // re-collapses it. Adding the first row IS the act of narrowing.
-    if (member.write_state === 'all' && member.read_state === 'all') {
-      return [];
-    }
-    const paths = Array.from(new Set<string>([...Array.from(write), ...Array.from(read)]));
-    const rows: ScopeRow[] = [];
-    for (const p of paths) {
-      // ADR-532 D2: each axis is read from ITS OWN list. The old seed inferred
-      // one ladder rung per path, which silently lost a read-without-write
-      // grant (it read back as 'read' only when the path was absent from write
-      // — true here, but not expressible once set).
-      const row: ScopeRow = { path: p, read: read.has(p), write: write.has(p) };
-      if (row.read || row.write) rows.push(row);
-    }
-    return rows;
-  };
+  // ADR-532 (recut 2026-08-07) — the dialog asks ONE question, because the
+  // kernel only answers one.
+  //
+  // `narrow_grant` is NARROW-ONLY: it raises ScopeEscalation on any widening,
+  // and the class ceiling for both `member` and `foreign-llm` is `operation/`.
+  // So the entire expressible space is: the class default, a subset of it, or
+  // nothing. The previous cut shipped a general-purpose grant EDITOR over that
+  // — free-text paths, per-row read/write toggles, and an `+ Agents` quick-pick
+  // that could never succeed (`agents/` is outside the ceiling, so clicking it
+  // and applying returned a 400). A control that exists but cannot be entered
+  // is the defect this ADR was written to remove, reintroduced one layer up.
+  //
+  // Three states, one radio group. Species-blind (ADR-405): a human, a
+  // connected LLM, and a hired agent get the SAME control — the row's kind
+  // changes the label copy, never the model.
+  const initialMode: AccessMode =
+    member.write_state === 'all' && member.read_state === 'all'
+      ? 'full'
+      : member.write_state === 'none' && member.read_state === 'none'
+        ? 'none'
+        : 'restricted';
 
-  const [rows, setRows] = useState<ScopeRow[]>(seedRows);
+  const [mode, setMode] = useState<AccessMode>(initialMode);
+  const [paths, setPaths] = useState<string[]>(() =>
+    Array.from(
+      new Set(
+        [...member.write_regions, ...(member.read_scopes ?? [])]
+          .map(normalizePrefix)
+          .filter(Boolean),
+      ),
+    ),
+  );
   const [newPath, setNewPath] = useState('');
 
-  // ADR-532 D1: did this dialog OPEN on an un-narrowed grant, and has the
-  // operator not yet added anything? Then there is no edit to apply — Apply
-  // stays inert, so inspecting a principal can never narrow it. Tracked as
-  // "opened unconfigured AND still empty" rather than a dirty flag, because
-  // adding a row and removing it again lands on a real deny-all intent.
-  const openedUnconfigured = useRef(
-    member.write_state === 'all' && member.read_state === 'all',
-  ).current;
-  const untouched = openedUnconfigured && rows.length === 0;
-
-  /** ADR-532 D2 — set one axis without disturbing the other.
-   *
-   *  `read ⊇ write` is kept as a NUDGE, not a lock (ADR-434 D1: it is the
-   *  backfill default, not a constraint). Turning write ON raises read to
-   *  match — the grant the operator means. Turning read OFF while write is on
-   *  would mint an unreachable write, so it drops write too. Neither refuses
-   *  the edit; both land on the coherent grant. */
-  const setAxis = (path: string, axis: 'read' | 'write', next: boolean) =>
-    setRows((rs) =>
-      rs.map((r) => {
-        if (r.path !== path) return r;
-        if (axis === 'write') return { ...r, write: next, read: next ? true : r.read };
-        return { ...r, read: next, write: next ? r.write : false };
-      }),
-    );
+  // Nothing to apply until the operator actually changes something. Inspecting
+  // a principal must never narrow it (the D1 defect, kept fixed).
+  const dirty = mode !== initialMode || (mode === 'restricted' && paths.join(' ') !== Array.from(
+    new Set([...member.write_regions, ...(member.read_scopes ?? [])].map(normalizePrefix).filter(Boolean)),
+  ).join(' '));
 
   const addPath = () => {
     const p = normalizePrefix(newPath);
-    if (!p || rows.some((r) => r.path === p)) return;
-    setRows((rs) => [...rs, { path: p, read: true, write: true }]);
+    if (!p || paths.includes(p)) return;
+    setPaths((ps) => [...ps, p]);
     setNewPath('');
   };
 
-  const addZone = (region: string) => {
-    const p = normalizePrefix(region);
-    if (rows.some((r) => r.path === p)) return;
-    setRows((rs) => [...rs, { path: p, read: true, write: true }]);
-  };
-
-  // Derive the two axes: write = 'write' rows; read = 'write' ∪ 'read' rows
-  // (read ⊇ write). Empty axis → deny-all for that axis.
-  const writeScopes = rows.filter((r) => r.write).map((r) => r.path);
-  const readScopes = rows.filter((r) => r.read).map((r) => r.path);
-  const denyAllWrite = writeScopes.length === 0;
-  const denyAllBoth = readScopes.length === 0;
-
-  const zoneRows = rows.map((r) => r.path);
+  // The wire payload for each mode. Both axes move together — `narrow_grant`'s
+  // own default is `read ⊇ write` with read mirroring write, so a per-path read
+  // axis would be UI carrying a distinction nothing sets. (ADR-434 D1's
+  // read-only auditor stays representable in the KERNEL and reachable via the
+  // API; it is simply not a cockpit control until something asks for it.)
+  //
+  //   full       → null  = class default, the un-narrowed grant
+  //   restricted → paths = allow-list, at any depth under the class ceiling
+  //   none       → []    = explicit deny-all, still connected
+  const scopesForMode = (): string[] | null =>
+    mode === 'full' ? null : mode === 'none' ? [] : paths;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && onCancel()}>
@@ -967,124 +954,107 @@ function NarrowDialog({
           Set {member.label ?? member.principal_id}&rsquo;s access
         </h3>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Grant read or read &amp; write on any folder or file. Paths can be as
-          deep as you like. Anything not listed is hidden and denied — the member
-          stays connected either way.
+          {roleNounCap(member.role)} access to this workspace. Anything not
+          granted is hidden and denied — {member.label ?? 'they'} stays connected
+          either way.
         </p>
 
-        {/* Quick-pick zones — one click to add a top-level home as a row. */}
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {NARROWABLE_REGIONS.filter((rg) => !zoneRows.includes(normalizePrefix(rg))).map((region) => (
-            <button
-              key={region}
-              type="button"
-              onClick={() => addZone(region)}
-              className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-[12px] text-muted-foreground hover:bg-muted/50"
+        {/* ADR-532 (recut) — ONE radio group. The kernel's `narrow` verb only
+            tightens, and the class ceiling is `operation/`, so this is the whole
+            expressible space. Species-blind: identical for a person, a connected
+            LLM, and a hired agent. */}
+        <div className="mt-4 space-y-1.5">
+          {(
+            [
+              ['full', 'Full access', `Everything ${roleNoun(member.role)} can reach. The default.`],
+              ['restricted', 'Only these paths', 'A folder or a single file. Everything else is hidden.'],
+              ['none', 'No access', 'Reads and writes nothing. Still connected — use Revoke to disconnect.'],
+            ] as [AccessMode, string, string][]
+          ).map(([value, label, hint]) => (
+            <label
+              key={value}
+              className={cn(
+                'flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5',
+                mode === value ? 'border-primary bg-primary/5' : 'border-border/60 hover:bg-muted/40',
+              )}
             >
-              <Plus className="h-3 w-3" /> {regionLabel(region)}
-            </button>
+              <input
+                type="radio"
+                name="access-mode"
+                checked={mode === value}
+                onChange={() => setMode(value)}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium text-foreground">{label}</span>
+                <span className="block text-[12px] text-muted-foreground">{hint}</span>
+              </span>
+            </label>
           ))}
         </div>
 
-        {/* The scope rows — each path with its access level. */}
-        <div className="mt-3 space-y-1.5">
-          {/* ADR-532 D1: zero rows means two different things, and conflating
-              them is what made the old fabricated row feel necessary.
-              UNTOUCHED (both axes NULL, nothing added yet) = "not narrowed" —
-              a statement of the grant that exists. CLEARED (the operator
-              removed every row) = the deny-all they are about to apply. */}
-          {rows.length === 0 && (
-            untouched ? (
-              <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[13px] text-muted-foreground">
-                Not narrowed — {member.label ?? 'this principal'} has the default
-                reach for {roleNoun(member.role)}. Add a path to restrict them to
-                it; anything not listed then becomes hidden and denied.
+        {/* The path list — only when it means something. */}
+        {mode === 'restricted' && (
+          <div className="mt-3 space-y-1.5 rounded-md border border-border/60 p-3">
+            {paths.length === 0 && (
+              <p className="text-[12px] text-muted-foreground">
+                Add at least one path — an empty list means no access.
               </p>
-            ) : (
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[13px] text-amber-700 dark:text-amber-400">
-                No paths — this removes all access. {member.label ?? 'The principal'} stays
-                connected but can read and write nothing. (To disconnect entirely, use Revoke.)
-              </p>
-            )
-          )}
-          {rows.map((r) => (
-            <div key={r.path} className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2">
-              <code className="min-w-0 flex-1 truncate text-[13px] text-foreground/80" title={r.path}>
-                {r.path}
-              </code>
-              {/* ADR-532 D2 — the two axes are INDEPENDENT (ADR-434 D1: read ⊇
-                  write is the backfill default, not a constraint). Two toggles,
-                  one per axis, so the read-only auditor and the ADR-434-named
-                  "sees much, changes little" AI are reachable from the UI. The
-                  old single ladder could express neither. Removing a path
-                  entirely is the ✕; "no access" is not a third rung. */}
-              <div className="flex shrink-0 items-center gap-1.5 text-[11px]">
+            )}
+            {paths.map((p) => (
+              <div key={p} className="flex items-center gap-2 rounded border border-border/60 px-2.5 py-1.5">
+                <code className="min-w-0 flex-1 truncate text-[12px] text-foreground/80" title={p}>{p}</code>
                 <button
                   type="button"
-                  onClick={() => setAxis(r.path, 'read', !r.read)}
-                  className={cn(
-                    'rounded border px-2 py-1',
-                    r.read
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border text-muted-foreground hover:bg-muted/60',
-                  )}
-                  aria-pressed={r.read}
-                >
-                  Read
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAxis(r.path, 'write', !r.write)}
-                  className={cn(
-                    'rounded border px-2 py-1',
-                    r.write
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border text-muted-foreground hover:bg-muted/60',
-                  )}
-                  aria-pressed={r.write}
-                >
-                  Write
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRows((rs) => rs.filter((x) => x.path !== r.path))}
-                  className="rounded border border-border px-1.5 py-1 text-muted-foreground hover:bg-muted/60"
-                  aria-label={`Remove ${r.path}`}
-                  title="Remove this path"
+                  onClick={() => setPaths((ps) => ps.filter((x) => x !== p))}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-muted"
+                  aria-label={`Remove ${p}`}
                 >
                   ✕
                 </button>
               </div>
+            ))}
+            {/* Quick-pick: only regions actually INSIDE the class ceiling. An
+                option that always 400s is worse than no option (the `+ Agents`
+                defect of the first cut). */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              {NARROWABLE_REGIONS.filter(
+                (rg) => !paths.includes(normalizePrefix(rg)) && withinCeiling(normalizePrefix(rg), member),
+              ).map((region) => (
+                <button
+                  key={region}
+                  type="button"
+                  onClick={() => setPaths((ps) => [...ps, normalizePrefix(region)])}
+                  className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-[12px] text-muted-foreground hover:bg-muted/50"
+                >
+                  <Plus className="h-3 w-3" /> {regionLabel(region)}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                value={newPath}
+                onChange={(e) => setNewPath(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPath())}
+                placeholder="e.g. operation/marketing/ or operation/reports/q3.md"
+                className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={addPath}
+                disabled={!normalizePrefix(newPath)}
+                className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-medium hover:bg-muted disabled:opacity-40"
+              >
+                Add path
+              </button>
+            </div>
+          </div>
+        )}
 
-        {/* Add a deeper path by hand (object-granularity). */}
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            value={newPath}
-            onChange={(e) => setNewPath(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPath())}
-            placeholder="e.g. operation/marketing/ or operation/reports/q3.md"
-            className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <button
-            type="button"
-            onClick={addPath}
-            disabled={!normalizePrefix(newPath)}
-            className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-medium hover:bg-muted disabled:opacity-40"
-          >
-            Add path
-          </button>
-        </div>
-
-        {/* Honest summary of what the two axes resolve to. */}
-        <p className="mt-3 text-[11px] text-muted-foreground">
-          {denyAllBoth
-            ? 'Read: nothing · Write: nothing'
-            : `Read: ${readScopes.length} path${readScopes.length === 1 ? '' : 's'}` +
-              ` · Write: ${denyAllWrite ? 'nothing (read-only)' : `${writeScopes.length} path${writeScopes.length === 1 ? '' : 's'}`}`}
-        </p>
+        {/* No summary line. The radio label IS the statement of what will
+            happen — a second restatement is where "Not narrowed" and
+            "Read: nothing · Write: nothing" ended up contradicting each other
+            on the same screen. */}
 
         {error && (
           <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
@@ -1101,21 +1071,26 @@ function NarrowDialog({
           >
             Cancel
           </button>
-          {/* ADR-532 D1: inert while untouched — there is no edit to apply, and
-              a live Apply here would narrow a principal by inspection. */}
+          {/* Inert until something actually changed — inspecting a principal
+              must never narrow it. `restricted` with an empty list is also
+              inert: it would silently mean deny-all, which is what the third
+              radio says out loud. */}
           <button
             type="button"
-            disabled={busy || untouched}
-            onClick={() => onConfirm(writeScopes, readScopes)}
+            disabled={busy || !dirty || (mode === 'restricted' && paths.length === 0)}
+            onClick={() => {
+              const scopes = scopesForMode();
+              onConfirm(scopes as string[], scopes as string[]);
+            }}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50',
-              denyAllBoth && !untouched
+              mode === 'none'
                 ? 'bg-amber-600 text-white hover:bg-amber-600/90'
                 : 'bg-primary text-primary-foreground hover:bg-primary/90',
             )}
           >
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {denyAllBoth && !untouched ? 'Remove all access' : 'Apply'}
+            {mode === 'none' ? 'Remove all access' : 'Apply'}
           </button>
         </div>
       </div>

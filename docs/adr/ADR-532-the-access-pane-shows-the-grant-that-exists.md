@@ -89,7 +89,51 @@ three-state polarity load-bearing precisely so these stay distinguishable
 unrepresentable"*). A UI that collapses NULL into a path re-introduces the
 collapse D3 removed.
 
+## 3a. D1 recut — the dialog asks ONE question (2026-08-07, same day)
+
+The first cut of D1/D2 fixed the fabricated row and split the axes, and the
+operator's screenshot of the result showed **"Not narrowed"** sitting directly
+above **"Read: nothing · Write: nothing"** — the dialog contradicting itself on
+one screen. The operator's reading was right: *"your implementation was
+preserving the legacy approach while accommodating the discipline."* The honest
+state had been bolted onto a row-editor built for a model the kernel does not
+have.
+
+**What the kernel actually permits, read from `narrow_grant`:**
+
+1. The verb is **narrow-only** — `_within` raises `ScopeEscalation` on any
+   widening. There is no widening path through this dialog.
+2. The class ceiling is **`operation/`** for both `member` and `foreign-llm`.
+3. **NULL is where every principal starts** and means the class default.
+
+So the entire expressible space is: *the class default · a subset of it ·
+nothing.* A general-purpose grant editor over that space is not just more UI
+than needed — it **offers acts the server must refuse**. The first cut's
+`+ Agents` quick-pick was exactly that: `agents/` is outside the `operation/`
+ceiling, so clicking it and applying returned a 400 every time. **A control that
+exists but cannot be entered** is the defect class this ADR was written to
+remove, reintroduced one layer up.
+
+**The dialog is one radio group** — Full access · Only these paths · No access —
+with the path list shown only under the middle option. The summary line is
+**deleted**: the radio label *is* the statement of what will happen, and a second
+restatement is precisely where the contradiction appeared. Apply stays inert
+until something changes, and inert for `restricted` with an empty list (that
+would silently mean deny-all, which the third option says out loud).
+
+**Species-blind by construction (ADR-405)**: a person, a connected LLM, and a
+hired agent get the *same* control. Only the label copy reads the role
+(`roleNoun`), never the model.
+
 ## 4. D2 — The two axes are shown and set independently
+
+> **Superseded by §3a on the same day.** The per-path read/write toggles are
+> **not** in the shipped cut. `narrow_grant`'s own default is `read ⊇ write` with
+> read mirroring write, and zero live grants move the axes apart — so a per-path
+> read control was UI carrying a distinction nothing sets. The read-only auditor
+> (ADR-434 D1) remains fully representable **in the kernel** and reachable over
+> the API; it is simply not a cockpit control until a real use case asks for it.
+> The reasoning below is retained because it is why the axes exist at all.
 
 ADR-434 D1 built `read_scopes` and `write_scopes` as **independent** axes, with
 `read ⊇ write` as *"the BACKFILL DEFAULT, not a constraint"*. The fused ladder
