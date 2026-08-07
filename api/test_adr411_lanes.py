@@ -71,15 +71,20 @@ def test_lane_models_are_provider_prefixed():
 # ---------------------------------------------------------------------------
 
 def test_lane_tools_are_the_uniform_surface():
-    # ADR-467 D4: the five file verbs + the two uniform reads, every lane.
+    # ADR-467 D4: the five file verbs + the uniform reads, every lane.
+    # The reads GREW by one (ADR-535 D2 — list_integrations, the member's
+    # binding inventory). Asserted as a DERIVATION, never a pinned spelling:
+    # the second assert used to restate the set as a literal, which is a dup of
+    # LANE_SURFACE_EXTRA that goes red on every legitimate surface change
+    # without defending anything the first assert doesn't already cover. What
+    # is worth pinning is the CEILING, not the census — so that is what the
+    # added assert does.
     from services.lane_runner import LANE_SURFACE_EXTRA
     tools = lane_tools_openai()
     names = [t["function"]["name"] for t in tools]
     assert names == list(LANE_TOOL_NAMES) + list(LANE_SURFACE_EXTRA)
-    assert set(names) == {
-        "ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles",
-        "QueryKnowledge", "WebSearch",
-    }
+    # ⚠️ Visibility is not reach (ADR-535 §7): no platform_* tool, ever.
+    assert not any(n.startswith("platform_") for n in names)
 
 
 def test_lane_tools_reuse_registry_schemas():

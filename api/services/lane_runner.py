@@ -87,7 +87,7 @@ def _studio_max_tokens() -> int:
 #: verbs, no Schedule, no DispatchSpecialist, no platform tools.
 LANE_TOOL_NAMES = ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles")
 
-#: The two reads beyond the five verbs — UNIFORM for every lane (ADR-467 D4).
+#: The three reads beyond the five verbs — UNIFORM for every lane (ADR-467 D4).
 #: Capability stopped being a per-Agent fact: the per-row `tools` field was a
 #: bug factory with no safety payoff (the gate, not the allowlist, was always
 #: the boundary — both names are derived non-consequential in
@@ -96,7 +96,16 @@ LANE_TOOL_NAMES = ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFile
 #: uniform addition, evidence-gated, and must be in READ_ONLY_PRIMITIVES (the
 #: gate asserts this) AND have a schema in `lane_tools_openai` (which fails
 #: loud, not silent, on a missing one).
-LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch")
+#: `list_integrations` (ADR-535 D2) is the member's BINDING INVENTORY — which
+#: connectors they bound, and their status. Metadata only: it never calls a
+#: provider API and never decrypts a credential. It is here because a lane that
+#: cannot see the member's bindings GUESSES about them, and guessed wrong on a
+#: live surface (the ADR-535 §1 screenshot: "this workspace doesn't have a live
+#: Notion connector", said over an active Notion binding). Seeing a connector is
+#: NOT reaching through one — no `platform_*` tool is on this surface, and the
+#: frame states that edge affirmatively (ADR-535 D3), because a model handed the
+#: inventory will otherwise infer the reach.
+LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations")
 
 #: The subset of the lane surface that PRODUCES substrate. A successful call
 #: to one of these lands an attributed revision, and the member should SEE what
@@ -199,6 +208,9 @@ def lane_tools_openai() -> list[dict]:
     (prompt + allowlist claiming a tool the payload never carried) on the next
     surface addition.
     """
+    # ADR-535 D2: the registry's own LIST_INTEGRATIONS_TOOL, composed — not a
+    # parallel lane-local definition (Singular Implementation).
+    from services.primitives.registry import LIST_INTEGRATIONS_TOOL
     from services.primitives.web_search import WEB_SEARCH_PRIMITIVE
     from services.primitives.workspace import (
         EDIT_FILE_TOOL,
@@ -213,7 +225,8 @@ def lane_tools_openai() -> list[dict]:
         t["name"]: t
         for t in (READ_FILE_TOOL, WRITE_FILE_TOOL, EDIT_FILE_TOOL,
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
-                  QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE)
+                  QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE,
+                  LIST_INTEGRATIONS_TOOL)
     }
     missing = [n for n in lane_tool_names() if n not in by_name]
     if missing:
@@ -275,6 +288,14 @@ territory — read them to understand intent, don't author there.
 agents, or write out to external platforms; you read this member's commons
 (QueryKnowledge searches it by meaning) and the open web (WebSearch), and you
 write only to the commons.
+
+list_integrations tells you which platforms {member} has CONNECTED (Notion,
+Slack, GitHub) and whether each is active. Call it instead of guessing — never
+tell them a connector is absent without looking. But seeing a connection is not
+having it: you can name what they bound, and you CANNOT read through it. There
+is no tool here that opens a Notion page or a Slack channel. If they want that
+content, say so plainly and offer what you can do — they can paste it, or
+export and drop the files into the commons, where you read them normally.
 
 ## Format discipline
 {format_discipline}

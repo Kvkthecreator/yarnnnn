@@ -375,8 +375,10 @@ def run() -> bool:
     # it: the day a primitive stops being a read it stops being serveable, in
     # the same edit, with nobody remembering to.
     _check(
-        "the surface is the seven (five verbs + QueryKnowledge + WebSearch)",
-        lane_tool_names() == LANE_TOOL_NAMES + ("QueryKnowledge", "WebSearch"),
+        "the surface is the eight (five verbs + QueryKnowledge + WebSearch "
+        "+ list_integrations)",
+        lane_tool_names()
+        == LANE_TOOL_NAMES + ("QueryKnowledge", "WebSearch", "list_integrations"),
     )
     for _t in LANE_SURFACE_EXTRA:
         _check(
@@ -391,8 +393,8 @@ def run() -> bool:
     # (kernel agents, postures, and an agentless lane alike), not just scout.
     _payload = {t["function"]["name"] for t in lane_tools_openai()}
     _check(
-        "the DECLARED payload == the EXECUTION allowlist (the seven, exactly)",
-        _payload == set(lane_tool_names()) and len(_payload) == 7,
+        "the DECLARED payload == the EXECUTION allowlist (the eight, exactly)",
+        _payload == set(lane_tool_names()) and len(_payload) == 8,
     )
     _check(
         "the prompt's ## Your tools names the SAME set for every character",
