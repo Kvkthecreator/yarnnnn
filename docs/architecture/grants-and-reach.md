@@ -191,6 +191,36 @@ iframe, and a shared PDF/XLSX/ZIP had its raw bytes emitted into a `<pre>`. Form
 registered strategy are legibly marked, never dumped. The link gained a **machine address**
 (`/s/{token}.txt`, an alias with `rel="canonical"`).
 
+**Closed 2026-08-07 by [ADR-531](../adr/ADR-531-the-shared-artifact-is-indexable.md)**: `noindex`
+removed from the `/s/{token}` surface so ChatGPT's partly-search-mediated retrieval is not told to
+ignore the page. `no-store` + status/expiry are unchanged. Read §5a before arguing about it: this
+traded **revocation integrity**, not confidentiality, and it was ratified over a recorded
+objection.
+
+### 8a. Diagnosing "an AI can't read my share link" (read this first)
+
+Four separate defects wore this same symptom between 2026-08-06 and 08-07, and **every wrong
+answer was confidently plausible**. Work the list in order rather than theorising:
+
+| # | Check | The defect it caught |
+|---|---|---|
+| 1 | `curl -s "$API/api/s/$TOKEN"` | Is the share even live? A **404 is a wrong/typo'd token**; a **410 is revoked**. Twice a mangled token was mistaken for a server fault. |
+| 2 | Token length | `secrets.token_urlsafe(24)` = **exactly 32 chars**. Anything else was corrupted in transit. |
+| 3 | `curl -A "…ChatGPT-User/1.0…"` and grep for real content | Catches SSR regressions (ADR-529 D3) and UA filtering. |
+| 4 | Robots verdict **per host**, with a real parser | `urllib.robotparser` on **both** apex and `www`. A redirecting `robots.txt` reads as *disallow-all* (ADR-530 D4.2). |
+| 5 | `<meta name="robots">` on the page + `X-Robots-Tag` on the API | ADR-531: neither should say `noindex`. |
+| 6 | An **independent third-party fetcher** | Proves reachability from outside your own network before blaming the server. |
+
+**Two standing cautions**, both earned the hard way:
+
+- **An assistant's self-diagnosis is a hypothesis, not evidence.** Across this arc, models blamed
+  JS rendering, bot-blocking, auth, and DNS — every one measurably false, each asserted
+  confidently while the real cause was a 404, a redirecting `robots.txt`, or a mistyped token.
+  Measure before acting on it.
+- **Testing one artifact kind proves nothing about the others.** ADR-529 was verified on a `.md`
+  file and declared closed while every `.html` share was still unreadable. Test **both** a text
+  file and an HTML artifact.
+
 Still owed:
 
 - **FE convergence remainder** (ADR-515 D3/D4/D6 + the rail pass): the `Copy AI reference` verb
@@ -208,6 +238,17 @@ Still owed:
   (`project_for_machine`). The conformant end state is a projection as a *cited substrate object*
   (`derived_from`, per DP32/ADR-395) computed at write — cacheable, attributable, and what makes
   ADR-512 D5's reserved `@{revision_id}` form reachable at this boundary.
+- **TTL wiring** (ADR-531 D3): `ttl_days` exists on `ShareCreateRequest` and **no surface passes
+  it**. Bounded exposure is good cowork hygiene — a link handed to a contractor should not outlive
+  the engagement. It is **not** an indexing answer (expiry governs the URL; an index governs its
+  own copy) and must not ship as though it were.
+- **The revoke-honesty signal** (ADR-531 §6): revoke is silent about the world. Now that shares
+  are indexable, a line at revoke time — *"this may persist in search results"* — would be honest.
+  Named, not built.
+- **A "publish" act** — deliberately NOT built (ADR-531 D3). Publishing is a **distribution** act
+  (audience, reach, GTM); sharing is an **interop** act (a specific collaborator, human or AI, in
+  a specific document). If it is ever wanted, it is its own ADR — folding it into Share repeats
+  the ADR-515 one-button-three-jobs error.
 - **Image delivery + sub-part addressing** (ADR-530 D7): `passthrough` kinds are honestly marked
   in v1; delivering the image itself, and addressing a figure *inside* a document, are named-
   deferred.
