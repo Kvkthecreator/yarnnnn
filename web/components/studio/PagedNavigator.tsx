@@ -83,17 +83,31 @@ async function buildPagePreviews(html: string, artifactPath: string): Promise<Sl
     const heading = page.querySelector('h1, h2, h3, .kicker');
     const body = page.outerHTML;
     // A deck slide takes its box from the ARTIFACT's own --stage-w/--stage-h
-    // (carried in `headStyles` above), so this only strips the chrome a preview
-    // shouldn't show. It must NOT re-pin width/height: that is what made the
-    // thumbnail assert its own geometry over the document's, and a thumbnail
-    // that disagrees with the canvas about the slide's box is the same
-    // one-file-two-geometries split. `--stage-*` falls back to the natural
-    // landscape box, so a legacy deck still previews at 16:9.
+    // (carried in `headStyles` above), so a v14+ deck previews at whatever
+    // stage it declares and the thumbnail never asserts its own geometry.
+    //
+    // But `.slide` MUST still be pinned, because --stage-* is KERNEL-owned and
+    // the kernel retrofits only on the next mechanical op (artifactOps.ts
+    // `ensureKernelStyle`). An un-retrofitted deck carries neither the vars nor
+    // the kernel rule — only its baked `width: min(100%, 62rem)`, which reads
+    // the container. Sizing html/body alone left that skin rule live, so the
+    // slide re-derived its width from the 992px body and the unshrinking
+    // `3.5rem 4rem` padding overflowed `overflow:hidden` — slides clipped to
+    // visual emptiness in the rail. That is the ADR-447 D7.7 defect arriving
+    // through the one door the box move did not close.
+    //
+    // So: pin to the SAME var chain the document itself uses. On a retrofitted
+    // deck the var resolves and this restates the document's own answer; on a
+    // legacy deck the fallback supplies the natural landscape box. Either way
+    // the thumbnail agrees with the canvas, which is the invariant that matters
+    // — the split this replaces was fixed-in-editor vs container-read-elsewhere.
     // A page section keeps its natural height so a tall hero previews as tall.
     const sizing = isSlide
       ? `html,body{margin:0;padding:0;background:#fff;overflow:hidden;` +
         `width:var(--stage-w,${SLIDE_W}px);height:var(--stage-h,${SLIDE_H}px);}` +
-        `.slide{margin:0 !important;box-shadow:none !important;}`
+        `.slide{width:var(--stage-w,${SLIDE_W}px) !important;` +
+        `height:var(--stage-h,${SLIDE_H}px) !important;` +
+        `aspect-ratio:auto !important;margin:0 !important;box-shadow:none !important;}`
       : `html,body{margin:0;padding:0;background:#fff;width:${SLIDE_W}px;}` +
         `[data-arrange]{margin:0 !important;box-shadow:none !important;}`;
     const previewDoc =

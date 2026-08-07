@@ -209,6 +209,35 @@ def run() -> bool:
         "and it is KERNEL-owned, so decks that ALREADY EXIST get it (skins bake once)",
         'html[data-template="deck"] .slide {' in kernel and "--stage-w" in kernel,
     )
+    # KERNEL-owned means an existing deck CAN get the box — not that it HAS it.
+    # The retrofit rides the next mechanical op per artifact, so an artifact
+    # nobody edits sits at its old version indefinitely. At v14 ship time every
+    # deck in production was still v11/v13, carrying only the baked
+    # `width: min(100%, 62rem)` the move was meant to replace.
+    #
+    # So every consumer that reads --stage-* must carry a FALLBACK, or it reads
+    # nothing on a legacy deck and the container-read skin wins by default. That
+    # is exactly what clipped slides to visual emptiness in the navigator rail:
+    # the preview sized html/body from the var but stopped pinning `.slide`, so
+    # the baked rule re-derived the slide's width from the body and the
+    # unshrinking padding overflowed `overflow: hidden`.
+    nav = (WEB / "components/studio/PagedNavigator.tsx").read_text()
+    _check(
+        "the navigator PINS the slide box, so an un-retrofitted deck still previews",
+        # var-with-fallback, not a bare var: retrofitted decks honour their own
+        # stage, legacy decks get the natural landscape box. Both agree with the
+        # canvas, which is the invariant the box move exists to protect.
+        "width:var(--stage-w,${SLIDE_W}px) !important;" in nav
+        and "height:var(--stage-h,${SLIDE_H}px) !important;" in nav,
+    )
+    geom = (WEB / "components/studio/stageGeometry.ts").read_text()
+    _check(
+        "and readStageSize falls back per-template rather than returning zero",
+        "export function fallbackStageSize(" in geom
+        and "const fallback = fallbackStageSize(template);" in geom
+        and "if (!doc) return fallback;" in geom
+        and "return fallback;" in geom,
+    )
     # No continuous value has entered any TOKEN — a continuous value belongs to
     # a MEASURE (below), which is a different mechanism with a different bound.
     # A token smuggling `761px` is the boundary crossed without D4's argument.
