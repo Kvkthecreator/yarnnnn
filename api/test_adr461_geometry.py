@@ -180,10 +180,34 @@ def run() -> bool:
         "a slide keeps its responsive EXEMPTION (a fixed stage does not reflow)",
         '[data-arrange]:not(.slide) .cols { flex-direction: column; }' in kernel,
     )
+    # The deck is still a fixed 16:9 stage — but the BOX moved from the layout
+    # skin to the KERNEL, because a skin is baked once at creation and could
+    # never reach the decks that already exist. So this asks the two layers
+    # TOGETHER (what a consumer actually receives) instead of pinning the rule
+    # to one layer's source text: the old assertion read `aspect-ratio: 16 / 9`
+    # out of the skin and would have gone red on a move that STRENGTHENED the
+    # invariant it defends.
+    _deck_css = STUDIO_LAYOUTS["deck"]["skin"] + "\n" + kernel
     _check(
         "the deck is still a fixed 16:9 stage (what makes it boundable at all)",
-        "aspect-ratio: 16 / 9" in STUDIO_LAYOUTS["deck"]["skin"]
-        and "overflow: hidden" in STUDIO_LAYOUTS["deck"]["skin"],
+        "--stage-wn: 16" in _deck_css
+        and "--stage-hn: 9" in _deck_css
+        and "aspect-ratio: var(--stage-wn) / var(--stage-hn)" in _deck_css
+        and "overflow: hidden" in _deck_css,
+    )
+    _check(
+        "the stage's box is INTRINSIC — never read off the container (ADR-447 D7.7)",
+        "--stage-w: 992px" in _deck_css
+        and "width: var(--stage-w)" in _deck_css
+        # `min(100%, …)` sized the slide from whatever column it sat in, which
+        # is how one deck ended up with two geometries (canvas vs everywhere).
+        and "min(100%" not in STUDIO_LAYOUTS["deck"]["skin"].replace(
+            "`width: min(100%, 62rem)`", ""  # the comment recording what it replaced
+        ),
+    )
+    _check(
+        "and it is KERNEL-owned, so decks that ALREADY EXIST get it (skins bake once)",
+        'html[data-template="deck"] .slide {' in kernel and "--stage-w" in kernel,
     )
     # No continuous value has entered any TOKEN — a continuous value belongs to
     # a MEASURE (below), which is a different mechanism with a different bound.

@@ -19,22 +19,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
+import { DECK_STAGE_FALLBACK_W, DECK_STAGE_FALLBACK_H } from './stageGeometry';
 
 /* ADR-520 D4 — the per-page structure tree LEFT this rail: the pane's
  * Identity section (path + Contents) is the structure's one home now; the
  * navigator is the SEQUENCE — page cards, reorder, multi-select — and
  * nothing below the page grain. (The ADR-511 D3 tree clause is superseded.) */
 
-// A deck slide is LANDSCAPE 16:9 (the skin: aspect-ratio 16/9). The preview
-// iframe renders the slide at its NATURAL landscape box (SLIDE_W×SLIDE_H) and
-// the whole document is scaled to whatever width the rail gives us — measured,
-// never hardcoded. The old code pinned THUMB_W=200 while the rail (w-56 minus
-// its padding + the number column) is only ~176px wide, so the 200px iframe was
-// CLIPPED on the right by its overflow-hidden parent and read as a squished,
-// portrait-ish strip. Now the scale is derived from the real container width so
-// the 16:9 preview always fits edge-to-edge, undistorted.
-const SLIDE_W = 992; // the slide's max width (62rem) — its natural landscape box
-const SLIDE_H = Math.round((SLIDE_W * 9) / 16); // 16:9 → 558
+// A deck slide is LANDSCAPE 16:9. The preview iframe renders the slide at its
+// NATURAL landscape box and the whole document is scaled to whatever width the
+// rail gives us — measured, never hardcoded. The old code pinned THUMB_W=200
+// while the rail (w-56 minus its padding + the number column) is only ~176px
+// wide, so the 200px iframe was CLIPPED on the right by its overflow-hidden
+// parent and read as a squished, portrait-ish strip. Now the scale is derived
+// from the real container width so the 16:9 preview always fits edge-to-edge.
+//
+// These are the SHARED natural-box constants, not a third private copy: the
+// literal 992 used to appear here, in projection.ts and in StudioCanvas.tsx
+// with no import between them. The slide's real dimensions now ride the
+// artifact itself (`--stage-w`/`--stage-h`), so the preview doc's own <style>
+// sizes the slide; what the card needs from these is the FRAME RATIO and the
+// natural width the transform scales against.
+const SLIDE_W = DECK_STAGE_FALLBACK_W;
+const SLIDE_H = DECK_STAGE_FALLBACK_H;
 
 interface SlidePreview {
   index: number;
@@ -75,12 +82,18 @@ async function buildPagePreviews(html: string, artifactPath: string): Promise<Sl
     const isSlide = page.matches('section.slide');
     const heading = page.querySelector('h1, h2, h3, .kicker');
     const body = page.outerHTML;
-    // A deck slide is pinned to its landscape box; a page section keeps its
-    // natural height (the skin's own layout) so a tall hero previews as tall.
+    // A deck slide takes its box from the ARTIFACT's own --stage-w/--stage-h
+    // (carried in `headStyles` above), so this only strips the chrome a preview
+    // shouldn't show. It must NOT re-pin width/height: that is what made the
+    // thumbnail assert its own geometry over the document's, and a thumbnail
+    // that disagrees with the canvas about the slide's box is the same
+    // one-file-two-geometries split. `--stage-*` falls back to the natural
+    // landscape box, so a legacy deck still previews at 16:9.
+    // A page section keeps its natural height so a tall hero previews as tall.
     const sizing = isSlide
-      ? `html,body{margin:0;padding:0;background:#fff;overflow:hidden;width:${SLIDE_W}px;height:${SLIDE_H}px;}` +
-        `.slide{width:${SLIDE_W}px !important;height:${SLIDE_H}px !important;` +
-        `aspect-ratio:auto !important;margin:0 !important;box-shadow:none !important;}`
+      ? `html,body{margin:0;padding:0;background:#fff;overflow:hidden;` +
+        `width:var(--stage-w,${SLIDE_W}px);height:var(--stage-h,${SLIDE_H}px);}` +
+        `.slide{margin:0 !important;box-shadow:none !important;}`
       : `html,body{margin:0;padding:0;background:#fff;width:${SLIDE_W}px;}` +
         `[data-arrange]{margin:0 !important;box-shadow:none !important;}`;
     const previewDoc =

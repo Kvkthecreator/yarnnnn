@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceFile } from '@/types';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
+import { readStageSize } from '@/components/studio/stageGeometry';
 
 /** ADR-462 D7: a right-click's report. The runtime has already selected the
  *  block under the cursor; this carries the anchor + the grain the menu builds
@@ -255,14 +256,12 @@ interface StudioCanvasProps {
   onScrollPos?: (pos: { y: number; slide: number | null }) => void;
 }
 
-// A staged layout's natural width (ADR-447 D7.7; ADR-471) — the projection
-// pins the stage to a fixed box in the canvas so a narrow column can't
-// collapse it (see DECK_STAGE_W / CANVAS_STAGE_W in projection.ts). The
-// canvas then AUTO-FITS: it scales the stage down so it fits the actual
-// column width, and the operator's zoom rides on top of that fit.
-// Documents/articles are fluid (no fixed stage), so they get no fit.
-const DECK_STAGE_W = 992;
-const CANVAS_STAGE_W = 736;
+// A staged layout's box is a property of the FILE (components/studio/
+// stageGeometry.ts) — it rides the artifact as --stage-w/--stage-h. This
+// canvas's only geometric job is to AUTO-FIT: scale the stage down so it fits
+// the actual column width, with the operator's zoom riding on top. It SCALES,
+// never RESIZES — a deck must look the same here as it does shared, exported,
+// or on a tablet. Documents/web are fluid (no fixed stage), so they get no fit.
 
 export function StudioCanvas({
   file,
@@ -313,9 +312,13 @@ export function StudioCanvas({
   // artboards to a fixed stage — ADR-471 D-a shares the frame.) The root
   // carries data-template; cheap string tests avoid re-parsing.
   const isDeck = file.content?.includes('data-template="deck"') ?? false;
-  const isCanvasTpl = file.content?.includes('data-template="canvas"') ?? false;
-  const isStaged = isDeck || isCanvasTpl;
-  const stageW = isDeck ? DECK_STAGE_W : CANVAS_STAGE_W;
+  // `image` (not `canvas`): ADR-472 D1/D7 moved the artboard out of Studio and
+  // renamed the slug, and the migration rewrote every live artifact. This test
+  // still read `canvas`, so IMAGES stages matched nothing and got NO auto-fit —
+  // a 1080px stage rendered 1:1 in a ~370px column, the same unfitted
+  // blank-margin defect ADR-447 D7.7 described for decks.
+  const isImageTpl = file.content?.includes('data-template="image"') ?? false;
+  const isStaged = isDeck || isImageTpl;
 
   // The auto-fit scale: for a deck, shrink the 992px stage to the column width
   // (never enlarge past 1); for fluid layouts, 1. Measured off the iframe's own
@@ -328,9 +331,17 @@ export function StudioCanvas({
       setFitScale(1);
       return;
     }
+    // The stage's WIDTH is read from the projected document, never restated
+    // here: the file owns its geometry, and a second copy in the viewer is how
+    // the editor and every other consumer drifted apart in the first place.
     const measure = () => {
       const w = frame.clientWidth;
-      if (w > 0) setFitScale(Math.min(1, w / stageW));
+      if (w <= 0) return;
+      const { width: stageW } = readStageSize(
+        frame.contentDocument,
+        isDeck ? 'deck' : 'image',
+      );
+      if (stageW > 0) setFitScale(Math.min(1, w / stageW));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -343,7 +354,7 @@ export function StudioCanvas({
     // (chat + DevTools open) and the member saw a slide's blank left margin: a
     // "broken" white canvas that was really an unfitted one. Re-running once the
     // projection lands measures the frame that now exists.
-  }, [isStaged, stageW, projected]);
+  }, [isStaged, isDeck, projected]);
   const effectiveZoom = fitScale * zoom;
 
   // Re-project on CONTENT change (not on file-object identity — useFileLoad

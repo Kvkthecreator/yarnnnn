@@ -273,9 +273,16 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
         "skin": """
     body { background: var(--deck-stage, #e8e4de); }
     /* A deck slide is LANDSCAPE 16:9 — a fixed-aspect page, centered, one per
-       screen. aspect-ratio keeps it landscape in the canvas AND in a scaled
-       thumbnail (the navigator renders the same markup). */
-    .slide { width: min(100%, 62rem); aspect-ratio: 16 / 9; margin: 1.5rem auto;
+       screen, in the canvas AND in a scaled thumbnail (the navigator renders
+       the same markup).
+
+       The slide's BOX is not declared here — it is kernel-owned
+       (`html[data-template="deck"] .slide` in STUDIO_KERNEL_CSS), because a
+       layout skin is baked once at creation and could never reach the decks
+       that already exist. This skin owns the slide's LOOK; the kernel owns the
+       frame. What used to sit here was `width: min(100%, 62rem)`, which read
+       the container and made a deck's geometry depend on the screen. */
+    .slide { margin: 1.5rem auto;
              padding: 3.5rem 4rem; display: flex; flex-direction: column;
              justify-content: center; background: var(--paper);
              box-shadow: 0 1px 6px rgba(0,0,0,0.08); overflow: hidden;
@@ -1242,6 +1249,37 @@ html[data-measure="wide"] main, html[data-measure="wide"] article { max-width: 6
    `:not(.slide)` bug (8bc5384). ADR-461's premise is "a slide has a frame"; in
    CSS that is this line, and it must not be conditional on an unrelated token. */
 .slide { position: relative; }
+/* The frame's BOX, for the same reason the line above exists — and it must be
+   KERNEL, not skin. A layout skin is baked once at creation, so a rule that
+   lives only there fixes new decks and leaves every existing one broken; the
+   kernel is the layer that retrofits (it is re-stamped on version bump).
+
+   What this replaces: the deck skin sized the slide with
+   `width: min(100%, 62rem)`, which reads the CONTAINER. So one deck had two
+   geometries — the Studio canvas pinned it to 992px (projection.ts, `pointer`
+   mode ONLY), while share, export and thumbnail let the container size it. In a
+   narrow container the 16:9 box shrank until the unshrinking `3.5rem 4rem`
+   padding overflowed `overflow:hidden` and the slide clipped to visual
+   emptiness — the ADR-447 D7.7 defect, fixed in the canvas and nowhere else.
+
+   A deck's arrangement must not change with the screen it is read on, so the
+   box is a property of the FILE: the px pair sizes it, the unitless siblings
+   feed aspect-ratio (which cannot consume a px length). Declared as vars so an
+   authored stage size can override them per-artifact (the IMAGES-stage pattern
+   in services/images/stage.py, which already carries dimensions this way).
+
+   The kernel cascades AFTER the unmarked layout skin, so this wins over a
+   legacy deck's baked width without `!important`. No max-width: a stage that
+   shrinks with its container is the reflow this removes. Fitting belongs to the
+   VIEWER and it SCALES (StudioCanvas fitScale → body.style.zoom), never
+   resizes. `:not([data-template="image"] *)` is unnecessary — an IMAGES stage
+   declares its own --stage-w inline on the root, which wins on specificity. */
+html[data-template="deck"] .slide {
+  --stage-w: 992px; --stage-h: 558px; --stage-wn: 16; --stage-hn: 9;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  aspect-ratio: var(--stage-wn) / var(--stage-hn);
+}
 /* Slide numbers (ADR-456 W1) — CSS counters, opt-in on the deck root. */
 html[data-pagenum="on"] body { counter-reset: slide; }
 html[data-pagenum="on"] .slide { counter-increment: slide; }
@@ -1262,6 +1300,15 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 
 #: Bump when STUDIO_KERNEL_CSS changes shape — the FE upserts any artifact
 #: carrying an older data-kernel-v on its next mechanical op (the retrofit).
+# v14 (2026-08-07): the deck STAGE became kernel-owned. The slide's box was
+# sized by the layout skin with `width: min(100%, 62rem)` — a CONTAINER read —
+# so a deck's geometry changed with the screen it was opened on, and the canvas
+# masked it by pinning 992px in `pointer` mode only. Share, export and thumbnail
+# got the reflowing box, which in a narrow container clipped slides to visual
+# emptiness (the ADR-447 D7.7 defect, fixed in one consumer). It lives HERE and
+# not in the skin precisely because a skin is baked once: only the kernel
+# retrofits into decks that already exist. A slide's arrangement is a property
+# of the file, and the viewer may scale it but never resize it.
 #: v2: document-grain font/measure rules (ADR-455).
 #: v3: Wave-1 block/arrangement rules + pad/pagenum tokens + responsive
 #:     stacking (ADR-456) — block/arrangement CSS lives HERE, not the layout
@@ -1328,7 +1375,7 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # exact prior stacks as fallbacks — ADR-455's "a skin supplies faces; the
 # token selects among them" completed. Byte-identical on a skin-less
 # artifact; the bump retrofits both into every existing artifact.
-STUDIO_KERNEL_CSS_VERSION = 13
+STUDIO_KERNEL_CSS_VERSION = 14
 
 
 def compose_kernel_style_element() -> str:

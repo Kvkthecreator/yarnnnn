@@ -32,17 +32,20 @@
 import { toPng } from 'html-to-image';
 
 import { resolveArtifactHtml } from './projection';
+import { readStageSize } from '@/components/studio/stageGeometry';
 
-/** Read the stage's real pixel dimensions from the projected root's markers
- *  (`data-w`/`data-h` on <html>, ADR-472 D3). Falls back to the ad default. */
-function stageDimensions(doc: Document): { width: number; height: number } {
-  const root = doc.documentElement;
-  const w = Number(root.getAttribute('data-w'));
-  const h = Number(root.getAttribute('data-h'));
-  return {
-    width: Number.isFinite(w) && w > 0 ? w : 1200,
-    height: Number.isFinite(h) && h > 0 ? h : 628,
-  };
+/** Read the stage's real pixel dimensions off the projected document.
+ *
+ *  This used to read ONLY `data-w`/`data-h` (the markers an IMAGES stage root
+ *  carries, ADR-472 D3) and fall back to a 1200×628 ad default. A DECK carries
+ *  no such markers, so every deck raster export silently rasterized at 1200×628
+ *  — the wrong aspect ratio for a 16:9 slide, and nothing reported it.
+ *
+ *  `readStageSize` consults the geometry the file actually carries
+ *  (`--stage-w`/`--stage-h`, then the markers) and falls back per template, so
+ *  a deck exports at its true stage. */
+function stageDimensions(doc: Document, template?: string | null): { width: number; height: number } {
+  return readStageSize(doc, template ?? doc.documentElement.getAttribute('data-template'));
 }
 
 /** Fetch a (possibly cross-origin, signed) URL and return it as a `data:` URI.
