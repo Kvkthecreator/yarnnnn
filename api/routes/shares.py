@@ -192,7 +192,10 @@ PUBLIC_WALK_CAP = 12
 #: silently ship a bare error response (the 2026-08-03 live defect).
 #:
 #: `X-Robots-Tag: noindex, nofollow` was REMOVED here (ADR-531 D1). It was the
-#: last thing blocking ChatGPT, whose link retrieval is search-index-mediated —
+#: only failing item on the measured checklist for ChatGPT, whose link retrieval
+#: is at least partly search-mediated. Removing it removes AN obstacle; it does
+#: not guarantee retrieval (OpenAI: indexing is a common cause of delay, not a
+#: strict requirement — MCP stays the reliable lane for instant AI access) —
 #: isolated with a nine-character token that ruled out every other hypothesis
 #: (SSR, UA filtering, robots.txt, DNS, host, transcription all measured clean).
 #:

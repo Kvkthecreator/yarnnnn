@@ -39,8 +39,11 @@ export async function GET(
   // A capability link must not be cached by intermediaries, on EVERY status —
   // the dark states most of all (ADR-513 D4).
   //
-  // `X-Robots-Tag: noindex` is deliberately ABSENT (ADR-531 D1): it was what
-  // blocked ChatGPT, whose retrieval is search-index-mediated. Revocation stays
+  // `X-Robots-Tag: noindex` is deliberately ABSENT (ADR-531 D1): it was the one
+  // failing item on the measured checklist for ChatGPT, whose retrieval is at
+  // least partly search-mediated. Removing it removes an obstacle; it does not
+  // guarantee retrieval (OpenAI: indexing is a common cause of delay, not a
+  // strict requirement — MCP stays the reliable lane). Revocation stays
   // authoritative at the origin and becomes best-effort in the world — a named,
   // accepted trade, not an oversight.
   const headers: Record<string, string> = {

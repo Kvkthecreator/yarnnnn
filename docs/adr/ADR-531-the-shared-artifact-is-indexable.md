@@ -40,11 +40,27 @@ it:
 | `.txt` returns `text/plain` | PASS |
 | **not sending `noindex`** | **FAIL — we send it** |
 
-And the symptom named the mechanism: *"the **search engine** doesn't even index or fetch the URL
-— it falls back to unrelated results."* **ChatGPT's link retrieval is search-index-mediated;
-`noindex` is precisely the instruction not to retain a page in an index.** Claude fetches the URL
-directly, which is why Claude reads the same link fine. This was never JS rendering, bot
-blocking, DNS, host, or token — every one of which was tested and cleared.
+And the symptom pointed at the mechanism: *"the **search engine** doesn't even index or fetch the
+URL — it falls back to unrelated results."* **ChatGPT's link retrieval is at least partly
+search-mediated, and `noindex` is the instruction not to retain a page in an index.** Claude
+fetches the URL directly, which is why Claude reads the same link fine. This was never JS
+rendering, bot blocking, DNS, host, or token — every one of which was tested and cleared.
+
+> **Precision correction (2026-08-07, from OpenAI's own account, relayed by the operator).** An
+> earlier draft of this ADR — and the collaborator's summary of it — claimed `noindex` was **the**
+> blocker and that indexing is a **precondition** for retrieval. That is **overstated**. OpenAI's
+> position is that a fresh public URL may not be immediately retrievable due to **link-safety
+> checks and prior public discovery**, and that indexing is a **common cause of delay, not a
+> strict requirement**.
+>
+> What survives, and is all this ADR needs: `noindex` was the only failing item on the measured
+> checklist, and it is a signal working *against* retrieval. Removing it **removes one obstacle**;
+> it does not guarantee retrieval and was never proven to be the sole cause. The honest claim is
+> *"we stopped telling retrieval infrastructure to ignore this page"* — not *"we fixed ChatGPT."*
+>
+> **The operational consequence** (§6 note, restated here because it is the part people act on):
+> if instant AI access matters, **the MCP connector remains the reliable architecture.** A share
+> link is best-effort at the retrieval layer by construction.
 
 ## 2. The framing correction (the collaborator's error, recorded)
 
@@ -126,8 +142,20 @@ the market actually uses beats a cleaner guarantee nobody exercises.
    Named, not built.
 2. **TTL** (§5) — owed on its own merits.
 
-## 7. The one-line statement
+## 7. What this does not promise (read before diagnosing a "still broken" report)
+
+Removing `noindex` **removes an obstacle; it does not deliver retrieval.** A freshly minted share
+link may still be unreadable by ChatGPT for a while — because of link-safety checks, prior public
+discovery, or crawl timing, none of which we control (§1.2). That is the **expected shape of the
+mechanism we chose**, not a regression, and a future session should not go hunting for a new
+defect on the strength of one failed fetch.
+
+The reliable lane for instant AI access is and remains **MCP** — the workspace is reachable there
+with no link at all. Direct-fetch clients (Claude, Slack-class unfurlers, the `.txt` address) also
+have no such delay. **The share link is best-effort at the retrieval layer by construction.**
+
+## 8. The one-line statement
 
 **A capability link already surrendered confidentiality at mint, so the real question was never
-privacy but revocation integrity — and we knowingly trade some of it for reach, because a share
-link the most-used assistant cannot read is a broken share link.**
+privacy but revocation integrity — and we knowingly trade some of it for reach, while being honest
+that removing our own blocker buys an obstacle removed, not a guarantee.**

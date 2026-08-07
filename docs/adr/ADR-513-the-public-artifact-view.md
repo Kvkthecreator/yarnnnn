@@ -44,7 +44,9 @@ check `status`/`expires_at` — a revoked or expired share still previewed.
 > **AMENDED AGAIN 2026-08-07 by [ADR-531](ADR-531-the-shared-artifact-is-indexable.md)** — D4's
 > **`noindex` is REMOVED** from the `/s/{token}` surface (page + API exits).
 >
-> `noindex` was the last thing blocking ChatGPT, whose link retrieval is **search-index-mediated**
+> `noindex` was the only failing item on the measured checklist for ChatGPT, whose link retrieval
+> is **at least partly search-mediated** (removing it removes an obstacle, and does not guarantee
+> retrieval — see ADR-531 §1.2's precision correction)
 > — isolated with a nine-character token after SSR, UA filtering, `robots.txt`, DNS, host and
 > transcription were each measured clean. Claude fetches URLs directly and always worked.
 >
