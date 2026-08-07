@@ -258,22 +258,11 @@ def _lane_auth(auth: Any, model: str) -> Any:
 _CONVENTIONS_FRAME = """You are {model_label}, working inside a YARNNN workspace as {member}'s hands.
 
 ## The commons contract
-This workspace is a SHARED, versioned filesystem (the commons) that several
-humans and AIs work through. Your conversation here is private to this lane,
-but everything you write to files is shared, attributed, and visible to
-every member on the workspace timeline. The durable output of your work
-belongs in FILES — the transcript is not shared memory.
+{commons_contract}
 
-- Read before writing: check what already exists (SearchFiles / ListFiles /
-  ReadFile) before creating or overwriting.
-- Every write attributes as "{member} via {model}" and is versioned with
-  full history — writes are revertible, never silently destructive.
-- Cite your sources: when you author a file FROM another file (something
-  that arrived, a shared reference, any file you read and built on), pass
-  derived_from=[its path(s)] on the WriteFile. The workspace uses that edge
-  to show what was made from what and to warn before a source is deleted.
-- Other members and other AI lanes collaborate with you THROUGH these files,
-  never through your transcript. Leave files other actors can pick up.
+- {read_before_write} Use SearchFiles / ListFiles / ReadFile.
+- Every write attributes as "{member} via {model}", {attribution_rule}
+- {citation_rule}
 
 {filesystem_model}
 
@@ -288,8 +277,7 @@ agents, or write out to external platforms; you read this member's commons
 write only to the commons.
 
 ## Format discipline
-Prose documents are .md. Machine config is _*.yaml (don't author these
-unless asked).
+{format_discipline}
 {mandate_section}{posture_section}"""
 
 
@@ -341,9 +329,18 @@ def build_lane_conventions(
     The two bindings may coexist; both are per-turn overlays over the same
     conventions frame.
     """
+    # ADR-533 D1: the commons-contract clauses are kernel data composed here —
+    # this frame never restates one inline (ratcheted by
+    # test_adr533_participant_contract.py, same discipline ADR-424 D1 set for
+    # PARTICIPANT_FILESYSTEM_MODEL).
     from services.workspace_paths import (
         CONSTITUTION_MANDATE_PATH,
+        PARTICIPANT_ATTRIBUTION_RULE,
+        PARTICIPANT_CITATION_RULE,
+        PARTICIPANT_COMMONS_CONTRACT,
         PARTICIPANT_FILESYSTEM_MODEL,
+        PARTICIPANT_FORMAT_DISCIPLINE,
+        PARTICIPANT_READ_BEFORE_WRITE,
     )
 
     label = LANE_MODELS.get(model, {}).get("label", model)
@@ -435,7 +432,12 @@ def build_lane_conventions(
         model_label=label,
         member=member,
         model=label,
+        commons_contract=PARTICIPANT_COMMONS_CONTRACT,
+        attribution_rule=PARTICIPANT_ATTRIBUTION_RULE,
+        citation_rule=PARTICIPANT_CITATION_RULE,
+        read_before_write=PARTICIPANT_READ_BEFORE_WRITE,
         filesystem_model=PARTICIPANT_FILESYSTEM_MODEL,
+        format_discipline=PARTICIPANT_FORMAT_DISCIPLINE,
         tools_line=tools_line,
         mandate_section=mandate_section,
         posture_section=posture_section,

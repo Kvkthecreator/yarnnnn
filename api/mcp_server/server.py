@@ -313,51 +313,126 @@ _server_url = os.environ.get(
     "MCP_SERVER_URL", "https://yarnnn-mcp-server.onrender.com"
 )
 
-mcp = HostGatedFastMCP(
-    "yarnnn",
-    # ADR-512: the connector's identity is the user's SHARED, ATTRIBUTED
-    # WORKSPACE — files that humans and AIs work on together, every change
-    # signed by whoever made it — not "a memory feature". The verbs are one
-    # file contract served compound: open (exact read) · remember (attributed
-    # write into the memory region) · recall (ranked search) · trace (the
-    # revision chain).
-    instructions=(
+# =============================================================================
+# The interop verb roster (ADR-533 D2) — the SINGLE source of the verb table
+# =============================================================================
+# The connector self-description used to hand-write both the verb COUNT and the
+# verb LIST. It said "Four verbs:" and then listed SIX — drift that shipped to
+# every connected host from the moment ADR-512 added `save` + `share`.
+#
+# The lane already solved this class and said why: its tool line is
+# `" · ".join(lane_tool_names())` — "so the prose can never claim a surface the
+# model wasn't handed (the Scout bug's prose half)" (lane_runner.py).
+#
+# So: the roster is DATA, the prose is DERIVED. A new verb is a row here plus its
+# @mcp.tool — never an edit to a sentence that counts things. There is no count
+# in the prose at all; a count is a hand-maintained duplicate of len().
+#
+# `test_adr533_participant_contract.py` asserts this roster and the registered
+# @mcp.tool set are the same set — so a verb can never ship announced-but-absent
+# (or absent-but-announced), which is the drift this roster replaces.
+_INTEROP_VERBS: tuple[tuple[str, str], ...] = (
+    (
+        "open",
+        "read an EXACT file when you have its reference (a yarnnn://workspace/… "
+        "handle or a workspace-relative path, e.g. one the user pasted). Returns "
+        "the current content + who last changed it + recent attributed "
+        "revisions. Exact means exact: open never guesses — use recall to search.",
+    ),
+    (
+        "remember",
+        "save something worth keeping (a decision, insight, fact, preference). "
+        "The write is durable, signed as yours, and immediately available on the "
+        "next recall — from ANY AI the user works with, not just you.",
+    ),
+    (
+        "recall",
+        "pull what the workspace already holds about a subject when the user "
+        "references something they track. YARNNN returns the material + a "
+        "`confidence` signal; YOU explain it in your own voice. On "
+        "confidence='ambiguous' (several matches, none dominant) ASK which they mean.",
+    ),
+    (
+        "trace",
+        "show how a file or recorded fact changed over time (who changed it, "
+        "when, what the change was) — the attributed provenance a plain storage "
+        "connector cannot show.",
+    ),
+    (
+        "save",
+        "write a document back as an attributed revision, signed as you. "
+        "Read-before-write: pass base_revision from open; a stale_write means "
+        "someone changed it since — re-open, merge, save again. Omit "
+        "base_revision only to create. Cite what you built on with derived_from.",
+    ),
+    (
+        "share",
+        "mint a link for a file (or the workspace) when the user wants someone "
+        "else in: 'member' grants full access, 'viewer' is read-only. You relay "
+        "the link; whoever opens it sees the work and who made it, no account needed.",
+    ),
+)
+
+
+def _build_interop_instructions() -> str:
+    """Compose the connector self-description (ADR-533 D1 + D2 + D6).
+
+    The commons-contract clauses are the SAME kernel constants the lane frame
+    composes (`services/workspace_paths.py`) — a participant is taught one
+    contract whether it is a lane in the webapp or ChatGPT across an OAuth
+    token. This function never restates a clause inline; it composes them.
+
+    D6 — what deliberately does NOT port: the workspace MANDATE head (the lane
+    injects 40 lines of it). The commons contract is HOW THE WORKSPACE WORKS —
+    kernel-universal, therefore shared. The mandate is WHAT THIS WORKSPACE IS
+    FOR — workspace-specific intent that would leave the system into a
+    third-party host's context window on every connection, for a benefit no verb
+    requires. Also not ported: lane posture overlays, member/model interpolation.
+    """
+    from services.workspace_paths import (
+        PARTICIPANT_ATTRIBUTION_RULE,
+        PARTICIPANT_CITATION_RULE,
+        PARTICIPANT_COMMONS_CONTRACT,
+        PARTICIPANT_FILESYSTEM_MODEL,
+        PARTICIPANT_FORMAT_DISCIPLINE,
+        PARTICIPANT_READ_BEFORE_WRITE,
+    )
+
+    # D2: the verb table is derived from the roster — no count, no hand-written list.
+    verbs = "\n".join(
+        f"  • {name:<9}— {desc}" for name, desc in _INTEROP_VERBS
+    )
+
+    return (
         "YARNNN is the user's shared, attributed workspace — the files they and "
         "their team work on with AI, where every change is signed by whoever "
         "made it (human or AI) and nothing is lost. You are a principal in that "
-        "workspace, acting under your own grant. Four verbs:\n"
-        "  • open     — read an EXACT file when you have its reference (a\n"
-        "               yarnnn://workspace/… handle or a workspace-relative path,\n"
-        "               e.g. one the user pasted). Returns the current content +\n"
-        "               who last changed it + recent attributed revisions. Exact\n"
-        "               means exact: open never guesses — use recall to search.\n"
-        "  • remember — save something worth keeping (a decision, insight, fact,\n"
-        "               preference). The write is durable, signed as yours, and\n"
-        "               immediately available on the next recall — from ANY AI\n"
-        "               the user works with, not just you.\n"
-        "  • recall   — pull what the workspace already holds about a subject\n"
-        "               when the user references something they track. YARNNN\n"
-        "               returns the material + a `confidence` signal; YOU explain\n"
-        "               it in your own voice. On confidence='ambiguous' (several\n"
-        "               matches, none dominant) ASK which they mean.\n"
-        "  • trace    — show how a file or recorded fact changed over time (who\n"
-        "               changed it, when, what the change was) — the attributed\n"
-        "               provenance a plain storage connector cannot show.\n"
-        "  • save     — write a document back as an attributed revision, signed\n"
-        "               as you. Read-before-write: pass base_revision from open;\n"
-        "               a stale_write means someone changed it since — re-open,\n"
-        "               merge, save again. Omit base_revision only to create.\n"
-        "  • share    — mint a link for a file (or the workspace) when the user\n"
-        "               wants someone else in: 'member' grants full access,\n"
-        "               'viewer' is read-only. You relay the link; whoever opens\n"
-        "               it sees the work and who made it, no account needed.\n\n"
+        "workspace, acting under your own grant.\n\n"
+        f"{PARTICIPANT_COMMONS_CONTRACT}\n\n"
+        f"- {PARTICIPANT_READ_BEFORE_WRITE} Use open (exact) or recall (search).\n"
+        f"- Every write is signed as you, {PARTICIPANT_ATTRIBUTION_RULE}\n"
+        f"- {PARTICIPANT_CITATION_RULE}\n"
+        f"- {PARTICIPANT_FORMAT_DISCIPLINE}\n\n"
+        f"{PARTICIPANT_FILESYSTEM_MODEL}\n\n"
+        "## Your verbs\n"
+        f"{verbs}\n\n"
         "Use these proactively — the workspace is supposed to be ambient. If the "
         "user pastes a yarnnn reference or names a specific document, open it "
         "before reasoning about it; recall before reasoning about something they "
         "track; remember when they conclude something worth keeping. You are "
         "reading and writing the user's shared workspace — not asking YARNNN to "
         "do work for you."
-    ),
+    )
+
+
+mcp = HostGatedFastMCP(
+    "yarnnn",
+    # ADR-512: the connector's identity is the user's SHARED, ATTRIBUTED
+    # WORKSPACE — files that humans and AIs work on together, every change
+    # signed by whoever made it — not "a memory feature".
+    # ADR-533: the etiquette half is composed from the SAME kernel constants the
+    # lane frame uses, and the verb table is derived from `_INTEROP_VERBS`.
+    instructions=_build_interop_instructions(),
     lifespan=lifespan,
     # OAuth 2.1 provider — Claude.ai connectors + ChatGPT developer mode
     auth_server_provider=YarnnnOAuthProvider(),
@@ -822,6 +897,7 @@ async def save(
     content: str,
     base_revision: Optional[str] = None,
     message: Optional[str] = None,
+    derived_from: Optional[list[str]] = None,
 ) -> dict:
     """Save content to an EXACT file in the user's yarnnn workspace, as an attributed revision.
 
@@ -838,6 +914,13 @@ async def save(
     with the same content unexamined. Omit `base_revision` only to CREATE a
     new file.
 
+    CITE WHAT YOU BUILT ON: if this content was made FROM other workspace files
+    — a document you opened and rewrote, sources you synthesized, a reference
+    you worked from — pass their references as `derived_from`. The workspace
+    uses that edge to show what was made from what, and to warn someone before
+    they delete a file yours depends on. An uncited derivation arrives as an
+    orphan; cite it and it joins the record.
+
     Your write lands signed as you in the workspace ledger — the user and
     their team see exactly what you changed, beside every human change. Use
     `remember` for notes/observations; `save` is for named documents.
@@ -847,6 +930,9 @@ async def save(
         content: The full new content. Required, non-empty.
         base_revision: The head revision id from open (required for existing files).
         message: Optional one-line description of the change.
+        derived_from: Optional references of the source file(s) this was made
+            from (same grammar as `reference`). Pass whenever you author from
+            sources you read.
     """
     auth = resolve_request_client()
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -857,6 +943,7 @@ async def save(
     result = await mcp_composition.compose_save(
         auth=auth, reference=reference, content=content,
         base_revision=base_revision, message=message,
+        derived_from=derived_from,
     )
     outcome = "saved" if result.get("success") else (result.get("error") or "failed")
     _emit_mcp_narrative(

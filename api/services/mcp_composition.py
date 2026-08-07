@@ -1227,6 +1227,7 @@ async def compose_save(
     content: str,
     base_revision: Optional[str] = None,
     message: Optional[str] = None,
+    derived_from: Optional[list] = None,
 ) -> dict:
     """Drive `save` — the attributed write to a named file (ADR-512 §8a).
 
@@ -1237,6 +1238,13 @@ async def compose_save(
     All consequence stays at the gate — this dispatches WriteFile through
     execute_primitive under the mcp caller identity; the caller's lock-set
     (CALLER_WRITE_POLICY['mcp']) and the empty-content guard apply unchanged.
+
+    ADR-533 D3: `derived_from` (the ADR-448 reference edge) is threaded to the
+    primitive, which has always accepted it. Before this, interop could READ the
+    edge (recall/trace walk it) but never AUTHOR one — leaving the single surface
+    where foreign material arrives as the only writing surface unable to record
+    where its content came from. References are normalized at the write door;
+    an unresolvable path is dropped there, not here.
     """
     from services.primitives.registry import execute_primitive
 
@@ -1287,18 +1295,30 @@ async def compose_save(
             "message": f"No file exists at `{rel}` — omit base_revision to create it.",
         }
 
-    result = await execute_primitive(
-        auth,
-        "WriteFile",
-        {
-            "scope": "workspace",
-            "path": rel,
-            "content": content,
-            "mode": "overwrite",
-            "message": message or f"save via interop: {rel}",
-            "expected_parent_version_id": base_revision,
-        },
-    )
+    # ADR-533 D3: the host cites sources in the SAME handle grammar it uses for
+    # `reference` (yarnnn://workspace/… | /workspace/… | bare relative), so run
+    # each citation through the interop parser — `normalize_workspace_ref` at the
+    # write door owns the /workspace/ prefixing but does NOT speak the yarnnn://
+    # handle. Parse the handle here, let the ledger normalize; two parsers, each
+    # owning its own grammar, neither duplicating the other.
+    #
+    # A citation that doesn't parse is DROPPED, never fatal: a malformed
+    # reference must not cost the user their write. The edge is provenance, not
+    # a gate.
+    write_input = {
+        "scope": "workspace",
+        "path": rel,
+        "content": content,
+        "mode": "overwrite",
+        "message": message or f"save via interop: {rel}",
+        "expected_parent_version_id": base_revision,
+    }
+    if derived_from:
+        cited = [p for p in (parse_file_reference(r) for r in derived_from) if p]
+        if cited:
+            write_input["derived_from"] = cited
+
+    result = await execute_primitive(auth, "WriteFile", write_input)
     if result.get("error") == "stale_write":
         # Re-shape onto the open/save vocabulary; the host re-opens and merges.
         result["message"] = (

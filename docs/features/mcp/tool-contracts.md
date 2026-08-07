@@ -1,13 +1,26 @@
 # MCP Tool Contracts — the file verbs
 
-> **ADR-512 (2026-08-02)**: the surface is FOUR verbs — `open` / `remember` / `recall` /
-> `trace` — one species-blind file contract, served compound (server-composed, one round)
-> per ADR-368's channel constraint. **`open`** is the deterministic read: pass a
-> workspace-relative path or a `yarnnn://workspace/{path}` handle (the D5 grammar; Studio's
-> "Copy AI reference" emits it) and get content + attribution + the recent revision summary
-> in one call — the exact-version guarantee `recall` (search-shaped) cannot make. The
-> memory-verb contracts below stand unchanged; "memory" reads as the workspace's memory
-> region, not the surface's identity.
+> **ADR-533 (2026-08-07) — the verb roster is DATA, and this doc is not its source.**
+> The live roster is `_INTEROP_VERBS` in `api/mcp_server/server.py`; the connector's
+> self-description derives its verb table from it, and `test_adr533_participant_contract.py`
+> asserts the roster and the registered `@mcp.tool` set are the same set. **Do not
+> maintain a verb count in prose** — this banner replaced a "FOUR verbs" line that had
+> been wrong since `save` and `share` shipped five days earlier, and the section below
+> still said "Three verbs". Read the roster; it cannot drift.
+>
+> ADR-533 also gave this surface the **same commons contract the in-app lane teaches**
+> (composed from the kernel constants in `services/workspace_paths.py`, not re-authored
+> here) and made `derived_from` authorable on `save`. What deliberately does NOT reach a
+> foreign host: the workspace MANDATE (D6 — the commons contract is *how the workspace
+> works*; the mandate is *what it is for*).
+
+> **ADR-512 (2026-08-02)**: one species-blind file contract, served compound
+> (server-composed, one round) per ADR-368's channel constraint. **`open`** is the
+> deterministic read: pass a workspace-relative path or a `yarnnn://workspace/{path}`
+> handle (the D5 grammar; Studio's "Copy AI reference" emits it) and get content +
+> attribution + the recent revision summary in one call — the exact-version guarantee
+> `recall` (search-shaped) cannot make. The memory-verb contracts below stand unchanged;
+> "memory" reads as the workspace's memory region, not the surface's identity.
 
 > **Parent**: [README.md](README.md)
 > **Audience**: engineers implementing the MCP server tools, and LLM hosts (Claude, GPT, Gemini) that consume them
@@ -18,13 +31,22 @@
 
 ## The surface in one screen
 
-Three verbs, shaped on the user's memory mental model (ADR-368 D1): **put in · get out · trace history.**
+The file verbs (ADR-512 D1), plus the memory-shaped compounds that read and write the
+workspace's memory region (ADR-368 D1). **Authoritative roster: `_INTEROP_VERBS`.**
 
 | Verb | User says | Nature | Composes (server-side) |
 |---|---|---|---|
+| `open` | "look at this doc" | read · sync | resolve handle → `ReadFile` + head attribution + revision summary |
+| `save` | "save that back" | write · sync | head lookup (read-before-write CAS) → `WriteFile(expected_parent_version_id, derived_from)` |
+| `share` | "share this with my team" | write · sync | mint share row → link (host relays; yarnnn sends nothing outbound) |
 | `remember` | "remember this" | write · sync | `WriteFile(inbound/mcp/…)` — raw, immutable, tagged `revision_kind='observation'` (no derive wake — ADR-428) |
 | `recall` | "what do I know about X" | read · sync | `QueryKnowledge` → rank |
 | `trace` | "how did my thinking on X change" | read · sync | resolve → `ListRevisions` → `DiffRevisions` |
+
+**`save` cites; `remember` does not** (ADR-533 D3). `save` authors a *derivation* and
+takes `derived_from`; `remember` records a *raw arrival* (`revision_kind='observation'`)
+which by definition was not made from a workspace file. Giving `remember` a citation edge
+would invite manufactured provenance — the asymmetry is the ontology, not an omission.
 
 Each verb returns a reason-ready result in **one round** from the host's perspective — the multi-step composition lives server-side (inside YARNNN, an agentic context), not in the round-limited consumer host (ADR-368 Correction 1). The raw kernel primitives (`ReadFile`/`SearchFiles`/`WriteFile`/`ListRevisions`/`DiffRevisions`) remain available `defer_loading` for agentic hosts that genuinely chain.
 
@@ -230,6 +252,53 @@ change was — newest first. This is YARNNN's distinguishing capability; a plain
 storage connector cannot show it. Reason over the chain and narrate the
 evolution in your own voice.
 ```
+
+---
+
+## Verb 4: `save` — the attributed write (the `derived_from` half)
+
+> Full contract: `compose_save` in `api/services/mcp_composition.py` + the tool docstring
+> in `api/mcp_server/server.py`. This section documents the ADR-533 D3 addition only; the
+> read-before-write CAS contract is ADR-512 §8a.
+
+### Signature
+
+```python
+save(
+    reference: str,                     # yarnnn://workspace/{path} | /workspace/{path} | relative
+    content: str,                       # FULL new content (overwrite, not a patch)
+    base_revision: Optional[str],       # head id from `open` — REQUIRED for an existing file
+    message: Optional[str],             # one-line change description
+    derived_from: Optional[list[str]],  # ADR-533 D3 — source references this was made FROM
+) -> dict
+```
+
+### `derived_from` — the reference edge from a foreign host
+
+Before ADR-533 the interop surface could **read** the ADR-448 reference edge (`recall` and
+`trace` both walk it) but never **author** one — leaving the single surface where foreign
+material arrives as the only writing surface unable to record where its content came from.
+
+- **Grammar**: the same handle grammar as `reference`. Each citation is parsed by
+  `parse_file_reference` (which owns the `yarnnn://` handle) and normalized at the write
+  door by `normalize_workspace_ref` (which owns `/workspace/` prefixing). Two parsers,
+  each owning its grammar, neither duplicating the other.
+- **Failure mode**: a citation that does not parse is **dropped, never fatal**. A
+  malformed reference must not cost the user their write — the edge is provenance, not a
+  gate.
+- **Effect**: the revision is marked a derivation and joins the graph the Files surface
+  renders and the delete-guard warns against.
+
+```python
+# host reasoned over two workspace sources, then saved a synthesis
+save(reference="yarnnn://workspace/operation/reports/q3-summary.md",
+     content=synthesis,
+     base_revision="rev_abc123",
+     derived_from=["operation/notes/q3-calls.md",
+                   "yarnnn://workspace/Downloads/q3-export.md"])
+```
+
+`remember` takes no `derived_from` — see the ontology note in "The surface in one screen".
 
 ---
 

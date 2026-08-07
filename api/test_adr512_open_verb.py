@@ -21,6 +21,11 @@ Asserts:
 
 import sys
 
+# ADR-533 D2: the instructions are composed at import time (kernel constants +
+# the derived verb table), so assertions about what the host is TAUGHT must read
+# the rendered output. The extraction lives in the ADR-533 gate — one home.
+from test_adr533_participant_contract import rendered_instructions as _rendered_instructions
+
 
 def _check(label, ok, detail=""):
     print(f"{'PASS' if ok else 'FAIL'}  {label}  {detail}")
@@ -71,9 +76,14 @@ def main():
     results.append(_check(
         "4a memory-identity framing GONE from instructions",
         "durable, attributed memory" not in server_src))
+    # ADR-533 D2: the verb table is DERIVED from `_INTEROP_VERBS` at import time,
+    # so the bullets no longer appear as literals in the source. The INVARIANT is
+    # unchanged (every verb is taught) — assert it against the RENDERED
+    # instructions instead of grepping source text for a bullet glyph.
     results.append(_check(
-        "4b instructions teach all four verbs",
-        all(f"• {v}" in server_src for v in ("open", "remember", "recall", "trace"))))
+        "4b instructions teach all four verbs (rendered, ADR-533 D2)",
+        all(f"• {v}" in _rendered_instructions()
+            for v in ("open", "remember", "recall", "trace"))))
     results.append(_check(
         "5 ADR-368 surface untouched (remember/recall/trace registered)",
         all(f"async def {v}(" in server_src for v in ("remember", "recall", "trace"))))

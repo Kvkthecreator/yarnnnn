@@ -352,6 +352,78 @@ part of the shared workspace."""
 
 
 # =============================================================================
+# The participant commons contract (ADR-533 D1) — the SINGULAR clauses
+# =============================================================================
+# The etiquette every LLM participant needs to behave correctly in the commons,
+# authored ONCE here and composed per surface. Same DP33 "collapse to data" move
+# PARTICIPANT_FILESYSTEM_MODEL made for the filesystem model (ADR-424 D1),
+# extended to the rest of the contract.
+#
+# WHO COMPOSES THESE: the lane frame (`services/lane_runner.py`) and the interop
+# binding (`api/mcp_server/server.py`). The wake spine is Altitude 1 and is out of
+# ADR-533's scope. A surface COMPOSES these constants — it never restates a clause
+# inline. That is the whole point, and `test_adr533_participant_contract.py`
+# ratchets it (it asserts the composed OUTPUT carries each clause verbatim).
+#
+# WHAT DOES *NOT* LIVE HERE (ADR-533 D6): workspace-SPECIFIC intent (the MANDATE
+# head the lane injects). These constants are kernel-universal — true of every
+# workspace, therefore data. Workspace intent is per-workspace and stays on the
+# surfaces that already carry it. The distinction is the ADR's boundary: the
+# commons contract is HOW THE WORKSPACE WORKS; the mandate is WHAT IT IS FOR.
+#
+# EDITING RULE: these are prose clauses, deliberately not pinned by any gate's
+# assertion (ADR-533 D5 — the ratchet asserts a constant is IMPORTED and composed,
+# never what it says). Edit the wording freely; the gates stay green.
+
+#: How the shared, versioned commons behaves — and the transcript's non-role in it.
+#: The "through files, never through your transcript" clause is load-bearing: it is
+#: what makes a participant leave durable work instead of conversational residue
+#: (ADR-457 D2 — the transcript is never the system of record).
+PARTICIPANT_COMMONS_CONTRACT = """\
+This workspace is a SHARED, versioned filesystem (the commons) that several
+humans and AIs work through. Your conversation is private to this session, but
+everything you write to files is shared, attributed, and visible to every member
+on the workspace timeline. The durable output of your work belongs in FILES —
+the transcript is not shared memory. Other members and other AI sessions
+collaborate with you THROUGH these files, never through your transcript; leave
+files other actors can pick up."""
+
+#: What a write RECORDS. Kept separate from the commons clause because the
+#: attribution SUBJECT is surface-specific ("{member} via {model}" on a lane, the
+#: connector identity on interop) — the RULE is universal, the rendering is not.
+#:
+#: DELIBERATE SENTENCE FRAGMENT — it begins mid-clause ("and versioned with…").
+#: Each surface supplies the subject it can name honestly and appends this:
+#:   lane:    'Every write attributes as "Kevin via Claude Sonnet", ' + RULE
+#:   interop: 'Every write is signed as you, ' + RULE
+#: A surface that restated the whole sentence would re-fork the clause — which is
+#: what ADR-533 D1 exists to prevent. Keep it a fragment.
+PARTICIPANT_ATTRIBUTION_RULE = """\
+and versioned with full history — writes are revertible, never silently
+destructive, and the history is walkable."""
+
+#: The reference edge (ADR-448). Authorable from every write-capable surface as of
+#: ADR-533 D3 — before that, interop could READ the edge but never author it.
+PARTICIPANT_CITATION_RULE = """\
+Cite your sources: when you author a file FROM another file (something that
+arrived, a shared reference, any file you read and built on), pass
+derived_from=[its path(s)] on the write. The workspace uses that edge to show
+what was made from what and to warn before a source is deleted."""
+
+#: Read-before-write. Its own clause because the VERBS differ per surface (a lane
+#: names SearchFiles/ListFiles/ReadFile; interop names open/recall) — the surface
+#: appends its own verb list to this stem.
+PARTICIPANT_READ_BEFORE_WRITE = """\
+Read before writing: check what already exists before creating or overwriting."""
+
+#: Format discipline (ADR-254). The narrow, high-value half: a participant that
+#: hand-authors machine config breaks the parsers that read it.
+PARTICIPANT_FORMAT_DISCIPLINE = """\
+Prose documents are .md. Machine config is _*.yaml (don't author these unless
+asked)."""
+
+
+# =============================================================================
 # governance/ — the GRANT: authority + spend the agent runs under (locked-always)
 # =============================================================================
 # These two are the irreducible lock set (re-ratifies ADR-293's "two governance

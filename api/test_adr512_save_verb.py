@@ -20,6 +20,10 @@ Asserts:
 import inspect
 import sys
 
+# ADR-533 D2: see the note in test_adr512_open_verb.py — the verb bullets are
+# derived at import time, so this asserts the RENDERED instructions.
+from test_adr533_participant_contract import rendered_instructions as _rendered_instructions
+
 
 def _check(label, ok, detail=""):
     print(f"{'PASS' if ok else 'FAIL'}  {label}  {detail}")
@@ -71,8 +75,9 @@ def main():
         "async def save(" in server_src and "base_revision" in server_src
         and "stale_write" in server_src))
     results.append(_check(
-        "3b six verbs taught in instructions",
-        all(f"• {v}" in server_src for v in ("open", "remember", "recall", "trace", "save", "share"))))
+        "3b all six verbs taught in instructions (rendered, ADR-533 D2)",
+        all(f"• {v}" in _rendered_instructions()
+            for v in ("open", "remember", "recall", "trace", "save", "share"))))
     results.append(_check(
         "3c save output schema present",
         '"save": {' in server_src and '"revision_id"' in server_src))
