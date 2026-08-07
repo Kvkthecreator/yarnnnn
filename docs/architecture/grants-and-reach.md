@@ -152,11 +152,12 @@ trade-off, not a bug.
 - **`WorkspaceMembersCard`** (Settings → Access, both mounts): the roster of principals —
   humans + AI as peers — with invite/narrow/revoke/cap. Shows reach as workspace *regions*.
 - **Get Info / `NodeDetailsPanel`** (ADR-512 D6): per-file reach (`FileReach`).
-- **`ShareDialog`** (ADR-529 D1) — the singular mint surface, raised from the `FileVerbs`
-  bundle so every file surface opens the same act. It also carries **this file's live links
-  with revoke**, which is where the operator manages what they minted. (The old `FileShares`
-  block in `NodeDetailsPanel` is DELETED, ADR-529 D4 — do not reintroduce a second place to
-  revoke a link.)
+- **`ShareDialog`** (ADR-529 D1, ADR-534 D1/D3) — the singular mint surface, raised from the
+  `FileVerbs` bundle so every file surface opens the same act. It also carries **this file's
+  live links with revoke**, which is where the operator manages what they minted. (The old
+  `FileShares` block in `NodeDetailsPanel` is DELETED, ADR-529 D4 — do not reintroduce a second
+  place to revoke a link.) Since ADR-534 it **opens on the link that exists** rather than on a
+  blank mint form — see §6a.
 - **Known half-view (owed, named by ADR-515 D6)**: the rail is per-principal-never-per-file;
   Get Info is per-file-never-per-principal. The direction of resolution (ADR-517 discourse):
   render live share links as **principal-class rows in the roster** ("Anyone with link ·
@@ -164,6 +165,69 @@ trade-off, not a bug.
 - **Publicness is derivable, never stored**: a file is public iff a live link covers it. A
   per-file visibility attribute is the DP36 diagnostic for reintroducing a second
   authorization system.
+
+## 6a. The standing-address contract (ADR-534)
+
+**A live share link is a standing address for a file.** Every property below is measured
+behaviour, not aspiration — read this before changing anything about a link's lifecycle.
+
+| Property | Value | Where it comes from |
+|---|---|---|
+| Expiry | **none** — `DEFAULT_SHARE_TTL_DAYS = None`, and no cockpit surface passes `ttl_days` | `workspace_shares.py` |
+| Content served | the file's **current** content, resolved at request time | `routes/shares.py` — no snapshot, no pinned revision |
+| Reusable | yes — the same URL works indefinitely until revoked | the token is the capability (ADR-513 D1) |
+| Ends when | **revoked** (or the file stops existing — below) | `status='revoked'` + `no-store` |
+
+Three rules follow, each of which was violated in production before ADR-534:
+
+1. **The surface opens on the link that EXISTS.** A live link and a just-minted one are the same
+   object and must render with the same weight. The reuse lookup keys on **(path, role)** — never
+   path alone, which would hand a view-only requester a full-access link. Minting a second link of
+   a shape that already has one stays reachable (per-recipient links are why the transport is
+   link-based) but is never the default gesture.
+2. **A link's URL is visible wherever the link is listed.** An operator who can revoke a link must
+   be able to read it; offering destruction without identification is the asymmetry ADR-534 D3
+   removed.
+3. **The share row is NOT chased through mutations.** `artifact_path` is a *historical reference*,
+   exactly as ADR-448 ruled for the derive edge (*"a HISTORICAL FACT about the revision, not a
+   live foreign key"*). No relocation verb updates `workspace_shares`, and **none should** — see
+   §6b.
+
+## 6b. When the address stops resolving (ADR-534 D4 — read before "fixing" a broken link)
+
+A file that is moved, renamed, or deleted leaves its links naming a path that no longer resolves.
+**This is expected, and the answer is honesty, not synchronization.**
+
+- `GET /api/s/{token}` returns **`410` with a distinct detail** — *"The shared file was moved or
+  deleted."* The FE carries the server's `detail` through; it does not substitute a generic line.
+- The `ShareDialog` warns the operator **at the moment they look**, derived by asking whether a
+  live file sits at the path. Only a **404** marks a link stale — a 403/500/offline is
+  inconclusive, and reporting a healthy link as broken would make an operator revoke a working one.
+- **Three dark states, three answers, never collapsed** (§8a's runbook depends on this):
+
+| Reader sees | Means |
+|---|---|
+| `404` | no such token — wrong or mistyped |
+| `410` *"This share link is revoked/expired"* | a **decision** was taken |
+| `410` *"The shared file was moved or deleted"* | a **mutation** moved the file out from under it |
+
+**Why not repoint the share on move** (the option ADR-534 §3 considered and the operator
+overruled):
+
+- A helper every relocation verb must remember to call is an **obligation, not a mechanism**. Two
+  verbs already forgot; more verbs will exist. It scales by discipline, and its failure mode is
+  silent.
+- **Binding to a file identity is not available**: `MoveFile` is write-new-delete-old
+  (`primitives/workspace.py::handle_move_file`), so `workspace_files.id` does **not** survive a
+  move. Making it survive is a substrate change against ADR-209's single-write-path model, not a
+  share change.
+- The web settled this: URLs name resources by path, paths break, and `404`/`410 Gone` is how a
+  reader learns. That is what let the web scale without a global identity registry.
+
+`test_adr534_standing_address.py` **pins the refusal structurally** — it asserts that
+`routes/documents.py`, `routes/studio.py`, and `services/primitives/workspace.py` contain no
+reference to `workspace_shares`, and that no `repoint_shares` helper exists. If a future session
+"fixes" a broken link by syncing paths on move, that gate goes red and points here.
 
 ## 7. Export — the contrast, not a sibling
 
@@ -204,7 +268,7 @@ answer was confidently plausible**. Work the list in order rather than theorisin
 
 | # | Check | The defect it caught |
 |---|---|---|
-| 1 | `curl -s "$API/api/s/$TOKEN"` | Is the share even live? A **404 is a wrong/typo'd token**; a **410 is revoked**. Twice a mangled token was mistaken for a server fault. |
+| 1 | `curl -s "$API/api/s/$TOKEN"` | Is the share even live? A **404 is a wrong/typo'd token**; a **410 is revoked/expired** — or, since ADR-534, **the file was moved or deleted** (read the `detail`, the two 410s say different things). Twice a mangled token was mistaken for a server fault. |
 | 2 | Token length | `secrets.token_urlsafe(24)` = **exactly 32 chars**. Anything else was corrupted in transit. |
 | 3 | `curl -A "…ChatGPT-User/1.0…"` and grep for real content | Catches SSR regressions (ADR-529 D3) and UA filtering. |
 | 4 | Robots verdict **per host**, with a real parser | `urllib.robotparser` on **both** apex and `www`. A redirecting `robots.txt` reads as *disallow-all* (ADR-530 D4.2). |
@@ -221,8 +285,23 @@ answer was confidently plausible**. Work the list in order rather than theorisin
   file and declared closed while every `.html` share was still unreadable. Test **both** a text
   file and an HTML artifact.
 
+**Closed 2026-08-07 by [ADR-534](../adr/ADR-534-the-share-link-is-a-standing-address.md)**: the
+`ShareDialog` opens on the link that exists (reuse-first, keyed on (path, role)) instead of on a
+blank mint form; every listed link is copyable, not only revocable; a share whose file is gone goes
+honestly **dark** (`410`, distinct from revoked) instead of rendering a blank `200`; and the copy
+states the two things it was not telling the operator — that links are **durable** and that they
+**travel** (no email lock). See §6a/§6b for the contract, and §6b for why path-chasing was
+considered and **refused**.
+
 Still owed:
 
+- **The launch-handler binding does NOT survive a move** — found by the ADR-534 measurement:
+  `handle_move_file` carries `content`, not `metadata`, so `routes/documents.py:954`'s claim that
+  an Open-With binding *"travels with it through move/rename"* is **false**. Its own fix; per §6b's
+  discipline the answer is honest behaviour, not a second sync obligation.
+- **Trash / permanent-delete × live shares** — ADR-478's lifecycle. §6b makes a deleted file's link
+  dark by the same read-time resolution, but a *deliberate* delete probably wants a signal distinct
+  from a move.
 - **FE convergence remainder** (ADR-515 D3/D4/D6 + the rail pass): the `Copy AI reference` verb
   move, the internal-referral ADR, the precondition seam, links-as-roster-rows, the
   `share_mint_policy` dial UI, viewer-promotion affordance. Click-pass lane.
@@ -241,7 +320,9 @@ Still owed:
 - **TTL wiring** (ADR-531 D3): `ttl_days` exists on `ShareCreateRequest` and **no surface passes
   it**. Bounded exposure is good cowork hygiene — a link handed to a contractor should not outlive
   the engagement. It is **not** an indexing answer (expiry governs the URL; an index governs its
-  own copy) and must not ship as though it were.
+  own copy) and must not ship as though it were. **ADR-534 D5 sharpened rather than closed this**:
+  the dialog now says a link lasts *"always — until you revoke it"*, so an operator who reads that
+  and wants "until Friday" has nowhere to say so.
 - **The revoke-honesty signal** (ADR-531 §6): revoke is silent about the world. Now that shares
   are indexable, a line at revoke time — *"this may persist in search results"* — would be honest.
   Named, not built.

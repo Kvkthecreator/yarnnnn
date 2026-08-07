@@ -41,10 +41,36 @@ export type SharePreview = {
 /** What the server learned about the link — including the honest dark states. */
 export type PreviewResult =
   | { kind: "ok"; preview: SharePreview }
-  /** 404 (never existed) or 410 (revoked/expired) — ADR-513 D4: dark means dark. */
+  /** 404 (never existed) or 410 (revoked · expired · the file is gone) —
+   *  ADR-513 D4: dark means dark. ADR-534 D4: and dark says WHICH. */
   | { kind: "gone"; message: string }
   /** The API was unreachable. Distinct from `gone`: the link may be perfectly good. */
   | { kind: "error" };
+
+/** ADR-534 D4 — the reader is told which dark state this is.
+ *
+ * Three different facts reach here and they must NOT collapse into one
+ * sentence: 404 (no such token) · 410 revoked-or-expired (a DECISION) · 410
+ * file-gone (a MUTATION — the path stopped naming the file, ADR-534 §3).
+ * Collapsing them is what makes "why can't my client see this" undebuggable,
+ * which is exactly what `grants-and-reach.md` §8a's runbook exists to prevent.
+ *
+ * The server's `detail` is the authority — it is the surface that KNOWS which
+ * happened. This falls back to the generic line only when the body is missing
+ * or unparseable, never as the default.
+ */
+const GENERIC_DARK = "This share link doesn't exist or has been revoked.";
+
+async function darkMessage(res: Response): Promise<string> {
+  if (res.status === 404) return GENERIC_DARK;
+  try {
+    const body = (await res.json()) as { detail?: unknown };
+    if (typeof body?.detail === "string" && body.detail.trim()) return body.detail;
+  } catch {
+    /* no parseable body — fall through to the generic line */
+  }
+  return GENERIC_DARK;
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -68,7 +94,7 @@ export async function fetchSharePreview(token: string): Promise<PreviewResult> {
       headers: { Accept: "application/json" },
     });
     if (res.status === 404 || res.status === 410) {
-      return { kind: "gone", message: "This share link doesn't exist or has been revoked." };
+      return { kind: "gone", message: await darkMessage(res) };
     }
     if (!res.ok) return { kind: "error" };
     return { kind: "ok", preview: (await res.json()) as SharePreview };

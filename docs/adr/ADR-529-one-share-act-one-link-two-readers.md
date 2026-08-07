@@ -50,6 +50,19 @@ share executes — the backend floor is untouched by this ADR).
 > seam) and adds the machine address (`/s/{token}.txt`). **D1/D4/D5 — the ShareDialog, the four
 > deletions, the hierarchy — are unaffected and stand.**
 
+> **AMENDED 2026-08-07 by [ADR-534](ADR-534-the-share-link-is-a-standing-address.md)** — D1's four
+> contents stand; their **order of authority** changes.
+>
+> D1 named the minted URL (item 2) and this file's active links (item 3) as separate tiers, and the
+> implementation followed: a link minted ten seconds ago got a labeled field with a Copy control,
+> while a link minted last week — the same object, still live, still resolving current content —
+> got a footer row whose only affordance was **Revoke**. On a file that already had a link, the
+> primary button read *"Create another"*, so the path of least resistance was duplication.
+>
+> ADR-534 makes the dialog **open on the link that exists** (reuse keyed on (path, role)), makes
+> every listed link copyable, and makes a share whose file was moved or deleted go honestly
+> **dark** rather than rendering a blank 200. **D2/D3/D5 are untouched.**
+
 ---
 
 ## 1. Context — the operator's report, and what was actually wrong

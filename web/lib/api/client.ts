@@ -2177,10 +2177,14 @@ export const api = {
         body: JSON.stringify({ artifact_path: artifactPath, label, ttl_days: ttlDays, role }),
       }),
 
+    // ADR-534 D2 — the list carries each link's URL, so a live link can be
+    // re-copied rather than only revoked. Authenticated + grant-gated; the
+    // PUBLIC projection never carries a token.
     listShares: () =>
       request<{ shares: Array<{
         id: string; artifact_path: string | null; label: string | null;
         role: string; status: string; created_at?: string; expires_at?: string | null;
+        share_link?: string | null;
       }> }>(`/api/workspace/shares`),
 
     revokeShare: (shareId: string) =>

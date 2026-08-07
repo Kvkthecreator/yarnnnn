@@ -150,8 +150,13 @@ async def create_workspace_share(body: ShareCreateRequest, auth: UserClient) -> 
 
 @router.get("/workspace/shares", response_model=ShareListResponse)
 async def list_workspace_shares(auth: UserClient) -> ShareListResponse:
+    from services.deep_links import app_url
     from services.workspace_shares import list_shares
 
+    # ADR-534 D2 — the list carries each link's URL, built by the SAME helper
+    # the mint path uses (never a second URL-shaped string, which would be a
+    # spelling free to drift from the one the operator was handed).
+    base = app_url()
     workspace_id = _acting_workspace(auth)
     return ShareListResponse(shares=[
         ShareSummary(
@@ -159,6 +164,7 @@ async def list_workspace_shares(auth: UserClient) -> ShareListResponse:
             role=r["role"], status=r["status"],
             created_at=str(r.get("created_at") or ""),
             expires_at=r.get("expires_at"),
+            share_link=f"{base}/s/{r['token']}" if r.get("token") else None,
         )
         for r in list_shares(workspace_id)
     ])
@@ -378,50 +384,73 @@ async def preview_share(
             .limit(1)
             .execute()
         ).data or []
-        if rows:
-            content = rows[0].get("content") or ""
-            out.truncated = len(content) > PUBLIC_CONTENT_CAP
-            leaf = abs_path.rsplit("/", 1)[-1]
-            out.artifact_name = share.get("label") or leaf
+        if not rows:
+            # ADR-534 D4 — the share named a file and that path no longer names
+            # one (moved, renamed, or deleted). The share row is NOT chased
+            # through mutations (§3: the reference is a historical fact, exactly
+            # as ADR-448 ruled for the derive edge) — so brokenness is DERIVED
+            # here, at read time, by the same resolution the reader performs.
+            # No relocation verb has to remember anything, and none can desync
+            # this.
+            #
+            # What this replaces: a fall-through that returned 200 with an empty
+            # body — a healthy-looking blank page, the silent-drop failure DP34
+            # forbids one layer up (ADR-530).
+            #
+            # DISTINCT from the 410 above: that one is a DECISION (revoked);
+            # this is a MUTATION. `grants-and-reach.md` §8a's runbook needs the
+            # two separable, because an operator debugging "why can't my client
+            # see this" must know which happened.
+            raise HTTPException(
+                status_code=410,
+                detail="The shared file was moved or deleted.",
+                headers=dict(_CAPABILITY_HEADERS),
+            )
+        # Past the guard above, the file EXISTS — no `if rows:` nesting, which
+        # would read as a live branch that can no longer be false.
+        content = rows[0].get("content") or ""
+        out.truncated = len(content) > PUBLIC_CONTENT_CAP
+        leaf = abs_path.rsplit("/", 1)[-1]
+        out.artifact_name = share.get("label") or leaf
 
-            # ADR-530 D1 — the kind comes from the ONE derive-registry dispatcher,
-            # never from a call-site suffix test. The line this replaces was
-            #     "html" if leaf.endswith((".html",".htm")) else "text"
-            # which asserts everything not-HTML IS text, so a shared PDF/XLSX/ZIP
-            # had its RAW BYTES emitted into a <pre> — DP34's diagnostic test
-            # failing verbatim.
-            projection = project_for_machine(path=abs_path, content=content)
-            out.artifact_kind = "html" if file_type_of(abs_path) in ("html", "htm") else "text"
+        # ADR-530 D1 — the kind comes from the ONE derive-registry dispatcher,
+        # never from a call-site suffix test. The line this replaces was
+        #     "html" if leaf.endswith((".html",".htm")) else "text"
+        # which asserts everything not-HTML IS text, so a shared PDF/XLSX/ZIP
+        # had its RAW BYTES emitted into a <pre> — DP34's diagnostic test
+        # failing verbatim.
+        projection = project_for_machine(path=abs_path, content=content)
+        out.artifact_kind = "html" if file_type_of(abs_path) in ("html", "htm") else "text"
 
-            if projection.is_readable:
-                out.artifact_text = (projection.text or "")[:PUBLIC_CONTENT_CAP]
-                # The browser renders the raw form (locked iframe for html —
-                # ADR-513 D3, untouched); a machine reads `artifact_text`.
-                out.artifact_content = content[:PUBLIC_CONTENT_CAP]
-            else:
-                # DP34's anti-silent-drop clause: a format with no strategy is a
-                # KNOWN GAP, said out loud. No raw bytes cross for a container
-                # nothing can read.
-                out.artifact_note = projection.note
-                out.artifact_content = None
-                out.truncated = False
-            walk_rows = (
-                svc.table("workspace_file_versions")
-                .select("authored_by, created_at, message")
-                .eq("workspace_id", share["workspace_id"])
-                .eq("path", abs_path)
-                .order("created_at", desc=True)
-                .limit(PUBLIC_WALK_CAP)
-                .execute()
-            ).data or []
-            out.walk = [
-                WalkEntry(
-                    authored_by=r.get("authored_by"),
-                    when=r.get("created_at"),
-                    change=r.get("message"),
-                )
-                for r in walk_rows
-            ]
+        if projection.is_readable:
+            out.artifact_text = (projection.text or "")[:PUBLIC_CONTENT_CAP]
+            # The browser renders the raw form (locked iframe for html —
+            # ADR-513 D3, untouched); a machine reads `artifact_text`.
+            out.artifact_content = content[:PUBLIC_CONTENT_CAP]
+        else:
+            # DP34's anti-silent-drop clause: a format with no strategy is a
+            # KNOWN GAP, said out loud. No raw bytes cross for a container
+            # nothing can read.
+            out.artifact_note = projection.note
+            out.artifact_content = None
+            out.truncated = False
+        walk_rows = (
+            svc.table("workspace_file_versions")
+            .select("authored_by, created_at, message")
+            .eq("workspace_id", share["workspace_id"])
+            .eq("path", abs_path)
+            .order("created_at", desc=True)
+            .limit(PUBLIC_WALK_CAP)
+            .execute()
+        ).data or []
+        out.walk = [
+            WalkEntry(
+                authored_by=r.get("authored_by"),
+                when=r.get("created_at"),
+                change=r.get("message"),
+            )
+            for r in walk_rows
+        ]
 
     # ADR-529 D2 — negotiate the REPRESENTATION, having already built the one
     # projection. Explicit `?format=md` wins; otherwise honor an Accept header

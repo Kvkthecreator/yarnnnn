@@ -162,10 +162,28 @@ def create_share(
 
 
 def list_shares(workspace_id: str) -> list[dict[str, Any]]:
-    """Active share links for the workspace, newest first."""
+    """Active share links for the workspace, newest first.
+
+    ADR-534 D2 — the projection carries the TOKEN, so a caller can render the
+    live link's URL. This is a deliberate widening of the AUTHENTICATED list,
+    argued on its own rather than folded into a presentation change:
+
+      1. the endpoint is already gated (`_acting_workspace` →
+         `principal_reaches_workspace`);
+      2. every caller who can list can already REVOKE — strictly more power
+         over the same object than reading its URL;
+      3. `create_share`'s response has always returned the link, so the shape
+         is not new; a LIST of them is;
+      4. a capability the owner cannot see is one they cannot audit
+         (ADR-529 D1.2: "a link you cannot see is one you cannot verify").
+
+    The PUBLIC projection (`SharePreviewResponse`, ADR-513 D2) is untouched —
+    no token crosses to an anonymous reader. `test_adr534_standing_address.py`
+    asserts both halves as a pair, so widening one without the other fails.
+    """
     return (
         _svc().table("workspace_shares")
-        .select("id, artifact_path, label, role, status, created_at, expires_at, last_accepted_at")
+        .select("id, artifact_path, label, role, status, created_at, expires_at, last_accepted_at, token")
         .eq("workspace_id", workspace_id)
         .eq("status", "active")
         .order("created_at", desc=True)
