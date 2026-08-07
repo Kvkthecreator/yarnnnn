@@ -409,16 +409,47 @@ nothing. The D5 ratchet asserts this call is **absent** (matched against
 comment-stripped source — asserting on the bare name, then on `name(`, each matched
 this paragraph's own explanatory prose in turn).
 
-### 13f. Not verified
+### 13f. Verified live on a refreshed host (2026-08-07, post-deploy)
 
-- **Whether ChatGPT and claude.ai actually honor `listChanged: true`.** The spec says a
-  compliant host re-fetches; their real behavior is unmeasured. If they don't, D2's
-  runbook is the whole remedy and D1 is merely honest.
-- **The wire `tools/list` per host.** Needs a live OAuth token; unauthenticated root
-  returns `401 invalid_token`. The claude.ai reading is from this session's own tool
-  schemas, not a captured frame.
+The operator refreshed the claude.ai/Desktop connector after `58d175e`. Receipts:
+
+- **The refresh reached the CURRENT deploy, not an older vintage.** Six verbs alone
+  would not prove this — `open`/`save`/`share` shipped Aug 2–3, so a stale manifest
+  looks identical in a verb list. The distinguishing tell is the parameter added at
+  04:34, and the refreshed host reports it:
+  `save(reference, content, base_revision, derived_from, message)`.
+- **D3's asymmetry confirmed from the outside.** The same host reports `derived_from`
+  present on `save` and **absent** on `remember` (which takes only `content` + `about`)
+  — the raw-arrival-is-not-a-derivation ruling (§5), observed rather than asserted.
+- **Our `ToolAnnotations` are load-bearing in a real permissions UI.** Claude Desktop's
+  Connectors panel groups the surface by our declared hints: *Read-only (3)* = Open ·
+  Recall · Trace (`readOnlyHint=True`); *Write/delete (3)* = Remember · Save · Share
+  (`readOnlyHint=False`). The ADR-372 annotation audit shows up as the user's permission
+  control, not just metadata.
+- **A host's tool search can fail while the tool is present.** The assisting model first
+  reported the yarnnn tools as unavailable, then retracted: *"I was wrong last turn. The
+  yarnnn tools were available the whole time — my tool searches just failed to surface
+  them."* This is the §13f self-report caveat firing in the wild, and it is exactly why
+  CONNECTING.md tells the user to have the host *call* a verb rather than trust its
+  inventory.
+
+### 13g. Still not verified
+
+- **Whether the refresh was CAUSED by `listChanged: true`.** A host re-read the list and
+  got current — but the operator also triggered the refresh manually, so the mechanism is
+  confirmed while the *cause* is not attributed. D2's runbook stands either way.
+- **ChatGPT.** Unretested since the fix; it held the oldest manifest (pre-Aug-2).
+- **The raw wire `tools/list` frame.** Needs a live OAuth token; unauthenticated root
+  returns `401 invalid_token`. Every host reading here — pre-refresh and post — is a
+  host's *report* of its schema, not a captured frame. §13f's receipts are strong
+  because they are specific and falsifiable (a named parameter present on one verb and
+  absent on another), not because they are wire captures.
 - **Whether a full remove/re-add clears ChatGPT's cache.** Untested — the operator
   doubted it, which is what prompted this audit.
-- The ChatGPT evidence is a **model self-report**, not a wire capture. What makes the
-  diagnosis solid is the claude.ai comparison plus the SDK source — not ChatGPT's
-  account of itself.
+
+> **The self-report caveat, twice earned.** ChatGPT's original three-verb message and
+> the assisting model's later retraction (*"my tool searches just failed to surface
+> them"*) are the same failure mode: a model's inventory of its own tools is a
+> hypothesis. Both times the resolution came from something checkable — the claude.ai
+> comparison, the SDK source, a named parameter — never from an assistant's account of
+> itself. Keep that ordering.
