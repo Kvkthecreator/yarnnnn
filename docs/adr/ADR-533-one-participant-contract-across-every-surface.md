@@ -291,3 +291,43 @@ the member/model interpolation, and anything at Altitude 1.
 per surface — so a participant is taught the same contract whether it is a lane in the
 webapp or ChatGPT on the other side of an OAuth token; what varies per surface is the
 binding and the grant, never what the participant is told the commons is.**
+
+---
+
+## 12. Live verification (2026-08-07, prod, deploy `2aa8c25`)
+
+Run from Claude Code over the yarnnn MCP connector against production — a real
+foreign principal (`yarnnn:mcp:Claude`) writing into the operator's own workspace,
+not a fixture.
+
+| Check | Result | Receipt |
+|---|---|---|
+| `recall` on an unrecorded subject | `confidence: "ambiguous"` — surfaced candidates, invented nothing | 5 chunks, none dominant |
+| `save` (create) | attributed revision | `f8c6b43a-021b-458f-9de8-4f17498bf15d` |
+| `save` (blind overwrite) | **refused** | `base_required` + `current_head{revision_id, authored_by: "yarnnn:mcp:Claude", when}` |
+| `open` | exact content + attribution + chain | `authored_by`, `last_updated`, `history[].message` all present |
+| `save` (correct base) | CAS cycle completes | `846c8ad6-fbbf-4bb5-8f7d-7c227159d389` |
+| `trace` | `resolution: "exact"`, 2 revisions with unified diff | both attributed |
+
+Artifact: `/workspace/operation/notes/adr-533-interop-parity-probe.md`.
+
+**Why the refusal is the load-bearing receipt.** D4's `save-receipt` widget exists
+to render the conflict state, and this probe proves the shape is real: the refusal
+returns exactly the four facts the card draws (who holds the head, when, what they
+called it, that nothing was overwritten). The widget renders returned substrate,
+and the substrate is confirmed present.
+
+### Not verified
+
+- **No host has DRAWN either new widget.** Bundles built, resources registered,
+  `strip_widget_meta` verified to remove every `openai/*` + `ui` key for non-ChatGPT
+  hosts — but rendering is only observable in ChatGPT, and this session could not
+  open one. This is the D4 click-pass and it remains **owed**.
+- **The `derived_from` parameter was not exercised live.** The calling host's tool
+  schemas were captured before the deploy, so the session's `save` had no
+  `derived_from` field to pass. The parameter is gate-covered (accepted, threaded
+  into the `WriteFile` input, exposed on the tool) but has not made a real citation
+  edge across the wire. Owed on the next connector session.
+- **The composed `instructions` were not observed as a host received them.** The
+  render is verified locally (4,450 chars, every clause verbatim); no host has
+  confirmed what it was actually served.
