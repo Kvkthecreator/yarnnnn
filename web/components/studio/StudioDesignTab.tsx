@@ -89,7 +89,16 @@ const PAGE_SEL = STRUCTURAL_PAGE_SEL; // ADR-511 Phase 2 — the one structural 
  *  ADR-487 D1: `heading` joins — the old exclusion ("headings anchor pages")
  *  was about the re-arrange sweep, which stays; it never needed to make
  *  headings unconvertible. */
-export const TURN_INTO_KINDS = ['prose', 'heading', 'callout', 'quote', 'checklist', 'toggle'];
+export const TURN_INTO_KINDS = [
+  'prose',
+  'heading',
+  'callout',
+  'quote',
+  'list',
+  'numbered',
+  'checklist',
+  'toggle',
+];
 
 /** The heading rungs (ADR-487 D1) — the tag carries the level; the kernel
  *  sizes each from the type scale, so the rungs are design-system-fed. */
@@ -677,13 +686,37 @@ const HIGHLIGHT_ROLES = MARK_ROLES.filter((r) => r.value !== 'muted');
  *
  *  Deliberately NOT here: point size, line spacing, font family. Those are
  *  METRICS and the design system owns them (ADR-449) — §4 of the ADR records
- *  the refusal rather than leaving the absence to look like an oversight. */
+ *  the refusal rather than leaving the absence to look like an oversight.
+ *
+ *  ADR-536 D2 — align + indent are BACK, in the section ADR-527 D3 assigned
+ *  them to. They were lost in ADR-528 D2's re-cut: D3 put them in "a new Text
+ *  section, not a resurrected Layout section", but the only mount for a
+ *  block-grain token was the Layout section, which lives in `object` scope —
+ *  so when flow's `block` scope became `range`, the tokens had no reachable
+ *  home and silently vanished. This section is where D3 said they go.
+ *
+ *  They are BLOCK-grain (`onSetToken('block', …)`) while their neighbours are
+ *  range ops, and that is not an inconsistency to tidy away: `data-align` is
+ *  `text-align`, arrangement of prose inside its own measure. It addresses the
+ *  block the caret is in — the STRUCTURE tier, exactly like the typography
+ *  ramp and Turn into, both of which already sit at this scope on the same
+ *  reasoning. Which is also why they withdraw over a multi-block range: the op
+ *  is single-subject, and answering for one of six silently is the `d878242`
+ *  defect. */
 function TextSection({
   onFormat,
   swatch,
+  flowTokens,
+  currentOf,
+  onSetToken,
 }: {
   onFormat: (op: string, value?: string | null) => void;
   swatch: (varName: string, fallback: string) => string;
+  /** The `block-flow` tokens (align/indent) applicable to the block the caret
+   *  is in — empty over a multi-block range, and empty on a staged medium. */
+  flowTokens: StudioToken[];
+  currentOf: (key: string) => string | null;
+  onSetToken: (key: string, value: string | null) => void;
 }) {
   const btn =
     'inline-flex h-6 min-w-6 items-center justify-center rounded border border-border px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
@@ -770,6 +803,19 @@ function TextSection({
       <p className="text-[10px] text-muted-foreground">
         emphasis via the palette variables — never raw color
       </p>
+      {/* ADR-536 D2 — align + indent, the block-grain rows of the text tier.
+          Same TokenControl every other token renders through: one presentation
+          for "pick among enumerated values", never a second shape for the same
+          idea (the ADR-487 D9 drift). Served rows, so a value added to the
+          vocabulary appears here with no edit. */}
+      {flowTokens.map((t) => (
+        <TokenControl
+          key={t.key}
+          token={t}
+          current={currentOf(t.key)}
+          onSet={(v) => onSetToken(t.key, v)}
+        />
+      ))}
     </div>
   );
 }
@@ -1602,6 +1648,26 @@ export function StudioDesignTab({
         : [],
     [scope, applicable, tokenSwatches],
   );
+  /** ADR-536 D2 — the `block-flow` rows (align + indent), for the Text section.
+   *
+   *  DERIVED from the served grain, never a hardcoded ['align','indent']: a
+   *  token that declares `block-flow` tomorrow joins with no edit here, which
+   *  is the same rule `colorTokens` follows one comment up. `applicable`
+   *  already computes these at range scope — ADR-527 D3's amendment is what
+   *  put `block-flow` in the filter — they simply had nowhere to render.
+   *
+   *  Withdrawn over a MULTI-BLOCK range: `onSetToken('block', …)` writes to
+   *  `selectedEl`, one block, so offering it while six are selected would
+   *  answer for the block that happened to be clicked. That is `d878242`
+   *  exactly, and the neighbouring ramp/turn-into sections withdraw on the
+   *  same rule and SAY so in the multi-block notice. */
+  const flowTokens = useMemo(
+    () =>
+      scope === 'range' && !multiBlockRange
+        ? applicable.filter((t) => t.applies.includes('block-flow'))
+        : [],
+    [scope, multiBlockRange, applicable],
+  );
   // ...and its complement, so each token renders EXACTLY ONCE. Lifting without
   // this would leave the control mounted twice in one panel — the duplicate-mount
   // defect ADR-466 P12 and ADR-505 D5 each had to delete.
@@ -2391,7 +2457,13 @@ export function StudioDesignTab({
               section of range scope rather than a guest in a block scope:
               every control in it acts on the SELECTION (ADR-521 D2's text
               tier), which is exactly what the member has, at any span. */}
-          <TextSection onFormat={onFormat} swatch={swatchOf} />
+          <TextSection
+            onFormat={onFormat}
+            swatch={swatchOf}
+            flowTokens={flowTokens}
+            currentOf={(key) => selectedEl?.getAttribute(`data-${key}`) ?? null}
+            onSetToken={(key, v) => onSetToken('block', key, v)}
+          />
           {/* The STRUCTURE tier (rule 10's second axis): the ramp and turn-into
               address the BLOCKS the range intersects, not the range itself.
               Over a single block — the overwhelmingly common case, since a
@@ -2409,7 +2481,8 @@ export function StudioDesignTab({
             <div className={SECTION}>
               <p className="text-[10px] text-muted-foreground">
                 Formatting applies to everything selected. Structure — the
-                heading ramp and Turn into — applies to one block at a time.
+                heading ramp, Turn into, and align/indent — applies to one
+                block at a time.
               </p>
             </div>
           )}

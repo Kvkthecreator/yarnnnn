@@ -21,6 +21,7 @@ Run:  cd api && python3 test_adr456_studio_wave2.py
 Exit code is authoritative (0 = pass).
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -104,9 +105,18 @@ def run() -> bool:
     _check("convertBlock refuses citations + no-ops same-kind",
            "block.querySelector('[data-ref]')" in ops
            and "block.getAttribute('data-block') === kind" in ops)
-    _check("Design tab: Turn into, text kinds only (+ heading per ADR-487 D1)",
-           "TURN_INTO_KINDS" in design
-           and "'prose', 'heading', 'callout', 'quote', 'checklist', 'toggle'" in design
+    # Assert MEMBERSHIP, never the literal spelling of the array. The old form
+    # pinned "'prose', 'heading', …" as one string, so re-formatting the list
+    # across lines broke a gate that had no opinion about formatting — and
+    # ADR-536 D1's two additions could not be expressed at all. Parse the
+    # array and check the set.
+    _turn = re.search(r"TURN_INTO_KINDS\s*=\s*\[(.*?)\]", design, re.DOTALL)
+    _check("Design tab: Turn into, text kinds only (+ heading per ADR-487 D1, "
+           "+ ADR-536 D1 the two list kinds)",
+           _turn is not None
+           and set(re.findall(r"'([a-z]+)'", _turn.group(1)))
+           == {"prose", "heading", "callout", "quote", "list", "numbered",
+               "checklist", "toggle"}
            and "onTurnInto" in design)
     _check("surface routes turn-into through the one door (applyOp)",
            "handleTurnInto" in surface

@@ -325,7 +325,18 @@ const PROMOTE_KIND: Record<string, string> = {
   H1: 'heading', H2: 'heading', H3: 'heading', H4: 'heading',
   H5: 'heading', H6: 'heading',
   BLOCKQUOTE: 'quote', TABLE: 'table', FIGURE: 'figure',
-  P: 'prose', DIV: 'prose', UL: 'prose', OL: 'prose', PRE: 'prose',
+  // ADR-536 D1 — UL/OL promote to their OWN kinds. They read `prose` until now
+  // because no list kind existed to promote to, which is why a pasted list
+  // reported as "prose" in the properties pane and Turn-into offered it the
+  // prose roster. A <ul> is not a paragraph; naming it one was the registry
+  // gap surfacing at the recognizer.
+  //
+  // A `checklist` is also a <ul>, and stays unreachable from here on purpose:
+  // promotion is a guess from a TAG, and the checkbox list is the marked
+  // special case (list-style:none + the ☐ rule). Guessing plain is the honest
+  // default — the member reaches checklist through Turn into, deliberately.
+  UL: 'list', OL: 'numbered',
+  P: 'prose', DIV: 'prose', PRE: 'prose',
 };
 const BLOCK_LEVEL = new Set(Object.keys(PROMOTE_KIND).concat(['SECTION', 'MAIN', 'ARTICLE', 'HEADER', 'FOOTER']));
 
@@ -517,7 +528,12 @@ export function convertBlock(
     // holds the text directly, no child units. Joining keeps every unit's
     // text (content is never dropped, shape is the accepted loss).
     built.push(['__self__', units.length ? units.join(' ') : 'Heading']);
-  } else if (kind === 'checklist') {
+    // ADR-536 D1 — the list kinds join `checklist` here, not the `<p>` default
+    // below: their shell is a <ul>/<ol>, whose only legal child is <li>. The
+    // fallback would have built `<ul><p>…</p></ul>` — invalid markup that
+    // renders as unmarked text, i.e. a Turn into that visibly does nothing.
+    // One line, because a list IS the checklist's shape minus the ☐.
+  } else if (kind === 'checklist' || kind === 'list' || kind === 'numbered') {
     (units.length ? units : ['…']).forEach((u) => built.push(['li', u]));
   } else if (kind === 'quote') {
     built.push(['p', units[0] ?? '…']);

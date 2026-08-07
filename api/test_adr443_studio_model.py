@@ -49,8 +49,13 @@ def run() -> bool:
     )
 
     # ── 1. The vocabulary (D4) ───────────────────────────────────────────
-    _check("13 block kinds (8 launch + ADR-456 W1 four + ADR-487 D1 heading)",
+    # The count lives in the label only as prose; the ASSERTION is the set, so
+    # a kind can never join or leave unnoticed. ADR-536 D1 adds the two
+    # ordinary list kinds — `checklist` was the only list row and it is a
+    # CHECKBOX list, so a bulleted or numbered list was unreachable.
+    _check("15 block kinds (8 launch + W1 four + heading + ADR-536 two lists)",
            set(STUDIO_BLOCKS) == {"prose", "heading", "callout", "quote", "checklist",
+                                  "list", "numbered",
                                   "table", "metrics", "chart", "figure",
                                   "divider", "toggle", "button", "gallery"})
     for kind, b in STUDIO_BLOCKS.items():

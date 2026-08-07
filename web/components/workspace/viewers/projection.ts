@@ -261,6 +261,12 @@ export const TEXT_BLOCK_KINDS = [
   'prose',
   'callout',
   'quote',
+  // ADR-536 D1 — the two ordinary list kinds are TEXT: prose lives inside the
+  // items, so a click enters edit-at-caret exactly as it does on a checklist
+  // (already here, and structurally identical). Omitting them would make a
+  // list select-only — a container the member can point at but not type in.
+  'list',
+  'numbered',
   'checklist',
   'toggle',
   'heading',

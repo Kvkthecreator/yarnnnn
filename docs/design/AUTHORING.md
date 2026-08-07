@@ -154,7 +154,7 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 | verbs | ✅ ⌫ delete · ⌘C/⌘V/⌘D · Esc lifts caret→block | ✅ **objects only** — figure/table/chart/gallery/divider keep the unit verb; on prose the keys belong to the platform (ADR-521 D6: a unit verb on a paragraph is the enclosure re-asserting itself, and it deleted whole paragraphs on an emptied block or a cross-block range). Text keys stay caret-guarded (ADR-482 D2) | ✅ |
 | Esc-walk | ✅ editing → block → container → … → page → clear (the real ancestor chain, ADR-511 D3; no drill-down gesture — down is clicking the thing) | ✅ caret → block → clear | ✅ |
 | undo | ✅ ⌘Z/⇧⌘Z — a lineage stack in the SURFACE (ADR-523 D1; the runtime only forwards the key, and yields it entirely to the browser while a flow caret is live per ADR-482 D2). An entry carries `structural`, so a non-structural undo does not reload the frame; text edits coalesce at the member's pauses (600ms, D3), so ⌘Z rewinds a phrase, not the whole blur-batched revision. Bounded by bytes (D2); cleared only by a FOREIGN write (D4) | ✅ | ✅ |
-| list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab in prose = a literal tab; Tab never ends the session | — |
+| list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab in prose = a literal tab; Tab never ends the session. **The list it nests is now a KIND** — ADR-536 D1 added `list`/`numbered`; until then this shipped against a container the vocabulary could not create | — |
 | move block | 🔜 (arrows nudge — owed) | ✅ **⌥↑/⌥↓** → the existing `moveBlock`, one op N entrances (ADR-526 D3). Subject = the block holding the caret (structure tier), NOT `selectedBlock()` (the object gate). Yields to a live range | 🔜 band reorder keys |
 | owed | arrows nudge/resize, ⌘]/[ z-order, Tab cycle (declared since ADR-477) | — | band reorder keys |
 
@@ -205,8 +205,8 @@ derivation, no page unit).
 |---|---|---|---|---|---|---|
 | **Identity** — label + **path + Contents** (ADR-520 D4: the structure's ONE home; the navigator is the filmstrip) + verb row | name + file verbs (every scope) · **OUTLINE on flow** (ADR-526 D2 — the document's headings in order, click-to-jump; derived client-side, empty state says so) | ✅ verbs · Contents | ✅ path · verbs · Contents | ✅ **enclosing-heading crumb** (ADR-526 D2 — flow's one honest ancestry rung, from `headingId`; withdraws over a multi-block range) · label names the **count** over a span, never a stale block · 🚫 no path, no verb row — **not composed** (ADR-528 D4: a range has no box and no single subject; the suppression guards are DELETED, not re-gated) | ✅ path · verbs — **move verbs withheld on flow** (a figure has a box but sits in continuous prose; the menu always refused them there) | existing id-addressed ops; path = the breadcrumb's climbChain |
 | **Position** — In flow \| Positioned · X/Y **fields** (ADR-520 D3: numeric entry, two-clamp) | — | — | — | 🚫 not composed | ✅ deck-staged only | measures, two-clamp |
-| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | 🚫 **not composed** — rule 10's "no layout surface", now true by non-composition rather than by suppression. (align + indent were ADR-527 D3's `block-flow` rows in the old `block (text)` column; they return as range-tier rows when a span-aware op exists — see the roster) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
-| **Text** (ADR-527 D4 — range emphasis) | — | — | — | ✅ **B · I · U · S · code · clear · colour · highlight** — palette roles, never a picker. The **primary** section of this scope (ADR-528), and the one that does NOT withdraw over a span: every control acts on the selection | — | one `applyFmt`, two entrances (bar + pane) |
+| **Layout** | — | ✅ padding + vertical-align glyphs (slide) / spacing (band) · columns ratio | ✅ padding/gap/**align+justify glyph rows**/width Hug\|Fill · **W/H fields (staged — ADR-520 D2)** (direction = Phase C) | 🚫 **not composed** — rule 10's "no layout surface", now true by non-composition rather than by suppression. (align + indent were ADR-527 D3's `block-flow` rows in the old `block (text)` column; **ADR-536 D2 mounts them in the Text section**, where D3 assigned them — they never needed a span-aware op, being `text-align` at the STRUCTURE tier like the ramp beside them) | size Hug\|Fill · width/align tokens · **W/H fields** | **inline-CSS presets, one op** (ADR-516) · tokens |
+| **Text** (ADR-527 D4 — range emphasis) | — | — | — | ✅ **B · I · U · S · code · clear · colour · highlight** — palette roles, never a picker. The **primary** section of this scope (ADR-528), and the one that does NOT withdraw over a span: every control acts on the selection. **+ align · indent** (ADR-536 D2) — the one pair here that is BLOCK-grain and therefore DOES withdraw over a span, named in the multi-block notice | — | one `applyFmt`, two entrances (bar + pane); align/indent = `setToken` at block grain |
 | **Style** | typography faces · measure/pagenum · design system (worn, not listed — ADR-487 D9) | tone · scrim/focus | — | ✅ typography ramp (**structure tier** — addresses the block the caret is in; withdraws over a multi-block range and says so) | ✅ typography ramp · tone/variant swatches | tokens (meaning — ADR-516 D6 boundary) |
 | **Content** | — | background citation | media picker (media-role regions) | ✅ turn-into (**structure tier** — ADR-521 D2; same single-block withdrawal) | ✅ turn-into | existing |
 
@@ -252,11 +252,11 @@ the write seam, not enforced).
 > `services/images/stage.py` carries `image`. The app boundary is the module; the
 > machinery below is one implementation, three consumers.
 
-- **Block vocabulary**: 13 kinds (prose · callout · quote · checklist · divider · toggle
-  · button | table · metrics · chart | figure · gallery), served on
+- **Block vocabulary**: 15 kinds (prose · heading · callout · quote · **list · numbered** ·
+  checklist · divider · toggle · button | table · metrics · chart | figure · gallery), served on
   `GET /studio/vocabulary`. Grammar, not schema — unannotated content stays valid.
   **The roster is APP-SCOPED** (ADR-528 D5): a row may declare `apps`, and absent =
-  every app. **Docs offers 11 — not callout or toggle** (both are prose in a container
+  every app. **Docs offers 13 — not callout or toggle** (both are prose in a container
   with its own caret; Google Docs has neither, and toggle is what a collapsible heading
   would need, which ADR-526 §6 holds open pending evidence). Studio keeps both: on a
   composed surface an offset aside is an authored object, and ADR-487 D2's variant

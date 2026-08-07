@@ -109,6 +109,30 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "description": "A list of discrete items or steps.",
         "markup": '<ul data-block="checklist" data-block-id="b4"><li>…</li></ul>',
     },
+    # ADR-536 D1 — the two list kinds the registry never had. `checklist` was
+    # the ONLY list row, and it is a checkbox list (list-style:none + a ☐
+    # pseudo-element), so a member wanting an ordinary bullet or a numbered
+    # list had nothing to pick and nothing to Turn into. Meanwhile the paste
+    # allowlist admits UL/OL and ADR-521 D4 shipped Tab/⇧Tab nesting "in a
+    # list" — so the runtime could nest and render a container the vocabulary
+    # could not NAME. These rows close that gap; the mechanism is entirely
+    # existing (rows, not machinery — the ADR-456 W1 `divider` precedent).
+    #
+    # Both are `<ul>`/`<ol>` with plain list-style, i.e. what the kernel's own
+    # element defaults already draw. They are TEXT kinds: prose inside list
+    # items, which is why they join TEXT_BLOCK_KINDS and the turn-into set.
+    "list": {
+        "label": "Bulleted list",
+        "group": "content",
+        "description": "A bulleted list — unordered items.",
+        "markup": '<ul data-block="list" data-block-id="b14"><li>…</li></ul>',
+    },
+    "numbered": {
+        "label": "Numbered list",
+        "group": "content",
+        "description": "A numbered list — ordered steps or ranked items.",
+        "markup": '<ol data-block="numbered" data-block-id="b15"><li>…</li></ol>',
+    },
     # ADR-456 Wave 1 — the builder/Notion registry growth (rows, not mechanisms).
     "divider": {
         "label": "Divider",
@@ -1042,6 +1066,20 @@ STUDIO_KERNEL_CSS = """
    artifacts via the versioned upsert. Token rules come LAST in this sheet so
    a token wins at equal specificity. */
 hr[data-block="divider"] { border: 0; border-top: 1px solid var(--ink-10, #ddd); margin: 2.25rem 0; }
+/* ADR-536 D1 — the two ordinary list kinds. Declared EXPLICITLY rather than
+   left to the UA default because _SHARED_CSS's reset zeroes every margin and
+   padding (`* { margin: 0; padding: 0 }`), which collapses a bare <ul> onto
+   its markers. `checklist` next door already had to opt out of that reset the
+   same way; these rows are its ordinary siblings. Nested lists step down the
+   marker the way every writing surface does. */
+ul[data-block="list"], ol[data-block="numbered"] { margin: 1rem 0; padding-inline-start: 1.5rem; }
+ul[data-block="list"] { list-style: disc; }
+ol[data-block="numbered"] { list-style: decimal; }
+ul[data-block="list"] li, ol[data-block="numbered"] li { margin: 0.35rem 0; }
+ul[data-block="list"] ul { list-style: circle; margin: 0.35rem 0; padding-inline-start: 1.25rem; }
+ul[data-block="list"] ul ul { list-style: square; }
+ol[data-block="numbered"] ol { list-style: lower-alpha; margin: 0.35rem 0; padding-inline-start: 1.25rem; }
+ol[data-block="numbered"] ol ol { list-style: lower-roman; }
 details[data-block="toggle"] { margin: 1rem 0; border: 1px solid var(--ink-10, #ddd);
   border-radius: var(--radius-md, var(--radius, 6px)); padding: 0.5rem 0.9rem; }
 details[data-block="toggle"] summary { cursor: pointer; font-weight: 600; }
@@ -1375,7 +1413,19 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # exact prior stacks as fallbacks — ADR-455's "a skin supplies faces; the
 # token selects among them" completed. Byte-identical on a skin-less
 # artifact; the bump retrofits both into every existing artifact.
-STUDIO_KERNEL_CSS_VERSION = 14
+# v15 (2026-08-07, ADR-536 D1): the two ordinary list kinds (bulleted +
+# numbered) gain kernel rules. Additive — no existing rule changed or removed,
+# so the retrofit cannot alter an artifact that holds neither kind.
+#
+# The rules select on `data-block`, so they reach a list only once the
+# recognizer has NAMED it. Lists already in members' documents arrived by paste
+# and were promoted to `prose` (UL/OL mapped there because no list kind
+# existed); ADR-536 re-points that promotion at the new kinds, and promotion is
+# migration-by-use — an existing list is re-named on the artifact's next write,
+# not by a sweep. So the bump and the recognizer change land TOGETHER: the CSS
+# alone would retrofit nothing, and the promotion alone would name a kind the
+# kernel could not draw.
+STUDIO_KERNEL_CSS_VERSION = 15
 
 
 def compose_kernel_style_element() -> str:
