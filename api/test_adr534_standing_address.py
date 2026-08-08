@@ -174,9 +174,51 @@ def main() -> int:
 
     prev = _strip_ts_comments(preview_ts)
     results.append(_check(
-        "D4d the FE carries the server's detail, not one hardcoded line",
-        "darkMessage" in prev and "body?.detail" in prev,
+        "D4d the FE carries the server's message, not one hardcoded line",
+        "darkMessage" in prev,
         "a fixed string here would discard the distinction the API just made"))
+
+    # D4d-bis — EXECUTED against the real wire shape, because the structural
+    # check above cannot see a spelling mismatch.
+    #
+    # This caught a live defect 2026-08-08: the first cut read `body.detail`,
+    # but main.py's app-level handler normalizes EVERY HTTPException to
+    # {"error": {"code", "message", "hint"}} — so `detail` never crosses the
+    # wire and all three dark states collapsed to the generic line. The gate
+    # had asserted `"body?.detail" in prev`, i.e. it PINNED THE WRONG SPELLING
+    # and went green on the bug. Never assert a spelling; assert the behaviour.
+    # Read the envelope from main.py's SOURCE — importing it would boot the app
+    # and demand prod env (INTEGRATION_ENCRYPTION_KEY et al), which a gate must
+    # never require. The assertion below pins that the handler still renames
+    # `detail` into `message` under an `error` object; if that envelope ever
+    # changes, this goes red and the FE extractor must move with it.
+    main_src = (API / "main.py").read_text(encoding="utf-8")
+    envelope_renames_detail = (
+        re.search(r'return \{"error": \{"code": code, "message": message', main_src)
+        is not None
+        and re.search(r"message = detail if isinstance\(detail, str\)", main_src) is not None
+    )
+    results.append(_check(
+        "D4d-bis main.py renames route `detail=` to error.message",
+        envelope_renames_detail,
+        "the FE must read the NORMALIZED spelling, not the route's"))
+
+    def _wire_body(detail: str) -> dict:
+        return {"error": {"code": "gone", "message": detail, "hint": None}}
+
+    def _fe_pick(body: dict) -> object:
+        # Transcribes darkMessage's extraction.
+        return (body.get("error") or {}).get("message") or body.get("detail")
+
+    moved_body = _wire_body("The shared file was moved or deleted.")
+    results.append(_check(
+        "D4d-bis the FE's extraction finds the message in the REAL wire shape",
+        _fe_pick(moved_body) == "The shared file was moved or deleted.",
+        str(moved_body)))
+    results.append(_check(
+        "D4d-bis the FE reads error.message (the normalized spelling)",
+        "error?.message" in prev,
+        "main.py renames a route's detail= before it leaves the process"))
     results.append(_check(
         "D4e a 404 keeps the generic line (it has no detail worth showing)",
         re.search(r"if \(res\.status === 404\) return GENERIC_DARK", prev) is not None))

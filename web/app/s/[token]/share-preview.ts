@@ -55,17 +55,30 @@ export type PreviewResult =
  * Collapsing them is what makes "why can't my client see this" undebuggable,
  * which is exactly what `grants-and-reach.md` §8a's runbook exists to prevent.
  *
- * The server's `detail` is the authority — it is the surface that KNOWS which
+ * The server's message is the authority — it is the surface that KNOWS which
  * happened. This falls back to the generic line only when the body is missing
  * or unparseable, never as the default.
+ *
+ * THE WIRE SHAPE IS `error.message`, NOT `detail`. `main.py`'s app-level
+ * handler normalizes EVERY raised HTTPException to
+ *     {"error": {"code", "message", "hint"}}
+ * so a route's `detail=` is renamed before it leaves the process. Reading
+ * `detail` here — as the first cut of this function did — silently matched
+ * nothing and collapsed all three dark states back into the generic line,
+ * defeating the whole of ADR-534 D4 while looking correct in review. Verified
+ * against the deployed API 2026-08-08, not inferred from the route source.
  */
 const GENERIC_DARK = "This share link doesn't exist or has been revoked.";
 
 async function darkMessage(res: Response): Promise<string> {
   if (res.status === 404) return GENERIC_DARK;
   try {
-    const body = (await res.json()) as { detail?: unknown };
-    if (typeof body?.detail === "string" && body.detail.trim()) return body.detail;
+    const body = (await res.json()) as {
+      error?: { message?: unknown };
+      detail?: unknown;
+    };
+    const msg = body?.error?.message ?? body?.detail;
+    if (typeof msg === "string" && msg.trim()) return msg;
   } catch {
     /* no parseable body — fall through to the generic line */
   }
