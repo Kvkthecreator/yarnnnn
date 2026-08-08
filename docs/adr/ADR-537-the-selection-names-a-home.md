@@ -201,7 +201,47 @@ D1–D4 ship **behind the existing `CONNECTOR_CAPTURE_ENABLED`**, exactly where 
 - **Platform-as-principal** (ADR-401 D1): the connection stays a peripheral; captures stay `system:`-attributed; the *member* authors the mapping.
 - **The `inbound/` → Downloads dissolution** (ADR-384 D3 / ADR-423): unimpeded — D1 routes derivations, never raw, so the raw lane's namespace can dissolve into `revision_kind` on its own schedule.
 
-## 7. Open questions for the operator
+## 7. Discourse continuation (2026-08-08) — the domain, named
+
+Operator asked: is this a brand-new architecture/domain that needs explicit statement?
+
+**Assessment: not a new kernel layer — but a new canonical domain, and it should be named.** Nothing in §5 adds a table, a write path, a principal species, or an invocation gateway; it composes DP27/DP31/DP32 verbatim. But the concerns it touches — the landscape (an uncanonized JSONB cache), topology (implicit in per-platform selector grains), the watch declaration (canon but flat), derive routing (owned by nobody) — are scattered as properties of *other* domains precisely because no named domain exists to cohere them. The perception field (ADR-335) names how reality *enters*; the meaning filesystem (ADR-384/424) names how the workspace is *organized*; the unnamed seam is **the workspace's declared model of the outside world's shape, and the projection of that shape onto workspace meaning**.
+
+**Proposed name: the mount layer** (per the ADR-222 OS framing, taken seriously rather than decoratively):
+
+| OS concept | yarnnn concept |
+|---|---|
+| Attach a device | Connect a platform (the credential is the cable — account-scoped, ADR-425) |
+| Read the partition table | Landscape discovery (no data flow) |
+| Mount a partition at a mount point | Select a source + declare its `home` (a meaning folder) |
+| Block driver | Capture (mechanical, raw, quarantined, `observation`) |
+| Filesystem driver | Derive (judgment, cited, `derivation`, at the mount point) |
+
+The two topologies fall out exactly: a GitHub repo is a **whole-device mount** (one context, one mount point, defaultable); Slack/Notion are **partitioned devices** (one attachment, many mountable sub-contexts, each with its own mount point; unmounted partitions legitimately stay unmounted). Current dormancy is expressible too: devices attached, nothing mounted.
+
+**Mandatory qualification**: a yarnnn mount is **derivational, not transparent**. Classic mounts pass reads through live; here the mount point receives *cited derivations of retained observations* — asynchronous, attributed, judged. The mount declares where understanding belongs; it never makes external state impersonate workspace state. This is the discipline separating it from the three dead sync eras (§2).
+
+If ratified: one canonical doc (`docs/architecture/mounts.md`, peer to `reviewer-substrate.md`) owning topology + landscape + watch/home declarations + derive routing; GLOSSARY entries (mount, mount point, topology, landscape — several already owed by ADR-424 §95); a FOUNDATIONS framing line positioning this as the *completion of the perception field*, not a new axiom; this ADR re-cut in that vocabulary.
+
+## 8. Frontend surface assessment — where the workflows land
+
+A second audit pass (2026-08-08, two sweeps: app-shell/framework + intake-adjacent workflows) mapped the FE the mount layer must be experienced on. Full receipts in the session record; load-bearing facts:
+
+**The frame.** The authenticated app is an OS desktop: 12 live surfaces in one `SurfaceRegistry` (`web/components/shell/SurfaceRegistry.tsx:94-118`), one window manager (`useSurfacePreferences`), a dock + summoned launcher, one navigation verb (`navigateToSurface`). Chat is member↔colleague *lanes* (ADR-411); Freddie's chat chrome is off (`web/lib/steward-chrome.ts:16`) — his presence is the ledger. Proposals are the only accept/reject affordance, mounted at `/queue` + the attention bell; **no recommendation primitive exists anywhere in the FE**. The connection-manager spec (ACCESS/SCOPE/CADENCE/YIELD) is fully implemented through its build-order item 4 — the gap is *visibility* (CADENCE/YIELD/retention hidden behind the dormancy flag), not implementation.
+
+**The five FE gaps that matter for this ADR** (everything else rides existing machinery):
+
+1. **The arrival badge was ratified and never rendered.** `revision_kind` is written by every arrival lane and read by the FE *nowhere* (single hit repo-wide is a comment). Files' "raw intake" treatment is a path-prefix proxy (`web/lib/workspace/legibility.ts:78-84`); an `observation` outside `inbound/` shows nothing. ADR-423's badge needs its FE half regardless of this ADR.
+2. **Trace has no human UI.** `derived_from` is walkable only via the MCP `trace` tool (`api/services/mcp_composition.py:856-960`); `RevisionHistoryPanel` shows neither `revision_kind` nor `derived_from`; Radar briefs display no citation list. The moat's proof surface is currently invisible in the product's own client. A derivational mount is only trustworthy if the member can walk derivation → raw → world `source_ref`.
+3. **The timeline grammar has no "derived" verb.** A Freddie derivation renders identically to any file edit (`web/lib/workspace/timeline-rows.tsx:126-152`); the ledger can't show the mount working.
+4. **The SCOPE checklist is topology-blind** — one flat list for all three providers (`ManageConnectionSubsurface.tsx:408-459`) with no home affordance; exactly the D2 surface.
+5. **Downloads is invisible until something arrives** (`api/routes/workspace.py:698-703` — `inbound` not in `always_show`), and first-run contains no path to connectors at all — consistent with "nothing to set up," which constrains the mount workflow to *discoverable-but-optional*, never a wizard.
+
+**Reuse economics.** Radar is the shipped template for the whole loop: an in-product declaration form (topic + sources + cadence + steer → one YAML), honest sweep health, outputs opening in Files. The commons-mount surface is structurally the same form with the landscape as the source picker and a home per group. Mapping recommendations ride the existing `ProposalCard` substrate family (queue + bell) — no new approval UI class. **Do not build on the ADR-245 L2/L3 middle layer** — the content-shapes registry has zero consumers and `LIBRARY_COMPONENTS` has two entries; Radar's plain-component pattern is the live idiom.
+
+**One door tension to decide explicitly**: the Manage drill-in lives in the *account* door (`/settings`, per ADR-425), but a mount is *workspace* substrate (`operation/_connectors/`). The seam already exists today (the SCOPE save writes workspace substrate from the account door); D1 widens what flows across it. Options: keep mounting in the drill-in (least motion), or split — cable stays account-door, mounting moves to the workspace side (workspace-settings, or Files itself, where a mounted home could render like a volume in the tree).
+
+## 9. Open questions for the operator
 
 1. **Home granularity for commons platforms**: is a Notion *page subtree* (a page id and its descendants) an acceptable selection unit, or do we stay at flat page grain as discovered today? (Capture binding reads per `page_id` either way.)
 2. **Default homes for container platforms**: derive the proposed folder name from the repo name, or always ask? (D2 assumes propose-and-confirm.)
