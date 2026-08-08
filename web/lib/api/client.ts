@@ -2185,6 +2185,10 @@ export const api = {
         id: string; artifact_path: string | null; label: string | null;
         role: string; status: string; created_at?: string; expires_at?: string | null;
         share_link?: string | null;
+        // ADR-537 D4 — when the link was last redeemed (never a redeemer NAME:
+        // the column is overwritten on every accept, so one name would imply a
+        // complete list).
+        last_accepted_at?: string | null;
       }> }>(`/api/workspace/shares`),
 
     revokeShare: (shareId: string) =>

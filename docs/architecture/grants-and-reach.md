@@ -107,9 +107,18 @@ One gate — `services/workspace_shares.py::assert_may_mint_share` — called by
 | Act | Who may |
 |---|---|
 | Mint a share link | Owner always. Otherwise: non-viewer role AND not write-deny-all, subject to the dial. |
-| The dial (`workspaces.share_mint_policy`) | `write-holders` (default) \| `owner-only` |
+| **Create an invite** | **Same gate (ADR-537 D3)** — `assert_may_mint_share`. The two doors to a new member agree. |
+| The dial (`workspaces.share_mint_policy`) | `write-holders` (default) \| `owner-only` — governs **both** doors |
 | Revoke a share link | Owner (any link) · the minter (their own) |
-| Invite / narrow / revoke a grant / set caps | Owner only (`_require_owner_workspace`) |
+| **List / revoke invites**, narrow a grant, revoke a member, set caps | Owner only (`_require_owner_workspace`) |
+
+**Why invite-creation moved and the rest did not** (ADR-537 D3): inviting creates a **new**
+principal, which is exactly what share-mint already governs — and the two doors reaching the same
+outcome under different authorities meant a non-owner could mint a full-access link but not send an
+invite. `narrow` / `revoke-member` / `spend-cap` mutate an **existing** principal's reach and keep
+`_require_owner_workspace`, whose docstring carries a receipted production incident (2026-07-31: a
+member widened their own grant via `/narrow`). **Widening authority did not widen billing** — the
+free-tier seat cap is decided in `create_invite` (service), independent of the caller.
 
 The closed doors this replaced: any grant holder (including viewers, including a viewer's
 laundered third party) could mint bare workspace-wide `member` links (ADR-515 §6.1); the MCP
@@ -152,14 +161,24 @@ trade-off, not a bug.
 - **`WorkspaceMembersCard`** (Settings → Access, both mounts): the roster of principals —
   humans + AI as peers — with invite/narrow/revoke/cap. Shows reach as workspace *regions*.
 - **Get Info / `NodeDetailsPanel`** (ADR-512 D6): per-file reach (`FileReach`).
-- **`ShareDialog`** (ADR-529 D1, ADR-534 D1/D3) — the singular mint surface, raised from the
-  `FileVerbs` bundle so every file surface opens the same act. It also carries **this file's
-  live links with revoke**, which is where the operator manages what they minted. (The old
-  `FileShares` block in `NodeDetailsPanel` is DELETED, ADR-529 D4 — do not reintroduce a second
-  place to revoke a link.) Since ADR-534 it **opens on the link that exists** rather than on a
-  blank mint form — see §6a.
-- **Known half-view (owed, named by ADR-515 D6)**: the rail is per-principal-never-per-file;
-  Get Info is per-file-never-per-principal. The direction of resolution (ADR-517 discourse):
+- **`ShareDialog`** (ADR-529 D1, ADR-534, **ADR-537**) — the singular surface for both a file's
+  address and file-initiated membership, raised from the `FileVerbs` bundle so every file surface
+  opens the same act. **Two tabs, divided by SCOPE** (ADR-537 D1):
+  - **Link** (default) — about *this file*. The reuse-first live link (§6a), its standing-address
+    copy, Revoke, "Create a separate link". No role choice: the sheet stopped asking "how much
+    access".
+  - **People** — about *the workspace*. Who can reach this file (`getMembers(path)` — the roster
+    **moved here** from `NodeDetailsPanel::FileReach`, ADR-537 D2, **moved not copied**), pending
+    invites, the email invite field (the singular path), and the open join link as a
+    **disclosure**. Badged when something is outstanding, because a tab hides the consequential
+    thing.
+
+  (The old `FileShares` block in `NodeDetailsPanel` is DELETED, ADR-529 D4; `FileReach` followed
+  it in ADR-537 — do not reintroduce a second place to revoke a link or render per-file reach.)
+- **Known half-view (ADR-515 D6) — PARTIALLY closed by ADR-537 D2**: the share sheet's People tab
+  now renders per-file reach *and* links to the rail ("Manage access in Workspace Settings →"), so
+  the two views point at each other for the first time. Still open: the rail cannot see share
+  links. The direction of resolution (ADR-517 discourse):
   render live share links as **principal-class rows in the roster** ("Anyone with link ·
   view-only · path · Revoke") — publicness becomes legible by reading one surface.
 - **Publicness is derivable, never stored**: a file is public iff a live link covers it. A

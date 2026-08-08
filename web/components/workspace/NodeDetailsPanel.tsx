@@ -313,11 +313,12 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
         <div className="space-y-3">
           <FileProperties node={node} />
           <FileOpensWith path={node.path} />
-          <FileReach path={node.path} />
-          {/* The share list + revoke that sat here moved into the ShareDialog
-              (ADR-529 D1/D4): the operator manages links where they mint them,
-              not in a third surface. `FileReach` stays — it answers "who can
-              reach this file", which is a standing fact, not a link. */}
+          {/* The share list + revoke moved into the ShareDialog (ADR-529 D1/D4).
+              `FileReach` followed it (ADR-537 D2): "who can reach this file" is
+              the STATE the share sheet must show before it offers to change
+              anything, and it belongs where the act happens. MOVED, not copied —
+              two surfaces rendering per-file reach is the dual-surface problem
+              ADR-529 D4 deleted, and reintroducing one here would undo it. */}
           <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
         </div>
       )}
@@ -399,60 +400,6 @@ function FileOpensWith({ path }: { path: string }) {
           </option>
         ))}
       </select>
-    </div>
-  );
-}
-
-
-// ── Reach — "who can reach this file" (ADR-512 D6) ─────────────────────────
-// The Get-Info answer Finder taught everyone to look for: per-principal
-// read/write over THIS path, computed server-side by the same powerbox
-// matcher the gate consults (the panel and the gate cannot disagree).
-
-function FileReach({ path }: { path: string }) {
-  const [rows, setRows] = useState<Array<{
-    principal_id: string; role: string; label: string | null;
-    can_read?: boolean | null; can_write?: boolean | null;
-  }> | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    api.workspace
-      .getMembers(path)
-      .then((r) => { if (alive) setRows(r.members); })
-      .catch(() => { if (alive) setRows(null); });
-    return () => { alive = false; };
-  }, [path]);
-
-  if (!rows || rows.length === 0) return null;
-  const reachable = rows.filter((m) => m.can_read || m.can_write);
-  if (reachable.length === 0) return null;
-
-  return (
-    <div>
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Who can reach this
-      </p>
-      <ul className="space-y-1">
-        {reachable.map((m) => (
-          <li key={m.principal_id} className="flex items-center gap-2 text-xs">
-            <span className="min-w-0 flex-1 truncate">
-              {m.label || m.principal_id}
-              <span className="ml-1 text-muted-foreground">({m.role})</span>
-            </span>
-            <span
-              className={cn(
-                'shrink-0 rounded px-1.5 py-0.5 text-[10px]',
-                m.can_write
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-muted text-muted-foreground',
-              )}
-            >
-              {m.can_write ? 'can edit' : m.can_read ? 'read-only' : '—'}
-            </span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

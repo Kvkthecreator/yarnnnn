@@ -155,16 +155,26 @@ def main() -> int:
         results.append(_check(
             "D1c the dialog renders the URL and a copy control",
             "share_link" in dialog and "Copy" in dialog))
-        # The invariant is "no role is pre-selected", not a quote style. Assert
-        # the STATE INITIALIZER is null and both shapes exist as choices —
-        # pinning `"member"` failed on a file that spells it 'member'.
+        # The INVARIANT is "no grant shape fires without an explicit choice" —
+        # the Files over-grant (one click → `member`, no question asked).
+        #
+        # AMENDED by ADR-537: the mechanism that enforced it changed, so this
+        # check moved with it rather than being deleted. It used to pin a
+        # nullable `role` state + a disabled submit (the radio stack). ADR-537
+        # removed the radio entirely — the sheet no longer asks "how much
+        # access" — so the invariant is now enforced BY CONSTRUCTION: every
+        # mint call site names its role LITERALLY, and there is no code path
+        # that mints a default.
+        #
+        # This is strictly stronger than the old form: a disabled button can be
+        # re-enabled by a refactor, a literal argument cannot become a default.
+        mint_calls = re.findall(r"mint\((['\"])(member|viewer)\1\)", dialog)
         results.append(_check(
-            "D1d no role fires without a click (nothing pre-selected)",
-            re.search(r"useState<ShareRole\s*\|\s*null>\(null\)", dialog) is not None
-            and re.search(r"role:\s*['\"]member['\"]", dialog) is not None
-            and re.search(r"role:\s*['\"]viewer['\"]", dialog) is not None
-            and re.search(r"disabled=\{!role", dialog) is not None,
-            "role starts null; both shapes offered; submit disabled until chosen"))
+            "D1d no grant shape fires without an explicit choice",
+            len(mint_calls) >= 2
+            and {m[1] for m in mint_calls} == {"member", "viewer"}
+            and re.search(r"createShare\([^)]*role\s*\)", dialog) is not None,
+            f"{len(mint_calls)} literal mint sites: {sorted({m[1] for m in mint_calls})}"))
         results.append(_check(
             "D1e revoke lives in the dialog (moved off the details panel)",
             "revokeShare" in dialog and "revokeShare" not in details))

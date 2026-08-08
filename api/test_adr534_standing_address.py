@@ -146,12 +146,28 @@ def main() -> int:
         str(sorted(public_fields))))
 
     # ── D3 — copyable, not only revocable ────────────────────────────────────
-    list_block = code[code.index("Active links to this file"):] if \
-        "Active links to this file" in code else ""
+    #
+    # The INVARIANT: an operator must never be able to destroy a link they
+    # cannot read. AMENDED by ADR-537 — the mechanism changed, so the check
+    # moved with it rather than being deleted.
+    #
+    # It used to pin a row list ("Active links to this file" with Copy beside
+    # Revoke). ADR-537 replaced that list: the view link renders on the Link
+    # tab and the join link on the People tab, each as a FULL FIELD with its
+    # own Copy — strictly more readable than the row it replaced. So assert the
+    # PAIRING (every revoke is accompanied by a copy affordance on the same
+    # link), not the container that used to hold it.
+    # Copy is rendered by ONE shared helper (`linkField`), so the affordance is
+    # followed through that indirection rather than pattern-matched on the
+    # caller's variable name — which is how the first cut of this check went red
+    # against correct code (`copy(row.share_link)` inside the helper).
+    revocable = set(re.findall(r"revoke\((\w+)\.id\)", code))
+    rendered = set(re.findall(r"linkField\((\w+)\)", code))
+    helper_copies = re.search(r"const linkField[\s\S]{0,900}?copy\(row\.share_link", code)
     results.append(_check(
-        "D3 each live link row offers Copy beside Revoke",
-        "copy(l.share_link" in list_block and "revoke(l.id)" in list_block,
-        "an operator could previously destroy a link they could not read"))
+        "D3 every revocable link is also copyable",
+        bool(revocable) and revocable <= rendered and helper_copies is not None,
+        f"revocable={sorted(revocable)} rendered_with_copy={sorted(rendered)}"))
 
     # ── D4 — dark, not blank; and the states stay distinct ───────────────────
     rt = _strip_py_comments(shares_rt)

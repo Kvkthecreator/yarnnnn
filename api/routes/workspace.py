@@ -1722,7 +1722,35 @@ async def invite_member(body: InviteCreateRequest, auth: UserClient) -> InviteSu
     from services.deep_links import app_url
     from services.workspace_invites import InviteError, create_invite, send_invite_email
 
-    workspace_id = _require_owner_workspace(auth)
+    # ADR-537 D3 — the TWO DOORS TO MEMBERSHIP AGREE ON WHO MAY OPEN THEM.
+    #
+    # This was owner-only while share-mint (the other door to exactly the same
+    # outcome — a new member grant) allowed write-holders under the
+    # `share_mint_policy` dial. A non-owner who could mint a full-access link
+    # could not send an email invite: one outcome, two authorities. Under the
+    # ADR-537 People tab the email field LEADS, so that mismatch would render a
+    # control the server refuses — "a control that exists but cannot be entered",
+    # the defect class ADR-532 §3a exists to remove.
+    #
+    # Deliberately NOT a loosened `_require_owner_workspace`: that helper carries
+    # a receipted production incident (2026-07-31, a member widened their own
+    # grant via /narrow), and narrow / revoke-member / spend-cap MUST keep it.
+    # Those mutate an EXISTING principal's reach; inviting creates a NEW
+    # principal — which is precisely what `assert_may_mint_share` governs.
+    #
+    # The seat gate is untouched: `create_invite`'s free-tier upgrade_required
+    # check lives in the service, independent of the caller, so widening
+    # authority cannot widen billing.
+    from services.workspace_shares import ShareError as _MintError
+    from services.workspace_shares import assert_may_mint_share
+
+    workspace_id = _resolve_caller_workspace(auth)
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="No workspace")
+    try:
+        assert_may_mint_share(auth.user_id, workspace_id)
+    except _MintError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     try:
         invite = create_invite(
             workspace_id=workspace_id, email=body.email, invited_by=auth.user_id,

@@ -24,6 +24,20 @@ of a door they already opened)
   its own, NOT smuggled in under the representation argument that carries D1. The **public**
   projection is unchanged.
 
+> **AMENDED 2026-08-08 by [ADR-537](ADR-537-the-share-sheet-asks-what-you-are-doing.md)** — D1's
+> axiom stands; its **scope of application** was too wide.
+>
+> *A live link is a standing address; open on it* is correct for an **address** (View only) and
+> wrong for an **invitation** (Full access), whose natural cardinality is one per recipient. D1
+> applied it to both because the two shapes shared one radio stack — **an execution error in this
+> ADR, not a gap in its axiom**. ADR-537 splits the sheet into a **Link** tab (this file — the
+> reuse-first address, unchanged) and a **People** tab (the workspace — roster, email invite, the
+> open join link as a disclosure).
+>
+> **D2/D4/D5 are untouched and stand**: the token in the authenticated list, the honest dark
+> states, the standing-address copy. §3's refusal of path-chasing stands, and its structural gate
+> stays green.
+
 **Preserves**: ADR-373 (the grant is the authorization fact) · ADR-517 (grants govern, share
 executes — mint/revoke authority untouched) · ADR-515 D5 (Export never appears in a share
 surface) · ADR-531 D3 (**no publish act** — see §2.1) · ADR-529 D2/D3/D5 (one projection, SSR,

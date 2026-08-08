@@ -48,6 +48,14 @@ class ShareSummary(BaseModel):
     created_at: str = ""
     expires_at: Optional[str] = None
     share_link: Optional[str] = None
+    # ADR-537 D4 — when this link was last redeemed, or None if never. The
+    # surface renders "last joined Aug 8" / "no one has joined yet" and
+    # deliberately NEVER a name: `accepted_principal_id` is a single column
+    # OVERWRITTEN on every accept, so a link redeemed five times records only
+    # the fifth. One name would imply a complete list — the same dishonesty
+    # ADR-534 D4 removed at the public boundary. Per-redemption history needs
+    # its own table and its own ADR.
+    last_accepted_at: Optional[str] = None
 
 
 class ShareListResponse(BaseModel):
@@ -165,6 +173,9 @@ async def list_workspace_shares(auth: UserClient) -> ShareListResponse:
             created_at=str(r.get("created_at") or ""),
             expires_at=r.get("expires_at"),
             share_link=f"{base}/s/{r['token']}" if r.get("token") else None,
+            last_accepted_at=(
+                str(r["last_accepted_at"]) if r.get("last_accepted_at") else None
+            ),
         )
         for r in list_shares(workspace_id)
     ])
