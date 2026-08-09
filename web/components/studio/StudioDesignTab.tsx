@@ -65,6 +65,8 @@ import {
   type StudioVocabulary,
 } from './StudioToolbar';
 import { studioShapeStyle } from './studioShapes';
+// ADR-541 D2 — the one selection algebra; this pane derives nothing itself.
+import { arityOf, scopeOf, unify, type PaneScope } from './selection';
 import { climbChain } from './SelectionBreadcrumb';
 import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
 // ADR-487 D9: the Design tab reads the skin only to PAINT the controls
@@ -1209,21 +1211,13 @@ export function StudioDesignTab({
   // before the click-derived ladder, because a range outranks a stale click:
   // if the member has both, what they are looking at is the range (which is
   // the `d878242` finding, one gesture earlier).
-  const liveRange = (rangeBlockIds?.length ?? 0) > 0;
-  const scope: 'document' | 'range' | 'object' | 'container' | 'page' =
-    liveRange && mode === 'flow'
-      ? 'range'
-      : !selection
-    ? 'document'
-    : selection.blockId && selection.blockKind
-      ? isTextTier
-        ? 'range'
-        : 'object'
-      : selection.blockId
-        ? 'container'
-        : selection.slideIndex != null || selection.pageIndex != null
-          ? 'page'
-          : 'document';
+  //
+  // ADR-541 D2 — the ladder itself moved to `scopeOf` in selection.ts: this
+  // pane is now a CONSUMER of the one derivation, beside the menu, the
+  // toolbar and the focus line, so the surfaces structurally cannot disagree
+  // about a selection again (the ADR-525 defect class, closed at the root).
+  const unified = unify(selection ?? null, rangeBlockIds, groupIds);
+  const scope: PaneScope = scopeOf(unified, mode, isTextTier ? 'text' : 'object');
 
   // The selected SOURCE element — token current-values read from it.
   const selectedEl = useMemo(() => {
@@ -1274,12 +1268,14 @@ export function StudioDesignTab({
    *  (ADR-528 §the open question), the honest move is for block-scoped sections
    *  to withdraw and SAY they have withdrawn, rather than answer for a block
    *  the member is not looking at. */
-  const multiBlockRange = (rangeBlockIds?.length ?? 0) > 1;
+  const arity = arityOf(unified);
+  const multiBlockRange = arity === 'many' && unified.setKind === 'range';
   /** ADR-519 D4.1 — the same question at the OBJECT tier. A ⇧-click set on a
    *  stage is the paged analogue of a multi-block range on flow: more than one
    *  subject, so every single-subject section must withdraw and say it has.
-   *  One member is a selection, not a set — hence > 1, not > 0. */
-  const multiObject = (groupIds?.length ?? 0) > 1;
+   *  One member is a selection, not a set — hence `many`, not any set at all.
+   *  (ADR-541 D2: both flags are readings of ONE arity + setKind now.) */
+  const multiObject = arity === 'many' && unified.setKind === 'objects';
 
   // ADR-485 follow-on — the SIZE measures a block can carry (w/h), and which of
   // them apply at this scope (ADR-461 D4 `applies`: block-staged = a block on a
@@ -1427,28 +1423,33 @@ export function StudioDesignTab({
    *  have duplicated them, which is exactly the forked-machinery shape ADR-518
    *  D2 refuses.
    *
-   *  Both address a SINGLE block (`selectedEl`), which is why range scope
-   *  gates them on `!multiBlockRange` rather than rendering them over a span.
-   *
    *  Content — Turn into (ADR-456 W2): the id and tokens survive the
    *  conversion (a block with a citation refuses). On ramp blocks
    *  (prose/heading) the Typography select OWNS the ramp, so this list carries
-   *  only the STRUCTURAL targets; structural kinds keep the full list. */
+   *  only the STRUCTURAL targets; structural kinds keep the full list.
+   *
+   *  ADR-541 D3 — mounts over a multi-block range too (the surface routes the
+   *  pick through convertBlocks: every covered block, one revision; a block
+   *  the conversion refuses per-block is skipped, never a whole-range veto).
+   *  A span may have no clicked primary, so every `selection` read here is
+   *  optional — a null current kind just means no row is excluded as "what
+   *  the block already is". */
   const turnIntoSection =
-    selection?.blockKind && isConvertible(vocabulary?.blocks, selection.blockKind) ? (
+    (selection?.blockKind && isConvertible(vocabulary?.blocks, selection.blockKind)) ||
+    multiBlockRange ? (
       <div className={SECTION}>
         <p className={HEADING}>Turn into</p>
         <div className="flex flex-wrap gap-1">
           {turnIntoTargets(
             vocabulary?.blocks ?? [],
             rungs,
-            selection.blockKind,
+            selection?.blockKind ?? null,
             selectedEl?.tagName ?? null,
           )
             .filter(
               (b) =>
                 !(
-                  (selection.blockKind === 'prose' || selection.blockKind === 'heading') &&
+                  (selection?.blockKind === 'prose' || selection?.blockKind === 'heading') &&
                   (b.kind === 'heading' || b.kind === 'prose')
                 ),
             )
@@ -1689,12 +1690,14 @@ export function StudioDesignTab({
    *  answer for the block that happened to be clicked. That is `d878242`
    *  exactly, and the neighbouring ramp/turn-into sections withdraw on the
    *  same rule and SAY so in the multi-block notice. */
+  // ADR-541 D3 — align/indent mount over ANY range, single-caret or spanning:
+  // the surface's token handler applies a block-flow token to every covered
+  // block as ONE revision (the Google Docs contract — a paragraph style
+  // reaches every paragraph the range covers).
   const flowTokens = useMemo(
     () =>
-      scope === 'range' && !multiBlockRange
-        ? applicable.filter((t) => t.applies.includes('block-flow'))
-        : [],
-    [scope, multiBlockRange, applicable],
+      scope === 'range' ? applicable.filter((t) => t.applies.includes('block-flow')) : [],
+    [scope, applicable],
   );
   // ...and its complement, so each token renders EXACTLY ONCE. Lifting without
   // this would leave the control mounted twice in one panel — the duplicate-mount
@@ -1761,14 +1764,19 @@ export function StudioDesignTab({
    *  previews derived from the artifact's own styles under the applied skin.
    *  Picking a rung IS the turn-into conversion (id + tokens survive). */
   const rampSection =
-    selection?.blockKind &&
-    (selection.blockKind === 'prose' || selection.blockKind === 'heading')
+    // ADR-541 D3 — the ramp mounts over a multi-block range too (a rung pick
+    // reaches every covered block via convertBlocks, the Google Docs
+    // contract); a span may carry no clicked primary, so the reads are
+    // optional and the shown rung falls to Text.
+    (selection?.blockKind &&
+      (selection.blockKind === 'prose' || selection.blockKind === 'heading')) ||
+    multiBlockRange
       ? (() => {
           const tag = selectedEl?.tagName?.toLowerCase() ?? null;
           const rows = textStyleRows(rungs);
           const rungTags = rungs.map((r) => `h${r}`);
           const curTag =
-            selection.blockKind === 'heading' && tag && rungTags.includes(tag) ? tag : 'p';
+            selection?.blockKind === 'heading' && tag && rungTags.includes(tag) ? tag : 'p';
           // Preview size per rung: the ramp descends 2px per rung from 18,
           // Text at 12 — a preview scale, not the kernel's type scale.
           const agSize = (t: string) =>
@@ -2497,24 +2505,20 @@ export function StudioDesignTab({
               address the BLOCKS the range intersects, not the range itself.
               Over a single block — the overwhelmingly common case, since a
               caret is a collapsed range — that block is unambiguous and both
-              render. Over a multi-block range they withdraw and SAY so: the
-              ops are single-subject (`selectedEl`), and answering for one of
-              six silently is the `d878242` defect this ADR closes.
+              render.
 
-              Making them span-aware is a real op change (N blocks, one
-              revision), not a re-parenting — deliberately not smuggled in
-              here. */}
-          {!multiBlockRange && rampSection}
-          {!multiBlockRange && turnIntoSection}
-          {multiBlockRange && (
-            <div className={SECTION}>
-              <p className="text-[10px] text-muted-foreground">
-                Formatting applies to everything selected. Structure — the
-                heading ramp, Turn into, and align/indent — applies to one
-                block at a time.
-              </p>
-            </div>
-          )}
+              ADR-541 D3 — over a MULTI-block range they now mount too, and
+              the op takes every covered block as ONE revision (convertBlocks
+              / setTokenMany — the surface expands; per-block legality stays
+              per-block, so a citation island in the span is skipped, never a
+              whole-range veto). This pays ADR-528's owed "span-aware
+              structure ops": both benchmarks apply block-grain transforms
+              across a selection, and the old withdrawal notice delivered
+              neither. The one remaining single-subject row here is the
+              heading crumb above — informational, and a span has no one
+              enclosing heading to name. */}
+          {rampSection}
+          {turnIntoSection}
         </>
       )}
       {scope === 'object' && (

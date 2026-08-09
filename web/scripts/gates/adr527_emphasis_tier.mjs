@@ -234,7 +234,10 @@ t(
   'ADR-528: the surface holds it SEPARATELY from selection (different questions)',
   /const \[rangeBlockIds, setRangeBlockIds\]/.test(surface),
 );
-t('ADR-528: the pane derives multiBlockRange', /const multiBlockRange = \(rangeBlockIds\?\.length \?\? 0\) > 1;/.test(pane));
+// ADR-541 D2 re-cut: multiBlockRange is a READING of the one derived arity
+// (arityOf + setKind), never a local re-count.
+t('ADR-528: the pane derives multiBlockRange',
+  /const multiBlockRange = arity === 'many' && unified\.setKind === 'range'/.test(pane));
 // RE-CUT for ADR-528 D2/D4 — the INVARIANT is unchanged: a section that can
 // answer for only ONE block must never answer over a multi-block range. What
 // changed is WHERE the withdrawal happens.
@@ -266,18 +269,32 @@ for (const [label, re] of [
   );
 }
 
-// The structure-tier sections: reachable from a range, but only over ONE
-// block. Both ops address `selectedEl` (a single element), so a span would
-// silently answer for one of six — the very defect ADR-528 closes.
+// ADR-541 D3 re-cut (the deliberate reversal, stated in the ADR's amendments
+// table): the structure-tier sections now MOUNT over a multi-block range, and
+// the OP became span-aware — every covered block, one revision, per-block
+// legality per-block (convertBlocks / setTokenMany). The old withdrawal
+// delivered neither benchmark: Google Docs styles every paragraph a range
+// covers, Notion converts every block in a set. What this gate now pins is
+// the pairing: the mounts are unguarded AND the surface routes the pick
+// through the span ops — a mount without the span routing would be the
+// d878242 defect again (answering for one of six), which is why both halves
+// are one assertion.
 for (const [label, ref] of [
   ['Typography', 'rampSection'],
   ['Turn into', 'turnIntoSection'],
 ]) {
   t(
-    `ADR-528: ${label} withdraws over a multi-block range`,
-    !!rangeBranch && new RegExp(`\\{!multiBlockRange && ${ref}\\}`).test(rangeBranch[1]),
+    `ADR-541: ${label} mounts over a multi-block range (span-aware)`,
+    !!rangeBranch && new RegExp(`\\{${ref}\\}`).test(rangeBranch[1]) &&
+      !new RegExp(`!multiBlockRange && ${ref}`).test(rangeBranch[1]),
   );
 }
+t(
+  'ADR-541: the pane pick routes through the SPAN op when the range covers many',
+  /rangeBlockIds\.length > 1/.test(surface) &&
+    /convertBlocks\(html, blockIds, kind, fragment\)/.test(surface) &&
+    /setTokenMany\(html, rangeBlockIds, key, value\)/.test(surface),
+);
 
 t(
   'ADR-528: the TEXT section does NOT withdraw (it acts on the selection)',
@@ -290,8 +307,13 @@ t(
   /blocks selected/.test(pane),
 );
 t(
-  'ADR-528: the withdrawal is EXPLAINED to the member, never silent',
-  /Structure — the\s*\n?\s*heading ramp and Turn into — applies to one block at a time/.test(pane),
+  // ADR-541 D3: the range-scope withdrawal notice is GONE because nothing it
+  // described withdraws any more — structure ops span. The OBJECT tier's
+  // notice (align/distribute vs single-subject) remains, and remains the one
+  // place a withdrawal is explained.
+  'ADR-541: the retired range withdrawal notice is gone; the object notice remains',
+  !/heading ramp, Turn into, and align\/indent/.test(pane) &&
+    /Align and distribute apply to everything selected/.test(pane),
 );
 
 console.log(`\nADR-527: ${pass} passed, ${fail} failed`);

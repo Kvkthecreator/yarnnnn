@@ -49,6 +49,12 @@ export interface StudioBlockMenuProps {
   blocks?: Array<{ kind: string; label: string; fragment: string; convertible?: boolean }>;
   /** ADR-539 D3 — the served rung set (falls back to the runtime's pinned copy). */
   headingRungs?: number[];
+  /** ADR-541 D4 — how many blocks the right-clicked block stands in for: 0/1 =
+   *  just itself; >1 = it is a member of the live set (range or ⇧-click), so
+   *  the set-taking rows act on all N and SAY so, and the single-subject rows
+   *  withdraw with the one notice. Derived by the surface from the SAME
+   *  arity the pane reads — one derivation, two doors. */
+  setCount?: number;
   /** Move the block one position earlier in its flow — document order, and it
    *  says so. */
   onMoveUp: () => void;
@@ -135,7 +141,7 @@ const SEP = <div className="my-1 h-px bg-border" />;
 const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
-  target, onClose, onCopy, onPaste, onDuplicate, onDelete,
+  target, onClose, onCopy, onPaste, onDuplicate, onDelete, setCount,
   onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
   onCopyLink, onHistory, onInsert, mode, hasClipboard,
 }: StudioBlockMenuProps) {
@@ -198,6 +204,8 @@ export function StudioBlockMenu({
   // into STAYS: it is structure-tier (ADR-521 D2), reachable from a caret, and
   // is Docs' own affordance. The AI rows stay too — they act on text.
   const isTextTier = target.tier === 'text';
+  // ADR-541 D4 — is the right-clicked block standing in for a live set?
+  const inSet = (setCount ?? 0) > 1;
 
   // The legal conversions for THIS block (ADR-456 W2 + ADR-479 D5): a text kind
   // that isn't already what it is, and never a citation — `convertBlock`
@@ -304,15 +312,18 @@ export function StudioBlockMenu({
           {!isTextTier && (
             <>
               {SEP}
+              {/* ADR-541 D4 — over a live set these rows take the WHOLE set
+                  (the surface's handlers expand to one N-block revision), so
+                  the row says the count instead of implying one block. */}
               <Row
                 icon={<CopyPlus className={ICO} />}
                 onClick={() => run(onDuplicate)}
                 shortcut="⌘D"
               >
-                Duplicate
+                {inSet ? `Duplicate ${setCount} blocks` : 'Duplicate'}
               </Row>
               <Row icon={<Trash2 className={ICO} />} onClick={() => run(onDelete)} shortcut="⌫">
-                Delete
+                {inSet ? `Delete ${setCount} blocks` : 'Delete'}
               </Row>
             </>
           )}
@@ -371,7 +382,15 @@ export function StudioBlockMenu({
           asks them to think in a unit ADR-480 D2 dissolved into an annotation.
           The op survives (it is still reachable structurally); the menu simply
           stops advertising it where it does not describe the medium. */}
-      {hasBlock && isPaged && (
+      {/* ADR-541 D4 — the single-subject rows withdraw over a set and SAY so
+          once: document order and z-order give a set no one answer, and a row
+          silently acting on one of N is the defect the audit named. */}
+      {hasBlock && inSet && (isPaged || target.positioned) && (
+        <p className="px-2 py-[5px] text-[10px] leading-snug text-muted-foreground">
+          Move and stacking act on one block at a time ({setCount} selected).
+        </p>
+      )}
+      {hasBlock && isPaged && !inSet && (
         <>
           <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
             Move up
@@ -381,7 +400,7 @@ export function StudioBlockMenu({
           </Row>
         </>
       )}
-      {hasBlock && target.positioned && (
+      {hasBlock && target.positioned && !inSet && (
         <>
           <Row icon={<ChevronsUp className={ICO} />} onClick={() => run(onBringForward)}>
             Bring forward

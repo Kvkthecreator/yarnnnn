@@ -187,12 +187,23 @@ t("D2: they write at BLOCK grain — data-align is text-align, on one block",
   re.search(r"onSetToken\('block',\s*key,\s*v\)", DESIGN_TAB_CODE) is not None)
 
 
-# ── 6. Withdrawal over a multi-block range, said out loud ─────────────────
-t("D2: withdrawn over a multi-block range (single-subject op — the d878242 rule)",
-  re.search(r"scope === 'range' && !multiBlockRange", DESIGN_TAB_CODE) is not None)
+# ── 6. Over a multi-block range: SPAN, not withdrawal (re-cut by ADR-541) ──
+# ADR-536 shipped align/indent single-caret-only because the op addressed one
+# `selectedEl` — a withdrawal it inherited from the d878242 rule. ADR-541 D3
+# reversed that rule deliberately (both benchmarks apply block-grain
+# transforms across a selection): the tokens now mount over ANY range and the
+# SURFACE routes a spanning write through setTokenMany — every covered block,
+# one revision. The invariant this section defends is unchanged one level
+# down: the pane never silently answers for one block of many — now because
+# the op takes them all, not because the control hid.
+t("D2/ADR-541: align+indent mount over any range (span-aware, no !multi gate)",
+  re.search(r"scope === 'range' \? applicable\.filter\(\(t\) => t\.applies\.includes\('block-flow'\)\)",
+            DESIGN_TAB_CODE) is not None
+  and re.search(r"scope === 'range' && !multiBlockRange", DESIGN_TAB_CODE) is None)
 
-t("D2: the multi-block notice NAMES align/indent among what withdrew",
-  "align/indent" in DESIGN_TAB)
+t("D2/ADR-541: a spanning token write routes through setTokenMany (one revision)",
+  "setTokenMany(html, rangeBlockIds, key, value)"
+  in (WEB / "components/studio/StudioSurface.tsx").read_text())
 
 
 # ── 7. FALSIFIERS — every structural claim can fail ───────────────────────

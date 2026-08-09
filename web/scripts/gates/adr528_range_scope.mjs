@@ -32,54 +32,52 @@ const t = (label, cond) => {
   cond ? pass++ : fail++;
 };
 
-// ── 1. Extract the REAL scope derivation from the source ──────────────────
-// Anchored on the declaration, terminated at the first `;` — the whole
-// ternary chain, whatever its formatting.
-// Anchored on the ASSIGNMENT and terminated at the statement's `;`, never on
-// the expression's first token. The first cut pinned `(!selection`, and the
-// 2026-08-06 entrance fix prepended a `liveRange && mode === 'flow' ?` rung —
-// so the extractor stopped matching and the gate reported "not extractable"
-// rather than testing anything. Pin the shape that cannot change (a const with
-// this name), not the shape you happen to expect today.
-const scopeSrc = pane.match(
-  /const scope:[^=]*=\s*([\s\S]*?);\n\n/,
-);
-t('ADR-528: the scope derivation is present and extractable', !!scopeSrc);
-if (!scopeSrc) {
+// ── 1. Extract the REAL scope derivation from the ONE home ────────────────
+// ADR-541 D2 re-cut: the ladder LEFT the pane for selection.ts (`scopeOf` +
+// `unify`), and the pane became one consumer among several — which is this
+// gate's own thesis carried to its end (the pane can no longer disagree with
+// the menu about a selection, because neither derives anything). The matrix
+// below is UNCHANGED: same inputs, same expected scopes, now executed against
+// the single source.
+import { readFileSync as rf } from 'fs';
+const selmod = rf('web/components/studio/selection.ts', 'utf8');
+function bodyOf(src, sig) {
+  const i = src.indexOf(sig);
+  if (i < 0) return null;
+  const open = src.indexOf('{\n', i);
+  const close = src.indexOf('\n}', open);
+  return src.slice(open + 1, close);
+}
+const unifyBody = bodyOf(selmod, 'export function unify');
+const scopeBody = bodyOf(selmod, 'export function scopeOf');
+t('ADR-528: the scope derivation is present and extractable', !!unifyBody && !!scopeBody);
+if (!unifyBody || !scopeBody) {
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(1);
 }
-const scopeExpr = scopeSrc[1];
 
-// The union type must name the two new scopes and NOT the retired one.
-const unionSrc = pane.match(/const scope:\s*([^=]+)=/)[1];
+// The scope type must name the two scopes and NOT the retired one.
+const unionSrc = (selmod.match(/export type PaneScope = ([^;]+);/) ?? [])[1] ?? '';
+t("ADR-528 D2: the scope union declares 'range'", /'range'/.test(unionSrc));
+t("ADR-528 D2: the scope union declares 'object'", /'object'/.test(unionSrc));
+t("ADR-528 D2: the scope union no longer declares 'block'", !/'block'/.test(unionSrc));
+
+// The pane CONSUMES the one home rather than keeping a local ladder.
 t(
-  "ADR-528 D2: the scope union declares 'range'",
-  /'range'/.test(unionSrc),
-);
-t(
-  "ADR-528 D2: the scope union declares 'object'",
-  /'object'/.test(unionSrc),
-);
-t(
-  "ADR-528 D2: the scope union no longer declares 'block'",
-  !/'block'/.test(unionSrc),
+  'ADR-541 D2: the pane consumes scopeOf (no local ladder survives)',
+  /scopeOf\(unified, mode,/.test(pane) && !/\? 'container'\s*:/.test(pane),
 );
 
 // ── 2. EXECUTE it over a selection matrix ─────────────────────────────────
-// The derivation closes over `selection` and `isTextTier` only. Build it as a
-// real function of those two and run it — this is the behaviour, not its
-// spelling.
 let deriveScope;
 try {
   // eslint-disable-next-line no-new-func
-  deriveScope = new Function(
-    'selection',
-    'isTextTier',
-    'rangeBlockIds',
-    'mode',
-    `const liveRange = (rangeBlockIds?.length ?? 0) > 0; return (${scopeExpr});`,
-  );
+  const unifyFn = new Function('primary', 'rangeBlockIds', 'groupIds', unifyBody);
+  // eslint-disable-next-line no-new-func
+  const scopeFn = new Function('u', 'mode', 'tier', scopeBody);
+  deriveScope = (selection, isTextTier, rangeBlockIds, mode) =>
+    scopeFn(unifyFn(selection, rangeBlockIds, []), mode, isTextTier ? 'text' : 'object');
+  deriveScope(null, false, [], 'flow');
 } catch (e) {
   t(`ADR-528: the extracted derivation evaluates (${e.message})`, false);
   console.log(`\n${pass} passed, ${fail} failed`);

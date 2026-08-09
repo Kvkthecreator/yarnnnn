@@ -1024,6 +1024,95 @@ export function duplicateBlock(html: string, blockId: string): OpResult | null {
   return { html: serialize(doc), landedId: copy.getAttribute('data-block-id') };
 }
 
+/** ADR-541 D3 — a block-grain token across EVERY covered block, one revision:
+ *  the span-aware align/indent. Chained through the single `setToken` so
+ *  there is exactly one legality/clamp implementation; a block the single op
+ *  refuses is skipped, never a whole-range veto. */
+export function setTokenMany(
+  html: string,
+  blockIds: string[],
+  key: string,
+  value: string | null,
+): OpResult | null {
+  let cur = html;
+  let landed: string | null = null;
+  let hit = 0;
+  for (const id of blockIds) {
+    const r = setToken(cur, { grain: 'block', anchor: { blockId: id } }, key, value);
+    if (r) {
+      cur = r.html;
+      landed = r.landedId ?? landed;
+      hit += 1;
+    }
+  }
+  if (!hit) return null;
+  return { html: cur, landedId: landed };
+}
+
+/** ADR-541 D4 — delete the SET, one revision. The ⌫-over-five-objects gesture
+ *  used to delete one object silently (the runtime keyboard gated on `cur`
+ *  alone); a verb over many takes the whole set now, and one ⌘Z restores it.
+ *  Missing ids are skipped (a stale set member is not a reason to refuse the
+ *  rest); null only when nothing at all was found. */
+export function deleteBlocks(html: string, blockIds: string[]): OpResult | null {
+  const doc = parse(html);
+  let hit = 0;
+  for (const id of blockIds) {
+    const block = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+    if (block) {
+      block.remove();
+      hit += 1;
+    }
+  }
+  if (!hit) return null;
+  return { html: serialize(doc), landedId: null };
+}
+
+/** ADR-541 D4 — duplicate the SET, one revision; each copy lands beside its
+ *  original (fresh ids via materializeFragment, as the single op). */
+export function duplicateBlocks(html: string, blockIds: string[]): OpResult | null {
+  const doc = parse(html);
+  let landed: string | null = null;
+  for (const id of blockIds) {
+    const block = doc.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+    if (!block) continue;
+    const copy = materializeFragment(doc, block.outerHTML);
+    if (!copy) continue;
+    block.insertAdjacentElement('afterend', copy);
+    landed = copy.getAttribute('data-block-id');
+  }
+  if (landed == null) return null;
+  return { html: serialize(doc), landedId: landed };
+}
+
+/** ADR-541 D3 — convert EVERY covered block, one revision: the span-aware
+ *  turn-into/ramp. Per-block legality is per-block — `convertBlock` refuses a
+ *  citation island or a same-shape no-op by returning null, and that block is
+ *  simply SKIPPED (a whole-range veto would deliver neither benchmark:
+ *  Google Docs styles every paragraph a range covers; Notion converts every
+ *  block in a set). Chained through the single op so there is exactly one
+ *  legality implementation; the final html is one write, one ⌘Z. */
+export function convertBlocks(
+  html: string,
+  blockIds: string[],
+  kind: string,
+  fragment: string,
+): OpResult | null {
+  let cur = html;
+  let landed: string | null = null;
+  let hit = 0;
+  for (const id of blockIds) {
+    const r = convertBlock(cur, id, kind, fragment);
+    if (r) {
+      cur = r.html;
+      landed = r.landedId ?? landed;
+      hit += 1;
+    }
+  }
+  if (!hit) return null;
+  return { html: cur, landedId: landed };
+}
+
 /** Paste a copied block's SOURCE after `afterBlockId` (or into the default
  *  flow when nothing was under the cursor). ADR-462 D1: a second entrance to
  *  the insert that already exists, never a new op — `materializeFragment`

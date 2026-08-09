@@ -66,6 +66,8 @@ import {
 // ADR-539 D1 — kindTier reads the served tier (falling back to the runtime's
 // pinned copy), so a parent-side reach and the pane consult one declaration.
 import { StudioDesignTab, kindTier, type StructVerb } from './StudioDesignTab';
+// ADR-541 D2 — the one selection algebra (the pane reads the same two).
+import { arityOf, unify } from './selection';
 import { StudioShareExport } from './StudioShareExport';
 import { PagedNavigator } from './PagedNavigator';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
@@ -78,10 +80,13 @@ import {
   countCarriedBlocks,
   countGroupsOnPage,
   convertBlock,
+  convertBlocks,
   deleteBlock,
+  deleteBlocks,
   deletePage,
   deletePages,
   duplicateBlock,
+  duplicateBlocks,
   pasteBlock,
   duplicatePage,
   editBlockText,
@@ -109,6 +114,7 @@ import {
   setPageBackground,
   setPosition,
   setToken,
+  setTokenMany,
   type OpResult,
 } from './artifactOps';
 
@@ -1475,12 +1481,29 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 
   // ── ADR-453: the property layer + the structural verbs (Design tab) ──────
   const handleSetToken = useCallback(
-    (grain: 'block' | 'page' | 'document', key: string, value: string | null) =>
-      applyOp(
+    (grain: 'block' | 'page' | 'document', key: string, value: string | null) => {
+      // ADR-541 D3 — a block-flow token (align/indent) over a live multi-block
+      // range reaches EVERY covered block as one revision. Whether a token
+      // spans is read off its SERVED grain, never a hardcoded key list (the
+      // ADR-536 rule); box/media tokens keep their single anchor.
+      const spans =
+        grain === 'block' &&
+        rangeBlockIds.length > 1 &&
+        (vocabulary?.tokens.find((t) => t.key === key)?.applies ?? []).includes('block-flow');
+      if (spans) {
+        return applyOp(
+          (html) => setTokenMany(html, rangeBlockIds, key, value),
+          value == null
+            ? `${app.label}: clear ${key} on ${rangeBlockIds.length} blocks`
+            : `${app.label}: set ${key} to ${value} on ${rangeBlockIds.length} blocks`,
+        );
+      }
+      return applyOp(
         (html) => setToken(html, { grain, anchor }, key, value),
         value == null ? `${app.label}: clear ${key}` : `${app.label}: set ${key} to ${value}`,
-      ),
-    [applyOp, anchor],
+      );
+    },
+    [applyOp, anchor, rangeBlockIds, vocabulary],
   );
   // ADR-461 D3: the column divider landed on a STOP. It carries its OWN anchor
   // (the page it was dragged on), not the selection's — a divider drag is a
@@ -1661,16 +1684,40 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (verb: StructVerb) => {
       const id = selection?.blockId;
       if (!id) return;
+      // ADR-541 D4 — a verb over MANY takes the set. When the ⇧-click set
+      // holds more than one object AND the acting subject is a member of it,
+      // delete/duplicate expand to the whole set as ONE revision (one ⌘Z).
+      // The old behavior — ⌫ over five selected objects deleting one,
+      // silently — was the data-loss-shaped defect the audit named. Move
+      // up/down stay single-subject: document order gives a set no one
+      // answer, so they act on the clicked block alone.
+      // (Ranges never reach here: ⌫ in flow text is typing, and the runtime
+      // only posts object-tier key verbs.)
+      const set = groupIds.length > 1 && groupIds.includes(id) ? groupIds : null;
       if (verb === 'delete') {
-        void applyOp((html) => deleteBlock(html, id), `${app.label}: delete ${id} block`);
+        if (set) {
+          void applyOp(
+            (html) => deleteBlocks(html, set),
+            `${app.label}: delete ${set.length} blocks`,
+          );
+        } else {
+          void applyOp((html) => deleteBlock(html, id), `${app.label}: delete ${id} block`);
+        }
         onPointClear();
       } else if (verb === 'duplicate') {
-        void applyOp((html) => duplicateBlock(html, id), `${app.label}: duplicate ${id} block`);
+        if (set) {
+          void applyOp(
+            (html) => duplicateBlocks(html, set),
+            `${app.label}: duplicate ${set.length} blocks`,
+          );
+        } else {
+          void applyOp((html) => duplicateBlock(html, id), `${app.label}: duplicate ${id} block`);
+        }
       } else {
         void applyOp((html) => moveBlock(html, id, verb), `${app.label}: move ${id} block ${verb}`);
       }
     },
-    [applyOp, selection, onPointClear],
+    [applyOp, selection, groupIds, onPointClear],
   );
   // Copy/paste take an explicit id rather than reading ctxMenu, because they
   // have TWO callers: the menu (which knows the right-clicked block) and the
@@ -1817,7 +1864,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     (verb: 'copy' | 'paste' | 'duplicate' | 'delete' | 'up' | 'down', blockId: string) => {
       if (verb === 'copy') return copyBlock(blockId);
       if (verb === 'paste') return pasteAfter(blockId);
+      // ADR-541 D4 — the keyboard was the set-blind entrance: ⌫ over a five-
+      // object ⇧-click set deleted ONE object, silently (the runtime keys off
+      // its primary alone, correctly — the SET is parent state, so the parent
+      // is where the verb widens). Delete/duplicate take the whole set as one
+      // revision when the keyed block is a member of it.
+      const set = groupIds.length > 1 && groupIds.includes(blockId) ? groupIds : null;
       if (verb === 'duplicate') {
+        if (set) {
+          void applyOp(
+            (html) => duplicateBlocks(html, set),
+            `${app.label}: duplicate ${set.length} blocks`,
+          );
+          return;
+        }
         void applyOp((html) => duplicateBlock(html, blockId), `${app.label}: duplicate ${blockId} block`);
         return;
       }
@@ -1832,10 +1892,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         void applyOp((html) => moveBlock(html, blockId, verb), `${app.label}: move ${blockId} block ${verb}`);
         return;
       }
-      void applyOp((html) => deleteBlock(html, blockId), `${app.label}: delete ${blockId} block`);
+      if (set) {
+        void applyOp((html) => deleteBlocks(html, set), `${app.label}: delete ${set.length} blocks`);
+      } else {
+        void applyOp((html) => deleteBlock(html, blockId), `${app.label}: delete ${blockId} block`);
+      }
       onPointClear();
     },
-    [copyBlock, pasteAfter, applyOp, onPointClear],
+    [copyBlock, pasteAfter, applyOp, groupIds, onPointClear],
   );
 
   // Turn into / Re-arrange have HOMES already (the Design tab's block + page
@@ -2496,24 +2560,49 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [applyOp],
   );
+  // ADR-541 D3 — a turn-into over a live multi-block range converts EVERY
+  // covered block, one revision (per-block legality per-block: citation
+  // islands and same-shape no-ops are skipped inside convertBlocks). The span
+  // is the subject even when nothing was clicked — the covered ids are the
+  // range's own fact, not the primary's.
+  const turnBlocksInto = useCallback(
+    (blockIds: string[], kind: string, label: string, fragment: string) => {
+      void applyOp(
+        (html) => convertBlocks(html, blockIds, kind, fragment),
+        `${app.label}: turn ${blockIds.length} blocks into ${label}`,
+      );
+    },
+    [applyOp, app.label],
+  );
   const handleTurnInto = useCallback(
     (kind: string, label: string, fragment: string) => {
+      if (rangeBlockIds.length > 1) {
+        turnBlocksInto(rangeBlockIds, kind, label, fragment);
+        return;
+      }
       const blockId = selection?.blockId;
       if (!blockId) return;
       turnBlockInto(blockId, kind, label, fragment);
     },
-    [turnBlockInto, selection],
+    [turnBlockInto, turnBlocksInto, rangeBlockIds, selection],
   );
   // ADR-479 D5 — the menu's Turn into acts on the RIGHT-CLICKED block, which is
   // not necessarily the selected one (right-click selects, but the op must not
   // depend on that ordering). Same `convertBlock` op, explicit target.
+  // ADR-541 D4 — unless a live range covers MORE than one block and the
+  // right-clicked block is among them: then the menu's pick takes the span,
+  // exactly as the pane's does (one derivation of "how many", two doors).
   const menuTurnInto = useCallback(
     (kind: string, label: string, fragment: string) => {
       const blockId = ctxMenu?.blockId;
       if (!blockId) return;
+      if (rangeBlockIds.length > 1 && rangeBlockIds.includes(blockId)) {
+        turnBlocksInto(rangeBlockIds, kind, label, fragment);
+        return;
+      }
       turnBlockInto(blockId, kind, label, fragment);
     },
-    [turnBlockInto, ctxMenu],
+    [turnBlockInto, turnBlocksInto, rangeBlockIds, ctxMenu],
   );
 
   // ADR-447: canvas view controls (view-only, never touch the file) + mobile
@@ -3256,6 +3345,15 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onTurnInto={menuTurnInto}
                   blocks={vocabulary?.blocks}
                   headingRungs={vocabulary?.heading_rungs}
+                  // ADR-541 D4 — the same arity the pane reads (unify →
+                  // arityOf), scoped to this menu's own subject: the count
+                  // applies only when the right-clicked block is IN the set.
+                  setCount={(() => {
+                    const u = unify(selection, rangeBlockIds, groupIds);
+                    return arityOf(u) === 'many' && ctxMenu.blockId && u.set.includes(ctxMenu.blockId)
+                      ? u.set.length
+                      : 0;
+                  })()}
                   onMoveUp={() => handleBlockVerb('up')}
                   onMoveDown={() => handleBlockVerb('down')}
                   onBringForward={() => {

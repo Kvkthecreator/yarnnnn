@@ -43,11 +43,15 @@ t('selection stays a single subject (no ids array grew on it)',
 // The decisive structural claim. If a `multi`/`group`/`set` scope ever appears
 // in the discriminator, the grammar D4.1 withdrew has come back.
 {
-  const si = pane.indexOf('const scope:');
-  const decl = pane.slice(si, pane.indexOf(';', si));
+  // ADR-541 D2 re-cut: the discriminator moved to selection.ts (the one
+  // derivation home) — same invariant, new address: the PaneScope union is
+  // still ADR-528's five and no set-scope has crept back in.
+  const selmod = readFileSync('web/components/studio/selection.ts', 'utf8');
+  const decl = (selmod.match(/export type PaneScope = ([^;]+);/) ?? [])[1] ?? '';
   t('no multi/group/set scope in the discriminator (D4.1: state, not a scope)',
-    !/'multi'|'group'|'set'/.test(decl));
-  t("the scope set is still ADR-528's five", /'document' \| 'range' \| 'object' \| 'container' \| 'page'/.test(decl));
+    decl.length > 0 && !/'multi'|'group'|'set'/.test(decl));
+  t("the scope set is still ADR-528's five",
+    /'document' \| 'range' \| 'object' \| 'container' \| 'page'/.test(decl));
 }
 
 // ── 3. Single-subject sections withdraw over a set, and SAY so ────────────
@@ -69,8 +73,12 @@ t('selection stays a single subject (no ids array grew on it)',
   }
   t('the pane SAYS why it withdrew (not silently empty — the d878242 lesson)',
     /Align and distribute apply to everything selected/.test(obj));
+  // ADR-541 D2: the ">1" fact lives in arityOf (u.set.length > 1 → 'many');
+  // the pane reads the derived arity rather than re-counting.
   t('a set is > 1 member (one block is a selection, not a set)',
-    /const multiObject = \(groupIds\?\.length \?\? 0\) > 1/.test(pane));
+    /if \(u\.set\.length > 1\) return 'many';/.test(
+      readFileSync('web/components/studio/selection.ts', 'utf8'),
+    ) && /const multiObject = arity === 'many' && unified\.setKind === 'objects'/.test(pane));
 }
 
 // ── 4. Align/distribute is the ONE section a set earns ────────────────────
