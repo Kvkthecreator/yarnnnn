@@ -23,7 +23,9 @@ Containers are real, selectable structure: click a column or a slide to select i
 
 One vocabulary across every type:
 
-Text · Callout · Quote · Checklist · Divider · Toggle · Button · Table · Metrics · Chart · Figure · Gallery
+Heading · Text · Callout · Quote · Bulleted list · Numbered list · Checklist · Divider · Toggle · Button · Component · Table · Metrics · Chart · Figure · Gallery
+
+A Chart doesn't paste a picture — you pick a CSV from your workspace and the chart is drawn from it, live: when the data file changes, the chart follows. Shift-click collects several objects into a set; delete or duplicate then takes the whole set (the menu says the count), and align/distribute arrange it as one gesture.
 
 Reach them from the insert menu, or from the block's right-click menu. "Turn into" only offers conversions the target block actually accepts. Figures and galleries cite real workspace files — a live reference, not a pasted copy.
 

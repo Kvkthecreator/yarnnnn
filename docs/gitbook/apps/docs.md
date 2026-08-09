@@ -10,11 +10,13 @@ Notes, drafts, PRDs, meeting records — the internal working documents your wor
 
 Open Docs and you either pick up where you left off, or start a new document. You name it and choose where it lives — Docs doesn't own a folder; documents go where they make sense in your workspace, next to the rest of your work.
 
-You write at the caret, like any good editor. The **outline** in the right-hand panel is a derived table of contents — your headings, read back to you in order. Click one to jump to it. It is not a structure you maintain: write a heading and it appears there. Type `/` anywhere to insert something richer than text:
+You write at the caret, like any good editor. The **outline** in the right-hand panel is a derived table of contents — your headings, read back to you in order. Click one to jump to it. It is not a structure you maintain: write a heading and it appears there. Documents speak three heading levels; pasted content with deeper headings arrives at Heading 3, so nothing you paste can hide from the outline. Type `/` anywhere to insert something richer than text:
 
-Text · Callout · Quote · Checklist · Divider · Toggle · Button · Table · Metrics · Chart · Figure · Gallery
+Heading · Text · Quote · Bulleted list · Numbered list · Checklist · Divider · Button · Table · Metrics · Chart · Figure · Gallery
 
 Select text and the **Text** panel on the right carries the writer's set: bold, italic, underline, strikethrough, code, and clear. Colour and highlight are there too — as your design system's palette, not a colour wheel, so changing the system re-colours every document that used them.
+
+Selection works the way you expect from a writing tool: select across several paragraphs and a heading pick, Turn into, or alignment applies to every block the selection covers, as one change — one ⌘Z brings it all back.
 
 What you won't find is a point-size box, line spacing, or a margin ruler. Those are your design system's job: you say *this is a Heading 1*, and the system says what a Heading 1 measures. It is the difference between a document that matches your workspace and one that drifts from it.
 
