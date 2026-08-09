@@ -38,11 +38,14 @@ export interface StudioArrangement {
   fragment: string;
 }
 
-/** A property token family (ADR-453 D1) — tokens, not pixels. */
+/** A property token family (ADR-453 D1) — tokens, not pixels.
+ *  ADR-542 D1: WHERE (scope) and WHEN (grains) are two declared axes; the
+ *  compound `applies` slugs are retired from the wire. */
 export interface StudioToken {
   key: string;
   label: string;
-  applies: string[];
+  scope: string[];
+  grains: string[];
   values: Array<{ value: string; label: string }>;
   description: string;
 }
@@ -51,12 +54,13 @@ export interface StudioToken {
  *  enumerated and the kernel pre-declares a selector per value; a measure's are
  *  not, so the kernel pre-declares the MECHANISM (`width: var(--yw, auto)`) and
  *  the element carries the value. Bounded: free WITHIN its frame, never
- *  unbounded — which is why `applies` is deck + media only (a slide has a
+ *  unbounded — which is why the grains are staged + media only (a slide has a
  *  frame; a page has only a viewport to guess at). */
 export interface StudioMeasure {
   key: string;
   label: string;
-  applies: string[];
+  scope: string[];
+  grains: string[];
   unit: string;
   min: number;
   max: number;

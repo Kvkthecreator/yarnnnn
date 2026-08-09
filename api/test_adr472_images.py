@@ -67,14 +67,14 @@ def run() -> bool:
     # rename or the sharing regressed, IMAGES gets artboards on which nothing
     # can be positioned — so these are the load-bearing checks.
     _check(
-        "the staged grain is `block-staged` (renamed, not aliased)",
-        "block-staged" in MEASURE_GRAINS and "block-deck" not in MEASURE_GRAINS,
+        "the staged grain is `staged` (ADR-542 grain slug; never the deck-shaped name)",
+        "staged" in MEASURE_GRAINS and "block-deck" not in MEASURE_GRAINS,
     )
     _check(
         "position + stacking measures apply to the staged grain",
-        STUDIO_MEASURES["x"]["applies"] == ["block-staged"]
-        and STUDIO_MEASURES["y"]["applies"] == ["block-staged"]
-        and STUDIO_MEASURES["z"]["applies"] == ["block-staged"],
+        STUDIO_MEASURES["x"]["grains"] == ("staged",)
+        and STUDIO_MEASURES["y"]["grains"] == ("staged",)
+        and STUDIO_MEASURES["z"]["grains"] == ("staged",),  # ADR-542: grain slugs
     )
     _check(
         "the stage inherits the frame class the object layer keys on",
@@ -162,7 +162,7 @@ def run() -> bool:
     _check(
         "no token anywhere still scopes to the retired document-canvas grain",
         not any(
-            "document-canvas" in (t.get("applies") or []) for t in STUDIO_TOKENS.values()
+            "canvas" in (t.get("grains") or ()) for t in STUDIO_TOKENS.values()
         ),
     )
 

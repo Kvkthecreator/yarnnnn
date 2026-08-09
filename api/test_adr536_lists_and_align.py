@@ -29,7 +29,7 @@ What is asserted:
   3. The recognizer names them: PROMOTE_KIND, TEXT_BLOCK_KINDS, TURN_INTO_KINDS.
   4. convertBlock builds <li>, not <p>, for a <ul>/<ol> shell.
   5. align/indent are MOUNTED at range scope, derived from the served grain.
-  6. They withdraw over a multi-block range, and the notice says so.
+  6. Over a multi-block range they SPAN (ADR-541 D3 re-cut — one revision).
   7. FALSIFIERS — each structural claim is shown capable of failing.
 
 Run from `api/`:  python3 test_adr536_lists_and_align.py
@@ -166,12 +166,12 @@ t("D1: ...and that branch is the one that pushes 'li'",
 
 # ── 5. align/indent are MOUNTED at range scope ────────────────────────────
 t("D2: the served grain still declares align on flow (ADR-527 D3's amendment)",
-  "block-flow" in st.STUDIO_TOKENS["align"]["applies"]
-  and "block-flow" in st.STUDIO_TOKENS["indent"]["applies"])
+  "flow" in st.STUDIO_TOKENS["align"]["grains"]
+  and "flow" in st.STUDIO_TOKENS["indent"]["grains"])
 
 t("D2: a `flowTokens` subset is DERIVED from the grain, not a hardcoded key list",
   "flowTokens" in DESIGN_TAB_CODE
-  and re.search(r"applies\.includes\('block-flow'\)", DESIGN_TAB_CODE) is not None)
+  and re.search(r"grains\.includes\('flow'\)", DESIGN_TAB_CODE) is not None)
 
 t("D2: the subset is NOT a hardcoded ['align','indent'] pair",
   re.search(r"\[\s*'align'\s*,\s*'indent'\s*\]", DESIGN_TAB_CODE) is None)
@@ -197,7 +197,7 @@ t("D2: they write at BLOCK grain — data-align is text-align, on one block",
 # down: the pane never silently answers for one block of many — now because
 # the op takes them all, not because the control hid.
 t("D2/ADR-541: align+indent mount over any range (span-aware, no !multi gate)",
-  re.search(r"scope === 'range' \? applicable\.filter\(\(t\) => t\.applies\.includes\('block-flow'\)\)",
+  re.search(r"scope === 'range' \? applicable\.filter\(\(t\) => t\.grains\.includes\('flow'\)\)",
             DESIGN_TAB_CODE) is not None
   and re.search(r"scope === 'range' && !multiBlockRange", DESIGN_TAB_CODE) is None)
 

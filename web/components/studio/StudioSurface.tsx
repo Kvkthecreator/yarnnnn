@@ -1515,7 +1515,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const spans =
         grain === 'block' &&
         rangeBlockIds.length > 1 &&
-        (vocabulary?.tokens.find((t) => t.key === key)?.applies ?? []).includes('block-flow');
+        (vocabulary?.tokens.find((t) => t.key === key)?.grains ?? []).includes('flow');
       if (spans) {
         return applyOp(
           (html) => setTokenMany(html, rangeBlockIds, key, value),
@@ -3569,13 +3569,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         </div>
       </div>
 
-      {/* Mobile-only bottom tab bar (< md): one pane at a time. */}
+      {/* Mobile-only bottom tab bar (< md): one pane at a time.
+          ADR-542 D5 — flow ships NO nav tab: its pane content has been
+          isPaged-unmounted since ADR-520/526 (the outline's home is the
+          Design pane, ADR-526 D2's operator ruling), so the "Outline" label
+          was a dead doorway on Docs — a tab that opened onto nothing. */}
       <nav className="flex shrink-0 border-t border-border md:hidden">
         {([
-          ['nav', template === 'deck' ? 'Slides' : 'Outline'],
+          ...(resolvedMode === 'paged'
+            ? ([['nav', template === 'deck' ? 'Slides' : 'Outline']] as const)
+            : []),
           ['canvas', 'Canvas'],
           ['chat', 'Chat'],
-        ] as const).map(([pane, label]) => (
+        ] as ReadonlyArray<readonly [typeof mobilePane, string]>).map(([pane, label]) => (
           <button
             key={pane}
             type="button"

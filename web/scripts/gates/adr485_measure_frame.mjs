@@ -179,7 +179,7 @@ t('D5: STAGE_DEFAULT_W (exported, zero importers, promised a mapping that never 
 {
   const py = readFileSync('api/services/studio.py', 'utf8');
   t('aperture: measures still apply to block-staged/media only',
-    py.includes('MEASURE_GRAINS = {"block-staged", "media"}'));
+    py.includes('MEASURE_GRAINS = {"staged", "media"}'));  // ADR-542 grain slugs
   t('aperture: the kernel measure rules are still .slide/media-scoped',
     py.includes('.slide [data-w]') && !/\[data-template="document"\][^\n]*data-w/.test(py));
 }

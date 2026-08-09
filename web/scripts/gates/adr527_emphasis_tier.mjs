@@ -167,12 +167,12 @@ t(
 // ── 5. D3 — align restored, indent added, both at block-flow ─────────────
 t(
   'D3: align is re-keyed to include block-flow (amends ADR-525 D4)',
-  /"align": \{\s*"label": "Align",\s*"applies": \["block-staged", "media", "block-flow"\]/.test(studio),
+  /"align": \{\s*"label": "Align",\s*"scope": \("block",\),\s*"grains": \("staged", "media", "flow"\)/.test(studio),  // ADR-542 axes
 );
-t('D3: the indent token is block-flow only', /"indent": \{[\s\S]{0,120}?"applies": \["block-flow"\]/.test(studio));
+t('D3: the indent token is flow-grain only', /"indent": \{[\s\S]{0,140}?"grains": \("flow",\)/.test(studio));
 t(
   'D3: the pane consumes block-flow (the grain ADR-525 D4 added and nobody used)',
-  /mode === 'flow' && t\.applies\.includes\('block-flow'\)/.test(pane),
+  /flow: !isStaged && mode === 'flow'/.test(pane) && /grains\.includes\('flow'\)/.test(pane),
 );
 t(
   'D3: indent is a TOKEN — one kernel selector per step, no measure',

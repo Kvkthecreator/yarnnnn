@@ -82,7 +82,7 @@ t('the menu withdraws single-subject rows over a set and SAYS so once',
 t('the menu turn-into takes the span when the clicked block is covered',
   /rangeBlockIds\.length > 1 && rangeBlockIds\.includes\(blockId\)/.test(surface));
 t('a span token write is gated by the SERVED grain, never a key list',
-  /applies \?\? \[\]\)\.includes\('block-flow'\)/.test(surface));
+  /grains \?\? \[\]\)\.includes\('flow'\)/.test(surface));  // ADR-542 axes
 
 // ── 4. Revision messages carry the count (the one-⌘Z contract's receipt) ───
 t('N-block revision messages say N',

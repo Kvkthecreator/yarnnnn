@@ -191,7 +191,7 @@ _check("handleBlockVerb stays id-addressed (selection?.blockId — containers ri
 _check("posMeasures derives x/y from the served measures, block-staged only",
        re.search(r"posMeasures = useMemo\(\(\) => \{\s*\n\s*if \(scope !== 'object' \|\| "
                  r"!selectedEl\?\.closest\('\.slide'\)\) return \[\];", tab) is not None
-       and "(m.key === 'x' || m.key === 'y') && m.applies.includes('block-staged')" in tab)
+       and "(m.key === 'x' || m.key === 'y') && admits(m, 'block', { staged: true })" in tab)
 _check("the readback renders only in the POSITIONED state (flow shows no coordinates)",
        "positioned && posMeasures.length > 0 && (" in object_r)
 # ADR-520 D3 re-cut: numeric ENTRY landed (the two-clamp MeasureField) —

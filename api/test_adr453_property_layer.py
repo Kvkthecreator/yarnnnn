@@ -39,14 +39,15 @@ def _check(label: str, cond: bool) -> None:
 
 def run() -> bool:
     from services.studio import (
-        APPLIES_TARGETS,
+        GRAIN_PHRASES,
+        SCOPE_PHRASES,
         MEDIA_BLOCK_KINDS,
         STUDIO_ARRANGEMENTS,
         STUDIO_KERNEL_CSS,
         STUDIO_KERNEL_CSS_VERSION,
         STUDIO_MEASURES,
         STUDIO_TOKENS,
-        _applies_phrase,
+        _where_phrase,
         build_skeleton,
         build_studio_posture,
         compose_kernel_style_element,
@@ -71,16 +72,22 @@ def run() -> bool:
         '.slide[data-valign="start"]' in STUDIO_KERNEL_CSS
         and '.slide[data-pad="s"]' in STUDIO_KERNEL_CSS,
     )
-    valid_applies = {"block", "media", "page", "page-multicol", "page-deck", "document",
-                     "document-flow", "document-deck",  # document-deck: ADR-456 W1
-                     "page-bg",  # page-bg: ADR-456 W3 (cited background present)
-                     "block-callout"}  # block-callout: ADR-487 D2 (variant token)
+    # ADR-542 D1/D4 — `applies` split into two CLOSED axes. This assertion was
+    # the standing red the ADR-538 lane left deliberately visible: the compound
+    # slug set drifted (ADR-525 added block-staged/block-flow and the enum here
+    # was never widened), which is exactly the failure mode an open compound
+    # axis invites. The axes are now enumerated in the registry itself
+    # (TOKEN_SCOPES/TOKEN_GRAINS) and this gate reads THOSE, so the enum can
+    # no longer silently fork from the vocabulary.
+    from services.studio import TOKEN_GRAINS, TOKEN_SCOPES
     _check(
-        "token rows carry label/applies/values/description",
+        "token rows carry label/scope/grains/values/description (closed axes)",
         all(
             t.get("label")
-            and isinstance(t.get("applies"), list)
-            and set(t["applies"]) <= valid_applies
+            and isinstance(t.get("scope"), tuple)
+            and set(t["scope"]) <= set(TOKEN_SCOPES)
+            and isinstance(t.get("grains"), tuple)
+            and set(t["grains"]) <= set(TOKEN_GRAINS)
             and t.get("values")
             and all(v.get("value") and v.get("label") for v in t["values"])
             and t.get("description")
@@ -176,27 +183,25 @@ def run() -> bool:
     # descriptions ("on a figure/chart block") smuggled it back inconsistently,
     # and size/align/tone carried no location signal at all. Both hands, or the
     # registry is only half-shared.
+    # ADR-542 D2 re-cut: the WHERE phrase composes from the two axis tables.
     _check(
         "EVERY token line teaches WHERE it may sit (not just its values)",
         all(
             f'data-{key}="' in posture
-            and f'[on {_applies_phrase(t["applies"])}]' in posture
+            and f'[on {_where_phrase(t["scope"], t["grains"])}]' in posture
             for key, t in STUDIO_TOKENS.items()
         ),
     )
     _check(
-        "the three grains with no prose fallback are covered (size/align/tone)",
-        all(
-            f'data-{k}="' in posture and "[on any block" in posture
-            for k in ("size", "align", "tone")
-        ),
+        "the unconditional scope phrase is real prose (tone mounts at two scopes)",
+        "[on a block / a page/slide element]" in posture,
     )
     _check(
-        "every declared `applies` value has a target phrase (no silent grain)",
+        "every declared scope and grain has a phrase (no silent axis value)",
         all(
-            a in APPLIES_TARGETS
+            all(s in SCOPE_PHRASES for s in t["scope"])
+            and all(g in GRAIN_PHRASES for g in t["grains"])
             for t in list(STUDIO_TOKENS.values()) + list(STUDIO_MEASURES.values())
-            for a in t["applies"]
         ),
     )
     _check(

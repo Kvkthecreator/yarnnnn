@@ -235,7 +235,10 @@ async def get_vocabulary(auth: UserClient) -> dict:
             {
                 "key": k,
                 "label": t["label"],
-                "applies": t["applies"],
+                # ADR-542 D1 — WHERE (scope) and WHEN (grains) as two declared
+                # axes; the compound `applies` slugs are retired from the wire.
+                "scope": list(t["scope"]),
+                "grains": list(t["grains"]),
                 "values": t["values"],
                 "description": t["description"],
             }
@@ -249,7 +252,8 @@ async def get_vocabulary(auth: UserClient) -> dict:
             {
                 "key": k,
                 "label": m["label"],
-                "applies": m["applies"],
+                "scope": list(m["scope"]),
+                "grains": list(m["grains"]),
                 "unit": m["unit"],
                 "min": m["min"],
                 "max": m["max"],

@@ -67,6 +67,8 @@ import {
 import { studioShapeStyle } from './studioShapes';
 // ADR-541 D2 — the one selection algebra; this pane derives nothing itself.
 import { arityOf, scopeOf, unify, type PaneScope } from './selection';
+// ADR-542 D2 — the one token-admittance function (scope × grains).
+import { admits } from './tokenGrammar';
 import { climbChain } from './SelectionBreadcrumb';
 import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
 // ADR-487 D9: the Design tab reads the skin only to PAINT the controls
@@ -1293,7 +1295,9 @@ export function StudioDesignTab({
     if (scope === 'container') {
       return framed
         ? (measures ?? []).filter(
-            (m) => (m.key === 'w' || m.key === 'h') && m.applies.includes('block-staged'),
+            (m) =>
+              (m.key === 'w' || m.key === 'h') &&
+              admits(m, 'block', { staged: true }),
           )
         : [];
     }
@@ -1301,8 +1305,7 @@ export function StudioDesignTab({
     return (measures ?? []).filter(
       (m) =>
         (m.key === 'w' || m.key === 'h') &&
-        ((framed && m.applies.includes('block-staged')) ||
-          (isMedia && m.applies.includes('media'))),
+        admits(m, 'block', { staged: framed, media: isMedia }),
     );
   }, [scope, measures, selection, selectedEl, mediaKinds]);
 
@@ -1312,7 +1315,7 @@ export function StudioDesignTab({
   const posMeasures = useMemo(() => {
     if (scope !== 'object' || !selectedEl?.closest('.slide')) return [];
     return (measures ?? []).filter(
-      (m) => (m.key === 'x' || m.key === 'y') && m.applies.includes('block-staged'),
+      (m) => (m.key === 'x' || m.key === 'y') && admits(m, 'block', { staged: true }),
     );
   }, [scope, measures, selectedEl]);
 
@@ -1321,8 +1324,12 @@ export function StudioDesignTab({
   // (the walk the navigator's tree carried before it moved here). Derived from
   // the parsed SOURCE at render, never stored.
   const pageEl = useMemo(
-    () => (selectedEl ? (selectedEl.closest(PAGE_SEL) ?? null) : null),
-    [selectedEl],
+    // ADR-542 D5 — PAGE_SEL ancestry is structurally absent on flow (ADR-481
+    // D1 flattened the scaffolds), so the climb short-circuits there instead
+    // of walking a chain that cannot match: pathRow/Contents were
+    // always-empty on flow and still computed every render.
+    () => (mode === 'paged' && selectedEl ? (selectedEl.closest(PAGE_SEL) ?? null) : null),
+    [selectedEl, mode],
   );
   const pageOfSelection = useMemo(() => {
     if (!doc || !pageEl) return null;
@@ -1495,16 +1502,16 @@ export function StudioDesignTab({
       // the token half never did, so a token declaring the narrow grain would
       // have rendered everywhere. Same `.slide` ancestry test, one meaning.
       const isStaged = !!selectedEl?.closest('.slide');
-      // ADR-527 D3 — `block-flow` is finally consumed. ADR-525 D4 added the
-      // term to the vocabulary and nothing used it; align + indent are its
-      // first rows, and they are the reason it exists.
-      return tokens.filter(
-        (t) =>
-          t.applies.includes('block') ||
-          (isStaged && t.applies.includes('block-staged')) ||
-          (!isStaged && mode === 'flow' && t.applies.includes('block-flow')) ||
-          (isMedia && t.applies.includes('media')) ||
-          (isCallout && t.applies.includes('block-callout')),
+      // ADR-542 D2 — ONE admitting function; this memo only resolves the
+      // predicates its scope can evaluate (the `flow` grain still means
+      // "unstaged on a flow layout", exactly as the inline chain it replaces).
+      return tokens.filter((t) =>
+        admits(t, 'block', {
+          staged: isStaged,
+          flow: !isStaged && mode === 'flow',
+          media: isMedia,
+          callout: isCallout,
+        }),
       );
     }
     if (scope === 'page') {
@@ -1515,16 +1522,12 @@ export function StudioDesignTab({
         ? row.slots.filter((s) => s.role !== 'heading').length >= 2
         : (selectedEl?.querySelectorAll('div.col').length ?? 0) >= 2; // ADR-511 Ph2: structural fallback
       const hasBg = selectedEl?.getAttribute('data-ref-kind') === 'background';
-      return tokens.filter(
-        (t) =>
-          t.applies.includes('page') ||
-          (isSlide && t.applies.includes('page-deck')) ||
-          (multicol && t.applies.includes('page-multicol')) ||
-          (hasBg && t.applies.includes('page-bg')),
+      return tokens.filter((t) =>
+        admits(t, 'page', { deck: isSlide, multicol, bg: hasBg }),
       );
     }
     return [];
-  }, [scope, tokens, mediaKinds, selection, selectedEl, arrangements, layout]);
+  }, [scope, tokens, mediaKinds, selection, selectedEl, arrangements, layout, mode]);
 
 
   // ── Document scope: root-grain tokens (ADR-455) + the design-system
@@ -1532,22 +1535,14 @@ export function StudioDesignTab({
   const root = doc?.documentElement ?? null;
   const docTokens = useMemo(
     () =>
-      tokens.filter(
-        (t) =>
-          t.applies.includes('document') ||
-          // document-flow = the FLOW layouts: a deck is a fixed stage and a
-          // page is full-width bands — measure applies to neither (W3). Read
-          // from the served `mode`, not a slug list (see `mode` above).
-          (mode === 'flow' && t.applies.includes('document-flow')) ||
-          // document-deck stays slug-keyed on purpose: it is a DECK affordance
-          // (slide numbers), not a paged one — `page` is paged too and has no
-          // slides to number.
-          (layout === 'deck' && t.applies.includes('document-deck')),
-        // NOTE: the `canvas` branch (ADR-471 D-c's aspect token) is DELETED —
-        // ADR-472 moved the canvas to the IMAGES app's `image` layout, so no
-        // served layout is `canvas` and no served token declares
-        // `document-canvas`. Verified against the registry, not assumed
-        // (ADR-482 §9 recorded it as owed).
+      // ADR-542 D2 — root-grain tokens through the one admitting function.
+      // `flow` reads the served mode (a deck is a fixed stage and a page is
+      // full-width bands — measure applies to neither, W3); `deck` stays a
+      // deck affordance (slide numbers — `page` is paged too and has no
+      // slides to number). The old `document-canvas` branch stays deleted
+      // (ADR-472 moved the canvas to IMAGES; no served token declares it).
+      tokens.filter((t) =>
+        admits(t, 'document', { flow: mode === 'flow', deck: layout === 'deck' }),
       ),
     [tokens, layout, mode],
   );
@@ -1696,7 +1691,7 @@ export function StudioDesignTab({
   // reaches every paragraph the range covers).
   const flowTokens = useMemo(
     () =>
-      scope === 'range' ? applicable.filter((t) => t.applies.includes('block-flow')) : [],
+      scope === 'range' ? applicable.filter((t) => t.grains.includes('flow')) : [],
     [scope, applicable],
   );
   // ...and its complement, so each token renders EXACTLY ONCE. Lifting without

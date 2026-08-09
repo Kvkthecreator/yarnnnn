@@ -52,8 +52,8 @@ def run() -> bool:
 
     # ── 1. The background mechanism ──────────────────────────────────────
     _check("scrim + bg-pos: page-bg-gated tokens",
-           STUDIO_TOKENS.get("scrim", {}).get("applies") == ["page-bg"]
-           and STUDIO_TOKENS.get("bg-pos", {}).get("applies") == ["page-bg"])
+           STUDIO_TOKENS.get("scrim", {}).get("grains") == ("bg",)
+           and STUDIO_TOKENS.get("bg-pos", {}).get("grains") == ("bg",))  # ADR-542
     _check("kernel CSS interprets the background pair (cover, scrim, focus)",
            '[data-ref-kind="background"]' in STUDIO_KERNEL_CSS
            and '[data-scrim="dark"]::before' in STUDIO_KERNEL_CSS
@@ -115,10 +115,10 @@ def run() -> bool:
     # the one ADR-505 D2 needs (a `web` artifact is paged, so it must not offer
     # measure; a bundle's own flow layout must).
     _check("Design tab: measure gated by MODE, never by a layout slug",
-           "mode === 'flow' && t.applies.includes('document-flow')" in design
+           "admits(t, 'document', { flow: mode === 'flow', deck: layout === 'deck' })" in design
            and "layout === 'article'" not in design)
-    _check("Design tab: the background picker + page-bg token gate",
-           "onSetPageBackground" in design and "page-bg" in design
+    _check("Design tab: the background picker + bg-grain token gate (ADR-542)",
+           "onSetPageBackground" in design and "bg: hasBg" in design
            and "Set background…" in design)
     # The picker must not close itself. Keying its reset on `selection` (an
     # object the surface REBUILDS on every point message) collapsed the picker

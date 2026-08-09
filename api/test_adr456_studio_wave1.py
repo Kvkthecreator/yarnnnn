@@ -56,7 +56,7 @@ def run() -> bool:
            and "style=" not in STUDIO_BLOCKS["button"]["markup"])
     _check("gallery cites, never pastes (data-ref on its figures)",
            'data-ref' in STUDIO_BLOCKS["gallery"]["markup"]
-           and STUDIO_BLOCKS["gallery"]["group"] == "media")
+           and STUDIO_BLOCKS["gallery"]["cites"] == "picture")
     _check("gallery joins the media-grain token kinds (height/fit apply)",
            "gallery" in MEDIA_BLOCK_KINDS)
 
@@ -77,12 +77,18 @@ def run() -> bool:
            "document" not in STUDIO_ARRANGEMENTS and "article" not in STUDIO_ARRANGEMENTS)
 
     # ── 3. The new tokens ────────────────────────────────────────────────
-    _check("pad: page grain, presets (s/l) never pixels",
-           STUDIO_TOKENS.get("pad", {}).get("applies") == ["page"]
-           and {v["value"] for v in STUDIO_TOKENS["pad"]["values"]} == {"s", "l"})
-    _check("pagenum: the document-deck applies value (root, deck only)",
-           STUDIO_TOKENS.get("pagenum", {}).get("applies") == ["document-deck"])
-    _check("kernel CSS interprets pad + pagenum (counters, script-free)",
+    # ADR-516 D2 deleted `pad` (and valign) from the registry — a legacy inert
+    # name per ADR-511 D8: the kernel CSS still interprets it on existing
+    # artifacts, but no row offers it. The old assert here indexed
+    # STUDIO_TOKENS["pad"] directly and has CRASHED this gate (KeyError) since
+    # that deletion — one of the stale-red set; repaired to the ruling it
+    # missed, in the ADR-542 re-cut that touched every row shape.
+    _check("pad is DELETED from the registry (ADR-516 D2) — inert name only",
+           "pad" not in STUDIO_TOKENS)
+    _check("pagenum: root scope, deck grain (ADR-542 axes; was document-deck)",
+           STUDIO_TOKENS.get("pagenum", {}).get("scope") == ("document",)
+           and STUDIO_TOKENS.get("pagenum", {}).get("grains") == ("deck",))
+    _check("kernel CSS still interprets pad (legacy artifacts) + pagenum",
            '[data-pad="s"]' in STUDIO_KERNEL_CSS
            and 'html[data-pagenum="on"]' in STUDIO_KERNEL_CSS
            and "counter(slide)" in STUDIO_KERNEL_CSS)
@@ -104,9 +110,10 @@ def run() -> bool:
 
     # ── posture derives the growth (one grammar, both hands) ────────────
     posture = build_studio_posture("/workspace/operation/x/deck.html", build_skeleton("deck"))
-    _check("posture teaches the new kinds + tokens (registry-derived)",
+    _check("posture teaches the new kinds + tokens (registry-derived; pad is "
+           "gone from the grammar because it is gone from the registry)",
            "- gallery — " in posture and "- toggle — " in posture
-           and "data-pad=" in posture and "data-pagenum=" in posture)
+           and "data-pad=" not in posture and "data-pagenum=" in posture)
     _check("posture lists the new deck arrangements",
            "agenda — " in posture and "closing — " in posture)
 
@@ -128,7 +135,7 @@ def run() -> bool:
            and "proto.cloneNode(true)" in ops)
     design = (web / "components/studio/StudioDesignTab.tsx").read_text()
     _check("Design tab gates document-deck by layout",
-           "t.applies.includes('document-deck')" in design
+           "deck: layout === 'deck'" in design
            and "layout === 'deck'" in design)
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
     _check("pointer runtime: selected toggle's summary clicks through",

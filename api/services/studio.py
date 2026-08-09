@@ -854,60 +854,58 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 # valid — grammar, not schema). One registry serves the Design tab's segmented
 # controls AND the lane's posture (R4: one grammar for both hands).
 #
-# `applies` vocabulary (the FE gates controls by it):
-#   block         — any [data-block]
-#   media         — media blocks only (MEDIA_BLOCK_KINDS)
-#   page          — any [data-arrange] page/slide
-#   page-multicol — pages whose arrangement has ≥2 flow slots
-#   page-deck     — deck slides only
-#   document      — the artifact ROOT (<html>), all layouts (ADR-455)
-#   document-flow — the artifact root, `flow` layouts only (document; a deck is
-#                   a fixed 16:9 stage and web is full-width bands — measure
-#                   applies to neither)
-#   document-deck — the artifact root, deck only (slide numbers, ADR-456)
-#   page-bg       — a page/section carrying a cited background image
-#                   (data-ref-kind="background" on the element, ADR-456 W3)
+# ADR-542 D1 — a row declares WHERE and WHEN as two closed axes (the old
+# compound `applies` slugs are dissolved; the old docstring's own reading —
+# "every value reads as (object × condition); the hyphen is doing a second
+# field's work" — is now the schema):
+#   scope   — block | page | document (WHERE the pane mounts the control)
+#   grains  — any | staged | flow | media | callout | deck | multicol | bg
+#             (WHEN a scope admits it — ANY listed grain's predicate suffices;
+#              ("any",) is unconditional)
+# Predicates, FE-side (one admitting function, ADR-542 D2):
+#   staged   — `.slide` ancestry (a deck slide or an images artboard)
+#   flow     — the layout's mode is `flow`
+#   media    — the kind cites a picture (MEDIA_BLOCK_KINDS)
+#   callout  — the kind is `callout` (ADR-487 D2 variants)
+#   deck     — the deck layout (slides; slide numbers ADR-456)
+#   multicol — the page's arrangement has ≥2 flow slots
+#   bg       — the page carries a cited background (data-ref-kind="background")
 # ---------------------------------------------------------------------------
 
-#: The `applies` vocabulary, as DATA — one short phrase per value, naming the
-#: element a token may legally sit on. The comment block above is the reference;
-#: this is the machine-readable half, and it exists because the FE and the lane
-#: were not being told the same thing.
-#:
-#: The Design tab GATES its controls by `applies` (a member cannot put
-#: data-pagenum on a block — the control never renders), but the lane's posture
-#: emitted only key/values/description, so the AI hand received the grammar with
-#: the CONTAINMENT dropped: "data-pagenum=on — slide numbers…" with nothing
-#: saying it belongs on the root. Some descriptions smuggled it back in prose
-#: ("on a figure/chart block"), which is precisely the tell — the relation was
-#: load-bearing, carried inconsistently, and absent entirely for size/align/tone.
-#: One registry, one grammar, both hands (ADR-453 R4) has to include WHERE.
-#:
-#: Every value reads as (object × condition): three objects — block, page, the
-#: root — each with an optional predicate. The hyphen is doing a second field's
-#: work. Splitting it into `(scope, grain)` is the named follow-on; naming the
-#: relation first is what makes that refactor arguable rather than speculative.
-APPLIES_TARGETS: dict[str, str] = {
-    "block": "any block",
-    "block-callout": "a callout block",
-    "media": "a media block (figure/gallery)",
-    "block-staged": "a block on a staged frame (a deck slide or a canvas artboard)",
-    # ADR-525 D4 — the term the vocabulary was missing. It had `document-flow`
-    # and `block-staged` but nothing for "a flow block", so a token could not
-    # say which MEDIUM it belonged to at the block grain, and `size`/`align`
-    # were declared on the widest grain ("block") while meaning the narrow one.
-    # The FE's pane composes by tier (D3); this is the same fact in the registry,
-    # which matters because the LANE reads this grammar too (R4, one grammar for
-    # both hands) — without it the AI hand keeps being told a paragraph has a
-    # width. Declared for completeness of the vocabulary; see `size`/`align`.
-    "block-flow": "a block in a flowing document (never a staged frame)",
-    "page": "any page/slide element",
-    "page-deck": "a deck slide",
-    "page-multicol": "a page whose arrangement has 2+ flow slots",
-    "page-bg": "a page carrying a cited background image",
+#: The two axes as DATA — one short phrase per value, composed into the WHERE
+#: half of the lane's grammar line (`_where_phrase`). This exists because the
+#: FE and the lane were not being told the same thing (ADR-455): the Design
+#: tab GATES its controls by scope × grains, and one registry must teach both
+#: hands the same containment (ADR-453 R4).
+# ADR-542 D1 — the compound `applies` slugs are SPLIT along the seam the old
+# docstring itself named ("the hyphen is doing a second field's work"): a row
+# declares `scope` (WHERE the pane mounts it: block | page | document) and
+# `grains` (WHEN a scope admits it — ANY listed predicate; ("any",) is
+# unconditional). Both axes are CLOSED enums, gate-checked; a new WHERE is a
+# new scope value and a new WHEN is a new grain with a declared predicate,
+# never a new compound. The lane's WHERE phrase composes from the two tables.
+TOKEN_SCOPES: tuple[str, ...] = ("block", "page", "document")
+TOKEN_GRAINS: tuple[str, ...] = (
+    "any", "staged", "flow", "media", "callout", "deck", "multicol", "bg",
+)
+
+SCOPE_PHRASES: dict[str, str] = {
+    "block": "a block",
+    "page": "a page/slide element",
     "document": "the artifact root (<html>)",
-    "document-flow": "the artifact root, a document only",
-    "document-deck": "the artifact root, deck only",
+}
+
+GRAIN_PHRASES: dict[str, str] = {
+    "any": "",  # unconditional — the scope phrase stands alone
+    # ADR-525 D4's lesson carried forward: the grain names the MEDIUM/condition
+    # explicitly so the AI hand is never told a paragraph has a width.
+    "staged": "on a staged frame (a deck slide or a canvas artboard)",
+    "flow": "in a flowing document (never a staged frame)",
+    "media": "that is a media block (figure/gallery)",
+    "callout": "that is a callout",
+    "deck": "on a deck only",
+    "multicol": "whose arrangement has 2+ flow slots",
+    "bg": "carrying a cited background image",
 }
 
 #: Block kinds the media-grain tokens (height/fit) apply to.
@@ -937,7 +935,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     # a Docs paragraph rendered WIDTH: Auto | Hug | Fill.
     "size": {
         "label": "Width",
-        "applies": ["block-staged", "media"],
+        "scope": ("block",),
+        "grains": ("staged", "media"),
         "values": [
             {"value": "hug", "label": "Hug"},
             {"value": "fill", "label": "Fill"},
@@ -953,7 +952,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     # and, until this row, nothing used.
     "align": {
         "label": "Align",
-        "applies": ["block-staged", "media", "block-flow"],
+        "scope": ("block",),
+        "grains": ("staged", "media", "flow"),
         # `start` is GONE (ADR-461 B1, 2026-07-15): it was declared here but no
         # `[data-align="start"]` rule ever existed in the kernel, so picking
         # "Left" wrote an attribute that rendered nothing — two UI states, one
@@ -975,7 +975,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     # the coordinate space.
     "indent": {
         "label": "Indent",
-        "applies": ["block-flow"],
+        "scope": ("block",),
+        "grains": ("flow",),
         "values": [
             {"value": "1", "label": "1"},
             {"value": "2", "label": "2"},
@@ -985,7 +986,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     },
     "tone": {
         "label": "Tone",
-        "applies": ["block", "page"],
+        "scope": ("block", "page"),
+        "grains": ("any",),
         "values": [
             {"value": "accent", "label": "Accent"},
             {"value": "muted", "label": "Muted"},
@@ -1001,7 +1003,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     # reserved slot (a fourth value is one row when a block demands it).
     "variant": {
         "label": "Variant",
-        "applies": ["block-callout"],
+        "scope": ("block",),
+        "grains": ("callout",),
         "values": [
             {"value": "note", "label": "Note"},
             {"value": "success", "label": "Success"},
@@ -1011,7 +1014,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     },
     "height": {
         "label": "Height",
-        "applies": ["media"],
+        "scope": ("block",),
+        "grains": ("media",),
         "values": [
             {"value": "s", "label": "Small"},
             {"value": "m", "label": "Medium"},
@@ -1021,7 +1025,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     },
     "fit": {
         "label": "Fit",
-        "applies": ["media"],
+        "scope": ("block",),
+        "grains": ("media",),
         "values": [
             {"value": "cover", "label": "Fill"},
             {"value": "contain", "label": "Fit"},
@@ -1030,7 +1035,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     },
     "ratio": {
         "label": "Columns",
-        "applies": ["page-multicol"],
+        "scope": ("page",),
+        "grains": ("multicol",),
         "values": [
             {"value": "2-1", "label": "Wide left"},
             {"value": "1-2", "label": "Wide right"},
@@ -1049,7 +1055,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     # data-ref-kind="background" citation styles it with these, never inline.
     "scrim": {
         "label": "Scrim",
-        "applies": ["page-bg"],
+        "scope": ("page",),
+        "grains": ("bg",),
         "values": [
             {"value": "dark", "label": "Dark"},
             {"value": "light", "label": "Light"},
@@ -1058,7 +1065,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     },
     "bg-pos": {
         "label": "Focus",
-        "applies": ["page-bg"],
+        "scope": ("page",),
+        "grains": ("bg",),
         "values": [
             {"value": "top", "label": "Top"},
             {"value": "bottom", "label": "Bottom"},
@@ -1069,7 +1077,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     # page-menu affordances (typography, width) as tokens, never raw style.
     "font": {
         "label": "Typography",
-        "applies": ["document"],
+        "scope": ("document",),
+        "grains": ("any",),
         "values": [
             {"value": "serif", "label": "Serif"},
             {"value": "sans", "label": "Sans"},
@@ -1079,7 +1088,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     },
     "measure": {
         "label": "Width",
-        "applies": ["document-flow"],
+        "scope": ("document",),
+        "grains": ("flow",),
         "values": [
             {"value": "wide", "label": "Wide"},
         ],
@@ -1097,7 +1107,8 @@ STUDIO_TOKENS: dict[str, dict] = {
     # ADR-456 Wave 1: slide numbers — CSS counters, script-free, opt-in.
     "pagenum": {
         "label": "Slide numbers",
-        "applies": ["document-deck"],
+        "scope": ("document",),
+        "grains": ("deck",),
         "values": [
             {"value": "on", "label": "On"},
         ],
@@ -1143,7 +1154,8 @@ STUDIO_MEASURES: dict[str, dict] = {
     "w": {
         "label": "Width",
         # Deck + media only. NOT document or web — they reflow.
-        "applies": ["block-staged", "media"],
+        "scope": ("block",),
+        "grains": ("staged", "media"),
         "unit": "%",
         "min": 10,
         "max": 100,
@@ -1152,7 +1164,8 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
     "h": {
         "label": "Height",
-        "applies": ["block-staged", "media"],
+        "scope": ("block",),
+        "grains": ("staged", "media"),
         "unit": "%",
         # The height axis floors at 1%, NOT 10% like width (ADR-475 §12). The
         # axes honestly differ: a 1%-tall rule is a legitimate block (a hairline
@@ -1186,7 +1199,8 @@ STUDIO_MEASURES: dict[str, dict] = {
     # (applyArrangement clears x/y).
     "x": {
         "label": "X",
-        "applies": ["block-staged"],
+        "scope": ("block",),
+        "grains": ("staged",),
         "unit": "%",
         "min": 0,
         "max": 95,
@@ -1195,7 +1209,8 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
     "y": {
         "label": "Y",
-        "applies": ["block-staged"],
+        "scope": ("block",),
+        "grains": ("staged",),
         "unit": "%",
         "min": 0,
         "max": 95,
@@ -1210,7 +1225,8 @@ STUDIO_MEASURES: dict[str, dict] = {
     # StudioBlockMenu's Bring forward/backward verbs write this token.
     "z": {
         "label": "Z",
-        "applies": ["block-staged"],
+        "scope": ("block",),
+        "grains": ("staged",),
         "unit": "",
         "min": 0,
         "max": 20,
@@ -1219,12 +1235,12 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
 }
 
-#: Measure grains → the `applies` vocabulary above. `block-staged` is a block
-#: on a STAGED frame — the `.slide` class, carried by a deck slide and by an
-#: IMAGES stage; the frame class is the grain's boundary (ADR-472 D2, renamed
-#: from the deck-shaped `block-deck`). `media` is a media block anywhere
-#: (an image has an intrinsic ratio, which is its own frame — ADR-461 D4).
-MEASURE_GRAINS = {"block-staged", "media"}
+#: Measure grains (ADR-542: grain slugs, post-split). `staged` is a block on a
+#: STAGED frame — the `.slide` class, carried by a deck slide and by an IMAGES
+#: stage; the frame class is the grain's boundary (ADR-472 D2). `media` is a
+#: media block anywhere (an image has an intrinsic ratio, which is its own
+#: frame — ADR-461 D4).
+MEASURE_GRAINS = {"staged", "media"}
 
 
 #: (cascade: unmarked layout style < data-kernel < data-skin).
@@ -2071,26 +2087,30 @@ def _arrangements_grammar(template: str) -> str:
     )
 
 
-def _applies_phrase(applies: list) -> str:
-    """Render a token's `applies` list as the WHERE half of its grammar line.
+def _where_phrase(scope: tuple, grains: tuple) -> str:
+    """Render a row's (scope, grains) as the WHERE half of its grammar line
+    (ADR-542 D2 — composed from the two tables, never enumerated per compound).
 
-    An unknown value degrades to itself rather than vanishing: a new grain added
-    to a token without a matching APPLIES_TARGETS entry still teaches the lane
-    something, and the gate catches the omission."""
-    return " / ".join(APPLIES_TARGETS.get(a, a) for a in applies)
+    An unknown value degrades to itself rather than vanishing: a new grain
+    without a matching phrase still teaches the lane something, and the gate
+    catches the omission."""
+    scopes = " / ".join(SCOPE_PHRASES.get(s, s) for s in scope)
+    conds = [GRAIN_PHRASES.get(g, g) for g in grains if g != "any"]
+    return scopes if not conds else f"{scopes} {' / '.join(c for c in conds if c)}"
 
 
 def _tokens_grammar() -> str:
     """The property-token roster (ADR-453) — one line per family, derived from
     the registry so the posture and the Design tab never drift.
 
-    Each line carries WHERE the token may sit (its `applies` grain), because the
-    Design tab gates on exactly that and the lane previously wasn't told it —
-    the two hands got one grammar but only one got the relation."""
+    Each line carries WHERE the token may sit (its scope × grains, ADR-542),
+    because the Design tab gates on exactly that and the lane previously
+    wasn't told it — the two hands got one grammar but only one got the
+    relation."""
     return "\n".join(
         f'  - data-{key}="'
         + "|".join(v["value"] for v in t["values"])
-        + f'" [on {_applies_phrase(t["applies"])}] — {t["description"]}'
+        + f'" [on {_where_phrase(t["scope"], t["grains"])}] — {t["description"]}'
         for key, t in STUDIO_TOKENS.items()
     )
 

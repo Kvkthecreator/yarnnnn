@@ -112,7 +112,7 @@ def run() -> bool:
         # is exactly why `web` can share `paged` with `deck` and still have no
         # coordinate space (ADR-505 D3 / ADR-461 D4: a page has a viewport).
         all(
-            "block-staged" in STUDIO_MEASURES[m]["applies"]
+            "staged" in STUDIO_MEASURES[m]["grains"]
             for m in ("x", "y", "z")
         )
         and "section[data-arrange]" in STUDIO_LAYOUTS["web"]["skin"]

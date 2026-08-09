@@ -42,10 +42,12 @@ def run() -> bool:
 
     # ── 1. The document-grain tokens ─────────────────────────────────────
     _check("font token: document grain, serif/sans/mono",
-           STUDIO_TOKENS.get("font", {}).get("applies") == ["document"]
+           STUDIO_TOKENS.get("font", {}).get("scope") == ("document",)
+           and STUDIO_TOKENS.get("font", {}).get("grains") == ("any",)
            and {v["value"] for v in STUDIO_TOKENS["font"]["values"]} == {"serif", "sans", "mono"})
     _check("measure token: document-flow grain (deck excluded), wide",
-           STUDIO_TOKENS.get("measure", {}).get("applies") == ["document-flow"]
+           STUDIO_TOKENS.get("measure", {}).get("scope") == ("document",)
+           and STUDIO_TOKENS.get("measure", {}).get("grains") == ("flow",)
            and {v["value"] for v in STUDIO_TOKENS["measure"]["values"]} == {"wide"})
     _check("kernel CSS interprets the root grains (html[data-font/measure])",
            'html[data-font="serif"]' in STUDIO_KERNEL_CSS

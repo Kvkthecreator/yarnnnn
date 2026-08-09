@@ -277,12 +277,12 @@ def run() -> bool:
         # measure there would have no answer at 40rem, with per-breakpoint
         # editing refused (ADR-456 D3). This check IS ADR-461 D4.
         _check(
-            f"measure '{k}': applies ONLY where a frame bounds it (deck + media)",
-            set(m["applies"]) <= MEASURE_GRAINS and set(m["applies"]),
+            f"measure '{k}': admitted ONLY where a frame bounds it (deck + media)",
+            set(m["grains"]) <= MEASURE_GRAINS and set(m["grains"]),  # ADR-542
         )
         _check(
-            f"measure '{k}': no document/article/page grain has leaked in",
-            not any(g in str(m["applies"]) for g in ("document", "article", "page")),
+            f"measure '{k}': block scope only — no document/article/page leak",
+            set(m["scope"]) == {"block"},  # ADR-542: WHERE is its own axis now
         )
     _check(
         "the kernel scopes measures to the frame (.slide / media blocks only)",

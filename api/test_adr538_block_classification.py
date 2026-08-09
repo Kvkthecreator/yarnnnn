@@ -123,7 +123,7 @@ t("chart LEFT the media set", "chart" not in st.MEDIA_BLOCK_KINDS)
 t("figure + gallery remain the media set", st.MEDIA_BLOCK_KINDS == {"figure", "gallery"})
 t(
     "the media `applies` phrase no longer names chart",
-    "chart" not in st.APPLIES_TARGETS["media"],
+    "chart" not in st.GRAIN_PHRASES["media"],
 )
 t(
     "no media-grain token claims chart",

@@ -117,17 +117,17 @@ def run() -> bool:
     # stays confined to the ONE staged grain — never media, never flow.
     _check(
         "x/y measures exist and are STAGED-FRAME-only (the ADR-461 boundary, ADR-471 grain)",
-        STUDIO_MEASURES.get("x", {}).get("applies") == ["block-staged"]
-        and STUDIO_MEASURES.get("y", {}).get("applies") == ["block-staged"]
+        STUDIO_MEASURES.get("x", {}).get("grains") == ("staged",)
+        and STUDIO_MEASURES.get("y", {}).get("grains") == ("staged",)
         and STUDIO_MEASURES["x"]["css_var"] == "--yx"
         and STUDIO_MEASURES["y"]["css_var"] == "--yy",
     )
     _check(
         "no continuous position admitted outside the staged frame",
         all(
-            g == "block-staged"
+            g == "staged"
             for key in ("x", "y")
-            for g in STUDIO_MEASURES[key]["applies"]
+            for g in STUDIO_MEASURES[key]["grains"]
         ),
     )
     _check(
@@ -310,7 +310,7 @@ def run() -> bool:
     _z = STUDIO_MEASURES.get("z", {})
     _check(
         "the z measure exists — staged-frame, integer band, --yz",
-        _z.get("applies") == ["block-staged"] and _z.get("css_var") == "--yz"
+        _z.get("grains") == ("staged",) and _z.get("css_var") == "--yz"
         and _z.get("unit") == "" and _z.get("min") == 0 and isinstance(_z.get("max"), int),
     )
     _check(

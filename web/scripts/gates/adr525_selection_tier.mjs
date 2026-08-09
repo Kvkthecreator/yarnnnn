@@ -156,10 +156,12 @@ t(
 );
 
 // ── 6. D4 — the registry gained the term and re-keyed the two tokens ──────
-t('D4: block-flow enters the applies vocabulary', /"block-flow":/.test(studio));
+// ADR-542 re-cut: the compound slug dissolved into the `flow` GRAIN — the
+// medium term D4 fought for now lives on its own axis.
+t('D4: the flow medium is a declared grain', /"flow",/.test(studio) && /TOKEN_GRAINS/.test(studio));
 t(
   'D4: `size` no longer claims the widest grain',
-  /"size": \{\s*"label": "Width",\s*"applies": \["block-staged", "media"\]/.test(studio),
+  /"size": \{\s*"label": "Width",\s*"scope": \("block",\),\s*"grains": \("staged", "media"\)/.test(studio),
 );
 // ADR-527 D3 AMENDED this row: `align` gained `block-flow`, because the kernel
 // rule is `text-align` — arrangement of prose in its own measure, which a flow
@@ -172,17 +174,16 @@ t(
 // regression, which is the "don't pin a spelling" lesson one level up.
 t(
   'D4: `align` no longer claims the widest grain (narrow grains only)',
-  /"align": \{\s*"label": "Align",\s*"applies": \[(?![^\]]*"block")[^\]]*\]/.test(studio) ||
-    /"align": \{\s*"label": "Align",\s*"applies": \["block-staged", "media", "block-flow"\]/.test(studio),
+  /"align": \{\s*"label": "Align",\s*"scope": \("block",\),\s*"grains": \("staged", "media", "flow"\)/.test(studio),
 );
 t(
   'D4 (as amended by ADR-527 D3): align reaches flow through block-flow, never bare block',
-  /"align": \{\s*"label": "Align",\s*"applies": \[[^\]]*"block-flow"[^\]]*\]/.test(studio) &&
-    !/"align": \{\s*"label": "Align",\s*"applies": \[[^\]]*"block"[,\]]/.test(studio),
+  /"align": \{[\s\S]{0,120}?"grains": \([^)]*"flow"[^)]*\)/.test(studio) &&
+    !/"align": \{[\s\S]{0,120}?"grains": \([^)]*"any"[^)]*\)/.test(studio),
 );
 t(
   'D4: the pane gates TOKENS on block-staged (not only measures)',
-  /isStaged && t\.applies\.includes\('block-staged'\)/.test(pane),
+  /staged: isStaged/.test(pane),  // ADR-542: the admits() ctx carries it
 );
 
 // ── 7. The follow-up (2026-08-06) — the OBJECT tier's half of the same law ─
