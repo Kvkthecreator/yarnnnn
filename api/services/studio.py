@@ -55,11 +55,28 @@ STUDIO_ARTIFACT_REGION = "/workspace/operation/"
 # ownership in the registry is the other thing entirely: the roster itself is
 # app-scoped, and every door of every app still offers all of ITS roster.
 #
-# Absent `apps` = every app (the default, and what all but two rows carry).
-# This is a grammar dimension, never a schema gate: an artifact holding a kind
-# its app no longer offers still renders and still edits — the kind becomes an
-# INERT NAME (ADR-511 D8), which is exactly what D5 specifies for the callout
-# and toggle already in members' documents.
+# Absent `apps` = every app (the default). This is a grammar dimension, never
+# a schema gate: an artifact holding a kind its app no longer offers still
+# renders and still edits — the kind becomes an INERT NAME (ADR-511 D8), which
+# is exactly what D5 specifies for the callout and toggle already in members'
+# documents.
+#
+# ADR-539 D1 — a row DECLARES ITS BEHAVIOR. Four fields, every row, no
+# defaults (explicit beats implicit at a kernel seam):
+#   tier        — "text" (a click on flow is a caret) | "object" (a box,
+#                 everywhere). ADR-525 D1's taxonomy; `structure` is a property
+#                 of containers/pages, never of a kind.
+#   elements    — the lowercase DOM tags recognized AS this kind at the intake
+#                 seams (promotion, paste). Informational when promote=False.
+#   promote     — may a bare tag be GUESSED into this kind? The FE promotion
+#                 map is a pinned projection of {elements × promote=True};
+#                 promote=True tags must therefore be unique across rows.
+#                 `checklist` is the argued False (ADR-536: promotion is a
+#                 guess from a TAG, and the checkbox list is the marked case).
+#   convertible — does the member's Turn-into offer it?
+#   cites       — "none" | "source" | "picture" (ADR-538 D1's rule as a FIELD).
+#                 `group` is DERIVED from this (see GROUP_BY_CITES below), so
+#                 a kind's group and its citation structurally cannot disagree.
 # ---------------------------------------------------------------------------
 
 STUDIO_BLOCKS: dict[str, dict[str, str]] = {
@@ -73,13 +90,21 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # required headings to be unauthorable.
     "heading": {
         "label": "Heading",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("h1", "h2", "h3"),
+        "promote": True,
         "description": "A heading on the type ramp — the tag (h1/h2/h3) carries the level.",
         "markup": '<h2 data-block="heading" data-block-id="b13">Heading</h2>',
     },
     "prose": {
         "label": "Text",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("p", "div", "pre"),
+        "promote": True,
         "description": "A heading + flowing paragraphs — the default content unit.",
         "markup": '<section data-block="prose" data-block-id="b1"><h2>Heading</h2><p>…</p></section>',
     },
@@ -92,20 +117,32 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # warning) plus the `block-callout` token grain are built on it there.
     "callout": {
         "label": "Callout",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("aside",),
+        "promote": False,
         "apps": ("studio",),
         "description": "A visually offset aside that highlights one point.",
         "markup": '<aside data-block="callout" data-block-id="b2"><p>…</p></aside>',
     },
     "quote": {
         "label": "Quote",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("blockquote",),
+        "promote": True,
         "description": "A pull quote with optional attribution.",
         "markup": '<blockquote data-block="quote" data-block-id="b3"><p>…</p><cite>…</cite></blockquote>',
     },
     "checklist": {
         "label": "Checklist",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("ul",),
+        "promote": False,
         "description": "A list of discrete items or steps.",
         "markup": '<ul data-block="checklist" data-block-id="b4"><li>…</li></ul>',
     },
@@ -123,20 +160,32 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # items, which is why they join TEXT_BLOCK_KINDS and the turn-into set.
     "list": {
         "label": "Bulleted list",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("ul",),
+        "promote": True,
         "description": "A bulleted list — unordered items.",
         "markup": '<ul data-block="list" data-block-id="b14"><li>…</li></ul>',
     },
     "numbered": {
         "label": "Numbered list",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("ol",),
+        "promote": True,
         "description": "A numbered list — ordered steps or ranked items.",
         "markup": '<ol data-block="numbered" data-block-id="b15"><li>…</li></ol>',
     },
     # ADR-456 Wave 1 — the builder/Notion registry growth (rows, not mechanisms).
     "divider": {
         "label": "Divider",
-        "group": "content",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("hr",),
+        "promote": False,
         "description": "A horizontal rule between sections of content.",
         "markup": '<hr data-block="divider" data-block-id="b9">',
     },
@@ -147,14 +196,22 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # a collapsible container in the meantime answers the question by accident.
     "toggle": {
         "label": "Toggle",
-        "group": "content",
+        "tier": "text",
+        "cites": "none",
+        "convertible": True,
+        "elements": ("details",),
+        "promote": False,
         "apps": ("studio",),
         "description": "A collapsible section — a summary line that expands.",
         "markup": '<details data-block="toggle" data-block-id="b10"><summary>Summary line</summary><p>…</p></details>',
     },
     "button": {
         "label": "Button",
-        "group": "content",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("p",),
+        "promote": False,
         "description": "A call-to-action link, styled by the palette.",
         "markup": '<p data-block="button" data-block-id="b11"><a href="https://…">Call to action</a></p>',
     },
@@ -174,7 +231,11 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # by construction, which is what makes the guard safe to honour.
     "component": {
         "label": "Component",
-        "group": "content",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("div",),
+        "promote": False,
         "apps": ("studio",),
         "description": "A composed card — a labelled container of icon/name/value rows.",
         "markup": (
@@ -189,7 +250,11 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     },
     "table": {
         "label": "Table",
-        "group": "data",
+        "tier": "object",
+        "cites": "source",
+        "convertible": False,
+        "elements": ("table",),
+        "promote": True,
         "description": "A live table CITED from a workspace CSV (never pasted).",
         "markup": '<div data-block="table" data-block-id="b5" data-ref="operation/…/data.csv" data-ref-kind="table"></div>',
     },
@@ -206,7 +271,11 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # ADR-528 finding). Named as the open question, not smuggled in.
     "metrics": {
         "label": "Metrics",
-        "group": "content",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("div",),
+        "promote": False,
         "description": "A row of headline numbers with labels.",
         "markup": '<div data-block="metrics" data-block-id="b6"><div class="metric"><strong>42%</strong><span>label</span></div></div>',
     },
@@ -229,23 +298,58 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # done for CSVs since ADR-440 D5. It rents nothing and owns no engine.
     "chart": {
         "label": "Chart",
-        "group": "data",
+        "tier": "object",
+        "cites": "source",
+        "convertible": False,
+        "elements": ("figure",),
+        "promote": False,
         "description": "A chart PROJECTED from a cited workspace CSV (never a pasted picture).",
         "markup": '<figure data-block="chart" data-block-id="b7" data-chart="bar"><div data-ref="operation/…/data.csv" data-ref-kind="chart" data-ref-rev="<head-rev-id>"></div><figcaption>…</figcaption></figure>',
     },
     "figure": {
         "label": "Image",
-        "group": "media",
+        "tier": "object",
+        "cites": "picture",
+        "convertible": False,
+        "elements": ("figure",),
+        "promote": True,
         "description": "A workspace image CITED by reference, with a caption.",
         "markup": '<figure data-block="figure" data-block-id="b8"><img data-ref="operation/…/img.png" data-ref-rev="<head-rev-id>" alt="…"><figcaption>…</figcaption></figure>',
     },
     "gallery": {
         "label": "Gallery",
-        "group": "media",
+        "tier": "object",
+        "cites": "picture",
+        "convertible": False,
+        "elements": ("div",),
+        "promote": False,
         "description": "A grid of workspace images, each CITED by reference.",
         "markup": '<div data-block="gallery" data-block-id="b12"><figure><img data-ref="operation/…/img.png" data-ref-rev="<head-rev-id>" alt=""><figcaption></figcaption></figure></div>',
     },
 }
+
+# ADR-539 D1 — `group` is a DERIVATION of `cites`, never a field. ADR-538
+# found `chart` and `metrics` mis-filed because group and citation could
+# disagree; deriving makes the disagreement unrepresentable. The wire shape is
+# unchanged: the vocabulary route still serves `group`, computed here.
+GROUP_BY_CITES = {"none": "content", "source": "data", "picture": "media"}
+
+
+def block_group(row: dict) -> str:
+    """The served display group, derived from what the kind cites (ADR-539 D1)."""
+    return GROUP_BY_CITES[row["cites"]]
+
+
+# ADR-539 D3 — the heading rung set, declared ONCE. At audit (2026-08-09) the
+# system gave four different answers to "which heading levels exist" across
+# eight sites (outline h1–h3, AI outline h1–h2, crumb h1–h2, promotion h1–h6,
+# turn-into harvest h1–h4) — which is why an h4 was named "Heading" by the
+# pane and invisible to the outline, the crumb, and the lane in the same
+# instant. Every consumer now reads this constant: `extract_outline` below,
+# the served vocabulary (`heading_rungs`), and — via the ADR-539 parity gate —
+# the FE's outline walk, ramp rows, promotion map, and the runtime's
+# `headingAboveOf`. Intake CLAMPS to this set (D4): h4–h6 arrive as h3.
+HEADING_RUNGS: tuple[int, ...] = (1, 2, 3)
 
 
 # ---------------------------------------------------------------------------
@@ -811,7 +915,10 @@ APPLIES_TARGETS: dict[str, str] = {
 #: fills its box (`fit`: cover/contain) and how tall the picture stands; a
 #: chart is no longer a picture but a projection of cited data, so `fit` has
 #: nothing to act on. `size` still reaches it as a staged object.
-MEDIA_BLOCK_KINDS = {"figure", "gallery"}
+#: ADR-539 D2 — DERIVED from the registry's `cites` field (a media kind IS a
+#: kind that cites a picture); hand-maintaining this set beside the rows is
+#: how it diverged from the FE's picker set in the first place.
+MEDIA_BLOCK_KINDS = {k for k, r in STUDIO_BLOCKS.items() if r["cites"] == "picture"}
 
 STUDIO_TOKENS: dict[str, dict] = {
     # ADR-461 D1 — the block's width, as INTENT. The Claude Design inspector's
@@ -2278,15 +2385,22 @@ def artifact_name(path: str, content: Optional[str] = None) -> str:
 
 
 def extract_outline(artifact_content: str, limit: int = 24) -> list[str]:
-    """Heading texts (h1/h2) in document order — the artifact's outline."""
+    """Heading texts in document order — the artifact's outline.
+
+    ADR-539 D3/D5 — reads HEADING_RUNGS, the same declared set the member's
+    pane outline walks. Until 2026-08-09 this read h1/h2 while the pane read
+    h1–h3, so the member and the lane saw DIFFERENT outlines of one document
+    (ADR-526 §1.1 claimed parity; three divergent selectors made it false).
+    Indentation encodes depth: two spaces per rung below the first."""
+    rung_class = "".join(str(r) for r in HEADING_RUNGS)
     heads = re.findall(
-        r"<h([12])[^>]*>(.*?)</h\1>", artifact_content or "", flags=re.DOTALL
+        rf"<h([{rung_class}])[^>]*>(.*?)</h\1>", artifact_content or "", flags=re.DOTALL
     )
     out = []
     for level, raw in heads[:limit]:
         text = re.sub(r"<[^>]+>", "", raw).strip()
         if text:
-            out.append(("  " if level == "2" else "") + text)
+            out.append("  " * (int(level) - min(HEADING_RUNGS)) + text)
     return out
 
 

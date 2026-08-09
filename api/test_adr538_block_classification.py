@@ -76,26 +76,35 @@ KERNEL_NC = strip_comments(KERNEL)
 
 print("\n=== 1. D1 — the classification rule holds for every row ===")
 
+# ADR-539 D1 re-cut: `group` is no longer a field the rule POLICES — it is a
+# derivation of `cites` (block_group), so group-vs-citation disagreement is
+# unrepresentable. What remains falsifiable, and what this section now pins,
+# is the seam the derivation cannot see: the DECLARED `cites` must match what
+# the MARKUP actually does. A row declaring cites="none" whose markup carries
+# a data-ref (or the reverse) is the new spelling of the old chart bug.
 CITES_SOURCE = {"table", "chart"}
 CITES_PICTURE = {"figure", "gallery"}
 
 for kind, row in st.STUDIO_BLOCKS.items():
-    group = row["group"]
+    group = st.block_group(row)
     markup = row["markup"]
-    cites = "data-ref=" in markup
+    cites_in_markup = "data-ref=" in markup
     if kind in CITES_SOURCE:
-        t(f"`{kind}` is group=data and cites a source", group == "data" and cites)
+        t(f"`{kind}` declares source, derives data, and its markup cites",
+          row["cites"] == "source" and group == "data" and cites_in_markup)
     elif kind in CITES_PICTURE:
-        t(f"`{kind}` is group=media and cites a picture", group == "media" and cites)
+        t(f"`{kind}` declares picture, derives media, and its markup cites",
+          row["cites"] == "picture" and group == "media" and cites_in_markup)
     else:
-        t(f"`{kind}` is content and cites nothing", group == "content" and not cites)
+        t(f"`{kind}` declares none, derives content, and its markup cites nothing",
+          row["cites"] == "none" and group == "content" and not cites_in_markup)
 
 t(
     "every data-group row cites a .csv (a source, never a rendering)",
     all(
         ".csv" in r["markup"]
         for k, r in st.STUDIO_BLOCKS.items()
-        if r["group"] == "data" and "data-ref=" in r["markup"]
+        if st.block_group(r) == "data" and "data-ref=" in r["markup"]
     ),
 )
 t(
@@ -142,7 +151,8 @@ print("\n=== 3. D3 — the composite component ===")
 
 comp = st.STUDIO_BLOCKS.get("component", {})
 t("`component` row exists", bool(comp))
-t("component is content (it cites nothing)", comp.get("group") == "content")
+t("component is content (it cites nothing)",
+  comp.get("cites") == "none" and st.block_group(comp) == "content")
 t("component is studio-scoped", comp.get("apps") == ("studio",))
 t("component is composite (header + row + footer)", all(x in comp.get("markup", "") for x in ("<header>", 'class="row"', "<footer>")))
 t("the kernel draws it", 'div[data-block="component"]' in KERNEL_NC)
@@ -180,10 +190,14 @@ t(
 
 print("\n=== 6. The insert door is a picker, not a chat seed (ADR-536 lesson) ===")
 
-t("chart is picker-backed", "'chart'" in PICKER and "PICKER_KINDS" in PICKER)
+# ADR-539 D2 re-cut: picker-backing is derived from the row's `cites` field
+# (PICKER_KINDS/CSV_KINDS deleted). Chart is picker-backed BECAUSE it declares
+# a source citation, and the picker lists CSVs BECAUSE cites === 'source'.
+t("chart is picker-backed (declares a source citation)",
+  st.STUDIO_BLOCKS["chart"]["cites"] == "source")
 t(
-    "the picker lists CSVs for chart (not images)",
-    "CSV_KINDS" in PICKER and "CSV_KINDS.has(kind)" in PICKER,
+    "the picker lists CSVs for a source-citing kind (not images)",
+    "cites === 'source'" in PICKER and "c.tables : c.images" in PICKER,
 )
 t(
     "the SVG-seeding branch is GONE from the surface",
@@ -200,12 +214,14 @@ t(
 
 print("\n=== 7. FALSIFIERS — each claim can fail ===")
 
-# F1 — the classification rule would catch a mis-filed row.
+# F1 — the declaration/markup seam would catch a mis-declared row: a row
+# DECLARING source whose markup cites no .csv is the post-539 spelling of the
+# old chart bug (group itself can no longer be mis-filed — it is derived).
 fake = dict(st.STUDIO_BLOCKS["figure"])
-fake["group"] = "data"  # media markup under a data label = the old chart bug
+fake["cites"] = "source"  # picture markup under a source declaration
 t(
-    "F1 the D1 rule REJECTS a picture-citing row filed as data",
-    fake["group"] == "data" and ".csv" not in fake["markup"],
+    "F1 the D1 rule REJECTS a picture-citing row declared as source",
+    st.block_group(fake) == "data" and ".csv" not in fake["markup"],
 )
 
 # F2 — the media-set assertion would notice a re-addition.

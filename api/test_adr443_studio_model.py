@@ -59,10 +59,21 @@ def run() -> bool:
                                   "table", "metrics", "chart", "figure",
                                   "divider", "toggle", "button", "gallery",
                                   "component"})
+    # ADR-539 D1 — `group` left the rows (it is DERIVED from `cites` via
+    # block_group), and every row declares its behavior: tier / elements /
+    # promote / convertible / cites, no defaults.
+    from services.studio import block_group
     for kind, b in STUDIO_BLOCKS.items():
-        _check(f"block '{kind}': label/group/description/markup complete",
-               all(b.get(k) for k in ("label", "group", "description", "markup")))
-        _check(f"block '{kind}': group valid", b.get("group") in ("content", "data", "media"))
+        _check(f"block '{kind}': label/description/markup complete",
+               all(b.get(k) for k in ("label", "description", "markup")))
+        _check(f"block '{kind}': derived group valid",
+               block_group(b) in ("content", "data", "media"))
+        _check(f"block '{kind}': declares behavior (ADR-539 D1)",
+               b.get("tier") in ("text", "object")
+               and b.get("cites") in ("none", "source", "picture")
+               and isinstance(b.get("convertible"), bool)
+               and isinstance(b.get("promote"), bool)
+               and isinstance(b.get("elements"), tuple) and len(b["elements"]) > 0)
         _check(f"block '{kind}': markup teaches the annotation spec",
                f'data-block="{kind}"' in b["markup"] and "data-block-id=" in b["markup"])
     # ADR-538 D2 — chart's citation re-points from `./assets/*.svg` (a PICTURE

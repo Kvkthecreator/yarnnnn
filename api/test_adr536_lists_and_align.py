@@ -142,10 +142,13 @@ t("D1: TEXT_BLOCK_KINDS carries both — a list is typed IN, never select-only",
                     re.search(r"TEXT_BLOCK_KINDS\s*=\s*\[(.*?)\]",
                               PROJECTION_CODE, re.DOTALL).group(1))))
 
-_turn = re.search(r"TURN_INTO_KINDS\s*=\s*\[(.*?)\]", DESIGN_TAB_CODE, re.DOTALL)
-t("D1: TURN_INTO_KINDS carries both — one list, two mounts (pane + right-click)",
-  _turn is not None
-  and {"'list'", "'numbered'"} <= set(re.findall(r"'[a-z]+'", _turn.group(1))))
+# ADR-539 D2 re-cut: membership moved to the registry's `convertible` field;
+# the FE derives (TURN_INTO_KINDS deleted). Same invariant, declared home.
+from services.studio import STUDIO_BLOCKS as _blocks_539
+t("D1: the two list kinds are convertible — one declaration, two mounts",
+  _blocks_539["list"]["convertible"] is True
+  and _blocks_539["numbered"]["convertible"] is True
+  and "b.convertible" in DESIGN_TAB_CODE)
 
 
 # ── 4. convertBlock builds the LEGAL shape ────────────────────────────────

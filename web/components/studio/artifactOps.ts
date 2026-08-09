@@ -15,6 +15,7 @@
  */
 
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
+import { DEEPEST_RUNG, OUT_OF_RUNG_TAGS } from '../workspace/viewers/projection';
 
 function parse(html: string): Document {
   return new DOMParser().parseFromString(html, 'text/html');
@@ -322,8 +323,12 @@ export function editBlockText(
  *  Idempotent; content is never dropped; mutates `doc` in place. Returns the
  *  number of ids minted (0 = fully annotated already, the common case). */
 const PROMOTE_KIND: Record<string, string> = {
-  H1: 'heading', H2: 'heading', H3: 'heading', H4: 'heading',
-  H5: 'heading', H6: 'heading',
+  // ADR-539 D2/D4 — this map is a pinned projection of the registry's
+  // {elements × promote} declaration (the parity gate compares it against
+  // studio.py). H4–H6 LEFT the map: pass A0 below clamps them to the deepest
+  // declared rung BEFORE promotion runs, so a heading the vocabulary cannot
+  // speak never reaches the recognizer.
+  H1: 'heading', H2: 'heading', H3: 'heading',
   BLOCKQUOTE: 'quote', TABLE: 'table', FIGURE: 'figure',
   // ADR-536 D1 — UL/OL promote to their OWN kinds. They read `prose` until now
   // because no list kind existed to promote to, which is why a pasted list
@@ -346,6 +351,23 @@ export function normalizeStructure(doc: Document): number {
   const insideOwned = (el: Element): boolean =>
     !!el.parentElement?.closest('[data-block], [data-ref]');
   const isPage = (el: Element): boolean => el.matches(PAGE_SEL);
+
+  // Pass A0 — ADR-539 D4: intake clamps to the declared rung set. An
+  // out-of-rung heading (h4–h6) is renamed to the deepest spoken rung on the
+  // artifact's NEXT write — migration-by-use, never a sweep. This is the one
+  // pass that changes an element's TAG: content and attributes carry over
+  // whole, so nothing is dropped; only a rung the system never speaks (and
+  // whose blocks were therefore invisible to the outline, the crumb, and the
+  // lane) stops existing at the door. Runs before every other pass so
+  // promotion and the container walk see only in-rung headings.
+  for (const el of Array.from(root.querySelectorAll(OUT_OF_RUNG_TAGS.join(',')))) {
+    const clamped = doc.createElement(`h${DEEPEST_RUNG}`);
+    for (const name of el.getAttributeNames()) {
+      clamped.setAttribute(name, el.getAttribute(name) ?? '');
+    }
+    while (el.firstChild) clamped.appendChild(el.firstChild);
+    el.replaceWith(clamped);
+  }
 
   // Pass A — promotion, any depth. Snapshot first: promotion mutates the set.
   for (const el of Array.from(root.querySelectorAll(Object.keys(PROMOTE_KIND).join(',')))) {
@@ -513,7 +535,10 @@ export function convertBlock(
   if (block.getAttribute('data-block') === kind && block.tagName === shell.tagName) {
     return null;
   }
-  const units = Array.from(block.querySelectorAll('li, p, h1, h2, h3, h4, summary, cite'))
+  // ADR-539 — the harvest is deliberately WIDER than the rung set (h1–h6):
+  // it extracts text units losslessly from whatever markup exists, including
+  // a not-yet-normalized artifact still holding pre-clamp h5/h6 headings.
+  const units = Array.from(block.querySelectorAll('li, p, h1, h2, h3, h4, h5, h6, summary, cite'))
     .map((el) => (el.textContent ?? '').trim())
     .filter(Boolean);
   if (!units.length) {

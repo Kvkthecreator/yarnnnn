@@ -96,8 +96,11 @@ t(
   /const TEXT_KINDS_JS = JSON\.stringify\(TEXT_BLOCK_KINDS\)/.test(proj),
 );
 t(
+  // ADR-539 re-cut: the import line gained HEADING_RUNGS beside the list —
+  // the invariant is unchanged (the shared list is imported, never
+  // re-enumerated), so the pin matches the NAME, not the whole line.
   'D1: the pane imports the shared list rather than re-enumerating it',
-  /import \{ TEXT_BLOCK_KINDS \}/.test(pane) &&
+  /import \{[^}]*TEXT_BLOCK_KINDS[^}]*\} from '\.\.\/workspace\/viewers\/projection'/.test(pane) &&
     !/'prose',\s*'callout',\s*'quote'/.test(pane),
 );
 

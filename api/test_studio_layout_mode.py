@@ -251,11 +251,14 @@ def run() -> bool:
         "SLASH_EXCLUDED"
         not in (web / "components/studio/StudioSlashPalette.tsx").read_text(),
     )
+    # ADR-539 D2 re-cut: the picker set is DERIVED from the served `cites`
+    # field (the literal Set — which this gate pinned at its pre-ADR-538
+    # spelling and went stale — is deleted; that staleness is the argument).
     _check(
         "nothing stranded: picker-backed kinds route to the cited-file picker",
-        "PICKER_KINDS = new Set(['figure', 'table', 'gallery'])"
+        "cites === 'source'"
         in (web / "components/studio/StudioCitablePicker.tsx").read_text()
-        and "PICKER_KINDS.has(p.kind)"
+        and "kindCites(p.kind)"
         in (web / "components/studio/StudioSurface.tsx").read_text(),
     )
 

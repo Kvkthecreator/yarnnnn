@@ -166,8 +166,9 @@ def main() -> int:
         re.search(r"const items: BlockRowItem\[\] = vocabulary\?\.blocks \?\? \[\];", MENU) is not None,
     )
     _check(
+        # ADR-539 D2 re-cut: picker-backed is derived from the row's `cites`.
         "picker-backed + chart kinds route the SAME way from both doors",
-        "PICKER_KINDS.has(kind)" in SURFACE and "onInsertMenuPick" in SURFACE,
+        "kindCites(kind)" in SURFACE and "onInsertMenuPick" in SURFACE,
     )
     # The landing ops are the EXISTING ones — never a new write path (ADR-443 D2).
     pick = re.search(r"const onInsertMenuPick = useCallback\([\s\S]{0,2200}?\n  \);", SURFACE)

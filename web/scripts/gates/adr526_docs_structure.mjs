@@ -19,7 +19,11 @@ const t = (label, cond) => {
   cond ? pass++ : fail++;
 };
 
-// ── A tiny DOM good enough for querySelectorAll('h1, h2, h3') ──────────────
+// ── A tiny DOM whose querySelectorAll HONOURS the selector ─────────────────
+// (ADR-539 re-cut: the old mock returned `heads` regardless of the selector,
+// so the gate could not falsify the h4-invisible-to-the-outline defect the
+// 2026-08-09 audit found. The selector is now parsed and filtered — a heading
+// outside the rung set is genuinely unmatchable, exactly as in a browser.)
 function mkHeading(tag, id, text) {
   return {
     tagName: tag.toUpperCase(),
@@ -31,8 +35,14 @@ function mkHeading(tag, id, text) {
   };
 }
 function mkRoot(heads) {
-  return { querySelectorAll: () => heads };
+  return {
+    querySelectorAll: (sel) => {
+      const tags = String(sel).split(',').map((s) => s.trim().toUpperCase());
+      return heads.filter((h) => tags.includes(h.tagName));
+    },
+  };
 }
+const RUNGS = [1, 2, 3];
 
 // ── 1. D2 — the outline derivation, EXECUTED ──────────────────────────────
 const oi = proj.length && pane.indexOf('function walkOutline(root');
@@ -43,14 +53,28 @@ const runnable = outlineBody
   .replace(/const out: StructNode\[\] = \[\];/, 'const out = [];')
   .replace(/: Element \| null/g, '')
   .replace(/\bas [A-Za-z<>[\]]+/g, '');
-const walkOutline = new Function('root', runnable + '\nreturn out;');
+const walkOutline = new Function('root', 'rungs', runnable + '\nreturn out;');
 
 const heads = [
   mkHeading('h1', 'a1', 'Overview'),
   mkHeading('h2', 'b2', 'Pricing'),
   mkHeading('h3', 'c3', 'Enterprise'),
 ];
-const got = walkOutline(mkRoot(heads));
+const got = walkOutline(mkRoot(heads), RUNGS);
+
+// ADR-539 D3/D5 — the selector is DERIVED from the rung set. The audit's
+// screenshot defect: an h4 promoted to `heading` was invisible to this walk
+// while the pane called it "Heading". Executed both ways: out-of-rung is
+// excluded at [1,2,3], and widening the rungs admits it (derivation is live).
+const withH4 = heads.concat([mkHeading('h4', 'd4', 'Buried')]);
+t(
+  'ADR-539: an out-of-rung heading is EXCLUDED from the outline',
+  walkOutline(mkRoot(withH4), RUNGS).length === 3,
+);
+t(
+  'ADR-539 FALSIFIER: widening the rung set ADMITS it (selector derives)',
+  walkOutline(mkRoot(withH4), [1, 2, 3, 4]).length === 4,
+);
 t('D2: every heading becomes a row', got.length === 3);
 t('D2: document order is preserved', got.map((n) => n.blockId).join(',') === 'a1,b2,c3');
 t('D2: depth is the heading LEVEL (h1=0, h2=1, h3=2)', got.map((n) => n.depth).join(',') === '0,1,2');
@@ -61,17 +85,20 @@ t('D2: the id is carried (the row is addressable — clickable)', got[2].blockId
 // dead row; an empty heading names nothing.
 t(
   'D2: a heading with NO id is skipped (not addressable)',
-  walkOutline(mkRoot([mkHeading('h1', null, 'Ghost')])).length === 0,
+  walkOutline(mkRoot([mkHeading('h1', null, 'Ghost')]), RUNGS).length === 0,
 );
 t(
   'D2: an EMPTY heading is skipped (it names nothing)',
-  walkOutline(mkRoot([mkHeading('h1', 'x', '   ')])).length === 0,
+  walkOutline(mkRoot([mkHeading('h1', 'x', '   ')]), RUNGS).length === 0,
 );
 // FALSIFIER: dropping the id guard would emit an unclickable row.
 const noGuard = runnable.replace(/if \(!id\) continue;[^\n]*/, '');
 t(
   'FALSIFIER: without the id guard the ghost heading DOES emit a row',
-  new Function('root', noGuard + '\nreturn out;')(mkRoot([mkHeading('h1', null, 'Ghost')])).length === 1,
+  new Function('root', 'rungs', noGuard + '\nreturn out;')(
+    mkRoot([mkHeading('h1', null, 'Ghost')]),
+    RUNGS,
+  ).length === 1,
 );
 
 // ── 2. D2 — the outline is MOUNTED, flow-only, and reuses ContentsRows ─────
@@ -104,8 +131,11 @@ t(
   /tier: !node\.kind/.test(surface),
 );
 t(
-  'D2: the reach reads the SHARED kind list (no second copy of the rule)',
-  /TEXT_BLOCK_KINDS as readonly string\[\]/.test(surface),
+  // ADR-539 re-cut: the shared source is now the SERVED tier (kindTier reads
+  // the vocabulary row, falling back to the runtime's gate-pinned copy) — the
+  // same invariant, one rung deeper: still no second copy of the rule.
+  'D2: the reach reads the SHARED tier source (no second copy of the rule)',
+  /kindTier\(\s*vocabulary\?\.blocks/.test(surface),
 );
 t(
   'D2: the heading TAG is normalized to the vocabulary kind at the seam',

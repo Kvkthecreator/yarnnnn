@@ -26,7 +26,8 @@ import {
   ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
-import { TURN_INTO_KINDS, turnIntoTargets } from './StudioDesignTab';
+import { isConvertible, turnIntoTargets } from './StudioDesignTab';
+import { HEADING_RUNGS } from '../workspace/viewers/projection';
 
 export interface StudioBlockMenuProps {
   target: StudioContextTarget;
@@ -43,8 +44,11 @@ export interface StudioBlockMenuProps {
    *  runs — a second entrance, never a second write path (ADR-462 D1). */
   onTurnInto: (kind: string, label: string, fragment: string) => void;
   /** The served block vocabulary — the submenu resolves each legal kind's label
-   *  and insertion fragment from it, so the menu never restates the registry. */
-  blocks?: Array<{ kind: string; label: string; fragment: string }>;
+   *  and insertion fragment from it, so the menu never restates the registry.
+   *  ADR-539 D2: rows carry `convertible`; the menu reads it off the row. */
+  blocks?: Array<{ kind: string; label: string; fragment: string; convertible?: boolean }>;
+  /** ADR-539 D3 — the served rung set (falls back to the runtime's pinned copy). */
+  headingRungs?: number[];
   /** Move the block one position earlier in its flow — document order, and it
    *  says so. */
   onMoveUp: () => void;
@@ -132,7 +136,7 @@ const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete,
-  onTurnInto, blocks, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
+  onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
   onCopyLink, onHistory, onInsert, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
@@ -203,10 +207,12 @@ export function StudioBlockMenu({
   // targets. The menu cannot know the block's current TAG (the selection
   // message carries kind, not tag), so it passes null: the current level is
   // offered and lands as a convertBlock no-op, never a lie about capability.
+  // ADR-539 D2 — convertibility is read off the served row, not a hand-list;
+  // this menu and the pane now consult the SAME declaration by construction.
   const turnIntoKinds =
     hasBlock && target.blockKind && !target.dataRef
-      && TURN_INTO_KINDS.includes(target.blockKind)
-      ? turnIntoTargets(blocks ?? [], target.blockKind, null)
+      && isConvertible(blocks, target.blockKind)
+      ? turnIntoTargets(blocks ?? [], headingRungs ?? [...HEADING_RUNGS], target.blockKind, null)
       : [];
 
   // The canvas is an iframe: its coordinates are frame-local. The caller passes

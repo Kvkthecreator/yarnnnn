@@ -407,10 +407,13 @@ def main() -> bool:
         and surface.count("setCtxMenu(null)") >= 2,  # onPoint AND onPointClear
     )
     # ── ADR-479 D5: Turn into offers only what the op will accept ──────────
+    # ADR-539 D2 re-cut: the ONE legality source is the served `convertible`
+    # field, read through the shared isConvertible helper (the list is gone).
     _check(
-        "the submenu reads the ONE legality list (no copy to drift from)",
-        "import { TURN_INTO_KINDS, turnIntoTargets }" in menu_src
-        and "export const TURN_INTO_KINDS" in _read("web/components/studio/StudioDesignTab.tsx"),
+        "the submenu reads the ONE legality source (no copy to drift from)",
+        "import { isConvertible, turnIntoTargets }" in menu_src
+        and "isConvertible(blocks, target.blockKind)" in menu_src
+        and "export function isConvertible" in _read("web/components/studio/StudioDesignTab.tsx"),
     )
     _check(
         "it never offers a conversion on a CITATION (convertBlock refuses one, "
@@ -418,11 +421,14 @@ def main() -> bool:
         "!target.dataRef" in menu_src,
     )
     # (Re-pinned 2026-07-25: ADR-487 D1 moved the exclusion into the shared
-    #  turnIntoTargets builder — one list, two mounts, one legality rule.)
+    #  turnIntoTargets builder — one list, two mounts, one legality rule.
+    #  Re-pinned again by ADR-539 D2: the builder derives from the served
+    #  rows and takes the rung set as an argument.)
     _check(
         "…nor the kind the block already IS (a no-op row is noise)",
-        "turnIntoTargets(blocks ?? [], target.blockKind, null)" in menu_src
-        and "if (k === currentKind) continue;"
+        "turnIntoTargets(blocks ?? [], headingRungs ?? [...HEADING_RUNGS], target.blockKind, null)"
+        in menu_src
+        and "if (b.kind === currentKind) continue;"
         in _read("web/components/studio/StudioDesignTab.tsx"),
     )
     _check(

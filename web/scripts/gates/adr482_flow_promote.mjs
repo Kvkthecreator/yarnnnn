@@ -101,11 +101,16 @@ function run(bodySrc, root) {
     createElement: (t) => El(t),
     querySelectorAll: (sel) => root._walk(matcher(sel), root.matches(sel) ? [root] : []),
   };
-  const fn = new Function('doc', 'freshBlockId', 'Node',
+  // ADR-539 D4 grew normalizeStructure a clamp pass that reads the module's
+  // rung constants — a grown function grows its harness dependencies (the
+  // adr484 lesson), so they are injected here. The scenes hold no h4–h6, so
+  // the clamp loop is a no-op in every scene; its behavior is gated by
+  // adr539_vocabulary_derivations.mjs + the Python parity gate.
+  const fn = new Function('doc', 'freshBlockId', 'Node', 'OUT_OF_RUNG_TAGS', 'DEEPEST_RUNG',
     'const CSS = { escape: (s) => s };\n' + bodySrc);
   let n = 0;
   const freshBlockId = () => `gen${++n}`;
-  return fn(doc, freshBlockId, { DOCUMENT_POSITION_FOLLOWING: 4 });
+  return fn(doc, freshBlockId, { DOCUMENT_POSITION_FOLLOWING: 4 }, ['H4', 'H5', 'H6'], 3);
 }
 
 let pass = 0, fail = 0;

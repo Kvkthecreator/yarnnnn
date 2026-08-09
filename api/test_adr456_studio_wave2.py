@@ -86,8 +86,11 @@ def run() -> bool:
     _check("the palette lists EVERY kind (ADR-466 D4 — no excluded set)",
            "SLASH_EXCLUDED" not in palette
            and "vocabulary?.blocks ?? []" in palette)
+    # ADR-539 D2 re-cut: picker-backed is DERIVED from the served row's
+    # `cites` field (PICKER_KINDS deleted) — the route test follows the rule.
     _check("picker-backed kinds route to the cited-file picker at the point",
-           "PICKER_KINDS.has(p.kind)" in surface
+           "kindCites(p.kind)" in surface
+           and "!== 'none'" in surface
            and "setCitePicker" in surface
            and "StudioCitablePicker" in surface)
     _check("empty block CONVERTS in place; non-empty inserts after",
@@ -105,18 +108,18 @@ def run() -> bool:
     _check("convertBlock refuses citations + no-ops same-kind",
            "block.querySelector('[data-ref]')" in ops
            and "block.getAttribute('data-block') === kind" in ops)
-    # Assert MEMBERSHIP, never the literal spelling of the array. The old form
-    # pinned "'prose', 'heading', …" as one string, so re-formatting the list
-    # across lines broke a gate that had no opinion about formatting — and
-    # ADR-536 D1's two additions could not be expressed at all. Parse the
-    # array and check the set.
-    _turn = re.search(r"TURN_INTO_KINDS\s*=\s*\[(.*?)\]", design, re.DOTALL)
-    _check("Design tab: Turn into, text kinds only (+ heading per ADR-487 D1, "
+    # ADR-539 D2 re-cut: the Turn-into membership is DECLARED in the registry
+    # (`convertible`) and DERIVED in the FE (TURN_INTO_KINDS deleted). Assert
+    # the declaration carries the legal set, and the FE filters by it.
+    from services.studio import STUDIO_BLOCKS as _blocks_539
+    _check("registry: Turn into = text kinds only (+ heading per ADR-487 D1, "
            "+ ADR-536 D1 the two list kinds)",
-           _turn is not None
-           and set(re.findall(r"'([a-z]+)'", _turn.group(1)))
+           {k for k, b in _blocks_539.items() if b["convertible"]}
            == {"prose", "heading", "callout", "quote", "list", "numbered",
-               "checklist", "toggle"}
+               "checklist", "toggle"})
+    _check("Design tab: Turn into derives from the served `convertible` field",
+           "b.convertible" in design
+           and "isConvertible(" in design
            and "onTurnInto" in design)
     _check("surface routes turn-into through the one door (applyOp)",
            "handleTurnInto" in surface

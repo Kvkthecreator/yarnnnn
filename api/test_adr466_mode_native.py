@@ -89,11 +89,13 @@ def run() -> bool:
     # ── D4: insert located, no exceptions ────────────────────────────────
     picker = (web / "components/studio/StudioCitablePicker.tsx").read_text()
     palette = (web / "components/studio/StudioSlashPalette.tsx").read_text()
+    # ADR-539 D2 re-cut: the picker's membership is derived from the served
+    # `cites` field; the list constants are deleted.
     _check(
         "the palette lists every kind; the picker is its host for cited kinds",
         "SLASH_EXCLUDED" not in palette
-        and "PICKER_KINDS" in picker
-        and "PICKER_KINDS.has(p.kind)" in surface,
+        and "cites === 'source'" in picker
+        and "kindCites(p.kind)" in surface,
     )
     _check(
         "Media ▾ and the implicit caret-anchor are gone",

@@ -47,9 +47,6 @@ import { useFileLoad } from '@/components/workspace/useFileLoad';
 import {
   resolveArtifactHtml,
   projectBlock,
-  // ADR-525 D1 / ADR-526 D2 — the ONE text-kind list, shared with the runtime
-  // that declares the tier. Imported so a parent-side reach cannot drift.
-  TEXT_BLOCK_KINDS,
 } from '@/components/workspace/viewers/projection';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
@@ -58,7 +55,7 @@ import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { StudioCanvas, type PointerEvent2, type StudioContextTarget } from './StudioCanvas';
 import { StudioBlockMenu } from './StudioBlockMenu';
 import { StudioBlockInsertMenu } from './StudioBlockInsertMenu';
-import { StudioCitablePicker, PICKER_KINDS } from './StudioCitablePicker';
+import { StudioCitablePicker } from './StudioCitablePicker';
 import { StudioSlashPalette } from './StudioSlashPalette';
 import {
   StudioToolbar,
@@ -66,7 +63,9 @@ import {
   type StudioSelection,
   type StudioVocabulary,
 } from './StudioToolbar';
-import { StudioDesignTab, type StructVerb } from './StudioDesignTab';
+// ADR-539 D1 — kindTier reads the served tier (falling back to the runtime's
+// pinned copy), so a parent-side reach and the pane consult one declaration.
+import { StudioDesignTab, kindTier, type StructVerb } from './StudioDesignTab';
 import { StudioShareExport } from './StudioShareExport';
 import { PagedNavigator } from './PagedNavigator';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
@@ -2233,11 +2232,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // picker at the palette's own anchor. The pick then lands a CITED block where
   // the member was pointing (Media ▾ retired with this).
   const [citePicker, setCitePicker] = useState<{
-    kind: 'figure' | 'table' | 'gallery' | 'chart';
+    // ADR-539 D2 — the kind is a served string and `cites` rides beside it,
+    // derived from the vocabulary row at the set site. The old hardcoded
+    // union + PICKER_KINDS/CSV_KINDS memberships (five spellings of one set,
+    // per the audit) are deleted: a kind opens this picker iff its row
+    // declares a citation, and the citable list follows the citation's kind.
+    kind: string;
+    cites: 'source' | 'picture';
     left: number;
     top: number;
     ctx: { blockId: string; beforeInner: string | null; afterInner: string | null; empty: boolean };
   } | null>(null);
+
+  /** ADR-539 D1 — what this kind CITES, read off the served row. */
+  const kindCites = useCallback(
+    (kind: string): 'none' | 'source' | 'picture' =>
+      vocabulary?.blocks.find((b) => b.kind === kind)?.cites ?? 'none',
+    [vocabulary],
+  );
 
   // Land a fragment at a LOCATED insertion context (the caret/slash point):
   // an empty block is replaced (insert-after + delete — one revision; headings
@@ -2353,12 +2365,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       setInsertMenu(null);
       if (!t) return;
       // (ADR-538 D2 — the `chart` branch that seeded "author an SVG chart at
-      // ./assets/…" is DELETED. A chart cites DATA now, so it is picker-backed
-      // like table: PICKER_KINDS carries it and the block below opens the CSV
-      // list. Singular Implementation — no seeding path kept beside the pick.)
-      if (PICKER_KINDS.has(kind)) {
+      // ./assets/…" is DELETED. A chart cites DATA now. ADR-539 D2 — a kind
+      // is picker-backed iff its served row declares a citation; no list.)
+      const menuCites = kindCites(kind);
+      if (menuCites !== 'none') {
         setCitePicker({
-          kind: kind as 'figure' | 'table' | 'gallery' | 'chart',
+          kind,
+          cites: menuCites,
           left: t.x,
           top: t.y,
           // An empty ctx blockId means "not a located caret pick" — the cite
@@ -2388,10 +2401,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       pendingPick.current = null;
       if (!p) return;
       // (ADR-538 D2 — the chart-seeds-an-SVG branch is deleted here too; the
-      // slash route reaches the same CSV picker as the palette route.)
-      if (PICKER_KINDS.has(p.kind)) {
+      // slash route reaches the same CSV picker as the palette route.
+      // ADR-539 D2 — picker-backed iff the served row declares a citation.)
+      const slashCites = kindCites(p.kind);
+      if (slashCites !== 'none') {
         setCitePicker({
-          kind: p.kind as 'figure' | 'table' | 'gallery' | 'chart',
+          kind: p.kind,
+          cites: slashCites,
           left: p.left,
           top: p.top,
           ctx: { blockId, beforeInner, afterInner, empty: p.empty },
@@ -2687,9 +2703,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         tier: !node.kind
           ? 'structure'
           : layoutMode === 'flow' &&
-              (TEXT_BLOCK_KINDS as readonly string[]).includes(
+              kindTier(
+                vocabulary?.blocks,
                 /^h[1-6]$/.test(node.kind) ? 'heading' : node.kind,
-              )
+              ) === 'text'
             ? 'text'
             : 'object',
       });
@@ -3209,6 +3226,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               {citePicker && (
                 <StudioCitablePicker
                   kind={citePicker.kind}
+                  cites={citePicker.cites}
                   left={citePicker.left}
                   top={citePicker.top}
                   onPickOne={onCitePickOne}
@@ -3237,6 +3255,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onDelete={() => handleBlockVerb('delete')}
                   onTurnInto={menuTurnInto}
                   blocks={vocabulary?.blocks}
+                  headingRungs={vocabulary?.heading_rungs}
                   onMoveUp={() => handleBlockVerb('up')}
                   onMoveDown={() => handleBlockVerb('down')}
                   onBringForward={() => {

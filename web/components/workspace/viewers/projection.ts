@@ -393,6 +393,24 @@ export const TEXT_BLOCK_KINDS = [
 ] as const;
 const TEXT_KINDS_JS = JSON.stringify(TEXT_BLOCK_KINDS);
 
+// ADR-539 D3 — the heading rung set, the FE's ONE static copy of the kernel's
+// declaration (studio.py HEADING_RUNGS), pinned to it by the parity gate.
+// React-land consumers prefer the SERVED `heading_rungs` and fall back to
+// this; the runtime template and the normalize seam interpolate it directly
+// because they are assembled at module scope, before any fetch exists.
+export const HEADING_RUNGS = [1, 2, 3] as const;
+/** The deepest spoken rung — what an out-of-rung heading clamps TO (D4). */
+export const DEEPEST_RUNG = Math.max(...HEADING_RUNGS);
+/** The tags OUTSIDE the rung set — what the intake seams clamp (D4). */
+export const OUT_OF_RUNG_TAGS = [1, 2, 3, 4, 5, 6]
+  .filter((r) => !(HEADING_RUNGS as readonly number[]).includes(r))
+  .map((r) => `H${r}`);
+const HEADING_ANCHOR_SEL_JS = JSON.stringify(
+  HEADING_RUNGS.map((r) => `h${r}[data-block-id]`).join(', '),
+);
+const OUT_OF_RUNG_TAGS_JS = JSON.stringify(OUT_OF_RUNG_TAGS);
+const DEEPEST_RUNG_TAG_JS = JSON.stringify(`h${DEEPEST_RUNG}`);
+
 // ── ADR-481 D2/D3: the FLOW pointer chrome ────────────────────────────────
 //
 // A from-scratch cue set for a continuous writing surface, derived from
@@ -679,7 +697,10 @@ const POINTER_SCRIPT = `
     if (!blk) return null;
     // The block itself is the heading — no walk needed.
     if (/^h[1-6]$/i.test(blk.tagName || '')) return blk;
-    var heads = document.querySelectorAll('h1[data-block-id], h2[data-block-id]');
+    // ADR-539 D3 — the anchor set is BUILT from the declared rungs. This read
+    // h1/h2 only until 2026-08-09, so an h3 heading (offered by the ramp,
+    // shown in the outline) was invisible to the crumb and the AI focus line.
+    var heads = document.querySelectorAll(${HEADING_ANCHOR_SEL_JS});
     if (!heads.length) return null;
     var best = null;
     for (var i = 0; i < heads.length; i++) {
@@ -2383,6 +2404,12 @@ const EDIT_SCRIPT = `
     // no meaning of its own — on a FOREIGN paste every attribute is still
     // stripped, so a foreign span arrives as a bare, styleless wrapper.
     SPAN: 1 };
+  // ADR-539 D4 — the out-of-rung heading tags and the rung they clamp to,
+  // interpolated from the module's HEADING_RUNGS (the kernel's one declaration).
+  // H4–H6 stay in PASTE_ALLOW above only so they are never UNWRAPPED before
+  // the clamp in scrub() renames them.
+  var OUT_OF_RUNG = ${OUT_OF_RUNG_TAGS_JS};
+  var DEEPEST_RUNG_TAG = ${DEEPEST_RUNG_TAG_JS};
 
   // ADR-526 D4 — the substrate attributes an INTERNAL paste keeps. The ADR-521
   // D5 allowlist strips every attribute but href, which is exactly right for
@@ -2429,6 +2456,21 @@ const EDIT_SCRIPT = `
         var el = kids[i];
         if (PASTE_DROP[el.tagName]) { parent.removeChild(el); continue; }
         scrub(el);
+        // ADR-539 D4 — intake clamps to the declared rung set: a pasted
+        // heading below the deepest spoken rung arrives AS the deepest rung
+        // (h4–h6 → h3). The vocabulary speaks three rungs; admitting a fourth
+        // here is how a block the pane called "Heading" was invisible to the
+        // outline, the crumb, and the lane in the same instant.
+        if (OUT_OF_RUNG.indexOf(el.tagName) !== -1) {
+          var clampedEl = doc.createElement(DEEPEST_RUNG_TAG);
+          var catts = Array.prototype.slice.call(el.attributes);
+          for (var ci = 0; ci < catts.length; ci++) {
+            clampedEl.setAttribute(catts[ci].name, catts[ci].value);
+          }
+          while (el.firstChild) clampedEl.appendChild(el.firstChild);
+          parent.replaceChild(clampedEl, el);
+          el = clampedEl;
+        }
         if (!PASTE_ALLOW[el.tagName]) {
           // Unwrap: the wrapper dies, its (already-scrubbed) children stay.
           while (el.firstChild) parent.insertBefore(el.firstChild, el);

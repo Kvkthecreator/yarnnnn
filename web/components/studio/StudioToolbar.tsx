@@ -73,10 +73,21 @@ export interface StudioVocabulary {
     kind: string;
     label: string;
     description: string;
+    /** ADR-539 D1 — DERIVED server-side from `cites`; a display facet only. */
     group: string;
     fragment: string;
     apps?: string[] | null;
+    /** ADR-539 D1 — the behavior fields. The registry declares; every surface
+     *  derives from these instead of keeping a hand-list (the audit found five
+     *  spellings of the picker set and two kind lists doing this job). */
+    tier: 'text' | 'object';
+    convertible: boolean;
+    cites: 'none' | 'source' | 'picture';
   }>;
+  /** ADR-539 D3 — the heading rung set, declared once in the kernel. The
+   *  outline walk, the Typography ramp, and the turn-into levels all read
+   *  this; the runtime's static copy is pinned to it by the parity gate. */
+  heading_rungs: number[];
   layouts: Array<{ slug: string; label: string; description: string; mode: 'flow' | 'paged' }>;
   arrangements: Record<string, StudioArrangement[]>;
   tokens: StudioToken[];

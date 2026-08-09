@@ -18,17 +18,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
-/** The picker-backed kinds — the ones whose palette pick opens THIS panel
- *  instead of dropping a fragment.
- *
- *  ADR-538 D2 — `chart` JOINED this set. It used to seed the lane with "author
- *  an SVG chart at ./assets/…", which is the very model the ADR withdrew: a
- *  chart now cites its DATA, so inserting one is picking a CSV, exactly as
- *  `table` already is. */
-export const PICKER_KINDS = new Set(['figure', 'table', 'gallery', 'chart']);
-
-/** Kinds whose citable list is the workspace's CSVs (not its images). */
-const CSV_KINDS = new Set(['table', 'chart']);
+// ADR-539 D2 — the kind lists are GONE (PICKER_KINDS / CSV_KINDS were two of
+// the audit's five spellings of one set). The surface derives both facts from
+// the served vocabulary's `cites` field — a kind opens this picker iff its
+// row declares a citation, and the citable list follows the citation's kind
+// (source → the workspace's CSVs, picture → its images) — and passes the
+// answer down as the `cites` prop. (ADR-538 D2's chart-joins-the-picker
+// reasoning is preserved: chart's row declares cites="source".)
 
 interface CitableItem {
   path: string;
@@ -48,7 +44,10 @@ function baseName(p: string): string {
 }
 
 interface StudioCitablePickerProps {
-  kind: 'figure' | 'table' | 'gallery' | 'chart';
+  kind: string;
+  /** ADR-539 D2 — what the kind CITES, read off its served row by the caller:
+   *  'source' lists the workspace's CSVs; 'picture' lists its images. */
+  cites: 'source' | 'picture';
   /** Anchor within the canvas wrapper (the palette's own position). */
   left: number;
   top: number;
@@ -59,6 +58,7 @@ interface StudioCitablePickerProps {
 
 export function StudioCitablePicker({
   kind,
+  cites,
   left,
   top,
   onPickOne,
@@ -76,7 +76,7 @@ export function StudioCitablePicker({
     api.studio
       .citable()
       .then((c) => {
-        if (live) setItems(CSV_KINDS.has(kind) ? c.tables : c.images);
+        if (live) setItems(cites === 'source' ? c.tables : c.images);
       })
       .catch(() => {
         if (live) setItems([]);
@@ -84,7 +84,7 @@ export function StudioCitablePicker({
     return () => {
       live = false;
     };
-  }, [kind]);
+  }, [cites]);
 
   // Click-away (parent document), Escape, and the canvas's bridged in-frame
   // press (the iframe boundary is opaque to the document listener).
@@ -133,7 +133,7 @@ export function StudioCitablePicker({
       )}
       {items != null && items.length === 0 && (
         <p className="p-3 text-xs text-muted-foreground">
-          {CSV_KINDS.has(kind)
+          {cites === 'source'
             ? 'No CSV files in the workspace yet.'
             : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
         </p>

@@ -215,10 +215,12 @@ async def get_vocabulary(auth: UserClient) -> dict:
     Design tab's document scope). Grammar, not schema."""
     from services.design_systems import find_design_systems, read_default_design_system
     from services.studio import (
+        HEADING_RUNGS,
         MEDIA_BLOCK_KINDS,
         STUDIO_ARRANGEMENTS,
         STUDIO_BLOCKS,
         STUDIO_KERNEL_CSS_VERSION,
+        block_group,
         # Underscore-named but module-canonical: it is the ONE scaffold-title
         # set, maintained by register_layouts across every app's registration
         # (ADR-518 D3), so it is not renamed for a second reader.
@@ -257,6 +259,11 @@ async def get_vocabulary(auth: UserClient) -> dict:
             for k, m in STUDIO_MEASURES.items()
         ],
         "media_kinds": sorted(MEDIA_BLOCK_KINDS),
+        # ADR-539 D3 — the heading rung set, declared once in the kernel and
+        # served so the outline walk, the Typography ramp, and the turn-into
+        # levels all read ONE answer to "which heading levels exist". At audit
+        # the system carried four different answers across eight sites.
+        "heading_rungs": list(HEADING_RUNGS),
         # ADR-483 — the scaffolded titles, so the FE's name-lift can apply the
         # SAME placeholder guard the server does (`artifact_name` falls through
         # to the folder when the <title> is still a scaffold). NOT derivable
@@ -276,8 +283,18 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 "kind": k,
                 "label": b["label"],
                 "description": b["description"],
-                "group": b["group"],
+                # ADR-539 D1 — group is DERIVED from what the kind cites; the
+                # wire shape is unchanged but the value can no longer disagree
+                # with the citation (the ADR-538 chart/metrics mis-filing class).
+                "group": block_group(b),
                 "fragment": b["markup"],
+                # ADR-539 D1/D2 — the behavior fields, served so the FE derives
+                # instead of enumerating: tier (caret vs box on flow, the
+                # ADR-525 taxonomy), convertible (Turn-into membership), cites
+                # (none|source|picture — picker routing and group derivation).
+                "tier": b["tier"],
+                "convertible": b["convertible"],
+                "cites": b["cites"],
                 # ADR-528 D5 — which apps offer this kind. Absent in the row =
                 # every app, served as null so the FE tests one field rather
                 # than distinguishing "missing" from "empty". The endpoint has

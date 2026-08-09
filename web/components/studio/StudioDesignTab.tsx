@@ -75,7 +75,7 @@ import { resolveSkinVar, skinVarMap } from './skinVars';
 // ADR-525 D1 — the ONE text-kind list, shared with the projection runtime that
 // declares the tier. Imported rather than re-enumerated so the pane's fallback
 // cannot drift from the runtime's rule.
-import { TEXT_BLOCK_KINDS } from '../workspace/viewers/projection';
+import { HEADING_RUNGS, TEXT_BLOCK_KINDS } from '../workspace/viewers/projection';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -89,24 +89,37 @@ const PAGE_SEL = STRUCTURAL_PAGE_SEL; // ADR-511 Phase 2 — the one structural 
  *  ADR-487 D1: `heading` joins — the old exclusion ("headings anchor pages")
  *  was about the re-arrange sweep, which stays; it never needed to make
  *  headings unconvertible. */
-export const TURN_INTO_KINDS = [
-  'prose',
-  'heading',
-  'callout',
-  'quote',
-  'list',
-  'numbered',
-  'checklist',
-  'toggle',
-];
+/** ADR-539 D2 — the Turn-into set is DERIVED from the served vocabulary's
+ *  `convertible` field, never enumerated here. The old `TURN_INTO_KINDS`
+ *  hand-list is deleted: it was one of the shadow registries the audit found
+ *  (a new kind joined it by editing a second file, or — as ADR-538's
+ *  `component` proved — silently didn't). */
+export function isConvertible(
+  blocks: Array<{ kind: string; convertible?: boolean }> | null | undefined,
+  kind: string | null | undefined,
+): boolean {
+  if (!kind) return false;
+  return blocks?.find((b) => b.kind === kind)?.convertible === true;
+}
 
-/** The heading rungs (ADR-487 D1) — the tag carries the level; the kernel
- *  sizes each from the type scale, so the rungs are design-system-fed. */
-export const HEADING_LEVELS: Array<{ tag: string; label: string }> = [
-  { tag: 'h1', label: 'Heading 1' },
-  { tag: 'h2', label: 'Heading 2' },
-  { tag: 'h3', label: 'Heading 3' },
-];
+/** ADR-539 D1 — a kind's tier, read from the served vocabulary. Falls back to
+ *  the runtime's static copy (pinned to the registry by the parity gate) only
+ *  while the vocabulary has not loaded yet. */
+export function kindTier(
+  blocks: Array<{ kind: string; tier?: 'text' | 'object' }> | null | undefined,
+  kind: string | null | undefined,
+): 'text' | 'object' | null {
+  if (!kind) return null;
+  const served = blocks?.find((b) => b.kind === kind)?.tier;
+  if (served) return served;
+  return (TEXT_BLOCK_KINDS as readonly string[]).includes(kind) ? 'text' : 'object';
+}
+
+/** ADR-539 D3 — the heading rungs, derived from the served `heading_rungs`
+ *  (the kernel's one declaration; the tag carries the level, ADR-487 D1). */
+export function headingLevels(rungs: number[]): Array<{ tag: string; label: string }> {
+  return rungs.map((r) => ({ tag: `h${r}`, label: `Heading ${r}` }));
+}
 
 /** Build the Turn-into target list (ONE list, two mounts — the Design tab and
  *  the right-click submenu). `heading` expands to its three level targets
@@ -115,14 +128,19 @@ export const HEADING_LEVELS: Array<{ tag: string; label: string }> = [
  *  tag passes null — clicking the current level is a convertBlock no-op, not
  *  a lie. */
 export function turnIntoTargets(
-  blocks: Array<{ kind: string; label: string; fragment: string }>,
+  blocks: Array<{ kind: string; label: string; fragment: string; convertible?: boolean }>,
+  headingRungs: number[],
   currentKind: string | null,
   currentTag: string | null,
 ): Array<{ key: string; kind: string; label: string; fragment: string }> {
   const out: Array<{ key: string; kind: string; label: string; fragment: string }> = [];
-  for (const k of TURN_INTO_KINDS) {
-    if (k === 'heading') {
-      for (const lvl of HEADING_LEVELS) {
+  // ADR-539 D2: iterate the SERVED roster (already app-scoped at the load
+  // chokepoint) and take what declares itself convertible — registry order is
+  // the offer order. No membership list lives on this side of the wire.
+  for (const b of blocks) {
+    if (!b.convertible) continue;
+    if (b.kind === 'heading') {
+      for (const lvl of headingLevels(headingRungs)) {
         if (currentKind === 'heading' && currentTag?.toLowerCase() === lvl.tag) continue;
         out.push({
           key: `heading-${lvl.tag}`,
@@ -133,9 +151,8 @@ export function turnIntoTargets(
       }
       continue;
     }
-    if (k === currentKind) continue;
-    const b = blocks.find((vb) => vb.kind === k);
-    if (b) out.push({ key: k, kind: b.kind, label: b.label, fragment: b.fragment });
+    if (b.kind === currentKind) continue;
+    out.push({ key: b.kind, kind: b.kind, label: b.label, fragment: b.fragment });
   }
   return out;
 }
@@ -382,13 +399,14 @@ function StyleSelect({
 }
 
 /** The Typography ramp rows (ADR-487 D3 v2) — the tag IS the rung. Order is
- *  the ramp's (largest first), Text closing it, the Figma reading. */
-const TEXT_STYLE_ROWS: Array<{ key: string; label: string }> = [
-  { key: 'h1', label: 'Heading 1' },
-  { key: 'h2', label: 'Heading 2' },
-  { key: 'h3', label: 'Heading 3' },
-  { key: 'p', label: 'Text' },
-];
+ *  the ramp's (largest first), Text closing it, the Figma reading.
+ *  ADR-539 D3 — DERIVED from the served rung set, never enumerated. */
+function textStyleRows(rungs: number[]): Array<{ key: string; label: string }> {
+  return [
+    ...rungs.map((r) => ({ key: `h${r}`, label: `Heading ${r}` })),
+    { key: 'p', label: 'Text' },
+  ];
+}
 
 /** The `font` token (ADR-455 + D4 face slots) as a visual select — ADR-487 D9.
  *
@@ -932,12 +950,18 @@ function walkContents(root: Element): StructNode[] {
  *  Emits StructNode so the EXISTING ContentsRows renders it (one row component,
  *  two mounts — the ADR-520 D4 pattern). `depth` is the heading LEVEL, so h2
  *  indents under h1 without any wrapper existing. */
-function walkOutline(root: Element | null): StructNode[] {
+function walkOutline(root: Element | null, rungs: number[]): StructNode[] {
   if (!root) return [];
   const out: StructNode[] = [];
+  // ADR-539 D5 — the outline is ONE rule: a heading whose rung is in the
+  // served set, holding a data-block-id, with nonempty text. The selector is
+  // BUILT from the declared rungs; until 2026-08-09 this walked a hardcoded
+  // 'h1, h2, h3' while promotion admitted h1–h6, which is how a block the
+  // pane named "Heading" was invisible to the outline it stood in.
   // Document order, any depth: a heading inside a list or a callout still
   // belongs to the outline. querySelectorAll is already document-ordered.
-  for (const h of Array.from(root.querySelectorAll('h1, h2, h3'))) {
+  const sel = rungs.map((r) => `h${r}`).join(', ');
+  for (const h of Array.from(root.querySelectorAll(sel))) {
     const id = h.getAttribute('data-block-id');
     if (!id) continue; // un-normalized (never written since ADR-511) — not addressable
     const text = (h.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -945,7 +969,7 @@ function walkOutline(root: Element | null): StructNode[] {
     out.push({
       blockId: id,
       label: text.slice(0, 60),
-      kind: h.tagName.toLowerCase(), // h1|h2|h3 — the level IS the kind here
+      kind: h.tagName.toLowerCase(), // the rung tag — the level IS the kind here
       depth: Number(h.tagName[1]) - 1,
       text: '',
     });
@@ -1138,9 +1162,7 @@ export function StudioDesignTab({
    *  block kind cannot make the two disagree. */
   const isTextTier = selection
     ? (selection.tier ??
-        (mode === 'flow' &&
-        selection.blockKind &&
-        (TEXT_BLOCK_KINDS as readonly string[]).includes(selection.blockKind)
+        (mode === 'flow' && kindTier(vocabulary?.blocks, selection.blockKind) === 'text'
           ? 'text'
           : 'object')) === 'text'
     : false;
@@ -1220,6 +1242,9 @@ export function StudioDesignTab({
 
   const tokens = vocabulary?.tokens ?? [];
   const mediaKinds = vocabulary?.media_kinds ?? [];
+  // ADR-539 D3 — the kernel's declared rung set; the static fallback is the
+  // runtime's copy, pinned to the registry by the parity gate.
+  const rungs = vocabulary?.heading_rungs ?? [...HEADING_RUNGS];
   const arrangements = vocabulary?.arrangements?.[layout] ?? [];
   /** The layout's composition mode, read from the SERVED kernel row (ADR-466).
    *
@@ -1326,8 +1351,10 @@ export function StudioDesignTab({
    *  a third view there would be the "second structure tree" ADR-520 D5
    *  refused. Flow has neither, which is the whole gap this closes. */
   const outline = useMemo(
-    () => (mode === 'flow' ? walkOutline(doc?.body ?? null) : []),
-    [doc, mode],
+    () => (mode === 'flow' ? walkOutline(doc?.body ?? null, rungs) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rungs is served
+    // kernel state; its identity changes only with the vocabulary fetch.
+    [doc, mode, rungs.join()],
   );
   const pathRow =
     // ADR-528 D2: pathRow is a PAGE_SEL ancestry chain — structurally never
@@ -1408,12 +1435,13 @@ export function StudioDesignTab({
    *  (prose/heading) the Typography select OWNS the ramp, so this list carries
    *  only the STRUCTURAL targets; structural kinds keep the full list. */
   const turnIntoSection =
-    selection?.blockKind && TURN_INTO_KINDS.includes(selection.blockKind) ? (
+    selection?.blockKind && isConvertible(vocabulary?.blocks, selection.blockKind) ? (
       <div className={SECTION}>
         <p className={HEADING}>Turn into</p>
         <div className="flex flex-wrap gap-1">
           {turnIntoTargets(
             vocabulary?.blocks ?? [],
+            rungs,
             selection.blockKind,
             selectedEl?.tagName ?? null,
           )
@@ -1737,17 +1765,20 @@ export function StudioDesignTab({
     (selection.blockKind === 'prose' || selection.blockKind === 'heading')
       ? (() => {
           const tag = selectedEl?.tagName?.toLowerCase() ?? null;
+          const rows = textStyleRows(rungs);
+          const rungTags = rungs.map((r) => `h${r}`);
           const curTag =
-            selection.blockKind === 'heading' && tag && ['h1', 'h2', 'h3'].includes(tag)
-              ? tag
-              : 'p';
-          const AG_SCALE: Record<string, number> = { h1: 18, h2: 16, h3: 14, p: 12 };
+            selection.blockKind === 'heading' && tag && rungTags.includes(tag) ? tag : 'p';
+          // Preview size per rung: the ramp descends 2px per rung from 18,
+          // Text at 12 — a preview scale, not the kernel's type scale.
+          const agSize = (t: string) =>
+            t === 'p' ? 12 : Math.max(12, 18 - 2 * (Number(t.slice(1)) - 1));
           const ag = (t: string) => (
             <span
               className="w-6 shrink-0 text-center leading-none"
               style={{
                 fontFamily: bodyFace,
-                fontSize: AG_SCALE[t] ?? 12,
+                fontSize: agSize(t),
                 fontWeight: t === 'p' ? 400 : 600,
               }}
             >
@@ -1755,16 +1786,14 @@ export function StudioDesignTab({
             </span>
           );
           const proseRow = vocabulary?.blocks.find((b) => b.kind === 'prose');
-          const curRow =
-            TEXT_STYLE_ROWS.find((r) => r.key === curTag) ??
-            TEXT_STYLE_ROWS[TEXT_STYLE_ROWS.length - 1];
+          const curRow = rows.find((r) => r.key === curTag) ?? rows[rows.length - 1];
           return (
             <div className={SECTION}>
               <StyleSelect
                 label="Typography"
                 description="The block's place on the type ramp — sized by the layout, themed by the design system"
                 current={{ preview: ag(curTag), label: curRow.label, detail: tagFontSize(curTag) }}
-                options={TEXT_STYLE_ROWS.map((r) => ({
+                options={rows.map((r) => ({
                   key: r.key,
                   preview: ag(r.key),
                   label: r.label,
