@@ -272,6 +272,23 @@ the write seam, not enforced).
   refused: the roster is scoped, and every door of an app offers all of its roster.
   Scoping never affects RECOGNITION — an existing callout in a document renders, edits,
   and keeps its text tier; it is an inert name (ADR-511 D8).
+  **A row DECLARES ITS BEHAVIOR** (ADR-539 D1): `tier` (text = caret on flow ·
+  object = box everywhere) · `elements` (the tags recognized as this kind) · `promote`
+  (may a bare tag be guessed into it — `checklist` is the argued False) · `convertible`
+  (Turn-into membership) · `cites` (none | source | picture — `group` is DERIVED from
+  this, so a kind's group and its citation structurally cannot disagree). Every offering
+  surface derives from the served row; the two structurally-static FE constants
+  (`TEXT_BLOCK_KINDS`, the promotion map) are pinned projections defended by the ADR-539
+  parity gate. **The diagnostic for a new kind**: what does it cite, what draws it, and
+  is a click on flow a caret or a box — all answered in its row, never in a second file.
+- **The heading rung set is ONE kernel constant** (ADR-539 D3/D4/D5): `HEADING_RUNGS =
+  (1, 2, 3)`, served as `heading_rungs`. The member outline, the AI outline, the crumb,
+  the Typography ramp and the turn-into levels all read it (at audit the system carried
+  four different answers across eight sites, which is how a block the pane called
+  "Heading" was invisible to the outline it stood in). **Intake clamps to it**: a pasted
+  or normalized h4–h6 arrives as h3 — migration-by-use, never a sweep. **The outline is
+  one rule**: a heading whose rung is in the set, holding a `data-block-id`, with
+  nonempty text.
 - **Arrangements are STARTER TEMPLATES** (ADR-511 D2): applying one is an authored
   transformation whose result is live, editable structure — selectable containers whose
   layout is CSS — never a frozen master. Role-aware content carry (media seeks media,
@@ -313,7 +330,12 @@ the write seam, not enforced).
     no pagination, no layout surface); mechanics are continuous-surface class (Google
     Docs / Word): text-tier affordances follow the selection wherever it runs;
     structure-tier affordances address the blocks the selection intersects. There is no
-    second selection mode.
+    second selection mode. **ADR-541 made the middle clause true by construction**: the
+    ramp, Turn into and align/indent apply to every covered block as one revision
+    (`convertBlocks` / `setTokenMany`), which is what both reference tools do — the old
+    single-subject withdrawal (the `d878242` rule) delivered neither benchmark and is
+    re-cut to the verbs that are genuinely single-subject (identity, position, history,
+    document-order moves).
 11. **The selection carries its tier; no surface re-derives it** (ADR-525) — the
     projection runtime is the only party that can see both the DOM and the medium, so it
     declares `text | object | structure` on the selection payload, and the pane, the
@@ -326,7 +348,13 @@ the write seam, not enforced).
     by executing one site. **ADR-528 extends this**: the tier is not merely read, it is
     what the pane's *scope* is DERIVED from. A surface that commits a scope first and
     consults the tier afterwards can only subtract, and subtraction is how a scope
-    accumulates a column of absences.
+    accumulates a column of absences. **ADR-541 finishes it**: `scopeOf` and `arityOf`
+    (`web/components/studio/selection.ts`) are the ONLY derivation sites for "what is the
+    member looking at" and "how many subjects does a verb take" — the pane, the menu and
+    the keyboard's parent dispatch are consumers. The two historical set states fold into
+    one `set` + `setKind` via `unify` (a live range outranks a stale click's set memory).
+    Deriving either fact anywhere else re-opens the "three surfaces, three answers"
+    defect; move the derivation, never add a second.
 14. **A range is not a block** (ADR-528) — on a continuous surface the selection is a
     range, which has no box and no single subject; on a stage a block is an object, which
     has both. The flow scope set is therefore `document | range | object` and `block` is

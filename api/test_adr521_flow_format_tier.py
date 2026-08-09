@@ -112,8 +112,16 @@ _check("D5: unknown wrappers unwrap (children survive, the wrapper dies)",
        "parent.insertBefore(el.firstChild, el);" in edit)
 
 # ── The template-literal discipline (a backtick or ${ in added code kills the script) ──
-_check("runtime hygiene: EDIT_SCRIPT's only interpolation is the declared TEXT_KINDS",
-       edit.count("${") == 1 and "${TEXT_KINDS_JS}" in edit)
+# Re-cut by ADR-539 D4: the paste clamp added two interpolations (the
+# out-of-rung tags + the clamp target), both module-declared like TEXT_KINDS.
+# The invariant is unchanged — EVERY `${` in the runtime is a DECLARED module
+# constant, never an inline expression — and the set is enumerated so a stray
+# interpolation still fails. (The count==1 spelling went red the moment
+# ADR-539 landed, which is this re-cut's receipt, not its motive.)
+_EDIT_INTERPOLATIONS = {"${TEXT_KINDS_JS}", "${OUT_OF_RUNG_TAGS_JS}", "${DEEPEST_RUNG_TAG_JS}"}
+_check("runtime hygiene: EDIT_SCRIPT's interpolations are exactly the declared constants",
+       edit.count("${") == len(_EDIT_INTERPOLATIONS)
+       and all(tok in edit for tok in _EDIT_INTERPOLATIONS))
 
 # The OTHER half of the same discipline, learned the hard way 2026-08-05: a
 # literal backtick inside a runtime's body closes the template early. The D6
