@@ -27,8 +27,12 @@ Gate `web/scripts/gates/adr540_flow_retire.mjs` **25/25** (run from repo root),
 as this handoff predicted). `test_adr480` 26/30 and `test_adr482` 49/54 are
 **pre-existing** — identical at baseline with the three files stashed.
 
-⚠️ **The ADR-540 click-pass is OWED** (see §3.1): the fix is unobservable until
-prod runs the new bundle, and it was pushed at the end of the session.
+✅ **CLICK-PASS DONE on production** (bundle confirmed: `yarnnn-flow-retire` in
+2 served chunks). One clean pick → **one** `insert chart` write and **no**
+`Docs: edit document` follows — the erase is gone. The chart **survived a hard
+reload**, rendering from the cited CSV with quoted-field parsing correct
+(`"Portability, Transparent Cost"` is one row, not two). Test artifacts trashed
+via the product's own verb (both `archived`, recoverable).
 
 ## 2. Remaining phases (operator-ratified, delegated)
 
@@ -51,18 +55,10 @@ prod runs the new bundle, and it was pushed at the end of the session.
 
 ## 3. OWED — click-passes (browser lane; gates prove the room, not the doorway)
 
-1. **ADR-540 — do this FIRST; it gates the other two.** Until it is confirmed,
-   *every* cited insert on Docs is reverted, so an ADR-538/539 chart pass would
-   read as a failure of those ADRs when it is this one. In Docs: `/` → Chart →
-   pick a CSV → **wait 5s, then hard-reload**. The chart must still be there.
-   Test bed left in place: doc `operation/untitled-document-2/document.html` +
-   `inbound/uploads/operator/commitments.csv` (delete both after; the doc's
-   prose reads `Start here.///` — those orphan slashes are this defect's own
-   fingerprint, left by picks that landed nothing).
-   Tell you are on the fixed bundle: the served chunks contain
-   `yarnnn-flow-retire`. Falsifier: the pre-fix pair was `insert chart` →
-   `edit document` ~400ms later; if `edit document` still follows and the block
-   vanishes, the fix did not take.
+1. ✅ **ADR-540 — DONE** (see §1). This also incidentally covered **ADR-538's**
+   owed pass: the CSV picker opens (not a chat seed), the chart cites the CSV
+   with its pin stamped, and it projects. What remains unverified for 538 is the
+   `component` kind and kernel motion in a **share view** (`sandbox=""`).
 2. **ADR-541**: drag a range across 3 paragraphs → Typography ramp + Turn
    into + align/indent all MOUNT; pick "Heading 2" → all 3 convert, ONE
    revision (one ⌘Z restores); ⇧-click 3 objects on a deck → ⌫ deletes all 3
