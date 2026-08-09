@@ -53,21 +53,26 @@ def run() -> bool:
     # a kind can never join or leave unnoticed. ADR-536 D1 adds the two
     # ordinary list kinds — `checklist` was the only list row and it is a
     # CHECKBOX list, so a bulleted or numbered list was unreachable.
-    _check("15 block kinds (8 launch + W1 four + heading + ADR-536 two lists)",
+    _check("16 block kinds (8 launch + W1 four + heading + 536 lists + 538 component)",
            set(STUDIO_BLOCKS) == {"prose", "heading", "callout", "quote", "checklist",
                                   "list", "numbered",
                                   "table", "metrics", "chart", "figure",
-                                  "divider", "toggle", "button", "gallery"})
+                                  "divider", "toggle", "button", "gallery",
+                                  "component"})
     for kind, b in STUDIO_BLOCKS.items():
         _check(f"block '{kind}': label/group/description/markup complete",
                all(b.get(k) for k in ("label", "group", "description", "markup")))
         _check(f"block '{kind}': group valid", b.get("group") in ("content", "data", "media"))
         _check(f"block '{kind}': markup teaches the annotation spec",
                f'data-block="{kind}"' in b["markup"] and "data-block-id=" in b["markup"])
+    # ADR-538 D2 — chart's citation re-points from `./assets/*.svg` (a PICTURE
+    # of data, which went stale the moment a number moved) to the .csv SOURCE.
+    # It is now a sibling of table, which is what the `data` group always meant.
     _check("citation-backed kinds cite, never paste",
            'data-ref' in STUDIO_BLOCKS["table"]["markup"]
            and 'data-ref' in STUDIO_BLOCKS["figure"]["markup"]
-           and './assets/' in STUDIO_BLOCKS["chart"]["markup"])
+           and '.csv' in STUDIO_BLOCKS["chart"]["markup"]
+           and '.svg' not in STUDIO_BLOCKS["chart"]["markup"])
 
     # ── 2. Layouts + skeleton assembly (D5) ──────────────────────────────
     # ADR-459 D3: the kernel SEEDS the universal shapes; it does not BOUND the

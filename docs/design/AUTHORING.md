@@ -252,11 +252,18 @@ the write seam, not enforced).
 > `services/images/stage.py` carries `image`. The app boundary is the module; the
 > machinery below is one implementation, three consumers.
 
-- **Block vocabulary**: 15 kinds (prose · heading · callout · quote · **list · numbered** ·
-  checklist · divider · toggle · button | table · metrics · chart | figure · gallery), served on
+- **Block vocabulary**: 16 kinds (prose · heading · callout · quote · **list · numbered** ·
+  checklist · divider · toggle · button · metrics · **component** | table · chart |
+  figure · gallery), served on
   `GET /studio/vocabulary`. Grammar, not schema — unannotated content stays valid.
+  **A kind is classified by what it CITES** (ADR-538 D1): a `data` kind cites a SOURCE
+  and is projected (table · chart); a `media` kind cites a PICTURE (figure · gallery);
+  a `content` kind cites nothing and the kernel draws it. `chart` moved to `data` in
+  substance at ADR-538 D2 (it cites a `.csv`, not an `./assets/*.svg`), and `metrics`
+  moved to `content` (its numbers are typed, not cited).
   **The roster is APP-SCOPED** (ADR-528 D5): a row may declare `apps`, and absent =
-  every app. **Docs offers 13 — not callout or toggle** (both are prose in a container
+  every app. **Docs offers 13 — not callout, toggle or component** (all three are
+  composed/contained objects; the first two are prose in a container
   with its own caret; Google Docs has neither, and toggle is what a collapsible heading
   would need, which ADR-526 §6 holds open pending evidence). Studio keeps both: on a
   composed surface an offset aside is an authored object, and ADR-487 D2's variant

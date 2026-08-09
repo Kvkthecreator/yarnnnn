@@ -75,8 +75,11 @@ t("D5: Docs does not offer toggle", "toggle" not in docs)
 t("D5: Studio DOES offer callout (a composed surface's authored aside)", "callout" in studio)
 t("D5: Studio DOES offer toggle", "toggle" in studio)
 t(
-    "D5: those two are the ONLY kinds Docs loses (nothing moved by accident)",
-    every - set(docs) == {"callout", "toggle"},
+    # ADR-538 D3 — `component` joins the studio-scoped set, for the SAME reason
+    # callout and toggle are there: a composed card is an authored object on a
+    # deck or a landing page, and Docs is the flow/caret medium.
+    "D5: only the studio-scoped kinds are lost to Docs (nothing moved by accident)",
+    every - set(docs) == {"callout", "toggle", "component"},
 )
 t("D5: Studio loses nothing", every - set(studio) == set())
 t(
@@ -86,7 +89,7 @@ t(
 )
 t(
     "D5: an UNKNOWN app still gets the shared roster, never an empty menu",
-    set(st.blocks_for_app("images")) == every - {"callout", "toggle"},
+    set(st.blocks_for_app("images")) == every - {"callout", "toggle", "component"},
 )
 
 # COMPLETENESS: every row is either unscoped or names a registered app. A typo

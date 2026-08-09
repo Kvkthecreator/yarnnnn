@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.09.1] - ADR-538: a chart cites DATA, and motion is CSS-only
+
+### Changed
+- `services/studio.py` (the Studio substrate posture — the lane's authoring
+  teaching): the "you can CREATE visual assets" bullet no longer tells the AI
+  hand to author **charts** as SVGs. It kept saying *"author charts, diagrams,
+  icons… as .svg files… then cite them"*, which is exactly the model ADR-538 D2
+  withdrew — an authored SVG chart goes stale the moment a number moves, and
+  the two live instances proved it (data only in `alt` prose, empty pin).
+  - **Removed** from the SVG bullet: `charts`. Diagrams/icons/illustrations stay
+    (they have no data source to project — ADR-538 D1's `media` class).
+  - **Added**: a chart bullet — write the numbers as a `.csv`, then cite it
+    (`data-ref-kind="chart"`, `data-chart="bar|line|donut"`); the projection
+    draws it, so the chart stays true when the data changes.
+  - **Added**: a motion bullet — *"Motion is CSS only, never `<script>`"*, with
+    the reason stated (a script does not run in the viewer or in a shared link,
+    so a component that needs one is invisible to readers).
+- **Expected behavior**: asked for a chart, the lane writes a CSV and cites it
+  instead of hand-drawing an SVG; asked for an animated component, it reaches
+  for `data-motion` / CSS instead of a `<script>` the reader's mount will strip.
+- **Observed failure this addresses** (not speculative): 15 live artifacts hold
+  `chart` blocks; 0 cite a `.csv`; the two real ones cite unpinned SVGs whose
+  numbers exist only in `alt` text.
+- Gate: `api/test_adr538_block_classification.py` §5 asserts all three (the lane
+  is told charts cite data, is told motion is CSS-only, and is NOT told to
+  author an SVG chart).
+
+---
+
 ## [2026.08.06.1] - ADR-522: the focus declaration — one bullet naming where the member stands
 
 ### Changed

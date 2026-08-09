@@ -67,15 +67,117 @@ function escapeHtml(s: string): string {
 }
 
 /** Naive CSV → table rows (v1: no quoted-comma handling — honest ceiling). */
+/** Split one CSV line, honouring "quoted, fields" and "" escapes.
+ *
+ *  A bare `split(',')` tore any field containing a comma into two cells — and a
+ *  thousands-separated number ("1,240") is exactly that field, which is the one
+ *  a CHART then reads as a value (ADR-538 D2). Shared by the table and chart
+ *  projections so both read a row the same way. */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } // "" → a literal quote
+        else quoted = false;
+      } else cur += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out.map((c) => c.trim());
+}
+
+function parseCsv(csv: string, maxRows: number): string[][] {
+  return csv
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .slice(0, maxRows + 1)
+    .map(splitCsvLine);
+}
+
 function csvToTableHtml(csv: string, maxRows = 50): string {
-  const lines = csv.trim().split(/\r?\n/).filter(Boolean).slice(0, maxRows + 1);
+  const lines = parseCsv(csv, maxRows);
   if (!lines.length) return '<p>(empty table)</p>';
-  const [head, ...rows] = lines.map((l) => l.split(','));
-  const th = head.map((c) => `<th>${escapeHtml(c.trim())}</th>`).join('');
+  const [head, ...rows] = lines;
+  const th = head.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
   const trs = rows
-    .map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c.trim())}</td>`).join('')}</tr>`)
+    .map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`)
     .join('');
   return `<table><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+/** ADR-538 D2 — a chart PROJECTED from cited data.
+ *
+ *  The sibling of `csvToTableHtml`, and deliberately built the same way: pure
+ *  string→string, no engine, no library, no <script>. It emits static SVG +
+ *  CSS, which is what survives the bare `sandbox=""` every reader-facing mount
+ *  uses (ADR-538 §2 measured this).
+ *
+ *  Shape: first column = label, second = value. Extra columns are ignored
+ *  rather than guessed at — a chart that silently picks a column is worse than
+ *  one that reads the first two. A non-numeric or empty value counts as 0 so a
+ *  ragged CSV degrades to a short bar, never to a crash.
+ *
+ *  NOT a rendering engine (the ADR-417 line): this projects the workspace's own
+ *  cited substrate, exactly as the table projection has since ADR-440 D5.
+ */
+function csvToChartHtml(csv: string, kind: string, maxRows = 24): string {
+  const lines = parseCsv(csv, maxRows);
+  if (lines.length < 2) return '<p>(no chart data)</p>';
+  const rows = lines.slice(1); // row 0 is the header
+  const pts = rows
+    .map((r) => ({ label: r[0] ?? '', value: Number((r[1] ?? '').replace(/[^0-9.\-]/g, '')) || 0 }))
+    .filter((p) => p.label !== '');
+  if (!pts.length) return '<p>(no chart data)</p>';
+  const max = Math.max(...pts.map((p) => p.value), 0) || 1;
+  const total = pts.reduce((s, p) => s + p.value, 0) || 1;
+  const esc = (s: string) => escapeHtml(s);
+
+  if (kind === 'donut') {
+    // One <circle> per slice, drawn with stroke-dasharray around the ring —
+    // no path math, no library. Slices accumulate an offset around 100 units.
+    const R = 15.9155; // circumference ≈ 100, so a slice's dash IS its percent
+    let acc = 0;
+    const ring = pts
+      .map((p, i) => {
+        const pct = (p.value / total) * 100;
+        const el =
+          `<circle cx="21" cy="21" r="${R}" fill="none" stroke="var(--chart-${(i % 6) + 1}, currentColor)" ` +
+          `stroke-width="6" stroke-dasharray="${pct.toFixed(2)} ${(100 - pct).toFixed(2)}" ` +
+          `stroke-dashoffset="${(100 - acc + 25).toFixed(2)}" opacity="${(1 - (i % 6) * 0.13).toFixed(2)}"></circle>`;
+        acc += pct;
+        return el;
+      })
+      .join('');
+    const legend = pts
+      .map(
+        (p, i) =>
+          `<li><span class="swatch" style="opacity:${(1 - (i % 6) * 0.13).toFixed(2)}"></span>` +
+          `${esc(p.label)} <b>${esc(String(p.value))}</b></li>`,
+      )
+      .join('');
+    return (
+      `<div class="yc yc-donut"><svg viewBox="0 0 42 42" role="img" aria-label="Donut chart">${ring}</svg>` +
+      `<ul class="yc-legend">${legend}</ul></div>`
+    );
+  }
+
+  // bar (the default) — a labelled row per point, width as a percentage.
+  const bars = pts
+    .map(
+      (p) =>
+        `<li><span class="yc-l">${esc(p.label)}</span>` +
+        `<span class="yc-track"><span class="yc-bar" style="width:${((p.value / max) * 100).toFixed(1)}%"></span></span>` +
+        `<span class="yc-v">${esc(String(p.value))}</span></li>`,
+    )
+    .join('');
+  return `<div class="yc yc-bar-chart"><ul>${bars}</ul></div>`;
 }
 
 function markBroken(el: Element, ref: string): void {
@@ -194,6 +296,16 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
       }
       return;
     }
+    // ADR-538 D2 — a chart cites its DATA. Checked BEFORE the table branch:
+    // both read a .csv, and the chart declares itself by ref-kind, so a bare
+    // `.csv` still falls through to a table (the unchanged default).
+    if (kind === 'chart') {
+      el.innerHTML = csvToChartHtml(
+        file.content || '',
+        el.closest('[data-chart]')?.getAttribute('data-chart') || 'bar',
+      );
+      return;
+    }
     if (kind === 'table' || path.toLowerCase().endsWith('.csv')) {
       el.innerHTML = csvToTableHtml(file.content || '');
       return;
@@ -218,6 +330,14 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
           if (el.tagName === 'IMG' && path.toLowerCase().endsWith('.svg')) {
             (el as HTMLImageElement).src =
               `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rev.content)}`;
+          } else if (kind === 'chart') {
+            // ADR-538 D2 — the pinned fallback draws the chart too. Without
+            // this branch a dangling chart citation fell to the <pre> path and
+            // dumped raw CSV into the artifact.
+            el.innerHTML = csvToChartHtml(
+              rev.content,
+              el.closest('[data-chart]')?.getAttribute('data-chart') || 'bar',
+            );
           } else if (kind === 'table' || path.toLowerCase().endsWith('.csv')) {
             el.innerHTML = csvToTableHtml(rev.content);
           } else {

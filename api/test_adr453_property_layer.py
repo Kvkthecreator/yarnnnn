@@ -91,8 +91,11 @@ def run() -> bool:
         "absence is the default (no family declares a written default value)",
         all("default" not in t for t in STUDIO_TOKENS.values()),
     )
-    _check("media kinds = figure + chart (+ gallery, ADR-456 W1)",
-           MEDIA_BLOCK_KINDS == {"figure", "chart", "gallery"})
+    # ADR-538 D2 — chart LEFT the media set. The media-grain tokens are about a
+    # PICTURE (how it fills its box, how tall it stands); a chart is now a
+    # projection of cited data, so `fit` has nothing to act on.
+    _check("media kinds = figure + gallery (chart left at ADR-538 D2)",
+           MEDIA_BLOCK_KINDS == {"figure", "gallery"})
 
     # ── 2. The kernel CSS + the marked element (D2) ──────────────────────
     _check(

@@ -158,23 +158,80 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "description": "A call-to-action link, styled by the palette.",
         "markup": '<p data-block="button" data-block-id="b11"><a href="https://…">Call to action</a></p>',
     },
+    # ADR-538 D3 — the composite component. The landing-page-style card the
+    # operator pointed at (a labelled container holding icon/name/phrase/pill
+    # rows) is STYLED HTML: it cites nothing, so by D1 it is `content`, and the
+    # kernel draws it. No new machinery — this is the `metrics` shape one
+    # composition deeper, and it is why the answer to "can we scope these kinds
+    # of components in" is a registry row rather than an engine.
+    #
+    # `apps: ("studio",)` for the ADR-528 D5 reason that governs callout and
+    # toggle: a composed card is an authored object on a deck or a landing
+    # page, and Docs is the flow/caret medium where it has no equivalent.
+    #
+    # Motion is NOT in the markup — it is kernel CSS (D4), under a
+    # prefers-reduced-motion guard. A component is legible with motion disabled
+    # by construction, which is what makes the guard safe to honour.
+    "component": {
+        "label": "Component",
+        "group": "content",
+        "apps": ("studio",),
+        "description": "A composed card — a labelled container of icon/name/value rows.",
+        "markup": (
+            '<div data-block="component" data-block-id="b16">'
+            "<header><span>Label</span></header>"
+            '<div class="row"><span class="name">Name</span>'
+            '<span class="value">Value</span>'
+            '<span class="pill">tag</span></div>'
+            "<footer>Footnote</footer>"
+            "</div>"
+        ),
+    },
     "table": {
         "label": "Table",
         "group": "data",
         "description": "A live table CITED from a workspace CSV (never pasted).",
         "markup": '<div data-block="table" data-block-id="b5" data-ref="operation/…/data.csv" data-ref-kind="table"></div>',
     },
+    # ADR-538 D1 — re-filed `data` → `content`. It cites nothing: the numbers
+    # are typed into the markup (`<strong>42%</strong>`), so by the rule (a
+    # `data` kind cites a SOURCE and is projected) it was never data. The
+    # mis-filing was the same class as chart's and is corrected in the same
+    # motion; the group is a served display label with no code branching on it,
+    # so this moves a palette heading and nothing else.
+    #
+    # Making a metric CITE — a headline number that is a defensible, attributed
+    # claim — is the genuinely valuable version and is NOT delivered here: it
+    # needs sub-file (cell) addressing, which the substrate does not have (the
+    # ADR-528 finding). Named as the open question, not smuggled in.
     "metrics": {
         "label": "Metrics",
-        "group": "data",
+        "group": "content",
         "description": "A row of headline numbers with labels.",
         "markup": '<div data-block="metrics" data-block-id="b6"><div class="metric"><strong>42%</strong><span>label</span></div></div>',
     },
+    # ADR-538 D2 — the chart cites its DATA, not a picture of it. Before this
+    # ADR the row was filed `data` while citing `./assets/chart.svg`, and sat
+    # in MEDIA_BLOCK_KINDS beside figure/gallery — the registry's own
+    # confession that it was media wearing a data label. The consequence was
+    # exact: change the numbers and NOTHING happened, because the citation
+    # pointed at a rendering. (The two live instances carried their data only
+    # in `alt` prose, with an EMPTY data-ref-rev — an unpinned photograph.)
+    #
+    # Now it is a sibling of `table`: same citation machinery, same pinned
+    # fallback, drawn by `csvToChartHtml` beside `csvToTableHtml`. The visual
+    # intent rides as attributes (data-chart = bar|line|donut), because a
+    # chart kind is an enumerated value the kernel can pre-declare, not
+    # continuous geometry.
+    #
+    # NOT an ADR-417 reversal: 417 retired an owned GENERATION engine; this
+    # projects the workspace's own cited substrate, which the projection has
+    # done for CSVs since ADR-440 D5. It rents nothing and owns no engine.
     "chart": {
         "label": "Chart",
         "group": "data",
-        "description": "An authored SVG chart in ./assets/, cited by reference.",
-        "markup": '<figure data-block="chart" data-block-id="b7"><img data-ref="./assets/chart.svg" data-ref-rev="<head-rev-id>" alt="…"><figcaption>…</figcaption></figure>',
+        "description": "A chart PROJECTED from a cited workspace CSV (never a pasted picture).",
+        "markup": '<figure data-block="chart" data-block-id="b7" data-chart="bar"><div data-ref="operation/…/data.csv" data-ref-kind="chart" data-ref-rev="<head-rev-id>"></div><figcaption>…</figcaption></figure>',
     },
     "figure": {
         "label": "Image",
@@ -729,7 +786,7 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 APPLIES_TARGETS: dict[str, str] = {
     "block": "any block",
     "block-callout": "a callout block",
-    "media": "a media block (figure/chart/gallery)",
+    "media": "a media block (figure/gallery)",
     "block-staged": "a block on a staged frame (a deck slide or a canvas artboard)",
     # ADR-525 D4 — the term the vocabulary was missing. It had `document-flow`
     # and `block-staged` but nothing for "a flow block", so a token could not
@@ -750,7 +807,11 @@ APPLIES_TARGETS: dict[str, str] = {
 }
 
 #: Block kinds the media-grain tokens (height/fit) apply to.
-MEDIA_BLOCK_KINDS = {"figure", "chart", "gallery"}
+#: ADR-538 D2 — `chart` LEFT this set. The media tokens are about how a picture
+#: fills its box (`fit`: cover/contain) and how tall the picture stands; a
+#: chart is no longer a picture but a projection of cited data, so `fit` has
+#: nothing to act on. `size` still reaches it as a staged object.
+MEDIA_BLOCK_KINDS = {"figure", "gallery"}
 
 STUDIO_TOKENS: dict[str, dict] = {
     # ADR-461 D1 — the block's width, as INTENT. The Claude Design inspector's
@@ -849,7 +910,7 @@ STUDIO_TOKENS: dict[str, dict] = {
             {"value": "m", "label": "Medium"},
             {"value": "l", "label": "Large"},
         ],
-        "description": "image height preset on a figure/chart block",
+        "description": "image height preset on a figure/gallery block",
     },
     "fit": {
         "label": "Fit",
@@ -1094,6 +1155,76 @@ div[data-block="gallery"] figure { margin: 0; }
 div[data-block="gallery"] img { width: 100%; aspect-ratio: 4 / 3;
   object-fit: cover; border-radius: var(--radius-sm, var(--radius, 4px)); }
 div[data-block="gallery"] figcaption { font-size: var(--text-xs, 0.75rem); }
+/* ADR-538 D3 — the composite component. Same construction as `metrics` one
+   composition deeper: a labelled container of rows, drawn entirely from
+   design-system slots so a skin themes it for free. It cites nothing (D1 →
+   `content`), so there is no projection involved and it renders identically
+   in every mount. */
+div[data-block="component"] { border: 1px solid var(--rule, rgba(26,26,26,0.1));
+  border-radius: var(--radius-lg, var(--radius, 10px)); padding: 1rem 1.15rem;
+  margin: 1.5rem 0; background: var(--paper, #fff); }
+div[data-block="component"] > header { font-size: var(--text-xs, 0.72rem);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  margin-bottom: 0.75rem; }
+div[data-block="component"] .row { display: flex; align-items: center;
+  gap: 0.6rem; padding: 0.5rem 0.65rem; border-radius: var(--radius, 6px);
+  border: 1px solid transparent; }
+div[data-block="component"] .row + .row { margin-top: 0.3rem; }
+div[data-block="component"] .row .name { font-weight: 600; }
+div[data-block="component"] .row .value { color: var(--muted); flex: 1;
+  min-width: 0; }
+div[data-block="component"] .row .pill { font-size: var(--text-xs, 0.72rem);
+  padding: 0.15rem 0.55rem; border-radius: var(--radius-pill, 999px);
+  background: var(--rule, rgba(26,26,26,0.06)); color: var(--muted); }
+div[data-block="component"] > footer { margin-top: 0.75rem;
+  font-size: var(--text-xs, 0.72rem); color: var(--muted); }
+/* ADR-538 D2 — the projected chart. The projection emits this markup from the
+   cited CSV (`csvToChartHtml`); the kernel styles it, so a chart is themed by
+   the design system like every other block and needs no inline geometry. */
+figure[data-block="chart"] { margin: 1.5rem 0; }
+.yc-bar-chart ul { list-style: none; margin: 0; padding: 0; }
+.yc-bar-chart li { display: flex; align-items: center; gap: 0.75rem;
+  margin: 0.35rem 0; font-size: var(--text-sm, 0.9rem); }
+.yc-bar-chart .yc-l { flex: 0 0 32%; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.yc-bar-chart .yc-track { flex: 1; background: var(--rule, rgba(26,26,26,0.07));
+  border-radius: var(--radius-pill, 999px); overflow: hidden; }
+.yc-bar-chart .yc-bar { display: block; height: 0.7rem;
+  background: var(--accent, #b4540a); border-radius: var(--radius-pill, 999px); }
+.yc-bar-chart .yc-v { flex: 0 0 auto; font-variant-numeric: tabular-nums;
+  font-weight: 600; }
+.yc-donut { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+.yc-donut svg { width: 9rem; height: 9rem; flex: 0 0 auto;
+  color: var(--accent, #b4540a); transform: rotate(-90deg); }
+.yc-legend { list-style: none; margin: 0; padding: 0;
+  font-size: var(--text-sm, 0.9rem); }
+.yc-legend li { display: flex; align-items: center; gap: 0.5rem;
+  margin: 0.25rem 0; }
+.yc-legend .swatch { width: 0.7rem; height: 0.7rem; border-radius: 2px;
+  background: var(--accent, #b4540a); display: inline-block; }
+/* ADR-538 D4 — the kernel's FIRST motion, and the whole of it. Declarative
+   only: @keyframes + transition + :hover. Measured (ADR-538 §2) to run inside
+   the bare `sandbox=""` the Web Viewer and every share link use, where script
+   does NOT run — so a component stays alive where a reader actually meets it.
+   `data-motion` is opt-in: absence is stillness, which keeps every existing
+   artifact byte-identical in behaviour after the retrofit. */
+@keyframes yarnnn-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.82); }
+  50% { opacity: 1; transform: scale(1); } }
+@keyframes yarnnn-rise { from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: none; } }
+[data-motion="pulse"] { animation: yarnnn-pulse 1.8s ease-in-out infinite; }
+[data-motion="rise"] { animation: yarnnn-rise 0.5s ease-out both; }
+div[data-block="component"] .row { transition: border-color 0.18s ease,
+  background 0.18s ease; }
+div[data-block="component"] .row:hover { border-color: var(--rule, rgba(26,26,26,0.12));
+  background: var(--rule-soft, rgba(26,26,26,0.03)); }
+/* Motion that cannot be turned off is an accessibility defect, and the kernel
+   is the ONLY place this can be guaranteed once for every artifact and every
+   future motion rule (ADR-538 D4 — a permanent obligation, not a nicety). */
+@media (prefers-reduced-motion: reduce) {
+  [data-motion] { animation: none !important; }
+  div[data-block="component"] .row { transition: none !important; }
+}
 /* The multi-column band — kernel-owned for EVERY layout, slides included.
    It used to carve out `:not(.slide)` on the reasoning that "decks keep their
    own .slide .cols rules". That was true of the deck skin as of ADR-444 — and
@@ -1425,7 +1556,18 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # not by a sweep. So the bump and the recognizer change land TOGETHER: the CSS
 # alone would retrofit nothing, and the promotion alone would name a kind the
 # kernel could not draw.
-STUDIO_KERNEL_CSS_VERSION = 15
+# v16 (2026-08-09, ADR-538 D3+D4): the composite `component` kind gains kernel
+# rules, and the kernel gains its FIRST motion — two @keyframes, one transition,
+# one :hover, all opt-in behind `data-motion` (absence = stillness), plus the
+# prefers-reduced-motion guard that disables every one of them. Additive: no
+# existing rule changed or removed, and an artifact holding neither the kind nor
+# a data-motion attribute is behaviourally byte-identical after the retrofit.
+#
+# The motion is DECLARATIVE by ruling, not by preference: §2 of the ADR measured
+# a real browser and found CSS animation alive — and <script> dead — inside the
+# bare sandbox="" that the Web Viewer, the paged navigator and the public share
+# link all use. Script-driven motion would render only for its own author.
+STUDIO_KERNEL_CSS_VERSION = 16
 
 
 def compose_kernel_style_element() -> str:
@@ -1960,9 +2102,16 @@ the act that returns a positioned block to flow, never a content edit.
   data-scrim="dark|light" for text legibility and data-bg-pos="top|bottom" for
   focus. Never write inline style backgrounds — the citation IS the background.
 - You can CREATE visual assets too — vector graphics are plain text: author
-  charts, diagrams, icons, and illustrations as `.svg` files into `./assets/`
-  beside the artifact (WriteFile), then cite them (`data-ref="./assets/chart.svg"`).
+  diagrams, icons, and illustrations as `.svg` files into `./assets/` beside
+  the artifact (WriteFile), then cite them (`data-ref="./assets/diagram.svg"`).
   Prefer an authored SVG over describing a picture you cannot make.
+- A CHART is not one of them (ADR-538 D2). Charts cite DATA, never a picture:
+  write the numbers as a `.csv` in the workspace, then cite it from a chart
+  block (data-ref="<the csv>" data-ref-kind="chart", data-chart="bar|line|
+  donut"). The projection draws it, so the chart stays true when the data
+  changes — an authored SVG chart goes stale the moment a number moves.
+- Motion is CSS only, never <script>: a script does not run in the viewer or
+  in a shared link, so a component that needs one is invisible to readers.
 
 ## Style
 Match the artifact's existing voice and CSS. If the workspace carries design

@@ -1310,7 +1310,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // leave it empty") and so was never done: 0 populated pins across the live
   // workspace. A mechanical insert knows the rev; it stamps it.
   const citedFragment = useCallback(
-    (kind: 'figure' | 'table', path: string, pin?: string | null): string | null => {
+    (kind: 'figure' | 'table' | 'chart', path: string, pin?: string | null): string | null => {
       const base = vocabulary?.blocks.find((b) => b.kind === kind)?.fragment;
       if (!base) return null;
       const rel = relPath(path);
@@ -2233,7 +2233,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // picker at the palette's own anchor. The pick then lands a CITED block where
   // the member was pointing (Media ▾ retired with this).
   const [citePicker, setCitePicker] = useState<{
-    kind: 'figure' | 'table' | 'gallery';
+    kind: 'figure' | 'table' | 'gallery' | 'chart';
     left: number;
     top: number;
     ctx: { blockId: string; beforeInner: string | null; afterInner: string | null; empty: boolean };
@@ -2352,15 +2352,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const t = insertMenu;
       setInsertMenu(null);
       if (!t) return;
-      if (kind === 'chart') {
-        seedComposer(
-          'Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ',
-        );
-        return;
-      }
+      // (ADR-538 D2 — the `chart` branch that seeded "author an SVG chart at
+      // ./assets/…" is DELETED. A chart cites DATA now, so it is picker-backed
+      // like table: PICKER_KINDS carries it and the block below opens the CSV
+      // list. Singular Implementation — no seeding path kept beside the pick.)
       if (PICKER_KINDS.has(kind)) {
         setCitePicker({
-          kind: kind as 'figure' | 'table' | 'gallery',
+          kind: kind as 'figure' | 'table' | 'gallery' | 'chart',
           left: t.x,
           top: t.y,
           // An empty ctx blockId means "not a located caret pick" — the cite
@@ -2389,15 +2387,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const p = pendingPick.current;
       pendingPick.current = null;
       if (!p) return;
-      if (p.kind === 'chart') {
-        seedComposer(
-          'Create an SVG chart at ./assets/chart.svg, cite it in the document, showing: ',
-        );
-        return;
-      }
+      // (ADR-538 D2 — the chart-seeds-an-SVG branch is deleted here too; the
+      // slash route reaches the same CSV picker as the palette route.)
       if (PICKER_KINDS.has(p.kind)) {
         setCitePicker({
-          kind: p.kind as 'figure' | 'table' | 'gallery',
+          kind: p.kind as 'figure' | 'table' | 'gallery' | 'chart',
           left: p.left,
           top: p.top,
           ctx: { blockId, beforeInner, afterInner, empty: p.empty },
@@ -2438,14 +2432,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const cp = citePicker;
       setCitePicker(null);
       if (!cp) return;
-      const kind = cp.kind === 'table' ? 'table' : 'figure';
+      // ADR-538 D2 — three cited single-file kinds now, not two. A chart keeps
+      // its own kind (it cites the same CSV a table does, but projects it as a
+      // chart), so the collapse to table-or-figure would have silently landed
+      // a TABLE wherever a member picked Chart.
+      const kind: 'figure' | 'table' | 'chart' =
+        cp.kind === 'table' ? 'table' : cp.kind === 'chart' ? 'chart' : 'figure';
       const fragment = citedFragment(kind, path, pin);
       if (!fragment) return;
-      landAtLocatedPoint(
-        fragment,
-        `${kind === 'figure' ? 'image' : 'table'} ${relPath(path)}`,
-        cp.ctx,
-      );
+      const noun = kind === 'figure' ? 'image' : kind;
+      landAtLocatedPoint(fragment, `${noun} ${relPath(path)}`, cp.ctx);
     },
     [citePicker, citedFragment, landAtLocatedPoint],
   );

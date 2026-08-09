@@ -19,8 +19,16 @@ import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
 /** The picker-backed kinds — the ones whose palette pick opens THIS panel
- *  instead of dropping a fragment. (Chart is not here: it seeds the lane.) */
-export const PICKER_KINDS = new Set(['figure', 'table', 'gallery']);
+ *  instead of dropping a fragment.
+ *
+ *  ADR-538 D2 — `chart` JOINED this set. It used to seed the lane with "author
+ *  an SVG chart at ./assets/…", which is the very model the ADR withdrew: a
+ *  chart now cites its DATA, so inserting one is picking a CSV, exactly as
+ *  `table` already is. */
+export const PICKER_KINDS = new Set(['figure', 'table', 'gallery', 'chart']);
+
+/** Kinds whose citable list is the workspace's CSVs (not its images). */
+const CSV_KINDS = new Set(['table', 'chart']);
 
 interface CitableItem {
   path: string;
@@ -40,7 +48,7 @@ function baseName(p: string): string {
 }
 
 interface StudioCitablePickerProps {
-  kind: 'figure' | 'table' | 'gallery';
+  kind: 'figure' | 'table' | 'gallery' | 'chart';
   /** Anchor within the canvas wrapper (the palette's own position). */
   left: number;
   top: number;
@@ -68,7 +76,7 @@ export function StudioCitablePicker({
     api.studio
       .citable()
       .then((c) => {
-        if (live) setItems(kind === 'table' ? c.tables : c.images);
+        if (live) setItems(CSV_KINDS.has(kind) ? c.tables : c.images);
       })
       .catch(() => {
         if (live) setItems([]);
@@ -110,7 +118,13 @@ export function StudioCitablePicker({
       className="absolute z-30 max-h-72 w-80 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-lg"
     >
       <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {kind === 'table' ? 'Insert a table from a CSV' : kind === 'gallery' ? 'Pick images for the gallery' : 'Insert an image from the workspace'}
+        {kind === 'chart'
+          ? 'Chart a CSV from the workspace'
+          : kind === 'table'
+            ? 'Insert a table from a CSV'
+            : kind === 'gallery'
+              ? 'Pick images for the gallery'
+              : 'Insert an image from the workspace'}
       </p>
       {items == null && (
         <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
@@ -119,7 +133,7 @@ export function StudioCitablePicker({
       )}
       {items != null && items.length === 0 && (
         <p className="p-3 text-xs text-muted-foreground">
-          {kind === 'table'
+          {CSV_KINDS.has(kind)
             ? 'No CSV files in the workspace yet.'
             : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
         </p>
