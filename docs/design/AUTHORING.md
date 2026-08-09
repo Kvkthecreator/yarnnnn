@@ -245,6 +245,17 @@ ENCLOSURE (runtime owns the caret); on `flow` the block is an ANNOTATION
 (`contenteditable` on the root; the browser owns selection/undo/⌘F; ids reconstructed at
 the write seam, not enforced).
 
+**A retired document does not commit** (ADR-540, normative). The flow session holds a
+`beforeunload` commit so unsaved typing survives a tab close — but a structural op's
+re-projection is *also* a teardown, and that gasp reported a DOM predating the op. The
+parent wrote it straight back over the block that had just landed: **every cited insert
+on flow (chart · table · image · gallery) was silently reverted ~400ms later**, past
+green gates, with HTTP 200 on every request. So the parent RETIRES the live document
+(`yarnnn-flow-retire`) *before* the override advances — ordering is the fix, and the
+sender is a layout effect so it cannot race the projection. A **patchable** op is exempt:
+it does not re-project (ADR-524 D2), so its document stays live and keeps its right to
+commit in-flight typing — retiring there would drop keystrokes, which is the worse defect.
+
 ## Vocabulary, templates, skins (the kernel registries — `services/studio.py`)
 
 > Per-app layout tables register into these shared registries (ADR-472 D2 via ADR-518 D3):

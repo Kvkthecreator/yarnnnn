@@ -20,7 +20,7 @@
  * operator-attributed, CAS-guarded revision.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { WorkspaceFile } from '@/types';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { readStageSize } from '@/components/studio/stageGeometry';
@@ -240,6 +240,11 @@ interface StudioCanvasProps {
    *  It is the patch's own claim about what it achieved, so a patch that fails
    *  to send simply leaves the ordinary re-projection in charge. */
   patch?: { blockId: string; html: string; nonce: number; appliedFor: string } | null;
+  /** ADR-540 — retire the live document's flow commits. Sent before a
+   *  structural op re-projects, because the teardown's `beforeunload` commit
+   *  reports a DOM that predates the op and the parent would write it back
+   *  over the new block. Nonce so two ops in one session each fire. */
+  flowRetire?: { nonce: number } | null;
   /** ADR-447: zoom the rendered document (a VIEW control — 1 = 100%). Never a
    *  file change; the artifact's real dimensions are untouched. */
   zoom?: number;
@@ -301,6 +306,7 @@ export function StudioCanvas({
   fmtCmd,
   scrollToBlock,
   patch,
+  flowRetire,
   zoom = 1,
   stage = false,
   onScrollPos,
@@ -525,6 +531,23 @@ export function StudioCanvas({
     if (!win || !slashTake) return;
     win.postMessage({ type: 'yarnnn-slash-take', filterLen: slashTake.filterLen }, '*');
   }, [slashTake]);
+
+  // ADR-540 — retire the CURRENT document's flow commits.
+  //
+  // Ordering is the fix, and it is why this is a LAYOUT effect: the same React
+  // commit that carries `flowRetire` also carries the new `content`, and the
+  // projection effect below re-feeds `srcDoc` — tearing this document down and
+  // firing its `beforeunload` → `flowCommit`. A passive effect would race that
+  // teardown; `useLayoutEffect` runs before paint and before the passive
+  // projection effect, so the runtime is always told BEFORE it is destroyed.
+  //
+  // Posting into a document that is already gone is harmless (the successor is
+  // a fresh runtime with its own flag), so there is nothing to clean up.
+  useLayoutEffect(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !flowRetire) return;
+    win.postMessage({ type: 'yarnnn-flow-retire' }, '*');
+  }, [flowRetire]);
 
   // ADR-506 D1: the toolbar's Insert. The parent cannot place a caret inside an
   // opaque-origin frame, so it ASKS — the runtime resolves the insertion point,

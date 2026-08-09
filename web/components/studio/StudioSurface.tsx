@@ -946,6 +946,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // leaves the canvas silently disagreeing with substrate; a redundant full
   // swap only blinks. So this is an allowlist of ops proven block-local, and a
   // new op is a full swap until someone deliberately adds it here.
+  // ── ADR-540 — retire the live document's commits before a structural op ──
+  // A structural op computes against the parent's `live` content and then
+  // re-projects, which tears the current iframe document down. That teardown
+  // fires `beforeunload` → `flowCommit`, reporting a DOM that predates the op
+  // — and the parent wrote that stale region straight back over the new block.
+  // Every cited insert on flow (chart, table, image, gallery) was erased ~400ms
+  // after landing, silently, past green gates.
+  //
+  // Same nonce shape as the patch channel, and for the same reason: two ops in
+  // one session must each fire. Fire-and-forget — a document that never hears
+  // it is a document that is already gone.
+  const retireNonce = useRef(0);
+  const [flowRetire, setFlowRetire] = useState<{ nonce: number } | null>(null);
+  const retireFlowCommits = useCallback(() => {
+    retireNonce.current += 1;
+    setFlowRetire({ nonce: retireNonce.current });
+  }, []);
+
   const sendPatch = useCallback(
     async (blockId: string, html: string) => {
       if (!artifactPath) return false;
@@ -1100,6 +1118,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // member write door. Byte-identical when current — never manufactures a
       // revision on its own.
       const html = retrofitKernel(computed, kernelStyleRef.current);
+      // ADR-540 — retire the CURRENT document's commits BEFORE the override
+      // advances. Ordering is the whole fix: the override is what triggers the
+      // re-projection whose teardown fires the stale beforeunload commit, so
+      // the runtime has to be told first. A patchable op is exempt — it does
+      // NOT re-project (that is the point of ADR-524's channel), so its
+      // document stays live and must keep its right to commit the member's
+      // in-flight typing.
+      if (!patchBlockId) retireFlowCommits();
       // Advance the live CONTENT now (the next op computes off this); the HEAD
       // advances only on ack (the queued write below reads it fresh).
       liveRef.current = { content: html, head: live?.head ?? null };
@@ -1191,7 +1217,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       writeTail.current = next.catch(() => false);
       return next;
     },
-    [artifactPath, loadedFile, sendPatch, trimHistory],
+    [artifactPath, loadedFile, sendPatch, retireFlowCommits, trimHistory],
   );
 
   // ⌘Z — restore the previous state; ⌘⇧Z — re-apply the one just undone.
@@ -3276,6 +3302,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
                 patch={patch}
+                flowRetire={flowRetire}
                 zoom={zoom}
                 // ADR-520 D1 — a deck edits on the STAGE (one slide shown);
                 // web stays a scroll (bands are a viewport medium, ADR-505).

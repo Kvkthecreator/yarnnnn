@@ -2044,8 +2044,21 @@ const EDIT_SCRIPT = `
   // islands restored to their living-reference form — the ADR-446 D3
   // contract, unchanged), the debounce, and the paste sanitizer.
   var flowIdle = null;
+  //: ADR-540 — this document's commits are DEAD once a structural op has been
+  //: applied against it. A structural op (an insert, a delete, a re-arrange)
+  //: computes against the parent's live content and re-projects, which tears
+  //: THIS document down; beforeunload then fired one last flowCommit whose
+  //: DOM predates the op, and the parent wrote that stale region back over the
+  //: fresh block. Every cited insert on flow was erased ~400ms after landing.
+  //:
+  //: The parent owns the fact (only it knows an op landed), so it says so; the
+  //: runtime only has to stop talking. One flag, set once, never cleared — the
+  //: successor document is a fresh runtime with its own flag.
+  var flowDead = false;
 
   function flowCommit() {
+    // A dead document's DOM is a stale snapshot, not the member's intent.
+    if (flowDead) return;
     var root = flowRoot();
     if (!root) return;
     parent.postMessage({
@@ -3361,6 +3374,15 @@ const EDIT_SCRIPT = `
     if (!d || typeof d !== 'object') return;
     if (d.type === 'yarnnn-edit-enter' && typeof d.blockId === 'string') enter(d.blockId);
     else if (d.type === 'yarnnn-edit-exit') exit(false);
+    // ADR-540 — a structural op landed against content this document predates.
+    // Retire its commits: the parent already holds the authoritative result,
+    // and anything this DOM would report is a pre-op snapshot. Without it the
+    // re-projection's beforeunload fired one last flowCommit and the parent
+    // wrote that stale region back OVER the freshly inserted block.
+    else if (d.type === 'yarnnn-flow-retire') {
+      flowDead = true;
+      if (flowIdle) { clearTimeout(flowIdle); flowIdle = null; }
+    }
     // ── ADR-527 D4 — the PANE drives a range op ───────────────────────────
     //
     // The pane's buttons and the inline bar's buttons are two entrances to ONE
