@@ -43,8 +43,8 @@ def run() -> bool:
     web = root / "web"
     studio_route = (root / "api/routes/studio.py").read_text()
     client = (web / "lib/api/client.ts").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
 
     # ── A. the endpoint returns the new head version ─────────────────────

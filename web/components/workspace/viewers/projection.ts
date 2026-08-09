@@ -42,7 +42,7 @@ import {
   labelForElement,
   labelForJS,
   STRUCTURAL_PAGE_SEL,
-} from '@/components/studio/structureLabels';
+} from '@/components/authoring/structureLabels';
 import type { WorkspaceFile } from '@/types';
 
 function artifactDir(artifactPath: string): string {

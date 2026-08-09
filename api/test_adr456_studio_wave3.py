@@ -39,7 +39,7 @@ def _check(label: str, cond: bool) -> None:
 
 def run() -> bool:
     from services.derive_recipes import DERIVE_RECIPES
-    from services.studio import (
+    from services.authoring import (
         STUDIO_ARRANGEMENTS,
         STUDIO_KERNEL_CSS,
         STUDIO_KERNEL_CSS_VERSION,
@@ -107,7 +107,7 @@ def run() -> bool:
     _check("the design-system recipe names the five contract variables",
            all(v in DERIVE_RECIPES["design-system"]["instructions"]
                for v in ("--ink", "--paper", "--muted", "--accent", "--radius")))
-    design = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     _check("Design tab: the read-only theme panel parses the applied skin's vars",
            "skinVars" in design and "style[data-skin]" in design)
     # The gate asserted a SLUG test (`layout === 'document' || 'article'`) that
@@ -138,7 +138,7 @@ def run() -> bool:
     _check("kernel CSS version >= 4 and the skeleton bakes the CURRENT version",
            STUDIO_KERNEL_CSS_VERSION >= 4
            and f'data-kernel-v="{STUDIO_KERNEL_CSS_VERSION}"' in build_skeleton("page"))
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
     _check("setPageBackground/removePageBackground land through the one door",
            "export function setPageBackground" in ops
            and "export function removePageBackground" in ops

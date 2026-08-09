@@ -45,7 +45,7 @@ FOLDER = "/workspace/design-system/yarnnn"
 # live below so the probe cannot drift from the kernel it measures.
 def _kernel_consumed_vars() -> set[str]:
     """Every `var(--NAME` the kernel + layout skins read — the live contract."""
-    from services import studio
+    from services import authoring as studio
 
     # ADR-518: layouts live per app (Docs' document · Studio's deck/web ·
     # IMAGES' stage) — sweep the REGISTRY, not one app's table, so every

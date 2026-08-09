@@ -85,7 +85,7 @@ def _fetch_artifacts(client) -> list[dict]:
 
 def main(execute: bool) -> int:
     from services.authored_substrate import write_revision
-    from services.studio import (
+    from services.authoring import (
         STUDIO_KERNEL_CSS_VERSION,
         ensure_kernel_style_in_html,
     )

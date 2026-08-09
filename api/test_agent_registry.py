@@ -279,7 +279,7 @@ def run() -> bool:
         and "Studio: you are authoring one artifact" in _bound_frame,
     )
     _studio = (
-        Path(__file__).parent.parent / "web" / "components" / "studio" / "StudioSurface.tsx"
+        Path(__file__).parent.parent / "web" / "components" / "authoring" / "StudioSurface.tsx"
     )
     _check("StudioSurface.tsx is where we think it is", _studio.exists())
     _src = _studio.read_text() if _studio.exists() else ""
@@ -842,7 +842,7 @@ def run() -> bool:
     )
     _check(
         "…and Studio still sees its own",
-        "api.lanes.list(true)" in (web / "components" / "studio" / "StudioSurface.tsx").read_text(),
+        "api.lanes.list(true)" in (web / "components" / "authoring" / "StudioSurface.tsx").read_text(),
     )
 
     print("\n── 14. the INHABITED surface speaks the new vocabulary (§6.10) ──")

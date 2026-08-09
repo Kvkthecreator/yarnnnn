@@ -3,7 +3,7 @@
 WHY THIS EXISTS (a real prod break, 2026-07-20). The ADR-472 carve routed
 /studio/templates + /studio/vocabulary through the cross-app layout registry.
 A scripted edit injected the new imports into a FUNCTION-LOCAL
-`from services.studio import (...)` block belonging to a different handler, so
+`from services.authoring import (...)` block belonging to a different handler, so
 the names were scoped to that one function. Every gate stayed green — they read
 source text, and the text was all present — and both endpoints 500'd in prod
 with `NameError: name 'all_templates' is not defined`.
@@ -68,7 +68,7 @@ def run() -> bool:
 
     # ── The structural cause, pinned so it cannot recur ──────────────────
     src = Path(__file__).resolve().parent.joinpath("routes/studio.py").read_text()
-    module_import = "\nfrom services.studio import all_layouts, all_templates, resolve_layout"
+    module_import = "\nfrom services.authoring import all_layouts, all_templates, resolve_layout"
     _check(
         "the cross-app resolver is imported at MODULE level, not inside a handler",
         module_import in src,

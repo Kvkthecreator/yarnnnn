@@ -35,7 +35,7 @@ WEB = ROOT / "web"
 
 def run() -> bool:
     sys.path.insert(0, str(ROOT / "api"))
-    from services.studio import (
+    from services.authoring import (
         STUDIO_KERNEL_CSS,
         STUDIO_LAYOUTS,
         STUDIO_TOKENS,
@@ -43,8 +43,8 @@ def run() -> bool:
     )
 
     proj = (WEB / "components/workspace/viewers/projection.ts").read_text()
-    canvas = (WEB / "components/studio/StudioCanvas.tsx").read_text()
-    surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
+    canvas = (WEB / "components/authoring/StudioCanvas.tsx").read_text()
+    surface = (WEB / "components/authoring/StudioSurface.tsx").read_text()
 
     # ── D1: width as intent ────────────────────────────────────────────────
     print("\n-- D1: width as intent --")
@@ -221,7 +221,7 @@ def run() -> bool:
     # the preview sized html/body from the var but stopped pinning `.slide`, so
     # the baked rule re-derived the slide's width from the body and the
     # unshrinking padding overflowed `overflow: hidden`.
-    nav = (WEB / "components/studio/PagedNavigator.tsx").read_text()
+    nav = (WEB / "components/authoring/PagedNavigator.tsx").read_text()
     _check(
         "the navigator PINS the slide box, so an un-retrofitted deck still previews",
         # var-with-fallback, not a bare var: retrofitted decks honour their own
@@ -230,7 +230,7 @@ def run() -> bool:
         "width:var(--stage-w,${SLIDE_W}px) !important;" in nav
         and "height:var(--stage-h,${SLIDE_H}px) !important;" in nav,
     )
-    geom = (WEB / "components/studio/stageGeometry.ts").read_text()
+    geom = (WEB / "components/authoring/stageGeometry.ts").read_text()
     _check(
         "and readStageSize falls back per-template rather than returning zero",
         "export function fallbackStageSize(" in geom
@@ -253,7 +253,7 @@ def run() -> bool:
 
     # ── D4: the measure — mechanism enumerable, value not ───────────────────
     print("\n-- D4: the one continuous property, bounded by a frame --")
-    from services.studio import MEASURE_GRAINS, STUDIO_MEASURES
+    from services.authoring import MEASURE_GRAINS, STUDIO_MEASURES
 
     _check("the measures registry exists", bool(STUDIO_MEASURES))
     for k, m in STUDIO_MEASURES.items():
@@ -294,7 +294,7 @@ def run() -> bool:
     )
 
     # The op: writes both halves into the ONE source file, clamped.
-    ops = (WEB / "components/studio/artifactOps.ts").read_text()
+    ops = (WEB / "components/authoring/artifactOps.ts").read_text()
     sm = re.search(r"export function setMeasure\(([\s\S]*?)\n\}", ops)
     sm_body = sm.group(1) if sm else ""
     _check("setMeasure exists", bool(sm))

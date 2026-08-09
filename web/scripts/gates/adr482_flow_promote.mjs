@@ -14,7 +14,7 @@
 // (promotion) and asserts the bare div is left un-annotated.
 import { readFileSync } from 'fs';
 
-const src = readFileSync('web/components/studio/artifactOps.ts', 'utf8');
+const src = readFileSync('web/components/authoring/artifactOps.ts', 'utf8');
 function extractFn(name) {
   const i = src.indexOf(`export function ${name}(`);
   let d = 0, start = src.indexOf('{', i);
@@ -34,7 +34,7 @@ function extractConst(decl) {
 }
 // ADR-511 Phase 2: PAGE_SEL is the structural constant, sourced from the ONE
 // vocabulary seam (structureLabels.ts) exactly as the real module imports it.
-const labelsSrc = readFileSync('web/components/studio/structureLabels.ts', 'utf8');
+const labelsSrc = readFileSync('web/components/authoring/structureLabels.ts', 'utf8');
 const pageSelLit = labelsSrc.match(/export const STRUCTURAL_PAGE_SEL = ('[^']+');/)?.[1];
 if (!pageSelLit) throw new Error('gate: STRUCTURAL_PAGE_SEL literal not found');
 const prelude = [
@@ -219,8 +219,8 @@ function pageScene() {
   // safety argument above collapses. Enumerate, never count.
   const files = [
     'web/components/workspace/viewers/projection.ts',
-    'web/components/studio/artifactOps.ts',
-    'web/components/studio/StudioDesignTab.tsx',
+    'web/components/authoring/artifactOps.ts',
+    'web/components/authoring/StudioDesignTab.tsx',
   ];
   const bad = [];
   for (const f of files) {

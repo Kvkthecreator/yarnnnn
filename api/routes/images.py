@@ -77,7 +77,7 @@ async def compose(req: ComposeRequest, auth: UserClient) -> dict:
     per-object revisions, which is the point.
     """
     from services.authored_substrate import write_revision
-    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.authoring import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
     path = req.path if req.path.startswith("/") else f"/workspace/{req.path}"

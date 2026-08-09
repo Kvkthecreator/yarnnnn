@@ -76,7 +76,7 @@ _LANE_TIMEOUT_S = 120.0
 
 def _studio_max_tokens() -> int:
     """ADR-440 D3 — the authoring token profile for BOUND (Studio) lanes."""
-    from services.studio import STUDIO_LANE_MAX_TOKENS
+    from services.authoring import STUDIO_LANE_MAX_TOKENS
     return STUDIO_LANE_MAX_TOKENS
 
 # ---------------------------------------------------------------------------
@@ -342,7 +342,7 @@ def build_lane_conventions(
 
     ADR-440 D3: a BOUND lane (``artifact_path`` set — a Studio lane) gains the
     authoring posture as an additive section: the artifact's current head is
-    read fresh here (derived, never stored) and ``services.studio`` composes
+    read fresh here (derived, never stored) and ``services.authoring`` composes
     the overlay purely.
 
     ADR-450 D3: a DERIVE-bound lane (``derive_recipe`` + ``derive_source``
@@ -413,7 +413,7 @@ def build_lane_conventions(
             )
         posture_section += build_agent_posture(agent, _mine, _skills)
     if artifact_path:
-        from services.studio import build_studio_posture
+        from services.authoring import build_studio_posture
         artifact = _read_workspace_file(client, user_id, artifact_path)
         # `+=`, NOT `=`. This was an assignment until 2026-07-16, which was
         # latent-only because no bound lane carried an agent — the moment

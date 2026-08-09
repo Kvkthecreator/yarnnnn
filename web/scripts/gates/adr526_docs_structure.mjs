@@ -7,10 +7,10 @@
 // Run from the REPO ROOT: node web/scripts/gates/adr526_docs_structure.mjs
 import { readFileSync } from 'fs';
 
-const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
+const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
 const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
-const surface = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
-const canvas = readFileSync('web/components/studio/StudioCanvas.tsx', 'utf8');
+const surface = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
+const canvas = readFileSync('web/components/authoring/StudioCanvas.tsx', 'utf8');
 
 let pass = 0,
   fail = 0;

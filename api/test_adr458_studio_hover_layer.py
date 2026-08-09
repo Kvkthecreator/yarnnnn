@@ -36,9 +36,9 @@ def _check(label: str, cond: bool) -> None:
 def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    design = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
+    design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
 
     # ── 1. The hover gutter is DELETED (ADR-481 D2 + ADR-505 D4) ────────
     _check("no gutter rail: no .yarnnn-gutter, no bar append, no yg-handle",

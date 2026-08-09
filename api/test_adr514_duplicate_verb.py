@@ -127,7 +127,7 @@ results.append(_check(
 # ── 4. Singular Implementation — the client-side copies are GONE ─────────────
 # The ADR deletes rather than mirrors. A surviving browser-side suffix probe
 # would silently keep producing orphaned duplicates on that surface.
-_studio = (WEB / "components/studio/StudioSurface.tsx").read_text()
+_studio = (WEB / "components/authoring/StudioSurface.tsx").read_text()
 results.append(_check(
     "4a no client-side -copy suffix probe survives in Studio",
     "-copy.html" not in _studio and "-copy-${i}" not in _studio))

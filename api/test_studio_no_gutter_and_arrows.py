@@ -77,9 +77,9 @@ def run() -> bool:
     )
     _check(
         "the parent has no reorder consumer left (no onReorder / handleReorder)",
-        "onReorder" not in (web / "components/studio/StudioCanvas.tsx").read_text()
+        "onReorder" not in (web / "components/authoring/StudioCanvas.tsx").read_text()
         and "handleReorder"
-        not in (web / "components/studio/StudioSurface.tsx").read_text(),
+        not in (web / "components/authoring/StudioSurface.tsx").read_text(),
     )
     # The deletion must NOT have taken the shared primitive or the object chrome.
     _check(

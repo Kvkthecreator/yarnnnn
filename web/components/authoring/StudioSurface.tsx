@@ -186,7 +186,7 @@ function baseName(p: string): string {
  *  `operation/prd-for-yarnnn/document.html` → "Prd for yarnnn". The leaf is a
  *  TYPE marker (document/deck/article/page.html), not a name.
  *
- *  This is the FALLBACK half of `artifact_name` in services/studio.py. It is
+ *  This is the FALLBACK half of `artifact_name` in services/authoring.py. It is
  *  lossy by construction — the path is an ASCII identity key (ADR-469), so a
  *  non-Latin name slugs away entirely (`sdㄴ` → `sd`, `한글 문서` → `untitled`).
  *  Never call it directly for a member-facing name; call `artifactNameOf`,
@@ -224,7 +224,7 @@ function extractTitle(html: string): string | null {
 /** The artifact's operator-facing NAME — LIFTED from the artifact, with the
  *  namespace as fallback. The FE half of ADR-469, completed by ADR-483.
  *
- *  ADR-469 lifted the name into `<title>` and made `services/studio.py::
+ *  ADR-469 lifted the name into `<title>` and made `services/authoring.py::
  *  artifact_name` read it first — but the Studio workbench never migrated, so
  *  the crumb kept deriving from the folder slug alone. That is a LOSSY key: a
  *  member who named a document `sdㄴ` saw the crumb read "Sd", because the
@@ -772,7 +772,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   );
 
   // The composition seam (kernel-named; see STUDIO_LAYOUT_MODES in
-  // services/studio.py). `paged` (deck, page) = the CONTAINER is the unit, so
+  // services/authoring.py). `paged` (deck, page) = the CONTAINER is the unit, so
   // the New-‹noun› gallery and the navigator strip are native. `flow`
   // (document, article) = BLOCKS are the unit and they flow — there is no
   // section to insert, and insert is located at the pointer. The chrome derives

@@ -34,10 +34,10 @@ def _check(label: str, cond: bool) -> None:
 
 
 proj = (WEB / "components/workspace/viewers/projection.ts").read_text()
-canvas = (WEB / "components/studio/StudioCanvas.tsx").read_text()
-surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
-tab = (WEB / "components/studio/StudioDesignTab.tsx").read_text()
-nav = (WEB / "components/studio/PagedNavigator.tsx").read_text()
+canvas = (WEB / "components/authoring/StudioCanvas.tsx").read_text()
+surface = (WEB / "components/authoring/StudioSurface.tsx").read_text()
+tab = (WEB / "components/authoring/StudioDesignTab.tsx").read_text()
+nav = (WEB / "components/authoring/PagedNavigator.tsx").read_text()
 
 # ── D1: the stage view ─────────────────────────────────────────────────────
 _check("stage CSS: non-current slides hide (deck sheet, view state only)",

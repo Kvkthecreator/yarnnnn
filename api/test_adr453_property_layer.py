@@ -38,7 +38,7 @@ def _check(label: str, cond: bool) -> None:
 
 
 def run() -> bool:
-    from services.studio import (
+    from services.authoring import (
         GRAIN_PHRASES,
         SCOPE_PHRASES,
         MEDIA_BLOCK_KINDS,
@@ -79,7 +79,7 @@ def run() -> bool:
     # axis invites. The axes are now enumerated in the registry itself
     # (TOKEN_SCOPES/TOKEN_GRAINS) and this gate reads THOSE, so the enum can
     # no longer silently fork from the vocabulary.
-    from services.studio import TOKEN_GRAINS, TOKEN_SCOPES
+    from services.authoring import TOKEN_GRAINS, TOKEN_SCOPES
     _check(
         "token rows carry label/scope/grains/values/description (closed axes)",
         all(
@@ -229,7 +229,7 @@ def run() -> bool:
 
     # ── 6. The FE half (read as text) ────────────────────────────────────
     web = Path(__file__).resolve().parent.parent / "web"
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
     _check(
         "artifactOps: the verb completion",
         all(
@@ -257,7 +257,7 @@ def run() -> bool:
         "artifactOps: page anchoring extends to pageIndex over the ONE structural PAGE_SEL",
         "pageIndex" in ops and "const PAGE_SEL = STRUCTURAL_PAGE_SEL;" in ops
         and "'section.slide, :is(body, main, article) > section'"
-        in (web / "components/studio/structureLabels.ts").read_text(),
+        in (web / "components/authoring/structureLabels.ts").read_text(),
     )
 
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
@@ -278,7 +278,7 @@ def run() -> bool:
         proj.count("yarnnn-add-here") >= 1 and "arrange:" in proj,
     )
 
-    toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
+    toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
     _check(
         # ADR-466 D5 amends ADR-453 D3: the toolbar pairs the page verbs —
         # New ‹noun› beside Layout (re-lay the CURRENT page), the PowerPoint
@@ -296,10 +296,10 @@ def run() -> bool:
     )
     _check(
         "the old StudioInsertMenu is deleted (Singular Implementation)",
-        not (web / "components/studio/StudioInsertMenu.tsx").exists(),
+        not (web / "components/authoring/StudioInsertMenu.tsx").exists(),
     )
 
-    design_tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    design_tab = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     _check(
         # ADR-511 D3 re-cut: the slot scope dissolved into CONTAINER scope.
         "Design tab: scope-switching (document/page/container/block — ADR-511 D3)",
@@ -314,7 +314,7 @@ def run() -> bool:
         "DOMParser" in design_tab and "getAttribute(`data-${t.key}`)" in design_tab,
     )
 
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
     _check(
         "surface: Chat | Design tabs, lane stays mounted under Design",
         "rightTab" in surface and "'chat' ? 'flex' : 'hidden'" in surface,

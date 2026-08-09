@@ -42,14 +42,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import services.docs  # noqa: F401,E402 — registration side-effect (as the app does)
-import services.studio as st  # noqa: E402
+import services.authoring as st  # noqa: E402
 
 PASS, FAIL = 0, 0
 
 WEB = Path(__file__).parent.parent / "web" / "components"
 PROJECTION = (WEB / "workspace" / "viewers" / "projection.ts").read_text()
-SURFACE = (WEB / "studio" / "StudioSurface.tsx").read_text()
-PICKER = (WEB / "studio" / "StudioCitablePicker.tsx").read_text()
+SURFACE = (WEB / "authoring" / "StudioSurface.tsx").read_text()
+PICKER = (WEB / "authoring" / "StudioCitablePicker.tsx").read_text()
 
 
 def t(label: str, cond: bool) -> None:
@@ -179,7 +179,7 @@ print("\n=== 5. D4 — the substrate teaching refuses script ===")
 posture = st.STUDIO_SUBSTRATE_POSTURE if hasattr(st, "STUDIO_SUBSTRATE_POSTURE") else ""
 if not posture:
     # The posture lives as a module-level string; find it by its own heading.
-    src = Path(__file__).parent.joinpath("services", "studio.py").read_text()
+    src = Path(__file__).parent.joinpath("services", "authoring.py").read_text()
     posture = src[src.index("Never edit a cited object's content") :][:3000]
 t("the lane is told a chart cites DATA", "Charts cite DATA" in posture or "cite DATA" in posture)
 t("the lane is told motion is CSS only", "Motion is CSS only" in posture)

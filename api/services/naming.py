@@ -8,7 +8,7 @@ while the folder had to carry the name:
     the single-writer unit (ADR-286), and the revision-chain key (ADR-209). It
     must be injective; it does not have to be readable.
   • The NAME is a fact the artifact carries — its own `<title>`, unicode and
-    exact (`services/studio.py::extract_title`). It must be readable; it does
+    exact (`services/authoring.py::extract_title`). It must be readable; it does
     not have to be unique.
 
 Neither impersonates the other. Before this split, one lossy `[^a-z0-9]+` slug

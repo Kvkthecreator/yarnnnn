@@ -21,7 +21,7 @@ import re
 import sys
 from pathlib import Path
 
-from services.studio import build_focus_line, build_studio_posture
+from services.authoring import build_focus_line, build_studio_posture
 
 failures: list[str] = []
 
@@ -113,7 +113,7 @@ check("D2 the posture receives the focus",
       "build_studio_posture(artifact_path, artifact, focus)" in runner_src)
 
 # ── 7. The grain vocabulary is ADR-519's, not ADR-453's dissolved ladder ────
-studio_src = Path("services/studio.py").read_text()
+studio_src = Path("services/authoring.py").read_text()
 focus_fn = studio_src[studio_src.index("def build_focus_line"):]
 focus_fn = focus_fn[: focus_fn.index("\ndef ", 1)]
 check(

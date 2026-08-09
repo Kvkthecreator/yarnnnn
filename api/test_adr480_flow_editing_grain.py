@@ -46,12 +46,12 @@ def _fn(src: str, name: str) -> str:
 def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     web = root / "web"
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
     substrate = (root / "api/services/authored_substrate.py").read_text()
-    studio_py = (root / "api/services/studio.py").read_text()
+    studio_py = (root / "api/services/authoring.py").read_text()
 
     # ── SUBSTRATE FACTS — the ADR's premise, re-verified every run ─────────
     # If any of these four ever fails, blocks have become load-bearing in the
@@ -73,7 +73,7 @@ def run() -> bool:
     # boundary, not a file count — a new Studio/IMAGES module may legitimately
     # speak blocks; `authored_substrate.py` or `primitives/` doing so would
     # mean the premise has changed.
-    APP_LAYER = ("services/studio.py", "routes/studio.py", "services/images/")
+    APP_LAYER = ("services/authoring.py", "routes/studio.py", "services/images/")
     leaks = sorted(
         str(p.relative_to(root / "api"))
         for p in (root / "api").rglob("*.py")

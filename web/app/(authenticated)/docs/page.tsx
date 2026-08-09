@@ -23,7 +23,7 @@
  * ADR-249 upload-detail page — both deleted here; Files carries that job.
  */
 
-import { StudioSurface, DOCS_APP } from '@/components/studio/StudioSurface';
+import { StudioSurface, DOCS_APP } from '@/components/authoring/StudioSurface';
 
 export default function DocsPage() {
   return <StudioSurface app={DOCS_APP} />;

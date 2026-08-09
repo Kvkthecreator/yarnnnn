@@ -45,7 +45,7 @@ def _h1(html: str):
 def main() -> int:
     from services.naming import disambiguate, path_slug
     import services.docs  # noqa: F401 — registers the document row (ADR-518)
-    from services.studio import (
+    from services.authoring import (
         all_layouts,
         all_templates,
         artifact_name,
@@ -56,9 +56,9 @@ def main() -> int:
 
     root = pathlib.Path(__file__).parent.parent
     routes = (root / "api/routes/studio.py").read_text()
-    menu = (root / "web/components/studio/StudioNewMenu.tsx").read_text()
-    surface = (root / "web/components/studio/StudioSurface.tsx").read_text()
-    modal = (root / "web/components/studio/NewArtifactModal.tsx").read_text()
+    menu = (root / "web/components/authoring/StudioNewMenu.tsx").read_text()
+    surface = (root / "web/components/authoring/StudioSurface.tsx").read_text()
+    modal = (root / "web/components/authoring/NewArtifactModal.tsx").read_text()
     client = (root / "web/lib/api/client.ts").read_text()
 
     print("── 1. THE UNTITLED ARTIFACT renders correctly, unnamed ────────")
@@ -139,7 +139,7 @@ def main() -> int:
     # namespace stays meaning. Assert on the PRODUCED PATH, not on source text:
     # a grep-only check missed that STUDIO_ARTIFACT_REGION already ends in "/",
     # so an appended slash yielded `/workspace/operation//untitled-document/…`.
-    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.authoring import STUDIO_ARTIFACT_REGION
 
     def _untitled_path_pure(template: str, existing: list[str]) -> str:
         # Mirrors the route's own lookup (resolve_layout — registry-wide since

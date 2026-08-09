@@ -48,7 +48,7 @@ def run() -> bool:
     sys.path.insert(0, str(root / "api"))
 
     import services.docs  # noqa: F401 — registers the document row (ADR-518)
-    from services.studio import (
+    from services.authoring import (
         RETIRED_LAYOUT_SLUGS,
         STUDIO_ARRANGEMENTS,
         STUDIO_LAYOUTS,
@@ -58,10 +58,10 @@ def run() -> bool:
         canonical_layout_slug,
     )
 
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
+    toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
     routes = (root / "api/routes/studio.py").read_text()
 
     def _fn(src: str, name: str) -> str:
@@ -165,7 +165,7 @@ def run() -> bool:
     # right by its overflow-hidden parent and read as a squished portrait strip.
     # The thumbnail now MEASURES its container and scales the natural 992px slide
     # to fit, so the 16:9 preview is undistorted and never clipped.
-    navigator = (web / "components/studio/PagedNavigator.tsx").read_text()
+    navigator = (web / "components/authoring/PagedNavigator.tsx").read_text()
     _check(
         "the thumbnail measures its own width (ResizeObserver), no hardcoded THUMB_W",
         "new ResizeObserver(measure)" in navigator and "const THUMB_W = 200" not in navigator,
@@ -249,7 +249,7 @@ def run() -> bool:
     _check(
         "the located palette lists every kind (no excluded set)",
         "SLASH_EXCLUDED"
-        not in (web / "components/studio/StudioSlashPalette.tsx").read_text(),
+        not in (web / "components/authoring/StudioSlashPalette.tsx").read_text(),
     )
     # ADR-539 D2 re-cut: the picker set is DERIVED from the served `cites`
     # field (the literal Set — which this gate pinned at its pre-ADR-538
@@ -257,9 +257,9 @@ def run() -> bool:
     _check(
         "nothing stranded: picker-backed kinds route to the cited-file picker",
         "cites === 'source'"
-        in (web / "components/studio/StudioCitablePicker.tsx").read_text()
+        in (web / "components/authoring/StudioCitablePicker.tsx").read_text()
         and "kindCites(p.kind)"
-        in (web / "components/studio/StudioSurface.tsx").read_text(),
+        in (web / "components/authoring/StudioSurface.tsx").read_text(),
     )
 
     # ── 4. the row band is GONE (ADR-505 D4) ────────────────────────────────

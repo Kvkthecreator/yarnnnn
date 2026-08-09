@@ -43,8 +43,8 @@ def _check(label: str, cond: bool) -> None:
 def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
 
     # ── 1. the Enter handler in the runtime ──────────────────────────────
     _check(

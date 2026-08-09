@@ -64,7 +64,7 @@ def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(root / "api"))
     import services.docs  # noqa: F401 — registers the document row (ADR-518)
-    from services.studio import (
+    from services.authoring import (
         all_layouts,
         all_templates,
         artifact_name,
@@ -72,7 +72,7 @@ def run() -> bool:
     )
 
     web = root / "web"
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
     routes = (root / "api/routes/studio.py").read_text()
     client = (web / "lib/api/client.ts").read_text()
 
@@ -118,8 +118,8 @@ def run() -> bool:
         # each incoming scaffold's title), so every app's scaffolds are
         # covered — a scaffold edit or a new app still can't orphan it.
         "the placeholder set is DERIVED at registration (a scaffold edit can't orphan it)",
-        "_SCAFFOLD_TITLES: set[str] = set()" in (root / "api/services/studio.py").read_text()
-        and "_SCAFFOLD_TITLES.add(title)" in (root / "api/services/studio.py").read_text(),
+        "_SCAFFOLD_TITLES: set[str] = set()" in (root / "api/services/authoring.py").read_text()
+        and "_SCAFFOLD_TITLES.add(title)" in (root / "api/services/authoring.py").read_text(),
     )
     out = set_artifact_title(all_templates()["document"]["skeleton"], "<script>alert(1)</script>")
     _check("the title is escaped (it lands in html)", "<script>" not in out.split("</head>")[1])

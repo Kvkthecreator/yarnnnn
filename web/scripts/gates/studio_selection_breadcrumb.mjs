@@ -18,8 +18,8 @@ const t = (label, cond) => {
   cond ? pass++ : fail++;
 };
 
-const src = readFileSync('web/components/studio/SelectionBreadcrumb.tsx', 'utf8');
-const surface = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
+const src = readFileSync('web/components/authoring/SelectionBreadcrumb.tsx', 'utf8');
+const surface = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
 
 // ── Extract + compile the real climb ────────────────────────────────────────
 const compileClimb = (source) => {

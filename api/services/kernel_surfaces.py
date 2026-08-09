@@ -280,7 +280,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # implementation, three consumers. Left pane = a BOUND lane
         # (ADR-411 machinery + an artifact binding + the authoring posture);
         # right pane = the live canvas over one self-contained HTML artifact.
-        # Types: Deck · Web (kernel constants, services/studio.py — apps
+        # Types: Deck · Web (kernel constants, services/authoring.py — apps
         # bring program, not substrate, D6).
         "slug": "studio",
         "launcher_tier": "primary",  # ADR-440 D2 — the probe needs traffic
@@ -305,7 +305,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # Studio's model structurally lacks (its export LEAVES the system).
         # Creation is dimensions-first (real W×H, ADR-472 D3), never an
         # aspect slug. The object layer (position/size/stacking on a staged
-        # frame) is SHARED kernel, not forked — services/studio.py's
+        # frame) is SHARED kernel, not forked — services/authoring.py's
         # `block-staged` grain, consumed by both apps (D2).
         #
         # ADR-488 (2026-07-28) — HIDDEN pre-beta. The app is functionally

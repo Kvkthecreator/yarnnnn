@@ -10,9 +10,9 @@
 import { readFileSync } from 'fs';
 
 const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
-const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
-const menu = readFileSync('web/components/studio/StudioBlockMenu.tsx', 'utf8');
-const studio = readFileSync('api/services/studio.py', 'utf8');
+const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
+const menu = readFileSync('web/components/authoring/StudioBlockMenu.tsx', 'utf8');
+const studio = readFileSync('api/services/authoring.py', 'utf8');
 
 let pass = 0,
   fail = 0;

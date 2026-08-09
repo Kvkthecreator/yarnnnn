@@ -81,7 +81,7 @@ def run() -> bool:
     from services.images import STAGE_SLUG, resolve_dimensions, stage_root_attrs
     from services.images.decompose import _coerce, heuristic_plan
     from services.images.generate import StubBackend, compose_layers
-    from services.studio import STUDIO_ARTIFACT_REGION, build_skeleton
+    from services.authoring import STUDIO_ARTIFACT_REGION, build_skeleton
 
     # ── Build a real stage the way POST /studio/artifacts does ───────────
     w, h = resolve_dimensions(preset_slug="ad")

@@ -21,8 +21,8 @@
 // Run from the REPO ROOT: node web/scripts/gates/adr519_d41_set_is_state.mjs
 import { readFileSync } from 'fs';
 
-const surface = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
-const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
+const surface = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
+const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
 const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
 
 let pass = 0,
@@ -37,7 +37,7 @@ t('StudioSurface passes onGroup to the canvas (dead since 2026-07-24)', /onGroup
 t('the set is held as its OWN state, not a field on selection',
   /const \[groupIds, setGroupIds\] = useState<string\[\]>\(\[\]\)/.test(surface));
 t('selection stays a single subject (no ids array grew on it)',
-  !/blockIds\??:/.test(readFileSync('web/components/studio/StudioToolbar.tsx', 'utf8')));
+  !/blockIds\??:/.test(readFileSync('web/components/authoring/StudioToolbar.tsx', 'utf8')));
 
 // ── 2. D4.1 — a set is NOT a scope ────────────────────────────────────────
 // The decisive structural claim. If a `multi`/`group`/`set` scope ever appears
@@ -46,7 +46,7 @@ t('selection stays a single subject (no ids array grew on it)',
   // ADR-541 D2 re-cut: the discriminator moved to selection.ts (the one
   // derivation home) — same invariant, new address: the PaneScope union is
   // still ADR-528's five and no set-scope has crept back in.
-  const selmod = readFileSync('web/components/studio/selection.ts', 'utf8');
+  const selmod = readFileSync('web/components/authoring/selection.ts', 'utf8');
   const decl = (selmod.match(/export type PaneScope = ([^;]+);/) ?? [])[1] ?? '';
   t('no multi/group/set scope in the discriminator (D4.1: state, not a scope)',
     decl.length > 0 && !/'multi'|'group'|'set'/.test(decl));
@@ -77,7 +77,7 @@ t('selection stays a single subject (no ids array grew on it)',
   // the pane reads the derived arity rather than re-counting.
   t('a set is > 1 member (one block is a selection, not a set)',
     /if \(u\.set\.length > 1\) return 'many';/.test(
-      readFileSync('web/components/studio/selection.ts', 'utf8'),
+      readFileSync('web/components/authoring/selection.ts', 'utf8'),
     ) && /const multiObject = arity === 'many' && unified\.setKind === 'objects'/.test(pane));
 }
 

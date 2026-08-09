@@ -64,11 +64,11 @@ def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     web = root / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    menu = (web / "components/studio/StudioBlockMenu.tsx").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    design = (web / "components/studio/StudioDesignTab.tsx").read_text()
-    shapes = (web / "components/studio/studioShapes.ts").read_text()
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    menu = (web / "components/authoring/StudioBlockMenu.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
+    design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
+    shapes = (web / "components/authoring/studioShapes.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
 
     # ── D1 — the slash-take path completes on flow ────────────────────────
     _check(

@@ -17,7 +17,7 @@
  * of it (D4) — a relationship Studio's model does not have.
  */
 
-import { StudioSurface, IMAGES_APP } from '@/components/studio/StudioSurface';
+import { StudioSurface, IMAGES_APP } from '@/components/authoring/StudioSurface';
 
 export default function ImagesPage() {
   return <StudioSurface app={IMAGES_APP} />;

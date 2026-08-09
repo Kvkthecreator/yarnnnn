@@ -4,7 +4,7 @@
 Two defects, one root: the Studio showed a name the member never typed.
 
   D1  the crumb derived the name from the PATH alone. ADR-469 lifted the name
-      into the artifact's <title> and taught `services/studio.py::artifact_name`
+      into the artifact's <title> and taught `services/authoring.py::artifact_name`
       to read it first — but the Studio workbench never migrated, so the crumb
       kept titleizing the meaning folder. That folder is an ASCII identity KEY
       (ADR-469: "it must be injective; it does not have to be readable"), so a
@@ -60,9 +60,9 @@ def _check(label: str, cond: bool) -> None:
 def run() -> bool:
     root = pathlib.Path(__file__).resolve().parent.parent
     web = root / "web"
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    modal = (web / "components/studio/NewArtifactModal.tsx").read_text()
-    toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
+    modal = (web / "components/authoring/NewArtifactModal.tsx").read_text()
+    toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
     route = (root / "api/routes/studio.py").read_text()
 
     # ── D1: the lift is the crumb's source, and the lossy one is not reachable
@@ -120,7 +120,7 @@ def run() -> bool:
 
     # The served set must be exactly what the placeholder predicate tests.
     try:
-        from services.studio import _SCAFFOLD_TITLES, _is_placeholder_title
+        from services.authoring import _SCAFFOLD_TITLES, _is_placeholder_title
 
         _check(
             "parity: every served title IS a placeholder by the server's predicate",

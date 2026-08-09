@@ -23,7 +23,7 @@
 // Run from the REPO ROOT: node web/scripts/gates/adr528_range_scope.mjs
 import { readFileSync } from 'fs';
 
-const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
+const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
 
 let pass = 0,
   fail = 0;
@@ -40,7 +40,7 @@ const t = (label, cond) => {
 // below is UNCHANGED: same inputs, same expected scopes, now executed against
 // the single source.
 import { readFileSync as rf } from 'fs';
-const selmod = rf('web/components/studio/selection.ts', 'utf8');
+const selmod = rf('web/components/authoring/selection.ts', 'utf8');
 function bodyOf(src, sig) {
   const i = src.indexOf(sig);
   if (i < 0) return null;

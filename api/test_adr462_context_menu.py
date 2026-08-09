@@ -68,11 +68,11 @@ def _fn(src: str, name: str) -> str:
 
 def main() -> bool:
     proj = _read("web/components/workspace/viewers/projection.ts")
-    menu_src = _read("web/components/studio/StudioBlockMenu.tsx")
+    menu_src = _read("web/components/authoring/StudioBlockMenu.tsx")
     menu = _rendered(menu_src)
-    surface = _read("web/components/studio/StudioSurface.tsx")
-    canvas = _read("web/components/studio/StudioCanvas.tsx")
-    ops = _read("web/components/studio/artifactOps.ts")
+    surface = _read("web/components/authoring/StudioSurface.tsx")
+    canvas = _read("web/components/authoring/StudioCanvas.tsx")
+    ops = _read("web/components/authoring/artifactOps.ts")
 
     print("\n── D7: right-click SELECTS, then menus ──")
     _check(
@@ -167,8 +167,8 @@ def main() -> bool:
         "the label speaks the frame's OWN name, in operator words (never a "
         "class name or a selector — ADR-443 D3, one ladder per ADR-511)",
         "labelForJS('frameLabel')" in proj
-        and "return 'column';" in _read("web/components/studio/structureLabels.ts")
-        and "return 'slide';" in _read("web/components/studio/structureLabels.ts"),
+        and "return 'column';" in _read("web/components/authoring/structureLabels.ts")
+        and "return 'slide';" in _read("web/components/authoring/structureLabels.ts"),
     )
     _check(
         "it borrows the slot label's grammar rather than inventing a second "
@@ -413,7 +413,7 @@ def main() -> bool:
         "the submenu reads the ONE legality source (no copy to drift from)",
         "import { isConvertible, turnIntoTargets }" in menu_src
         and "isConvertible(blocks, target.blockKind)" in menu_src
-        and "export function isConvertible" in _read("web/components/studio/StudioDesignTab.tsx"),
+        and "export function isConvertible" in _read("web/components/authoring/StudioDesignTab.tsx"),
     )
     _check(
         "it never offers a conversion on a CITATION (convertBlock refuses one, "
@@ -429,7 +429,7 @@ def main() -> bool:
         "turnIntoTargets(blocks ?? [], headingRungs ?? [...HEADING_RUNGS], target.blockKind, null)"
         in menu_src
         and "if (b.kind === currentKind) continue;"
-        in _read("web/components/studio/StudioDesignTab.tsx"),
+        in _read("web/components/authoring/StudioDesignTab.tsx"),
     )
     _check(
         "the menu acts on the RIGHT-CLICKED block, not whatever is selected",

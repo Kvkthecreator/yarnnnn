@@ -63,10 +63,10 @@ def _script_body(src: str, name: str) -> str:
 
 def run() -> bool:
     proj = (WEB / "components/workspace/viewers/projection.ts").read_text()
-    palette = (WEB / "components/studio/StudioSlashPalette.tsx").read_text()
-    surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
-    canvas = (WEB / "components/studio/StudioCanvas.tsx").read_text()
-    toolbar = (WEB / "components/studio/StudioToolbar.tsx").read_text()
+    palette = (WEB / "components/authoring/StudioSlashPalette.tsx").read_text()
+    surface = (WEB / "components/authoring/StudioSurface.tsx").read_text()
+    canvas = (WEB / "components/authoring/StudioCanvas.tsx").read_text()
+    toolbar = (WEB / "components/authoring/StudioToolbar.tsx").read_text()
 
     # ── 1. the trigger fires ANYWHERE ───────────────────────────────────────
     print("\n-- the trigger --")
@@ -249,7 +249,7 @@ def run() -> bool:
     # These checks follow the code — the invariant (every kind wears an icon
     # resolved from its KIND, with a fallback) is unchanged and now defends BOTH
     # doors at once instead of only the slash palette.
-    rows = (WEB / "components/studio/blockRows.tsx").read_text()
+    rows = (WEB / "components/authoring/blockRows.tsx").read_text()
     print("\n-- the rows --")
     _check("the palette renders the shared row component", "BlockRow" in palette)
     _check("the shared row renders an icon per row", "Icon" in rows)
@@ -352,7 +352,7 @@ def run() -> bool:
         "the take exits SILENT (the parent's op is the sole writer of the result)",
         "exit(false, true)" in proj,
     )
-    ops = (WEB / "components/studio/artifactOps.ts").read_text()
+    ops = (WEB / "components/authoring/artifactOps.ts").read_text()
     _check(
         "split+insert is ONE op, not two (they would race on the same head)",
         "export function splitBlockAndInsert" in ops,

@@ -252,7 +252,7 @@ export function isArtifactCandidate(path: string, contentType?: string): boolean
 
 /** The artifact's declared document type — its root `data-template` (ADR-459
  *  D1). Lifted from content, never stored; mirrors
- *  `services/studio.py::extract_template`. */
+ *  `services/authoring.py::extract_template`. */
 export function extractTemplate(content: string): string | null {
   const m = /<html[^>]*\bdata-template="([^"]+)"/i.exec(content || '');
   return m ? m[1] : null;

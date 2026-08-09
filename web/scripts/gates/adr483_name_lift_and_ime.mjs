@@ -8,7 +8,7 @@
 // Run: node web/scripts/gates/adr483_name_lift_and_ime.mjs
 import { readFileSync } from 'fs';
 
-const src = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
+const src = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
 
 let pass = 0,
   fail = 0;
@@ -90,7 +90,7 @@ t(
     'IR deck v3',
 );
 
-// ── 2. THE PLACEHOLDER GUARD — parity with services/studio.py::artifact_name.
+// ── 2. THE PLACEHOLDER GUARD — parity with services/authoring.py::artifact_name.
 // A scaffold title is NOT a name: a pre-ADR-469 artifact kept the placeholder
 // while its folder held the real name, so content-wins would mislabel it.
 t(

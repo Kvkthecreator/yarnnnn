@@ -18,8 +18,8 @@
 // Run from the REPO ROOT: node web/scripts/gates/adr519_container_reorder.mjs
 import { readFileSync } from 'fs';
 
-const ops = readFileSync('web/components/studio/artifactOps.ts', 'utf8');
-const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
+const ops = readFileSync('web/components/authoring/artifactOps.ts', 'utf8');
+const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
 
 let pass = 0,
   fail = 0;
@@ -227,8 +227,8 @@ t('both sibling walks extracted and runnable', !!prevBlock && !!nextBlock);
 // told. A group vanishing silently is the defect the rule would otherwise
 // produce, so the warning is part of the decision, not a nicety.
 {
-  const bar = readFileSync('web/components/studio/StudioToolbar.tsx', 'utf8');
-  const surface = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
+  const bar = readFileSync('web/components/authoring/StudioToolbar.tsx', 'utf8');
+  const surface = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
 
   // The note function, EXECUTED — the wording is the deliverable here.
   const ni = bar.indexOf('export function arrangementCarryNote');

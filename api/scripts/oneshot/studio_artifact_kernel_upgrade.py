@@ -50,7 +50,7 @@ _KERNEL_VERSION_RX = re.compile(r'data-kernel="true"[^>]*data-kernel-v="(\d+)"')
 
 def main(execute: bool) -> int:
     from services.authored_substrate import write_revision
-    from services.studio import (
+    from services.authoring import (
         STUDIO_KERNEL_CSS_VERSION,
         STUDIO_LAYOUTS,
         STUDIO_TEMPLATES,

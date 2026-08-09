@@ -50,9 +50,9 @@ def run() -> int:
     file_types = _read("lib/file-types/index.ts")
     files_page = _read("app/(authenticated)/files/page.tsx")
     ctx_menu = _read("components/workspace/FileContextMenu.tsx")
-    studio = _read("components/studio/StudioSurface.tsx")
-    flow = _read("components/studio/LearnFromFlowModal.tsx")
-    new_artifact = _read("components/studio/NewArtifactModal.tsx")
+    studio = _read("components/authoring/StudioSurface.tsx")
+    flow = _read("components/authoring/LearnFromFlowModal.tsx")
+    new_artifact = _read("components/authoring/NewArtifactModal.tsx")
     open_modal = _read("components/chat-surface/FileOpenModal.tsx")
 
     # ── 1. the resolver ───────────────────────────────────────────────────
@@ -188,7 +188,7 @@ def run() -> int:
     )
     passed &= _check(
         "v2: SourcePickerModal superseded (deleted)",
-        not os.path.exists(os.path.join(_WEB, "components/studio/SourcePickerModal.tsx")),
+        not os.path.exists(os.path.join(_WEB, "components/authoring/SourcePickerModal.tsx")),
     )
     passed &= _check(
         "thumbnail recents: sandboxed scaled srcDoc render",

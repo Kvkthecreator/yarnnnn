@@ -370,7 +370,7 @@ def set_backend(backend: GenerationBackend) -> None:
 # ---------------------------------------------------------------------------
 #
 # Every layer lands as a block on the staged frame, carrying the SHARED object
-# layer's measures (`services/studio.py::STUDIO_MEASURES`, grain
+# layer's measures (`services/authoring.py::STUDIO_MEASURES`, grain
 # `block-staged`): data-x/data-y position it, data-w sizes it, data-z stacks
 # it, and the `--yx/--yy/--yw/--yz` custom properties carry the values. IMAGES
 # invents no geometry vocabulary — it consumes the kernel's, which is exactly

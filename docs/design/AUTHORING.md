@@ -256,10 +256,10 @@ sender is a layout effect so it cannot race the projection. A **patchable** op i
 it does not re-project (ADR-524 D2), so its document stays live and keeps its right to
 commit in-flight typing — retiring there would drop keystrokes, which is the worse defect.
 
-## Vocabulary, templates, skins (the kernel registries — `services/studio.py`)
+## Vocabulary, templates, skins (the kernel registries — `services/authoring.py`)
 
 > Per-app layout tables register into these shared registries (ADR-472 D2 via ADR-518 D3):
-> `services/docs.py` carries `document`; `services/studio.py` carries `deck` · `web`;
+> `services/docs.py` carries `document`; `services/authoring.py` carries `deck` · `web`;
 > `services/images/stage.py` carries `image`. The app boundary is the module; the
 > machinery below is one implementation, three consumers.
 
@@ -360,7 +360,7 @@ commit in-flight typing — retiring there would drop keystrokes, which is the w
     what the pane's *scope* is DERIVED from. A surface that commits a scope first and
     consults the tier afterwards can only subtract, and subtraction is how a scope
     accumulates a column of absences. **ADR-541 finishes it**: `scopeOf` and `arityOf`
-    (`web/components/studio/selection.ts`) are the ONLY derivation sites for "what is the
+    (`web/components/authoring/selection.ts`) are the ONLY derivation sites for "what is the
     member looking at" and "how many subjects does a verb take" — the pane, the menu and
     the keyboard's parent dispatch are consumers. The two historical set states fold into
     one `set` + `setKind` via `unify` (a live range outranks a stale click's set memory).

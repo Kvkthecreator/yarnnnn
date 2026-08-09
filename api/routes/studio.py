@@ -1,7 +1,7 @@
 """Studio routes — ADR-440 (the first authoring app).
 
 Two endpoints, both thin over the Studio's program constants
-(``services/studio.py``):
+(``services/authoring.py``):
 
 - ``GET  /api/studio/templates``   — the template registry (slug/label/
                                      description; skeletons never cross the
@@ -30,7 +30,7 @@ from typing import Optional
 from services.supabase import UserClient
 
 # ADR-472 D1/D2: importing the IMAGES app REGISTERS its stage with the shared
-# layout registry (services/studio.py::register_layouts). Without this import
+# layout registry (services/authoring.py::register_layouts). Without this import
 # the registry holds only Studio's layouts and an IMAGES stage silently 404s at
 # creation — the module IS the registration, so the import is load-bearing and
 # must not be pruned as "unused".
@@ -44,7 +44,7 @@ import services.docs  # noqa: F401  (import for registration side-effect)
 # use these at request time, so a function-local import in ONE handler would
 # leave the others with a NameError — which is exactly what shipped and broke
 # /studio/templates + /studio/vocabulary in prod (2026-07-20).
-from services.studio import all_layouts, all_templates, resolve_layout
+from services.authoring import all_layouts, all_templates, resolve_layout
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ async def list_artifacts(auth: UserClient, app: Optional[str] = None) -> dict:
     → every artifact, which is what the Files surface (the un-scoped mirror,
     DP29) and any future cross-app view want.
     """
-    from services.studio import (
+    from services.authoring import (
         STUDIO_ARTIFACT_REGION,
         app_for_kind,
         artifact_kind,
@@ -214,7 +214,7 @@ async def get_vocabulary(auth: UserClient) -> dict:
     the ADR-453 D2 retrofit). `design_systems` is ADR-449 discovery (the
     Design tab's document scope). Grammar, not schema."""
     from services.design_systems import find_design_systems, read_default_design_system
-    from services.studio import (
+    from services.authoring import (
         HEADING_RUNGS,
         MEDIA_BLOCK_KINDS,
         STUDIO_ARRANGEMENTS,
@@ -643,7 +643,7 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
     revision. CAS-guarded (ADR-406): a stale base 409s with the intervening
     attribution instead of silently clobbering a lane write."""
     from services.authored_substrate import StaleWriteError, write_revision
-    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.authoring import STUDIO_ARTIFACT_REGION
 
     raw = (req.path or "").strip()
     path = raw if raw.startswith("/") else f"/workspace/{raw}"
@@ -705,7 +705,7 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
     folder that grows assets doesn't silently half-rename.
     """
     from services.naming import disambiguate, path_slug
-    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.authoring import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
     raw = (req.path or "").strip()
@@ -865,7 +865,7 @@ def _retitle_to(auth: UserClient, path: str, title: str | None = None) -> dict:
     genuinely missing artifact.
     """
     from services.authored_substrate import write_revision
-    from services.studio import artifact_name, set_artifact_title
+    from services.authoring import artifact_name, set_artifact_title
     from services.workspace_context import substrate_scope_filter
 
     row = (
@@ -920,7 +920,7 @@ async def retitle_artifact(req: RetitleArtifactRequest, auth: UserClient) -> dic
     """Retitle an artifact from its own name (explicit endpoint; the shared body
     is `_retitle_to`). Carries no typed name, so the helper falls back to
     `artifact_name`. See that helper for the full contract."""
-    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.authoring import STUDIO_ARTIFACT_REGION
 
     raw = (req.path or "").strip()
     path = raw if raw.startswith("/") else f"/workspace/{raw}"
@@ -995,7 +995,7 @@ def _untitled_path(auth: UserClient, template: str) -> str:
     member's Move verb; neither is forced by where it was born.
     """
     from services.naming import disambiguate, path_slug
-    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.authoring import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
     lay = resolve_layout(template)
@@ -1023,7 +1023,7 @@ def _untitled_path(auth: UserClient, template: str) -> str:
 @router.post("/studio/artifacts")
 async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     from services.authored_substrate import write_revision
-    from services.studio import STUDIO_ARTIFACT_REGION
+    from services.authoring import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
     _templates = all_templates()
@@ -1082,7 +1082,7 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # Only a `flow` layout's h1 IS the title — a deck's h1 is the title slide's
     # thesis, a page's is its headline, and a filename has no business
     # dictating those (see set_artifact_title's guards). <title> is always set.
-    from services.studio import set_artifact_title
+    from services.authoring import set_artifact_title
 
     # Resolved through the registry, never a table subscript: `req.template`
     # may belong to any registered app (Docs' document, an IMAGES stage, a

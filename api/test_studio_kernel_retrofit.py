@@ -49,8 +49,8 @@ def _check(label: str, cond: bool) -> None:
 
 def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
-    ops = (web / "components/studio/artifactOps.ts").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
 
     # ── 1. the op exists and is wired to the real upsert ────────────────────
     _check(
@@ -116,7 +116,7 @@ def run() -> bool:
     #
     # The invariant: a kernel rule may not be predicated on the presence of a
     # skin rule. The skin is frozen at creation; the kernel is not.
-    from services.studio import STUDIO_KERNEL_CSS_VERSION, compose_kernel_style_element
+    from services.authoring import STUDIO_KERNEL_CSS_VERSION, compose_kernel_style_element
 
     kernel_css = compose_kernel_style_element()
     _check(
@@ -144,7 +144,7 @@ def run() -> bool:
     # Live receipt: ir-deck-yarnnn-march-2026-v5 (kvk) — a full lane-built deck
     # with zero data-kernel. The server mirror closes the path. Singular: the
     # server helper is the ONE server-side retrofit, mirroring ensureKernelStyle.
-    from services.studio import ensure_kernel_style_in_html
+    from services.authoring import ensure_kernel_style_in_html
 
     no_kernel = '<html data-template="deck"><head><style>skin</style></head><body></body></html>'
     retro = ensure_kernel_style_in_html(no_kernel)

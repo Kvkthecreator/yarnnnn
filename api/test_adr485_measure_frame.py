@@ -52,11 +52,11 @@ def _check(label: str, cond: bool) -> None:
 
 
 proj = (WEB / "components/workspace/viewers/projection.ts").read_text()
-ops = (WEB / "components/studio/artifactOps.ts").read_text()
-tab = (WEB / "components/studio/StudioDesignTab.tsx").read_text()
-canvas = (WEB / "components/studio/StudioCanvas.tsx").read_text()
-surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
-studio_py = (ROOT / "api/services/studio.py").read_text()
+ops = (WEB / "components/authoring/artifactOps.ts").read_text()
+tab = (WEB / "components/authoring/StudioDesignTab.tsx").read_text()
+canvas = (WEB / "components/authoring/StudioCanvas.tsx").read_text()
+surface = (WEB / "components/authoring/StudioSurface.tsx").read_text()
+studio_py = (ROOT / "api/services/authoring.py").read_text()
 
 print("\n-- 1. D1: the rectangle is named once, and every caller reads it --")
 _check("frameRects exists (the one place the box model is answered)",

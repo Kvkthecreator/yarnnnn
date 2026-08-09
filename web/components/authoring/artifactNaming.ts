@@ -2,7 +2,7 @@
  * artifactNaming — the FE mirror of ADR-459 D2's naming rule.
  *
  * The server computes `name` for the artifact LIST (`GET /studio/artifacts`,
- * `services/studio.py::artifact_name`) — that's the authoritative one, and any
+ * `services/authoring.py::artifact_name`) — that's the authoritative one, and any
  * surface holding a served row must use it.
  *
  * This exists for the one place that can't: a tree-node picker. The workspace
@@ -12,7 +12,7 @@
  * in a picker would be absurd. So the picker derives, and this module is the
  * ONE place it derives — not a second rule, a second CALLER of the same rule.
  *
- * Keep this in step with `api/services/studio.py::_titleize` + `artifact_name`.
+ * Keep this in step with `api/services/authoring.py::_titleize` + `artifact_name`.
  * Both are deliberately dumb (sentence case, no acronym heuristic) for the
  * reasons recorded in ADR-459 D2; a cleverer guess here would diverge from the
  * server's and show the member two different names for one file.

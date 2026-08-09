@@ -53,10 +53,10 @@ def _no_backticks_in_scripts(src: str) -> bool:
 
 def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
 
     # ── 1. the source ops ────────────────────────────────────────────────
     _check(

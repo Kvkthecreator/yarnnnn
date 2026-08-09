@@ -10,11 +10,11 @@
 // Run from the REPO ROOT: node web/scripts/gates/adr539_vocabulary_derivations.mjs
 import { readFileSync } from 'fs';
 
-const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
-const menu = readFileSync('web/components/studio/StudioBlockMenu.tsx', 'utf8');
-const picker = readFileSync('web/components/studio/StudioCitablePicker.tsx', 'utf8');
-const surface = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
-const ops = readFileSync('web/components/studio/artifactOps.ts', 'utf8');
+const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
+const menu = readFileSync('web/components/authoring/StudioBlockMenu.tsx', 'utf8');
+const picker = readFileSync('web/components/authoring/StudioCitablePicker.tsx', 'utf8');
+const surface = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
+const ops = readFileSync('web/components/authoring/artifactOps.ts', 'utf8');
 
 let pass = 0,
   fail = 0;

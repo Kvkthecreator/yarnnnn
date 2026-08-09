@@ -22,15 +22,15 @@ import re
 import sys
 from pathlib import Path
 
-import services.studio as st
+import services.authoring as st
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTION = (ROOT / "web/components/workspace/viewers/projection.ts").read_text()
-ARTIFACT_OPS = (ROOT / "web/components/studio/artifactOps.ts").read_text()
-DESIGN_TAB = (ROOT / "web/components/studio/StudioDesignTab.tsx").read_text()
-MENU = (ROOT / "web/components/studio/StudioBlockMenu.tsx").read_text()
-PICKER = (ROOT / "web/components/studio/StudioCitablePicker.tsx").read_text()
-SURFACE = (ROOT / "web/components/studio/StudioSurface.tsx").read_text()
+ARTIFACT_OPS = (ROOT / "web/components/authoring/artifactOps.ts").read_text()
+DESIGN_TAB = (ROOT / "web/components/authoring/StudioDesignTab.tsx").read_text()
+MENU = (ROOT / "web/components/authoring/StudioBlockMenu.tsx").read_text()
+PICKER = (ROOT / "web/components/authoring/StudioCitablePicker.tsx").read_text()
+SURFACE = (ROOT / "web/components/authoring/StudioSurface.tsx").read_text()
 ROUTE = (ROOT / "api/routes/studio.py").read_text()
 
 PASS = 0

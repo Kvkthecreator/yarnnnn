@@ -39,7 +39,7 @@ def _check(label: str, cond: bool) -> None:
 
 def main() -> int:
     from services.naming import FALLBACK_SLUG, MAX_SLUG_LEN, disambiguate, path_slug
-    from services.studio import (
+    from services.authoring import (
         STUDIO_TEMPLATES,
         artifact_name,
         extract_title,
@@ -48,7 +48,7 @@ def main() -> int:
 
     root = pathlib.Path(__file__).parent.parent
     routes = (root / "api/routes/studio.py").read_text()
-    modal = (root / "web/components/studio/NewArtifactModal.tsx").read_text()
+    modal = (root / "web/components/authoring/NewArtifactModal.tsx").read_text()
 
     print("── 1. THE LIFT: the name round-trips EXACTLY ──────────────────")
     doc = STUDIO_TEMPLATES["document"]["skeleton"]

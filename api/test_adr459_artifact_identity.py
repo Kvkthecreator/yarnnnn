@@ -25,7 +25,7 @@ def _check(label: str, cond: bool, detail: str = "") -> bool:
 
 
 def main() -> int:
-    from services.studio import (
+    from services.authoring import (
         STUDIO_ARTIFACT_REGION,
         STUDIO_LAYOUTS,
         artifact_kind,
@@ -127,7 +127,7 @@ def main() -> int:
     )
 
     print("\n── FALSIFIER #3: no `.html` on the Studio LANDING composition ──")
-    web = Path(__file__).parent.parent / "web" / "components" / "studio"
+    web = Path(__file__).parent.parent / "web" / "components" / "authoring"
     surface = (web / "StudioSurface.tsx").read_text()
     # The recents card renders the served name + label, not the basename.
     recents = surface[surface.find("{recents.map((r) => {") :][:2400]

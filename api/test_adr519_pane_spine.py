@@ -51,8 +51,8 @@ def _check(label: str, cond: bool) -> None:
         _fail += 1
 
 
-tab = (WEB / "components/studio/StudioDesignTab.tsx").read_text()
-surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
+tab = (WEB / "components/authoring/StudioDesignTab.tsx").read_text()
+surface = (WEB / "components/authoring/StudioSurface.tsx").read_text()
 
 # ── The scope regions (extraction must succeed or every ordering claim is void) ──
 #

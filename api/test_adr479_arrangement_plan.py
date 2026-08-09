@@ -101,15 +101,15 @@ def run() -> bool:
            (root / "api/services/studio_arrangement_plan.py").read_text())
 
     # ── 6. D4 — Re-arrange left the right-click menu ────────────────────────
-    menu = (web / "components/studio/StudioBlockMenu.tsx").read_text()
+    menu = (web / "components/authoring/StudioBlockMenu.tsx").read_text()
     _check("D4: the page-scoped Re-arrange row is GONE from the block menu",
            "Re-arrange…" not in menu and "onRearrange" not in menu)
     _check("…while the block-scoped AI rows stay (the grammar the menu carries)",
            "Rewrite…" in menu and "Check this…" in menu)
 
     # ── 7. The FE applies a plan, and still falls back (ADR-468 D4) ─────────
-    ops = (web / "components/studio/artifactOps.ts").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
     _check("applyArrangementPlan places by the PLAN's slot names",
            "export function applyArrangementPlan" in ops and "bySlotPlan" in ops)
     _check("blocksForPlan sends id/kind/text — never markup",

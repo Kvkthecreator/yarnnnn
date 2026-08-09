@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import services.docs  # noqa: F401,E402 — registration side-effect (as the app does)
-import services.studio as st  # noqa: E402
+import services.authoring as st  # noqa: E402
 
 PASS, FAIL = 0, 0
 
@@ -116,7 +116,7 @@ t(
 )
 t(
     "D5: the posture is scoped by the RESOLVED layout row, not a slug test",
-    "layout.get(\"app\")" in Path("services/studio.py").read_text(),
+    "layout.get(\"app\")" in Path("services/authoring.py").read_text(),
 )
 
 # ── 4. Ownership is SERVED (the FE filters at one chokepoint) ─────────────
@@ -125,7 +125,7 @@ t(
     "D5: the vocabulary endpoint serves `apps` per block",
     '"apps": list(b["apps"]) if "apps" in b else None' in routes,
 )
-surface = Path("../web/components/studio/StudioSurface.tsx").read_text()
+surface = Path("../web/components/authoring/StudioSurface.tsx").read_text()
 t(
     "D5: the FE filters ONCE, at the vocabulary load site (rule 11 / ADR-484 — "
     "never at the three offering sites)",
@@ -140,7 +140,7 @@ t(
 # A grammar filter must never become a schema gate: a member's existing callout
 # has to keep rendering, keep its kernel CSS, and keep the text tier so its
 # prose stays editable.
-studio_py = Path("services/studio.py").read_text()
+studio_py = Path("services/authoring.py").read_text()
 t(
     "D5: the callout kernel CSS survives (an existing one still renders)",
     'aside[data-block="callout"]' in studio_py,

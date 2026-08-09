@@ -5,7 +5,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { sseEvents } from "@/lib/sse";
-import type { StudioVocabulary } from "@/components/studio/StudioToolbar";
+import type { StudioVocabulary } from "@/components/authoring/StudioToolbar";
 import type {
   Memory,
   MemoryCreate,

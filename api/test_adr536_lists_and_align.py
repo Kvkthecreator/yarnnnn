@@ -42,12 +42,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import services.docs  # noqa: F401,E402 — registration side-effect (as the app does)
-import services.studio as st  # noqa: E402
+import services.authoring as st  # noqa: E402
 
 WEB = Path(__file__).resolve().parent.parent / "web"
-DESIGN_TAB = (WEB / "components/studio/StudioDesignTab.tsx").read_text()
+DESIGN_TAB = (WEB / "components/authoring/StudioDesignTab.tsx").read_text()
 PROJECTION = (WEB / "components/workspace/viewers/projection.ts").read_text()
-ARTIFACT_OPS = (WEB / "components/studio/artifactOps.ts").read_text()
+ARTIFACT_OPS = (WEB / "components/authoring/artifactOps.ts").read_text()
 
 PASS, FAIL = 0, 0
 
@@ -144,7 +144,7 @@ t("D1: TEXT_BLOCK_KINDS carries both — a list is typed IN, never select-only",
 
 # ADR-539 D2 re-cut: membership moved to the registry's `convertible` field;
 # the FE derives (TURN_INTO_KINDS deleted). Same invariant, declared home.
-from services.studio import STUDIO_BLOCKS as _blocks_539
+from services.authoring import STUDIO_BLOCKS as _blocks_539
 t("D1: the two list kinds are convertible — one declaration, two mounts",
   _blocks_539["list"]["convertible"] is True
   and _blocks_539["numbered"]["convertible"] is True
@@ -203,7 +203,7 @@ t("D2/ADR-541: align+indent mount over any range (span-aware, no !multi gate)",
 
 t("D2/ADR-541: a spanning token write routes through setTokenMany (one revision)",
   "setTokenMany(html, rangeBlockIds, key, value)"
-  in (WEB / "components/studio/StudioSurface.tsx").read_text())
+  in (WEB / "components/authoring/StudioSurface.tsx").read_text())
 
 
 # ── 7. FALSIFIERS — every structural claim can fail ───────────────────────

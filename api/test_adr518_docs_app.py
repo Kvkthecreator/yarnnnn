@@ -31,7 +31,7 @@ def run() -> bool:
 
     from services import docs as dx
     from services import images as im
-    from services.studio import (
+    from services.authoring import (
         STUDIO_LAYOUTS,
         _SCAFFOLD_TITLES,
         all_templates,
@@ -59,7 +59,7 @@ def run() -> bool:
         and dx.DOCS_LAYOUTS["document"]["app"] == "docs",
     )
     # First-registration-wins means a collision is silent at register time
-    # (ADR-443 §6: no exceptions from services/studio.py) — disjointness is
+    # (ADR-443 §6: no exceptions from services/authoring.py) — disjointness is
     # asserted HERE, pairwise across all three apps' tables.
     _check(
         "the three apps' layout slug sets are pairwise DISJOINT",
@@ -158,7 +158,7 @@ def run() -> bool:
         "'docs', // ADR-518" in prefs
         and "dock-reseed-2026-08-04-docs" in prefs,
     )
-    surface = (root / "web/components/studio/StudioSurface.tsx").read_text()
+    surface = (root / "web/components/authoring/StudioSurface.tsx").read_text()
     _check(
         "AuthoringApp admits docs and declares DOCS_APP",
         "slug: 'docs' | 'studio' | 'images'" in surface

@@ -32,7 +32,7 @@ def _check(label: str, cond: bool) -> None:
 
 
 def run() -> bool:
-    from services.studio import (
+    from services.authoring import (
         STUDIO_KERNEL_CSS,
         STUDIO_KERNEL_CSS_VERSION,
         STUDIO_TOKENS,
@@ -67,11 +67,11 @@ def run() -> bool:
 
     # ── 3–6. The FE half (read as text) ──────────────────────────────────
     web = Path(__file__).resolve().parent.parent / "web"
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
     _check("setToken targets the document grain (the artifact root)",
            "'block' | 'page' | 'document'" in ops and "doc.documentElement" in ops)
 
-    design_tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    design_tab = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     # ADR-487 D9 re-pin: the `font` token keeps its Ag preview and its resolved
     # face stacks, but the CHIP ROW is gone — it is a StyleSelect now
     # (FaceTokenSelect), the same shape block scope uses, because one word
@@ -110,7 +110,7 @@ def run() -> bool:
            "AppliedSystemCue" in design_tab
            and design_tab.count("<AppliedSystemCue") == 2
            and "onOpenSystem" in design_tab)
-    surface_src = (web / "components/studio/StudioSurface.tsx").read_text()
+    surface_src = (web / "components/authoring/StudioSurface.tsx").read_text()
     _check("surface: the manage panel is the SOLE var-list mount (the object register)",
            "parseSkinVars" in surface_src)
 
@@ -118,7 +118,7 @@ def run() -> bool:
     _check("shared menu: the extraItems extension point (additive, no fork)",
            "extraItems" in menu and "FileMenuExtraItem" in menu)
 
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
     _check("Copy link + Duplicate live on (re-homed to the Design tab by ADR-458)",
            "copyArtifactLink" in surface and "duplicateArtifact" in surface)
     # ADR-514 D1 re-cut: the FE probe-then-create loop is gone — duplicate is
@@ -130,10 +130,10 @@ def run() -> bool:
     # ADR-518 follow-through: the flow outline died with the mode split — the
     # navigator is the paged strip; block picks ride the structure tree
     # (onSelectNode) and the same scroll bridge below.
-    nav = (web / "components/studio/PagedNavigator.tsx").read_text()
+    nav = (web / "components/authoring/PagedNavigator.tsx").read_text()
     # ADR-520 D4 re-cut: the structure tree LEFT the navigator (the rail is
     # the sequence); structure picks are the PANE's Contents rows now.
-    tab_520 = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    tab_520 = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     _check("structure picks are clickable in their ONE home (the pane's Contents)",
            "onClick={() => onSelect(n)}" in tab_520 and "onSelectNode" not in nav)
 

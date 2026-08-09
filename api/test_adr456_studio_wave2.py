@@ -36,11 +36,11 @@ def _check(label: str, cond: bool) -> None:
 def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    ops = (web / "components/studio/artifactOps.ts").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
-    design = (web / "components/studio/StudioDesignTab.tsx").read_text()
-    palette = (web / "components/studio/StudioSlashPalette.tsx").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
+    design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
+    palette = (web / "components/authoring/StudioSlashPalette.tsx").read_text()
 
     # ── 1. The inline format bar ─────────────────────────────────────────
     _check("format bar is body-appended injected chrome (never inside a block)",
@@ -111,7 +111,7 @@ def run() -> bool:
     # ADR-539 D2 re-cut: the Turn-into membership is DECLARED in the registry
     # (`convertible`) and DERIVED in the FE (TURN_INTO_KINDS deleted). Assert
     # the declaration carries the legal set, and the FE filters by it.
-    from services.studio import STUDIO_BLOCKS as _blocks_539
+    from services.authoring import STUDIO_BLOCKS as _blocks_539
     _check("registry: Turn into = text kinds only (+ heading per ADR-487 D1, "
            "+ ADR-536 D1 the two list kinds)",
            {k for k, b in _blocks_539.items() if b["convertible"]}

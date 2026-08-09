@@ -7,7 +7,7 @@ below is `STUDIO_LAYOUTS["document"]` moved verbatim — same slug, same mode,
 same skin, same scaffold — with its `app` declaration now naming the app that
 owns it. Nothing at the substrate changes: `data-template="document"` values
 in live artifacts are untouched, and every reader resolves through the shared
-registry (`services/studio.py::resolve_layout`).
+registry (`services/authoring.py::resolve_layout`).
 
 The shared machinery (skeleton builder, posture, artifact-kind, the write
 door, the projection) is kernel code all three authoring apps consume —
@@ -65,7 +65,7 @@ DOCS_LAYOUTS: dict[str, dict[str, str]] = {
 # Docs registers its document type with the shared machinery (ADR-472 D2 via
 # ADR-518 D3). The builders (skeleton, posture, artifact-kind) are kernel code
 # every authoring app consumes — registration is how Docs reaches them.
-from services.studio import register_layouts  # noqa: E402  (registration side-effect)
+from services.authoring import register_layouts  # noqa: E402  (registration side-effect)
 
 register_layouts(DOCS_LAYOUTS)
 

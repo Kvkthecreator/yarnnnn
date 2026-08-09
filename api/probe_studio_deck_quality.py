@@ -59,7 +59,7 @@ def measure(html: str) -> dict:
         teaches separately (titles/kickers/subtitles, so they are selectable).
         Scoring it "unknown" would have failed every correct deck.
     """
-    from services.studio import STUDIO_ARRANGEMENTS, STUDIO_BLOCKS
+    from services.authoring import STUDIO_ARRANGEMENTS, STUDIO_BLOCKS
 
     # The artifact's own skin, kept for the aspect-ratio check…
     artifact_css = re.search(r"<style>(.*?)</style>", html, re.S)
@@ -130,7 +130,7 @@ async def main() -> int:
     ap.add_argument("--write", action="store_true", help="persist the artifact")
     args = ap.parse_args()
 
-    from services.studio import build_skeleton
+    from services.authoring import build_skeleton
     from services.supabase import get_service_client
 
     skeleton = build_skeleton("deck")

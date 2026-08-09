@@ -218,7 +218,7 @@ def _coerce(raw: list) -> list[Layer]:
         # a pill badge into 63px slabs on a 628px stage. The floor now lives in
         # the kernel `STUDIO_MEASURES["h"]`, so this read gets the honest bound
         # for free — no fork, and Studio decks inherit the same 1% height floor.
-        from services.studio import STUDIO_MEASURES
+        from services.authoring import STUDIO_MEASURES
 
         for key in ("x", "y", "w", "h", "z"):
             spec = STUDIO_MEASURES.get(key) or {}

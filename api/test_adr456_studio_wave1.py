@@ -33,7 +33,7 @@ def _check(label: str, cond: bool) -> None:
 
 
 def run() -> bool:
-    from services.studio import (
+    from services.authoring import (
         MEDIA_BLOCK_KINDS,
         STUDIO_ARRANGEMENTS,
         STUDIO_BLOCKS,
@@ -119,21 +119,21 @@ def run() -> bool:
 
     # ── 5. The FE half (source checks) ───────────────────────────────────
     web = Path(__file__).resolve().parent.parent / "web"
-    toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
+    toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
     # ADR-466 D4 moved the gallery's multi-select from the toolbar's Media
     # panel into StudioCitablePicker (opened by the located palette).
-    picker = (web / "components/studio/StudioCitablePicker.tsx").read_text()
+    picker = (web / "components/authoring/StudioCitablePicker.tsx").read_text()
     _check("palette routes gallery to the multi-select picker",
            "kind === 'gallery'" in picker and "setPicked" in picker
            and "onPickGallery(picked, pins)" in picker)
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
     _check("gallery insert = ONE block from the registry fragment (one revision)",
            "galleryFragment(base, paths.map(relPath)" in surface)
-    ops = (web / "components/studio/artifactOps.ts").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
     _check("galleryFragment clones the registry prototype per picked path",
            "export function galleryFragment" in ops
            and "proto.cloneNode(true)" in ops)
-    design = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     _check("Design tab gates document-deck by layout",
            "deck: layout === 'deck'" in design
            and "layout === 'deck'" in design)

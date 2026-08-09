@@ -44,9 +44,9 @@ def _decommented(src: str) -> str:
 
 def main() -> bool:
     proj_path = _ROOT / "web/components/workspace/viewers/projection.ts"
-    surface_path = _ROOT / "web/components/studio/StudioSurface.tsx"
+    surface_path = _ROOT / "web/components/authoring/StudioSurface.tsx"
     canvas_path = _ROOT / "web/components/workspace/viewers/../../studio/StudioCanvas.tsx"
-    menu_path = _ROOT / "web/components/studio/StudioBlockMenu.tsx"
+    menu_path = _ROOT / "web/components/authoring/StudioBlockMenu.tsx"
 
     proj = _decommented(proj_path.read_text())
     surface = _decommented(surface_path.read_text())

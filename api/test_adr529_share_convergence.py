@@ -136,7 +136,7 @@ def main() -> int:
 
     # ── D1 / D4: one cockpit mint path, and the deletions ───────────────────
     files_page = _strip_comments(_read("app/(authenticated)/files/page.tsx"))
-    studio_hdr = _strip_comments(_read("components/studio/StudioShareExport.tsx"))
+    studio_hdr = _strip_comments(_read("components/authoring/StudioShareExport.tsx"))
     details = _strip_comments(_read("components/workspace/NodeDetailsPanel.tsx"))
     dialog_path = WEB / "components/workspace/ShareDialog.tsx"
 

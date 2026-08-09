@@ -19,12 +19,12 @@ from pathlib import Path
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 PROJ = (WEB / "components/workspace/viewers/projection.ts").read_text()
-SURFACE = (WEB / "components/studio/StudioSurface.tsx").read_text()
-MENU = (WEB / "components/studio/StudioBlockInsertMenu.tsx").read_text()
-BLOCKMENU = (WEB / "components/studio/StudioBlockMenu.tsx").read_text()
-PALETTE = (WEB / "components/studio/StudioSlashPalette.tsx").read_text()
-ROWS = (WEB / "components/studio/blockRows.tsx").read_text()
-TOOLBAR = (WEB / "components/studio/StudioToolbar.tsx").read_text()
+SURFACE = (WEB / "components/authoring/StudioSurface.tsx").read_text()
+MENU = (WEB / "components/authoring/StudioBlockInsertMenu.tsx").read_text()
+BLOCKMENU = (WEB / "components/authoring/StudioBlockMenu.tsx").read_text()
+PALETTE = (WEB / "components/authoring/StudioSlashPalette.tsx").read_text()
+ROWS = (WEB / "components/authoring/blockRows.tsx").read_text()
+TOOLBAR = (WEB / "components/authoring/StudioToolbar.tsx").read_text()
 
 passed = True
 count = 0
@@ -70,7 +70,7 @@ def main() -> int:
     )
 
     print("\n-- D2: paged has a mouse route, with TWO mounts --")
-    _check("the native insert menu exists", (WEB / "components/studio/StudioBlockInsertMenu.tsx").exists())
+    _check("the native insert menu exists", (WEB / "components/authoring/StudioBlockInsertMenu.tsx").exists())
     _check(
         "mount 1 — the toolbar Insert forks by medium in ONE place",
         "const onInsertPressed" in SURFACE
@@ -129,7 +129,7 @@ def main() -> int:
     )
 
     print("\n-- D3: one list, three doors (no second mechanism) --")
-    _check("the shared row module exists", (WEB / "components/studio/blockRows.tsx").exists())
+    _check("the shared row module exists", (WEB / "components/authoring/blockRows.tsx").exists())
     _check("the flow palette renders the shared row", "BlockRow" in PALETTE)
     _check("the paged menu renders the shared row", "BlockRow" in MENU)
     _check(
@@ -154,7 +154,7 @@ def main() -> int:
     # Assert against the served registry, so a kind added later cannot silently
     # become unreachable — a hard-coded list would go stale and pass.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from services.studio import STUDIO_BLOCKS  # noqa: E402
+    from services.authoring import STUDIO_BLOCKS  # noqa: E402
 
     kinds = set(STUDIO_BLOCKS)
     _check(f"the registry ships kinds ({len(kinds)}) and the menu lists them ALL", len(kinds) >= 13)

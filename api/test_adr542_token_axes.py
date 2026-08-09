@@ -20,12 +20,12 @@ import re
 import sys
 from pathlib import Path
 
-import services.studio as st
+import services.authoring as st
 
 ROOT = Path(__file__).resolve().parent.parent
-PANE = (ROOT / "web/components/studio/StudioDesignTab.tsx").read_text()
-GRAMMAR = (ROOT / "web/components/studio/tokenGrammar.ts").read_text()
-SURFACE = (ROOT / "web/components/studio/StudioSurface.tsx").read_text()
+PANE = (ROOT / "web/components/authoring/StudioDesignTab.tsx").read_text()
+GRAMMAR = (ROOT / "web/components/authoring/tokenGrammar.ts").read_text()
+SURFACE = (ROOT / "web/components/authoring/StudioSurface.tsx").read_text()
 ROUTE = (ROOT / "api/routes/studio.py").read_text()
 
 PASS = 0

@@ -52,12 +52,12 @@ WEB = ROOT / "web"
 
 def run() -> bool:
     sys.path.insert(0, str(ROOT / "api"))
-    from services.studio import STUDIO_BLOCKS, build_studio_posture
+    from services.authoring import STUDIO_BLOCKS, build_studio_posture
 
     routes = (ROOT / "api/routes/studio.py").read_text()
-    ops = (WEB / "components/studio/artifactOps.ts").read_text()
-    surface = (WEB / "components/studio/StudioSurface.tsx").read_text()
-    picker = (WEB / "components/studio/StudioCitablePicker.tsx").read_text()
+    ops = (WEB / "components/authoring/artifactOps.ts").read_text()
+    surface = (WEB / "components/authoring/StudioSurface.tsx").read_text()
+    picker = (WEB / "components/authoring/StudioCitablePicker.tsx").read_text()
     client = (WEB / "lib/api/client.ts").read_text()
 
     # ── 1. the rev REACHES the FE (cause 3) ────────────────────────────────

@@ -21,8 +21,8 @@ from pathlib import Path
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 PROJ = (WEB / "components/workspace/viewers/projection.ts").read_text()
-BLOCKMENU = (WEB / "components/studio/StudioBlockMenu.tsx").read_text()
-INSERTMENU = (WEB / "components/studio/StudioBlockInsertMenu.tsx").read_text()
+BLOCKMENU = (WEB / "components/authoring/StudioBlockMenu.tsx").read_text()
+INSERTMENU = (WEB / "components/authoring/StudioBlockInsertMenu.tsx").read_text()
 
 passed = True
 count = 0

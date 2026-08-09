@@ -34,18 +34,18 @@ def run() -> bool:
     web = repo / "web"
 
     sys.path.insert(0, str(repo / "api"))
-    from services.studio import (  # noqa: E402
+    from services.authoring import (  # noqa: E402
         STUDIO_KERNEL_CSS,
         STUDIO_KERNEL_CSS_VERSION,
         STUDIO_MEASURES,
         build_studio_posture,
     )
 
-    ops = (web / "components/studio/artifactOps.ts").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
-    toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
-    design = (web / "components/studio/StudioDesignTab.tsx").read_text()
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
+    toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
+    design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
 
     # ── D5: arrangement intelligence ─────────────────────────────────────
@@ -87,8 +87,8 @@ def run() -> bool:
     )
 
     # ── D4: insert located, no exceptions ────────────────────────────────
-    picker = (web / "components/studio/StudioCitablePicker.tsx").read_text()
-    palette = (web / "components/studio/StudioSlashPalette.tsx").read_text()
+    picker = (web / "components/authoring/StudioCitablePicker.tsx").read_text()
+    palette = (web / "components/authoring/StudioSlashPalette.tsx").read_text()
     # ADR-539 D2 re-cut: the picker's membership is derived from the served
     # `cites` field; the list constants are deleted.
     _check(
@@ -201,7 +201,7 @@ def run() -> bool:
     # ── D6: the boundary projections (relocated 2026-07-24: Export lives
     #    beside Share as HEADER verbs — StudioShareExport, right of zoom —
     #    and the Properties pane no longer mounts either) ──────────────────
-    share_export = (web / "components/studio/StudioShareExport.tsx").read_text()
+    share_export = (web / "components/authoring/StudioShareExport.tsx").read_text()
     _check(
         "Export lives beside Share in the header cluster (print + AI reference)",
         "Print / PDF" in share_export
@@ -291,7 +291,7 @@ def run() -> bool:
     # test_adr472_images.py; what stays here is the Studio-side invariant the
     # carve must not disturb — the deck keeps its identity 16:9 and never
     # grows a dimension/aspect knob of its own.
-    from services.studio import STUDIO_LAYOUTS, _SCAFFOLD_TITLES
+    from services.authoring import STUDIO_LAYOUTS, _SCAFFOLD_TITLES
     _check(
         "the canvas doc type is GONE from Studio (ADR-472 D1/D7)",
         "canvas" not in STUDIO_LAYOUTS and "image" not in STUDIO_LAYOUTS,
@@ -398,7 +398,7 @@ def run() -> bool:
     # affordances (selection, the id-addressed ops, layout properties), so
     # what the frame chrome names, the member can select. These checks assert
     # the new invariants — and that the old machinery stays deleted.
-    tab = (web / "components/studio/StudioDesignTab.tsx").read_text()
+    tab = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     _check(
         "ADR-511: the inert-slot marker is DELETED everywhere",
         "data-slot-inert" not in proj and "data-slot-inert" not in tab,
@@ -494,8 +494,8 @@ def run() -> bool:
     # would hide its own children from every sweep. A group that survived in
     # the file would be a second structural layer competing with the
     # arrangement — the confusion the slot pass just removed.
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
     # Tests CODE, not prose: `data-group` appears in setGeometryMany's comment
     # explaining why the wrapper does NOT exist, so a bare substring check
     # matches its own rationale. Assert no element ever CARRIES the attribute.

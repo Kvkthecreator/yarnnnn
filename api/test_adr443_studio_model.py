@@ -39,7 +39,7 @@ def _check(label: str, cond: bool) -> None:
 
 
 def run() -> bool:
-    from services.studio import (
+    from services.authoring import (
         STUDIO_ARRANGEMENTS,
         STUDIO_BLOCKS,
         STUDIO_LAYOUTS,
@@ -62,7 +62,7 @@ def run() -> bool:
     # ADR-539 D1 — `group` left the rows (it is DERIVED from `cites` via
     # block_group), and every row declares its behavior: tier / elements /
     # promote / convertible / cites, no defaults.
-    from services.studio import block_group
+    from services.authoring import block_group
     for kind, b in STUDIO_BLOCKS.items():
         _check(f"block '{kind}': label/description/markup complete",
                all(b.get(k) for k in ("label", "description", "markup")))
@@ -93,7 +93,7 @@ def run() -> bool:
     # TWO app tables (ADR-518: Docs owns document via services/docs.py; Studio
     # keeps deck/web). The registry is the kernel's one view.
     import services.docs  # noqa: F401 — registers the document row (ADR-518)
-    from services.studio import all_layouts as _all_layouts
+    from services.authoring import all_layouts as _all_layouts
     _check("kernel seeds 3 layouts: Docs document + Studio deck/web (ADR-505 D1 via ADR-518)",
            set(_all_layouts()) >= {"document", "deck", "web"}
            and set(STUDIO_LAYOUTS) >= {"deck", "web"})
@@ -183,7 +183,7 @@ def run() -> bool:
            "closest('[data-block]')" in projection)
     _check("pointer payload carries blockId + blockKind",
            "blockId" in projection and "blockKind" in projection)
-    surface = (repo / "web/components/studio/StudioSurface.tsx").read_text()
+    surface = (repo / "web/components/authoring/StudioSurface.tsx").read_text()
     _check("selection informs the lane in operator words (About the … block)",
            "About the ${kind} block" in surface or "askAboutSelection" in surface)
     # ADR-447: the format-switcher ("Change layout") is DELETED — morphing a
@@ -193,17 +193,17 @@ def run() -> bool:
            "Change layout" not in surface and "switchLayout" not in surface)
     # ADR-453: the toolbar realigned to its grains (Insert · New ‹noun›) and
     # the file took its honest name (StudioInsertMenu → StudioToolbar).
-    menu = (repo / "web/components/studio/StudioToolbar.tsx").read_text()
+    menu = (repo / "web/components/authoring/StudioToolbar.tsx").read_text()
     # ADR-466 D4: the block palette is the located StudioSlashPalette (Media ▾
     # deleted); the toolbar keeps only the page-grain pair and still renders
     # from the served vocabulary.
-    palette_src = (repo / "web/components/studio/StudioSlashPalette.tsx").read_text()
+    palette_src = (repo / "web/components/authoring/StudioSlashPalette.tsx").read_text()
     _check("palette renders from the served vocabulary",
            "StudioVocabulary" in menu and "StudioVocabulary" in palette_src
            and "vocabulary?.blocks" in palette_src)
 
     # ── 6. Grammar, not schema ───────────────────────────────────────────
-    import services.studio as studio_mod
+    import services.authoring as studio_mod
     studio_src = inspect.getsource(studio_mod)
     _check("studio module stays pure program (no DB, no write_revision)",
            "write_revision" not in studio_src and ".table(" not in studio_src)
@@ -211,7 +211,7 @@ def run() -> bool:
            studio_src.count("raise") == 0)
 
     # ── 7. ADR-444/447: the mechanical layer + arrangements ──────────────
-    from services.studio import STUDIO_ARRANGEMENTS
+    from services.authoring import STUDIO_ARRANGEMENTS
     # ADR-481 D1 (2026-07-22): the registry is keyed by the layouts that HAVE a
     # page-grain unit — the `paged` ones. Flow layouts (document/article) serve
     # none, so this is a subset relation now, not equality.
@@ -229,7 +229,7 @@ def run() -> bool:
            and "StaleWriteError" in src)
     _check("vocabulary serves fragments + arrangements",
            '"fragment"' in src and "STUDIO_ARRANGEMENTS" in src)
-    ops = (repo / "web/components/studio/artifactOps.ts").read_text()
+    ops = (repo / "web/components/authoring/artifactOps.ts").read_text()
     _check("FE ops: insert/arrangement reflow, ids preserved",
            "insertBlock" in ops and "insertArrangement" in ops and "applyArrangement" in ops
            and "freshBlockId" in ops)
@@ -277,10 +277,10 @@ def run() -> bool:
     # double-click hint) is deleted from the pane: the right-click menu +
     # block keyboard are the entrances, and the explicit-ask relocated into
     # the menu's AI group (its only mount). The pane keeps shaping only.
-    design_tab = (repo / "web/components/studio/StudioDesignTab.tsx").read_text()
+    design_tab = (repo / "web/components/authoring/StudioDesignTab.tsx").read_text()
     _check("surface: explicit 'Ask about this' affordance replaces the auto-seed",
            "askAboutSelection" in surface and "onAsk={askAboutSelection}" in surface)
-    block_menu = (repo / "web/components/studio/StudioBlockMenu.tsx").read_text()
+    block_menu = (repo / "web/components/authoring/StudioBlockMenu.tsx").read_text()
     _check("Ask-about-this lives in the MENU; the pane's block verb row is gone",
            "Ask about this…" in block_menu and "onToggleEdit" not in menu
            and "Ask about this" not in design_tab
@@ -288,7 +288,7 @@ def run() -> bool:
            and "Double-click the block" not in design_tab)
     _check("canvas: renders in edit mode + forwards edit commits",
            "editingBlockId" in surface
-           and "yarnnn-edit" in (repo / "web/components/studio/StudioCanvas.tsx").read_text())
+           and "yarnnn-edit" in (repo / "web/components/authoring/StudioCanvas.tsx").read_text())
     # ADR-446 follow-on: titles/headers are editable heading blocks — every
     # layout's scaffold stamps data-block="heading" on its title so the most
     # prominent element on the artifact is reachable by the edit path.
@@ -310,7 +310,7 @@ def run() -> bool:
            "'heading'" in ops and "data-block')" in ops)
 
     # ── 9. ADR-447: the arrangement layer (composition, per-type) ────────
-    from services.studio import _arrangements_grammar
+    from services.authoring import _arrangements_grammar
     # ADR-481 D1: every PAGED layout has page arrangements; flow layouts have
     # none by design (a flowing document has no page-grain unit).
     _check("every PAGED layout has page arrangements (ADR-481 D1)",
@@ -358,7 +358,7 @@ def run() -> bool:
     # The flow outline died with the mode split — the mount is isPaged-gated
     # in the surface, and the component carries no mode flag at all. See
     # test_studio_paged_navigator for the full contract.
-    nav = (repo / "web/components/studio/PagedNavigator.tsx").read_text()
+    nav = (repo / "web/components/authoring/PagedNavigator.tsx").read_text()
     _check("paged navigator: page previews, no mode flag, no outline remnant",
            "buildPagePreviews" in nav and "extractOutline" not in nav
            and "isPaged" not in nav)
@@ -397,7 +397,7 @@ def run() -> bool:
            "dblclick" in projection and "yarnnn-edit-entered" in projection)
     _check("surface syncs editingBlockId on double-click entry (onEditEntered)",
            "onEditEntered" in surface and "onEditEntered" in
-           (repo / "web/components/studio/StudioCanvas.tsx").read_text())
+           (repo / "web/components/authoring/StudioCanvas.tsx").read_text())
     _check("empty-slot '+ Add here' runtime injects into empty [data-slot]",
            "ADD_HERE_SCRIPT" in projection and "yarnnn-add-here" in projection
            and "data-slot" in projection and "yarnnn-add-here" in projection)

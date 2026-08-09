@@ -16,8 +16,8 @@
 
 import { readFileSync } from 'node:fs';
 
-const SURFACE = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
-const CANVAS = readFileSync('web/components/studio/StudioCanvas.tsx', 'utf8');
+const SURFACE = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
+const CANVAS = readFileSync('web/components/authoring/StudioCanvas.tsx', 'utf8');
 const PROJECTION = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
 
 let pass = 0;

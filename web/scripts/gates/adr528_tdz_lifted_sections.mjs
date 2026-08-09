@@ -28,7 +28,7 @@
 // Run from the REPO ROOT: node web/scripts/gates/adr528_tdz_lifted_sections.mjs
 import { readFileSync } from 'fs';
 
-const SRC = 'web/components/studio/StudioDesignTab.tsx';
+const SRC = 'web/components/authoring/StudioDesignTab.tsx';
 const pane = readFileSync(SRC, 'utf8');
 
 let pass = 0,

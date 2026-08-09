@@ -947,7 +947,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
             and path.startswith("operation/")
             and "data-template=" in new_content
         ):
-            from services.studio import ensure_kernel_style_in_html
+            from services.authoring import ensure_kernel_style_in_html
 
             new_content = ensure_kernel_style_in_html(new_content)
 

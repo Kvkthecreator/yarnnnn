@@ -89,7 +89,7 @@ def repair_html(content: str) -> tuple[str, int, int]:
     slug = tpl.group(1) if tpl else "document"
 
     # Resolve mode from the served registry (never hardcode the slug set).
-    from services.studio import STUDIO_LAYOUTS
+    from services.authoring import STUDIO_LAYOUTS
 
     layout = STUDIO_LAYOUTS.get(slug)
     if not layout or layout.get("mode") != "flow":

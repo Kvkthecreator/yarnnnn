@@ -143,7 +143,7 @@ t('D3: the served bounds reach the runtime via __yarnnnMeasureBounds',
 
 // ── 6. D2 — the clear-grain matches the write-grain ─────────────────────────
 {
-  const ops = readFileSync('web/components/studio/artifactOps.ts', 'utf8');
+  const ops = readFileSync('web/components/authoring/artifactOps.ts', 'utf8');
   const i = ops.indexOf('function returnToFlow(');
   const body = ops.slice(i, ops.indexOf('\n}', i));
   for (const k of ['x', 'y', 'w', 'h', 'z']) {
@@ -161,7 +161,7 @@ t('D3: the served bounds reach the runtime via __yarnnnMeasureBounds',
 
 // ── 7. D4 — the positioned test reads BOTH attributes, as the kernel does ───
 {
-  const tab = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
+  const tab = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
   // ADR-511 D4 loosened the spelling pin (the Position row rewrote the
   // render); the invariant is unchanged — the positioned test reads BOTH.
   t("D4: 'Return to flow' requires data-x AND data-y (the kernel rule)",
@@ -177,7 +177,7 @@ t('D5: STAGE_DEFAULT_W (exported, zero importers, promised a mapping that never 
 
 // ── 9. The ADR-461 D4 aperture is UNCHANGED — this ADR widens nothing ──────
 {
-  const py = readFileSync('api/services/studio.py', 'utf8');
+  const py = readFileSync('api/services/authoring.py', 'utf8');
   t('aperture: measures still apply to block-staged/media only',
     py.includes('MEASURE_GRAINS = {"staged", "media"}'));  // ADR-542 grain slugs
   t('aperture: the kernel measure rules are still .slide/media-scoped',

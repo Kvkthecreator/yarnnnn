@@ -27,7 +27,7 @@ def _check(label: str, cond: bool, detail: str = "") -> None:
 def run() -> bool:
     # ── 1. The program module ────────────────────────────────────────────
     import services.docs  # noqa: F401 — registers the document row (ADR-518 D3)
-    from services.studio import (
+    from services.authoring import (
         STUDIO_ARTIFACT_REGION,
         STUDIO_LANE_MAX_TOKENS,
         STUDIO_TEMPLATES,
@@ -129,7 +129,7 @@ def run() -> bool:
     _check("studio router mounted in main.py", "studio.router" in main_src)
 
     # ── 5. Program, not substrate (D6) ───────────────────────────────────
-    import services.studio as studio_mod
+    import services.authoring as studio_mod
     studio_src = inspect.getsource(studio_mod)
     _check("studio module is pure program (no write_revision/DB imports)",
            "write_revision" not in studio_src and ".table(" not in studio_src)

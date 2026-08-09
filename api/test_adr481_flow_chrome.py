@@ -45,11 +45,11 @@ def run() -> bool:
     sys.path.insert(0, str(root / "api"))
     web = root / "web"
     proj = (web / "components/workspace/viewers/projection.ts").read_text()
-    nav = (web / "components/studio/PagedNavigator.tsx").read_text()
-    toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
+    nav = (web / "components/authoring/PagedNavigator.tsx").read_text()
+    toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
 
     import services.docs  # noqa: F401, E402 — registers the document row (ADR-518)
-    from services.studio import (  # noqa: E402
+    from services.authoring import (  # noqa: E402
         STUDIO_ARRANGEMENTS,
         STUDIO_LAYOUTS,
         all_layouts,
@@ -144,7 +144,7 @@ def run() -> bool:
     _check("D4 the flow outline is gone (no extractOutline anywhere in the navigator)",
            "extractOutline" not in nav)
     _check("D4 the navigator mount is paged-gated in the surface",
-           "{isPaged && (" in (web / "components/studio/StudioSurface.tsx").read_text())
+           "{isPaged && (" in (web / "components/authoring/StudioSurface.tsx").read_text())
 
     # ── D5 — legacy flattens at PROJECTION, never by migration ────────────
     _check("D5 the flatten is gated on flow", "if (opts?.mode === 'flow') {" in proj)

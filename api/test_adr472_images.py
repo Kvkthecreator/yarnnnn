@@ -27,7 +27,7 @@ def _check(label: str, cond: bool) -> None:
 def run() -> bool:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from services import images as im
-    from services.studio import (
+    from services.authoring import (
         MEASURE_GRAINS,
         STUDIO_LAYOUTS,
         STUDIO_MEASURES,
@@ -54,7 +54,7 @@ def run() -> bool:
         im.STAGE["mode"] == "paged" and im.STAGE["label"] == "Image",
     )
     # The registry keeps first-registration-wins rather than raising (ADR-443
-    # §6: no exceptions from services/studio.py), so DISJOINTNESS is asserted
+    # §6: no exceptions from services/authoring.py), so DISJOINTNESS is asserted
     # here — this is where a slug collision between two apps is actually caught.
     _check(
         "the two apps' layout slug sets are DISJOINT (no silent shadowing)",

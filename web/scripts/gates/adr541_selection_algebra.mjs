@@ -8,11 +8,11 @@
 // Run from the REPO ROOT: node web/scripts/gates/adr541_selection_algebra.mjs
 import { readFileSync } from 'fs';
 
-const selmod = readFileSync('web/components/studio/selection.ts', 'utf8');
-const pane = readFileSync('web/components/studio/StudioDesignTab.tsx', 'utf8');
-const surface = readFileSync('web/components/studio/StudioSurface.tsx', 'utf8');
-const menu = readFileSync('web/components/studio/StudioBlockMenu.tsx', 'utf8');
-const ops = readFileSync('web/components/studio/artifactOps.ts', 'utf8');
+const selmod = readFileSync('web/components/authoring/selection.ts', 'utf8');
+const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
+const surface = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8');
+const menu = readFileSync('web/components/authoring/StudioBlockMenu.tsx', 'utf8');
+const ops = readFileSync('web/components/authoring/artifactOps.ts', 'utf8');
 
 let pass = 0,
   fail = 0;

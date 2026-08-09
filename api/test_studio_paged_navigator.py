@@ -48,9 +48,9 @@ def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     web = root / "web"
 
-    ops = (web / "components/studio/artifactOps.ts").read_text()
-    nav = (web / "components/studio/PagedNavigator.tsx").read_text()
-    surface = (web / "components/studio/StudioSurface.tsx").read_text()
+    ops = (web / "components/authoring/artifactOps.ts").read_text()
+    nav = (web / "components/authoring/PagedNavigator.tsx").read_text()
+    surface = (web / "components/authoring/StudioSurface.tsx").read_text()
 
     # ── 1. the compound ops exist and carry the correctness markers ─────────
     dp = _fn(ops, "deletePages")

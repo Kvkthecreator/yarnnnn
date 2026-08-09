@@ -42,9 +42,9 @@ def run() -> bool:
     web = Path(__file__).resolve().parent.parent / "web"
     strip = (web / "components/shell/GlobalLocatorStrip.tsx").read_text()
     chat = (web / "components/chat-surface/ChatSurface.tsx").read_text()
-    studio = (web / "components/studio/StudioSurface.tsx").read_text()
+    studio = (web / "components/authoring/StudioSurface.tsx").read_text()
     ctx = (web / "contexts/BreadcrumbContext.tsx").read_text()
-    toolbar = (web / "components/studio/StudioToolbar.tsx").read_text()
+    toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
     loader = (web / "components/workspace/useFileLoad.ts").read_text()
 
     # ── 1. one locator, never two ───────────────────────────────────────────
@@ -129,7 +129,7 @@ def run() -> bool:
     # inside a ~370px column and the member saw a slide's blank left margin — a
     # canvas that reads as broken but is merely unfitted (the zoom chip still
     # says 100%, the tell). Re-running once `projected` lands fixes it.
-    canvas = (web / "components/studio/StudioCanvas.tsx").read_text()
+    canvas = (web / "components/authoring/StudioCanvas.tsx").read_text()
     # ADR-471: the fit generalized deck→staged (deck slides + canvas
     # artboards, per-template stage width) — the check's intent is unchanged:
     # `projected` must be a dependency so the fit re-measures once content

@@ -20,7 +20,7 @@ Asserts:
      is not a provenance class).
   5. The posture face (D4): build_design_system_section teaches the contract;
      lane_runner composes it ONLY for bound lanes, additively, outside
-     services/studio.py (the ADR-447 collision carve).
+     services/authoring.py (the ADR-447 collision carve).
   6. Purity: design_systems has no write path (no write_revision import).
 """
 
@@ -192,7 +192,7 @@ def run() -> int:
     # so with no skin every slot falls back to its original value. This asserts
     # the property that guarantees it: no widened slot appears BARE (only ever
     # inside a var() with a fallback) in any layout's rendered CSS.
-    from services.studio import STUDIO_LAYOUTS, build_skeleton
+    from services.authoring import STUDIO_LAYOUTS, build_skeleton
 
     WIDENED = ("--text-xs", "--text-sm", "--text-base", "--text-lg", "--text-xl",
                "--text-2xl", "--text-3xl", "--text-4xl", "--text-5xl",

@@ -79,7 +79,7 @@ def main() -> int:
         parse_design_manifest,
         plan_import,
     )
-    from services.studio import build_skeleton
+    from services.authoring import build_skeleton
 
     print("=" * 72)
     print("PROBE — importing the real YARNNN Design System")

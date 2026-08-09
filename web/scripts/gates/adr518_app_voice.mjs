@@ -23,9 +23,9 @@ const t = (label, cond) => {
   cond ? pass++ : fail++;
 };
 
-const files = readdirSync('web/components/studio').map((f) => ({
+const files = readdirSync('web/components/authoring').map((f) => ({
   name: f,
-  src: readFileSync(`web/components/studio/${f}`, 'utf8'),
+  src: readFileSync(`web/components/authoring/${f}`, 'utf8'),
 }));
 const surface = files.find((f) => f.name === 'StudioSurface.tsx').src;
 

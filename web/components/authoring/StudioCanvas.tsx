@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { WorkspaceFile } from '@/types';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
-import { readStageSize } from '@/components/studio/stageGeometry';
+import { readStageSize } from '@/components/authoring/stageGeometry';
 
 /** ADR-462 D7: a right-click's report. The runtime has already selected the
  *  block under the cursor; this carries the anchor + the grain the menu builds
@@ -261,7 +261,7 @@ interface StudioCanvasProps {
   onScrollPos?: (pos: { y: number; slide: number | null }) => void;
 }
 
-// A staged layout's box is a property of the FILE (components/studio/
+// A staged layout's box is a property of the FILE (components/authoring/
 // stageGeometry.ts) — it rides the artifact as --stage-w/--stage-h. This
 // canvas's only geometric job is to AUTO-FIT: scale the stage down so it fits
 // the actual column width, with the operator's zoom riding on top. It SCALES,

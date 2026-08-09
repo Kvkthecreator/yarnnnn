@@ -32,7 +32,7 @@
 import { toPng } from 'html-to-image';
 
 import { resolveArtifactHtml } from './projection';
-import { readStageSize } from '@/components/studio/stageGeometry';
+import { readStageSize } from '@/components/authoring/stageGeometry';
 
 /** Read the stage's real pixel dimensions off the projected document.
  *

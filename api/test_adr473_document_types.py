@@ -43,7 +43,7 @@ def run() -> bool:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import services.images  # noqa: F401 — registration side-effect
     import routes.studio as rs
-    from services.studio import (
+    from services.authoring import (
         STUDIO_LAYOUTS,
         all_layouts,
         app_for_kind,
@@ -123,7 +123,7 @@ def run() -> bool:
     )
 
     # ── §5 No dual path (the hooks discipline) ───────────────────────────
-    surface = _read("web/components/studio/StudioSurface.tsx")
+    surface = _read("web/components/authoring/StudioSurface.tsx")
     _check(
         "the FE holds NO hardcoded type list — ownership is served",
         "IMAGES_APP.templates" not in surface

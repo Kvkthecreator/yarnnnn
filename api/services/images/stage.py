@@ -28,7 +28,7 @@ stage is born at a size the way a Canva design is.
 ── WHAT THIS MODULE DOES *NOT* OWN ──────────────────────────────────────────
 The OBJECT LAYER — position/size/stacking (`x`/`y`/`z`/`w`/`h` under the
 `block-staged` grain), the `.slide` frame class, the kernel CSS measure rules,
-the auto-fit. Those live in `services/studio.py` as the SHARED KERNEL and are
+the auto-fit. Those live in `services/authoring.py` as the SHARED KERNEL and are
 consumed by both apps (ADR-472 D2). IMAGES borrows nothing and forks nothing:
 one implementation, two consumers. The frame class is the grain's boundary,
 which is why an IMAGES stage carries `class="slide"` — a deliberate inheritance
@@ -227,7 +227,7 @@ IMAGES_ARRANGEMENTS: dict[str, dict] = {
 # builders (skeleton, posture, artifact-kind, arrangement grammar) are kernel
 # code both apps consume — registration is how IMAGES reaches them without
 # Studio importing an app or the builders being forked.
-from services.studio import register_layouts  # noqa: E402  (registration side-effect)
+from services.authoring import register_layouts  # noqa: E402  (registration side-effect)
 
 register_layouts(IMAGES_LAYOUTS, IMAGES_ARRANGEMENTS)
 

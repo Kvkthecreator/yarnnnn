@@ -9,7 +9,7 @@
  * (window = surface, ADR-436).
  */
 
-import { StudioSurface } from '@/components/studio/StudioSurface';
+import { StudioSurface } from '@/components/authoring/StudioSurface';
 
 export default function StudioPage() {
   return <StudioSurface />;

@@ -10,7 +10,7 @@
 //      mode gate lives at the ONE mount site in StudioSurface (`isPaged &&`),
 //      so a flow artifact mounts no navigator at all (the shipped decision).
 //   3. The dead outline machinery (extractOutline / OutlineEntry /
-//      onSelectHeading) did not survive anywhere in components/studio.
+//      onSelectHeading) did not survive anywhere in components/authoring.
 //
 // Each check carries a FALSIFIER: the same predicate run over a mutated copy
 // must flip (receipted with a "mutated:" print) before the green is trusted.
@@ -25,17 +25,17 @@ const t = (label, cond) => {
   cond ? pass++ : fail++;
 };
 
-const NAV = 'web/components/studio/PagedNavigator.tsx';
-const SURFACE = 'web/components/studio/StudioSurface.tsx';
+const NAV = 'web/components/authoring/PagedNavigator.tsx';
+const SURFACE = 'web/components/authoring/StudioSurface.tsx';
 const nav = readFileSync(NAV, 'utf8');
 const surface = readFileSync(SURFACE, 'utf8');
-const studioFiles = readdirSync('web/components/studio').map((f) => ({
+const studioFiles = readdirSync('web/components/authoring').map((f) => ({
   name: f,
-  src: readFileSync(`web/components/studio/${f}`, 'utf8'),
+  src: readFileSync(`web/components/authoring/${f}`, 'utf8'),
 }));
 
 // ── 1. The dual file is gone ────────────────────────────────────────────────
-t('the dual file is deleted (no StudioNavigator.tsx)', !existsSync('web/components/studio/StudioNavigator.tsx'));
+t('the dual file is deleted (no StudioNavigator.tsx)', !existsSync('web/components/authoring/StudioNavigator.tsx'));
 const refs = studioFiles.filter((f) => f.src.includes('StudioNavigator'));
 t('no studio component references StudioNavigator', refs.length === 0);
 
@@ -59,7 +59,7 @@ t('the mount is inside the `isPaged && (` mode gate', gateFor(surface, mountAt))
 const outlineSurvivors = studioFiles.filter(
   (f) => /extractOutline|OutlineEntry|onSelectHeading|selectHeadingFromNavigator/.test(f.src),
 );
-t('no outline machinery survives in components/studio', outlineSurvivors.length === 0);
+t('no outline machinery survives in components/authoring', outlineSurvivors.length === 0);
 
 // ── FALSIFIERS — each predicate must flip on the mutated copy ───────────────
 {
