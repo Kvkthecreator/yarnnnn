@@ -1,6 +1,7 @@
 # Session handoff — 2026-08-08
 
-`origin/main` @ `5f6ed4d`. Working tree clean, local in sync with remote.
+`origin/main` @ `db1a70f`. Working tree clean, local in sync with remote.
+All studio + share gates PASS at HEAD; `next build` clean.
 
 ## Shipped this session
 
@@ -33,7 +34,15 @@ the canon *promised* with no door onto it.
      align/indent, you are on an old bundle — check `git status -sb` first.
    - Mark with `.claude/hooks/mark-validated.sh` per `docs/evaluations/VERIFICATION.md`.
 
-2. **Unexplained: OAuth state error on prod.** Seen in the operator's URL:
+2. **The ADR-537 share-sheet click-pass** (`db1a70f`, concurrent lane).
+   `ShareDialog.tsx` was substantially rewritten (~638 lines) into two
+   scope-divided tabs — Link (this file) / People (the workspace). Gates pass
+   (`test_adr537_share_sheet_tabs.py`) and the build is clean, but a dialog
+   rewrite of that size is precisely the case where green gates prove the room
+   and not the doorway. Drive both tabs, the reuse-first link, Revoke, and the
+   join-link disclosure.
+
+3. **Unexplained: OAuth state error on prod.** Seen in the operator's URL:
    `yarnnn.com/settings?provider=notion&status=error&error=Invalid+or+expired+OAuth+state&docs.file=operation%2Fhello%2Fdocument-copy.html`
    A failed Notion handshake riding a `/settings` URL that *also* carries a
    `docs.file` address — an OAuth callback and a docs-file address collided in
