@@ -977,8 +977,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // which is why commandEdit exists to put all four back. A patch changes one
   // element in place, so there is nothing to restore.
   const [patch, setPatch] = useState<{
-    blockId: string;
-    html: string;
+    /** ADR-547 D2/D4 — the blocks this op touched, projected. One for a
+     *  block-local edit, N for a span op; they share ONE `appliedFor` because
+     *  together they bring the live DOM to a single artifact state. */
+    blocks: Array<{ blockId: string; html: string }>;
     nonce: number;
     /** The full artifact content this patch brings the live DOM in line with —
      *  the canvas skips its re-projection for exactly this string. */
@@ -1008,18 +1010,22 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }, []);
 
   const sendPatch = useCallback(
-    async (blockId: string, html: string) => {
-      if (!artifactPath) return false;
+    async (blockIds: string[], html: string) => {
+      if (!artifactPath || blockIds.length === 0) return false;
       try {
-        const projected = await projectBlock(html, blockId, artifactPath);
-        if (!projected) return false; // block vanished / unaddressable → full swap
+        // ADR-547 D2 — project EVERY touched block. All-or-nothing: if any block
+        // is unaddressable the caller falls back to the ordinary re-projection,
+        // because a partial patch would leave the live DOM in a state no single
+        // `appliedFor` describes — and `appliedFor` is what suppresses the
+        // re-projection. A half-true claim there is worse than no claim.
+        const projected: Array<{ blockId: string; html: string }> = [];
+        for (const blockId of blockIds) {
+          const one = await projectBlock(html, blockId, artifactPath);
+          if (!one) return false; // block vanished / unaddressable → full swap
+          projected.push({ blockId, html: one });
+        }
         patchNonce.current += 1;
-        setPatch({
-          blockId,
-          html: projected,
-          nonce: patchNonce.current,
-          appliedFor: html,
-        });
+        setPatch({ blocks: projected, nonce: patchNonce.current, appliedFor: html });
         return true;
       } catch {
         return false; // projection failed → the caller falls back to a reload
@@ -1102,11 +1108,25 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       compute: (liveHtml: string) => string | null,
       message: string,
       reload: boolean,
-      /** ADR-524 D2 — the block this op is local to, when it IS block-local.
-       *  Present = try the patch channel (no srcDoc swap, nothing to restore);
-       *  absent = the ordinary path. Ignored when `reload` is true: a
-       *  structural op is not patchable by definition. */
-      patchBlockId?: string | null,
+      /** THE OP'S DECLARED GRAIN (ADR-524 D2, widened by ADR-547 D4).
+       *
+       *  The block ids this op touched — one for a block-local edit, N for a span
+       *  op (setTokenMany / convertBlocks over a range), empty/absent when the op
+       *  RESTRUCTURED the document (insert/move/delete/split/merge) or the commit
+       *  came from the browser itself.
+       *
+       *  Two things ride on it, and ADR-547 §1 is what happens when the second is
+       *  forgotten:
+       *   1. the patch channel (no srcDoc swap, nothing to restore); and
+       *   2. **whether the live iframe DOM learns the op happened at all.** An op
+       *      that declares nothing leaves the iframe holding a pre-op body, and
+       *      the member's next keystroke commits that body back over the op — one
+       *      200-OK write erasing another, with CAS satisfied and no conflict to
+       *      detect (measured on prod: ADR-547 §1.2).
+       *
+       *  Ignored when `reload` is true: a re-projecting op hands the iframe a
+       *  fresh document, so it cannot be holding a stale one. */
+      patchBlockIds?: string[] | string | null,
     ): Promise<boolean> => {
       if (!artifactPath) return Promise.resolve(false);
       // ── STAGE 1 — OPTIMISTIC, this tick (ADR-466 P8): pixels never wait for
@@ -1168,7 +1188,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // NOT re-project (that is the point of ADR-524's channel), so its
       // document stays live and must keep its right to commit the member's
       // in-flight typing.
-      if (!patchBlockId) retireFlowCommits();
+      // Normalize the declared grain: one id, N ids, or none.
+      const touched =
+        patchBlockIds == null ? [] : typeof patchBlockIds === 'string' ? [patchBlockIds] : patchBlockIds;
+      // ADR-540 — retire the CURRENT document's commits when it is about to be
+      // torn down and replaced. An op that PATCHES keeps its document alive (and
+      // therefore its right to commit in-flight typing), which is exactly why
+      // ADR-547 D2 requires the patch to actually reach it.
+      if (touched.length === 0) retireFlowCommits();
       // Advance the live CONTENT now (the next op computes off this); the HEAD
       // advances only on ack (the queued write below reads it fresh).
       liveRef.current = { content: html, head: live?.head ?? null };
@@ -1183,7 +1210,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // advanced, so if the patch never lands the canvas still converges on the
       // next ordinary re-projection. A patch is an optimization over a correct
       // path, never the thing correctness depends on.
-      if (!reload && patchBlockId) void sendPatch(patchBlockId, html);
+      if (!reload && touched.length > 0) void sendPatch(touched, html);
 
       // ── STAGE 2 — DURABILITY, queued: one attributed CAS revision. ──
       const run = async (): Promise<boolean> => {
@@ -1332,7 +1359,15 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }, [replay]);
 
   const applyOp = useCallback(
-    async (compute: (html: string) => OpResult | null, message: string) => {
+    async (
+      compute: (html: string) => OpResult | null,
+      message: string,
+      /** ADR-547 D2/D4 — the blocks this op touched. An op that changes block
+       *  attributes MUST name them, or the live iframe DOM never learns the op
+       *  happened and the member's next keystroke commits it away (§1.2). Absent
+       *  = the op restructured the document, which re-projects. */
+      touchedBlockIds?: string[] | string | null,
+    ) => {
       if (!artifactPath || !file?.content) return;
       setOpError(null);
       // Guard against the CURRENT render so a genuine miss still reports; the
@@ -1359,6 +1394,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         (liveHtml) => compute(liveHtml)?.html ?? null,
         message,
         false,
+        touchedBlockIds,
       );
     },
     [artifactPath, file, writeAndAdvance],
@@ -1565,11 +1601,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           value == null
             ? `${app.label}: clear ${key} on ${rangeBlockIds.length} blocks`
             : `${app.label}: set ${key} to ${value} on ${rangeBlockIds.length} blocks`,
+          // ADR-547 D2 — declare the span, so all N reach the live DOM.
+          rangeBlockIds,
         );
       }
       return applyOp(
         (html) => setToken(html, { grain, anchor }, key, value),
         value == null ? `${app.label}: clear ${key}` : `${app.label}: set ${key} to ${value}`,
+        // ADR-547 D2 — a BLOCK-grain token touches the anchored block, so it must
+        // say so; page/document tokens live on the artifact root, which no flow
+        // commit reports, so they declare nothing.
+        grain === 'block' ? (anchor.blockId ?? null) : null,
       );
     },
     [applyOp, anchor, rangeBlockIds, vocabulary],
@@ -2567,6 +2609,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         void applyOp(
           (html) => convertBlock(html, blockId, p.kind, p.fragment),
           `${app.label}: turn block into ${p.label}`,
+          // ADR-547 D2 — declared, like every other block-touching op. This site
+          // was MISSED on the first pass and the gate caught it, which is the
+          // whole reason F1 enumerates by the OP rather than by the handler name.
+          blockId,
         );
         return;
       }
@@ -2640,6 +2686,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       void applyOp(
         (html) => convertBlock(html, blockId, kind, fragment),
         `${app.label}: turn block into ${label}`,
+        // ADR-547 D2 — the converted block reaches the live DOM. `convertBlock`
+        // REPLACES the element (a new tag), but the block's id survives the
+        // conversion by contract, so the patch still addresses it.
+        blockId,
       );
     },
     [applyOp],
@@ -2654,6 +2704,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       void applyOp(
         (html) => convertBlocks(html, blockIds, kind, fragment),
         `${app.label}: turn ${blockIds.length} blocks into ${label}`,
+        // ADR-547 D2 — every converted block, declared. `convertBlocks` skips
+        // citation islands and same-shape no-ops internally, and a block that did
+        // not change simply patches to itself.
+        blockIds,
       );
     },
     [applyOp, app.label],

@@ -260,7 +260,11 @@ interface StudioCanvasProps {
    *  it the patch is pointless, since srcDoc is re-fed on every content change.
    *  It is the patch's own claim about what it achieved, so a patch that fails
    *  to send simply leaves the ordinary re-projection in charge. */
-  patch?: { blockId: string; html: string; nonce: number; appliedFor: string } | null;
+  /** ADR-547 D2/D4 — the blocks an op touched, projected and ready for the live
+   *  DOM. Was a single `blockId`; a span op (setTokenMany / convertBlocks over a
+   *  range) touches N, and N patches share ONE `appliedFor` because they bring the
+   *  live DOM to one artifact state together. */
+  patch?: { blocks: Array<{ blockId: string; html: string }>; nonce: number; appliedFor: string } | null;
   /** ADR-540 — retire the live document's flow commits. Sent before a
    *  structural op re-projects, because the teardown's `beforeunload` commit
    *  reports a DOM that predates the op and the parent would write it back
@@ -605,10 +609,13 @@ export function StudioCanvas({
   useEffect(() => {
     const win = iframeRef.current?.contentWindow;
     if (!win || !patch) return;
-    win.postMessage(
-      { type: 'yarnnn-patch', blockId: patch.blockId, html: patch.html },
-      '*',
-    );
+    // ADR-547 D2 — one message per touched block. The runtime's verb is already
+    // per-block (it replaces one element and skips the caret host), so N blocks
+    // is N ordinary patches rather than a new bulk verb — rule 7, an existing op
+    // reached through a wider grain.
+    for (const b of patch.blocks) {
+      win.postMessage({ type: 'yarnnn-patch', blockId: b.blockId, html: b.html }, '*');
+    }
   }, [patch]);
 
   useEffect(() => {

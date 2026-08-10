@@ -85,13 +85,23 @@ t('useLayoutEffect is imported', /import \{[^}]*useLayoutEffect[^}]*\} from 'rea
 
 console.log('\n=== 4. D4 — a patchable op is EXEMPT (or typing gets dropped) ===');
 
+// ADR-547 D4 renamed the flag to a DECLARED GRAIN (`patchBlockIds` — an op says
+// which blocks it touched, one or many). The CLAIM here is unchanged and is what
+// this asserts: retire fires exactly when the op declares NO blocks, i.e. when
+// the document is about to be torn down and replaced. Pinning the old spelling
+// read that widening as a violation — the fourth time in this arc a gate did
+// that, so this one asserts the CONDITION's shape instead.
 t(
-  'the call is guarded by !patchBlockId',
-  /if \(!patchBlockId\) retireFlowCommits\(\)/.test(S),
+  'retire is guarded by "the op declared no blocks" (a restructuring op)',
+  /if \((?:!patchBlockId|touched\.length === 0)\) retireFlowCommits\(\)/.test(S),
 );
 t(
   'the exemption is not accidentally inverted',
-  !/if \(patchBlockId\) retireFlowCommits\(\)/.test(S),
+  !/if \((?:patchBlockId|touched\.length > 0)\) retireFlowCommits\(\)/.test(S),
+);
+t(
+  'a DECLARED-grain op still patches (the exemption has a consumer)',
+  /touched\.length > 0\) void sendPatch\(touched/.test(S),
 );
 
 console.log('\n=== 5. EXECUTED — simulate the runtime guard ===');

@@ -1,5 +1,7 @@
 # ADR-480 — The editing grain: a document is one writing surface
 
+> **⚠️ Its WRITE half amended by [ADR-547](ADR-547-the-flow-write-grain-a-commit-reports-typing-not-everything.md) (2026-08-10)**: the READ half stands in full — the root stays `contenteditable`, the block stays an ANNOTATION, the browser keeps selection/undo/⌘F. What ADR-547 re-cuts is the **write granularity** this left at *the whole body*. Because a flow commit replaced all of `<main>`, any parent-side op the iframe DOM had not been told about was erased by the member's next keystroke — measured on prod as two HTTP 200 writes, CAS satisfied, ADR-540's fence correctly fired, and the losing payload an *honest* serialization of a DOM that never received the op. So a commit now reports only what the BROWSER originated, an op DECLARES the blocks it touched and reaches the live document, and `editFlowRegion` refuses to be a silent deletion of authored substrate.
+
 > **⚠️ Amended by [ADR-521](ADR-521-the-flow-benchmark-notions-scope-the-continuous-surfaces-mechanics.md) (2026-08-05)**: the flow runtime's Tab ruling ("deliberately NOT a list-indent gesture") is superseded — Tab in a list indents (⇧Tab outdents), the native `ul > li` nesting ADR-456 D2 sanctions; a keyboard entrance to a structural op has slash's legitimacy. The axiom, the grain, and every other ruling stand untouched.
 
 - **Status**: **Accepted** (2026-07-22, operator-ratified through the editing-grain

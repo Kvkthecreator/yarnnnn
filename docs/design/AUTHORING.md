@@ -307,6 +307,35 @@ ENCLOSURE (runtime owns the caret); on `flow` the block is an ANNOTATION
 (`contenteditable` on the root; the browser owns selection/undo/⌘F; ids reconstructed at
 the write seam, not enforced).
 
+**A FLOW COMMIT REPORTS TYPING, NOT EVERYTHING** (ADR-547, normative — amends
+ADR-480's write half; its read half stands). On a continuous surface two parties write
+one document: the iframe (whose only granularity is the whole `<main>`) and the parent
+(which computes ops). The iframe is a competent witness to exactly one thing — what the
+**browser** originated (typing, native splits/merges, paste, `execCommand`) — so that is
+all a whole-body commit may claim. **Three consequences, and the third is why this is a
+law rather than a fourth patch:**
+1. **An op DECLARES the blocks it touched** and reaches the live document through the
+   ADR-524 patch channel (one block or N — a span op touches many). An op that declares
+   nothing is a *restructuring* op: it re-projects, so the iframe cannot be holding a
+   stale body.
+2. **A commit never REMOVES an annotation it cannot have authored** — `data-block`,
+   `data-block-id`, `data-ref`, or any served block token, on a block that SURVIVES into
+   the incoming body. Removal-only and annotation-only: typing is always free to add, and
+   `class`/`style` belong to the browser. This **generalizes** the annihilation guard from
+   its one amplitude (all blocks gone) to the property it was always protecting; the
+   zero-blocks refusal is retained as the extreme case.
+3. **Durability is untouched** — one attributed CAS revision per op through the one door.
+
+The defect that forced it, measured on prod: a token op wrote `data-indent="2"` and the
+member's next keystroke committed a body without it. **Two writes, both HTTP 200, CAS
+satisfied** (the second's base *was* the first's result, so there was no 409 to raise),
+ADR-540's `flowDead` fence correctly fired, and `readSourceInner` serialized honestly.
+Nothing was stale — which is why no fence, version check or lock could see it, and why a
+**checkout/locking framing was tested and refused** (ADR-547 §2.2): the losing writer was
+not out of date, it was *uninformed*. Every op on flow reverted this way (Turn into, the
+pane's INDENT, ADR-546 D4's Tab rung); **typing survived precisely because typing is the
+one mutation the iframe DOM originates.**
+
 **A retired document does not commit** (ADR-540, normative). The flow session holds a
 `beforeunload` commit so unsaved typing survives a tab close — but a structural op's
 re-projection is *also* a teardown, and that gasp reported a DOM predating the op. The

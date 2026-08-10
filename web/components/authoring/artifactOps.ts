@@ -345,6 +345,36 @@ const PROMOTE_KIND: Record<string, string> = {
 };
 const BLOCK_LEVEL = new Set(Object.keys(PROMOTE_KIND).concat(['SECTION', 'MAIN', 'ARTICLE', 'HEADER', 'FOOTER']));
 
+/** ADR-547 D3 — is this attribute AUTHORED SUBSTRATE that a flow commit must
+ *  never silently remove?
+ *
+ *  A PREDICATE, not a hand-list, and deliberately so: a hand-list of token names
+ *  would be a fourth declaration of the vocabulary (the ADR-546 §1.1 fault —
+ *  three declarations of one fact, drifting by readership), and it would go stale
+ *  the moment a token row is added to the kernel registry. The shape is the rule:
+ *
+ *   · `data-block`     — the grammar (which kind this is)
+ *   · `data-block-id`  — the identity
+ *   · `data-ref*`      — the citation edge (ADR-448)
+ *   · `data-<token>`   — every block-grain property token the kernel serves
+ *                        (align, indent, tone, variant, size, mark, highlight, …)
+ *
+ *  EXCLUDED, because the browser legitimately owns them: `class` and `style` (a
+ *  paste or an execCommand rewrites both), `contenteditable` (the runtime stamps
+ *  it on citation islands), and anything not `data-*` (ARIA, href, src, alt).
+ *  Also excluded: the runtime's own transient chrome, which `readSourceInner`
+ *  already strips before a commit is ever built.
+ *
+ *  The point of a predicate over a list: an annotation nobody has invented yet is
+ *  protected the day it ships. */
+const GUARDED_ANNOTATIONS = (name: string): boolean => {
+  if (!name.startsWith('data-')) return false;
+  // The runtime's own scaffolding — not authored substrate, and legitimately
+  // added/removed by the projection rather than by a member.
+  if (name === 'data-yarnnn-label' || name === 'data-src-html') return false;
+  return true;
+};
+
 export function normalizeStructure(doc: Document): number {
   const root = doc.body;
   if (!root) return 0;
@@ -492,11 +522,61 @@ export function editFlowRegion(
   // (proven: empty / whitespace / `<br>` all reduced a live 4-block document
   // to 0 blocks). A document that was ALREADY block-empty is untouched by this
   // rule — it has nothing to lose, and this must not freeze a blank artifact.
+  // ── ADR-547 D3: a commit never REMOVES an annotation it cannot have authored ──
+  //
+  // The zero-blocks refusal below was the extreme AMPLITUDE of a more general
+  // fault, and the general fault shipped undefended. Measured on prod
+  // (ADR-547 §1.2): a token op wrote `data-indent="2"` as one 200-OK revision,
+  // and the member's very next keystroke committed a body with no `data-indent`
+  // at all — erasing it. Two writes, both 200, CAS satisfied (the second's base
+  // WAS the first's result), the ADR-540 fence correctly fired, and the payload
+  // honestly serialized. Nothing was stale; the iframe DOM had simply never been
+  // told about the op.
+  //
+  // So the property being protected was never "don't empty the document" — it is
+  // **a commit must not be a silent deletion of authored substrate**. Native
+  // editing does not strip a `data-indent` off an untouched paragraph, nor drop a
+  // `data-block` name; only an uninformed snapshot does.
+  //
+  // Deliberately asymmetric: this constrains REMOVAL only, never addition — the
+  // member's typing must always be free to add. And it judges by ANNOTATIONS,
+  // never by text: contenteditable legitimately rewrites text nodes, splits
+  // paragraphs and merges them, and D1 says that is exactly what a commit is for.
+  const probe = doc.createElement('div');
+  probe.innerHTML = sanitized;
+
+  // (a) The extreme case, retained verbatim in behaviour: never take a document
+  //     from HAVING annotated blocks to having NONE. Emptiness is judged by
+  //     annotated blocks, not raw text — contenteditable leaves `<br>` and stray
+  //     whitespace behind on a select-all delete, and a `<br>`-only body is
+  //     exactly as destroyed as an empty one (proven: empty / whitespace / `<br>`
+  //     all reduced a live 4-block document to 0 blocks). A document that was
+  //     ALREADY block-empty is untouched — it has nothing to lose, and this must
+  //     not freeze a blank artifact.
   const hadBlocks = region.querySelectorAll('[data-block]').length > 0;
-  if (hadBlocks) {
-    const probe = doc.createElement('div');
-    probe.innerHTML = sanitized;
-    if (probe.querySelectorAll('[data-block]').length === 0) return null;
+  if (hadBlocks && probe.querySelectorAll('[data-block]').length === 0) return null;
+
+  // (b) The general case (ADR-547 D3). For every block the region held that the
+  //     incoming body STILL HAS, no block-grain annotation may vanish. A block
+  //     that is genuinely gone from the incoming body is a legitimate native
+  //     delete and is not this rule's business — only a SURVIVING block losing an
+  //     annotation is, because that is the shape of an uninformed overwrite.
+  //
+  //     Keyed by `data-block-id`, which is how every op addresses a block.
+  const survivors = new Map<string, Element>();
+  for (const el of Array.from(probe.querySelectorAll('[data-block-id]'))) {
+    const id = el.getAttribute('data-block-id');
+    if (id) survivors.set(id, el);
+  }
+  for (const before of Array.from(region.querySelectorAll('[data-block-id]'))) {
+    const id = before.getAttribute('data-block-id');
+    if (!id) continue;
+    const after = survivors.get(id);
+    if (!after) continue; // the block is gone entirely — a native delete, allowed
+    for (const name of before.getAttributeNames()) {
+      if (!GUARDED_ANNOTATIONS(name)) continue;
+      if (after.getAttribute(name) === null) return null; // a silent deletion
+    }
   }
 
   region.innerHTML = sanitized;
