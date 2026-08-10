@@ -1772,7 +1772,14 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
 # a real browser and found CSS animation alive — and <script> dead — inside the
 # bare sandbox="" that the Web Viewer, the paged navigator and the public share
 # link all use. Script-driven motion would render only for its own author.
-STUDIO_KERNEL_CSS_VERSION = 16
+# v17 (ADR-544 D2) — the region selectors follow the Area grain:
+# `[data-slot="media"]` → `[data-area-role="media"]` (role, not authored name)
+# and the relative-position rule reads `[data-area]`. The BUMP is the point: the
+# CSS changed in the kernel, so without it `ensure_kernel_style_in_html` sees a
+# same-or-newer version and returns byte-identical — every already-authored deck
+# would keep the stale rule forever and its full-bleed media would not flex.
+# A kernel CSS edit without a version bump is a change that never mounts.
+STUDIO_KERNEL_CSS_VERSION = 17
 
 
 def compose_kernel_style_element() -> str:

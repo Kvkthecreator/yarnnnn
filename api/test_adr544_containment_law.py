@@ -318,6 +318,34 @@ check(
     "pane would disagree on an un-healed deck",
 )
 
+# ── D2 — the kernel CSS speaks Areas, and the VERSION carries it out ──────
+# The kernel stylesheet is baked into every artifact at creation and retrofits
+# only when `STUDIO_KERNEL_CSS_VERSION` advances (`ensure_kernel_style_in_html`
+# returns byte-identical at a same-or-newer version). ADR-544 D2 rewrote two
+# region selectors in that sheet; the bump is what makes the rewrite REACH the
+# decks that already exist. Without it the edit is real in the registry, real in
+# every gate that greps the source, and dead in every live artifact — a change
+# that ships green and never mounts.
+from services.authoring import STUDIO_KERNEL_CSS, STUDIO_KERNEL_CSS_VERSION
+
+check(
+    '[data-area-role="media"]' in STUDIO_KERNEL_CSS,
+    "D2: the kernel's full-bleed media rule does not address the Area ROLE",
+)
+check(
+    ".slide [data-area]" in STUDIO_KERNEL_CSS,
+    "D2: the kernel's relative-position rule does not address [data-area]",
+)
+check(
+    '[data-slot="media"]' not in STUDIO_KERNEL_CSS,
+    "D2: a retired `data-slot` selector survives in the kernel CSS",
+)
+check(
+    STUDIO_KERNEL_CSS_VERSION >= 17,
+    f"D2: STUDIO_KERNEL_CSS_VERSION is {STUDIO_KERNEL_CSS_VERSION} — the "
+    f"ADR-544 selector rewrite needs >= 17 to retrofit into existing artifacts",
+)
+
 if failures:
     print(f"ADR-544 FAILED — {len(failures)} finding(s):\n")
     for f in failures:
