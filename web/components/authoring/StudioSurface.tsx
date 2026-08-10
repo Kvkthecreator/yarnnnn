@@ -52,7 +52,12 @@ import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
-import { StudioCanvas, type PointerEvent2, type StudioContextTarget } from './StudioCanvas';
+import {
+  StudioCanvas,
+  type PointerEvent2,
+  type RangeRung,
+  type StudioContextTarget,
+} from './StudioCanvas';
 import { StudioBlockMenu } from './StudioBlockMenu';
 import { StudioBlockInsertMenu } from './StudioBlockInsertMenu';
 import { StudioCitablePicker } from './StudioCitablePicker';
@@ -67,7 +72,7 @@ import {
 // pinned copy), so a parent-side reach and the pane consult one declaration.
 import { StudioDesignTab, kindTier, type StructVerb } from './StudioDesignTab';
 // ADR-541 D2 — the one selection algebra (the pane reads the same two).
-import { arityOf, unify } from './selection';
+import { arityOf, spanShapeOf, unify, type SpanShape } from './selection';
 import { StudioShareExport } from './StudioShareExport';
 import { PagedNavigator } from './PagedNavigator';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
@@ -574,7 +579,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
    *  produced the defect — the pane read the click answer while the member was
    *  looking at a six-block range. Empty = no range. */
   const [rangeBlockIds, setRangeBlockIds] = useState<string[]>([]);
-  const onRange = useCallback((ids: string[]) => setRangeBlockIds(ids), []);
+  /** ADR-546 D3 — the span's SHAPE, derived by `spanShapeOf` (selection.ts, the
+   *  one home) from the rungs the runtime reports alongside the ids. Held here
+   *  beside `rangeBlockIds` for the same reason the ids are: it is a fact about
+   *  the live gesture, not a field on the click-derived `selection`. */
+  const [rangeShape, setRangeShape] = useState<SpanShape | null>(null);
+  const onRange = useCallback((ids: string[], rungs?: RangeRung[]) => {
+    setRangeBlockIds(ids);
+    // No rungs = an older projection still live in the iframe. Degrade to a
+    // bare count rather than inventing a shape (the ADR-482 D3 direction:
+    // withhold, never guess).
+    setRangeShape(
+      rungs && rungs.length === ids.length
+        ? spanShapeOf(
+            ids.map((blockId, i) => ({ blockId, rung: rungs[i], text: rungs[i].text ?? null })),
+          )
+        : null,
+    );
+  }, []);
   /** ADR-519 D4.1 — the blocks a ⇧-click SET holds, on a staged medium. The
    *  same shape and the same reasoning as `rangeBlockIds` above, for the same
    *  reason: a set answers "how many does the verb take", `selection` answers
@@ -3575,6 +3597,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onSetToken={handleSetToken}
               onFormat={handleFormat}
               rangeBlockIds={rangeBlockIds}
+              rangeShape={rangeShape}
               groupIds={groupIds}
               onAlignMany={handleAlignMany}
               onDistributeMany={handleDistributeMany}

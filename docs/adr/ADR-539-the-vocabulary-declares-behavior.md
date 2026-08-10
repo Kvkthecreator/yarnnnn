@@ -1,5 +1,14 @@
 # ADR-539: The vocabulary declares behavior — a kind carries its tier, its tags, its conversions, and its citation; a heading carries its rung
 
+> **D3 generalized by [ADR-546](ADR-546-the-rung-law-a-document-is-a-tree-of-text.md) D1
+> (2026-08-10).** D3's "the heading rung set is ONE kernel constant" was right and
+> incomplete: `HEADING_RUNGS` was one of **three** declarations of depth on a document
+> (with the `indent` token's values and the kernel's `ul ul ul` CSS), and the third had no
+> reader at all — which is why Tab could author a hierarchy nothing could name.
+> `FLOW_RUNGS` is the generalization: the heading rung and the nesting rung are one concept
+> in two spellings, and the other two declarations are now GENERATED from it, so a fourth
+> cannot ship by editing one list.
+
 > **Status**: **Accepted** (2026-08-09) — operator-ratified through the hierarchy/docs-app audit discourse ("singular approach to avoid future downstream ambiguity"); implementation delegated in full.
 > **Date**: 2026-08-09
 > **Dimension**: **Substrate** (what the block vocabulary IS) primary; a **Channel** consequence (every offering surface derives from one declaration).

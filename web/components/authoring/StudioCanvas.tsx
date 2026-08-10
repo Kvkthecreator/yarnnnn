@@ -87,6 +87,15 @@ export interface PointerEvent2 {
   tier?: 'text' | 'object' | 'structure' | null;
 }
 
+/** ADR-546 D3 — one covered block's rung, as the runtime reports it. `text` is
+ *  present on headings only (the span's potential lead needs a name; nothing
+ *  else does). Interpreted ONLY by `spanShapeOf` in selection.ts. */
+export interface RangeRung {
+  heading: number | null;
+  nesting: number;
+  text?: string;
+}
+
 interface StudioCanvasProps {
   /** The loaded artifact (the surface owns the fetch + reload cadence). */
   file: WorkspaceFile;
@@ -99,7 +108,10 @@ interface StudioCanvasProps {
   /** ADR-528 — the blocks a live text range intersects (empty = collapsed).
    *  The pane needs this because a RANGE is not a click: its scope must
    *  follow the selection, not the last block the member clicked into. */
-  onRange?: (blockIds: string[]) => void;
+  /** ADR-546 D3 — the covered blocks AND each one's rung, so the parent can
+   *  derive the span's SHAPE (a heading + what is under it is a subtree, not N
+   *  peers). The rungs ride the same message: one gesture, one report. */
+  onRange?: (blockIds: string[], rungs?: RangeRung[]) => void;
   /** ADR-446: the block currently being edited in place (null = none). The
    *  surface holds this state; the canvas commands the iframe runtime. */
   editingBlockId?: string | null;
@@ -637,7 +649,13 @@ export function StudioCanvas({
         // onPoint, which reports a CLICK: a drag across six blocks never
         // fired onPoint again, so the pane kept describing the block that
         // was clicked into. Empty array = the range collapsed.
-        onRange?.((d.blockIds as unknown[]).filter((x): x is string => typeof x === 'string'));
+        onRange?.(
+          (d.blockIds as unknown[]).filter((x): x is string => typeof x === 'string'),
+          // ADR-546 D3 — parallel to blockIds by construction (the runtime pushes
+          // both in one loop). Absent from an older projection still live in the
+          // iframe, which the parent handles by falling back to a bare count.
+          Array.isArray(d.rungs) ? (d.rungs as RangeRung[]) : undefined,
+        );
       } else if (d.type === 'yarnnn-point-clear') {
         onPointClear?.();
       } else if (

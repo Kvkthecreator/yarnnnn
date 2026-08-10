@@ -118,7 +118,20 @@ _check("D5: unknown wrappers unwrap (children survive, the wrapper dies)",
 # constant, never an inline expression — and the set is enumerated so a stray
 # interpolation still fails. (The count==1 spelling went red the moment
 # ADR-539 landed, which is this re-cut's receipt, not its motive.)
-_EDIT_INTERPOLATIONS = {"${TEXT_KINDS_JS}", "${OUT_OF_RUNG_TAGS_JS}", "${DEEPEST_RUNG_TAG_JS}"}
+#
+# ADR-546 D1 adds two more: the rung set and its floor. Same shape, same reason —
+# the runtime is a module-level template string, so a served/mirrored constant
+# reaches it interpolated rather than re-typed. This gate did exactly its job
+# when they landed: the invariant passed, the ENUMERATION needed the additions,
+# which is the difference between a gate that pins a spelling and one that
+# defends a rule.
+_EDIT_INTERPOLATIONS = {
+    "${TEXT_KINDS_JS}",
+    "${OUT_OF_RUNG_TAGS_JS}",
+    "${DEEPEST_RUNG_TAG_JS}",
+    "${FLOW_RUNGS_JS}",
+    "${DEEPEST_FLOW_RUNG_JS}",
+}
 _check("runtime hygiene: EDIT_SCRIPT's interpolations are exactly the declared constants",
        edit.count("${") == len(_EDIT_INTERPOLATIONS)
        and all(tok in edit for tok in _EDIT_INTERPOLATIONS))

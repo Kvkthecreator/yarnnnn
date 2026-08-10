@@ -66,7 +66,15 @@ import {
 } from './StudioToolbar';
 import { studioShapeStyle } from './studioShapes';
 // ADR-541 D2 — the one selection algebra; this pane derives nothing itself.
-import { arityOf, scopeOf, unify, withdrawalNotice, type PaneScope } from './selection';
+import {
+  arityOf,
+  scopeOf,
+  spanLabel,
+  unify,
+  withdrawalNotice,
+  type PaneScope,
+  type SpanShape,
+} from './selection';
 // ADR-542 D2 — the one token-admittance function (scope × grains).
 import { admits } from './tokenGrammar';
 import { climbChain } from './SelectionBreadcrumb';
@@ -198,6 +206,10 @@ interface StudioDesignTabProps {
    *  THAN ONE, the block-scoped sections are describing a block the member is
    *  no longer looking at, and must say so instead. */
   rangeBlockIds?: string[];
+  /** ADR-546 D3 — the span's SHAPE, derived once in selection.ts. The pane
+   *  READS it (rule 11 / ADR-541 D2): a heading-led span is a subtree, and this
+   *  is what lets the header name it instead of counting. */
+  rangeShape?: SpanShape | null;
   /** ADR-519 D4.1 — the ⇧-click set on a staged medium. State beside the
    *  selection, never a scope: a set has no label, no box and no tier, so it
    *  cannot be a subject the inspector describes. Length < 2 = no set. */
@@ -928,7 +940,11 @@ interface StructNode {
 /** Walk an element's subtree into the flat, indented contents list.
  *  Containers recurse; blocks are leaves; unaddressed wrappers are
  *  transparent (their children surface at the same depth). */
-function walkContents(root: Element, labels: Record<string, string>): StructNode[] {
+function walkContents(
+  root: Element,
+  labels: Record<string, string>,
+  mode: 'flow' | 'paged',
+): StructNode[] {
   const out: StructNode[] = [];
   const walk = (el: Element, depth: number) => {
     for (const child of Array.from(el.children)) {
@@ -937,7 +953,7 @@ function walkContents(root: Element, labels: Record<string, string>): StructNode
       if (isBlock && id) {
         out.push({
           blockId: id,
-          label: labelForElement(child, labels),
+          label: labelForElement(child, labels, mode),
           kind: child.getAttribute('data-block'),
           depth,
           text: (child.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
@@ -945,7 +961,13 @@ function walkContents(root: Element, labels: Record<string, string>): StructNode
         continue; // blocks are leaves — the tree floor
       }
       if (!isBlock && id && child.tagName === 'DIV') {
-        out.push({ blockId: id, label: labelForElement(child, labels), kind: null, depth, text: '' });
+        out.push({
+          blockId: id,
+          label: labelForElement(child, labels, mode),
+          kind: null,
+          depth,
+          text: '',
+        });
         walk(child, depth + 1);
         continue;
       }
@@ -1105,6 +1127,7 @@ export function StudioDesignTab({
   onSetToken,
   onFormat,
   rangeBlockIds,
+  rangeShape,
   groupIds,
   onAlignMany,
   onDistributeMany,
@@ -1365,14 +1388,14 @@ export function StudioDesignTab({
     return climbChain(selectedEl, pageEl)
       .map((el) => ({
         blockId: el.getAttribute('data-block-id') ?? '',
-        label: labelForElement(el, labelMap),
+        label: labelForElement(el, labelMap, mode),
       }))
       .filter((c) => c.blockId);
-  }, [selectedEl, pageEl, scope]);
+  }, [selectedEl, pageEl, scope, mode]);
   const contents = useMemo(() => {
     if (!selectedEl || (scope !== 'page' && scope !== 'container')) return [];
-    return walkContents(selectedEl, labelMap);
-  }, [selectedEl, scope]);
+    return walkContents(selectedEl, labelMap, mode);
+  }, [selectedEl, scope, mode]);
   /** ADR-526 D2 — the outline, on FLOW only. On a paged medium the navigator IS
    *  the sequence (ADR-520 D4) and Contents carries the within-page structure;
    *  a third view there would be the "second structure tree" ADR-520 D5
@@ -1384,9 +1407,21 @@ export function StudioDesignTab({
     [doc, mode, rungs.join()],
   );
   const pathRow =
-    // ADR-528 D2: pathRow is a PAGE_SEL ancestry chain — structurally never
-    // present on flow (ADR-481 D1), so `object` here means a paged block.
-    (scope === 'object' || scope === 'container') && pageOfSelection != null ? (
+    // ADR-546 D6 — GATED BY MODE, not by an assumed absence.
+    //
+    // This read "structurally never present on flow (ADR-481 D1)", resting on
+    // the premise that the flow flatten leaves no <section> ancestor. One half
+    // of that premise is false: the flatten targets ONLY `[data-arrange]`
+    // (projection.ts, resolveArtifactHtml), while STRUCTURAL_PAGE_SEL admits
+    // `:is(body, main, article) > section` — and Docs' own kernel skin declares
+    // `section[data-block]` (docs.py). So a document could produce a page rung
+    // and a "Slide" crumb, defended by nothing but a comment.
+    //
+    // The gate is the honest fix. Flattening more substrate to defend a comment
+    // is the wrong direction: ADR-526's <section>-wrapper refusal is about
+    // AUTHORING one, not about tolerating legacy markup (ADR-546 §4.2 — the
+    // wrapper question is NOT reopened here).
+    mode === 'paged' && (scope === 'object' || scope === 'container') && pageOfSelection != null ? (
       <div className="flex flex-wrap items-center gap-0.5 text-[10px] text-muted-foreground">
         <button
           type="button"
@@ -2516,8 +2551,18 @@ export function StudioDesignTab({
                 which would have named a kind nothing had reported. */}
             <p className={HEADING}>
               {multiBlockRange
-                ? `${rangeBlockIds!.length} blocks selected`
-                : (selection?.label ?? selection?.blockKind ?? 'Selection')}
+                ? // ADR-546 D3 — the span NAMES itself. A heading-led range is a
+                  // subtree ("Pricing and the 6 blocks under it"), not N peers,
+                  // and the sentence is derived in selection.ts beside the
+                  // withdrawal notice — never a second hand-written string here.
+                  // A projection that reported no rungs still gets a true count.
+                  spanLabel(rangeShape ?? { count: rangeBlockIds!.length, lead: null, under: 0 })
+                : // ADR-546 D5 — the registry's word or nothing. The
+                  // `?? selection.blockKind` fallback is DELETED: it echoed the raw
+                  // attribute, which is the same PROSE-vs-Text mis-wire ADR-544 D4
+                  // closed for decks, reachable here during the vocabulary's load
+                  // window (ADR-482 D3's real gap).
+                  (selection?.label ?? 'Selection')}
             </p>
             {/* ADR-541 D4 — the ONE withdrawal notice, finally mounted. It was
                 exported from selection.ts with NO consumer, so the pane named a

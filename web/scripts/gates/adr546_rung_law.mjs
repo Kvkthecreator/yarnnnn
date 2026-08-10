@@ -19,6 +19,8 @@
 //
 // Run from the REPO ROOT: node web/scripts/gates/adr546_rung_law.mjs
 import { readFileSync } from 'fs';
+import { createRequire } from 'module';
+const require$ = createRequire(import.meta.url);
 
 const labels = readFileSync('web/components/authoring/structureLabels.ts', 'utf8');
 const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
@@ -28,34 +30,11 @@ const kernel = readFileSync('api/services/authoring.py', 'utf8');
 const docs = readFileSync('api/services/docs.py', 'utf8');
 
 let pass = 0,
-  fail = 0,
-  pending = 0;
+  fail = 0;
 const t = (label, cond) => {
   console.log((cond ? '[PASS] ' : '[FAIL] ') + label);
   cond ? pass++ : fail++;
 };
-// A decision this ADR RATIFIED but whose phase has not landed. It prints its
-// real state and does NOT fail the run — but it is not silent either, and it
-// flips to a hard assertion (`t`) in the commit that lands its phase. The
-// phase number is required, so "pending" can never become a parking lot: a
-// pending check with no phase is a decision nobody scheduled.
-//
-// Why this shape: a gate that goes GREEN on unimplemented law is the "prose
-// caveat where a gate belonged" defect (ADR-544 D3). A gate that goes RED for
-// weeks is a gate the next session learns to ignore. Neither is acceptable, so
-// the state is NAMED.
-const pendingChecks = [];
-const p = (phase, label, cond) => {
-  if (cond) {
-    console.log(`[PASS] ${label}`);
-    pass++;
-    return;
-  }
-  console.log(`[PEND ${phase}] ${label}`);
-  pending++;
-  pendingChecks.push(`phase ${phase}: ${label}`);
-};
-
 // ── Strip comments before any source assertion ─────────────────────────────
 // The ADR-544 lesson `feedback_gate_assertion_matches_its_own_comment`: an
 // ABSENCE assertion matches its own explanatory comment, so "we do NOT do X"
@@ -84,38 +63,72 @@ const headingRungs = rungMatch
   : [];
 t('D1: HEADING_RUNGS is declared in the kernel and non-empty', headingRungs.length > 0);
 
-// The indent token's value set, extracted from the served token row.
-const indentBlock = kernel.match(/"indent"\s*:\s*\{[\s\S]*?\n    \}/);
-const indentValues = indentBlock
-  ? [...indentBlock[0].matchAll(/"value"\s*:\s*"(\d+)"/g)].map((m) => Number(m[1]))
-  : [];
+// ADR-546 D1 — the indent token's values and the nesting CSS are now GENERATED
+// from FLOW_RUNGS (authoring.py `_rung_css` / `_nest_css`), so there is no
+// literal list left to scrape. The gate therefore reads the GENERATED OUTPUT via
+// python — which is a stronger test than the pre-546 text scan: it proves the
+// three systems agree in what actually SHIPS, not in what three lists say.
+const kernelOut = (() => {
+  try {
+    const { execFileSync } = require$('child_process');
+    const out = execFileSync(
+      'python3',
+      [
+        '-c',
+        'import json,sys; sys.path.insert(0,"api");' +
+          'from services.authoring import FLOW_RUNGS, DEEPEST_FLOW_RUNG, STUDIO_TOKENS, _rung_css, _nest_css;' +
+          'print(json.dumps({"rungs":list(FLOW_RUNGS),"deepest":DEEPEST_FLOW_RUNG,' +
+          '"indent":[v["value"] for v in STUDIO_TOKENS["indent"]["values"]],' +
+          '"rung_css":_rung_css(),"nest_css":_nest_css(),' +
+          '"grains":list(STUDIO_TOKENS["indent"]["grains"])}))',
+      ],
+      { encoding: 'utf8', cwd: process.cwd() },
+    );
+    return JSON.parse(out);
+  } catch (e) {
+    return null;
+  }
+})();
+t('D1: the kernel\'s generated rung output is readable', kernelOut != null);
+
+const indentValues = kernelOut ? kernelOut.indent.map(Number) : [];
 t('D1: the indent token declares a bounded value set', indentValues.length > 0);
 
-// The list-nesting depth the kernel CSS actually renders, counted from the
-// deepest `ul ul ul` / `ol ol ol` selector present. Behaviour, not a literal:
-// we count nesting steps, so restyling `circle`→`square` cannot break this.
+// The nesting depth the GENERATED CSS renders — counted from the deepest
+// `ul ul …` selector, so a marker restyle cannot break this.
 const listNestDepth = (() => {
+  if (!kernelOut) return 0;
   let deepest = 0;
-  for (const m of kernel.matchAll(/ul\[data-block="list"\]((?:\s+ul)+)\s*\{/g)) {
+  for (const m of kernelOut.nest_css.matchAll(/ul\[data-block="list"\]((?:\s+ul)+)\s*\{/g)) {
     deepest = Math.max(deepest, m[1].trim().split(/\s+/).length + 1);
   }
   return deepest;
 })();
-t('D1: the kernel CSS renders list nesting at some depth', listNestDepth > 0);
+t('D1: the generated kernel CSS renders list nesting', listNestDepth > 0);
 
-// THE INVARIANT (§1.1's tell): all three independently landed on the same
-// depth, which is what makes them one concept. A future divergence means a
-// fourth interpretation of depth shipped without the law.
+// THE INVARIANT (§1.1's tell): all three agree on depth, which is what makes
+// them one concept. Now true BY CONSTRUCTION (generated from one set) and this
+// asserts the construction held.
 t(
   `D1: all three rung systems share one depth (headings=${headingRungs.length}, indent=${indentValues.length}, nesting=${listNestDepth})`,
-  headingRungs.length === indentValues.length && indentValues.length === listNestDepth,
+  headingRungs.length > 0 &&
+    headingRungs.length === indentValues.length &&
+    indentValues.length === listNestDepth,
+);
+
+// The prose rung's own steps come from the same set.
+t(
+  'D1: the generated prose-rung CSS has one selector per declared rung',
+  !!kernelOut &&
+    kernelOut.rung_css.split('\n').filter((l) => l.includes('data-indent')).length ===
+      kernelOut.rungs.length,
 );
 
 // The indent token is FLOW-only — a rung is a flow fact (D0: paged depth is
 // containment per ADR-544, never an indent).
 t(
   'D1: the indent token is declared for the flow grain only',
-  !!indentBlock && /"grains"\s*:\s*\(\s*"flow"\s*,?\s*\)/.test(indentBlock[0]),
+  !!kernelOut && kernelOut.grains.length === 1 && kernelOut.grains[0] === 'flow',
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -181,7 +194,7 @@ if (areaRoleBlock && areaLabelFn && labelForFn) {
     `const AREA_ROLE_LABELS = ${areaRoleBlock[1]};\n` +
     bodyOf(areaLabelFn[0], 'role, place').replace('__f', 'areaLabel') +
     '\n' +
-    bodyOf(labelForFn[0], 'el, blockLabels').replace('__f', 'labelForElement') +
+    bodyOf(labelForFn[0], 'el, blockLabels, mode').replace('__f', 'labelForElement') +
     '\nreturn labelForElement;';
   try {
     labelForElement = new Function(src)();
@@ -204,26 +217,37 @@ if (labelForElement) {
   // reachable in a DOCUMENT must not be labelled with the deck's word.
   // Today the ladder is mode-blind, so this documents the open defect: the
   // assertion is that the ladder does NOT hand a deck word to a document.
-  const sectionLabel = labelForElement(mkEl('SECTION', { 'data-block-id': 's1' }));
-  p(5,
-    `D5 [F1]: a <section> does not label as a deck grain on flow (got "${sectionLabel}")`,
-    sectionLabel !== 'Slide',
+  const sectionOnFlow = labelForElement(mkEl('SECTION', { 'data-block-id': 's1' }), null, 'flow');
+  t(
+    `D5 [F1]: a <section> does not label as a deck grain on flow (got "${sectionOnFlow}")`,
+    sectionOnFlow !== 'Slide',
+  );
+  // The NARROWING guard: flow loses the deck words, paged KEEPS them. A gate
+  // that only checked flow would go green on a ladder that had lost 'Slide'
+  // entirely — the ADR-544 lesson (three gates read a narrowing as a violation;
+  // the inverse mistake is a gate that cannot see an amputation).
+  t(
+    'D5: a deck slide still labels as "Slide" on paged (D5 narrows, never deletes)',
+    labelForElement(mkEl('SECTION', {}, ['slide']), null, 'paged') === 'Slide',
   );
 
   // The terminal fallback must not be a word ADR-544 D7 removed from the deck
   // crumb. A bare structural div on flow has no operator word at all.
-  const bareLabel = labelForElement(mkEl('DIV', { 'data-block-id': 'd1' }));
-  p(5,
-    `D5 [F1]: the terminal fallback is not "Group" (got "${bareLabel}")`,
-    bareLabel !== 'Group',
+  const bareOnFlow = labelForElement(mkEl('DIV', { 'data-block-id': 'd1' }), null, 'flow');
+  t(
+    `D5 [F1]: the terminal fallback is not "Group" on flow (got "${bareOnFlow}")`,
+    bareOnFlow !== 'Group',
   );
 
   // An Area role IS legal — on paged. The ladder must still speak it (this is
   // the NARROWING guard: D5 forbids Area on FLOW, it does not delete the rung).
   t(
     'D5: the Area rung still resolves for paged callers (D5 narrows, never deletes)',
-    labelForElement(mkEl('DIV', { 'data-area-role': 'body', 'data-area-place': 'left' })) ===
-      'Body (left)',
+    labelForElement(
+      mkEl('DIV', { 'data-area-role': 'body', 'data-area-place': 'left' }),
+      null,
+      'paged',
+    ) === 'Body (left)',
   );
 }
 
@@ -239,17 +263,98 @@ const flowDeletesArrange = /\[data-arrange\]/.test(flattenTargets);
 const flowDeletesRegion = /data-area|data-slot/.test(flattenTargets);
 t('D5: the flow projection deletes the paged region + layout grains', flowDeletesArrange && flowDeletesRegion);
 
-// Count the payload sites that name those grains. Post-544 the `slot` key
-// reads `data-area` FIRST, so ADR-544's Area grain is named in flow's payload.
-const payloadNamesRegion = [...projCode.matchAll(/slot:\s*\w+\s*\?/g)].length;
-const payloadNamesArrange = [...projCode.matchAll(/arrange:\s*\w+\s*\?/g)].length;
-p(5,
-  `D5 [F2]: no selection payload names a grain the flow projection deletes (region=${payloadNamesRegion}, arrange=${payloadNamesArrange})`,
-  payloadNamesRegion === 0 && payloadNamesArrange === 0,
-);
+// F2 — the two region/layout DERIVATIONS answer null on flow.
+//
+// Asserted at the CHOKEPOINT, not by counting call sites: a count cannot defend
+// a per-site invariant (the ADR-519 lesson), and it would go red on the correct
+// implementation, where the payloads still HAVE the keys and the derivation
+// behind them is what became mode-aware. Post-544 the `slot` key reads
+// `data-area` first, so an ungated derivation names ADR-544's Area grain in a
+// DOCUMENT's payload — the drift ADR-544 §2 exists to prevent.
+//
+// EXECUTED: extract each function and run it with a stubbed document in both
+// modes. A guard that is merely PRESENT is what a grep proves; this proves the
+// function returns null.
+const runDeriv = (fnName, mode) => {
+  // Extracted from the RAW source, not the comment-stripped copy: stripping is
+  // for absence assertions, and it mangles a body we intend to EXECUTE.
+  const m = proj.match(new RegExp(`function ${fnName}\\(el\\) \\{[\\s\\S]*?\\n  \\}`));
+  if (!m) return { ok: false };
+  const isFlowSrc = proj.match(/function isFlowDoc\(\) \{[\s\S]*?\n  \}/);
+  if (!isFlowSrc) return { ok: false };
+  const doc = {
+    documentElement: { getAttribute: () => mode },
+  };
+  // An element that WOULD match if the guard were absent — so a missing guard
+  // returns a truthy region/arrange and the assertion fails.
+  const el = {
+    closest: () => ({ getAttribute: (k) => (k === 'data-area' ? 'main' : 'two-column') }),
+  };
+  try {
+    const fn = new Function('document', `${isFlowSrc[0]}\n${m[0]}\nreturn ${fnName};`)(doc);
+    return { ok: true, value: fn(el) };
+  } catch {
+    return { ok: false };
+  }
+};
+for (const fnName of ['regionOf', 'arrangeOf']) {
+  const onFlow = runDeriv(fnName, 'flow');
+  const onPaged = runDeriv(fnName, 'paged');
+  t(`D5 [F2]: ${fnName} is extractable and executes`, onFlow.ok && onPaged.ok);
+  t(
+    `D5 [F2]: ${fnName} answers null on flow (got ${JSON.stringify(onFlow.value)})`,
+    onFlow.ok && onFlow.value === null,
+  );
+  // The narrowing guard again: paged must still RESOLVE the grain.
+  t(
+    `D5: ${fnName} still resolves on paged (D5 narrows, never deletes)`,
+    onPaged.ok && onPaged.value != null,
+  );
+}
+
+// ── Runtime hygiene: a literal backtick closes the template ────────────────
+// The runtimes are module-level template literals, so ONE backtick in a comment
+// inside them breaks the build (it bit three times while implementing ADR-546,
+// and ADR-521's gate has caught it before). The existing check guards one
+// region; this guards EVERY runtime template in the file, which is the actual
+// invariant. Behaviour, not a spelling: extract each template and look inside.
+/** Is there a backtick in the template's literal TEXT (as opposed to inside a
+ *  `${…}` expression, where a nested template is legal TypeScript — POINTER_CSS
+ *  builds selectors that way)? Brace-counted rather than regex-stripped: an
+ *  interpolation containing an object literal or an arrow body nests braces, and
+ *  a non-greedy `\$\{[^]*?\}` stops at the first one — reporting the gate's own
+ *  false positive, which is how a gate stops being trusted. */
+function hasLiteralBacktick(body) {
+  let depth = 0;
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] === '$' && body[i + 1] === '{') {
+      depth++;
+      i++;
+      continue;
+    }
+    if (depth > 0) {
+      if (body[i] === '{') depth++;
+      else if (body[i] === '}') depth--;
+      continue;
+    }
+    if (body[i] === '`') return true;
+  }
+  return false;
+}
+
+const runtimeTemplates = [...proj.matchAll(/const (\w*(?:SCRIPT|CSS))\s*=\s*`([\s\S]*?)\n`;/g)];
+t('runtime templates are extractable', runtimeTemplates.length > 0);
+for (const [, name, body] of runtimeTemplates) {
+  // Strip `${…}` interpolations first: a nested template INSIDE an expression is
+  // legal TypeScript (POINTER_CSS builds selectors that way). What breaks the
+  // build is a backtick in the literal TEXT — prose, a comment, a CSS rule.
+  // Without this the gate reports its own false positive, which is how a gate
+  // stops being trusted.
+  t(`no literal backtick inside ${name}`, !hasLiteralBacktick(body));
+}
 
 // ── D5, the pane header: no raw-attribute fallback (ADR-544 D4, symmetric) ──
-p(5,
+t(
   'D5 [F1]: the pane header does not fall back to the raw block attribute',
   !/selection\?\.label\s*\?\?\s*selection\?\.blockKind/.test(paneCode),
 );
@@ -268,9 +373,13 @@ if (pageSel) {
   const docsDeclaresSection = /section\[data-block\]/.test(docs);
   // If BOTH are true, the "always null" premise needs a mode gate to be honest.
   const premiseNeedsGate = admitsPlainSection && docsDeclaresSection;
-  const pathRowModeGated = /pathRow[\s\S]{0,400}?mode === 'flow'/.test(paneCode) ||
-    /mode === 'paged'[\s\S]{0,200}?pathRow/.test(paneCode);
-  p(5,
+  // Assert the BINDING's own condition, not a proximity window: extract what
+  // `pathRow` is assigned and require the mode to appear in the guard itself.
+  // (A `[\s\S]{0,400}` window around the name would also match a mode test in a
+  // NEIGHBOURING binding — a gate that passes for the wrong reason.)
+  const pathRowExpr = paneCode.match(/const pathRow\s*=([\s\S]*?)\?/);
+  const pathRowModeGated = !!pathRowExpr && /mode === '(paged|flow)'/.test(pathRowExpr[1]);
+  t(
     `D6: pathRow's always-null claim is gated, not assumed (selector admits=${admitsPlainSection}, skin declares=${docsDeclaresSection})`,
     !premiseNeedsGate || pathRowModeGated,
   );
@@ -288,7 +397,7 @@ t('D4: the Tab handler is extractable', tabHandler.length > 0);
 // BEHAVIOUR (a tab character reaches the document), not one spelling of it.
 const insertsLiteralTab =
   /fromCharCode\(\s*9\s*\)/.test(tabHandler) || /insertText'?\s*,\s*false\s*,\s*['"]\\t['"]/.test(tabHandler);
-p(4, 'D4 [F4]: Tab does not insert a literal tab character in prose', !insertsLiteralTab);
+t('D4 [F4]: Tab does not insert a literal tab character in prose', !insertsLiteralTab);
 // Tab must still step the rung in a list (D4 retains ADR-521 D4's behaviour).
 t('D4: Tab still steps the rung inside a list', /outdent'?\s*:\s*'?indent/.test(tabHandler));
 
@@ -298,7 +407,7 @@ t('D4: Tab still steps the rung inside a list', /outdent'?\s*:\s*'?indent/.test(
 // ═══════════════════════════════════════════════════════════════════════════
 const selection = readFileSync('web/components/authoring/selection.ts', 'utf8');
 const selCode = strip(selection);
-p(3,
+t(
   'D3 [F7]: the selection algebra derives a span\'s rung shape, not only a count',
   /rung/i.test(selCode),
 );
@@ -306,10 +415,5 @@ p(3,
 const paneDerivesRung = /function\s+\w*[Rr]ung\w*\s*\(/.test(paneCode);
 t('D3: the pane does not derive the rung shape itself', !paneDerivesRung);
 
-console.log(`\n${pass} passed, ${fail} failed, ${pending} pending`);
-if (pendingChecks.length) {
-  console.log('\nPENDING (ratified, phase not landed) \u2014 each flips to a hard');
-  console.log('assertion in the commit that lands its phase:');
-  for (const c of pendingChecks) console.log('  \u2022 ' + c);
-}
+console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

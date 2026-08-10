@@ -352,6 +352,37 @@ def block_group(row: dict) -> str:
 HEADING_RUNGS: tuple[int, ...] = (1, 2, 3)
 
 
+# ADR-546 D1 — THE RUNG, declared once for the flow medium.
+#
+# Subordination on a document is ONE fact with two spellings: the HEADING rung
+# (h1/h2/h3, subordinating everything to the next heading of equal-or-shallower
+# rung — ADR-526 D1's span) and the NESTING rung (a list item's depth, or a
+# prose block's step in from the measure).
+#
+# At the 2026-08-10 audit depth was declared THREE times and the three
+# declarations did not know about each other:
+#
+#   - HEADING_RUNGS = (1, 2, 3)        — read by six consumers
+#   - the `indent` token's values 1..3 — read by ONE pane row, no keyboard door
+#   - `ul ul ul` in the kernel CSS     — read by NOBODY, while rendering three
+#                                        levels deep, so a member could author
+#                                        with Tab a hierarchy nothing could name
+#
+# All three independently landed on depth 3, which is what proves they are one
+# concept rather than three coincidences. `FLOW_RUNGS` is that concept, and the
+# indent token's values + the nesting CSS are both GENERATED from it below —
+# so a fourth interpretation of depth cannot ship by editing one list.
+#
+# Paged depth is NOT this: on a slide, depth is containment (which Area holds
+# the block — ADR-544 D1/D2). A rung is a flow fact, which is why the `indent`
+# token declares `grains: ("flow",)`.
+FLOW_RUNGS: tuple[int, ...] = HEADING_RUNGS
+
+#: The deepest rung the medium speaks. Intake clamps to it (ADR-539 D4 for
+#: headings; ADR-546 D1 extends the same migration-by-use rule to nesting).
+DEEPEST_FLOW_RUNG: int = max(FLOW_RUNGS)
+
+
 # ---------------------------------------------------------------------------
 # Layouts (ADR-443 D5) — skin + flow + scaffold. A template = layout ×
 # starter blocks; the three ADR-440 hardcoded skeletons are DELETED and
@@ -1044,11 +1075,10 @@ STUDIO_TOKENS: dict[str, dict] = {
         "label": "Indent",
         "scope": ("block",),
         "grains": ("flow",),
-        "values": [
-            {"value": "1", "label": "1"},
-            {"value": "2", "label": "2"},
-            {"value": "3", "label": "3"},
-        ],
+        # ADR-546 D1 — DERIVED from FLOW_RUNGS, never a hand-list. This row was
+        # the second of three independent declarations of depth; it is now the
+        # rung's own value set, so a fourth cannot ship by editing one literal.
+        "values": [{"value": str(r), "label": str(r)} for r in FLOW_RUNGS],
         "description": "steps the block in from the measure's edge (absence = flush left)",
     },
     "tone": {
@@ -1342,10 +1372,12 @@ ul[data-block="list"], ol[data-block="numbered"] { margin: 1rem 0; padding-inlin
 ul[data-block="list"] { list-style: disc; }
 ol[data-block="numbered"] { list-style: decimal; }
 ul[data-block="list"] li, ol[data-block="numbered"] li { margin: 0.35rem 0; }
-ul[data-block="list"] ul { list-style: circle; margin: 0.35rem 0; padding-inline-start: 1.25rem; }
-ul[data-block="list"] ul ul { list-style: square; }
-ol[data-block="numbered"] ol { list-style: lower-alpha; margin: 0.35rem 0; padding-inline-start: 1.25rem; }
-ol[data-block="numbered"] ol ol { list-style: lower-roman; }
+/* ADR-546 D1 — THE NESTING RUNG, generated from FLOW_RUNGS (__NEST_CSS__,
+   substituted at module load). Was four hand-written selectors nesting to
+   depth 3 — the audit's THIRD independent declaration of depth, and the one
+   with NO reader: it rendered a hierarchy `normalizeStructure` could not
+   address, so Tab authored structure nothing could name (ADR-546 §1.2). */
+__NEST_CSS__
 details[data-block="toggle"] { margin: 1rem 0; border: 1px solid var(--ink-10, #ddd);
   border-radius: var(--radius-md, var(--radius, 6px)); padding: 0.5rem 0.9rem; }
 details[data-block="toggle"] summary { cursor: pointer; font-weight: 600; }
@@ -1480,14 +1512,13 @@ div[data-block="component"] .row:hover { border-color: var(--rule, rgba(26,26,26
 [data-align="center"] img { margin-inline: auto; }
 [data-align="end"] { text-align: right; }
 [data-align="end"] img { margin-inline-start: auto; }
-/* ADR-527 D3 — paragraph INDENT, bounded to three enumerable steps. A token,
-   not a measure (ADR-461 D4's line: enumerable values get a pre-declared
-   selector each; continuous ones are the bounded staged exception). This is the
-   bar's ⇤/⇥ at BLOCK grain; Tab/⇧Tab inside a list (ADR-521 D4) is unchanged
-   and stays list-scoped. */
-[data-indent="1"] { margin-inline-start: 2rem; }
-[data-indent="2"] { margin-inline-start: 4rem; }
-[data-indent="3"] { margin-inline-start: 6rem; }
+/* ADR-546 D1 — THE PROSE RUNG, generated from FLOW_RUNGS (see __RUNG_CSS__
+   below; this marker is substituted at module load). Was three hand-written
+   `[data-indent]` rules — the second of the audit's three independent
+   declarations of depth. A token, not a measure (ADR-461 D4's line: enumerable
+   values get a pre-declared selector each). ADR-527 D3's ⇤/⇥ at BLOCK grain,
+   and since ADR-546 D4 also what Tab/⇧Tab writes in prose. */
+__RUNG_CSS__
 /* ADR-527 D2 — the PALETTE MARKS: colour as a role, never a value. One rule per
    role, so a design-system swap re-themes every document that used them — the
    entire reason the picker is refused (ADR-449, "never raw color"). The span
@@ -1671,6 +1702,54 @@ html[data-pagenum="on"] .slide::after { content: counter(slide); position: absol
   div[data-block="gallery"] { grid-template-columns: repeat(2, 1fr); }
 }
 """.strip("\n")
+
+# ── ADR-546 D1: the rung's CSS is GENERATED, so depth is declared once ──────
+#
+# Both spellings of the rung render from FLOW_RUNGS. Before this, depth lived in
+# three hand-written lists that had drifted apart in READERSHIP (six consumers /
+# one / none) while agreeing by luck on the number 3. Generating them means a
+# change to FLOW_RUNGS reaches the stylesheet, the served token values and the
+# intake clamp together — there is no list to forget.
+#
+# The nesting ladder alternates its marker per level the way every word
+# processor does (disc→circle→square, decimal→lower-alpha→lower-roman), and runs
+# to len(FLOW_RUNGS) levels: the top level is the block's own list, so a rung
+# set of N produces N-1 nested selectors.
+_PROSE_RUNG_STEP_REM = 2
+
+_UL_MARKERS = ("disc", "circle", "square")
+_OL_MARKERS = ("decimal", "lower-alpha", "lower-roman")
+
+
+def _rung_css() -> str:
+    """The prose rung: one pre-declared selector per step (ADR-461 D4's rule for
+    enumerable values)."""
+    return "\n".join(
+        f'[data-indent="{r}"] {{ margin-inline-start: {r * _PROSE_RUNG_STEP_REM}rem; }}'
+        for r in FLOW_RUNGS
+    )
+
+
+def _nest_css() -> str:
+    """The nesting rung: the marker ladder, one selector per level below the
+    block's own list. `depth` counts nesting steps, so FLOW_RUNGS=(1,2,3) yields
+    `ul ul` and `ul ul ul`."""
+    lines: list[str] = []
+    for tag, block, markers in (
+        ("ul", "list", _UL_MARKERS),
+        ("ol", "numbered", _OL_MARKERS),
+    ):
+        for depth in range(1, len(FLOW_RUNGS)):
+            sel = f'{tag}[data-block="{block}"]' + f" {tag}" * depth
+            marker = markers[min(depth, len(markers) - 1)]
+            extra = " margin: 0.35rem 0; padding-inline-start: 1.25rem;" if depth == 1 else ""
+            lines.append(f"{sel} {{ list-style: {marker};{extra} }}")
+    return "\n".join(lines)
+
+
+STUDIO_KERNEL_CSS = STUDIO_KERNEL_CSS.replace("__RUNG_CSS__", _rung_css()).replace(
+    "__NEST_CSS__", _nest_css()
+)
 
 #: Bump when STUDIO_KERNEL_CSS changes shape — the FE upserts any artifact
 #: carrying an older data-kernel-v on its next mechanical op (the retrofit).

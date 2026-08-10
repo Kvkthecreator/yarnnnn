@@ -7,6 +7,8 @@
 //
 // Run from the REPO ROOT: node web/scripts/gates/adr527_emphasis_tier.mjs
 import { readFileSync } from 'fs';
+import { createRequire } from 'module';
+const require$ = createRequire(import.meta.url);
 
 const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
 const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
@@ -174,10 +176,35 @@ t(
   'D3: the pane consumes block-flow (the grain ADR-525 D4 added and nobody used)',
   /flow: !isStaged && mode === 'flow'/.test(pane) && /grains\.includes\('flow'\)/.test(pane),
 );
+// ADR-546 D1 — the prose rung's CSS is GENERATED from FLOW_RUNGS, so there is no
+// literal selector left to pin (and pinning one read the generation as a
+// violation — the ADR-544 spelling lesson). The CLAIM is what matters and is
+// unchanged: indent is a TOKEN, so it gets one pre-declared selector per step
+// rather than a continuous measure. Asserted against the generated output.
 t(
   'D3: indent is a TOKEN — one kernel selector per step, no measure',
-  /\[data-indent="1"\] \{ margin-inline-start: 2rem; \}/.test(studio) &&
-    /\[data-indent="3"\]/.test(studio),
+  (() => {
+    try {
+      const { execFileSync } = require$('child_process');
+      const out = execFileSync(
+        'python3',
+        [
+          '-c',
+          'import json,sys; sys.path.insert(0,"api");' +
+            'from services.authoring import FLOW_RUNGS, _rung_css;' +
+            'print(json.dumps({"n":len(FLOW_RUNGS),"css":_rung_css()}))',
+        ],
+        { encoding: 'utf8' },
+      );
+      const g = JSON.parse(out);
+      const steps = g.css.split('\n').filter((l) => /\[data-indent="\d+"\]/.test(l));
+      // One selector per declared step, each a static margin (a token), and no
+      // custom property (which is how a MEASURE would be spelled — ADR-461 D4).
+      return steps.length === g.n && steps.every((l) => /margin-inline-start:\s*[\d.]+rem/.test(l));
+    } catch {
+      return false;
+    }
+  })(),
 );
 t('D3: size stays withdrawn on flow (the ADR-525 cut that WAS right)', !/"size"[\s\S]{0,140}?block-flow/.test(studio));
 
@@ -217,9 +244,14 @@ t(
   'ADR-528: the runtime reports the block set a range intersects',
   /type: 'yarnnn-range', blockIds: ids/.test(proj),
 );
+// ADR-546 D3 widened the message (the rungs ride alongside the ids), so the
+// window between the call and the post grew. The CLAIM is reuse — one derivation,
+// not a second walk — so assert THAT: formatSegments is called, and the posted
+// ids come from its segments.
 t(
   'ADR-528: it reuses formatSegments (the ops\' own derivation, not a second one)',
-  /var segs = formatSegments\(\);[\s\S]{0,400}?blockIds: ids/.test(proj),
+  /var segs = formatSegments\(\);[\s\S]{0,900}?blockIds: ids/.test(proj) &&
+    /segs\[i\]\.block\.getAttribute\('data-block-id'\)/.test(proj),
 );
 t(
   'ADR-528: a collapsed range CLEARS the parent scope',

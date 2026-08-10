@@ -1,5 +1,14 @@
 # ADR-521: The flow benchmark — Notion's scope, the continuous surface's mechanics
 
+> **D4 amended by [ADR-546](ADR-546-the-rung-law-a-document-is-a-tree-of-text.md) D4
+> (2026-08-10).** D4's list-Tab is retained; its *prose* half is not. Tab was the rung
+> gesture already and meant two unrelated things by accident of tag — nest in an `<li>`,
+> a literal TAB CHARACTER in prose — while `data-indent`, the addressable prose rung, had
+> no keyboard entrance at all. **Tab now steps the rung everywhere in a document and the
+> literal-tab branch is deleted.** What Tab writes in a list also became *addressable*:
+> pre-546 `execCommand('indent')` wrote a `ul ul` the kernel rendered three levels deep
+> and `normalizeStructure` could not see.
+
 > **Extended by [ADR-525](ADR-525-the-selection-carries-its-tier.md) (2026-08-06).** D6
 > fixed the verb tier at `selectedBlock()` — the right chokepoint, but only for the
 > consumer INSIDE the iframe. The two parent-side consumers were never given the kind

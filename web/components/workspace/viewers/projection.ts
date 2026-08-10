@@ -401,6 +401,26 @@ const TEXT_KINDS_JS = JSON.stringify(TEXT_BLOCK_KINDS);
 export const HEADING_RUNGS = [1, 2, 3] as const;
 /** The deepest spoken rung — what an out-of-rung heading clamps TO (D4). */
 export const DEEPEST_RUNG = Math.max(...HEADING_RUNGS);
+
+/** ADR-546 D1 — THE RUNG: depth on a document, one concept, two spellings.
+ *
+ *  A heading rung (`h1/h2/h3`) and a nesting step (a list item's depth, a prose
+ *  block's step in from the measure) are the SAME statement — "this is
+ *  subordinate to that" — so they share one declared set. The kernel's
+ *  `FLOW_RUNGS` is the authority; this is the FE's static mirror, pinned by the
+ *  ADR-539 parity gate exactly as `HEADING_RUNGS` is.
+ *
+ *  At the 2026-08-10 audit depth was declared THREE times (this set, the
+ *  `indent` token's values, the kernel's `ul ul ul` CSS) with wildly different
+ *  readership — six consumers, one, and NONE — while agreeing by luck on the
+ *  number 3. One declaration is the fix; that the third had no reader at all is
+ *  why Tab could author a hierarchy nothing could name (ADR-546 §1.2).
+ *
+ *  Paged depth is NOT this: on a slide depth is CONTAINMENT (which Area holds
+ *  the block — ADR-544 D1/D2). A rung is a flow fact. */
+export const FLOW_RUNGS = HEADING_RUNGS;
+/** The deepest rung the medium speaks — what over-deep nesting clamps TO. */
+export const DEEPEST_FLOW_RUNG = Math.max(...FLOW_RUNGS);
 /** The tags OUTSIDE the rung set — what the intake seams clamp (D4). */
 export const OUT_OF_RUNG_TAGS = [1, 2, 3, 4, 5, 6]
   .filter((r) => !(HEADING_RUNGS as readonly number[]).includes(r))
@@ -409,6 +429,9 @@ const HEADING_ANCHOR_SEL_JS = JSON.stringify(
   HEADING_RUNGS.map((r) => `h${r}[data-block-id]`).join(', '),
 );
 const OUT_OF_RUNG_TAGS_JS = JSON.stringify(OUT_OF_RUNG_TAGS);
+/** ADR-546 D1 — the rung set + its floor, for the runtimes (see EDIT_SCRIPT). */
+const FLOW_RUNGS_JS = JSON.stringify([...FLOW_RUNGS]);
+const DEEPEST_FLOW_RUNG_JS = JSON.stringify(DEEPEST_FLOW_RUNG);
 const DEEPEST_RUNG_TAG_JS = JSON.stringify(`h${DEEPEST_RUNG}`);
 
 // ── ADR-481 D2/D3: the FLOW pointer chrome ────────────────────────────────
@@ -680,9 +703,35 @@ const POINTER_SCRIPT = `
     for (var i = 0; i < all.length; i++) { if (all[i] === page) return i; }
     return null;
   }
+  // ── ADR-546 D5 (F2): a medium never NAMES a grain its projection deletes ──
+  //
+  // slot (ADR-544's Area) and arrange (its Layout) are PAGED grains. Flow's
+  // own projection lifts [data-arrange] and [data-area], [data-slot] out of
+  // the document before the runtime ever loads (resolveArtifactHtml) — yet every
+  // payload builder computed both by closest() and shipped them as null.
+  //
+  // Worse after ADR-544: the slot key reads data-area FIRST, so the Area
+  // grain was being named in a DOCUMENT's selection payload — the exact drift
+  // ADR-544 §2 exists to prevent, arriving through the one file that knows the
+  // mode.
+  //
+  // Gated HERE, at the two derivations, rather than at the eight call sites: one
+  // guard the payloads all inherit (rule 7 — move the derivation, never add a
+  // ninth). On flow both answer null structurally, not incidentally.
+  function isFlowDoc() {
+    return document.documentElement.getAttribute('data-yarnnn-mode') === 'flow';
+  }
   function arrangeOf(el) {
+    if (isFlowDoc()) return null;
     var page = el && el.closest ? el.closest('[data-arrange]') : null;
     return page ? (page.getAttribute('data-arrange') || null) : null;
+  }
+  /** The Area an element sits in — paged only, by the same rule as arrangeOf.
+   *  data-slot rides along for a deck authored before the ADR-544 heal. */
+  function regionOf(el) {
+    if (isFlowDoc()) return null;
+    var r = el && el.closest ? el.closest('[data-area], [data-slot]') : null;
+    return r ? (r.getAttribute('data-area') || r.getAttribute('data-slot') || null) : null;
   }
   // ADR-522 D4 — the nearest heading at or above this point, in document
   // order. Docs (flow) has NO section unit: headings are flat siblings with no
@@ -834,7 +883,7 @@ const POINTER_SCRIPT = `
           label: labelFor(dcont),
           slideIndex: slideIndexOf(dcont),
           pageIndex: pageIndexOf(dcont),
-          slot: dslot ? (dslot.getAttribute('data-area') || dslot.getAttribute('data-slot') || null) : null,
+          slot: regionOf(dcont),
           arrange: arrangeOf(dcont),
           tier: tierOf(dcont), // structure — a container always earns its frame
         }, '*');
@@ -852,7 +901,6 @@ const POINTER_SCRIPT = `
       mark = blk || el;
       var text = (el.getAttribute('alt') || el.textContent || '')
         .replace(/\\s+/g, ' ').trim().slice(0, 120);
-      var slotEl = el.closest ? el.closest('[data-area], [data-slot]') : null;
       var blkKind = blk ? (blk.getAttribute('data-block') || null) : null;
       payload = {
         type: 'yarnnn-point',
@@ -864,7 +912,7 @@ const POINTER_SCRIPT = `
         label: labelFor(blk || el),
         slideIndex: slideIndexOf(el),
         pageIndex: pageIndexOf(el),
-        slot: slotEl ? (slotEl.getAttribute('data-area') || slotEl.getAttribute('data-slot') || null) : null,
+        slot: regionOf(el),
         arrange: arrangeOf(el),
         // ADR-525 D1 — the tier travels WITH the selection, so the pane, the
         // menu and the keyboard read one answer instead of deriving three.
@@ -949,7 +997,7 @@ const POINTER_SCRIPT = `
           label: labelFor(hit),
           slideIndex: slideIndexOf(hit),
           pageIndex: pageIndexOf(hit),
-          slot: hitSlot ? (hitSlot.getAttribute('data-area') || hitSlot.getAttribute('data-slot') || null) : null,
+          slot: regionOf(hit),
           arrange: arrangeOf(hit),
           tier: tierOf(hit), // ADR-525 D1 — a container/page is 'structure'.
         };
@@ -1010,7 +1058,6 @@ const POINTER_SCRIPT = `
       cur.classList.remove('yarnnn-pointed');
       cur = null;
     }
-    var slotEl = el && el.closest ? el.closest('[data-area], [data-slot]') : null;
     parent.postMessage({
       type: 'yarnnn-context-menu',
       x: e.clientX, y: e.clientY,
@@ -1026,7 +1073,7 @@ const POINTER_SCRIPT = `
       tier: mark ? tierOf(mark) : null,
       slideIndex: el ? slideIndexOf(el) : (ctxCont ? slideIndexOf(ctxCont) : null),
       pageIndex: el ? pageIndexOf(el) : (ctxCont ? pageIndexOf(ctxCont) : null),
-      slot: slotEl ? (slotEl.getAttribute('data-area') || slotEl.getAttribute('data-slot') || null) : null,
+      slot: regionOf(el),
       arrange: el ? arrangeOf(el) : null,
       // The frame gate (ADR-461 D4) travels WITH the payload: the runtime is
       // the only side that can see the DOM, so it answers "is this framed?"
@@ -1099,7 +1146,7 @@ const POINTER_SCRIPT = `
       label: labelFor(up),
       slideIndex: slideIndexOf(up),
       pageIndex: pageIndexOf(up),
-      slot: upSlot ? (upSlot.getAttribute('data-area') || upSlot.getAttribute('data-slot') || null) : null,
+      slot: regionOf(up),
       arrange: arrangeOf(up),
       tier: tierOf(up), // ADR-525 D1
     }, '*');
@@ -1857,6 +1904,11 @@ const EDIT_CSS = `
 const EDIT_SCRIPT = `
 (function () {
   var TEXT_KINDS = ${TEXT_KINDS_JS};
+  // ADR-546 D1 — the declared rung set reaches the runtime as DATA (the runtime
+  // is a module-level template string and cannot close over module scope, so a
+  // served/mirrored constant arrives interpolated — never re-typed here).
+  var FLOW_RUNGS = ${FLOW_RUNGS_JS};
+  var DEEPEST_FLOW_RUNG = ${DEEPEST_FLOW_RUNG_JS};
   var editingId = null;      // the block currently in edit mode
   var editingEl = null;
   var idleTimer = null;
@@ -2111,11 +2163,25 @@ const EDIT_SCRIPT = `
     // took the browser default — move focus OUT of the editable — which fired
     // the blur listener above, committed, and dropped the caret mid-paragraph.
     //
-    // ADR-521 D4: in a LIST, Tab indents and Shift+Tab outdents — the native
-    // ul > li nesting ADR-456 D2 sanctions; a keyboard entrance to a structural
-    // op has slash's legitimacy (the key is not the op, it is a door to it).
-    // In prose, Tab keeps the literal tab character; Shift+Tab does nothing
-    // rather than insert a tab the member did not ask for.
+    // ── ADR-546 D4: TAB STEPS THE RUNG. One gesture, one meaning ──────────
+    //
+    // Tab was the rung gesture already, and it meant two unrelated things
+    // depending on the caret's tag: in an <li> it nested (ADR-521 D4), and in
+    // prose it inserted a literal TAB CHARACTER — which is not structure at all,
+    // while data-indent, the addressable prose rung, had NO keyboard entrance
+    // and was reachable only by clicking a pane row (ADR-546 §1.3).
+    //
+    // Now: Tab/⇧Tab step the rung everywhere in a document.
+    //   - in a list -> nest / un-nest (ADR-521 D4's behaviour, retained)
+    //   - in prose  -> step the prose rung, clamped to FLOW_RUNGS
+    //
+    // THE LITERAL-TAB BRANCH IS DELETED, deliberately and visibly (ADR-546
+    // §4.1): it was the one branch that made the system's depth gesture mean
+    // something other than depth, and a tab character in a continuous document
+    // is a typewriter artifact — the member has the measure and the rung.
+    //
+    // "Tab never ends the writing session" (ADR-521 D4) is why this handler
+    // exists at all, and is unchanged: every path preventDefaults.
     root.addEventListener('keydown', function (e) {
       if (e.key !== 'Tab') return;
       e.preventDefault();
@@ -2124,13 +2190,23 @@ const EDIT_SCRIPT = `
       var el = node ? (node.nodeType === 1 ? node : node.parentElement) : null;
       var li = el && el.closest ? el.closest('li') : null;
       if (li && root.contains(li)) {
+        // The nesting spelling. execCommand writes the ul>ul the kernel renders
+        // and rungOf now reads - so what Tab authors here is addressable.
         document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+        scheduleCommit();
         return;
       }
-      if (e.shiftKey) return;
-      if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
-        document.execCommand('insertText', false, String.fromCharCode(9));
-      }
+      // The prose spelling: the SAME rung, stepped on the block the caret is in.
+      // Written as the token the kernel already styles, so this is one op reached
+      // through a new door (rule 7), never a second mechanism.
+      var blk = el && el.closest ? el.closest('[data-block]') : null;
+      if (!blk || !root.contains(blk)) return;
+      var cur = Number(blk.getAttribute('data-indent') || 0) || 0;
+      var next = e.shiftKey ? cur - 1 : cur + 1;
+      if (next > DEEPEST_FLOW_RUNG) next = DEEPEST_FLOW_RUNG;
+      if (next <= 0) blk.removeAttribute('data-indent'); // absence = flush left
+      else blk.setAttribute('data-indent', String(next));
+      if (next !== cur) scheduleCommit();
     });
   }
 
@@ -2190,15 +2266,31 @@ const EDIT_SCRIPT = `
       // structure tier: the blocks a range intersects), so this reports what
       // the format ops already act on rather than deriving a second answer.
       var ids = [];
+      // ADR-546 D3 — each covered block carries its RUNG, so the parent can
+      // derive the span's SHAPE (a heading + what sits under it is a subtree,
+      // not N peers) instead of only counting. The runtime is the only party
+      // that can see the DOM, so it reports the fact; spanShapeOf in
+      // selection.ts is the ONE place that interprets it (ADR-541 D2).
+      var rungs = [];
       var segs = formatSegments();
       for (var i = 0; i < segs.length; i++) {
         var id = segs[i].block.getAttribute('data-block-id');
-        if (id) ids.push(id);
+        if (id) {
+          ids.push(id);
+          var r = rungOf(segs[i].block);
+          // The heading's own text rides along, so the parent can NAME the span
+          // ("Pricing and the 6 blocks under it") without re-walking the DOM it
+          // does not own. Only headings carry it; nothing else needs a name.
+          if (r.heading != null) {
+            r.text = (segs[i].block.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+          }
+          rungs.push(r);
+        }
       }
       var key = ids.join(',');
       if (key === lastRangeKey) return; // same blocks — nothing to re-say
       lastRangeKey = key;
-      parent.postMessage({ type: 'yarnnn-range', blockIds: ids }, '*');
+      parent.postMessage({ type: 'yarnnn-range', blockIds: ids, rungs: rungs }, '*');
     } catch (err) {}
   });
 
@@ -2228,6 +2320,39 @@ const EDIT_SCRIPT = `
     var t = el.tagName;
     if (t === 'H1' || t === 'H2' || t === 'H3' || t === 'H4' || t === 'H5' || t === 'H6') return true;
     return el.getAttribute && el.getAttribute('data-block') === 'heading';
+  }
+
+  // ── ADR-546 D2: one block's RUNG, read off the DOM ──────────────────────
+  //
+  // Depth on a document, in its two spellings: a heading's level, and nesting
+  // steps inside a list. Reported as data; INTERPRETED only by spanShapeOf
+  // (selection.ts) — the runtime never decides what a span means.
+  //
+  // No new identity: this reads the tree, it does not stamp it. An <li> still
+  // carries no data-block-id (D2's refusal), which is exactly why the nesting
+  // rung has to be DERIVED here rather than looked up.
+  //
+  // Clamped to the declared set (D1), so an over-deep paste reports the deepest
+  // rung the medium speaks rather than a number nothing renders.
+  function rungOf(blk) {
+    if (!blk) return { heading: null, nesting: 0 };
+    var tag = (blk.tagName || '').toUpperCase();
+    var heading = /^H([0-9])$/.test(tag) ? Number(tag.slice(1)) : null;
+    if (heading != null && FLOW_RUNGS.indexOf(heading) === -1) heading = DEEPEST_FLOW_RUNG;
+    // Nesting: count the list ancestors ABOVE this block's own list. The block
+    // IS the list (ul/ol carry data-block), so a nested <li>'s depth is how many
+    // further lists sit between it and the block — but the block itself is the
+    // top, so a non-nested list reports 0.
+    var nesting = 0;
+    var node = blk.parentElement;
+    while (node && node !== document.body) {
+      var t = (node.tagName || '').toUpperCase();
+      if (t === 'UL' || t === 'OL') nesting++;
+      if (node.hasAttribute && node.hasAttribute('data-block')) break;
+      node = node.parentElement;
+    }
+    if (nesting > DEEPEST_FLOW_RUNG) nesting = DEEPEST_FLOW_RUNG;
+    return { heading: heading, nesting: nesting };
   }
 
   function formatSegments() {
@@ -3367,8 +3492,12 @@ const EDIT_SCRIPT = `
     e.preventDefault();
     exit(true); // commit + tell the parent editing ended
     if (window.__yarnnnSelect) window.__yarnnnSelect(el);
-    var slotEl = el.closest ? el.closest('[data-area], [data-slot]') : null;
-    var pageEl = el.closest ? el.closest('[data-arrange]') : null;
+    // ADR-546 D5 (F2) — paged grains, null on flow. This runtime already knows
+    // the mode, so it answers structurally rather than computing a closest()
+    // against markup flow's projection lifted out before load (the pointer
+    // runtime's regionOf/arrangeOf hold the same guard for the same reason).
+    var slotEl = FLOW_MODE ? null : (el.closest ? el.closest('[data-area], [data-slot]') : null);
+    var pageEl = FLOW_MODE ? null : (el.closest ? el.closest('[data-arrange]') : null);
     parent.postMessage({ type: 'yarnnn-point',
       tag: el.tagName.toLowerCase(),
       text: (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120),

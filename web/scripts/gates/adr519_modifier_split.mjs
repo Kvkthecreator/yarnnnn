@@ -90,11 +90,17 @@ if (groupGuard && deepGuard) {
   // One derivation, two entrances — the payload must be the SAME shape the
   // miss-branch container rung emits, or the pane reads two answers per grain.
   t('deep-select emits a yarnnn-point payload (not a second message type)', /type: 'yarnnn-point'/.test(body));
+  // ADR-546 D5 — assert the payload's SHAPE (the keys the pane reads), never how
+  // each value is spelled. This pinned `slot: dslot` and so read a NARROWING as a
+  // violation when the region derivation moved to the one mode-aware `regionOf`
+  // chokepoint — the exact failure ADR-544 hit three times. The contract is that
+  // the container payload carries these four facts; where `slot` comes from is
+  // `regionOf`'s business, and ADR-546's own gate is what defends its behaviour.
   t('deep-select carries blockId + label + slot + arrange (the container shape)',
     /blockId: dcont\.getAttribute/.test(body) &&
     /label: labelFor\(dcont\)/.test(body) &&
-    /slot: dslot/.test(body) &&
-    /arrange: arrangeOf\(dcont\)/.test(body));
+    /\bslot:/.test(body) &&
+    /\barrange:/.test(body));
   t('deep-select returns before the ladder (a gesture, not a navigation)', /\breturn;/.test(body));
 }
 

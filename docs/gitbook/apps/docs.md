@@ -16,7 +16,9 @@ Heading · Text · Quote · Bulleted list · Numbered list · Checklist · Divid
 
 Select text and the **Text** panel on the right carries the writer's set: bold, italic, underline, strikethrough, code, and clear. Colour and highlight are there too — as your design system's palette, not a colour wheel, so changing the system re-colours every document that used them.
 
-Selection works the way you expect from a writing tool: select across several paragraphs and a heading pick, Turn into, or alignment applies to every block the selection covers, as one change — one ⌘Z brings it all back.
+Selection works the way you expect from a writing tool: select across several paragraphs and a heading pick, Turn into, or alignment applies to every block the selection covers, as one change — one ⌘Z brings it all back. And a selection that starts on a heading is described as what it is — *"Pricing and the 6 blocks under it"* — rather than counted, because a heading and the writing beneath it is one thing.
+
+**Tab and ⇧Tab set depth.** In a list they nest and un-nest an item; in ordinary text they step the paragraph in and back out. It is one gesture with one meaning — how subordinate this is to what came before it — whether you are writing a bulleted list or a paragraph, three levels deep either way. Tab never takes you out of the document, and it never inserts a tab character: indentation here is structure your document keeps, not whitespace you typed.
 
 What you won't find is a point-size box, line spacing, or a margin ruler. Those are your design system's job: you say *this is a Heading 1*, and the system says what a Heading 1 measures. It is the difference between a document that matches your workspace and one that drifts from it.
 

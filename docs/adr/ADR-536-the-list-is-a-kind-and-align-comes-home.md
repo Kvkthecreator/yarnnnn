@@ -1,5 +1,14 @@
 # ADR-536 — The list is a kind, and align comes home
 
+> **D2 extended by [ADR-546](ADR-546-the-rung-law-a-document-is-a-tree-of-text.md) D1
+> (2026-08-10).** D2 brought `align` + `indent` home to the Text section. ADR-546 names
+> what `indent` IS: **the prose spelling of the rung** — the same depth fact as `h1/h2/h3`
+> and list nesting, which at audit were three independent declarations agreeing on the
+> number 3 by luck (readership: six consumers, one, and *none*). The token's values are now
+> GENERATED from `FLOW_RUNGS`, and Tab is its second entrance (D4). D1's `list` kind is
+> upheld: a list is one block, and its interior depth is a rung it carries — an `<li>`
+> still never takes identity (ADR-546 D2).
+
 **Status**: Implemented (2026-08-07)
 **Supersedes**: nothing. **Amends**: ADR-443 D4 (the block vocabulary — two rows),
 ADR-527 D3 (align/indent — the mount it specified, finally built).

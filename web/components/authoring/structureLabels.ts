@@ -75,9 +75,28 @@ export function labelForElement(
     getAttribute(name: string): string | null;
   },
   blockLabels?: Record<string, string> | null,
+  mode?: 'flow' | 'paged' | null,
 ): string {
   const kind = el.getAttribute('data-block');
   if (kind) return blockLabels?.[kind] ?? kind; // the REGISTRY's word, not the attribute's
+  // ── ADR-546 D5: the four words are PER MEDIUM ───────────────────────────
+  //
+  // A document's grains are Document · Rung · Block · Range — there is no Slide,
+  // no Layout and no Area on flow, by derivation (ADR-546 D0: a capture surface
+  // that asks "where on the page" has stopped being one).
+  //
+  // Pre-546 this ladder was deck-scoped in its DOCSTRING and global in its
+  // REACH: the flow click handler, the Esc-walk and the edit runtime all call it
+  // ungated, so a <section> in a document labelled "Slide" and a bare structural
+  // div labelled "Group" — the very word ADR-544 D7 spent a commit removing from
+  // the deck crumb. ADR-544 F2 forbade the substrate's words "for deck
+  // structure" and so was ONE-DIRECTIONAL; nothing forbade a deck word on flow.
+  // The falsifier is symmetric now (ADR-546 F1/F5).
+  //
+  // On flow the honest answer for a structural element is the DOCUMENT itself:
+  // the member never addresses a container there, so naming one is the chrome
+  // promising a grain the medium does not have (rule 6).
+  if (mode === 'flow') return 'Document';
   const cl = el.classList ?? null;
   if (cl?.contains('slide')) return 'Slide';
   const role = el.getAttribute('data-area-role');
@@ -119,6 +138,10 @@ export function labelForJS(fnName: string): string {
     var ROLES = ${roles};
     var kind = el.getAttribute('data-block');
     if (kind) return LABELS[kind] || kind;
+    // ADR-546 D5 — the flow rung of the ladder (see labelForElement). The mode
+    // reaches the runtime the same way every other served fact does: as a global
+    // read off the document, never a baked literal.
+    if (document.documentElement.getAttribute('data-yarnnn-mode') === 'flow') return 'Document';
     var cl = el.classList;
     if (cl && cl.contains('slide')) return 'Slide';
     var role = el.getAttribute('data-area-role');

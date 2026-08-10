@@ -1,8 +1,13 @@
 # ADR-546: The rung law — a document is a tree of text, and the law forks from Studio's
 
-> **Status**: **Proposed** (2026-08-10) — drafted from the operator's Docs audit
-> directive and the two reframings taken during it (§2.1, §2.2). The audit that
-> produced §1 is receipted in full; **no code has landed**.
+> **Status**: **Accepted + Implemented** (2026-08-10, operator-ratified — *"i'd
+> like delegate the details in implementation over to you. ensure the singular
+> implementation that is streamlined in both code and documentation … alongside
+> clean-up, deletion of legacy or dual approaches to avoid future ambiguity"*;
+> implementation delegated). Drafted from the operator's Docs audit directive and
+> the two reframings taken during it (§2.1, §2.2) — the audit that produced §1 is
+> receipted in full. All five phases of §7 landed; the gate's seven `[PEND]`
+> checks are now hard assertions.
 > **Date**: 2026-08-10
 > **Dimension**: **Substrate** (what a document's structure IS) primary, with
 > **Channel** consequences (what Tab means, what a span's subjects are, what the
@@ -491,3 +496,43 @@ a bullet three deep in a real document, then select across a heading and its bod
 and read what the pane calls it.** The audit's own recommendation was that this
 drive precede ratification of D2 — the "one opaque block" reasoning is from the
 code, not from the gesture.
+
+## 8. What landed (2026-08-10)
+
+All five phases, in one arc. Notes worth keeping:
+
+- **D1 is generated, not merely centralized.** `FLOW_RUNGS` is the declaration;
+  the `indent` token's values and the list-nesting CSS are produced from it
+  (`_rung_css` / `_nest_css`). The generated output was verified **byte-identical**
+  to the seven hand-written selectors it replaced, so no `STUDIO_KERNEL_CSS_VERSION`
+  bump was owed — this is a refactor, not a rendering change. The design proved
+  itself under falsification: a fourth `FLOW_RUNGS` value moved the indent steps
+  *and* the nesting selectors together, and the gate caught the heading mismatch.
+- **D2 added no identity.** `rungOf` reads the tree; `normalizeStructure` is
+  untouched; `<li>` takes no id. The gate falsifies this with `LI` in
+  `PROMOTE_KIND`.
+- **D5 landed at the derivations, not the call sites.** One `mode` parameter on the
+  label ladder (both twins), and `regionOf`/`arrangeOf` gated once each — the eight
+  payload builders inherit it. A call-site *count* was written first and replaced:
+  a count cannot defend a per-site invariant, and it would have gone red on the
+  correct implementation. Three now-dead `slotEl` declarations were **deleted**
+  rather than left as dual paths.
+- **Cleanup beyond the decisions.** The pane's `?? selection.blockKind`
+  raw-attribute fallback is deleted. Three docstrings asserted the pre-ADR-541-D3
+  single-subject withdrawal while the code beneath them already spanned — corrected,
+  and the asymmetry that genuinely remains (`currentOf` resolves through one
+  `selectedEl`, so a mixed-alignment span shows the clicked block's value while
+  writing to all) is now **named** in code and in the AUTHORING matrix. It is owed,
+  not hidden.
+- **Gate: 46/0**, all six decisions falsified and restored. Two gate-craft
+  corrections were needed mid-flight, both worth recording: the count→execution
+  change above, and the new whole-file backtick guard, which reported its own false
+  positive on `POINTER_CSS` until it brace-counted `${…}` interpolations (a nested
+  template inside an expression is legal). **A gate that cries wolf is a gate the
+  next session learns to ignore.**
+- ⭐ **The backtick-in-a-runtime-template trap bit three times in this arc.** The
+  runtimes are module-level template literals, so one backtick in a comment breaks
+  the build. ADR-519's gate guarded one region; the guard now covers **every**
+  runtime template, which is the actual invariant.
+
+**Still owed**: the click-pass above, and the span readback.

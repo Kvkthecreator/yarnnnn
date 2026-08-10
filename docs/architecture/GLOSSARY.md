@@ -387,6 +387,32 @@ The things YARNNN manipulates. Each has exactly one name.
 
 ---
 
+## Authoring grains — per medium (ADR-544 paged · ADR-546 flow)
+
+The authoring apps have **two** grain vocabularies, one per medium, and that is a
+decision rather than an inconsistency: what "depth" means differs. On a **paged**
+medium (deck · web — Studio) depth is *containment*; on **flow** (document —
+Docs) depth is *the rung*. The machinery is shared (one write door, one normalize
+seam, one selection algebra); the **law** is per-medium (ADR-546 §2.3, which
+refused a hard app fork with the measurement).
+
+> ⚠️ **"Rung" is overloaded — check which sense.** The *activation ladder's*
+> **Rung 0·1·2** (ADR-380, above) is about workspace activation and has nothing to
+> do with authoring. The authoring **Rung** below is a document's depth grain.
+> Neither predates the other in the codebase; both names were operator-chosen in
+> their own domain. Disambiguate by context: activation rungs are numbered, the
+> authoring rung is a grain in `Document → Rung → Block → Range`.
+
+| Term | Definition | Notes |
+|---|---|---|
+| **Slide / Layout / Area / Block** *(paged; ADR-544 D0)* | The four grains of a **paged** medium. **Slide** = the frame, one coordinate space. **Layout** = the named arrangement it wears ("Two column"). **Area** = a region of the layout, typed by a **role** from a closed set (`heading \| body \| media \| aside`) with a `place` for same-role siblings. **Block** = an object in an Area. **Containment is total**: no block is a direct child of a slide, and a block's *position IS its Area + its order within it* (D3 — `x/y/z` retired for decks, surviving on the `artboard` grain for IMAGES). | Three of four words are operator-chosen. **"Section" was REFUSED** (already the span between headings in Docs, plus a standing `<section>`-wrapper refusal, plus it is the slide's own HTML tag); **"Object" refused** (already a selection *tier*). Typing Areas by content (title/subtitle/body) was refused — it duplicates what the block declares and breaks on "multiple subtitles". See [ADR-544](../adr/ADR-544-the-containment-law-slide-layout-area-block.md). |
+| **Document / Rung / Block / Range** *(flow; ADR-546 D0)* | The four grains of a **document**. **Document** = the file, one continuous writing surface, no coordinate space. **Rung** = a step of subordination (see below). **Block** = a paragraph, list, quote, table, figure — **the addressing floor**. **Range** = what the member has selected, a span that may cross blocks. **There is no container grain and no page grain, by derivation** — a capture surface that asks "where on the page" has stopped being a capture surface (`docs.py`). | The Docs analogue of an **Area is nothing**, deliberately. `Slide`, `Layout`, `Area`, `slot`, `col`, `container`, `page` and every raw `data-block` value are forbidden in operator-facing text on flow — the symmetric twin of ADR-544 D4's rule for decks (ADR-546 D5/F1; ADR-544 F2 had been one-directional, so `structureLabels.ts` returned `Slide` for a `<section>` and `Group` as its fallback on a ladder flow calls ungated). |
+| **Rung** *(authoring, flow; ADR-546 D1)* | Depth on a document: **one concept with two spellings** — the **heading rung** (`h1/h2/h3`, subordinating everything to the next heading of equal-or-shallower rung) and the **nesting rung** (a list item's depth, a prose block's step in from the measure). Declared ONCE as `FLOW_RUNGS`; the served `indent` token's values and the kernel's list-nesting CSS are **generated from it**. Intake clamps to the set (migration-by-use, never a sweep). | At the 2026-08-10 audit depth was declared **three** times with wildly different readership — six consumers, one, and **none** — while agreeing by luck on the number 3. The third (`ul ul ul` in the kernel CSS) had no reader at all, which is why **Tab could author a hierarchy nothing could name**. **Tab is the rung gesture and means one thing**: nest/un-nest in a list, step the prose rung in prose (the literal-tab-character branch is DELETED — ADR-546 D4/§4.1). |
+| **A rung is a PROPERTY, not a grain** *(ADR-546 D2)* | A rung belongs to a block; it is never a thing that *holds* blocks. **An `<li>` never carries `data-block-id`** — a list is one block, and its interior depth is a rung it carries. `normalizeStructure` is untouched. | The addressable-list-item alternative is Notion's model and would **move the attribution floor**, which ADR-528 §2 measured as whole-FILE. Refused for now, with the reopening evidence named in ADR-546 §5. |
+| **Span shape** *(ADR-546 D3)* | A range's structural description: a selection covering a heading and the blocks beneath it is a **subtree**, not N peers. Derived once by `spanShapeOf` (`selection.ts`), which also owns the sentence (`spanLabel`) — beside `withdrawalNotice`, for the same reason. | Before this, `formatSegments` was flat by construction ("Top-level blocks only"), so the rung relation the outline already computed was discarded at the one place a span's subjects are derived — and the pane could only count ("7 blocks selected"). A span that does not open on its shallowest block reports **no lead** rather than guessing one. |
+
+---
+
 ## Verbs
 
 What actors do. Different actors get different verbs when the cardinality or permanence of the act differs.
