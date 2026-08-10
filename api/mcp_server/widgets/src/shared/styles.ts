@@ -37,6 +37,17 @@ body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI",
 .yz-path { display: block; margin-top: 7px; color: var(--yz-muted); font-size: 11.5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
 
+/* search confidence (ADR-543 D2, rendered 2026-08-10). The signal the server
+   ALWAYS sends and the widget used to drop. Reuses the existing accent tokens —
+   ambiguous/weak borrow the warm marker the conflict state uses, because
+   both mean the same thing to a reader: do not just take the top one.
+   (No backticks in this file: the whole stylesheet is one template literal.) */
+.yz-confidence { font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--yz-line); color: var(--yz-muted); white-space: nowrap; }
+.yz-conf-high { color: var(--yz-ok); border-color: var(--yz-ok); }
+.yz-conf-ambiguous, .yz-conf-weak { color: var(--yz-mcp); border-color: var(--yz-mcp); }
+.yz-explanation { margin-top: -8px; }
+
 /* receipt (save-receipt — ADR-533 D4) */
 .yz-receipt { display: flex; align-items: flex-start; gap: 10px; background: var(--yz-card);
   border: 1px solid var(--yz-line); border-radius: 9px; padding: 11px 13px; }
@@ -52,6 +63,14 @@ body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI",
 .yz-conflict { border-color: var(--yz-mcp); }
 .yz-change { margin-top: 5px; font-style: italic; }
 .yz-resolve { margin-top: 6px; color: var(--yz-fg); font-size: 12.5px; }
+
+/* the retry basis (conflict) + the provenance edge (success), 2026-08-10.
+   yz-rev is a shared inline-code token: a revision id and a cited path are
+   both exact strings the reader may need to copy, so they render alike. */
+.yz-basis { margin-top: 6px; }
+.yz-derived { margin-top: 6px; }
+.yz-rev { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px; word-break: break-all; }
 
 /* file header (open — ADR-533 D4). Identity, not content: the host renders the
    text; this renders whose version it is. */

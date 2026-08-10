@@ -6,6 +6,51 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.10.1] - The connector's widgets render what the server actually sends
+
+### Changed
+- `services/mcp_composition.py` (`compose_save`): the success payload now echoes
+  **`derived_from`** — the citations that were ACTUALLY RECORDED on the revision
+  (the post-parse set), never the caller's raw argument. `save` has accepted,
+  parsed and written the provenance edge to the ledger since ADR-533 D3, but
+  never returned it, so the one thing that distinguishes an attributed commons
+  from a folder of files was invisible at the moment of writing. Absent when
+  nothing was cited — never an empty key.
+  - The echo is deliberately the parsed set: a malformed citation is dropped
+    rather than made fatal (a bad reference must not cost the user their write),
+    so echoing the input would report an edge that may not exist.
+- **Expected behavior**: a host that cites sources on `save` now gets them back
+  and can say *what this document was made from*; the save-receipt widget renders
+  it. No change to what is written — only to what is reported.
+
+### Fixed
+- `widgets/src/search-results`: the widget rendered **`confidence` nowhere**, and
+  rendered `explanation` only on the EMPTY path — so `ambiguous` (where the
+  server explicitly writes *"consider asking the user which they mean"*) looked
+  identical on screen to a confident hit. Both now render beside the results.
+- `widgets/src/save-receipt`: the conflict card said "save again" without naming
+  the **`base_revision`** the retry must carry, though the server returns it on
+  both conflict errors. A guard is only reassuring if you can see what it wants.
+- **Observed failure this addresses** (not speculative): driving the live
+  connector from ChatGPT on 2026-08-10, `search` returned `confidence:
+  "ambiguous"` twice; the host asked the user to disambiguate off the STRUCTURED
+  payload while the card beside it showed a flat ranked list. The signal survived
+  to the model and died at the glass.
+
+### Gate
+- New `api/test_mcp_widget_render_completeness.py` (15 assertions, falsified):
+  asserts the RENDER, not the declaration — a type that names a field proves
+  nothing about whether a reader sees it. Includes a build-is-the-mount check
+  (the served resource reads the `dist/` bundle, not the source) and a standing
+  guard against a backtick inside the CSS template literal, a trap that bit
+  three times in the ADR-546 arc and once here.
+- **Not done, deliberately**: no widget was added for any text-only verb.
+  Text-only is valid on every host (ADR-372 D1) and five verbs are text-only BY
+  DECISION with reasons recorded (ADR-533 D4 / ADR-545). Reversing that needs
+  evidence from a write click-pass and an amendment, not a widget PR.
+
+---
+
 ## [2026.08.09.1] - ADR-538: a chart cites DATA, and motion is CSS-only
 
 ### Changed

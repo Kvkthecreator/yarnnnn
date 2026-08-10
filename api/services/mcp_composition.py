@@ -1132,6 +1132,7 @@ async def compose_save(
         "message": message or f"save via interop: {rel}",
         "expected_parent_version_id": base_revision,
     }
+    cited: list[str] = []
     if derived_from:
         cited = [p for p in (parse_file_reference(r) for r in derived_from) if p]
         if cited:
@@ -1163,7 +1164,7 @@ async def compose_save(
         new_rev = new_head[0]["id"] if new_head else None
     except Exception:  # noqa: BLE001
         new_rev = None
-    return {
+    out = {
         "success": True,
         "reference": format_file_reference(rel),
         "path": abs_path,
@@ -1176,6 +1177,15 @@ async def compose_save(
             "history shows it beside every other change."
         ),
     }
+    # Echo the citations that were ACTUALLY RECORDED — the post-parse set, after
+    # malformed references were dropped above. The caller passed intent; this is
+    # the edge the ledger holds. Echoing the raw input would report a provenance
+    # edge that may not exist (a citation that failed to parse is silently
+    # dropped, deliberately, so a bad reference never costs the user their
+    # write). Absent when nothing was cited — never an empty key.
+    if cited:
+        out["derived_from"] = cited
+    return out
 
 
 # =============================================================================

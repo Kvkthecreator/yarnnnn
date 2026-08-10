@@ -6,6 +6,27 @@
 import type { SearchMatch, SearchResult } from "./types";
 import { fmtWhen } from "../shared/provenance";
 
+// The honest-state signal, rendered (ADR-543 D2). `confidence` is ALWAYS present
+// on a search result — the server computes it precisely so the reader can tell
+// "use this" from "ask which one". Until now the widget dropped it and rendered
+// `explanation` only on the empty path, so the ambiguous case — the one where
+// the server explicitly says ASK — looked identical to a confident hit. The
+// card is not deciding anything here: it renders the signal the server sent and
+// the sentence the server wrote. The host still narrates (D3).
+const CONFIDENCE_LABEL: Record<string, string> = {
+  high: "Clear match",
+  ambiguous: "Several matches — none dominant",
+  weak: "Loose matches only",
+  none: "No match",
+};
+
+function Confidence({ level }: { level?: string }) {
+  if (!level) return null;
+  const label = CONFIDENCE_LABEL[level];
+  if (!label) return null; // an unknown level renders nothing, never a raw token
+  return <span className={`yz-confidence yz-conf-${level}`}>{label}</span>;
+}
+
 function Card({ match }: { match: SearchMatch }) {
   return (
     <div className="yz-card">
@@ -36,8 +57,15 @@ export function SearchResults({ result }: { result: SearchResult | null }) {
         {typeof result.total_matches === "number" && result.total_matches > results.length
           ? ` of ${result.total_matches}`
           : ""}
-        , each an openable path.
+        , each an openable path. <Confidence level={result.confidence} />
       </p>
+      {/* The server writes this sentence on `ambiguous` and `weak` — the two
+          states where taking the top hit is the wrong move. Dropping it (as
+          this widget did) left the reader with a ranked list and no signal that
+          ranking alone should not settle it. */}
+      {result.explanation ? (
+        <p className="yz-caption yz-explanation">{result.explanation}</p>
+      ) : null}
       <div className="yz-cards">
         {results.map((m, i) => (
           <Card key={m.path || i} match={m} />

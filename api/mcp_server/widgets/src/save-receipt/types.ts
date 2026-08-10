@@ -22,6 +22,10 @@ export interface SaveResult {
   revision_id?: string | null;
   /** Present on stale_write + base_required — who holds the head you must read first. */
   current_head?: SaveHead | null;
+  /** The citations ACTUALLY RECORDED on this revision (post-parse; malformed
+   *  references are dropped at the server, deliberately). Absent when nothing
+   *  was cited — never an empty array. */
+  derived_from?: string[] | null;
   error?: string;
   message?: string;
   explanation?: string;

@@ -40,6 +40,16 @@ export function SaveReceipt({ result }: { result: SaveResult | null }) {
             Their version is now the current one. Re-open the file, merge your
             change over theirs, and save again — nothing was overwritten.
           </p>
+          {/* The guard is only reassuring if you can SEE what it wants. The
+              server returns the head revision id on both conflict errors; it is
+              the exact value the retry must carry as base_revision, so name it
+              rather than leaving the reader to fetch it back out of `open`. */}
+          {head.revision_id ? (
+            <p className="yz-receipt-meta yz-basis">
+              Save again with <code>base_revision</code>:{" "}
+              <code className="yz-rev">{head.revision_id}</code>
+            </p>
+          ) : null}
           {result.path ? <code className="yz-path">{result.path}</code> : null}
         </div>
       </div>
@@ -72,6 +82,22 @@ export function SaveReceipt({ result }: { result: SaveResult | null }) {
         <p className="yz-receipt-meta">
           Signed as you, versioned — every earlier version is still there.
         </p>
+        {/* The provenance edge, made visible. `derived_from` is what separates
+            an attributed commons from a folder that happens to hold files: this
+            document was made FROM those, and the workspace will warn before one
+            of them is deleted. It is recorded on every such save and was, until
+            now, invisible at the point of writing. */}
+        {result.derived_from && result.derived_from.length > 0 ? (
+          <p className="yz-receipt-meta yz-derived">
+            Made from{" "}
+            {result.derived_from.map((p, i) => (
+              <span key={p}>
+                {i > 0 ? ", " : ""}
+                <code className="yz-rev">{p}</code>
+              </span>
+            ))}
+          </p>
+        ) : null}
         {result.path ? <code className="yz-path">{result.path}</code> : null}
       </div>
     </div>

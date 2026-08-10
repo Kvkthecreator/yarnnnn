@@ -8,6 +8,11 @@ export interface SearchMatch {
   last_updated: string | null;
   similarity?: number; // semantic path only; absent on BM25/list
 }
+// NOTE: search results carry NO `authored_by` — `compose_search` does not return
+// it (the QueryKnowledge rows would each need a display-resolution pass). So the
+// cards below show no attribution chip, deliberately: rendering a principal the
+// server never sent would be synthesis (ADR-372 D3). If per-result attribution
+// is wanted, it is a SERVER change first — the widget cannot invent it.
 
 export interface SearchResult {
   success?: boolean;
