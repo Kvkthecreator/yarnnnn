@@ -14,6 +14,9 @@ Run from `api/`:  python3 test_adr544_containment_law.py
 import re
 import sys
 from html.parser import HTMLParser
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
 
 from services.authoring import (
     STUDIO_MEASURES,
@@ -287,6 +290,33 @@ try:
     )
 except ImportError as exc:  # pragma: no cover
     check(False, f"D7: the heal script is not importable ({exc})")
+
+# ── D7/D4 — the label ladder and its injected TWIN stay in step ───────────
+# `labelForJS` inlines this ladder for the sandboxed runtime and cannot import
+# it, so the two are kept in sync by a comment ("change both together"). A
+# comment enforces nothing — that is the exact class of defect this arc keeps
+# finding — so the parity is gated: every rung the module ladder answers, the
+# injected twin must answer too.
+_labels_src = (REPO / "web/components/authoring/structureLabels.ts").read_text()
+for rung in ("data-area-role", "data-area-place", "data-slot", "data-block"):
+    check(
+        _labels_src.count(rung) >= 2,
+        f"D4: rung '{rung}' is missing from one of the two label ladders "
+        f"(labelForElement / labelForJS — change both together)",
+    )
+# The LEGACY rung specifically: an un-healed document's region must read as an
+# Area, never fall through to "Group" (the `Slide 2 > Group > Group` crumb the
+# operator's click-pass caught) and never leak its authored name.
+check(
+    "if (el.getAttribute('data-slot') !== null) return areaLabel(null);" in _labels_src,
+    "D7: labelForElement has no legacy data-slot rung — a pre-heal deck's "
+    "regions fall through to 'Group'",
+)
+check(
+    "if (el.getAttribute('data-slot') !== null) return 'Area';" in _labels_src,
+    "D7: labelForJS has no legacy data-slot rung — the canvas chrome and the "
+    "pane would disagree on an un-healed deck",
+)
 
 if failures:
     print(f"ADR-544 FAILED — {len(failures)} finding(s):\n")

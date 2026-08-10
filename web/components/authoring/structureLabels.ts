@@ -82,6 +82,17 @@ export function labelForElement(
   if (cl?.contains('slide')) return 'Slide';
   const role = el.getAttribute('data-area-role');
   if (role) return areaLabel(role, el.getAttribute('data-area-place'));
+  // ADR-544 D7 — the LEGACY rung. An un-healed document still carries
+  // `data-slot`, and every OTHER consumer of the region grain reads
+  // `[data-area], [data-slot]` (projection's payload + climb, applyArrangement's
+  // mapping). This ladder alone had no fallback, so a pre-heal deck's regions
+  // fell through to "Group" and the crumb read `Slide 2 › Group › Group › Text`
+  // — the vocabulary applied to blocks but not to the regions around them,
+  // which is worse than either state because it hides WHICH layer is stale.
+  //
+  // A legacy region is an Area whose role was never stamped: label it "Area",
+  // never its authored name (D4 — a free-form string is data, not a word).
+  if (el.getAttribute('data-slot') !== null) return areaLabel(null);
   // ADR-544 D2 — `.cols`/`.col` are the parent Area's declared LAYOUT, not a
   // grain. A `.col` that holds blocks carries the Area markers and was caught
   // above; a bare grid wrapper is structure the operator never addresses.
@@ -116,6 +127,8 @@ export function labelForJS(fnName: string): string {
       var place = el.getAttribute('data-area-place');
       return place ? base + ' (' + place + ')' : base;
     }
+    // ADR-544 D7 — the legacy rung (see labelForElement; change both together).
+    if (el.getAttribute('data-slot') !== null) return 'Area';
     var tag = (el.tagName || '').toUpperCase();
     if (tag === 'SECTION') return 'Slide';
     if (tag === 'MAIN' || tag === 'ARTICLE') return 'Document';
