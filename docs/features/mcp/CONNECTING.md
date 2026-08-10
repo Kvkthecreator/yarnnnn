@@ -118,6 +118,46 @@ hold a tool it did not list.)
 
 ---
 
+## Did yarnnn refuse, or did your host never call?
+
+**These look identical in a chat window and mean opposite things.** Telling them apart
+took three sessions and a server-log sweep once; this is the shortcut.
+
+**The test: a yarnnn refusal always carries a structured `error` code.**
+
+| | yarnnn refused | The host never called |
+|---|---|---|
+| **Shape** | A structured result: `error` code + `message` + usually what to do next | Prose only, no `error` code |
+| **Examples** | `base_required` · `old_string_not_found` · `old_string_not_unique` · `destination_exists` · `not_found` · `invalid_reference` · `large_file_overwrite` | "This tool call was blocked by …safety checks" · "The <name> tool has been disabled" · "Resource not found: <name>.<verb>" |
+| **Who decided** | yarnnn — an invariant did its job | Your host's client-side policy or a stale manifest |
+| **What to do** | Follow the message; it names the fix (re-open and pass `base_revision`, re-anchor, delete the destination first) | Nothing to fix in yarnnn — see the rows below |
+
+A refusal is **the system working**. `save` declining to overwrite blind, or `edit`
+declining a stale anchor, is the exact-version guarantee holding — not a failure.
+
+> **Never report a host-side block as a yarnnn error.** If the text has no `error`
+> code, yarnnn did not see the call. Measured 2026-08-10: ChatGPT blocked `edit` and
+> `move` while `save`, `delete` and `history` succeeded in the same conversation
+> seconds apart — the server logs recorded **no request at all** for the two blocked
+> verbs.
+
+### Host-side blocks (nothing to fix in yarnnn)
+
+| Symptom | What it is | What to do |
+|---|---|---|
+| "This tool call was blocked by …safety checks" | A **per-call** classifier on the host, inspecting the arguments. The connector stays live — other verbs keep working in the same conversation. | Not a yarnnn defect and not evadable from our side. Try the operation from another host; if it succeeds there, it is a host compatibility issue. **Do not** substitute a different verb to work around it — that trades an anchored change for a blind one. |
+| "The <name> tool has been disabled. Do not send any more messages to=…" | A **connector-level** gate. It tends to latch for the rest of that conversation. | Start a **new conversation**. Check for a write-permission toggle on the connector, and for a pending approval prompt you may have dismissed. |
+| "Resource not found: <name>.<verb>" while the verb is listed | A stale pinned manifest — the verb is advertised but not bound | See **The surface changed** above. On ChatGPT only `Refresh` clears it; remove + re-add re-pins the same snapshot. |
+
+**Why we do not "fix" these by reshaping the tools.** yarnnn's verbs are deliberately
+constrained — `edit` is anchored to exact existing text so content you never read is
+never at risk; `move` refuses to overwrite a destination; `save` refuses a blind
+overwrite. Renaming or loosening those to slip past a classifier would trade a real
+safety property for a cosmetic one. If a host blocks a sound operation, that is a
+compatibility issue to document, not a reason to weaken the contract.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -125,6 +165,7 @@ hold a tool it did not list.)
 | "no MCP server found at the provided URL" / "token exchange failed … reverted" | A stale / half-connected connector left over from an earlier attempt | Remove the connector entirely, then re-add with `https://mcp.yarnnn.com` |
 | Connector shows connected but a verb is missing, or a verb lacks a new parameter | The host cached an older tool list | See **The surface changed** above — reconnecting is often not enough; remove + re-add |
 | Sign-in loops / "could not establish session" | Cookies/session issue in the popup | Complete the sign-in in the same browser; retry the connect from your LLM |
+| A verb returns text about "safety checks" or "disabled", with no `error` code | Your host blocked the call before yarnnn saw it | See **Did yarnnn refuse, or did your host never call?** above |
 
 ---
 

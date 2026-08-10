@@ -63,6 +63,35 @@ history over the wrong file — exactly the differentiator you don't want lying.
 ADR-543 removed that failure mode structurally: `history` takes an exact
 reference and cannot resolve the wrong file, only miss honestly.
 
+## A refusal is an honest state — and it must be distinguishable from silence
+
+The contract has a second edge, found live on 2026-08-10: **an honest refusal and a
+call that never arrived look the same in a chat window, and mean opposite things.**
+
+Every yarnnn refusal is a *structured* result — an `error` code, a message, and
+usually the fix (`base_required` returns the head revision id to retry with;
+`old_string_not_found` says re-open and re-anchor; `destination_exists` says delete
+first). That structure is the honest-state contract applied to failure: the tool
+declined, said so, and said why.
+
+A host-side block carries **no `error` code** — it is prose from the client
+("blocked by safety checks", "the tool has been disabled"), and yarnnn never saw the
+request. Measured that day: ChatGPT blocked `edit` and `move` while `save`, `delete`
+and `history` succeeded seconds apart in the same conversation; the server logs
+recorded **no request at all** for the two blocked verbs.
+
+**The discipline this imposes on us**: never report a host-side block as a yarnnn
+error, and never let a tool return prose-only failure. A failure with no code is
+indistinguishable from a failure that never reached us — which is precisely the
+false-certainty this document exists to prevent, pointed at the error path instead
+of the result path. The operator-facing version of this test lives in
+[CONNECTING.md](CONNECTING.md) §"Did yarnnn refuse, or did your host never call?".
+
+> Corollary, and it is a real constraint: **do not reshape a verb to satisfy a
+> host's classifier.** `edit` is anchored so unread content is never at risk; `move`
+> refuses to overwrite; `save` refuses a blind overwrite. Loosening those to get
+> past a client-side gate would trade a real safety property for a cosmetic one.
+
 ## For the next tool added to the toolbox
 
 Before shipping a new MCP tool, answer: *what judgment call does this tool make
