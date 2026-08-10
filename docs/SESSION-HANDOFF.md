@@ -47,18 +47,49 @@ duplicates what the block declares and breaks on "multiple subtitles".
   are unset, so ~300 tests fail on 401 regardless of the working tree. Only
   static gates are meaningful here. Do not read that mass red as a regression.
 
+## 2b. Landed after the operator's click-pass (same day)
+
+The click-pass reported the arc as a clear improvement AND surfaced one defect,
+which led to a second by audit. Both are fixed and live:
+
+- **`d8c528b` — an un-healed region reads "Area", not "Group".** The crumb read
+  `Slide 2 › Group › Group › Text`: D4 had landed for BLOCKS while the regions
+  around them fell through. Cause: every other region-grain consumer kept a
+  legacy `[data-area], [data-slot]` read for pre-heal documents; the label ladder
+  alone got none. The two ladder twins (`labelForElement` + the injected
+  `labelForJS`) were kept in step by a COMMENT — now gated per rung.
+- **`fb891be` — ADR-544 D6.1, the AI half of the mapping law.** `_PLAN_SYSTEM`
+  taught the model "a layout's named SLOTS" with a `flow` role the closed set no
+  longer contains, and `applyArrangementPlan` queried `[data-slot]` alone while
+  its sibling read both — so on a post-544 fragment it refused every plan and the
+  judgment degraded silently to the mechanical ladder. Wire, prompt, validator
+  and both apply paths now speak Areas; the seam is gated BY COUNT.
+
+⭐ Both were invisible to a green battery, again. The pattern is now three for
+three: **this layer's defects are found by driving the doorway.**
+
 ## 3. OWED — the two things ADR-544 did not finish
 
-1. **The heal's `--execute` run.** `api/scripts/oneshot/adr544_heal_containment.py`
-   is dry-run-by-default and was verified EXECUTED on synthetic pre-544 markup
-   (inside the gate, with falsifiers), but never run against real substrate —
-   blocked on the missing DB credentials above. Run the dry run FIRST and read
-   its per-file counts before `--execute`. It heals deck+web only; an IMAGES
-   stage and a flow document come back byte-identical (gated).
+1. **The heal's `--execute` run — BLOCKED ON A KEY, not on code.**
+   `api/scripts/oneshot/adr544_heal_containment.py` is dry-run-by-default and was
+   verified EXECUTED on synthetic pre-544 markup (inside the gate, with
+   falsifiers), but has never touched real substrate. **The local `api/.env`
+   carries an `sb_secret_…` service key the project rejects ("Unregistered API
+   key")** — the rotation from the 2026-08-04 incident was applied to the three
+   Render services and never to this file. **Prod is healthy** (the ADR-544 deploy
+   went live 02:09). Fix: paste a current service key into `api/.env`, then
+   `cd api && python -m scripts.oneshot.adr544_heal_containment` — read the
+   per-file counts — then `--execute`. It heals deck+web only; an IMAGES stage
+   and a flow document come back byte-identical (gated).
 2. **The browser click-pass** (the load-bearing one — gates prove the room, not
    the doorway):
-   - open a pre-544 deck → confirm the pane header says **Text**, not PROSE, and
-     the breadcrumb reads `Slide 2 › Body (left)`, not `slide 2 › columns › main`;
+   - open a pre-544 deck → the pane header says **Text** (verified by the
+     operator) and the crumb now reads `Area`; after the heal it should read
+     **`Body (left)`**. Anything still saying `Group` is a label-ladder rung;
+     anything saying `main`/`side` is a leak D4 forbids;
+   - **re-arrange a slide and confirm the AI plan actually lands** (D6.1) — a
+     silent fall-through to the mechanical ladder looks identical to a working
+     re-arrange, so watch for the planning state, not just the result;
    - drag a heading → it must re-order within its Area and **never float free**;
    - re-arrange a two-column slide → content maps body→body by role;
    - the ADR-541 range case: drag a selection from one column into another — it
