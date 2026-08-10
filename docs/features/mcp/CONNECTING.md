@@ -37,7 +37,7 @@ You sign in once per LLM (a lightweight yarnnn login — same account across all
 1. Settings → **Connectors** → **Add custom connector** (or **Add connector → Custom**).
 2. Paste the URL: **`https://mcp.yarnnn.com`**
 3. Authorize → you'll be sent to a yarnnn sign-in (sign in or create your account) → it returns you to Claude.
-4. Done. The `open` / `list` / `search` / `save` / `history` / `share` tools are now available.
+4. Done. The `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `share` tools are now available.
 
 ### ChatGPT (developer mode connectors)
 
@@ -108,7 +108,7 @@ Check a field that only exists in the build you're expecting:
 A refresh that bumps the version but leaves those unchanged did not pull the new manifest.
 
 **How to tell whether it worked:** ask your host to list the yarnnn tools it has.
-The current surface is the file-native roster (ADR-543) — `open · list · search · save · history · share`. The pre-543 memory verbs (`remember`/`recall`/`trace`) are gone WITHOUT aliases: a host on a stale manifest gets tool-not-found on them until it reconnects.
+The current surface is the file-native roster (ADR-543 + ADR-545) — `open · list · search · save · edit · delete · move · history · share`. The pre-543 memory verbs (`remember`/`recall`/`trace`) are gone WITHOUT aliases: a host on a stale manifest gets tool-not-found on them until it reconnects.
 Fewer than six means the cache is still stale. (Ask it to *call* `open` too: a host can
 hold a tool it did not list.)
 

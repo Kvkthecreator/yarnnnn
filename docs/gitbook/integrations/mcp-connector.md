@@ -21,7 +21,9 @@ Your context stops being trapped in whichever app you happened to use.
 | `open` | Reads one exact file — content, who last changed it, and its recent revisions. |
 | `list` | Shows what exists — every file under a folder (or the whole workspace), with who last touched each. |
 | `search` | Finds files by meaning. Returns the material plus a confidence signal; the AI you're talking to explains it in its own voice. |
-| `save` | Writes a file back as an attributed revision — including anything worth keeping from the conversation itself. |
+| `save` | Writes a whole file as an attributed revision — including anything worth keeping from the conversation itself. |
+| `edit` | Changes part of a file — only the change travels, so a partial read can't destroy the rest. |
+| `delete` / `move` | Tidy the workspace — remove or rename with an attributed, restorable tombstone. |
 | `history` | Shows how a file changed over time — who changed it, when, and what the change was. This is the one a plain storage connector can't do. |
 | `share` | Mints a member or read-only link for a file (or the workspace), right from the conversation. |
 

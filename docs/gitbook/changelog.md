@@ -7,6 +7,12 @@ Notable updates to YARNNN and these docs.
 
 ## August 2026
 
+### The connector learned to edit, tidy, and tell you what changed (Aug 10)
+- Three new verbs: `edit` (change part of a file — safe for big documents), `delete` and `move` (tidy up; nothing is ever lost — every removal is a restorable, signed tombstone).
+- `list` gained a change feed: ask "what moved since yesterday" in one call.
+- `save` now refuses to blindly overwrite a document too large to have been read in full — intentional rewrites just say so.
+- Search now covers your whole workspace (any folder you created), not just a fixed set.
+
 ### The MCP connector went file-native (Aug 10)
 - The connector's tools are now the same verbs the workspace itself speaks: `open` · `list` · `search` · `save` · `history` · `share`. A connected AI can finally *list* what exists instead of guessing at it.
 - The old memory verbs (`remember` / `recall` / `trace`) are retired. Anything worth keeping is an ordinary attributed `save`; a file's story is its `history`.

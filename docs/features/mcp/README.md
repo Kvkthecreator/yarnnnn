@@ -9,7 +9,7 @@
 > round-budget constraint (ADR-368 Correction 1) carry forward unchanged. ADR-075's
 > OAuth/transport infrastructure is preserved. The connector is **multi-user**
 > (per-request OAuth identity, ADR-310 D4).
-> **Updated**: 2026-08-10 (ADR-543 — the file-native re-cut; `list` bound at last)
+> **Updated**: 2026-08-10 (ADR-543 file-native re-cut + ADR-545 binding completion — edit/delete/move, the change feed, the honest save)
 > **Authors**: KVK, Claude
 > **Related ADRs**: **ADR-543** (file-native surface — governing the verbs),
 > **ADR-512** (the file is the unit of interop — the contract), **ADR-310** (judged
@@ -36,7 +36,10 @@ What crosses the boundary is **the kernel's own verb contract** (ADR-512 D3), se
 | **"Look at this doc."** | `open` | The exact-version read: content + who last changed it + recent attributed revisions. |
 | **"What's in my workspace?"** | `list` | Enumerate a folder (or the whole tree) — every file with who last touched it and when. |
 | **"Find what I have on ___."** | `search` | Ranked paths + excerpts + an honest `confidence` signal. YARNNN returns; the host explains. |
-| **"Save that back."** | `save` | An attributed revision, signed as the calling LLM, with read-before-write CAS and `derived_from` citations. |
+| **"Save that back."** | `save` | A whole-file attributed revision, with read-before-write CAS, `derived_from` citations, and the large-file honesty guard. |
+| **"Change this part."** | `edit` | The anchored write — only the change travels, so truncated reads can't destroy what they never saw. |
+| **"Get rid of this." / "Rename it."** | `delete` / `move` | The tidy verbs — attributed tombstones, chain retained, restore possible. The tree stops being grow-only. |
+| **"What moved since yesterday?"** | `list(since=…)` | The change feed — asynchronous multi-principal coordination in one call. |
 | **"How did this change?"** | `history` | The authored revision chain of one exact file — who, when, what, with diffs and cited sources. |
 | **"Share this with my team."** | `share` | Mint a member/viewer link; the host relays it. |
 
@@ -44,7 +47,7 @@ That's the entire MCP surface. No `list_agents`, no `run_task`, no separate "mem
 
 ### The singular framing
 
-> A storage connector returns whatever is stored — garbage in, garbage out, no opinion, no history. YARNNN is the system of record where human and AI work accrues: every change signed by whoever made it, every file's lineage walkable, nothing lost. The copyable half (six thin verbs) sits downstream of the uncopyable half (an attributed, judged history). **YARNNN is the shared workspace every LLM works in — not a memory bolted onto one of them.**
+> A storage connector returns whatever is stored — garbage in, garbage out, no opinion, no history. YARNNN is the system of record where human and AI work accrues: every change signed by whoever made it, every file's lineage walkable, nothing lost. The copyable half (nine thin verbs) sits downstream of the uncopyable half (an attributed, judged history). **YARNNN is the shared workspace every LLM works in — not a memory bolted onto one of them.**
 
 ---
 

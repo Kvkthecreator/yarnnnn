@@ -1,5 +1,11 @@
 # MCP Tool Contracts — the file-native verbs
 
+> **ADR-545 (2026-08-10) — the binding completes.** `edit` / `delete` / `move`
+> bind the ADR-337 kernel verbs (the tree stops being grow-only; targeted
+> changes stop being whole-file); `list` gains the change feed (`since`) +
+> pagination; `save` refuses the truncated-read overwrite shape without stated
+> intent (`confirm_full_replace`). Reconnect note applies again (ADR-533 §13).
+
 > **ADR-543 (2026-08-10) — the surface is file-native, in full.** The memory
 > verbs (`remember` / `recall` / `trace`, the ADR-169→368 strata) are retired;
 > every verb is a binding of a kernel verb (ADR-512 D3: read · write · list ·
@@ -38,7 +44,10 @@ one round) per ADR-368 Correction 1's channel constraint.
 | `open` | "look at this doc" | read · exact | resolve handle → exact read + head attribution + revision summary |
 | `list` | "what's in my workspace / that folder" | read · enumerate | workspace-scoped subtree listing with per-file attribution |
 | `search` | "find what I have on X" | read · fuzzy | `QueryKnowledge` → ranked paths + excerpts + `confidence` |
-| `save` | "save that back" | write | head lookup (read-before-write CAS) → `WriteFile(expected_parent_version_id, derived_from)` |
+| `save` | "save that back" / "new doc" | write · whole-file | head lookup (read-before-write CAS) → `WriteFile(expected_parent_version_id, derived_from)`; large-file guard (ADR-545 D4) |
+| `edit` | "change this part" | write · anchored | `EditFile` (ADR-337 D1) — exact old→new replacement; anchor is the precondition, kernel head-read CAS closes the race |
+| `delete` | "get rid of this" | write · tombstone | `DeleteFile` (ADR-337 D2) — attributed tombstone; chain retained; restore = revert-as-write |
+| `move` | "rename / put it over there" | write · tombstone | `MoveFile` (ADR-337 D3) — content revision at destination + tombstone at origin; refuses overwrite |
 | `history` | "how did this file change" | read · exact | resolve handle → `ListRevisions` → per-revision `DiffRevisions` + the `derived_from` walk |
 | `share` | "share this with my team" | write | mint share row → link (host relays; yarnnn sends nothing outbound) |
 
@@ -49,8 +58,9 @@ agentic context), not in the round-limited consumer host.
 **Exact vs fuzzy is the load-bearing split.** `open` / `history` take a
 reference and never guess — an unknown path returns `found: false`. `list`
 enumerates what exists. `search` is the only fuzzy verb, and it says how sure
-it is (`confidence`). Keeping the guarantees distinct is the point of having
-four read verbs.
+it is (`confidence`). On the write side the split is whole-vs-part: `save`
+rewrites wholesale (with the large-file guard), `edit` sends only the change.
+Keeping the guarantees distinct is the point of having separate verbs.
 
 ---
 
@@ -62,7 +72,8 @@ four read verbs.
 2. **`search` returns; it does not synthesize.** YARNNN returns material; the
    host LLM explains (retrieval, not delegation — ADR-368 D1's bright line,
    kept).
-3. **Writes go through `save` under the grant.** The `mcp` caller is locked
+3. **Writes go through the write verbs under the grant** (`save` / `edit` /
+   `delete` / `move` — one gate). The `mcp` caller is locked
    from `governance/` / `contract/` / `constitution/` / `persona/` / `system/`
    by `CALLER_WRITE_POLICY` (ADR-320/366); the ADR-307 gate at
    `execute_primitive` is the backstop. Ambient capture (a conversational
@@ -94,22 +105,24 @@ Returns `found`, the canonical `reference` handle (ADR-512 D5), `path`,
 `history` the verb has those). A miss is a miss: `found: false`, never a
 search fallback.
 
-## `list` — the enumeration (NEW, ADR-543)
+## `list` — the enumeration + the change feed (ADR-543 / ADR-545 D3)
 
 ```python
 list(
     reference: str = None,  # folder; omit for the whole workspace
+    since: str = None,      # ISO timestamp — only files changed after this
+    limit: int = 500,       # page size (cap 500)
+    offset: int = 0,        # page start in path order
 ) -> dict
 ```
 
-Returns `files` — every file under the folder, ordered by path, each with
-`path` (workspace-relative), `reference` (open-able handle), `bytes`,
-`last_updated`, and `authored_by` (head author). `truncated: true` when the
-subtree exceeded the cap (narrow the folder). The listing is real enumeration,
-not inference — closing the gap the 2026-08-10 external audit surfaced (an
-external principal had to reconstruct the tree from search hits). Reads are
-workspace-scoped, so a member or foreign LLM under a grant sees the shared
-commons.
+Returns `files` — every matching file, ordered by path, each with `path`
+(workspace-relative), `reference` (open-able handle), `bytes`, `last_updated`,
+and the resolved head author. `since` is the CHANGE FEED: "what moved since I
+was last here" in one call — the asynchronous multi-principal coordination
+primitive. `truncated: true` + `next_offset` page the rest. The listing is
+real enumeration, not inference; reads are workspace-scoped, so a member or
+foreign LLM under a grant sees the shared commons.
 
 ## `search` — the fuzzy read
 
@@ -149,6 +162,56 @@ Read-before-write is the contract (ADR-512 §8a): an existing file requires
 `stale_write` with who holds the head — re-open, merge, save again. Omit
 `base_revision` only to create. Returns the new head `revision_id` so a
 follow-up save can chain.
+
+**The honest save (ADR-545 D4)**: a save over an existing file LARGER than
+open's content cap is refused (`large_file_overwrite`) unless the caller
+passes `confirm_full_replace=true` — any open of such a file was truncated,
+so a whole-file save risks silently deleting the part the caller never saw.
+`edit` is the right verb for targeted changes; the flag states wholesale
+intent.
+
+## `edit` — the anchored write (ADR-545 D1, binds `EditFile`)
+
+```python
+edit(
+    reference: str,            # same grammar as open
+    old: str,                  # exact current text (verbatim; unique unless replace_all)
+    new: str,                  # replacement
+    replace_all: bool = False,
+    message: Optional[str],
+) -> dict
+```
+
+Only the change travels. The ANCHOR is the precondition — no `base_revision`:
+a stale view fails loudly (`old_string_not_found` → re-open and re-anchor;
+`old_string_not_unique` → add context or `replace_all`), never guesses, and
+the kernel's internal head-read CAS closes the apply-window race (ADR-406 D4).
+Content the client never read is never in the payload — the truncated-read
+data-loss class does not exist on this verb, and concurrent edits to
+different regions of one file don't conflict. Returns `replacements`.
+
+## `delete` — the tidy verb (ADR-545 D2, binds `DeleteFile`)
+
+```python
+delete(reference: str, message: Optional[str]) -> dict
+```
+
+A VIEW change, not information loss (ADR-337 D2 / ADR-209 D7): an attributed
+tombstone records who and why; the revision chain (including the content at
+deletion) is retained; `history` still walks the path; restore is
+revert-as-write. Governance locks apply as for `save`. Returns
+`tombstone_revision_id`.
+
+## `move` — move/rename (ADR-545 D2, binds `MoveFile`)
+
+```python
+move(reference: str, new_reference: str, message: Optional[str]) -> dict
+```
+
+One attributed operation: the content lands at `new_reference`, the old path
+keeps a tombstone pointing there, both chains retained. Refuses to overwrite
+an existing destination — replacing a file is `delete` first, by explicit
+intent.
 
 **`derived_from`** (ADR-533 D3): cite the workspace sources the content was
 made from, in the same handle grammar as `reference`. A citation that does not

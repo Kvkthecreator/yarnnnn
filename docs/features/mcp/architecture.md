@@ -40,9 +40,12 @@ a grant sees the shared commons, never its own row set).
 | Verb | Kernel verb | Composes (server-side) |
 |---|---|---|
 | `open` | read | direct scoped read of the exact path + `ListRevisions` summary |
-| `list` | list | scoped subtree query (paths + `content_bytes` + head author via the `head_version_id` join), capped with an honest `truncated` flag |
+| `list` | list | scoped subtree query (paths + `content_bytes` + head author via the `head_version_id` join); `since` = the change feed (ADR-545 D3); `limit`/`offset` paging with `next_offset` |
 | `search` | search | `QueryKnowledge` → ranked results + the `confidence` derivation (zero added inference) |
-| `save` | write | head lookup → `WriteFile(expected_parent_version_id, derived_from)` — the ADR-406 linearity guard makes the CAS atomic |
+| `save` | write | head lookup → `WriteFile(expected_parent_version_id, derived_from)` — the ADR-406 linearity guard makes the CAS atomic; the ADR-545 D4 large-file guard refuses the truncated-read overwrite shape |
+| `edit` | write (anchored) | `EditFile` (ADR-337 D1) — anchor precondition + kernel head-read CAS; no base_revision needed |
+| `delete` | write (tombstone) | `DeleteFile` (ADR-337 D2) — attributed tombstone, chain retained |
+| `move` | write (tombstone) | `MoveFile` (ADR-337 D3) — destination revision + origin tombstone; refuses overwrite |
 | `history` | revisions + provenance | `ListRevisions` → per-revision `DiffRevisions` → the `derived_from` walk (ADR-448, column-first with the content-convention fallback) |
 | `share` | share (grant act) | reach check + mint gate (`assert_may_mint_share`) → share row → link |
 
@@ -97,6 +100,15 @@ output schema — a bare dict under a declared schema trips the SDK's
 live break). The widget pointer (`_meta`) attaches only for a
 widget-rendering host; discovery and resource reads are host-gated the same
 way (`HostGatedFastMCP`). Detail: [presentation.md](presentation.md).
+
+## The searchable surface (ADR-545 D5)
+
+`is_searchable_root` is a DENY-list: everything in the commons is searchable
+except machine/runtime substrate (`governance/`, `system/`). The pre-545
+allow-list predated the re-founding and made meaning-named folders invisible
+to search. Searchable ≠ embeddable — the paid semantic path keeps ADR-325's
+allow-list; free BM25 carries the widened surface; the powerbox read gate
+still governs reach at the DB.
 
 ## Cost model
 

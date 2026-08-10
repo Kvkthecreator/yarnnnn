@@ -1,6 +1,6 @@
 # MCP Tool Reference
 
-The MCP server exposes six file-native tools. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
+The MCP server exposes nine file-native tools. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
 
 **Endpoint:** `https://mcp.yarnnn.com`
 **Transport:** streamable-http, served at the root path
@@ -8,9 +8,10 @@ The MCP server exposes six file-native tools. For setup, see the [MCP connector 
 **Discovery:** `https://yarnnn.com/.well-known/mcp.json`
 **OAuth metadata:** `https://mcp.yarnnn.com/.well-known/oauth-authorization-server`
 
-> Connected before 2026-08-10? The old memory verbs (`remember` / `recall` /
-> `trace`) were retired in full — disconnect and reconnect the integration so
-> your host fetches the current tool list.
+> Connected before 2026-08-10? The surface changed twice that day (the
+> memory verbs retired; `edit`/`delete`/`move` + the change feed added) —
+> disconnect and reconnect the integration so your host fetches the current
+> tool list.
 
 ---
 
@@ -42,6 +43,14 @@ last changed it, and when — plus `truncated: true` when the subtree exceeded
 the cap. Read-only and idempotent.
 
 ---
+
+### Change feed + paging (`list`)
+
+| Parameter | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `since` | string | no | | ISO timestamp — only files changed after this moment ("what moved since I was last here") |
+| `limit` | integer | no | 500 | Page size (cap 500) |
+| `offset` | integer | no | 0 | Page start; use `next_offset` from a truncated call |
 
 ## `search`
 
@@ -79,10 +88,58 @@ Write a file back as an attributed revision. A write.
 | `message` | string | no | A one-line change description |
 | `derived_from` | string[] | no | References of the workspace sources this was made from |
 
+| `confirm_full_replace` | boolean | for large files | Required `true` to wholesale-overwrite a file larger than open's cap — any open of it was truncated, so stated intent is required; prefer `edit` |
+
 If someone changed the file since it was opened, the save returns
 `stale_write` with who holds the head — re-open, merge, save again. Omit
 `base_revision` only to create a new file. Not destructive (every prior
 version stays on the chain), not idempotent.
+
+---
+
+## `edit`
+
+Change part of a file — an anchored edit. A write.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `reference` | string | yes | The file, same grammar as `open` |
+| `old` | string | yes | Exact current text to replace (verbatim; unique unless `replace_all`) |
+| `new` | string | yes | The replacement |
+| `replace_all` | boolean | no | Replace every occurrence |
+| `message` | string | no | One-line change description |
+
+Only the change travels — content you never read is never at risk, which
+makes this the right verb for large files and concurrent work. Fails loudly
+if the anchor is missing or ambiguous; never guesses.
+
+---
+
+## `delete`
+
+Remove a file from the live workspace. A write.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `reference` | string | yes | The file, same grammar as `open` |
+| `message` | string | no | Why — recorded on the attributed tombstone |
+
+Nothing is lost: the revision chain keeps the content, `history` still walks
+it, and the file can be restored.
+
+---
+
+## `move`
+
+Move or rename a file. A write.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `reference` | string | yes | The file's current path |
+| `new_reference` | string | yes | The destination (must not already exist) |
+| `message` | string | no | Why — recorded on both revisions |
+
+Refuses to overwrite an existing destination — `delete` it first, by intent.
 
 ---
 

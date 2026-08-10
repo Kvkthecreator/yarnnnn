@@ -1,9 +1,13 @@
 # ADR-543: The interop surface speaks the kernel's verbs — remember/recall/trace retire into the file-native contract
 
-> **Status**: **Accepted** (2026-08-10) — operator-directed ("go away from the
-> prior remember recall trace in FULL. singular streamlined implementation into
-> our current internal tooling approach which is file native"). Implementation
-> phases below are OPEN.
+> **Status**: **Accepted + Implemented** (2026-08-10) — operator-directed ("go
+> away from the prior remember recall trace in FULL. singular streamlined
+> implementation into our current internal tooling approach which is file
+> native"). **Completed by
+> [ADR-545](ADR-545-the-interop-binding-completes-edit-delete-move-changes-honest-save.md)
+> (same day)**: the write-side kernel verbs (`edit`/`delete`/`move`, ADR-337)
+> bind, `list` gains the change feed, `save` gains the truncation guard — the
+> roster grows to nine.
 > **Date**: 2026-08-10
 > **Dimension**: **Channel** (the MCP binding of the kernel contract) primary;
 > a **Substrate** consequence (the phantom "memory" object and its resolution
