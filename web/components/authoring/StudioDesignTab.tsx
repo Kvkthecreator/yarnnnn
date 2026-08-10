@@ -735,9 +735,14 @@ const HIGHLIGHT_ROLES = MARK_ROLES.filter((r) => r.value !== 'muted');
  *  `text-align`, arrangement of prose inside its own measure. It addresses the
  *  block the caret is in — the STRUCTURE tier, exactly like the typography
  *  ramp and Turn into, both of which already sit at this scope on the same
- *  reasoning. Which is also why they withdraw over a multi-block range: the op
- *  is single-subject, and answering for one of six silently is the `d878242`
- *  defect. */
+ *  reasoning. They do NOT withdraw over a multi-block range: ADR-541 D3 made the
+ *  op span-aware (`setTokenMany`, one revision), which is what both benchmarks
+ *  do with a paragraph style. (This paragraph asserted the withdrawal until
+ *  2026-08-10, describing the pre-D3 rule while `handleSetToken` already
+ *  spanned.) **The READBACK is still single-anchor** — `currentOf` resolves
+ *  through `selectedEl`, so over a mixed-alignment span the control shows the
+ *  clicked block's value while writing to all of them: `d878242` at the read
+ *  grain, owed (ADR-546 §1.4 / phase 3). */
 function TextSection({
   onFormat,
   swatch,
@@ -747,8 +752,9 @@ function TextSection({
 }: {
   onFormat: (op: string, value?: string | null) => void;
   swatch: (varName: string, fallback: string) => string;
-  /** The `block-flow` tokens (align/indent) applicable to the block the caret
-   *  is in — empty over a multi-block range, and empty on a staged medium. */
+  /** The `block-flow` tokens (align/indent) applicable at range scope — present
+   *  over ANY range since ADR-541 D3 (the op spans; see the section docstring),
+   *  and empty on a staged medium. */
   flowTokens: StudioToken[];
   currentOf: (key: string) => string | null;
   onSetToken: (key: string, value: string | null) => void;
@@ -1710,11 +1716,12 @@ export function StudioDesignTab({
    *  already computes these at range scope — ADR-527 D3's amendment is what
    *  put `block-flow` in the filter — they simply had nowhere to render.
    *
-   *  Withdrawn over a MULTI-BLOCK range: `onSetToken('block', …)` writes to
-   *  `selectedEl`, one block, so offering it while six are selected would
-   *  answer for the block that happened to be clicked. That is `d878242`
-   *  exactly, and the neighbouring ramp/turn-into sections withdraw on the
-   *  same rule and SAY so in the multi-block notice. */
+   *  NOT withdrawn over a multi-block range — see the ADR-541 D3 note below.
+   *  (This docstring claimed the opposite until 2026-08-10, describing the
+   *  pre-D3 single-subject withdrawal while the code beneath it already spanned.
+   *  A comment that contradicts the code three lines down is the ADR-544 D3
+   *  shape — a prose caveat standing where a gate belonged — so it is corrected
+   *  here rather than left as the reader's puzzle.) */
   // ADR-541 D3 — align/indent mount over ANY range, single-caret or spanning:
   // the surface's token handler applies a block-flow token to every covered
   // block as ONE revision (the Google Docs contract — a paragraph style

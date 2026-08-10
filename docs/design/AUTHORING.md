@@ -109,7 +109,40 @@ silently is the defect that rule must not produce.
 
 **The selection floor is the attribution floor** (ADR-511 D3, normative): text nodes,
 `<br>`, inline spans are never selection subjects — selection bottoms out at what can
-carry identity. No DOM-inspector depth.
+carry identity. No DOM-inspector depth. **The floor is interpreted PER MEDIUM**
+(ADR-546 §2.1) — as `tier` (ADR-525) and the block roster (ADR-528 D5) already are.
+
+**THE RUNG LAW** (ADR-546, Proposed — flow's peer to the containment law): on a document
+the grains are **Document → Rung → Block → Range**, and **there is no container grain and
+no page grain, by derivation** (`docs.py:69`: *"a capture surface that asks 'where on the
+page' has stopped being a capture surface"*). **Depth is one concept per medium**: on paged
+it is *containment* (which Area holds this block — ADR-544); on flow it is *the rung* — how
+subordinate this text is to the text before it. A heading rung (`h1/h2/h3`) and a list
+nesting step are the SAME statement in two spellings, which is why the three shipped
+systems (`HEADING_RUNGS`, `data-indent`, the kernel's `ul ul ul` CSS) all independently
+landed on depth **3** while none knew about the others — and why the third had **no reader
+at all**: `normalizeStructure` addresses `[data-block], [data-block-id]`, and `LI` appears
+in no pass. `data-indent` is **absorbed** into the rung, not kept beside it. **An `<li>`
+never carries identity** (D2 — a list is one block; its interior depth is a rung the block
+carries. The addressable-item alternative is Notion's and would move the attribution floor,
+which ADR-528 §2 measured as whole-FILE). **A span is a SHAPE, not a count** (D3): a range
+over a heading and its body is a *subtree*, derived in `selection.ts` only. **Tab means one
+thing** — step the rung, in a list and in prose alike; the literal-tab-character branch is
+deleted (D4). Docs' four words are the ONLY words its chrome says: `Slide`, `Layout`,
+`Area`, `slot`, `col`, `container`, `page` and every raw `data-block` value are forbidden on
+flow, exactly as ADR-544 D4 forbids the substrate's words on a deck — **the falsifier is
+symmetric now, and it was not** (ADR-544 F2 scoped itself to *"deck structure"*, so nothing
+forbade a deck word on a document: `structureLabels.ts` returned `Slide` for a `<section>`
+and `Group` as its terminal fallback, on a ladder the flow click handler calls ungated).
+
+> **The law forks; the machinery does not** (ADR-546 §2.3). A hard Docs/Studio app fork was
+> raised and **refused with the measurement**: not one of the audit's seven findings was
+> "shared machinery forced Docs into a Studio shape" — every one was shared machinery that
+> **failed to branch**, or a Studio-scoped fix written **one-directionally**. A fork fixes
+> none of them and duplicates all of them (two label ladders — one pair already kept in step
+> by a comment, the `d8c528b` defect). One write door, one normalize seam, one registry, one
+> `selection.ts`, one `admits`, one undo lineage: unchanged. This is the same refusal, for
+> the same reason, that the header of this file records for splitting the DOC.
 
 **Operator words, everywhere** (ADR-443 D3, normative; re-cut by ADR-544 D4): the file
 says `<section>`/`<div>`/`<h2>`; the chrome says *Slide / Layout / Area / Block* — one
@@ -183,7 +216,7 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 | verbs | ✅ ⌫ delete · ⌘C/⌘V/⌘D · Esc lifts caret→block | ✅ **objects only** — figure/table/chart/gallery/divider keep the unit verb; on prose the keys belong to the platform (ADR-521 D6: a unit verb on a paragraph is the enclosure re-asserting itself, and it deleted whole paragraphs on an emptied block or a cross-block range). Text keys stay caret-guarded (ADR-482 D2) | ✅ |
 | Esc-walk | ✅ editing → block → container → … → page → clear (the real ancestor chain, ADR-511 D3; no drill-down gesture — down is clicking the thing) | ✅ caret → block → clear | ✅ |
 | undo | ✅ ⌘Z/⇧⌘Z — a lineage stack in the SURFACE (ADR-523 D1; the runtime only forwards the key, and yields it entirely to the browser while a flow caret is live per ADR-482 D2). An entry carries `structural`, so a non-structural undo does not reload the frame; text edits coalesce at the member's pauses (600ms, D3), so ⌘Z rewinds a phrase, not the whole blur-batched revision. Bounded by bytes (D2); cleared only by a FOREIGN write (D4) | ✅ | ✅ |
-| list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab in prose = a literal tab; Tab never ends the session. **The list it nests is now a KIND** — ADR-536 D1 added `list`/`numbered`; until then this shipped against a container the vocabulary could not create | — |
+| list indent | — (deck Tab is block-cycle territory, owed) | ✅ Tab/⇧Tab in a list nests/unnests (ADR-521 D4); Tab never ends the session. **The list it nests is now a KIND** — ADR-536 D1 added `list`/`numbered`; until then this shipped against a container the vocabulary could not create. 🔜 **ADR-546 D4 re-cuts this to the RUNG gesture**: Tab steps the rung in prose too (what `data-indent` did with no keyboard entrance), and the literal-tab-character branch is DELETED — it was the one branch that made the system's depth gesture mean something other than depth. What Tab writes in a list becomes addressable per D1/D2 (today `execCommand('indent')` writes `ul ul` that **nothing can read**) | — |
 | move block | 🔜 (arrows nudge — owed) | ✅ **⌥↑/⌥↓** → the existing `moveBlock`, one op N entrances (ADR-526 D3). Subject = the block holding the caret (structure tier), NOT `selectedBlock()` (the object gate). Yields to a live range | 🔜 band reorder keys |
 | owed | arrows nudge/resize, ⌘]/[ z-order, Tab cycle (declared since ADR-477) | — | band reorder keys |
 
