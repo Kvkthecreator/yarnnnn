@@ -967,6 +967,23 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         resolved_author = authored_by or caller
         resolved_message = message or f"WriteFile workspace {path}"
 
+        # ADR-410 identity stamp (2026-08-10 identity pass): when the acting
+        # principal traces to a human identity, record WHICH human on the
+        # revision. `operator`/`member:` — the human themself; `yarnnn:mcp:` —
+        # the CONNECTING member whose grant the external LLM acts under
+        # (ADR-431: auth.user_id IS that member on the MCP path), which is what
+        # lets display render "KVKtheCreator's Claude (via MCP)". Steward /
+        # system / agent writes stamp nothing — no human acted.
+        identity_uuid = (
+            auth.user_id
+            if (
+                resolved_author == "operator"
+                or resolved_author.startswith("member:")
+                or resolved_author.startswith("yarnnn:mcp:")
+            )
+            else None
+        )
+
         from services.authored_substrate import StaleWriteError
 
         try:
@@ -979,6 +996,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
                 revision_kind=revision_kind,
                 derived_from=derived_from,
                 expected_parent_version_id=expected_parent_version_id,
+                author_identity_uuid=identity_uuid,
             )
         except StaleWriteError as stale:
             # ADR-512 §8a / ADR-406: the base moved. Return WHO moved past the

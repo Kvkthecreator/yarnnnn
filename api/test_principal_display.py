@@ -85,6 +85,10 @@ def main():
         (f"member:{KVK} via anthropic/claude-sonnet-4-6", None): "Kevin via Claude Sonnet",
         # external LLM principal — a separate principal
         ("yarnnn:mcp:chatgpt", None): "ChatGPT (via MCP)",
+        # ...and when the revision carries the CONNECTING member (ADR-431,
+        # stamped by the WriteFile path since 2026-08-10): POSSESSIVE, never
+        # "via" — whose connection, still a separate principal.
+        ("yarnnn:mcp:chatgpt", KVK): "Kevin's ChatGPT (via MCP)",
         # legacy capitalized registered-name row → normalized through the registry
         ("yarnnn:mcp:Claude", None): "Claude (via MCP)",
         # system lane — as-is per spec
@@ -136,7 +140,7 @@ def main():
          "revision_kind": "authored"},
         {"id": "r2", "authored_by": "operator", "author_identity_uuid": KVK,
          "created_at": "t2", "message": "edited", "revision_kind": "authored"},
-        {"id": "r1", "authored_by": "yarnnn:mcp:Claude", "author_identity_uuid": None,
+        {"id": "r1", "authored_by": "yarnnn:mcp:Claude", "author_identity_uuid": KVK,
          "created_at": "t1", "message": "arrived", "revision_kind": "observation"},
         {"id": "r0", "authored_by": "system:radar", "author_identity_uuid": None,
          "created_at": "t0", "message": "swept", "revision_kind": "authored"},
@@ -169,7 +173,7 @@ def main():
     authors = [h["authored_by"] for h in out["history"]]
     results.append(_check(
         "6 the three species are distinguishable from the strings alone",
-        authors == ["Kevin via Claude Sonnet", "Kevin", "Claude (via MCP)", "system:radar"],
+        authors == ["Kevin via Claude Sonnet", "Kevin", "Kevin's Claude (via MCP)", "system:radar"],
         f"got {authors}"))
 
     classes = [h["author_class"] for h in out["history"]]
@@ -177,6 +181,48 @@ def main():
         "7 species also ride machine-legible (author_class)",
         classes == ["member-via-agent", "member", "external-llm", "system"],
         f"got {classes}"))
+
+    # ── the legacy fallback: unstamped external-llm rows resolve their
+    # connecting member from the workspace's grants (unambiguous only) ────────
+    class _GrantQuery:
+        def __init__(self, rows): self._rows = rows
+        def select(self, *a, **k): return self
+        def eq(self, *a, **k): return self
+        def execute(self): return types.SimpleNamespace(data=self._rows)
+
+    class _GrantClient(_FakeClient):
+        def __init__(self, users, grants):
+            super().__init__(users)
+            self._grants = grants
+        def table(self, name):
+            if name == "principal_grants":
+                return _GrantQuery(self._grants)
+            return super().table(name)
+
+    gclient = _GrantClient(users, [
+        {"principal_id": "claude.ai", "connected_by": KVK},
+        {"principal_id": "chatgpt", "connected_by": KVK},
+        {"principal_id": "chatgpt", "connected_by": "other-member"},  # ambiguous
+    ])
+    legacy_rows = [
+        {"authored_by": "yarnnn:mcp:Claude", "author_identity_uuid": None},
+        {"authored_by": "yarnnn:mcp:chatgpt", "author_identity_uuid": None},
+    ]
+    disp = pd.display_for_rows(gclient, legacy_rows, workspace_id="ws-1")
+    results.append(_check(
+        "8 legacy unstamped rows: single connection → possessive; ambiguous → plain",
+        disp[0] == "Kevin's Claude (via MCP)" and disp[1] == "ChatGPT (via MCP)",
+        f"got {disp}"))
+
+    # ── the WriteFile path stamps the acting human (structural) ──────────────
+    import inspect
+    from services.primitives import workspace as wsprim
+    wf_src = inspect.getsource(wsprim.handle_write_file)
+    results.append(_check(
+        "9 WriteFile stamps author_identity_uuid for operator/member/mcp species only",
+        "author_identity_uuid=identity_uuid" in wf_src
+        and 'startswith("yarnnn:mcp:")' in wf_src
+        and 'startswith("member:")' in wf_src))
 
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} principal-display assertions pass")

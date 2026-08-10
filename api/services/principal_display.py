@@ -259,7 +259,19 @@ def display_author(
         return f"{who} via {label}" if label else who
 
     if species == "external-llm":
-        return f"{host_display(a[len('yarnnn:mcp:'):])} (via MCP)"
+        host = host_display(a[len("yarnnn:mcp:"):])
+        # The CONNECTING member (ADR-431), when the revision carries it
+        # (author_identity_uuid = the member whose grant the external LLM acted
+        # under; stamped by the WriteFile path since 2026-08-10). POSSESSIVE,
+        # never "via": "X via Y" is the member-hands form (ADR-460) — an
+        # external principal stays a separate principal, named as WHOSE
+        # connection it is: "KVKtheCreator's Claude (via MCP)". Legacy rows
+        # without the stamp render the plain host form.
+        if author_identity_uuid:
+            who = names.get(str(author_identity_uuid))
+            if who:
+                return f"{who}'s {host} (via MCP)"
+        return f"{host} (via MCP)"
 
     if species == "steward":
         return "Freddie"
@@ -279,24 +291,90 @@ def display_author(
     return _scrub(a)
 
 
+def connected_by_for_hosts(
+    client: Any, workspace_id: str, host_tails: Iterable[str]
+) -> dict[str, str]:
+    """host-tail → the CONNECTING member's uuid (ADR-431), for legacy
+    `yarnnn:mcp:{host}` revisions that predate the per-revision identity stamp.
+
+    Resolved from the workspace's active foreign-llm grants. A provider with
+    MORE THAN ONE distinct connecting member in the workspace is AMBIGUOUS and
+    deliberately absent from the result — a wrong possessive is worse than a
+    plain "Claude (via MCP)". Best-effort: any failure returns {}."""
+    tails = {t for t in host_tails if t}
+    if not tails or not workspace_id:
+        return {}
+    from mcp_server.presentation.hosts import resolve_host_id
+    tail_to_host = {t: (resolve_host_id(t) or t) for t in tails}
+    try:
+        rows = (
+            client.table("principal_grants")
+            .select("principal_id, connected_by")
+            .eq("workspace_id", workspace_id)
+            .eq("role", "foreign-llm")
+            .eq("status", "active")
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001 — humanization is best-effort
+        logger.debug("[PRINCIPAL_DISPLAY] grant lookup failed: %s", exc)
+        return {}
+    by_host: dict[str, set[str]] = {}
+    for r in rows:
+        cb = r.get("connected_by")
+        if cb:
+            by_host.setdefault(str(r.get("principal_id")), set()).add(str(cb))
+    out: dict[str, str] = {}
+    for tail, host in tail_to_host.items():
+        owners = by_host.get(host) or set()
+        if len(owners) == 1:
+            out[tail] = next(iter(owners))
+    return out
+
+
 def display_for_rows(
     client: Any,
     rows: Iterable[Mapping[str, Any]],
     *,
     authored_by_key: str = "authored_by",
     identity_key: str = "author_identity_uuid",
+    workspace_id: Optional[str] = None,
 ) -> dict[int, str]:
     """Batched display for revision-shaped rows: one name-resolution pass, then
-    per-row display. Returns {index: display} in input order."""
+    per-row display. Returns {index: display} in input order.
+
+    `workspace_id` (optional) enables the ADR-431 legacy fallback: external-llm
+    rows without a per-revision identity stamp resolve their connecting member
+    from the workspace's grants (unambiguous single connections only)."""
     rows = list(rows)
+
+    # Legacy external-llm rows → connecting member via the grant table.
+    legacy_tails = [
+        (r.get(authored_by_key) or "")[len("yarnnn:mcp:"):]
+        for r in rows
+        if (r.get(authored_by_key) or "").startswith("yarnnn:mcp:")
+        and not r.get(identity_key)
+    ]
+    connected = (
+        connected_by_for_hosts(client, workspace_id, legacy_tails)
+        if (workspace_id and legacy_tails) else {}
+    )
+
+    def _identity_for(r: Mapping[str, Any]) -> Optional[str]:
+        if r.get(identity_key):
+            return r.get(identity_key)
+        a = r.get(authored_by_key) or ""
+        if a.startswith("yarnnn:mcp:"):
+            return connected.get(a[len("yarnnn:mcp:"):])
+        return None
+
     ids: list[str] = []
     for r in rows:
-        ids.extend(member_ids_of(r.get(authored_by_key), r.get(identity_key)))
+        ids.extend(member_ids_of(r.get(authored_by_key), _identity_for(r)))
     names = resolve_member_names(client, ids) if ids else {}
     return {
         i: display_author(
             r.get(authored_by_key),
-            author_identity_uuid=r.get(identity_key),
+            author_identity_uuid=_identity_for(r),
             member_names=names,
         )
         for i, r in enumerate(rows)

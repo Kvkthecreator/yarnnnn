@@ -2389,9 +2389,13 @@ async def list_revisions_route(
         FE falls back to its local labeler."""
         try:
             from services.principal_display import display_for_rows, member_ids_of
-            from services.supabase import get_service_client
+            from services.supabase import get_service_client, resolve_workspace_for_principal
 
-            displays = display_for_rows(get_service_client(), rows)
+            try:
+                ws_id = resolve_workspace_for_principal(auth.user_id)
+            except Exception:  # noqa: BLE001
+                ws_id = None
+            displays = display_for_rows(get_service_client(), rows, workspace_id=ws_id)
             out = []
             for i, r in enumerate(rows):
                 ids = member_ids_of(r.get("authored_by"), r.get("author_identity_uuid"))

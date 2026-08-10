@@ -154,7 +154,14 @@ def _display_authors(auth: Any, rows: list[dict]) -> dict[int, str]:
     `services/principal_display.py`."""
     from services.principal_display import display_author, display_for_rows
     try:
-        return display_for_rows(auth.client, rows)
+        # workspace_id enables the ADR-431 legacy fallback (whose connection an
+        # unstamped external-llm revision acted under). Best-effort.
+        try:
+            from services.supabase import resolve_workspace_for_principal
+            ws_id = resolve_workspace_for_principal(auth.user_id)
+        except Exception:  # noqa: BLE001
+            ws_id = None
+        return display_for_rows(auth.client, rows, workspace_id=ws_id)
     except Exception as exc:  # noqa: BLE001 — display must never break a read
         logger.warning("[MCP] batched principal display failed (%s); degrading", exc)
         # Nameless fallback: pure string resolution (humans degrade to
