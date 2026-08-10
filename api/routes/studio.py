@@ -335,7 +335,7 @@ async def get_vocabulary(auth: UserClient) -> dict:
                     "label": a["label"],
                     "description": a["description"],
                     "grain": a["grain"],
-                    "slots": a["slots"],
+                    "areas": a["areas"],
                     "fragment": a["fragment"],
                 }
                 for s, a in arrangements.items()

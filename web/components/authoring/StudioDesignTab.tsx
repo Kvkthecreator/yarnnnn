@@ -106,6 +106,19 @@ export function isConvertible(
   return blocks?.find((b) => b.kind === kind)?.convertible === true;
 }
 
+/** ADR-544 D4 — the served kind→label map, in the shape `labelForElement` and
+ *  the projection runtime both take. The registry has always carried the
+ *  operator's word (`{"prose": {"label": "Text"}}`) and the pane read the raw
+ *  `data-block` attribute anyway, so one object was "Text" in the insert menu
+ *  and "PROSE" in the pane describing it. One derivation closes that. */
+export function blockLabelMap(
+  blocks: Array<{ kind: string; label?: string }> | null | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const b of blocks ?? []) if (b.label) out[b.kind] = b.label;
+  return out;
+}
+
 /** ADR-539 D1 — a kind's tier, read from the served vocabulary. Falls back to
  *  the runtime's static copy (pinned to the registry by the parity gate) only
  *  while the vocabulary has not loaded yet. */
@@ -909,7 +922,7 @@ interface StructNode {
 /** Walk an element's subtree into the flat, indented contents list.
  *  Containers recurse; blocks are leaves; unaddressed wrappers are
  *  transparent (their children surface at the same depth). */
-function walkContents(root: Element): StructNode[] {
+function walkContents(root: Element, labels: Record<string, string>): StructNode[] {
   const out: StructNode[] = [];
   const walk = (el: Element, depth: number) => {
     for (const child of Array.from(el.children)) {
@@ -918,7 +931,7 @@ function walkContents(root: Element): StructNode[] {
       if (isBlock && id) {
         out.push({
           blockId: id,
-          label: labelForElement(child),
+          label: labelForElement(child, labels),
           kind: child.getAttribute('data-block'),
           depth,
           text: (child.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
@@ -926,7 +939,7 @@ function walkContents(root: Element): StructNode[] {
         continue; // blocks are leaves — the tree floor
       }
       if (!isBlock && id && child.tagName === 'DIV') {
-        out.push({ blockId: id, label: labelForElement(child), kind: null, depth, text: '' });
+        out.push({ blockId: id, label: labelForElement(child, labels), kind: null, depth, text: '' });
         walk(child, depth + 1);
         continue;
       }
@@ -1157,6 +1170,11 @@ export function StudioDesignTab({
    *  the tier, and the tier needs the medium. */
   const mode = vocabulary?.layouts.find((l) => l.slug === layout)?.mode ?? 'flow';
 
+  /** ADR-544 D4 — the operator's words for block kinds, from the registry that
+   *  already declares them. Every label this pane renders derives from here;
+   *  none echoes `data-block`. */
+  const labelMap = useMemo(() => blockLabelMap(vocabulary?.blocks), [vocabulary]);
+
   /** ADR-525 D3 — the TEXT tier: prose on a continuous writing surface.
    *
    *  Read from the runtime's declaration, never re-derived (D1). The fallback
@@ -1341,13 +1359,13 @@ export function StudioDesignTab({
     return climbChain(selectedEl, pageEl)
       .map((el) => ({
         blockId: el.getAttribute('data-block-id') ?? '',
-        label: labelForElement(el),
+        label: labelForElement(el, labelMap),
       }))
       .filter((c) => c.blockId);
   }, [selectedEl, pageEl, scope]);
   const contents = useMemo(() => {
     if (!selectedEl || (scope !== 'page' && scope !== 'container')) return [];
-    return walkContents(selectedEl);
+    return walkContents(selectedEl, labelMap);
   }, [selectedEl, scope]);
   /** ADR-526 D2 — the outline, on FLOW only. On a paged medium the navigator IS
    *  the sequence (ADR-520 D4) and Contents carries the within-page structure;
@@ -1420,7 +1438,11 @@ export function StudioDesignTab({
           {selection.headingText ?? 'heading'}
         </button>
         <ChevronRight className="h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
-        <span>{selection.label ?? selection.blockKind ?? 'block'}</span>
+        <span>
+          {selection.label ??
+            (selection.blockKind ? (labelMap[selection.blockKind] ?? selection.blockKind) : null) ??
+            'block'}
+        </span>
       </div>
     ) : null;
 
@@ -1502,12 +1524,20 @@ export function StudioDesignTab({
       // the token half never did, so a token declaring the narrow grain would
       // have rendered everywhere. Same `.slide` ancestry test, one meaning.
       const isStaged = !!selectedEl?.closest('.slide');
+      // ADR-544 D3 — `artboard` is the NARROWER staged predicate: an IMAGES
+      // stage, never a deck slide. Both wear `.slide` (the frame class IS the
+      // staged grain, ADR-472 D2), so the two are told apart by the LAYOUT —
+      // the only fact that distinguishes a composition surface from a slide.
+      // Free position (x/y/z) moved to this grain when the containment law
+      // took it away from decks; SIZE still admits `staged`, i.e. both frames.
+      const isArtboard = isStaged && layout === 'image';
       // ADR-542 D2 — ONE admitting function; this memo only resolves the
       // predicates its scope can evaluate (the `flow` grain still means
       // "unstaged on a flow layout", exactly as the inline chain it replaces).
       return tokens.filter((t) =>
         admits(t, 'block', {
           staged: isStaged,
+          artboard: isArtboard,
           flow: !isStaged && mode === 'flow',
           media: isMedia,
           callout: isCallout,
@@ -1519,7 +1549,7 @@ export function StudioDesignTab({
       const arrangeSlug = selectedEl?.getAttribute('data-arrange') ?? selection?.arrange ?? null;
       const row = arrangements.find((a) => a.slug === arrangeSlug);
       const multicol = row
-        ? row.slots.filter((s) => s.role !== 'heading').length >= 2
+        ? row.areas.filter((s) => s.role !== 'heading').length >= 2
         : (selectedEl?.querySelectorAll('div.col').length ?? 0) >= 2; // ADR-511 Ph2: structural fallback
       const hasBg = selectedEl?.getAttribute('data-ref-kind') === 'background';
       return tokens.filter((t) =>
@@ -1898,13 +1928,15 @@ export function StudioDesignTab({
     };
   }, [fileMenu]);
 
-  // ── Container scope: role-gated quick-add (a media region keeps the image
+  // ── Container scope: role-gated quick-add (a media Area keeps the image
   // picker — the one job the old slot scope did that a plain container
-  // cannot, resolved from the registry while data-slot survives Phase 2). ──
+  // cannot). ADR-544 D2: the role is read from the registry by Area name; a
+  // pre-544 document whose Area is unknown falls back to `body`, which simply
+  // means "no media picker" — the only branch this value gates. ──
   const slotRole = useMemo(() => {
     if (scope !== 'container' || !selection?.slot) return null;
     const row = arrangements.find((a) => a.slug === selection.arrange);
-    return row?.slots.find((s) => s.name === selection.slot)?.role ?? 'flow';
+    return row?.areas.find((s) => s.name === selection.slot)?.role ?? 'body';
   }, [scope, selection, arrangements]);
 
   const [slotImages, setSlotImages] = useState<Array<{ path: string }> | null>(null);
@@ -2530,7 +2562,9 @@ export function StudioDesignTab({
             <p className={HEADING}>
               {multiObject
                 ? `${groupIds!.length} objects selected`
-                : (selection?.label ?? selection?.blockKind ?? 'block')}
+                : (selection?.label ??
+                   (selection?.blockKind ? (labelMap[selection.blockKind] ?? selection.blockKind) : null) ??
+                   'block')}
             </p>
             {/* Single-subject rows: the path names ONE ancestry, the verbs act
                 on ONE id. Both withdraw over a set rather than answering for

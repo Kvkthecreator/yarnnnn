@@ -104,8 +104,12 @@ _check("the navigator's structure tree is DELETED (no second tree, no node prop)
 _check("the pane derives the path with the breadcrumb's OWN climbChain",
        "import { climbChain } from './SelectionBreadcrumb';" in tab
        and "climbChain(selectedEl, pageEl)" in tab)
+# The signature is matched by NAME, not by its full parameter list: ADR-544 D4
+# threads the served label map through walkContents, and pinning the exact
+# spelling failed on a change that did not touch what this gate defends — that
+# Contents is derived once and mounts at BOTH scopes.
 _check("Contents mounts at page AND container scope (walkContents, click-to-select)",
-       "function walkContents(root: Element)" in tab
+       "function walkContents(root: Element" in tab
        and tab.count("<ContentsRows nodes={contents} onSelect={onSelectNode} />") == 2)
 _check("the pane selects through the EXISTING reaches (no new op, no new state)",
        "onSelectNode={selectNodeFromNavigator}" in surface

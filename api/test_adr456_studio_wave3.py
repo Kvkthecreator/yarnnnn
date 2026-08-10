@@ -90,9 +90,12 @@ def run() -> bool:
            and 'data-template="web"' in build_skeleton("web"))
     _check("cta band rides the tone token (no new mechanism)",
            'data-tone="accent"' in STUDIO_ARRANGEMENTS["web"]["cta"]["fragment"])
-    _check("feature-grid declares three flow slots",
-           [s["role"] for s in STUDIO_ARRANGEMENTS["web"]["feature-grid"]["slots"]]
-           == ["flow", "flow", "flow"])
+    # ADR-544 D2 — three BODY Areas (the role set is heading|body|media|aside),
+    # under one heading Area the band gained when the containment law landed.
+    _check("feature-grid declares three body Areas",
+           [s["role"] for s in STUDIO_ARRANGEMENTS["web"]["feature-grid"]["areas"]
+            if s["role"] != "heading"]
+           == ["body", "body", "body"])
     # The base rule later widened to all [data-arrange] (kernel evolution); the
     # deck exemption lives in the responsive STACKING rule, which is the part
     # that must stay non-slide (a deck slide is a fixed stage, never stacks).

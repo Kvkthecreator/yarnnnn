@@ -178,8 +178,22 @@ t('D5: STAGE_DEFAULT_W (exported, zero importers, promised a mapping that never 
 // ── 9. The ADR-461 D4 aperture is UNCHANGED — this ADR widens nothing ──────
 {
   const py = readFileSync('api/services/authoring.py', 'utf8');
-  t('aperture: measures still apply to block-staged/media only',
-    py.includes('MEASURE_GRAINS = {"staged", "media"}'));  // ADR-542 grain slugs
+  // ADR-544 D3 — asserted as a SET, not a literal. The aperture must never
+  // WIDEN past frame-bounded grains (ADR-461 D4: a reflowing page has no frame
+  // to bound a measure). It narrowed instead: position moved from `staged`
+  // (either frame) to `artboard` (IMAGES only), so the deck's free placement is
+  // gone while its SIZE measures still admit `staged`. Pinning the literal set
+  // made a NARROWING read as a violation.
+  const grains = /MEASURE_GRAINS = \{([^}]*)\}/.exec(py)?.[1] ?? '';
+  const declared = new Set(
+    [...grains.matchAll(/"([a-z]+)"/g)].map((m) => m[1]),
+  );
+  t('aperture: measures apply to frame-bounded grains only (never a reflowing page)',
+    declared.size > 0 &&
+      [...declared].every((g) => ['staged', 'artboard', 'media'].includes(g)));
+  t('aperture: free POSITION is artboard-scoped — a deck block holds a place, not a coordinate',
+    /"x":\s*\{[^}]*"grains":\s*\("artboard",\)/s.test(py) ||
+      /"grains":\s*\("artboard",\)/.test(py));
   t('aperture: the kernel measure rules are still .slide/media-scoped',
     py.includes('.slide [data-w]') && !/\[data-template="document"\][^\n]*data-w/.test(py));
 }

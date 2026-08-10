@@ -482,15 +482,17 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     .slide .col { flex: 1; min-width: 0; }
 """.strip("\n"),
         "scaffold": """<section class="slide" data-arrange="title">
-  <div data-slot="heading">
+  <div data-area="heading" data-area-role="heading">
     <p class="kicker" data-block="heading" data-block-id="k1">Untitled deck</p>
     <h1 data-block="heading" data-block-id="t1">The one-line thesis goes here.</h1>
     <p data-block="heading" data-block-id="f1">Subtitle or framing sentence.</p>
   </div>
 </section>
 <section class="slide" data-arrange="content">
-  <h2 data-block="heading" data-block-id="t2">First point</h2>
-  <div data-slot="main">
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t2">First point</h2>
+  </div>
+  <div data-area="main" data-area-role="body">
     <div data-block="prose" data-block-id="b1">
       <p>One idea per slide.</p>
     </div>
@@ -552,7 +554,7 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
 """.strip("\n"),
         "scaffold": """<main>
   <section data-arrange="hero">
-    <div data-slot="main">
+    <div data-area="main" data-area-role="body">
       <p class="kicker" data-block="heading" data-block-id="k1">Untitled page</p>
       <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
       <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
@@ -560,8 +562,10 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     </div>
   </section>
   <section data-arrange="content">
-    <h2 data-block="heading" data-block-id="t2">First section</h2>
-    <div data-slot="main">
+    <div data-area="heading" data-area-role="heading">
+      <h2 data-block="heading" data-block-id="t2">First section</h2>
+    </div>
+    <div data-area="main" data-area-role="body">
       <div data-block="prose" data-block-id="b1"><p>Start here.</p></div>
     </div>
   </section>
@@ -573,17 +577,33 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
 # ---------------------------------------------------------------------------
 # Arrangements (ADR-447) — the composition layer, PROMOTED from ADR-444's
 # deck-only "slide masters" to a first-class, per-document-type grammar.
-# An arrangement says WHERE content goes on a page/section: grids, slots,
+# An arrangement says WHERE content goes on a page/section: grids, AREAS,
 # overlays, sizings. It is orthogonal to the block (what content is) and the
 # skin (how it looks). v1 is page-grain (whole page/slide); section-band
 # nesting is phase 2.
 #
+# ADR-544 — THE CONTAINMENT LAW. The four grains are Slide → Layout → Area →
+# Block, and **every block lives in exactly one Area**: no block is a direct
+# child of a slide. The pre-544 registry disagreed with itself — `title` put its
+# heading in a slot while `content`/`two-column` left a bare `<h2>` as a slide
+# child, and `comparison` nested a slot inside a slot-less `.col`. Three
+# structural stories for one hierarchy is what made the surface unable to speak
+# it (ADR-544 §1.1). One story now: an Area IS the region element, so a `.col`
+# that holds blocks carries the Area markers itself and `.cols` is the parent's
+# declared LAYOUT, never a rung of its own (D2).
+#
 # Each row: label + description (operator words) · grain ('page' in v1) ·
-# slots (each {name, role}: role='flow' accepts blocks on a reflow,
-# role='heading' is structural and anchors) · fragment (the deterministic
-# insertion payload — data-arrange names the arrangement; data-slot marks the
-# regions; the FE stamps fresh block ids and writes through the mechanical
-# door). Grammar not schema (R4): an un-arranged artifact stays valid.
+# areas (each {name, role, place?}: role from the closed set
+# heading|body|media|aside — `body` accepts blocks on a reflow, `heading`
+# anchors; `place` disambiguates same-role siblings) · fragment (the
+# deterministic insertion payload — data-arrange names the arrangement;
+# data-area/data-area-role/data-area-place mark the regions; the FE stamps
+# fresh block ids and writes through the mechanical door). Grammar not schema
+# (R4): an un-arranged artifact stays valid.
+#
+# The role is the Area's IDENTITY, not a hint: the chrome labels from it
+# (D4 — a raw `data-area` name is never a display word) and `applyArrangement`
+# maps Area→Area by it on a re-lay (D6).
 # ---------------------------------------------------------------------------
 
 STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
@@ -592,9 +612,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Title slide",
             "description": "Kicker, thesis headline, framing line.",
             "grain": "page",
-            "slots": [{"name": "heading", "role": "heading"}],
+            "areas": [{"name": "heading", "role": "heading"}],
             "fragment": """<section class="slide" data-arrange="title">
-  <div data-slot="heading">
+  <div data-area="heading" data-area-role="heading">
     <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
     <h1 data-block="heading" data-block-id="t1">The headline goes here.</h1>
     <p data-block="heading" data-block-id="f1">Framing sentence.</p>
@@ -605,22 +625,33 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Content",
             "description": "A heading with content below.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "main", "role": "body"},
+            ],
             "fragment": """<section class="slide" data-arrange="content">
-  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
-  <div data-slot="main"></div>
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  </div>
+  <div data-area="main" data-area-role="body"></div>
 </section>""",
         },
         "two-column": {
             "label": "Two column",
             "description": "A heading over two side-by-side regions.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}, {"name": "side", "role": "flow"}],
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "main", "role": "body", "place": "left"},
+                {"name": "side", "role": "body", "place": "right"},
+            ],
             "fragment": """<section class="slide" data-arrange="two-column">
-  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  </div>
   <div class="cols">
-    <div class="col" data-slot="main"></div>
-    <div class="col" data-slot="side"><p>Second column.</p></div>
+    <div class="col" data-area="main" data-area-role="body" data-area-place="left"></div>
+    <div class="col" data-area="side" data-area-role="body" data-area-place="right"><div data-block="prose" data-block-id="b1"><p>Second column.</p></div></div>
   </div>
 </section>""",
         },
@@ -628,12 +659,18 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Comparison",
             "description": "Two headed columns, side by side.",
             "grain": "page",
-            "slots": [{"name": "left", "role": "flow"}, {"name": "right", "role": "flow"}],
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "left", "role": "body", "place": "left"},
+                {"name": "right", "role": "body", "place": "right"},
+            ],
             "fragment": """<section class="slide" data-arrange="comparison">
-  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  </div>
   <div class="cols">
-    <div class="col"><h3 data-block="heading" data-block-id="l1">Option A</h3><div data-slot="left"></div></div>
-    <div class="col"><h3 data-block="heading" data-block-id="r1">Option B</h3><div data-slot="right"></div></div>
+    <div class="col" data-area="left" data-area-role="body" data-area-place="left"><h3 data-block="heading" data-block-id="l1">Option A</h3></div>
+    <div class="col" data-area="right" data-area-role="body" data-area-place="right"><h3 data-block="heading" data-block-id="r1">Option B</h3></div>
   </div>
 </section>""",
         },
@@ -641,9 +678,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Quote",
             "description": "One centered pull quote.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [{"name": "main", "role": "body"}],
             "fragment": """<section class="slide" data-arrange="quote">
-  <div data-slot="main">
+  <div data-area="main" data-area-role="body">
     <blockquote data-block="quote" data-block-id="b1"><p>The quote.</p><cite>Attribution</cite></blockquote>
   </div>
 </section>""",
@@ -653,12 +690,18 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Picture with caption",
             "description": "A big cited image beside its commentary.",
             "grain": "page",
-            "slots": [{"name": "media", "role": "media"}, {"name": "caption", "role": "flow"}],
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "media", "role": "media", "place": "left"},
+                {"name": "caption", "role": "aside", "place": "right"},
+            ],
             "fragment": """<section class="slide" data-arrange="picture-with-caption">
-  <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t1">Slide title</h2>
+  </div>
   <div class="cols">
-    <div class="col" data-slot="media"></div>
-    <div class="col" data-slot="caption"><p>What this picture shows, and why it matters.</p></div>
+    <div class="col" data-area="media" data-area-role="media" data-area-place="left"></div>
+    <div class="col" data-area="caption" data-area-role="aside" data-area-place="right"><div data-block="prose" data-block-id="b1"><p>What this picture shows, and why it matters.</p></div></div>
   </div>
 </section>""",
         },
@@ -666,9 +709,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Section header",
             "description": "A full-tone divider slide that names the next part.",
             "grain": "page",
-            "slots": [{"name": "heading", "role": "heading"}],
+            "areas": [{"name": "heading", "role": "heading"}],
             "fragment": """<section class="slide" data-arrange="section-header" data-tone="inverse">
-  <div data-slot="heading">
+  <div data-area="heading" data-area-role="heading">
     <p class="kicker" data-block="heading" data-block-id="k1">Part</p>
     <h1 data-block="heading" data-block-id="t1">Section title</h1>
   </div>
@@ -681,10 +724,15 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Agenda",
             "description": "A heading over the run of topics.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "main", "role": "body"},
+            ],
             "fragment": """<section class="slide" data-arrange="agenda">
-  <h2 data-block="heading" data-block-id="t1">Agenda</h2>
-  <div data-slot="main">
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t1">Agenda</h2>
+  </div>
+  <div data-area="main" data-area-role="body">
     <ul data-block="checklist" data-block-id="b1"><li>First topic</li><li>Second topic</li><li>Third topic</li></ul>
   </div>
 </section>""",
@@ -693,10 +741,15 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Big number",
             "description": "One headline metric, front and center.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "main", "role": "body"},
+            ],
             "fragment": """<section class="slide" data-arrange="big-number">
-  <p class="kicker" data-block="heading" data-block-id="k1">The headline number</p>
-  <div data-slot="main">
+  <div data-area="heading" data-area-role="heading">
+    <p class="kicker" data-block="heading" data-block-id="k1">The headline number</p>
+  </div>
+  <div data-area="main" data-area-role="body">
     <div data-block="metrics" data-block-id="b1"><div class="metric"><strong>42%</strong><span>what it measures</span></div></div>
   </div>
 </section>""",
@@ -705,18 +758,18 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Full-bleed image",
             "description": "One cited image filling the whole slide.",
             "grain": "page",
-            "slots": [{"name": "media", "role": "media"}],
+            "areas": [{"name": "media", "role": "media"}],
             "fragment": """<section class="slide" data-arrange="full-bleed">
-  <div data-slot="media"></div>
+  <div data-area="media" data-area-role="media"></div>
 </section>""",
         },
         "closing": {
             "label": "Closing",
             "description": "A full-tone thank-you slide with the next step.",
             "grain": "page",
-            "slots": [{"name": "heading", "role": "heading"}],
+            "areas": [{"name": "heading", "role": "heading"}],
             "fragment": """<section class="slide" data-arrange="closing" data-tone="inverse">
-  <div data-slot="heading">
+  <div data-area="heading" data-area-role="heading">
     <p class="kicker" data-block="heading" data-block-id="k1">Thank you</p>
     <h1 data-block="heading" data-block-id="t1">The closing line.</h1>
     <p data-block="heading" data-block-id="f1">Contact · next step</p>
@@ -735,11 +788,11 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Article header",
             "description": "The long-form opening — kicker, title, standfirst, byline.",
             "grain": "page",
-            # `main`/flow, not `heading`: the byline sits alongside the headings
-            # and the role ladder routes flow content PAST a heading-role slot.
-            "slots": [{"name": "main", "role": "flow"}],
+            # `main`/body, not `heading`: the byline sits alongside the headings
+            # and the role ladder routes body content PAST a heading-role Area.
+            "areas": [{"name": "main", "role": "body"}],
             "fragment": """<section data-arrange="prose-header">
-  <div data-slot="main">
+  <div data-area="main" data-area-role="body">
     <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
     <h1 data-block="heading" data-block-id="t1">The title of the piece.</h1>
     <p class="standfirst" data-block="heading" data-block-id="s1">The one-sentence promise to the reader.</p>
@@ -751,9 +804,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Prose",
             "description": "A narrow reading column — the body of a post or essay.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [{"name": "main", "role": "body"}],
             "fragment": """<section data-arrange="prose">
-  <div data-slot="main">
+  <div data-area="main" data-area-role="body">
     <div data-block="prose" data-block-id="b1"><p>Start writing.</p></div>
   </div>
 </section>""",
@@ -762,14 +815,14 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Hero",
             "description": "The headline band — kicker, promise, tagline, button.",
             "grain": "page",
-            # `main`/flow, not `heading`: this band carries a button alongside
-            # its headings, and the role ladder routes flow content PAST a
-            # heading-role slot — a hero declared `heading` would take content
+            # `main`/body, not `heading`: this band carries a button alongside
+            # its headings, and the role ladder routes body content PAST a
+            # heading-role Area — a hero declared `heading` would take content
             # only via the last-resort fallback. The name describes what the
             # region actually holds.
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [{"name": "main", "role": "body"}],
             "fragment": """<section data-arrange="hero">
-  <div data-slot="main">
+  <div data-area="main" data-area-role="body">
     <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
     <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
     <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
@@ -781,27 +834,35 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Content",
             "description": "A heading with content below.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "main", "role": "body"},
+            ],
             "fragment": """<section data-arrange="content">
-  <h2 data-block="heading" data-block-id="t1">Section title</h2>
-  <div data-slot="main"></div>
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  </div>
+  <div data-area="main" data-area-role="body"></div>
 </section>""",
         },
         "feature-grid": {
             "label": "Feature grid",
             "description": "A heading over three side-by-side features.",
             "grain": "page",
-            "slots": [
-                {"name": "a", "role": "flow"},
-                {"name": "b", "role": "flow"},
-                {"name": "c", "role": "flow"},
+            "areas": [
+                {"name": "heading", "role": "heading"},
+                {"name": "a", "role": "body", "place": "left"},
+                {"name": "b", "role": "body", "place": "center"},
+                {"name": "c", "role": "body", "place": "right"},
             ],
             "fragment": """<section data-arrange="feature-grid">
-  <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  <div data-area="heading" data-area-role="heading">
+    <h2 data-block="heading" data-block-id="t1">Section title</h2>
+  </div>
   <div class="cols">
-    <div class="col" data-slot="a"><div data-block="prose" data-block-id="b1"><h3>Feature</h3><p>One sentence on it.</p></div></div>
-    <div class="col" data-slot="b"><div data-block="prose" data-block-id="b2"><h3>Feature</h3><p>One sentence on it.</p></div></div>
-    <div class="col" data-slot="c"><div data-block="prose" data-block-id="b3"><h3>Feature</h3><p>One sentence on it.</p></div></div>
+    <div class="col" data-area="a" data-area-role="body" data-area-place="left"><div data-block="prose" data-block-id="b1"><h3>Feature</h3><p>One sentence on it.</p></div></div>
+    <div class="col" data-area="b" data-area-role="body" data-area-place="center"><div data-block="prose" data-block-id="b2"><h3>Feature</h3><p>One sentence on it.</p></div></div>
+    <div class="col" data-area="c" data-area-role="body" data-area-place="right"><div data-block="prose" data-block-id="b3"><h3>Feature</h3><p>One sentence on it.</p></div></div>
   </div>
 </section>""",
         },
@@ -809,9 +870,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Testimonial",
             "description": "One centered quote with attribution.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [{"name": "main", "role": "body"}],
             "fragment": """<section data-arrange="testimonial">
-  <div data-slot="main">
+  <div data-area="main" data-area-role="body">
     <blockquote data-block="quote" data-block-id="q1"><p>What a customer said.</p><cite>Name, role</cite></blockquote>
   </div>
 </section>""",
@@ -822,9 +883,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "grain": "page",
             # `main`/flow for the same reason as `hero` — the band holds a
             # button, not headings alone.
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [{"name": "main", "role": "body"}],
             "fragment": """<section data-arrange="cta" data-tone="accent">
-  <div data-slot="main">
+  <div data-area="main" data-area-role="body">
     <h2 data-block="heading" data-block-id="t1">The closing ask.</h2>
     <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
   </div>
@@ -834,9 +895,9 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
             "label": "Footer",
             "description": "A quiet closing band — fine print, contact.",
             "grain": "page",
-            "slots": [{"name": "main", "role": "flow"}],
+            "areas": [{"name": "main", "role": "body"}],
             "fragment": """<section data-arrange="footer">
-  <div data-slot="main">
+  <div data-area="main" data-area-role="body">
     <div data-block="prose" data-block-id="b1"><p>Fine print · contact · attribution.</p></div>
   </div>
 </section>""",
@@ -864,11 +925,12 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 #              ("any",) is unconditional)
 # Predicates, FE-side (one admitting function, ADR-542 D2):
 #   staged   — `.slide` ancestry (a deck slide or an images artboard)
+#   artboard — an IMAGES artboard ONLY (ADR-544 D3: decks have no free position)
 #   flow     — the layout's mode is `flow`
 #   media    — the kind cites a picture (MEDIA_BLOCK_KINDS)
 #   callout  — the kind is `callout` (ADR-487 D2 variants)
 #   deck     — the deck layout (slides; slide numbers ADR-456)
-#   multicol — the page's arrangement has ≥2 flow slots
+#   multicol — the page's arrangement has ≥2 body-role Areas
 #   bg       — the page carries a cited background (data-ref-kind="background")
 # ---------------------------------------------------------------------------
 
@@ -886,7 +948,7 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 # never a new compound. The lane's WHERE phrase composes from the two tables.
 TOKEN_SCOPES: tuple[str, ...] = ("block", "page", "document")
 TOKEN_GRAINS: tuple[str, ...] = (
-    "any", "staged", "flow", "media", "callout", "deck", "multicol", "bg",
+    "any", "staged", "artboard", "flow", "media", "callout", "deck", "multicol", "bg",
 )
 
 SCOPE_PHRASES: dict[str, str] = {
@@ -900,11 +962,16 @@ GRAIN_PHRASES: dict[str, str] = {
     # ADR-525 D4's lesson carried forward: the grain names the MEDIUM/condition
     # explicitly so the AI hand is never told a paragraph has a width.
     "staged": "on a staged frame (a deck slide or a canvas artboard)",
+    # ADR-544 D3 — free POSITION is an IMAGES-only capability now. `staged`
+    # still means either frame (SIZE is legitimate on both); `artboard` is the
+    # narrower predicate the position measures moved to, so a deck block can no
+    # longer be placed at a coordinate and leave its Area.
+    "artboard": "on a canvas artboard (IMAGES — never a deck slide)",
     "flow": "in a flowing document (never a staged frame)",
     "media": "that is a media block (figure/gallery)",
     "callout": "that is a callout",
     "deck": "on a deck only",
-    "multicol": "whose arrangement has 2+ flow slots",
+    "multicol": "whose arrangement has 2+ body Areas",
     "bg": "carrying a cited background image",
 }
 
@@ -1183,24 +1250,32 @@ STUDIO_MEASURES: dict[str, dict] = {
     },
     # Bounded POSITION (ADR-466 D2, enacting ADR-461 D3's remaining half): x/y
     # place a block at a point IN ITS FRAME — `left`/`top` as a percent of the
-    # frame's box. STAGED frames only (not `media`): the `block-staged` grain
-    # is a block on a STAGED FRAME — the `.slide` class, carried by a deck
-    # slide and by an IMAGES stage (the frame class IS the grain's boundary).
-    # ADR-472 D2 renamed it from `block-deck`, paying ADR-471 D-a's debt: the
-    # grain was already redefined to mean "staged frame" while keeping the
-    # deck-shaped name, and exporting that lie into a second app was not an
-    # option. This is the SHARED OBJECT LAYER — Studio consumes it for decks,
-    # IMAGES for stages; one implementation, two consumers. A media
-    # block in a FLOW layout must never exit the flow (it has an
+    # frame's box.
+    #
+    # ADR-544 D3 — THE GRAIN NARROWED FROM `staged` TO `artboard`: free position
+    # is an IMAGES capability, and a deck slide no longer has one. The old grain
+    # admitted both frames, and on a deck the consequence was stated in this very
+    # comment: "a positioned block EXITS the slot contract (the ADR-461 honest
+    # remainder)". That remainder is what the operator met as "I move a header
+    # and it just ends up floating anywhere, overlapping" — a drag was not a move
+    # within the layout but an ESCAPE from it, leaving a block that belongs to no
+    # Area and that no later AI revision can reason about. Containment (D1) is
+    # what makes a slide re-describable across a human edit and an AI pass, and
+    # that determinism is worth more on a deck than arbitrary placement.
+    #
+    # IMAGES KEEPS THIS IN FULL (ADR-544 §4.3) — its stage is a composition
+    # surface where overlap is the point, and `services/images/stage.py` seeds
+    # data-x/data-y on its own scaffolds. The measures are NOT deleted; they are
+    # re-grained. A sweep that removes them breaks IMAGES and is the predictable
+    # over-reach of ADR-544.
+    #
+    # A media block in a FLOW layout must never exit the flow (it has an
     # intrinsic-ratio frame for SIZE, but position needs the fixed stage). The
-    # presence of BOTH measures is the positioned state; absence = in flow. A
-    # positioned block exits the slot contract (the ADR-461 honest remainder)
-    # and re-enters flow when an arrangement re-lays the page
-    # (applyArrangement clears x/y).
+    # presence of BOTH measures is the positioned state; absence = in flow.
     "x": {
         "label": "X",
         "scope": ("block",),
-        "grains": ("staged",),
+        "grains": ("artboard",),
         "unit": "%",
         "min": 0,
         "max": 95,
@@ -1210,7 +1285,7 @@ STUDIO_MEASURES: dict[str, dict] = {
     "y": {
         "label": "Y",
         "scope": ("block",),
-        "grains": ("staged",),
+        "grains": ("artboard",),
         "unit": "%",
         "min": 0,
         "max": 95,
@@ -1226,7 +1301,7 @@ STUDIO_MEASURES: dict[str, dict] = {
     "z": {
         "label": "Z",
         "scope": ("block",),
-        "grains": ("staged",),
+        "grains": ("artboard",),
         "unit": "",
         "min": 0,
         "max": 20,
@@ -1240,7 +1315,14 @@ STUDIO_MEASURES: dict[str, dict] = {
 #: stage; the frame class is the grain's boundary (ADR-472 D2). `media` is a
 #: media block anywhere (an image has an intrinsic ratio, which is its own
 #: frame — ADR-461 D4).
-MEASURE_GRAINS = {"staged", "media"}
+# ADR-544 D3 — `artboard` joins the frame-bounded set. The boundary this
+# allowlist enforces is unchanged (a measure is admitted ONLY where a FRAME
+# bounds it — never on a reflowing page, ADR-461 D4); what changed is that the
+# POSITION measures narrowed from `staged` (either frame) to `artboard`
+# (IMAGES only), because a deck block now holds a place in the hierarchy rather
+# than a coordinate. SIZE still admits `staged`: a block sized within its Area
+# is legitimate on both frames.
+MEASURE_GRAINS = {"staged", "artboard", "media"}
 
 
 #: (cascade: unmarked layout style < data-kernel < data-skin).
@@ -1384,7 +1466,7 @@ div[data-block="component"] .row:hover { border-color: var(--rule, rgba(26,26,26
   font-style: italic; font-size: var(--text-xl, 1.3rem); }
 [data-arrange="footer"] { font-size: 0.85rem; color: var(--muted, #6b6b6b); }
 .slide[data-arrange="full-bleed"] { padding: 0; }
-.slide[data-arrange="full-bleed"] [data-slot="media"] { flex: 1; display: flex; min-height: 0; }
+.slide[data-arrange="full-bleed"] [data-area-role="media"] { flex: 1; display: flex; min-height: 0; }
 .slide[data-arrange="full-bleed"] figure { flex: 1; margin: 0; min-width: 0; }
 .slide[data-arrange="full-bleed"] img { width: 100%; height: 100%;
   object-fit: cover; max-height: none; }
@@ -1471,7 +1553,7 @@ span[data-highlight="danger"] { background: color-mix(in srgb, var(--danger, #b3
    fallback means a missing/garbage value degrades to the natural layout,
    never to zero (the ADR-461 fallback rule). A positioned block exits the
    slot's flow (the honest remainder) — margin drops so the point is exact. */
-section.slide, .slide .col, .slide [data-slot] { position: relative; }
+section.slide, .slide .col, .slide [data-area] { position: relative; }
 .slide [data-block][data-x][data-y] { position: absolute;
   left: var(--yx, auto); top: var(--yy, auto); margin: 0; max-width: 100%; }
 /* Stacking (ADR-471 D-d) — z orders positioned blocks; on a static block
@@ -2080,8 +2162,8 @@ def _arrangements_grammar(template: str) -> str:
     if not rows:
         return "  (no named arrangements for this layout — a single flow.)"
     return "\n".join(
-        f"  - {slug} — {a['description']} (slots: "
-        + ", ".join(s["name"] for s in a["slots"])
+        f"  - {slug} — {a['description']} (areas: "
+        + ", ".join(f"{s['name']}[{s['role']}]" for s in a["areas"])
         + ")"
         for slug, a in rows.items()
     )
@@ -2167,17 +2249,26 @@ style elements — <style data-kernel="true"> (kernel token CSS) and
 skin: never edit or remove them; they survive every switch. A layout change is
 an ordinary edit — versioned and revertible like any other.
 
-## Arrangements (where content goes on a page/section)
+## Arrangements and AREAS (where content goes on a page/section)
+The structure is four grains: SLIDE (or band) → LAYOUT → AREA → BLOCK.
 Each page or section carries an ARRANGEMENT — data-arrange="<slug>" on the
-page element (a deck slide, or a web <section> band), with
-data-slot="<name>" regions that hold blocks. The arrangement is the
-composition (grids, columns, slots); the block is the content; keep them
-distinct. When you author a new page/section, annotate it with data-arrange
-and give its content regions data-slot. When you re-lay a page to a different
-arrangement, move existing blocks INTACT (ids preserved) into the new
-arrangement's slots — heading blocks anchor the page and are not swept. The
-member also re-arranges directly with the toolbar; treat the current
-arrangement as truth and re-read before editing. Arrangements for this
+page element (a deck slide, or a web <section> band) — which declares AREAS:
+data-area="<name>" data-area-role="<role>" regions that hold blocks, with an
+optional data-area-place="<left|center|right>" to tell same-role siblings
+apart. Roles are a closed set: heading · body · media · aside.
+
+THE CONTAINMENT LAW: every block lives in exactly one Area. NEVER author a
+block as a direct child of a slide or band — a bare <h2> under a slide is a
+defect, not a shortcut. A slide's title goes in its heading-role Area.
+
+The arrangement is the composition (grids, columns, areas); the block is the
+content; keep them distinct. When you author a new page/section, annotate it
+with data-arrange and give every content region data-area + data-area-role.
+When you re-lay a page to a different arrangement, move existing blocks INTACT
+(ids preserved) into the new arrangement's Areas, matching BY ROLE
+(heading→heading, body→body, media→media) — heading blocks anchor the page and
+are not swept. The member also re-arranges directly with the toolbar; treat the
+current arrangement as truth and re-read before editing. Arrangements for this
 layout:
 {arrangements_grammar}
 

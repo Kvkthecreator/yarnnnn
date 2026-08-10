@@ -1382,7 +1382,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [applyOp, anchor],
   );
   const handleApplyArrangement = useCallback(
-    async (a: Pick<StudioArrangement, 'fragment' | 'label' | 'slots' | 'slug'>) => {
+    async (a: Pick<StudioArrangement, 'fragment' | 'label' | 'areas' | 'slug'>) => {
       // ADR-479 D1 — the PLACEMENT is a judgment; this function is the
       // mechanism around it. Ask where each block belongs, then put it there.
       // A refusal (placements === null: router off, bad JSON, failed
@@ -1398,13 +1398,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       //    (one compound revision; the galleries forewarn with an inline note).
       //    The old red banner ("has no place for this slide's content") remains
       //    only for the layout with no slotted arrangement at all.
-      const slotRoles = Object.fromEntries(a.slots.map((s) => [s.name, s.role]));
+      const slotRoles = Object.fromEntries(a.areas.map((s) => [s.name, s.role]));
       const pageNoun = template === 'deck' ? 'slide' : 'section';
 
       // The planned path. Only worth a metered call when there is content to
       // place AND somewhere to put it — an empty page or a slotless target is
       // pure mechanism, and paying a judgment for it would be waste.
-      if (file?.content && a.slots.length > 0) {
+      if (file?.content && a.areas.length > 0) {
         const blocks = blocksForPlan(file.content, anchor);
         if (blocks && blocks.length > 0) {
           // The content BEFORE the preview touched anything. Both settle paths
@@ -1437,7 +1437,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           try {
             const { placements } = await api.studio.planArrangement({
               blocks,
-              slots: a.slots.map((s) => ({ name: s.name, role: s.role })),
+              slots: a.areas.map((s) => ({ name: s.name, role: s.role })),
               arrangement: a.slug,
             });
             if (placements) {
@@ -1470,8 +1470,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (file?.content && !applyArrangement(file.content, a.fragment, anchor, slotRoles)) {
         const set = vocabulary?.arrangements?.[template] ?? [];
         const receiver =
-          set.find((x) => x.slug === 'content' && x.slots.length > 0) ??
-          set.find((x) => x.slots.length > 0);
+          set.find((x) => x.slug === 'content' && x.areas.length > 0) ??
+          set.find((x) => x.areas.length > 0);
         if (receiver) {
           return applyOp(
             (html) => applyArrangementMovingContent(html, a.fragment, anchor, receiver.fragment),
@@ -1585,6 +1585,21 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const out: Record<string, { min: number; max: number }> = {};
     rows.forEach((m) => {
       out[m.key] = { min: m.min, max: m.max };
+    });
+    return out;
+  }, [vocabulary]);
+
+  /** ADR-544 D4 — the served kind→label map, threaded to every surface that
+   *  names a block: the canvas runtime (via projection), the breadcrumb, and
+   *  the pane. useMemo for the same reason as `measureBounds` directly above —
+   *  it is a projection input, and a fresh object every render would re-inject
+   *  the runtime and reload the frame on every keystroke. */
+  const blockLabels = useMemo(() => {
+    const rows = vocabulary?.blocks ?? [];
+    if (!rows.length) return undefined;
+    const out: Record<string, string> = {};
+    rows.forEach((b) => {
+      if (b.label) out[b.kind] = b.label;
     });
     return out;
   }, [vocabulary]);
@@ -2951,7 +2966,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       if (!containerId) return; // an unaddressed region cannot take an op
       const role = vocabulary?.arrangements?.[template]
         ?.find((a) => a.slug === arrange)
-        ?.slots.find((s) => s.name === slot)?.role;
+        ?.areas.find((s) => s.name === slot)?.role;
       if (role === 'media') {
         setSelection({
           blockId: containerId,
@@ -3271,6 +3286,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onEdit={onEdit}
                 mode={resolvedMode}
                 measureBounds={measureBounds}
+                blockLabels={blockLabels}
                 onFlowEdit={onFlowEdit}
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}
@@ -3319,6 +3335,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   layout={template}
                   selection={selection}
                   groupIds={groupIds}
+                  blockLabels={blockLabels}
                   onSelectPage={selectSlideFromNavigator}
                   onSelectNode={selectNodeFromNavigator}
                 />

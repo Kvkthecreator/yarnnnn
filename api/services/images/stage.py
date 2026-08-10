@@ -214,7 +214,12 @@ IMAGES_ARRANGEMENTS: dict[str, dict] = {
             "label": "Free",
             "description": "An open stage — position everything.",
             "grain": "page",
-            "slots": [],
+            # ADR-544 §4.3 — IMAGES declares NO Areas on purpose: its stage is a
+            # composition surface where free position (x/y/z, the `artboard`
+            # grain) is the point. The containment law is deck/web-scoped; this
+            # empty list is the honest statement that a stage has no regions,
+            # not an omission.
+            "areas": [],
             "fragment": """<section class="slide" data-arrange="free">
   <h2 data-block="heading" data-block-id="t1" data-x="8" data-y="12" style="--yx:8%;--yy:12%">New stage</h2>
 </section>""",

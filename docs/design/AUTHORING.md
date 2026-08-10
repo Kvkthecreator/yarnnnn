@@ -65,8 +65,27 @@ Four, all real DOM elements; there is no parallel tree.
 |---|---|---|---|
 | **Artifact root** | `<html>` | `document` (nothing selected) | `data-template` (document/deck/web — ADR-505's three, one per medium), document-grain tokens (`font`/`measure`/`pagenum`), the marked `<style data-kernel>`/`<style data-skin>` elements |
 | **Page** | `STRUCTURAL_PAGE_SEL` — a deck slide (`section.slide`) or a top-level body/main/article section. Position-addressed, never attribute-gated | `page` | inline layout style (ADR-516), meaning tokens (`tone`, `ratio`, `scrim`, `bg-pos`), the background citation |
-| **Structural container** | `div[data-block-id]:not([data-block])` — a column, a columns row, a named region. Identity without vocabulary (ADR-511 D3), stamped by `normalizeStructure` at load + write | `container` | inline layout style; a *name* (a `data-slot` inert name, or class `cols`/`col`) feeding the label map; a media *role* via the registry |
-| **Block** | `[data-block]` + `data-block-id` | `block` | block tokens (`size`/`align`/`tone`/`variant`, media tokens), measures (`data-w/h/x/y` — deck-staged), `data-ref` citations |
+| **Area** | `[data-area]` — a region of the layout, carrying `data-area-role` (heading \| body \| media \| aside) and an optional `data-area-place`. Also `div[data-block-id]:not([data-block])` for identity (ADR-511 D3), stamped by `normalizeStructure` at load + write | `container` | inline layout style; its **role**, which is its identity — the label derives from it (never from the authored name), and a re-lay maps Area→Area by it |
+| **Block** | `[data-block]` + `data-block-id` | `block` | block tokens (`size`/`align`/`tone`/`variant`, media tokens), measures (`data-w/h` — staged; `data-x/y/z` are **artboard-only**, ADR-544 D3), `data-ref` citations |
+
+**THE CONTAINMENT LAW** (ADR-544 D1, normative): on a paged medium **every block lives
+in exactly one Area** — no block is a direct child of a slide or a band. The four grains
+are **Slide → Layout → Area → Block**, and the pre-544 registry disagreed with itself
+about them (`title` put its heading in a region; `content`/`two-column` left a bare
+`<h2>` on the slide; `comparison` nested a region inside a slot-less `.col`). Three
+structural stories for one hierarchy is what made the surface unable to speak it. One
+story now — and `.cols`/`.col` are the parent's declared **layout**, not a rung: a `.col`
+that holds blocks IS the Area (D2).
+
+**Position is a place in the hierarchy, not a coordinate** (ADR-544 D3, normative, deck +
+web): a block's position IS its Area plus its order within it; a drag re-parents and
+reorders and can never leave an Area. Free position (`x`/`y`/`z`) is retired for decks
+and lives on the **`artboard` grain — IMAGES only**, where a composition surface makes
+overlap the point. The measures were **re-grained, never deleted**: a sweep that removes
+them breaks IMAGES (ADR-544 §4.3). The reason decks gave it up is stated where the
+measures are declared — a positioned block *exited the region contract*, so it belonged
+to nothing a later AI revision could reason about, and a re-describable slide is worth
+more than an arbitrarily-composed one.
 
 **The group is a transient selection, never markup** — **⇧-click** on staged frames
 (⌘/ctrl deep-selects the innermost container instead — ADR-519 D4, 2026-08-06; the branch
@@ -92,10 +111,20 @@ silently is the defect that rule must not produce.
 `<br>`, inline spans are never selection subjects — selection bottoms out at what can
 carry identity. No DOM-inspector depth.
 
-**Operator words, everywhere** (ADR-443 D3, normative): the file says
-`<section>`/`<div>`/`<h2>`; the chrome says *slide / columns / column / heading* — one
+**Operator words, everywhere** (ADR-443 D3, normative; re-cut by ADR-544 D4): the file
+says `<section>`/`<div>`/`<h2>`; the chrome says *Slide / Layout / Area / Block* — one
 label map, `structureLabels.ts`, consumed by the canvas runtimes, the navigator, the
 Design tab and the menus. The chrome never says "div".
+
+**A label is DERIVED, never echoed** (ADR-544 D4). Pre-544 that same module returned raw
+substrate strings from three of its rungs, and its own docstring promised otherwise: a
+block labelled `PROSE` while the registry already declared `{"prose": {"label": "Text"}}`
+(so one object read "Text" in the menu you inserted it from and "PROSE" in the pane that
+described it), a region labelled `MAIN`/`SIDE`/`A`/`B` — free-form strings an LLM wrote
+into `data-slot` — and `.cols` surfaced as a rung so one paragraph read
+`slide 2 › columns › main`. It never said "div"; it said "main". Now a **block** labels
+from the served registry's `label`, and an **Area** from its role + place ("Body (left)").
+A free-form authored name is data, never a display word.
 
 ## THE INTERACTION CONTRACT — grain × medium
 

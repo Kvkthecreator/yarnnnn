@@ -91,6 +91,7 @@ export function SelectionBreadcrumb({
   layout,
   selection,
   groupIds,
+  blockLabels,
   onSelectPage,
   onSelectNode,
 }: {
@@ -102,6 +103,10 @@ export function SelectionBreadcrumb({
    *  parent and the count, never the primary's own label: the innermost rung
    *  is a single subject and a set does not have one. Length < 2 = no set. */
   groupIds?: string[];
+  /** ADR-544 D4 — the served kind→label map. The crumb says the registry's
+   *  word ("Text"), never the substrate's attribute ("prose"), and an Area
+   *  reads as its role + place ("Body (left)"), never its authored name. */
+  blockLabels?: Record<string, string>;
   /** Select a page by index — the navigator's page-select path. */
   onSelectPage: (index: number) => void;
   /** Select a container/block — the navigator's structure-tree path. */
@@ -140,7 +145,7 @@ export function SelectionBreadcrumb({
     const chain = climbChain(el as unknown as ClimbableElement, pageEl as unknown as ClimbableElement);
     const seg = (node: Element, current: boolean): CrumbSegment => ({
       blockId: node.getAttribute('data-block-id'),
-      label: labelForElement(node),
+      label: labelForElement(node, blockLabels),
       kind: node.getAttribute('data-block'),
       current,
     });
@@ -185,7 +190,7 @@ export function SelectionBreadcrumb({
         seg(el, true),
       ],
     };
-  }, [html, layout, groupIds, selection.blockId, selection.slideIndex, selection.pageIndex]);
+  }, [html, layout, groupIds, blockLabels, selection.blockId, selection.slideIndex, selection.pageIndex]);
 
   if (!segments.length) return null;
 

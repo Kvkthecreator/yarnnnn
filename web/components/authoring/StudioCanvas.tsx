@@ -122,6 +122,11 @@ interface StudioCanvasProps {
    *  clamps its PREVIEW with these, so the box the member releases on is the
    *  box that lands. The runtime invents no bound (ADR-461 D4). */
   measureBounds?: Record<string, { min: number; max: number }>;
+  /** ADR-544 D4 — the served kind→label map. The runtime's chrome (frame label,
+   *  hover badge, selection payload) says the registry's word, never the
+   *  substrate's `data-block` attribute. Same projection-input discipline as
+   *  `measureBounds`: memoized upstream, or the frame reloads every render. */
+  blockLabels?: Record<string, string>;
   /** ADR-480 D1: a FLOW edit committed (blur/idle) — the whole region's inner,
    *  source-mapped. The surface applies it with normalize-on-write (D3). */
   onFlowEdit?: (selector: string, newInner: string) => void;
@@ -279,6 +284,7 @@ export function StudioCanvas({
   onEdit,
   mode,
   measureBounds,
+  blockLabels,
   onFlowEdit,
   onEditExited,
   onEditEntered,
@@ -394,7 +400,7 @@ export function StudioCanvas({
     // (harmless when nothing is being edited; the runtime idles until the
     // parent commands enter). One render mode keeps the projection stable
     // across select→edit→select without reloading the frame.
-    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true, mode, measureBounds })
+    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true, mode, measureBounds, blockLabels })
       .then((html) => !cancelled && setProjected(html))
       // NEVER fall back to raw content: the iframe allows scripts, and only
       // the projection pass strips artifact-authored executables. A blank
@@ -413,7 +419,7 @@ export function StudioCanvas({
     // ADR-485 D3: `measureBounds` is a projection input for the same reason —
     // it is baked into the injected script, so a vocabulary that lands after
     // the first projection must re-inject or the gesture keeps the fallback.
-  }, [content, artifactPath, mode, measureBounds]);
+  }, [content, artifactPath, mode, measureBounds, blockLabels]);
 
   // Command the iframe's edit runtime when the surface's editing state changes
   // AND on every fresh load (a reload after a commit reinjects the runtime; it

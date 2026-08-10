@@ -70,11 +70,18 @@ def run() -> bool:
         "the staged grain is `staged` (ADR-542 grain slug; never the deck-shaped name)",
         "staged" in MEASURE_GRAINS and "block-deck" not in MEASURE_GRAINS,
     )
+    # ADR-544 D3 — the position measures moved from `staged` (either frame) to
+    # `artboard` (IMAGES only): a deck block now holds a place in the hierarchy,
+    # not a coordinate. The load-bearing half of this check is UNCHANGED and is
+    # the one §4.3 names — IMAGES must never get artboards on which nothing can
+    # be positioned. If a sweep deletes these measures rather than re-graining
+    # them, this fails, which is exactly its job.
     _check(
-        "position + stacking measures apply to the staged grain",
-        STUDIO_MEASURES["x"]["grains"] == ("staged",)
-        and STUDIO_MEASURES["y"]["grains"] == ("staged",)
-        and STUDIO_MEASURES["z"]["grains"] == ("staged",),  # ADR-542: grain slugs
+        "position + stacking measures apply to the artboard grain (IMAGES keeps free position)",
+        STUDIO_MEASURES["x"]["grains"] == ("artboard",)
+        and STUDIO_MEASURES["y"]["grains"] == ("artboard",)
+        and STUDIO_MEASURES["z"]["grains"] == ("artboard",)
+        and "artboard" in MEASURE_GRAINS,
     )
     _check(
         "the stage inherits the frame class the object layer keys on",

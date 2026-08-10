@@ -108,11 +108,16 @@ def run() -> bool:
     )
     _check(
         "mode is NOT the geometry seam: web is paged yet reaches no x/y/z",
-        # `block-staged` gates position on `.slide` ANCESTRY, not on mode — which
-        # is exactly why `web` can share `paged` with `deck` and still have no
-        # coordinate space (ADR-505 D3 / ADR-461 D4: a page has a viewport).
+        # Position gates on a FRAME grain, not on mode — which is exactly why
+        # `web` can share `paged` with `deck` and still have no coordinate space
+        # (ADR-505 D3 / ADR-461 D4: a page has a viewport).
+        #
+        # ADR-544 D3 narrowed that grain from `staged` (either frame) to
+        # `artboard` (IMAGES only), so the claim this gate defends is now TRUE
+        # OF DECKS TOO — a deck block holds a place in its Area, not a
+        # coordinate. What must not regress is web reaching position at all.
         all(
-            "staged" in STUDIO_MEASURES[m]["grains"]
+            "artboard" in STUDIO_MEASURES[m]["grains"]
             for m in ("x", "y", "z")
         )
         and "section[data-arrange]" in STUDIO_LAYOUTS["web"]["skin"]

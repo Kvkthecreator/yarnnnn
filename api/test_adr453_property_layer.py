@@ -156,8 +156,8 @@ def run() -> bool:
     # heading/flow only, so deck is where the role lives.
     _check(
         "the media role exists (picture-with-caption + full-bleed)",
-        any(s["role"] == "media" for s in deck["picture-with-caption"]["slots"])
-        and any(s["role"] == "media" for s in deck["full-bleed"]["slots"]),
+        any(s["role"] == "media" for s in deck["picture-with-caption"]["areas"])
+        and any(s["role"] == "media" for s in deck["full-bleed"]["areas"]),
     )
     _check(
         "section-header ships the first token use (data-tone)",

@@ -127,15 +127,18 @@ def run() -> bool:
     # ones. One contract, one markup — enforced here so it cannot drift again.
     for layout, rows in STUDIO_ARRANGEMENTS.items():
         for slug, a in rows.items():
-            declared = sorted(s["name"] for s in a["slots"])
-            shipped = sorted(re.findall(r'data-slot="([^"]+)"', a["fragment"]))
+            # ADR-544 D2 — `slots` became `areas`, and the roles became the
+            # closed set heading|body|media|aside. The parity contract is
+            # unchanged: what a row DECLARES is what its fragment SHIPS.
+            declared = sorted(s["name"] for s in a["areas"])
+            shipped = sorted(re.findall(r'data-area="([^"]+)"', a["fragment"]))
             _check(
-                f"arrangement '{layout}/{slug}': declared slots == shipped slots",
+                f"arrangement '{layout}/{slug}': declared areas == shipped areas",
                 declared == shipped,
             )
             _check(
-                f"arrangement '{layout}/{slug}': every slot role is known",
-                all(s.get("role") in ("heading", "flow", "media") for s in a["slots"]),
+                f"arrangement '{layout}/{slug}': every area role is known",
+                all(s.get("role") in ("heading", "body", "media", "aside") for s in a["areas"]),
             )
     # A scaffold is markup the kernel ships directly (not through an
     # arrangement fragment), so it can drift the same way and independently.
@@ -144,10 +147,10 @@ def run() -> bool:
         want = sorted(
             n
             for arr in re.findall(r'data-arrange="([^"]+)"', sc)
-            for n in [s["name"] for s in STUDIO_ARRANGEMENTS[slug][arr]["slots"]]
+            for n in [s["name"] for s in STUDIO_ARRANGEMENTS[slug][arr]["areas"]]
         )
-        got = sorted(re.findall(r'data-slot="([^"]+)"', sc))
-        _check(f"scaffold '{slug}': ships the slots its arrangements declare", want == got)
+        got = sorted(re.findall(r'data-area="([^"]+)"', sc))
+        _check(f"scaffold '{slug}': ships the areas its arrangements declare", want == got)
 
     # ── 3. Posture v2 (one home, R4) ─────────────────────────────────────
     posture = build_studio_posture(
@@ -220,10 +223,10 @@ def run() -> bool:
            == {s for s, v in STUDIO_LAYOUTS.items() if v["mode"] == "paged"})
     _check("deck ships its page arrangements",
            {"title", "content", "two-column", "quote"} <= set(STUDIO_ARRANGEMENTS["deck"]))
-    _check("arrangement fragments carry data-arrange + slots + grain metadata",
-           all("data-arrange" in a["fragment"] and "grain" in a and "slots" in a
+    _check("arrangement fragments carry data-arrange + areas + grain metadata",
+           all("data-arrange" in a["fragment"] and "grain" in a and "areas" in a
                for a in STUDIO_ARRANGEMENTS["deck"].values())
-           and "data-slot" in STUDIO_ARRANGEMENTS["deck"]["content"]["fragment"])
+           and "data-area" in STUDIO_ARRANGEMENTS["deck"]["content"]["fragment"])
     _check("mechanical write door registered (CAS)",
            '"/studio/artifacts/write"' in src and "expected_parent_version_id" in src
            and "StaleWriteError" in src)
@@ -318,10 +321,10 @@ def run() -> bool:
                for t, v in STUDIO_LAYOUTS.items() if v["mode"] == "paged")
            and not any(t in STUDIO_ARRANGEMENTS
                        for t, v in STUDIO_LAYOUTS.items() if v["mode"] == "flow"))
-    _check("arrangement slots carry name + role (flow vs heading)",
+    _check("arrangement areas carry name + role (ADR-544 D2)",
            all("name" in s and "role" in s
                for arr in STUDIO_ARRANGEMENTS.values()
-               for a in arr.values() for s in a["slots"]))
+               for a in arr.values() for s in a["areas"]))
     for slug in STUDIO_LAYOUTS:
         sk = build_skeleton(slug)
         _check(f"scaffold '{slug}': first page carries data-arrange (arrangeable from creation)",
@@ -331,7 +334,7 @@ def run() -> bool:
     _check("reflow lands the arrangement slug (data-arrange), not data-container",
            "getAttribute('data-arrange')" in ops and "data-container" not in ops)
     _check("posture: Arrangements section composed from the registry",
-           "Arrangements (where content goes" in posture
+           "Arrangements and AREAS (where content goes" in posture
            and STUDIO_ARRANGEMENTS["deck"]["comparison"]["description"] in posture)
     # ADR-453: the mixed-grain 'Arrange' menu split by grain — 'New ‹noun›'
     # (add a page, toolbar gallery) + 'Re-arrange' (this page, Design tab).
@@ -350,8 +353,8 @@ def run() -> bool:
            "onApplyArrangement" not in design_tab)
     _check("new-page gallery is not deck-gated (arrangements.length gate)",
            "arrangements.length > 0" in menu)
-    _check("vocabulary endpoint serves arrangements with grain + slots",
-           '"arrangements"' in src and '"grain"' in src and '"slots"' in src)
+    _check("vocabulary endpoint serves arrangements with grain + areas",
+           '"arrangements"' in src and '"grain"' in src and '"areas"' in src)
 
     # ── 10. ADR-447 workbench restructure (nav · canvas · chat) ──────────
     # ADR-518 follow-through: the navigator is PAGED-ONLY (PagedNavigator).

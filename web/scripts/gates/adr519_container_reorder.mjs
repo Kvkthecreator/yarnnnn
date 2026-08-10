@@ -236,15 +236,15 @@ t('both sibling walks extracted and runnable', !!prevBlock && !!nextBlock);
   const note = new Function('a', 'carriedCount', 'pageNoun', 'groupCount', body + '\n');
 
   t('D2.1: a page with a group is WARNED before the re-arrange',
-    note({ slots: [{}] }, 3, 'slide', 2) === 'ungroups 2 groups');
-  t('D2.1: the warning is singular for one group', note({ slots: [{}] }, 3, 'slide', 1) === 'ungroups 1 group');
+    note({ areas: [{}] }, 3, 'slide', 2) === 'ungroups 2 groups');
+  t('D2.1: the warning is singular for one group', note({ areas: [{}] }, 3, 'slide', 1) === 'ungroups 1 group');
   t('D2.1: no group = no group warning (the ADR-466 note is untouched)',
-    note({ slots: [] }, 3, 'slide', 0) === 'content → new slide');
+    note({ areas: [] }, 3, 'slide', 0) === 'content → new slide');
   t('D2.1: both consequences are named when both apply',
-    note({ slots: [] }, 3, 'slide', 2) === 'ungroups 2 groups · content → new slide');
-  t('D2.1: nothing to say = no note', note({ slots: [{}] }, 0, 'slide', 0) === null);
+    note({ areas: [] }, 3, 'slide', 2) === 'ungroups 2 groups · content → new slide');
+  t('D2.1: nothing to say = no note', note({ areas: [{}] }, 0, 'slide', 0) === null);
   t('D2.1: the count is OPTIONAL (older call sites keep working)',
-    note({ slots: [] }, 3, 'slide', undefined) === 'content → new slide');
+    note({ areas: [] }, 3, 'slide', undefined) === 'content → new slide');
 
   // The counter, EXECUTED against the real predicate. A group IS a container
   // with no declared layout (D2) — the three exclusions are the whole claim.

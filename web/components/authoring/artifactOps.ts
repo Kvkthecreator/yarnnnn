@@ -1506,10 +1506,11 @@ export function applyArrangement(
   html: string,
   fragment: string,
   anchor: OpAnchor,
-  /** ADR-466 D5: the target arrangement's slot roles, keyed by slot name (from
-   *  the served registry). With roles, distribution is ROLE-AWARE: media blocks
-   *  seek a media slot, flow content never lands in one. Optional — without it
-   *  the name/first-slot ladder still applies. */
+  /** ADR-466 D5, re-cut by ADR-544 D6: the target arrangement's AREA roles,
+   *  keyed by area name (from the served registry). Distribution is ROLE-FIRST:
+   *  heading→heading, body→body, media→media, with the authored name only
+   *  breaking ties among same-role Areas. Optional — without it the
+   *  name/first-Area ladder still applies (a pre-544 document's fallback). */
   slotRoles?: Record<string, string>,
 ): OpResult | null {
   const doc = parse(html);
@@ -1536,43 +1537,67 @@ export function applyArrangement(
   // a layout with nowhere to put content cannot receive content, and saying so
   // is the honest act. The caller surfaces the refusal.
   const carried = carriedBlocksOf(page);
-  const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));
+  // ADR-544 D2 — an Area is the region element. `[data-slot]` is kept as a
+  // READ-side fallback so a pre-544 document (or one an older lane authored)
+  // still re-lays instead of refusing.
+  const targetSlots = Array.from(el.querySelectorAll('[data-area], [data-slot]'));
 
   if (carried.length && !targetSlots.length) return null; // refuse, never delete
 
   if (targetSlots.length) {
-    // Placeholders yield to real content — but only in a slot that receives.
-    const byName = new Map(targetSlots.map((s) => [s.getAttribute('data-slot'), s]));
-    // ADR-466 D5 — the role ladder. With roles served, the fallback for FLOW
-    // content is the first flow-role slot (never a media/heading slot), and a
-    // media block (figure/gallery) seeks the media slot first — the "smarter
-    // role-based slot-mapping" ADR-453 D7 named.
-    const roleOf = (name: string | null) => (name && slotRoles ? (slotRoles[name] ?? null) : null);
-    const mediaSlot = slotRoles
-      ? targetSlots.find((s) => roleOf(s.getAttribute('data-slot')) === 'media')
-      : undefined;
-    const flowFallback = slotRoles
-      ? targetSlots.find((s) => {
-          const r = roleOf(s.getAttribute('data-slot'));
-          return r !== 'media' && r !== 'heading';
-        })
-      : undefined;
-    const fallback = flowFallback ?? targetSlots[0];
+    // ADR-544 D6 — THE MAPPING IS ROLE-FIRST. Pre-544 this keyed on the
+    // authored NAME with roles as a fallback, which was fragile for exactly the
+    // reason §1.1 gives: names were free-form LLM output, so `main`→`main` held
+    // only by luck and any re-naming silently collapsed a column into the
+    // first slot. The role is the Area's identity, so it is what maps.
+    const nameOf = (s: Element) => s.getAttribute('data-area') ?? s.getAttribute('data-slot');
+    // The target Area's role: read from the markup first (post-544 fragments
+    // carry it inline), then the served registry (which keys by name).
+    const roleOfEl = (s: Element) =>
+      s.getAttribute('data-area-role') ?? (slotRoles ? (slotRoles[nameOf(s) ?? ''] ?? null) : null);
+    // The SOURCE block's Area role, by the same ladder — a pre-544 page has no
+    // inline role, so the served map answers for it.
+    const sourceRole = (b: Element) => {
+      const from = b.closest('[data-area], [data-slot]');
+      if (!from) return null;
+      return roleOfEl(from);
+    };
+    const byRole = new Map<string, Element[]>();
+    targetSlots.forEach((s) => {
+      const r = roleOfEl(s);
+      if (!r) return;
+      byRole.set(r, [...(byRole.get(r) ?? []), s]);
+    });
+    // The primary body Area — where content lands when its role has no home.
+    // Never a media or heading Area: flow content must not fill either.
+    const bodyFallback =
+      (byRole.get('body') ?? [])[0] ??
+      targetSlots.find((s) => {
+        const r = roleOfEl(s);
+        return r !== 'media' && r !== 'heading';
+      }) ??
+      targetSlots[0];
     const receiving = new Set<Element>();
     carried.forEach((b) => {
       const kind = b.getAttribute('data-block');
-      const from = b.closest('[data-slot]')?.getAttribute('data-slot') ?? null;
-      const named = from ? byName.get(from) : undefined;
+      const from = b.closest('[data-area], [data-slot]');
+      const fromName = from ? nameOf(from) : null;
+      // A picture seeks a media Area regardless of where it sat (ADR-466 D5).
+      const isMedia = kind === 'figure' || kind === 'gallery';
+      const wanted = isMedia ? 'media' : sourceRole(b);
+      const sameRole = wanted ? (byRole.get(wanted) ?? []) : [];
       let target: Element;
-      if ((kind === 'figure' || kind === 'gallery') && mediaSlot) {
-        target = mediaSlot;
-      } else if (named && roleOf(from) !== 'media') {
-        // A same-named slot preserves position intent (side → side) — unless
-        // it is a media slot, which flow content must not fill.
-        target = named;
+      if (sameRole.length > 1 && fromName) {
+        // Same-role siblings: the authored NAME breaks the tie (side → side),
+        // which is the one job a name still has (D2).
+        target = sameRole.find((s) => nameOf(s) === fromName) ?? sameRole[0];
+      } else if (sameRole.length === 1) {
+        target = sameRole[0];
       } else {
-        target = fallback;
+        target = bodyFallback;
       }
+      // Flow content never lands in a media Area, even via the fallback.
+      if (!isMedia && roleOfEl(target) === 'media') target = bodyFallback;
       if (!receiving.has(target)) {
         target.querySelectorAll('[data-block]').forEach((p) => p.remove());
         receiving.add(target);

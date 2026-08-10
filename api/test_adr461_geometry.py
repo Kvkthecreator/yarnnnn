@@ -391,8 +391,23 @@ def run() -> bool:
     _check(
         "the frame is the NEAREST layout parent, not always the slide",
         # ADR-511 Phase 2: nearest structural CONTAINER (identity, no
-        # vocabulary); .col/[data-slot] kept as legacy fallbacks.
-        "closest('div[data-block-id]:not([data-block]), .col, [data-slot]')" in proj,
+        # vocabulary). ADR-544 D2 adds [data-area] — the region grain — with
+        # .col/[data-slot] kept as legacy fallbacks for pre-544 documents.
+        #
+        # Asserted as a SET, not a spelling: pinning the literal selector made
+        # this gate fail on a vocabulary change that strictly WIDENED what the
+        # walk finds, which is the "never pin a spelling, assert behaviour"
+        # lesson. What must hold is that the climb asks for the nearest
+        # addressable container and not for `.slide`.
+        all(
+            tok in proj
+            for tok in (
+                "div[data-block-id]:not([data-block])",
+                "[data-area]",
+                ".col",
+            )
+        )
+        and "function measurableFrame(block)" in proj,
     )
     _check(
         "the resize preview is a percent, not a pixel (no jump at the drop)",

@@ -1,5 +1,18 @@
 # ADR-519 — The object hierarchy is four grains, and the pane speaks one grammar
 
+> **Amended by [ADR-544](ADR-544-the-containment-law-slide-layout-area-block.md)
+> (2026-08-10) for the paged media.** D1's middle rung — "Container" — was one word for
+> two substrate concepts (`.cols`/`.col`, declared by the skin, and `data-slot`, declared
+> by the arrangement), which is why one paragraph's breadcrumb read `slide 2 › columns ›
+> main`: two structural rungs, neither a chosen word. ADR-544 collapses them into **Area**
+> (a region typed by role) and renames the chain **Slide → Layout → Area → Block**, adding
+> the invariant this ADR left implicit: **every block lives in exactly one Area**. Three of
+> the eleven deck arrangements had a heading inside a region and six had it bare on the
+> slide — the hierarchy was unstateable, not merely unnamed. **D2 is superseded in the deck
+> medium**: under containment there is no layout-less container on a slide, so "Group ≡ a
+> container with no layout declared" has nothing left to denote there. The pane spine (D3)
+> and the set-is-state rule (D4.1) are unchanged.
+>
 > **Extended by [ADR-525](ADR-525-the-selection-carries-its-tier.md) (2026-08-06).** D1's
 > closing scope sentence — *"document is Docs' housing (ADR-518) and outside this ADR"* —
 > was true in canon and false in code: `StudioDesignTab` never received the app identity

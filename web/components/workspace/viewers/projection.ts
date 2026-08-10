@@ -800,7 +800,7 @@ const POINTER_SCRIPT = `
     if (e.metaKey || e.ctrlKey) {
       var dcont = t && t.closest ? t.closest(CONTAINER_SEL) : null;
       if (dcont) {
-        var dslot = dcont.closest ? dcont.closest('[data-slot]') : null;
+        var dslot = dcont.closest ? dcont.closest('[data-area], [data-slot]') : null;
         // The SAME payload shape the miss-branch container rung emits — one
         // derivation, two entrances (the label-map precedent). A second shape
         // here is how the pane starts reading two answers for one grain.
@@ -815,7 +815,7 @@ const POINTER_SCRIPT = `
           label: labelFor(dcont),
           slideIndex: slideIndexOf(dcont),
           pageIndex: pageIndexOf(dcont),
-          slot: dslot ? (dslot.getAttribute('data-slot') || null) : null,
+          slot: dslot ? (dslot.getAttribute('data-area') || dslot.getAttribute('data-slot') || null) : null,
           arrange: arrangeOf(dcont),
           tier: tierOf(dcont), // structure — a container always earns its frame
         }, '*');
@@ -833,7 +833,7 @@ const POINTER_SCRIPT = `
       mark = blk || el;
       var text = (el.getAttribute('alt') || el.textContent || '')
         .replace(/\\s+/g, ' ').trim().slice(0, 120);
-      var slotEl = el.closest ? el.closest('[data-slot]') : null;
+      var slotEl = el.closest ? el.closest('[data-area], [data-slot]') : null;
       var blkKind = blk ? (blk.getAttribute('data-block') || null) : null;
       payload = {
         type: 'yarnnn-point',
@@ -845,7 +845,7 @@ const POINTER_SCRIPT = `
         label: labelFor(blk || el),
         slideIndex: slideIndexOf(el),
         pageIndex: pageIndexOf(el),
-        slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+        slot: slotEl ? (slotEl.getAttribute('data-area') || slotEl.getAttribute('data-slot') || null) : null,
         arrange: arrangeOf(el),
         // ADR-525 D1 — the tier travels WITH the selection, so the pane, the
         // menu and the keyboard read one answer instead of deriving three.
@@ -919,7 +919,7 @@ const POINTER_SCRIPT = `
       var hit = cont || page;
       if (hit) {
         mark = hit;
-        var hitSlot = hit.closest ? hit.closest('[data-slot]') : null;
+        var hitSlot = hit.closest ? hit.closest('[data-area], [data-slot]') : null;
         payload = {
           type: 'yarnnn-point',
           tag: hit.tagName.toLowerCase(),
@@ -930,7 +930,7 @@ const POINTER_SCRIPT = `
           label: labelFor(hit),
           slideIndex: slideIndexOf(hit),
           pageIndex: pageIndexOf(hit),
-          slot: hitSlot ? (hitSlot.getAttribute('data-slot') || null) : null,
+          slot: hitSlot ? (hitSlot.getAttribute('data-area') || hitSlot.getAttribute('data-slot') || null) : null,
           arrange: arrangeOf(hit),
           tier: tierOf(hit), // ADR-525 D1 — a container/page is 'structure'.
         };
@@ -991,7 +991,7 @@ const POINTER_SCRIPT = `
       cur.classList.remove('yarnnn-pointed');
       cur = null;
     }
-    var slotEl = el && el.closest ? el.closest('[data-slot]') : null;
+    var slotEl = el && el.closest ? el.closest('[data-area], [data-slot]') : null;
     parent.postMessage({
       type: 'yarnnn-context-menu',
       x: e.clientX, y: e.clientY,
@@ -1007,7 +1007,7 @@ const POINTER_SCRIPT = `
       tier: mark ? tierOf(mark) : null,
       slideIndex: el ? slideIndexOf(el) : (ctxCont ? slideIndexOf(ctxCont) : null),
       pageIndex: el ? pageIndexOf(el) : (ctxCont ? pageIndexOf(ctxCont) : null),
-      slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+      slot: slotEl ? (slotEl.getAttribute('data-area') || slotEl.getAttribute('data-slot') || null) : null,
       arrange: el ? arrangeOf(el) : null,
       // The frame gate (ADR-461 D4) travels WITH the payload: the runtime is
       // the only side that can see the DOM, so it answers "is this framed?"
@@ -1068,7 +1068,7 @@ const POINTER_SCRIPT = `
     // inherited no guard; the Esc-walk climbs to a container/page, which earns
     // the frame, but the cue decision belongs to one function regardless).
     window.__yarnnnSelect(up);
-    var upSlot = up.closest ? up.closest('[data-slot]') : null;
+    var upSlot = up.closest ? up.closest('[data-area], [data-slot]') : null;
     var upIsCont = up.matches ? up.matches(CONTAINER_SEL) : false;
     parent.postMessage({
       type: 'yarnnn-point',
@@ -1080,7 +1080,7 @@ const POINTER_SCRIPT = `
       label: labelFor(up),
       slideIndex: slideIndexOf(up),
       pageIndex: pageIndexOf(up),
-      slot: upSlot ? (upSlot.getAttribute('data-slot') || null) : null,
+      slot: upSlot ? (upSlot.getAttribute('data-area') || upSlot.getAttribute('data-slot') || null) : null,
       arrange: arrangeOf(up),
       tier: tierOf(up), // ADR-525 D1
     }, '*');
@@ -1639,7 +1639,7 @@ const ADD_HERE_SCRIPT = `
       // routes media slots to a picker — so the honest label is the one that
       // promises a choice rather than a specific block.
       btn.textContent = '+ Add';
-      btn.setAttribute('data-slot-name', slot.getAttribute('data-slot') || '');
+      btn.setAttribute('data-slot-name', slot.getAttribute('data-area') || slot.getAttribute('data-slot') || '');
       // ADR-511 Phase 2 — the container's IDENTITY is the op address (the
       // load-normalize stamped it); slot/arrange ride along as legacy names
       // for the parent's registry ROLE lookup (media → the picker).
@@ -1812,7 +1812,7 @@ const EDIT_CSS = `
    slide shows its dashed bounds ALWAYS, not only on hover — the member sees
    where content goes before they reach for it. The add-here runtime stamps
    the class when it decorates an empty slot. */
-.slide [data-slot].yarnnn-slot-open {
+.slide [data-area].yarnnn-slot-open, .slide [data-slot].yarnnn-slot-open {
   outline: 1.5px dashed rgba(120,115,107,0.45); outline-offset: 2px;
   min-height: 2.5rem;
 }
@@ -3348,7 +3348,7 @@ const EDIT_SCRIPT = `
     e.preventDefault();
     exit(true); // commit + tell the parent editing ended
     if (window.__yarnnnSelect) window.__yarnnnSelect(el);
-    var slotEl = el.closest ? el.closest('[data-slot]') : null;
+    var slotEl = el.closest ? el.closest('[data-area], [data-slot]') : null;
     var pageEl = el.closest ? el.closest('[data-arrange]') : null;
     parent.postMessage({ type: 'yarnnn-point',
       tag: el.tagName.toLowerCase(),
@@ -3357,7 +3357,7 @@ const EDIT_SCRIPT = `
       blockId: id,
       blockKind: el.getAttribute('data-block') || null,
       slideIndex: null, pageIndex: null,
-      slot: slotEl ? (slotEl.getAttribute('data-slot') || null) : null,
+      slot: slotEl ? (slotEl.getAttribute('data-area') || slotEl.getAttribute('data-slot') || null) : null,
       // ADR-525 D1 — the edit runtime is a separate script, so it derives the
       // tier from its own FLOW_MODE/TEXT_KINDS rather than reaching for the
       // pointer runtime's tierOf. Same rule, stated once per scope.
@@ -3779,7 +3779,7 @@ const OBJECT_SCRIPT = `
     // (identity, no vocabulary); .col/[data-slot] kept as legacy fallbacks
     // for projections that predate the load-normalize.
     var col = block.parentElement && block.parentElement.closest
-      ? block.parentElement.closest('div[data-block-id]:not([data-block]), .col, [data-slot]')
+      ? block.parentElement.closest('div[data-block-id]:not([data-block]), .col, [data-area], [data-slot]')
       : null;
     if (col && col !== block) return col;
     return block.closest ? block.closest('.slide') : null;
@@ -4489,6 +4489,13 @@ export async function resolveArtifactHtml(
      *  what the registry served. Omitted → the gesture falls back to the
      *  permissive [1,100] it always used, which is the pre-ADR-485 behaviour. */
     measureBounds?: Record<string, { min: number; max: number }>;
+    /** ADR-544 D4 — the SERVED kind→label map (`vocabulary.blocks`). The chrome
+     *  says the registry's word ("Text"), never the substrate's attribute
+     *  ("prose"). Same reasoning as `measureBounds` directly above: the runtime
+     *  must never invent an operator-facing word, so the parent passes what the
+     *  registry served. Omitted → labels degrade to the raw kind, which is the
+     *  pre-544 behaviour and visibly wrong rather than silently plausible. */
+    blockLabels?: Record<string, string>;
   },
 ): Promise<string> {
   if (!html) return html;
@@ -4540,7 +4547,7 @@ export async function resolveArtifactHtml(
       // Slots are pure containers on flow — lift their children too, so a
       // `<section data-arrange><div data-slot>…</div></section>` collapses in
       // one pass rather than leaving an orphaned slot div behind.
-      section.querySelectorAll('[data-slot]').forEach((slot) => {
+      section.querySelectorAll('[data-area], [data-slot]').forEach((slot) => {
         while (slot.firstChild) slot.parentNode?.insertBefore(slot.firstChild, slot);
         slot.remove();
       });
@@ -4566,7 +4573,7 @@ export async function resolveArtifactHtml(
     doc.querySelectorAll('div').forEach((el) => {
       if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) return;
       if (el.parentElement?.closest('[data-block], [data-ref]')) return;
-      if (!el.querySelector('[data-block]') && !el.hasAttribute('data-slot')) return;
+      if (!el.querySelector('[data-block]') && !el.hasAttribute('data-area') && !el.hasAttribute('data-slot')) return;
       el.setAttribute('data-yarnnn-label', labelForElement(el));
     });
   }
@@ -4606,6 +4613,14 @@ export async function resolveArtifactHtml(
       // cannot match. Paged-only, so the intent is legible not accidental.
       (opts?.edit && paged ? EDIT_CSS : '');
     doc.head?.appendChild(style);
+    // ADR-544 D4 — the served labels land BEFORE any runtime that labels with
+    // them. EDIT_SCRIPT is injected ahead of POINTER_SCRIPT and both inline
+    // `labelForJS`, so the global cannot ride the pointer payload alone.
+    const labelData = doc.createElement('script');
+    labelData.textContent = `window.__yarnnnBlockLabels = ${JSON.stringify(
+      opts?.blockLabels ?? null,
+    )};`;
+    doc.body?.appendChild(labelData);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is
       // defined before the pointer runtime checks it (script order = DOM order).

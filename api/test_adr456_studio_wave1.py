@@ -67,7 +67,7 @@ def run() -> bool:
     _check("closing is a full-tone slide (reuses data-tone, no new mechanism)",
            'data-tone="inverse"' in deck["closing"]["fragment"])
     _check("full-bleed's slot is media-role (the picker gates the add)",
-           deck["full-bleed"]["slots"] == [{"name": "media", "role": "media"}])
+           deck["full-bleed"]["areas"] == [{"name": "media", "role": "media"}])
     # ADR-481 D1 (2026-07-22) RETIRED W1's document arrangements — a FLOWING
     # document has no page-grain unit, and the registry serving rows for one is
     # what produced the empty-slot void. The W1 pin flips from "these rows

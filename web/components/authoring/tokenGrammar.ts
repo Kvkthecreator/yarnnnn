@@ -18,6 +18,10 @@ export type TokenScope = 'block' | 'page' | 'document';
 export type TokenGrain =
   | 'any'
   | 'staged'
+  /** ADR-544 D3 — an IMAGES artboard, never a deck slide. The narrower half of
+   *  `staged`: free position (x/y/z) lives here since the containment law took
+   *  it away from decks, while SIZE still admits `staged` (either frame). */
+  | 'artboard'
   | 'flow'
   | 'media'
   | 'callout'

@@ -54,8 +54,10 @@ for key, row in ALL_ROWS:
         and len(row["grains"]) > 0,
     )
 
-t("the axes themselves are the declared enums (block/page/document × 8 grains)",
-  st.TOKEN_SCOPES == ("block", "page", "document") and len(st.TOKEN_GRAINS) == 8)
+# ADR-544 D3 — nine grains: `artboard` joined as the narrower half of `staged`
+# (an IMAGES stage, never a deck slide) when free position left the deck.
+t("the axes themselves are the declared enums (block/page/document × 9 grains)",
+  st.TOKEN_SCOPES == ("block", "page", "document") and len(st.TOKEN_GRAINS) == 9)
 t("`tone` is the two-scope witness (the row the compound encoding couldn't say)",
   st.STUDIO_TOKENS["tone"]["scope"] == ("block", "page")
   and st.STUDIO_TOKENS["tone"]["grains"] == ("any",))
@@ -107,6 +109,7 @@ _ctx_src = PANE + SURFACE
 GRAIN_RESOLUTIONS = {
     "staged": r"staged:",
     "flow": r"flow:",
+    "artboard": r"artboard:",
     "media": r"media:",
     "callout": r"callout:",
     "deck": r"deck:",

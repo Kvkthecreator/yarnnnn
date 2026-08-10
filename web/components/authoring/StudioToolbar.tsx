@@ -27,14 +27,19 @@ import { useEffect, useRef, useState } from 'react';
 import { LayoutGrid, LayoutTemplate, Plus } from 'lucide-react';
 import { ArrangementThumb } from './ArrangementThumb';
 
-/** An arrangement (ADR-447) — the composition shape of a page/slide. `slots`
- *  carry {name, role}; role gates what can land in a slot (ADR-453 D5). */
+/** An arrangement (ADR-447) — the composition shape of a page/slide.
+ *
+ *  ADR-544 D2 — `slots` became `areas`: an AREA is the region grain, typed by
+ *  a role from the closed set (heading | body | media | aside) with an optional
+ *  `place` telling same-role siblings apart. The role is the Area's IDENTITY —
+ *  the chrome labels from it (D4) and a re-lay maps by it (D6) — not the hint
+ *  it was when only the media picker read it. */
 export interface StudioArrangement {
   slug: string;
   label: string;
   description: string;
   grain: string;
-  slots: Array<{ name: string; role: string }>;
+  areas: Array<{ name: string; role: string; place?: string }>;
   fragment: string;
 }
 
@@ -154,7 +159,7 @@ export interface StudioSelection {
  *  choice is made. Shared by the toolbar's Layout gallery and the Properties
  *  page scope's Re-arrange gallery. */
 export function arrangementCarryNote(
-  a: Pick<StudioArrangement, 'slots'>,
+  a: Pick<StudioArrangement, 'areas'>,
   carriedCount: number | null,
   pageNoun: string,
   /** ADR-519 D2.1 — does this page hold an authored GROUP? Re-arranging
@@ -175,11 +180,11 @@ export function arrangementCarryNote(
   // new page; a group is gone). Say the surprising thing.
   if (g > 0) {
     const groups = g === 1 ? 'group' : 'groups';
-    return n > 0 && a.slots.length === 0
+    return n > 0 && a.areas.length === 0
       ? `ungroups ${g} ${groups} · content → new ${pageNoun}`
       : `ungroups ${g} ${groups}`;
   }
-  if (n > 0 && a.slots.length === 0) {
+  if (n > 0 && a.areas.length === 0) {
     return `content → new ${pageNoun}`;
   }
   return null;
@@ -390,7 +395,7 @@ export function StudioToolbar({
                 title={a.description}
                 className="flex flex-col gap-1 rounded-md border border-transparent p-1.5 text-left hover:border-border hover:bg-muted/20"
               >
-                <ArrangementThumb slots={a.slots} fragment={a.fragment} />
+                <ArrangementThumb areas={a.areas} fragment={a.fragment} />
                 <span className="truncate text-[11px]">{a.label}</span>
               </button>
             ))}
@@ -427,7 +432,7 @@ export function StudioToolbar({
                     current ? 'border-indigo-400' : 'border-transparent hover:border-border'
                   }`}
                 >
-                  <ArrangementThumb slots={a.slots} fragment={a.fragment} />
+                  <ArrangementThumb areas={a.areas} fragment={a.fragment} />
                   <span className="truncate text-[11px]">{a.label}</span>
                   {note && (
                     <span className="truncate text-[9px] leading-tight text-amber-600 dark:text-amber-500">
