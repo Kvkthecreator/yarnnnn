@@ -2,6 +2,12 @@
 
 > **Status**: **Accepted — operator-ratified 2026-08-02** (the file-as-the-what discourse
 > session: full share/chat audit → axiomatic re-derivation → the Finder verb mapping).
+> **Completed by [ADR-543](ADR-543-the-interop-surface-speaks-the-kernel-verbs.md)
+> (2026-08-10)**: the D3 kernel verb `list` — named in the contract but never bound at
+> the MCP surface — ships; the memory verbs this ADR tolerated beside the file verbs
+> (§9's evidence-gated rename) retire in full (`recall`→`search`, `trace`→`history`,
+> `remember` dissolved into `save` + the taught filesystem model). One ontology across
+> the manifest; §10's "the costume ends" is now true of the verbs themselves.
 > Phase 1 implemented in the same pass: the `open` verb + the connector self-description
 > re-frame + the handle grammar + ADR-465 Phase D (`share-as-view`).
 > **Amended 2026-08-03 (§8a — the `save` verb, operator delegation "implement all

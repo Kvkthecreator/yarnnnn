@@ -15,13 +15,13 @@ The result is a walkable chain. You can read a file's whole life, not just its c
 
 ## Three things this buys you
 
-### 1. `trace` — "why is this here?"
+### 1. `history` — "why is this here?"
 
 Open any file's history and you see the chain: `r7`, authored by you, "tightened the pricing section," two days ago. Click a revision to diff it against the current version.
 
 This is the capability a memory feature can't offer. An inferred-memory system can tell you what it thinks it knows; it can't tell you who told it, when, or what it used to think instead.
 
-You can also ask for this from outside YARNNN — the `trace` tool over MCP returns the same history to ChatGPT or Claude.
+You can also ask for this from outside YARNNN — the `history` tool over MCP returns the same chain to ChatGPT or Claude.
 
 ### 2. Corrections compound
 

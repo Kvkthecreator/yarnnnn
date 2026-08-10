@@ -41,7 +41,7 @@ Open **Files**. Everything you just made is there.
 
 Right-click any file → **Get Info**. You'll see its full history: which revisions, who authored each one, and what changed. Click one to diff it against the current version.
 
-That's `trace`. It's the thing that makes the workspace an asset rather than an output folder.
+That's `history`. It's the thing that makes the workspace an asset rather than an output folder.
 
 ## 6. Connect your other AI
 

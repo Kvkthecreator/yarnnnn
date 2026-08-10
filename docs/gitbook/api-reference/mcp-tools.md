@@ -1,6 +1,6 @@
 # MCP Tool Reference
 
-The MCP server exposes exactly three tools. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
+The MCP server exposes six file-native tools. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
 
 **Endpoint:** `https://mcp.yarnnn.com`
 **Transport:** streamable-http, served at the root path
@@ -8,35 +8,53 @@ The MCP server exposes exactly three tools. For setup, see the [MCP connector gu
 **Discovery:** `https://yarnnn.com/.well-known/mcp.json`
 **OAuth metadata:** `https://mcp.yarnnn.com/.well-known/oauth-authorization-server`
 
----
-
-## `remember`
-
-Save something worth keeping. A write.
-
-| Parameter | Type | Required | Meaning |
-|---|---|---|---|
-| `content` | string | yes | What to remember |
-| `about` | string | no | A subject hint, to help place it |
-
-Returns the path it was written to, its provenance (source, date, original context), and a `remembered` status. The write is durable and retrievable by subject immediately.
-
-Not read-only, not destructive, not idempotent.
+> Connected before 2026-08-10? The old memory verbs (`remember` / `recall` /
+> `trace`) were retired in full — disconnect and reconnect the integration so
+> your host fetches the current tool list.
 
 ---
 
-## `recall`
+## `open`
 
-Pull what the workspace already knows about a subject. A read.
+Read one exact file. A read.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `subject` | string | yes | | What to look up |
-| `question` | string | no | | A specific question about it |
-| `domain` | string | no | | Narrow the search |
+| `reference` | string | yes | | `yarnnn://workspace/{path}`, `/workspace/{path}`, or a workspace-relative path |
+| `revisions` | integer | no | 5 | Recent revisions to summarize (up to 10) |
+
+Returns the exact current content (`truncated: true` if capped), who last
+changed it, when, and its recent attributed revisions. An unknown path returns
+`found: false` — open never guesses. Read-only and idempotent.
+
+---
+
+## `list`
+
+Enumerate the files under a folder. A read.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `reference` | string | no | The folder; omit to list the whole workspace |
+
+Returns every file under the folder — path, an open-able reference, size, who
+last changed it, and when — plus `truncated: true` when the subtree exceeded
+the cap. Read-only and idempotent.
+
+---
+
+## `search`
+
+Find files by meaning. A read.
+
+| Parameter | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `query` | string | yes | | What to find |
 | `limit` | integer | no | 10 | Max results (up to 30) |
 
-Returns matching chunks — each with its path, an excerpt, when it was last updated, its domain, its source, and a similarity score — plus totals and a **confidence** signal:
+Returns ranked matches — each with its path, an open-able reference, an
+excerpt, when it was last updated, and a similarity score — plus totals and a
+**confidence** signal:
 
 | Confidence | Meaning |
 |---|---|
@@ -49,18 +67,53 @@ YARNNN returns the material; the calling model explains it. Read-only and idempo
 
 ---
 
-## `trace`
+## `save`
 
-Show how a recorded fact changed over time. A read.
+Write a file back as an attributed revision. A write.
+
+| Parameter | Type | Required | Meaning |
+|---|---|---|---|
+| `reference` | string | yes | The file, same grammar as `open` |
+| `content` | string | yes | The full new content (an overwrite, not a patch) |
+| `base_revision` | string | for existing files | The head revision id from `open` — the read-before-write guarantee |
+| `message` | string | no | A one-line change description |
+| `derived_from` | string[] | no | References of the workspace sources this was made from |
+
+If someone changed the file since it was opened, the save returns
+`stale_write` with who holds the head — re-open, merge, save again. Omit
+`base_revision` only to create a new file. Not destructive (every prior
+version stays on the chain), not idempotent.
+
+---
+
+## `history`
+
+Show how one exact file changed over time. A read.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `subject` | string | yes | | What to trace |
+| `reference` | string | yes | | The file, same grammar as `open` |
 | `limit` | integer | no | 10 | Max revisions (up to 30) |
 
-Returns the resolved path and its history newest-first — for each revision: who authored it, when, what changed, the revision id, and a diff. Plus a `resolution` field (`exact` · `ambiguous` · `weak` · `none`).
+Returns the revision chain newest-first — for each revision: who authored it,
+when, what changed, the revision id, and a diff against its predecessor. If
+the file cites sources (`derived_from`), each cited file's chain is appended.
+An unknown path returns `found: false` — search first when you only know the
+topic. Read-only and idempotent.
 
-Read-only and idempotent.
+---
+
+## `share`
+
+Mint a share link. A write.
+
+| Parameter | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `reference` | string | no | | A file to share; omit to share the workspace |
+| `access` | string | no | `member` | `member` (full access) or `viewer` (read-only) |
+
+Returns the link for the calling model to relay. Whoever opens it sees the
+work and who made it; joining the workspace requires sign-in.
 
 ---
 
@@ -72,4 +125,4 @@ Each call also lands a narrative entry in the workspace, so work done from anoth
 
 ## Host rendering
 
-ChatGPT renders results as inline widgets — a trace timeline, recall cards, and a save receipt. Other hosts get the text response. Clients are recognised by name; an unrecognised but spec-compliant client gets the text path.
+ChatGPT renders results as inline widgets — a history timeline, search-result cards, and file receipts. Other hosts get the text response. Clients are recognised by name; an unrecognised but spec-compliant client gets the text path.

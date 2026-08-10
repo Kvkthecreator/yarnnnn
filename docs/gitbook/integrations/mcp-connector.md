@@ -14,13 +14,16 @@ Your context stops being trapped in whichever app you happened to use.
 - Start a conversation somewhere else and have it grounded in your actual work
 - Ask any connected AI how a fact in your workspace got there, and who changed it
 
-## The three verbs
+## The verbs
 
 | Verb | What it does |
 |---|---|
-| `remember` | Saves something worth keeping — a decision, an insight, a fact, a preference. Lands as an attributed file in your workspace, retrievable immediately. |
-| `recall` | Pulls what your workspace already knows about a subject. Returns the material plus a confidence signal; the AI you're talking to explains it in its own voice. |
-| `trace` | Shows how a recorded fact changed over time — who changed it, when, and what the change was. This is the one a plain storage connector can't do. |
+| `open` | Reads one exact file — content, who last changed it, and its recent revisions. |
+| `list` | Shows what exists — every file under a folder (or the whole workspace), with who last touched each. |
+| `search` | Finds files by meaning. Returns the material plus a confidence signal; the AI you're talking to explains it in its own voice. |
+| `save` | Writes a file back as an attributed revision — including anything worth keeping from the conversation itself. |
+| `history` | Shows how a file changed over time — who changed it, when, and what the change was. This is the one a plain storage connector can't do. |
+| `share` | Mints a member or read-only link for a file (or the workspace), right from the conversation. |
 
 Every write from a connected AI is attributed to it by name. You'll see `claude.ai` or `chatgpt` on the revision, and the connection appears as a revocable row in your members roster.
 
@@ -33,7 +36,7 @@ Every write from a connected AI is attributed to it by name. You'll see `claude.
 3. Name: `yarnnn` · URL: `https://mcp.yarnnn.com`
 4. **Add**, then complete the authorisation
 
-Try: *"Use YARNNN to recall what I know about the Q1 roadmap."*
+Try: *"Use YARNNN to find what I have on the Q1 roadmap."*
 
 <figure><img src="../.gitbook/assets/mcp connect - claud.png" alt=""><figcaption></figcaption></figure>
 
@@ -103,8 +106,8 @@ Tools are available in your next session.
 ## Tips
 
 - **Be explicit at first** — "use YARNNN to…" so the client reaches for the connector rather than guessing. Once it's used a few times, most clients pick it up on their own.
-- **Think in subjects.** `recall` and `trace` take a subject, not a file path. Ask about the thing, not the location.
-- **Confidence is a real signal.** When `recall` comes back ambiguous, several things matched and none dominated — a good client will ask you which you meant rather than picking the first.
+- **Exact when you know the file, fuzzy when you don't.** `open` and `history` take a path or reference; `search` takes a topic; `list` shows what exists when you're not sure of either.
+- **Confidence is a real signal.** When `search` comes back ambiguous, several things matched and none dominated — a good client will ask you which you meant rather than picking the first.
 - **It's the same workspace.** Anything you save from ChatGPT is in Files when you next open YARNNN, and vice versa.
 
 ## Managing connections

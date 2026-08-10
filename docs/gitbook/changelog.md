@@ -5,6 +5,13 @@ Notable updates to YARNNN and these docs.
 <!-- AUTO_SYNC_START -->
 <!-- AUTO_SYNC_END -->
 
+## August 2026
+
+### The MCP connector went file-native (Aug 10)
+- The connector's tools are now the same verbs the workspace itself speaks: `open` · `list` · `search` · `save` · `history` · `share`. A connected AI can finally *list* what exists instead of guessing at it.
+- The old memory verbs (`remember` / `recall` / `trace`) are retired. Anything worth keeping is an ordinary attributed `save`; a file's story is its `history`.
+- **If you connected before Aug 10**: disconnect and reconnect the integration in your AI's settings so it picks up the new tools — hosts cache the old list.
+
 ## July 2026
 
 ### Pricing: two free seats, usage pay-as-you-go (Jul 28–29)

@@ -17,7 +17,7 @@ The interop face (MCP) returns text today. Some hosts can render an **interactiv
 
 **It IS:** a per-tool, data-declared *presentation affordance*, served by the MCP server's resource surface, with one host-adapter at the edge. The third face of the one moat (ADR-372 §2).
 
-> **The single most important rule (ADR-372 D3):** a widget renders the **returned substrate** — it never composes an answer, opinion, or judgment the server did not return. `recall`/`trace` still return material; the host (prose **and/or** widget) explains it — and the host LLM still narrates in prose even when a widget renders (the widget is additive, not a replacement). Break this and you silently undo ADR-368.
+> **The single most important rule (ADR-372 D3):** a widget renders the **returned substrate** — it never composes an answer, opinion, or judgment the server did not return. `search`/`history` still return material; the host (prose **and/or** widget) explains it — and the host LLM still narrates in prose even when a widget renders (the widget is additive, not a replacement). Break this and you silently undo the retrieval-not-delegation line.
 
 ---
 
@@ -30,9 +30,8 @@ Presentation is declared as data adjacent to each tool. A tool with no declarati
 # Neutral, host-agnostic. No OpenAI/ChatGPT names appear here.
 
 AFFORDANCES: dict[str, Affordance] = {
-    "trace":    Affordance(widget="trace-timeline",    fallback="text", interactive=True),
-    "recall":   Affordance(widget="recall-cards",      fallback="text", interactive=False),
-    "remember": Affordance(widget="remember-receipt",  fallback="text", interactive=False),
+    "history":  Affordance(widget="history-timeline", fallback="text", interactive=True),
+    "search":   Affordance(widget="search-results",    fallback="text", interactive=False),
     # ADR-533 D4 (2026-08-07) — the file verbs join the roster:
     "save":     Affordance(widget="save-receipt",      fallback="text", interactive=False),
     "open":     Affordance(widget="file-header",       fallback="text", interactive=False),
@@ -56,9 +55,8 @@ TEXT_ONLY: dict[str, str] = {          # ADR-533 D4 — a DECLARED decision, not
 > declared widget's `dist/` bundle was never built.
 
 The widgets, by display intent:
-- **`trace-timeline`** — the revision chain as a provenance-colored vertical timeline with click-to-expand inline diffs (the differentiator).
-- **`recall-cards`** — ranked excerpts as scannable cards: each with a provenance chip, domain, timestamp, the excerpt, and the source path.
-- **`remember-receipt`** — a compact confirmation: ✓ saved, where it was filed, and the attributed source (makes the durable write *legible*).
+- **`history-timeline`** — the revision chain as a provenance-colored vertical timeline with click-to-expand inline diffs (the differentiator).
+- **`search-results`** — ranked matches as scannable cards: each with a timestamp, the excerpt, and the openable source path.
 - **`save-receipt`** (ADR-533) — exists for the **conflict**: on `stale_write`/`base_required` it shows who holds the head, when, what they called their change, and that nothing was overwritten. The success path is a small receipt.
 - **`file-header`** (ADR-533) — the opened file's **identity**: name, provenance chip for whose version it is, timestamp, revision count. Deliberately **not** the content — the host renders text better, and the attribution is what a storage connector cannot show.
 
@@ -86,10 +84,10 @@ api/mcp_server/
     ├── package.json
     ├── build.mjs            # esbuild → single self-contained .html per widget
     ├── tsconfig.json
-    ├── src/trace-timeline/  # the first widget (§7): index.tsx, TraceTimeline.tsx,
+    ├── src/history-timeline/  # the flagship widget (§7): index.tsx, HistoryTimeline.tsx,
     │                        #   types.ts, useToolResult.ts, styles.ts
     └── dist/                # built bundles, COMMITTED + served as ui:// resources
-        └── trace-timeline.html
+        └── history-timeline.html
 ```
 
 The registry maps a widget id to its served resource:
@@ -99,9 +97,9 @@ The registry maps a widget id to its served resource:
 RESOURCE_MIME = "text/html+skybridge"   # ChatGPT's required widget MIME (§4 live-finding)
 
 WIDGETS = {
-    "trace-timeline": Widget(
-        uri="ui://yarnnn/trace-timeline.html",
-        bundle_path="widgets/dist/trace-timeline.html",
+    "history-timeline": Widget(
+        uri="ui://yarnnn/history-timeline.html",
+        bundle_path="widgets/dist/history-timeline.html",
         # served-resource _meta.ui — domain + CSP are required for ChatGPT submission
         domain="https://mcp.yarnnn.com",
         csp_connect=["https://mcp.yarnnn.com"],
@@ -113,9 +111,9 @@ Served via the existing SDK (confirmed available, mcp 1.28.0):
 
 ```python
 # server.py (proposed addition)
-@mcp.resource("ui://yarnnn/trace-timeline.html", mime_type=RESOURCE_MIME)
-def trace_timeline_widget() -> str:
-    return (WIDGETS["trace-timeline"].bundle_path).read_text()  # the built HTML/JS
+@mcp.resource("ui://yarnnn/history-timeline.html", mime_type=RESOURCE_MIME)
+def history_timeline_widget() -> str:
+    return (WIDGETS["history-timeline"].bundle_path).read_text()  # the built HTML/JS
 ```
 
 No new Render service, no SDK upgrade — `FastMCP.resource()` and `custom_route()` are both present in the vendored mcp 1.28.0.
@@ -189,7 +187,7 @@ A host varies from the core on **exactly four dimensions**, and only four:
 
 Everything else — verbs, substrate, `user_id`, provenance mechanism, the ADR-307 gate — is identical. **The de-risking fact:** dimensions 2 and the *text path* of 3 are already host-agnostic, so a spec-compliant MCP client gets clean text responses with **zero new code** (proven live 2026-06-27). The registry doesn't *unlock* reach — reach is already there — it makes reach **attributed and safe** instead of **accidental and `"unknown"`**.
 
-`presentation/hosts.py` is the registry: a `HostProfile` table + three resolvers (`resolve_host_id`, `renders_widgets`, `widget_dialect`). `_normalize_client_id` (in `mcp_composition.py`) delegates to `resolve_host_id` — one resolver, the substring chain gone. **Adding Gemini is one line** (`HostProfile("gemini", ("gemini", "google"))`): it connects (auth, free), gets text (free), and attributes as `yarnnn:mcp:gemini` in `trace` (the one thing the entry adds). When a host ships a widget spec, flip `renders_widgets=True` + set `widget_dialect`, and §4's multi-dialect serving renders it.
+`presentation/hosts.py` is the registry: a `HostProfile` table + three resolvers (`resolve_host_id`, `renders_widgets`, `widget_dialect`). `_normalize_client_id` (in `mcp_composition.py`) delegates to `resolve_host_id` — one resolver, the substring chain gone. **Adding Gemini is one line** (`HostProfile("gemini", ("gemini", "google"))`): it connects (auth, free), gets text (free), and attributes as `yarnnn:mcp:gemini` in `history` (the one thing the entry adds). When a host ships a widget spec, flip `renders_widgets=True` + set `widget_dialect`, and §4's multi-dialect serving renders it.
 
 > **Ordering caveat (preserved):** substring match is **first-wins by registry order**. The specific Claude variants (`claude_desktop`, `claude_code`) must be tested such that they win over the bare `anthropic`/`claude.ai` match. The CI gate (`test_adr379_host_profiles.py`) freezes the known disambiguations so the ordering can never silently regress.
 
@@ -201,27 +199,27 @@ Everything else — verbs, substrate, `user_id`, provenance mechanism, the ADR-3
 
 ## 6. The widget↔tool callback contract (D6)
 
-An interactive widget *may* call back via JSON-RPC `tools/call` over `postMessage` (MCP Apps bridge). When it does, it calls the **same** `remember`/`recall`/`trace` tools — through the **same** `execute_primitive()` gate, the **same** ADR-307 permission taxonomy, the **same** audit trail. There is no widget-only privileged path. A widget cannot reach substrate a normal tool call couldn't.
+An interactive widget *may* call back via JSON-RPC `tools/call` over `postMessage` (MCP Apps bridge). When it does, it calls the **same** interop tools — through the **same** `execute_primitive()` gate, the **same** ADR-307 permission taxonomy, the **same** audit trail. There is no widget-only privileged path. A widget cannot reach substrate a normal tool call couldn't.
 
 ```javascript
 // inside the widget bundle — e.g. fetch more revisions on scroll
 window.parent.postMessage({
   jsonrpc: "2.0", id: 1, method: "tools/call",
-  params: { name: "trace", arguments: { subject, limit: 30 } }
+  params: { name: "history", arguments: { reference, limit: 30 } }
 }, "*");
 ```
 
 The result arrives back as a `ui/notifications/tool-result` message; the widget re-renders. Same data contract as the text path.
 
-> **Prefer embedding over calling back when the data set is bounded.** The `trace` widget's click-to-diff needs the diff for each revision — but rather than a per-click `tools/call`, `compose_trace` **embeds each revision's diff inline** in the result (server-side, via the existing `DiffRevisions` primitive). The widget expands a diff with *zero* callback. This keeps the ADR-368 three-verb surface intact (no 4th MCP tool), works on every host (even ones without the callback bridge), and is more robust. Reserve the callback path for genuinely unbounded interaction (infinite scroll, search-within) where embedding the whole set is impractical.
+> **Prefer embedding over calling back when the data set is bounded.** The `history` widget's click-to-diff needs the diff for each revision — but rather than a per-click `tools/call`, `compose_history` **embeds each revision's diff inline** in the result (server-side, via the existing `DiffRevisions` primitive). The widget expands a diff with *zero* callback. This keeps the verb surface intact (no extra MCP tool), works on every host (even ones without the callback bridge), and is more robust. Reserve the callback path for genuinely unbounded interaction (infinite scroll, search-within) where embedding the whole set is impractical.
 
 ---
 
-## 7. The `trace` timeline widget (the reference affordance — IMPLEMENTED)
+## 7. The `history` timeline widget (the reference affordance — IMPLEMENTED)
 
-`trace` is the first widget because it is the differentiator (the ADR-209 authored revision chain a plain storage connector cannot show), and a who-changed-what-when timeline is inherently visual.
+`history` carries the flagship widget because it is the differentiator (the ADR-209 authored revision chain a plain storage connector cannot show), and a who-changed-what-when timeline is inherently visual.
 
-**The data `compose_trace` returns** (`api/services/mcp_composition.py`) — each revision now carries its embedded diff-vs-predecessor (§6); no kernel change:
+**The data `compose_history` returns** (`api/services/mcp_composition.py`) — each revision carries its embedded diff-vs-predecessor (§6); no kernel change:
 
 ```python
 {
@@ -238,16 +236,16 @@ The result arrives back as a `ui/notifications/tool-result` message; the widget 
 
 **What the slice ships (all in `api/mcp_server/`, none in the kernel):**
 
-1. `presentation/affordances.py` — the `"trace"` entry (§2).
-2. `presentation/registry.py` — `"trace-timeline"` → `ui://yarnnn/trace-timeline.html` (§3).
-3. `server.py` — `@mcp.resource(...)` serving the built bundle (§3); on `trace`'s return, attach `_meta` via the adapter (§4) **only when `hosts.renders_widgets(client_name)`** (§5, amended 2026-06-27), with the full `history[]` always also in `content`/`structuredContent` for every host.
-4. `compose_trace._embed_revision_diffs` — embeds each revision's diff inline server-side (§6), so click-to-diff needs zero callback.
-5. `widgets/src/trace-timeline/` — a React (TS) bundle that:
+1. `presentation/affordances.py` — the `"history"` entry (§2).
+2. `presentation/registry.py` — `"history-timeline"` → `ui://yarnnn/history-timeline.html` (§3).
+3. `server.py` — `@mcp.resource(...)` serving the built bundle (§3); on `history`'s return, attach `_meta` via the adapter (§4) **only when `hosts.renders_widgets(client_name)`** (§5, amended 2026-06-27), with the full `history[]` always also in `content`/`structuredContent` for every host.
+4. `compose_history` + `_embed_revision_diffs` — embeds each revision's diff inline server-side (§6), so click-to-diff needs zero callback.
+5. `widgets/src/history-timeline/` — a React (TS) bundle that:
    - renders `history[]` as a vertical timeline, newest first;
    - colors each node by `authored_by` bucket (`operator` / `reviewer` / `mcp` / `agent` / `system`) — the cross-LLM provenance made visual;
    - shows each revision's `change` message + timestamp, and a **show-changes** toggle that expands the embedded unified `diff` (added/removed lines colored), zero callback;
    - renders the `explanation` as a caption — **it does not author new prose** (D3).
-6. `widgets/package.json` + `build.mjs` (esbuild) → single self-contained `widgets/dist/trace-timeline.html`.
+6. `widgets/package.json` + `build.mjs` (esbuild) → single self-contained `widgets/dist/history-timeline.html`.
 
 ### Building the widget
 
@@ -257,7 +255,7 @@ The bundle is built **locally / at dev time** and the single-file `dist/` output
 cd api/mcp_server/widgets
 npm install          # first time only
 npx tsc --noEmit     # type-check
-npm run build        # → dist/trace-timeline.html (React inlined, minified, self-contained)
+npm run build        # → dist/history-timeline.html (React inlined, minified, self-contained)
 ```
 
 **Return-shape contract:** the full result is in `structuredContent` *and* `content` (so a text host and the model still reason over it); the widget reads the same fields from the `ui/notifications/tool-result` bridge notification (with a `window.openai.toolOutput` fast-path for first paint). The widget is a *richer view of the returned `history[]`* — nothing more.
@@ -275,7 +273,7 @@ npm run build        # → dist/trace-timeline.html (React inlined, minified, se
 | MCP Apps spec revs a key | `adapters/mcp_apps.py` only | overlay shrinks, affordances, kernel |
 | A new host CONNECTS (reach: Gemini, Cursor, Copilot, …) | one `HostProfile` entry in `hosts.py` (§5.1) | auth, verbs, substrate, kernel — text path is free |
 | An existing host adds WIDGET rendering | flip `renders_widgets=True` + set `widget_dialect`; one dialect adapter if new (§4) | widget bundles reused as-is; the registry entry already exists |
-| A new widget (e.g. `recall-cards`) | one registry + one affordance entry + one bundle | every other tool |
+| A new widget | one registry + one affordance entry + one bundle | every other tool |
 | A server-side host-capability signal standardizes | opt into suppressing `_meta` for text-only hosts as an optimization | the always-text-channel contract (text path never depends on it) |
 | The kernel/primitives evolve | nothing in presentation (tools call `execute_primitive` unchanged) | the whole presentation layer |
 

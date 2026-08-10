@@ -1,271 +1,142 @@
-# MCP Tool Contracts — the file verbs
+# MCP Tool Contracts — the file-native verbs
+
+> **ADR-543 (2026-08-10) — the surface is file-native, in full.** The memory
+> verbs (`remember` / `recall` / `trace`, the ADR-169→368 strata) are retired;
+> every verb is a binding of a kernel verb (ADR-512 D3: read · write · list ·
+> search · revisions · share) and presents no object the kernel contract does
+> not have. No aliases ship — a host holding a stale manifest gets
+> tool-not-found on the dead verbs until it reconnects
+> ([CONNECTING.md §"The surface changed"](CONNECTING.md)).
 
 > **ADR-533 (2026-08-07) — the verb roster is DATA, and this doc is not its source.**
 > The live roster is `_INTEROP_VERBS` in `api/mcp_server/server.py`; the connector's
 > self-description derives its verb table from it, and `test_adr533_participant_contract.py`
 > asserts the roster and the registered `@mcp.tool` set are the same set. **Do not
-> maintain a verb count in prose** — this banner replaced a "FOUR verbs" line that had
-> been wrong since `save` and `share` shipped five days earlier, and the section below
-> still said "Three verbs". Read the roster; it cannot drift.
->
-> ADR-533 also gave this surface the **same commons contract the in-app lane teaches**
-> (composed from the kernel constants in `services/workspace_paths.py`, not re-authored
-> here) and made `derived_from` authorable on `save`. What deliberately does NOT reach a
-> foreign host: the workspace MANDATE (D6 — the commons contract is *how the workspace
-> works*; the mandate is *what it is for*).
-
-> **ADR-512 (2026-08-02)**: one species-blind file contract, served compound
-> (server-composed, one round) per ADR-368's channel constraint. **`open`** is the
-> deterministic read: pass a workspace-relative path or a `yarnnn://workspace/{path}`
-> handle (the D5 grammar; Studio's "Copy AI reference" emits it) and get content +
-> attribution + the recent revision summary in one call — the exact-version guarantee
-> `recall` (search-shaped) cannot make. The memory-verb contracts below stand unchanged;
-> "memory" reads as the workspace's memory region, not the surface's identity.
+> maintain a verb count in prose.** ADR-533 also gave this surface the same commons
+> contract the in-app lane teaches (composed from the kernel constants in
+> `services/workspace_paths.py`, not re-authored here). What deliberately does NOT
+> reach a foreign host: the workspace MANDATE (D6 — the commons contract is *how the
+> workspace works*; the mandate is *what it is for*).
 
 > **Parent**: [README.md](README.md)
 > **Audience**: engineers implementing the MCP server tools, and LLM hosts (Claude, GPT, Gemini) that consume them
-> **Scope**: exact signatures, parameter schemas, return shapes, tool-description text
-> **Governing**: **ADR-368** (memory-first surface — the verbs) + **ADR-310** (judged substrate — the framing). Supersedes ADR-311's pure-primitive surface and ADR-169's original three intent tools. The implementation is `api/services/mcp_composition.py` + `api/mcp_server/server.py`.
+> **Scope**: exact signatures, parameter schemas, return shapes, contract semantics
+> **Governing**: **ADR-543** (file-native surface) over **ADR-512** (the file is the
+> unit of interop) + **ADR-310** (judged substrate — the framing). The implementation
+> is `api/services/mcp_composition.py` + `api/mcp_server/server.py`.
 
 ---
 
 ## The surface in one screen
 
-The file verbs (ADR-512 D1), plus the memory-shaped compounds that read and write the
-workspace's memory region (ADR-368 D1). **Authoritative roster: `_INTEROP_VERBS`.**
+One species-blind file contract (ADR-512 D2), served compound (server-composed,
+one round) per ADR-368 Correction 1's channel constraint.
+**Authoritative roster: `_INTEROP_VERBS`.**
 
 | Verb | User says | Nature | Composes (server-side) |
 |---|---|---|---|
-| `open` | "look at this doc" | read · sync | resolve handle → `ReadFile` + head attribution + revision summary |
-| `save` | "save that back" | write · sync | head lookup (read-before-write CAS) → `WriteFile(expected_parent_version_id, derived_from)` |
-| `share` | "share this with my team" | write · sync | mint share row → link (host relays; yarnnn sends nothing outbound) |
-| `remember` | "remember this" | write · sync | `WriteFile(inbound/mcp/…)` — raw, immutable, tagged `revision_kind='observation'` (no derive wake — ADR-428) |
-| `recall` | "what do I know about X" | read · sync | `QueryKnowledge` → rank |
-| `trace` | "how did my thinking on X change" | read · sync | resolve → `ListRevisions` → `DiffRevisions` |
+| `open` | "look at this doc" | read · exact | resolve handle → exact read + head attribution + revision summary |
+| `list` | "what's in my workspace / that folder" | read · enumerate | workspace-scoped subtree listing with per-file attribution |
+| `search` | "find what I have on X" | read · fuzzy | `QueryKnowledge` → ranked paths + excerpts + `confidence` |
+| `save` | "save that back" | write | head lookup (read-before-write CAS) → `WriteFile(expected_parent_version_id, derived_from)` |
+| `history` | "how did this file change" | read · exact | resolve handle → `ListRevisions` → per-revision `DiffRevisions` + the `derived_from` walk |
+| `share` | "share this with my team" | write | mint share row → link (host relays; yarnnn sends nothing outbound) |
 
-**`save` cites; `remember` does not** (ADR-533 D3). `save` authors a *derivation* and
-takes `derived_from`; `remember` records a *raw arrival* (`revision_kind='observation'`)
-which by definition was not made from a workspace file. Giving `remember` a citation edge
-would invite manufactured provenance — the asymmetry is the ontology, not an omission.
+Each verb returns a reason-ready result in **one round** from the host's
+perspective — the multi-step composition lives server-side (inside YARNNN, an
+agentic context), not in the round-limited consumer host.
 
-Each verb returns a reason-ready result in **one round** from the host's perspective — the multi-step composition lives server-side (inside YARNNN, an agentic context), not in the round-limited consumer host (ADR-368 Correction 1). The raw kernel primitives (`ReadFile`/`SearchFiles`/`WriteFile`/`ListRevisions`/`DiffRevisions`) remain available `defer_loading` for agentic hosts that genuinely chain.
+**Exact vs fuzzy is the load-bearing split.** `open` / `history` take a
+reference and never guess — an unknown path returns `found: false`. `list`
+enumerates what exists. `search` is the only fuzzy verb, and it says how sure
+it is (`confidence`). Keeping the guarantees distinct is the point of having
+four read verbs.
 
 ---
 
 ## Design invariants
 
-1. **Memory-model names, kernel internals.** The verbs mirror how a person thinks about their own memory. The dispatch composes kernel primitives; that never surfaces.
-2. **Free-form context, silently filled.** Each verb's description tells the host LLM to compress the recent conversation into the parameters (`content`/`about`/`subject`/`question`) at call time, and never to ask the user for it.
-3. **`recall` returns; it does not synthesize.** The bright memory-vs-delegation line (ADR-368 D1): YARNNN returns material; the host LLM explains. A verb that composed an answer would be the deferred delegation nature leaking in.
-4. **`remember` captures a raw observation; it is not placed at write time** (ADR-368 D3 + D5, amended by ADR-428). The MCP layer writes the raw intake lane (`inbound/mcp/{client}/`) only — it does not route content to a derived home, because that is a judgment the foreign caller lacks the workspace knowledge to make. The `mcp` caller is locked from `governance/`/`contract/`/`constitution/`/`persona/`/`system/` by `CALLER_WRITE_POLICY` (ADR-320/366); the gate is the backstop.
-5. **Every dump is retained + attributed + tagged.** `remember` commits to the raw lane stamped `authored_by="yarnnn:mcp:{client}"` (ADR-288) + ADR-162 provenance + `revision_kind='observation'` (ADR-423) — the `retain + attribute` half of DP32, carried by the revision, not a wake. **The eager per-write derive wake is retired (ADR-428):** a derived, cited act into `operation/` (a separate `reviewer:<id>` revision carrying `derived_from`) re-attaches when a real deterministic derive step ships (ADR-423 §7 deferred). `trace` surfaces the full chain (`derived_from` walk) the day a derivation exists.
-6. **Operator-visibility is session-independent** (ADR-368 D4). Every call emits a narrative entry even when no session is active, so the cross-room operator sees what entered.
-
-### Zero LLM calls inside MCP
-
-No verb makes an LLM call internally. `remember` is a gated write. `recall` is composed retrieval over `QueryKnowledge`. `trace` is composed revision-reads. Per-call cost ≈ $0, cross-LLM consistency preserved (no composition drift), the host LLM is the sole synthesizer.
-
----
-
-## Verb 1: `remember`
-
-### Purpose
-
-Save an observation, decision, or insight from the current conversation into the user's YARNNN memory. The write commits synchronously to the `operation/` commons, is attributed to the calling LLM, and is immediately visible to any other LLM the user switches to. The Reviewer then validates the contribution against authored ground-truth in the background (ADR-368 D5) — this is *safety on a write*, not delegated work.
-
-### Signature
-
-```python
-remember(
-    content: str,        # required — the thing to remember
-    about: str = None,   # optional — subject hint (company, person, project, topic)
-) -> RememberResponse
-```
-
-### Response shape
-
-```python
-# Success
-{
-    "success": True,
-    "written_to": "/workspace/operation/memory/acme-corp.md",   # the inbox — NOT final placement
-    "provenance": {
-        "source": "mcp:claude.ai",        # ADR-162 source-provenance tag
-        "date": "2026-06-25",
-        "original_context": "Q3 deck positioning…"
-    },
-    "captured": True                       # the seat will file + judge this (ADR-368 D5)
-}
-
-# Failure (rare — empty content)
-{ "success": False, "error": "empty_content", "message": "content is required" }
-```
-
-### Capture as raw observation; derivation is deferred (ADR-368 D3 + D5 → ADR-376 → ADR-428)
-
-**`remember` does not route content to a derived home — it CAPTURES a raw observation into the intake lane.** Deriving the understanding is a judgment, not a deterministic route (the MCP layer doesn't understand the workspace's structure well enough to file into it, and must not corrupt a program's output tree).
-
-`resolve_remember_path(about)` → the **raw intake lane** (`inbound/mcp/{client}/`, per-client sublane, ADR-376), subject-organized only so dumps group:
-- `about="Acme Corp"` (client claude.ai) → `inbound/mcp/claude-ai/acme-corp.md`
-- no `about` → `inbound/mcp/{client}/inbox.md`
-
-The write is immutable, attributed `yarnnn:mcp:{client}` (ADR-288), and tagged `revision_kind='observation'` (ADR-423) — the `retain + attribute` half of DP32, carried by the revision. **The eager per-write derive wake is RETIRED (ADR-428):** no `substrate_event` fires on `remember`. A derived, cited act into `operation/` (a separate `reviewer:<id>` revision carrying `derived_from`) re-attaches when a real deterministic derive step ships (ADR-423 §7 deferred); `trace` then shows the chain *contributed via claude.ai → derived to X* the day a derivation exists.
-
-A foreign LLM never writes `system/`, `persona/`, `constitution/`, `governance/`, or `contract/` — the surface only constructs `inbound/mcp/{client}/` paths, and the ADR-307/320 gate is the backstop. The pre-ADR-368 five-target enum (`memory|identity|brand|agent|task`) — three of whose targets pointed at locked roots — is **deleted**, along with the first-draft `operation/{domain}/` keyword router (ADR-151 domain fiction live workspaces don't use).
-
-### Description text (what the LLM reads)
-
-```
-Save something into the user's YARNNN memory so it follows them across every
-LLM. Call whenever the user shares something worth keeping — a decision,
-insight, fact, preference, or observation about something they track. Don't
-wait for "remember this": if they reach a conclusion they'll want later, save
-it. Pass the thing as `content` (their words or a faithful summary); pass the
-subject as `about` if clear. The write is synchronous and immediately visible
-to any other LLM. You are saving to a shared memory — not asking YARNNN to do
-work.
-```
+1. **One ontology: files at paths** (ADR-543 D1). Every verb reads, writes,
+   enumerates, searches, or histories files; every receipt names the path it
+   touched. No phantom objects, no bespoke resolution machinery.
+2. **`search` returns; it does not synthesize.** YARNNN returns material; the
+   host LLM explains (retrieval, not delegation — ADR-368 D1's bright line,
+   kept).
+3. **Writes go through `save` under the grant.** The `mcp` caller is locked
+   from `governance/` / `contract/` / `constitution/` / `persona/` / `system/`
+   by `CALLER_WRITE_POLICY` (ADR-320/366); the ADR-307 gate at
+   `execute_primitive` is the backstop. Ambient capture (a conversational
+   conclusion worth keeping) is *taught in the instructions*, not a verb: the
+   host saves it by meaning; an observation with no better home goes under
+   Downloads.
+4. **Every write is attributed + cited.** `authored_by="yarnnn:mcp:{client}"`
+   (ADR-288); `derived_from` (ADR-448) records what a save was made from.
+5. **Operator-visibility is session-independent** (ADR-368 D4). Every call
+   emits a narrative entry even when no session is active, so the cross-room
+   operator sees what entered.
+6. **Zero LLM calls inside MCP.** Per-call cost ≈ $0; the host LLM is the sole
+   synthesizer.
 
 ---
 
-## Verb 2: `recall`
-
-### Purpose
-
-Return what the user already knows about a subject from their accumulated YARNNN memory. Composed server-side (`QueryKnowledge` → rank) into ranked excerpts with paths, timestamps, and the contributing source. **YARNNN returns the material; the host LLM explains it** — preserving cross-LLM consistency (every LLM sees the same substrate) and letting the host synthesize with the conversation in hand.
-
-### Signature
+## `open` — the exact read
 
 ```python
-recall(
-    subject: str,           # required — what to recall
-    question: str = None,   # optional — focus the retrieval on a question
-    domain: str = None,     # optional — narrow to one domain
-    limit: int = 10         # max excerpts (hard cap 30)
-) -> RecallResponse
+open(
+    reference: str,      # yarnnn://workspace/{path} | /workspace/{path} | relative
+    revisions: int = 5,  # recent revisions to summarize (max 10)
+) -> dict
 ```
 
-### Response shape
+Returns `found`, the canonical `reference` handle (ADR-512 D5), `path`,
+`content` (capped; `truncated: true` when cut), `authored_by` (head),
+`last_updated`, and `history` (recent revisions, newest first, no diffs —
+`history` the verb has those). A miss is a miss: `found: false`, never a
+search fallback.
+
+## `list` — the enumeration (NEW, ADR-543)
 
 ```python
-# Found
-{
-    "success": True,
-    "subject": "Acme Corp",
-    "chunks": [
-        {
-            "path": "/workspace/operation/competitors/acme/notes.md",
-            "excerpt": "2026-06-20: announced seat-based enterprise pricing…",
-            "last_updated": "2026-06-20T10:12:00Z",
-            "domain": "competitors",
-            "source_tag": "mcp:claude.ai"   # who contributed this, if attributed
-        }
-    ],
-    "total_matches": 17,
-    "returned": 10,
-    "citations": ["/workspace/operation/competitors/acme/notes.md", …]
-}
-
-# Empty (a clean signal, not an error)
-{
-    "success": True, "subject": "Quantum cryptography",
-    "chunks": [], "total_matches": 0, "returned": 0, "citations": [],
-    "explanation": "YARNNN has no accumulated memory about this subject. "
-                   "Answer from your own knowledge if you can."
-}
+list(
+    reference: str = None,  # folder; omit for the whole workspace
+) -> dict
 ```
 
-### Description text
+Returns `files` — every file under the folder, ordered by path, each with
+`path` (workspace-relative), `reference` (open-able handle), `bytes`,
+`last_updated`, and `authored_by` (head author). `truncated: true` when the
+subtree exceeded the cap (narrow the folder). The listing is real enumeration,
+not inference — closing the gap the 2026-08-10 external audit surfaced (an
+external principal had to reconstruct the tree from search hits). Reads are
+workspace-scoped, so a member or foreign LLM under a grant sees the shared
+commons.
 
-```
-Pull what the user already knows about a subject from their YARNNN memory. Call
-whenever they reference something that might live there — a person, company,
-market, project, or topic they track — and you need the material to reason well.
-Don't wait to be asked. Pass the subject as `subject`; optionally `question` to
-focus, `domain` to narrow. YARNNN RETURNS ranked excerpts with paths and the LLM
-that contributed each — it does NOT write an answer for you. Reason over what it
-returns and explain in your own voice. Every LLM sees the same memory, so the
-user's thinking stays coherent across rooms. If nothing matches, say so and
-answer from your own knowledge.
-```
-
----
-
-## Verb 3: `trace`
-
-### Purpose
-
-Return the **authored revision history** of a recorded fact — who changed it, when, and what the change was. This is YARNNN's distinguishing capability (ADR-311 §3, preserved): the attributed, walkable revision chain (ADR-209) surfaced across the boundary. A plain storage connector returns whatever is stored, no provenance, no history-with-authorship. YARNNN returns content + *who* + *when* + *what changed*.
-
-### Signature
+## `search` — the fuzzy read
 
 ```python
-trace(
-    subject: str,     # required — what to trace the history of
-    limit: int = 10   # max revisions (hard cap 30)
-) -> TraceResponse
+search(
+    query: str,       # what to find (topic, entity, keywords)
+    limit: int = 10,  # max results (hard cap 30)
+) -> dict
 ```
 
-### Response shape
+Returns `results` — ranked matches, each with `path`, `reference`, `excerpt`,
+`last_updated`, and `similarity` (semantic path only) — plus `total_matches`,
+`returned`, `citations`, and **`confidence`** (always present; see
+[honest-state-contract.md](honest-state-contract.md)):
 
-```python
-# Found
-{
-    "success": True,
-    "subject": "Acme pricing stance",
-    "path": "/workspace/operation/competitors/acme/notes.md",
-    "history": [                              # newest first
-        {
-            "authored_by": "reviewer:simons",  # operator | yarnnn:mcp | reviewer:<id> | agent:<slug> | system:<actor>
-            "when": "2026-06-22T09:00:00Z",
-            "change": "revised stance after Q2 earnings",
-            "revision_id": "…"
-        },
-        {
-            "authored_by": "yarnnn:claude.ai",
-            "when": "2026-06-20T10:12:00Z",
-            "change": "remember → operation commons",
-            "revision_id": "…"
-        }
-    ],
-    "returned": 2,
-    "citations": ["/workspace/operation/competitors/acme/notes.md"],
-    "explanation": "The authored history of 'Acme pricing stance' — 2 revisions, "
-                   "each attributed to who changed it and when."
-}
+| `confidence` | Meaning | Host action |
+|---|---|---|
+| `high` | a clear, dominant match | use it |
+| `ambiguous` | several match, none dominates | surface candidates + ASK which they mean |
+| `weak` | only loose matches below the bar | a lead, not an answer |
+| `none` | nothing matched (a true miss; `results` empty) | answer from own knowledge, or `list` |
 
-# No history
-{
-    "success": True, "subject": "…", "path": None, "history": [],
-    "explanation": "YARNNN has no recorded material about this subject to trace."
-}
-```
-
-### Description text
-
-```
-Show how the user's recorded thinking on a subject changed over time. Call when
-they ask about the HISTORY of something they track — "when did I decide that,"
-"how has my view on X changed," "who added this," "what did this used to say."
-YARNNN returns the authored revision chain — who changed it, when, and what the
-change was — newest first. This is YARNNN's distinguishing capability; a plain
-storage connector cannot show it. Reason over the chain and narrate the
-evolution in your own voice.
-```
-
----
-
-## Verb 4: `save` — the attributed write (the `derived_from` half)
-
-> Full contract: `compose_save` in `api/services/mcp_composition.py` + the tool docstring
-> in `api/mcp_server/server.py`. This section documents the ADR-533 D3 addition only; the
-> read-before-write CAS contract is ADR-512 §8a.
-
-### Signature
+## `save` — the attributed write
 
 ```python
 save(
-    reference: str,                     # yarnnn://workspace/{path} | /workspace/{path} | relative
+    reference: str,                     # same grammar as open
     content: str,                       # FULL new content (overwrite, not a patch)
     base_revision: Optional[str],       # head id from `open` — REQUIRED for an existing file
     message: Optional[str],             # one-line change description
@@ -273,66 +144,72 @@ save(
 ) -> dict
 ```
 
-### `derived_from` — the reference edge from a foreign host
+Read-before-write is the contract (ADR-512 §8a): an existing file requires
+`base_revision` (the head id `open` returned); a lost race returns
+`stale_write` with who holds the head — re-open, merge, save again. Omit
+`base_revision` only to create. Returns the new head `revision_id` so a
+follow-up save can chain.
 
-Before ADR-533 the interop surface could **read** the ADR-448 reference edge (`recall` and
-`trace` both walk it) but never **author** one — leaving the single surface where foreign
-material arrives as the only writing surface unable to record where its content came from.
+**`derived_from`** (ADR-533 D3): cite the workspace sources the content was
+made from, in the same handle grammar as `reference`. A citation that does not
+parse is dropped, never fatal (the edge is provenance, not a gate). The
+revision joins the graph the Files surface renders and the delete-guard warns
+against.
 
-- **Grammar**: the same handle grammar as `reference`. Each citation is parsed by
-  `parse_file_reference` (which owns the `yarnnn://` handle) and normalized at the write
-  door by `normalize_workspace_ref` (which owns `/workspace/` prefixing). Two parsers,
-  each owning its grammar, neither duplicating the other.
-- **Failure mode**: a citation that does not parse is **dropped, never fatal**. A
-  malformed reference must not cost the user their write — the edge is provenance, not a
-  gate.
-- **Effect**: the revision is marked a derivation and joins the graph the Files surface
-  renders and the delete-guard warns against.
+## `history` — the attributed revision chain
 
 ```python
-# host reasoned over two workspace sources, then saved a synthesis
-save(reference="yarnnn://workspace/operation/reports/q3-summary.md",
-     content=synthesis,
-     base_revision="rev_abc123",
-     derived_from=["operation/notes/q3-calls.md",
-                   "yarnnn://workspace/Downloads/q3-export.md"])
+history(
+    reference: str,   # same grammar as open — EXACT, never a topic
+    limit: int = 10,  # max revisions (hard cap 30)
+) -> dict
 ```
 
-`remember` takes no `derived_from` — see the ontology note in "The surface in one screen".
+Returns `found`, `reference`, `path`, and `history` — the file's revision
+chain newest first, each entry carrying `authored_by`, `when`, `change`,
+`revision_id`, `revision_kind` (ADR-423), and `diff` (unified diff vs the
+predecessor; oldest is `null`). If the file cites sources (`derived_from`,
+ADR-448), each cited file's chain is appended with `cited_source: true` +
+`source_path` — the complete provenance fan-in. This is YARNNN's
+distinguishing capability: a plain storage connector cannot show
+who-changed-what-when. An unknown path returns `found: false` — `search`
+first when you only know the topic.
+
+## `share` — the grant act
+
+```python
+share(
+    reference: str = None,   # file to share; omit for the workspace
+    access: str = "member",  # "member" (full) | "viewer" (read-only)
+) -> dict
+```
+
+Mints a share row and returns `share_link` for the host to RELAY (yarnnn
+sends nothing outbound — ADR-404). Gate parity with the cockpit origin
+(ADR-517 D3): reach check, then mint authority.
 
 ---
 
 ## Shared conventions
 
-### The `context` / scope parameters
-
-`remember` takes `about`; `recall` takes `question`; all take a `subject`/`content` the LLM fills by compressing the recent conversation. Convention across all three:
-- **Length**: 1–3 sentences, ≤ ~200 tokens
-- **Generator**: the host LLM at call time, silently
-- **Prohibition**: never ask the user to provide it
-
-### Provenance tagging
-
-Every `remember` write carries an ADR-162 provenance comment:
-
-```markdown
-<!-- source: mcp:claude.ai | date: 2026-06-25 | user_context: "…" -->
-```
-
-- **source**: `mcp:<client_name>` (`claude.ai`, `chatgpt`, `claude_desktop`, `gemini`, `cursor`)
-- **date**: ISO date of the write
-- **user_context**: abbreviated `about` or a content preview (~100 chars)
-
-`recall` returns the `source_tag` inline with each chunk; `trace` returns `authored_by` per revision. This is the mechanism that makes cross-LLM contribution visible — and lets the host attribute it ("from your ChatGPT conversation last Tuesday: …").
-
-### Error handling
-
-Three common-case shapes per verb: **success**, **empty** (`recall`/`trace` — a clean signal, not an error), and rare real errors (auth/network/rate-limit, standard MCP error responses). An empty `recall` or a no-history `trace` is the tool working as designed — the host LLM continues naturally. This discipline is load-bearing: without it the ambient experience degrades into clarification rounds and error messages.
+- **The reference grammar** (ADR-512 D5): `yarnnn://workspace/{path}` (the
+  canonical handle; Studio's "Copy AI reference" emits it), `/workspace/{path}`
+  (the ledger's absolute form), or a bare workspace-relative path. One parser
+  (`parse_file_reference`) owns it.
+- **Attribution**: every revision names its author. `history` returns
+  `authored_by` per revision; `list` returns the head author per file. This is
+  the mechanism that makes cross-LLM contribution visible — the host can say
+  "from your ChatGPT conversation last Tuesday".
+- **Error handling**: three shapes per verb — success, honest empty/miss
+  (`found: false`, `confidence: "none"`, `count: 0` — the tool working as
+  designed, not an error), and rare real errors (auth/network/rate-limit,
+  standard MCP shapes). The host continues naturally on an empty.
 
 ---
 
-## Deferred (ADR-368 §6)
+## Deferred
 
-- **Delegation-from-foreign-LLM** — a `work_on_this`-equivalent reframed as an addressed wake into the operation (YARNNN does work, reports back). Deferred pending the sync-vs-stream tool-return hinge + demonstrated demand. Additive when it lands; these three verbs are untouched.
-- **Richer operator-visibility tiers** — a batchable `external_contribution` notification; a Management-Plane "what entered from outside" lane.
-- **Second protocol bindings** (A2A, direct-API) of the same three-verb contract.
+- **Delegation-from-foreign-LLM** (ADR-368 §6) — an addressed wake into the
+  operation (YARNNN does work, reports back). Additive when it lands.
+- **Second protocol bindings** (A2A, direct-API) of the same file-native
+  contract.

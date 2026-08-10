@@ -17,7 +17,7 @@ Think in Chat. Make in Studio. Everything lands in Files — attributed, version
 | Memory is inferred from your activity — invisible, uncorrectable | You author your context; every file is one you can read and fix |
 | Work is episodic — fix an output and tomorrow starts from zero | Corrections compound — fix a file once and everything after inherits it |
 | Locked to one vendor's model and one vendor's memory | Reachable from any AI you use; the engines are swappable |
-| No record of who changed what | Every change is an attributed revision you can `trace` |
+| No record of who changed what | Every change is an attributed revision with a walkable `history` |
 | Resets every session | Nothing resets |
 
 ## What you can do with YARNNN
@@ -33,5 +33,5 @@ Think in Chat. Make in Studio. Everything lands in Files — attributed, version
 
 - [Quickstart](getting-started/quickstart.md) — your first ten minutes
 - [The desk: Think and Make](concepts/the-desk.md) — the two verbs the product is built around
-- [How your work is recorded](concepts/how-your-work-is-recorded.md) — attribution, revisions, and `trace`
+- [How your work is recorded](concepts/how-your-work-is-recorded.md) — attribution, revisions, and `history`
 - [Connect YARNNN to your AI](integrations/mcp-connector.md) — ChatGPT, Claude, and others

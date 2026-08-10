@@ -34,7 +34,7 @@ The docs had drifted roughly four months behind the product. Everything describi
 - **Slack/Notion-first onboarding** — no longer the entry path; the workspace is useful from signup with nothing connected
 - **Platform bots, projects, meeting rooms, rendered PDF/PPTX/XLSX deliverables** — all removed from the product
 - **Plans** — replaced with the current two-axis model (seats + a pooled meter)
-- **MCP tools** — `work_on_this`/`pull_context`/`remember_this` are gone; the surface is `remember`/`recall`/`trace`
+- **MCP tools** — the intent tools and the memory verbs are both gone; the surface is `open`/`list`/`search`/`save`/`history`/`share` (ADR-543)
 - **MCP URL** — now `https://mcp.yarnnn.com`
 
 New pages cover the five apps, the record, Freddie, and team use.

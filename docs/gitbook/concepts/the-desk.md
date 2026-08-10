@@ -37,7 +37,7 @@ Underneath the desk is the part you mostly don't look at: an attributed, version
 
 It becomes visible at four moments:
 
-- **"Why is this here?"** — `trace` walks the revision chain and shows you who wrote it and what changed.
+- **"Why is this here?"** — `history` walks the revision chain and shows you who wrote it and what changed.
 - **"Fix it once."** — correct a source file and everything made from it afterwards inherits the correction.
 - **"Take it with you."** — your workspace is reachable from any AI, and exportable.
 - **"Keep this."** — settling a conversation into a file.

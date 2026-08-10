@@ -1,6 +1,16 @@
 # ADR-368 — The Memory-First Interop Surface: remember / recall / trace
 
-> **Status**: **Accepted** (2026-06-25). Operator-ratified through the discourse trail below.
+> **Status**: **Accepted** (2026-06-25) — **SUPERSEDED AT THE VERB LAYER by
+> [ADR-543](ADR-543-the-interop-surface-speaks-the-kernel-verbs.md) (2026-08-10)**:
+> the memory verbs (`remember` / `recall` / `trace`) are retired IN FULL, without
+> aliases — the surface is the file-native roster `open · list · search · save ·
+> history · share`, each a binding of a kernel verb (ADR-512 D3). What survives of
+> this ADR: **Correction 1** (the ~3–5-round consumer-host budget → server-side
+> composition) remains a binding constraint on every consumer binding, and **D1's
+> bright line** (the read verbs RETURN material; the host explains) carries onto
+> `search`. ADR-512 §9's "rename is evidence-gated" clause is discharged — the
+> evidence arrived (the 2026-08-10 external audit) and the rename ran the other way.
+> Operator-ratified through the discourse trail below.
 > **D1's ontology ruling superseded by [ADR-512](ADR-512-the-file-is-the-unit-of-interop.md)
 > (2026-08-02)**: the surface's *identity* is no longer "the user's memory mental model" —
 > the record's unit is the attributed **file**, and the memory verbs are re-described as

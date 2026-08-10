@@ -13,12 +13,12 @@ OpenAI's listing bar is: *"serves a clear purpose, reliably does what it promise
 
 **The frame we lead with (review-facing):**
 
-> **YARNNN is durable, attributed memory for ChatGPT.** Save a decision, fact, or preference once; recall it later in your own words; and *trace* how any recorded idea changed over time — who changed it, when, and what changed. It's the long-term memory + version history a chat doesn't keep on its own.
+> **YARNNN is the shared, attributed workspace for ChatGPT.** Save a document or decision once; find it later from any AI you use; and see the *history* of any file — who changed it, when, and what changed. It's the shared filesystem + version history a chat doesn't keep on its own.
 
 **Why this framing is honest AND review-safe:**
 - Every claim is true. We don't hide portability — it's simply not the *pitch*. Portability is a property the user discovers and the privacy policy discloses, not a competitor-pointed sales line in the listing.
-- `trace` (the ADR-209 revision chain) is the differentiator that makes "not native to ChatGPT" obvious and defensible. **Lead with trace.** A reviewer who sees who-changed-what-when over a recorded idea immediately understands this isn't a thin wrapper.
-- "Memory + version history" is a clean, familiar product category. No reviewer squints at "a notebook that remembers and shows its edit history."
+- `history` (the ADR-209 revision chain) is the differentiator that makes "not native to ChatGPT" obvious and defensible. **Lead with history.** A reviewer who sees who-changed-what-when over a file immediately understands this isn't a thin wrapper.
+- "Shared workspace + version history" is a clean, familiar product category. No reviewer squints at "a shared drive that shows who changed what."
 
 **What we DON'T say in listing/tool copy** (already removed from the tools, [server.py](../../../api/mcp_server/server.py)):
 - "follows you across every LLM" / "visible to any other LLM you switch to" / enumerating "ChatGPT, Claude, Gemini."
@@ -35,7 +35,7 @@ The dashboard form ([platform.openai.com/apps-manage](https://platform.openai.co
 | Field | Value |
 |---|---|
 | **App name** | `YARNNN` (or `YARNNN Memory` if a bare brand reads thin to the reviewer) |
-| **Short description** | Durable, attributed memory for ChatGPT — remember decisions and facts, recall them later, and trace how your thinking changed over time. |
+| **Short description** | The shared, attributed workspace for ChatGPT — open, search, and save files every AI you use can see, with the full history of who changed what. |
 | **Long description** | YARNNN gives ChatGPT a long-term memory with a history. **Remember** anything worth keeping — a decision, a fact, a preference — in one step. **Recall** what you already know about a subject when it comes up, in your own words. **Trace** how a recorded idea evolved: who changed it, when, and what changed — the version history a chat doesn't keep. Your knowledge persists and stays attributed. |
 | **Category** | Productivity / Knowledge management (pick the closest the directory offers) |
 | **Logo** | YARNNN mark (square, per directory spec — check current size requirement) |
@@ -43,8 +43,8 @@ The dashboard form ([platform.openai.com/apps-manage](https://platform.openai.co
 | **Privacy policy URL** | `https://yarnnn.com/privacy` — **MUST exist before submit (see §3)** |
 | **MCP server URL** | `https://mcp.yarnnn.com` |
 | **Auth** | OAuth 2.1 (the dashboard collects client details) |
-| **Test credentials** | A demo account + bearer/login the reviewer can use. **Required** — apps that need a fresh sign-up or inaccessible 2FA are rejected. Provision a seeded demo workspace with real multi-revision content so `trace` shows a populated timeline. |
-| **Screenshots** | 3–4: (1) a `remember` confirmation, (2) a `recall` with ranked results, (3) **the `trace` timeline widget populated** (the differentiator — make this the hero), (4) optional: the diff expander open. |
+| **Test credentials** | A demo account + bearer/login the reviewer can use. **Required** — apps that need a fresh sign-up or inaccessible 2FA are rejected. Provision a seeded demo workspace with real multi-revision content so `history` shows a populated timeline. |
+| **Screenshots** | 3–4: (1) a `save` receipt, (2) a `search` with ranked results, (3) **the `history` timeline widget populated** (the differentiator — make this the hero), (4) optional: the diff expander open. |
 | **Test prompts** | "Remember that we chose Postgres over DynamoDB for cost." · "What do I know about our database decision?" · "Trace how my thinking on `standing_intent` changed." (use a demo subject WITH history so the widget populates) |
 | **Localization** | English to start; add countries as availability allows. |
 
@@ -54,8 +54,8 @@ The dashboard form ([platform.openai.com/apps-manage](https://platform.openai.co
 
 OpenAI **requires a published privacy policy** stating: categories of personal data collected, purposes, categories of recipients, and retention timelines. YARNNN stores user-authored substrate, so this must be explicit and honest. Minimum contents:
 
-- **What we collect**: the content the user chooses to save (`remember`), their OAuth identity, and operational metadata (timestamps, provenance/attribution).
-- **Why**: to provide durable memory + recall + revision history.
+- **What we collect**: the content the user chooses to save, their OAuth identity, and operational metadata (timestamps, provenance/attribution).
+- **Why**: to provide the shared workspace + search + revision history.
 - **Recipients**: YARNNN's infrastructure (Supabase/Postgres, Render). **If portability across other LLM hosts is a feature, disclose here** that the user's own connected LLM clients can read/write their workspace on the user's behalf — this is the correct, required place to state it (not the listing copy).
 - **Retention**: how long substrate + revisions are kept; the user's deletion path.
 - **No prohibited data**: we do not collect PCI, PHI, government IDs, or auth credentials of third parties.
@@ -73,15 +73,15 @@ This is a **content/legal task, not code** — it must be live at `yarnnn.com/pr
 | Action annotations correct (`readOnlyHint`/`destructiveHint`/`openWorldHint`) | ✅ fixed 2026-06-26 ([2026.06.26.9]) — was the named rejection risk |
 | Output schemas declared | ✅ fixed 2026-06-26 |
 | Review-friendly tool copy (no competitor-pointing) | ✅ fixed 2026-06-26 |
-| All three widgets render live | ✅ **VALIDATED LIVE in ChatGPT 2026-06-26** — `trace` timeline (10 SPY rows, diffs), `recall` cards, `remember` ✓ receipt with `mcp:chatgpt` chip; model still narrates (D3). See §7. |
+| Widgets render live | ⚠ **Validated 2026-06-26 on the PRE-ADR-543 widgets** (trace timeline, recall cards, remember receipt). The renamed widgets (`history-timeline`, `search-results`) + the file-verb receipts must be re-validated live in ChatGPT before submission — the binding mechanics are unchanged, the names and result fields are not. |
 | Tools behave reliably, no crashes, complete (not a demo) | ✅ all three exercised end-to-end live |
 | Privacy policy published | ✅ updated 2026-06-26 (66d1447) — `yarnnn.com/privacy` §5 discloses the MCP/connected-LLM data flow; deploys with web |
 | Terms of Service URL | ✅ `yarnnn.com/terms` exists (`web/app/terms/page.tsx`) — no 404 risk |
 | **Demo Recording URL** | ❌ **REQUIRED dashboard field (not optional).** A screen-recorded video walking all three tools in ChatGPT Developer Mode, hosted at a public URL (e.g. YouTube unlisted, Loom). NOT screenshots — a video. This is the one field blocking "Continue" right now. |
-| Demo/test account seeded with content | ❌ a YARNNN account the reviewer logs into, with `remember` saves + a multi-revision file so `trace`/`recall` show populated widgets |
+| Demo/test account seeded with content | ❌ a YARNNN account the reviewer logs into, with saved files + a multi-revision file so `history`/`search` show populated widgets |
 | Identity verification (OpenAI dashboard) | ❌ complete in the platform dashboard |
 | Logo | ❌ square, per the directory spec |
-| Screenshots (gallery) | ❌ trace / recall / remember — widget + a bit of prose in frame |
+| Screenshots (gallery) | ❌ history / search / save — widget + a bit of prose in frame |
 
 **Project choice (clearinghouse vs yarnnn):** the OpenAI *project* the app sits under is just an org/billing folder — it does NOT affect the app (identity = App ID + MCP URL + metadata; users never see the project). Leave it as-is unless you specifically want keys/billing under the `yarnnn` project, in which case switch project FIRST then recreate the app (apps don't move between projects).
 
@@ -107,13 +107,13 @@ Cowork can operate Chrome to **fill the dashboard form** on your behalf. **It ca
 ### What's already done (as of 2026-06-26 — don't redo these)
 - ✅ **Tools are submission-shaped**: annotations, output schemas, review-safe copy, OAuth, clean URL `mcp.yarnnn.com`.
 - ✅ **Privacy policy** live at `https://yarnnn.com/privacy` (§5 discloses the MCP/connected-LLM data flow).
-- ✅ **All three widgets render live in ChatGPT** (trace-timeline, recall-cards, remember-receipt) — validated; the hero screenshots exist to be taken.
+- ⚠ **Widget rendering validated pre-ADR-543** (on the retired widget names) — re-validate `history-timeline` + `search-results` live before screenshots.
 
 ### Gating prep YOU must finish before running Cowork (the real remaining blockers)
 1. **Identity verification** — log into `platform.openai.com` and complete it. (Yours; Cowork can't.)
-2. **Demo / test account** — create a YARNNN account + connect it, seeded with real content so the reviewer's `trace`/`recall` show populated widgets (e.g. a few `remember` saves + a multi-revision file). Note its credentials. (The reviewer uses these; an empty workspace shows empty widgets.)
+2. **Demo / test account** — create a YARNNN account + connect it, seeded with real content so the reviewer's `history`/`search` show populated widgets (e.g. a few saved files + a multi-revision file). Note its credentials. (The reviewer uses these; an empty workspace shows empty widgets.)
 3. **Logo** — square, per the directory's current size spec.
-4. **3–4 screenshots** saved locally — the gallery: (a) `trace` timeline with a diff expanded [hero], (b) `recall` with a populated card showing the `mcp:chatgpt` provenance chip, (c) the `remember` ✓ receipt, (d) optional. Frame the widget **plus a bit of the model's prose** — shows the "widget + narration" experience.
+4. **3–4 screenshots** saved locally — the gallery: (a) `history` timeline with a diff expanded [hero], (b) `search` with populated result cards, (c) the `save` ✓ receipt, (d) optional. Frame the widget **plus a bit of the model's prose** — shows the "widget + narration" experience.
 
 Until #1–#4 exist, there is nothing for Cowork to usefully do — the form requires them.
 
@@ -123,14 +123,14 @@ Until #1–#4 exist, there is nothing for Cowork to usefully do — the form req
 >
 > App metadata:
 > - **Name:** YARNNN
-> - **Short description:** Durable, attributed memory for ChatGPT — remember decisions and facts, recall them later, and trace how your thinking changed over time.
+> - **Short description:** The shared, attributed workspace for ChatGPT — open, search, and save files every AI you use can see, with the full history of who changed what.
 > - **Long description:** [paste the §2 long description]
 > - **Category:** Productivity / Knowledge management (closest available)
 > - **Company URL:** `https://yarnnn.com`
 > - **Privacy policy URL:** `https://yarnnn.com/privacy`
 > - **MCP server URL:** `https://mcp.yarnnn.com` (auth: OAuth)
 > - **Logo:** the file at [path]
-> - **Screenshots:** the files at [paths], in this order [trace, recall, remember]
+> - **Screenshots:** the files at [paths], in this order [history, search, save]
 > - **Test prompts:** "Remember that we chose Postgres over DynamoDB for cost." / "What do I know about our database decision?" / "Trace how my thinking on [a seeded subject] changed."
 > - **Test account:** I'll give you the login to type directly into the form — type it into the page field, never echo it back in this chat.
 > - **Country availability:** [your choice]

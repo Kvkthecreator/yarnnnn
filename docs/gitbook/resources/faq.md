@@ -14,11 +14,11 @@ Three ways.
 
 **It's shared across AIs.** Their memory works in their app. Yours works in every AI you connect.
 
-**It has history.** Ask a memory feature how it came to believe something and it can't tell you. Ask YARNNN and you get `trace` — who wrote it, when, and what it said before.
+**It has history.** Ask a memory feature how it came to believe something and it can't tell you. Ask YARNNN and you get `history` — who wrote it, when, and what it said before.
 
-### What is `trace`?
+### What is `history`?
 
-Every change to a file is a revision carrying its author, timestamp, and a message. `trace` walks that chain. You can see it in the app (any file → Get Info) or ask a connected AI for it.
+Every change to a file is a revision carrying its author, timestamp, and a message. `history` walks that chain. You can see it in the app (any file → Get Info) or ask a connected AI for it.
 
 It's the capability a storage connector structurally can't offer, because storage keeps the current state and YARNNN keeps the history.
 
