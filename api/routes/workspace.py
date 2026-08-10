@@ -2305,6 +2305,14 @@ class RevisionSummary(BaseModel):
     id: str
     authored_by: str
     author_identity_uuid: Optional[str] = None
+    # Principal display (2026-08-10 identity pass): the SAME resolution the MCP
+    # surface uses (services/principal_display.py), so one revision never
+    # renders two ways across surfaces. `authored_by` above stays the raw
+    # ledger taxonomy (the FE tooltip / fallback); this is the resolved form
+    # ("Kevin via Claude Sonnet", "Claude (via MCP)"). `author_is_you` lets the
+    # FE substitute the viewer-relative "You".
+    authored_by_display: Optional[str] = None
+    author_is_you: bool = False
     message: str
     created_at: str
     parent_version_id: Optional[str] = None
@@ -2372,6 +2380,30 @@ async def list_revisions_route(
             status_code=400,
             detail="Provide exactly one of {path, path_prefix}.",
         )
+
+    def _author_display_fields(rows: list[dict]) -> list[dict]:
+        """Attach {authored_by_display, author_is_you} per row via the ONE
+        resolver (services/principal_display.py — the same one the MCP surface
+        renders through). Name resolution needs the admin API → service client.
+        Best-effort: a resolution failure leaves the fields defaulted and the
+        FE falls back to its local labeler."""
+        try:
+            from services.principal_display import display_for_rows, member_ids_of
+            from services.supabase import get_service_client
+
+            displays = display_for_rows(get_service_client(), rows)
+            out = []
+            for i, r in enumerate(rows):
+                ids = member_ids_of(r.get("authored_by"), r.get("author_identity_uuid"))
+                out.append({
+                    "authored_by_display": displays.get(i),
+                    "author_is_you": auth.user_id in ids,
+                })
+            return out
+        except Exception as exc:  # noqa: BLE001 — display never breaks the read
+            logger.debug("[WORKSPACE_API] author display attach failed: %s", exc)
+            return [{} for _ in rows]
+
     try:
         if path is not None:
             # File Details — exact-path chain via the substrate helper.
@@ -2383,7 +2415,10 @@ async def list_revisions_route(
                 path=path,
                 limit=limit,
             )
-            revisions = [RevisionSummary(**r) for r in rows]
+            display_fields = _author_display_fields(rows)
+            revisions = [
+                RevisionSummary(**r, **display_fields[i]) for i, r in enumerate(rows)
+            ]
             return RevisionListResponse(path=path, count=len(revisions), revisions=revisions)
 
         # Folder Details — subtree scan over workspace_file_versions, newest
@@ -2397,6 +2432,8 @@ async def list_revisions_route(
             .limit(limit)
             .execute()
         )
+        subtree_rows = result.data or []
+        display_fields = _author_display_fields(subtree_rows)
         revisions = [
             RevisionSummary(
                 id=r["id"],
@@ -2406,8 +2443,9 @@ async def list_revisions_route(
                 created_at=str(r.get("created_at") or ""),
                 parent_version_id=r.get("parent_version_id"),
                 path=r.get("path"),
+                **display_fields[i],
             )
-            for r in (result.data or [])
+            for i, r in enumerate(subtree_rows)
         ]
         return RevisionListResponse(path=path_prefix, count=len(revisions), revisions=revisions)
     except HTTPException:

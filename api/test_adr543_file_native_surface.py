@@ -72,9 +72,22 @@ class _FakeQuery:
         return _FakeResp(rows)
 
 
+class _AdminUser:
+    def __init__(self, name):
+        self.user = types.SimpleNamespace(user_metadata={"full_name": name}, email=None)
+
+
 class _FakeClient:
     def __init__(self, store):
         self._store = store
+        # Principal display (2026-08-10): compose_list resolves member names
+        # via the auth admin API; the fake resolves the one known member.
+        self.auth = types.SimpleNamespace(
+            admin=types.SimpleNamespace(
+                get_user_by_id=lambda uid: _AdminUser("Kevin") if uid == "u-kvk"
+                else (_ for _ in ()).throw(RuntimeError("no such user"))
+            )
+        )
 
     def table(self, name):
         return _FakeQuery(self._store)
@@ -87,7 +100,7 @@ def main():
     store = [
         {"path": "/workspace/operation/reports/q3.md", "content_bytes": 812,
          "updated_at": "2026-08-01T00:00:00Z",
-         "workspace_file_versions": {"authored_by": "operator", "created_at": "2026-08-01T00:00:00Z"}},
+         "workspace_file_versions": {"authored_by": "operator", "author_identity_uuid": "u-kvk", "created_at": "2026-08-01T00:00:00Z"}},
         {"path": "/workspace/inbound/uploads/deck.pdf", "content_bytes": 90210,
          "updated_at": "2026-07-20T00:00:00Z",
          "workspace_file_versions": {"authored_by": "yarnnn:mcp:claude.ai", "created_at": "2026-07-20T00:00:00Z"}},
@@ -111,14 +124,17 @@ def main():
             "1a every root spelling enumerates the whole workspace",
             root_ok))
 
-        # 1b — a folder reference narrows; paths come back workspace-relative
+        # 1b — a folder reference narrows; paths come back workspace-relative;
+        # attribution is the RESOLVED display (2026-08-10 identity pass —
+        # never the raw ledger string, never a UUID).
         res = asyncio.run(m.compose_list(auth, reference="operation"))
         files = res.get("files") or []
         results.append(_check(
-            "1b folder reference narrows + paths are workspace-relative with attribution",
+            "1b folder reference narrows + paths are workspace-relative with resolved attribution",
             res.get("count") == 1
             and files[0]["path"] == "operation/reports/q3.md"
-            and files[0]["authored_by"] == "operator"
+            and files[0]["authored_by"] == "Kevin"
+            and files[0]["author_class"] == "member"
             and files[0]["reference"].startswith("yarnnn://workspace/")))
 
         # 1c — malformed references rejected, honest empty for a missing folder

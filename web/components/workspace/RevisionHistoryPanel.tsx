@@ -62,9 +62,26 @@ interface RevisionSummary {
   id: string;
   authored_by: string;
   author_identity_uuid: string | null;
+  /** Server-resolved display (services/principal_display.py — the SAME
+   * resolution the MCP surface renders through, so one revision never renders
+   * two ways). Falls back to the local labeler when absent. */
+  authored_by_display?: string | null;
+  author_is_you?: boolean;
   message: string;
   created_at: string;
   parent_version_id: string | null;
+}
+
+/** The viewer-relative label: "You" (+ the transport tail) when the server says
+ * the acting member is the viewer; else the server-resolved display; else the
+ * local labeler (legacy payloads). */
+function revisionAuthorLabel(rev: RevisionSummary): string {
+  const display = rev.authored_by_display ?? null;
+  if (rev.author_is_you) {
+    const via = display?.includes(' via ') ? display.slice(display.indexOf(' via ')) : '';
+    return `You${via}`;
+  }
+  return display ?? formatAuthorLabelOrSystem(rev.authored_by);
 }
 
 interface RevisionHistoryPanelProps {
@@ -322,7 +339,7 @@ export function RevisionHistoryPanel({
                           title={rev.authored_by}
                         >
                           <AuthorIcon cls={cls} />
-                          <span className="font-medium">{formatAuthorLabelOrSystem(rev.authored_by)}</span>
+                          <span className="font-medium">{revisionAuthorLabel(rev)}</span>
                         </span>
                         {isHead && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30">

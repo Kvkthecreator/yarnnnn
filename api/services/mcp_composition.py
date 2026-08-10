@@ -146,6 +146,28 @@ def derive_client_name_from_token(auth: Any) -> str:
     return "unknown"
 
 
+def _display_authors(auth: Any, rows: list[dict]) -> dict[int, str]:
+    """Batched principal display for revision-shaped rows (2026-08-10 identity
+    pass). The MCP surface NEVER emits a stored `authored_by` verbatim — raw
+    member UUIDs and legacy `<email> via <model>` rows must not cross the
+    boundary. One resolution point for every surface:
+    `services/principal_display.py`."""
+    from services.principal_display import display_author, display_for_rows
+    try:
+        return display_for_rows(auth.client, rows)
+    except Exception as exc:  # noqa: BLE001 — display must never break a read
+        logger.warning("[MCP] batched principal display failed (%s); degrading", exc)
+        # Nameless fallback: pure string resolution (humans degrade to
+        # "a workspace member"; every other species renders normally).
+        return {
+            i: display_author(
+                r.get("authored_by"),
+                author_identity_uuid=r.get("author_identity_uuid"),
+            )
+            for i, r in enumerate(rows)
+        }
+
+
 def _short_excerpt(text: str, limit: int = 400) -> str:
     """Trim text to a reasonable excerpt length."""
     text = (text or "").strip()
@@ -393,9 +415,18 @@ async def compose_history(
             ),
         }
 
+    # Principal display (2026-08-10 identity pass): the stored `authored_by`
+    # taxonomy + `author_identity_uuid` stay on the LEDGER; what crosses the
+    # boundary is the resolved display ("Kevin", "Kevin via Claude Sonnet",
+    # "Claude (via MCP)", "system:radar") + the machine-legible species — never
+    # a raw member UUID or a legacy email. ADR-460's hands-vs-principal
+    # distinction survives in both channels.
+    from services.principal_display import classify_author
+    author_display = _display_authors(auth, revisions)
     history = [
         {
-            "authored_by": rev.get("authored_by"),   # operator | yarnnn:mcp:<client> | reviewer:<id> | agent:<slug> | system:<actor>
+            "authored_by": author_display[i],
+            "author_class": classify_author(rev.get("authored_by")),
             "when": rev.get("created_at"),
             "change": rev.get("message"),
             "revision_id": rev.get("id"),
@@ -405,7 +436,7 @@ async def compose_history(
             # path/content proxy. Legacy rows read 'authored'.
             "revision_kind": rev.get("revision_kind") or "authored",
         }
-        for rev in revisions
+        for i, rev in enumerate(revisions)
     ]
 
     # ADR-372: embed each revision's diff-against-its-PREDECESSOR inline, so the
@@ -447,9 +478,11 @@ async def compose_history(
                 auth, "ListRevisions", {"path": cited, "limit": max(1, min(int(limit or 10), 30))}
             )
             cited_revs = cited_lr.get("revisions") or []
-            for rev in cited_revs:
+            cited_display = _display_authors(auth, cited_revs)
+            for j, rev in enumerate(cited_revs):
                 history.append({
-                    "authored_by": rev.get("authored_by"),
+                    "authored_by": cited_display[j],
+                    "author_class": classify_author(rev.get("authored_by")),
                     "when": rev.get("created_at"),
                     "change": rev.get("message"),
                     "revision_id": rev.get("id"),
@@ -642,14 +675,20 @@ async def compose_open(
             auth, "ListRevisions",
             {"path": abs_path, "limit": max(1, min(int(revisions or 5), 10))},
         )
+        revs = lr.get("revisions") or []
+        # Principal display (2026-08-10): resolved names cross the boundary,
+        # never raw member UUIDs — see services/principal_display.py.
+        from services.principal_display import classify_author
+        author_display = _display_authors(auth, revs)
         history = [
             {
-                "authored_by": rev.get("authored_by"),
+                "authored_by": author_display[i],
+                "author_class": classify_author(rev.get("authored_by")),
                 "when": rev.get("created_at"),
                 "change": rev.get("message"),
                 "revision_id": rev.get("id"),
             }
-            for rev in (lr.get("revisions") or [])
+            for i, rev in enumerate(revs)
         ]
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] open revision summary failed (non-fatal): %s", exc)
@@ -722,7 +761,7 @@ async def compose_list(
             auth.client.table("workspace_files")
             .select(
                 "path, content_bytes, updated_at, "
-                "workspace_file_versions!head_version_id(authored_by, created_at)"
+                "workspace_file_versions!head_version_id(authored_by, author_identity_uuid, created_at)"
             )
             .eq(*_substrate_scope(auth))
             .like("path", f"{abs_prefix}%")
@@ -737,9 +776,15 @@ async def compose_list(
                 "reference": reference}
 
     truncated = len(rows) > LIST_ENTRIES_CAP
+    kept = rows[:LIST_ENTRIES_CAP]
+    # Principal display (2026-08-10): the head author crosses the boundary as a
+    # resolved name + species, never a raw member UUID or legacy email.
+    from services.principal_display import classify_author
+    heads = [r.get("workspace_file_versions") or {} for r in kept]
+    author_display = _display_authors(auth, heads)
     files = []
-    for r in rows[:LIST_ENTRIES_CAP]:
-        head = r.get("workspace_file_versions") or {}
+    for i, r in enumerate(kept):
+        head = heads[i]
         p = r.get("path") or ""
         rel_path = p[len("/workspace/"):] if p.startswith("/workspace/") else p
         files.append({
@@ -747,7 +792,8 @@ async def compose_list(
             "reference": format_file_reference(rel_path),
             "bytes": r.get("content_bytes"),
             "last_updated": head.get("created_at") or r.get("updated_at"),
-            "authored_by": head.get("authored_by"),
+            "authored_by": author_display[i] if head else None,
+            "author_class": classify_author(head.get("authored_by")) if head else None,
         })
 
     where = f"`{rel.rstrip('/')}`" if rel else "the workspace"
@@ -817,7 +863,7 @@ async def compose_save(
     try:
         head_rows = (
             auth.client.table("workspace_file_versions")
-            .select("id, authored_by, created_at, message")
+            .select("id, authored_by, author_identity_uuid, created_at, message")
             .eq(*_substrate_scope(auth))
             .eq("path", abs_path)
             .order("created_at", desc=True)
@@ -838,7 +884,9 @@ async def compose_save(
             ),
             "current_head": {
                 "revision_id": head.get("id"),
-                "authored_by": head.get("authored_by"),
+                # Principal display (2026-08-10): the conflict names WHO holds
+                # the head as a resolved name, never a raw member UUID.
+                "authored_by": _display_authors(auth, [head])[0],
                 "when": head.get("created_at"),
             },
         }

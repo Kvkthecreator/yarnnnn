@@ -90,9 +90,15 @@ HOSTS: tuple[HostProfile, ...] = (
     # claude.ai connector — opaque OAuth client_id (UUID) + UA without "claude";
     # the DB-backed client_name lookup (mcp_composition) feeds this match on the
     # registered name. Excludes the specific-variant tokens defensively.
+    # The bare "claude" alias (2026-08-10): claude.ai registers its OAuth
+    # client_name as "Claude", which matched NOTHING here — so the raw
+    # capitalized display name fell through derive_client_name_from_token's
+    # unmapped-name fallback and was STORED on the ledger (`yarnnn:mcp:Claude`
+    # beside `yarnnn:mcp:chatgpt`). The desktop/code excludes keep the variant
+    # profiles (listed first) winning their own tokens.
     HostProfile(
         "claude.ai",
-        ("claude.ai", "claude-ai", "anthropic"),
+        ("claude.ai", "claude-ai", "anthropic", "claude"),
         match_excludes=("desktop", "code"),
     ),
     # Reach hosts — text today (auth + text path are free); attribution is what the
