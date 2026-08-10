@@ -1,15 +1,21 @@
 """ADR-479 — Re-arrange as planned judgment.
 
-Re-laying a page used to climb a ladder of proxies: a figure seeks a media slot,
-else a same-named source slot wins, else everything falls into the first flow
-slot, else REFUSE. Each rung stands in for a question none of them asks — *given
+Re-laying a page used to climb a ladder of proxies: a figure seeks a media Area,
+else a same-named source Area wins, else everything falls into the first body
+Area, else REFUSE. Each rung stands in for a question none of them asks — *given
 this content and this target layout, where does each piece belong?*
 
 So the placement decision becomes a judgment and the write stays mechanism. The
-model reads the page's blocks and the target arrangement's DECLARED slots (both
-already kernel data) and returns a PLAN — a slot per block, never markup:
+model reads the page's blocks and the target arrangement's DECLARED Areas (both
+already kernel data) and returns a PLAN — an Area per block, never markup:
 
-    {"placements": [{"block_id": "h1", "slot": "heading"}, ...]}
+    {"placements": [{"block_id": "h1", "area": "heading"}, ...]}
+
+ADR-544 D6 — the vocabulary is AREAS (roles: heading|body|media|aside). This
+module taught the model a `flow` role the substrate no longer has, so the
+judgment reasoned in one vocabulary while the document spoke another. The
+promise it exists to keep — every block accounted for, exactly once — is
+unchanged; only the words are.
 
 The plan is then validated against the closed vocabulary (§D2) and applied
 mechanically by the FE. Non-determinism is quarantined in a proposal that must
@@ -31,28 +37,41 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 #: The judgment's whole job, stated once. It plans PLACEMENT — it never writes
-#: markup, never invents content, never renames a slot. The closed vocabulary is
+#: markup, never invents content, never renames an Area. The closed vocabulary is
 #: handed to it per call (the arrangements are kernel data, ADR-224), so a new
 #: arrangement is a registry row and this prompt never changes.
-_PLAN_SYSTEM = """You place existing content blocks into a layout's named slots.
+#:
+#: ADR-544 D6 — the vocabulary here is AREAS, not slots, and the roles are the
+#: closed set heading|body|media|aside. Pre-544 this prompt taught a `flow` role
+#: that the substrate no longer has, so the model was reasoning in one vocabulary
+#: while the document spoke another — the same one-layer-above fault the
+#: containment law closed at the surface, left open at the AI seam.
+_PLAN_SYSTEM = """You place existing content blocks into a layout's named Areas.
+
+The structure is four grains: SLIDE (or band) → LAYOUT → AREA → BLOCK. Every
+block lives in exactly one Area; your whole job is to say WHICH.
 
 You are given:
   • BLOCKS — the blocks currently on a page: an id, a kind (heading, paragraph,
     figure, gallery, stat, quote, list, table…), and a short text excerpt.
-  • SLOTS — the slots the target layout declares: a name and a role
-    ('heading' anchors the title, 'media' takes figures/galleries, 'flow' takes
-    prose and everything else).
+  • AREAS — the Areas the target layout declares: a name, a role, and sometimes
+    a place. The role is the Area's identity:
+      'heading' anchors the page title
+      'body'    takes prose and everything else
+      'media'   takes figures and galleries
+      'aside'   takes supporting matter beside the body (a caption, a note)
+    'place' (left/center/right) tells same-role Areas apart.
 
 Return ONLY a JSON object, no prose, no code fence:
 
-  {"placements": [{"block_id": "<id>", "slot": "<slot name>"}, ...]}
+  {"placements": [{"block_id": "<id>", "area": "<area name>"}, ...]}
 
 Rules:
   • EVERY block id you were given must appear EXACTLY ONCE. Never drop a block,
     never invent an id, never repeat one. Content is never lost in a re-layout.
-  • Use only slot names from SLOTS. Never invent a slot.
-  • A figure or gallery belongs in a 'media' slot when one exists.
-  • A heading block belongs in a 'heading' slot when one exists.
+  • Use only Area names from AREAS. Never invent an Area.
+  • A figure or gallery belongs in a 'media' Area when one exists.
+  • A heading block belongs in a 'heading' Area when one exists.
   • Otherwise judge by MEANING, which is the reason you are here rather than a
     name match: put content where a reader would expect it. In a two-column or
     comparison layout, split the material so the columns balance and so related
@@ -63,45 +82,56 @@ Rules:
 """
 
 
-def build_plan_request(blocks: list[dict], slots: list[dict]) -> str:
-    """The user message: the page's blocks and the target's declared slots."""
+def build_plan_request(blocks: list[dict], areas: list[dict]) -> str:
+    """The user message: the page's blocks and the target's declared Areas."""
     def _block_line(b: dict) -> str:
         text = (b.get("text") or "").replace("\n", " ").strip()
         if len(text) > 160:
             text = text[:157] + "…"
         return f'  - id={b.get("id")} kind={b.get("kind") or "content"} text="{text}"'
 
-    def _slot_line(s: dict) -> str:
-        return f'  - name={s.get("name")} role={s.get("role") or "flow"}'
+    def _area_line(s: dict) -> str:
+        # ADR-544 D2 — `body` is the default role, not `flow` (which the role set
+        # no longer contains). `place` rides along so the model can tell
+        # same-role Areas apart, which is the one job the authored name has.
+        line = f'  - name={s.get("name")} role={s.get("role") or "body"}'
+        place = s.get("place")
+        return f"{line} place={place}" if place else line
 
     return (
         "BLOCKS:\n"
         + ("\n".join(_block_line(b) for b in blocks) or "  (none)")
-        + "\n\nSLOTS:\n"
-        + ("\n".join(_slot_line(s) for s in slots) or "  (none)")
+        + "\n\nAREAS:\n"
+        + ("\n".join(_area_line(s) for s in areas) or "  (none)")
     )
 
 
 def validate_plan(
     placements: list[dict],
     blocks: list[dict],
-    slots: list[dict],
+    areas: list[dict],
 ) -> Optional[list[dict]]:
     """ADR-479 D2 — reject, never render.
 
-    A plan is admissible only if it names real slots, names real blocks, and
+    A plan is admissible only if it names real Areas, names real blocks, and
     accounts for EVERY block exactly once (total coverage). That last clause is
     what retires the content-destruction class: ADR-462 D9's invariant hardens
     from "refuse when unmappable" to "account for every block, always".
 
+    ADR-544 D6 — the model now answers with `area`. `slot` is still READ off an
+    inbound placement (a model mid-rollout, a cached completion), but the
+    normalized output speaks one key so the FE has one thing to apply. The
+    coverage invariant is untouched: this ADR changed the vocabulary, never the
+    promise that content survives a re-layout.
+
     Returns the normalized placements, or None when the plan is inadmissible
     (the caller falls back to the mechanical ladder).
     """
-    slot_names = {str(s.get("name")) for s in slots if s.get("name")}
+    area_names = {str(s.get("name")) for s in areas if s.get("name")}
     block_ids = [str(b.get("id")) for b in blocks if b.get("id")]
     if not block_ids:
         return []  # nothing to carry — a vacuously valid plan
-    if not slot_names:
+    if not area_names:
         return None  # a layout with nowhere to put content cannot receive it
 
     seen: set[str] = set()
@@ -110,15 +140,15 @@ def validate_plan(
         if not isinstance(p, dict):
             return None
         bid = str(p.get("block_id") or "")
-        slot = str(p.get("slot") or "")
+        area = str(p.get("area") or p.get("slot") or "")
         if bid not in block_ids:
             return None  # invented or stale block id
-        if slot not in slot_names:
-            return None  # invented slot
+        if area not in area_names:
+            return None  # invented Area
         if bid in seen:
             return None  # a block placed twice
         seen.add(bid)
-        out.append({"block_id": bid, "slot": slot})
+        out.append({"block_id": bid, "area": area})
 
     if seen != set(block_ids):
         return None  # a block went unplaced — the destruction bug's signature
@@ -127,7 +157,7 @@ def validate_plan(
 
 async def plan_arrangement(
     blocks: list[dict],
-    slots: list[dict],
+    areas: list[dict],
     *,
     model: Optional[str] = None,
 ) -> tuple[Optional[list[dict]], Optional[object]]:
@@ -141,7 +171,7 @@ async def plan_arrangement(
     """
     if not blocks:
         return [], None
-    if not slots:
+    if not areas:
         return None, None
 
     # OUTSIDE the try, deliberately (the ADR-475 lesson): a typo'd symbol here
@@ -160,7 +190,7 @@ async def plan_arrangement(
         engine = model or KERNEL_AGENTS["designer"]["model"]
         completion = await route_completion(
             engine,
-            [{"role": "user", "content": build_plan_request(blocks, slots)}],
+            [{"role": "user", "content": build_plan_request(blocks, areas)}],
             system=_PLAN_SYSTEM,
             max_tokens=1500,
             timeout=30.0,
@@ -172,7 +202,7 @@ async def plan_arrangement(
             logger.warning("[STUDIO] arrangement plan had no JSON — mechanical")
             return None, completion
         raw = json.loads(match.group(0))
-        placements = validate_plan(raw.get("placements") or [], blocks, slots)
+        placements = validate_plan(raw.get("placements") or [], blocks, areas)
         if placements is None:
             logger.warning("[STUDIO] arrangement plan failed validation — mechanical")
             return None, completion

@@ -1629,15 +1629,15 @@ export function blocksForPlan(
     .filter((b) => b.id);
 }
 
-/** ADR-479 D1 — apply a PLANNED re-arrangement: the judgment named a slot per
+/** ADR-479 D1 — apply a PLANNED re-arrangement: the judgment named an Area per
  *  block, and this puts each block there. Deterministic by construction — the
  *  same plan always yields the same HTML, because this function makes no
  *  placement decisions at all. It is the mechanism half of the split.
  *
- *  `placements` is assumed VALIDATED (ADR-479 D2: real slots, real blocks, total
+ *  `placements` is assumed VALIDATED (ADR-479 D2: real Areas, real blocks, total
  *  coverage) — the server rejects anything else before it reaches here. This
- *  still guards defensively: a block whose slot is missing from the target lands
- *  in the first slot rather than being dropped, because the never-destroy-content
+ *  still guards defensively: a block whose Area is missing from the target lands
+ *  in the first Area rather than being dropped, because the never-destroy-content
  *  invariant (ADR-462 D9) outranks the plan.
  *
  *  Returns null when the anchor resolves to no page or the fragment won't
@@ -1646,7 +1646,7 @@ export function applyArrangementPlan(
   html: string,
   fragment: string,
   anchor: OpAnchor,
-  placements: Array<{ block_id: string; slot: string }>,
+  placements: Array<{ block_id: string; area: string }>,
 ): OpResult | null {
   const doc = parse(html);
   const page = arrangedPageAt(doc, anchor);
@@ -1655,16 +1655,23 @@ export function applyArrangementPlan(
   if (!el) return null;
 
   const carried = carriedBlocksOf(page);
-  const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));
+  // ADR-544 D2/D6 — an Area is the region element. This queried `[data-slot]`
+  // ALONE while its sibling `applyArrangement` was re-cut to read both, so on a
+  // post-544 fragment it found ZERO targets and refused every plan: the AI
+  // re-arrange degraded silently to the mechanical ladder, which looks exactly
+  // like "the router is off". `[data-slot]` stays as the legacy read for a
+  // document authored before the heal.
+  const targetSlots = Array.from(el.querySelectorAll('[data-area], [data-slot]'));
   if (carried.length && !targetSlots.length) return null; // nowhere to put it
 
-  const byName = new Map(targetSlots.map((s) => [s.getAttribute('data-slot'), s]));
-  const bySlotPlan = new Map(placements.map((p) => [p.block_id, p.slot]));
+  const nameOf = (s: Element) => s.getAttribute('data-area') ?? s.getAttribute('data-slot');
+  const byName = new Map(targetSlots.map((s) => [nameOf(s), s]));
+  const byAreaPlan = new Map(placements.map((p) => [p.block_id, p.area]));
   const receiving = new Set<Element>();
 
   carried.forEach((b) => {
     const id = b.getAttribute('data-block-id') || '';
-    const planned = bySlotPlan.get(id);
+    const planned = byAreaPlan.get(id);
     const target = (planned ? byName.get(planned) : undefined) ?? targetSlots[0];
     if (!target) return;
     // A slot receiving real content sheds its scaffold placeholders — once,

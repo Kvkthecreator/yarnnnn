@@ -262,6 +262,33 @@ root cause as §1.1.
 This rung is upstream (it defines what an Area re-lay *means*) and lands here;
 the remainder of re-arrange semantics stays downstream, per §5.
 
+**D6.1 — the AI half of the same law** (added 2026-08-10, during implementation).
+Re-arrange has two paths that must agree: the mechanical ladder
+(`applyArrangement`) and the planned judgment (ADR-479 — a model names a region
+per block, the FE applies it deterministically). The first was re-cut for this
+ADR; the second was not, and the audit found both halves broken:
+
+- **The prompt taught a vocabulary the substrate no longer has.** `_PLAN_SYSTEM`
+  described *"a layout's named SLOTS"* with roles `heading | media | flow` —
+  `flow` is not in D2's closed set. The judgment reasoned in one vocabulary while
+  the document spoke another: the same one-layer-above fault §1.4 names, closed at
+  the surface and left open at the AI seam.
+- **`applyArrangementPlan` queried `[data-slot]` alone** while its sibling read
+  `[data-area], [data-slot]`. On a post-544 fragment it therefore found ZERO
+  targets and refused every plan — the judgment degrading silently to the
+  mechanical ladder, indistinguishable from "the router is off".
+
+The wire, the prompt, the validator and both apply paths now speak Areas and
+roles. `slot` is still READ off an inbound placement (a model mid-rollout, a
+cached completion) but the normalized output carries one key, so the FE never
+tests two shapes. **The promise is untouched**: every block accounted for exactly
+once. This ADR changed the vocabulary, never the guarantee that content survives
+a re-layout (ADR-479 D2 / ADR-462 D9).
+
+The seam is gated by COUNT — both apply paths must read the same region grain —
+so neither can regress alone. That gate was absent, which is why the mismatch
+shipped.
+
 ### D7 — Existing decks are healed, not grandfathered
 
 Decks in the wild carry positioned blocks and slot-less headings. `applyArrangement`

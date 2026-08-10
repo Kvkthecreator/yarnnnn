@@ -41,15 +41,17 @@ def run() -> bool:
         {"id": "p2", "kind": "paragraph", "text": "When you build in a down market…"},
         {"id": "f3", "kind": "figure", "text": ""},
     ]
+    # ADR-544 D2 — Areas, roles from the closed set (there is no `flow` role),
+    # `place` telling same-role siblings apart.
     SLOTS = [
         {"name": "heading", "role": "heading"},
-        {"name": "main", "role": "flow"},
-        {"name": "side", "role": "flow"},
+        {"name": "main", "role": "body", "place": "left"},
+        {"name": "side", "role": "body", "place": "right"},
     ]
     GOOD = [
-        {"block_id": "h1", "slot": "heading"},
-        {"block_id": "p2", "slot": "main"},
-        {"block_id": "f3", "slot": "side"},
+        {"block_id": "h1", "area": "heading"},
+        {"block_id": "p2", "area": "main"},
+        {"block_id": "f3", "area": "side"},
     ]
 
     # ── 1. THE INVARIANT: total coverage (the content-destruction killer) ───
@@ -59,16 +61,16 @@ def run() -> bool:
     _check("⭐ a plan that DROPS a block is REJECTED (the destruction signature)",
            validate_plan(GOOD[:2], BLOCKS, SLOTS) is None)
     _check("a plan that places one block TWICE is rejected",
-           validate_plan(GOOD + [{"block_id": "h1", "slot": "main"}], BLOCKS, SLOTS) is None)
+           validate_plan(GOOD + [{"block_id": "h1", "area": "main"}], BLOCKS, SLOTS) is None)
 
     # ── 2. THE CLOSED VOCABULARY (D2) ──────────────────────────────────────
-    _check("an INVENTED slot is rejected (only declared slots exist)",
+    _check("an INVENTED Area is rejected (only declared Areas exist)",
            validate_plan(
-               [{"block_id": "h1", "slot": "nowhere"}] + GOOD[1:], BLOCKS, SLOTS
+               [{"block_id": "h1", "area": "nowhere"}] + GOOD[1:], BLOCKS, SLOTS
            ) is None)
     _check("an INVENTED block id is rejected (no stale/hallucinated ids)",
            validate_plan(
-               [{"block_id": "ghost", "slot": "main"}] + GOOD[1:], BLOCKS, SLOTS
+               [{"block_id": "ghost", "area": "main"}] + GOOD[1:], BLOCKS, SLOTS
            ) is None)
     _check("a malformed placement (not an object) is rejected",
            validate_plan(["nope"], BLOCKS, SLOTS) is None)  # type: ignore[list-item]
@@ -76,15 +78,26 @@ def run() -> bool:
     # ── 3. THE HONEST EDGES ────────────────────────────────────────────────
     _check("no blocks to carry → a vacuously valid empty plan (not a refusal)",
            validate_plan([], [], SLOTS) == [])
-    _check("content but NO slots → refusal (a layout with nowhere to put it)",
+    _check("content but NO Areas → refusal (a layout with nowhere to put it)",
            validate_plan(GOOD, BLOCKS, []) is None)
+    # ADR-544 D6 — the normalized output speaks ONE key, whatever arrived. A
+    # model mid-rollout (or a cached completion) may still answer `slot`; the FE
+    # must never have to test two shapes.
+    _check("a legacy `slot` placement is READ but normalized to `area`",
+           validate_plan(
+               [{"block_id": b["block_id"], "slot": b["area"]} for b in GOOD],
+               BLOCKS, SLOTS,
+           ) == GOOD)
 
     # ── 4. THE PROMPT PAYLOAD carries meaning, never markup ─────────────────
     req = build_plan_request(BLOCKS, SLOTS)
     _check("the plan request carries block ids, kinds, and text (judgment reads meaning)",
            "id=h1" in req and "kind=figure" in req and "down market" in req)
-    _check("…and the declared slots with their roles",
-           "name=side" in req and "role=media" not in req and "role=heading" in req)
+    _check("…and the declared Areas with their roles + places",
+           "name=side" in req and "role=media" not in req and "role=heading" in req
+           and "place=right" in req)
+    _check("the prompt teaches the ADR-544 role set, never the retired `flow`",
+           "AREAS" in req and "SLOTS:" not in req)
     _check("the request contains NO markup (the model never sees or writes HTML)",
            "<" not in req)
 
@@ -110,8 +123,16 @@ def run() -> bool:
     # ── 7. The FE applies a plan, and still falls back (ADR-468 D4) ─────────
     ops = (web / "components/authoring/artifactOps.ts").read_text()
     surface = (web / "components/authoring/StudioSurface.tsx").read_text()
-    _check("applyArrangementPlan places by the PLAN's slot names",
-           "export function applyArrangementPlan" in ops and "bySlotPlan" in ops)
+    _check("applyArrangementPlan places by the PLAN's Area names",
+           "export function applyArrangementPlan" in ops and "byAreaPlan" in ops)
+    # ADR-544 D6 — the AI path must read the SAME region grain as the mechanical
+    # one. `applyArrangement` was re-cut to `[data-area], [data-slot]` while THIS
+    # sibling still queried `[data-slot]` alone, so on a post-544 fragment it
+    # found zero targets and refused every plan: the judgment degraded silently
+    # to the ladder, indistinguishable from "the router is off". Both must read
+    # both — asserted by COUNT so neither can regress alone.
+    _check("both apply paths read the same region grain (the ADR-544 D6 seam)",
+           ops.count("querySelectorAll('[data-area], [data-slot]')") == 2)
     _check("blocksForPlan sends id/kind/text — never markup",
            "export function blocksForPlan" in ops and "textContent" in ops)
     _check("a refusal falls through to the MECHANICAL ladder (never dead-ends)",

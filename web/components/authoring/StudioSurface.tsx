@@ -1437,7 +1437,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           try {
             const { placements } = await api.studio.planArrangement({
               blocks,
-              slots: a.areas.map((s) => ({ name: s.name, role: s.role })),
+              areas: a.areas.map((s) => ({ name: s.name, role: s.role, place: s.place })),
               arrangement: a.slug,
             });
             if (placements) {

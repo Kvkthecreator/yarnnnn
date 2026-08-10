@@ -689,12 +689,15 @@ export const api = {
     // re-arrangement must never dead-end). Validated server-side against the
     // closed slot vocabulary with total block coverage (D2), so a plan can no
     // longer lose content.
+    // ADR-544 D6 — the wire speaks AREAS (roles heading|body|media|aside), the
+    // same vocabulary the served registry hands the FE. No `slots` alias: the
+    // only caller is our own surface, shipped from the same commit.
     planArrangement: (body: {
       blocks: Array<{ id: string; kind: string; text: string }>;
-      slots: Array<{ name: string; role: string }>;
+      areas: Array<{ name: string; role: string; place?: string }>;
       arrangement?: string;
     }) =>
-      request<{ placements: Array<{ block_id: string; slot: string }> | null }>(
+      request<{ placements: Array<{ block_id: string; area: string }> | null }>(
         "/api/studio/arrangement/plan",
         { method: "POST", body: JSON.stringify(body) },
       ),

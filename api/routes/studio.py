@@ -559,12 +559,16 @@ def _strip_common_root(files: dict) -> dict:
 class ArrangementPlanRequest(BaseModel):
     """ADR-479 — plan a re-arrangement's placements.
 
-    `blocks` = what is on the page now ({id, kind, text}); `slots` = what the
-    target arrangement declares ({name, role}). Both come from the FE, which
-    already holds the parsed document and the served registry.
+    `blocks` = what is on the page now ({id, kind, text}); `areas` = what the
+    target arrangement declares ({name, role, place?}). Both come from the FE,
+    which already holds the parsed document and the served registry.
+
+    ADR-544 D6 — `areas` replaces `slots` on the wire, matching the registry the
+    FE reads it from. There is no compatibility alias: the only caller is our own
+    surface, shipped from the same commit.
     """
     blocks: list[dict]
-    slots: list[dict]
+    areas: list[dict]
     arrangement: Optional[str] = None  # the target slug, for the ledger only
 
 
@@ -572,13 +576,13 @@ class ArrangementPlanRequest(BaseModel):
 async def plan_arrangement_route(req: ArrangementPlanRequest, auth: UserClient) -> dict:
     """ADR-479 D1 — the placement decision, as judgment.
 
-    Returns `{"placements": [{block_id, slot}, ...]}` when the plan is
+    Returns `{"placements": [{block_id, area}, ...]}` when the plan is
     admissible, or `{"placements": null}` to tell the FE to use its mechanical
     ladder. A refusal is a normal outcome, never an error: per ADR-468 D4 the
     re-arrangement must never dead-end.
 
-    The model NEVER emits markup — it names a slot per block, and the FE applies
-    it deterministically. Validation (ADR-479 D2) enforces the closed slot
+    The model NEVER emits markup — it names an Area per block, and the FE applies
+    it deterministically. Validation (ADR-479 D2) enforces the closed Area
     vocabulary and TOTAL BLOCK COVERAGE, so a plan can no longer lose content.
     """
     from services.studio_arrangement_plan import plan_arrangement
@@ -598,7 +602,7 @@ async def plan_arrangement_route(req: ArrangementPlanRequest, auth: UserClient) 
     if not draw_ok:
         return {"placements": None}
 
-    placements, completion = await plan_arrangement(req.blocks or [], req.slots or [])
+    placements, completion = await plan_arrangement(req.blocks or [], req.areas or [])
 
     # Meter here, exactly once: `route_completion` reports usage but never
     # ledgers (ADR-396 one meter, one ledger). A call that happened costs even
