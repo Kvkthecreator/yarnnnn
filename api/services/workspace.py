@@ -766,6 +766,13 @@ class UserMemory:
         authored_by: str = None,
         message: str = None,
         expected_parent_version_id: str = None,
+        # ADR-410 identity stamp (2026-08-10): WHICH human acted, when the
+        # authored_by species traces to one (operator / member: / yarnnn:mcp:).
+        # AgentWorkspace.write already carried this; UserMemory.write not
+        # accepting it took down every WriteFile/EditFile primitive write the
+        # moment the stamp change deployed (the 2026-08-10 P0 — a caller/callee
+        # signature mismatch invisible to stubbed-primitive tests).
+        author_identity_uuid: str = None,
         revision_kind: str = "authored",
         derived_from: list = None,
     ) -> bool:
@@ -814,6 +821,7 @@ class UserMemory:
                 content_type=content_type,
                 content_url=content_url,
                 metadata=metadata,
+                author_identity_uuid=author_identity_uuid,
                 revision_kind=revision_kind,
                 derived_from=derived_from,
                 **extra,
