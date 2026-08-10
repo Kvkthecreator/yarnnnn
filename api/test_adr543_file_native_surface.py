@@ -66,6 +66,12 @@ class _FakeQuery:
     def limit(self, *a, **k):
         return self
 
+    def gte(self, *a, **k):
+        return self
+
+    def range(self, *a, **k):
+        return self
+
     def execute(self):
         prefix = (self._like or "").rstrip("%")
         rows = [r for r in self._store if r["path"].startswith(prefix)]

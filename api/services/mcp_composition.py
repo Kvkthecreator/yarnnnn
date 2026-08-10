@@ -728,6 +728,9 @@ LIST_ENTRIES_CAP = 500
 async def compose_list(
     auth: Any,
     reference: Optional[str] = None,
+    since: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: int = 0,
 ) -> dict:
     """Drive `list` — enumerate the files under a folder (ADR-543 D2, binds the
     kernel `list` verb ADR-512 D3 named but the MCP surface never bound).
@@ -762,9 +765,15 @@ async def compose_list(
         if rel and not rel.endswith("/"):
             rel += "/"
 
+    # ADR-545 D3: page size + offset (path order), and the change feed —
+    # `since` filters to files whose last change landed after the mark
+    # (workspace_files.updated_at tracks the head revision).
+    page = max(1, min(int(limit or LIST_ENTRIES_CAP), LIST_ENTRIES_CAP))
+    offset = max(0, int(offset or 0))
+
     abs_prefix = f"/workspace/{rel}"
     try:
-        rows = (
+        q = (
             auth.client.table("workspace_files")
             .select(
                 "path, content_bytes, updated_at, "
@@ -773,8 +782,12 @@ async def compose_list(
             .eq(*_substrate_scope(auth))
             .like("path", f"{abs_prefix}%")
             .in_("lifecycle", ["active", "delivered"])
-            .order("path")
-            .limit(LIST_ENTRIES_CAP + 1)
+        )
+        if since and since.strip():
+            q = q.gte("updated_at", since.strip())
+        rows = (
+            q.order("path")
+            .range(offset, offset + page)  # inclusive → page+1 rows probes "more"
             .execute()
         ).data or []
     except Exception as exc:  # noqa: BLE001
@@ -782,8 +795,8 @@ async def compose_list(
         return {"success": False, "error": "list_failed", "message": str(exc),
                 "reference": reference}
 
-    truncated = len(rows) > LIST_ENTRIES_CAP
-    kept = rows[:LIST_ENTRIES_CAP]
+    truncated = len(rows) > page
+    kept = rows[:page]
     # Principal display (2026-08-10): the head author crosses the boundary as a
     # resolved name + species, never a raw member UUID or legacy email.
     from services.principal_display import classify_author
@@ -806,17 +819,22 @@ async def compose_list(
     where = f"`{rel.rstrip('/')}`" if rel else "the workspace"
     if not files:
         explanation = (
-            f"No files under {where}. In a path-addressed store a folder exists "
-            "only through its files — check the spelling, `list` a parent, or "
-            "`search` by meaning."
+            (f"No files under {where} changed since {since}. Quiet is a clean "
+             "signal — nothing moved." )
+            if since else
+            (f"No files under {where}. In a path-addressed store a folder exists "
+             "only through its files — check the spelling, `list` a parent, or "
+             "`search` by meaning.")
         )
     else:
         explanation = (
-            f"{len(files)} file(s) under {where}, each with who last changed it "
-            "and when" + (" (truncated — narrow the folder to see the rest)" if truncated else "")
+            f"{len(files)} file(s) under {where}"
+            + (f" changed since {since}" if since else "")
+            + ", each with who last changed it and when"
+            + (f" (more remain — continue with offset={offset + page})" if truncated else "")
             + ". Use `open` on any path for its exact content."
         )
-    return {
+    out = {
         "success": True,
         "reference": f"{YARNNN_REF_SCHEME}{rel}",
         "path": abs_prefix,
@@ -824,6 +842,165 @@ async def compose_list(
         "count": len(files),
         "truncated": truncated,
         "explanation": explanation,
+    }
+    if since:
+        out["since"] = since
+    if truncated:
+        out["next_offset"] = offset + page
+    return out
+
+
+async def compose_edit(
+    auth: Any,
+    reference: str,
+    old: str,
+    new: str,
+    replace_all: bool = False,
+    message: Optional[str] = None,
+) -> dict:
+    """Drive `edit` — the anchored write (ADR-545 D1, binds ADR-337 EditFile).
+
+    The ANCHOR is the precondition: `old` must match the current content
+    exactly (and uniquely, unless replace_all), so the verb carries no
+    base_revision — a stale view fails loudly (`old_string_not_found` /
+    `old_string_not_unique`), never guesses, and the kernel's internal
+    head-read CAS closes the apply-window race (ADR-406 D4). Content the
+    client never read is never in the payload — the truncated-read data-loss
+    class does not exist on this verb.
+    """
+    from services.primitives.registry import execute_primitive
+
+    rel = parse_file_reference(reference)
+    if rel is None:
+        return {
+            "success": False, "error": "invalid_reference",
+            "message": (
+                "Not a yarnnn file reference. Pass a workspace-relative path "
+                "or a yarnnn://workspace/… handle."
+            ),
+        }
+    result = await execute_primitive(auth, "EditFile", {
+        "scope": "workspace",
+        "path": rel,
+        "old_string": old,
+        "new_string": new,
+        "replace_all": bool(replace_all),
+        "message": message or f"edit via interop: {rel}",
+    })
+    if not result.get("success"):
+        # Reshape the kernel's anchor failures onto host-actionable guidance.
+        err = result.get("error")
+        if err == "old_string_not_found":
+            result["message"] = (
+                (result.get("message") or "The anchor text was not found.")
+                + " Your view of the file may be stale or truncated — re-open "
+                "it and anchor on text you can see verbatim."
+            )
+        elif err == "old_string_not_unique":
+            result["message"] = (
+                (result.get("message") or "The anchor text is not unique.")
+                + " Include more surrounding context in `old`, or pass "
+                "replace_all=true to change every occurrence."
+            )
+        result.setdefault("reference", format_file_reference(rel))
+        return result
+    return {
+        "success": True,
+        "reference": format_file_reference(rel),
+        "path": result.get("path") or f"/workspace/{rel}",
+        "replacements": result.get("replacements", 1),
+        "explanation": (
+            f"Applied {result.get('replacements', 1)} replacement(s) to `{rel}` "
+            "as one attributed revision. Only the anchored change was sent — "
+            "content you did not read was never at risk."
+        ),
+    }
+
+
+async def compose_delete(
+    auth: Any,
+    reference: str,
+    message: Optional[str] = None,
+) -> dict:
+    """Drive `delete` — remove from the live view (ADR-545 D2, binds DeleteFile).
+
+    A VIEW change, not information loss (ADR-337 D2 / ADR-209 D7): an
+    attributed tombstone records who and why; the chain retains the content;
+    restore is revert-as-write. Governance locks + the ADR-307 gate apply
+    exactly as for save.
+    """
+    from services.primitives.registry import execute_primitive
+
+    rel = parse_file_reference(reference)
+    if rel is None:
+        return {
+            "success": False, "error": "invalid_reference",
+            "message": (
+                "Not a yarnnn file reference. Pass a workspace-relative path "
+                "or a yarnnn://workspace/… handle."
+            ),
+        }
+    result = await execute_primitive(auth, "DeleteFile", {
+        "scope": "workspace",
+        "path": rel,
+        "message": message or f"delete via interop: {rel}",
+    })
+    if not result.get("success"):
+        result.setdefault("reference", format_file_reference(rel))
+        return result
+    return {
+        "success": True,
+        "reference": format_file_reference(rel),
+        "path": result.get("path") or f"/workspace/{rel}",
+        "tombstone_revision_id": result.get("tombstone_revision_id"),
+        "explanation": (
+            f"Removed `{rel}` from the live workspace as an attributed "
+            "tombstone. Nothing is lost: the revision chain (including the "
+            "content at deletion) is retained, and `history` still walks it."
+        ),
+    }
+
+
+async def compose_move(
+    auth: Any,
+    reference: str,
+    new_reference: str,
+    message: Optional[str] = None,
+) -> dict:
+    """Drive `move` — move/rename as one attributed operation (ADR-545 D2,
+    binds MoveFile). Refuses to overwrite an existing destination — replacing
+    a file is `delete` first, by explicit intent."""
+    from services.primitives.registry import execute_primitive
+
+    rel = parse_file_reference(reference)
+    new_rel = parse_file_reference(new_reference)
+    if rel is None or new_rel is None:
+        return {
+            "success": False, "error": "invalid_reference",
+            "message": (
+                "Both references must be yarnnn file references — a "
+                "workspace-relative path or a yarnnn://workspace/… handle."
+            ),
+        }
+    result = await execute_primitive(auth, "MoveFile", {
+        "scope": "workspace",
+        "path": rel,
+        "new_path": new_rel,
+        "message": message or f"move via interop: {rel} → {new_rel}",
+    })
+    if not result.get("success"):
+        result.setdefault("reference", format_file_reference(rel))
+        return result
+    return {
+        "success": True,
+        "reference": format_file_reference(new_rel),
+        "from_path": f"/workspace/{rel}",
+        "path": f"/workspace/{new_rel}",
+        "explanation": (
+            f"Moved `{rel}` → `{new_rel}` as one attributed operation. The "
+            "old path carries a tombstone pointing here; both chains are "
+            "retained."
+        ),
     }
 
 
@@ -834,6 +1011,7 @@ async def compose_save(
     base_revision: Optional[str] = None,
     message: Optional[str] = None,
     derived_from: Optional[list] = None,
+    confirm_full_replace: bool = False,
 ) -> dict:
     """Drive `save` — the attributed write to a named file (ADR-512 §8a).
 
@@ -881,6 +1059,39 @@ async def compose_save(
         return {"success": False, "error": "head_lookup_failed", "message": str(exc)}
 
     head = head_rows[0] if head_rows else None
+
+    # ADR-545 D4 — the honest save (truncation guard). `open` caps content at
+    # OPEN_CONTENT_CAP; a whole-file save over a file LARGER than that cap is
+    # the read-truncated/save-back data-loss shape. Deterministic refusal
+    # unless intent is stated: `edit` is the right tool for targeted changes
+    # to a file the caller could not fully read.
+    if head and not confirm_full_replace:
+        try:
+            size_row = (
+                auth.client.table("workspace_files")
+                .select("content_bytes")
+                .eq(*_substrate_scope(auth))
+                .eq("path", abs_path)
+                .limit(1)
+                .execute()
+            ).data or []
+            existing_bytes = (size_row[0].get("content_bytes") or 0) if size_row else 0
+        except Exception:  # noqa: BLE001 — the guard degrades open, never breaks save
+            existing_bytes = 0
+        if existing_bytes > OPEN_CONTENT_CAP:
+            return {
+                "success": False, "error": "large_file_overwrite",
+                "message": (
+                    f"`{rel}` is {existing_bytes} bytes — larger than open's "
+                    f"{OPEN_CONTENT_CAP}-byte cap, so any open of it was "
+                    "truncated and a whole-file save risks silently deleting "
+                    "the part you never saw. Use `edit` for targeted changes; "
+                    "to intentionally replace the whole file, pass "
+                    "confirm_full_replace=true."
+                ),
+                "reference": format_file_reference(rel),
+            }
+
     if head and not base_revision:
         return {
             "success": False, "error": "base_required",

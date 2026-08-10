@@ -93,19 +93,26 @@ def is_embed_eligible(path: str, content: str | None = None) -> tuple[bool, str]
 
 
 def is_searchable_root(path: str) -> bool:
-    """True iff `path` lives under a semantic-search root (ADR-325 / ADR-395).
+    """True iff `path` belongs in the search surface (ADR-545 D5 deny-list).
 
     The path-only companion to `is_embed_eligible` (no content-length / extension
     check — those govern whether a file gets embedded; this governs whether a
     result-row belongs in an unscoped QueryKnowledge sweep). Singular source of
-    truth for "what is a search target" — reused by handle_query_knowledge's
-    default (no-domain) sweep so the upload-projection lane (inbound/uploads/) is
-    reachable alongside operation/, without a second hardcoded root list drifting.
+    truth for "what is a search target".
+
+    ADR-545 D5 flips this from the pre-re-founding ALLOW-list (operation/ +
+    uploads/ + inbound/uploads/) to a DENY-list: everything in the commons is
+    searchable except machine/runtime substrate. The re-founding made
+    meaning-named folders first-class (`deals/…`, a root-level guide file) and
+    the allow-list made them invisible to search — even to free BM25 (the live
+    finding: `_playbook.md` unfindable by two searches for "playbook").
+    Searchable ≠ embeddable: the PAID semantic path keeps its allow-list
+    (`is_embed_eligible` — ADR-325 spend discipline, deliberately unchanged);
+    BM25 carries the widened surface for free. Reach is still the grant's
+    (the powerbox read gate at the DB) — this widens relevance, not permission.
     """
     rel = _normalize_rel(path)
-    if any(rel.startswith(r) for r in _EMBED_INELIGIBLE_ROOTS):
-        return False
-    return any(rel.startswith(r) for r in _EMBED_ELIGIBLE_ROOTS)
+    return not any(rel.startswith(r) for r in _EMBED_INELIGIBLE_ROOTS)
 
 
 # ---------------------------------------------------------------------------

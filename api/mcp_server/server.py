@@ -345,8 +345,9 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
     (
         "list",
         "enumerate the files under a folder — every path with its size, who "
-        "last changed it, and when. No reference lists the whole workspace. "
-        "Use it to see what exists before guessing paths or topics.",
+        "last changed it, and when. No reference lists the whole workspace; "
+        "pass `since` (ISO timestamp) for the change feed — what moved since "
+        "you were last here. Use it to see what exists before guessing.",
     ),
     (
         "search",
@@ -357,10 +358,32 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
     ),
     (
         "save",
-        "write a document back as an attributed revision, signed as you. "
-        "Read-before-write: pass base_revision from open; a stale_write means "
-        "someone changed it since — re-open, merge, save again. Omit "
-        "base_revision only to create. Cite what you built on with derived_from.",
+        "write a WHOLE document as an attributed revision, signed as you — "
+        "creating, or rewriting wholesale. Read-before-write: pass "
+        "base_revision from open; a stale_write means someone changed it since "
+        "— re-open, merge, save again. Cite sources with derived_from. For a "
+        "targeted change to an existing file, prefer edit.",
+    ),
+    (
+        "edit",
+        "change PART of a file: pass the exact text to replace and its "
+        "replacement. Only the change travels — content you never read is "
+        "never at risk, so this is the right verb for files open returned "
+        "truncated, and for concurrent work (edits to different regions don't "
+        "conflict). Fails loudly if the anchor is missing or ambiguous.",
+    ),
+    (
+        "delete",
+        "remove a file from the live workspace. Nothing is lost: an attributed "
+        "tombstone records who and why, the revision chain keeps the content, "
+        "and history still walks it. Use it to tidy — superseded scratch, dead "
+        "duplicates, stale artifacts that would mislead the next reader.",
+    ),
+    (
+        "move",
+        "move or rename a file to a new path as one attributed operation. "
+        "Refuses to overwrite an existing destination (delete it first, by "
+        "intent). The old path keeps a tombstone pointing at the new one.",
     ),
     (
         "history",
@@ -611,6 +634,9 @@ def file_header_widget() -> str:
 async def list_files(
     ctx: Context,
     reference: Optional[str] = None,
+    since: Optional[str] = None,
+    limit: int = 500,
+    offset: int = 0,
 ) -> dict:
     """List the files under a folder in the user's yarnnn workspace.
 
@@ -620,14 +646,22 @@ async def list_files(
     `operation/reports`, or a yarnnn://workspace/… handle); omit it to list the
     entire workspace tree.
 
-    Returns every file under that folder — path, size, who last changed it,
-    and when. The listing is real enumeration, not inference: what it returns
-    is what exists. Use `open` on any returned path for exact content, and
-    `search` when you're after meaning rather than structure.
+    THE CHANGE FEED: pass `since` (ISO timestamp) to get only the files whose
+    last change landed after that moment — "what moved since I was last here"
+    in one call. Returning to a workspace after time away? list(since=…) first.
+
+    Returns every matching file — path, size, who last changed it, and when.
+    The listing is real enumeration, not inference: what it returns is what
+    exists. When `truncated` is true, continue from `next_offset`. Use `open`
+    on any returned path for exact content, and `search` when you're after
+    meaning rather than structure.
 
     Args:
         reference: Optional folder — workspace-relative path or
             yarnnn://workspace/{path}. Omit to list the whole workspace.
+        since: Optional ISO timestamp — only files changed after this moment.
+        limit: Max files per page (default and cap 500).
+        offset: Page start in path order (use next_offset from a truncated call).
     """
     auth = resolve_request_client()
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -635,15 +669,18 @@ async def list_files(
         client_name = mcp_composition.derive_client_name(
             getattr(ctx.request_context, "request", None)
         )
-    result = await mcp_composition.compose_list(auth=auth, reference=reference)
+    result = await mcp_composition.compose_list(
+        auth=auth, reference=reference, since=since, limit=limit, offset=offset,
+    )
     n = result.get("count", 0)
     where = result.get("path") or "(workspace)"
     _emit_mcp_narrative(
         auth, tool="list", weight="routine",
-        summary=f"{client_name} listed {n} file(s) under {where}",
-        body=f"reference: {reference or '(workspace root)'}\ncount: {n}",
+        summary=f"{client_name} listed {n} file(s) under {where}"
+        + (f" since {since}" if since else ""),
+        body=f"reference: {reference or '(workspace root)'}\nsince: {since or '(none)'}\ncount: {n}",
         client_name=client_name,
-        extra_metadata={"reference": reference, "count": n},
+        extra_metadata={"reference": reference, "count": n, "since": since},
     )
     return _present("list", result, client_name=client_name)
 
@@ -874,13 +911,17 @@ async def save(
     base_revision: Optional[str] = None,
     message: Optional[str] = None,
     derived_from: Optional[list[str]] = None,
+    confirm_full_replace: bool = False,
 ) -> dict:
     """Save content to an EXACT file in the user's yarnnn workspace, as an attributed revision.
 
-    Call this when the user asks you to update a specific document — "apply
-    that edit to the proposal", "save this version back". Pass the same
+    Call this to CREATE a file or REWRITE one wholesale. Pass the same
     reference `open` takes (yarnnn://workspace/… or a workspace-relative path)
-    and the FULL new content (this is an overwrite, not a patch).
+    and the FULL new content (this is an overwrite, not a patch). For a
+    targeted change to an existing file — especially one `open` returned
+    truncated — use `edit` instead: it sends only the change, so content you
+    never read is never at risk. A save over a file larger than open's cap is
+    refused unless you pass confirm_full_replace=true (stated intent).
 
     THE CONTRACT — read before write: for an existing file you MUST pass
     `base_revision` = the head revision id you got from `open` (history[0].
@@ -911,6 +952,8 @@ async def save(
         derived_from: Optional references of the source file(s) this was made
             from (same grammar as `reference`). Pass whenever you author from
             sources you read.
+        confirm_full_replace: Required true to wholesale-overwrite a file
+            larger than open's content cap (stated intent; prefer `edit`).
     """
     auth = resolve_request_client()
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -922,6 +965,7 @@ async def save(
         auth=auth, reference=reference, content=content,
         base_revision=base_revision, message=message,
         derived_from=derived_from,
+        confirm_full_replace=confirm_full_replace,
     )
     outcome = "saved" if result.get("success") else (result.get("error") or "failed")
     _emit_mcp_narrative(
@@ -935,6 +979,188 @@ async def save(
         extra_metadata={"outcome": outcome, "revision_id": result.get("revision_id")},
     )
     return _present("save", result, client_name=client_name)
+
+
+@mcp.tool(
+    # ADR-545 D1 — the anchored write (binds ADR-337 EditFile). Only the change
+    # travels; the anchor is the precondition (no base_revision — a stale view
+    # fails loudly as no-match, and the kernel's head-read CAS closes the
+    # apply-window race per ADR-406 D4). Non-destructive in the ledger sense:
+    # one attributed revision, prior content on the chain.
+    annotations=ToolAnnotations(
+        title="Edit",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def edit(
+    ctx: Context,
+    reference: str,
+    old: str,
+    new: str,
+    replace_all: bool = False,
+    message: Optional[str] = None,
+) -> dict:
+    """Change PART of a file in the user's yarnnn workspace — an anchored edit.
+
+    Call this for any targeted change to an existing file: fixing a line,
+    updating a section, appending an entry. Pass the exact current text as
+    `old` (verbatim, including whitespace — include surrounding context to
+    make it unique) and the replacement as `new`. Only the change travels:
+    content you never read is never at risk, which makes this the REQUIRED
+    verb for files `open` returned truncated, and the right one when several
+    principals work the same file (edits to different regions don't conflict).
+
+    Fails loudly, never guesses: `old_string_not_found` means your view is
+    stale or the anchor isn't verbatim — re-open and re-anchor;
+    `old_string_not_unique` means add more context or pass replace_all=true.
+    The edit lands as one attributed revision signed as you; use `save` only
+    to create a file or rewrite one wholesale.
+
+    Args:
+        reference: The file — same grammar as open. Required.
+        old: Exact text to replace (verbatim; unique unless replace_all).
+        new: Replacement text.
+        replace_all: Replace every occurrence (default false).
+        message: Optional one-line description of the change.
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_edit(
+        auth=auth, reference=reference, old=old, new=new,
+        replace_all=replace_all, message=message,
+    )
+    outcome = "edited" if result.get("success") else (result.get("error") or "failed")
+    _emit_mcp_narrative(
+        auth, tool="edit", weight="material" if result.get("success") else "routine",
+        summary=f"{client_name} {outcome}: {result.get('path') or reference}",
+        body=(
+            f"reference: {reference}\noutcome: {outcome}\n"
+            f"replacements: {result.get('replacements') or 0}\n"
+            f"message: {message or '(none)'}"
+        ),
+        client_name=client_name,
+        extra_metadata={"outcome": outcome, "replacements": result.get("replacements")},
+    )
+    return _present("edit", result, client_name=client_name)
+
+
+@mcp.tool(
+    # ADR-545 D2 — binds ADR-337 DeleteFile. A VIEW change, not information
+    # loss (attributed tombstone; chain retained; restore is revert-as-write,
+    # ADR-209 D7). destructiveHint=True is the honest annotation for a host's
+    # permission surface: the file leaves the live tree, even though the
+    # ledger keeps everything.
+    annotations=ToolAnnotations(
+        title="Delete",
+        readOnlyHint=False,
+        destructiveHint=True,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def delete(
+    ctx: Context,
+    reference: str,
+    message: Optional[str] = None,
+) -> dict:
+    """Remove a file from the live yarnnn workspace — tidy, don't hoard.
+
+    Call this when a file would mislead the next reader: superseded scratch,
+    a dead duplicate after a move, a stale artifact. Nothing is lost — an
+    attributed tombstone records who removed it and why, the revision chain
+    keeps the content, and `history` still walks it; the user can restore
+    from the workspace. Governance-protected paths refuse, same as save.
+
+    Say why in `message` — the tombstone is the next reader's explanation.
+
+    Args:
+        reference: The file — same grammar as open. Required.
+        message: Why this file is being removed (recorded on the tombstone).
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_delete(
+        auth=auth, reference=reference, message=message,
+    )
+    outcome = "deleted" if result.get("success") else (result.get("error") or "failed")
+    _emit_mcp_narrative(
+        auth, tool="delete", weight="material" if result.get("success") else "routine",
+        summary=f"{client_name} {outcome}: {result.get('path') or reference}",
+        body=(
+            f"reference: {reference}\noutcome: {outcome}\n"
+            f"message: {message or '(none)'}\n"
+            f"tombstone: {result.get('tombstone_revision_id') or '(n/a)'}"
+        ),
+        client_name=client_name,
+        extra_metadata={"outcome": outcome,
+                        "tombstone_revision_id": result.get("tombstone_revision_id")},
+    )
+    return _present("delete", result, client_name=client_name)
+
+
+@mcp.tool(
+    # ADR-545 D2 — binds ADR-337 MoveFile. One attributed operation: content
+    # revision at the destination + tombstone at the origin pointing there.
+    # Refuses to overwrite an existing destination (delete first, by intent).
+    annotations=ToolAnnotations(
+        title="Move",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def move(
+    ctx: Context,
+    reference: str,
+    new_reference: str,
+    message: Optional[str] = None,
+) -> dict:
+    """Move or rename a file in the user's yarnnn workspace.
+
+    Call this to put a file where it belongs — a better folder, a clearer
+    name. One attributed operation: the content lands at the new path, the
+    old path keeps a tombstone pointing there, and both revision chains are
+    retained. Refuses to overwrite an existing destination — if the
+    destination must be replaced, `delete` it first (explicit intent).
+
+    Args:
+        reference: The file's current path — same grammar as open. Required.
+        new_reference: The destination path (must not already exist). Required.
+        message: Why this file is moving (recorded on both revisions).
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_move(
+        auth=auth, reference=reference, new_reference=new_reference, message=message,
+    )
+    outcome = "moved" if result.get("success") else (result.get("error") or "failed")
+    _emit_mcp_narrative(
+        auth, tool="move", weight="material" if result.get("success") else "routine",
+        summary=f"{client_name} {outcome}: {reference} → {new_reference}",
+        body=(
+            f"from: {reference}\nto: {new_reference}\noutcome: {outcome}\n"
+            f"message: {message or '(none)'}"
+        ),
+        client_name=client_name,
+        extra_metadata={"outcome": outcome, "to": new_reference},
+    )
+    return _present("move", result, client_name=client_name)
 
 
 @mcp.tool(
@@ -1125,9 +1351,38 @@ _OUTPUT_SCHEMAS = {
         "properties": {
             "reference": {"type": "string", "description": "the canonical handle of the listed folder (yarnnn://workspace/… — the workspace root when no reference was passed)"},
             "path": {"type": ["string", "null"], "description": "the ledger's absolute folder prefix (/workspace/…)"},
-            "files": {"type": "array", "items": {"type": "object"}, "description": "every file under the folder (path, reference, bytes, last_updated, authored_by), ordered by path"},
+            "files": {"type": "array", "items": {"type": "object"}, "description": "every matching file (path, reference, bytes, last_updated, authored_by, author_class), ordered by path"},
             "count": {"type": "integer"},
-            "truncated": {"type": "boolean", "description": "true when the subtree exceeded the cap — narrow the folder to see the rest"},
+            "since": {"type": "string", "description": "echoed when the call was a change-feed query (only files changed after this moment)"},
+            "truncated": {"type": "boolean", "description": "true when more files remain — continue from next_offset"},
+            "next_offset": {"type": "integer", "description": "pass as offset to fetch the next page (present when truncated)"},
+            "explanation": {"type": "string"},
+        },
+    },
+    "edit": {
+        "type": "object",
+        "properties": {
+            "reference": {"type": "string", "description": "the canonical handle of the edited file"},
+            "path": {"type": ["string", "null"]},
+            "replacements": {"type": "integer", "description": "how many occurrences were replaced"},
+            "explanation": {"type": "string"},
+        },
+    },
+    "delete": {
+        "type": "object",
+        "properties": {
+            "reference": {"type": "string", "description": "the canonical handle of the removed file"},
+            "path": {"type": ["string", "null"]},
+            "tombstone_revision_id": {"type": ["string", "null"], "description": "the attributed tombstone — the chain is retained; restore is possible"},
+            "explanation": {"type": "string"},
+        },
+    },
+    "move": {
+        "type": "object",
+        "properties": {
+            "reference": {"type": "string", "description": "the canonical handle of the file at its NEW path"},
+            "from_path": {"type": ["string", "null"], "description": "the old absolute path (now a tombstone pointing at path)"},
+            "path": {"type": ["string", "null"], "description": "the new absolute path"},
             "explanation": {"type": "string"},
         },
     },

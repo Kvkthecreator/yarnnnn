@@ -70,6 +70,22 @@ TEXT_ONLY: dict[str, str] = {
         "paths behind glass; the whole point of list is that every line is an "
         "openable reference."
     ),
+    # ADR-545 — the write-side completions. Each returns a one-line receipt
+    # (what changed / where it went / the tombstone id) that the model relays
+    # in its own sentence; a widget would add an iframe to read a line.
+    "edit": (
+        "The result is a replacement count and a path — one line the model "
+        "narrates. The change itself is visible via history's diffs, where "
+        "the timeline widget already renders it."
+    ),
+    "delete": (
+        "The result is a tombstone receipt — one line. The reversible-removal "
+        "story belongs in the model's sentence, not behind glass."
+    ),
+    "move": (
+        "The result is from→to — one line the model narrates. Nothing to "
+        "render that the sentence doesn't already say."
+    ),
 }
 
 

@@ -1228,12 +1228,24 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
         resolved_author, resolved_message = _resolved_author_and_message(
             auth, input, f"EditFile workspace {path}"
         )
+        # ADR-410 identity stamp — same discipline as WriteFile (2026-08-10):
+        # human-traceable species record WHICH human on the revision.
+        identity_uuid = (
+            auth.user_id
+            if (
+                resolved_author == "operator"
+                or resolved_author.startswith("member:")
+                or resolved_author.startswith("yarnnn:mcp:")
+            )
+            else None
+        )
         try:
             ok = await um.write(
                 path, new_content,
                 summary=f"Workspace edit: {path}",
                 authored_by=resolved_author, message=resolved_message,
                 expected_parent_version_id=base_head,
+                author_identity_uuid=identity_uuid,
             )
         except StaleWriteError as e:
             who = (e.current_head or {}).get("authored_by", "another writer")
