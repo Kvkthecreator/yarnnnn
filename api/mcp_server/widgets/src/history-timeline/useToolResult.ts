@@ -1,8 +1,8 @@
-// Subscribe to the trace result the host provides. Mirrors OpenAI's reference
+// Subscribe to the history result the host provides. Mirrors OpenAI's reference
 // reader (openai-apps-sdk-examples/src/use-openai-global.ts) because the live
 // test found a real race: ChatGPT may set `window.openai.toolOutput` WITHOUT (or
 // before) the widget's `openai:set_globals` listener catches it, so a read-once-
-// at-mount widget sits forever on "Waiting for trace data…". The fix is three
+// at-mount widget sits forever on "Waiting for history data…". The fix is three
 // channels, any of which resolves it:
 //
 //   1. read window.openai.toolOutput at mount (already-present case);
@@ -14,7 +14,7 @@
 // postMessage) so the same bundle renders on non-ChatGPT hosts.
 
 import { useEffect, useState } from "react";
-import type { TraceResult } from "./types";
+import type { HistoryResult } from "./types";
 
 declare global {
   interface Window {
@@ -24,23 +24,23 @@ declare global {
 
 const SET_GLOBALS_EVENT = "openai:set_globals";
 
-function coerce(value: unknown): TraceResult | null {
+function coerce(value: unknown): HistoryResult | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   // Hosts differ on whether toolOutput is the bare result dict or the full
   // CallToolResult (with structuredContent nested). Accept both: prefer a
   // nested structuredContent, else use the object directly. We recognize a
-  // trace result by its `history` array (or the explicit empty `explanation`).
+  // history result by its `history` array (or the explicit empty `explanation`).
   if (v.structuredContent && typeof v.structuredContent === "object") {
-    return v.structuredContent as TraceResult;
+    return v.structuredContent as HistoryResult;
   }
-  if ("history" in v || "explanation" in v || "subject" in v) {
-    return v as TraceResult;
+  if ("history" in v || "explanation" in v || "reference" in v) {
+    return v as HistoryResult;
   }
   return null;
 }
 
-function readToolOutput(): TraceResult | null {
+function readToolOutput(): HistoryResult | null {
   try {
     return coerce(window.openai?.toolOutput);
   } catch {
@@ -48,8 +48,8 @@ function readToolOutput(): TraceResult | null {
   }
 }
 
-export function useToolResult(): TraceResult | null {
-  const [result, setResult] = useState<TraceResult | null>(() => readToolOutput());
+export function useToolResult(): HistoryResult | null {
+  const [result, setResult] = useState<HistoryResult | null>(() => readToolOutput());
 
   useEffect(() => {
     let settled = result != null;

@@ -14,7 +14,8 @@ D1 — UpdateContext dissolution (10):
    7. ManageRecurrence action enum has exactly 5 values.
    8. WriteFile gains scope='workspace' (Option A) — schema enum includes it.
    9. WriteFile path-prefix activity classifier recognizes canonical paths.
-  10. mcp_composition exposes dispatch_remember_this and routes through new
+  10. mcp_composition has no dispatch_remember_this (retired by ADR-543) and
+      no live UpdateContext call; MCP writes route through new
       primitives (no UpdateContext call left in the dispatch path).
 
 D2 — ManageAgent.create sunset (4):
@@ -181,10 +182,11 @@ def test_writefile_activity_classifier():
 
 
 def test_mcp_composition_dispatch_routes_through_new_primitives():
-    """ADR-235: mcp_composition.dispatch_remember_this exists and the file
+    """ADR-235 as amended by ADR-543: the memory-verb dispatcher is GONE
+    (the surface is file-native; writes go through compose_save) and the file
     has no live execute_primitive call against UpdateContext."""
     from services import mcp_composition
-    has_dispatch = hasattr(mcp_composition, "dispatch_remember_this")
+    has_dispatch = not hasattr(mcp_composition, "dispatch_remember_this")
 
     src = (REPO_API / "services" / "mcp_composition.py").read_text()
     # The doc-comment may reference UpdateContext historically; the live

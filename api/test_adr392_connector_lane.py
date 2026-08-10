@@ -341,7 +341,7 @@ def _test_retention():
             res["pruned"] == 1 and stale_uncited not in store,
             f"res={res} stale_uncited_present={stale_uncited in store}"))
         out.append(_check(
-            "16 stale-but-CITED raw KEPT (evidence — derived_from/trace chain intact)",
+            "16 stale-but-CITED raw KEPT (evidence — derived_from/history chain intact)",
             stale_cited in store and res["kept_cited"] == 1,
             f"res={res} stale_cited_present={stale_cited in store}"))
         out.append(_check(

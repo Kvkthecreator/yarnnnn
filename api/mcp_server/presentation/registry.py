@@ -61,28 +61,25 @@ class Widget:
 
 #: widget id → Widget. Keyed by affordances.Affordance.widget.
 WIDGETS: dict[str, Widget] = {
-    "trace-timeline": Widget(
-        uri="ui://yarnnn/trace-timeline.html",
-        bundle_filename="trace-timeline.html",
-        invoking="Tracing the revision history…",
-        invoked="Traced the revision history",
+    # ADR-543 — the file-native re-cut: trace-timeline → history-timeline,
+    # recall-cards → search-results (same widgets, re-grounded fields);
+    # remember-receipt deleted with its verb.
+    "history-timeline": Widget(
+        uri="ui://yarnnn/history-timeline.html",
+        bundle_filename="history-timeline.html",
+        invoking="Reading the file's history…",
+        invoked="Read the file's history",
     ),
-    "recall-cards": Widget(
-        uri="ui://yarnnn/recall-cards.html",
-        bundle_filename="recall-cards.html",
-        invoking="Recalling from your memory…",
-        invoked="Recalled from your memory",
+    "search-results": Widget(
+        uri="ui://yarnnn/search-results.html",
+        bundle_filename="search-results.html",
+        invoking="Searching the workspace…",
+        invoked="Searched the workspace",
     ),
-    "remember-receipt": Widget(
-        uri="ui://yarnnn/remember-receipt.html",
-        bundle_filename="remember-receipt.html",
-        invoking="Saving to your memory…",
-        invoked="Saved to your memory",
-    ),
-    # ADR-533 D4 — the file verbs join the roster. Before this, the three
-    # MEMORY verbs rendered rich on ChatGPT and the three ADR-512 FILE verbs
-    # rendered bare text, so the OpenAI Apps face still presented yarnnn as a
-    # memory product — the costume ADR-512 §10 declared ended.
+    # ADR-533 D4 — the file verbs join the roster. Before this, the memory
+    # verbs rendered rich on ChatGPT and the ADR-512 FILE verbs rendered bare
+    # text, so the OpenAI Apps face still presented yarnnn as a memory product
+    # — the costume ADR-512 §10 declared ended.
     "save-receipt": Widget(
         uri="ui://yarnnn/save-receipt.html",
         bundle_filename="save-receipt.html",

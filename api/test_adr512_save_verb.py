@@ -77,7 +77,7 @@ def main():
     results.append(_check(
         "3b all six verbs taught in instructions (rendered, ADR-533 D2)",
         all(f"• {v}" in _rendered_instructions()
-            for v in ("open", "remember", "recall", "trace", "save", "share"))))
+            for v in ("open", "list", "search", "save", "history", "share"))))
     results.append(_check(
         "3c save output schema present",
         '"save": {' in server_src and '"revision_id"' in server_src))

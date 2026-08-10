@@ -1,4 +1,4 @@
-// Inline stylesheet for the trace-timeline widget. Injected at module load so
+// Inline stylesheet for the history-timeline widget. Injected at module load so
 // the bundle stays a single self-contained file (no external <link>). Respects
 // the host's light/dark via prefers-color-scheme.
 

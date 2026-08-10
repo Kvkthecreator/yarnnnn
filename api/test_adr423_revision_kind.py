@@ -3,7 +3,7 @@ ADR-423 — revision_kind: provenance as a flag on the ledger.
 
 Structural gate for the tag-in-place fold (the arrival badge that lets the two
 raw lanes unify under Downloads/). Pure-Python (no DB, no `mcp` package); the
-live round-trip is the MCP remember probe.
+live round-trip is the interop save/history probe.
 
 Asserts:
   1. write_revision + _insert_revision accept revision_kind (default 'authored').
@@ -11,12 +11,13 @@ Asserts:
      authored writes + safe against a not-yet-migrated DB).
   3. The write-path wrappers (UserMemory.write, AgentWorkspace.write) + the
      WriteFile primitive thread revision_kind through.
-  4. The three intake writers tag 'observation':
-       - MCP remember (dispatch_remember_this WriteFile input)
+  4. The intake writers tag 'observation' (ADR-543 note: the MCP remember
+     writer is retired — the surviving intake writers are the connector
+     capture and the web watches):
        - connector capture (_write_if_changed helper — one spot, both callers)
        - web watches (track_web_sources raw observation write)
   5. The Revision dataclass carries revision_kind; list/read revision selects it;
-     trace surfaces it in history + ListRevisions forwards it.
+     history surfaces it + ListRevisions forwards it.
   6. No non-intake writer sets revision_kind (the ~40 others take the default) —
      a Singular-Implementation guard against scatter.
 """
@@ -100,14 +101,8 @@ def run() -> int:
         'input.get("revision_kind")' in src and "revision_kind=revision_kind" in src,
     )
 
-    # 4 — the three intake writers tag 'observation'
+    # 4 — the intake writers tag 'observation' (MCP remember retired, ADR-543)
     import services.mcp_composition as mcpc
-    remember_src = inspect.getsource(mcpc.dispatch_remember_this)
-    passed &= _check(
-        "MCP remember tags observation",
-        '"revision_kind": "observation"' in remember_src,
-    )
-
     import services.primitives.sync_platform_state as syncp
     wic_src = inspect.getsource(syncp._write_if_changed)
     passed &= _check(
@@ -134,10 +129,10 @@ def run() -> int:
     passed &= _check("Revision carries revision_kind", "revision_kind" in rev_fields)
     lr_src = inspect.getsource(__import__("services.authored_substrate", fromlist=["list_revisions"]).list_revisions)
     passed &= _check("list_revisions selects revision_kind", "revision_kind" in lr_src)
-    trace_src = inspect.getsource(mcpc.compose_trace)
+    history_src = inspect.getsource(mcpc.compose_history)
     passed &= _check(
-        "trace surfaces revision_kind in history from the column",
-        '"revision_kind": rev.get("revision_kind")' in trace_src,
+        "history surfaces revision_kind from the column",
+        '"revision_kind": rev.get("revision_kind")' in history_src,
     )
 
     # 6 — Singular Implementation: no non-intake writer scatters an observation tag.

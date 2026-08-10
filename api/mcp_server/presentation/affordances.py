@@ -1,16 +1,15 @@
 """Per-tool presentation affordances — data, not code (ADR-372 D1).
 
 A tool declares an OPTIONAL affordance here; a tool with no entry is text-only
-(the default, valid on every host). This is the durable layer: the memory verbs
-are subject to change (README §"Why these three verbs"), but the affordance
-MECHANISM is stable. A new verb opts in with one dict entry; a removed verb drops
-one. No tool body is rewired, and the vendor `_meta` shape is generated downstream
+(the default, valid on every host). This is the durable layer: verbs come and
+go (the ADR-543 file-native re-cut retired three), but the affordance MECHANISM
+is stable. A new verb opts in with one dict entry; a removed verb drops one. No
+tool body is rewired, and the vendor `_meta` shape is generated downstream
 (registry + adapters), never authored here.
 
-`trace` is the first and only affordance: the ADR-209 authored revision chain is
-YARNNN's differentiator and a who-changed-what-when timeline is inherently visual.
-`remember` is a fire-and-forget write (text confirmation is correct); `recall` is
-text-first for now (a `recall-cards` widget is a future, additive entry).
+`history` carries the flagship affordance: the ADR-209 authored revision chain
+is YARNNN's differentiator and a who-changed-what-when timeline is inherently
+visual.
 """
 
 from __future__ import annotations
@@ -38,9 +37,10 @@ class Affordance:
 #: ADR-533 D4 that absence must be DECLARED in TEXT_ONLY below, not merely
 #: implied, so a new verb cannot silently ship with no rendering story.
 AFFORDANCES: dict[str, Affordance] = {
-    "trace": Affordance(widget="trace-timeline", fallback="text", interactive=True),
-    "recall": Affordance(widget="recall-cards", fallback="text", interactive=False),
-    "remember": Affordance(widget="remember-receipt", fallback="text", interactive=False),
+    # ADR-543: the renamed read verbs keep their widgets (history was trace's,
+    # search was recall's) — the rendering story survives the ontology re-cut.
+    "history": Affordance(widget="history-timeline", fallback="text", interactive=True),
+    "search": Affordance(widget="search-results", fallback="text", interactive=False),
     # ADR-533 D4 — the file verbs.
     # `save`: the widget exists for the CONFLICT (stale_write / base_required).
     # Someone else holding the head is the one outcome the user must act on, and
@@ -63,6 +63,12 @@ TEXT_ONLY: dict[str, str] = {
         "The result is a link plus a reach level — one line the host relays "
         "verbatim. A widget for a URL is ceremony: it adds an iframe the user "
         "must look at to read something the sentence already said."
+    ),
+    "list": (
+        "The result is a file tree — paths the host itself renders better as "
+        "text the model can quote and open. An iframe listing would trap the "
+        "paths behind glass; the whole point of list is that every line is an "
+        "openable reference."
     ),
 }
 

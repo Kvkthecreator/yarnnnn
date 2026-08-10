@@ -162,9 +162,10 @@ async def author_identity(
     records the cost ledger, writes the result via UserMemory (→ write_revision,
     authored_by=operator by default), and runs deterministic gap detection.
 
-    Called by the MCP `dispatch_remember_this` identity path and the eval
-    harness. The chat surface does NOT call this — post-ADR-324 the chat LLM
-    authors identity inline via WriteFile (no focused sub-prompt).
+    Called by the eval harness (the MCP identity path that also called it was
+    retired with the memory verbs, ADR-543). The chat surface does NOT call
+    this — post-ADR-324 the chat LLM authors identity inline via WriteFile
+    (no focused sub-prompt).
 
     ADR-432 D1c: the `brand` target is retired — this authors identity only.
 

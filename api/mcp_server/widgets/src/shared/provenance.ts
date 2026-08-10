@@ -1,6 +1,6 @@
 // Provenance bucketing shared by all widgets (ADR-372). Maps an authored_by /
 // source-tag string to a stable color bucket — the cross-LLM attribution made
-// visual, the same in trace nodes and recall cards.
+// visual, the same in history nodes and search cards.
 
 export type ProvBucket = "operator" | "reviewer" | "mcp" | "agent" | "system";
 

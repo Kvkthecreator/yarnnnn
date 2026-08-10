@@ -221,17 +221,23 @@ def run() -> int:
         bool(save_tool) and "derived_from" in save_tool.group(1),
     )
 
-    # D3's deliberate EXCLUSION: `remember` writes raw arrivals
-    # (revision_kind='observation'), which by definition are not made FROM a
-    # workspace file. A citation edge there would invite manufactured provenance.
-    # Freezing the exclusion keeps a future "consistency" pass from adding it
-    # without reading the ADR.
-    remember_fn = re.search(
-        r"async def dispatch_remember_this\((.*?)\) -> dict:", comp_src, re.DOTALL
+    # ADR-543: the memory surface is retired IN FULL — no remember machinery may
+    # survive in the composition layer (singular implementation, no shims). The
+    # pre-543 D3 exclusion ("remember does not take derived_from") is moot with
+    # the verb; this tombstone keeps the machinery from quietly returning.
+    code_only_comp = "\n".join(
+        line.split("#", 1)[0] for line in comp_src.splitlines()
     )
     ok &= _check(
-        "D3 remember does NOT take derived_from (raw arrivals are not derivations)",
-        bool(remember_fn) and "derived_from" not in remember_fn.group(1),
+        "ADR-543 no remember machinery survives in the composition layer",
+        all(
+            re.search(rf"\bdef {name}\b", code_only_comp) is None
+            for name in (
+                "dispatch_remember_this", "resolve_remember_path",
+                "resolve_memory_path", "resolve_trace_path",
+                "compose_recall", "compose_trace",
+            )
+        ),
     )
 
     # ── D4: every rostered verb has a rendering story ─────────────────────────

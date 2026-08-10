@@ -153,8 +153,8 @@ def main():
     from mcp_server.presentation import registry as reg
     openai_meta = {
         "ui": {"domain": "https://mcp.yarnnn.com", "csp": {"connectDomains": ["x"]},
-               "resourceUri": "ui://yarnnn/remember-receipt.html"},
-        "openai/outputTemplate": "ui://yarnnn/remember-receipt.html",
+               "resourceUri": "ui://yarnnn/save-receipt.html"},
+        "openai/outputTemplate": "ui://yarnnn/save-receipt.html",
         "openai/widgetAccessible": True,
         "openai/toolInvocation/invoking": "Saving…",
     }
@@ -180,8 +180,8 @@ def main():
         srv.resolve_request_host_id = lambda: host
         try:
             tools = {t.name: (t.meta or {}) for t in await srv.mcp.list_tools()}
-            res = list(await srv.mcp.read_resource("ui://yarnnn/remember-receipt.html"))[0]
-            return tools.get("remember", {}), res.mime_type, (getattr(res, "meta", None) or {})
+            res = list(await srv.mcp.read_resource("ui://yarnnn/save-receipt.html"))[0]
+            return tools.get("save", {}), res.mime_type, (getattr(res, "meta", None) or {})
         finally:
             srv.resolve_request_host_id = orig
 

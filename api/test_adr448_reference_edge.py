@@ -24,7 +24,7 @@ Asserts:
   6. The write-path wrappers (UserMemory.write, AgentWorkspace.write) +
      the WriteFile primitive thread derived_from; the tool schema documents it.
   7. Readers: Revision carries derived_from; list/read revision select it;
-     ReadRevision forwards it; trace reads the column first; list_dependents
+     ReadRevision forwards it; history reads the column first; list_dependents
      exists; the dependents route is registered; migration 215 exists.
 """
 
@@ -236,16 +236,11 @@ def run() -> int:
 
     rrh_src = inspect.getsource(prim_rev.handle_read_revision)
     passed &= _check("ReadRevision forwards derived_from", "derived_from" in rrh_src)
-    trace_src = inspect.getsource(mcp.compose_trace)
+    history_src = inspect.getsource(mcp.compose_history)
     passed &= _check(
-        "trace reads the column first (read-both)",
-        'revisions[0].get("derived_from")' in trace_src
-        and "_extract_derived_from_list" in trace_src,
-    )
-    walk_src = inspect.getsource(mcp._find_derived_from_raw)
-    passed &= _check(
-        "reverse walk is the dependents query",
-        "list_dependents" in walk_src,
+        "history reads the column first (read-both)",
+        'revisions[0].get("derived_from")' in history_src
+        and "_extract_derived_from_list" in history_src,
     )
     ld = inspect.signature(list_dependents).parameters
     passed &= _check(

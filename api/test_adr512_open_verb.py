@@ -2,7 +2,7 @@
 
 Structural invariants for the fourth consumer verb and the D5 reference grammar.
 Pure-Python (no `mcp` package locally — that ships only on the MCP Render
-service), same pattern as test_adr368_memory_surface.py: composition-layer
+service), same pattern as test_adr543_file_native_surface.py: composition-layer
 checks run live; server.py is checked at source-text level.
 
 Run: python3 test_adr512_open_verb.py  (from api/)
@@ -15,8 +15,9 @@ Asserts:
   3. server.py registers the tool under the NAME `open` without shadowing the
      builtin (symbol is open_file), read-only annotated, with an output schema.
   4. The connector instructions dropped the memory-identity framing ("durable,
-     attributed memory") for the workspace framing, and teach all four verbs.
-  5. The ADR-368 surface is untouched (remember/recall/trace still present).
+     attributed memory") for the workspace framing, and teach every verb.
+  5. The ADR-543 file-native surface is registered in full
+     (open/list/search/save/history/share) and the memory verbs are gone.
 """
 
 import sys
@@ -81,12 +82,15 @@ def main():
     # unchanged (every verb is taught) — assert it against the RENDERED
     # instructions instead of grepping source text for a bullet glyph.
     results.append(_check(
-        "4b instructions teach all four verbs (rendered, ADR-533 D2)",
+        "4b instructions teach every verb (rendered, ADR-533 D2)",
         all(f"• {v}" in _rendered_instructions()
-            for v in ("open", "remember", "recall", "trace"))))
+            for v in ("open", "list", "search", "save", "history", "share"))))
     results.append(_check(
-        "5 ADR-368 surface untouched (remember/recall/trace registered)",
-        all(f"async def {v}(" in server_src for v in ("remember", "recall", "trace"))))
+        "5 ADR-543 file-native surface registered; memory verbs gone",
+        all(f"async def {v}(" in server_src
+            for v in ("list_files", "search", "history"))
+        and not any(f"async def {v}(" in server_src
+                    for v in ("remember", "recall", "trace"))))
 
     ok = all(results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(results)}/{len(results)}")

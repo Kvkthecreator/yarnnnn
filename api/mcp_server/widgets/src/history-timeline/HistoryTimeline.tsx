@@ -1,10 +1,10 @@
-// The trace-timeline widget (ADR-372 §7). Renders the `trace` result's revision
-// chain as a provenance-colored vertical timeline with click-to-expand inline
-// diffs. It renders RETURNED substrate only — no synthesis (D3); the host LLM
-// still narrates the evolution in prose.
+// The history-timeline widget (ADR-372 §7, renamed ADR-543). Renders the
+// `history` result's revision chain as a provenance-colored vertical timeline
+// with click-to-expand inline diffs. It renders RETURNED substrate only — no
+// synthesis (D3); the host LLM still narrates the evolution in prose.
 
 import { useEffect, useState } from "react";
-import type { TraceResult, TraceRevision } from "./types";
+import type { HistoryResult, HistoryRevision } from "./types";
 import { provBucket } from "./types";
 
 // Injected by build.mjs (esbuild define). Kept for cache diagnosis (a loaded
@@ -63,7 +63,7 @@ function DiffBlock({ diff }: { diff: string }) {
   );
 }
 
-function RevisionNode({ rev }: { rev: TraceRevision }) {
+function RevisionNode({ rev }: { rev: HistoryRevision }) {
   const [open, setOpen] = useState(false);
   const bucket = provBucket(rev.authored_by);
   const hasDiff = typeof rev.diff === "string" && rev.diff.trim().length > 0;
@@ -87,19 +87,19 @@ function RevisionNode({ rev }: { rev: TraceRevision }) {
   );
 }
 
-export function TraceTimeline({ result }: { result: TraceResult | null }) {
+export function HistoryTimeline({ result }: { result: HistoryResult | null }) {
   const history = result?.history ?? [];
 
   if (!result) {
     return <LoadingState />;
   }
   if (history.length === 0) {
-    return <p className="tt-empty">{result.explanation || "No recorded history to trace."}</p>;
+    return <p className="tt-empty">{result.explanation || "No revisions recorded for this file."}</p>;
   }
 
   return (
     <div>
-      {result.subject ? <p className="tt-subject">{result.subject}</p> : null}
+      {result.path ? <p className="tt-subject">{result.path}</p> : null}
       {result.explanation ? <p className="tt-caption">{result.explanation}</p> : null}
       <ol className="tt-timeline">
         {history.map((rev, i) => (

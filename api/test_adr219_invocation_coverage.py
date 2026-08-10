@@ -121,8 +121,8 @@ COVERAGE_SITES: list[tuple[str, list[str], str]] = [
             "write_narrative_entry",
         ],
         "MCP server (Commit 6) emits external:<client> narrative entries "
-        "for work_on_this / pull_context / remember_this via the local "
-        "_emit_mcp_narrative shim that delegates to write_narrative_entry.",
+        "for every interop verb via the local _emit_mcp_narrative shim that "
+        "delegates to write_narrative_entry.",
     ),
 ]
 
@@ -175,8 +175,8 @@ def test_three_mcp_tools_emit_narrative() -> None:
     )
 
     # Spot-check that each tool name appears as a `tool=` argument to the
-    # helper. ADR-368 renamed the tool surface: remember / recall / trace.
-    for tool_name in ("remember", "recall", "trace"):
+    # helper. ADR-543 re-cut the tool surface to the file-native verbs.
+    for tool_name in ("open", "list", "search", "save", "history", "share"):
         assert f'tool="{tool_name}"' in src, (
             f"MCP tool {tool_name!r} does not pass tool=\"{tool_name}\" to "
             f"_emit_mcp_narrative — narrative coverage incomplete."

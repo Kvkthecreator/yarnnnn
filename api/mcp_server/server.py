@@ -1,46 +1,49 @@
 """
-YARNNN MCP Server — ADR-512 (the file is the unit of interop) over ADR-368
-(server-side composition) + ADR-075 (infrastructure)
+YARNNN MCP Server — ADR-543 (the file-native interop surface) over ADR-512
+(the file is the unit of interop) + ADR-075 (infrastructure)
 
-Four verbs expose the user's SHARED, ATTRIBUTED WORKSPACE to every LLM they
-touch — one species-blind file contract (ADR-512 D2/D3), served compound:
+Six verbs expose the user's SHARED, ATTRIBUTED WORKSPACE to every LLM they
+touch — one species-blind file contract (ADR-512 D2/D3), each verb a binding of
+a kernel verb, served compound:
 
     open      — read an EXACT file by reference/path (content + attribution +
                 recent revisions; the exact-version read, ADR-512 D4)
-    remember  — attributed write into the memory region (the inbound/ raw lane)
-    recall    — ranked search over the accumulated commons
-    trace     — the attributed revision chain of a fact (the differentiator)
+    list      — enumerate the files under a folder (paths + who last changed
+                each; the tree's front door, ADR-543 D2)
+    search    — find files by meaning (ranked paths + excerpts + confidence)
+    save      — attributed write to a named file (CAS via base_revision)
+    history   — the attributed revision chain of one exact file (the
+                differentiator)
+    share     — mint a member/viewer link (the grant act, ADR-465 D1)
 
 Each verb composes kernel primitives SERVER-SIDE into a one-round result, so the
 host LLM (claude.ai / ChatGPT / Gemini connectors, which chain only ~3-5 tool
 rounds per turn) never has to compose by chaining (ADR-368 Correction 1 — the
-binding channel constraint ADR-512 preserves). The raw kernel primitives remain
-the stated direction for agentic hosts (defer-loaded; still unbuilt).
+binding channel constraint ADR-512 + ADR-543 preserve).
 
 Design invariants:
-    1. The FILE is the unit on every face (ADR-512 D1); "memory" is a region of
-       the file plane, not the surface's identity. Verb ontology never varies by
-       principal species (ADR-512 D2) — only the grant/lock-set does.
+    1. The FILE is the unit on every face (ADR-512 D1) and the ONLY ontology
+       (ADR-543 D1 — the remember/recall/trace memory surface is retired IN
+       FULL; no verb presents an object the kernel contract does not have).
+       Verb ontology never varies by principal species (ADR-512 D2) — only the
+       grant/lock-set does.
     2. Zero YARNNN-internal LLM calls on the serving path.
-    3. Writes route to the roots CALLER_WRITE_POLICY["mcp"] grants — the
-       pre-368 five-target enum is gone; open/recall/trace are pure reads.
-    4. recall RETURNS material; the host LLM explains (retrieval, not synthesis).
-       open is EXACT; it never falls back to search (the two guarantees stay
-       distinct — that is the point of having both).
-    5. Every write carries ADR-162 provenance; every call emits a
-       session-INDEPENDENT narrative entry (ADR-368 D4) so the cross-room
-       operator sees what entered.
+    3. Writes route through `save` under CALLER_WRITE_POLICY["mcp"];
+       open/list/search/history are pure reads.
+    4. search RETURNS material; the host LLM explains (retrieval, not
+       synthesis). open/history are EXACT; they never fall back to search
+       (the guarantees stay distinct — that is the point of having them).
+    5. Every call emits a session-INDEPENDENT narrative entry (ADR-368 D4) so
+       the cross-room operator sees what entered.
 
-Deferred: delegation-from-foreign-LLM (ADR-368 §6); the `share` membership verb
-(ADR-465 D5 — ratified as direction, held on the Phase B/C genesis decisions);
-rename/removal of remember/recall (ADR-512 §9 — evidence-gated).
+Deferred: delegation-from-foreign-LLM (ADR-368 §6).
 
 Two-layer auth (ADR-075, unchanged):
     Transport: OAuth 2.1 (Claude.ai, ChatGPT) + static bearer (Claude Desktop)
     Data:      Service key + MCP_USER_ID (all queries scoped by user_id)
 
-Canonical framing: docs/features/mcp/README.md + ADR-368 (supersedes ADR-311's
-pure-primitive surface; ADR-310 one-moat-two-faces holds).
+Canonical framing: docs/features/mcp/README.md + ADR-543 (supersedes ADR-368's
+memory-first surface; ADR-310 one-moat-two-faces holds).
 """
 
 import json
@@ -337,26 +340,20 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
         "read an EXACT file when you have its reference (a yarnnn://workspace/… "
         "handle or a workspace-relative path, e.g. one the user pasted). Returns "
         "the current content + who last changed it + recent attributed "
-        "revisions. Exact means exact: open never guesses — use recall to search.",
+        "revisions. Exact means exact: open never guesses — use search or list.",
     ),
     (
-        "remember",
-        "save something worth keeping (a decision, insight, fact, preference). "
-        "The write is durable, signed as yours, and immediately available on the "
-        "next recall — from ANY AI the user works with, not just you.",
+        "list",
+        "enumerate the files under a folder — every path with its size, who "
+        "last changed it, and when. No reference lists the whole workspace. "
+        "Use it to see what exists before guessing paths or topics.",
     ),
     (
-        "recall",
-        "pull what the workspace already holds about a subject when the user "
-        "references something they track. YARNNN returns the material + a "
-        "`confidence` signal; YOU explain it in your own voice. On "
-        "confidence='ambiguous' (several matches, none dominant) ASK which they mean.",
-    ),
-    (
-        "trace",
-        "show how a file or recorded fact changed over time (who changed it, "
-        "when, what the change was) — the attributed provenance a plain storage "
-        "connector cannot show.",
+        "search",
+        "find files by meaning when you don't hold a path. Returns ranked "
+        "paths + excerpts + a `confidence` signal; YOU explain the material in "
+        "your own voice. On confidence='ambiguous' (several matches, none "
+        "dominant) ASK which the user means. Then open the file for exact content.",
     ),
     (
         "save",
@@ -364,6 +361,13 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
         "Read-before-write: pass base_revision from open; a stale_write means "
         "someone changed it since — re-open, merge, save again. Omit "
         "base_revision only to create. Cite what you built on with derived_from.",
+    ),
+    (
+        "history",
+        "show how one EXACT file changed over time (who changed it, when, what "
+        "the change was, with diffs and cited sources) — the attributed "
+        "provenance a plain storage connector cannot show. Takes the same "
+        "reference as open; when you only know the topic, search first.",
     ),
     (
         "share",
@@ -409,7 +413,8 @@ def _build_interop_instructions() -> str:
         "made it (human or AI) and nothing is lost. You are a principal in that "
         "workspace, acting under your own grant.\n\n"
         f"{PARTICIPANT_COMMONS_CONTRACT}\n\n"
-        f"- {PARTICIPANT_READ_BEFORE_WRITE} Use open (exact) or recall (search).\n"
+        f"- {PARTICIPANT_READ_BEFORE_WRITE} Use open (exact), list (enumerate), "
+        "or search (by meaning).\n"
         f"- Every write is signed as you, {PARTICIPANT_ATTRIBUTION_RULE}\n"
         f"- {PARTICIPANT_CITATION_RULE}\n"
         f"- {PARTICIPANT_FORMAT_DISCIPLINE}\n\n"
@@ -418,10 +423,12 @@ def _build_interop_instructions() -> str:
         f"{verbs}\n\n"
         "Use these proactively — the workspace is supposed to be ambient. If the "
         "user pastes a yarnnn reference or names a specific document, open it "
-        "before reasoning about it; recall before reasoning about something they "
-        "track; remember when they conclude something worth keeping. You are "
-        "reading and writing the user's shared workspace — not asking YARNNN to "
-        "do work for you."
+        "before reasoning about it; search before reasoning about something they "
+        "track. When the user concludes something worth keeping and no document "
+        "is in hand, save it — by meaning like any participant; a conversational "
+        "observation with no better home goes under Downloads. You are reading "
+        "and writing the user's shared workspace — not asking YARNNN to do work "
+        "for you."
     )
 
 
@@ -539,33 +546,23 @@ mcp._mcp_server.create_initialization_options = (
 # a silent empty resource.
 
 @mcp.resource(
-    "ui://yarnnn/trace-timeline.html",
+    "ui://yarnnn/history-timeline.html",
     mime_type=presentation_registry.RESOURCE_MIME,
-    meta=presentation_registry.served_resource_meta("trace-timeline"),
+    meta=presentation_registry.served_resource_meta("history-timeline"),
 )
-def trace_timeline_widget() -> str:
-    """Serve the trace-timeline widget bundle (ADR-372 §7)."""
-    return presentation_registry.widget_for("trace-timeline").read_bundle()
+def history_timeline_widget() -> str:
+    """Serve the history-timeline widget bundle (ADR-372 §7, renamed ADR-543)."""
+    return presentation_registry.widget_for("history-timeline").read_bundle()
 
 
 @mcp.resource(
-    "ui://yarnnn/recall-cards.html",
+    "ui://yarnnn/search-results.html",
     mime_type=presentation_registry.RESOURCE_MIME,
-    meta=presentation_registry.served_resource_meta("recall-cards"),
+    meta=presentation_registry.served_resource_meta("search-results"),
 )
-def recall_cards_widget() -> str:
-    """Serve the recall-cards widget bundle (ADR-372)."""
-    return presentation_registry.widget_for("recall-cards").read_bundle()
-
-
-@mcp.resource(
-    "ui://yarnnn/remember-receipt.html",
-    mime_type=presentation_registry.RESOURCE_MIME,
-    meta=presentation_registry.served_resource_meta("remember-receipt"),
-)
-def remember_receipt_widget() -> str:
-    """Serve the remember-receipt widget bundle (ADR-372)."""
-    return presentation_registry.widget_for("remember-receipt").read_bundle()
+def search_results_widget() -> str:
+    """Serve the search-results widget bundle (ADR-372, renamed ADR-543)."""
+    return presentation_registry.widget_for("search-results").read_bundle()
 
 
 @mcp.resource(
@@ -589,211 +586,48 @@ def file_header_widget() -> str:
 
 
 # =============================================================================
-# The memory-first interop surface — remember / recall / trace (ADR-368)
+# The file-native interop surface — open / list / search / save / history /
+# share (ADR-543)
 # =============================================================================
-# Three verbs shaped on the user's memory mental model: put in, get out, trace
-# history. Each composes kernel primitives SERVER-SIDE into a one-round result —
-# the host LLM (claude.ai / ChatGPT / Gemini) never has to chain. The raw kernel
-# primitives remain available defer-loaded for agentic hosts that do chain.
+# Six verbs, each a binding of a kernel verb (ADR-512 D3). Each composes kernel
+# primitives SERVER-SIDE into a one-round result — the host LLM (claude.ai /
+# ChatGPT / Gemini) never has to chain.
 
 
 @mcp.tool(
-    meta=presentation_registry.tool_definition_meta("remember-receipt"),
-    # ADR-372 submission-readiness: action annotations are an App-review
-    # requirement (and incorrect ones are a named rejection reason). remember is a
-    # WRITE but NON-destructive — it CAPTURES an attributed raw observation
-    # (append/new file), never deletes or overwrites destructively. openWorld
-    # because it reaches the user's evolving substrate.
+    # ADR-543 D2 — the kernel `list` verb, bound at last (ADR-512 D3 named it;
+    # the surface never shipped it, so external principals reconstructed the
+    # tree from search hits — the 2026-08-10 external-audit finding).
+    # list is a pure READ — enumeration with attribution, writes nothing.
+    name="list",
     annotations=ToolAnnotations(
-        title="Remember",
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=False,
-        openWorldHint=True,
-    ),
-)
-async def remember(
-    ctx: Context,
-    content: str,
-    about: Optional[str] = None,
-) -> dict:
-    """Save something into the user's durable YARNNN memory so it persists for later.
-
-    Call this whenever the user shares something worth keeping — a decision, an
-    insight, a fact, a preference, an observation about something they track.
-    Don't wait for them to say "remember this": if they reach a conclusion or
-    state something they'll want later, save it.
-
-    Pass the thing to keep as `content` — their words, or a faithful summary of
-    what you both concluded. Be concise but preserve the specific claim. If it's
-    clearly about a subject (a company, person, project, topic), pass that as
-    `about`.
-
-    The write is synchronous and durable — the moment this returns the memory is
-    stored, attributed, and ALREADY RETRIEVABLE (`status: "remembered"`): a
-    `recall` (or `trace`) on the same subject will return THIS exact memory
-    immediately, by key, with no waiting. That retrievable-now guarantee is the
-    floor and it never depends on anything async. YARNNN's judgment seat THEN does
-    a separate pass — files the memory alongside related understanding and checks
-    it against what it already knows — and that ENRICHMENT is asynchronous (a short
-    moment later). So you can tell the user it's saved and they can recall it now;
-    just don't promise it's already been organized-with or validated by the seat
-    ("saved and recallable — it'll be filed and checked against the rest in a
-    moment"). You are saving to the user's durable memory; you are not asking
-    YARNNN to do work.
-
-    Args:
-        content: The thing to remember. Required.
-        about: Optional subject hint (company, person, project, topic).
-    """
-    auth = resolve_request_client()
-    content = (content or "").strip()
-    client_name = mcp_composition.derive_client_name_from_token(auth)
-    if client_name == "unknown":
-        client_name = mcp_composition.derive_client_name(
-            getattr(ctx.request_context, "request", None)
-        )
-
-    if not content:
-        _emit_mcp_narrative(
-            auth, tool="remember", weight="housekeeping",
-            summary=f"{client_name} remember rejected (empty content)",
-            body="empty content — nothing written",
-            client_name=client_name, extra_metadata={"outcome": "rejected"},
-        )
-        return _present("remember", {"success": False, "error": "empty_content", "message": "content is required"}, client_name=client_name)
-
-    # ADR-376 / DP32: the dump is an attributed RAW observation — it lands in the
-    # inbound/mcp/{client}/ raw lane (outside the topology cut, never rewritten);
-    # the seat derives the understanding into operation/ via the placement wake.
-    stamped = mcp_composition.stamp_provenance(content, client_name, user_context=about)
-    result = await mcp_composition.dispatch_remember_this(
-        auth=auth, stamped_text=stamped, about=about, client_name=client_name,
-    )
-
-    if not result.get("success"):
-        _emit_mcp_narrative(
-            auth, tool="remember", weight="routine",
-            summary=f"{client_name} remember failed",
-            body=str(result.get("message") or "remember dispatch failed"),
-            client_name=client_name,
-            extra_metadata={"outcome": "failed", "error": result.get("error")},
-        )
-        return _present("remember", {
-            "success": False,
-            "error": result.get("error", "write_failed"),
-            "message": result.get("message", "remember dispatch failed"),
-        }, client_name=client_name)
-
-    written_path = result.get("filename") or result.get("path") or "(unknown)"
-
-    # ADR-376/DP32 (retire the eager derive wake, 2026-07-09): the raw observation
-    # landed immutably in the inbound/ lane, attributed, and tagged
-    # revision_kind='observation' (mcp_composition.dispatch_remember_this) — the
-    # `retain + attribute` half of the invariant, carried by the column per
-    # ADR-423/384, not by a wake. The `cite` half — a derived-and-cited act into
-    # operation/ — is NOT eager code: ADR-423 §7 / the Files-model note §5 demote
-    # the derive step to "reserved, not the justification" (no live code produced
-    # a derivation deterministically; the wake was a prompt-only contract that
-    # mostly logged "nothing to derive" at ~$0.22/fire). We do NOT fire a
-    # per-write seat wake here. A real derive step, when it ships, re-attaches
-    # deliberately as its own mechanism.
-
-    _emit_mcp_narrative(
-        auth, tool="remember", weight="material",
-        summary=f"{client_name} saved to memory",
-        body=(
-            f"written_to: {written_path}\n"
-            f"about: {about or '(none)'}\n"
-            f"content: {content[:480]}{'…' if len(content) > 480 else ''}"
-        ),
-        client_name=client_name,
-        extra_metadata={"written_to": written_path, "outcome": "success"},
-    )
-    # ADR-372 D4: rich hosts render the remember-receipt widget; text path intact.
-    return _present("remember", {
-        "success": True,
-        "written_to": written_path,
-        "provenance": {
-            "source": f"mcp:{client_name}",
-            "date": _today_iso(),
-            "original_context": (about or content[:80]),
-        },
-        # ADR-368 D5: the seat will file this where it belongs + validate it.
-        "captured": True,
-        # Honest-state (2026-06-30): "remembered" — not "captured". THE FLOOR
-        # (mcp_composition: store-by-key/fetch-by-key) guarantees the memory is
-        # durable AND retrievable by subject the instant this returns — a recall on
-        # the same subject hits THIS exact file deterministically, no seat/embedding.
-        # "captured" undersold that (it reads as "received, awaiting processing");
-        # "remembered" states the retrievable-now floor honestly. The seat's
-        # derive/place/judge pass is still ASYNC and additive — the host should set
-        # "saved and recallable now; filed-and-checked in a moment", and must NOT
-        # promise the seat has already judged/organized it. ("placed" would be the
-        # false over-promise; "remembered" is the true floor.)
-        "status": "remembered",
-    }, client_name=client_name)
-
-
-@mcp.tool(
-    meta=presentation_registry.tool_definition_meta("recall-cards"),
-    # recall is a pure READ — it returns ranked excerpts, writes nothing. The
-    # DESTRUCTIVE label seen in dev mode was a MISSING annotation defaulting
-    # conservatively; readOnlyHint corrects it (and removes the permission
-    # friction). openWorld because the substrate evolves between calls.
-    annotations=ToolAnnotations(
-        title="Recall",
+        title="List",
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
         openWorldHint=True,
     ),
 )
-async def recall(
+async def list_files(
     ctx: Context,
-    subject: str,
-    question: Optional[str] = None,
-    domain: Optional[str] = None,
-    limit: int = 10,
+    reference: Optional[str] = None,
 ) -> dict:
-    """Pull what the user already knows about a subject from their YARNNN memory.
+    """List the files under a folder in the user's yarnnn workspace.
 
-    Call this whenever the user references something that might live in their
-    accumulated YARNNN memory — a person, company, market, project, or topic
-    they track — and you need the underlying material to reason well. Don't wait
-    to be asked: if they mention something they might have recorded, recall it
-    first and weave it into your answer.
+    Call this to see what exists — before guessing a path, when the user asks
+    "what's in my workspace / in that folder", or to orient yourself at the
+    start of real work. Pass a folder reference (a workspace-relative path like
+    `operation/reports`, or a yarnnn://workspace/… handle); omit it to list the
+    entire workspace tree.
 
-    Pass the subject as `subject`. Optionally pass a `question` to focus the
-    retrieval, or a `domain` to narrow it.
-
-    YARNNN RETURNS the material — ranked excerpts with paths, timestamps, the LLM
-    that originally contributed each, and a `confidence` signal. It does NOT write
-    an answer for you, and it does NOT decide whether to clarify: YOU reason over
-    what it returns and explain in your own voice, using the conversation as
-    context. Every LLM the user touches sees the same memory, so their thinking
-    stays coherent across rooms.
-
-    The `confidence` field is ALWAYS present (even on a miss) and uses the same
-    4-value scale as `trace`'s `resolution` — use it to decide how to respond:
-      • "high"      — a clear, dominant match (or an exact subject hit). Use it.
-      • "ambiguous" — several recorded items match and none dominates. Do NOT
-                      silently pick the first; surface the candidates (in `chunks`)
-                      and ASK the user which they mean. This is the clarify case.
-      • "weak"      — only loose matches below the confidence bar. A lead, not an
-                      answer; answer from your own knowledge or ask the user to be
-                      specific.
-      • "none"      — NOTHING recorded on this subject (a true miss; `chunks` empty).
-                      The strongest "nothing here" signal — answer from your own
-                      knowledge. (Distinct from "weak", which is a real but shaky hit.)
-    (YARNNN never clarifies or guesses itself — it's the memory; you're the one in
-    the conversation.)
+    Returns every file under that folder — path, size, who last changed it,
+    and when. The listing is real enumeration, not inference: what it returns
+    is what exists. Use `open` on any returned path for exact content, and
+    `search` when you're after meaning rather than structure.
 
     Args:
-        subject: What to recall (entity, topic, keyword). Required.
-        question: Optional focusing question.
-        domain: Optional domain filter.
-        limit: Max excerpts (default 10, max 30).
+        reference: Optional folder — workspace-relative path or
+            yarnnn://workspace/{path}. Omit to list the whole workspace.
     """
     auth = resolve_request_client()
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -801,73 +635,128 @@ async def recall(
         client_name = mcp_composition.derive_client_name(
             getattr(ctx.request_context, "request", None)
         )
-    result = await mcp_composition.compose_recall(
-        auth=auth, subject=subject, question=question, domain=domain, limit=limit,
+    result = await mcp_composition.compose_list(auth=auth, reference=reference)
+    n = result.get("count", 0)
+    where = result.get("path") or "(workspace)"
+    _emit_mcp_narrative(
+        auth, tool="list", weight="routine",
+        summary=f"{client_name} listed {n} file(s) under {where}",
+        body=f"reference: {reference or '(workspace root)'}\ncount: {n}",
+        client_name=client_name,
+        extra_metadata={"reference": reference, "count": n},
     )
+    return _present("list", result, client_name=client_name)
+
+
+@mcp.tool(
+    meta=presentation_registry.tool_definition_meta("search-results"),
+    # search is a pure READ — it returns ranked paths + excerpts, writes
+    # nothing. openWorld because the substrate evolves between calls.
+    annotations=ToolAnnotations(
+        title="Search",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def search(
+    ctx: Context,
+    query: str,
+    limit: int = 10,
+) -> dict:
+    """Search the user's yarnnn workspace by meaning.
+
+    Call this when you're after a file you don't hold a path for — the user
+    references a topic, project, person, or decision that may live in the
+    workspace. Don't wait to be asked: if they mention something the workspace
+    might hold, search it first and weave what you find into your answer.
+
+    YARNNN RETURNS the material — ranked results with paths, excerpts,
+    timestamps, and a `confidence` signal. It does NOT write an answer for
+    you, and it does NOT decide whether to clarify: YOU reason over what it
+    returns and explain in your own voice. Every result's path is `open`-able
+    for the exact current content; `search` returns leads, `open` returns truth.
+
+    The `confidence` field is ALWAYS present (even on a miss) — use it to
+    decide how to respond:
+      • "high"      — a clear, dominant match. Use it.
+      • "ambiguous" — several files match and none dominates. Do NOT silently
+                      pick the first; surface the candidates (in `results`) and
+                      ASK the user which they mean. This is the clarify case.
+      • "weak"      — only loose matches below the confidence bar. A lead, not
+                      an answer; answer from your own knowledge or ask the user
+                      to be specific.
+      • "none"      — NOTHING matched (a true miss; `results` empty). The
+                      strongest "nothing here" signal — answer from your own
+                      knowledge, or `list` to see what exists.
+
+    Args:
+        query: What to find (topic, entity, keywords). Required.
+        limit: Max results (default 10, max 30).
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_search(auth=auth, query=query, limit=limit)
     n = result.get("returned", 0)
     _emit_mcp_narrative(
-        auth, tool="recall", weight="routine",
+        auth, tool="search", weight="routine",
         summary=(
-            f"{client_name} recalled {n} excerpt(s) for {subject!r}"
-            if n else f"{client_name} recalled {subject!r} (nothing found)"
+            f"{client_name} searched {query!r} — {n} result(s)"
+            if n else f"{client_name} searched {query!r} (nothing found)"
         ),
-        body=f"subject: {subject}\nquestion: {question or '(none)'}\nreturned: {n}",
+        body=f"query: {query}\nreturned: {n}",
         client_name=client_name,
-        extra_metadata={"subject": subject, "returned": n},
+        extra_metadata={"query": query, "returned": n},
     )
-    # ADR-372 D4: only a widget host gets the recall-cards `_meta`; text path intact.
-    return _present("recall", result, client_name=client_name)
+    # ADR-372 D4: only a widget host gets the search-results `_meta`; text path intact.
+    return _present("search", result, client_name=client_name)
 
 
 @mcp.tool(
-    meta=presentation_registry.tool_definition_meta("trace-timeline"),
-    # trace is a pure READ — it returns the authored revision chain, writes
-    # nothing. Same correction as recall.
+    meta=presentation_registry.tool_definition_meta("history-timeline"),
+    # history is a pure READ — it returns the authored revision chain, writes
+    # nothing.
     annotations=ToolAnnotations(
-        title="Trace",
+        title="History",
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
         openWorldHint=True,
     ),
 )
-async def trace(
+async def history(
     ctx: Context,
-    subject: str,
+    reference: str,
     limit: int = 10,
 ):
-    """Show how the user's recorded thinking on a subject changed over time.
+    """Show how one EXACT file in the user's yarnnn workspace changed over time.
 
-    Call this when the user asks about the HISTORY of something they track —
-    "when did I decide that," "how has my view on X changed," "who added this,"
-    "what did this used to say." This is YARNNN's distinguishing capability: it
-    returns the authored revision chain of a fact — who changed it, when, and
-    what the change was — which a plain storage connector cannot show.
+    Call this when the user asks about a file's history — "when did I decide
+    that," "how has this document changed," "who added this," "what did this
+    used to say." This is YARNNN's distinguishing capability: the authored
+    revision chain — who changed the file, when, and what the change was (with
+    per-revision diffs, and the chains of any cited sources it was made from)
+    — which a plain storage connector cannot show.
 
-    Pass the subject as `subject`. YARNNN resolves it to the most relevant
-    recorded material and returns its revision history, newest first. Reason over
-    the chain and narrate the evolution in your own voice.
+    Pass the same reference `open` takes (yarnnn://workspace/… handle,
+    /workspace/… absolute, or a workspace-relative path). `history` is exact:
+    an unknown path returns `found: false` — when you only know the topic,
+    `search` first, then history the path you found. Reason over the chain and
+    narrate the evolution in your own voice.
 
-    Check the `resolution` field before narrating — ALWAYS present, same 4-value
-    scale as `recall`'s `confidence` (the lower three mean the same thing). A wrong
-    trace reads as authoritative, so don't narrate a confident "here's how your
-    thinking evolved" over the wrong file:
-      • "exact"     — the subject named a single file; this IS its history. Narrate.
-                      (trace's name for the confident value, ≡ recall's "high".)
-      • "ambiguous" — the subject matched several files; this is the closest, not a
-                      certain one. CONFIRM with the user before narrating.
-      • "weak"      — only a single loose mention-match (not a name-match). A lead;
-                      confirm before narrating it as the subject's history.
-      • "none"      — NOTHING recorded on this subject (path is null, history empty).
-                      Say so; don't narrate.
-
-    On a rich-render host (ChatGPT / MCP Apps) the revision chain ALSO renders as
-    an interactive timeline widget (ADR-372) — but you STILL narrate the evolution
-    in prose: the widget is additive, not a replacement for your explanation. On a
-    text-only host you get the full chain as text, exactly as before.
+    On a rich-render host (ChatGPT / MCP Apps) the revision chain ALSO renders
+    as an interactive timeline widget (ADR-372) — but you STILL narrate the
+    evolution in prose: the widget is additive, not a replacement for your
+    explanation. On a text-only host you get the full chain as text.
 
     Args:
-        subject: What to trace the history of. Required.
+        reference: The file — yarnnn://workspace/{path}, /workspace/{path},
+            or a bare workspace-relative path. Required.
         limit: Max revisions (default 10, max 30).
     """
     auth = resolve_request_client()
@@ -876,21 +765,21 @@ async def trace(
         client_name = mcp_composition.derive_client_name(
             getattr(ctx.request_context, "request", None)
         )
-    result = await mcp_composition.compose_trace(auth=auth, subject=subject, limit=limit)
+    result = await mcp_composition.compose_history(auth=auth, reference=reference, limit=limit)
     n = result.get("returned", 0)
     _emit_mcp_narrative(
-        auth, tool="trace", weight="routine",
+        auth, tool="history", weight="routine",
         summary=(
-            f"{client_name} traced {n} revision(s) for {subject!r}"
-            if n else f"{client_name} traced {subject!r} (no history)"
+            f"{client_name} read {n} revision(s) of {result.get('path') or reference!r}"
+            if n else f"{client_name} read history of {reference!r} (no revisions)"
         ),
-        body=f"subject: {subject}\npath: {result.get('path') or '(none)'}\nreturned: {n}",
+        body=f"reference: {reference}\npath: {result.get('path') or '(none)'}\nreturned: {n}",
         client_name=client_name,
-        extra_metadata={"subject": subject, "returned": n},
+        extra_metadata={"reference": reference, "returned": n},
     )
     # ADR-372 D4: attach the widget `_meta` only for a widget host (renders the
     # timeline); the full result stays in the text channel for every host.
-    return _present("trace", result, client_name=client_name)
+    return _present("history", result, client_name=client_name)
 
 
 @mcp.tool(
@@ -926,9 +815,9 @@ async def open_file(
     revisions — so you and the user are looking at the same version, not a copy.
 
     `open` never searches or guesses: an unknown path returns `found: false`.
-    When you only know the subject (not the path), use `recall`; for the full
-    revision chain with diffs, use `trace`. Large files return truncated with
-    `truncated: true`.
+    When you only know the topic (not the path), use `search`; to see what
+    exists, use `list`; for the full revision chain with diffs, use `history`.
+    Large files return truncated with `truncated: true`.
 
     Args:
         reference: The file reference — yarnnn://workspace/{path}, /workspace/{path},
@@ -1009,8 +898,10 @@ async def save(
     orphan; cite it and it joins the record.
 
     Your write lands signed as you in the workspace ledger — the user and
-    their team see exactly what you changed, beside every human change. Use
-    `remember` for notes/observations; `save` is for named documents.
+    their team see exactly what you changed, beside every human change. `save`
+    also captures conversational conclusions worth keeping: write them by
+    meaning like any participant — an observation with no better home goes
+    under Downloads.
 
     Args:
         reference: The file — yarnnn://workspace/{path} or workspace-relative path.
@@ -1176,11 +1067,12 @@ async def share(
 # =============================================================================
 # The App-review surface flags "OUTPUT SCHEMA RECOMMENDED" on tools without one;
 # a declared outputSchema lets the host validate structuredContent and (for
-# trace) makes the widget's render contract explicit. We declare them as data and
-# attach post-registration: FastMCP derives a schema from the return annotation
-# only with structured_output=True, which (a) fails on trace's nested history
-# TypedDict in this Pydantic and (b) is bypassed entirely because trace returns a
-# CallToolResult. Setting `output_schema` directly is the uniform, low-risk path.
+# history) makes the widget's render contract explicit. We declare them as data
+# and attach post-registration: FastMCP derives a schema from the return
+# annotation only with structured_output=True, which (a) fails on history's
+# nested TypedDict in this Pydantic and (b) is bypassed entirely because history
+# returns a CallToolResult. Setting `output_schema` directly is the uniform,
+# low-risk path.
 
 _REVISION_SCHEMA = {
     "type": "object",
@@ -1217,43 +1109,47 @@ _OUTPUT_SCHEMAS = {
     "open": {
         "type": "object",
         "properties": {
-            "found": {"type": "boolean", "description": "false = no file at that exact reference (open never searches — use recall)"},
+            "found": {"type": "boolean", "description": "false = no file at that exact reference (open never searches — use search or list)"},
             "reference": {"type": "string", "description": "the canonical yarnnn://workspace/… handle for this file (ADR-512 D5)"},
             "path": {"type": ["string", "null"], "description": "the ledger's absolute path (/workspace/…)"},
             "content": {"type": ["string", "null"], "description": "the file's exact current content (capped; see truncated)"},
             "truncated": {"type": "boolean", "description": "true when content was cut at the cap"},
             "authored_by": {"type": ["string", "null"], "description": "who made the most recent revision"},
             "last_updated": {"type": ["string", "null"]},
-            "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "recent revisions, newest first (no diffs — trace has those)"},
+            "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "recent revisions, newest first (no diffs — history has those)"},
             "explanation": {"type": "string"},
         },
     },
-    "remember": {
+    "list": {
         "type": "object",
         "properties": {
-            "captured": {"type": "boolean", "description": "true when the observation was committed"},
-            "status": {"type": "string", "enum": ["remembered"], "description": "remembered = stored + durable + retrievable-by-subject NOW (a recall on the same subject hits this memory deterministically); the seat's derive/place/judge enrichment is async (a moment later)"},
-            "written_to": {"type": "string", "description": "the raw-capture path the observation landed at"},
+            "reference": {"type": "string", "description": "the canonical handle of the listed folder (yarnnn://workspace/… — the workspace root when no reference was passed)"},
+            "path": {"type": ["string", "null"], "description": "the ledger's absolute folder prefix (/workspace/…)"},
+            "files": {"type": "array", "items": {"type": "object"}, "description": "every file under the folder (path, reference, bytes, last_updated, authored_by), ordered by path"},
+            "count": {"type": "integer"},
+            "truncated": {"type": "boolean", "description": "true when the subtree exceeded the cap — narrow the folder to see the rest"},
+            "explanation": {"type": "string"},
         },
     },
-    "recall": {
+    "search": {
         "type": "object",
         "properties": {
-            "subject": {"type": "string"},
-            "chunks": {"type": "array", "items": {"type": "object"}, "description": "ranked excerpts of recorded material (path, excerpt, last_updated, domain, source_tag, similarity)"},
+            "query": {"type": "string"},
+            "results": {"type": "array", "items": {"type": "object"}, "description": "ranked matches (path, reference, excerpt, last_updated, similarity) — open any path for exact content"},
             "total_matches": {"type": "integer"},
             "returned": {"type": "integer"},
-            "confidence": {"type": "string", "enum": ["high", "ambiguous", "weak", "none"], "description": "ALWAYS present (even on a miss). Shared scale with trace.resolution: high=use it; ambiguous=ask which the user means; weak=loose lead only; none=nothing recorded (true miss)"},
+            "confidence": {"type": "string", "enum": ["high", "ambiguous", "weak", "none"], "description": "ALWAYS present (even on a miss): high=use it; ambiguous=ask which the user means; weak=loose lead only; none=nothing matched (true miss)"},
             "explanation": {"type": "string"},
         },
     },
-    "trace": {
+    "history": {
         "type": "object",
         "properties": {
-            "subject": {"type": "string"},
-            "path": {"type": ["string", "null"]},
-            "resolution": {"type": "string", "enum": ["exact", "ambiguous", "weak", "none"], "description": "ALWAYS present. Shared scale with recall.confidence: exact=narrate (≡high); ambiguous=confirm first; weak=loose lead, confirm; none=nothing recorded (true miss)"},
-            "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "revision chain, newest first"},
+            "found": {"type": "boolean", "description": "false = no file at that exact reference (history never searches — use search or list)"},
+            "reference": {"type": "string", "description": "the canonical yarnnn://workspace/… handle for this file (ADR-512 D5)"},
+            "path": {"type": ["string", "null"], "description": "the ledger's absolute path (/workspace/…)"},
+            "derived_from": {"type": ["string", "null"], "description": "the first cited source (ADR-448 edge), if any"},
+            "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "revision chain, newest first; cited sources' chains follow with cited_source: true"},
             "returned": {"type": "integer"},
             "explanation": {"type": "string"},
         },
@@ -1316,8 +1212,3 @@ def _ensure_daily_session(auth) -> Optional[str]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("[MCP NARRATIVE] daily-session ensure failed: %s", exc)
     return None
-
-
-def _today_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")

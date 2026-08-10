@@ -10,7 +10,7 @@ Run in the MCP venv (where `mcp` is installed):
 
 The two structural assertions (affordance map + no-kernel-import) run without
 `mcp`; the wire-shape assertions need it. If `mcp` is absent the wire checks are
-SKIPPED (reported), not failed — same posture as test_adr368_memory_surface.py.
+SKIPPED (reported), not failed — same posture as test_adr543_file_native_surface.py.
 """
 
 import sys
@@ -31,15 +31,14 @@ def main():
     # ---- D1: per-tool affordance declaration (data) ------------------------
     from mcp_server.presentation import affordances as aff
     results.append(_check(
-        "1 all three memory verbs declare a widget affordance (D1 — opt-in declaration)",
-        aff.affordance_for("trace") is not None
-        and aff.affordance_for("recall") is not None
-        and aff.affordance_for("remember") is not None))
+        "1 the rich read verbs declare a widget affordance (D1 — opt-in declaration; ADR-543 names)",
+        aff.affordance_for("history") is not None
+        and aff.affordance_for("search") is not None))
 
     results.append(_check(
-        "2 trace affordance → trace-timeline widget, interactive, text fallback (D1/D3)",
-        (lambda a: a.widget == "trace-timeline" and a.fallback == "text" and a.interactive)(
-            aff.affordance_for("trace"))))
+        "2 history affordance → history-timeline widget, interactive, text fallback (D1/D3)",
+        (lambda a: a.widget == "history-timeline" and a.fallback == "text" and a.interactive)(
+            aff.affordance_for("history"))))
 
     # ---- D5: kernel-boundary — presentation imports nothing from services/ --
     import inspect
@@ -66,9 +65,9 @@ def main():
         not vendor_coupling))
 
     # ---- D2: open-spec-primary `_meta` shape -------------------------------
-    def_meta = registry.tool_definition_meta("trace-timeline")
-    resp_meta = registry.tool_response_meta("trace-timeline")
-    served = registry.served_resource_meta("trace-timeline")
+    def_meta = registry.tool_definition_meta("history-timeline")
+    resp_meta = registry.tool_response_meta("history-timeline")
+    served = registry.served_resource_meta("history-timeline")
     results.append(_check(
         "5 _meta uses the open MCP Apps linkage ui.resourceUri → ui:// (D2)",
         def_meta.get("ui", {}).get("resourceUri", "").startswith("ui://")
@@ -111,7 +110,7 @@ def main():
         print(f"\n{passed}/{total} ADR-372 structural assertions pass (wire checks skipped)")
         sys.exit(0 if passed == total else 1)
 
-    sample = {"subject": "x", "path": "/workspace/operation/x.md",
+    sample = {"reference": "yarnnn://workspace/operation/x.md", "path": "/workspace/operation/x.md",
               "history": [{"authored_by": "operator", "when": "t", "change": "c", "revision_id": "r"}],
               "returned": 1, "explanation": "e"}
 
@@ -122,9 +121,9 @@ def main():
     # CallToolResult on both paths is load-bearing — a bare-dict text return trips
     # the lowlevel "outputSchema defined but no structured output returned" error
     # (the second live failure, 2026-06-27).
-    wrapped = s._present("trace", sample, client_name="chatgpt")
+    wrapped = s._present("history", sample, client_name="chatgpt")
     results.append(_check(
-        "7 trace result on a WIDGET host (chatgpt) → CallToolResult with widget _meta (D4 gated-attach)",
+        "7 history result on a WIDGET host (chatgpt) → CallToolResult with widget _meta (D4 gated-attach)",
         isinstance(wrapped, CallToolResult)
         and wrapped.meta.get("ui", {}).get("resourceUri", "").startswith("ui://")))
     results.append(_check(
@@ -137,8 +136,8 @@ def main():
     # This is the two-part regression the live failures demanded: (a) no widget
     # pointer claude.ai cannot render; (b) structuredContent present so the
     # advertised outputSchema validates.
-    claude_result = s._present("trace", sample, client_name="claude.ai")
-    unknown_result = s._present("trace", sample, client_name=None)
+    claude_result = s._present("history", sample, client_name="claude.ai")
+    unknown_result = s._present("history", sample, client_name=None)
     results.append(_check(
         "8b claude.ai (+ unidentified host) gets a CallToolResult with structuredContent but NO widget _meta (D4 text-safe default + outputSchema-valid)",
         isinstance(claude_result, CallToolResult) and isinstance(unknown_result, CallToolResult)
@@ -150,9 +149,8 @@ def main():
     # D4: each affordance tool attaches ITS OWN widget binding on a widget host;
     # on the claude path each returns a CallToolResult WITHOUT the widget pointer.
     expected_uri = {
-        "trace": "ui://yarnnn/trace-timeline.html",
-        "recall": "ui://yarnnn/recall-cards.html",
-        "remember": "ui://yarnnn/remember-receipt.html",
+        "history": "ui://yarnnn/history-timeline.html",
+        "search": "ui://yarnnn/search-results.html",
     }
     all_wrapped = True
     for n, uri in expected_uri.items():
@@ -167,7 +165,7 @@ def main():
             all_wrapped = False
             print(f"      [!] {n} did not gate correctly for widget {uri}")
     results.append(_check(
-        "9 remember/recall/trace each attach ITS OWN widget _meta on chatgpt, CallToolResult-without-pointer on claude.ai (D1/D4 gate)",
+        "9 history/search each attach ITS OWN widget _meta on chatgpt, CallToolResult-without-pointer on claude.ai (D1/D4 gate)",
         all_wrapped))
 
     # 9b — the outputSchema trap (2026-06-27 second live failure). The lowlevel
@@ -181,18 +179,17 @@ def main():
     # return shape that carries structuredContent through to the host here).
     schema_advertised = all(
         s.mcp._tool_manager.get_tool(n).output_schema is not None
-        for n in ("remember", "recall", "trace"))
+        for n in ("history", "search", "list"))
     claude_is_calltoolresult = all(
         isinstance(s._present(n, sample, client_name="claude.ai"), CallToolResult)
-        for n in ("remember", "recall", "trace"))
+        for n in ("history", "search", "list"))
     results.append(_check(
         "9b outputSchema is advertised AND the claude path returns a CallToolResult (avoids 'no structured output returned')",
         schema_advertised and claude_is_calltoolresult))
 
     widget_uris = {
-        "trace": "ui://yarnnn/trace-timeline.html",
-        "recall": "ui://yarnnn/recall-cards.html",
-        "remember": "ui://yarnnn/remember-receipt.html",
+        "history": "ui://yarnnn/history-timeline.html",
+        "search": "ui://yarnnn/search-results.html",
     }
 
     # NOTE (ADR-379 discovery gate): list_tools + read_resource now host-gate the
@@ -206,12 +203,12 @@ def main():
         s.resolve_request_host_id = lambda: "chatgpt"
         try:
             tools = {t.name: t for t in await s.mcp.list_tools()}
-            # D2: ALL THREE tool DEFINITIONS carry the openai/outputTemplate binding.
+            # D2: every widgeted tool DEFINITION carries the openai/outputTemplate binding.
             def_ok = all(
                 (tools[n].meta or {}).get("openai/outputTemplate") == uri
                 for n, uri in widget_uris.items()
             )
-            # all three widget resources registered + serve a valid self-contained bundle.
+            # every widget resource registered + serves a valid self-contained bundle.
             res = {str(r.uri) for r in await s.mcp.list_resources()}
             served_ok = all(uri in res for uri in widget_uris.values())
             bundle_ok = True
@@ -235,10 +232,10 @@ def main():
         "10 a WIDGET host's tool DEFINITIONS carry openai/outputTemplate (host registers each template; D2; gated per ADR-379)",
         def_ok))
     results.append(_check(
-        "11 a WIDGET host gets all three widgets at ui:// — self-contained HTML, React mount, skybridge MIME (§3/§7)",
+        "11 a WIDGET host gets every widget at ui:// — self-contained HTML, React mount, skybridge MIME (§3/§7)",
         served_ok and bundle_ok))
 
-    # ---- compose_trace embeds diffs server-side (zero-callback, ADR-372) ----
+    # ---- compose_history embeds diffs server-side (zero-callback, ADR-372) ----
     from services import mcp_composition as mc
     import services.primitives.registry as preg
 
@@ -267,78 +264,20 @@ def main():
                 and seen == [("r2", "r3"), ("r1", "r2")])
 
     results.append(_check(
-        "12 compose_trace embeds each revision's diff-vs-predecessor; oldest is None (ADR-372 zero-callback)",
+        "12 compose_history embeds each revision's diff-vs-predecessor; oldest is None (ADR-372 zero-callback)",
         asyncio.run(_diff_embed())))
 
-    # ---- trace resolves to the file that IS the subject, not one that mentions it ----
-    # Live finding: raw FTS top-hit picked 1-revision prose/report files over the
-    # historied state file the subject names. resolve_trace_path does name-match
-    # first, then history-weighted FTS. Structural + behavioral checks.
+    # ---- history is EXACT (ADR-543): no subject resolution machinery ----
+    # The pre-543 resolve_trace_path (name-match + history-weighted FTS) is
+    # deleted with the phantom object; history takes the same reference grammar
+    # as open and a miss is a miss.
     import inspect as _inspect
-    trace_src = _inspect.getsource(mc.compose_trace)
+    history_src = _inspect.getsource(mc.compose_history)
     results.append(_check(
-        "13 compose_trace resolves via resolve_trace_path (name-match-first), not raw FTS top-hit",
-        "resolve_trace_path" in trace_src and "resolve_memory_path" not in trace_src))
-
-    # behavioral: a fake client where the subject's named file (SPY.yaml, 14 revs)
-    # exists alongside a mention-file; name-match must win over any FTS path.
-    class _FakeResp:
-        def __init__(self, data=None, count=None):
-            self.data = data or []
-            self.count = count
-
-    class _FakeQuery:
-        def __init__(self, table, store):
-            self._t, self._store, self._filters, self._ilike = table, store, {}, None
-        def select(self, *a, **k): return self
-        def eq(self, col, val): self._filters[col] = val; return self
-        def in_(self, *a, **k): return self
-        def ilike(self, col, pat): self._ilike = pat; return self
-        def order(self, *a, **k): return self
-        def limit(self, *a, **k): return self
-        def execute(self):
-            if self._t == "workspace_files":
-                import re as _re
-                # emulate SQL ILIKE: case-insensitive, % = any chars. Build the
-                # regex by splitting on % and escaping the literal segments (so
-                # `.` stays literal) — re.escape does NOT escape % in 3.11, so a
-                # naive replace would leave the % in the pattern.
-                pat = self._ilike or ""
-                rx = _re.compile(
-                    "^" + ".*".join(_re.escape(seg) for seg in pat.split("%")) + "$",
-                    _re.IGNORECASE,
-                )
-                hits = [{"path": p} for p in self._store["files"] if rx.match(p)]
-                return _FakeResp(data=hits)
-            if self._t == "workspace_file_versions":
-                path = self._filters.get("path")
-                return _FakeResp(count=self._store["revs"].get(path, 0))
-            return _FakeResp()
-
-    class _FakeClient:
-        def __init__(self, store): self._store = store
-        def table(self, name): return _FakeQuery(name, self._store)
-
-    class _FakeAuth:
-        def __init__(self, store): self.client, self.user_id = _FakeClient(store), "u"
-
-    def _resolve_behavior():
-        store = {
-            "files": ["/workspace/operation/trading/SPY.yaml",
-                      "/workspace/operation/specs/regime-state.md"],
-            "revs": {"/workspace/operation/trading/SPY.yaml": 14,
-                     "/workspace/operation/specs/regime-state.md": 1},
-        }
-        # name-match for "SPY" should pick SPY.yaml (the file that IS the subject),
-        # never regime-state.md (which merely mentions SPY). Returns (path,
-        # resolution) since the 2026-06-29 honest-state change; a single
-        # name-match is "exact".
-        got, resolution = asyncio.run(mc.resolve_trace_path(_FakeAuth(store), "SPY"))
-        return got == "/workspace/operation/trading/SPY.yaml" and resolution == "exact"
-
-    results.append(_check(
-        "14 resolve_trace_path picks the file the subject NAMES (SPY → SPY.yaml) + marks it exact (single name-match)",
-        _resolve_behavior()))
+        "13 compose_history is exact — parses the D5 reference, no subject resolver",
+        "parse_file_reference" in history_src
+        and "resolve_trace_path" not in history_src
+        and "resolve_memory_path" not in history_src))
 
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-372 assertions pass")

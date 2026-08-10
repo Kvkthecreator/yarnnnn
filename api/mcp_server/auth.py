@@ -44,9 +44,9 @@ def _build_client(
 
     Client-qualified attribution: when the contributing LLM is known (resolved
     from the OAuth session), caller_identity becomes ``yarnnn:mcp:<client>``
-    (e.g. ``yarnnn:mcp:claude.ai``) so every foreign write — and the `trace`
+    (e.g. ``yarnnn:mcp:claude.ai``) so every foreign write — and the `history`
     chain — NAMES THE ROOM, not just "an MCP write". This is the cross-LLM
-    provenance story made literal: trace shows "contributed via claude.ai →
+    provenance story made literal: history shows "contributed via claude.ai →
     filed by the Reviewer". Validates under the ``yarnnn:`` prefix
     (is_valid_author), so no schema/validation change. Falls back to the bare
     ``yarnnn:mcp`` when the client can't be identified.

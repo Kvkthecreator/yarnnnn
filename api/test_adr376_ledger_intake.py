@@ -2,27 +2,22 @@
 
 Structural invariants for the raw-observation-vs-derived-substrate split on the
 MCP intake path. Pure-Python (no DB, no `mcp` package); the live round-trip is
-covered by probe_mcp_memory_surface.py.
+exercised live via a connected host (ADR-543 phase 5).
 
 The axiom (DP32): every contribution enters as an attributed RAW observation;
 what the workspace makes of it is a SEPARATE attributed DERIVED act; the raw is
 never rewritten and the derived always cites its source (`retain + attribute +
 cite`). This gate proves the MCP slice obeys it.
 
-Asserts:
+Asserts (as amended by ADR-543 — the MCP remember intake is retired; the
+ledger-intake axiom now binds the perception slice + the lock-set):
   1. INBOUND_ROOT exists, is `inbound/`, and is OUTSIDE the topology cut
      (sibling to uploads/ — not a sixth semantic-class root).
-  2. The mcp caller is NOT locked from inbound/ (it's the foreign caller's raw
-     home) but IS still locked from governance/constitution/persona/system/.
-  3. remember routing lands the RAW observation in inbound/mcp/{client}/{slug}.md
-     — never operation/, never a locked root, for every adversarial subject.
-  4. resolve_remember_path is per-CLIENT (the per-principal sublane convention).
-  5. The placement wake is DERIVE-AND-CITE, not rewrite-in-place: the prompt
-     instructs deriving into operation/ with `derived_from`, and explicitly says
-     NOT to rewrite/move the raw.
-  6. The derived_from walk EXISTS (_extract_derived_from) and compose_trace
-     consults it (the raw→derived chain).
-  7. resolve_memory_path reads DERIVED-FIRST, raw as the fallback receipt.
+  2. The mcp caller is NOT locked from inbound/ (a raw lane stays writable)
+     but IS still locked from governance/constitution/persona/system/.
+  3. (ADR-543 tombstone) the remember intake machinery is gone in full.
+  6. The derived_from walk survives the re-cut: compose_history appends every
+     cited source's chain (the citation fan-in).
 """
 
 import inspect
@@ -144,81 +139,26 @@ def main():
         "2 mcp caller may write inbound/ (raw home) but stays locked from governance/constitution/persona/system",
         inbound_open and governing_locked, f"mcp_locks={mcp_locks}"))
 
-    # 3. remember routing lands RAW in inbound/mcp/, never operation/ or a locked root.
-    probes = [None, "", "Acme Corp", "system", "identity", "governance",
-              "persona", "constitution", "contract", "reports", "trading"]
-    all_inbound = all(
-        m.resolve_remember_path(a, client_name="claude.ai").startswith("inbound/mcp/")
-        for a in probes)
-    no_operation = not any(
-        m.resolve_remember_path(a, client_name="claude.ai").startswith("operation/")
-        for a in probes)
-    no_locked = not any(
-        any(m.resolve_remember_path(a, client_name="claude.ai").startswith(r) for r in mcp_locks)
-        for a in probes)
+    # 3. ADR-543 tombstone: the MCP remember intake machinery is retired IN
+    #    FULL — no shim, no alias. Foreign observations arrive as ordinary
+    #    attributed `save` writes; the raw lane survives as a lock-set fact
+    #    (gate 2), not a verb's private routing.
+    gone = [n for n in (
+        "dispatch_remember_this", "resolve_remember_path",
+        "resolve_memory_path", "resolve_trace_path",
+        "submit_foreign_write_wake",
+    ) if hasattr(m, n)]
     results.append(_check(
-        "3 every remember RAW lands in inbound/mcp/ — never operation/, never a locked root",
-        all_inbound and no_operation and no_locked))
+        "3 (ADR-543) the remember intake machinery is gone in full",
+        not gone, f"survivors={gone}"))
 
-    # 4. routing is per-CLIENT (the per-principal sublane convention, ADR-373-enforced later).
-    p_claude = m.resolve_remember_path("Acme Corp", client_name="claude.ai")
-    p_gpt = m.resolve_remember_path("Acme Corp", client_name="chatgpt")
-    p_none = m.resolve_remember_path("Acme Corp", client_name=None)
+    # 6. the derived_from walk survives the re-cut: compose_history appends the
+    #    cited sources' chains (the citation is the only reliable link between a
+    #    derived file and what it was made from).
+    history_src = inspect.getsource(m.compose_history)
     results.append(_check(
-        "4 raw lane is per-client (inbound/mcp/{client}/...) — different clients, different sublanes",
-        p_claude != p_gpt and "/claude" in p_claude and "/chatgpt" in p_gpt and "/unknown/" in p_none,
-        f"claude={p_claude} gpt={p_gpt}"))
-
-    # 5. retain+attribute carried by the revision-kind COLUMN, not an eager wake.
-    #    (ADR-423/384 + the 2026-07-09 retirement: the raw `remember` write is
-    #    tagged revision_kind='observation'; the eager per-write DERIVE wake —
-    #    submit_foreign_write_wake — is retired, its derive step "reserved, not
-    #    the justification". The `cite` half re-attaches as real code later.)
-    dispatch_src = inspect.getsource(m.dispatch_remember_this)
-    raw_tagged_observation = (
-        '"revision_kind": "observation"' in dispatch_src
-        or "'revision_kind': 'observation'" in dispatch_src
-    )
-    eager_derive_wake_gone = not hasattr(m, "submit_foreign_write_wake")
-    results.append(_check(
-        "5 raw remember is tagged revision_kind='observation' (retain+attribute via column) AND the eager derive wake is retired",
-        raw_tagged_observation and eager_derive_wake_gone,
-        f"raw_tagged={raw_tagged_observation} eager_wake_gone={eager_derive_wake_gone}"))
-
-    # 6. the derived_from walk exists and compose_trace consults it (both
-    #    directions: append the cited raw chain when on the derived file, AND
-    #    forward-walk raw→derived when resolution lands on the raw lane — the
-    #    real-run finding that the seat names the derived file by its own judgment,
-    #    so name-match reaches the raw, and the citation is the only reliable link).
-    has_extractor = hasattr(m, "_extract_derived_from")
-    has_reverse = hasattr(m, "_find_derived_from_raw")
-    trace_src = inspect.getsource(m.compose_trace)
-    trace_walks = "_extract_derived_from" in trace_src and "derived_from" in trace_src
-    forward_walk = "_find_derived_from_raw" in trace_src and "INBOUND_ROOT" in trace_src
-    # the extractor resolves a bare ref to an absolute /workspace/ path
-    extracted = m._extract_derived_from("derived_from: inbound/mcp/claude-ai/acme-corp.md\n# body") \
-        if has_extractor else None
-    results.append(_check(
-        "6 derived_from walk BOTH ways: append raw chain on derived file + forward-walk raw→derived (real-run fix)",
-        has_extractor and has_reverse and trace_walks and forward_walk
-        and extracted == "/workspace/inbound/mcp/claude-ai/acme-corp.md",
-        f"extracted={extracted} reverse={has_reverse} forward={forward_walk}"))
-
-    # 7. resolve_memory_path reads DERIVED-FIRST, raw as fallback receipt. The
-    #    derived query EXCLUDES the raw lane (not_.like INBOUND_ROOT) and runs
-    #    BEFORE the raw-lane query (the `%/{INBOUND_ROOT}%/{slug}.md` match).
-    #    Ordering is checked on the QUERY STATEMENTS, not docstring prose.
-    rmp_src = inspect.getsource(m.resolve_memory_path)
-    body = rmp_src.split('"""', 2)[-1]  # drop the docstring; reason over code only
-    derived_query_pos = body.find("not_.like")            # the derived (excludes-raw) query
-    raw_query_pos = body.find("INBOUND_ROOT}%/")          # the raw-lane query pattern
-    derived_first = (
-        derived_query_pos != -1 and raw_query_pos != -1
-        and derived_query_pos < raw_query_pos
-    )
-    results.append(_check(
-        "7 resolve_memory_path reads DERIVED-first (excludes raw lane) THEN raw as the fallback receipt",
-        derived_first, f"derived@{derived_query_pos} raw@{raw_query_pos}"))
+        "6 compose_history walks derived_from (appends cited sources' chains)",
+        "_extract_derived_from_list" in history_src and "derived_from" in history_src))
 
     # ----------------------------------------------------------------------
     # Perception slice (ADR-376 second conformance slice, 2026-06-26).
@@ -229,32 +169,29 @@ def main():
     # signal carries derived_from. This forced the §9 single-vs-list DECIDE.
     # ----------------------------------------------------------------------
 
-    # 8. derived_from is a LIST (§9 DECIDED): the list reader handles all three
-    #    on-wire shapes, the single-cite reader stays byte-identical to the MCP
-    #    case (first element), and a multi-cite (perception) file walks N raws.
-    single_mcp = m._extract_derived_from("derived_from: inbound/mcp/claude-ai/acme.md\n# body")
+    # 8. derived_from is a LIST (§9 DECIDED): the list reader handles the
+    #    on-wire shapes; a multi-cite (perception) file walks N raws.
     list_inline = m._extract_derived_from_list("derived_from: [inbound/web/a/x.md, inbound/web/b/y.md]")
     list_block = m._extract_derived_from_list(
         "# header comment\nderived_from:\n  - /workspace/inbound/web/a/x.md\n"
         "  - /workspace/inbound/web/b/y.md\nwatch: foo")
     single_as_list = m._extract_derived_from_list("derived_from: inbound/mcp/claude-ai/acme.md")
     results.append(_check(
-        "8 derived_from is a LIST (§9 DECIDED): list reader walks inline+block N cites; single-cite byte-identical",
-        single_mcp == "/workspace/inbound/mcp/claude-ai/acme.md"
-        and list_inline == ["/workspace/inbound/web/a/x.md", "/workspace/inbound/web/b/y.md"]
+        "8 derived_from is a LIST (§9 DECIDED): list reader walks inline+block N cites",
+        list_inline == ["/workspace/inbound/web/a/x.md", "/workspace/inbound/web/b/y.md"]
         and list_block == ["/workspace/inbound/web/a/x.md", "/workspace/inbound/web/b/y.md"]
         and single_as_list == ["/workspace/inbound/mcp/claude-ai/acme.md"],
-        f"single={single_mcp} inline={len(list_inline)} block={len(list_block)}"))
+        f"inline={len(list_inline)} block={len(list_block)}"))
 
-    # 9. compose_trace walks ALL cited raws (not just the first) — the multi-cite
-    #    fan-in shows every raw observation's chain (perception's N-source signal).
-    trace_src2 = inspect.getsource(m.compose_trace)
+    # 9. compose_history walks ALL cited sources (not just the first) — the
+    #    multi-cite fan-in shows every cited chain (perception's N-source signal).
+    history_src2 = inspect.getsource(m.compose_history)
     walks_all = (
-        "_extract_derived_from_list" in trace_src2
-        and "for cited in derived_froms" in trace_src2
+        "_extract_derived_from_list" in history_src2
+        and "for cited in derived_froms" in history_src2
     )
     results.append(_check(
-        "9 compose_trace walks ALL cited raws (multi-cite fan-in), not just the first",
+        "9 compose_history walks ALL cited sources (multi-cite fan-in), not just the first",
         walks_all))
 
     # 10. TrackWebSources RETAINS the cited raw + the signal carries derived_from

@@ -1,20 +1,23 @@
-// The `trace` result shape (compose_trace, api/services/mcp_composition.py).
+// The `history` result shape (compose_history, api/services/mcp_composition.py).
 // Kept in lockstep with the backend; the widget renders this and nothing more
 // (ADR-372 D3 — no synthesis).
 
-export interface TraceRevision {
+export interface HistoryRevision {
   authored_by: string | null; // operator | reviewer:<id> | yarnnn:mcp:<client> | agent:<slug> | system:<actor>
   when: string | null; // ISO timestamp
   change: string | null; // the revision message
   revision_id: string | null;
   diff: string | null; // unified-diff text vs the predecessor; null for the oldest
+  cited_source?: boolean; // true when this revision belongs to a cited source's chain
+  source_path?: string; // the cited source's path (present when cited_source)
 }
 
-export interface TraceResult {
+export interface HistoryResult {
   success?: boolean;
-  subject?: string;
+  found?: boolean;
+  reference?: string;
   path?: string;
-  history?: TraceRevision[]; // newest first
+  history?: HistoryRevision[]; // newest first; cited sources' chains follow
   returned?: number;
   explanation?: string;
 }

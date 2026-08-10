@@ -1,7 +1,7 @@
-// Shared inline stylesheet for the recall-cards + remember-receipt widgets
+// Shared inline stylesheet for the search-results + receipt widgets
 // (ADR-372). Injected at module load so each bundle stays a single
 // self-contained file. Respects the host's light/dark via prefers-color-scheme.
-// `yz-` namespace (trace-timeline keeps its own `tt-` styles untouched).
+// `yz-` namespace (history-timeline keeps its own `tt-` styles untouched).
 
 export const CSS = `
 :root {
@@ -19,7 +19,7 @@ body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI",
 .yz-caption { color: var(--yz-muted); margin: 0 0 14px; font-size: 12.5px; }
 .yz-empty { color: var(--yz-muted); }
 
-/* provenance chip (shared visual language with the trace timeline) */
+/* provenance chip (shared visual language with the history timeline) */
 .yz-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--yz-line);
   color: var(--yz-muted); display: inline-flex; align-items: center; gap: 5px; }
 .yz-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--yz-system); }
@@ -28,7 +28,7 @@ body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI",
 .yz-chip.mcp::before      { background: var(--yz-mcp); }
 .yz-chip.agent::before    { background: var(--yz-agent); }
 
-/* recall cards */
+/* search result cards */
 .yz-cards { display: flex; flex-direction: column; gap: 10px; }
 .yz-card { background: var(--yz-card); border: 1px solid var(--yz-line); border-radius: 9px; padding: 11px 13px; }
 .yz-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -37,7 +37,7 @@ body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI",
 .yz-path { display: block; margin-top: 7px; color: var(--yz-muted); font-size: 11.5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
 
-/* remember receipt (shared by save-receipt — ADR-533 D4) */
+/* receipt (save-receipt — ADR-533 D4) */
 .yz-receipt { display: flex; align-items: flex-start; gap: 10px; background: var(--yz-card);
   border: 1px solid var(--yz-line); border-radius: 9px; padding: 11px 13px; }
 .yz-check { color: var(--yz-ok); font-weight: 700; font-size: 16px; line-height: 1.4; }

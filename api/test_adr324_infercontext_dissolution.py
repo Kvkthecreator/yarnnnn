@@ -58,7 +58,7 @@ def test_author_identity_helpers_present():
 def test_mcp_does_not_dispatch_infercontext():
     # ADR-324 gated that the MCP path did NOT dispatch execute_primitive("InferContext").
     # ADR-368 (memory-first interop) then removed the identity/brand routing to
-    # author_identity entirely — `remember` now writes a raw observation to the
+    # author_identity entirely — the retired MCP `remember` verb wrote raw observations to the
     # inbound/ lane (no focused inference sub-call). ADR-432 D1c retired Brand.
     # So the surviving, current invariant is simply: the MCP composition layer
     # must not dispatch the dissolved InferContext primitive.

@@ -29,7 +29,7 @@ export interface SaveResult {
 
 /** Accept only a `save` result. `reference`+`revision_id` is the success shape;
  *  `current_head` is the conflict shape; both are distinctive enough that no
- *  other verb's result matches (open has `found`, remember has `written_to`). */
+ *  other verb's result matches (open has `found`, history has `history`). */
 export function isSaveResult(v: Record<string, unknown>): boolean {
   if ("current_head" in v) return true;
   if ("created" in v && "reference" in v) return true;
