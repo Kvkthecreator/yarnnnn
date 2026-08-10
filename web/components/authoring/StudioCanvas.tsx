@@ -127,6 +127,10 @@ interface StudioCanvasProps {
    *  substrate's `data-block` attribute. Same projection-input discipline as
    *  `measureBounds`: memoized upstream, or the frame reloads every render. */
   blockLabels?: Record<string, string>;
+  /** ADR-544 D5.1 — the runtime refused a gesture (today: a ⇧-click that would
+   *  build a set spanning two Areas). The surface says why; the runtime never
+   *  writes operator-facing words. */
+  onRefused?: (reason: string) => void;
   /** ADR-480 D1: a FLOW edit committed (blur/idle) — the whole region's inner,
    *  source-mapped. The surface applies it with normalize-on-write (D3). */
   onFlowEdit?: (selector: string, newInner: string) => void;
@@ -285,6 +289,7 @@ export function StudioCanvas({
   mode,
   measureBounds,
   blockLabels,
+  onRefused,
   onFlowEdit,
   onEditExited,
   onEditEntered,
@@ -695,6 +700,11 @@ export function StudioCanvas({
             },
           }));
         if (moves.length) onGeometryMany?.(moves);
+      } else if (d.type === 'yarnnn-refused' && typeof d.reason === 'string') {
+        // ADR-544 D5.1 — the runtime refused an illegal gesture. It must SAY so:
+        // a gesture that silently does nothing is the inert affordance this ADR
+        // keeps finding. The parent owns the words (one notice, ADR-541 D4).
+        onRefused?.(d.reason as string);
       } else if (d.type === 'yarnnn-group' && Array.isArray(d.blockIds)) {
         onGroup?.((d.blockIds as unknown[]).filter((b): b is string => typeof b === 'string'));
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {

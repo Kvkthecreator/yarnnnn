@@ -927,6 +927,27 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // so the gallery can say it is thinking (the call is ~2-4s).
   const [planning, setPlanning] = useState(false);
 
+  // ADR-544 D5.1 — the runtime refuses a gesture the containment law forbids
+  // (today: a ⇧-click building a set across two Areas). It must be SAID, not
+  // silently swallowed: an affordance that does nothing is the defect ADR-544
+  // keeps finding. The runtime posts a REASON code and never operator-facing
+  // words — the surface owns the sentence, so there is one place to change it.
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const handleRefused = useCallback((reason: string) => {
+    setRefusal(
+      reason === 'cross-area-set'
+        ? 'Select objects from one area at a time — a set spanning two areas has no shared frame to align against.'
+        : 'That is not available here.',
+    );
+  }, []);
+  // The notice is transient: it answers a gesture, so it clears on the next one
+  // rather than lingering as chrome the member must dismiss.
+  useEffect(() => {
+    if (!refusal) return;
+    const t = setTimeout(() => setRefusal(null), 4000);
+    return () => clearTimeout(t);
+  }, [refusal]);
+
   // ── ADR-524 D1/D2 — the patch channel ────────────────────────────────────
   // A block-local op sends its projected block to the runtime instead of
   // swapping srcDoc. srcDoc is a WHOLE-DOCUMENT handoff: the browser discards
@@ -3287,6 +3308,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 mode={resolvedMode}
                 measureBounds={measureBounds}
                 blockLabels={blockLabels}
+                onRefused={handleRefused}
                 onFlowEdit={onFlowEdit}
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}
@@ -3329,6 +3351,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   paged media only (flow's chain is caret → block → clear).
                   Selecting an ancestor rides the navigator's existing
                   selection paths — no new op, a new reach (rule 7). */}
+              {/* ADR-544 D5.1 — the refusal, said where the gesture happened.
+                  Transient (it answers a gesture, not a state) and it sits over
+                  the canvas rather than in the pane, because the pane may be
+                  closed and the member's attention is on the slide. */}
+              {refusal && (
+                <div
+                  role="status"
+                  className="pointer-events-none absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-md bg-foreground/90 px-3 py-1.5 text-[11px] leading-snug text-background shadow-lg"
+                >
+                  {refusal}
+                </div>
+              )}
               {isPaged && selection && (
                 <SelectionBreadcrumb
                   html={file.content ?? ''}

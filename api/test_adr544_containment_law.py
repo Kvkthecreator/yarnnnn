@@ -346,6 +346,47 @@ check(
     f"ADR-544 selector rewrite needs >= 17 to retrofit into existing artifacts",
 )
 
+# ── D5.1 — the set is sibling-only, REFUSED AT FORMATION ──────────────────
+# The operator ratified the constraint over the exception ("the cross container
+# drag illegal IS correct"). What matters is WHERE it is enforced: withdrawing
+# the verbs afterwards leaves the illegal set existing and the pane describing
+# something it has nothing true to say about. The runtime refuses the ⇧-click
+# itself, and SAYS so — a gesture that silently does nothing is the inert
+# affordance this ADR keeps finding.
+_proj = (REPO / "web/components/workspace/viewers/projection.ts").read_text()
+check(
+    "gArea !== curArea" in _proj and "cross-area-set" in _proj,
+    "D5.1: the ⇧-click set is not gated on a SHARED Area — a cross-Area set can "
+    "still form",
+)
+check(
+    "yarnnn-refused" in _proj,
+    "D5.1: the runtime refuses silently — it must post a reason the surface can "
+    "voice",
+)
+_surface = (REPO / "web/components/authoring/StudioSurface.tsx").read_text()
+check(
+    "onRefused" in _surface and "cross-area-set" in _surface,
+    "D5.1: the surface does not voice the refusal (the runtime must never carry "
+    "operator-facing words)",
+)
+
+# ADR-541 D4 — the ONE withdrawal notice must MOUNT. It was exported from
+# selection.ts with zero importers, so the pane named a count and never said why
+# the single-subject rows had gone: computed and never mounted, the ADR-536
+# defect class. Asserted by COUNT — both multi scopes (range + objects) show it.
+_tab = (REPO / "web/components/authoring/StudioDesignTab.tsx").read_text()
+check(
+    "withdrawalNotice" in _tab,
+    "ADR-541 D4: withdrawalNotice has no consumer — the one notice is computed "
+    "and never mounted",
+)
+check(
+    _tab.count("withdrawalNotice(unified)") >= 2,
+    "ADR-541 D4: the withdrawal notice mounts at fewer than both multi scopes "
+    "(range + objects)",
+)
+
 if failures:
     print(f"ADR-544 FAILED — {len(failures)} finding(s):\n")
     for f in failures:

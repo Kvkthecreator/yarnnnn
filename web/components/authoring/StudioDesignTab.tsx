@@ -66,7 +66,7 @@ import {
 } from './StudioToolbar';
 import { studioShapeStyle } from './studioShapes';
 // ADR-541 D2 — the one selection algebra; this pane derives nothing itself.
-import { arityOf, scopeOf, unify, type PaneScope } from './selection';
+import { arityOf, scopeOf, unify, withdrawalNotice, type PaneScope } from './selection';
 // ADR-542 D2 — the one token-admittance function (scope × grains).
 import { admits } from './tokenGrammar';
 import { climbChain } from './SelectionBreadcrumb';
@@ -2512,6 +2512,16 @@ export function StudioDesignTab({
                 ? `${rangeBlockIds!.length} blocks selected`
                 : (selection?.label ?? selection?.blockKind ?? 'Selection')}
             </p>
+            {/* ADR-541 D4 — the ONE withdrawal notice, finally mounted. It was
+                exported from selection.ts with NO consumer, so the pane named a
+                count and never said WHY the single-subject rows had gone: the
+                member saw absence and had to infer the rule. One derivation,
+                one sentence, both scopes (see the object scope below). */}
+            {multiBlockRange && (
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {withdrawalNotice(unified)}
+              </p>
+            )}
             {/* ADR-526 D2 — the enclosing-heading crumb, flow's one honest
                 ancestry rung. Names ONE block's ancestor, so it withdraws over
                 a multi-block range. */}
@@ -2566,6 +2576,12 @@ export function StudioDesignTab({
                    (selection?.blockKind ? (labelMap[selection.blockKind] ?? selection.blockKind) : null) ??
                    'block')}
             </p>
+            {/* ADR-541 D4 — the same one notice at the object tier (see range). */}
+            {multiObject && (
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {withdrawalNotice(unified)}
+              </p>
+            )}
             {/* Single-subject rows: the path names ONE ancestry, the verbs act
                 on ONE id. Both withdraw over a set rather than answering for
                 the primary while the member is looking at five. */}

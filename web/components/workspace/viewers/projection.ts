@@ -764,6 +764,25 @@ const POINTER_SCRIPT = `
     if (e.shiftKey) {
       var gblk = el && el.closest ? el.closest('[data-block]') : null;
       var gstaged = gblk && gblk.closest ? !!gblk.closest('.slide') : false;
+      // ADR-544 D5.1 — THE SET IS SIBLING-ONLY: every member shares one Area.
+      // Refused at FORMATION, not merely withdrawn from afterwards. A set
+      // spanning two Areas has no shared parent to align against, so
+      // align/distribute would have to invent a frame — free placement
+      // returning through the selection door (D3's whole point). Enforcing it
+      // here means the illegal set never exists, rather than existing and
+      // being described by a pane that has nothing true to say about it.
+      //
+      // The first ⇧-click seeds the set, so there is nothing to compare it to;
+      // from the second on, the candidate must share the primary's Area.
+      // data-slot rides along for a document authored before the heal.
+      var gArea = gblk && gblk.closest ? gblk.closest('[data-area], [data-slot]') : null;
+      var curArea = cur && cur.closest ? cur.closest('[data-area], [data-slot]') : null;
+      if (cur && gblk && gArea !== curArea) {
+        // Say why. A gesture that silently does nothing is the affordance
+        // ADR-544 keeps finding; the parent owns the one notice (ADR-541 D4).
+        parent.postMessage({ type: 'yarnnn-refused', reason: 'cross-area-set' }, '*');
+        return;
+      }
       if (gblk && gstaged) {
         // __yarnnnSelect now posts an empty set when it clears one (below), so
         // seeding through it can emit twice in one gesture. Harmless — the

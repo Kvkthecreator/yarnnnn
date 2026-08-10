@@ -167,10 +167,16 @@ t("a reduced-motion guard exists", "prefers-reduced-motion" in KERNEL_NC)
 guard = KERNEL_NC[KERNEL_NC.index("prefers-reduced-motion"):]
 t("the guard disables animation", "animation: none" in guard)
 t("the guard disables transition", "transition: none" in guard)
-t("kernel version bumped to 16 (so the retrofit carries it)", st.STUDIO_KERNEL_CSS_VERSION == 16)
+# The version is asserted as a FLOOR, not an equality. ADR-538 needs its CSS to
+# have REACHED existing artifacts, which is what a bump ≥ its own does; pinning
+# the exact number made every LATER kernel edit (ADR-544 D2 → v17) read as this
+# ADR regressing, when the retrofit it depends on had strictly improved. Never
+# pin a version, assert the floor that carries your change.
+t("kernel version is at least 16 (so the retrofit carries this ADR's CSS)",
+  st.STUDIO_KERNEL_CSS_VERSION >= 16)
 t(
-    "the composed element carries the new version",
-    'data-kernel-v="16"' in st.compose_kernel_style_element(),
+    "the composed element carries the CURRENT version",
+    f'data-kernel-v="{st.STUDIO_KERNEL_CSS_VERSION}"' in st.compose_kernel_style_element(),
 )
 t("NO <script> in the kernel CSS", "<script" not in KERNEL_NC)
 
@@ -242,10 +248,16 @@ t(
     "<script" not in strip_comments("/* never a <script> here */ p { color: red; }"),
 )
 
-# F5 — the version gate would catch a silent bump-less CSS edit.
+# F5 — the version gate would catch a silent bump-less CSS edit. Stated as a
+# RELATION, not a number: what makes a bump-less edit detectable is that the
+# composed element carries the CURRENT constant and no stale one — true at any
+# version. (ADR-544 D2 proved the underlying risk is real, not theoretical: the
+# Area selectors were rewritten at v16 and reached zero existing artifacts until
+# the bump to v17.)
 t(
     "F5 a kernel edit without a version bump is detectable",
-    st.STUDIO_KERNEL_CSS_VERSION == 16 and 'data-kernel-v="15"' not in st.compose_kernel_style_element(),
+    f'data-kernel-v="{st.STUDIO_KERNEL_CSS_VERSION}"' in st.compose_kernel_style_element()
+    and f'data-kernel-v="{st.STUDIO_KERNEL_CSS_VERSION - 1}"' not in st.compose_kernel_style_element(),
 )
 
 # F6 — the chart-before-table ordering is load-bearing: a chart ref is also a

@@ -244,12 +244,19 @@ grains: `document | slide | area | block | range`. Consequences:
 - **A set is homogeneous in grain and shares one parent Area.** This makes the
   cross-container range from the audit (a drag from `main` into `side`)
   **structurally illegal** rather than undefined-and-unreported.
-- **Open question carried into implementation, not resolved here**: sibling-only
-  forbids selecting two blocks in *different* Areas to align them — a
-  legitimate gesture in the Figma benchmark. Align/distribute is ADR-519 D4's
-  one set-subject section. The implementation MUST test this case before the
-  sibling rule is locked; if it holds, align/distribute needs an explicit
-  carve-out stated here as an amendment.
+- **D5.1 — the sibling rule LOCKS; there is no align/distribute carve-out**
+  (operator-decided 2026-08-10: *"the cross container drag illegal IS correct
+  and thus enforcing that condition and policy in our interaction is the right
+  discipline"*). The question D5 carried is closed in favour of the constraint,
+  not the exception. Cross-Area align was the one gesture that would have
+  needed the carve-out, and it is refused for the reason containment exists: a
+  set spanning two Areas has no shared parent to align *against*, so the verb
+  would have to invent a frame — which is free placement returning through the
+  selection door. **The surface must ENFORCE this, not merely lack it**: the
+  properties pane and the right-click menu both withdraw over a cross-Area set
+  with the one notice (ADR-541 D4), rather than offering a verb that silently
+  does nothing. An affordance that is present but inert is the defect this ADR
+  keeps finding; a withdrawal that SAYS why is the honest form.
 
 ### D6 — Layout change maps Area → Area by role
 
@@ -336,9 +343,18 @@ project's doc-first discipline.
 
 ## 5. Not decided here
 
-- **The remainder of re-arrange semantics** (what survives beyond the Area
-  mapping; group dissolution) — downstream, and now decidable because D2/D6
-  define what a region is.
+- **The remainder of re-arrange semantics** — resolved in principle by the
+  operator (2026-08-10): *"re-arrange is fundamentally about the slide's LAYOUT
+  re-arrange; we need to enforce content is sustained, all else is subject
+  (blocks themselves)."* The rule is therefore **content is invariant, structure
+  is subject**: every block survives a re-lay with its id and its inner HTML
+  intact (already the ADR-479 D2 / ADR-462 D9 coverage promise, and gated), while
+  everything structural — which Area a block lands in, the Areas themselves,
+  group wrappers, block-level geometry — yields to the new layout. This makes
+  the ADR-519 D2.1 group-dissolve question moot on decks rather than open: a
+  group is structure, so it yields, and D2 already dissolved layout-less
+  containers here. What remains for a later pass is the SURFACE half — what the
+  member is told before a re-lay that will restructure their slide.
 - **The final role enumeration** — provisional per the operator.
 - **Web/Docs media** — this ADR is deck-scoped. Web bands and Docs flow are
   governed by ADR-505 D3 and ADR-526 respectively and are untouched.
