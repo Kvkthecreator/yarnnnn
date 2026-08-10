@@ -1,120 +1,126 @@
-# Session handoff — 2026-08-10 (ADR-544 containment law, phases 1–6 landed)
+# Session handoff — 2026-08-10 (ADR-546 the rung law, phases 1–5 landed)
 
-`origin/main` @ `d016286`. The streamlining arc (ADR-539/540/541/542 + the
-ADR-518 §6 rename) closed in the prior session; its handoff is absorbed below
-where items remain open.
+`origin/main` @ `14da77c`. The ADR-544 handoff is absorbed below where items remain
+open. **Ignore the ADR-544 heal `--execute` and the rotated-key item** — the
+operator has explicitly descoped both.
 
-## 1. What landed this session — ADR-544
+## 1. What landed this session — ADR-546
 
-Found by driving a live deck (`operation/ir-deck-v3/deck.html`) through the
-doorway, not by a gate. **Every §1 defect was invisible to a green battery.**
+Audited, drafted, ratified and implemented in one arc. The audit was made against
+a **22/22 green battery** — five arcs for five, this layer's defects are found by
+driving the doorway.
+
+**Docs' fault is the INVERSE of ADR-544's.** ADR-544 found two substrate concepts
+wearing one word. Docs had ONE concept — *depth* — wearing **three spellings**,
+all shipped, all depth-3, with readership of six consumers / one / **none**:
+
+| spelling | read by |
+|---|---|
+| `h1/h2/h3` (`HEADING_RUNGS`) | outline, crumb, ramp, turn-into, AI posture, clamp |
+| `data-indent="1..3"` (a served token) | ONE pane row, no keyboard entrance |
+| `ul ul ul` (kernel CSS, 3 levels) | **nobody** |
+
+The third having no reader is why **Tab could author a hierarchy nothing could
+name**. And Tab meant two unrelated things by accident of tag: nest in an `<li>`,
+a literal **tab character** in prose.
 
 | D | Decision |
 |---|---|
-| D1 | Containment is total — no block is a direct child of a page (gated) |
-| D2 | `.cols`/`.col` + `data-slot` collapse into **Area**, typed by role |
-| D3 | Position IS Area + order; deck `x/y/z` re-grained to **`artboard`** |
-| D4 | One label derivation — the registry's word, never the attribute's |
-| D5 | Selection re-cut onto the new grains (cross-Area range now illegal) |
-| D6 | Re-lay maps Area→Area **by role**, not by free-form name |
-| D7 | Existing decks healed, not grandfathered |
+| D0 | **Document → Rung → Block → Range**; no container, no page grain, by derivation |
+| D1 | One rung, two spellings; the token values + nesting CSS **generated** from `FLOW_RUNGS` |
+| D2 | The floor stays the BLOCK — an `<li>` never gains identity |
+| D3 | A span is a SHAPE — a heading-led range is a subtree, derived in `selection.ts` |
+| D4 | Tab steps the rung; **the literal-tab branch is deleted** |
+| D5 | No `Slide`/`Group`/raw attribute on flow — ADR-544 F2 made **symmetric** |
+| D6 | `pathRow`'s "always null on flow" premise **gated**, not assumed |
+| D7 | **No heal** (deliberately unlike ADR-544 D7) — nothing here makes markup illegal |
 
-**Vocabulary: Slide → Layout → Area → Block.** Three of four words are the
-operator's. "Section" was REFUSED with receipts (ADR-526/AUTHORING rule 12 make
-it the span between headings; there is a standing `<section>`-wrapper refusal;
-and `<section>` is the slide's own tag). "Object" refused — already a selection
-TIER. Typing Areas by content (title/subtitle/body) was refused in §2.2: it
-duplicates what the block declares and breaks on "multiple subtitles".
+**The fork was refused, with the measurement** (§2.3). The operator raised a hard
+Docs/Studio app fork. Not one of the seven audit findings was "shared machinery
+forced Docs into a Studio shape" — every one was machinery that **failed to
+branch**, or a Studio fix written **one-directionally**. A fork fixes none and
+duplicates all. **The law forks; the machinery stays one implementation.**
 
 ## 2. The state of the gates
 
-- **22/22 FE mjs gates green** (run from REPO ROOT — from `web/` every gate
-  crashes on its readFileSync paths and prints only the node version; do not
-  misread that as results).
-- **`next build` clean.** The one warning is a pre-existing Sentry vendor ESM
+- **23/23 FE mjs gates green** (run from REPO ROOT — from `web/` every gate
+  crashes on its readFileSync paths and prints only the node version).
+- **5/5 authoring py gates green** (adr521 · adr528 · adr536 · adr539 · adr544).
+  These are **script-style, not pytest** — run `python3 test_x.py` directly;
+  pytest INTERNALERRORs on their module-level `sys.exit`.
+- **`next build` exit 0.** The one warning is the pre-existing Sentry vendor ESM
   issue, unrelated.
-- **Seven stale gates repaired at their named homes.** Three carried the `slots`
-  key. **Three PINNED A SPELLING** and so read a vocabulary change as a
-  violation — `adr461`'s literal selector string, `adr520`'s `walkContents`
-  signature, `adr485_measure_frame.mjs`'s `MEASURE_GRAINS` literal. All three
-  were re-cut to assert BEHAVIOUR (a set, a name, an invariant). If you touch
-  this layer and a gate goes red on a spelling, that is the gate's bug.
-- **Baseline reds unchanged (7, all confirmed by stash at the pre-544 commit):**
-  `adr466_mode_native`, `adr480_flow_editing_grain`, `adr482_flow_completion`,
-  `adr485_measure_frame` (py), `adr456_studio_wave2`, `adr459_artifact_identity`,
-  `adr462_context_menu`. None are ADR-544's.
-- ⚠️ **DB-backed pytests cannot run in this shell** — `SUPABASE_URL`/service key
-  are unset, so ~300 tests fail on 401 regardless of the working tree. Only
-  static gates are meaningful here. Do not read that mass red as a regression.
+- **New gate `adr546_rung_law.mjs` — 46/0.** It EXECUTES the extracted
+  `labelForElement` ladder and the `regionOf`/`arrangeOf` derivations rather than
+  grepping. All six decisions were falsified and restored.
+- **Three existing gates repaired because they PINNED A SPELLING** — third
+  occurrence of the ADR-544 lesson: `adr519`'s `slot: dslot`, `adr527`'s literal
+  `[data-indent="1"]` rule and its `formatSegments` window. All re-cut to assert
+  behaviour; the indent one **re-falsified** (a custom property in place of the
+  static step still reddens it). ⚠️ **If you touch this layer and a gate goes red
+  on a spelling, that is the gate's bug.**
+- `adr521`'s interpolation ENUMERATION took the two new constants — that gate did
+  exactly its job. That is the difference between pinning a spelling and defending
+  a rule.
+- **Baseline py reds — 6, all confirmed by stash at `e78b705`:**
+  `adr459_artifact_identity`, `adr462_context_menu`, `adr466_mode_native`,
+  `adr485_measure_frame`, plus **`adr469_name_is_lifted`** (`KeyError: 'document'`)
+  and **`adr477_block_keyboard`** (`FileNotFoundError` on a `studio/StudioCanvas.tsx`
+  path that moved in the ADR-518 rename). The last two are **stale post-ADR-518
+  references** and were not on the previous handoff's list — they are cheap fixes
+  for whoever wants them, not regressions.
+- ⚠️ **DB-backed pytests cannot run in this shell** (401 regardless of the tree).
+  Only static gates are meaningful here.
 
-## 2b. Landed after the operator's click-pass (same day)
+## 3. OWED
 
-The click-pass reported the arc as a clear improvement AND surfaced one defect,
-which led to a second by audit. Both are fixed and live:
-
-- **`d8c528b` — an un-healed region reads "Area", not "Group".** The crumb read
-  `Slide 2 › Group › Group › Text`: D4 had landed for BLOCKS while the regions
-  around them fell through. Cause: every other region-grain consumer kept a
-  legacy `[data-area], [data-slot]` read for pre-heal documents; the label ladder
-  alone got none. The two ladder twins (`labelForElement` + the injected
-  `labelForJS`) were kept in step by a COMMENT — now gated per rung.
-- **`fb891be` — ADR-544 D6.1, the AI half of the mapping law.** `_PLAN_SYSTEM`
-  taught the model "a layout's named SLOTS" with a `flow` role the closed set no
-  longer contains, and `applyArrangementPlan` queried `[data-slot]` alone while
-  its sibling read both — so on a post-544 fragment it refused every plan and the
-  judgment degraded silently to the mechanical ladder. Wire, prompt, validator
-  and both apply paths now speak Areas; the seam is gated BY COUNT.
-
-⭐ Both were invisible to a green battery, again. The pattern is now three for
-three: **this layer's defects are found by driving the doorway.**
-
-## 3. OWED — the two things ADR-544 did not finish
-
-1. **The heal's `--execute` run — BLOCKED ON A KEY, not on code.**
-   `api/scripts/oneshot/adr544_heal_containment.py` is dry-run-by-default and was
-   verified EXECUTED on synthetic pre-544 markup (inside the gate, with
-   falsifiers), but has never touched real substrate. **The local `api/.env`
-   carries an `sb_secret_…` service key the project rejects ("Unregistered API
-   key")** — the rotation from the 2026-08-04 incident was applied to the three
-   Render services and never to this file. **Prod is healthy** (the ADR-544 deploy
-   went live 02:09). Fix: paste a current service key into `api/.env`, then
-   `cd api && python -m scripts.oneshot.adr544_heal_containment` — read the
-   per-file counts — then `--execute`. It heals deck+web only; an IMAGES stage
-   and a flow document come back byte-identical (gated).
-2. **The browser click-pass** (the load-bearing one — gates prove the room, not
-   the doorway):
-   - open a pre-544 deck → the pane header says **Text** (verified by the
-     operator) and the crumb now reads `Area`; after the heal it should read
-     **`Body (left)`**. Anything still saying `Group` is a label-ladder rung;
-     anything saying `main`/`side` is a leak D4 forbids;
-   - **re-arrange a slide and confirm the AI plan actually lands** (D6.1) — a
-     silent fall-through to the mechanical ladder looks identical to a working
-     re-arrange, so watch for the planning state, not just the result;
-   - drag a heading → it must re-order within its Area and **never float free**;
-   - re-arrange a two-column slide → content maps body→body by role;
-   - the ADR-541 range case: drag a selection from one column into another — it
-     must not produce a set the pane cannot describe.
+1. **The click-pass — the load-bearing one.** ADR-546 §7 names it as gating D2:
+   - **Tab-nest a bullet three deep**, then **select across a heading and its
+     body** and read what the pane calls it. It should say *"<heading> and the N
+     blocks under it"*, never a bare count.
+   - **Tab in prose** must step the paragraph in (and ⇧Tab back out), three steps
+     max, and must **never insert a tab character**.
+   - Open a document and confirm nothing in the chrome says **Slide**, **Group**,
+     **Area** or a raw kind (`PROSE`).
+   - D2's "a list is one opaque block" reasoning is **from the code, not the
+     gesture** — if a nested item turns out to want selecting, that reopens D2
+     (and §5 names the evidence).
+2. **The span READBACK.** `currentOf` resolves through one `selectedEl`, so over a
+   mixed-alignment span the align/indent control shows the clicked block's value
+   while writing to all of them — `d878242` at the *read* grain. Named in code and
+   in the AUTHORING matrix; not fixed.
 
 ## 4. Also open (inherited, not this session's)
 
-- ADR-541 / 539 / 542 click-passes (§3 of the prior handoff) — the ADR-541 one
-  is the big one; its "range survives a right-click" ordering constraint is
-  gate-unverifiable.
+- ADR-544's click-pass; ADR-541 / 539 / 542 click-passes (the ADR-541 one is the
+  big one — its "range survives a right-click" ordering constraint is
+  gate-unverifiable).
 - ADR-538 share-view motion + `component` render check; ADR-537 share sheet;
   ADR-535 click-pass + D4 rung; ADR-534 per-redemption history.
 - The prod OAuth-state error (ADR-531 territory) — STILL uninvestigated.
-- `metrics` citing a CELL wants its own ADR (needs sub-file addressing — the
-  ADR-528 finding; ADR-544 D6 does not address it).
+- `metrics` citing a CELL wants its own ADR (needs sub-file addressing).
+- **GLOSSARY has no ADR-544 grain entries** — ADR-546 added a per-medium authoring
+  section covering both media, which pays that debt as a side effect. If Studio
+  wants its own deeper entries they go there.
 
 ## 5. Landmarks
 
-- The kernel vocabulary lives at `api/services/authoring.py`; the shared FE
-  surface at `web/components/authoring/`. Identifiers (`STUDIO_BLOCKS`,
-  `StudioSurface`, …) and wire paths (`/studio/*`, `studio.file`) are
-  DELIBERATELY not renamed — re-opening that boundary needs an ADR.
+- **`Rung` is overloaded.** ADR-380's activation **Rung 0·1·2** (workspace
+  activation) and ADR-546's authoring **Rung** (a document's depth grain) are
+  unrelated. The GLOSSARY section disambiguates them explicitly — read it before
+  using the word in canon.
 - One derivation home per question, gate-defended: `selection.ts`
-  (`unify`/`scopeOf`/`arityOf`) · `tokenGrammar.ts` (`admits`) ·
-  `structureLabels.ts` (`labelForElement`/`areaLabel` — ADR-544 D4) · the
-  registry's behavior fields. A new hand-list here is a paid debt re-opened.
-- `services/studio_arrangement_plan.py` KEEPS its name (arrangement machinery,
-  not the kernel) — a greedy rename swept it once and was caught.
+  (`unify`/`scopeOf`/`arityOf`/**`spanShapeOf`**/`spanLabel`) · `tokenGrammar.ts`
+  (`admits`) · `structureLabels.ts` (`labelForElement`/`areaLabel` — now
+  **mode-aware**) · `projection.ts`'s `regionOf`/`arrangeOf` (the paged-grain
+  guard) · the registry's behavior fields. A new hand-list is a paid debt re-opened.
+- **The kernel's rung CSS is GENERATED** (`_rung_css`/`_nest_css` in
+  `services/authoring.py`). Editing the stylesheet text by hand re-opens §1.1.
+  Output was verified byte-identical to what it replaced, so no
+  `STUDIO_KERNEL_CSS_VERSION` bump was owed — but **a real CSS change needs one**.
+- ⭐ **Backticks are illegal in the runtime templates** (`projection.ts` — they are
+  module-level template literals). This bit **three times** in this arc alone; the
+  ADR-546 gate now guards **every** runtime template, not ADR-519's one region.
+- `services/studio_arrangement_plan.py` KEEPS its name; identifiers
+  (`STUDIO_BLOCKS`, `StudioSurface`, …) and wire paths (`/studio/*`) are
+  DELIBERATELY not renamed — re-opening that boundary needs an ADR.
