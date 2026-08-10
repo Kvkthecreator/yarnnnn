@@ -447,20 +447,38 @@ async def preview_share(
             out.truncated = False
         walk_rows = (
             svc.table("workspace_file_versions")
-            .select("authored_by, created_at, message")
+            .select("authored_by, author_identity_uuid, created_at, message")
             .eq("workspace_id", share["workspace_id"])
             .eq("path", abs_path)
             .order("created_at", desc=True)
             .limit(PUBLIC_WALK_CAP)
             .execute()
         ).data or []
+        # Principal display (2026-08-10 identity pass, fourth surface — the
+        # most public one): the walk crosses to ACCOUNT-LESS strangers, so it
+        # renders through the ONE resolver like every other boundary. Raw
+        # `member:{uuid} via …` strings (and any legacy `<email> via <model>`
+        # rows) must never reach a public page. Best-effort: a resolution
+        # failure degrades to the nameless display, never breaks the share.
+        try:
+            from services.principal_display import display_for_rows
+            walk_display = display_for_rows(
+                svc, walk_rows, workspace_id=share["workspace_id"]
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[SHARES] walk display resolution failed: %s", exc)
+            from services.principal_display import display_author
+            walk_display = {
+                i: display_author(r.get("authored_by"))
+                for i, r in enumerate(walk_rows)
+            }
         out.walk = [
             WalkEntry(
-                authored_by=r.get("authored_by"),
+                authored_by=walk_display.get(i),
                 when=r.get("created_at"),
                 change=r.get("message"),
             )
-            for r in walk_rows
+            for i, r in enumerate(walk_rows)
         ]
 
     # ADR-529 D2 — negotiate the REPRESENTATION, having already built the one

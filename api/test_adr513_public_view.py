@@ -155,9 +155,28 @@ def main():
         "3c caps exist (content + walk)",
         isinstance(r.PUBLIC_CONTENT_CAP, int) and isinstance(r.PUBLIC_WALK_CAP, int)
         and r.PUBLIC_WALK_CAP <= 25))
+    # 3d re-cut (2026-08-10): assert the INTENT — the walk select carries no
+    # content/diff/blob column — not the exact spelling (the prior pin broke
+    # when author_identity_uuid joined the select for the principal-display
+    # resolution; that column is metadata consumed server-side, never emitted).
+    import re as _re
+    walk_select = _re.search(
+        r'walk_rows = \(\s*svc\.table\("workspace_file_versions"\)\s*\.select\("([^"]+)"\)',
+        prev_src,
+    )
+    sel_cols = {c.strip() for c in walk_select.group(1).split(",")} if walk_select else set()
     results.append(_check(
-        "3d walk query selects metadata columns only (no content/diff)",
-        '"authored_by, created_at, message"' in prev_src))
+        "3d walk query selects metadata columns only (no content/diff/blob)",
+        bool(sel_cols)
+        and not (sel_cols & {"content", "diff", "blob_sha", "content_bytes"})
+        and {"authored_by", "created_at", "message"} <= sel_cols))
+    # The public walk renders through the ONE principal resolver (2026-08-10
+    # identity pass) — raw member UUIDs / legacy emails never reach an
+    # account-less viewer.
+    results.append(_check(
+        "3e walk emits display-resolved authors (principal_display), not raw authored_by",
+        "display_for_rows" in prev_src
+        and "authored_by=walk_display" in prev_src))
 
     # 4. middleware
     with open("../web/lib/supabase/middleware.ts", encoding="utf-8") as f:
