@@ -1,8 +1,14 @@
 # Session handoff — 2026-08-10 (ADR-546 the rung law, phases 1–5 landed)
 
-`origin/main` @ `14da77c`. The ADR-544 handoff is absorbed below where items remain
-open. **Ignore the ADR-544 heal `--execute` and the rotated-key item** — the
-operator has explicitly descoped both.
+`origin/main` @ `14da77c`+. The ADR-544 handoff is absorbed below where items
+remain open.
+
+> **Correction (2026-08-10, ADR-544 lane).** An earlier revision of this file said
+> the heal `--execute` and the rotated-key item were "explicitly descoped by the
+> operator". That was wrong, and the receipts are below: the operator updated the
+> key, and **the heal RAN to completion** — 4 decks, 48 Areas named, 73 blocks
+> re-homed, 1 position cleared, verified 0 block-ids and 0 words lost. Both items
+> are CLOSED, not descoped. See §1b.
 
 ## 1. What landed this session — ADR-546
 
@@ -40,6 +46,56 @@ Docs/Studio app fork. Not one of the seven audit findings was "shared machinery
 forced Docs into a Studio shape" — every one was machinery that **failed to
 branch**, or a Studio fix written **one-directionally**. A fork fixes none and
 duplicates all. **The law forks; the machinery stays one implementation.**
+
+## 1b. The ADR-544 lane — CLOSED except its click-pass
+
+Ran in parallel with ADR-546 (they are complements: 544 is the PAGED containment
+law, 546 the flow rung law). Commits, in order — every one is on `main`:
+
+| Commit | What |
+|---|---|
+| `d016286` | **ADR-544** — the containment law: Slide → Layout → Area → Block |
+| `d8c528b` | D7 — an un-healed region reads "Area", not "Group" (the operator's click-pass caught this) |
+| `fb891be` | D6.1 — the AI re-arrange speaks Areas, and its apply path finds them |
+| `1a220b1` | D2 — bump the kernel CSS version so the Area selectors actually retrofit |
+| `cedfc2f` | D5.1 — the sibling rule locks; the refusal is said |
+
+**The heal RAN** (`api/scripts/oneshot/adr544_heal_containment.py --execute`,
+2026-08-10): 4 decks — `ir-deck-v3`, `ir-deck-yarnnn-march-2026-v5`,
+`test-deck-2`, `yarrnnnn-decl` — 48 Areas named, 73 blocks re-homed, 1 position
+cleared. Verified before and after: **0 block-ids lost, 0 words lost**; post-heal
+the substrate carries zero bare blocks, zero `data-slot` markup, zero `data-x`.
+Each artifact got an attributed, revertible revision (ids in the run output).
+The script is idempotent — re-running it now is a no-op.
+
+**Two operator decisions were ratified into the ADR** (read them there, §D5.1 and
+§5):
+- **D5.1 — the sibling rule LOCKS, no align/distribute carve-out.** *"The cross
+  container drag illegal IS correct."* Enforced at set FORMATION (the ⇧-click
+  gates on a shared Area and posts `yarnnn-refused`), not withdrawn afterwards.
+- **Re-arrange: content invariant, structure subject.** *"Enforce content is
+  sustained, all else is subject (blocks themselves)."* This makes ADR-519 D2.1's
+  group-dissolve question moot on decks rather than open.
+
+**Defects this lane found in its own work, all now gated** — the pattern is worth
+carrying: each shipped GREEN and never mounted.
+1. the label ladder had no legacy `data-slot` rung while every other region
+   consumer did (`d8c528b`);
+2. `applyArrangementPlan` read `[data-slot]` alone while its sibling read both,
+   so the AI plan refused silently and looked like "the router is off" (`fb891be`);
+3. the kernel CSS was rewritten without bumping `STUDIO_KERNEL_CSS_VERSION`, so
+   the new selectors reached zero existing artifacts (`1a220b1`);
+4. `withdrawalNotice` (ADR-541 D4) was exported with ZERO importers — the one
+   notice was computed and never mounted (`cedfc2f`).
+
+**OWED (this lane): the click-pass only.** On a HEALED deck the crumb should read
+`Slide 2 › Body (left)` — `Area` means un-healed, `Group` means a label rung
+regressed, `main`/`side` is a D4 leak. Also: ⇧-click across two Areas must refuse
+WITH a visible notice; a drag must re-order within its Area and never float; and
+the AI re-arrange must actually land (a silent fall-through to the mechanical
+ladder is visually identical to success — watch the "Refining…" state).
+
+**Theme 5's surface half is the one open DESIGN question** (§4).
 
 ## 2. The state of the gates
 
@@ -91,6 +147,21 @@ duplicates all. **The law forks; the machinery stays one implementation.**
    in the AUTHORING matrix; not fixed.
 
 ## 4. Also open (inherited, not this session's)
+
+**THE ONE OPEN DESIGN QUESTION — Theme 5's surface half (ADR-544).** The *rule* is
+settled (content invariant, structure subject — §1b); what is NOT is what the
+member is TOLD before a re-lay restructures their slide. Today a re-arrange can
+move every block into different Areas, dissolve authored groups, and clear
+block-level geometry, and the only thing said beforehand is the arrangement's own
+thumbnail. There IS in-canon precedent to follow rather than invent: ADR-519 D2.1
+made the gallery thumb say *"ungroups 2 groups"*, on the principle **say it where
+the choice is made**, naming the least recoverable consequence FIRST. The
+question is whether that one note now covers enough — group dissolution, carried
+content that lands in a different Area, cleared geometry — or whether a re-lay
+that will restructure N blocks deserves a fuller pre-commitment statement. It is
+a genuine design call, cheap to implement either way, and it is the last thing
+ADR-544 left open. Related: ADR-468 D4 (a composition must never dead-end) and
+the ADR-466 D5 carried-content note.
 
 - ADR-544's click-pass; ADR-541 / 539 / 542 click-passes (the ADR-541 one is the
   big one — its "range survives a right-click" ordering constraint is
