@@ -17,6 +17,27 @@ Fallback chain at the data layer (``effective_workspace_id``):
 
 A ``None`` result means "workspace unresolvable" and callers fall back to
 legacy ``user_id`` scoping — byte-identical behavior, never a block.
+
+⚠️ **ADR-548 D8 — rung 2 does NOT reach a FastAPI route handler.** The claim
+above that the contextvar spares call sites from "threading a new parameter"
+is FALSE for any route using the ``UserClient`` dependency. ``get_user_client``
+is a *sync* generator, so FastAPI runs it in a threadpool: the contextvar is
+set in the worker thread's context and the async handler — a different context
+— reads ``None``. Resolution then falls to rung 3 and returns the CALLER'S OWN
+workspace, which is a real workspace, so nothing errors and nothing is logged.
+
+Receipted on prod 2026-08-11 (a member saw 1 document instead of 4):
+
+    [SCOPE] artifacts user=2be30ac5 ws=d5b9029b
+            scope=workspace_id=4ca9c664 rows=1
+
+``ws=`` is the request's binding; ``scope=`` is what the query read.
+
+**Therefore: any caller holding an ``auth`` MUST pass the binding** —
+``substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))``.
+Rung 2 remains load-bearing only for service-key paths (scheduler, wake,
+capture) that set it in their own async context. Gated by
+``test_adr548_primitive_scope_doorway.py``.
 """
 
 from __future__ import annotations

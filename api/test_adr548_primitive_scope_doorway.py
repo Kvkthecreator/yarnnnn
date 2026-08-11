@@ -28,6 +28,7 @@ gate must go red naming that exact line.
 """
 
 import ast
+import re
 from pathlib import Path
 from typing import List, Optional, Set
 
@@ -233,6 +234,53 @@ def test_manifest_declares_content_tables() -> None:
         f"got {sorted(content)[:10]}"
     )
     assert len(content) >= 5, f"suspiciously few content-scoped stores: {sorted(content)}"
+
+
+def test_scope_filter_calls_pass_the_explicit_binding() -> None:
+    """ADR-548 D8 — a scope call on an `auth` MUST pass `auth.workspace_id`.
+
+    `substrate_scope_filter(auth.user_id)` alone is NOT equivalent to passing
+    the binding. Its second fallback rung is a contextvar published by
+    `get_user_client` — but that dependency is a SYNC generator, so FastAPI
+    runs it in a threadpool and the value never reaches the async handler's
+    context. Resolution then falls to rung 3, owner-resolution from user_id,
+    which returns the CALLER'S OWN workspace.
+
+    Receipted on prod 2026-08-11, the request-vs-query disagreement visible in
+    one log line:
+
+        [SCOPE] artifacts user=2be30ac5 ws=d5b9029b
+                scope=workspace_id=4ca9c664 rows=1
+
+    `ws=` is the workspace the request bound to; `scope=` is the workspace the
+    query actually read. A member viewing the owner's workspace was served
+    their own — one document instead of four. The log line's own comment
+    claimed the two "can never disagree."
+
+    So the explicit binding is not a style preference; omitting it is the bug.
+    ADR-501 §6a lesson 4 said this once already ("the explicit binding must be
+    PASSED, not inferred"); this gate is that lesson made mechanical.
+    """
+    offenders: List[str] = []
+    call = re.compile(
+        r"substrate_scope_filter\(\s*auth\.user_id\s*\)"
+    )
+    for sub in _PROD_DIRS:
+        root = API / sub
+        if not root.exists():
+            continue
+        for py in sorted(root.rglob("*.py")):
+            if py.name.startswith("test_"):
+                continue
+            for i, line in enumerate(py.read_text().splitlines(), 1):
+                if call.search(line):
+                    offenders.append(f"{py.relative_to(API).as_posix()}:{i}")
+    assert not offenders, (
+        "scope call drops the request's workspace binding — it will silently\n"
+        "resolve to the CALLER'S OWN workspace in a FastAPI async handler.\n"
+        'Pass it: substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))\n\n  '
+        + "\n  ".join(offenders)
+    )
 
 
 def test_exemption_list_has_no_dead_entries() -> None:

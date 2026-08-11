@@ -99,6 +99,52 @@ The gate was also **red on `main`** at `7a18bd7` on a clean tree, declaring two
 tables (`conversations`, `conversation_messages`) that ADR-495's migration 226
 dropped.
 
+### 2.3 The first fix was necessary and NOT sufficient — the contextvar never arrives
+
+The primitive-layer fix (D1) shipped and deployed live at 10:48. The operator
+then checked prod and **the member still saw one document instead of four.**
+That is the honest sequence, and the second root cause is the more important
+finding.
+
+`GET /studio/artifacts` already carried a `[SCOPE]` diagnostic. It printed:
+
+```
+[SCOPE] artifacts user=2be30ac5 ws=d5b9029b
+        scope=workspace_id=4ca9c664 rows=1 returned=1
+```
+
+`ws=` is the workspace **the request bound to** (the owner's). `scope=` is the
+workspace **the query actually read** (the member's own). They disagree — beside
+a comment asserting they "can never disagree."
+
+**Why.** `substrate_scope_filter(auth.user_id)` — with no second argument — has
+three fallback rungs: explicit → request contextvar → owner-resolution. The
+call sites relied on rung 2. But `get_user_client` is a **sync generator**
+(`def`, not `async def`), so FastAPI executes it in a **threadpool**. The
+contextvar is set in the worker thread's context; the async handler runs in a
+different one and sees `None`. Resolution falls to rung 3, and
+`resolve_workspace_for_principal` returns the caller's OWN workspace.
+
+Reproduced locally in isolation: setting the contextvar inside
+`run_in_executor` and reading it from the awaiting coroutine yields `None`,
+while setting it in the same async context propagates correctly.
+
+**This makes the module docstring's premise false.** `workspace_context.py`
+says the contextvar exists so the data layer can key on `workspace_id`
+"WITHOUT threading a new parameter through the ~118 historical call sites."
+For any route using the sync `UserClient` dependency, that never worked.
+
+The fix is not to make the dependency `async` — its body does blocking I/O
+(`create_client`, JWT decode, a resolution query) and would stall the event
+loop. The fix is to pass the binding, which `auth.workspace_id` always
+carries correctly. `routes/workspace.py` had a local wrapper doing exactly this
+since the ADR-373 sweep; the other 46 sites did not.
+
+**The lesson generalizes past this bug**: a fallback chain that degrades
+silently to a *plausible* value is worse than one that fails. Rung 3 returns a
+real workspace, so every query succeeded, every gate passed, and the only
+visible symptom was a member seeing less than they should.
+
 ## 3. Decisions
 
 | D | Decision |
@@ -110,6 +156,7 @@ dropped.
 | **D5** | **Discovery sees variable-name table access.** The DP35 ratchet additionally harvests the purge-helper and purge-list shapes (via `ast`, after a regex was proven to truncate on a bracket inside a trailing comment). The loose shape may only *satisfy* the phantom check, never *demand* a declaration — a loose matcher that could demand declarations would manufacture phantoms of its own. |
 | **D6** | **Dropped tables leave the manifest.** `conversations` + `conversation_messages` are removed, not tombstoned — the tables do not exist, so a declaration would be the very phantom the ratchet checks for. `conversation_members` stays (migration 228 hardened it). |
 | **D7** | **A pane cross-link uses the namespaced param.** The shell reads only `{windowSlug}.pane=`; three shipped links used a bare `?pane=`. One of them genuinely misrouted. |
+| **D8** | **A scope call on an `auth` MUST pass `auth.workspace_id`.** `substrate_scope_filter(auth.user_id)` alone is not equivalent (§2.3) — it silently resolves to the CALLER'S OWN workspace inside a FastAPI async handler. All 46 such sites across 9 modules now pass the binding, and a gate holds the line. |
 
 ## 4. What this does NOT do
 

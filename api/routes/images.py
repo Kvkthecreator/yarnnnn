@@ -115,7 +115,7 @@ async def compose(req: ComposeRequest, auth: UserClient) -> dict:
     rows = (
         auth.client.table("workspace_files")
         .select("path,content")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .eq("path", path)
         .limit(1)
         .execute()

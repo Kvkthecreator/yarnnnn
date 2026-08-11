@@ -125,7 +125,16 @@ async def list_artifacts(auth: UserClient, app: Optional[str] = None) -> dict:
 
     # The scope this request resolved to, computed ONCE so the query and the
     # log line can never disagree about which workspace was actually read.
-    _scope = substrate_scope_filter(auth.user_id)
+    #
+    # ADR-548 D8: `auth.workspace_id` MUST be passed. This call used to omit it
+    # and lean on the contextvar rung — but `get_user_client` is a SYNC
+    # generator, so FastAPI runs it in a threadpool and the binding never
+    # reaches this async handler's context. Resolution fell through to
+    # owner-resolution and served the CALLER'S OWN workspace. The log line
+    # below is what caught it (2026-08-11): `ws=d5b9029b` (the request's
+    # binding) beside `scope=workspace_id=4ca9c664` (what was actually read) —
+    # the two disagreeing, which the comment above had declared impossible.
+    _scope = substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
     rows = (
         auth.client.table("workspace_files")
@@ -483,7 +492,7 @@ async def set_default_design_system_route(
     rows = (
         auth.client.table("workspace_files")
         .select("content")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .eq("path", STUDIO_DEFAULTS_PATH)
         .limit(1)
         .execute()
@@ -764,7 +773,7 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
     siblings = (
         auth.client.table("workspace_files")
         .select("path")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .like("path", f"{region_prefix}/%")
         .execute()
     ).data or []
@@ -785,7 +794,7 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
     rows = (
         auth.client.table("workspace_files")
         .select("path")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .like("path", f"{old_folder}/%")
         .execute()
     ).data or []
@@ -875,7 +884,7 @@ def _retitle_to(auth: UserClient, path: str, title: str | None = None) -> dict:
     row = (
         auth.client.table("workspace_files")
         .select("content")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .eq("path", path)
         .limit(1)
         .execute()
@@ -953,7 +962,7 @@ async def list_citable(auth: UserClient) -> dict:
         return (
             auth.client.table("workspace_files")
             .select("path, updated_at, head_version_id")
-            .eq(*substrate_scope_filter(auth.user_id))
+            .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
             .order("updated_at", desc=True)
             .limit(24)
         )
@@ -1024,7 +1033,7 @@ def _placed_path(auth: UserClient, template: str, name: str | None = None) -> st
     rows = (
         auth.client.table("workspace_files")
         .select("path")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .like("path", f"{STUDIO_ARTIFACT_REGION}%")
         .execute()
     ).data or []
@@ -1069,7 +1078,7 @@ def _redirect_to_free_key(
     rows = (
         auth.client.table("workspace_files")
         .select("path")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .like("path", f"{dest}/%")
         .execute()
     ).data or []
@@ -1146,7 +1155,7 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     existing = (
         auth.client.table("workspace_files")
         .select("path")
-        .eq(*substrate_scope_filter(auth.user_id))
+        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .eq("path", path)
         .limit(1)
         .execute()

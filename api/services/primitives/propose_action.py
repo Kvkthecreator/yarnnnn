@@ -473,7 +473,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
             auth.client.table("action_proposals")
             .select("*")
             .eq("id", proposal_id)
-            .eq(*substrate_scope_filter(auth.user_id))  # RLS enforces but be explicit
+            .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))  # RLS enforces but be explicit
             .limit(1)
             .execute()
         )
@@ -751,7 +751,7 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
                 "reviewer_reasoning": reviewer_reasoning or None,
             })
             .eq("id", proposal_id)
-            .eq(*substrate_scope_filter(auth.user_id))
+            .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
             .eq("status", "pending")
             .execute()
         )

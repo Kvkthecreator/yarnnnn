@@ -1024,7 +1024,7 @@ async def get_workspace_timeline(
     from services.workspace_context import substrate_scope_filter
 
     limit = max(1, min(limit, 100))
-    col, val = substrate_scope_filter(auth.user_id)
+    col, val = substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
     entries: list[TimelineEntry] = []
     page_full = False
 

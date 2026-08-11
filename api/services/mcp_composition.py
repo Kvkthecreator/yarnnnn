@@ -57,7 +57,7 @@ def _substrate_scope(auth) -> tuple:
     remainder — a foreign LLM or member reading under a grant sees the shared rows.
     """
     from services.workspace_context import substrate_scope_filter
-    return substrate_scope_filter(auth.user_id)
+    return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
 logger = logging.getLogger(__name__)
 

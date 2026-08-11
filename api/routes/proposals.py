@@ -187,7 +187,7 @@ async def list_proposals(
         query = (
             auth.client.table("action_proposals")
             .select("*")
-            .eq(*substrate_scope_filter(auth.user_id))
+            .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
             .order("created_at", desc=True)
             .limit(min(limit, 200))
         )
@@ -224,7 +224,7 @@ async def get_proposal(proposal_id: str, auth: UserClient):
             auth.client.table("action_proposals")
             .select("*")
             .eq("id", proposal_id)
-            .eq(*substrate_scope_filter(auth.user_id))
+            .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
             .limit(1)
             .execute()
         )
