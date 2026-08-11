@@ -86,9 +86,17 @@ def substrate_scope_filter(
     Phase-1 set — tasks, agents, agent_runs, activity_log, wake_queue,
     action_proposals (201). NOT for member-experience tables (chat_sessions,
     notifications, member_state) — those key on the principal. NOT for
-    platform_connections / sync_registry — ADR-425 re-scoped those to the
-    HUMAN's account (a platform credential is an account object); use
-    account_scope_filter for them, per the ADR-407 §3 scope registry.
+    platform_connections — ADR-425 re-scoped the CREDENTIAL to the HUMAN's
+    account (a platform credential is an account object); use
+    account_scope_filter for it, per the ADR-407 §3 scope registry.
+
+    `sync_registry` is the nuance (ADR-548 sharpened this line, which used to
+    lump it in with platform_connections): ADR-425 D3 keeps it declared
+    `content` for the future agent-owned connection, but every row that exists
+    TODAY is a human's and is keyed `user_id`. So it reads with the account
+    filter in practice while staying content-scoped in the manifest. The
+    ADR-548 doorway gate carries that exception explicitly rather than letting
+    two docs disagree.
     """
     ws = effective_workspace_id(user_id, workspace_id)
     return ("workspace_id", ws) if ws else ("user_id", user_id)

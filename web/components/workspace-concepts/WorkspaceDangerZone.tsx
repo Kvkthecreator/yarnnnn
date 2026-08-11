@@ -212,7 +212,7 @@ export function WorkspaceDangerZone() {
       <p className="text-xs text-muted-foreground pt-2 border-t border-border">
         Looking for account-level actions? Disconnecting your own platform
         connections, resetting your account, and deactivating live in{" "}
-        <a href="/settings?pane=account" className="underline">
+        <a href="/settings?settings.pane=account" className="underline">
           System Settings → Account
         </a>
         .

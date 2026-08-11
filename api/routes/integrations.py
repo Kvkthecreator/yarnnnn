@@ -3007,9 +3007,12 @@ async def _scaffold_risk_md(service_client: Any, user_id: str) -> bool:
     try:
         from services.risk_gate import RISK_MD_PATH, scaffold_default_risk_md
 
-        # Check existence
+        # Check existence. Workspace-keyed (ADR-407 D1): this is the
+        # idempotency guard, and `write_revision` below already keys the
+        # workspace — a caller-keyed probe could miss an existing file and
+        # scaffold defaults over the workspace's real risk posture.
         existing = service_client.table("workspace_files").select("id").eq(
-            "user_id", user_id
+            *substrate_scope_filter(user_id)
         ).eq("path", RISK_MD_PATH).limit(1).execute()
         if existing.data:
             logger.info(f"[TRADING] _risk.md already exists for {user_id}; skipping scaffold")

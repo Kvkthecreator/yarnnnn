@@ -45,9 +45,15 @@ stores:
   filesystem_documents: { scope: content, note: "uploaded documents (ADR-197)" }
   destination_delivery_log: { scope: content, note: "operator-addressing dispatch ledger (ADR-299/304)" }
   export_log: { scope: content, note: "artifact-export ledger" }
-  conversations: { scope: content, note: "shared Conversation objects — rooms + bound comment threads (ADR-492 D2)" }
-  conversation_members: { scope: content, note: "room membership — humans by principal, Agents by slug (ADR-492 D6)" }
-  conversation_messages: { scope: content, note: "shared-scope turns, author always a human principal (never-ambient, ADR-492)" }
+  # ADR-548: surfaced the moment discovery learned to see variable-name table
+  # access — an ADR-040 cooldown ledger, purged WITH the workspace
+  # (workspace_purge.py:372), so it is commons, not the caller's own.
+  event_trigger_log: { scope: content, note: "event-trigger cooldown ledger (ADR-040); still user_id-keyed, re-key with the ADR-407 D3 tail" }
+  # ADR-495 (migration 226) DROPPED `conversations` + `conversation_messages`:
+  # the two-store model dissolved into `chat_sessions` grown a cast. Their rows
+  # are removed here rather than tombstoned — the tables do not exist, so a
+  # declaration would be a phantom (the ADR-414 ratchet's own check).
+  conversation_members: { scope: content, note: "the cast — humans by principal, agents by slug (ADR-495 D1; workspace_id SET NOT NULL in migration 228)" }
 
   # --- member-experience: one member's private state (workspace_id, principal_id) ---
   chat_sessions: { scope: member-experience, note: "lanes (ADR-407 D6/ADR-411)" }
@@ -62,6 +68,13 @@ stores:
   mcp_oauth_codes: { scope: account, note: "OAuth credential" }
   mcp_oauth_access_tokens: { scope: account, note: "OAuth credential" }
   mcp_oauth_refresh_tokens: { scope: account, note: "OAuth credential" }
+  # ADR-548: declared after an audit found them live-but-undeclared. Both are
+  # reached only via a VARIABLE table name (`_delete_rows(client, "X", …)` in
+  # routes/account.py + scripts/purge_user_data.py), which the ADR-414 ratchet's
+  # `.table("X")` literal scan structurally cannot see — the store existed in
+  # Postgres and in code while being invisible to the gate meant to catch it.
+  integration_sync_config: { scope: account, note: "per-connection sync prefs — travels with the human's credential (ADR-425 sibling of platform_connections)" }
+  user_admin_flags: { scope: account, note: "platform-admin identity; PK'd on user_id, deliberately survives a workspace wipe (routes/account.py:502)" }
   # render_usage DROPPED (ADR-417, migration 207) — the render service is retired.
 
 # Tables that appear in `.table("X")` writes but are NOT persistent stores —

@@ -408,7 +408,7 @@ export default function SettingsPage() {
                 readOnly
                 footer={
                   <a
-                    href="/workspace-settings?pane=members"
+                    href="/workspace-settings?workspace-settings.pane=members"
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                   >
                     Manage access for everyone in the workspace
@@ -493,7 +493,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <a
-                      href="/workspace-settings?pane=danger"
+                      href="/workspace-settings?workspace-settings.pane=danger"
                       className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted shrink-0"
                     >
                       Open

@@ -240,10 +240,16 @@ async def _handle_status_change(auth: Any, input: dict, action: str) -> dict:
 
 
 def _resolve_agent(client, user_id: str, slug: str) -> dict | None:
-    """Look up agent by slug."""
+    """Look up agent by slug in the acting WORKSPACE (ADR-407 D1).
+
+    An agent is workspace content, not the caller's private object — keyed on
+    the bare caller, a member resolving an owner-created agent got None.
+    """
+    from services.workspace_context import substrate_scope_filter
+
     try:
         result = client.table("agents").select("*").eq(
-            "user_id", user_id
+            *substrate_scope_filter(user_id)
         ).eq("slug", slug).limit(1).execute()
         return result.data[0] if result.data else None
     except Exception:

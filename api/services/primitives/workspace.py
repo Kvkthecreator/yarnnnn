@@ -51,9 +51,15 @@ async def _embed_workspace_file(client: Any, user_id: str, abs_path: str, conten
         # new authored change — so we update workspace_files.embedding
         # directly. See authored_substrate.py docstring "NOT routed through
         # write_revision".
+        # ADR-407 D1: scope on the WORKSPACE, not the caller. This helper takes a
+        # bare user_id (no auth object — six callers, several headless), so it
+        # resolves through the same spine `_scope_filter` uses. Keyed on the
+        # caller alone, a member embedding an owner-authored file updated ZERO
+        # rows and logged success.
+        from services.workspace_context import substrate_scope_filter
         client.table("workspace_files").update(
             {"embedding": embedding}
-        ).eq("user_id", user_id).eq("path", abs_path).execute()
+        ).eq(*substrate_scope_filter(user_id)).eq("path", abs_path).execute()
         logger.debug(f"[WORKSPACE] Embedded context file: {abs_path}")
     except Exception as e:
         logger.warning(f"[WORKSPACE] Embedding failed (non-fatal) for {abs_path}: {e}")
@@ -618,8 +624,21 @@ def _binary_file_notice(auth: Any, abs_path: str, scope: str, rel_path: str) -> 
 
 
 def _scope_filter(auth: Any):
+    """The (column, value) scope for every workspace-content read in this module.
+
+    ADR-407 D1 workspace-content scope, reached through the ONE shared helper
+    (`services.workspace_context.substrate_scope_filter`). Passes the bound
+    workspace EXPLICITLY rather than letting it be inferred — ADR-501 §6a
+    lesson 4: five call sites once resolved `effective_workspace_id(user_id)`
+    without `auth.workspace_id` and silently degraded to owner-resolution.
+
+    Every `workspace_files` / `agents` query in this file MUST use this. A bare
+    `.eq("user_id", auth.user_id)` on those tables is member-blind: a member
+    reading the commons gets [] for every owner-authored row, with HTTP 200 and
+    no error to see. Gated by `test_adr548_primitive_scope_doorway.py`.
+    """
     from services.workspace_context import substrate_scope_filter
-    return substrate_scope_filter(auth.user_id)
+    return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
 
 async def handle_read_file(auth: Any, input: dict) -> dict:
@@ -1093,7 +1112,7 @@ def _exact_search(auth: Any, query: str, prefix: str) -> dict:
         rows = (
             auth.client.table("workspace_files")
             .select("path, content")
-            .eq("user_id", auth.user_id)
+            .eq(*_scope_filter(auth))
             .like("path", f"{prefix}/%")
             .or_(f"content.ilike.%{escaped}%,path.ilike.%{escaped}%")
             .limit(40)
@@ -1394,7 +1413,7 @@ async def handle_duplicate_file(auth: Any, input: dict) -> dict:
     rows = (
         auth.client.table("workspace_files")
         .select("path")
-        .eq("user_id", auth.user_id)
+        .eq(*_scope_filter(auth))
         .like("path", f"{parent}/%")
         .execute()
     ).data or []
@@ -1481,7 +1500,7 @@ async def handle_move_file(auth: Any, input: dict) -> dict:
     rows = (
         auth.client.table("workspace_files")
         .select("path, content")
-        .eq("user_id", auth.user_id)
+        .eq(*_scope_filter(auth))
         .in_("path", [abs_src, abs_dst])
         .execute()
     ).data or []
@@ -1727,7 +1746,7 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
             table_query = (
                 auth.client.table("workspace_files")
                 .select("path, content, summary, updated_at, metadata")
-                .eq("user_id", auth.user_id)
+                .eq(*_scope_filter(auth))
             )
             if prefix is not None:
                 table_query = table_query.like("path", f"{prefix}%")
@@ -1823,7 +1842,7 @@ def _list_tree(
                 "path, content_bytes, updated_at, "
                 "workspace_file_versions!head_version_id(authored_by, created_at)"
             )
-            .eq("user_id", auth.user_id)
+            .eq(*_scope_filter(auth))
             .like("path", f"{abs_prefix}%")
             .in_("lifecycle", ["active", "delivered"])
             .order("path")
@@ -2010,7 +2029,7 @@ async def handle_discover_agents(auth: Any, input: dict) -> dict:
     query = (
         auth.client.table("agents")
         .select("id, title, role, scope, status, created_at")
-        .eq("user_id", auth.user_id)
+        .eq(*_scope_filter(auth))
         .eq("status", status_filter)
     )
     if role_filter:
@@ -2121,12 +2140,13 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
     target_agent_id = input.get("agent_id", "")
     files_mode = input.get("files", "identity")
 
-    # Look up the target agent (must belong to same user)
+    # Look up the target agent (must belong to the acting WORKSPACE — ADR-407
+    # D1: an agent is workspace content, not the caller's private object).
     try:
         result = (
             auth.client.table("agents")
             .select("id, title, role, scope, status")
-            .eq("user_id", auth.user_id)
+            .eq(*_scope_filter(auth))
             .eq("id", target_agent_id)
             .limit(1)
             .execute()
