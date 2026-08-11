@@ -43,13 +43,19 @@ const t = (label, cond) => {
 // source and mangled a regex literal in the body (`/^\/workspace\//`), which
 // is precisely the "the gate broke, not the code" failure.
 const runTs = (src, name) => {
-  const brace = src.indexOf('{');
-  const sig = src
+  // Split at the FUNCTION's opening brace, not the first brace in the string —
+  // a preamble (e.g. a runtime-built RegExp the function closes over) may carry
+  // its own braces, and slicing at index 0 would corrupt it.
+  const fnAt = src.search(/(^|\n)\s*(export\s+)?function\s/);
+  const head = src.slice(0, fnAt < 0 ? 0 : fnAt);
+  const rest = src.slice(fnAt < 0 ? 0 : fnAt);
+  const brace = rest.indexOf('{');
+  const sig = rest
     .slice(0, brace)
-    .replace(/^\s*export\s+/m, '')
+    .replace(/\bexport\s+/g, '')
     .replace(/:\s*[A-Za-z<>\[\]|\s]+$/, '')
     .replace(/([(,]\s*\w+)\s*:\s*[A-Za-z<>\[\]|]+/g, '$1');
-  return new Function(`${sig}${src.slice(brace)}; return ${name};`)();
+  return new Function(`${head}${sig}${rest.slice(brace)}; return ${name};`)();
 };
 
 // ── Strip comments before any source assertion ─────────────────────────────
@@ -216,10 +222,13 @@ if (shortDestFn && REGION) {
 // name — so folding it would erase the only name it has. The rules differ ON
 // PURPOSE; this gate defends that difference rather than collapsing it.
 // ═══════════════════════════════════════════════════════════════════════════
+// The keep-set regex is built at RUNTIME (a `u`-flagged literal is refused by
+// the TS target), so the declaration must travel with the function.
+const segDecl = folderModal.match(/const DROP_FROM_SEGMENT[^\n]*\n/);
 const segFn = folderModal.match(/export function folderSegment\([\s\S]*?\n}/);
 t('F4: the folder modal mirrors the server sanitizer', !!segFn);
 if (segFn) {
-  const folderSegment = runTs(segFn[0], 'folderSegment');
+  const folderSegment = runTs(`${segDecl ? segDecl[0] : ''}${segFn[0]}`, 'folderSegment');
   // Agreement with the Python, on the cases that separated them.
   t('F4 [FALSIFIER]: spaces collapse to dashes, lowercased', folderSegment('The Acme Deal') === 'the-acme-deal');
   t('F4 [FALSIFIER]: punctuation is dropped as the server drops it', folderSegment('R&D') === 'rd');
@@ -229,6 +238,14 @@ if (segFn) {
     'F4 [FALSIFIER]: a non-Latin folder name is NOT folded away (it has no <title>)',
     folderSegment('한글 문서') === '한글-문서',
   );
+  // These four separated the real rule from two hand-written approximations
+  // that each passed the cases above. Non-ASCII PUNCTUATION must drop while
+  // non-ASCII LETTERS stay — the distinction an ASCII denylist cannot make,
+  // and a codepoint range gets wrong at both ends.
+  t('F4 [FALSIFIER]: non-ASCII punctuation drops (em-dash)', folderSegment('naïve—dash') === 'naïvedash');
+  t('F4 [FALSIFIER]: emoji drop', folderSegment('emoji 🎉 party') === 'emoji-party');
+  t('F4 [FALSIFIER]: a non-ASCII NUMBER is kept', folderSegment('½ half') === '½-half');
+  t('F4 [FALSIFIER]: CJK is kept', folderSegment('日本語 資料') === '日本語-資料');
   // The preview must be rendered, not merely computed (feedback_green_build_is_not_a_mount).
   t('F4 [FALSIFIER]: the computed key is MOUNTED, not just derived', /\{folderKey\}/.test(folderModal));
 }

@@ -32,13 +32,27 @@ import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
  *
  * Keep in step with the Python; a drift only mis-previews, never mis-writes
  * (the server sanitizes regardless).
+ *
+ * The keep-set is BUILT AT RUNTIME rather than written as a regex literal.
+ * `\p{L}\p{N}` needs the `u` flag, and a `u`-flagged LITERAL is refused by this
+ * project's TypeScript target — though every browser that runs this supports it
+ * fine. `new RegExp(…, 'gu')` is the same expression, checked at runtime
+ * instead of compile time.
+ *
+ * Two hand-written approximations were tried first and BOTH were wrong: an
+ * ASCII-punctuation denylist kept non-ASCII punctuation (`naïve—dash` survived
+ * its em-dash), and a `À-￿` range kept emoji and dropped `½`. Caught by
+ * diffing against the Python over a 17-case set — not by reading either
+ * implementation. Don't re-approximate this; the property escapes ARE the rule.
  */
+const DROP_FROM_SEGMENT = new RegExp('[^\\p{L}\\p{N}\\s_-]', 'gu');
+
 export function folderSegment(name: string): string {
   return (name || '')
     .trim()
     .replace(/^\/+|\/+$/g, '')
     .trim()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+    .replace(DROP_FROM_SEGMENT, '')
     .trim()
     .replace(/[\s_]+/g, '-')
     .toLowerCase();

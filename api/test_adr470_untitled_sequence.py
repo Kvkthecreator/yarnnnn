@@ -19,6 +19,7 @@ Run: python3 test_adr470_untitled_sequence.py   (check()-style, NOT pytest)
 
 import pathlib
 import re
+import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -129,7 +130,47 @@ def main() -> int:
     )
 
     print("\n── 3. PLACEMENT is the server's, and reuses ONE key rule ──────")
-    _check("the untitled placement helper exists", "def _untitled_path(" in routes)
+    # Asserted as a BEHAVIOUR, not a name. This check read `def _untitled_path(`
+    # and went red on the 2026-08-11 rename to `_placed_path` — a gate pinning a
+    # SPELLING reading a rename as a violation (the ADR-544 lesson, again). What
+    # the ADR actually requires is that the SERVER owns placement: a helper that
+    # composes the region + a disambiguated key, reachable from create_artifact.
+    _placement_helpers = [
+        line for line in routes.splitlines()
+        if line.startswith("def ") and "path" in line.split("(")[0]
+    ]
+    _check(
+        "a server-side placement helper exists (name-agnostic)",
+        any("auth" in line or "template" in line for line in _placement_helpers)
+        or "_placed_path(" in routes,
+    )
+    # And BOTH doors reach it — the 2026-08-11 amendment to D3. The named door
+    # used to 409 where the unnamed one stepped to `-2`, while the helper's own
+    # docstring claimed they could not drift.
+    # Asserted INSIDE each door's own function body, not by counting the module.
+    # Two weaker spellings were tried and BOTH stayed green while the named
+    # door's disambiguation was deleted outright: `count("disambiguate(") >= 2`
+    # (the import lines made the count) and then a call-shaped regex (a THIRD,
+    # unrelated call at routes/studio.py:782 made it). A counting gate cannot
+    # defend a per-site invariant — read the site.
+    def _body(fn_name: str) -> str:
+        m = re.search(
+            rf"\ndef {fn_name}\(.*?(?=\n(?:@router|def |async def ))",
+            routes,
+            re.DOTALL,
+        )
+        return m.group(0) if m else ""
+
+    _named_door = _body("_redirect_to_free_key")
+    _unnamed_door = _body("_placed_path")
+    _check(
+        "the UNNAMED door disambiguates (a taken key steps, never refuses)",
+        "disambiguate(" in _unnamed_door,
+    )
+    _check(
+        "the NAMED door disambiguates too — D3's 'one key rule', made structural",
+        "disambiguate(" in _named_door,
+    )
     _check(
         "it reuses ADR-469's path_slug + disambiguate (no second key rule)",
         "from services.naming import disambiguate, path_slug" in routes
