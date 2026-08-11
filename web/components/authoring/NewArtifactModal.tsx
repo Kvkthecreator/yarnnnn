@@ -14,9 +14,18 @@
  * folder in the shared `WorkspacePicker`. The path is composed for the operator
  * as `{folder}/{slug(name)}/{template}.html` — never edited as a string.
  *
- * The default destination is `operation/` (ADR-440 D6 — the Studio never invents
- * an app-named root; work lives under operation/), so the fast path stays one
- * field + Enter. Choosing elsewhere is the picker, the same one Open/Move use.
+ * The default destination is the Documents home (ADR-424 D1 — its substrate
+ * path is `operation/`; ADR-440 D6 fences creation to that region because the
+ * Studio never invents an app-named root), so the fast path stays one field +
+ * Enter. Choosing elsewhere is the picker, the same one Open/Move use.
+ *
+ * ── The picker asks the PLACEMENT question, not the permission one ─────────
+ * Its predicates gate on `isArtifactRegion` (the mirror of the server's own
+ * fence), not on `operatorCanOrganize` alone. Gating on permission offered
+ * every organizable folder — `Downloads`, `memory/`, any peer folder — and the
+ * server 403'd four of five AFTER the member had named the thing and pressed
+ * Create. A create picker that offers what the API refuses is a broken door,
+ * not a stale label.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -25,6 +34,7 @@ import { Loader2, Plus, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
+import { STUDIO_ARTIFACT_REGION, isArtifactRegion } from './artifactNaming';
 import type { WorkspaceTreeNode } from '@/types';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 
@@ -50,12 +60,25 @@ export function slugify(name: string): string {
   );
 }
 
-/** The default destination — the operation/ root (ADR-440 D6). */
-const DEFAULT_DEST = '/workspace/operation';
+/** The default destination — the Documents home (ADR-424 D1; its substrate
+ *  path is still `operation/`, the region ADR-440 D6 fences creation to). */
+const DEFAULT_DEST = STUDIO_ARTIFACT_REGION.replace(/\/+$/, '');
 
-/** A destination for display — trim the workspace prefix. */
+/** The operator-facing name of the Documents home. The substrate path is
+ *  `operation/`; ADR-424 D1 renamed what the PARTICIPANT is told, and
+ *  `workspace_paths.py` carries the same `display_name`. */
+const DOCUMENTS_LABEL = 'Documents';
+
+/** A destination for display. Trims the workspace prefix AND speaks the home's
+ *  operator-facing name — the picker already relabels `operation` → Documents
+ *  (`WorkspacePicker` reads `root.display_name`), so a raw `operation` here
+ *  showed one folder under two names inside a single dialog. */
 function shortDest(path: string): string {
-  return path.replace(/^\/workspace\//, '') || '/';
+  const rel = path.replace(/^\/workspace\//, '').replace(/\/+$/, '');
+  if (!rel) return '/';
+  const [head, ...rest] = rel.split('/');
+  const label = head === 'operation' ? DOCUMENTS_LABEL : head;
+  return [label, ...rest].join('/');
 }
 
 export interface TemplateChoice {
@@ -352,11 +375,17 @@ export function NewArtifactModal({
         confirmLabel="Choose"
         emptyMessage="No folders available."
         initialSelected={dest}
-        selectable={(node: WorkspaceTreeNode) => operatorCanOrganize(`${node.path}/x`)}
-        folderDisabledTitle={(node) =>
-          operatorCanOrganize(`${node.path}/x`) ? undefined : 'This folder is managed by the system'
+        selectable={(node: WorkspaceTreeNode) =>
+          isArtifactRegion(node.path) && operatorCanOrganize(`${node.path}/x`)
         }
-        canConfirm={(sel) => operatorCanOrganize(`${sel}/x`)}
+        folderDisabledTitle={(node) =>
+          !isArtifactRegion(node.path)
+            ? `${DOCUMENTS_LABEL} is where documents live — pick a folder inside it.`
+            : operatorCanOrganize(`${node.path}/x`)
+              ? undefined
+              : 'This folder is managed by the system'
+        }
+        canConfirm={(sel) => isArtifactRegion(sel) && operatorCanOrganize(`${sel}/x`)}
         footerHint={(sel) =>
           sel ? <>Into <span className="font-mono">{shortDest(sel)}</span></> : 'Pick a folder'
         }

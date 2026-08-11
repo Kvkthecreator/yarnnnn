@@ -61,6 +61,31 @@ The categorical difference from the benchmark (Claude Design imports into a silo
 - **The app owns no namespace**: projects are meaning-placed folders (`operation/fundraise/ir-deck/`, never `studio/…`) — one artifact file + a local `assets/` sibling. The Studio's new-artifact flow takes a landing path; it never invents an app-named root.
 - An app ships **no substrate** — or we recreate what ADR-414 D4 killed, one app at a time.
 
+> **Amendment (2026-08-11) — the fence is one rule, mirrored, and the picker asks it.**
+> D6's "never an app-named root" is enforced by `STUDIO_ARTIFACT_REGION`
+> (`/workspace/operation/` — the **Documents** home; ADR-424 D1 renamed what the
+> participant is *told*, not the path). The FE had **no mirror of it**, so the
+> "Name it first…" destination picker gated on `operatorCanOrganize` — a
+> *permission* question — and offered every organizable folder. Measured: **four
+> of five offered destinations 403'd**, *after* the member had named the thing
+> and pressed Create, citing a path they never typed (the ADR-469 §1 failure
+> shape). The picker now consults `isArtifactRegion` (`artifactNaming.ts`), the
+> mirror of the server's own check, and states the reason on a blocked folder.
+>
+> **Why permission was the wrong question, generally:** `ownership.ts` says of
+> itself that drift "only risks a stale label, never a wrong write". That is true
+> for move/rename/trash, where the backend is the door and a stale FE greys a
+> verb late. It is **false at creation, where the picker IS the door.** Permission
+> answers *may I write here*; placement answers *may an artifact LIVE here*. Two
+> questions — a create flow must ask the second.
+>
+> **Open, and deliberately not decided here:** whether the fence should survive
+> at all. `create_folder` already honours ADR-424 D2's peer folders while
+> `create_artifact` does not — one filesystem, two placement laws, and the
+> Studio's is the pre-ADR-424 one. Relaxing it is an ADR, not a bug fix; it is
+> also what unblocks a "New Document" verb on the Files surface. This amendment
+> makes the shipped fence *honest*, not permanent.
+
 ## D7 — Scope: v1 ships / deferred, and the drift guard
 
 **v1 (this ADR's implementation):** the `studio` surface (D2) · bound lanes + posture + token profile (D3) · three template skeletons (D4) · the reference model's head-tracking half with pin-recording + in-shell resolution for images (signed URL) and text objects (D5) · Open-in-Studio affordances (launcher template picker + open-existing `.html`).

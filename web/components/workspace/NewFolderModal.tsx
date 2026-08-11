@@ -18,6 +18,32 @@ import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
+/**
+ * A typed folder name → the path segment it becomes. The FE mirror of
+ * `api/routes/documents.py::_sanitize_folder_segment`.
+ *
+ * Deliberately NOT `path_slug` (`services/naming.py`, ADR-469). That rule
+ * ASCII-folds and falls back to `untitled`, which is correct for an ARTIFACT
+ * because the artifact carries its readable name in its own `<title>` — the
+ * key is never read. A folder has no such carrier: its segment IS its name,
+ * everywhere it is shown. Folding `한글 문서` to `untitled` there would erase
+ * the only name the folder has. So Unicode survives here, and the two rules
+ * differ ON PURPOSE.
+ *
+ * Keep in step with the Python; a drift only mis-previews, never mis-writes
+ * (the server sanitizes regardless).
+ */
+export function folderSegment(name: string): string {
+  return (name || '')
+    .trim()
+    .replace(/^\/+|\/+$/g, '')
+    .trim()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .toLowerCase();
+}
+
 interface NewFolderModalProps {
   /** true = open, false = closed. */
   open: boolean;
@@ -47,7 +73,14 @@ export function NewFolderModal({ open, onClose, onSubmit, destinationName }: New
 
   const trimmed = value.trim();
   const hasSlash = trimmed.includes('/');
-  const canSubmit = trimmed.length > 0 && !hasSlash;
+  const folderKey = folderSegment(trimmed);
+  // The server rewrites the typed name into a path segment, and it used to do
+  // so SILENTLY — "The Acme Deal" became `the-acme-deal` and "R&D" became `rd`
+  // with the member never told. Preview it, but only when it differs, so the
+  // common case stays one field + Enter.
+  const showsKey = !!folderKey && folderKey !== trimmed;
+  const emptyKey = trimmed.length > 0 && !hasSlash && !folderKey;
+  const canSubmit = trimmed.length > 0 && !hasSlash && !emptyKey;
 
   const submit = () => {
     if (canSubmit) onSubmit(trimmed);
@@ -93,6 +126,16 @@ export function NewFolderModal({ open, onClose, onSubmit, destinationName }: New
           {hasSlash && (
             <p className="mt-1.5 text-xs text-destructive">
               A folder name can’t contain “/”.
+            </p>
+          )}
+          {!hasSlash && emptyKey && (
+            <p className="mt-1.5 text-xs text-destructive">
+              That name has no letters or numbers to build a folder from.
+            </p>
+          )}
+          {!hasSlash && showsKey && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Saved as <span className="font-mono text-foreground/80">{folderKey}</span>
             </p>
           )}
           <div className="mt-5 flex justify-end gap-2">

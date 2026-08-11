@@ -140,6 +140,22 @@ of travel. Causality now runs from the typed name into **both** the title
   `mcp_composition._slugify` (entity matching) and `routes/lanes.py` (agent
   slugs) name things no member reads, where ASCII-only is correct. The audit was
   *which slugs name something a member reads* — a blanket change would be wrong.
+- **FOLDER segments are NOT routed through `path_slug` either** (added
+  2026-08-11, after a create-surface audit asked why two slug rules coexist).
+  `routes/documents.py::_sanitize_folder_segment` keeps Unicode: `한글 문서`
+  stays `한글-문서`. That is not drift from this ADR — it is this ADR's own test
+  applied to a different object. **The artifact may fold to `untitled` because
+  it carries its readable name in its `<title>`; the key is never read. A folder
+  has no such carrier — its segment IS its name, everywhere it is shown.**
+  Folding it would erase the only name the folder has, which is precisely the
+  §1 grade-3 erasure this ADR exists to prevent. The two rules differ **on
+  purpose**, and a gate now defends the difference so a future "unify the
+  slugs" cleanup cannot quietly re-introduce the erasure.
+
+  What *was* wrong there, and is fixed: the rewrite was **silent**. The member
+  typed `The Acme Deal`, got `the-acme-deal`, and was never told; `R&D` became
+  `rd`. The New Folder dialog now previews the key when it differs, and refuses
+  a name with no key at all rather than creating something unnamed.
 
 ## 6. Falsifiers
 

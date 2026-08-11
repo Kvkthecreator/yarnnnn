@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * UploadButton — the operator 'add' verb on the Files surface (ADR-329).
+ * UploadModal — the operator 'add' verb on the Files surface (ADR-329).
  *
  * Upload is one of the two operator-facing file verbs (add · delete);
  * edit + index are system verbs. This is the single 'add a file'
@@ -32,40 +32,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Upload, Loader2, X, ArrowDownToLine, FileText } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
-interface UploadButtonProps {
-  /**
-   * Called after at least one successful upload so the surface can refresh AND
-   * navigate to the new file. May be async (the modal awaits it before closing,
-   * keeping the "Adding…" state up through the tree refresh + selection).
-   */
-  onUploaded?: (workspacePath: string) => void | Promise<void>;
-}
-
 // ADR-331 D5: .zip accepted as a transport envelope (expanded server-side).
 const ACCEPT = '.pdf,.docx,.txt,.md,.zip';
-
-export function UploadButton({ onUploaded }: UploadButtonProps) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        title="Add files (PDF, DOCX, TXT, MD, or a .zip)"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
-      >
-        <Upload className="w-3.5 h-3.5" />
-        Add files
-      </button>
-      {open && (
-        <UploadModal
-          onClose={() => setOpen(false)}
-          onUploaded={onUploaded}
-        />
-      )}
-    </>
-  );
-}
 
 /**
  * Finder-parity refactor (2026-07-09): the "Add Files" verb is no longer a
@@ -74,6 +42,15 @@ export function UploadButton({ onUploaded }: UploadButtonProps) {
  * mounts <UploadModal> directly when the menu fires. `UploadModal` is exported
  * so the page can summon it; `initialFiles` lets a drag-drop-onto-canvas gesture
  * open the modal pre-loaded with the dropped files (Finder's primary import).
+ *
+ * That refactor left a `<UploadButton>` wrapper behind — a labelled "Add files"
+ * button with ZERO importers, still exported, still compiling. DELETED
+ * 2026-08-11. It was the only text-labelled upload affordance in the tree, so
+ * a reader grepping for one found it and could reasonably conclude the surface
+ * had a visible button it has not had since the refactor. Dead code that
+ * contradicts the shipped design is worse than dead code that merely sits
+ * there. The module keeps its name (`UploadButton.tsx`) — the file is imported
+ * by path in one place and renaming it is not this change's business.
  */
 export function UploadModal({
   onClose,

@@ -26,6 +26,36 @@ export function titleizeSlug(slug: string): string {
   return words.map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' ');
 }
 
+/**
+ * Where a Studio artifact may be created — the FE mirror of
+ * `api/services/authoring.py::STUDIO_ARTIFACT_REGION` (ADR-440 D6).
+ *
+ * This is a PLACEMENT rule, and it is deliberately NOT `operatorCanOrganize`.
+ * That mirror's own header says drift "only risks a stale label, never a wrong
+ * write" — true for move/rename/trash, where the backend is the door and a
+ * stale FE just greys a verb late. It is FALSE at creation, where the picker
+ * IS the door: offering a folder the server refuses produces a 403 AFTER the
+ * member has named the thing and pressed Create, citing a path they never
+ * typed. Permission answers "may I write here"; this answers "may an artifact
+ * LIVE here". Two questions — the create flow must ask this one.
+ */
+export const STUDIO_ARTIFACT_REGION = '/workspace/operation/';
+
+/** True iff a Studio artifact may be created under `folder` (an absolute
+ *  `/workspace/…` folder path, with or without a trailing slash). Mirrors the
+ *  server's `path.startsWith(STUDIO_ARTIFACT_REGION)` check in
+ *  `routes/studio.py::create_artifact` — the same comparison, so the picker
+ *  cannot offer what the API will refuse. */
+export function isArtifactRegion(folder: string): boolean {
+  const abs = folder.startsWith('/') ? folder : `/${folder}`;
+  return `${abs.replace(/\/+$/, '')}/`.startsWith(STUDIO_ARTIFACT_REGION);
+}
+
+/** The region's path segments — `operation`, `workspace`. Not meaning folders. */
+const REGION_SEGMENTS = new Set(
+  STUDIO_ARTIFACT_REGION.split('/').filter(Boolean).concat('workspace'),
+);
+
 /** The artifact's operator-facing name — its titleized MEANING FOLDER.
  *  `operation/ir-deck-v3/deck.html` → "Ir deck v3". Falls back to the titleized
  *  stem when the artifact sits directly in a root (no meaning folder). */
@@ -35,7 +65,7 @@ export function artifactNameFromPath(path: string): string {
   const parent = parts.length >= 2 ? parts[parts.length - 2] : null;
   // `workspace`/`operation` are the region, not a meaning folder (the server's
   // `artifact_name` makes the same carve against STUDIO_ARTIFACT_REGION).
-  const isRegion = parent === 'operation' || parent === 'workspace';
+  const isRegion = !!parent && REGION_SEGMENTS.has(parent);
   const raw =
     parent && !isRegion ? parent : (parts[parts.length - 1] || '').replace(/\.[a-z0-9]+$/i, '');
   return titleizeSlug(raw) || 'File';

@@ -143,6 +143,61 @@ building here.
 6. A produced untitled path contains no `//`.
 7. Learn-from artifacts carry their source's name, not a slug round-trip.
 
+---
+
+## Amendment — 2026-08-11: D3's "one key rule" is now structural
+
+> **Status**: Implemented. Gate: `web/scripts/gates/create_placement_law.mjs`.
+> **Amends**: D3 (the placement authority) · D1 (the deliberate door's behaviour
+> on a taken key). **Preserves**: every other decision, and D2 exactly.
+
+D3 said the two doors share one key rule *"so the two doors cannot drift into
+different collision behaviour."* `_untitled_path`'s docstring said it too. **They
+had drifted, and had shipped drifted**, because `disambiguate` was reachable
+only when the caller sent no path:
+
+| door | key taken → |
+|---|---|
+| immediate (`+ New → Document`) | `untitled-document-2` |
+| deliberate (`Name it first…`) | **409 `already exists`** |
+
+So a member who named a second document "Notes" was **refused outright** — the
+exact defect [ADR-469](ADR-469-the-name-is-lifted-the-path-is-a-key.md) D4
+("a key collision is disambiguated, never refused") fixed on rename, reappearing
+at creation on the other door. It was invisible because each door was correct
+read alone; only the *pair* was wrong.
+
+**The fix, in one sentence: one function computes the key for both doors.**
+`_untitled_path` became `_placed_path(auth, template, name=None)`, and the
+deliberate door routes through `_redirect_to_free_key`, which honours the
+member's chosen **destination verbatim** and steps only the **meaning-folder
+key**. `notes/` taken → `notes-2/`. The 409 survives as a *race* backstop only.
+
+Two invariants held deliberately:
+- **A shared meaning folder across shapes is still legal.** `notes/document.html`
+  + `notes/deck.html` co-exist; disambiguation triggers on the exact path being
+  occupied — the same condition the 409 fired on, not a new one.
+- **Validation precedes placement.** The region + traversal checks now run
+  *before* the placement query, so a `..` path is refused rather than used in a
+  prefix search.
+
+**The lesson, which is the reusable part:** the docstring asserting the
+invariant was written in the same commit as the code that violated it, and it
+read as evidence for five months. *A comment claiming an invariant is not the
+thing that enforces it* — this is the third occurrence of that shape in this
+codebase (ADR-533 D5's own falsifier, ADR-544's registry comment). The gate now
+executes both doors' helpers and asserts the handler **calls** each; the
+"exported but never mounted" failure (ADR-541 D4's `withdrawalNotice`) is
+explicitly covered.
+
+**Also fixed in the same pass** (they share the create surface, not the
+decision): the deliberate door's destination picker gated on *permission* while
+the server gated on *region*, so four of five offered folders 403'd after Create
+— see the [ADR-440 D6 amendment](ADR-440-the-studio-the-first-authoring-app.md);
+the modal showed
+`operation` where the picker showed `Documents`; and the immediate door had no
+`catch`, so every refusal was swallowed silently.
+
 ## 8. The one-line statement
 
 **A blank document is not an unsaved one — it is a named-by-default one; so New

@@ -3978,9 +3978,19 @@ function StudioStart({
   // IMMEDIATE: New hands over the workbench. No name, no destination — the
   // server places it, the skeleton's "Untitled ‹kind›" stands, and the crumb
   // arms so the name is OFFERED. This is the door a doc processor gives you.
+  // It catches (2026-08-11): this used to be a bare await with no handler, so
+  // any refusal — the concurrent-click race that 409s, an offline network —
+  // became an unhandled rejection. The member clicked New and NOTHING
+  // happened, with nothing said. The deliberate door already surfaced its
+  // failures inline; this one silently swallowed them.
   const createUntitled = async (templateSlug: string) => {
-    const res = await api.studio.createArtifact(templateSlug);
-    onRenameRequest(res.path); // opens the workbench with the crumb armed
+    setError(null);
+    try {
+      const res = await api.studio.createArtifact(templateSlug);
+      onRenameRequest(res.path); // opens the workbench with the crumb armed
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create it. Try again.');
+    }
   };
 
   // DELIBERATE: the member arrived knowing ("IR deck v3, in clients/"). The
