@@ -10,7 +10,7 @@
 
 import { DOMParser as PMDOMParser } from 'prosemirror-model';
 import type { Node as PMNode, Schema, Attrs, ResolvedPos } from 'prosemirror-model';
-import { NodeSelection, TextSelection } from 'prosemirror-state';
+import { NodeSelection, TextSelection, Plugin } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { sinkListItem, liftListItem } from 'prosemirror-schema-list';
 import { toggleMark } from 'prosemirror-commands';
@@ -185,6 +185,88 @@ export function pointPayload(
     headingText: heading.text,
     tier: object ? 'object' : 'text',
   };
+}
+
+// ── Identity in the model ───────────────────────────────────────────────────
+//
+// The chrome addresses blocks BY ID (the pane's ops, the slash anchor, the
+// outline), so identity must live in the MODEL, not only at the serialize
+// seam: a block born from Enter that waits for a commit to be named is a
+// block the pane cannot see — and a serialize-time mint is random, so an
+// unnamed block would churn its identity on every commit. normalizeStructure
+// pass C's discipline (document order, first-wins dedup), applied where the
+// blocks now live.
+
+function mintInto(used: Set<string>): string {
+  for (let i = 0; i < 10_000; i++) {
+    const id = `b${Math.random().toString(36).slice(2, 6)}`;
+    if (!used.has(id)) {
+      used.add(id);
+      return id;
+    }
+  }
+  return `b${used.size.toString(36)}${Math.random().toString(36).slice(2, 4)}`;
+}
+
+/** Mint missing/duplicate top-level ids on a freshly parsed doc (mount time —
+ *  BEFORE the commit ledger opens, so an id-less legacy document reads
+ *  stably instead of phantom-writing on its first flush). */
+export function withMintedIds(doc: PMNode): PMNode {
+  const used = new Set<string>();
+  doc.forEach((node) => {
+    const id = node.attrs && 'id' in node.attrs ? (node.attrs.id as string | null) : null;
+    if (id) used.add(id);
+  });
+  const seen = new Set<string>();
+  const children: PMNode[] = [];
+  let changed = false;
+  doc.forEach((node) => {
+    if (!node.attrs || !('id' in node.attrs)) {
+      children.push(node);
+      return;
+    }
+    const id = node.attrs.id as string | null;
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      children.push(node);
+      return;
+    }
+    const fresh = mintInto(used);
+    seen.add(fresh);
+    children.push(node.type.create({ ...node.attrs, id: fresh }, node.content, node.marks));
+    changed = true;
+  });
+  return changed ? doc.type.create(doc.attrs, children) : doc;
+}
+
+/** Keep every top-level block named as the member edits: Enter, paste and
+ *  duplicate all create id-less (or id-duplicating) blocks; this names them
+ *  in the same transaction cycle, so the chrome can address them at once. */
+export function blockIdPlugin(): Plugin {
+  return new Plugin({
+    appendTransaction: (trs, _old, state) => {
+      if (!trs.some((t) => t.docChanged)) return null;
+      const used = new Set<string>();
+      state.doc.forEach((node) => {
+        const id = node.attrs && 'id' in node.attrs ? (node.attrs.id as string | null) : null;
+        if (id) used.add(id);
+      });
+      const seen = new Set<string>();
+      let tr: Transaction | null = null;
+      state.doc.forEach((node, pos) => {
+        if (!node.attrs || !('id' in node.attrs)) return;
+        const id = node.attrs.id as string | null;
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          return;
+        }
+        const fresh = mintInto(used);
+        seen.add(fresh);
+        tr = (tr ?? state.tr).setNodeMarkup(pos, undefined, { ...node.attrs, id: fresh });
+      });
+      return tr;
+    },
+  });
 }
 
 // ── Ops ─────────────────────────────────────────────────────────────────────
@@ -391,14 +473,17 @@ export function fmtCmdToCommand(
     case 'highlight': {
       const type = op === 'mark' ? schema.marks.mark_token : schema.marks.highlight_token;
       return (state, dispatch) => {
-        if (value == null) {
-          if (dispatch) {
-            const { from, to } = state.selection;
-            dispatch(state.tr.removeMark(from, to, type));
-          }
-          return true;
+        const { from, to } = state.selection;
+        if (from === to) return false;
+        if (dispatch) {
+          // Set-or-clear, never toggle: switching roles (accent → warn) must
+          // RE-COLOR, and toggleMark would read the existing mark of the other
+          // role as "already on" and remove instead.
+          let tr = state.tr.removeMark(from, to, type);
+          if (value != null) tr = tr.addMark(from, to, type.create({ role: value }));
+          dispatch(tr);
         }
-        return toggleMark(type, { role: value })(state, dispatch);
+        return true;
       };
     }
     case 'clear':

@@ -43,6 +43,8 @@ import {
   stepRungCmd,
   fmtCmdToCommand,
   findBlockById,
+  withMintedIds,
+  blockIdPlugin,
   type FlowRangeRung,
   type FlowPointPayload,
 } from '@/lib/authoring/flow/commands';
@@ -215,7 +217,10 @@ export const FlowEditor = forwardRef<FlowEditorHandle, FlowEditorProps>(function
     const initialInner = readRegionInner(file.content ?? '') ?? '';
     let doc: PMNode;
     try {
-      doc = parseRegion(schema, initialInner);
+      // Identity is named at MOUNT (withMintedIds), so an id-less legacy block
+      // reads stably — a serialize-time-only mint is random and would churn
+      // the block's identity on every commit.
+      doc = withMintedIds(parseRegion(schema, initialInner));
     } catch (e) {
       console.error('[FLOW] parse failed — refusing to mount an empty editor:', e);
       return;
@@ -276,6 +281,7 @@ export const FlowEditor = forwardRef<FlowEditorHandle, FlowEditorProps>(function
           doc,
           plugins: [
             selectionPlugin,
+            blockIdPlugin(),
             slashKeys,
             history(),
             keymap({
@@ -362,12 +368,15 @@ export const FlowEditor = forwardRef<FlowEditorHandle, FlowEditorProps>(function
     const keepOffset = $from.depth >= 1 ? $from.pos - $from.start(1) : 0;
     let doc: PMNode;
     try {
-      doc = parseRegion(schema, incoming);
+      doc = withMintedIds(parseRegion(schema, incoming));
     } catch (e) {
       console.error('[FLOW] external content failed to parse — model unchanged:', e);
       return;
     }
-    knownInnerRef.current = incoming;
+    // The ledger re-opens at the canonical form of the NEW model (not the
+    // incoming bytes): a flush with no member edit stays a no-op, and the
+    // canonicalization of a legacy-dialect write rides the next real edit.
+    knownInnerRef.current = serializeRegion(schema, doc);
     let state = EditorState.create({ doc, plugins: view.state.plugins });
     if (keepId) {
       const hit = findBlockById(doc, keepId);
