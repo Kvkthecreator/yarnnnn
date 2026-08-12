@@ -90,3 +90,54 @@ and parallel sessions were running. Not attempted rather than reported green.
   re-checking the number at commit time. Its in-progress edits twice broke the
   shared `next build`; each time its files were stashed, this lane's build
   verified, and its work restored intact. Commit with explicit pathspecs.
+
+## 6. The authoring width ladder (`edf9508` · `d047580`) — CLOSED, click-passed
+
+Docs and Studio are one component and it was the only major surface doing
+responsive purely in raw Tailwind classes. Two thresholds disagreed about what a
+tablet is: the shell collapses at `MOBILE_BREAKPOINT_PX` (640); the workbench
+switched at `md:` (768), spelled in class strings where nothing reconciled them.
+
+Measured on prod before: at **820px** the toolbar row held `clientW 16` against
+`scrollW 274` and painted **260px over the Properties column**; at 768 the canvas
+iframe was **177px**; at 500 the row still overflowed 210px *with* the tab bar up,
+and 27 controls sat below the 44px touch floor.
+
+The row cannot be made to scroll — its galleries are `absolute top-full`, and the
+root's own comment said so while doing nothing about it. Fix: **need less width**.
+Four rungs (`full · condensed · two-pane · single-pane`), thresholds declared once
+beside the shell's own, read through `useWorkbenchWidth`, which measures the
+workbench's **own container** (a surface can be narrow inside a roomy window).
+Ordering principle: **the canvas never yields** — it was the sole `flex-1` among
+`shrink-0` siblings, so it absorbed every deficit.
+
+**`d047580` is the one worth reading.** `edf9508` shipped tsc 0, build 0, 33/33
+gate green — and the tablet layout was byte-identical to the defect. The hook took
+a `RefObject` and observed it in `useEffect([ref])`; the surface returns its START
+state before the workbench, so the effect's only run saw a null node, bailed, and
+never re-ran. Measurement right (819px), derivation right (819 → two-pane), nothing
+connecting them. Now a **callback ref**. Every gate assertion tested the
+DERIVATION, which was never broken — three assertions added for the WIRING.
+**Found by driving the doorway, not by a gate.**
+
+Click-passed on prod at three rungs, both apps, incl. emulated iPad-portrait touch:
+
+| rung | before → after |
+|---|---|
+| 1440 desktop | unchanged — labels, Properties as a column, overflow 0 |
+| 820 + touch | overflow 258 → **0**; every verb **44×44**; canvas 177 → **819** |
+| 500 phone | tab bar 34 → **44px**; overflow 210 → **0** |
+
+Docs verified on the same tablet: overflow 0, 44px targets, and correctly **no**
+page-grain verbs (`hasNewSlide/hasReArrange: false`) — the mode distinction holds
+while the ladder lands on both by construction. Overlay opens, scrim dismisses,
+Escape closes, `aria-expanded` tracks. Every glyph-only verb keeps its
+`aria-label`.
+
+Canon: AUTHORING.md **rule 15**; compositor.md notes the shell's 640 is the
+shell's own. Gate: `web/scripts/gates/authoring_width_ladder.mjs` (36 assertions,
+executes the derivation at each boundary; all falsifiers fire, incl. reverting the
+threshold to 768).
+
+**OWED: nothing on a real device** — the emulation covers pointer-coarse and the
+box model, but not thumb reach on hardware. Worth one pass on your own iPad.
