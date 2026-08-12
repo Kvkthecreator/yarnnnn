@@ -1,64 +1,80 @@
 'use client';
 
 /**
- * NewChatModal — starting a chat is choosing WHO to talk to.
+ * NewChatModal — starting a chat is choosing an ENGINE (ADR-558 D1).
  *
- * This replaced an INLINE panel that pushed the lane list down inside the
- * sidebar (which itself replaced a toolbar row of chips + a name field — the
- * pre-registry create form with new words in it). Inline was still the lazy
- * shape: choosing a colleague is a deliberate act with its own moment, not a
- * drawer that shoves the list around. A modal gives the act a room.
+ * WHAT THIS USED TO ASK, AND WHY IT CHANGED. The modal asked "Who do you want
+ * to talk to?" and listed, as one flat set of answers: a member-authored
+ * persona (Lisa), four kernel characters each labelled with an engine, and a
+ * human being. Four kinds of thing, one question — so a member who came to use
+ * GPT-5 was handed a persona, and a member who wanted a colleague was shown a
+ * model id they never asked for.
  *
- * THE FACES ARE THE FORM. No name field — a lane auto-names from its first
- * message (Phase-A hygiene), so asking up front was a field the member had no
- * answer to yet. One click starts the chat.
+ * ADR-558 separates the three acts that were fused here:
+ *   start a chat   → WHICH ENGINE   (this modal)
+ *   bring someone  → the CAST       (CastBar — humans and/or agents, ADR-495)
+ *   configure one  → /agents        (personas are named and hired there)
  *
- * The row says WHO first, then what they are (`Critic · GPT-5`): the operator's
- * rule — a nickname must still say what it IS, at minimum the role and the
- * model. Identity leads; the technical fact rides quietly behind.
+ * This is NOT a reversion of ADR-460. That ADR removed a seven-engine <select>
+ * because "LLM-routing is not a layman concept" — correct, and still why
+ * `/agents` exists and apps pin residents. Its error was assuming ONE door.
+ * Chat is the raw-LLM surface; a member who never thinks about engines never
+ * has to, because the sticky default answers for them.
  *
- * Errors are SHOWN, never swallowed. The live bug this fixes: creating a lane
- * 409'd (the cap counted Studio's bound lanes) and the FE's `catch {}` dropped
- * it silently — the member clicked Lisa, nothing happened, no reason given.
+ * STICKY LAST-USED: the door pre-selects the engine you last started with, per
+ * member, with every engine one click away. Convenience without a workspace
+ * setting — a preference is per-person, and view-state, not substrate.
+ *
+ * Errors are SHOWN, never swallowed (the live 409 the old `catch {}` ate).
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, X } from 'lucide-react';
-import { AgentFace } from '@/components/agents/AgentFace';
+import { Check, Loader2, X } from 'lucide-react';
+import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
-export interface ChatAgentChoice {
-  slug: string;
-  name: string;
-  blurb: string;
-  avatar_url?: string;
-  role?: string;
-  engine?: string;
-  kernel?: boolean;
+export interface ChatEngineChoice {
+  id: string;
+  label: string;
+  vision?: boolean;
 }
 
-export interface ChatPersonChoice {
-  principal_id: string;
-  label: string;
+/** Where the member's last engine is remembered. VIEW STATE — a per-person
+ *  convenience, deliberately not a workspace setting (a workspace default would
+ *  be one member choosing for everyone). */
+const LAST_ENGINE_KEY = 'yarnnn.chat.lastEngine';
+
+export function readLastEngine(): string | null {
+  try {
+    return window.localStorage.getItem(LAST_ENGINE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function rememberEngine(id: string): void {
+  try {
+    window.localStorage.setItem(LAST_ENGINE_KEY, id);
+  } catch {
+    /* private mode — the door just won't pre-select next time */
+  }
 }
 
 interface NewChatModalProps {
-  agents: ChatAgentChoice[];
-  /** ADR-495 D3 — the door is species-blind: workspace members list beside
-   *  the Agents, and picking either starts a conversation with them in the
-   *  cast. There is no second object and no scope to choose — you pick who
-   *  you are talking to, and you can add more people or Agents later. */
-  people?: ChatPersonChoice[];
-  onPick: (slug: string) => Promise<void>;
-  onPickPerson?: (principalId: string) => Promise<void>;
+  engines: ChatEngineChoice[];
+  onPick: (engineId: string) => Promise<void>;
   onClose: () => void;
 }
 
-export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: NewChatModalProps) {
+export function NewChatModal({ engines, onPick, onClose }: NewChatModalProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [last, setLast] = useState<string | null>(null);
+
+  // Read on mount, not at module scope — localStorage is unavailable during SSR.
+  useEffect(() => setLast(readLastEngine()), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -69,11 +85,12 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
   }, [onClose]);
 
   const pick = useCallback(
-    async (slug: string) => {
-      setBusy(slug);
+    async (id: string) => {
+      setBusy(id);
       setError(null);
       try {
-        await onPick(slug);
+        await onPick(id);
+        rememberEngine(id);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not start this chat');
         setBusy(null);
@@ -91,9 +108,7 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
       />
       {/* A centered card on a desktop, a BOTTOM SHEET on a phone — the
           conventional mobile shape (thumb-reachable, no floating card fighting
-          the keyboard). `sm:` is the 640px breakpoint the OS uses everywhere;
-          below it the sheet pins to the bottom edge and clears the home
-          indicator. */}
+          the keyboard). `sm:` is the 640px breakpoint the OS uses everywhere. */}
       <div
         className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none"
         style={{ zIndex: Z_CONFIRM_DIALOG }}
@@ -106,7 +121,7 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
         >
           <div className="flex items-start justify-between">
             <h3 className="text-base font-semibold text-card-foreground">
-              Who do you want to talk to?
+              Which engine?
             </h3>
             <button
               type="button"
@@ -119,68 +134,32 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
           </div>
 
           <div className="mt-3 space-y-1">
-            {agents.map((a) => (
+            {engines.map((e) => (
               <button
-                key={a.slug}
+                key={e.id}
                 type="button"
                 disabled={!!busy}
-                onClick={() => void pick(a.slug)}
+                onClick={() => void pick(e.id)}
                 className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-muted text-left transition-colors disabled:opacity-50"
               >
-                <AgentFace name={a.name} avatarUrl={a.avatar_url} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm">{a.name}</span>
-                  <span className="block text-xs text-muted-foreground truncate">
-                    {a.kernel === false
-                      ? [a.role, a.engine].filter(Boolean).join(' · ')
-                      : a.blurb}
-                  </span>
+                <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+                  {engineBrandIcon(e.id)}
                 </span>
-                {busy === a.slug && (
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm">{e.label}</span>
+                </span>
+                {last === e.id && !busy && (
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                    <Check className="w-3 h-3" />
+                    last used
+                  </span>
+                )}
+                {busy === e.id && (
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
                 )}
               </button>
             ))}
           </div>
-
-          {people && people.length > 0 && onPickPerson && (
-            <div className="mt-3 pt-3 border-t border-border">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-2">
-                People
-              </p>
-              <div className="mt-1 space-y-1">
-                {people.map((p) => (
-                  <button
-                    key={p.principal_id}
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => {
-                      setBusy(p.principal_id);
-                      setError(null);
-                      onPickPerson(p.principal_id).catch((e) => {
-                        setError(e instanceof Error ? e.message : 'Could not start this chat');
-                        setBusy(null);
-                      });
-                    }}
-                    className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-muted text-left transition-colors disabled:opacity-50"
-                  >
-                    <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
-                      {p.label.slice(0, 1).toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm truncate">{p.label}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        They&apos;ll see this conversation from here
-                      </span>
-                    </span>
-                    {busy === p.principal_id && (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {error && (
             <p className="mt-3 text-xs text-destructive" role="alert">
@@ -188,13 +167,19 @@ export function NewChatModal({ agents, people, onPick, onPickPerson, onClose }: 
             </p>
           )}
 
-          <div className="mt-4 pt-3 border-t border-border">
+          {/* The other two acts, named so the member knows where they live.
+              Adding a colleague or a teammate happens IN the conversation
+              (the cast), not at this door. */}
+          <div className="mt-4 pt-3 border-t border-border space-y-1">
+            <p className="text-xs text-muted-foreground">
+              Add people or agents once the chat is open.
+            </p>
             <SurfaceLink
               to="agents"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="block text-xs text-muted-foreground hover:text-foreground"
               onClick={onClose}
             >
-              Make an agent of your own →
+              Manage your agents →
             </SurfaceLink>
           </div>
         </div>

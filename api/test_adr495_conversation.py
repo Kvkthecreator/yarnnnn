@@ -322,18 +322,22 @@ def test_cast_never_takes_a_caller_client() -> None:
     )
 
 
-def test_person_create_invents_no_agent_slug() -> None:
+def test_create_invents_no_agent_slug() -> None:
     """Live bug 2026-07-29: picking a person sent `agent: 'freddie'` — a slug
     that is not in the registry (sonnet/scout/designer/critic), so `create`
     422'd and the modal read "Failed to fetch".
 
-    Two rules, both gated: choosing a person must not choose an Agent for you,
-    and no FE call site may hardcode an agent slug the registry has to honor.
+    ADR-558 makes this invariant STRUCTURAL rather than a discipline the FE has
+    to keep: creating a chat lane sends an ENGINE, and the server REFUSES an
+    `agent` on an unbound lane (test_adr558_chat_is_engines.py executes that
+    refusal). So the two create paths this used to check — `createLane(slug)`
+    and `createConversationWithPerson` — are one path that cannot name an agent
+    at all. The rule is unchanged and better enforced; only its spelling moved.
     """
-    print("\nRegression — picking a person invents no Agent")
+    print("\nRegression — creating a conversation invents no Agent")
     surface = _read(WEB / "components" / "chat-surface" / "ChatSurface.tsx")
-    block_start = surface.find("const createConversationWithPerson")
-    _assert(block_start > 0, "the person-create path exists")
+    block_start = surface.find("const createLane")
+    _assert(block_start > 0, "the create path exists")
     block = surface[block_start : surface.find("const archiveLane", block_start)]
     # Comment lines are stripped: the block DOCUMENTS the bug (naming the bad
     # slug so it isn't re-derived), which is the opposite of shipping it.
@@ -342,11 +346,11 @@ def test_person_create_invents_no_agent_slug() -> None:
         ln for ln in block.splitlines()
         if not ln.strip().startswith(("//", "*", "/*"))
     )
-    _assert("agent:" not in code, "the person path picks NO agent for you")
+    _assert("agent:" not in code, "the create path picks NO agent for you")
     _assert("'freddie'" not in code, "no hardcoded agent slug in the create call")
     _assert(
-        "data?.models?.[0]?.id" in block or "model," in block,
-        "it passes a model from the server's own envelope (guaranteed routable)",
+        "model: engineId" in code,
+        "it sends the engine the member chose (ADR-558 D1)",
     )
     _assert("throw" in block, "failures surface to the member, never swallowed")
 
@@ -373,7 +377,7 @@ if __name__ == "__main__":
         test_conversations_write_no_notification,
         test_falsifier_sees_every_conversation_turn,
         test_cast_never_takes_a_caller_client,
-        test_person_create_invents_no_agent_slug,
+        test_create_invents_no_agent_slug,
         test_last_human_cannot_be_removed,
     ]:
         fn()

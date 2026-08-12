@@ -1,0 +1,180 @@
+"""ADR-558 — chat is the engine surface; Agents are personified. The ratchet.
+
+Run: python3 test_adr558_chat_is_engines.py   (from api/)
+
+What this defends: **a chat conversation is created with an ENGINE and has no
+birth-persona; who replies is the cast's answer.** Apps keep their residents.
+
+The dual approach this closes (recorded verbatim at routes/lanes.py:788-793):
+`lane_meta["agent"]` was a creation-time scalar ADR-495 D3 had already retired
+into the cast. Two authorities for "who replies" produced a live bug — an Agent
+added via CastBar never replied, because the cast said yes and lane_meta said
+nobody.
+
+The handler is EXECUTED, not grepped: a 422 that exists in source but never
+fires is the failure mode this codebase keeps hitting.
+"""
+
+from __future__ import annotations
+
+import ast
+import asyncio
+import os
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+
+FAILS: list[str] = []
+N = 0
+
+
+def check(label: str, cond: bool, detail: str = "") -> None:
+    global N
+    N += 1
+    if cond:
+        print(f"  ok   {label}")
+    else:
+        FAILS.append(label)
+        print(f"  FAIL {label}" + (f"\n         {detail}" if detail else ""))
+
+
+os.environ["MODEL_ROUTER_ENABLED"] = "1"
+
+from fastapi import HTTPException  # noqa: E402
+
+import routes.lanes as L  # noqa: E402
+
+
+class _Auth:
+    """Enough auth to reach the validation block; the DB is never touched
+    because every case below is refused before persistence."""
+
+    user_id = "u-probe"
+    workspace_id = None
+    principal_id = "u-probe"
+
+    class client:  # noqa: N801
+        @staticmethod
+        def table(_name):
+            class Q:
+                def select(self, *a, **k): return self
+                def eq(self, *a, **k): return self
+                def like(self, *a, **k): return self
+                def limit(self, *a, **k): return self
+                def order(self, *a, **k): return self
+
+                def execute(self):
+                    class R:
+                        data: list = []
+                    return R()
+            return Q()
+
+
+def _create(**kw):
+    """Run the real handler; return ('http', status, detail) or ('other', exc)."""
+    try:
+        asyncio.run(L.create_lane(L.CreateLaneRequest(**kw), _Auth()))
+        return ("ok", None, None)
+    except HTTPException as exc:
+        return ("http", exc.status_code, str(exc.detail))
+    except Exception as exc:  # noqa: BLE001 — got past validation into the fake DB
+        return ("other", type(exc).__name__, None)
+
+
+print("1. D1/D3 — a CHAT lane is created with an engine, never a persona")
+
+kind, status, detail = _create(agent="critic")
+check("agent WITHOUT a binding is refused", kind == "http" and status == 422,
+      f"got {kind}/{status}")
+check("...and the refusal says why (engine, not colleague)",
+      bool(detail) and "engine" in detail.lower() and "cast" in detail.lower(),
+      f"detail={detail!r}")
+
+kind, status, detail = _create()
+check("no engine at all is refused", kind == "http" and status == 422, f"got {kind}/{status}")
+
+kind, status, detail = _create(model="acme/not-a-model")
+check("an unroutable engine is refused", kind == "http" and status == 422,
+      f"got {kind}/{status}")
+
+# A real engine must get PAST validation (it dies later in the fake DB, which is
+# the proof it was accepted — this is the case that would break if the guard
+# over-fired).
+from services.lane_runner import LANE_MODELS  # noqa: E402
+
+kind, status, _ = _create(model=next(iter(LANE_MODELS)))
+check("a real engine passes validation", kind == "other",
+      f"got {kind}/{status} — a valid engine was refused")
+
+print("\n2. D3 — an APP still pins its resident (ADR-467 D1 untouched)")
+
+for binding in (
+    {"artifact_path": "/workspace/operation/x/deck.html"},
+    {"derive_recipe": "summary", "derive_source": "/workspace/x.md"},
+):
+    kind, status, detail = _create(agent="designer", **binding)
+    refused_by_d3 = kind == "http" and status == 422 and "cast" in (detail or "").lower()
+    check(f"bound lane keeps its resident ({', '.join(binding)})", not refused_by_d3,
+          f"the D3 guard wrongly refused a bound lane: {detail!r}")
+
+print("\n3. the cast is the SINGLE authority for who replies")
+
+src = pathlib.Path("routes/lanes.py").read_text()
+tree = ast.parse(src)
+fn = next(n for n in ast.walk(tree)
+          if isinstance(n, (ast.AsyncFunctionDef, ast.FunctionDef)) and n.name == "create_lane")
+body = ast.unparse(fn)
+
+# The guard must key on the BINDING, not on a hardcoded surface name.
+check("create_lane derives boundness from the binding fields",
+      "is_bound" in body and "artifact_path" in body and "derive_recipe" in body)
+
+# A chat lane must never write lane_meta["agent"] — the whole point.
+lane_meta_agent = 'lane_meta["agent"] = agent_slug' in src
+check("lane_meta['agent'] is still written (bound lanes need it)", lane_meta_agent)
+check("...but only reachable when agent_slug survived the D3 guard",
+      body.index("is_bound") < body.index("lane_meta"),
+      "the guard must precede the write")
+
+print("\n4. the envelope leads with engines (the chat chooser)")
+
+env_fn = next(n for n in ast.walk(tree)
+              if isinstance(n, (ast.AsyncFunctionDef, ast.FunctionDef))
+              and n.name == "_lane_envelope")
+env = ast.unparse(env_fn)
+check("`models` is served (the chat chooser)", '"models"' in env or "'models'" in env)
+# `agents` STAYS — the cast needs a roster of who may be invited. Removing it
+# would break adding a colleague, which ADR-558 explicitly preserves.
+check("`agents` is still served (the CAST's roster, not the door)",
+      '"agents"' in env or "'agents'" in env)
+
+print("\n5. FE — the door asks for an engine")
+
+web = pathlib.Path("../web")
+modal = (web / "components/chat-surface/NewChatModal.tsx").read_text()
+check("modal takes engines, not agents", "engines" in modal and "agents:" not in modal)
+check("modal no longer asks 'who do you want to talk to'",
+      "Who do you want to talk to" not in modal)
+check("modal carries the provider brand mark (D5)", "engineBrandIcon" in modal)
+check("modal remembers the last engine (sticky)", "rememberEngine" in modal)
+
+chat = (web / "components/chat-surface/ChatSurface.tsx").read_text()
+check("the person-create path is DELETED (one create, not two)",
+      "createConversationWithPerson" not in chat.replace(
+          "`createLane(agentSlug)` and `createConversationWithPerson`", ""),
+      "a second create path survived")
+check("createLane sends model, never agent",
+      "api.lanes.create({ model: engineId })" in chat)
+
+brand = (web / "lib/ai-providers/brand-icons.tsx").read_text()
+check("engine brand mapping lives beside the host-id one (one home)",
+      "engineBrandIcon" in brand and "ENGINE_PROVIDER_MARKS" in brand)
+
+print(f"\n{N - len(FAILS)}/{N} checks passed")
+if FAILS:
+    print("\nFAILURES:")
+    for f in FAILS:
+        print(f"  - {f}")
+    sys.exit(1)
+print("ADR-558 gate GREEN")

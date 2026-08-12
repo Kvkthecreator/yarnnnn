@@ -411,6 +411,7 @@ The rule that matters every session: **use current names.** `agents` not `delive
 | Frontend API Client | `web/lib/api/client.ts` |
 | Sync Error Categorization | `web/lib/sync-errors.ts` (ADR-086) |
 | Onboarding / First-run UI | `web/app/auth/callback/page.tsx` (redirect gate). Per ADR-414 D4 genesis is pure — no skeleton seeding; `web/components/onboarding/` and the Settings WorkspaceSection are DELETED. |
+| **Chat vs Agents (ADR-558)** | **Two surfaces, two questions — do not re-merge them.** **Chat** (`web/components/chat-surface/`) is the ENGINE surface: starting a conversation picks an engine (sticky last-used), and `create_lane` **422s on `agent` for an unbound lane**. **Agents** (`web/components/agents/`) owns personas — `KERNEL_AGENTS`/`KERNEL_POSTURES` + the member's `_agent.yaml`. Who REPLIES is the **cast** (`conversation_cast`, ADR-495), joined from inside a conversation — never chosen at the door. `lane_meta["agent"]` survives for **bound** lanes only (Studio·Docs·IMAGES pin a resident, ADR-467 D1). Gate: `api/test_adr558_chat_is_engines.py`. |
 | Agents Page (Home) | `web/app/(authenticated)/agents/page.tsx` |
 | Chat Page | `web/app/(authenticated)/chat/page.tsx` |
 | Route Constants | `web/lib/routes.ts` (HOME_ROUTE = "/chat" per ADR-205 F1) |

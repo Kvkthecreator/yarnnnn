@@ -75,3 +75,45 @@ export function providerBrandIcon(principalId: string | null | undefined): React
 export function hasProviderBrand(principalId: string | null | undefined): boolean {
   return !!principalId && principalId in PROVIDER_MARKS;
 }
+
+// ---------------------------------------------------------------------------
+// Engines (ADR-558 D5) — the same marks, keyed by the LANE_MODELS prefix
+// ---------------------------------------------------------------------------
+//
+// WHY HERE AND NOT A SECOND MODULE. The marks above are keyed by ADR-379
+// HOST-ID (`chatgpt`, `claude.ai`) — the MCP connector's identity. An engine is
+// named `provider/model` (`anthropic/claude-sonnet-4-6`), a different key space
+// for the same brands. Copying the SVGs into a chat-side module would be two
+// homes for one fact; the resolver below maps the engine's provider prefix onto
+// the marks that already exist.
+//
+// Chat is the engine surface (ADR-558 D1), so wherever an engine is named it
+// carries its maker's mark.
+
+/** provider prefix (from `provider/model`) → the same brand marks. */
+const ENGINE_PROVIDER_MARKS: Record<string, ReactNode> = {
+  anthropic: AnthropicMark,
+  openai: OpenAIMark,
+  gemini: GeminiMark,
+  // deepseek: no official monochrome glyph vendored yet → generic Cpu.
+};
+
+/** `anthropic/claude-sonnet-4-6` → `anthropic`. Bare names return themselves. */
+export function engineProvider(model: string | null | undefined): string {
+  if (!model) return '';
+  const i = model.indexOf('/');
+  return i === -1 ? model : model.slice(0, i);
+}
+
+/**
+ * The brand mark for an ENGINE id (`provider/model`), or the generic Cpu glyph.
+ * The chat-surface counterpart of `providerBrandIcon`.
+ */
+export function engineBrandIcon(model: string | null | undefined): ReactNode {
+  return ENGINE_PROVIDER_MARKS[engineProvider(model)] ?? GenericProviderIcon;
+}
+
+/** True when the engine's provider has a distinct mark (not the fallback). */
+export function hasEngineBrand(model: string | null | undefined): boolean {
+  return engineProvider(model) in ENGINE_PROVIDER_MARKS;
+}

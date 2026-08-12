@@ -818,11 +818,14 @@ def run() -> bool:
         "<AgentFace" in chat and "laneSubLabel(lane)" in chat,
     )
     modal = (web / "components" / "chat-surface" / "NewChatModal.tsx").read_text()
+    # ADR-558 D1: the door now asks WHICH ENGINE, not who. The invariant this
+    # check defends is the SHAPE (a modal with its own moment, never the inline
+    # panel it replaced) — the question it asks is ADR-558's to set, and pinning
+    # the old title string made a re-framing read as a regression
+    # (`feedback_never_pin_a_spelling_assert_behaviour`).
     _check(
-        "the new-chat flow is a MODAL, not inline (the faces ARE the form)",
-        "Who do you want to talk to?" in modal
-        and 'role="dialog"' in modal
-        and "createPortal" in modal,
+        "the new-chat flow is a MODAL, not inline",
+        'role="dialog"' in modal and "createPortal" in modal,
     )
     _check(
         "…and the inline form is DELETED, not hidden (Singular Implementation)",

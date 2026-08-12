@@ -446,18 +446,21 @@ export function ChatSurface() {
   // on any width, since the drill-in owns the whole pane at every size.
   useSelfLocatedSurface('chat', !((isNarrow && activeLane) || showDetail));
 
-  const createLane = useCallback(async (agentSlug: string) => {
-    if (!agentSlug) return;
+  // ADR-558 D1 — ONE create path, and it sends an ENGINE. The two paths this
+  // replaces (`createLane(agentSlug)` and `createConversationWithPerson`) were
+  // the same act wearing two different first questions; the server now refuses
+  // `agent` on an unbound lane, so there is nothing to keep. Adding a colleague
+  // or a teammate is the CAST's job, done from inside the conversation.
+  //
+  // No name: a lane auto-names from its first message (Phase-A hygiene).
+  const createLane = useCallback(async (engineId: string) => {
+    if (!engineId) return;
     try {
-      // ADR-460 D4 — send WHO. The engine resolves server-side (the slug is
-      // the face, the model is the fact; the fact comes back on the response).
-      // No name: a lane auto-names from its first message (Phase-A hygiene).
-      const lane = await api.lanes.create({ agent: agentSlug });
+      const lane = await api.lanes.create({ model: engineId });
       const info: LaneInfo = {
         id: lane.id,
         name: lane.name,
         model: lane.model,
-        agent: lane.agent ?? agentSlug,
         updated_at: new Date().toISOString(),
       };
       setData((d) => (d ? { ...d, lanes: [...d.lanes, info] } : d));
@@ -470,55 +473,6 @@ export function ChatSurface() {
       throw e instanceof Error ? e : new Error('Could not start this chat');
     }
   }, [setParam]);
-
-  // ADR-495 D3 — picking a PERSON starts a conversation with them in the
-  // cast. Same create, then one species-blind invite; their window defaults
-  // to "from now", which on a brand-new conversation is everything.
-  //
-  // NO AGENT IS PICKED FOR YOU. The first cut hardcoded `agent: 'freddie'` —
-  // a slug that does not exist in the registry (sonnet/scout/designer/critic),
-  // so `create` 422'd and the modal showed "Failed to fetch". Choosing a
-  // person is choosing a person; an Agent joins when you add one. The lane
-  // takes a model directly (the Studio/derive path's shape) so a
-  // human-only conversation is representable without a colleague in it.
-  const createConversationWithPerson = useCallback(
-    async (principalId: string) => {
-      // The envelope is what the server validates `model` against, so its
-      // first entry is guaranteed routable. If it hasn't loaded, say so
-      // rather than sending undefined and reading back a 422.
-      const model = data?.models?.[0]?.id;
-      if (!model) throw new Error('Still loading — try again in a moment');
-      // ADR-500 — starting a conversation WITH someone is two calls (create,
-      // then cast them). If the second fails the first has already landed, so
-      // the member gets an error AND an empty conversation they never asked
-      // for — observed 2026-07-29 (lane d59090d6…, created then orphaned when
-      // the add 422'd). Roll the lane back so a failed act leaves no trace.
-      let created: { id: string } | null = null;
-      try {
-        created = await api.lanes.create({
-          model,
-          name: people.find((p) => p.principal_id === principalId)?.label,
-        });
-        await api.lanes.addParticipant(created.id, {
-          kind: 'human',
-          principal_id: principalId,
-        });
-        const listed = await api.lanes.list();
-        setData(listed as LaneData);
-        setParam({ lane: created.id, detail: null });
-        setCreating(false);
-      } catch (e) {
-        if (created) {
-          // Best-effort: the error the member sees is the ORIGINAL failure,
-          // never a cleanup failure stacked on top of it.
-          await api.lanes.archive(created.id).catch(() => {});
-        }
-        // SHOW it — same discipline as createLane above.
-        throw e instanceof Error ? e : new Error('Could not start this chat');
-      }
-    },
-    [setParam, data, people],
-  );
 
   const archiveLane = useCallback(
     async (laneId: string) => {
@@ -598,18 +552,16 @@ export function ChatSurface() {
     );
   }
 
-  // The new-chat flow is a MODAL (NewChatModal) — choosing a colleague is a
-  // deliberate act with its own moment, not a drawer that shoves the lane
-  // list around. The inline panel that lived here is deleted, not hidden.
+  // The new-chat flow is a MODAL (NewChatModal) — ADR-558 D1: it asks WHICH
+  // ENGINE. People and colleagues join through the CAST, from inside the
+  // conversation, which is why neither is passed here any more.
 
   return (
     <div ref={surfaceRef} className="h-full flex min-h-0">
       {creating && (
         <NewChatModal
-          agents={data?.agents ?? []}
-          people={people}
+          engines={data?.models ?? []}
           onPick={createLane}
-          onPickPerson={createConversationWithPerson}
           onClose={() => setCreating(false)}
         />
       )}

@@ -44,13 +44,18 @@ class CreateLaneRequest(BaseModel):
     # Optional since Phase A: absent/blank → _DEFAULT_LANE_NAME + auto-name on
     # the first turn (conversation hygiene — the ChatGPT-bar naming behavior).
     name: Optional[str] = None
-    # ADR-460 D4: `agent` is the member-facing choice (a name, not an engine);
-    # `model` is the engine. Pass EITHER — an agent resolves to its model
-    # server-side and BOTH land on the lane. `model` stays optional-but-live
-    # because the Studio/derive paths bind a model directly and never pick a
-    # character (a bound lane's job is the artifact, not the colleague).
-    agent: Optional[str] = None
+    # ADR-558 D1/D3 — CHAT IS THE ENGINE SURFACE. An unbound (chat) lane is
+    # created with an ENGINE; it has no birth-persona. Who REPLIES is the cast's
+    # answer (ADR-495), joined after creation, never chosen at the door.
+    #
+    # `agent` survives for BOUND lanes only — Studio/Docs/IMAGES pin a resident
+    # (ADR-467 D1: an app has one job, so it pins one colleague). Passing
+    # `agent` without a binding is now a 422: it was the creation-time scalar
+    # ADR-495 D3 already retired into the cast, and keeping both authorities
+    # produced a live bug (an Agent added via CastBar never replied — the cast
+    # said yes, lane_meta said nobody). One authority per surface.
     model: Optional[str] = None
+    agent: Optional[str] = None
     # ADR-440 D3 — the Studio binding: a workspace path this lane authors.
     # A lane with a binding is a Studio lane; its turns carry the authoring
     # posture + token profile. Optional; plain chat lanes never set it.
@@ -285,18 +290,20 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
 
     return {
         "enabled": enabled,
-        # ADR-460 D4 — the chooser: named colleagues, not a spec sheet. The
-        # member picks WHO; the engine rides behind the name. The member's own
-        # Agents (their `_agent.yaml` folders) come first — they named them.
-        "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
-        # `models` STAYS: every LANE_MODELS row is still routable (the Studio +
-        # derive paths bind a model directly, and the lane list's model filter
-        # facet reads it). The registry changes what the CHOOSER asks, not what
-        # the system can run.
+        # ADR-558 D1 — `models` IS THE CHAT CHOOSER now. Starting a conversation
+        # is picking an ENGINE; the door asks which one. (ADR-460's "the member
+        # picks WHO" is preserved where it belongs — `/agents` and app residents
+        # — but it was answering the wrong door here: a member who came to use
+        # GPT-5 was handed a persona.)
         "models": [
             {"id": mid, "label": meta["label"], "vision": bool(meta.get("vision", True))}
             for mid, meta in LANE_MODELS.items()
         ],
+        # `agents` STAYS, but as the CAST's roster, not the creation chooser:
+        # who a member may ADD to a conversation (ADR-495 — a colleague is
+        # joined, never chosen at the door). Personas are configured in
+        # `/agents`; this is the list of who is available to invite.
+        "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
         # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
         # on the capability envelope (no new endpoint, no FE duplication).
         "recipes": list_recipes(),
@@ -383,13 +390,32 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     if not lanes_enabled():
         raise HTTPException(status_code=403, detail="Lanes are not enabled (router off)")
 
-    # ADR-460 D4 — the member picks WHO, not which engine. An agent resolves to
-    # its model here, server-side; the model stays authoritative on the lane
-    # (spec §6: the slug is the face, the model is the fact, and the fact is
-    # what actually ran — deriving it at turn time would let a registry edit
-    # retroactively lie about a past lane's engine).
+    # ADR-558 D1/D3 — the door asks WHICH ENGINE. A resident resolves to its
+    # model here, server-side; the model stays authoritative on the lane
+    # (ADR-460 spec §6: the model is the fact, and the fact is what actually
+    # ran — deriving it at turn time would let a registry edit retroactively
+    # lie about a past lane's engine).
     agent_slug = (req.agent or "").strip()
     model = (req.model or "").strip()
+    # A BINDING is what makes a lane an app's, and only an app pins a colleague.
+    is_bound = bool(
+        (req.artifact_path or "").strip()
+        or (req.derive_recipe or "").strip()
+        or (req.derive_source or "").strip()
+    )
+    if agent_slug and not is_bound:
+        # THE ADR-558 D3 LINE. A chat lane has no birth-persona: who replies is
+        # the cast's answer, joined after creation. Refused loudly rather than
+        # ignored — a silently-dropped `agent` would read as supported and
+        # become a bug report (the ADR-460 strict-key precedent).
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A chat conversation is created with an engine, not a colleague "
+                "(ADR-558). Create it with `model`, then add the colleague to "
+                "the cast."
+            ),
+        )
     if agent_slug:
         # Member-first: their named colleagues, then the kernel set.
         agent = resolve_agent(agent_slug, find_member_agents(auth.client, auth.user_id))
@@ -398,7 +424,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
         model = agent["model"]
     if not model:
-        raise HTTPException(status_code=422, detail="agent or model is required")
+        raise HTTPException(status_code=422, detail="model is required")
     if model not in LANE_MODELS:
         raise HTTPException(status_code=422, detail=f"Unknown lane model: {model}")
     # Phase-A hygiene: a nameless lane is fine — it auto-names on first turn.
@@ -437,10 +463,10 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         )
 
     lane_meta: dict = {"name": name, "model": model}
-    # ADR-460 D4 — the face, beside the fact. Absent on Studio/derive lanes and
-    # on every lane created before this registry: they resolve by `model`
-    # exactly as before and simply render an engine label. No backfill, no
-    # guessing (the W0 lesson: an unclassifiable row says so).
+    # ADR-558 D3 — the resident, on BOUND lanes only. `agent_slug` is refused
+    # above for an unbound lane, so this can only be an app's pinned colleague
+    # (Studio · Docs · IMAGES). A chat lane carries an ENGINE and nothing else;
+    # who replies comes from the cast.
     if agent_slug:
         lane_meta["agent"] = agent_slug
     artifact_path = artifact_path_req  # parsed once, above (the cap exempts it)
@@ -485,9 +511,14 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # authoritative and always present — and since migration 228 the cast's
     # `workspace_id` is NOT NULL, so guessing here would be a constraint error.
     ws = created.get("workspace_id") or ws
-    # ADR-495 D1 — the cast is born with the conversation: the creator, plus
-    # the Agent they picked. Both at window 0 (they see everything from turn
-    # one — there is nothing prior to withhold).
+    # ADR-495 D1 — the cast is born with the conversation: the creator, always.
+    # Window 0 (they see everything from turn one — nothing prior to withhold).
+    #
+    # ADR-558 D3: a CHAT lane's cast is born with ONE member — the creator. No
+    # agent, because a chat conversation has no birth-persona; the member adds
+    # a colleague when they want one. `agent_slug` here is only ever an app's
+    # resident (bound lanes), which IS invited, because the app's job is that
+    # colleague's job.
     from services.conversation_cast import add_participant
 
     add_participant(
@@ -499,7 +530,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
             created["id"], workspace_id=ws, member_kind="agent",
             agent_slug=agent_slug, invited_by=auth.user_id, visible_from_sequence=0,
         )
-    logger.info("[LANE] created lane=%s model=%s ws=%s", created["id"][:8], req.model, (ws or "-")[:8])
+    logger.info("[LANE] created lane=%s model=%s ws=%s", created["id"][:8], model, (ws or "-")[:8])
     return _lane_row_to_dict(created)
 
 
