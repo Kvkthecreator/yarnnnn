@@ -244,9 +244,25 @@ def main() -> int:
         "the second row is GONE — no name-it-first, no onPickNamed",
         "onPickNamed" not in menu and "Name it first" not in menu.split("*/")[-1],
     )
+    # Asserted on the SELECTION EXPRESSION, not on the prop's presence. The
+    # first spelling — `"initialTemplate" in modal and ... in surface` — stayed
+    # GREEN while the reset effect was reverted to `templates[0]`, i.e. while
+    # Studio silently opened on Deck no matter which shape you picked. The prop
+    # was threaded and then discarded: wired but not READ, the same shape as
+    # ADR-541 D4's exported-never-mounted notice.
+    #
+    # Studio is the only app with two shapes (deck + web), so it is the only
+    # place this is observable — which is exactly why it needs a gate.
+    _reset = re.search(r"const picked = [\s\S]{0,200}?setTemplateSlug\([^\n]*\);", modal)
     _check(
-        "the dialog opens ON the shape the menu chose (no re-asking)",
-        "initialTemplate" in modal and "initialTemplate" in surface,
+        "the dialog opens ON the shape the menu chose (the prop is READ)",
+        bool(_reset)
+        and "initialTemplate" in _reset.group(0)
+        and "picked" in _reset.group(0).split("setTemplateSlug")[1],
+    )
+    _check(
+        "…and the surface actually passes it (a read prop nobody sends is moot)",
+        "initialTemplate={namingTemplate}" in surface,
     )
     _check(
         "the deliberate modal owns all three decisions (shape too)",
