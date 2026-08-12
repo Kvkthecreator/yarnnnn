@@ -488,6 +488,29 @@ commit in-flight typing — retiring there would drop keystrokes, which is the w
     ships as palette ROLES (one kernel rule each, so a skin swap re-themes the document),
     never as a picker; point size, line spacing, per-block font and the ruler stay
     refused, with the reason recorded rather than the absence left to look accidental.
+15. **The canvas never yields; chrome folds in a declared order** (2026-08-12) — the
+    workbench is a WIDTH LADDER with one declared home for its thresholds
+    (`WORKBENCH_*_PX` in `lib/shell/surface-preferences.ts`, beside the shell's own
+    `MOBILE_BREAKPOINT_PX`), read through `useWorkbenchWidth`
+    (`web/lib/authoring/workbench-width.ts`). Four rungs: `full` (three columns, full
+    labels) → `condensed` (three columns, glyph verbs) → `two-pane` (side pane becomes an
+    OVERLAY) → `single-pane` (one pane + the bottom tab bar). **The canvas is the artifact
+    and is the last thing to lose width**; everything around it is chrome, and chrome folds
+    first. The rule exists because the inverse shipped: the canvas was the sole `flex-1`
+    among `shrink-0` siblings, so it absorbed every deficit — measured on prod at 768px it
+    was 177px wide, and at 820px the toolbar row (which *cannot* scroll, its galleries
+    being `absolute top-full`) yielded to a 16px box while its content held 274px and
+    painted 260px over the Properties column. Two corollaries: **the workbench measures its
+    own CONTAINER, never the viewport** (a surface can be narrow inside a roomy window —
+    the reason `useNarrowContainer` was generalized out of the Studio in the first place),
+    and **no raw `md:`/`lg:` class may appear in the workbench** — a second spelling of a
+    threshold is how the shell and the surface came to disagree about what a tablet is.
+    Touch parity follows the pointer CAPABILITY (`useCoarsePointer`), not a width: 44px
+    targets under a coarse pointer, desktop density untouched. Gated by
+    `web/scripts/gates/authoring_width_ladder.mjs`, which executes the derivation at every
+    boundary rather than pinning a class string. **Docs and Studio are one component**
+    (`StudioSurface`, parameterized), so a rung lands on both by construction — branch on
+    `mode`, never on the app slug.
 
 ## Standing refusals
 

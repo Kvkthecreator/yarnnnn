@@ -26,11 +26,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, Plus, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, PanelRight, Plus, Upload } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { residentFor } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
+import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useDeclareFocus, type SurfaceFocus } from '@/lib/shell/useSurfaceFocus';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
@@ -2744,10 +2746,45 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [turnBlockInto, turnBlocksInto, rangeBlockIds, ctxMenu],
   );
 
-  // ADR-447: canvas view controls (view-only, never touch the file) + mobile
-  // pane switching (below md, one pane at a time: nav · canvas · chat).
+  // ADR-447: canvas view controls (view-only, never touch the file) + pane
+  // switching at the narrow rungs (one pane at a time: nav · canvas · chat).
   const [zoom, setZoom] = useState(1);
-  const [mobilePane, setMobilePane] = useState<'nav' | 'canvas' | 'chat'>('canvas');
+  const [activePane, setActivePane] = useState<'nav' | 'canvas' | 'chat'>('canvas');
+
+  // ── The collapse ladder (2026-08-12) ──────────────────────────────────────
+  // The workbench measures ITS OWN container, not the window: a surface can be
+  // narrow inside a roomy window (a 320px window on a 1440px monitor), and the
+  // shell's viewport-wide `isMobile` cannot see that. `useNarrowContainer` was
+  // generalized out of the Studio for this exact reason and never adopted back;
+  // `useWorkbenchWidth` closes that loop and holds the ONE spelling of the
+  // thresholds (lib/shell/surface-preferences.ts), which raw `md:` class strings
+  // had been silently disagreeing with — measured live: at 820px the toolbar
+  // painted 260px over the Properties column.
+  const workbenchRef = useRef<HTMLDivElement>(null);
+  const { threeColumn, sideIsOverlay, singlePane, fullLabels, measuredWidth } =
+    useWorkbenchWidth(workbenchRef);
+  // Touch parity: a coarse pointer gets 44px targets (Apple/Google floor) while
+  // desktop density is untouched. The CAPABILITY, not the width — a large tablet
+  // has no mouse; a narrow desktop window still does (useCoarsePointer's own
+  // distinction, which this surface previously ignored entirely).
+  const coarsePointer = useCoarsePointer();
+
+  // The side pane (Properties · Chat) as an OVERLAY at the two-pane rung: the
+  // member opens it deliberately and it closes on Escape, rather than
+  // permanently eating 368px the canvas needs. Never open at the wider rungs —
+  // there it is a real column and this state is inert.
+  const [sideOpen, setSideOpen] = useState(false);
+  useEffect(() => {
+    if (!sideIsOverlay) setSideOpen(false);
+  }, [sideIsOverlay]);
+  useEffect(() => {
+    if (!sideOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSideOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sideOpen]);
 
   // ADR-455: the navigator collapses (desktop) — a member reclaims the width
   // when the outline/strip isn't earning it. Session-local state.
@@ -2836,7 +2873,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       });
       setEditingBlockId(null);
       setScrollToSlide((s) => ({ index, nonce: (s?.nonce ?? 0) + 1 }));
-      setMobilePane('canvas'); // on mobile, jump to the canvas to see the slide
+      setActivePane('canvas'); // on mobile, jump to the canvas to see the slide
     },
     [template],
   );
@@ -2940,7 +2977,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       });
       setEditingBlockId(null);
       setScrollToBlock((s) => ({ blockId: node.blockId, nonce: (s?.nonce ?? 0) + 1 }));
-      setMobilePane('canvas');
+      setActivePane('canvas');
     },
     [],
   );
@@ -3116,33 +3153,54 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }
 
   // ── WORKBENCH ───────────────────────────────────────────────────────────
-  // Desktop (md+): three columns — NAVIGATOR (left) · CANVAS (center, with the
-  // Add/Arrange toolbar + zoom control over it) · bound CHAT LANE (right).
-  // Mobile (< md): canvas-primary — one pane at a time (nav · canvas · chat)
-  // switched by a bottom tab bar; the navigator and chat are drawers over the
-  // canvas-first surface (ADR-447 mobile). Freddie's rail is suppressed here.
-  const navActive = mobilePane === 'nav';
-  const canvasActive = mobilePane === 'canvas';
-  const chatActive = mobilePane === 'chat';
+  // Four rungs of one width ladder (AUTHORING.md rule 15), measured off THIS
+  // container rather than the window. Freddie's rail is suppressed here.
+  //
+  //   full        three columns — NAVIGATOR · CANVAS (toolbar + zoom) · SIDE
+  //   condensed   three columns, verbs collapse to glyphs
+  //   two-pane    canvas full-width; the SIDE pane becomes an overlay drawer
+  //   single-pane one pane at a time (nav · canvas · chat), bottom tab bar
+  //
+  // `activePane` names which pane the tab bar has raised. It is read ONLY at
+  // the single-pane rung — it was called `mobilePane`, a name that stopped
+  // being true once the ladder gained a rung between phone and desktop.
+  const navActive = activePane === 'nav';
+  const canvasActive = activePane === 'canvas';
+  const chatActive = activePane === 'chat';
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
-      <div className="flex min-h-0 flex-1">
-        {/* Left — the per-type navigator (drawer on mobile). The max-% caps
-            (here + the right column) are the anti-collapse guard: with a
-            fourth fixed-width sibling beside the workbench (e.g. the steward
-            rail when its ADR-454 chrome gate is on), fixed columns can exceed
-            the window and crush the flex-1 canvas to 0 — verified live at
-            ~960px. Percentages yield gracefully; wide screens are unchanged. */}
+    <div ref={workbenchRef} className="relative flex h-full min-h-0 flex-col">
+      {/* `relative` is LOAD-BEARING: the two-pane rung's side overlay + its
+          scrim are `absolute inset-y-0 right-0` and must resolve against THIS
+          row (the column band), not against a distant positioned ancestor. */}
+      <div className="relative flex min-h-0 flex-1">
+        {/* Left — the per-type navigator. A COLUMN at the three-column rungs; a
+            full-width pane at the single-pane rung; withdrawn entirely at the
+            two-pane rung, where the canvas needs the width more than the strip
+            does (the ladder's rule: the canvas never yields).
+
+            The strip's own width is member-set and persisted, but it is CLAMPED
+            against the measured container below so a wide saved strip can never
+            re-create the crush this ladder exists to prevent. */}
         {/* PAGED only: the navigator is container navigation (a slide strip),
             which only exists where the container IS the unit. A flow artifact's
             outline was a derived table of contents wearing a navigator's
             clothes — deleted with the mode split. */}
         {isPaged && (
           <div
-            className={`relative shrink-0 flex-col border-r border-border max-md:!w-full ${
-              navCollapsed ? 'md:hidden' : 'md:flex'
-            } ${navActive ? 'flex w-full' : 'hidden'}`}
-            style={{ width: navWidth }}
+            className={`relative shrink-0 flex-col border-r border-border ${
+              threeColumn && !navCollapsed ? 'flex' : 'hidden'
+            } ${singlePane && navActive ? '!flex w-full' : ''}`}
+            style={
+              singlePane && navActive
+                ? undefined
+                : // CLAMP the persisted strip against the room actually
+                  // measured: a member who dragged the strip to 520px on a wide
+                  // monitor must not carry that width into an 800px workbench,
+                  // where it would re-create the canvas crush through member
+                  // state rather than through the layout. A third of the
+                  // container is the ceiling; NAV_MIN keeps it usable.
+                  { width: Math.max(NAV_MIN, Math.min(navWidth, (measuredWidth ?? Infinity) / 3)) }
+            }
           >
             <PagedNavigator
               layout={template}
@@ -3159,18 +3217,28 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onDeletePages={deletePagesFromNavigator}
             />
             {/* The resize divider — drag to set the strip width (persisted). A
-                hair-wide hit target over the right border; md+ only (on mobile
-                the strip is a full-pane view, nothing to resize against). */}
-            <div
-              onPointerDown={startNavResize}
-              title="Drag to resize the slide strip"
-              className="absolute right-0 top-0 z-10 hidden h-full w-1.5 translate-x-1/2 cursor-col-resize hover:bg-indigo-400/40 md:block"
-            />
+                hair-wide hit target over the right border. Only where the strip
+                is a real COLUMN: at the single-pane rung it is a full-width pane
+                with nothing to resize against, and a coarse pointer cannot hit a
+                6px target anyway. */}
+            {threeColumn && !coarsePointer && (
+              <div
+                onPointerDown={startNavResize}
+                title="Drag to resize the slide strip"
+                className="absolute right-0 top-0 z-10 block h-full w-1.5 translate-x-1/2 cursor-col-resize hover:bg-indigo-400/40"
+              />
+            )}
           </div>
         )}
 
-        {/* Center — the toolbar + zoom over the canvas (renders, edits in place). */}
-        <div className={`min-w-0 flex-1 flex-col md:flex ${canvasActive ? 'flex' : 'hidden'}`}>
+        {/* Center — the toolbar + zoom over the canvas (renders, edits in place).
+            THE CANVAS NEVER YIELDS: at every rung above single-pane this column
+            is present and it is the last thing to lose width. */}
+        <div
+          className={`min-w-0 flex-1 flex-col ${
+            !singlePane || canvasActive ? 'flex' : 'hidden'
+          }`}
+        >
           <div className="flex items-center gap-1 border-b border-border">
             {/* The SELF-RENDERED locator (2026-07-14): the toolbar row carries
                 the crumb, so the OS surface bar suppresses (useSelfLocatedSurface
@@ -3186,20 +3254,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 control for a panel belongs on that panel's side, not in the
                 middle of the row. PAGED only — with no navigator in flow mode,
                 the toggle toggles nothing (ADR-455). */}
-            {isPaged && (
+            {isPaged && threeColumn && (
               <button
                 type="button"
                 onClick={toggleNav}
                 title={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
                 aria-label={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
-                className={`ml-2 hidden shrink-0 items-center gap-1 rounded p-1 text-[11px] transition-colors hover:bg-muted/40 md:inline-flex ${
-                  navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'
-                }`}
+                className={`ml-2 inline-flex shrink-0 items-center justify-center gap-1 rounded text-[11px] transition-colors hover:bg-muted/40 ${
+                  coarsePointer ? 'h-11 w-11' : 'p-1'
+                } ${navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'}`}
               >
                 <PanelLeft className="h-3.5 w-3.5" />
               </button>
             )}
-            <div className={`flex shrink-0 items-center gap-1 text-xs ${isPaged ? 'ml-1 md:ml-2' : 'ml-2'}`}>
+            <div className={`flex shrink-0 items-center gap-1 text-xs ${isPaged ? 'ml-1' : 'ml-2'}`}>
               <button
                 type="button"
                 onClick={() => setParam({ file: null })}
@@ -3296,6 +3364,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                     selection.slideIndex != null ||
                     selection.pageIndex != null)
                 }
+                compact={!fullLabels}
+                coarsePointer={coarsePointer}
               />
             </div>
             {/* Zoom — a VIEW control (doesn't touch the file). */}
@@ -3336,7 +3406,27 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               print={() => void exportPrint()}
               copyAiRef={copyAiReference}
               exportPng={app.slug === 'images' ? exportPng : undefined}
+              compact={!fullLabels}
+              coarsePointer={coarsePointer}
             />
+            {/* The side pane's DOOR at the two-pane rung. Without it the overlay
+                would have no opener and Properties/Chat would be unreachable —
+                a withdrawal that isn't reversible is worse than the crush it
+                replaced (the ADR-519 lesson: never ship an inescapable state). */}
+            {sideIsOverlay && (
+              <button
+                type="button"
+                onClick={() => setSideOpen((v) => !v)}
+                title="Properties and chat"
+                aria-label="Properties and chat"
+                aria-expanded={sideOpen}
+                className={`mr-1 inline-flex shrink-0 items-center justify-center rounded border border-border text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground ${
+                  coarsePointer ? 'h-11 w-11' : 'h-7 w-7'
+                }`}
+              >
+                <PanelRight className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           {opError && (
             <p className="border-b border-border bg-red-50 px-3 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
@@ -3560,10 +3650,30 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         </div>
 
         {/* Right — Chat | Design tabs (ADR-453 D4, the Canva model — never a
-            fourth column). Drawer on mobile. */}
+            fourth column).
+
+            Three postures, one mount (never a duplicated pane — Singular
+            Implementation): a real COLUMN at the three-column rungs; an OVERLAY
+            drawer at the two-pane rung, where 368px of permanent column is width
+            the canvas needs more (it slides over, dismisses on Escape or the
+            scrim, and leaves the artifact full-width underneath); a full-width
+            PANE at the single-pane rung, switched by the bottom tab bar. */}
+        {sideIsOverlay && sideOpen && (
+          <div
+            role="presentation"
+            onClick={() => setSideOpen(false)}
+            className="absolute inset-0 z-20 bg-black/20"
+          />
+        )}
         <div
-          className={`w-full shrink-0 flex-col border-l border-border md:flex md:w-[380px] md:max-w-[45%] ${
-            chatActive ? 'flex' : 'hidden'
+          className={`shrink-0 flex-col border-l border-border ${
+            threeColumn
+              ? 'flex w-[380px] max-w-[45%]'
+              : sideIsOverlay
+                ? `absolute inset-y-0 right-0 z-30 w-[min(380px,85%)] bg-background shadow-xl ${
+                    sideOpen ? 'flex' : 'hidden'
+                  }`
+                : `w-full ${chatActive ? 'flex' : 'hidden'}`
           }`}
         >
           <div className="flex shrink-0 border-b border-border">
@@ -3698,33 +3808,39 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         </div>
       </div>
 
-      {/* Mobile-only bottom tab bar (< md): one pane at a time.
+      {/* The single-pane rung's bottom tab bar: one pane at a time.
           ADR-542 D5 — flow ships NO nav tab: its pane content has been
           isPaged-unmounted since ADR-520/526 (the outline's home is the
           Design pane, ADR-526 D2's operator ruling), so the "Outline" label
-          was a dead doorway on Docs — a tab that opened onto nothing. */}
-      <nav className="flex shrink-0 border-t border-border md:hidden">
-        {([
-          ...(resolvedMode === 'paged'
-            ? ([['nav', template === 'deck' ? 'Slides' : 'Outline']] as const)
-            : []),
-          ['canvas', 'Canvas'],
-          ['chat', 'Chat'],
-        ] as ReadonlyArray<readonly [typeof mobilePane, string]>).map(([pane, label]) => (
-          <button
-            key={pane}
-            type="button"
-            onClick={() => setMobilePane(pane)}
-            className={`flex-1 py-2 text-xs font-medium transition-colors ${
-              mobilePane === pane
-                ? 'border-t-2 border-foreground text-foreground'
-                : 'border-t-2 border-transparent text-muted-foreground'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+          was a dead doorway on Docs — a tab that opened onto nothing.
+
+          `min-h-[44px]` is the touch floor (Apple/Google). It was 34px, one of
+          27 sub-44px controls measured on this surface — and this one is the
+          PRIMARY navigation on a phone, so it is the least affordable of them. */}
+      {singlePane && (
+        <nav className="flex shrink-0 border-t border-border">
+          {([
+            ...(resolvedMode === 'paged'
+              ? ([['nav', template === 'deck' ? 'Slides' : 'Outline']] as const)
+              : []),
+            ['canvas', 'Canvas'],
+            ['chat', 'Chat'],
+          ] as ReadonlyArray<readonly [typeof activePane, string]>).map(([pane, label]) => (
+            <button
+              key={pane}
+              type="button"
+              onClick={() => setActivePane(pane)}
+              className={`min-h-[44px] flex-1 py-2 text-xs font-medium transition-colors ${
+                activePane === pane
+                  ? 'border-t-2 border-foreground text-foreground'
+                  : 'border-t-2 border-transparent text-muted-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* ADR-458 D3: the organize dialogs (rename/move/trash confirmations)
           stay mounted — the entrances moved to the Design tab's File section;

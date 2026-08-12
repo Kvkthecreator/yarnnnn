@@ -230,6 +230,19 @@ interface StudioToolbarProps {
   /** Whether a page can be resolved from the selection — Layout disables
    *  (with a teaching title) when nothing anchors it. */
   hasPageAnchor: boolean;
+  /** COMPACT (2026-08-12): the verbs drop their text labels and keep their
+   *  glyphs, so the row fits its box instead of escaping it.
+   *
+   *  This row cannot become a scroll container — the galleries below are
+   *  `absolute top-full` and a scroll container's clipping context would cut
+   *  them off (see the root's note). With overflow necessarily visible, the row
+   *  had nowhere to put the excess and painted its buttons over the next column
+   *  — measured at 820px: content needed 274px in a 16px box, 260px of
+   *  overpaint. So the fix is to NEED less width, never to scroll. */
+  compact?: boolean;
+  /** Touch parity: 44px targets under a coarse pointer (the Apple/Google floor)
+   *  while desktop keeps its density. The capability, not the width. */
+  coarsePointer?: boolean;
 }
 
 export function StudioToolbar({
@@ -244,6 +257,8 @@ export function StudioToolbar({
   groupCount,
   currentArrange,
   hasPageAnchor,
+  compact = false,
+  coarsePointer = false,
 }: StudioToolbarProps) {
   // ADR-506 D2: the AFFIRMATIVE test (the ADR-482 D3 idiom). An unresolved mode
   // renders no page-grain chrome rather than guessing `flow` — `mode === 'paged'`
@@ -300,7 +315,9 @@ export function StudioToolbar({
   // — "New / — / slide" stacked three lines tall, buckling the row. A control's
   // label is its meaning: it never wraps. The row scrolls instead (see the root).
   const btn =
-    'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40';
+    'inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-border text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40 ' +
+    (coarsePointer ? 'min-h-[44px] ' : '') +
+    (compact ? (coarsePointer ? 'w-11 px-0' : 'h-7 w-8 px-0') : 'px-2 py-1');
   // Anchored to the TRIGGER CLUSTER (menuRef), not the row: `left-2` against a
   // flex-1 row put both panels at the row's left edge regardless of which button
   // opened them. `z-30` matches the sibling Studio popovers (StudioNewMenu,
@@ -311,10 +328,20 @@ export function StudioToolbar({
   return (
     // NOTE: this row must NOT become a scroll container (`overflow-x-auto`) —
     // the dropdown panels are positioned `absolute top-full`, so any overflow
-    // clipping would cut them off below the row. `min-w-0` lets the row yield
-    // width to its shrink-0 neighbours (the zoom cluster) instead of painting
-    // over them — it was the deleted selection chip that used to be the elastic
-    // element, and without a replacement the buttons overflowed onto the zoom.
+    // clipping would cut them off below the row.
+    //
+    // That constraint is real, and until 2026-08-12 it was ALSO the bug: with
+    // overflow necessarily visible, `min-w-0` let the row yield to nothing while
+    // its contents kept their intrinsic width, so the buttons rendered OUTSIDE
+    // the box and painted over the next column (measured at 820px: clientW 16,
+    // scrollW 274, 260px of overpaint onto Properties). The comment described
+    // the tradeoff without preventing it.
+    //
+    // The fix is upstream of this row: `compact` makes the cluster NEED less
+    // width (glyph-only verbs) at the ladder's narrow rungs, so it never has
+    // excess to place. `min-w-0` stays — it is still what lets the row yield
+    // gracefully to the zoom cluster — but it can no longer yield below what the
+    // content occupies, because the content shrinks first.
     <div ref={rootRef} className="relative flex min-w-0 items-center gap-1 border-b border-border px-2 py-1.5">
       <div ref={menuRef} className="relative flex min-w-0 items-center gap-1">
       {/* "Media ▾" is DELETED (ADR-466 D4) — its kinds live in the located
@@ -328,8 +355,20 @@ export function StudioToolbar({
           `/` at the caret, and the gutter that used to offer a third route is
           deleted. */}
       {isPaged && arrangements.length > 0 && (
-        <button type="button" className={btn} onClick={() => setOpen(open === 'new' ? null : 'new')}>
-          <LayoutGrid className="h-3 w-3" /> New {pageNoun} <Plus className="h-3 w-3" />
+        <button
+          type="button"
+          className={btn}
+          title={compact ? `New ${pageNoun}` : undefined}
+          aria-label={compact ? `New ${pageNoun}` : undefined}
+          onClick={() => setOpen(open === 'new' ? null : 'new')}
+        >
+          <LayoutGrid className="h-3 w-3" />
+          {!compact && (
+            <>
+              {' '}
+              New {pageNoun} <Plus className="h-3 w-3" />
+            </>
+          )}
         </button>
       )}
       {/* Re-arrange — re-lay the CURRENT page (ADR-466 D5): the PowerPoint
@@ -347,15 +386,18 @@ export function StudioToolbar({
               ? `Change this ${pageNoun}'s layout`
               : `Select a ${pageNoun} first — click it on the canvas or in the strip`
           }
+          aria-label={compact ? 'Re-arrange' : undefined}
           onClick={() => setOpen(open === 'layout' ? null : 'layout')}
         >
-          <LayoutTemplate className="h-3 w-3" />
           {/* ADR-524 D4: the page has ALREADY re-arranged mechanically by the
               time this shows — the judgment is refining that placement, not
               producing the first one. "Refining…" says which of the two the
               member is looking at; "Re-arranging…" would imply nothing had
-              happened yet, which is now false. */}
-          {planning ? 'Refining…' : 'Re-arrange'}
+              happened yet, which is now false.
+              Compact keeps the SPINNING state legible without the word: the
+              glyph pulses, so "it is thinking" survives the label collapse. */}
+          <LayoutTemplate className={`h-3 w-3 ${compact && planning ? 'animate-pulse' : ''}`} />
+          {!compact && (planning ? 'Refining…' : 'Re-arrange')}
         </button>
       )}
 
@@ -504,8 +546,14 @@ export function StudioToolbar({
             ? 'Insert a block — into the selected slot, or this page'
             : 'Insert a block — the same palette / opens at the caret'
         }
+        aria-label={compact ? 'Insert' : undefined}
       >
-        <Plus className="h-3 w-3" /> Insert
+        <Plus className="h-3 w-3" />
+        {/* Insert keeps its label LONGEST if a future rung ever collapses these
+            one at a time: it is the block-grain verb, present in every mode,
+            while New/Re-arrange are page-grain and paged-only. Today the whole
+            cluster collapses together at one rung. */}
+        {!compact && ' Insert'}
       </button>
 
       </div>

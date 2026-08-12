@@ -70,6 +70,18 @@ its prompt profile (ADR-186) — one gesture (`foregroundSurface`) both raises
 the window and scopes the conversation. Chrome that frames content sits beside
 it; it does not cover it.
 
+> **The shell's 640px is the SHELL's threshold, not every surface's.** A surface
+> may declare its own width ladder when its internal layout needs more room than
+> the window does — the authoring workbench does (`WORKBENCH_*_PX`, four rungs;
+> see AUTHORING.md rule 15). Those thresholds live in the same file as
+> `MOBILE_BREAKPOINT_PX` **deliberately**: they were previously spelled as raw
+> `md:` classes inside the surface, which is how the shell and the workbench came
+> to disagree about what a tablet is and left a band where three desktop columns
+> rendered with no room for them. A surface-specific ladder is legitimate; a
+> second *undeclared* spelling of one is the drift. Surfaces measure their own
+> container (`useNarrowContainer` / `useWorkbenchWidth`), because a surface can be
+> narrow inside a roomy window.
+
 **Two layout modes — the operator picks the spatial paradigm (ADR-358).** The
 shell's arrangement is an operator preference (`layoutMode ∈ {canvas, desktop}`
 in `ShellChromeContext`, persisted, default **canvas**), chosen at the UserMenu.

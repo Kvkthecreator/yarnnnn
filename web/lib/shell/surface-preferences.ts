@@ -93,6 +93,38 @@ export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
 export const MAX_OPEN_WINDOWS = 8;
 // D15 — mobile breakpoint below which we collapse to single-window UX.
 export const MOBILE_BREAKPOINT_PX = 640;
+
+// ── The authoring workbench's width ladder ────────────────────────────────
+//
+// One declared home for "how wide is wide", because two of them disagreed.
+// The shell collapsed to single-window at MOBILE_BREAKPOINT_PX (640) while the
+// authoring surface switched panes at Tailwind's raw `md:` (768) written into
+// class strings. Neither number is wrong alone; having both, unreconciled, left
+// a band where the surface rendered three desktop columns with nowhere near the
+// room for them — measured on prod at 820px: the toolbar row yielded to 16px
+// while its contents needed 274, and (being `overflow: visible`) painted its
+// buttons 260px over the Properties column.
+//
+// The ladder's ordering principle: THE CANVAS NEVER YIELDS. It is the artifact;
+// everything else is chrome around it. The defect was that the canvas was the
+// only thing that yielded, being the sole `flex-1` among `shrink-0` siblings.
+//
+// These are the WORKBENCH's thresholds, deliberately distinct from the shell's
+// single-window collapse: a surface can be narrow inside a roomy window (a
+// 320px window on a 1440px monitor), which is why the panes measure their own
+// CONTAINER via `useNarrowContainer` rather than asking the viewport. Read them
+// through `lib/authoring/workbench-width.ts`, never re-spelled as `md:`/`lg:`.
+
+/** Below this, one pane at a time + the bottom tab bar (phone). */
+export const WORKBENCH_SINGLE_PANE_PX = 768;
+/** Below this, the side column is an overlay drawer, not a third column
+ *  (tablet). Measured minimum for three real columns is ~1008px: slide strip
+ *  (~225) + toolbar content (274) + boundary cluster (141) + side pane (368). */
+export const WORKBENCH_THREE_COLUMN_PX = 1024;
+/** Below this, toolbar verbs collapse to icons and the boundary acts (Share ·
+ *  Export) fold into one overflow menu, so the row never needs to exceed its
+ *  box. Above it, every verb wears its full label. */
+export const WORKBENCH_FULL_LABELS_PX = 1280;
 // D15 — minimum window dimensions (clamped during resize).
 export const WINDOW_MIN_WIDTH = 320;
 export const WINDOW_MIN_HEIGHT = 240;

@@ -46,9 +46,25 @@ interface StudioShareExportProps {
   /** ADR-475 §13 — the IMAGES app's raster projection. Undefined for Studio,
    *  whose boundary projection is Print/PDF. */
   exportPng?: () => Promise<void>;
+  /** COMPACT (2026-08-12) — the boundary acts drop their text labels and keep
+   *  their glyphs at the ladder's narrow rungs. Same grammar and same reason as
+   *  StudioToolbar's `compact`: the header row cannot scroll (its panels are
+   *  `absolute top-full`), so the cluster must NEED less width rather than be
+   *  given somewhere to overflow. These two verbs are document-grain and
+   *  infrequent, so they are the first labels the row can afford to lose. */
+  compact?: boolean;
+  /** Touch parity — 44px targets under a coarse pointer. */
+  coarsePointer?: boolean;
 }
 
-export function StudioShareExport({ share, print, copyAiRef, exportPng }: StudioShareExportProps) {
+export function StudioShareExport({
+  share,
+  print,
+  copyAiRef,
+  exportPng,
+  compact = false,
+  coarsePointer = false,
+}: StudioShareExportProps) {
   // Only Export has a panel now — Share is a dialog trigger (ADR-529 D1).
   const [open, setOpen] = useState<null | 'export'>(null);
   // The trigger cluster (buttons + panels) — the click-away boundary, same
@@ -112,7 +128,9 @@ export function StudioShareExport({ share, print, copyAiRef, exportPng }: Studio
   // StudioToolbar's btn/panel grammar; panels anchor RIGHT (the cluster sits
   // at the row's right edge — a left-anchored panel would overflow the window).
   const btn =
-    'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40';
+    'inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-border text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-40 ' +
+    (coarsePointer ? 'min-h-[44px] ' : '') +
+    (compact ? (coarsePointer ? 'w-11 px-0' : 'h-7 w-8 px-0') : 'px-2 py-1');
   const panel =
     'absolute right-0 top-full z-30 mt-1 w-72 rounded-md border border-border bg-background p-2 shadow-md';
   const act =
@@ -128,16 +146,20 @@ export function StudioShareExport({ share, print, copyAiRef, exportPng }: Studio
         className={btn}
         onClick={() => { setOpen(null); share(); }}
         title="Share this artifact — choose who can reach it, and get a link"
+        aria-label={compact ? 'Share…' : undefined}
       >
-        <Share2 className="h-3 w-3" /> Share…
+        <Share2 className="h-3 w-3" />
+        {!compact && ' Share…'}
       </button>
       <button
         type="button"
         className={btn}
         onClick={() => setOpen(open === 'export' ? null : 'export')}
         title="Export this artifact — print, PDF, AI reference"
+        aria-label={compact ? 'Export' : undefined}
       >
-        <FileOutput className="h-3 w-3" /> Export
+        <FileOutput className="h-3 w-3" />
+        {!compact && ' Export'}
       </button>
 
       {/* Export (ADR-466 D6) — the boundary projections: Print/PDF over the
