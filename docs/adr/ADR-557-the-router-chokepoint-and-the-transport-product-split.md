@@ -76,6 +76,41 @@ ADR-556's D3 removal of the IMAGES engine passthrough **stands, with a corrected
 - **ADR-486 (radar)** stubbed `route_completion` but never set the flag, so it was implicitly testing radar's *unguarded* path. It now declares the transport it pretends to have.
 - **ADR-439** asserted guard-ordering by pinning the literal `model_router_enabled`, going red on the D2 rename — a rename, not a violation. My first repair over-corrected to the bare module import and swept in an unrelated `ledger_model_name` import, staying red for a *different* reason. Fixed by matching the import that brings in the **call**. Re-falsified: it still catches a genuinely mis-ordered guard. (`feedback_never_pin_a_spelling_assert_behaviour`, twice in one change.)
 
+## 5b. Live verification (2026-08-12) — `api/probe_router_transport.py`
+
+Everything above is stub-verified; the gates prove SHAPE against fakes. The
+operator asked for real API tests before Phase 2. The Hat-B probe drives live
+providers with criteria declared before the run. **31 pass · 0 fail.**
+
+| Verified | Result |
+|---|---|
+| **C1** flag-off refusal | both entry points refuse in **0.0ms** — no network, guard runs before the request |
+| **C2** transport | **6 of 7** lane models return real text (deepseek INFO: upstream account "Insufficient Balance") |
+| **C3** ledger shape | every model returns the Anthropic-native EXCLUSIVE token shape, ints ≥ 0, `output_tokens > 0` |
+| **C4** pricing | every answering model priced > 0 by `compute_cost_usd_inclusive`; **rate mirror within 1%** of LiteLLM's independent figure (x0.91–x1.00) |
+| **C5** streaming | deltas + one terminal completion, usage identical to non-streamed |
+| **C6** headroom | reasoning models still speak at the real 4096 lane budget |
+
+**The finding the probe produced — reasoning models spend `max_tokens` on hidden
+reasoning before emitting text.** The first cut used `max_tokens=10` and
+reported gpt-5, gemini-2.5-flash and gemini-2.5-pro as FAILING with empty text.
+They were not failing: gpt-5 returned `finish_reason: length`, `content: ''`,
+`reasoning_tokens=10` — the entire budget consumed thinking, none left to speak
+with. **A budget too small does not error; it returns an empty reply**, which
+every caller reads as "the model had nothing to say".
+
+Measured at the real lane budget (4096), the headroom holds but is not generous:
+gpt-5 spends **2560 tokens (63%)** reasoning before answering, gemini-2.5-pro
+1726, gemini-2.5-flash 1450. Recorded in the probe as
+`OBSERVED_REASONING_AT_4096` so any future budget change is argued against
+evidence. **A session that lowers `_LANE_MAX_TOKENS` must re-run C6** — the
+failure mode is silent.
+
+**Not verified here**: production env parity. The probe runs on local keys;
+whether `GEMINI_API_KEY` / `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` are on **both**
+Render API and Scheduler is still a dashboard check, and deepseek additionally
+needs its upstream account funded before that lane can be offered.
+
 ## 6. Consequences
 
 **Good.** A flag that could be forgotten becomes one that cannot. Lanes can now ship (or stay dark) without moving four machinery paths. Radar degrades honestly and says why. The app/machinery/open-surface trichotomy is stated, so Phase 2 can be argued in the right vocabulary.
