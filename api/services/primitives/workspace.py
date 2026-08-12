@@ -1539,7 +1539,86 @@ async def handle_move_file(auth: Any, input: dict) -> dict:
         message=f"MoveFile: to {abs_dst} — {base_message}",
     )
 
-    return {"success": True, "scope": scope, "path": abs_src, "new_path": abs_dst}
+    # Step 3 — the derived text projection travels WITH its raw (ADR-550 D1).
+    #
+    # An upload writes two rows: the raw, and a co-located `.extracted.md`
+    # projection citing it. Moving one row left the projection behind in
+    # `inbound/uploads/`, still hidden, still citing a path with no live file —
+    # so the file's searchable text silently detached from the file, in the
+    # workflow the system tells members to use (upload, then move).
+    #
+    # This is the ONE seam every mover goes through (the route, the tree drag,
+    # an agent's MoveFile), so the sibling cannot be forgotten by a caller.
+    moved_projection = _move_projection_sibling(
+        auth, abs_src, abs_dst, resolved_author, base_message
+    )
+
+    out = {"success": True, "scope": scope, "path": abs_src, "new_path": abs_dst}
+    if moved_projection:
+        out["projection_moved_to"] = moved_projection
+    return out
+
+
+def _move_projection_sibling(
+    auth: Any, abs_src: str, abs_dst: str, author: str, base_message: str
+) -> Optional[str]:
+    """Carry an upload's `.extracted.md` projection along with its raw.
+
+    Returns the projection's new path, or None when there is nothing to carry
+    (the overwhelmingly common case — one indexed read).
+
+    The projection's `derived_from` is rewritten to the raw's NEW path in the
+    same act: a citation that survives the move is the whole point, and leaving
+    it stale would trade an invisible orphan for a visible liar.
+    """
+    import re
+
+    from services.authored_substrate import delete_live_file, write_revision
+    from services.documents import upload_projection_path
+
+    src_proj = upload_projection_path(abs_src)
+    if src_proj == abs_src:
+        return None  # not a raw with a projection shape
+    dst_proj = upload_projection_path(abs_dst)
+
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path, content")
+        .eq(*_scope_filter(auth))
+        .in_("path", [src_proj, dst_proj])
+        .execute()
+    ).data or []
+    by_path = {r["path"]: r for r in rows}
+    if src_proj not in by_path or dst_proj in by_path:
+        return None  # nothing to carry, or the destination is already taken
+
+    content = by_path[src_proj].get("content") or ""
+    # Re-point the citation at the raw's new home. Head-anchored, matching the
+    # `derived_from:` frontmatter convention the write door already parses.
+    content = re.sub(
+        r"^(\s*derived_from:\s*).*$",
+        lambda m: f"{m.group(1)}{abs_dst}",
+        content,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    write_revision(
+        auth.client,
+        user_id=auth.user_id,
+        path=dst_proj,
+        content=content,
+        authored_by=author,
+        message=f"MoveFile: projection follows {abs_dst} — {base_message}",
+        summary=f"Moved from {src_proj}",
+    )
+    delete_live_file(
+        auth.client,
+        user_id=auth.user_id,
+        path=src_proj,
+        authored_by=author,
+        message=f"MoveFile: projection followed to {dst_proj} — {base_message}",
+    )
+    return dst_proj
 
 
 async def handle_search_files(auth: Any, input: dict) -> dict:

@@ -617,7 +617,13 @@ async def get_workspace_tree(
         # inbound/uploads/**.extracted.md is hidden; a pure-text upload (no raw
         # container, no projection) and any user `.md` show normally.
         from services.documents import is_upload_projection
-        rows = [r for r in rows if not is_upload_projection(r.get("path", ""))]
+        # ADR-550 D2: the edge, not the lane. `rows` already holds the sibling
+        # raws, so the pair is answerable without fetching a single body.
+        _sibs = [r.get("path", "") for r in rows]
+        rows = [
+            r for r in rows
+            if not is_upload_projection(r.get("path", ""), siblings=_sibs)
+        ]
 
         # Normalize: lift authored_by + revision created_at from nested embed.
         # PostgREST returns the embed as a dict (single FK row) or None.
@@ -2060,6 +2066,8 @@ async def get_recent_revisions(
         # operator doesn't) — keep it out of Recents too, so a raw + `.extracted.md`
         # pair never shows as two recent changes.
         from services.documents import is_upload_projection
+        # ADR-550 D2 — the sibling set for the edge test (see the tree listing).
+        _recent_paths = [r.get("path") or "" for r in (result.data or [])]
         latest_by_path: dict[str, dict] = {}
         for row in result.data or []:
             path = row.get("path") or ""
@@ -2067,7 +2075,7 @@ async def get_recent_revisions(
                 continue
             if not _is_authored_substrate_path(path):
                 continue
-            if is_upload_projection(path):
+            if is_upload_projection(path, siblings=_recent_paths):
                 continue
             latest_by_path[path] = row
 

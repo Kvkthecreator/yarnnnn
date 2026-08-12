@@ -389,8 +389,10 @@ async def list_documents(
     for row in (result.data or []):
         path = row["path"]
         # Skip the derived text projection — it's the derivation, not the upload
-        # (shared predicate, ADR-395: narrow to inbound/uploads/**.extracted.md).
-        if is_upload_projection(path):
+        # (shared predicate, ADR-395; ADR-550 D2 re-anchored it to the derive
+        # EDGE so a projection that followed its raw out of the lane stays
+        # hidden). This query selects `content`, so it answers by citation.
+        if is_upload_projection(path, content=row.get("content")):
             continue
         raw = row.get("content", "") or ""
         # Filename from the path leaf (raw lane preserves the real name+ext);

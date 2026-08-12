@@ -15,7 +15,7 @@ Ephemeral chat attachments are handled separately via POST /api/chat/attach
 import io
 import re
 import logging
-from typing import Optional
+from typing import Iterable, Optional
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -391,25 +391,78 @@ def upload_projection_path(raw_path: str) -> str:
     return f"{base}.extracted.md"
 
 
-def is_upload_projection(path: str) -> bool:
+def is_upload_projection(
+    path: str,
+    content: Optional[str] = None,
+    siblings: Optional[Iterable[str]] = None,
+) -> bool:
     """True iff `path` is an upload's DERIVED text projection (ADR-395 Piece B).
 
     The projection is plumbing — a searchable text derivation of a raw upload,
     consumed by recall/QueryKnowledge, NOT a user file. The Files surface hides
     it so the operator sees ONE file (their PDF), not a confusing raw+extracted
-    pair. The predicate is intentionally NARROW + SYMMETRIC: it matches ONLY the
-    co-located projection under the upload raw lane —
+    pair.
 
-        inbound/uploads/{principal}/{slug}.extracted.md
+    ── The anchor moved from the LANE to the EDGE (ADR-550 D2, 2026-08-12) ────
+    This used to require the `inbound/uploads/` prefix AND the `.extracted.md`
+    suffix. That was deliberate — anchoring on the suffix ALONE would hide a
+    member's own `notes.extracted.md` anywhere in the workspace, which the rule
+    must never do.
 
-    so a user's own prose `.md` (under uploads/, operation/, anywhere) is NEVER
-    hidden, and a PURE-TEXT upload — which has no separate raw container and
-    produces no projection to hide — shows normally. Anchoring on BOTH the
-    `.extracted.md` suffix AND the `inbound/uploads/` lane (not the suffix alone)
-    is what makes the rule seamless + reversible: remove the derive and nothing
-    is hidden; the raw is always visible either way.
+    But the lane anchor broke the moment the raw MOVED. Uploads are organizable
+    (ADR-422 D2 carves `inbound/uploads/` back out of intake immutability), and
+    the blessed workflow is upload-then-move; once the projection followed its
+    raw into a meaning folder (D1), a lane-anchored rule stopped hiding it and
+    the member saw the raw+extracted pair the rule exists to prevent.
+
+    The edge is the honest anchor: a projection is plumbing because it is
+    DERIVED FROM a sibling raw, not because of where it happens to sit. The
+    narrowness the lane gave us is preserved and improved — a member's own
+    `notes.extracted.md` is unhidden because it cites nothing, rather than
+    because of its address.
+
+    Outside the lane the edge is read from whichever evidence the caller HAS,
+    and the two forms are equivalent for a real projection:
+
+    * `siblings` — the paths the caller already listed. A projection's raw is
+      its co-located twin (`x.pdf` ↔ `x.extracted.md`), so a caller that is
+      enumerating a folder can answer without fetching a single body. This is
+      the cheap form, and the one the tree + recents use: their queries hold
+      the sibling rows already.
+    * `content` — the file's own `derived_from:` frontmatter, for a caller
+      that has the body but not the neighbourhood (the uploads listing).
+
+    Both default to None so every existing caller keeps working; with neither,
+    the lane rule still answers (the pre-move case, unchanged).
     """
     norm = path.lstrip("/")
     if norm.startswith("workspace/"):
         norm = norm[len("workspace/"):]
-    return norm.startswith("inbound/uploads/") and norm.endswith(".extracted.md")
+    if not norm.endswith(".extracted.md"):
+        return False
+    if norm.startswith("inbound/uploads/"):
+        return True  # the pre-move case — the lane still answers on its own
+
+    stem = f"/workspace/{norm[: -len('.extracted.md')]}"
+    # A sibling raw in the caller's own listing: `x.<ext>` beside `x.extracted.md`.
+    # `.md` is excluded so a member's `notes.md` never turns `notes.extracted.md`
+    # into plumbing — a projection's raw is a non-text upload by construction
+    # (a pure-text upload produces no projection at all).
+    if siblings:
+        for other in siblings:
+            o = other if other.startswith("/") else f"/workspace/{other.lstrip('/')}"
+            if o == f"{stem}.extracted.md" or "." not in o.rsplit("/", 1)[-1]:
+                continue
+            if o.rsplit(".", 1)[0] == stem and not o.endswith(".md"):
+                return True
+    if content is not None:
+        # Requiring the SIBLING relationship — not merely any citation — is what
+        # keeps a member's own derived prose visible.
+        from services.authored_substrate import extract_derived_from_list
+
+        return any(
+            cite.rsplit(".", 1)[0] == stem
+            for cite in extract_derived_from_list(content)
+            if cite
+        )
+    return False
