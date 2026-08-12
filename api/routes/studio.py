@@ -656,12 +656,17 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
     revision. CAS-guarded (ADR-406): a stale base 409s with the intervening
     attribution instead of silently clobbering a lane write."""
     from services.authored_substrate import StaleWriteError, write_revision
-    from services.authoring import STUDIO_ARTIFACT_REGION
+    from services.workspace_paths import operator_can_organize
 
     raw = (req.path or "").strip()
     path = raw if raw.startswith("/") else f"/workspace/{raw}"
-    if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
-        raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
+    # ONE placement law (ADR-555 D2): the same predicate create_artifact,
+    # create_folder and upload_documents ask. The old STUDIO_ARTIFACT_REGION
+    # prefix fence outlived the create door's relaxation (ADR-549 D3 made the
+    # region a DEFAULT, not a gate) — leaving a split-brain where a document
+    # created beside its source accepted typing and 403'd every save.
+    if not path.endswith(".html") or ".." in path or not operator_can_organize(path):
+        raise HTTPException(status_code=403, detail=f"Not a writable artifact path: {path}")
     if not (req.content or "").strip():
         raise HTTPException(status_code=422, detail="content required")
 

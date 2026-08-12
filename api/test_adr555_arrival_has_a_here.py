@@ -114,6 +114,22 @@ def main() -> int:
         "D2 [FALSIFIER]: …and no longer fences creation to the region",
         "not path.startswith(STUDIO_ARTIFACT_REGION)" not in create_body,
     )
+    # The WRITE door asks the same law. Found 2026-08-12: create was relaxed
+    # (region = default, ADR-549 D3) while write kept the prefix fence — so a
+    # doc created beside its source accepted typing and 403'd every save.
+    # The F1 shape one seam over: two doors, one placement question, two answers.
+    write = re.search(
+        r"async def write_artifact\([\s\S]*?(?=\n@router|\Z)", studio_route
+    )
+    write_body = write.group(0) if write else ""
+    _check(
+        "D2 [FALSIFIER]: write_artifact asks the organize predicate",
+        "operator_can_organize(" in write_body,
+    )
+    _check(
+        "D2 [FALSIFIER]: …and no longer fences saves to the region",
+        "not path.startswith(STUDIO_ARTIFACT_REGION)" not in write_body,
+    )
     # Executed: the law itself, over the folders a member can reach.
     FOLDERS = [
         ("/workspace/operation/fundraising", True),
