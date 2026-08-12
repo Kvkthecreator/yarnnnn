@@ -1,5 +1,9 @@
 # ADR-443 — The Studio axiomatic model: blocks, layouts, and the seven operations
 
+> **R1 retired for the flow medium by [ADR-560](ADR-560-the-document-model-flow-editing-leaves-the-dom.md) (2026-08-12).**
+> On flow the document model (ProseMirror) is the source of truth and the DOM is a view;
+> blocks remain the units and the substrate dialect is unchanged. R1 stands on paged.
+
 > **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the model now governs THREE authoring apps over one grammar — Docs (document) joined Studio (deck · web) and IMAGES (image). R4's "one vocabulary, one home" stands: the home is the kernel module (`services/studio.py`), which every app's table registers into. R5's scope guard reads per app: each authoring app authors artifacts of its own registered types; format-agnosticism still never means editing viewer types. The seven operations stay closed.
 
 > **Amended by [ADR-511](ADR-511-the-conventional-substrate.md)** (2026-08-01): D4's

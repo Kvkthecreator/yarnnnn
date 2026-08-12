@@ -1,5 +1,12 @@
 # ADR-547: The flow write grain — a commit reports TYPING, not everything
 
+> **Completed by construction, and its mechanism superseded, by
+> [ADR-560](ADR-560-the-document-model-flow-editing-leaves-the-dom.md) (2026-08-12).** With one
+> writer there is no granularity mismatch for a commit to lie about: the per-op declared
+> grain becomes ONE flush chokepoint in `applyOp`, and D3's guard property is re-homed into
+> the schema (preservation island — nothing the model does not understand can be dropped).
+> The law's three claims are gated in structural form (`adr547_flow_write_grain.mjs`).
+
 > **Status**: **Proposed** (2026-08-10) — found by driving a real document on prod
 > during the ADR-546 click-pass. Two prior framings were **tested and refuted**
 > before this one (§2), which is the reason this is a law and not a fourth patch.

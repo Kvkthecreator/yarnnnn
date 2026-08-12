@@ -1,5 +1,10 @@
 # ADR-524: The canvas is patched, not rebuilt — and a judgment shows its work early
 
+> **D6's no-dependency refusal superseded, and the flow consumer removed, by
+> [ADR-560](ADR-560-the-document-model-flow-editing-leaves-the-dom.md) (2026-08-12)** — with the
+> measurement D6 implicitly asked for (§2.2 there). The patch channel itself stands, as the
+> PAGED render path; flow no longer renders in the iframe while editing.
+
 > **Status**: **Accepted + Implemented** (2026-08-06). Derived from an operator report of the symptom,
 > not of a cause: *"whenever I request a slide re-arrange, or make slight changes in the
 > details of a slide or doc, it seems to create either refresh or lag."* The audit found

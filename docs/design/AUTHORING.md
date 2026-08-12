@@ -302,50 +302,40 @@ The feel contract: **pixels never wait for the network** (optimistic override, A
 P8) · a member's own write never reloads the canvas · a 409 is courteous (refetch,
 recompute on top, retry once — ADR-466 D7) · every op is byte-identical-no-op safe.
 Direct editing maps to the SOURCE, never the projection; the revision is the atom — no
-keystroke CRDT (ADR-406). Editing grain per medium (ADR-480): on `paged` the block is an
-ENCLOSURE (runtime owns the caret); on `flow` the block is an ANNOTATION
-(`contenteditable` on the root; the browser owns selection/undo/⌘F; ids reconstructed at
-the write seam, not enforced).
+keystroke CRDT (ADR-406). Editing grain per medium (ADR-480, amended by ADR-560): on
+`paged` the block is an ENCLOSURE (the iframe runtime owns the caret); on `flow` the
+document is a MODEL (a parent-mounted ProseMirror editor — `FlowEditor` over
+`lib/authoring/flow/`); the DOM is its view, the browser keeps native typing/IME/a11y
+inside the editable, and identity is named in the model as blocks are made.
 
-**A FLOW COMMIT REPORTS TYPING, NOT EVERYTHING** (ADR-547, normative — amends
-ADR-480's write half; its read half stands). On a continuous surface two parties write
-one document: the iframe (whose only granularity is the whole `<main>`) and the parent
-(which computes ops). The iframe is a competent witness to exactly one thing — what the
-**browser** originated (typing, native splits/merges, paste, `execCommand`) — so that is
-all a whole-body commit may claim. **Three consequences, and the third is why this is a
-law rather than a fourth patch:**
-1. **An op DECLARES the blocks it touched** and reaches the live document through the
-   ADR-524 patch channel (one block or N — a span op touches many). An op that declares
-   nothing is a *restructuring* op: it re-projects, so the iframe cannot be holding a
-   stale body.
-2. **A commit never REMOVES an annotation it cannot have authored** — `data-block`,
-   `data-block-id`, `data-ref`, or any served block token, on a block that SURVIVES into
-   the incoming body. Removal-only and annotation-only: typing is always free to add, and
-   `class`/`style` belong to the browser. This **generalizes** the annihilation guard from
-   its one amplitude (all blocks gone) to the property it was always protecting; the
-   zero-blocks refusal is retained as the extreme case.
-3. **Durability is untouched** — one attributed CAS revision per op through the one door.
+**ONE WRITER ON FLOW — the model is the document between keystrokes** (ADR-560,
+normative — supersedes ADR-547's discipline and ADR-540's fence by deleting the class
+they defended against). The flow editing state is a typed transactional model; the only
+flow commit is the model's canonical serialization, spliced into the artifact's region
+and landed as one attributed CAS revision through the one door. Four consequences:
 
-The defect that forced it, measured on prod: a token op wrote `data-indent="2"` and the
-member's next keystroke committed a body without it. **Two writes, both HTTP 200, CAS
-satisfied** (the second's base *was* the first's result, so there was no 409 to raise),
-ADR-540's `flowDead` fence correctly fired, and `readSourceInner` serialized honestly.
-Nothing was stale — which is why no fence, version check or lock could see it, and why a
-**checkout/locking framing was tested and refused** (ADR-547 §2.2): the losing writer was
-not out of date, it was *uninformed*. Every op on flow reverted this way (Turn into, the
-pane's INDENT, ADR-546 D4's Tab rung); **typing survived precisely because typing is the
-one mutation the iframe DOM originates.**
+1. **An op cannot be reverted by a later keystroke, by construction.** `applyOp`
+   FLUSHES the model before computing (one chokepoint — the successor of ADR-547's
+   per-op declare-your-blocks discipline), and the editor re-parses the op's result
+   synchronously, caret preserved by block identity. There is no async iframe wall for
+   a stale snapshot to hide behind, and no teardown gasp to fence (ADR-540's
+   `flowDead`/retire channel is deleted with the lane).
+2. **A commit never removes an annotation it cannot have authored — structurally.**
+   The schema PRESERVES what it does not understand: unknown kinds and citation islands
+   round-trip verbatim (the preservation island), unknown inline wrappers ride a generic
+   mark, and every `data-*` token is a model attribute (the old GUARDED predicate,
+   promoted from a refusal guard to the attribute law). Gate:
+   `web/scripts/gates/adr560_flow_roundtrip.mjs` executes this over real substrate.
+3. **The grammar has one executing reader.** The schema is derived from the served
+   vocabulary (rungs, kinds, tokens); the paste policy IS the schema; the runtime
+   hand-lists no longer bind flow.
+4. **Durability is untouched** — whole-file substrate, whole-file attribution, CAS,
+   byte-identical-no-op (ADR-528 §2 upheld; opening a document never manufactures a
+   revision — the ledger opens at the canonical form and converges migration-by-use).
 
-**A retired document does not commit** (ADR-540, normative). The flow session holds a
-`beforeunload` commit so unsaved typing survives a tab close — but a structural op's
-re-projection is *also* a teardown, and that gasp reported a DOM predating the op. The
-parent wrote it straight back over the block that had just landed: **every cited insert
-on flow (chart · table · image · gallery) was silently reverted ~400ms later**, past
-green gates, with HTTP 200 on every request. So the parent RETIRES the live document
-(`yarnnn-flow-retire`) *before* the override advances — ordering is the fix, and the
-sender is a layout effect so it cannot race the projection. A **patchable** op is exempt:
-it does not re-project (ADR-524 D2), so its document stays live and keeps its right to
-commit in-flight typing — retiring there would drop keystrokes, which is the worse defect.
+Paged is untouched (ADR-480's per-medium axiom): the enclosure session, the per-block
+commit, the ADR-524 patch channel and `richPaste` all stand — they are the PAGED
+medium's, and flow no longer reaches them.
 
 ## Vocabulary, templates, skins (the kernel registries — `services/authoring.py`)
 
@@ -410,8 +400,10 @@ commit in-flight typing — retiring there would drop keystrokes, which is the w
 
 ## Normative rules (settled — do not re-litigate without an ADR)
 
-1. **The DOM is the model** (ADR-443 R1) — no shadow layer; the interaction contract is
-   the DOM tree, not a registry (ADR-511 superseding ADR-453 D5).
+1. **The DOM is the model — on PAGED only** (ADR-443 R1, retired for flow by ADR-560
+   D1) — on paged, no shadow layer: the interaction contract is the DOM tree, not a
+   registry (ADR-511 superseding ADR-453 D5). On flow the MODEL is the document and the
+   DOM is its view; blocks remain the units and `data-*` remains the dialect.
 2. **Selection floor = attribution floor** — blocks and identity-carrying containers,
    never inline nodes.
 3. **No shadow group object** — transient selection or a real wrapper div.

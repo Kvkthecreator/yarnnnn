@@ -1,5 +1,11 @@
 # ADR-540: A retired document does not commit — the teardown write-back
 
+> **The fence is DELETED by [ADR-560](ADR-560-the-document-model-flow-editing-leaves-the-dom.md) D8 (2026-08-12)** —
+> not bypassed: the defect class lost its host. Flow no longer edits in an iframe, so there is
+> no teardown gasp to fence; the model's teardown commit reports MODEL state, which cannot
+> predate an op because ops flush the model first. The re-cut gate asserts the deletion is
+> complete AND the replacement exists (`web/scripts/gates/adr540_flow_retire.mjs`).
+
 > **Status**: **Accepted** (2026-08-09) — operator-directed ("fix the race now") after the defect was found in a browser click-pass of ADR-538.
 > **Date**: 2026-08-09
 > **Dimension**: **Channel** (Axiom 0 — how the surface talks to its canvas, and when the canvas may talk back). No Substrate change: no new file, no new write door, no revision semantics, no new op.

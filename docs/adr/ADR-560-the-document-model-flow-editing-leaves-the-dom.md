@@ -1,6 +1,11 @@
 # ADR-560: The document model — flow editing gets a model, and the DOM becomes a view
 
-> **Status**: **Accepted** (2026-08-12, operator-delegated — *"based on your own
+> **Status**: **Accepted + Implemented** (2026-08-12 — phases 1-4 of §6 landed the same
+> day: `f5950df` model + parity gate · `68201bd` FlowEditor + wiring · `a8d9bda`
+> in-model identity (found by the operator's first live drive — this arc's own
+> click-pass discipline, honest to form) · `290257c` the D8 deletion, −848 lines.
+> Phase 5, the full prod click-pass, is OWED.)
+> (Original ratification: 2026-08-12, operator-delegated — *"based on your own
 > first principle assessment … resolve this in full such that any legacy, wrong
 > approaches are cleaned-up, alongside the documentation and codebase to be
 > streamlined"*). Drafted from the 2026-08-12 Docs audit (two full code-mapping
@@ -103,8 +108,9 @@ is measured at ~3,650 untyped lines plus four grammar declarations plus a
 per-op discipline whose own ADR (547 §4.1) predicts it will be forgotten.
 
 **ProseMirror is adopted** (`prosemirror-model/state/view/transform/commands/
-keymap/history/inputrules/schema-list`, and `prosemirror-tables` for the table
-kind). Chosen over Lexical for exactly the properties this substrate needs:
+keymap/history/inputrules/schema-list`; `prosemirror-tables` was evaluated and
+DROPPED at implementation — the served `table` kind is a cited CSV projection,
+an island, never an authored grid). Chosen over Lexical for exactly the properties this substrate needs:
 schema-first (the schema can be *generated from the served vocabulary*),
 deterministic DOM↔model round-trip via declarative `parseDOM`/`toDOM`, a
 transaction/step log (the shape per-span attribution needs — §D7), and no
