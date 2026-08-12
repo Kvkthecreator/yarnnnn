@@ -79,6 +79,17 @@ The categorical difference from the benchmark (Claude Design imports into a silo
 > answers *may I write here*; placement answers *may an artifact LIVE here*. Two
 > questions — a create flow must ask the second.
 >
+> **RESOLVED by [ADR-551](ADR-551-arrival-has-a-here.md) D2 (2026-08-12).** The
+> fence is relaxed to `operator_can_organize` — the same predicate
+> `create_folder` and the upload door now ask. **D6's actual rule is
+> PRESERVED**: "the app owns no namespace; projects are meaning-placed folders,
+> never `studio/…`" was about not inventing an app-named root, not about
+> confining work to `operation/`. A deck in `the-acme-deal/` satisfies D6
+> exactly. `STUDIO_ARTIFACT_REGION` survives as the DEFAULT home (ADR-549 D3's
+> third rung), not as a gate.
+>
+> **Superseded text follows, kept for the reasoning it records:**
+>
 > **Open, and deliberately not decided here:** whether the fence should survive
 > at all. `create_folder` already honours ADR-424 D2's peer folders while
 > `create_artifact` does not — one filesystem, two placement laws, and the

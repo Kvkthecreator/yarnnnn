@@ -56,11 +56,18 @@ export function UploadModal({
   onClose,
   onUploaded,
   initialFiles,
+  destination,
 }: {
   onClose: () => void;
   onUploaded?: (workspacePath: string) => void | Promise<void>;
   /** Pre-seed the batch (drag-drop onto the canvas opens the modal with these). */
   initialFiles?: File[];
+  /**
+   * Where the arrival lands (ADR-551 D3) — a workspace-relative folder, and
+   * its operator-facing name for the banner. Absent, the arrival goes to the
+   * intake lane, exactly as before.
+   */
+  destination?: { path: string; label: string } | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<File[]>(initialFiles ?? []);
@@ -108,7 +115,7 @@ export function UploadModal({
     setError(null);
     setNotice(null);
     try {
-      const res = await api.documents.upload(picked);
+      const res = await api.documents.upload(picked, destination?.path ?? null);
       const firstOk = res.results.find((r) => r.success && r.workspace_path);
       if (res.failed > 0) {
         const firstErr = res.results.find((r) => !r.success);
@@ -162,8 +169,11 @@ export function UploadModal({
           <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
             <ArrowDownToLine className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
             <div className="min-w-0">
+              {/* ADR-551 D4 — state the destination it RESOLVED. The banner used
+                  to read a fixed "Intake" whatever the member had dropped on,
+                  which was honest only while the destination was hardcoded. */}
               <p className="font-medium text-foreground">
-                Saved to <span className="font-mono">Intake</span>
+                Saved to <span className="font-mono">{destination?.label ?? 'Intake'}</span>
               </p>
               <p className="text-muted-foreground">
                 Your agents can read these files.

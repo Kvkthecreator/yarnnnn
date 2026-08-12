@@ -19,13 +19,14 @@
  * Studio never invents an app-named root), so the fast path stays one field +
  * Enter. Choosing elsewhere is the picker, the same one Open/Move use.
  *
- * ── The picker asks the PLACEMENT question, not the permission one ─────────
- * Its predicates gate on `isArtifactRegion` (the mirror of the server's own
- * fence), not on `operatorCanOrganize` alone. Gating on permission offered
- * every organizable folder — `Downloads`, `memory/`, any peer folder — and the
- * server 403'd four of five AFTER the member had named the thing and pressed
- * Create. A create picker that offers what the API refuses is a broken door,
- * not a stale label.
+ * ── The picker asks exactly what the server asks ──────────────────────────
+ * Its predicates gate on `canCreateFileIn` — the FE mirror of the server's ONE
+ * placement law (ADR-551 D2). It used to gate on `operatorCanOrganize` alone
+ * while the server fenced creation to `operation/`, so four of five offered
+ * folders 403'd AFTER the member had named the thing and pressed Create
+ * (ADR-549 F1). The fence has since been relaxed to that same predicate, so
+ * the two agree by construction rather than by hand — which is the only way
+ * this stays true through the next change.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -33,8 +34,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, Plus, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
-import { operatorCanOrganize } from '@/lib/workspace/ownership';
-import { STUDIO_ARTIFACT_REGION, isArtifactRegion } from './artifactNaming';
+import { STUDIO_ARTIFACT_REGION, canCreateFileIn } from './artifactNaming';
 import type { WorkspaceTreeNode } from '@/types';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 
@@ -384,17 +384,11 @@ export function NewArtifactModal({
         confirmLabel="Choose"
         emptyMessage="No folders available."
         initialSelected={dest}
-        selectable={(node: WorkspaceTreeNode) =>
-          isArtifactRegion(node.path) && operatorCanOrganize(`${node.path}/x`)
-        }
+        selectable={(node: WorkspaceTreeNode) => canCreateFileIn(node.path)}
         folderDisabledTitle={(node) =>
-          !isArtifactRegion(node.path)
-            ? `${DOCUMENTS_LABEL} is where documents live — pick a folder inside it.`
-            : operatorCanOrganize(`${node.path}/x`)
-              ? undefined
-              : 'This folder is managed by the system'
+          canCreateFileIn(node.path) ? undefined : 'This folder is managed by the system'
         }
-        canConfirm={(sel) => isArtifactRegion(sel) && operatorCanOrganize(`${sel}/x`)}
+        canConfirm={(sel) => canCreateFileIn(sel)}
         footerHint={(sel) =>
           sel ? <>Into <span className="font-mono">{shortDest(sel)}</span></> : 'Pick a folder'
         }

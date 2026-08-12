@@ -399,6 +399,8 @@ export default function ContextPage() {
   // canvas (which pre-seeds it with `droppedFiles`). One import path, no button.
   const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // The resolved arrival destination (ADR-551 D3) — null = the intake lane.
+  const [uploadDest, setUploadDest] = useState<{ path: string; label: string } | null>(null);
   const [droppedFiles, setDroppedFiles] = useState<File[] | null>(null);
   const [canvasDragOver, setCanvasDragOver] = useState(false);
 
@@ -955,10 +957,34 @@ export default function ContextPage() {
     setCanvasMenu({ x: e.clientX, y: e.clientY });
   }, []);
 
-  const openUpload = useCallback((files?: File[]) => {
-    setDroppedFiles(files ?? null);
-    setUploadOpen(true);
-  }, []);
+  // ADR-551 D3 — where an arrival lands, in order: the folder the drop
+  // happened on, else the folder the canvas is showing, else Documents (the
+  // caller passes null and the server defaults). The same "the background of
+  // an open folder acts on that folder" rule New Folder already follows —
+  // arrival was the one act on this surface that ignored where you stood.
+  const uploadDestinationFor = useCallback(
+    (folder?: { path: string; name: string } | null) => {
+      const node =
+        folder ??
+        (selectedNode?.type === 'folder' && selectedNode.path.startsWith('/workspace/')
+          ? { path: selectedNode.path, name: selectedNode.name }
+          : null);
+      if (!node) return null;
+      const rel = node.path.replace(/^\/workspace\//, '').replace(/\/+$/, '');
+      if (!rel) return null;
+      return { path: rel, label: node.name };
+    },
+    [selectedNode],
+  );
+
+  const openUpload = useCallback(
+    (files?: File[], folder?: { path: string; name: string } | null) => {
+      setDroppedFiles(files ?? null);
+      setUploadDest(uploadDestinationFor(folder));
+      setUploadOpen(true);
+    },
+    [uploadDestinationFor],
+  );
 
   // Drag-drop onto the canvas = Finder's primary import gesture. A real file
   // drop opens the Add Files modal pre-seeded with the dropped files. We guard on
@@ -1077,6 +1103,8 @@ export default function ContextPage() {
               // subset, which is how Duplicate (and Share…) went missing here.
               verbs={fileVerbs}
               onMoveByDrag={commitMove}
+              // ADR-551 D3 — an OS file dropped on a folder row imports THERE.
+              onDropFiles={(files, folder) => openUpload(files, folder)}
               canOrganize={operatorCanOrganize}
             />
           </div>
@@ -1225,7 +1253,8 @@ export default function ContextPage() {
           the canvas. */}
       {uploadOpen && (
         <UploadModal
-          onClose={() => { setUploadOpen(false); setDroppedFiles(null); }}
+          destination={uploadDest}
+          onClose={() => { setUploadOpen(false); setDroppedFiles(null); setUploadDest(null); }}
           onUploaded={handleUploaded}
           initialFiles={droppedFiles ?? undefined}
         />

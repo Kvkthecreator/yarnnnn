@@ -169,6 +169,7 @@ async def process_document(
     storage_path: Optional[str],
     user_id: str,
     db_client,
+    destination: Optional[str] = None,
 ) -> dict:
     """
     Persistent upload pipeline — ADR-395 conformance (retain raw · derive projection).
@@ -222,7 +223,16 @@ async def process_document(
     #    (D5); serving minted at read (D4). No un-versioned bucket copy, no
     #    stored content_url. principal defaults to "operator" (ADR-373).
     principal = "operator"
-    raw_path = _unique_raw_path(resolve_upload_raw_path(principal, slug, file_type), db_client, user_id)
+    # ADR-551 D3 — where the arrival lands. A caller-supplied destination is the
+    # folder the member dropped on; absent one, the intake lane's
+    # `{principal}/` sublane is the default. The lane is a DEFAULT, not a law
+    # (D1): the arrival is recorded by its `revision_kind='observation'` badge
+    # on the ledger, not by its address.
+    raw_path = _unique_raw_path(
+        resolve_upload_raw_path(principal, slug, file_type, destination=destination),
+        db_client,
+        user_id,
+    )
     try:
         from services.authored_substrate import write_revision
         write_revision(
@@ -365,16 +375,35 @@ def create_signed_url_for_storage_path(
 INBOUND_UPLOADS_PREFIX = "/workspace/inbound/uploads"
 
 
-def resolve_upload_raw_path(principal: str, slug: str, ext: str) -> str:
+def resolve_upload_raw_path(
+    principal: str, slug: str, ext: str, destination: Optional[str] = None
+) -> str:
     """Where a human upload's RAW blob lands (ADR-395 Piece A / DP32).
 
-    inbound/uploads/{principal}/{slug}.{ext} — immutable, attributed to the
-    uploading principal. `ext` is the real file extension (pdf/docx/…), so the
-    raw lane preserves the original format. The derived text projection is a
-    sibling (see `upload_projection_path`).
+    With no `destination`: inbound/uploads/{principal}/{slug}.{ext} — the
+    intake lane's human sublane, attributed to the uploading principal. `ext` is
+    the real file extension (pdf/docx/…), so the raw lane preserves the original
+    format. The derived text projection is a sibling
+    (see `upload_projection_path`).
+
+    ── With a destination (ADR-551 D3) ───────────────────────────────────────
+    The folder the member dropped on wins, and the file keeps its real name
+    there: `{destination}/{slug}.{ext}`. No `{principal}/` sublane — that
+    sublane is a property of the DEFAULT home (many principals share one intake
+    lane and must not collide), not of a folder the member chose.
+
+    The lane is a default, not a law: an arrival is recorded by its
+    `revision_kind='observation'` badge on the ledger, not by its address
+    (D1, quoting ADR-448). The CALLER authorizes the destination — this
+    resolver composes a path and decides nothing about permission.
     """
-    p = _filename_to_slug(principal) or "operator"
     ext = (ext or "bin").lstrip(".")
+    dest = (destination or "").strip().strip("/")
+    if dest.startswith("workspace/"):
+        dest = dest[len("workspace/"):]
+    if dest:
+        return f"/workspace/{dest}/{slug}.{ext}"
+    p = _filename_to_slug(principal) or "operator"
     return f"{INBOUND_UPLOADS_PREFIX}/{p}/{slug}.{ext}"
 
 

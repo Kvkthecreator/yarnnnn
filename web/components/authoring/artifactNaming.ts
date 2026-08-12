@@ -1,3 +1,5 @@
+import { operatorCanOrganize } from '@/lib/workspace/ownership';
+
 /**
  * artifactNaming — the FE mirror of ADR-459 D2's naming rule.
  *
@@ -41,14 +43,32 @@ export function titleizeSlug(slug: string): string {
  */
 export const STUDIO_ARTIFACT_REGION = '/workspace/operation/';
 
-/** True iff a Studio artifact may be created under `folder` (an absolute
- *  `/workspace/…` folder path, with or without a trailing slash). Mirrors the
- *  server's `path.startsWith(STUDIO_ARTIFACT_REGION)` check in
- *  `routes/studio.py::create_artifact` — the same comparison, so the picker
- *  cannot offer what the API will refuse. */
+/** True iff `folder` sits inside the Documents home — the artifact region.
+ *
+ *  This is now a HOME test, not a permission gate. ADR-551 D2 relaxed
+ *  `create_artifact`'s fence to `operator_can_organize`, so an artifact may be
+ *  created in any folder the member can organize (a peer folder like
+ *  `the-acme-deal/` included) — the region survives as the DEFAULT home
+ *  (ADR-549 D3's third rung), not as a wall.
+ *
+ *  Used by `defaultDestinationFor` to decide whether a source's folder is a
+ *  sensible default. It is deliberately NOT the create picker's predicate any
+ *  more; gating on it there would under-offer, refusing folders the API now
+ *  accepts — the mirror image of the ADR-549 F1 defect. */
 export function isArtifactRegion(folder: string): boolean {
   const abs = folder.startsWith('/') ? folder : `/${folder}`;
   return `${abs.replace(/\/+$/, '')}/`.startsWith(STUDIO_ARTIFACT_REGION);
+}
+
+/** True iff a new file may be CREATED under `folder` — the FE mirror of the
+ *  server's one placement law (ADR-551 D2: `operator_can_organize`, the same
+ *  predicate `create_folder` and the upload door ask).
+ *
+ *  Kept as its own named export rather than inlining `operatorCanOrganize` at
+ *  the call sites, so the create-placement gate has ONE home to change if the
+ *  law moves again — the fence has now moved twice. */
+export function canCreateFileIn(folder: string): boolean {
+  return operatorCanOrganize(`${folder.replace(/\/+$/, '')}/x`);
 }
 
 /**

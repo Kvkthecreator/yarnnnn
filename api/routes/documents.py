@@ -197,6 +197,7 @@ async def _embed_projection_deferred(user_id: str, projection_path: str) -> None
 
 async def _process_single_upload(
     *, content: bytes, content_type: str, filename: str, user_id: str, service,
+    destination: Optional[str] = None,
 ) -> tuple[UploadResultItem, Optional[str]]:
     """The single-file pipeline, callable N times (ADR-331 D5 + ADR-395).
 
@@ -238,6 +239,7 @@ async def _process_single_upload(
         storage_path=None,
         user_id=user_id,
         db_client=service,
+        destination=destination,
     )
     if not result.get("success"):
         return _fail(result.get("error", "Processing failed"))
@@ -299,20 +301,46 @@ async def upload_documents(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     project_id: Optional[str] = Form(None),  # accepted for compat, ignored
+    destination: Optional[str] = Form(None),
 ):
     """Persistent document upload — multi-file + .zip (ADR-331 D5, ADR-249 Type B).
 
     Accepts one or more files in a single call. A .zip is expanded server-side
     to per-file uploads (the archive is a transport envelope, not retained).
-    Each file flows through the SAME single-file path (retain the raw blob at
-    inbound/uploads/ + derive a text projection, ADR-395, attributed operator).
-    Non-transactional: per-file results are reported; partial success is fine.
+    Each file flows through the SAME single-file path (retain the raw blob +
+    derive a text projection, ADR-395, attributed operator). Non-transactional:
+    per-file results are reported; partial success is fine.
 
     Singular Implementation: this is the one upload endpoint. The single-file
     caller sends one file and gets a one-element results list — no parallel
     bulk-ingestion subsystem, no background job, no progress table (ADR-331 D5).
+
+    ── `destination` (ADR-551) ───────────────────────────────────────────────
+    The folder the member dropped on — workspace-relative, no leading slash.
+    Absent, the arrival lands in the intake lane exactly as before, so every
+    non-Files caller is unchanged.
+
+    It is AUTHORIZED here, and that check is new: while the destination was
+    hardcoded there was nothing to authorize, so this endpoint had no
+    `operator_can_organize` call at all. The moment a caller can name a
+    destination, a door that accepts what the substrate would refuse is the
+    ADR-549 F1 defect — offering what the server rejects — and it must not ship
+    twice.
     """
     service = get_service_client()
+
+    dest = (destination or "").strip().strip("/")
+    if dest.startswith("workspace/"):
+        dest = dest[len("workspace/"):]
+    if dest:
+        if ".." in dest:
+            raise HTTPException(status_code=422, detail="Invalid destination.")
+        # Authorize the folder itself (a probe leaf, as every organize gate does).
+        if not operator_can_organize(f"/workspace/{dest}/x"):
+            raise HTTPException(
+                status_code=403,
+                detail="You can't add files here — that location is managed by the system.",
+            )
 
     # Build the work list: each file, with .zip entries expanded inline.
     work: List[tuple] = []  # (filename, content_type, bytes)
@@ -336,7 +364,7 @@ async def upload_documents(
     for fname, ctype, content in work:
         item, to_embed = await _process_single_upload(
             content=content, content_type=ctype, filename=fname,
-            user_id=auth.user_id, service=service,
+            user_id=auth.user_id, service=service, destination=dest or None,
         )
         results.append(item)
         # Defer the paid embed off the response (ADR-395 / ADR-325): the upload

@@ -108,12 +108,19 @@ t('F1: the FE mirrors the artifact region', !!regionTs);
 t('F1 [FALSIFIER]: the two regions are byte-identical', !!REGION && regionTs?.[1] === REGION);
 
 // Reconstruct both gates and compare them over the folders a member can reach.
-const isArtifactRegion = (folder) => {
-  const abs = folder.startsWith('/') ? folder : `/${folder}`;
-  return `${abs.replace(/\/+$/, '')}/`.startsWith(REGION);
+const isArtifactRegion = (folder) => serverAccepts(folder);
+// ADR-551 D2: the server's create gate is `operator_can_organize`, mirrored in
+// `ownership.ts`. Reconstructed here so the two are COMPARED, never assumed.
+const serverAccepts = (folder) => {
+  let rel = `${folder.replace(/\/+$/, '')}/my-doc/document.html`.replace(/^\/+/, '');
+  if (rel.startsWith('workspace/')) rel = rel.slice('workspace/'.length);
+  if (rel.startsWith('system/')) return false;
+  if (rel.startsWith('inbound/') && !rel.startsWith('inbound/uploads/')) return false;
+  const leaf = rel.split('/').pop() || '';
+  if (leaf.startsWith('_') && ['.yaml', '.yml', '.json'].some((e) => leaf.toLowerCase().endsWith(e)))
+    return false;
+  return true;
 };
-const serverAccepts = (folder) =>
-  `${folder.replace(/\/+$/, '')}/my-doc/document.html`.startsWith(REGION);
 
 const FOLDERS = [
   '/workspace/operation',
@@ -136,14 +143,19 @@ t(
 // predicate was reverted to permission-only — the import alone satisfied it.
 // A file-wide presence check cannot defend a per-site invariant
 // (feedback_counting_gate_cannot_defend_per_site); each door must be read.
+// ADR-551 D2 moved the law: the fence relaxed to `operator_can_organize`, so
+// the picker now asks THAT — mirrored once as `canCreateFileIn`. The invariant
+// is unchanged in spirit and is what F1 was always about: the door asks
+// whatever the server asks. Gating on the old region here would now UNDER-offer
+// (refusing peer folders the API accepts) — the F1 defect mirrored.
 const PREDICATES = ['selectable', 'canConfirm', 'folderDisabledTitle'];
 for (const prop of PREDICATES) {
   // The predicate's own expression: from `prop={` to the line that closes it.
   const m = modalCode.match(new RegExp(`${prop}=\\{[\\s\\S]*?\\n        \\}`));
   const expr = m ? m[0] : null;
   t(
-    `F1 [FALSIFIER]: \`${prop}\` asks the REGION question, not permission alone`,
-    !!expr && /isArtifactRegion/.test(expr),
+    `F1 [FALSIFIER]: \`${prop}\` asks the ONE placement law (ADR-551 D2)`,
+    !!expr && /canCreateFileIn/.test(expr) && !/isArtifactRegion/.test(expr),
   );
 }
 

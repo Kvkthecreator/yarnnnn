@@ -1083,11 +1083,22 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
         raise HTTPException(status_code=422, detail="A Studio artifact is an .html file")
     if ".." in path:
         raise HTTPException(status_code=422, detail="Invalid path")
-    if not path.startswith(STUDIO_ARTIFACT_REGION):
+    # ADR-551 D2 — ONE placement law. This was `path.startswith(
+    # STUDIO_ARTIFACT_REGION)`, which fenced every artifact into `operation/`
+    # while `create_folder` honoured ADR-424 D2 peer folders and uploads had no
+    # check at all: one filesystem, three placement laws.
+    #
+    # ADR-440 D6's actual rule is PRESERVED — "the app owns no namespace;
+    # projects are meaning-placed folders, never `studio/…`". That was about not
+    # inventing an app-named root, not about confining work to `operation/`. A
+    # deck in `the-acme-deal/` satisfies D6 exactly. The region survives as the
+    # DEFAULT home (ADR-549 D3's third rung), not as a gate.
+    from services.workspace_paths import operator_can_organize
+
+    if not operator_can_organize(path):
         raise HTTPException(
             status_code=403,
-            detail=f"Studio artifacts live under {STUDIO_ARTIFACT_REGION} — "
-                   "meaning-placed with the operation's work (ADR-440 D6).",
+            detail="You can't create a file here — that location is managed by the system.",
         )
 
     # The DELIBERATE door's key, stepped past whatever is already there.
