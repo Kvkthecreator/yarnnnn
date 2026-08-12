@@ -46,33 +46,31 @@ def _read(p: Path) -> str:
 # Test gate
 # ---------------------------------------------------------------------------
 
-def test_lib_autonomy_module_exists_and_exports_required_surface():
-    """Assertion #1: the autonomy shape module exists and exports the
-    documented surface — parseAutonomy, formatAutonomySummary,
-    resolveEffectiveLevel, useAutonomy, AutonomyLevel, AutonomyMeta,
-    AUTONOMY_PATH.
+def test_lib_autonomy_module_stays_deleted():
+    """INVERTED by ADR-551 (2026-08-12). This assertion used to require the
+    autonomy content-shape module to EXIST; it now requires it to stay gone.
 
-    **Amended by ADR-245 Phase 2**: module relocated to
-    web/lib/content-shapes/autonomy.ts. **Amended by ADR-245 Phase 2**:
-    `parse` is the canonical export; `parseAutonomy` is the back-compat
-    alias (`export const parseAutonomy = parse;`)."""
-    src = _read(WEB_LIB_AUTONOMY)
-    # Path constants + types
-    for ex in [
-        "export const AUTONOMY_PATH",
-        "export type AutonomyLevel",
-        "export interface AutonomyMeta",
-        "export function resolveEffectiveLevel",
-        "export function formatAutonomySummary",
-        "export function useAutonomy",
-    ]:
-        assert ex in src, f"autonomy shape module missing export: {ex}"
-    # parseAutonomy may be either function-form or alias-const-form per
-    # ADR-245 Phase 2 — both are valid public exports.
-    assert (
-        "export function parseAutonomy" in src
-        or "export const parseAutonomy" in src
-    ), "autonomy shape module missing export: parseAutonomy (function or const alias)"
+    The dial gates only the steward's own calls (permission.py returns APPLY at
+    `non_freddie_caller` before reading it), so a workspace-settings surface
+    implied a scope it never had. The pane, its card, and this shape module were
+    removed together; `governance/_autonomy.yaml` remains a live substrate file
+    read SERVER-side by services/review_policy.py and renders as raw substrate,
+    the same treatment ADR-491 D3 gave `_budget.yaml`.
+
+    Inverted rather than deleted so the removal is DEFENDED: re-adding an
+    operator dial for a steward-only gate should have to argue with a red gate,
+    not slip in as a UI addition. When ADR-382 builds the agent roster and
+    autonomy re-homes to the agent detail (ADR-414 D6), this gate is what that
+    work must consciously re-cut.
+    """
+    assert not WEB_LIB_AUTONOMY.exists(), (
+        f"{WEB_LIB_AUTONOMY.relative_to(REPO_ROOT)} is back. ADR-551 removed the "
+        "operator-facing autonomy shape because the gate it fed applies ONLY to "
+        "the steward's own calls — every human/lane/MCP write bypasses it. If "
+        "autonomy is being re-surfaced, it belongs on the AGENT detail "
+        "(ADR-414 D6 per-agent sidecar), not on workspace settings; amend "
+        "ADR-551 and re-cut this gate deliberately."
+    )
 
 
 # test_mandate_face_does_not_re_inline_parser — superseded: MandateFace.tsx deleted by ADR-228.

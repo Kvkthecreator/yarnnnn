@@ -489,37 +489,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/usage",
         "summary": "What this workspace's usage went to — the balance meter with runway, who used it, and the activity trend. Activity, never dollars.",
     },
-    {
-        # 2026-05-24 design polish: renamed from "delegation" to "autonomy"
-        # to align with the substrate file (_autonomy.yaml) and the
-        # operator's mental model. The schema field `default_delegation`
-        # stays — it's the precise data-layer term for the delegated
-        # level. At the operator surface the broader concept is Autonomy.
-        # /delegation kept as a redirect stub for bookmark safety.
-        "slug": "autonomy",
-        "launcher_tier": "search-only",  # ADR-340 P3
-        "register": "os-config",  # ADR-312 D5 (was `settings`)
-        # ADR-347 (2026-06-19): Governance → the one operation-settings door's
-        # Contract group (Witness dial = per-operation config, not machine).
-        # ADR-387 §6.4 — Autonomy is a governance/ GRANT (the delegation ceiling
-        # the agent runs under, ADR-366). ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
-        # ADR-426 (2026-07-09): re-homed pane_of workspace-settings → system-agent
-        # (the "Freddie System Agent" door). foregroundSurface('autonomy') — the
-        # Home autonomy badge deep-link — resolves there now, unchanged call site.
-        # ADR-454 D4 (2026-07-13): the door is REVERSED (the ambient steward) —
-        # re-homed pane_of system-agent → workspace-settings ("System" group).
-        "pane_of": "workspace-settings",
-        "pane_group": "System",
-        "title": "Autonomy",
-        "archetype": "document",
-        "substrate_paths": [
-            "/workspace/governance/_autonomy.yaml",
-        ],
-        "icon_key": "shield-check",
-        "default_pinned": False,
-        "route": "/autonomy",  # _route_status: NEW 2026-05-24 (renamed from /delegation)
-        "summary": "How much the Reviewer can execute without operator approval. Switching levels requires confirmation.",
-    },
+    # ADR-551 (2026-08-12) — the `autonomy` SURFACE row is DELETED. The pane it
+    # named is gone from Workspace Settings: the dial gates only the steward's
+    # own calls (permission.py returns APPLY at `non_freddie_caller` before
+    # reading it), so a workspace-level surface implied a scope it never had.
+    # `governance/_autonomy.yaml` remains a live substrate file read server-side
+    # by review_policy.py; it simply has no operator surface. Autonomy re-homes
+    # to the agent detail (ADR-414 D6's per-agent sidecar) when ADR-382 builds
+    # the roster. The /autonomy + /delegation routes stay as redirect stubs.
     {
         # ADR-348 (2026-06-19) — Expected Output, operator-facing. ADR-345
         # shipped the concept + contract/_expected_output.yaml referent +

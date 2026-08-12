@@ -31,7 +31,7 @@
  *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
-import { AlertTriangle, BarChart3, CreditCard, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, CreditCard, Users } from "lucide-react";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 // ADR-491 D1 (2026-07-28) — Billing + Usage return to THIS door (the third and
 // final placement flip): with members real (seats live, ADR-490), billing is
@@ -45,7 +45,10 @@ import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
 // to this door as an unbranded SYSTEM group (same pane bodies, third move,
 // never duplicated); the persona panes (About · Activity) stay dormant in
 // SystemAgentPanes pending the narrative-posture regroup.
-import { renderSystemAgentPane } from "@/components/agents/SystemAgentPanes";
+// ADR-551 — the renderSystemAgentPane import is REMOVED with the group. That
+// module's other two panes (About · Activity) were ALREADY mountless since
+// ADR-454 D4; with `autonomy` gone it has no importer at all, so the whole
+// SystemAgentPanes module is now dead and deleted rather than left orphaned.
 // ADR-429 §13.3 (2026-07-09) — Billing + Usage LEFT this door for the account
 // door (User Settings, Vercel-style). The workspace-as-billing-unit data-model is
 // unchanged — only the door moved (see settings/page.tsx).
@@ -116,18 +119,25 @@ const PANE_GROUPS: PaneGroup[] = [
       { key: "usage", label: "Usage", icon: BarChart3 },
     ],
   },
-  {
-    // ADR-491 D4 — the system agent's dial. The pane's fallback file
-    // (governance/_autonomy.yaml) IS the steward's witness dial (ADR-414 D6:
-    // hired agents carry their own sidecar, read per-agent by load_autonomy).
-    // The BUDGET pane is DISSOLVED (ADR-491 D3, completing ADR-433): its
-    // numbers were the Usage meter's; the runway line moved there; the
-    // machine envelope (governance/_budget.yaml) needs no operator pane.
-    // Pane key matches the kernel registry slug (pane_of: workspace-settings),
-    // so foregroundSurface('autonomy') resolves here.
-    label: "System agent",
-    panes: [{ key: "autonomy", label: "Autonomy", icon: ShieldCheck }],
-  },
+  // ADR-551 — the SYSTEM AGENT group is REMOVED (reversing ADR-491 D4, which
+  // reversed ADR-426, which carved it out of ADR-454 D4's group; the pane had
+  // moved four times without the question underneath it being re-asked).
+  //
+  // The question this door must answer is "what does this workspace's shared
+  // settings govern". Autonomy is not that: the gate it drives applies ONLY to
+  // the steward's own calls — `permission.py::resolve_permission` returns
+  // APPLY at `non_freddie_caller` before ever reading the dial — so every
+  // human, lane and MCP write bypasses it entirely. File mutation through the
+  // chat primitives is first-class and ungated by design.
+  //
+  // So a workspace-level control implied a scope it never had. Autonomy is a
+  // property of AN AGENT, not of the shared commons; it belongs on the agent
+  // detail (ADR-414 D6's per-agent sidecar) when ADR-382 builds that roster.
+  //
+  // The MECHANICS stay — see api/services/review_policy.py. Deleting the file
+  // would invert ADR-408 D3 and queue every steward write. It is live code
+  // that is currently dormant (prod: `invocations=0/0` on every scheduler tick),
+  // which is exactly why it needed a recorded reason rather than a silent pane.
   {
     // ADR-476 D3 — the workspace-CONTENT purges. L1 (clear work history) and
     // L2 (clear workspace) destroy every member's work, so under ADR-407 they
@@ -191,11 +201,11 @@ export default function WorkspaceSettingsPage() {
             <UsagePaneBody />
           </section>
         );
-      // ADR-491 D4 — the system agent's witness dial (ADR-454 D4's group,
-      // trimmed: the budget pane dissolved into Usage; a stale ?pane=budget
-      // falls to the shell's default-pane fallback).
-      case "autonomy":
-        return <section className="mb-8">{renderSystemAgentPane(pane)}</section>;
+      // ADR-551 — the `autonomy` case is REMOVED with its group. A stale
+      // `?workspace-settings.pane=autonomy` link (or the /autonomy redirect
+      // stub) now falls to the shell's default-pane fallback, which is the
+      // mechanism ADR-494 D5 built for exactly this — a retired pane needs no
+      // hand-written case.
       // ADR-476 D3 — the workspace-content purges (L1/L2), owner-gated.
       case "danger":
         return (

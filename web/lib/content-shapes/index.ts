@@ -40,7 +40,11 @@ export type ContentShape = {
 /** Alias for module-side imports — same shape; provided for readability. */
 export type ContentShapeMeta = ContentShape;
 
-import { META as autonomyMeta } from './autonomy';
+// ADR-551 (2026-08-12): the autonomy content-shape is DELETED with the pane.
+// Its only consumer was AutonomyCard's write path; `governance/_autonomy.yaml`
+// stays a live substrate file (the steward's gate still reads it server-side)
+// and now renders as a raw file — the same treatment ADR-491 D3 gave
+// `_budget.yaml`: a machine envelope needs no operator dial.
 // ADR-432 D1c: the brand content-shape is deleted (Brand retired).
 import { META as decisionsMeta } from './decisions';
 import { META as identityMeta } from './identity';
@@ -56,7 +60,6 @@ import { META as principlesMeta } from './principles';
 import { META as sourcesMeta } from './sources';
 
 export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.freeze({
-  autonomy: autonomyMeta,
   decisions: decisionsMeta,
   identity: identityMeta,
   'inference-meta': inferenceMetaMeta,

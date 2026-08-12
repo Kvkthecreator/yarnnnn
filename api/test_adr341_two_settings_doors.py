@@ -103,8 +103,13 @@ def test_pane_homing() -> None:
     # ADR-491 D3 (2026-07-28): the `budget` row is DELETED (the pane dissolved
     # into Usage; /budget is a redirect stub). Autonomy remains the steward's
     # one dial on the workspace door.
-    check("autonomy → Workspace Settings (ADR-454 D4)", by_slug["autonomy"].get("pane_of") == "workspace-settings")
-    check("autonomy grouped System (ADR-454 D4)", by_slug["autonomy"].get("pane_group") == "System")
+    # ADR-551 (2026-08-12): the `autonomy` row is DELETED, like `budget` before
+    # it. The dial gates ONLY the steward's own calls (permission.py returns
+    # APPLY at `non_freddie_caller` before reading it), so a workspace-settings
+    # pane implied a scope it never had. The FILE stays live substrate read
+    # server-side; it just has no operator surface until autonomy re-homes to
+    # the agent detail (ADR-414 D6) under ADR-382.
+    check("autonomy row deleted (ADR-551 — steward-only gate, no workspace pane)", "autonomy" not in by_slug)
     check("budget row deleted (ADR-491 D3 — pane dissolved into Usage)", "budget" not in by_slug)
     check("system-agent row hidden (ADR-454 D4)", by_slug["system-agent"].get("hidden") is True)
     # ADR-421 — mandate/identity/principles are DORMANT: a workspace has no
@@ -135,9 +140,10 @@ def test_registers_unchanged() -> None:
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     # Governance panes keep os-config; constitution keeps intent; the door is
     # `pane_of`, orthogonal to register (ADR-340 P2 / ADR-341 D4).
-    # ADR-491 D3: the budget row is deleted (pane dissolved) — autonomy is the
-    # register witness for the governance-pane class now.
-    check("autonomy register unchanged (os-config)", by_slug["autonomy"].get("register") == "os-config")
+    # ADR-491 D3: the budget row is deleted (pane dissolved). ADR-551: the
+    # autonomy row is deleted too, so the governance-pane class has no
+    # os-config witness left on this door — mandate/identity carry the
+    # register checks below.
     check("mandate register unchanged (intent)", by_slug["mandate"].get("register") == "intent")
     check("identity register unchanged (intent)", by_slug["identity"].get("register") == "intent")
     check("workspace-settings register == application (a windowed app)", by_slug["workspace-settings"].get("register") == "application")

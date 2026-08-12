@@ -1,5 +1,46 @@
 """Review policy — ADR-261 D5 rederived shape.
 
+═══════════════════════════════════════════════════════════════════════════
+WHO THIS GATES, AND WHY IT HAS NO OPERATOR SURFACE (ADR-551, 2026-08-12)
+═══════════════════════════════════════════════════════════════════════════
+
+**This gate applies ONLY to the steward's own calls.** `resolve_permission`
+(services/primitives/permission.py) returns APPLY at `non_freddie_caller`
+*before* it ever reads this policy, and `freddie_caller=True` is set in exactly
+one place — the steward's own loop (`agents/freddie_agent.py`). So:
+
+- a human writing through chat, a lane, or the Files surface  → NEVER gated
+- an external LLM writing over MCP                            → NEVER gated
+- the steward's own WriteFile/EditFile/capital act            → gated here
+
+File mutation through the chat primitives is first-class and ungated **by
+design**. That is the shared-workspace model, not an oversight.
+
+**Status: live code, currently dormant.** Verified on prod 2026-08-12 — the
+scheduler ticks every minute and logs `Completed: invocations=0/0` on every
+tick for a week straight, with zero gate decisions in the API logs. The
+steward does not currently fire, so nothing reaches this gate.
+
+**Do NOT delete `governance/_autonomy.yaml` as cleanup.** `load_autonomy`
+returns `{}` on a missing file → `should_auto_apply` defaults `delegation` to
+`"manual"` → EVERY steward substrate write becomes an operator-queued
+proposal. That inverts ADR-408 D3's shipped default (`substrate: autonomous`,
+"reversible file work is the steward's hands") and the workspace would look
+like it had stopped working. This warning exists because the pane was twice
+audited as "outdated" — and the absence of a dedicated `/autonomy` API route
+(it was written through the generic `PATCH /api/workspace/file`) makes a
+`grep api/routes/` read as dead. **Absence of a route is not absence of a
+mechanism.**
+
+**Why the operator pane was removed (ADR-551 D1).** Autonomy is a property of
+AN AGENT, not of the shared commons — a workspace-settings dial implied a
+scope it never had. It re-homes to the agent detail (ADR-414 D6's per-agent
+`agents/{slug}/_autonomy.yaml`, which `load_autonomy` already prefers) when
+ADR-382 builds the agent roster. Until then the file is operator-editable as
+raw substrate, exactly like `governance/_budget.yaml` (ADR-491 D3).
+
+═══════════════════════════════════════════════════════════════════════════
+
 ADR-261 D5: AUTONOMY rederived from first principles. AUTONOMY's only job
 is to gate **consequential actions** the Reviewer takes within a session.
 Consequential = capital-moving + irreversible-external-write. Everything else
