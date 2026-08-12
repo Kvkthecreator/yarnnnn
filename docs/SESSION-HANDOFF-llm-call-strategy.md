@@ -54,26 +54,37 @@ why the new gates **execute** rather than grep.
 
 ## 4. OWED — carry into the next session
 
-**A. Lane token-profile re-measurement (highest value).**
-Sonnet 5's tokenizer produces **~30% more tokens** for the same text, and
-`_LANE_MAX_TOKENS = 4096` (`api/services/lane_runner.py`) was calibrated on
-Sonnet 4.6. With the 63% reasoning overhead above, the headroom is thinner than
-when it was set. **This is a measurement, not a judgment call:**
+**A. Lane token-profile re-measurement — DONE 2026-08-12.**
+Probe ran clean: 43 pass · 0 FAIL · 1 info (DeepSeek "Insufficient Balance",
+§4.C). C6 green — gpt-5/gemini-pro/flash all still speak at 4096; the
+`OBSERVED_REASONING_AT_4096` figures did not need to move. The Sonnet-5-specific
+measurement (count_tokens on identical corpora + a live lane-shaped ask through
+`route_completion` on both Sonnets):
+- tokenizer ratio **x1.35–1.47 (mean x1.39)** — heavier than the ~30% assumed;
+  4096 is ~2940 Sonnet-4.6-equivalent tokens.
+- live ask: both `finish_reason=stop`; Sonnet 5 used 890/4096 (22%). No
+  truncation, no empty reply. **The budget holds on evidence**; the figures are
+  recorded at the `_LANE_MAX_TOKENS` comment (parity raise would be ~5700).
 
-```bash
-cd api && python3 probe_router_transport.py --headroom
-```
-
-C6 fails loudly if an engine can no longer speak at the budget; update
-`OBSERVED_REASONING_AT_4096` in the probe if the figures move. **The failure
-mode is silent** — a too-small budget returns an empty reply, not an error.
-
-**B. Click-passes (nothing is browser-verified).**
-1. **The greyed-engine door** (ADR-559 D3) — DeepSeek should appear *disabled
-   with "provider unavailable"*, not hidden. It is the one unavailability
-   reason that can only be observed, so it deserves a real look.
-2. **The engine picker** (ADR-558) — sticky last-used, provider brand marks,
-   and that a colleague joins via the **cast**, not at the door.
+**B. Click-passes.**
+1. **The greyed-engine door — DONE 2026-08-12, in prod, full observed loop.**
+   DeepSeek was served `available: true` post-deploy (the refusal map is
+   process-local; the 07:31 restart wiped it — by design). Drove the loop as
+   the operator: door offered DeepSeek → lane created → one message →
+   "Insufficient Balance" refusal → reopened door → **DeepSeek shown disabled,
+   `opacity-45`, "provider unavailable", `aria-disabled=true`** — not hidden.
+   Lane archived after. Three findings from the pass, none blocking:
+   - the door does NOT refetch availability on open — within one page session a
+     member can keep picking a just-refused engine (fresh state needs a reload);
+   - the failed turn shows the **raw litellm exception string** to the member
+     (`litellm.BadRequestError: DeepseekException - {...}`) — operator words on
+     member glass;
+   - that error bubble is **not persisted** — after reload the member sees
+     their message with no reply and no explanation at all.
+2. **The engine picker** (ADR-558) — partially seen during the pass (brand
+   marks render; "last used" chip appears and is correctly suppressed while the
+   engine is dark). Still owed: cast-join verification (colleague joins via the
+   cast, not at the door).
 
 **C. DeepSeek's account is unfunded.** Now handled gracefully (greyed with a
 reason) rather than fixed. Fund it or leave it dark — no code change either way.

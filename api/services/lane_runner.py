@@ -109,6 +109,14 @@ _LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)
 #: 2048 was a hands-profile that truncated thinking answers. Held below the
 #: 8192 authoring profile (ADR-440 D3: authoring > chat, gate-asserted); raise
 #: further against felt truncation, not speculation.
+#:
+#: Sonnet 5 re-measurement (2026-08-12, ADR-559 follow-through): Sonnet 5's
+#: tokenizer is x1.35–1.47 heavier than Sonnet 4.6 on identical text (mean
+#: x1.39 across prose/code/mixed corpora, via count_tokens), so 4096 here is
+#: ~2940 Sonnet-4.6-equivalent tokens — still above the 2048 that truncated,
+#: and a live lane-shaped ask finished `stop` at 22% of budget on Sonnet 5.
+#: The budget HOLDS on evidence; if felt truncation arrives, x1.39 says the
+#: parity raise is ~5700, not a guess.
 _LANE_MAX_TOKENS = 4096
 _LANE_TIMEOUT_S = 120.0
 
