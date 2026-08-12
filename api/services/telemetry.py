@@ -43,9 +43,29 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _BILLING_RATES: dict[str, dict[str, float]] = {
+    # ── Anthropic (ADR-559 D1, list prices verified 2026-08-12) ──────────
+    "claude-opus-5":              {"input_per_mtok": 5.00, "output_per_mtok": 25.00},
+    # ⚠️ STANDARD rate, not the introductory one. Anthropic is running Sonnet 5
+    # at an intro $2/$10 through 2026-08-31, and LiteLLM's cost report prices at
+    # the intro rate — so the ADR-408 D4 rate mirror reads x1.50 on this row
+    # (probe, 2026-08-12), the ONLY row that does not mirror ~1.00.
+    #
+    # Deliberate: this table is what we CHARGE the pool, and pricing at a rate
+    # that expires in weeks would silently under-charge the day it lapses, with
+    # nothing to notice it. Over-charging by 50% for the intro window is the
+    # safer error and is visible in the mirror. Revisit after 2026-08-31 — at
+    # which point the mirror should return to x1.00 on its own.
+    "claude-sonnet-5":            {"input_per_mtok": 3.00, "output_per_mtok": 15.00},
+    "claude-haiku-4-5":           {"input_per_mtok": 1.00, "output_per_mtok": 5.00},
+    # RETIRED engines keep their rate rows. `unpriced_lane_model` gates EVERY
+    # turn, so dropping a retired model's rate would refuse the lanes the
+    # retired state exists to keep running (ADR-559 D2).
     "claude-sonnet-4-6":          {"input_per_mtok": 3.00, "output_per_mtok": 15.00},
-    "claude-opus-4-6":            {"input_per_mtok": 5.00, "output_per_mtok": 25.00},
     "claude-haiku-4-5-20251001":  {"input_per_mtok": 1.00, "output_per_mtok": 5.00},
+    # `claude-opus-4-6` REMOVED (ADR-559 D1): priced here but absent from
+    # LANE_MODELS, SYSTEM_CALLS and DEFAULT_ROUTES — nothing could route to it.
+    # A rate row for an unroutable engine is a claim about what we run that is
+    # not true, and it read as "we offer an Opus tier" when we did not.
     # ADR-408 D4 / ADR-411 D5: routed Altitude-2 models. A model the router
     # may route MUST have a row here — an unknown model silently prices at
     # the Sonnet default (model_router warns).
@@ -68,7 +88,10 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     "deepseek-chat":              {"input_per_mtok": 0.14, "output_per_mtok": 0.28,
                                    "cache_read_mult": 0.02, "cache_create_mult": 0.0},
 }
-_DEFAULT_RATE = _BILLING_RATES["claude-sonnet-4-6"]
+# The fall-through rate for a model with no row. Points at the CURRENT Sonnet,
+# not the retired 4.6 — same figures ($3/$15), but a default anchored to a
+# retired engine would silently outlive the row it names.
+_DEFAULT_RATE = _BILLING_RATES["claude-sonnet-5"]
 
 
 def has_billing_rate(model: str) -> bool:

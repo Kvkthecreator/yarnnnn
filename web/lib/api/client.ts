@@ -416,7 +416,10 @@ export const api = {
         enabled: boolean;
         /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. */
         agents: Array<{ slug: string; name: string; blurb: string; icon: string }>;
-        models: Array<{ id: string; label: string; vision?: boolean }>;
+        models: Array<{ id: string; label: string; vision?: boolean;
+          /** ADR-559 D3 — false when the engine cannot run right now.
+           *  Served (not filtered) so the door can grey it WITH a reason. */
+          available?: boolean; unavailable_reason?: string | null }>;
         /** ADR-450 D5 — the Learn-from chooser payload (kernel recipes). */
         recipes: Array<{ slug: string; label: string; description: string; accepts: string[] }>;
         lanes: Array<{

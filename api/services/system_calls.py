@@ -81,7 +81,7 @@ TIER_STANDARD = "standard"  # judgment, authored prose, multi-round loops
 #: Keys are call types (string values double as env-var suffixes).
 SYSTEM_CALLS: dict[str, SystemCall] = {
     "wake_triage": SystemCall(
-        model="anthropic/claude-haiku-4-5-20251001",
+        model="anthropic/claude-haiku-4-5",
         tier=TIER_CHEAP,
         reason=(
             "ADR-296 funnel tier-2: a 10-token wait/observe/escalate verdict on "
@@ -90,12 +90,12 @@ SYSTEM_CALLS: dict[str, SystemCall] = {
         ),
     ),
     "fact_extraction": SystemCall(
-        model="anthropic/claude-haiku-4-5-20251001",
+        model="anthropic/claude-haiku-4-5",
         tier=TIER_CHEAP,
         reason="Pulling stated facts out of a transcript is recall, not judgment.",
     ),
     "session_summary": SystemCall(
-        model="anthropic/claude-haiku-4-5-20251001",
+        model="anthropic/claude-haiku-4-5",
         tier=TIER_CHEAP,
         reason=(
             "Condensing a transcript already in context. Distinct ROW from "
@@ -105,7 +105,7 @@ SYSTEM_CALLS: dict[str, SystemCall] = {
         ),
     ),
     "web_search_continuation": SystemCall(
-        model="anthropic/claude-haiku-4-5-20251001",
+        model="anthropic/claude-haiku-4-5",
         tier=TIER_CHEAP,
         reason=(
             "Drives Anthropic's server-side web_search tool at max_tokens=50. "
@@ -113,12 +113,12 @@ SYSTEM_CALLS: dict[str, SystemCall] = {
         ),
     ),
     "repurpose": SystemCall(
-        model="anthropic/claude-haiku-4-5-20251001",
+        model="anthropic/claude-haiku-4-5",
         tier=TIER_CHEAP,
         reason="Reformatting authored output to a channel shape — form, not content.",
     ),
     "identity_inference": SystemCall(
-        model="anthropic/claude-sonnet-4-6",
+        model="anthropic/claude-sonnet-5",
         tier=TIER_STANDARD,
         reason=(
             "Authors IDENTITY.md from operator source material at onboarding — "
@@ -127,17 +127,17 @@ SYSTEM_CALLS: dict[str, SystemCall] = {
         ),
     ),
     "recurrence_prompt_inference": SystemCall(
-        model="anthropic/claude-sonnet-4-6",
+        model="anthropic/claude-sonnet-5",
         tier=TIER_STANDARD,
         reason="Refines a recurrence's standing prompt — authored text that then runs repeatedly.",
     ),
     "harvest": SystemCall(
-        model="anthropic/claude-sonnet-4-6",
+        model="anthropic/claude-sonnet-5",
         tier=TIER_STANDARD,
         reason="A 12-round bounded tool loop curating connector material into the commons.",
     ),
     "specialist_dispatch": SystemCall(
-        model="anthropic/claude-sonnet-4-6",
+        model="anthropic/claude-sonnet-5",
         tier=TIER_STANDARD,
         reason=(
             "The sub-LLM seam (bounded loop, 4096 tokens). DORMANT — "

@@ -67,12 +67,30 @@ export function mcpHostId(authored_by: string | null | undefined): string | null
   return authored_by.slice('yarnnn:mcp:'.length) || null;
 }
 
-// Lane-model id → display label (mirrors LANE_MODELS in api/services/lane_runner.py).
-// Unknown models strip the provider prefix and pass through.
+// Lane-model id → display label. A LAST-RESORT map for ATTRIBUTION strings
+// only (`member:{id} via {model}`), where no envelope is in hand.
+//
+// ⚠️ NOT the chooser's source of truth — that is `envelope.models[].label`,
+// served from `LANE_MODELS` itself. This copy is why the FE showed only 3 of
+// what became 10 engines: it drifted the moment the roster grew, silently, and
+// every un-listed engine fell through to a raw id. Anything that HAS the
+// envelope must read the served label; add a row here only for an engine that
+// can appear in a historical attribution string.
+//
+// Retired engines stay listed: old revisions are attributed to what actually
+// ran, and that attribution must keep rendering a name (ADR-559 D2).
 const LANE_MODEL_NAMES: Record<string, string> = {
-  'anthropic/claude-sonnet-4-6': 'Claude Sonnet',
-  'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',
+  'anthropic/claude-opus-5': 'Claude Opus',
+  'anthropic/claude-sonnet-5': 'Claude Sonnet',
+  'anthropic/claude-haiku-4-5': 'Claude Haiku',
+  'openai/gpt-5': 'GPT-5',
   'openai/gpt-4o-mini': 'GPT-4o mini',
+  'gemini/gemini-2.5-pro': 'Gemini Pro',
+  'gemini/gemini-2.5-flash': 'Gemini Flash',
+  'deepseek/deepseek-chat': 'DeepSeek',
+  // Retired — still the honest name on every revision they authored.
+  'anthropic/claude-sonnet-4-6': 'Claude Sonnet 4.6',
+  'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',
 };
 
 function laneModelName(raw: string): string {

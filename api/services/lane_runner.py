@@ -48,22 +48,61 @@ logger = logging.getLogger(__name__)
 #: tested) — the D4 spike's rule: an unpriced model never routes in prod.
 #: This is DATA (ADR-402 pattern): adding a provider = a row here + a rate
 #: row + the provider key in env.
+#: ⚠️ THIS DICT IS ALSO THE TURN-TIME WHITELIST, NOT JUST THE CREATION PICKER.
+#: `run_lane_turn` and `run_lane_turn_stream` both refuse a model that is not a
+#: key here (lines ~528 / ~720), so **deleting a row breaks every existing lane
+#: pinned to it** — a lane's `model` is persisted at creation and is a
+#: historical fact (ADR-460 D4). At the 2026-08-12 roster refresh all 65 live
+#: lanes pinned `claude-sonnet-4-6`, 56 of them bound Studio lanes; removing
+#: that row would have orphaned the entire workspace. Hence `retired`:
+#: superseded rows STAY and keep running their lanes; they simply leave the
+#: chooser (ADR-559 D2).
+#:
+#: `retired`: absent/False = offered at the door. True = still routable for
+#: lanes already pinned to it, never offered for a NEW conversation.
 LANE_MODELS: dict[str, dict[str, Any]] = {
-    "anthropic/claude-sonnet-4-6": {"label": "Claude Sonnet", "vision": True},
-    "anthropic/claude-haiku-4-5-20251001": {"label": "Claude Haiku", "vision": True},
-    "openai/gpt-4o-mini": {"label": "GPT-4o mini", "vision": True},
-    # ADR-420 §10 seed set — "provide enough, not the most" (one lane per
-    # reason a user would leave, not one per model that exists). Each row
-    # is DATA: a _BILLING_RATES row (telemetry.py) + the provider key in env
-    # (GEMINI_API_KEY / OPENAI_API_KEY / DEEPSEEK_API_KEY on API + Scheduler)
-    # is all it costs. Lit dark until the key lands; MODEL_ROUTER_ENABLED gates.
-    # `vision` (Phase-A attachments): may this model receive image content
-    # parts? Data, not capability-probing — a new row declares it.
-    "openai/gpt-5": {"label": "GPT-5", "vision": True},                        # frontier OpenAI (completes mini→frontier)
-    "gemini/gemini-2.5-flash": {"label": "Gemini Flash", "vision": True},      # the Google lane (fast/cheap)
+    # ── Anthropic ────────────────────────────────────────────────────────
+    # ADR-559 D1: the Anthropic lane was two generations stale — Sonnet 4.6
+    # with no Opus tier at all, so a member wanting Anthropic's frontier model
+    # could not pick one. Sonnet 5 supersedes 4.6 at the SAME list price
+    # ($3/$15); Opus 5 adds the frontier tier the roster never had.
+    "anthropic/claude-opus-5": {"label": "Claude Opus", "vision": True},
+    "anthropic/claude-sonnet-5": {"label": "Claude Sonnet", "vision": True},
+    "anthropic/claude-haiku-4-5": {"label": "Claude Haiku", "vision": True},
+    # ── OpenAI ───────────────────────────────────────────────────────────
+    "openai/gpt-5": {"label": "GPT-5", "vision": True},                        # frontier OpenAI
+    "openai/gpt-4o-mini": {"label": "GPT-4o mini", "vision": True},            # cheap OpenAI
+    # ── Google ───────────────────────────────────────────────────────────
     "gemini/gemini-2.5-pro": {"label": "Gemini Pro", "vision": True},          # frontier Google reasoning
-    "deepseek/deepseek-chat": {"label": "DeepSeek", "vision": False},          # cost-floor / sovereign lane (compat alias → V4 Flash)
+    "gemini/gemini-2.5-flash": {"label": "Gemini Flash", "vision": True},      # the Google lane (fast/cheap)
+    # ── DeepSeek ─────────────────────────────────────────────────────────
+    "deepseek/deepseek-chat": {"label": "DeepSeek", "vision": False},          # cost-floor / sovereign lane
+    # ── RETIRED (honored, not offered) ───────────────────────────────────
+    # Superseded engines. They keep every lane already pinned to them running
+    # — a lane's engine is what ACTUALLY ran and must not be rewritten — but
+    # they are gone from the chooser. Keep the `_BILLING_RATES` row for each:
+    # `unpriced_lane_model` gates every turn, so an unpriced retired row would
+    # refuse the very lanes this state exists to protect.
+    "anthropic/claude-sonnet-4-6": {
+        "label": "Claude Sonnet 4.6", "vision": True, "retired": True,
+    },
+    # The dated Haiku spelling. `claude-haiku-4-5` is the same model — the
+    # suffix-free id is the current form (a date-suffixed alias is not a
+    # distinct engine), so the old spelling is retired rather than deleted:
+    # SYSTEM_CALLS and any pre-refresh lane may still name it.
+    "anthropic/claude-haiku-4-5-20251001": {
+        "label": "Claude Haiku (4.5)", "vision": True, "retired": True,
+    },
 }
+
+
+def offered_lane_models() -> dict[str, dict[str, Any]]:
+    """The engines a member may START a conversation with (ADR-559 D2).
+
+    `LANE_MODELS` minus retired rows. The chooser reads THIS; the turn-time
+    whitelist reads the full dict. One dict, two audiences — a retired engine
+    keeps running its own lanes and stops being offered for new ones."""
+    return {k: v for k, v in LANE_MODELS.items() if not v.get("retired")}
 
 _LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)
 #: The think profile (Phase-A chassis item 1, ADR-457 D6 as amended 2026-07-15).
@@ -166,6 +205,94 @@ _UNPRICED_MODEL_ERROR = {
     "error": "model_unpriced",
     "message": "this model has no billing rate configured and cannot run (ADR-439 §4)",
 }
+
+
+# ---------------------------------------------------------------------------
+# Engine availability (ADR-559 D3)
+# ---------------------------------------------------------------------------
+#
+# An engine can be unavailable for THREE structurally different reasons, and
+# only two of them are knowable before a member clicks:
+#
+#   no_provider_key  — the key never landed on this deployment. Ours to fix;
+#                      checkable from env.
+#   unpriced         — no `_BILLING_RATES` row. Ours to fix; checkable.
+#   upstream_refused — the provider itself declines (billing, quota). NOT
+#                      predictable — only a real call reveals it. DeepSeek's
+#                      "Insufficient Balance" (probe, 2026-08-12) is the first
+#                      instance, and it is why this is a general mechanism
+#                      rather than a special case for one row.
+#
+# The first two are computed; the third is OBSERVED and remembered (see
+# `note_upstream_refusal`). A member sees the engine greyed with its reason —
+# never hidden. Hiding is worse: someone who expects DeepSeek and sees nothing
+# assumes a bug, and files one.
+
+#: provider prefix → the env var whose presence lights that provider.
+_PROVIDER_KEY_ENV = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+}
+
+#: Engines observed refusing upstream this process, → the provider's own words.
+#: Process-local and deliberately NOT persisted: an upstream refusal is a
+#: transient fact about someone else's account, and a funded account must heal
+#: on its next successful call without an operator clearing a table. A restart
+#: re-learns from the next attempt.
+_upstream_refused: dict[str, str] = {}
+
+#: The provider-side error shapes that mean "your account, not your request".
+#: Substring match on the exception text — providers do not share an error
+#: taxonomy, and a 4xx body is the only signal they agree on.
+_UPSTREAM_REFUSAL_MARKERS = (
+    "insufficient balance",
+    "insufficient_quota",
+    "exceeded your current quota",
+    "billing",
+    "payment required",
+)
+
+
+def note_upstream_refusal(model: str, exc: BaseException) -> bool:
+    """Record an engine as upstream-unavailable IFF the provider refused for
+    an ACCOUNT reason. Returns True when it did.
+
+    Deliberately narrow: a timeout, a rate limit, or a bad request is not
+    unavailability — marking an engine dark on any error would take a whole
+    lane out of the picker for one transient blip."""
+    text = str(exc).lower()
+    if not any(marker in text for marker in _UPSTREAM_REFUSAL_MARKERS):
+        return False
+    _upstream_refused[model] = str(exc)[:200]
+    logger.warning(
+        "[LANE] %s marked upstream-unavailable: %s", model, str(exc)[:160],
+    )
+    return True
+
+
+def clear_upstream_refusal(model: str) -> None:
+    """A successful call heals the engine. Called on every successful routed
+    turn, so a funded account recovers without operator action."""
+    if _upstream_refused.pop(model, None) is not None:
+        logger.info("[LANE] %s is available again (a call succeeded)", model)
+
+
+def lane_model_availability(model: str) -> tuple[bool, Optional[str]]:
+    """`(available, reason)` for one engine. Pure apart from env + the
+    observed-refusal map. `reason` is None when available."""
+    import os
+
+    provider = model.split("/", 1)[0] if "/" in model else model
+    env_var = _PROVIDER_KEY_ENV.get(provider)
+    if env_var and not (os.environ.get(env_var) or "").strip():
+        return False, "no_provider_key"
+    if unpriced_lane_model(model):
+        return False, "unpriced"
+    if model in _upstream_refused:
+        return False, "upstream_refused"
+    return True, None
 
 
 def _anthropic_to_openai_tool(tool: dict) -> dict:
@@ -579,15 +706,23 @@ async def run_lane_turn(
 
     for round_idx in range(_LANE_MAX_ROUNDS):
         rounds = round_idx + 1
-        routed = await route_completion(
-            model,
-            messages,
-            system=system,
-            max_tokens=max_tokens,
-            timeout=_LANE_TIMEOUT_S,
-            tools=tools,
-            api_key=byok_key,
-        )
+        # ADR-559 D3 — LEARN from the call. An upstream account refusal is the
+        # one unavailability reason nothing can predict; the only way to know
+        # is to try. Re-raised either way: this observes, it never swallows.
+        try:
+            routed = await route_completion(
+                model,
+                messages,
+                system=system,
+                max_tokens=max_tokens,
+                timeout=_LANE_TIMEOUT_S,
+                tools=tools,
+                api_key=byok_key,
+            )
+        except Exception as exc:
+            note_upstream_refusal(model, exc)
+            raise
+        clear_upstream_refusal(model)  # a success heals the engine
         total_in += routed.usage.get("input_tokens", 0)
         total_out += routed.usage.get("output_tokens", 0)
 
@@ -774,15 +909,24 @@ async def run_lane_turn_stream(
         routed = None
         # Stream this round. On a text round the deltas are user-visible; on
         # a tool round they are empty and we act on `routed.tool_calls`.
-        async for kind, payload in route_completion_stream(
-            model, messages, system=system,
-            max_tokens=max_tokens, timeout=_LANE_TIMEOUT_S, tools=tools,
-            api_key=byok_key,
-        ):
-            if kind == "delta":
-                yield ("delta", payload)
-            elif kind == "done":
-                routed = payload
+        #
+        # ADR-559 D3 — same observe-and-re-raise as the non-streaming loop.
+        # An account refusal on a streamed round raises before the first
+        # delta, so it is learnable here too.
+        try:
+            async for kind, payload in route_completion_stream(
+                model, messages, system=system,
+                max_tokens=max_tokens, timeout=_LANE_TIMEOUT_S, tools=tools,
+                api_key=byok_key,
+            ):
+                if kind == "delta":
+                    yield ("delta", payload)
+                elif kind == "done":
+                    routed = payload
+        except Exception as exc:
+            note_upstream_refusal(model, exc)
+            raise
+        clear_upstream_refusal(model)  # a success heals the engine
 
         if routed is None:  # defensive — the generator always yields done
             yield ("error", {"error": "stream_incomplete",

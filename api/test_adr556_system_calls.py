@@ -150,12 +150,15 @@ for rel in ("services/memory.py", "services/session_continuity.py"):
     )
 
 # ...and the two call types it bound together now move INDEPENDENTLY.
-os.environ["YARNNN_SYSCALL_FACT_EXTRACTION"] = "anthropic/claude-opus-4-6"
+# ADR-559: was `claude-opus-4-6`, deleted as an unroutable phantom rate row.
+# The id here only has to DIFFER from session_summary's to prove the dials
+# are independent — it is never called.
+os.environ["YARNNN_SYSCALL_FACT_EXTRACTION"] = "anthropic/claude-opus-5"
 try:
     check(
         "fact_extraction and session_summary are independent dials",
-        system_call_model("fact_extraction") == "claude-opus-4-6"
-        and system_call_model("session_summary") == "claude-haiku-4-5-20251001",
+        system_call_model("fact_extraction") == "claude-opus-5"
+        and system_call_model("session_summary") == "claude-haiku-4-5",
     )
 finally:
     del os.environ["YARNNN_SYSCALL_FACT_EXTRACTION"]

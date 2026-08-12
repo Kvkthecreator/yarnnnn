@@ -96,7 +96,10 @@ interface LaneData {
   /** Still served: every model stays routable (Studio/derive bind one
    *  directly, and the lane filter facet reads it). The registry changes what
    *  the CHOOSER asks, not what the system can run. */
-  models: Array<{ id: string; label: string; vision?: boolean }>;
+  models: Array<{ id: string; label: string; vision?: boolean;
+          /** ADR-559 D3 — false when the engine cannot run right now.
+           *  Served (not filtered) so the door can grey it WITH a reason. */
+          available?: boolean; unavailable_reason?: string | null }>;
   /** ADR-450 D5 — kernel recipes (the Learn-from chooser payload). */
   recipes?: Array<{ slug: string; label: string; description: string }>;
   lanes: LaneInfo[];

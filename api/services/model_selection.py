@@ -114,9 +114,9 @@ SHAPE_RECURRENCE = "recurrence"
 #: (`strip_provider` feeds the Anthropic SDK the same id it got before); what
 #: changes is that the table can now NAME a model it does not yet call.
 DEFAULT_ROUTES: dict[str, ModelRoute] = {
-    SHAPE_ADDRESSED: ModelRoute(model="anthropic/claude-sonnet-4-6", max_rounds=20),
-    SHAPE_PROPOSAL: ModelRoute(model="anthropic/claude-sonnet-4-6", max_rounds=20),
-    SHAPE_RECURRENCE: ModelRoute(model="anthropic/claude-sonnet-4-6", max_rounds=20),
+    SHAPE_ADDRESSED: ModelRoute(model="anthropic/claude-sonnet-5", max_rounds=20),
+    SHAPE_PROPOSAL: ModelRoute(model="anthropic/claude-sonnet-5", max_rounds=20),
+    SHAPE_RECURRENCE: ModelRoute(model="anthropic/claude-sonnet-5", max_rounds=20),
 }
 
 

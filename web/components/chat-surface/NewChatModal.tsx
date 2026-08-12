@@ -34,12 +34,27 @@ import { Check, Loader2, X } from 'lucide-react';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
+import { cn } from '@/lib/utils';
 
 export interface ChatEngineChoice {
   id: string;
   label: string;
   vision?: boolean;
+  /** ADR-559 D3 — false when the engine cannot run right now. Absent = available
+   *  (an older envelope that predates the field must not grey everything out). */
+  available?: boolean;
+  unavailable_reason?: string | null;
 }
+
+/** Why an engine is dark, in the member's terms. The server sends a REASON CODE
+ *  (an operator fact); the wording is the FE's job — as with every other
+ *  member-facing string. `no_provider_key` especially must not read as
+ *  something they did or can fix: it is our deployment's gap. */
+const UNAVAILABLE_COPY: Record<string, string> = {
+  no_provider_key: 'not connected yet',
+  unpriced: 'unavailable',
+  upstream_refused: 'provider unavailable',
+};
 
 /** Where the member's last engine is remembered. VIEW STATE — a per-person
  *  convenience, deliberately not a workspace setting (a workspace default would
@@ -133,32 +148,50 @@ export function NewChatModal({ engines, onPick, onClose }: NewChatModalProps) {
             </button>
           </div>
 
+          {/* ADR-559 D3 — an unavailable engine is SHOWN, disabled, with its
+              reason. Hiding it is worse: a member who expects DeepSeek and
+              sees an empty space concludes the app is broken. `available`
+              absent means available (envelope compatibility). */}
           <div className="mt-3 space-y-1">
-            {engines.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                disabled={!!busy}
-                onClick={() => void pick(e.id)}
-                className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-muted text-left transition-colors disabled:opacity-50"
-              >
-                <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground shrink-0">
-                  {engineBrandIcon(e.id)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm">{e.label}</span>
-                </span>
-                {last === e.id && !busy && (
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
-                    <Check className="w-3 h-3" />
-                    last used
+            {engines.map((e) => {
+              const dark = e.available === false;
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  disabled={!!busy || dark}
+                  aria-disabled={dark}
+                  onClick={() => void pick(e.id)}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors',
+                    dark
+                      ? 'opacity-45 cursor-not-allowed'
+                      : 'hover:bg-muted disabled:opacity-50',
+                  )}
+                >
+                  <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+                    {engineBrandIcon(e.id)}
                   </span>
-                )}
-                {busy === e.id && (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
-                )}
-              </button>
-            ))}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm">{e.label}</span>
+                    {dark && (
+                      <span className="block text-xs text-muted-foreground truncate">
+                        {UNAVAILABLE_COPY[e.unavailable_reason ?? ''] ?? 'unavailable'}
+                      </span>
+                    )}
+                  </span>
+                  {last === e.id && !busy && !dark && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                      <Check className="w-3 h-3" />
+                      last used
+                    </span>
+                  )}
+                  {busy === e.id && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {error && (

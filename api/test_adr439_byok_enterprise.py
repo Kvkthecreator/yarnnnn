@@ -128,16 +128,36 @@ def run():
         module import swept in an unrelated `ledger_model_name` import at the
         top of the file, which is not a call site at all. The invariant is
         ordering relative to the import that BRINGS IN THE CALL
-        (`feedback_never_pin_a_spelling_assert_behaviour`)."""
-        guards = [i for i in range(len(src)) if src.startswith("if unpriced_lane_model(model):", i)]
-        imports = [
-            i for i in range(len(src))
-            if src.startswith("from services.model_router import", i)
-            and "route_completion" in src[i:src.find("\n", i)]
+        (`feedback_never_pin_a_spelling_assert_behaviour`).
+
+        ADR-559: scoped to the two LOOP functions instead of counting matches
+        file-wide. `lane_model_availability` legitimately calls
+        `unpriced_lane_model` too, so a third guard appeared and the
+        `len(guards) != 2` bail read a NEW HELPER as a violation. A count
+        cannot defend a per-site invariant
+        (`feedback_counting_gate_cannot_defend_per_site`) — the rule is
+        per-loop ordering, so check per loop."""
+        import ast
+
+        tree = ast.parse(src)
+        loops = [
+            n for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and n.name in ("run_lane_turn", "run_lane_turn_stream")
         ]
-        if len(guards) != 2 or len(imports) != 2:
+        if len(loops) != 2:
             return False
-        return all(g < imp for g, imp in zip(guards, imports))
+        for fn in loops:
+            body = ast.unparse(fn)
+            g = body.find("if unpriced_lane_model(model):")
+            i = body.find("from services.model_router import")
+            # The loop's own route-call import; both loops import it locally.
+            while i != -1 and "route_completion" not in body[i:body.find("\n", i)]:
+                i = body.find("from services.model_router import", i + 1)
+            if g == -1 or i == -1 or g > i:
+                return False
+        return True
+
 
     results.append(_check(
         "both lane loops gate on unpriced_lane_model BEFORE the router import/call",

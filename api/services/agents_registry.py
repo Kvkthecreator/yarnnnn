@@ -98,7 +98,7 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
         "name": "Thinker",
         "blurb": "Thinks a problem through with you — writing, judgment, hard calls.",
         "icon": "brain",
-        "model": "anthropic/claude-sonnet-4-6",
+        "model": "anthropic/claude-sonnet-5",
         "token_profile": 4096,
         "posture": (
             "You are Thinker — the member's thinking partner. Reason carefully and "
@@ -162,7 +162,7 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
         "name": "Designer",
         "blurb": "Makes the thing itself — decks, docs, the artifact in front of you.",
         "icon": "pen-tool",
-        "model": "anthropic/claude-sonnet-4-6",
+        "model": "anthropic/claude-sonnet-5",
         # The AUTHORING profile, and it rides with the Agent rather than with the
         # binding — because making is what Designer DOES, in a Studio lane or in
         # /chat. (`_studio_max_tokens` still raises a BOUND lane's ceiling

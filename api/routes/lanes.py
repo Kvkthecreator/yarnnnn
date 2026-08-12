@@ -39,6 +39,16 @@ _MAX_MESSAGE_LEN = 32_000
 # this placeholder and is auto-named from the first message's head.
 _DEFAULT_LANE_NAME = "New chat"
 
+#: ADR-559 D3 — what a member is told when an engine is unavailable, per
+#: reason. Written for the MEMBER, not the operator: "no provider key" is our
+#: deployment's problem, so it must not read as something they did wrong or
+#: could fix. The reason code still rides on the envelope for the operator.
+_UNAVAILABLE_ENGINE_DETAIL = {
+    "no_provider_key": "{label} isn't connected on this deployment yet.",
+    "unpriced": "{label} has no billing rate configured and cannot run.",
+    "upstream_refused": "{label} is unavailable right now — the provider declined the last request.",
+}
+
 
 class CreateLaneRequest(BaseModel):
     # Optional since Phase A: absent/blank → _DEFAULT_LANE_NAME + auto-name on
@@ -286,7 +296,7 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
     definition — the FE must never see two payload shapes for one endpoint)."""
     from services.agents_registry import find_member_agents, list_agents
     from services.derive_recipes import list_recipes
-    from services.lane_runner import LANE_MODELS
+    from services.lane_runner import lane_model_availability, offered_lane_models
 
     return {
         "enabled": enabled,
@@ -295,9 +305,22 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # picks WHO" is preserved where it belongs — `/agents` and app residents
         # — but it was answering the wrong door here: a member who came to use
         # GPT-5 was handed a persona.)
+        #
+        # ADR-559 D2/D3: the door offers the CURRENT roster (retired engines
+        # keep running their own lanes but leave the chooser), and every row
+        # carries its availability. Unavailable engines are SERVED, not
+        # filtered — the FE greys them with the reason. A member who expects
+        # DeepSeek and sees nothing files a bug; one who sees "DeepSeek —
+        # unavailable" understands.
         "models": [
-            {"id": mid, "label": meta["label"], "vision": bool(meta.get("vision", True))}
-            for mid, meta in LANE_MODELS.items()
+            {
+                "id": mid,
+                "label": meta["label"],
+                "vision": bool(meta.get("vision", True)),
+                "available": (_avail := lane_model_availability(mid))[0],
+                "unavailable_reason": _avail[1],
+            }
+            for mid, meta in offered_lane_models().items()
         ],
         # `agents` STAYS, but as the CAST's roster, not the creation chooser:
         # who a member may ADD to a conversation (ADR-495 — a colleague is
@@ -384,7 +407,7 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
 @router.post("/lanes")
 async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     from services.agents_registry import find_member_agents, resolve_agent
-    from services.lane_runner import LANE_MODELS
+    from services.lane_runner import LANE_MODELS, lane_model_availability
     from services.model_router import lanes_enabled
 
     if not lanes_enabled():
@@ -427,6 +450,29 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         raise HTTPException(status_code=422, detail="model is required")
     if model not in LANE_MODELS:
         raise HTTPException(status_code=422, detail=f"Unknown lane model: {model}")
+    # ADR-559 D2/D3 — refuse at the DOOR, not mid-turn. A conversation created
+    # on a retired or unavailable engine looks fine until the first message,
+    # then fails with a stack-shaped error against an empty transcript. Both
+    # checks apply to NEW conversations only: an existing lane on a retired
+    # engine keeps running (LANE_MODELS is the turn-time whitelist), and a
+    # bound app lane resolves its engine from its resident.
+    _meta = LANE_MODELS[model]
+    if _meta.get("retired"):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{_meta['label']} has been superseded and is no longer offered "
+                "for new conversations. Existing conversations on it keep working."
+            ),
+        )
+    _ok, _why = lane_model_availability(model)
+    if not _ok:
+        raise HTTPException(
+            status_code=422,
+            detail=_UNAVAILABLE_ENGINE_DETAIL.get(
+                _why, f"{_meta['label']} is not available right now."
+            ).format(label=_meta["label"]),
+        )
     # Phase-A hygiene: a nameless lane is fine — it auto-names on first turn.
     name = (req.name or "").strip()[:_MAX_NAME_LEN] or _DEFAULT_LANE_NAME
 

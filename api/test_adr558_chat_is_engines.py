@@ -101,11 +101,24 @@ check("an unroutable engine is refused", kind == "http" and status == 422,
 # A real engine must get PAST validation (it dies later in the fake DB, which is
 # the proof it was accepted — this is the case that would break if the guard
 # over-fired).
-from services.lane_runner import LANE_MODELS  # noqa: E402
+from services.lane_runner import LANE_MODELS, lane_model_availability  # noqa: E402
 
-kind, status, _ = _create(model=next(iter(LANE_MODELS)))
-check("a real engine passes validation", kind == "other",
-      f"got {kind}/{status} — a valid engine was refused")
+# ADR-559: pick an engine that is actually AVAILABLE in this environment.
+# `next(iter(LANE_MODELS))` used to be safe when every row was offerable; now
+# the create gate also refuses retired and unavailable engines, and this
+# harness runs with no provider keys, so a fixed first-row pick asserts the
+# availability gate rather than the ADR-558 one. Fall back to asserting the
+# refusal is the AVAILABILITY refusal, never the persona refusal.
+_available = [m for m in LANE_MODELS if lane_model_availability(m)[0]]
+if _available:
+    kind, status, _ = _create(model=_available[0])
+    check("a real engine passes validation", kind == "other",
+          f"got {kind}/{status} — a valid engine was refused")
+else:
+    kind, status, detail = _create(model=next(iter(LANE_MODELS)))
+    check("a valid engine is never refused for the ADR-558 persona reason",
+          not (kind == "http" and "cast" in (detail or "").lower()),
+          f"refused as a persona error, not an availability one: {detail!r}")
 
 print("\n2. D3 — an APP still pins its resident (ADR-467 D1 untouched)")
 
