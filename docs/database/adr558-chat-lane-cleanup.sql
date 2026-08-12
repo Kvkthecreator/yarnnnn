@@ -1,12 +1,18 @@
 -- ADR-558 — delete chat lanes carrying a birth-persona.
 --
--- ⚠️ OPERATOR-RUN, NOT AUTOMATED. This deletes rows. The operator confirmed
--- (2026-08-12) that the affected lanes are 100% test data, and ADR-558 §4 rules
--- them DELETED rather than migrated: a migration would preserve the shape the
--- ADR removes (a conversation with a persona chosen at its door).
+-- ✅ APPLIED 2026-08-12 (operator-authorized, run through the ACCESS.md
+-- `.secrets.local` path). Result: 19 lanes, 42 session_messages, 33
+-- conversation_members deleted. Post-state verified: 56 bound (Studio · Docs ·
+-- IMAGES) + 3 derive lanes INTACT, 24 engine-only chat lanes preserved, 0
+-- birth-personas remaining.
 --
--- Run the SELECTs FIRST. If the counts surprise you, stop — this is not
--- reversible, and a lane you actually wanted is worth more than the tidiness.
+-- The safety check that mattered, run BEFORE the delete: zero of the 19 had
+-- more than one human in the cast, so no real multi-party conversation was in
+-- the set. Kept here as the record of what was done, and as the shape to reuse
+-- if this ever needs repeating.
+--
+-- ⚠️ IF RE-RUN: the SELECTs are not optional. This is not reversible, and a
+-- lane someone actually wanted is worth more than the tidiness.
 --
 --   psql "$SUPABASE_DB_URL" -f docs/database/adr558-chat-lane-cleanup.sql
 --

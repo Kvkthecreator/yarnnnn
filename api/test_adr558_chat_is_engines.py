@@ -171,6 +171,45 @@ brand = (web / "lib/ai-providers/brand-icons.tsx").read_text()
 check("engine brand mapping lives beside the host-id one (one home)",
       "engineBrandIcon" in brand and "ENGINE_PROVIDER_MARKS" in brand)
 
+print("\n6. DISPLAY reads the CAST, not the deleted birth-persona")
+
+# The defect this section exists for (operator screenshot, 2026-08-12): the
+# creation path was correct, but the LIST still rendered from `lane.agent` —
+# the field ADR-558 removes from chat. So a colleague who JOINED a conversation
+# had their name resolved from the cast while their AVATAR and card-link were
+# resolved from a field that is now always null. Writing the new rule without
+# migrating its readers is the recorded `feedback_migrate_every_reader_of_a_grain_together`
+# failure; these checks are what make it visible.
+
+
+def _fn_body(source: str, name: str) -> str:
+    """The text of a `const <name> = useCallback(...)` block, up to the next
+    top-level `const` — enough to assert what a helper reads from."""
+    i = source.find(f"const {name} = ")
+    if i < 0:
+        return ""
+    j = source.find("\n  const ", i + 10)
+    return source[i: j if j > 0 else len(source)]
+
+
+for helper, needs_cast in (("laneSubLabel", True), ("laneAvatarUrl", True)):
+    body = _fn_body(chat, helper)
+    check(f"{helper} exists", bool(body))
+    # `participants` is the cast; a display helper must consult it.
+    check(f"{helper} resolves the counterpart from the cast",
+          "participants" in body and "member_kind" in body,
+          "it reads lane.agent only, which is null on every chat lane")
+
+# The header's card-link must not key on the bound-lane resident alone.
+check("the header agent-link reads the cast first",
+      "p.member_kind === 'agent'" in chat and "activeAgent?.slug ?? null" in chat,
+      "a joined colleague's face would link nowhere")
+
+# `laneAgent` SURVIVES on purpose — bound lanes have no participant rows, so
+# deleting it would render a Studio lane as an engine instead of Designer.
+check("laneAgent is retained for BOUND lanes (not deleted wholesale)",
+      "const laneAgent = useCallback" in chat)
+
 print(f"\n{N - len(FAILS)}/{N} checks passed")
 if FAILS:
     print("\nFAILURES:")

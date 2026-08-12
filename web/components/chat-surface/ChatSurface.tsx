@@ -206,9 +206,14 @@ export function ChatSurface() {
     [data],
   );
 
-  // ADR-460 D4 — a lane is named by WHO it talks to. Falls back to the engine
-  // label for pre-registry lanes: those genuinely ARE a model doing a job, so
-  // naming them by their engine is honest, not a gap.
+  // ADR-558 D3 — `lane.agent` is a BOUND lane's resident (Studio · Docs ·
+  // IMAGES pin a colleague, ADR-467 D1). A CHAT lane never carries one: the
+  // server refuses it at creation, so this resolves to null for every
+  // conversation on this surface and the engine label answers instead.
+  //
+  // Kept, not deleted, because bound lanes DO reach a few of these helpers
+  // (they have no participant rows to name themselves from). Deleting it would
+  // make a Studio lane render as an engine where it should render as Designer.
   const laneAgent = useCallback(
     (lane: { agent?: string | null }) =>
       (lane.agent && data?.agents?.find((a) => a.slug === lane.agent)) || null,
@@ -277,6 +282,21 @@ export function ChatSurface() {
       laneOthers(lane).join(', '),
     [laneOthers],
   );
+  // The row's picture, from the SAME source as its name (ADR-558). A single
+  // joined colleague lends their avatar; anything else (a group, a person, an
+  // engine-only chat) has no one face, and AgentFace falls back to an initial.
+  const laneAvatarUrl = useCallback(
+    (lane: { agent?: string | null; participants?: Participant[] }) => {
+      const agents = (lane.participants ?? []).filter((p) => p.member_kind === 'agent');
+      if (agents.length === 1) {
+        return data?.agents?.find((a) => a.slug === agents[0].agent_slug)?.avatar_url;
+      }
+      // Pre-cast (Studio/derive) lanes have no participant rows — their
+      // resident is the counterpart.
+      return agents.length ? undefined : laneAgent(lane)?.avatar_url;
+    },
+    [data, laneAgent],
+  );
   // How many are in this conversation — EVERY participant, species-blind. The
   // ONE count; the header chip and the sub-label both read it, so they can
   // never disagree (the shipped pair did: the chip counted the whole cast
@@ -307,13 +327,23 @@ export function ChatSurface() {
         (p) => !(p.member_kind === 'human' && p.principal_id === userId),
       );
       if (others.length === 1 && others[0].member_kind === 'human') return 'Direct chat';
-      const a = laneAgent(lane);
+      // ADR-558: the counterpart is read from the CAST, not from `lane.agent`.
+      // A colleague JOINS a conversation, so a lane whose cast holds one names
+      // that colleague — `role · engine`, the ADR-463 §3 shape (the technical
+      // fact stays visible, never the headline).
+      const joined = others.length === 1 && others[0].member_kind === 'agent'
+        ? data?.agents?.find((x) => x.slug === others[0].agent_slug)
+        : null;
+      // …and a lane with nobody else in it IS its engine. That is the ADR-558
+      // default state of every new chat, so it is the honest label, not a gap:
+      // the member picked an engine and nobody has joined yet.
+      const a = joined || laneAgent(lane);
       if (!a) return modelLabel(lane.model);
       return [a.kernel === false ? a.role : null, a.engine || modelLabel(lane.model)]
         .filter(Boolean)
         .join(' · ');
     },
-    [laneAgent, laneMemberCount, modelLabel, userId],
+    [data, laneAgent, laneMemberCount, modelLabel, userId],
   );
 
   // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
@@ -699,13 +729,14 @@ export function ChatSurface() {
                 activeLaneId === lane.id ? 'bg-muted' : 'hover:bg-muted/50',
               )}
             >
-              {/* The colleague's face leads the row — you scan for WHO, not for
-                  which engine ran (the shipped list once showed the raw engine
-                  name on every row: the spec sheet, surviving where it was least
-                  visible). */}
+              {/* The row leads with a face. `laneLabel` already names the room
+                  from its CAST; the avatar follows the same source (ADR-558 —
+                  `lane.agent` is a bound lane's resident and is null on every
+                  chat conversation, so keying the picture on it left a joined
+                  colleague's avatar blank while their NAME rendered). */}
               <AgentFace
                 name={laneLabel(lane)}
-                avatarUrl={laneAgent(lane)?.avatar_url}
+                avatarUrl={laneAvatarUrl(lane)}
                 size="md"
                 className="mt-0.5"
               />
@@ -845,9 +876,16 @@ export function ChatSurface() {
               // The faces link to a card only when a SINGLE Agent is the whole
               // counterpart. In a group — any mix — there is no one card that
               // describes the room, so they open the details instead.
+              //
+              // ADR-558: read the counterpart from the CAST first. A colleague
+              // JOINS now, so `lane.agent` (the bound-lane resident) is null on
+              // every chat conversation — keying only on it meant a joined
+              // colleague's face linked nowhere.
               agentSlug={
-                activeAgent && laneMemberCount(activeLane) <= 2
-                  ? activeAgent.slug
+                laneMemberCount(activeLane) <= 2
+                  ? (activeLane.participants ?? []).find(
+                      (p) => p.member_kind === 'agent',
+                    )?.agent_slug ?? activeAgent?.slug ?? null
                   : null
               }
               onOpenDetails={() => setParam({ detail: 'participants' })}
