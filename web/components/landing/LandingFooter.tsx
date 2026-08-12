@@ -131,6 +131,11 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
             </div>
             <ul className={`space-y-2.5 text-sm ${mutedClass}`}>
               <li>
+                <Link href="/privacy-architecture" className={`${hoverClass} transition-colors`}>
+                  Your data
+                </Link>
+              </li>
+              <li>
                 <Link href="/privacy" className={`${hoverClass} transition-colors`}>
                   Privacy
                 </Link>

@@ -48,8 +48,10 @@ from services.supabase import UserClient, get_service_client
 from services.workspace_purge import (
     _purge_scope,
     resolve_purge_workspace,
+    _collect_blob_shas,
     _delete_rows,
     _delete_workspace_files,
+    _delete_workspace_blobs,
     _null_head_version_pointers,
     capture_active_program_slug,
     clear_workspace_for_user,
@@ -798,8 +800,19 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         # (ADR-209 revision rows are not FK-cascaded from auth.users — wipe explicitly).
         # Null head_version_id pointers first to avoid the files→versions FK violation.
         _null_head_version_pointers(service_client, user_id)
+        # ADR-561: collect the cited content BEFORE the revision chain goes —
+        # the revisions are the only thing that names the blob. Without this the
+        # bucket objects survive account deletion unreachably, and the response
+        # message below ("all data has been deleted") would be false.
+        blob_shas = _collect_blob_shas(service_client, user_id)
         deleted["workspace_file_versions"] = _delete_rows(service_client, "workspace_file_versions", user_id, optional=True)
         deleted["workspace_files"] = _delete_workspace_files(service_client, user_id)
+        # ADR-561: the blob rows + their bucket objects, now that no revision cites
+        # them. Best-effort per blob (the helper swallows individual failures), so a
+        # storage hiccup leaves collectable rows rather than aborting the deletion.
+        deleted["workspace_blobs"] = _delete_workspace_blobs(
+            service_client, user_id, blob_shas
+        )
         # ADR-298 wake queue has no auth.users FK cascade — wipe before auth delete.
         deleted["wake_queue"] = _delete_rows(service_client, "wake_queue", user_id, optional=True)
         for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
@@ -817,7 +830,13 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
 
         return OperationResult(
             success=True,
-            message="Account deactivated. All data has been deleted.",
+            # ADR-561: names what was removed rather than asserting totality.
+            # Blob collection is best-effort per object, so "all data" was a
+            # claim this path could not keep.
+            message=(
+                "Account deleted. Your workspace files, their revision history, "
+                "and your account record have been removed."
+            ),
             deleted=deleted,
         )
     except HTTPException:

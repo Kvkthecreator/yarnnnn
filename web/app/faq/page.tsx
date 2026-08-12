@@ -18,7 +18,11 @@ interface FaqSection {
   items: FaqItem[];
 }
 
-// ≤12 entries per SITE-COPY-SPEC-v1 §4.
+// SITE-COPY-SPEC-v1 §4 sets ≤12; ADR-561 raises it to 15 for the "Your data"
+// category. The spec predates the data-handling audit, which found the FAQ
+// asserted "we never train on it" with nothing behind it. Two entries is the
+// smallest honest answer to "where does my work go" and "what can a connected
+// AI do" — the second retracts an understatement, so it is not optional.
 const faqSections: FaqSection[] = [
   {
     category: "The difference",
@@ -31,7 +35,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Is my data mine?",
         answer:
-          "Yes. Every file is attributed, every version is kept, and the whole thing is exportable and reachable from any AI over MCP. It's yours to own — and we never train on it.",
+          "Yes. Every file is attributed, every version is kept, and the whole thing exports as a plain git repo with its history intact. We never train on it — and nothing here deletes itself on a timer.",
       },
       {
         question: "What is 'trace'?",
@@ -62,6 +66,21 @@ const faqSections: FaqSection[] = [
         question: "What's the 'second set of eyes' I've seen mentioned?",
         answer:
           "That's the optional checker (in beta): an assistant that reviews important work before it goes out, against rules you set, and keeps a record of every call it makes. The memory is valuable on its own; the checker is an upgrade you turn on when you're ready.",
+      },
+    ],
+  },
+  {
+    category: "Your data",
+    items: [
+      {
+        question: "Where does my work go when I ask an AI to do something?",
+        answer:
+          "To the model provider running that task — Anthropic, OpenAI, Google, or DeepSeek, depending on which model is picked. They process it to answer, and under their API terms none of them train on it by default. File text also goes to OpenAI to build the search index that makes your workspace findable. The full list of everyone who can receive your data is on the data page.",
+      },
+      {
+        question: "What can a connected AI actually do in my workspace?",
+        answer:
+          "The same things you can: read, write, move, delete, and share files. It connects through OAuth you approve and can revoke, and every change it makes is signed with its name — so you can always see what it did and walk it back. Connect assistants you trust.",
       },
     ],
   },

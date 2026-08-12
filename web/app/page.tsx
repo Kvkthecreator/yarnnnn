@@ -234,6 +234,36 @@ export default function LandingPage() {
           </ScrollReveal>
         </section>
 
+        {/* ─── Section 5.5 — Where the work goes (ADR-561) ───────────────── */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+          <ScrollReveal className="max-w-3xl mx-auto">
+            <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
+              Where your work actually goes
+            </div>
+            <h2 className="text-2xl md:text-3xl font-medium mb-8 text-[#1a1a1a] leading-tight">
+              A shared workspace, not a black box.
+            </h2>
+            <div className="space-y-6 text-[#1a1a1a]/60 leading-relaxed text-lg font-light">
+              <p>
+                Your files are never training data — not for us, not by default for the
+                models we call. When you ask an AI to work, the relevant files go to that
+                provider to do the job, and we name every provider we can send them to.
+              </p>
+              <p>
+                Nothing here deletes itself on a timer. Every change is signed by whoever
+                made it, every version is kept, and the whole workspace exports as a plain
+                git repo you can walk offline.
+              </p>
+            </div>
+            <Link
+              href="/privacy-architecture"
+              className="inline-block mt-8 text-sm text-[#1a1a1a]/50 underline underline-offset-4 hover:text-[#1a1a1a] transition-colors"
+            >
+              Read the details — including what we don&apos;t have
+            </Link>
+          </ScrollReveal>
+        </section>
+
         {/* ─── Section 6 — Pricing teaser + CTA (Beat 6) ─────────────────── */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <ScrollReveal className="max-w-3xl mx-auto text-center">

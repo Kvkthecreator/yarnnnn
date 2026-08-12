@@ -1,254 +1,263 @@
 import Link from "next/link";
-import {
-  Database,
-  FileClock,
-  KeyRound,
-  LockKeyhole,
-  Route,
-  ShieldCheck,
-  SlidersHorizontal,
-} from "lucide-react";
+import { FileSignature, KeyRound, Ban, DownloadCloud } from "lucide-react";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
+/**
+ * The data page — ADR-561.
+ *
+ * Discipline: every line here is a claim the code supports, and the claims we
+ * cannot make are named rather than implied. The "what we don't have" section
+ * is load-bearing, not an apology — the audited comparables (x.ai in
+ * particular) let the reader assume certifications that don't exist, and
+ * saying it plainly is the differentiator a small team can actually hold.
+ *
+ * The trust marks are MECHANISMS, not certifications. No badge, seal, or
+ * third-party logo may appear on this page until an actual audit backs it:
+ * a badge reads as externally verified in a way prose does not.
+ */
+
 export const metadata = getMarketingMetadata({
-  title: "Privacy Architecture — how yarnnn handles AI memory",
+  title: "Your data, plainly",
   description:
-    "How yarnnn keeps durable AI memory scoped, attributable, revocable, and visible across your workspace and connected assistants.",
+    "Where your work goes when you ask an AI to do something, what we never do with it, what you can take with you, and what we don't have.",
   path: "/privacy-architecture",
   keywords: [
-    "yarnnn privacy architecture",
-    "AI memory privacy",
-    "MCP privacy",
-    "cross-LLM memory privacy",
-    "AI workspace security",
+    "yarnnn data handling",
+    "AI workspace privacy",
+    "MCP connector privacy",
+    "AI training data policy",
+    "workspace export",
   ],
 });
 
+// Mechanisms, not certifications. Each maps to a specific enforced behavior.
 const TRUST_MARKS = [
   {
-    label: "OAuth",
-    detail: "Authorized access",
+    label: "Never trained on",
+    detail: "Not by us, and not by default by the models we call",
+    icon: Ban,
+  },
+  {
+    label: "Signed at the write path",
+    detail: "Every change carries its author — enforced, not conventional",
+    icon: FileSignature,
+  },
+  {
+    label: "No retention timer",
+    detail: "Nothing expires on a schedule; trash holds until you empty it",
     icon: KeyRound,
   },
   {
-    label: "Scoped",
-    detail: "Workspace boundary",
-    icon: LockKeyhole,
-  },
-  {
-    label: "Provenance",
-    detail: "Attributed changes",
-    icon: FileClock,
+    label: "Exports as plain git",
+    detail: "Full revision history as real commits, walkable offline",
+    icon: DownloadCloud,
   },
 ];
 
-const FEATURE_CARDS = [
+const RECIPIENTS = [
   {
-    title: "Scoped by workspace",
-    body: "Core product data is shaped around account and workspace boundaries, with application and database controls protecting the main user tables.",
-    icon: ShieldCheck,
+    name: "Anthropic · OpenAI · Google · DeepSeek",
+    role: "Run the AI task you asked for",
+    data: "The files needed for that task, depending on the model chosen",
   },
   {
-    title: "Not our training data",
-    body: "We do not use your workspace data to train yarnnn-owned models. When you ask AI to work, relevant context may be sent to model providers under their API terms.",
-    icon: LockKeyhole,
+    name: "OpenAI (search indexing)",
+    role: "Builds the index that makes your workspace searchable",
+    data: "File text, as files are written",
   },
   {
-    title: "Revocable access",
-    body: "Connected assistants require authorization, carry attribution, and can be revoked. Deletion and retention controls are being expanded where durable history still has limits.",
-    icon: SlidersHorizontal,
+    name: "Supabase",
+    role: "Database and authentication",
+    data: "Your workspace contents and account",
   },
+  {
+    name: "Render · Vercel",
+    role: "Application hosting",
+    data: "Traffic in transit",
+  },
+  {
+    name: "Sentry",
+    role: "Crash and error reporting",
+    data: "Configured to collect no personal data",
+  },
+  { name: "Resend", role: "Transactional email", data: "Recipients and message contents" },
+  { name: "Lemon Squeezy", role: "Payments", data: "Billing details" },
 ];
 
-const ARCHITECTURE_POINTS = [
-  {
-    title: "Memory stays workspace-shaped",
-    body: "Files, tasks, saved memories, and revision history are organized around your workspace instead of a loose global memory pool.",
-  },
-  {
-    title: "Assistant access is explicit",
-    body: "ChatGPT, Claude, or another MCP-capable assistant can connect only through an OAuth grant you approve and can revoke.",
-  },
-  {
-    title: "Changes are attributable",
-    body: "Saved items record whether they came from you, yarnnn, a teammate, or a connected assistant, so durable memory has a visible source.",
-  },
-  {
-    title: "AI data flow is named",
-    body: "When you ask AI to use workspace context, relevant context may be sent to model providers so the work can be done. The privacy policy states that flow plainly.",
-  },
-];
-
-const CONTROL_POINTS = [
-  "Most connector credentials are encrypted at rest where stored as credentials.",
-  "Crash telemetry is configured without default PII collection.",
-  "The purge model has explicit levels for work history, workspace state, integrations, and account deletion.",
-  "Revision history is durable by design so users can inspect what changed and who changed it.",
-];
-
-const HARDENING = [
-  "Tightening private file-body reads so content is reachable only through workspace-scoped authorization paths.",
-  "Adding garbage collection for unreferenced private content bodies after workspace resets and account deletion.",
-  "Expanding row-level security coverage for user-scoped tables that still depend on application-layer filters.",
-  "Normalizing remaining API-key-like connector metadata into encrypted credential storage with rotation support.",
-  "Adding clearer retention controls for operational telemetry, historical revisions, and AI-context minimization.",
-];
-
-export default function PrivacyArchitecturePage() {
+export default function DataPage() {
   const schema = {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    name: "Privacy Architecture",
+    name: "Your data, plainly",
     url: `${BRAND.url}/privacy-architecture`,
     description: metadata.description,
-    dateModified: "2026-07-08",
+    dateModified: "2026-08-13",
   };
 
   return (
-    <div className="min-h-screen bg-[#f8ead7] text-[#262626]">
+    <div className="min-h-screen bg-[#faf8f5] text-[#1a1a1a]">
       <LandingHeader />
 
       <main>
-        <section className="px-6 py-20 md:py-28">
-          <div className="mx-auto max-w-5xl text-center">
-            <p className="mb-5 text-sm font-medium uppercase tracking-[0.24em] text-[#7d6d5c]">
-              Privacy Architecture
-            </p>
-            <h1 className="mx-auto max-w-4xl text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
-              Built for confidential AI work.
-              <br />
-              Designed to show where memory goes.
+        {/* Hero + trust marks */}
+        <section className="px-6 pt-20 pb-16 md:pt-28">
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-3xl font-medium leading-[1.15] tracking-tight md:text-5xl">
+              Your data, plainly.
             </h1>
-            <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-[#6f6255] md:text-xl">
-              See how yarnnn keeps durable memory scoped, attributable, revocable, and honest about
-              the places AI context is processed.
-              {" "}
-              <Link href="/privacy" className="font-medium text-[#2f2a25] underline underline-offset-4">
-                Read the policy
-              </Link>
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-[#1a1a1a]/55 font-light">
+              We don&apos;t train on your work, we don&apos;t delete it on a timer, and you
+              can take all of it with you. Here are the details — including the parts
+              still being tightened.
             </p>
-
-            <div className="mt-16 flex flex-wrap items-start justify-center gap-8 md:gap-12">
-              {TRUST_MARKS.map((mark) => {
-                const Icon = mark.icon;
-                return (
-                  <div key={mark.label} className="flex w-32 flex-col items-center">
-                    <div className="flex h-28 w-28 items-center justify-center rounded-full border border-[#2f2a25]/10 bg-white/70 shadow-sm">
-                      <Icon className="h-10 w-10 text-[#2f2a25]" aria-hidden="true" />
-                    </div>
-                    <p className="mt-4 text-lg font-semibold">{mark.label}</p>
-                    <p className="mt-1 text-sm text-[#75695e]">{mark.detail}</p>
-                  </div>
-                );
-              })}
-            </div>
           </div>
-        </section>
 
-        <section className="bg-[#f5dfc0] px-6 py-10 md:py-14">
-          <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-3">
-            {FEATURE_CARDS.map((card) => {
-              const Icon = card.icon;
+          <div className="mx-auto mt-14 grid max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {TRUST_MARKS.map((mark) => {
+              const Icon = mark.icon;
               return (
-                <article key={card.title} className="min-h-[260px] rounded-lg bg-[#fffaf1] p-8 shadow-sm">
-                  <div className="mb-14 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
-                    <Icon className="h-7 w-7 text-[#2f2a25]" aria-hidden="true" />
+                <div
+                  key={mark.label}
+                  className="rounded-xl border border-[#1a1a1a]/[0.08] bg-white/70 p-5 text-center"
+                >
+                  <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-[#1a1a1a]/[0.04]">
+                    <Icon className="h-5 w-5 text-[#1a1a1a]/70" aria-hidden="true" />
                   </div>
-                  <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">{card.title}</h2>
-                  <p className="mt-6 text-lg leading-8 text-[#645a51]">{card.body}</p>
-                </article>
+                  <p className="text-sm font-medium">{mark.label}</p>
+                  <p className="mt-1.5 text-xs leading-5 text-[#1a1a1a]/45">{mark.detail}</p>
+                </div>
               );
             })}
           </div>
         </section>
 
-        <section className="bg-[#fffaf1] px-6 py-16 md:py-24">
-          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.8fr_1.2fr]">
+        {/* The prose */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-16 md:py-20">
+          <div className="mx-auto max-w-2xl space-y-12">
             <div>
-              <p className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[#8a7764]">
-                How it works
-              </p>
-              <h2 className="text-3xl font-semibold leading-tight tracking-tight md:text-5xl">
-                Private by structure, not just by policy.
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#de5a2b]">
+                Training
               </h2>
-              <p className="mt-6 text-lg leading-8 text-[#6f6255]">
-                yarnnn is built around durable memory, so privacy has to be mechanical: what is
-                stored, who can read it, who wrote it, when it leaves yarnnn, and what can be
-                revoked.
+              <p className="leading-7 text-[#1a1a1a]/70">
+                We never use your workspace content to train any model of ours. We
+                don&apos;t operate models at all — we call other companies&apos; APIs, and
+                under each one&apos;s published API terms, content sent that way
+                isn&apos;t used for training by default. To be precise about the
+                mechanism: we rely on those standard terms, not on a separately
+                negotiated contract of our own. If that distinction matters to you, read
+                their terms directly — we&apos;d rather point you there than paraphrase
+                them.
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {ARCHITECTURE_POINTS.map((point) => (
-                <article key={point.title} className="rounded-lg border border-[#e7d8c6] bg-white p-6">
-                  <h3 className="text-xl font-semibold tracking-tight">{point.title}</h3>
-                  <p className="mt-4 leading-7 text-[#645a51]">{point.body}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section className="bg-[#f8ead7] px-6 py-16 md:py-24">
-          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.85fr_1.15fr]">
             <div>
-              <p className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-[#8a7764]">
-                What holds today
-              </p>
-              <h2 className="text-3xl font-semibold leading-tight tracking-tight md:text-5xl">
-                The trust story is concrete.
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#de5a2b]">
+                Who can receive your content
               </h2>
-              <p className="mt-6 text-lg leading-8 text-[#6f6255]">
-                This is the part that is strong enough to say plainly: scoped product data,
-                credential encryption where credentials are stored, low-PII telemetry defaults, and
-                visible provenance.
+              <p className="mb-5 leading-7 text-[#1a1a1a]/70">
+                When you ask an AI to work, the files it needs go to the provider running
+                that task. This is the complete list of third parties that can receive
+                your content or personal data. If we add one, we&apos;ll update this page.
               </p>
-            </div>
-            <div className="rounded-lg bg-[#fffaf1] p-6 shadow-sm md:p-8">
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
-                <Route className="h-7 w-7 text-[#2f2a25]" aria-hidden="true" />
+              <div className="overflow-x-auto rounded-lg border border-[#1a1a1a]/[0.08] bg-white/60">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead>
+                    <tr className="border-b border-[#1a1a1a]/[0.08]">
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#1a1a1a]/40">
+                        Who
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#1a1a1a]/40">
+                        Why
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#1a1a1a]/40">
+                        What
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {RECIPIENTS.map((r) => (
+                      <tr
+                        key={r.name}
+                        className="border-b border-[#1a1a1a]/[0.06] last:border-0"
+                      >
+                        <td className="px-4 py-3 font-medium">{r.name}</td>
+                        <td className="px-4 py-3 text-[#1a1a1a]/60">{r.role}</td>
+                        <td className="px-4 py-3 text-[#1a1a1a]/60">{r.data}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <ul className="space-y-4 text-[#645a51]">
-                {CONTROL_POINTS.map((item) => (
-                  <li key={item} className="flex gap-3 leading-7">
-                    <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2f2a25]/45" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
-          </div>
-        </section>
 
-        <section className="bg-[#151719] px-6 py-16 text-white md:py-24">
-          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.85fr_1.15fr]">
             <div>
-              <p className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-white/45">
-                Current hardening
-              </p>
-              <h2 className="text-3xl font-semibold leading-tight tracking-tight md:text-5xl">
-                The roadmap is part of the promise.
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#de5a2b]">
+                Deletion
               </h2>
-              <p className="mt-6 text-lg leading-8 text-white/65">
-                Durable AI memory creates real privacy tradeoffs. We name the work still being
-                tightened, especially around private content bodies, deletion completeness,
-                credential rotation, and retention.
+              <p className="leading-7 text-[#1a1a1a]/70">
+                Nothing expires on a schedule. Trash holds until you empty it —
+                deliberately, because a timer means the system destroying your work with
+                nobody watching. When you delete something permanently, or delete your
+                account, removal is immediate rather than queued.
               </p>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-6 md:p-8">
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
-                <Database className="h-7 w-7 text-white" aria-hidden="true" />
-              </div>
-              <ul className="space-y-4 text-white/70">
-                {HARDENING.map((item) => (
-                  <li key={item} className="flex gap-3 leading-7">
-                    <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-white/50" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+
+            <div>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#de5a2b]">
+                Access
+              </h2>
+              <p className="leading-7 text-[#1a1a1a]/70">
+                Who can read a file is a grant you make and can revoke — not a property of
+                what kind of principal is asking. Connected assistants reach your workspace
+                through OAuth you approve, and every write they make is signed with their
+                name. A connected assistant can read, write, move, delete, and share files
+                on your behalf — the same reach you have — so connect ones you trust.
+              </p>
             </div>
+
+            <div>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#de5a2b]">
+                What you can take
+              </h2>
+              <p className="leading-7 text-[#1a1a1a]/70">
+                The whole workspace exports as a standard git repository, with the full
+                revision history as real commits — readable with tools you already have,
+                on a machine we have nothing to do with. Conversations aren&apos;t
+                included yet.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-[#1a1a1a]/[0.1] bg-white/70 p-6">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#1a1a1a]/50">
+                What we don&apos;t have
+              </h2>
+              <p className="leading-7 text-[#1a1a1a]/70">
+                No SOC 2, no ISO 27001, no DPA, no BAA. We&apos;re a small team and
+                we&apos;d rather say so than let a badge imply otherwise. Two things
+                we&apos;re still tightening, named plainly: some stored file contents can
+                persist in backing storage after deletion, and reads of private file
+                bodies still lean on application-layer checks rather than database-level
+                rules. If your procurement needs certifications, we&apos;re not ready for
+                you yet.
+              </p>
+            </div>
+
+            <p className="border-t border-[#1a1a1a]/10 pt-8 text-sm text-[#1a1a1a]/50">
+              The formal version is our{" "}
+              <Link href="/privacy" className="underline underline-offset-4 hover:text-[#1a1a1a]">
+                privacy policy
+              </Link>
+              . Questions:{" "}
+              <a
+                href="mailto:admin@yarnnn.com"
+                className="underline underline-offset-4 hover:text-[#1a1a1a]"
+              >
+                admin@yarnnn.com
+              </a>
+              .
+            </p>
           </div>
         </section>
       </main>
