@@ -309,9 +309,9 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
     """The lane list + capability envelope. `enabled` gates the FE strip —
     lanes exist only where the ADR-408 D4 router is live."""
     from services.lane_runner import LANE_MODELS
-    from services.model_router import model_router_enabled
+    from services.model_router import lanes_enabled
 
-    enabled = model_router_enabled()
+    enabled = lanes_enabled()
     lanes: list[dict] = []
     if enabled:
         # ADR-495 D2 — the list is CAST-SCOPED, not owner-scoped: a
@@ -378,9 +378,9 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
 async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     from services.agents_registry import find_member_agents, resolve_agent
     from services.lane_runner import LANE_MODELS
-    from services.model_router import model_router_enabled
+    from services.model_router import lanes_enabled
 
-    if not model_router_enabled():
+    if not lanes_enabled():
         raise HTTPException(status_code=403, detail="Lanes are not enabled (router off)")
 
     # ADR-460 D4 — the member picks WHO, not which engine. An agent resolves to

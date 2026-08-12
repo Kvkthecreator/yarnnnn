@@ -534,8 +534,8 @@ async def run_lane_turn(
         logger.error("[LANE] refused unpriced model %r — no _BILLING_RATES row", model)
         return {"success": False, **_UNPRICED_MODEL_ERROR}
 
-    from services.model_router import model_router_enabled, route_completion
-    if not model_router_enabled():
+    from services.model_router import lanes_enabled, route_completion
+    if not lanes_enabled():
         return {"success": False, "error": "router_disabled",
                 "message": "MODEL_ROUTER_ENABLED is off — lanes need the router"}
 
@@ -728,8 +728,8 @@ async def run_lane_turn_stream(
         yield ("error", dict(_UNPRICED_MODEL_ERROR))
         return
 
-    from services.model_router import model_router_enabled, route_completion_stream
-    if not model_router_enabled():
+    from services.model_router import lanes_enabled, route_completion_stream
+    if not lanes_enabled():
         yield ("error", {"error": "router_disabled",
                          "message": "MODEL_ROUTER_ENABLED is off — lanes need the router"})
         return

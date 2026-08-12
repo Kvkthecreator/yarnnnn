@@ -117,11 +117,24 @@ def run():
     ))
     def _guard_precedes_router_import(src: str) -> bool:
         """In BOTH loops the unpriced guard must precede that loop's router import
-        (`from services.model_router import model_router_enabled, ...`) — i.e. the
-        block runs before any call can be made. Check each guard/import pairing in
-        source order."""
+        — i.e. the block runs before any call can be made. Check each
+        guard/import pairing in source order.
+
+        ADR-557: the import is matched on the ROUTE-CALL import specifically —
+        `from services.model_router import ... route_completion...` — not on the
+        flag's NAME. Two prior spellings of this check were both wrong:
+        pinning `model_router_enabled` went red on the D2 rename to
+        `lanes_enabled` (a rename, not a violation), and matching the bare
+        module import swept in an unrelated `ledger_model_name` import at the
+        top of the file, which is not a call site at all. The invariant is
+        ordering relative to the import that BRINGS IN THE CALL
+        (`feedback_never_pin_a_spelling_assert_behaviour`)."""
         guards = [i for i in range(len(src)) if src.startswith("if unpriced_lane_model(model):", i)]
-        imports = [i for i in range(len(src)) if src.startswith("from services.model_router import model_router_enabled", i)]
+        imports = [
+            i for i in range(len(src))
+            if src.startswith("from services.model_router import", i)
+            and "route_completion" in src[i:src.find("\n", i)]
+        ]
         if len(guards) != 2 or len(imports) != 2:
             return False
         return all(g < imp for g, imp in zip(guards, imports))

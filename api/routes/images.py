@@ -62,14 +62,17 @@ class ComposeRequest(BaseModel):
     #: The member's one-line brief. This is the whole input; decomposition is
     #: what turns it into objects (ADR-468 D3).
     brief: str
-    # ADR-556 D3 — the engine override is REMOVED. Layer planning is a
-    # SYSTEMATIC call (machinery, nobody picks it), and this field let a
-    # client name any engine straight into `route_completion` with neither
+    # ADR-556 D3 / ADR-557 D3 — the engine override is REMOVED, and the reason
+    # is NOT that IMAGES is machinery. IMAGES is a user-facing APP (ADR-467
+    # residency: Designer resides here), so its engine is a PRODUCT question —
+    # it just is not answered by a raw model string on the wire. This field let
+    # a client name any engine straight into `route_completion` with neither
     # the `LANE_MODELS` membership check nor the ADR-439 §4 billing gate that
-    # every other routed path enforces — an unpriced model prices silently at
-    # the Sonnet default. It was the one place a USER-FACING input reached a
-    # systematic call path. The engine is the resident's, declared in one
-    # place (`services/images/decompose.py`).
+    # every other routed path enforces, so an unpriced model priced silently at
+    # the Sonnet default. An app's engine follows its RESIDENT (declared in
+    # `web/lib/apps/authoring.ts` + `KERNEL_AGENTS`), never a caller-supplied
+    # id — the same rule that made Designer exist instead of `models[0]`.
+    # Whether a member may CHOOSE that resident is the open Phase-2 question.
 
 
 @router.post("/images/compose")

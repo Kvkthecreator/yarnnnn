@@ -60,12 +60,84 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+class RouterDisabled(RuntimeError):
+    """Raised when a routed call is attempted with the transport flag off.
+
+    A DISTINCT type, not a bare RuntimeError: every caller here already wraps
+    its call in `except Exception` to degrade gracefully, so a generic error
+    would be indistinguishable from a provider outage — the failure would look
+    like weather instead of configuration. Callers that want the difference
+    catch this; callers that only want to degrade catch Exception and are
+    unaffected.
+    """
+
+
 def model_router_enabled() -> bool:
-    """Read the flag at call time (no import-time freeze — same pattern as
-    model_selection.py env overrides and CONNECTOR_CAPTURE_ENABLED)."""
+    """Is multi-provider TRANSPORT available? (ADR-557 D2 — the infra fact.)
+
+    Read at call time (no import-time freeze — same pattern as
+    model_selection.py env overrides and CONNECTOR_CAPTURE_ENABLED).
+
+    ⚠️ This answers "can we route at all", NOT "are member lanes GA". Those were
+    the same question only while lanes were the router's only caller; four
+    machinery callers later they are not, and conflating them means a PRODUCT
+    rollout silently changes how session summaries, Studio arrangement, IMAGES
+    planning and radar acquire their models. `lanes_enabled()` is the product
+    fact — see below.
+    """
     return os.environ.get("MODEL_ROUTER_ENABLED", "").strip().lower() in (
         "1", "true", "yes", "on",
     )
+
+
+def lanes_enabled() -> bool:
+    """Are member-facing chat LANES generally available? (ADR-557 D2 — the
+    product fact.)
+
+    Transport is a PREREQUISITE, never the decision: lanes cannot ship without
+    routing, but routing being available says nothing about whether the member
+    surface is ready. `LANES_ENABLED` unset therefore DEFERS to the transport
+    flag — byte-identical to today's behavior, so this split ships inert — and
+    setting it decouples the two:
+
+        LANES_ENABLED=0  → transport stays live for machinery, lanes stay dark
+                           (the rollout knob the flag could not express)
+        LANES_ENABLED=1  → lanes GA, still gated on transport being up
+
+    The asymmetry is deliberate: a product flag may never grant more than the
+    infra it rides on.
+    """
+    if not model_router_enabled():
+        return False
+    raw = os.environ.get("LANES_ENABLED", "").strip().lower()
+    if not raw:
+        return True  # unset → defer to transport (today's behavior exactly)
+    return raw in ("1", "true", "yes", "on")
+
+
+def _assert_router_enabled(model: str) -> None:
+    """THE CHOKEPOINT (ADR-557 D1). The flag is enforced in the TRANSPORT, not
+    re-checked at every call site.
+
+    Before this, `model_router_enabled()` was a CONVENTION each caller had to
+    remember: `route_completion` never consulted it, so an unguarded caller
+    routed regardless. Four of five callers guarded; `services/radar.py` did
+    not — and a flag-off sweep did not degrade, it went **out to the provider
+    over the network** on whatever key happened to be in env. A flag that a
+    caller can forget is not a gate (the recorded
+    `feedback_guard_at_chokepoint_not_call_sites` lesson, third instance).
+
+    Callers keep their own pre-checks where the flag-off path is a real
+    behavior (session_continuity falls back to the direct SDK; decompose falls
+    back to the heuristic plan) — those are CHOICES, not guards, and they now
+    sit behind a floor rather than being the only thing holding the line.
+    """
+    if not model_router_enabled():
+        raise RouterDisabled(
+            f"MODEL_ROUTER_ENABLED is off — refusing to route {model!r}. "
+            "A routed call with the flag off would reach the provider on "
+            "whatever key is in env, which is the opposite of what the flag means."
+        )
 
 
 @dataclass
@@ -192,6 +264,7 @@ async def route_completion(
         the caller decides fallback (the spike call site logs + returns None,
         same failure shape as its legacy path).
     """
+    _assert_router_enabled(model)  # ADR-557 D1 — the chokepoint, before the import
     import litellm  # lazy: ~3s cold import must not tax API boot
 
     full_messages = (
@@ -323,6 +396,7 @@ async def route_completion_stream(
     a tool-call round has no user-visible text (the deltas are empty), so
     the caller streams text only on the final (text) round.
     """
+    _assert_router_enabled(model)  # ADR-557 D1 — the chokepoint, before the import
     import json
     import litellm  # lazy: same cold-import discipline as route_completion
 

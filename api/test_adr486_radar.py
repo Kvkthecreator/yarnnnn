@@ -13,6 +13,7 @@ demand ("gates grep text, not execution" is the failure mode this avoids).
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -159,6 +160,13 @@ async def fake_intake(auth, args):
                               "/workspace/inbound/web/blog/2026-07-24T100000Z.xml"],
             "errors": []}
 
+
+# ADR-557 D1: radar now PRE-CHECKS the transport flag before deriving (it was
+# the one routed caller with no guard, and a flag-off sweep reached the provider
+# over the network). This harness stubs `route_completion`, so it must declare
+# the transport it is pretending to have — otherwise the sweep correctly
+# short-circuits to `router_disabled` and never reaches the stub.
+os.environ["MODEL_ROUTER_ENABLED"] = "1"
 
 route_calls: list[dict] = []
 

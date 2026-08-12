@@ -652,7 +652,24 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
                 "Brief what stands out in the signal as the baseline.\n")
     )
 
-    from services.model_router import route_completion
+    # ADR-557 D1 — radar was the ONE routed caller with no flag check. The
+    # transport now refuses (RouterDisabled) rather than reaching a provider on
+    # whatever key is in env, but a sweep should still say WHY it produced no
+    # brief: "the router is off" is configuration, not a failed derive, and
+    # metering it as `derive_raised` would read as weather.
+    from services.model_router import RouterDisabled, model_router_enabled, route_completion
+    if not model_router_enabled():
+        logger.info(
+            "[RADAR] router off — skipping derive for %s/%s", user_id[:8], hub.slug,
+        )
+        record_execution_event(
+            client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
+            mode="judgment", trigger_type="scheduled", status="skipped",
+            error_reason="router_disabled",
+            funnel_decision="radar", principal_id=user_id,
+        )
+        return {"success": False, "slug": hub.slug, "error_reason": "router_disabled"}
+
     resident_model, resident_character = resolve_radar_resident()
     derive_started = datetime.now(timezone.utc)
     try:
