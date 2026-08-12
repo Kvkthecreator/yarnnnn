@@ -301,8 +301,10 @@ t(
   );
 }
 t(
-  'ADR-540 upheld: retire still fires for a restructuring op (no declared grain)',
-  /touched\.length === 0\) retireFlowCommits\(\)/.test(surfaceCode),
+  // ADR-560 D8 — retire is a PAGED fence now: flow has no iframe teardown to
+  // gasp from. The upheld half of ADR-540 is the paged medium's.
+  'ADR-540 upheld on paged: retire still fires for a restructuring op',
+  /touched\.length === 0 && resolvedMode !== 'flow'\) retireFlowCommits\(\)/.test(surfaceCode),
 );
 
 console.log(`\n${pass} passed, ${fail} failed`);

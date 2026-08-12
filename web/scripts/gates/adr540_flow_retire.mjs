@@ -91,17 +91,22 @@ console.log('\n=== 4. D4 — a patchable op is EXEMPT (or typing gets dropped) =
 // the document is about to be torn down and replaced. Pinning the old spelling
 // read that widening as a violation — the fourth time in this arc a gate did
 // that, so this one asserts the CONDITION's shape instead.
+// ADR-560 D8 narrowed both to the PAGED medium: flow no longer edits in an
+// iframe, so there is no teardown gasp to fence and no live DOM to patch —
+// the model re-parses external writes itself. The claim these assert is
+// per-medium now: on paged, retire fires exactly when the op declares no
+// blocks, and a declared-grain op still patches.
 t(
-  'retire is guarded by "the op declared no blocks" (a restructuring op)',
-  /if \((?:!patchBlockId|touched\.length === 0)\) retireFlowCommits\(\)/.test(S),
+  'retire is guarded by "the op declared no blocks" AND the paged medium',
+  /if \(touched\.length === 0 && resolvedMode !== 'flow'\) retireFlowCommits\(\)/.test(S),
 );
 t(
   'the exemption is not accidentally inverted',
   !/if \((?:patchBlockId|touched\.length > 0)\) retireFlowCommits\(\)/.test(S),
 );
 t(
-  'a DECLARED-grain op still patches (the exemption has a consumer)',
-  /touched\.length > 0\) void sendPatch\(touched/.test(S),
+  'a DECLARED-grain op still patches on paged (the exemption has a consumer)',
+  /touched\.length > 0 && resolvedMode !== 'flow'\) void sendPatch\(touched/.test(S),
 );
 
 console.log('\n=== 5. EXECUTED — simulate the runtime guard ===');

@@ -44,6 +44,8 @@ import { studioShapeStyle } from './studioShapes';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { isColorValue, parseSkinVars } from './skinVars';
 import { OpenArtifactModal } from './OpenArtifactModal';
+import { FlowEditor, type FlowEditorHandle } from './FlowEditor';
+import { readRegionInner, replaceRegionInner } from '@/lib/authoring/flow/roundtrip';
 // ADR-529 D1 — the one share act, shared with Files and every file surface.
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
@@ -98,7 +100,6 @@ import {
   pasteBlock,
   duplicatePage,
   editBlockText,
-  editFlowRegion,
   galleryFragment,
   insertArrangement,
   insertBlock,
@@ -1198,7 +1199,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // torn down and replaced. An op that PATCHES keeps its document alive (and
       // therefore its right to commit in-flight typing), which is exactly why
       // ADR-547 D2 requires the patch to actually reach it.
-      if (touched.length === 0) retireFlowCommits();
+      // ADR-560 D8 — both are IFRAME channels, and flow no longer edits in
+      // one: the model re-parses external writes itself (no teardown gasp to
+      // fence, no live DOM to patch). Paged keeps both.
+      if (touched.length === 0 && resolvedMode !== 'flow') retireFlowCommits();
       // Advance the live CONTENT now (the next op computes off this); the HEAD
       // advances only on ack (the queued write below reads it fresh).
       liveRef.current = { content: html, head: live?.head ?? null };
@@ -1213,7 +1217,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // advanced, so if the patch never lands the canvas still converges on the
       // next ordinary re-projection. A patch is an optimization over a correct
       // path, never the thing correctness depends on.
-      if (!reload && touched.length > 0) void sendPatch(touched, html);
+      if (!reload && touched.length > 0 && resolvedMode !== 'flow') void sendPatch(touched, html);
 
       // ── STAGE 2 — DURABILITY, queued: one attributed CAS revision. ──
       const run = async (): Promise<boolean> => {
@@ -1290,7 +1294,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       writeTail.current = next.catch(() => false);
       return next;
     },
-    [artifactPath, loadedFile, sendPatch, retireFlowCommits, trimHistory],
+    [artifactPath, loadedFile, sendPatch, retireFlowCommits, trimHistory, resolvedMode],
   );
 
   // ⌘Z — restore the previous state; ⌘⇧Z — re-apply the one just undone.
@@ -1361,6 +1365,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     replay(nextState, 'redo', undoStack.current);
   }, [replay]);
 
+  // ADR-560 — the flow model's handle: the one flush chokepoint (see applyOp).
+  const flowRef = useRef<FlowEditorHandle | null>(null);
+
   const applyOp = useCallback(
     async (
       compute: (html: string) => OpResult | null,
@@ -1373,6 +1380,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     ) => {
       if (!artifactPath || !file?.content) return;
       setOpError(null);
+      // ADR-560 — ONE writer means the op's base must include the member's
+      // in-flight typing: flush the model BEFORE computing. This is ADR-547's
+      // per-op "declare your blocks" discipline collapsed to one chokepoint;
+      // the compute below re-runs against liveRef inside the write queue, so
+      // it applies to the flushed content, and the editor re-parses the op's
+      // own result synchronously — nothing for a later keystroke to revert.
+      if (resolvedMode === 'flow') flowRef.current?.flush();
       // Guard against the CURRENT render so a genuine miss still reports; the
       // real computation re-runs against live state inside the write queue (an
       // op queued behind another must apply to the previous op's result).
@@ -1400,7 +1414,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         touchedBlockIds,
       );
     },
-    [artifactPath, file, writeAndAdvance],
+    [artifactPath, file, writeAndAdvance, resolvedMode],
   );
 
   const anchor = useMemo(
@@ -2180,17 +2194,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // mechanical door, the same invisible save (reload: false), the same silent
   // no-op guard. ADR-446's write contract is preserved exactly; only the size
   // of the region differs.
+  // ADR-560 D1 — the flow commit is the MODEL's serialization (canonical,
+  // idempotent, gate-held). The legacy editFlowRegion lane — the whole-body
+  // iframe snapshot plus the two refusal guards — is deleted with the iframe
+  // editing path (D8): with one writer there is nothing stale to refuse.
   const onFlowEdit = useCallback(
-    (selector: string, newInner: string) => {
+    (_selector: string, newInner: string) => {
       if (!file?.content) return;
-      if (!editFlowRegion(file.content, selector, newInner)) return; // no-op — no revision
       void writeAndAdvance(
-        (liveHtml) => editFlowRegion(liveHtml, selector, newInner)?.html ?? null,
+        (liveHtml) => {
+          const cur = readRegionInner(liveHtml);
+          if (cur == null || cur === newInner) return null; // no-op — no revision
+          return replaceRegionInner(liveHtml, newInner);
+        },
         `${app.label}: edit document`,
         false,
       );
     },
-    [file, writeAndAdvance],
+    [file, writeAndAdvance, app.label],
   );
 
   // F2 — "writing is adding": ENTER at a block's end inserts a fresh empty prose
@@ -3466,6 +3487,39 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             /* The wrapper is the slash palette's positioning context — the
                iframe fills it, so frame coordinates map onto it directly. */
             <div ref={canvasWrapRef} className="relative flex min-h-0 flex-1">
+              {/* ADR-560 D1/D4 — on flow the canvas IS the editor: the model
+                  mounts in the parent (one writer, no iframe editing lane).
+                  Gated on the vocabulary having LANDED: resolvedMode defaults
+                  to 'flow' before it arrives, and mounting the model against
+                  a deck-shaped document would canonicalize the wrong medium.
+                  Paged (and the pre-vocabulary window) keeps StudioCanvas. */}
+              {resolvedMode === 'flow' && vocabulary ? (
+                <FlowEditor
+                  ref={flowRef}
+                  file={file}
+                  artifactPath={artifactPath}
+                  headingRungs={vocabulary.heading_rungs}
+                  kinds={vocabulary.blocks.map((b) => b.kind)}
+                  blockLabels={blockLabels}
+                  zoom={zoom}
+                  onPoint={onPoint}
+                  onPointClear={onPointClear}
+                  onRange={onRange}
+                  selectedBlockId={selection?.blockId ?? null}
+                  onFlowEdit={onFlowEdit}
+                  onSlashOpen={onSlashOpen}
+                  onSlashFilter={onSlashFilter}
+                  onSlashClose={onSlashClose}
+                  onSlashMove={onSlashMove}
+                  onSlashEnter={onSlashEnter}
+                  onSlashTaken={onSlashTaken}
+                  slashTake={slashTake}
+                  slashInvoke={slashInvoke}
+                  fmtCmd={fmtCmd}
+                  scrollToBlock={scrollToBlock}
+                  onScrollPos={onScrollPos}
+                />
+              ) : (
               <StudioCanvas
                 file={file}
                 artifactPath={artifactPath}
@@ -3517,6 +3571,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 stage={template === 'deck'}
                 onScrollPos={onScrollPos}
               />
+              )}
               {/* AUTHORING.md Phase 3 §3 — the ancestor chain at the selection,
                   paged media only (flow's chain is caret → block → clear).
                   Selecting an ancestor rides the navigator's existing
