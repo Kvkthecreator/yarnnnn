@@ -388,18 +388,26 @@ if (pageSel) {
 // ═══════════════════════════════════════════════════════════════════════════
 // D4 — Tab means ONE thing. The literal-tab-character branch is deleted.
 // ═══════════════════════════════════════════════════════════════════════════
+// ADR-560 D8 re-homed the gesture: Tab is a MODEL command (stepRungCmd in
+// lib/authoring/flow/commands.ts), bound in FlowEditor's keymap — the iframe
+// runtime no longer edits flow at all. Same law, new home.
+const flowCommands = strip(readFileSync('web/lib/authoring/flow/commands.ts', 'utf8'));
+const flowEditor = strip(readFileSync('web/components/authoring/FlowEditor.tsx', 'utf8'));
 const tabHandler = (() => {
-  const i = projCode.indexOf("if (e.key !== 'Tab') return;");
-  return i === -1 ? '' : projCode.slice(i, i + 900);
+  const i = flowCommands.indexOf('export function stepRungCmd(');
+  return i === -1 ? '' : flowCommands.slice(i, i + 1600);
 })();
-t('D4: the Tab handler is extractable', tabHandler.length > 0);
-// A literal tab is inserted via a character code or an escape — assert the
-// BEHAVIOUR (a tab character reaches the document), not one spelling of it.
+t('D4: the Tab command (stepRungCmd) is extractable from the model layer', tabHandler.length > 0);
 const insertsLiteralTab =
-  /fromCharCode\(\s*9\s*\)/.test(tabHandler) || /insertText'?\s*,\s*false\s*,\s*['"]\\t['"]/.test(tabHandler);
+  /fromCharCode\(\s*9\s*\)/.test(tabHandler) || /insertText\(\s*['"]\\t['"]/.test(tabHandler);
 t('D4 [F4]: Tab does not insert a literal tab character in prose', !insertsLiteralTab);
-// Tab must still step the rung in a list (D4 retains ADR-521 D4's behaviour).
-t('D4: Tab still steps the rung inside a list', /outdent'?\s*:\s*'?indent/.test(tabHandler));
+// Tab must still step the rung in a list (D4 retains ADR-521 D4's behaviour),
+// clamped to the ONE declared depth set.
+t('D4: Tab still steps the rung inside a list, clamped to the deepest rung',
+  /sinkListItem/.test(tabHandler) && /depth >= deepest/.test(tabHandler));
+t('D4: Tab is bound in the editor keymap (the gesture has a live entrance)',
+  /Tab: stepRungCmd\(schema, 1, deepest\)/.test(flowEditor) &&
+  /'Shift-Tab': stepRungCmd\(schema, -1, deepest\)/.test(flowEditor));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // D3 — a span is a SHAPE. The range's subjects must carry their rung, and the

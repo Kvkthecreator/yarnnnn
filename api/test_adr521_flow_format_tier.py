@@ -82,22 +82,25 @@ _check("D4: cmd-B/I intercept a real selection and route to applyFmt",
        and "applyFmt(op);" in edit)
 _check("D4: a collapsed caret stays browser-native (no custom caret-state pipeline)",
        "sel.isCollapsed) return; // caret: browser-native" in edit)
-_check("D4: Tab in a list indents, shift-Tab outdents",
-       "closest('li')" in edit
-       and "document.execCommand(e.shiftKey ? 'outdent' : 'indent');" in edit)
+# ADR-560: the gesture moved to the model (stepRungCmd). Same law, new home.
+flow_commands = (WEB / "lib/authoring/flow/commands.ts").read_text()
+flow_editor = (WEB / "components/authoring/FlowEditor.tsx").read_text()
+_check("D4: Tab in a list nests, shift-Tab un-nests (model command)",
+       "sinkListItem" in flow_commands and "liftListItem" in flow_commands)
 _check("D4: the ADR-480 written refusal is withdrawn from the runtime",
        "Deliberately NOT a list-indent gesture" not in src)
-_check("D4: Tab still never ends the writing session (preventDefault before branching)",
-       "if (e.key !== 'Tab') return;" in edit)
+_check("D4: Tab still never ends the writing session (the keymap binds and consumes it)",
+       "Tab: stepRungCmd(schema, 1, deepest)" in flow_editor
+       and "'Shift-Tab': stepRungCmd(schema, -1, deepest)" in flow_editor)
 
 # ── D5: text/html paste behind the allowlist, one handler for both grains ───
 _check("D5: richPaste reads text/html with a plain-text fallback",
        "function richPaste(e)" in edit
        and "getData('text/html')" in edit
        and "getData('text/plain')" in edit)
-_check("D5: the flow root and the paged block share ONE paste handler",
-       "root.addEventListener('paste', richPaste);" in edit
-       and "var onPaste = richPaste;" in edit)
+_check("D5: one paste policy per medium, each at its chokepoint — paged keeps richPaste; flow's policy IS the schema (ADR-560 D2)",
+       "var onPaste = richPaste;" in edit
+       and "addEventListener('paste'" not in flow_editor)
 _check("D5: the plain-text-only handlers are deleted",
        "Paste stays plain-text" not in src
        and "Sanitize paste to plain text" not in src)

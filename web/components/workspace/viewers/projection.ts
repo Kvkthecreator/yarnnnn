@@ -2104,123 +2104,11 @@ const EDIT_SCRIPT = `
     el.addEventListener('paste', onPaste);
   }
 
-  // ── ADR-480 D1: the FLOW editing session ──────────────────────────────
-  // One contenteditable on the flow root, entered once on load and never
-  // swapped. There is no enter/exit per block, so none of the boundary
-  // machinery below (split on Enter, merge on Backspace, the empty-block
-  // rule, cross-block arrow traversal) has anything to do on flow — the
-  // browser does all of it, correctly, including IME, RTL and a11y.
-  //
-  // What the runtime still owns: source-mapping the commit (citation
-  // islands restored to their living-reference form — the ADR-446 D3
-  // contract, unchanged), the debounce, and the paste sanitizer.
-  var flowIdle = null;
-  //: ADR-540 — this document's commits are DEAD once a structural op has been
-  //: applied against it. A structural op (an insert, a delete, a re-arrange)
-  //: computes against the parent's live content and re-projects, which tears
-  //: THIS document down; beforeunload then fired one last flowCommit whose
-  //: DOM predates the op, and the parent wrote that stale region back over the
-  //: fresh block. Every cited insert on flow was erased ~400ms after landing.
-  //:
-  //: The parent owns the fact (only it knows an op landed), so it says so; the
-  //: runtime only has to stop talking. One flag, set once, never cleared — the
-  //: successor document is a fresh runtime with its own flag.
-  var flowDead = false;
-
-  function flowCommit() {
-    // A dead document's DOM is a stale snapshot, not the member's intent.
-    if (flowDead) return;
-    var root = flowRoot();
-    if (!root) return;
-    parent.postMessage({
-      type: 'yarnnn-flow-edit',
-      selector: root.tagName.toLowerCase(),
-      newInner: readSourceInner(root),
-    }, '*');
-  }
-
-  function enterFlow() {
-    var root = flowRoot();
-    if (!root || root.getAttribute('contenteditable') === 'true') return;
-    // Citation islands are never editable (ADR-446 D3) — the same rule the
-    // per-block path applies, applied once at the root.
-    var refs = root.querySelectorAll('[data-ref]');
-    for (var i = 0; i < refs.length; i++) refs[i].setAttribute('contenteditable', 'false');
-    root.setAttribute('contenteditable', 'true');
-    try { document.execCommand('styleWithCSS', false, 'false'); } catch (err) {}
-    root.addEventListener('input', function () {
-      if (flowIdle) clearTimeout(flowIdle);
-      flowIdle = setTimeout(flowCommit, 2000); // idle-2s, same cadence as D4
-    });
-    root.addEventListener('blur', function () {
-      if (flowIdle) clearTimeout(flowIdle);
-      flowCommit();
-    }, true);
-    // ADR-521 D5: text/html paste behind the allowlist (gate 1; sanitizeInner
-    // at the commit is gate 2). Plain-text fallback inside richPaste.
-    root.addEventListener('paste', richPaste);
-    // TAB MUST NOT END THE WRITING SESSION. The root is contenteditable, so Tab
-    // took the browser default — move focus OUT of the editable — which fired
-    // the blur listener above, committed, and dropped the caret mid-paragraph.
-    //
-    // ── ADR-546 D4: TAB STEPS THE RUNG. One gesture, one meaning ──────────
-    //
-    // Tab was the rung gesture already, and it meant two unrelated things
-    // depending on the caret's tag: in an <li> it nested (ADR-521 D4), and in
-    // prose it inserted a literal TAB CHARACTER — which is not structure at all,
-    // while data-indent, the addressable prose rung, had NO keyboard entrance
-    // and was reachable only by clicking a pane row (ADR-546 §1.3).
-    //
-    // Now: Tab/⇧Tab step the rung everywhere in a document.
-    //   - in a list -> nest / un-nest (ADR-521 D4's behaviour, retained)
-    //   - in prose  -> step the prose rung, clamped to FLOW_RUNGS
-    //
-    // THE LITERAL-TAB BRANCH IS DELETED, deliberately and visibly (ADR-546
-    // §4.1): it was the one branch that made the system's depth gesture mean
-    // something other than depth, and a tab character in a continuous document
-    // is a typewriter artifact — the member has the measure and the rung.
-    //
-    // "Tab never ends the writing session" (ADR-521 D4) is why this handler
-    // exists at all, and is unchanged: every path preventDefaults.
-    root.addEventListener('keydown', function (e) {
-      if (e.key !== 'Tab') return;
-      e.preventDefault();
-      var sel = window.getSelection();
-      var node = sel && sel.anchorNode;
-      var el = node ? (node.nodeType === 1 ? node : node.parentElement) : null;
-      var li = el && el.closest ? el.closest('li') : null;
-      if (li && root.contains(li)) {
-        // The nesting spelling. execCommand writes the ul>ul the kernel renders
-        // and rungOf now reads - so what Tab authors here is addressable.
-        document.execCommand(e.shiftKey ? 'outdent' : 'indent');
-        scheduleCommit();
-        return;
-      }
-      // The prose spelling: the SAME rung, stepped on the block the caret is in.
-      // Written as the token the kernel already styles, so this is one op reached
-      // through a new door (rule 7), never a second mechanism.
-      var blk = el && el.closest ? el.closest('[data-block]') : null;
-      if (!blk || !root.contains(blk)) return;
-      var cur = Number(blk.getAttribute('data-indent') || 0) || 0;
-      var next = e.shiftKey ? cur - 1 : cur + 1;
-      if (next > DEEPEST_FLOW_RUNG) next = DEEPEST_FLOW_RUNG;
-      if (next <= 0) blk.removeAttribute('data-indent'); // absence = flush left
-      else blk.setAttribute('data-indent', String(next));
-      if (next !== cur) scheduleCommit();
-    });
-  }
-
-  if (FLOW_MODE) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', enterFlow);
-    } else {
-      enterFlow();
-    }
-    // A pending edit must never be lost to a re-projection or a tab close.
-    window.addEventListener('beforeunload', function () {
-      if (flowIdle) { clearTimeout(flowIdle); flowCommit(); }
-    });
-  }
+  // ── ADR-560 D8: the FLOW editing session is DELETED ──────────────────
+  // Flow documents edit in the parent-mounted model (FlowEditor), never in
+  // this iframe: enterFlow, flowCommit, flowDead (ADR-540's fence) and the
+  // whole-body yarnnn-flow-edit commit lane have no host here. This runtime
+  // serves the PAGED editing grain and read-only projection.
 
   // ── ADR-456 W2: the inline format bar ─────────────────────────────────
   // Injected chrome, appended to <body> (never inside a block — commits read
@@ -2295,13 +2183,9 @@ const EDIT_SCRIPT = `
   });
 
   function scheduleCommit() {
-    // ADR-480: route to the grain's own commit — the block's inner (paged) or
-    // the flow root's region (flow). One debounce cadence either way.
-    if (FLOW_MODE) {
-      if (flowIdle) clearTimeout(flowIdle);
-      flowIdle = setTimeout(flowCommit, 2000);
-      return;
-    }
+    // ADR-560 D8: one grain commits here now — the paged block's inner. Flow
+    // commits are the model's (FlowEditor), not this runtime's.
+    if (FLOW_MODE) return;
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(commit, 2000);
   }
@@ -3522,15 +3406,6 @@ const EDIT_SCRIPT = `
     if (!d || typeof d !== 'object') return;
     if (d.type === 'yarnnn-edit-enter' && typeof d.blockId === 'string') enter(d.blockId);
     else if (d.type === 'yarnnn-edit-exit') exit(false);
-    // ADR-540 — a structural op landed against content this document predates.
-    // Retire its commits: the parent already holds the authoritative result,
-    // and anything this DOM would report is a pre-op snapshot. Without it the
-    // re-projection's beforeunload fired one last flowCommit and the parent
-    // wrote that stale region back OVER the freshly inserted block.
-    else if (d.type === 'yarnnn-flow-retire') {
-      flowDead = true;
-      if (flowIdle) { clearTimeout(flowIdle); flowIdle = null; }
-    }
     // ── ADR-527 D4 — the PANE drives a range op ───────────────────────────
     //
     // The pane's buttons and the inline bar's buttons are two entrances to ONE
@@ -3558,39 +3433,6 @@ const EDIT_SCRIPT = `
         if (!usable) return; // no range to act on — do nothing, silently
         applyFmt(d.op, typeof d.value === 'string' ? d.value : null);
       } catch (err) {}
-    }
-    // ── Put the caret back after a structural op on FLOW ──────────────────
-    // A slash-insert (or any op) rewrites the file content, which swaps the
-    // iframe's srcDoc — the frame is destroyed and re-parsed, so the caret and
-    // the frame's focus go with it. On paged, yarnnn-edit-enter restores the
-    // per-block session; on flow editingId is null by design (ADR-480 D1), so
-    // there was nothing to restore and the member's next keystroke went nowhere
-    // until they clicked back into the prose. Every writing tool leaves the
-    // caret in the block it just inserted.
-    //
-    // Deliberately NOT part of the write path: this only moves a caret in the
-    // re-parsed DOM. It never commits, never re-enters a per-block session
-    // (which is what enter() refuses on flow at its own chokepoint), and it is
-    // a no-op when the block is gone.
-    else if (d.type === 'yarnnn-flow-caret' && FLOW_MODE) {
-      var target = typeof d.blockId === 'string'
-        ? document.querySelector('[data-block-id="' + d.blockId + '"]')
-        : null;
-      if (target) {
-        enterFlow(); // the root may be freshly re-parsed and not yet editable
-        try {
-          var fr = document.createRange();
-          fr.selectNodeContents(target);
-          fr.collapse(!!d.toStart);
-          var fs = window.getSelection();
-          fs.removeAllRanges(); fs.addRange(fr);
-          // focus() on the ROOT, not the block: the root is what carries
-          // contenteditable on flow, and focusing a child would be the nested
-          // editable ADR-482 D8 removed.
-          var froot = flowRoot();
-          if (froot && froot.focus) froot.focus({ preventScroll: true });
-        } catch (err) {}
-      }
     }
     // ADR-506 D1 — the toolbar's Insert, routed into the ONE gesture.
     else if (d.type === 'yarnnn-slash-invoke') slashFromToolbar();

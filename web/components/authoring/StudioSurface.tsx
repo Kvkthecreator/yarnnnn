@@ -995,23 +995,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // leaves the canvas silently disagreeing with substrate; a redundant full
   // swap only blinks. So this is an allowlist of ops proven block-local, and a
   // new op is a full swap until someone deliberately adds it here.
-  // ── ADR-540 — retire the live document's commits before a structural op ──
-  // A structural op computes against the parent's `live` content and then
-  // re-projects, which tears the current iframe document down. That teardown
-  // fires `beforeunload` → `flowCommit`, reporting a DOM that predates the op
-  // — and the parent wrote that stale region straight back over the new block.
-  // Every cited insert on flow (chart, table, image, gallery) was erased ~400ms
-  // after landing, silently, past green gates.
-  //
-  // Same nonce shape as the patch channel, and for the same reason: two ops in
-  // one session must each fire. Fire-and-forget — a document that never hears
-  // it is a document that is already gone.
-  const retireNonce = useRef(0);
-  const [flowRetire, setFlowRetire] = useState<{ nonce: number } | null>(null);
-  const retireFlowCommits = useCallback(() => {
-    retireNonce.current += 1;
-    setFlowRetire({ nonce: retireNonce.current });
-  }, []);
+  // ── ADR-560 D8: ADR-540's retire channel is DELETED ──────────────────
+  // Flow no longer edits in an iframe, so there is no teardown gasp to
+  // fence: the model (FlowEditor) is the one writer and re-parses external
+  // writes itself. Paged never had a whole-body commit to retire.
 
   const sendPatch = useCallback(
     async (blockIds: string[], html: string) => {
@@ -1199,10 +1186,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // torn down and replaced. An op that PATCHES keeps its document alive (and
       // therefore its right to commit in-flight typing), which is exactly why
       // ADR-547 D2 requires the patch to actually reach it.
-      // ADR-560 D8 — both are IFRAME channels, and flow no longer edits in
-      // one: the model re-parses external writes itself (no teardown gasp to
-      // fence, no live DOM to patch). Paged keeps both.
-      if (touched.length === 0 && resolvedMode !== 'flow') retireFlowCommits();
       // Advance the live CONTENT now (the next op computes off this); the HEAD
       // advances only on ack (the queued write below reads it fresh).
       liveRef.current = { content: html, head: live?.head ?? null };
@@ -1294,7 +1277,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       writeTail.current = next.catch(() => false);
       return next;
     },
-    [artifactPath, loadedFile, sendPatch, retireFlowCommits, trimHistory, resolvedMode],
+    [artifactPath, loadedFile, sendPatch, trimHistory, resolvedMode],
   );
 
   // ⌘Z — restore the previous state; ⌘⇧Z — re-apply the one just undone.
@@ -3533,7 +3516,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 measureBounds={measureBounds}
                 blockLabels={blockLabels}
                 onRefused={handleRefused}
-                onFlowEdit={onFlowEdit}
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}
                 onEnterBlock={onEnterBlock}
@@ -3564,7 +3546,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
                 patch={patch}
-                flowRetire={flowRetire}
                 zoom={zoom}
                 // ADR-520 D1 — a deck edits on the STAGE (one slide shown);
                 // web stays a scroll (bands are a viewport medium, ADR-505).

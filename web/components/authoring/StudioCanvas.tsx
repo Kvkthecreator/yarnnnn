@@ -143,9 +143,6 @@ interface StudioCanvasProps {
    *  build a set spanning two Areas). The surface says why; the runtime never
    *  writes operator-facing words. */
   onRefused?: (reason: string) => void;
-  /** ADR-480 D1: a FLOW edit committed (blur/idle) — the whole region's inner,
-   *  source-mapped. The surface applies it with normalize-on-write (D3). */
-  onFlowEdit?: (selector: string, newInner: string) => void;
   /** ADR-446: the block left edit mode via a member blur — the surface clears
    *  its editingBlockId so it doesn't re-enter on the post-commit reload. */
   onEditExited?: () => void;
@@ -265,11 +262,6 @@ interface StudioCanvasProps {
    *  range) touches N, and N patches share ONE `appliedFor` because they bring the
    *  live DOM to one artifact state together. */
   patch?: { blocks: Array<{ blockId: string; html: string }>; nonce: number; appliedFor: string } | null;
-  /** ADR-540 — retire the live document's flow commits. Sent before a
-   *  structural op re-projects, because the teardown's `beforeunload` commit
-   *  reports a DOM that predates the op and the parent would write it back
-   *  over the new block. Nonce so two ops in one session each fire. */
-  flowRetire?: { nonce: number } | null;
   /** ADR-447: zoom the rendered document (a VIEW control — 1 = 100%). Never a
    *  file change; the artifact's real dimensions are untouched. */
   zoom?: number;
@@ -306,7 +298,6 @@ export function StudioCanvas({
   measureBounds,
   blockLabels,
   onRefused,
-  onFlowEdit,
   onEditExited,
   onEditEntered,
   onEnterBlock,
@@ -333,8 +324,7 @@ export function StudioCanvas({
   fmtCmd,
   scrollToBlock,
   patch,
-  flowRetire,
-  zoom = 1,
+    zoom = 1,
   stage = false,
   onScrollPos,
 }: StudioCanvasProps) {
@@ -469,15 +459,6 @@ export function StudioCanvas({
   const onScrollPosRef = useRef(onScrollPos);
   onScrollPosRef.current = onScrollPos;
 
-  // FLOW caret restore (see commandEdit). `mode` as a ref because commandEdit is
-  // a stable callback; `hadFocus` so we only ever RESTORE focus the member had,
-  // never TAKE it; `flowCaret` names the block to land in — the block the member
-  // was last working in, which the runtime reports as it points/edits. Null is
-  // fine and means "just make the root editable and focused again".
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
-  const hadFocusRef = useRef(false);
-  const flowCaretRef = useRef<string | null>(null);
 
   const commandEdit = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
@@ -485,19 +466,6 @@ export function StudioCanvas({
     const id = editingRef.current;
     if (id) win.postMessage({ type: 'yarnnn-edit-enter', blockId: id }, '*');
     else win.postMessage({ type: 'yarnnn-edit-exit' }, '*');
-    // FLOW: give the caret somewhere to live again. A structural op (a slash
-    // insert, a delete, a turn-into) swaps `srcDoc`, so the frame is re-parsed
-    // and focus leaves it — and on flow there is no per-block session for the
-    // branch above to restore (`editingRef` is null by ADR-480 D1), so nothing
-    // put it back. The member typed and watched the keystrokes go nowhere until
-    // they clicked into the prose again.
-    //
-    // Sends only when the member was ALREADY editing this frame (`hadFocusRef`)
-    // — opening an artifact must not steal focus from the rest of the page, and
-    // a foreign/AI write should not yank the caret to the canvas either.
-    if (!id && modeRef.current === 'flow' && hadFocusRef.current) {
-      win.postMessage({ type: 'yarnnn-flow-caret', blockId: flowCaretRef.current }, '*');
-    }
     // ADR-466 P9: restore the SELECTION too — a fresh load (optimistic-op
     // re-projection, foreign write) reset the runtime's state, so the bounding
     // box vanished the moment any gesture committed.
@@ -559,22 +527,6 @@ export function StudioCanvas({
     win.postMessage({ type: 'yarnnn-slash-take', filterLen: slashTake.filterLen }, '*');
   }, [slashTake]);
 
-  // ADR-540 — retire the CURRENT document's flow commits.
-  //
-  // Ordering is the fix, and it is why this is a LAYOUT effect: the same React
-  // commit that carries `flowRetire` also carries the new `content`, and the
-  // projection effect below re-feeds `srcDoc` — tearing this document down and
-  // firing its `beforeunload` → `flowCommit`. A passive effect would race that
-  // teardown; `useLayoutEffect` runs before paint and before the passive
-  // projection effect, so the runtime is always told BEFORE it is destroyed.
-  //
-  // Posting into a document that is already gone is harmless (the successor is
-  // a fresh runtime with its own flag), so there is nothing to clean up.
-  useLayoutEffect(() => {
-    const win = iframeRef.current?.contentWindow;
-    if (!win || !flowRetire) return;
-    win.postMessage({ type: 'yarnnn-flow-retire' }, '*');
-  }, [flowRetire]);
 
   // ADR-506 D1: the toolbar's Insert. The parent cannot place a caret inside an
   // opaque-origin frame, so it ASKS — the runtime resolves the insertion point,
@@ -627,8 +579,6 @@ export function StudioCanvas({
       // Any in-frame message proves the focus; the point/slash ones additionally
       // name the block worth landing in.
       if (typeof d.type === 'string' && d.type.startsWith('yarnnn-')) {
-        hadFocusRef.current = true;
-        if (typeof d.blockId === 'string') flowCaretRef.current = d.blockId;
       }
       if (d.type === 'yarnnn-point' && typeof d.tag === 'string') {
         onPoint?.({
@@ -671,14 +621,6 @@ export function StudioCanvas({
         typeof d.newInner === 'string'
       ) {
         onEdit?.(d.blockId, d.newInner);
-      } else if (
-        // ADR-480 D1: a flow-layout commit — the whole region's source-mapped
-        // inner, rather than one block's. The surface normalizes ids (D3).
-        d.type === 'yarnnn-flow-edit' &&
-        typeof d.selector === 'string' &&
-        typeof d.newInner === 'string'
-      ) {
-        onFlowEdit?.(d.selector, d.newInner);
       } else if (d.type === 'yarnnn-scroll-pos' && typeof d.y === 'number') {
         // Keep the latest position so a structural reload can restore it — the
         // slide index (deck) alongside the pixel y (fluid fallback).
@@ -808,7 +750,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onRange, onEdit, onFlowEdit, onEditExited, onEditEntered, onEnterBlock, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
+  }, [onPoint, onPointClear, onRange, onEdit, onEditExited, onEditEntered, onEnterBlock, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
 
   return (
     <iframe

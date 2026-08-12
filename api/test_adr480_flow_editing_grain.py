@@ -101,8 +101,13 @@ def run() -> bool:
         not re.search(r"FLOW_MODE\s*=.*['\"](document|article)['\"]", proj),
     )
     _check(
-        "D1 the flow root is resolved by SHAPE (main/article), entered once",
-        "FLOW_ROOT_SEL = 'main, article'" in proj and "function enterFlow(" in proj,
+        # ADR-560: the editing session moved to the parent model; the REGION is
+        # still resolved by shape, declared in the round-trip's one constant
+        # (and the projection keeps its read-side twin for paged/read-only).
+        "D1 the flow region is resolved by SHAPE (main/article)",
+        "FLOW_REGION_SEL = 'main, article'"
+        in (root / "web/lib/authoring/flow/roundtrip.ts").read_text()
+        and "function enterFlow(" not in proj,
     )
     _check(
         "D1 the mode is stamped at PROJECTION time, gated on pointer",
@@ -147,15 +152,22 @@ def run() -> bool:
         "D3 document order is what makes 'the FIRST keeps it' true",
         "compareDocumentPosition" in norm,
     )
-    flow_edit = _fn(ops, "editFlowRegion")
-    _check("D1 editFlowRegion exists", bool(flow_edit))
+    # ADR-560 D8: editFlowRegion is DELETED — the model is the one flow writer.
+    # The claims it carried survive in their new homes.
+    roundtrip = (root / "web/lib/authoring/flow/roundtrip.ts").read_text()
+    sanitize = (root / "web/lib/authoring/flow/sanitize.ts").read_text()
     _check(
-        "D1 a byte-identical region lands NO revision",
-        "region.innerHTML === sanitized" in flow_edit and "return null" in flow_edit,
+        "D1 (ADR-560) editFlowRegion is deleted; the surface splices the model's region",
+        "function editFlowRegion" not in ops
+        and "replaceRegionInner(liveHtml, newInner)" in surface,
     )
     _check(
-        "ADR-446 preserved — the flow write still SANITIZES",
-        "sanitizeInner(doc, newInner)" in flow_edit,
+        "D1 a byte-identical region lands NO revision",
+        "if (cur == null || cur === newInner) return null;" in surface,
+    )
+    _check(
+        "ADR-446 preserved — opaque substrate is stripped of executables at model capture",
+        "function stripExecutableEl" in sanitize and "captureInertHtml" in sanitize,
     )
     _check(
         # ADR-511 D5: the pass moved INTO serialize() — the one write seam —
@@ -191,8 +203,8 @@ def run() -> bool:
     # ── The one write door (falsifier 2) ───────────────────────────────────
     _check(
         "falsifier 2 — the flow edit lands through the SAME door, no reload",
-        "editFlowRegion(liveHtml, selector, newInner)?.html ?? null" in surface
-        and "'Studio: edit document'" in surface,
+        "replaceRegionInner(liveHtml, newInner)" in surface
+        and ": edit document`" in surface,
     )
     # Falsifier 1/2: every flow gesture is ONE attributed revision through the
     # existing door. The flow path must reach writeAndAdvance and must NOT

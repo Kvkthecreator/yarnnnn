@@ -103,8 +103,15 @@ def run() -> bool:
     # The strip must live in the SHARED serializer, so neither commit path can
     # leak. Both flowCommit and commit() read through this one function.
     _check(
-        "D2 both commit paths route through the one stripped serializer",
-        "newInner: readSourceInner(root)" in proj and "readSourceInner(editingEl)" in proj,
+        # ADR-560: flow commits are the MODEL's serialization (FlowEditor);
+        # paged keeps the stripped per-block serializer. One serializer per
+        # medium, each at its own chokepoint — the leak class this ADR fixed
+        # (runtime chrome classes riding a commit) cannot reach the model path,
+        # which never serializes live DOM.
+        "D2 each medium commits through its own one serializer",
+        "readSourceInner(editingEl)" in proj
+        and "serializeRegion(schema, view.state.doc)"
+        in (root / "web/components/authoring/FlowEditor.tsx").read_text(),
     )
 
     # ── The repair is attributed, never a raw UPDATE ──────────────────────
