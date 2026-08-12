@@ -136,6 +136,16 @@ function htmlToElement(html: string): HTMLElement {
   return (tpl.content.firstElementChild as HTMLElement) ?? domDoc().createElement('div');
 }
 
+/** D3's parse-side law: a rule may only claim an element whose DECLARED kind
+ *  it models. A kind riding a common tag (`p[data-block="button"]`, a future
+ *  `ul`-based kind) must fall through to the preservation island — the live
+ *  defect this closes re-kinded a lane-authored button to prose on the
+ *  member's next commit. Absence of a declaration is claimable (promotion). */
+const claims = (el: Element, ...kinds: string[]): boolean => {
+  const declared = el.getAttribute('data-block');
+  return !declared || kinds.includes(declared);
+};
+
 export function buildFlowSchema(config: FlowSchemaConfig): Schema {
   const deepest = Math.max(...config.rungs);
   const knownKinds = new Set(config.kinds);
@@ -169,8 +179,7 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
       parseDOM: [
         {
           tag: 'p',
-          getAttrs: (el: HTMLElement) =>
-            el.getAttribute('data-block') === 'heading' ? false : readBlockAttrs(el),
+          getAttrs: (el: HTMLElement) => (claims(el, 'prose') ? readBlockAttrs(el) : false),
         },
         // A single-<p> prose wrapper flattens to the paragraph itself, keeping
         // the wrapper's identity + tokens (the declared ADR-528 normalization).
@@ -211,11 +220,14 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
         ...[1, 2, 3, 4, 5, 6].map(
           (level): TagParseRule => ({
             tag: `h${level}`,
-            getAttrs: (el: HTMLElement) => ({
-              ...readBlockAttrs(el),
-              // ADR-539 D4 — intake clamps to the declared rung set.
-              rung: config.rungs.includes(level) ? level : deepest,
-            }),
+            getAttrs: (el: HTMLElement) =>
+              claims(el, 'heading')
+                ? {
+                    ...readBlockAttrs(el),
+                    // ADR-539 D4 — intake clamps to the declared rung set.
+                    rung: config.rungs.includes(level) ? level : deepest,
+                  }
+                : false,
           }),
         ),
         {
@@ -238,7 +250,13 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
       code: true,
       defining: true,
       attrs: BLOCK_ATTR_SPEC,
-      parseDOM: [{ tag: 'pre', preserveWhitespace: 'full', getAttrs: readBlockAttrs }],
+      parseDOM: [
+        {
+          tag: 'pre',
+          preserveWhitespace: 'full',
+          getAttrs: (el: HTMLElement) => (claims(el, 'prose') ? readBlockAttrs(el) : false),
+        },
+      ],
       toDOM: (node) => ['pre', writeBlockAttrs('prose', node.attrs), 0],
     },
 
@@ -250,6 +268,7 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
         {
           tag: 'ul',
           getAttrs: (el: HTMLElement) => {
+            if (!claims(el, 'list', 'checklist')) return false;
             const declared = el.getAttribute('data-block');
             return {
               ...readBlockAttrs(el),
@@ -259,7 +278,8 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
         },
         {
           tag: 'ol',
-          getAttrs: (el: HTMLElement) => ({ ...readBlockAttrs(el), kind: 'numbered' }),
+          getAttrs: (el: HTMLElement) =>
+            claims(el, 'numbered') ? { ...readBlockAttrs(el), kind: 'numbered' } : false,
         },
       ],
       toDOM: (node) => [
@@ -286,7 +306,12 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
       content: 'block+',
       defining: true,
       attrs: BLOCK_ATTR_SPEC,
-      parseDOM: [{ tag: 'blockquote', getAttrs: readBlockAttrs }],
+      parseDOM: [
+        {
+          tag: 'blockquote',
+          getAttrs: (el: HTMLElement) => (claims(el, 'quote') ? readBlockAttrs(el) : false),
+        },
+      ],
       toDOM: (node) => ['blockquote', writeBlockAttrs('quote', node.attrs), 0],
     },
 
@@ -294,7 +319,12 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
       group: 'block',
       atom: true,
       attrs: BLOCK_ATTR_SPEC,
-      parseDOM: [{ tag: 'hr', getAttrs: readBlockAttrs }],
+      parseDOM: [
+        {
+          tag: 'hr',
+          getAttrs: (el: HTMLElement) => (claims(el, 'divider') ? readBlockAttrs(el) : false),
+        },
+      ],
       toDOM: (node) => ['hr', writeBlockAttrs('divider', node.attrs)],
     },
 
@@ -339,27 +369,24 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
       parseDOM: [
         {
           tag: 'aside',
-          getAttrs: (el: HTMLElement) => ({
-            ...readBlockAttrs(el),
-            tag: 'aside',
-            kind: el.getAttribute('data-block') ?? 'callout',
-          }),
+          getAttrs: (el: HTMLElement) =>
+            claims(el, 'callout')
+              ? { ...readBlockAttrs(el), tag: 'aside', kind: 'callout' }
+              : false,
         },
         {
           tag: 'details',
-          getAttrs: (el: HTMLElement) => ({
-            ...readBlockAttrs(el),
-            tag: 'details',
-            kind: el.getAttribute('data-block') ?? 'toggle',
-          }),
+          getAttrs: (el: HTMLElement) =>
+            claims(el, 'toggle')
+              ? { ...readBlockAttrs(el), tag: 'details', kind: 'toggle' }
+              : false,
         },
         {
           tag: 'section',
-          getAttrs: (el: HTMLElement) => ({
-            ...readBlockAttrs(el),
-            tag: 'section',
-            kind: el.getAttribute('data-block'),
-          }),
+          getAttrs: (el: HTMLElement) =>
+            el.getAttribute('data-block')
+              ? false // a kinded section is not a shape this schema models — preserve
+              : { ...readBlockAttrs(el), tag: 'section', kind: null },
         },
         {
           tag: 'div',
@@ -399,11 +426,23 @@ export function buildFlowSchema(config: FlowSchemaConfig): Schema {
           priority: 30,
           getAttrs: (el: HTMLElement) => {
             const kind = el.getAttribute('data-block') ?? '';
-            // Text-modeled kinds and the modeled object kinds are handled by
-            // their own rules above; everything else preserves.
-            if (TEXT_MODELED.has(kind)) return false;
-            if (kind === 'figure' || kind === 'chart' || kind === 'divider') return false;
-            if (kind === 'callout' || kind === 'toggle') return false;
+            // A modeled kind ON ITS OWN TAG was already claimed by its rule
+            // above (rule order); reaching here means the kind is foreign or
+            // rides a tag its rule refused — preserve verbatim (D3).
+            if (TEXT_MODELED.has(kind) || kind === 'figure' || kind === 'chart' || kind === 'divider' || kind === 'callout' || kind === 'toggle') {
+              const tag = el.tagName;
+              const owns =
+                (kind === 'prose' && (tag === 'P' || tag === 'DIV' || tag === 'PRE')) ||
+                (kind === 'heading' && (tag[0] === 'H' || tag === 'P')) ||
+                ((kind === 'list' || kind === 'checklist') && tag === 'UL') ||
+                (kind === 'numbered' && tag === 'OL') ||
+                (kind === 'quote' && tag === 'BLOCKQUOTE') ||
+                (kind === 'divider' && tag === 'HR') ||
+                ((kind === 'figure' || kind === 'chart') && tag === 'FIGURE') ||
+                (kind === 'callout' && tag === 'ASIDE') ||
+                (kind === 'toggle' && tag === 'DETAILS');
+              if (owns) return false;
+            }
             return { html: captureInertHtml(el) };
           },
         },

@@ -78,6 +78,14 @@ const CORPUS = {
 <details data-block="toggle" data-block-id="a2"><p>Toggle body.</p></details>
 <section data-block="unknown-kind" data-block-id="u1"><p>Inside a section container.</p></section>
 <div data-block="somekind-not-yet-invented" data-block-id="u2"><em>opaque</em></div>`,
+  // The live defect the operator's first prod test caught: a kind riding a
+  // COMMON tag (`p[data-block="button"]`) was claimed by the paragraph rule
+  // and silently re-kinded to prose on the next commit. Every modeled-tag
+  // rule now defers foreign kinds to the preservation island.
+  foreignKinds: `<p data-block="button" data-block-id="bbtn1"><a href="#">Watch the Full Intro</a></p>
+<ul data-block="future-list-kind" data-block-id="fl1"><li>opaque item</li></ul>
+<h2 data-block="future-heading-kind" data-block-id="fh1">opaque heading</h2>
+<blockquote data-block="testimonial" data-block-id="ft1"><p>opaque quote</p></blockquote>`,
 };
 
 for (const [name, inner] of Object.entries(CORPUS)) {
@@ -123,6 +131,13 @@ check('legacy: callout keeps kind + variant, prose intact',
 check('legacy: unknown kind preserved VERBATIM as an island',
   out.legacy.includes('data-block="somekind-not-yet-invented"') &&
   out.legacy.includes('<em>opaque</em>'));
+check('foreign kinds: a button on a <p> is NEVER re-kinded to prose (the live defect)',
+  out.foreignKinds.includes('data-block="button"') &&
+  !out.foreignKinds.includes('data-block="prose" data-block-id="bbtn1"'));
+check('foreign kinds: unknown kinds on ul/h2/blockquote preserve verbatim',
+  out.foreignKinds.includes('data-block="future-list-kind"') &&
+  out.foreignKinds.includes('data-block="future-heading-kind"') &&
+  out.foreignKinds.includes('data-block="testimonial"'));
 
 // ── 3. Declared normalizations, and no others ──────────────────────────────
 check('normalization: h5 clamps to the deepest declared rung',
