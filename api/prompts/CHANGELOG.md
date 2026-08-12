@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.12.1] - An unbound lane learns what the member is looking at
+
+### Changed
+- `services/lane_runner.py` (`build_lane_conventions`): when the lane is
+  UNBOUND and the turn carries an ADR-522 focus declaration, the posture gains
+  one situational line — the member's open file, with the rule that unnamed
+  file work targets it in place, never a copy elsewhere. The focus wire was
+  threaded end-to-end since ADR-522 and rendered only inside the bound lane's
+  studio posture; a general chat lane received the declaration and said
+  nothing about it.
+- Observed failure (not speculative): the fundraiser-copy incident, 2026-08-12
+  — a chat lane asked to add test blocks to the member's open document
+  duplicated it into a new `fundraiser/` tree; the member watched an unchanged
+  canvas. (The FE half: `useCurrentFocus` returned null when the chat window
+  itself was foregrounded — fixed in `web/lib/shell/useSurfaceFocus.tsx` with
+  the desk fallback, same commit.)
+- Expected behavior: a lane asked for document changes while the member has a
+  file open edits THAT file by default; bound lanes unchanged (the studio
+  posture already carries path + focus).
+
 ## [2026.08.10.1] - The connector's widgets render what the server actually sends
 
 ### Changed

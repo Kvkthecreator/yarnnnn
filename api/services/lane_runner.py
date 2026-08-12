@@ -571,6 +571,26 @@ def build_lane_conventions(
         ds_section = build_design_system_section(client, user_id)
         if ds_section:
             posture_section += "\n" + ds_section + "\n"
+    elif focus and (focus.get("path") or focus.get("label")):
+        # ADR-522, completed for the UNBOUND lane (2026-08-12). The focus wire
+        # was threaded end-to-end and then rendered ONLY inside the bound
+        # lane's studio posture — a general chat lane received the member's
+        # declared focus and said nothing about it, so file work the member
+        # expected to SEE on their canvas was meaning-placed elsewhere (the
+        # fundraiser-copy incident: the lane duplicated the open document into
+        # a new folder and the member watched an unchanged canvas). One
+        # situational line; the member's open file is the DEFAULT target for
+        # file work they expect to watch land.
+        _fpath = (focus.get("path") or "").strip()
+        _flabel = (focus.get("label") or "").strip()
+        _fapp = (focus.get("app") or "a surface").strip()
+        _fdesc = _fpath or _flabel
+        posture_section += (
+            f"\n- The member is looking at: {_fapp} — {_fdesc}."
+            " When they ask for changes to a document or file without naming"
+            " one, they mean THIS one — edit it in place; never a copy"
+            " elsewhere.\n"
+        )
 
     # ADR-450 D3 — the derive binding's recipe section (the "Learn from"
     # lane's job description; pure composition from the kernel registry).

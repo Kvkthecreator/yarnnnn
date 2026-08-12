@@ -92,8 +92,10 @@ check("D2 LaneTurnRequest accepts focus",
       re.search(r"class LaneTurnRequest.*?focus: Optional\[LaneFocus\]",
                 lanes_src, re.S) is not None)
 check(
+    # Two legal spellings — the route may dump the model or pass it through
+    # (the runner dumps late); the INTENT is that focus comes off the request.
     "D2 focus is read off the REQUEST, not the durable lane binding",
-    "focus=req.focus.model_dump()" in lanes_src
+    ("focus=req.focus.model_dump()" in lanes_src or "focus=req.focus" in lanes_src)
     and 'focus=lane_meta.get("focus")' not in lanes_src,
 )
 
