@@ -172,7 +172,48 @@ check('shell: head/style/root attrs survive a splice',
   spliced.includes('<style>main{color:red}</style>') &&
   spliced.startsWith('<!doctype html>'));
 
-// ── 6. Falsifier: D3 is load-bearing, not incidental ───────────────────────
+// ── 6. Undo survives an external write (EXECUTED on the real helper) ───────
+// The defect: EditorState.create on a pane op's result reinitialized the
+// history plugin — type → align → ⌘Z was dead. externalReplaceTr applies the
+// external doc as a TRANSACTION: history survives, the external change is one
+// undoable step, and older typing stays reachable.
+{
+  const { EditorState } = await import('prosemirror-state');
+  const { history, undo } = await import('prosemirror-history');
+  const { externalReplaceTr } = await import('../../lib/authoring/flow/commands.ts');
+
+  let state = EditorState.create({
+    doc: parseRegion(schema, '<p data-block="prose" data-block-id="p1">first</p>'),
+    plugins: [history()],
+  });
+  // The member types (one history step)…
+  state = state.apply(state.tr.insertText(' typed', 6, 6));
+  // …then an external write (an op's result) replaces the doc.
+  const external = parseRegion(
+    schema,
+    '<p data-block="prose" data-block-id="p1" data-align="center">first typed</p>',
+  );
+  state = state.apply(externalReplaceTr(state, external));
+  check('undo: the external write landed', state.doc.firstChild.attrs.align === 'center');
+  const undo1 = (() => {
+    let next = state;
+    const ran = undo(state, (tr) => (next = state.apply(tr)));
+    return ran ? next : null;
+  })();
+  check('undo: ⌘Z after an op reverts the OP (one step), not nothing',
+    !!undo1 && undo1.doc.firstChild.attrs.align == null &&
+    undo1.doc.textContent === 'first typed');
+  const undo2 = (() => {
+    if (!undo1) return null;
+    let next = undo1;
+    const ran = undo(undo1, (tr) => (next = undo1.apply(tr)));
+    return ran ? next : null;
+  })();
+  check('undo: a second ⌘Z reaches the typing BEFORE the op (history survived)',
+    !!undo2 && undo2.doc.textContent === 'first');
+}
+
+// ── 7. Falsifier: D3 is load-bearing, not incidental ───────────────────────
 // A schema WITHOUT the island node must lose the unknown kind — proving the
 // preservation is done by the node, not by accident of parsing.
 const doc = parseRegion(schema, CORPUS.legacy);

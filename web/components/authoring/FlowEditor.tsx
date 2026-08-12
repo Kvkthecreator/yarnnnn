@@ -45,6 +45,7 @@ import {
   findBlockById,
   withMintedIds,
   blockIdPlugin,
+  externalReplaceTr,
   type FlowRangeRung,
   type FlowPointPayload,
 } from '@/lib/authoring/flow/commands';
@@ -384,17 +385,20 @@ export const FlowEditor = forwardRef<FlowEditorHandle, FlowEditorProps>(function
     // incoming bytes): a flush with no member edit stays a no-op, and the
     // canonicalization of a legacy-dialect write rides the next real edit.
     knownInnerRef.current = serializeRegion(schema, doc);
-    let state = EditorState.create({ doc, plugins: view.state.plugins });
+    // A TRANSACTION, never EditorState.create — creating fresh state wipes
+    // the history plugin, so ⌘Z died on every pane op. As a transaction the
+    // external change is one undoable step and older typing stays reachable
+    // (see externalReplaceTr). The dispatch routes through the ordinary
+    // pipeline; the ledger line above makes its commit echo a no-op.
+    let tr = externalReplaceTr(view.state, doc);
     if (keepId) {
-      const hit = findBlockById(doc, keepId);
+      const hit = findBlockById(tr.doc, keepId);
       if (hit) {
         const pos = Math.min(hit.pos + 1 + keepOffset, hit.pos + hit.node.nodeSize - 1);
-        state = state.apply(
-          state.tr.setSelection(TextSelection.near(state.doc.resolve(pos))),
-        );
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
       }
     }
-    view.updateState(state);
+    view.dispatch(tr);
   }, [file.content, schema]);
 
   // ── Chrome commands (props → transactions) ───────────────────────────────

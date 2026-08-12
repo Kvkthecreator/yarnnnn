@@ -1136,7 +1136,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // (that would make ⌘Z a no-op toggle) — the replay manages the stacks
       // itself. A fresh forward edit invalidates the redo branch, as every
       // editor does.
-      if (replayDepth.current === 0 && live) {
+      // ADR-560: NOT on flow — the model's own history is the one undo there
+      // (⌘Z is a ProseMirror command; external writes re-enter as undoable
+      // transactions), and this stack's only entrances were the iframe's ⌘Z
+      // relays, which flow no longer mounts. Pushing here would hoard
+      // whole-document snapshots nothing can ever pop.
+      if (replayDepth.current === 0 && live && resolvedMode !== 'flow') {
         const now = Date.now();
         const prev = undoStack.current[undoStack.current.length - 1];
         // ADR-523 D3: COALESCE a fast run of same-label text edits into the

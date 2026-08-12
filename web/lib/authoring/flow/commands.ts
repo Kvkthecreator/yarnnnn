@@ -13,6 +13,7 @@ import type { Node as PMNode, Schema, Attrs, ResolvedPos } from 'prosemirror-mod
 import { NodeSelection, TextSelection, Plugin } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { sinkListItem, liftListItem } from 'prosemirror-schema-list';
+import { closeHistory } from 'prosemirror-history';
 import { toggleMark } from 'prosemirror-commands';
 
 /** One covered block's rung — StudioCanvas's RangeRung shape (ADR-546 D3). */
@@ -267,6 +268,20 @@ export function blockIdPlugin(): Plugin {
       return tr;
     },
   });
+}
+
+/** An EXTERNAL write (a pane op's result, a foreign/lane write) re-enters the
+ *  model as a TRANSACTION replacing the doc — never a fresh EditorState. The
+ *  difference is undo: EditorState.create reinitializes plugin state, so the
+ *  member's ⌘Z history died on every pane op. As a transaction, history
+ *  survives and the external change is itself ONE undoable step — the same
+ *  contract the legacy snapshot stack gave (everything replayable), now in
+ *  the model's one history. */
+export function externalReplaceTr(state: EditorState, next: PMNode): Transaction {
+  // closeHistory: the external change must be ITS OWN undo step — without the
+  // boundary, prosemirror-history coalesces it into the member's open typing
+  // group and one Cmd-Z would swallow both.
+  return closeHistory(state.tr.replaceWith(0, state.doc.content.size, next.content));
 }
 
 // ── Ops ─────────────────────────────────────────────────────────────────────
