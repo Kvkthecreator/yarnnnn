@@ -2,7 +2,7 @@
 
 > **Status**: Implemented (2026-08-12). Phase 3 of the arrival/move proposal. **No new law** — this closes a deferral ADR-400 named.
 > **Closes**: [ADR-400](ADR-400-the-two-principal-files-surface.md)'s deferral — *"Grid drag-drop remains a later fast-follow (tree is the primary folder-structure target)"*
-> **Preserves**: ADR-400 Wave B's drag rules verbatim (a file drags, a folder receives) · ADR-551 D3 (a dropped OS file imports into the folder it landed on) · ADR-550 (the move path carries the projection)
+> **Preserves**: ADR-400 Wave B's drag rules verbatim (a file drags, a folder receives) · ADR-555 D3 (a dropped OS file imports into the folder it landed on) · ADR-554 (the move path carries the projection)
 > **Derivation**: the 2026-08-12 arrival/move audit
 
 ---
@@ -50,7 +50,7 @@ that the strings match — matching strings is what the broken version also had.
 
 The listing wires the **same handlers** the tree uses: `commitMove` for an
 internal drop, `openUpload(files, folder)` for an OS-file drop. A second mover
-would drift from the first — and would miss ADR-550's projection carry, which
+would drift from the first — and would miss ADR-554's projection carry, which
 lives in the primitive beneath both.
 
 The listing keeps its **own** drop-target highlight state, so the two panes
@@ -59,7 +59,7 @@ never fight over one highlight.
 ## 3. What is deliberately not built
 
 - **No folder drag.** There is no backend folder-move; building one is its own
-  decision (N row moves, partial-failure semantics, and the ADR-550 sibling
+  decision (N row moves, partial-failure semantics, and the ADR-554 sibling
   carry per row). Smuggling it in here would have been the larger change wearing
   the smaller one's clothes.
 - **No paste.** The natural sibling, and cheap once drag proves the gesture —
@@ -78,7 +78,7 @@ never fight over one highlight.
    one-token invariant).
 4. A folder tile cannot be picked up.
 5. A file tile is not a drop target.
-6. Drop an OS file onto a folder tile → it imports **there** (ADR-551 D3).
+6. Drop an OS file onto a folder tile → it imports **there** (ADR-555 D3).
 7. Dragging in the listing does not highlight a tree row, and vice versa.
 
 ## 5. The one-line statement

@@ -46,7 +46,7 @@ interface WorkspaceTreeProps {
    */
   onMoveByDrag?: (fromPath: string, destFolder: string) => void | Promise<void>;
   /**
-   * OS files were dropped on a folder row — import them THERE (ADR-551 D3).
+   * OS files were dropped on a folder row — import them THERE (ADR-555 D3).
    * Absent, a folder row ignores file drops and only accepts internal moves.
    */
   onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
@@ -132,7 +132,7 @@ interface DndBundle {
   dropTarget: string | null;
   setDropTarget: (path: string | null) => void;
   onDrop: (fromPath: string, destFolder: string) => void;
-  /** OS files dropped on a folder row — import them there (ADR-551 D3). */
+  /** OS files dropped on a folder row — import them there (ADR-555 D3). */
   onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
 }
 
@@ -209,7 +209,7 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
   const dropProps = isDropTarget && dnd
     ? {
         onDragOver: (e: React.DragEvent) => {
-          // ADR-551: a folder row accepts BOTH an internal move (a workspace
+          // ADR-555: a folder row accepts BOTH an internal move (a workspace
           // path) and an OS-file import. Only the first was handled, so
           // dropping a PDF on `fundraising/` — the most direct expression of
           // "put this here" — was silently swallowed.

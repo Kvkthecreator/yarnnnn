@@ -1,4 +1,4 @@
-"""ADR-551 — arrival has a "here", and placement has one law.
+"""ADR-555 — arrival has a "here", and placement has one law.
 
 Two defects, one root:
 
@@ -18,7 +18,7 @@ substrate refuses). This gate EXECUTES the resolver and the predicate rather
 than grepping, and compares the FE mirror against the server over one folder
 set — the shape that caught F1.
 
-Run: python3 test_adr551_arrival_has_a_here.py   (check()-style, NOT pytest)
+Run: python3 test_adr555_arrival_has_a_here.py   (check()-style, NOT pytest)
 """
 
 import pathlib

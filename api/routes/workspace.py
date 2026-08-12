@@ -617,7 +617,7 @@ async def get_workspace_tree(
         # inbound/uploads/**.extracted.md is hidden; a pure-text upload (no raw
         # container, no projection) and any user `.md` show normally.
         from services.documents import is_upload_projection
-        # ADR-550 D2: the edge, not the lane. `rows` already holds the sibling
+        # ADR-554 D2: the edge, not the lane. `rows` already holds the sibling
         # raws, so the pair is answerable without fetching a single body.
         _sibs = [r.get("path", "") for r in rows]
         rows = [
@@ -2066,7 +2066,7 @@ async def get_recent_revisions(
         # operator doesn't) — keep it out of Recents too, so a raw + `.extracted.md`
         # pair never shows as two recent changes.
         from services.documents import is_upload_projection
-        # ADR-550 D2 — the sibling set for the edge test (see the tree listing).
+        # ADR-554 D2 — the sibling set for the edge test (see the tree listing).
         _recent_paths = [r.get("path") or "" for r in (result.data or [])]
         latest_by_path: dict[str, dict] = {}
         for row in result.data or []:

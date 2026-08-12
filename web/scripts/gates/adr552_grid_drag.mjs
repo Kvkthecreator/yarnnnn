@@ -123,7 +123,7 @@ if (adapter) {
 // ═══════════════════════════════════════════════════════════════════════════
 // ONE MOVE PATH, ONE IMPORT PATH. The listing must reuse the handlers the tree
 // already uses — a second mover would drift from the first (and would miss
-// ADR-550's projection carry, which lives in the primitive below them).
+// ADR-554's projection carry, which lives in the primitive below them).
 // ═══════════════════════════════════════════════════════════════════════════
 const pageCode = strip(page);
 t('[FALSIFIER]: the listing reuses the tree\'s move handler (commitMove)',

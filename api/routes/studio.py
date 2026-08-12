@@ -1083,7 +1083,7 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
         raise HTTPException(status_code=422, detail="A Studio artifact is an .html file")
     if ".." in path:
         raise HTTPException(status_code=422, detail="Invalid path")
-    # ADR-551 D2 — ONE placement law. This was `path.startswith(
+    # ADR-555 D2 — ONE placement law. This was `path.startswith(
     # STUDIO_ARTIFACT_REGION)`, which fenced every artifact into `operation/`
     # while `create_folder` honoured ADR-424 D2 peer folders and uploads had no
     # check at all: one filesystem, three placement laws.

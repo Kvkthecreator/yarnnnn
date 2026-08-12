@@ -79,7 +79,7 @@ The categorical difference from the benchmark (Claude Design imports into a silo
 > answers *may I write here*; placement answers *may an artifact LIVE here*. Two
 > questions — a create flow must ask the second.
 >
-> **RESOLVED by [ADR-551](ADR-551-arrival-has-a-here.md) D2 (2026-08-12).** The
+> **RESOLVED by [ADR-555](ADR-555-arrival-has-a-here.md) D2 (2026-08-12).** The
 > fence is relaxed to `operator_can_organize` — the same predicate
 > `create_folder` and the upload door now ask. **D6's actual rule is
 > PRESERVED**: "the app owns no namespace; projects are meaning-placed folders,

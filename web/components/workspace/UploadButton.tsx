@@ -63,7 +63,7 @@ export function UploadModal({
   /** Pre-seed the batch (drag-drop onto the canvas opens the modal with these). */
   initialFiles?: File[];
   /**
-   * Where the arrival lands (ADR-551 D3) — a workspace-relative folder, and
+   * Where the arrival lands (ADR-555 D3) — a workspace-relative folder, and
    * its operator-facing name for the banner. Absent, the arrival goes to the
    * intake lane, exactly as before.
    */
@@ -169,7 +169,7 @@ export function UploadModal({
           <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
             <ArrowDownToLine className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
             <div className="min-w-0">
-              {/* ADR-551 D4 — state the destination it RESOLVED. The banner used
+              {/* ADR-555 D4 — state the destination it RESOLVED. The banner used
                   to read a fixed "Intake" whatever the member had dropped on,
                   which was honest only while the destination was hardcoded. */}
               <p className="font-medium text-foreground">

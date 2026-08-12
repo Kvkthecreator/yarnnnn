@@ -1,4 +1,4 @@
-# ADR-550 — A derivation follows its source, and hides by its edge
+# ADR-554 — A derivation follows its source, and hides by its edge
 
 > **Status**: Implemented (2026-08-12). A correctness fix, ratified as canon because it moves an anchor two other rules lean on.
 > **Amends**: [ADR-395](ADR-395-model-consumable-projection-and-upload-intake-conformance.md) Piece B (the projection's hiding rule — lane-anchored → edge-anchored)

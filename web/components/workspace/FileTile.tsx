@@ -159,7 +159,7 @@ export interface TileDnd {
   setDropTarget: (path: string | null) => void;
   /** An internal move: a workspace path was dropped on this folder. */
   onDropPath: (fromPath: string, destFolder: string) => void;
-  /** OS files were dropped on this folder — import them there (ADR-551 D3). */
+  /** OS files were dropped on this folder — import them there (ADR-555 D3). */
   onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
 }
 

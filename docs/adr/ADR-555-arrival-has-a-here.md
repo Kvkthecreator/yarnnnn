@@ -1,8 +1,8 @@
-# ADR-551 — Arrival has a "here", and placement has one law
+# ADR-555 — Arrival has a "here", and placement has one law
 
 > **Status**: Accepted (2026-08-12, operator-ratified — *"shift the discussion towards allowing users more easier file moving or pasting from external places"* + sign-off on the four-phase proposal). Phase 2 of the arrival/move proposal.
 > **Amends**: [ADR-440](ADR-440-the-studio-the-first-authoring-app.md) D6 (the `STUDIO_ARTIFACT_REGION` fence — relaxed to the organize predicate) · [ADR-395](ADR-395-model-consumable-projection-and-upload-intake-conformance.md) (uploads may land outside `inbound/uploads/`; the lane becomes the DEFAULT, not the law)
-> **Preserves**: ADR-424 D1/D2 (one home directory, peer folders) · ADR-422 D2 (raw intake stays immutable; the uploads sublane stays organizable) · ADR-448 / DP32 (an arrival is badged `revision_kind='observation'` — on the ledger) · ADR-549 D3 (the default is where the act is standing) · ADR-550 (the projection follows its raw)
+> **Preserves**: ADR-424 D1/D2 (one home directory, peer folders) · ADR-422 D2 (raw intake stays immutable; the uploads sublane stays organizable) · ADR-448 / DP32 (an arrival is badged `revision_kind='observation'` — on the ledger) · ADR-549 D3 (the default is where the act is standing) · ADR-554 (the projection follows its raw)
 > **Derivation**: the 2026-08-12 arrival/move audit
 
 ---

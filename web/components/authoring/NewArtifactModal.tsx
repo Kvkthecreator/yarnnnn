@@ -21,7 +21,7 @@
  *
  * ── The picker asks exactly what the server asks ──────────────────────────
  * Its predicates gate on `canCreateFileIn` — the FE mirror of the server's ONE
- * placement law (ADR-551 D2). It used to gate on `operatorCanOrganize` alone
+ * placement law (ADR-555 D2). It used to gate on `operatorCanOrganize` alone
  * while the server fenced creation to `operation/`, so four of five offered
  * folders 403'd AFTER the member had named the thing and pressed Create
  * (ADR-549 F1). The fence has since been relaxed to that same predicate, so

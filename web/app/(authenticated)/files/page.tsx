@@ -400,7 +400,7 @@ export default function ContextPage() {
   // canvas (which pre-seeds it with `droppedFiles`). One import path, no button.
   const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  // The resolved arrival destination (ADR-551 D3) — null = the intake lane.
+  // The resolved arrival destination (ADR-555 D3) — null = the intake lane.
   const [uploadDest, setUploadDest] = useState<{ path: string; label: string } | null>(null);
   // The folder-listing drop highlight (ADR-552) — the grid's own, kept apart
   // from the tree's so the two panes never fight over one highlight.
@@ -1018,7 +1018,7 @@ export default function ContextPage() {
     setCanvasMenu({ x: e.clientX, y: e.clientY });
   }, []);
 
-  // ADR-551 D3 — where an arrival lands, in order: the folder the drop
+  // ADR-555 D3 — where an arrival lands, in order: the folder the drop
   // happened on, else the folder the canvas is showing, else Documents (the
   // caller passes null and the server defaults). The same "the background of
   // an open folder acts on that folder" rule New Folder already follows —
@@ -1164,7 +1164,7 @@ export default function ContextPage() {
               // subset, which is how Duplicate (and Share…) went missing here.
               verbs={fileVerbs}
               onMoveByDrag={commitMove}
-              // ADR-551 D3 — an OS file dropped on a folder row imports THERE.
+              // ADR-555 D3 — an OS file dropped on a folder row imports THERE.
               onDropFiles={(files, folder) => openUpload(files, folder)}
               canOrganize={operatorCanOrganize}
             />

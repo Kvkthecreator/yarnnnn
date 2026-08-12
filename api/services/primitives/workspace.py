@@ -1539,7 +1539,7 @@ async def handle_move_file(auth: Any, input: dict) -> dict:
         message=f"MoveFile: to {abs_dst} — {base_message}",
     )
 
-    # Step 3 — the derived text projection travels WITH its raw (ADR-550 D1).
+    # Step 3 — the derived text projection travels WITH its raw (ADR-554 D1).
     #
     # An upload writes two rows: the raw, and a co-located `.extracted.md`
     # projection citing it. Moving one row left the projection behind in

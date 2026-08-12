@@ -223,7 +223,7 @@ async def process_document(
     #    (D5); serving minted at read (D4). No un-versioned bucket copy, no
     #    stored content_url. principal defaults to "operator" (ADR-373).
     principal = "operator"
-    # ADR-551 D3 — where the arrival lands. A caller-supplied destination is the
+    # ADR-555 D3 — where the arrival lands. A caller-supplied destination is the
     # folder the member dropped on; absent one, the intake lane's
     # `{principal}/` sublane is the default. The lane is a DEFAULT, not a law
     # (D1): the arrival is recorded by its `revision_kind='observation'` badge
@@ -386,7 +386,7 @@ def resolve_upload_raw_path(
     format. The derived text projection is a sibling
     (see `upload_projection_path`).
 
-    ── With a destination (ADR-551 D3) ───────────────────────────────────────
+    ── With a destination (ADR-555 D3) ───────────────────────────────────────
     The folder the member dropped on wins, and the file keeps its real name
     there: `{destination}/{slug}.{ext}`. No `{principal}/` sublane — that
     sublane is a property of the DEFAULT home (many principals share one intake
@@ -432,7 +432,7 @@ def is_upload_projection(
     it so the operator sees ONE file (their PDF), not a confusing raw+extracted
     pair.
 
-    ── The anchor moved from the LANE to the EDGE (ADR-550 D2, 2026-08-12) ────
+    ── The anchor moved from the LANE to the EDGE (ADR-554 D2, 2026-08-12) ────
     This used to require the `inbound/uploads/` prefix AND the `.extracted.md`
     suffix. That was deliberate — anchoring on the suffix ALONE would hide a
     member's own `notes.extracted.md` anywhere in the workspace, which the rule

@@ -315,7 +315,7 @@ async def upload_documents(
     caller sends one file and gets a one-element results list — no parallel
     bulk-ingestion subsystem, no background job, no progress table (ADR-331 D5).
 
-    ── `destination` (ADR-551) ───────────────────────────────────────────────
+    ── `destination` (ADR-555) ───────────────────────────────────────────────
     The folder the member dropped on — workspace-relative, no leading slash.
     Absent, the arrival lands in the intake lane exactly as before, so every
     non-Files caller is unchanged.
@@ -417,7 +417,7 @@ async def list_documents(
     for row in (result.data or []):
         path = row["path"]
         # Skip the derived text projection — it's the derivation, not the upload
-        # (shared predicate, ADR-395; ADR-550 D2 re-anchored it to the derive
+        # (shared predicate, ADR-395; ADR-554 D2 re-anchored it to the derive
         # EDGE so a projection that followed its raw out of the lane stays
         # hidden). This query selects `content`, so it answers by citation.
         if is_upload_projection(path, content=row.get("content")):

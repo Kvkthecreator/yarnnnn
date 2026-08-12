@@ -109,7 +109,7 @@ t('F1 [FALSIFIER]: the two regions are byte-identical', !!REGION && regionTs?.[1
 
 // Reconstruct both gates and compare them over the folders a member can reach.
 const isArtifactRegion = (folder) => serverAccepts(folder);
-// ADR-551 D2: the server's create gate is `operator_can_organize`, mirrored in
+// ADR-555 D2: the server's create gate is `operator_can_organize`, mirrored in
 // `ownership.ts`. Reconstructed here so the two are COMPARED, never assumed.
 const serverAccepts = (folder) => {
   let rel = `${folder.replace(/\/+$/, '')}/my-doc/document.html`.replace(/^\/+/, '');
@@ -143,7 +143,7 @@ t(
 // predicate was reverted to permission-only — the import alone satisfied it.
 // A file-wide presence check cannot defend a per-site invariant
 // (feedback_counting_gate_cannot_defend_per_site); each door must be read.
-// ADR-551 D2 moved the law: the fence relaxed to `operator_can_organize`, so
+// ADR-555 D2 moved the law: the fence relaxed to `operator_can_organize`, so
 // the picker now asks THAT — mirrored once as `canCreateFileIn`. The invariant
 // is unchanged in spirit and is what F1 was always about: the door asks
 // whatever the server asks. Gating on the old region here would now UNDER-offer
@@ -154,7 +154,7 @@ for (const prop of PREDICATES) {
   const m = modalCode.match(new RegExp(`${prop}=\\{[\\s\\S]*?\\n        \\}`));
   const expr = m ? m[0] : null;
   t(
-    `F1 [FALSIFIER]: \`${prop}\` asks the ONE placement law (ADR-551 D2)`,
+    `F1 [FALSIFIER]: \`${prop}\` asks the ONE placement law (ADR-555 D2)`,
     !!expr && /canCreateFileIn/.test(expr) && !/isArtifactRegion/.test(expr),
   );
 }

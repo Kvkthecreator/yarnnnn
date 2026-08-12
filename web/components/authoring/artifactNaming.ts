@@ -45,7 +45,7 @@ export const STUDIO_ARTIFACT_REGION = '/workspace/operation/';
 
 /** True iff `folder` sits inside the Documents home — the artifact region.
  *
- *  This is now a HOME test, not a permission gate. ADR-551 D2 relaxed
+ *  This is now a HOME test, not a permission gate. ADR-555 D2 relaxed
  *  `create_artifact`'s fence to `operator_can_organize`, so an artifact may be
  *  created in any folder the member can organize (a peer folder like
  *  `the-acme-deal/` included) — the region survives as the DEFAULT home
@@ -61,7 +61,7 @@ export function isArtifactRegion(folder: string): boolean {
 }
 
 /** True iff a new file may be CREATED under `folder` — the FE mirror of the
- *  server's one placement law (ADR-551 D2: `operator_can_organize`, the same
+ *  server's one placement law (ADR-555 D2: `operator_can_organize`, the same
  *  predicate `create_folder` and the upload door ask).
  *
  *  Kept as its own named export rather than inlining `operatorCanOrganize` at

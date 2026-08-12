@@ -1,4 +1,4 @@
-"""ADR-550 — a derivation follows its source, and hides by its edge.
+"""ADR-554 — a derivation follows its source, and hides by its edge.
 
 The defect: `MoveFile` moved ONE row, so moving an upload out of the intake
 lane left its `.extracted.md` projection behind — still hidden (the rule was
@@ -11,7 +11,7 @@ grepping for them, because the defect was invisible to every existing gate: two
 rules that were each correct alone (ADR-422 D2 uploads-are-organizable, ADR-395
 lane-anchored hiding) produced a broken pair.
 
-Run: python3 test_adr550_derivation_follows_source.py   (check()-style, NOT pytest)
+Run: python3 test_adr554_derivation_follows_source.py   (check()-style, NOT pytest)
 """
 
 import pathlib

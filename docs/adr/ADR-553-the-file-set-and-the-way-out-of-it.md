@@ -2,7 +2,7 @@
 
 > **Status**: Implemented (2026-08-12). Phase 4 of the arrival/move proposal.
 > **Inherits**: [ADR-519](ADR-519-the-object-hierarchy-and-the-pane-grammar.md) D4.1 — *"the set is STATE, not a scope"* — applied to files rather than blocks
-> **Preserves**: every `FileVerbs` signature (single-target, unchanged) · ADR-337 D3 (MoveFile is one attributed op per file) · ADR-550 (the projection travels, per move) · ADR-552 (one drag grammar)
+> **Preserves**: every `FileVerbs` signature (single-target, unchanged) · ADR-337 D3 (MoveFile is one attributed op per file) · ADR-554 (the projection travels, per move) · ADR-552 (one drag grammar)
 > **Derivation**: the 2026-08-12 arrival/move audit
 
 ---
