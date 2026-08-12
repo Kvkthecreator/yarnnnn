@@ -142,6 +142,35 @@ is never the artifact's identity.
 a skeleton in isolation and is depended on by the layout registry. What is
 deleted is the *path* that reaches creation with no name.
 
+### D5.1 — On a PAGED layout, the kicker is the name-bearer (click-pass, 2026-08-12)
+
+Found by the operator's Studio click-pass: a deck created as "deck new test"
+rendered **"UNTITLED DECK"** on its own title slide, while the tab, the crumb
+and the Files row all said otherwise.
+
+The paged scaffolds carry the name a **second time** — in the title slide's
+`k1` kicker (`Untitled deck`) and the hero's (`Untitled page`). Nothing wrote
+them. `set_artifact_title` rewrites the `<h1>`, and on a paged layout
+`set_h1=False` — correctly, since a deck's h1 is its *thesis*, which a filename
+has no business dictating (ADR-459). So on paged layouts **nothing at all**
+took the typed name into the canvas.
+
+It was invisible before this ADR because every artifact was **born** "Untitled
+deck", so the placeholder was always right. Requiring a name at creation is
+what exposed it — the defect was latent in ADR-470, not introduced by D1.
+
+The kicker now takes the name on both modes, guarded by the same
+placeholder rule as the h1, so:
+- an **authored** kicker survives every later rename;
+- a **content-prompt** kicker on an inserted slide (`Kicker`, `Part`,
+  `Thank you`) is never mistaken for the name;
+- the paged **h1 thesis is untouched** — the fix must not smuggle a filename
+  into authored content, which is the very rule `set_h1` exists to keep.
+
+`_SCAFFOLD_KICKERS` is **derived at registration** from each layout's own
+scaffold, mirroring `_SCAFFOLD_TITLES` — a new app's layout registers its
+placeholder through the one door rather than a hand-list.
+
 ### D6 — Existing untitled artifacts are left alone
 
 Files named `untitled-document`, `asdfadsf`, and their kin are **real substrate

@@ -108,6 +108,68 @@ def main() -> int:
         == "Untitled document 2",
     )
 
+    print("\n── 1c. THE PAGED NAME-BEARER IS THE KICKER (2026-08-12) ───────")
+    # Operator click-pass: a deck created as "deck new test" rendered
+    # "UNTITLED DECK" on its own title slide while the tab, the crumb and the
+    # Files row all said otherwise. The paged scaffolds carry the name a SECOND
+    # time in their `k1` kicker, and nothing wrote it — invisible until ADR-549,
+    # because everything used to be BORN "Untitled deck".
+    #
+    # Reproduces the ROUTE's call exactly (`set_h1=is_flow`), not build_skeleton's
+    # default — the two differ on paged, which is the whole point.
+    def _k1(html: str):
+        m = re.search(r'data-block-id="k1"[^>]*>(.*?)</p>', html, re.S)
+        return re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else None
+
+    for slug, lay in all_layouts().items():
+        sk = all_templates()[slug]["skeleton"]
+        is_flow = lay["mode"] == "flow"
+        named = set_artifact_title(sk, "deck new test", set_h1=is_flow)
+        if _k1(sk) is None:
+            continue  # flow layouts ship no kicker — nothing to bear the name
+        _check(
+            f"{slug}: the kicker takes the typed name (not 'Untitled {lay['label'].lower()}')",
+            _k1(named) == "deck new test",
+        )
+        # …and the paged h1 is STILL the thesis. The kicker fix must not smuggle
+        # the filename into authored content — that is ADR-459's whole rule, and
+        # the reason `set_h1` is False here in the first place.
+        if not is_flow:
+            _check(
+                f"{slug}: the h1 thesis is UNTOUCHED (a filename dictates no content)",
+                _h1(named) == _h1(sk),
+            )
+
+    # An AUTHORED kicker is never overwritten — the same placeholder guard the
+    # h1 uses, so a member's words survive every later rename.
+    _deck_sk = all_templates()["deck"]["skeleton"]
+    _authored = _deck_sk.replace(">Untitled deck<", ">ACME CORP<")
+    _check(
+        "an AUTHORED kicker survives a rename",
+        _k1(set_artifact_title(_authored, "new name", set_h1=False)) == "ACME CORP",
+    )
+    # A content-PROMPT kicker ("Kicker", "Part", "Thank you") lives on ordinary
+    # inserted slides. Those are not the artifact's name and must not take it.
+    for _prompt in ("Kicker", "Part", "Thank you"):
+        _other = _deck_sk.replace(">Untitled deck<", f">{_prompt}<")
+        _check(
+            f"a content-prompt kicker ({_prompt!r}) is NOT treated as the name",
+            _k1(set_artifact_title(_other, "new name", set_h1=False)) == _prompt,
+        )
+    # The placeholder set is DERIVED from the scaffolds, never hand-listed —
+    # a new app's layout registers its own kicker through the one door.
+    from services.authoring import _SCAFFOLD_KICKERS
+
+    _check(
+        "the kicker placeholder set is derived at registration, not hand-listed",
+        bool(_SCAFFOLD_KICKERS)
+        and all(
+            _scaf in _SCAFFOLD_KICKERS
+            for _scaf in (_k1(r["scaffold"]) for r in all_layouts().values())
+            if _scaf
+        ),
+    )
+
     print("\n── 2. THE PLACEHOLDER GUARD — why we must NOT invent a name ───")
     # THE TRAP this ADR avoids: writing an invented name at create (e.g. one
     # derived from the path) makes the h1 look AUTHORED, so set_artifact_title's

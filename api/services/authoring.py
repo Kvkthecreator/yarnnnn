@@ -1934,6 +1934,31 @@ def _scaffold_title(lay: dict) -> str | None:
     return re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else None
 
 
+#: The `k1` kicker placeholders the scaffolds ship, DERIVED the way
+#: `_SCAFFOLD_TITLES` is — never a hand-list. Registered by `register_layouts`.
+#:
+#: Only the FIRST-slide kicker counts. The block-insert menus ship kickers too
+#: ("Kicker", "Part", "Thank you"), and those are content PROMPTS on ordinary
+#: slides, not the artifact's name — writing a name into them would be the
+#: ADR-459 mistake of letting a filename dictate authored content. Keying on
+#: the scaffold's own text is what keeps the two apart.
+_SCAFFOLD_KICKERS: set[str] = set()
+
+
+def _scaffold_kicker(lay: dict) -> str | None:
+    """The `k1` kicker placeholder a layout's scaffold ships, tags stripped."""
+    m = re.search(
+        r'<p\b[^>]*data-block-id="k1"[^>]*>(.*?)</p>', lay.get("scaffold", ""), re.S
+    )
+    return re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else None
+
+
+def _is_placeholder_kicker(inner: str) -> bool:
+    """Is this kicker still the kernel's scaffolded placeholder (never authored)?"""
+    text = re.sub(r"<[^>]+>", "", inner).strip()
+    return bool(text) and text in _SCAFFOLD_KICKERS
+
+
 def set_artifact_title(html: str, title: str, *, set_h1: bool = True) -> str:
     """Retitle an artifact: the ``<title>`` AND the ``<h1>`` title block.
 
@@ -1962,6 +1987,33 @@ def set_artifact_title(html: str, title: str, *, set_h1: bool = True) -> str:
     if not safe:
         return html
     out = re.sub(r"<title>[^<]*</title>", f"<title>{safe}</title>", html, count=1)
+
+    # ── The PAGED layouts' name-bearer is the KICKER (2026-08-12) ───────────
+    # A deck's first slide reads `Untitled deck` above its thesis; a web page's
+    # hero reads `Untitled page`. Those are the artifact's NAME, not authored
+    # content — the same fact the <title> carries — but nothing wrote them, so
+    # a deck named "deck new test" rendered "UNTITLED DECK" on its own title
+    # slide while the tab, the crumb and the Files row all said otherwise.
+    #
+    # Invisible until ADR-549: everything was BORN "Untitled deck", so the
+    # placeholder was always right. Requiring a name at creation is what
+    # exposed it.
+    #
+    # This runs for BOTH modes and is guarded by the same placeholder rule as
+    # the h1, so an authored kicker is never overwritten. It is deliberately
+    # NOT gated on `set_h1`: that flag says "this layout's h1 is a thesis, not
+    # a title" (guard 1) — which is precisely why the paged layouts need the
+    # kicker written instead.
+    out = re.sub(
+        r'(<p\b[^>]*data-block-id="k1"[^>]*>)(.*?)(</p>)',
+        lambda m: m.group(0)
+        if not _is_placeholder_kicker(m.group(2))
+        else f"{m.group(1)}{safe}{m.group(3)}",
+        out,
+        count=1,
+        flags=re.S,
+    )
+
     if not set_h1:
         return out  # paged: the h1 is a thesis/headline, not a title (guard 1)
     # Only the scaffolded placeholder gets rewritten — never authored words.
@@ -2003,14 +2055,17 @@ _ARRANGEMENT_REGISTRY: dict[str, dict] = {}
 def register_layouts(layouts: dict[str, dict], arrangements: dict[str, dict] | None = None) -> None:
     """Register an app's document types with the shared machinery (ADR-472 D2).
 
-    Also maintains `_SCAFFOLD_TITLES` (ADR-518 D3): the placeholder-title set
-    must cover every app's scaffolds, and registration is the one door they
-    all arrive through.
+    Also maintains `_SCAFFOLD_TITLES` (ADR-518 D3) and `_SCAFFOLD_KICKERS`:
+    the placeholder sets must cover every app's scaffolds, and registration is
+    the one door they all arrive through.
     """
     for slug, row in layouts.items():
         title = _scaffold_title(row)
         if title:
             _SCAFFOLD_TITLES.add(title)
+        kicker = _scaffold_kicker(row)
+        if kicker:
+            _SCAFFOLD_KICKERS.add(kicker)
         existing = _LAYOUT_REGISTRY.get(slug)
         if existing is not None and existing is not row:
             # Grammar, not schema (ADR-443 §6 — no exceptions from this
