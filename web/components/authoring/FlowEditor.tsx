@@ -54,10 +54,17 @@ import type { WorkspaceFile } from '@/types';
 
 const COMMIT_IDLE_MS = 2000;
 
-/** Chrome the editor host needs regardless of the artifact's own skin. */
+/** Chrome the editor host needs regardless of the artifact's own skin.
+ *  The host is a flex child of the canvas wrap: without an explicit flex/width
+ *  it sizes to its CONTENT column and the page's own background shows beside
+ *  it (the split-screen defect the first click-pass caught). And the model's
+ *  list_item holds a PARAGRAPH while the substrate dialect writes bare
+ *  `<li>text</li>` — the serializer tightens the substrate; this rule tightens
+ *  the VIEW, so the two render identically. */
 const HOST_BASE_CSS = `
-.${FLOW_HOST_CLASS} { display: block; overflow: auto; height: 100%; background: var(--surface, #fff); }
+.${FLOW_HOST_CLASS} { display: block; flex: 1 1 0%; min-width: 0; width: 100%; overflow: auto; height: 100%; background: var(--surface, #fff); }
 .${FLOW_HOST_CLASS} main { white-space: pre-wrap; outline: none; caret-color: auto; min-height: 100%; }
+.${FLOW_HOST_CLASS} main li > p { margin: 0; }
 .${FLOW_HOST_CLASS} main .ProseMirror-selectednode { outline: 2px solid var(--accent, #b4540a); outline-offset: 2px; }
 .${FLOW_HOST_CLASS} [data-ref] { user-select: none; }
 `;
