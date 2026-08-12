@@ -40,7 +40,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Optional
 
 from services.images.generate import Layer
 
@@ -242,7 +241,7 @@ def _coerce(raw: list) -> list[Layer]:
     return out
 
 
-async def plan_layers(brief: str, *, model: Optional[str] = None) -> list[Layer]:
+async def plan_layers(brief: str) -> list[Layer]:
     """The resident's layer plan, falling back to the heuristic.
 
     The fallback is not a degraded mode to apologize for — per ADR-468 D4 a
@@ -262,7 +261,11 @@ async def plan_layers(brief: str, *, model: Optional[str] = None) -> list[Layer]
             logger.info("[IMAGES] router off — heuristic plan")
             return heuristic_plan(brief)
 
-        engine = model or KERNEL_AGENTS["designer"]["model"]
+        # ADR-556 D3 — the resident's engine, full stop. The `model` override
+        # this read is gone (it was an ungated client passthrough); layer
+        # planning is machinery, and machinery does not take an engine from a
+        # caller.
+        engine = KERNEL_AGENTS["designer"]["model"]
         completion = await route_completion(
             engine,
             [{"role": "user", "content": f"Compose this image:\n\n{brief}"}],

@@ -37,6 +37,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from services.system_calls import system_call_model
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +47,6 @@ logger = logging.getLogger(__name__)
 #: copy in the ledger write, so "which model serves a search" had four
 #: answers that happened to agree. It is reported on the result now, not
 #: assumed by the caller.
-_ANTHROPIC_SEARCH_MODEL = "claude-haiku-4-5-20251001"
 
 # Anthropic's native web_search tool definition (server-side)
 WEB_SEARCH_TOOL = {
@@ -345,7 +346,7 @@ async def _execute_web_search(
             # not generate a prose summary. Server-side tool result arrives in the
             # response content regardless of text output length.
             response = await client.messages.create(
-                model=_ANTHROPIC_SEARCH_MODEL,
+                model=system_call_model("web_search_continuation"),
                 max_tokens=50,
                 system="Search the web and return results.",
                 tools=[WEB_SEARCH_TOOL],
@@ -363,7 +364,7 @@ async def _execute_web_search(
             while response.stop_reason == "tool_use" and not search_results:
                 messages.append({"role": "assistant", "content": response.content})
                 response = await client.messages.create(
-                    model=_ANTHROPIC_SEARCH_MODEL,
+                    model=system_call_model("web_search_continuation"),
                     max_tokens=50,
                     system="Search the web and return results.",
                     tools=[WEB_SEARCH_TOOL],
@@ -394,7 +395,7 @@ async def _execute_web_search(
                 output_tokens=total_output_tokens,
                 cache_read_tokens=total_cache_read,
                 cache_create_tokens=total_cache_create,
-                ledger_model=_ANTHROPIC_SEARCH_MODEL,
+                ledger_model=system_call_model("web_search_continuation"),
             )
 
     except Exception as e:

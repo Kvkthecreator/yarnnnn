@@ -21,9 +21,10 @@ import logging
 import re
 from typing import Optional
 
+from services.system_calls import system_call_model
+
 logger = logging.getLogger(__name__)
 
-INFERENCE_MODEL = "claude-sonnet-4-6"
 
 PROMPT_INFERENCE_SYSTEM = """You are refining a recurrence's prompt based on accumulated feedback.
 
@@ -111,7 +112,7 @@ async def infer_recurrence_prompt(
         # request — nothing below needs the client, only its response.
         async with get_anthropic_client() as anthropic_client:
             response = await anthropic_client.messages.create(
-                model=INFERENCE_MODEL,
+                model=system_call_model("recurrence_prompt_inference"),
                 max_tokens=2000,
                 system=PROMPT_INFERENCE_SYSTEM,
                 messages=[{"role": "user", "content": user_message}],
@@ -138,7 +139,7 @@ async def infer_recurrence_prompt(
                 output_tokens=getattr(response.usage, "output_tokens", 0),
                 cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
                 cache_create_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
-                model=INFERENCE_MODEL,
+                model=system_call_model("recurrence_prompt_inference"),
             )
         except Exception as _e:
             logger.warning(f"[TELEMETRY] prompt_inference record failed: {_e}")

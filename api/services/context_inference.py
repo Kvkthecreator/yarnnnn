@@ -20,9 +20,10 @@ import logging
 import re
 from typing import Any, Literal, Optional
 
+from services.system_calls import system_call_model
+
 logger = logging.getLogger(__name__)
 
-INFERENCE_MODEL = "claude-sonnet-4-6"
 
 
 IDENTITY_SYSTEM = """You are updating a user's workspace identity file (IDENTITY.md).
@@ -131,7 +132,7 @@ async def author_identity_merge(
         result_text, usage = await chat_completion_with_usage(
             messages=[{"role": "user", "content": f"Update the {target} file from these sources:\n\n{source_material}"}],
             system=system,
-            model=INFERENCE_MODEL,
+            model=system_call_model("identity_inference"),
             max_tokens=2048,
         )
         result = result_text.strip()
@@ -218,7 +219,7 @@ async def author_identity(
                     output_tokens=usage.get("output_tokens", 0),
                     cache_read_tokens=usage.get("cache_read_input_tokens", 0) or 0,
                     cache_create_tokens=usage.get("cache_creation_input_tokens", 0) or 0,
-                    model=INFERENCE_MODEL,
+                    model=system_call_model("identity_inference"),
                 )
             except Exception as e:
                 logger.warning(f"[AUTHOR_IDENTITY] cost ledger record failed: {e}")

@@ -318,7 +318,10 @@ def test_flag_off_takes_legacy_anthropic_path():
 
     assert summary == "[2026-07-06] Legacy path summary."
     ev = recorded["event"]
-    assert ev["model"] == sc.SUMMARY_MODEL
+    # ADR-556 D1: the `SUMMARY_MODEL` module constant is retired — the session
+    # summary's engine is a declared SYSTEM CALL now. Same assertion, one home.
+    from services.system_calls import system_call_model
+    assert ev["model"] == system_call_model("session_summary")
     assert ev["input_tokens"] == 500 and ev["output_tokens"] == 30
     # principal_id kwarg exists on the legacy path too (None when unknown).
     assert "principal_id" in ev

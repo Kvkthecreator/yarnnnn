@@ -30,12 +30,13 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from services.system_calls import system_call_model
+
 logger = logging.getLogger(__name__)
 
 # Sonnet for specialist work — focused-prompt sub-calls warrant the model
 # strength for genuine production work. Operators can override via the
 # `model` option if cost discipline is paramount.
-_SPECIALIST_MODEL_DEFAULT = "claude-sonnet-4-6"
 _SPECIALIST_MAX_TOKENS = 4096
 _SPECIALIST_MAX_ROUNDS = 5  # specialist sub-calls are bounded; ADR-260 D8 round discipline
 
@@ -274,7 +275,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
             max_rounds_raw, _SPECIALIST_MAX_ROUNDS,
         )
         max_rounds = _SPECIALIST_MAX_ROUNDS
-    chosen_model = model or _SPECIALIST_MODEL_DEFAULT
+    chosen_model = model or system_call_model("specialist_dispatch")
     messages: list[dict] = [{"role": "user", "content": brief}]
     tools_called: list[str] = []
     total_in = 0

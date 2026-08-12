@@ -21,10 +21,10 @@ import logging
 import os
 from typing import Optional
 
+from services.system_calls import resolve_system_call, system_call_model
+
 logger = logging.getLogger(__name__)
 
-# Model for summarization — Haiku is sufficient for session summaries
-SUMMARY_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
 
 # Minimum user messages for a session to be worth summarizing
 MIN_MESSAGES_FOR_SUMMARY = 3
@@ -139,10 +139,11 @@ CONVERSATION:
             # ADR-408 D4: routed path. Provider-prefixed model string; the
             # router returns ledger-shaped usage + a log-only cost report.
             from services.model_router import route_completion
-            routed_model = (
-                SUMMARY_MODEL if "/" in SUMMARY_MODEL
-                else f"anthropic/{SUMMARY_MODEL}"
-            )
+            # ADR-556 D1: the registry stores the honest `provider/model` form,
+            # so the bare-vs-prefixed reconciliation this line used to do is
+            # gone — the router gets the prefixed name, the SDK path below gets
+            # the stripped one, from ONE declaration.
+            routed_model = resolve_system_call("session_summary").model
             routed = await route_completion(
                 routed_model,
                 [{"role": "user", "content": prompt + conversation_text}],
@@ -158,7 +159,7 @@ CONVERSATION:
             import anthropic
             with anthropic.Anthropic() as client:
                 response = client.messages.create(
-                    model=SUMMARY_MODEL,
+                    model=system_call_model("session_summary"),
                     max_tokens=256,
                     extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
                     messages=[
@@ -166,7 +167,7 @@ CONVERSATION:
                     ],
                 )
             summary_text = response.content[0].text.strip()
-            ledger_model = SUMMARY_MODEL
+            ledger_model = system_call_model("session_summary")
             usage_tokens = {
                 "input_tokens": getattr(response.usage, "input_tokens", 0),
                 "output_tokens": getattr(response.usage, "output_tokens", 0),
@@ -260,7 +261,7 @@ CONVERSATION:
         # (see docs/infrastructure/memory-and-client-lifecycle.md).
         with anthropic.Anthropic() as client:
             response = client.messages.create(
-                model=SUMMARY_MODEL,
+                model=system_call_model("session_summary"),
                 max_tokens=256,
                 extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
                 messages=[

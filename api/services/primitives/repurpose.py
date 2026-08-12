@@ -234,15 +234,21 @@ async def _editorial_repurpose(auth, task_slug, output_date, output_md, target):
     # Haiku is sufficient — editorial repurpose is format transformation
     # (restructure, condense, reframe), not open-ended reasoning.
     from services.anthropic import chat_completion
-    _REPURPOSE_MODEL = "claude-haiku-4-5-20251001"
+    from services.system_calls import system_call_model
 
-    response = await chat_completion(
+    # ADR-556 D2 — `chat_completion` returns `str`, not an object with `.text`.
+    # This read `response.text` and would raise AttributeError on every live
+    # call: the same class of never-executed break as the wake-triage call, in
+    # a REGISTERED primitive (`RepurposeOutput`). Found by migrating the model
+    # literal, which is the argument for the registry: the constants were in
+    # the places nobody read.
+    response_text = await chat_completion(
         messages=[{"role": "user", "content": user_message}],
         system=system_prompt,
-        model=_REPURPOSE_MODEL,
+        model=system_call_model("repurpose"),
     )
 
-    repurposed_content = response.text.strip() if response.text else ""
+    repurposed_content = response_text.strip() if response_text else ""
     if not repurposed_content:
         return {"success": False, "error": "empty_output", "message": "Agent produced no repurposed content"}
 

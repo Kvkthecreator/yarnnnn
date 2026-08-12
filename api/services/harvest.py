@@ -38,6 +38,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from services.system_calls import system_call_model
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,8 +47,6 @@ logger = logging.getLogger(__name__)
 #: The `agent:` prefix is in VALID_AUTHOR_PREFIXES — harvest adds no new prefix.
 HARVEST_CALLER_IDENTITY = "agent:harvest"
 
-#: Harvest reuses the specialist bounded-loop model + budget (ADR-260 D8).
-_HARVEST_MODEL = "claude-sonnet-4-6"
 _HARVEST_MAX_TOKENS = 4096
 _HARVEST_MAX_ROUNDS = 12  # multi-source curation needs more rounds than a single specialist output
 
@@ -234,7 +234,7 @@ async def harvest_run(auth: Any, scope: dict) -> dict:
                 messages=messages,
                 system=system_prompt,
                 tools=tools,
-                model=_HARVEST_MODEL,
+                model=system_call_model("harvest"),
                 max_tokens=_HARVEST_MAX_TOKENS,
             )
         except Exception as exc:  # noqa: BLE001
@@ -477,7 +477,7 @@ def _record_harvest_cost(
             output_tokens=int(usage.get("output_tokens", 0) or 0),
             cache_read_tokens=int(usage.get("cache_read_input_tokens", 0) or 0),
             cache_create_tokens=int(usage.get("cache_creation_input_tokens", 0) or 0),
-            model=_HARVEST_MODEL,
+            model=system_call_model("harvest"),
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("[HARVEST] cost ledger record failed: %s", exc)

@@ -36,7 +36,6 @@ Canonical reference: docs/adr/ADR-475-decomposed-generation.md
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -63,8 +62,14 @@ class ComposeRequest(BaseModel):
     #: The member's one-line brief. This is the whole input; decomposition is
     #: what turns it into objects (ADR-468 D3).
     brief: str
-    #: Optional engine override for the PLANNING call (not the raster engine).
-    model: Optional[str] = None
+    # ADR-556 D3 — the engine override is REMOVED. Layer planning is a
+    # SYSTEMATIC call (machinery, nobody picks it), and this field let a
+    # client name any engine straight into `route_completion` with neither
+    # the `LANE_MODELS` membership check nor the ADR-439 §4 billing gate that
+    # every other routed path enforces — an unpriced model prices silently at
+    # the Sonnet default. It was the one place a USER-FACING input reached a
+    # systematic call path. The engine is the resident's, declared in one
+    # place (`services/images/decompose.py`).
 
 
 @router.post("/images/compose")
@@ -136,7 +141,7 @@ async def compose(req: ComposeRequest, auth: UserClient) -> dict:
         )
 
     width, height = stage_dimensions(stage_html)
-    layers = await plan_layers(brief, model=req.model)
+    layers = await plan_layers(brief)
 
     result = compose_stage(
         auth.client,

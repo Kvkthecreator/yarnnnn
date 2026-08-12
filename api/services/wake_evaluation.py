@@ -61,6 +61,9 @@ import os
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
+from services.system_calls import system_call_model
+from services.telemetry import record_execution_event
+
 logger = logging.getLogger(__name__)
 
 
@@ -208,6 +211,16 @@ def tier_1_decision(
 # ---------------------------------------------------------------------------
 
 
+#: The system arg `chat_completion_with_usage` REQUIRES. Deliberately thin —
+#: the whole instruction (options + one-word contract) lives in the user
+#: template below; this only fixes the posture. Its absence was one of the
+#: three reasons the tier-2 call never ran (ADR-556 D2).
+_TIER_2_SYSTEM = (
+    "You are a triage step deciding whether a moment warrants an agent's full "
+    "attention. Answer with exactly one word and nothing else."
+)
+
+
 _TIER_2_PROMPT_TEMPLATE = """\
 A wake proposal was raised in the YARNNN substrate-canonical world.
 
@@ -269,7 +282,7 @@ async def tier_2_decision(
 
     try:
         from services.workspace import UserMemory
-        from services.anthropic import chat_completion
+        from services.anthropic import chat_completion_with_usage
 
         # Load minimal envelope. Both files are small enough not to
         # need truncation; we cap at ~2k chars defensively.
@@ -292,15 +305,34 @@ async def tier_2_decision(
             mandate=mandate or "(empty — operator has not declared mandate)",
         )
 
-        # ADR-291: Haiku rate via the canonical cost ledger.
-        # caller="reviewer-tier-2-idle-tick" stamps the telemetry call
-        # for cost observability.
-        response_text, _meta = await chat_completion(
+        # ADR-556 D2 — this call was BORN BROKEN (37426c5, ADR-296 v2): it
+        # called `chat_completion` with a `user_id`/`caller` metering API that
+        # never existed on any wrapper, omitted the REQUIRED `system` arg, and
+        # unpacked two values from a `-> str`. Every invocation raised
+        # TypeError into the `except` below and failed open to `escalate` — so
+        # the cheap triage tier never once ran, and every idle tick escalated
+        # to a full Sonnet wake. The funnel's whole cost argument was inert.
+        #
+        # The metering it INTENDED is the ADR-291 shape: the wrapper returns
+        # usage, the CALLER records the ledger row (one meter, ADR-396).
+        response_text, usage = await chat_completion_with_usage(
             messages=[{"role": "user", "content": prompt}],
-            model="claude-haiku-4-5-20251001",
+            system=_TIER_2_SYSTEM,
+            model=system_call_model("wake_triage"),
             max_tokens=10,
+        )
+
+        record_execution_event(
+            client,
             user_id=user_id,
-            caller="reviewer-tier-2-idle-tick",
+            slug="wake-triage",
+            mode="judgment",
+            trigger_type="scheduled",
+            status="completed",
+            model=system_call_model("wake_triage"),
+            input_tokens=usage.get("input_tokens"),
+            output_tokens=usage.get("output_tokens"),
+            wake_source=source,
         )
 
         verdict = (response_text or "").strip().lower()

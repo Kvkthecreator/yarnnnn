@@ -19,10 +19,10 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
+from services.system_calls import system_call_model
+
 logger = logging.getLogger(__name__)
 
-# Extraction model — Haiku is sufficient for fact extraction from conversations
-EXTRACTION_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
 
 # Minimum messages to trigger extraction
 MIN_MESSAGES_FOR_EXTRACTION = 3
@@ -201,7 +201,7 @@ CONVERSATION:
             # (see docs/infrastructure/memory-and-client-lifecycle.md).
             with anthropic.Anthropic() as client:
                 response = client.messages.create(
-                    model=EXTRACTION_MODEL,
+                    model=system_call_model("fact_extraction"),
                     max_tokens=1024,
                     extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
                     messages=[
