@@ -165,10 +165,10 @@ ok(
 // them stayed green with the band broken (caught by falsifying this assertion).
 // The band is the `relative` div that directly precedes the navigator's
 // `isPaged &&` mount, and it carries no ref.
-// The band is the FIRST <div> after the workbench root (the element carrying
-// `ref={workbenchRef}`); comments may sit between them, so match on that anchor
+// The band is the FIRST <div> after the workbench root (the element whose ref
+// feeds the width hook); comments may sit between them, so match on that anchor
 // rather than on a fixed window of intervening text.
-const bandMatch = /ref=\{workbenchRef\}[\s\S]*?<div className="([^"]*)">/.exec(surface);
+const bandMatch = /ref=\{setWorkbenchNode\}[\s\S]*?<div className="([^"]*)">/.exec(surface);
 ok(
   'the column band is a positioning ancestor for the side overlay',
   !!bandMatch && /\brelative\b/.test(bandMatch[1]),
@@ -176,6 +176,33 @@ ok(
     ? `the band's classes are "${bandMatch[1]}" — the two-pane overlay is ` +
       '`absolute` and needs this row to be `relative`'
     : 'could not locate the column band (the div preceding the navigator mount)',
+);
+
+// ── 4c. The measurement actually ATTACHES ─────────────────────────────────
+// The hook must hand back a CALLBACK ref. The first spelling took a RefObject
+// and observed it in a `useEffect([ref])`; the surface returns its START state
+// before the workbench, so the effect's single run saw a null node, bailed, and
+// never retried — the rung sat at its roomy `full` default forever and the
+// tablet layout was byte-identical to the original defect.
+//
+// This gate was 33/33 GREEN through all of that: every assertion above tests the
+// DERIVATION, and the derivation was always correct. What was broken was whether
+// anything ever CALLED it with a real width. That is the "computed and never
+// mounted" shape, and it is why this assertion is about wiring, not arithmetic.
+const hook = read('web/lib/authoring/workbench-width.ts');
+ok(
+  'the width hook returns a callback ref (not a RefObject it observes in an effect)',
+  /useWorkbenchWidth\(\):\s*\[\(node: HTMLElement \| null\) => void/.test(hook),
+  'a RefObject + useEffect never re-runs when the workbench mounts on a later render',
+);
+ok(
+  'the hook takes no ref parameter',
+  /export function useWorkbenchWidth\(\)/.test(hook),
+  'accepting a ref is the shape that failed to attach',
+);
+ok(
+  'the surface feeds the callback into the workbench root',
+  /ref=\{setWorkbenchNode\}/.test(surface),
 );
 
 // ── 5. No raw breakpoint classes in the WORKBENCH ─────────────────────────

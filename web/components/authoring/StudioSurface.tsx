@@ -2760,9 +2760,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // thresholds (lib/shell/surface-preferences.ts), which raw `md:` class strings
   // had been silently disagreeing with — measured live: at 820px the toolbar
   // painted 260px over the Properties column.
-  const workbenchRef = useRef<HTMLDivElement>(null);
-  const { threeColumn, sideIsOverlay, singlePane, fullLabels, measuredWidth } =
-    useWorkbenchWidth(workbenchRef);
+  // A CALLBACK ref, not an object ref: the workbench mounts on a LATER render
+  // than this hook (the START state returns first), and an effect keyed on a
+  // stable object ref runs once against a null node and never retries — the
+  // rung then sits at its roomy default forever. See workbench-width.ts.
+  const [setWorkbenchNode, { threeColumn, sideIsOverlay, singlePane, fullLabels, measuredWidth }] =
+    useWorkbenchWidth();
   // Touch parity: a coarse pointer gets 44px targets (Apple/Google floor) while
   // desktop density is untouched. The CAPABILITY, not the width — a large tablet
   // has no mouse; a narrow desktop window still does (useCoarsePointer's own
@@ -3168,7 +3171,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const canvasActive = activePane === 'canvas';
   const chatActive = activePane === 'chat';
   return (
-    <div ref={workbenchRef} className="relative flex h-full min-h-0 flex-col">
+    <div ref={setWorkbenchNode} className="relative flex h-full min-h-0 flex-col">
       {/* `relative` is LOAD-BEARING: the two-pane rung's side overlay + its
           scrim are `absolute inset-y-0 right-0` and must resolve against THIS
           row (the column band), not against a distant positioned ancestor. */}

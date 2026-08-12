@@ -53,7 +53,7 @@
  * `lg:` in a class string — that is the drift this module exists to end.
  */
 
-import { useEffect, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   WORKBENCH_FULL_LABELS_PX,
   WORKBENCH_SINGLE_PANE_PX,
@@ -108,19 +108,36 @@ export function widthFromRung(
 }
 
 /**
- * Observe `ref`'s width and report which rung of the ladder is live.
+ * Observe the workbench's own width and report which rung of the ladder is live.
  *
- * @param ref the element to measure — the WORKBENCH container, not the window.
+ * Returns a CALLBACK REF, not an object ref, and that is load-bearing.
+ *
+ * The first spelling took a `RefObject` and observed `ref.current` inside a
+ * `useEffect([ref])`. It shipped green — tsc, build and 33 gate assertions all
+ * passed — and never once measured, because the surface returns the START state
+ * before it returns the workbench: at the effect's only run `ref.current` was
+ * null, so it bailed, and a stable `ref` identity meant it never re-ran when the
+ * workbench finally mounted. The rung sat at its `full` default forever, which
+ * on a tablet is exactly the broken layout the ladder exists to prevent —
+ * measured on prod at 820px, indistinguishable from the original defect.
+ *
+ * A callback ref cannot fail that way: React invokes it with the node at attach
+ * and with null at detach, so observation begins whenever the element actually
+ * appears, however many render branches precede it.
+ *
+ * @returns `[setNode, width]` — spread the callback into the element's `ref`.
  */
-export function useWorkbenchWidth(ref: RefObject<HTMLElement | null>): WorkbenchWidth {
+export function useWorkbenchWidth(): [(node: HTMLElement | null) => void, WorkbenchWidth] {
   // Start at the roomiest rung (see the SSR note above): withhold, never guess.
   const [width, setWidth] = useState<number | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+  const setNode = useCallback((node: HTMLElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!node) return;
     const measure = () => {
-      const w = el.clientWidth;
+      const w = node.clientWidth;
       // A zero width means "not laid out yet" (display:none, pre-paint), not
       // "infinitely narrow" — treating it as narrow would collapse the layout
       // for a frame on every mount. Same guard as useNarrowContainer.
@@ -128,9 +145,13 @@ export function useWorkbenchWidth(ref: RefObject<HTMLElement | null>): Workbench
     };
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ref]);
+    ro.observe(node);
+    observerRef.current = ro;
+  }, []);
 
-  return widthFromRung(width == null ? 'full' : rungForWidth(width), width);
+  // Unmount safety — the callback ref's null call covers element swaps, this
+  // covers the hook itself going away.
+  useEffect(() => () => observerRef.current?.disconnect(), []);
+
+  return [setNode, widthFromRung(width == null ? 'full' : rungForWidth(width), width)];
 }
