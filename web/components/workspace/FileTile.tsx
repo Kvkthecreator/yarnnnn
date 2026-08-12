@@ -130,7 +130,8 @@ export interface FileTileProps {
    *   linkTo    → the Home mount has no selection; the tile deep-links to the
    *               Files surface (SurfaceLink). Provide one or the other.
    */
-  onClick?: () => void;
+  /** ADR-553: the event is passed so a ⌘/Ctrl-click can be an ADDITIVE pick. */
+  onClick?: (e: React.MouseEvent) => void;
   linkTo?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   title?: string;

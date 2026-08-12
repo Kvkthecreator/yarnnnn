@@ -77,6 +77,11 @@ export interface FileOrganizeVerbs {
    * is the gesture path. Same API call, same optimistic feedback + onAfterMutate.
    */
   commitMove: (fromPath: string, destFolder: string) => Promise<void>;
+  /** Move a SET into one folder — reports which half landed (ADR-553 D2). */
+  commitMoveMany: (
+    fromPaths: string[],
+    destFolder: string,
+  ) => Promise<{ moved: string[]; failed: string[] }>;
 }
 
 export function useFileOrganizeVerbs(
@@ -191,6 +196,39 @@ export function useFileOrganizeVerbs(
     [runAction, onAfterMutate],
   );
 
+  /**
+   * Move a SET into one folder (ADR-553 D2).
+   *
+   * A loop over `commitMove`, deliberately — the substrate has no bulk move,
+   * and inventing one would need partial-failure semantics the single mover
+   * already has. What this adds is HONEST REPORTING: moves are
+   * non-transactional (ADR-337 D3 writes then tombstones, per file), so a set
+   * can half-land, and the member must be told which half.
+   *
+   * Sequential, not parallel: N concurrent writes against one folder race on
+   * `destination_exists`, and the loser's 409 would read as a random failure.
+   */
+  const commitMoveMany = useCallback(
+    async (fromPaths: string[], destFolder: string) => {
+      const moved: string[] = [];
+      const failed: string[] = [];
+      for (const from of fromPaths) {
+        const leaf = from.slice(from.lastIndexOf('/') + 1);
+        const newPath = destFolder.endsWith('/') ? `${destFolder}${leaf}` : `${destFolder}/${leaf}`;
+        if (newPath === from) continue;
+        try {
+          await api.documents.move(from, newPath);
+          moved.push(newPath);
+        } catch {
+          failed.push(leaf);
+        }
+      }
+      if (moved.length) onAfterMutate?.(moved[moved.length - 1], fromPaths[0]);
+      return { moved, failed };
+    },
+    [onAfterMutate],
+  );
+
   const onDelete = useCallback(
     async (t: FileOrganizeTarget) => {
       if (await carveGuard(t.path)) return;
@@ -257,5 +295,5 @@ export function useFileOrganizeVerbs(
     </>
   );
 
-  return { verbs: { onRename, onMove, onDelete, onDuplicate, commitMove }, modals };
+  return { verbs: { onRename, onMove, onDelete, onDuplicate, commitMove, commitMoveMany }, modals };
 }

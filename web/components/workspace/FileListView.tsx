@@ -22,7 +22,7 @@
  * the Home deep-link all reuse it.
  */
 
-import type { ReactNode } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcon';
 import { TILE_DRAG_MIME } from './FileTile';
@@ -64,7 +64,8 @@ export interface FileListRowProps {
    * selection) OR linkTo (Home mount deep-links to the Files surface). Provide
    * one or the other.
    */
-  onClick?: () => void;
+  /** ADR-553: the event is passed so a ⌘/Ctrl-click can be an ADDITIVE pick. */
+  onClick?: (e: ReactMouseEvent) => void;
   linkTo?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   title?: string;

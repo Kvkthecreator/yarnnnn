@@ -45,7 +45,7 @@ import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 interface ContentViewerProps {
   selectedNode: WorkspaceTreeNode | null;
-  onNavigate: (node: WorkspaceTreeNode) => void;
+  onNavigate: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
   showHeader?: boolean;
   /**
    * ADR-215 R1 + ADR-236 Files page rework (2026-04-30): seed the chat
@@ -86,6 +86,10 @@ interface ContentViewerProps {
  * `TileDnd` is derived from it by `tileDnd` below, so the caller wires ONE
  * object rather than a closure per row.
  */
+/** Paths in the multi-selection (ADR-553) — the primary PLUS the additional
+ *  members, so the listing rings every member rather than only the subject. */
+export type SelectionSet = readonly string[];
+
 export interface ListingDnd {
   canOrganize: (path: string) => boolean;
   dropTarget: string | null;
@@ -166,7 +170,7 @@ function DirectoryView({
   dnd,
 }: {
   node: WorkspaceTreeNode;
-  onNavigate: (node: WorkspaceTreeNode) => void;
+  onNavigate: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
   viewMode?: 'icon' | 'list';
@@ -274,7 +278,7 @@ function DirectoryView({
               path={child.path}
               kind={child.type === 'folder' ? 'folder' : 'file'}
               dnd={dnd ? tileDnd(dnd, child) : undefined}
-              onClick={() => onNavigate(child)}
+              onClick={(e) => onNavigate(child, e)}
               onContextMenu={rowContext(child)}
               actions={rowKebab(child)}
               subtext={
@@ -309,7 +313,7 @@ function DirectoryView({
                     <span className="truncate">{formatAuthorLabel((child as any).authored_by)}</span>
                   </span>
                 }
-                onClick={() => onNavigate(child)}
+                onClick={(e) => onNavigate(child, e)}
                 onContextMenu={rowContext(child)}
                 actions={rowKebab(child)}
               />

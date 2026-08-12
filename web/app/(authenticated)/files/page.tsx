@@ -68,6 +68,7 @@ import {
 } from '@/lib/file-types';
 import { resolveHandlers, applyDefaultOverride } from '@/lib/file-types/handlers';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
+import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
@@ -404,6 +405,26 @@ export default function ContextPage() {
   // The folder-listing drop highlight (ADR-552) — the grid's own, kept apart
   // from the tree's so the two panes never fight over one highlight.
   const [listingDropTarget, setListingDropTarget] = useState<string | null>(null);
+
+  // ── The multi-selection (ADR-553) ──────────────────────────────────────
+  // A SET carried BESIDE the selection, never replacing it — ADR-519 D4.1's
+  // rule, inherited: `selectedPath` stays the primary (every existing reader
+  // still gets exactly one path), and this is the additional members. Only the
+  // gestures that genuinely take N consult it.
+  //
+  // ADR-519 also shipped a PROD TRAP here once — a multi-select with no way
+  // out. Withdrawal is therefore part of the feature, not a follow-up: Escape
+  // clears, a background click clears, and any single-target verb clears
+  // before it acts (D3).
+  const [alsoSelected, setAlsoSelected] = useState<string[]>([]);
+  const clearSet = useCallback(() => setAlsoSelected([]), []);
+  const [moveSetOpen, setMoveSetOpen] = useState(false);
+  // The full set the next N-taking verb acts on — the primary FIRST, so a
+  // reader that takes `[0]` gets the same file `selectedPath` names.
+  const selectionSet = useMemo(
+    () => (selectedPath ? [selectedPath, ...alsoSelected.filter((p) => p !== selectedPath)] : []),
+    [selectedPath, alsoSelected],
+  );
   const [droppedFiles, setDroppedFiles] = useState<File[] | null>(null);
   const [canvasDragOver, setCanvasDragOver] = useState(false);
 
@@ -804,9 +825,41 @@ export default function ContextPage() {
   // The tree + folder-listing hand a TreeNode; every other door hands a path.
   // Both are the SAME open verb (openPath) — the node wrapper only unwraps.
   const handleExplorerSelect = useCallback(
-    (node: TreeNode) => openPath(node.path),
-    [openPath],
+    (node: TreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => {
+      // ADR-553 D1 — ⌘/Ctrl-click TOGGLES membership in the set; a plain click
+      // replaces the whole selection. Finder's grammar, and the reason the
+      // modifier is the ONLY way in: a member cannot enter a multi-selection by
+      // accident, which is half of why ADR-519's trap was a trap.
+      const additive = !!(e?.metaKey || e?.ctrlKey);
+      if (!additive) {
+        clearSet();
+        openPath(node.path);
+        return;
+      }
+      if (node.type === 'folder') return; // the set is files — folders have no bulk verb
+      if (!selectedPath) {
+        openPath(node.path);
+        return;
+      }
+      if (node.path === selectedPath) return; // never let the primary leave the set
+      setAlsoSelected((prev) =>
+        prev.includes(node.path) ? prev.filter((p) => p !== node.path) : [...prev, node.path],
+      );
+    },
+    [openPath, clearSet, selectedPath],
   );
+
+  // ── The way OUT (ADR-553 D3) ───────────────────────────────────────────
+  // ADR-519 shipped an inescapable multi-selection once; withdrawal is part of
+  // this feature, not a follow-up. Escape is the universal exit.
+  useEffect(() => {
+    if (alsoSelected.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearSet();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [alsoSelected.length, clearSet]);
 
   // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
   // Details scopes to it) and open the Details panel.
@@ -830,6 +883,11 @@ export default function ContextPage() {
     moveRoots: treeNodes,
     onAfterMutate: (newPath, oldPath) => {
       void loadExplorer();
+      // ADR-553 D3 — a single-target verb ENDS the set. Otherwise a set built
+      // before a rename/move/trash outlives it and points at paths that no
+      // longer exist: the stale-state half of ADR-519's trap, arriving by a
+      // different door than the one the Escape hatch guards.
+      clearSet();
       // Rename/Move → re-select the new path; Trash (newPath null) → clear the
       // selection only if the trashed file WAS the selected one (the original
       // `prev === t.path` behavior).
@@ -1137,6 +1195,32 @@ export default function ContextPage() {
             {selectedNode.type === 'folder' && (
               <FilesViewToggle mode={viewMode} onChange={setViewMode} />
             )}
+            {/* ADR-553 D3 — the set SAYS ITSELF and shows its exit.
+                ADR-519 shipped an inescapable multi-selection once; a visible
+                count with a visible Clear is the difference between a state a
+                member chose and a state they are stuck in. The count names the
+                SET (ADR-519 D4.1: "the Identity heading names the count, never
+                a stale label"). */}
+            {selectionSet.length > 1 && (
+              <div className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs">
+                <span className="font-medium text-foreground">
+                  {selectionSet.length} selected
+                </span>
+                <button
+                  onClick={() => setMoveSetOpen(true)}
+                  className="rounded px-1.5 py-0.5 text-primary transition-colors hover:bg-primary/15"
+                >
+                  Move…
+                </button>
+                <button
+                  onClick={clearSet}
+                  title="Clear selection (Esc)"
+                  className="rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
             {/* ADR-388 D5 / ADR-400: Properties → modal. Also reachable by
                 right-click on any tree/row node. */}
             <button
@@ -1291,6 +1375,38 @@ export default function ContextPage() {
 
       {/* ADR-424 D2: New Folder — top-level peer, or inside the folder the act
           was scoped to (destination stated in the modal, never silent). */}
+      {/* ADR-553 D2 — the SET's Move, through the SAME picker a single Move
+          uses. `target` names the set honestly ("3 files") rather than
+          borrowing one member's name, which would be the stale-label failure
+          ADR-519 D4.1 names. */}
+      <MoveToFolderModal
+        target={moveSetOpen ? { path: selectionSet[0] ?? '', name: `${selectionSet.length} files` } : null}
+        roots={treeNodes}
+        canOrganize={operatorCanOrganize}
+        onClose={() => setMoveSetOpen(false)}
+        onMove={async (destFolder) => {
+          const paths = selectionSet;
+          setMoveSetOpen(false);
+          const { moved, failed } = await organizeVerbs.commitMoveMany(paths, destFolder);
+          clearSet();
+          // Non-transactional by construction — say which half landed rather
+          // than reporting a flat success over a partial move.
+          if (failed.length) {
+            toast({
+              kind: 'error',
+              message: moved.length
+                ? `Moved ${moved.length} of ${paths.length}. ${failed.length} could not be moved.`
+                : `Could not move ${failed.length} file${failed.length === 1 ? '' : 's'}.`,
+            });
+          } else {
+            toast({
+              kind: 'success',
+              message: `Moved ${moved.length} file${moved.length === 1 ? '' : 's'}.`,
+            });
+          }
+        }}
+      />
+
       <NewFolderModal
         open={newFolderOpen}
         onClose={closeNewFolder}

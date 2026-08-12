@@ -21,7 +21,7 @@ import { resolveRootIcon } from '@/lib/workspace/root-icons';
 interface WorkspaceTreeProps {
   nodes: WorkspaceTreeNode[];
   selectedPath?: string;
-  onSelect: (node: WorkspaceTreeNode) => void;
+  onSelect: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
   /**
    * ADR-514 D2.6 — the verb bundle, WHOLE. This prop replaced a hand-listed
    * subset (`onGetInfo`/`onRename`/`onMove`/`onDelete`/`onDuplicate`), which was
@@ -140,7 +140,7 @@ interface TreeItemProps {
   node: WorkspaceTreeNode;
   depth: number;
   selectedPath?: string;
-  onSelect: (node: WorkspaceTreeNode) => void;
+  onSelect: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
   onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
   dnd?: DndBundle;
 }
@@ -249,11 +249,15 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
     }
   }, [isFolder, node, selectedPath]);
 
-  const handleClick = () => {
-    if (isFolder) {
+  const handleClick = (e?: React.MouseEvent) => {
+    // ADR-553 D1: a ⌘/Ctrl-click is an ADDITIVE pick — it must not also toggle
+    // the folder's disclosure, or the set gesture and the navigate gesture
+    // fight over one click.
+    const additive = !!(e && (e.metaKey || e.ctrlKey));
+    if (isFolder && !additive) {
       setExpanded(!expanded);
     }
-    onSelect(node);
+    onSelect(node, e ? { metaKey: e.metaKey, ctrlKey: e.ctrlKey } : undefined);
   };
 
   // Icon based on path/type
