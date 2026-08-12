@@ -115,53 +115,89 @@ def run():
         "unpriced_lane_model flags a model with no _BILLING_RATES row",
         lr.unpriced_lane_model("anthropic/claude-not-a-real-model") is True,
     ))
-    def _guard_precedes_router_import(src: str) -> bool:
-        """In BOTH loops the unpriced guard must precede that loop's router import
-        — i.e. the block runs before any call can be made. Check each
-        guard/import pairing in source order.
+    def _no_billable_call_on_an_unpriced_model() -> bool:
+        """EXECUTE the invariant: drive both lane loops with an unpriced model
+        and assert the router is never reached.
 
-        ADR-557: the import is matched on the ROUTE-CALL import specifically —
-        `from services.model_router import ... route_completion...` — not on the
-        flag's NAME. Two prior spellings of this check were both wrong:
-        pinning `model_router_enabled` went red on the D2 rename to
-        `lanes_enabled` (a rename, not a violation), and matching the bare
-        module import swept in an unrelated `ledger_model_name` import at the
-        top of the file, which is not a call site at all. The invariant is
-        ordering relative to the import that BRINGS IN THE CALL
-        (`feedback_never_pin_a_spelling_assert_behaviour`).
+        ⚠️ THIS CHECK WAS A SOURCE-TEXT PROXY AND BROKE THREE TIMES — once per
+        ADR, each time on a change that PRESERVED the invariant:
 
-        ADR-559: scoped to the two LOOP functions instead of counting matches
-        file-wide. `lane_model_availability` legitimately calls
-        `unpriced_lane_model` too, so a third guard appeared and the
-        `len(guards) != 2` bail read a NEW HELPER as a violation. A count
-        cannot defend a per-site invariant
-        (`feedback_counting_gate_cannot_defend_per_site`) — the rule is
-        per-loop ordering, so check per loop."""
-        import ast
+          ADR-439 (original)  pinned the flag's name `model_router_enabled`;
+                              ADR-557 D2 renamed it to `lanes_enabled` → red on
+                              a rename.
+          ADR-557 (repair 1)  matched the bare module import; swept in an
+                              unrelated `ledger_model_name` import → red for a
+                              different wrong reason.
+          ADR-559 (repair 2)  counted matches file-wide; a new helper
+                              (`lane_model_availability`) legitimately called
+                              `unpriced_lane_model` → a third match read as a
+                              violation.
 
-        tree = ast.parse(src)
-        loops = [
-            n for n in ast.walk(tree)
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and n.name in ("run_lane_turn", "run_lane_turn_stream")
-        ]
-        if len(loops) != 2:
-            return False
-        for fn in loops:
-            body = ast.unparse(fn)
-            g = body.find("if unpriced_lane_model(model):")
-            i = body.find("from services.model_router import")
-            # The loop's own route-call import; both loops import it locally.
-            while i != -1 and "route_completion" not in body[i:body.find("\n", i)]:
-                i = body.find("from services.model_router import", i + 1)
-            if g == -1 or i == -1 or g > i:
+        Three repairs, three symptoms, one cause: **the check measured where
+        TEXT sits, while the invariant is about what the CODE DOES.** Any
+        refactor that keeps the guarantee but moves the text goes red, and each
+        repair only narrowed which refactors would break it next.
+
+        So it now runs the thing. `unpriced_lane_model` can be extracted,
+        inlined, renamed, or called from ten new helpers — as long as no
+        billable call escapes on an unpriced model, this stays green; the day
+        one does, it goes red regardless of how the source is arranged.
+        (`feedback_gates_grep_text_not_execution`)"""
+        import asyncio
+
+        import services.model_router as mr
+
+        reached: list[str] = []
+
+        async def _tripwire(*_a, **_k):
+            reached.append("route_completion")
+            raise AssertionError("billable call reached on an unpriced model")
+
+        async def _tripwire_stream(*_a, **_k):
+            reached.append("route_completion_stream")
+            raise AssertionError("billable call reached on an unpriced model")
+            yield  # pragma: no cover — makes this an async generator
+
+        class _Auth:
+            user_id = "gate-probe"
+            workspace_id = None
+            principal_id = "gate-probe"
+
+            class client:  # noqa: N801 — never touched; the guard fires first
+                pass
+
+        unpriced = "anthropic/__gate_unpriced__"
+        orig = (mr.route_completion, mr.route_completion_stream)
+        mr.route_completion, mr.route_completion_stream = _tripwire, _tripwire_stream
+        # Must be a LANE_MODELS key, or the unknown-model check stops it first
+        # and we'd be asserting the wrong guard.
+        lr.LANE_MODELS[unpriced] = {"label": "Gate probe", "vision": True}
+        try:
+            if not lr.unpriced_lane_model(unpriced):
+                return False  # the probe model must actually be unpriced
+            out = asyncio.run(lr.run_lane_turn(
+                _Auth(), model=unpriced, history=[], user_message="probe"))
+            if out.get("error") != "model_unpriced":
                 return False
-        return True
 
+            async def _drain():
+                events = []
+                async for kind, payload in lr.run_lane_turn_stream(
+                    _Auth(), model=unpriced, history=[], user_message="probe"):
+                    events.append((kind, payload))
+                return events
+
+            streamed = asyncio.run(_drain())
+            if not streamed or streamed[-1][1].get("error") != "model_unpriced":
+                return False
+        finally:
+            lr.LANE_MODELS.pop(unpriced, None)
+            mr.route_completion, mr.route_completion_stream = orig
+        return not reached
 
     results.append(_check(
-        "both lane loops gate on unpriced_lane_model BEFORE the router import/call",
-        _guard_precedes_router_import(lr_src),
+        "no billable call escapes on an unpriced model (both loops, EXECUTED)",
+        _no_billable_call_on_an_unpriced_model(),
     ))
 
     # ── 7. §4 F2 — a dropped ledger row alerts (not a silent warning) ───────

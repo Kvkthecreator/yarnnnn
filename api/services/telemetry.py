@@ -45,16 +45,22 @@ logger = logging.getLogger(__name__)
 _BILLING_RATES: dict[str, dict[str, float]] = {
     # ── Anthropic (ADR-559 D1, list prices verified 2026-08-12) ──────────
     "claude-opus-5":              {"input_per_mtok": 5.00, "output_per_mtok": 25.00},
-    # ⚠️ STANDARD rate, not the introductory one. Anthropic is running Sonnet 5
-    # at an intro $2/$10 through 2026-08-31, and LiteLLM's cost report prices at
-    # the intro rate — so the ADR-408 D4 rate mirror reads x1.50 on this row
-    # (probe, 2026-08-12), the ONLY row that does not mirror ~1.00.
+    # ⚠️ THE RULE (operator ruling, 2026-08-12): THIS TABLE CARRIES STANDING
+    # LIST PRICE. Never an introductory, promotional, or otherwise time-boxed
+    # rate — for any engine, any provider.
     #
-    # Deliberate: this table is what we CHARGE the pool, and pricing at a rate
-    # that expires in weeks would silently under-charge the day it lapses, with
-    # nothing to notice it. Over-charging by 50% for the intro window is the
-    # safer error and is visible in the mirror. Revisit after 2026-08-31 — at
-    # which point the mirror should return to x1.00 on its own.
+    # A promo rate has to be un-entered on a date nobody is watching for. Enter
+    # one and the table silently under-charges the day it lapses, with no
+    # failing gate and no alert; the error surfaces as a slow margin leak, which
+    # is the hardest kind to notice. A standing rate is wrong by a known,
+    # bounded amount for the promo window and correct forever after — and the
+    # over-charge is VISIBLE in the ADR-408 D4 rate mirror rather than silent.
+    #
+    # Consequence on Sonnet 5 today: Anthropic runs an intro $2/$10 and LiteLLM
+    # prices at it, so the mirror reads x1.50 on this row (probe, 2026-08-12) —
+    # the only row not mirroring ~1.00. **That is the rule working, not a
+    # defect.** It resolves itself when the promo lapses; do not "fix" it by
+    # entering the promo rate.
     "claude-sonnet-5":            {"input_per_mtok": 3.00, "output_per_mtok": 15.00},
     "claude-haiku-4-5":           {"input_per_mtok": 1.00, "output_per_mtok": 5.00},
     # RETIRED engines keep their rate rows. `unpriced_lane_model` gates EVERY

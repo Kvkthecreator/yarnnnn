@@ -28,7 +28,13 @@ Added **`claude-opus-5`** ($5/$25) — the frontier tier the roster never had. M
 
 Deleted the `claude-opus-4-6` rate row. **A rate row is a claim about what we run**; one nothing can route to is a false claim, and the gate now asserts every priced engine is reachable from some selection home.
 
-**One deliberate pricing decision, recorded because the mirror will look wrong.** Anthropic is running Sonnet 5 at an introductory **$2/$10 through 2026-08-31**, and LiteLLM's cost report prices at the intro rate — so the ADR-408 D4 rate mirror reads **x1.50** on that row, the only row that does not mirror ~1.00. We price at the **standard $3/$15** anyway: this table is what we charge the pool, and pricing at a rate that expires in weeks would silently under-charge the day it lapses with nothing to notice. Over-charging by 50% for the intro window is the safer error *and* is visible. Revisit after 2026-08-31, when the mirror should return to x1.00 on its own.
+### D1.a — `_BILLING_RATES` carries standing list price, never a promotional rate
+
+Ratified as a **standing rule** (operator, 2026-08-12), not a one-off call on one row: this table carries **standing list price for every engine and every provider**. Never an introductory, promotional, or otherwise time-boxed rate.
+
+The asymmetry is the whole argument. A promo rate has to be *un-entered* on a date nobody is watching for — enter one and the table silently under-charges the day it lapses, with no failing gate and no alert, surfacing as a slow margin leak, the hardest kind to notice. A standing rate is wrong by a **known, bounded** amount for the promo window and correct forever after, and the over-charge is **visible in the ADR-408 D4 rate mirror** rather than silent. Prefer the error that announces itself.
+
+Today's consequence: Anthropic runs Sonnet 5 at an introductory $2/$10 and LiteLLM prices at it, so the mirror reads **x1.50** on that row — the only row not mirroring ~1.00. **That is the rule working, not a defect.** It resolves itself when the promo lapses. Do not "fix" it by entering the promo rate.
 
 ## 3. D2 — Retirement: superseded engines are honored, not deleted
 
@@ -61,6 +67,22 @@ The third is the interesting one. **Nothing can predict it**; the only way to le
 ## 5. The FE label map, again
 
 `web/lib/workspace/attribution.ts` hardcoded **3** of what became **10** engines, having drifted the moment the roster last grew. Every unlisted engine fell through to a raw model id. It is now complete *and* scoped in its own comment to what it is for — historical **attribution strings**, where no envelope is in hand. Anything holding the envelope reads the served `label`. Retired engines stay listed: old revisions are attributed to what actually ran, and must keep rendering a name.
+
+## 5b. The ordering check: a proxy that broke three times, replaced by the thing itself
+
+ADR-439 §4's "the unpriced guard runs before any billable call" check broke **three times, once per ADR** — and every break was on a change that *preserved the invariant*:
+
+| | What it pinned | What broke it |
+|---|---|---|
+| ADR-439 | the flag's name `model_router_enabled` | ADR-557 D2 renamed it → **red on a rename** |
+| ADR-557 | the bare module import | swept in an unrelated `ledger_model_name` import → **red for a different wrong reason** |
+| ADR-559 | a file-wide count of guard sites | a new helper legitimately called the guard → **a third match read as a violation** |
+
+Three repairs, three symptoms, one cause: **the check measured where TEXT sits, while the invariant is about what the CODE DOES.** Each repair only narrowed which refactor would break it next — the fourth was already queued.
+
+So it now **executes**: drive both lane loops with an unpriced model, with tripwires in place of `route_completion` / `route_completion_stream`, and assert the router is never reached. The guard can be renamed, extracted, inlined, or called from ten new helpers; as long as no billable call escapes, it stays green — and the day one does, it goes red regardless of source arrangement.
+
+Falsified in both directions, which is the point: removing the guard from **either** loop independently goes red, and **extracting it into a shared helper — the exact refactor class that broke the old check — stays green.** (`feedback_gates_grep_text_not_execution`)
 
 ## 6. Consequences
 
