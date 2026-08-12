@@ -1,5 +1,6 @@
 'use client';
 
+
 /**
  * WorkspaceTree — Left panel file explorer
  *
@@ -12,6 +13,7 @@ import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, B
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
+import { TILE_DRAG_MIME } from '@/components/workspace/FileTile';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { fileLegibilityState, type FileLegibilityState } from '@/lib/workspace/legibility';
 import { resolveRootIcon } from '@/lib/workspace/root-icons';
@@ -144,7 +146,10 @@ interface TreeItemProps {
 }
 
 // The dataTransfer key for a dragged workspace file path (ADR-400 Wave B).
-const DRAG_MIME = 'application/x-yarnnn-path';
+// IMPORTED, not re-declared (ADR-552): the grid and the tree are two halves of
+// one surface, and two independent literals of the same string would let a
+// rename silently make them refuse each other's drags.
+const DRAG_MIME = TILE_DRAG_MIME;
 
 // ADR-422 D1: a file's legibility state (machine-config / raw-intake /
 // agent-authored / operator) drives its tree affordance. This REPLACES the old

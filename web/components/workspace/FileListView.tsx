@@ -25,6 +25,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcon';
+import { TILE_DRAG_MIME } from './FileTile';
 import { Folder } from 'lucide-react';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
@@ -70,17 +71,81 @@ export interface FileListRowProps {
   /** Trailing actions overlay (the touch kebab — ADR-400 touch parity). Absent
    *  on desktop; overlaid at the right edge so the grid columns are untouched. */
   actions?: ReactNode;
+  /**
+   * Direct manipulation (ADR-552) — the SAME bundle <FileTile> takes, so the
+   * two view modes of one listing drag identically. The row is name-only by
+   * design; the path travels inside this bundle's closures.
+   */
+  dnd?: RowDnd;
+}
+
+/** The row's drag affordances — structurally `TileDnd`, re-declared here rather
+ *  than imported so the list view keeps no dependency on the tile module. The
+ *  MIME token IS shared (see below); the shape is small enough that a duplicate
+ *  interface is cheaper than a cross-import between two sibling renderers. */
+export interface RowDnd {
+  path: string;
+  draggable: boolean;
+  droppable: boolean;
+  isDropTarget: boolean;
+  setDropTarget: (path: string | null) => void;
+  onDropPath: (fromPath: string, destFolder: string) => void;
+  onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
 }
 
 export function FileListRow({
   name, kind, where, subtitle, author, when,
-  selected = false, dim = false, onClick, linkTo, onContextMenu, title, actions,
+  selected = false, dim = false, onClick, linkTo, onContextMenu, title, actions, dnd,
 }: FileListRowProps) {
+  // ADR-552 — the details list drags exactly as the icon grid does.
+  const dragProps = dnd?.draggable
+    ? {
+        draggable: true as const,
+        onDragStart: (e: React.DragEvent) => {
+          e.dataTransfer.setData(TILE_DRAG_MIME, dnd.path);
+          e.dataTransfer.effectAllowed = 'move' as const;
+        },
+        onDragEnd: () => dnd.setDropTarget(null),
+      }
+    : {};
+  const dropProps = dnd?.droppable
+    ? {
+        onDragOver: (e: React.DragEvent) => {
+          const types = Array.from(e.dataTransfer.types || []);
+          const internal = types.includes(TILE_DRAG_MIME);
+          if (!internal && !(types.includes('Files') && dnd.onDropFiles)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = internal ? 'move' : 'copy';
+          if (!dnd.isDropTarget) dnd.setDropTarget(dnd.path);
+        },
+        onDragLeave: (e: React.DragEvent) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) dnd.setDropTarget(null);
+        },
+        onDrop: (e: React.DragEvent) => {
+          const from = e.dataTransfer.getData(TILE_DRAG_MIME);
+          if (from) {
+            e.preventDefault();
+            dnd.setDropTarget(null);
+            dnd.onDropPath(from, dnd.path);
+            return;
+          }
+          const files = Array.from(e.dataTransfer.files || []);
+          if (files.length && dnd.onDropFiles) {
+            e.preventDefault();
+            dnd.setDropTarget(null);
+            dnd.onDropFiles(files, { path: dnd.path, name });
+          }
+        },
+      }
+    : {};
+
   const rowClass = cn(
     GRID,
     'relative w-full items-center px-4 py-2 text-left text-sm transition-colors',
     selected ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-muted/40',
     dim && !selected && 'opacity-70',
+    dnd?.draggable && 'cursor-grab active:cursor-grabbing',
+    dnd?.isDropTarget && 'bg-primary/15 ring-2 ring-inset ring-primary/50',
   );
   const actionsOverlay = actions ? (
     <span className="absolute right-1.5 top-1/2 z-10 -translate-y-1/2">{actions}</span>
@@ -109,14 +174,14 @@ export function FileListRow({
 
   if (linkTo && !onClick) {
     return (
-      <SurfaceLink to="files" params={{ path: linkTo }} className={rowClass} title={title ?? name} onContextMenu={onContextMenu}>
+      <SurfaceLink to="files" params={{ path: linkTo }} className={rowClass} title={title ?? name} onContextMenu={onContextMenu} {...dragProps} {...dropProps}>
         {inner}
         {actionsOverlay}
       </SurfaceLink>
     );
   }
   return (
-    <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? name} className={rowClass}>
+    <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? name} className={rowClass} {...dragProps} {...dropProps}>
       {inner}
       {actionsOverlay}
     </button>

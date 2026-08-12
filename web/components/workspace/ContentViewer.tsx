@@ -70,6 +70,44 @@ interface ContentViewerProps {
    * decide.
    */
   verbs?: FileVerbs;
+  /**
+   * Direct manipulation in the folder listing (ADR-552). ADR-400 deferred this
+   * — "grid drag-drop remains a later fast-follow (tree is the primary
+   * folder-structure target)" — so drag lived only in the narrow left tree,
+   * while the listing is where files are actually looked at.
+   *
+   * Absent = a plain listing, exactly as before.
+   */
+  dnd?: ListingDnd;
+}
+
+/**
+ * The listing's drag bundle (ADR-552) — the surface-level half. Per-tile
+ * `TileDnd` is derived from it by `tileDnd` below, so the caller wires ONE
+ * object rather than a closure per row.
+ */
+export interface ListingDnd {
+  canOrganize: (path: string) => boolean;
+  dropTarget: string | null;
+  setDropTarget: (path: string | null) => void;
+  onDropPath: (fromPath: string, destFolder: string) => void;
+  onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
+}
+
+/** One listing row's drag affordances. Mirrors the tree's rule exactly: a FILE
+ *  is draggable iff organizable; a FOLDER is the drop target. A file is never a
+ *  drop target (there is no "drop onto a file" meaning) and a folder is never
+ *  draggable (there is no backend folder-move). */
+function tileDnd(dnd: ListingDnd, child: { path: string; type?: string }) {
+  const isFolder = child.type === 'folder';
+  return {
+    draggable: !isFolder && dnd.canOrganize(child.path),
+    droppable: isFolder && dnd.canOrganize(`${child.path}/x`),
+    isDropTarget: dnd.dropTarget === child.path,
+    setDropTarget: dnd.setDropTarget,
+    onDropPath: dnd.onDropPath,
+    onDropFiles: dnd.onDropFiles,
+  };
 }
 
 export function ContentViewer({
@@ -81,6 +119,7 @@ export function ContentViewer({
   viewMode = 'list',
   onGetInfo,
   verbs,
+  dnd,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -100,6 +139,7 @@ export function ContentViewer({
         viewMode={viewMode}
         onGetInfo={onGetInfo}
         verbs={verbs}
+        dnd={dnd}
       />
     );
   }
@@ -123,6 +163,7 @@ function DirectoryView({
   viewMode = 'list',
   onGetInfo,
   verbs,
+  dnd,
 }: {
   node: WorkspaceTreeNode;
   onNavigate: (node: WorkspaceTreeNode) => void;
@@ -131,6 +172,7 @@ function DirectoryView({
   viewMode?: 'icon' | 'list';
   onGetInfo?: (node: WorkspaceTreeNode) => void;
   verbs?: FileVerbs;
+  dnd?: ListingDnd;
 }) {
   // ADR-400: right-click a folder-listing row → the shared file context menu.
   // Falls back to onGetInfo-only when verbs aren't wired (Home/other mounts).
@@ -231,6 +273,7 @@ function DirectoryView({
               key={child.path}
               path={child.path}
               kind={child.type === 'folder' ? 'folder' : 'file'}
+              dnd={dnd ? tileDnd(dnd, child) : undefined}
               onClick={() => onNavigate(child)}
               onContextMenu={rowContext(child)}
               actions={rowKebab(child)}
@@ -257,6 +300,7 @@ function DirectoryView({
                 key={child.path}
                 name={child.name}
                 kind={child.type === 'folder' ? 'folder' : 'file'}
+                dnd={dnd ? { path: child.path, ...tileDnd(dnd, child) } : undefined}
                 subtitle={child.summary || undefined}
                 when={formatTimestamp(child.updated_at)}
                 author={

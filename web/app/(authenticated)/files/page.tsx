@@ -401,6 +401,9 @@ export default function ContextPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   // The resolved arrival destination (ADR-551 D3) — null = the intake lane.
   const [uploadDest, setUploadDest] = useState<{ path: string; label: string } | null>(null);
+  // The folder-listing drop highlight (ADR-552) — the grid's own, kept apart
+  // from the tree's so the two panes never fight over one highlight.
+  const [listingDropTarget, setListingDropTarget] = useState<string | null>(null);
   const [droppedFiles, setDroppedFiles] = useState<File[] | null>(null);
   const [canvasDragOver, setCanvasDragOver] = useState(false);
 
@@ -1162,6 +1165,17 @@ export default function ContextPage() {
             viewMode={viewMode}
             onGetInfo={handleGetInfo}
             verbs={fileVerbs}
+            // ADR-552 — the folder listing drags. ADR-400 deferred this ("grid
+            // drag-drop remains a later fast-follow"); the listing is where
+            // files are actually looked at, so drag lived only in the tree.
+            // The SAME handlers the tree uses — one move path, one import path.
+            dnd={{
+              canOrganize: operatorCanOrganize,
+              dropTarget: listingDropTarget,
+              setDropTarget: setListingDropTarget,
+              onDropPath: commitMove,
+              onDropFiles: (files, folder) => openUpload(files, folder),
+            }}
             onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
             onDeleted={() => {
               // ADR-329: file archived — clear selection + refresh the

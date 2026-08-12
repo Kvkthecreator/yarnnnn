@@ -137,19 +137,95 @@ export interface FileTileProps {
   /** Trailing actions overlay (the touch kebab — ADR-400 touch parity). Rendered
    *  top-right so it doesn't disturb the centered card; absent on desktop. */
   actions?: React.ReactNode;
+  /**
+   * Direct manipulation (ADR-552). The SAME bundle the tree takes, so the grid
+   * and the tree speak one drag grammar rather than two — ADR-400 deferred this
+   * ("grid drag-drop remains a later fast-follow") and the tree's shape is the
+   * one that shipped, so the grid adopts it rather than inventing a second.
+   *
+   * Absent = a plain tile, exactly as before.
+   */
+  dnd?: TileDnd;
 }
+
+export interface TileDnd {
+  /** True iff this tile may be picked up (a file the member can organize). */
+  draggable: boolean;
+  /** True iff this tile accepts a drop (a folder the member can write into). */
+  droppable: boolean;
+  /** Highlighted as the current drop target. */
+  isDropTarget: boolean;
+  setDropTarget: (path: string | null) => void;
+  /** An internal move: a workspace path was dropped on this folder. */
+  onDropPath: (fromPath: string, destFolder: string) => void;
+  /** OS files were dropped on this folder — import them there (ADR-551 D3). */
+  onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
+}
+
+/** The internal drag MIME — the SAME token the tree uses, so a file dragged
+ *  from the tree drops on a grid tile and vice versa. A second spelling here
+ *  would silently make the two halves of one surface refuse each other. */
+export const TILE_DRAG_MIME = 'application/x-yarnnn-path';
 
 export function FileTile({
   path, kind, subtext, thumb, selected = false, dim = false,
-  onClick, linkTo, onContextMenu, title, actions,
+  onClick, linkTo, onContextMenu, title, actions, dnd,
 }: FileTileProps) {
   const name = fileName(path);
+
+  // ADR-552 — the grid speaks the tree's drag grammar. A file is draggable iff
+  // the caller says so; a FOLDER tile is the drop target (a file tile is not,
+  // matching the tree: there is no backend folder-move, and dropping onto a
+  // file has no meaning).
+  const dragProps = dnd?.draggable
+    ? {
+        draggable: true as const,
+        onDragStart: (e: React.DragEvent) => {
+          e.dataTransfer.setData(TILE_DRAG_MIME, path);
+          e.dataTransfer.effectAllowed = 'move' as const;
+        },
+        onDragEnd: () => dnd.setDropTarget(null),
+      }
+    : {};
+
+  const dropProps = dnd?.droppable
+    ? {
+        onDragOver: (e: React.DragEvent) => {
+          const types = Array.from(e.dataTransfer.types || []);
+          const internal = types.includes(TILE_DRAG_MIME);
+          if (!internal && !(types.includes('Files') && dnd.onDropFiles)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = internal ? 'move' : 'copy';
+          if (!dnd.isDropTarget) dnd.setDropTarget(path);
+        },
+        onDragLeave: (e: React.DragEvent) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) dnd.setDropTarget(null);
+        },
+        onDrop: (e: React.DragEvent) => {
+          const from = e.dataTransfer.getData(TILE_DRAG_MIME);
+          if (from) {
+            e.preventDefault();
+            dnd.setDropTarget(null);
+            dnd.onDropPath(from, path);
+            return;
+          }
+          const files = Array.from(e.dataTransfer.files || []);
+          if (files.length && dnd.onDropFiles) {
+            e.preventDefault();
+            dnd.setDropTarget(null);
+            dnd.onDropFiles(files, { path, name });
+          }
+        },
+      }
+    : {};
   const shellClass = cn(
     'group relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors',
     selected
       ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
       : 'border-transparent hover:border-border/70 hover:bg-muted/40',
     dim && !selected && 'opacity-70',
+    dnd?.draggable && 'cursor-grab active:cursor-grabbing',
+    dnd?.isDropTarget && 'border-primary bg-primary/10 ring-2 ring-primary/50',
   );
   // The touch kebab overlay (absent on desktop — `actions` is only supplied on
   // a coarse pointer). Top-right so the centered card is undisturbed.
@@ -188,14 +264,14 @@ export function FileTile({
   // Home mount → a deep-link into Files; Files/folder mount → a button.
   if (linkTo && !onClick) {
     return (
-      <SurfaceLink to="files" params={{ path: linkTo }} className={shellClass} title={title ?? path} onContextMenu={onContextMenu}>
+      <SurfaceLink to="files" params={{ path: linkTo }} className={shellClass} title={title ?? path} onContextMenu={onContextMenu} {...dragProps} {...dropProps}>
         {actionsOverlay}
         {inner}
       </SurfaceLink>
     );
   }
   return (
-    <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? path} className={shellClass}>
+    <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? path} className={shellClass} {...dragProps} {...dropProps}>
       {actionsOverlay}
       {inner}
     </button>
