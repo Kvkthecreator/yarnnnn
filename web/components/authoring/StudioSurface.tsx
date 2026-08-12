@@ -35,6 +35,7 @@ import { useDeclareFocus, type SurfaceFocus } from '@/lib/shell/useSurfaceFocus'
 import { LearnFromFlowModal } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
+import { defaultDestinationFor } from './artifactNaming';
 import { appForKind, registerKindApps } from '@/lib/file-types';
 import { StudioNewMenu } from './StudioNewMenu';
 import { studioShapeStyle } from './studioShapes';
@@ -3952,6 +3953,9 @@ function StudioStart({
   // The DELIBERATE door's modal (ADR-470): open (true) = choose shape + name +
   // destination there. The IMMEDIATE door doesn't pass through here at all.
   const [namingOpen, setNamingOpen] = useState(false);
+  // Which shape the member picked in the New menu (ADR-549 D1). The dialog
+  // opens ON that shape rather than resetting to the first template.
+  const [namingTemplate, setNamingTemplate] = useState<string | null>(null);
   const [learnOpen, setLearnOpen] = useState(false);
   // DESIGN-SYSTEMS.md §6 (the 2026-07-19 regroup) — creating a design system is
   // ONE intent through ONE dedicated modal (NewDesignSystemModal), not two
@@ -3974,27 +3978,15 @@ function StudioStart({
       .catch(() => setLaneEnv({ enabled: false }));
   }, []);
 
-  // ── The two doors into a new artifact (ADR-470) ────────────────────────
-  // IMMEDIATE: New hands over the workbench. No name, no destination — the
-  // server places it, the skeleton's "Untitled ‹kind›" stands, and the crumb
-  // arms so the name is OFFERED. This is the door a doc processor gives you.
-  // It catches (2026-08-11): this used to be a bare await with no handler, so
-  // any refusal — the concurrent-click race that 409s, an offline network —
-  // became an unhandled rejection. The member clicked New and NOTHING
-  // happened, with nothing said. The deliberate door already surfaced its
-  // failures inline; this one silently swallowed them.
-  const createUntitled = async (templateSlug: string) => {
-    setError(null);
-    try {
-      const res = await api.studio.createArtifact(templateSlug);
-      onRenameRequest(res.path); // opens the workbench with the crumb armed
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create it. Try again.');
-    }
-  };
-
-  // DELIBERATE: the member arrived knowing ("IR deck v3, in clients/"). The
-  // name-it modal owns this; it throws so the failure shows inline there.
+  // ── ONE door into a new artifact (ADR-549 D1) ──────────────────────────
+  // Every creation names its object. `createUntitled` — the row that created
+  // immediately and asked nothing — is DELETED, along with the "Untitled
+  // ‹kind›" identity and the crumb-arms-on-mount behaviour that existed only to
+  // make an unnamed artifact nameable after the fact. Its cost was legible in
+  // the substrate: `operation/asdfadsf/document.html`, permanent and
+  // attributed, because nothing ever asked what it was.
+  //
+  // The modal owns creation; it throws so the failure shows inline there.
   // `name` travels beside the slugified path so the <title> gets what they
   // actually typed (ADR-469).
   const createScratch = async (
@@ -4020,12 +4012,17 @@ function StudioStart({
       throw new Error('Chat helpers aren’t enabled on this workspace.');
     }
     if (target.template) {
-      // Deliberate placement: a learn-from artifact is named after its SOURCE,
-      // which is a real name the member chose (by picking that source) — so it
-      // takes the named door, not the untitled one.
+      // ADR-549 D4 — a derived artifact lands BESIDE ITS SOURCE.
+      //
+      // This used to hardcode `operation/${slug}` and never consult the
+      // source's own location, so a brief derived from
+      // `operation/ai-frontier/briefs/x.md` landed at the ROOT of Documents,
+      // orphaned from the thing it was made from. The default is now the
+      // source's folder — except for an arrival (`inbound/`), which is not a
+      // home, so those still default to Documents.
       const sourceName = source.name.replace(/\.[a-z0-9]+$/i, '');
       const res = await api.studio.createArtifact(target.template, {
-        path: `operation/${slugify(sourceName)}/${target.template}.html`,
+        path: `${defaultDestinationFor(source.path)}/${slugify(sourceName)}/${target.template}.html`,
         name: sourceName,
       });
       await api.lanes.create({
@@ -4110,8 +4107,12 @@ function StudioStart({
             <StudioNewMenu
               templates={templates}
               learnEnabled={laneEnv?.enabled !== false}
-              onPickTemplate={(t) => void createUntitled(t.slug)}
-              onPickNamed={() => setNamingOpen(true)}
+              onPickTemplate={(t) => {
+                // ADR-549 D1 — the shape choice opens the ONE dialog. The menu
+                // picks what kind of thing, never how much you will be asked.
+                setNamingTemplate(t.slug);
+                setNamingOpen(true);
+              }}
               onPickLearn={() => setLearnOpen(true)}
             />
           </div>
@@ -4280,7 +4281,11 @@ function StudioStart({
 
         <NewArtifactModal
           templates={namingOpen ? templates : null}
-          onClose={() => setNamingOpen(false)}
+          initialTemplate={namingTemplate}
+          onClose={() => {
+            setNamingOpen(false);
+            setNamingTemplate(null);
+          }}
           onCreate={createScratch}
           dimensionsFirst={app.dimensionsFirst}
         />

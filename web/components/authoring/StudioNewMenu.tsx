@@ -11,19 +11,23 @@
  * Scalable by construction: a fifth shape is one more row from the served
  * templates list, never a grid reflow.
  *
- * ── The two doors (ADR-470) ───────────────────────────────────────────────
- * Picking a shape now CREATES IT and opens the workbench — no name asked, the
- * way every doc processor's New works. The artifact is born "Untitled ‹kind›"
- * and the crumb arms, so the name is offered rather than demanded.
+ * ── ONE door (ADR-549) ────────────────────────────────────────────────────
+ * The menu chooses WHAT KIND of thing, never HOW MUCH you will be asked. Every
+ * shape row opens the same creation dialog, which requires a name and defaults
+ * the location.
  *
- * "Name it first…" is a peer row for the member who arrives knowing; it opens
- * the same `NewArtifactModal` as before. That step used to be the toll on
- * EVERY creation, which is the sequence defect this closes. `LearnFromFlowModal`
- * is unchanged — its source IS its name.
+ * ADR-470's second row — "Name it first…" — is DELETED. It and the shape rows
+ * did not name two things a member could want; they named one thing and a
+ * toll. The fast row's cost was visible in the substrate: a document created
+ * through it landed at `operation/asdfadsf/document.html`, permanent and
+ * attributed, because nothing ever asked what it was.
+ *
+ * Learn-from keeps its row (it is a different SOURCE, not a different amount of
+ * questioning) and now lands in the same dialog with the name pre-filled.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { FilePlus, PenLine, Sparkles } from 'lucide-react';
+import { FilePlus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { studioShapeStyle } from './studioShapes';
 
@@ -38,17 +42,11 @@ interface StudioNewMenuProps {
   /** Whether the Learn-from row is available (needs the model router). */
   learnEnabled: boolean;
   /**
-   * A shape was chosen — create it IMMEDIATELY and open the workbench
-   * (ADR-470). No name, no destination: New hands over the thing, and the
-   * name arrives from the work.
+   * A shape was chosen — open the creation dialog for it (ADR-549 D1). The
+   * dialog requires a name and defaults the location; there is no variant of
+   * this act that skips the question.
    */
   onPickTemplate: (t: TemplateInfo) => void;
-  /**
-   * The member wants to name + place it up front — the DELIBERATE door. Its
-   * own row rather than a step every creation pays, because arriving knowing
-   * is the rarer intent, not the default one.
-   */
-  onPickNamed: () => void;
   /** The Learn-from row was chosen — open the source/target flow. */
   onPickLearn: () => void;
 }
@@ -57,7 +55,6 @@ export function StudioNewMenu({
   templates,
   learnEnabled,
   onPickTemplate,
-  onPickNamed,
   onPickLearn,
 }: StudioNewMenuProps) {
   const [open, setOpen] = useState(false);
@@ -126,27 +123,6 @@ export function StudioNewMenu({
           })}
 
           <div className="my-1 h-px bg-border/60" />
-
-          {/* The DELIBERATE door (ADR-470) — for the member who arrives knowing
-              what this is and where it goes. A peer row, not a step every
-              creation pays. */}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onPickNamed();
-            }}
-            className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent/60"
-          >
-            <PenLine className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium leading-tight">Name it first…</span>
-              <span className="mt-0.5 block truncate text-[11px] leading-snug text-muted-foreground">
-                Choose a name and where it lives.
-              </span>
-            </span>
-          </button>
 
           <button
             type="button"

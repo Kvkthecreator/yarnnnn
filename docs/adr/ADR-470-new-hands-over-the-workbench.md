@@ -1,6 +1,6 @@
 # ADR-470 — New hands over the workbench
 
-> **Status**: Implemented (2026-07-20)
+> **Status**: **Largely SUPERSEDED by [ADR-549](ADR-549-a-creation-act-names-its-object.md)** (2026-08-12) — D1's two doors collapse to one, and D2/D3's untitled placement is deleted. What SURVIVES and is still authoritative: **§5** (there is no Save, and there must not be — the reason ADR-549 could not adopt a temp-file model) and **D2's reasoning** about why an invented name freezes the later rename (preserved, now unreachable). Read the amendment at the foot of this file before either. Originally Implemented 2026-07-20.
 > **Depends on**: [ADR-469](ADR-469-the-name-is-lifted-the-path-is-a-key.md) — this is only possible because the name stopped living in the path
 > **Amends**: ADR-452 (the landing's creation flow)
 > **Preserves**: Axiom 1 second clause · ADR-286 · ADR-329 · ADR-340 DP29 · DP33

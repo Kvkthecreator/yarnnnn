@@ -51,6 +51,35 @@ export function isArtifactRegion(folder: string): boolean {
   return `${abs.replace(/\/+$/, '')}/`.startsWith(STUDIO_ARTIFACT_REGION);
 }
 
+/**
+ * Where a new artifact should DEFAULT to living, given the file the act is
+ * standing on (a source being derived from, or the file currently open).
+ * ADR-549 D3/D4 — the default is "where the act is standing", never a
+ * hardcoded root chosen by the app.
+ *
+ * Returns a workspace-relative folder (no leading slash, no trailing slash) —
+ * the shape `createArtifact`'s `path` is composed from.
+ *
+ * Two carves:
+ *  - An ARRIVAL (`inbound/`) is not a home. You cannot file authored work into
+ *    the immutable intake lane (ADR-422 D2), so a derive from an upload
+ *    defaults to Documents.
+ *  - Anything outside the artifact region falls back to Documents too, so this
+ *    can never propose a destination `create_artifact` would 403 (ADR-440 D6).
+ *    When that fence relaxes, this widens with it and needs no edit here.
+ */
+export function defaultDestinationFor(sourcePath: string | null | undefined): string {
+  // `/workspace/operation/` → `operation`. Strip the workspace prefix FIRST:
+  // trimming slashes alone yields `workspace/operation`, which composes a path
+  // the server then reads as `/workspace/workspace/operation/…`.
+  const home = STUDIO_ARTIFACT_REGION.replace(/^\/workspace\//, '').replace(/^\/+|\/+$/g, '');
+  const abs = (sourcePath || '').startsWith('/') ? sourcePath! : `/${sourcePath || ''}`;
+  if (!sourcePath || !isArtifactRegion(abs)) return home;
+  const folder = abs.replace(/\/[^/]*$/, ''); // drop the leaf
+  const rel = folder.replace(/^\/workspace\//, '').replace(/\/+$/, '');
+  return rel || home;
+}
+
 /** The region's path segments — `operation`, `workspace`. Not meaning folders. */
 const REGION_SEGMENTS = new Set(
   STUDIO_ARTIFACT_REGION.split('/').filter(Boolean).concat('workspace'),

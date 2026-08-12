@@ -93,6 +93,10 @@ interface NewArtifactModalProps {
    *  member who takes it is the one who arrived knowing all three. */
   templates: TemplateChoice[] | null;
   onClose: () => void;
+  /** The shape the member picked in the New menu (ADR-549 D1). The dialog opens
+   *  ON that shape instead of resetting to the first served template — the menu
+   *  already answered "what kind", and re-asking would be the toll again. */
+  initialTemplate?: string | null;
   /** Create + open — throws so the failure shows inline here. `name` is what
    *  the member typed, carried alongside the slugified path so the artifact's
    *  <title> gets the real thing (ADR-469). */
@@ -122,6 +126,7 @@ export const STAGE_PRESETS = [
 
 export function NewArtifactModal({
   templates,
+  initialTemplate = null,
   onClose,
   onCreate,
   dimensionsFirst = false,
@@ -143,7 +148,11 @@ export function NewArtifactModal({
 
   useEffect(() => {
     if (open) {
-      setTemplateSlug(templates![0].slug);
+      // ADR-549 D1 — open on the shape the menu already chose. Falling back to
+      // the first template would silently re-answer a question the member just
+      // answered (pick Deck, get Document).
+      const picked = templates!.find((t) => t.slug === initialTemplate);
+      setTemplateSlug((picked ?? templates![0]).slug);
       setPresetSlug('square');
       setCustomW('1080');
       setCustomH('1080');
@@ -152,7 +161,7 @@ export function NewArtifactModal({
       setErr(null);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [open, templates]);
+  }, [open, templates, initialTemplate]);
 
   if (!open) return null;
 

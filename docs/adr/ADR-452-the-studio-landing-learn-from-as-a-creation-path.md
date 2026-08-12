@@ -80,3 +80,34 @@ landing). And the observed menu defect is fixed at its root: a tile's context me
 the event, so the **canvas menu stacked on top of the file menu** (hiding Open/Properties — the
 operator's screenshot); the canvas handler now ignores already-claimed events. One gesture, one
 menu, Finder-flat.
+
+---
+
+## Amendment — 2026-08-12: D2's placement was orphaning derived work ([ADR-549](ADR-549-a-creation-act-names-its-object.md) D4)
+
+D2 said a learn-from artifact is *"meaning-placed, named from the source."* The
+naming half was right. **The placement half never consulted the source at all** —
+`StudioSurface.tsx` hardcoded `operation/${slugify(sourceName)}/…`, so a brief
+derived from work filed under `ai-frontier/briefs/` landed at the **root of
+Documents**, next to nothing, severed from the thing it was made from.
+
+Audited at the operator's instruction (*"learn from assuming needs to also go
+through similar audit to ensure if we are correcting the right landing place"*)
+— the suspicion was correct.
+
+| source | landed at | now defaults to |
+|---|---|---|
+| `operation/ai-frontier/briefs/x.md` | `operation/x/…` | `operation/ai-frontier/briefs/` |
+| `operation/the-acme-deal/notes.md` | `operation/notes/…` | `operation/the-acme-deal/` |
+| `inbound/uploads/operator/q3.pdf` | `operation/q3/…` | `operation/` (an arrival is not a home) |
+
+The derivation now lives in ONE place — `artifactNaming.ts::defaultDestinationFor`
+— shared with every other creation act, so "where does a new thing go" has a
+single answer per surface rather than one per call site.
+
+**D2's other half is unchanged**: the double-bound lane (`artifact_path` +
+`derive_recipe`/`derive_source`), the source-first sequencing, and the
+design-system target's chat routing are all as ratified. What changed is that
+Learn-from now shows the **same creation dialog** as everything else, with the
+name pre-filled from the source and editable — pre-filled is not the same as
+unasked (ADR-549 D1).

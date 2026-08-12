@@ -1,24 +1,24 @@
-"""ADR-470 — New should not interrogate you: the untitled sequence.
+"""ADR-549 — a creation act names its object (supersedes ADR-470's two doors).
 
-The defect: New demanded a name AND a destination before it handed over
-anything, unlike every doc processor whose blank state IS the "untitled"
-handling. A SEQUENCE defect, felt at the moment of highest intent.
+ADR-470 split creation into an IMMEDIATE door (pick a shape, get the workbench,
+born "Untitled ‹kind›") and a DELIBERATE one ("Name it first…"). Those did not
+name two things a member could want — they named ONE thing and a TOLL, and the
+fast one left litter: `operation/asdfadsf/document.html`, permanent and
+attributed, because nothing ever asked what it was.
 
-The fix: two doors into one artifact.
-  • IMMEDIATE  — pick a shape, get the workbench. Born "Untitled ‹kind›" at a
-                 server-placed disambiguated key; the crumb arms so the name is
-                 OFFERED, never demanded.
-  • DELIBERATE — "Name it first…" keeps the modal, which now owns all three
-                 decisions (shape + name + destination).
-
-What made it possible: ADR-469 severed the name from the path. Under ADR-459 D2
-the name came from the folder slug, so naming later meant MOVING the folder.
+ADR-549 collapses them. `+ New` picks a SHAPE and opens one dialog that requires
+a name and defaults the location. What survives from ADR-470 unchanged:
+  • §5 — there is no Save, and there must not be (every keystroke is already an
+    attributed revision). This is WHY the "temp file deleted unless saved"
+    alternative was refused: it needs an unsaved state the substrate lacks.
+  • D2's reasoning about invented names — preserved and now unreachable.
+And from ADR-469: the name is lifted to <title>, the path is only a key, and a
+collision DISAMBIGUATES rather than refusing.
 
 Run: python3 test_adr470_untitled_sequence.py   (check()-style, NOT pytest)
 """
 
 import pathlib
-import re
 import re
 import sys
 
@@ -129,30 +129,10 @@ def main() -> int:
         "else template[\"skeleton\"]" in routes,
     )
 
-    print("\n── 3. PLACEMENT is the server's, and reuses ONE key rule ──────")
-    # Asserted as a BEHAVIOUR, not a name. This check read `def _untitled_path(`
-    # and went red on the 2026-08-11 rename to `_placed_path` — a gate pinning a
-    # SPELLING reading a rename as a violation (the ADR-544 lesson, again). What
-    # the ADR actually requires is that the SERVER owns placement: a helper that
-    # composes the region + a disambiguated key, reachable from create_artifact.
-    _placement_helpers = [
-        line for line in routes.splitlines()
-        if line.startswith("def ") and "path" in line.split("(")[0]
-    ]
-    _check(
-        "a server-side placement helper exists (name-agnostic)",
-        any("auth" in line or "template" in line for line in _placement_helpers)
-        or "_placed_path(" in routes,
-    )
-    # And BOTH doors reach it — the 2026-08-11 amendment to D3. The named door
-    # used to 409 where the unnamed one stepped to `-2`, while the helper's own
-    # docstring claimed they could not drift.
-    # Asserted INSIDE each door's own function body, not by counting the module.
-    # Two weaker spellings were tried and BOTH stayed green while the named
-    # door's disambiguation was deleted outright: `count("disambiguate(") >= 2`
-    # (the import lines made the count) and then a call-shaped regex (a THIRD,
-    # unrelated call at routes/studio.py:782 made it). A counting gate cannot
-    # defend a per-site invariant — read the site.
+    print("\n── 3. PLACEMENT: the server owns the KEY, the caller the DEST ──")
+    # ADR-549 D1 — there is no pathless door. A caller that sends no path has
+    # skipped a question, not chosen a default, so it is REFUSED rather than
+    # silently placed at `untitled-<kind>/`.
     def _body(fn_name: str) -> str:
         m = re.search(
             rf"\ndef {fn_name}\(.*?(?=\n(?:@router|def |async def ))",
@@ -161,14 +141,32 @@ def main() -> int:
         )
         return m.group(0) if m else ""
 
-    _named_door = _body("_redirect_to_free_key")
-    _unnamed_door = _body("_placed_path")
-    _check(
-        "the UNNAMED door disambiguates (a taken key steps, never refuses)",
-        "disambiguate(" in _unnamed_door,
+    _handler = re.search(
+        r"async def create_artifact\(.*?(?=\n@router|\Z)", routes, re.DOTALL
+    )
+    _handler_body = _handler.group(0) if _handler else ""
+    # Asserted on the BRANCH, not on "is 422 anywhere in the handler" — the
+    # handler has other 422s (a non-.html path, a traversal), so a presence
+    # check stayed GREEN while the pathless door was restored. Read what the
+    # empty-path branch actually DOES: it must raise, not assign a path.
+    _empty_branch = re.search(
+        r"\n    if not raw:\n(.*?)(?=\n    path = )", _handler_body, re.DOTALL
     )
     _check(
-        "the NAMED door disambiguates too — D3's 'one key rule', made structural",
+        "a pathless create is REFUSED, not placed (no untitled door)",
+        bool(_empty_branch) and "raise HTTPException" in _empty_branch.group(1),
+    )
+    _check(
+        "no `untitled <kind>` key is generated anywhere",
+        'f"untitled {label}"' not in routes,
+    )
+    # The named door still disambiguates — ADR-469 D4 survives the collapse.
+    # Asserted INSIDE the function body, not by counting the module: two weaker
+    # spellings both stayed green while the call was deleted outright (the
+    # import lines made one count; an unrelated third call made the other).
+    _named_door = _body("_redirect_to_free_key")
+    _check(
+        "the create door disambiguates (a taken key steps, never refuses)",
         "disambiguate(" in _named_door,
     )
     _check(
@@ -231,22 +229,24 @@ def main() -> int:
             len(set(keys)) == 3 and keys[0] == f"untitled-{lay['label'].lower()}",
         )
 
-    print("\n── 4. BOTH DOORS exist, and only one asks questions ───────────")
+    print("\n── 4. ONE DOOR, and it asks (ADR-549 D1) ──────────────────────")
+    # Comment-stripped: the ABSENCE assertion below matches its own explanatory
+    # comment otherwise (the surface's "`createUntitled` … is DELETED" note
+    # contains the very name it forbids). The
+    # feedback_gate_assertion_matches_its_own_comment shape, caught live.
+    _surface_code = re.sub(r"/\*[\s\S]*?\*/", "", surface)
+    _surface_code = re.sub(r"(^|[^:])//[^\n]*", r"\1", _surface_code)
     _check(
-        "create accepts NEITHER path nor name (the immediate door)",
-        "path: Optional[str] = None" in routes and "name: Optional[str] = None" in routes,
+        "picking a shape opens the DIALOG, never creates outright",
+        "setNamingOpen(true)" in _surface_code and "createUntitled" not in _surface_code,
     )
     _check(
-        "picking a shape CREATES immediately (no modal in between)",
-        "onPickTemplate={(t) => void createUntitled(t.slug)}" in surface,
+        "the second row is GONE — no name-it-first, no onPickNamed",
+        "onPickNamed" not in menu and "Name it first" not in menu.split("*/")[-1],
     )
     _check(
-        "the immediate door opens the workbench with the crumb ARMED",
-        "const createUntitled" in surface and "onRenameRequest(res.path)" in surface,
-    )
-    _check(
-        "the deliberate door is a peer row, not a toll on every creation",
-        "onPickNamed" in menu and "Name it first" in menu,
+        "the dialog opens ON the shape the menu chose (no re-asking)",
+        "initialTemplate" in modal and "initialTemplate" in surface,
     )
     _check(
         "the deliberate modal owns all three decisions (shape too)",

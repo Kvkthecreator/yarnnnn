@@ -42,20 +42,31 @@ const t = (label, cond) => {
 // passed through untouched. An earlier version stripped types across the whole
 // source and mangled a regex literal in the body (`/^\/workspace\//`), which
 // is precisely the "the gate broke, not the code" failure.
-const runTs = (src, name) => {
+const runTs = (src, name, deps = {}) => {
   // Split at the FUNCTION's opening brace, not the first brace in the string —
   // a preamble (e.g. a runtime-built RegExp the function closes over) may carry
   // its own braces, and slicing at index 0 would corrupt it.
-  const fnAt = src.search(/(^|\n)\s*(export\s+)?function\s/);
-  const head = src.slice(0, fnAt < 0 ? 0 : fnAt);
-  const rest = src.slice(fnAt < 0 ? 0 : fnAt);
+  // `export` is stripped everywhere, not just on the target function: a
+  // preamble may itself carry exported declarations, and `new Function` rejects
+  // the keyword wherever it appears.
+  const bare = src.replace(/(^|\n)\s*export\s+/g, '$1');
+  const fnAt = bare.search(/(^|\n)\s*function\s/);
+  const head = bare.slice(0, fnAt < 0 ? 0 : fnAt);
+  const rest = bare.slice(fnAt < 0 ? 0 : fnAt);
   const brace = rest.indexOf('{');
+  // Param annotations may be UNIONS with spaces (`string | null | undefined`),
+  // so the type pattern has to admit spaces — but only up to the next `,` or
+  // the closing `)`, or it would swallow the whole signature.
   const sig = rest
     .slice(0, brace)
     .replace(/\bexport\s+/g, '')
-    .replace(/:\s*[A-Za-z<>\[\]|\s]+$/, '')
-    .replace(/([(,]\s*\w+)\s*:\s*[A-Za-z<>\[\]|]+/g, '$1');
-  return new Function(`${head}${sig}${rest.slice(brace)}; return ${name};`)();
+    .replace(/\)\s*:\s*[A-Za-z<>\[\]|\s]+$/, ')')
+    .replace(/([(,]\s*\w+)\s*:\s*[A-Za-z<>\[\]|\s]+?(?=\s*[,)])/g, '$1');
+  const names = Object.keys(deps);
+  return new Function(
+    ...names,
+    `${head}${sig}${rest.slice(brace)}; return ${name};`,
+  )(...names.map((k) => deps[k]));
 };
 
 // ── Strip comments before any source assertion ─────────────────────────────
@@ -145,15 +156,21 @@ const pyCode = studioPy
   .replace(/"""[\s\S]*?"""/g, '')
   .replace(/^\s*#[^\n]*$/gm, '');
 
-// Both placement helpers exist and both disambiguate.
-const placedFn = pyCode.match(/def _placed_path\([\s\S]*?(?=\ndef |\n@router)/);
+// ADR-549 D1 collapsed the two doors into one, so there is now ONE placement
+// helper — and the untitled one must be GONE, not merely unused.
 const redirectFn = pyCode.match(/def _redirect_to_free_key\([\s\S]*?(?=\ndef |\n@router)/);
-t('F2: the unnamed door has a placement authority', !!placedFn);
-t('F2: the named door has one too', !!redirectFn);
+t('F2: the create door has a placement authority', !!redirectFn);
 t(
-  'F2 [FALSIFIER]: BOTH doors disambiguate (neither refuses a taken key)',
-  !!placedFn && !!redirectFn &&
-    /disambiguate\(/.test(placedFn[0]) && /disambiguate\(/.test(redirectFn[0]),
+  'F2 [FALSIFIER]: it disambiguates (a taken key steps, never refuses)',
+  !!redirectFn && /disambiguate\(/.test(redirectFn[0]),
+);
+t(
+  'D1 [FALSIFIER]: the untitled placement helper is DELETED, not orphaned',
+  !/def _placed_path\(/.test(pyCode),
+);
+t(
+  'D1 [FALSIFIER]: no `untitled <kind>` key is generated anywhere',
+  !/f"untitled \{label\}"/.test(pyCode),
 );
 
 // The create handler must actually CALL the named door's helper — the exported
@@ -168,8 +185,8 @@ const handler = pyCode.match(
 );
 t('F2 [FALSIFIER]: the create handler CALLS the named-door helper',
   !!handler && /_redirect_to_free_key\(/.test(handler[0]));
-t('F2 [FALSIFIER]: the create handler CALLS the unnamed-door helper',
-  !!handler && /_placed_path\(/.test(handler[0]));
+t('D1 [FALSIFIER]: a pathless create is REFUSED, never silently placed',
+  !!handler && /if not raw:[\s\S]{0,200}?raise HTTPException/.test(handler[0]));
 
 // Ordering: validation must precede the placement query, or a `..` path gets
 // used in a DB prefix search before it is refused.
@@ -254,13 +271,65 @@ if (segFn) {
 t('F4: the server remains the sanitizing authority', /_sanitize_folder_segment\(/.test(documentsPy));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ADR-549 D3/D4 — a derived artifact lands BESIDE ITS SOURCE.
+// Executed against the real `defaultDestinationFor`, because the defect it
+// replaces was a HARDCODED root that ignored the source's location entirely:
+// a brief derived from `operation/ai-frontier/briefs/x.md` landed at the ROOT
+// of Documents, orphaned from the thing it was made from.
+// ═══════════════════════════════════════════════════════════════════════════
+const ddfSrc = naming.match(/export function defaultDestinationFor[\s\S]*?\n}/);
+t('D4: one derivation home for the default destination', !!ddfSrc);
+if (ddfSrc && REGION) {
+  // The dependency is injected as an already-JS preamble, and only the TARGET
+  // function's source goes through `runTs`. Passing both TS functions in one
+  // string left the second signature inside the untouched body slice — the
+  // gate broke, not the code, for the third time in this file's life.
+  const iar = runTs(
+    `const STUDIO_ARTIFACT_REGION = ${JSON.stringify(REGION)};\n` +
+      naming.match(/export function isArtifactRegion[\s\S]*?\n}/)[0],
+    'isArtifactRegion',
+  );
+  const ddf = runTs(ddfSrc[0].replace(/sourcePath!/g, 'sourcePath'), 'defaultDestinationFor', {
+    STUDIO_ARTIFACT_REGION: REGION,
+    isArtifactRegion: iar,
+  });
+  const home = REGION.replace(/^\/workspace\//, '').replace(/^\/+|\/+$/g, '');
+  t(
+    'D4 [FALSIFIER]: a derive lands in the SOURCE\'s folder, not the region root',
+    ddf('/workspace/operation/ai-frontier/briefs/x.md') === `${home}/ai-frontier/briefs`,
+  );
+  t(
+    'D4 [FALSIFIER]: an ARRIVAL (inbound/) is not a home — falls back to Documents',
+    ddf('/workspace/inbound/uploads/operator/q3.pdf') === home,
+  );
+  t('D4: no source at all falls back to Documents', ddf(null) === home);
+  t(
+    'D4 [FALSIFIER]: the fallback is the bare home, never `workspace/…`',
+    !ddf(null).startsWith('workspace/'),
+  );
+  // And the caller USES it — a correct helper with zero callers ships green.
+  t(
+    'D4 [FALSIFIER]: learn-from COMPOSES its path through the helper',
+    /defaultDestinationFor\(source\.path\)/.test(strip(surface)),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // F5 — the immediate door reports its failures.
 // ═══════════════════════════════════════════════════════════════════════════
-const createUntitled = strip(surface).match(/const createUntitled\s*=[\s\S]*?\n  \};/);
-t('F5: the immediate door exists', !!createUntitled);
+// ADR-549 D1 DELETED `createUntitled` — the door that swallowed its failures
+// no longer exists, which is a stronger fix than making it report them. What
+// must hold now is that the surviving door still surfaces a refusal: the modal
+// owns creation and shows the error inline.
 t(
-  'F5 [FALSIFIER]: it catches, so a refusal is SAID rather than swallowed',
-  !!createUntitled && /catch\s*\(/.test(createUntitled[0]),
+  'F5 [FALSIFIER]: the swallowing door is GONE, not merely patched',
+  !/const createUntitled\s*=/.test(strip(surface)),
+);
+const createScratch = strip(surface).match(/const createScratch\s*=[\s\S]*?\n  \};/);
+t('F5: the surviving door exists', !!createScratch);
+t(
+  'F5 [FALSIFIER]: the modal reports a refusal inline (it does not swallow)',
+  /catch\s*\(/.test(modalCode) && /setErr\(/.test(modalCode),
 );
 
 // ═══════════════════════════════════════════════════════════════════════════

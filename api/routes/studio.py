@@ -993,61 +993,6 @@ async def list_citable(auth: UserClient) -> dict:
     }
 
 
-def _placed_path(auth: UserClient, template: str, name: str | None = None) -> str:
-    """Where a new artifact lands — the ONE placement authority for BOTH doors.
-
-    `untitled-document/document.html`, then `untitled-document-2/…`; or
-    `ir-deck-v3/deck.html`, then `ir-deck-v3-2/…`. The key is built from
-    `path_slug` + `disambiguate` (ADR-469) against the artifact region's
-    existing meaning folders.
-
-    ── Why this takes `name` (2026-08-11) ────────────────────────────────────
-    This helper's docstring used to claim the two doors "cannot drift into
-    different collision behaviour" while `disambiguate` was reachable ONLY when
-    the caller sent no path. They HAD drifted: the immediate door silently
-    suffixed, and the deliberate door — the one with the name field — 409'd
-    `'{path}' already exists`. A member who named a second document "Notes" was
-    refused outright, which is ADR-469 D4's exact defect ("a key collision is
-    disambiguated, never refused") reappearing on the other door.
-
-    The comment asserting the invariant is not the thing that enforces it. Now
-    one function computes the key, so the claim is structural.
-
-    It lands in the ORDINARY region, not a `drafts/` namespace: an untitled
-    artifact is real work that hasn't been named yet, not a separate class of
-    thing. DP33 — the state is data (the placeholder title it carries), the
-    namespace stays meaning. Naming it later is a retitle, and moving it is the
-    member's Move verb; neither is forced by where it was born.
-    """
-    from services.naming import disambiguate, path_slug
-    from services.authoring import STUDIO_ARTIFACT_REGION
-    from services.workspace_context import substrate_scope_filter
-
-    if name and name.strip():
-        base = path_slug(name)
-    else:
-        lay = resolve_layout(template)
-        label = lay["label"].lower() if lay else template
-        base = path_slug(f"untitled {label}")
-
-    rows = (
-        auth.client.table("workspace_files")
-        .select("path")
-        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
-        .like("path", f"{STUDIO_ARTIFACT_REGION}%")
-        .execute()
-    ).data or []
-    # STUDIO_ARTIFACT_REGION already carries its trailing slash — never append
-    # one (that yielded `/workspace/operation//untitled-document/…`).
-    prefix = STUDIO_ARTIFACT_REGION
-    taken = {
-        rest.split("/")[0]
-        for rest in (r["path"][len(prefix):] for r in rows if r["path"].startswith(prefix))
-        if rest and "/" in rest
-    }
-    return f"{prefix}{disambiguate(base, taken)}/{template}.html"
-
-
 def _redirect_to_free_key(
     auth: UserClient, raw: str, template: str, name: str | None
 ) -> str:
@@ -1111,21 +1056,24 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
             detail=f"Unknown template: {req.template!r} (one of {sorted(_templates)})",
         )
 
-    # ── Placement (ADR-470) ────────────────────────────────────────────────
-    # No path = the IMMEDIATE door: the server places it. One authority for
-    # where an unnamed artifact lands — the FE never invents a scratch path,
-    # so there is no second placement rule to drift.
+    # ── Placement (ADR-549 D1/D2) ──────────────────────────────────────────
+    # A creation act NAMES ITS OBJECT. There is no pathless door any more: the
+    # caller proposes `{dest}/{slug(name)}/{template}.html`, the destination is
+    # honoured verbatim, and the server owns the leaf meaning-folder KEY
+    # (recomputed through `disambiguate`, so a second "Notes" becomes `notes-2`
+    # rather than being refused — ADR-469 D4).
     #
-    # A path WITH a destination folder = the DELIBERATE door. The server owns
-    # the leaf meaning-folder key there too (2026-08-11): the FE proposes
-    # `{dest}/{slug(name)}/{template}.html`, and the destination is honoured
-    # verbatim while the KEY is recomputed through `_placed_path`'s
-    # disambiguate. Otherwise a second "Notes" is refused instead of becoming
-    # `notes-2` — ADR-469 D4, which the immediate door already obeyed.
+    # ADR-470's immediate door — no path, no name, `untitled-document/…` — is
+    # DELETED. It produced permanent, attributed folders named after whatever
+    # the member had not yet decided (`operation/asdfadsf/document.html`). The
+    # refusal is explicit rather than a silent server-side placement, because a
+    # caller that sends no path has skipped a question, not chosen a default.
     raw = (req.path or "").strip()
-    supplied = bool(raw)
-    if not supplied:
-        raw = _placed_path(auth, req.template)
+    if not raw:
+        raise HTTPException(
+            status_code=422,
+            detail="A new artifact needs a name — send the path it should live at.",
+        )
     path = raw if raw.startswith("/") else f"/workspace/{raw}"
 
     # Validate BEFORE any placement query — `_redirect_to_free_key` runs a
@@ -1143,8 +1091,7 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
         )
 
     # The DELIBERATE door's key, stepped past whatever is already there.
-    if supplied:
-        path = _redirect_to_free_key(auth, path, req.template, req.name)
+    path = _redirect_to_free_key(auth, path, req.template, req.name)
 
     # Refuse overwrite — creation is creation (MoveFile-style guard).
     #
