@@ -65,8 +65,17 @@ const LEVELS: {
   {
     value: 'manual',
     label: 'Manual',
-    description: 'Every action waits for your approval before executing.',
-    consequence: 'Every agent action will pause for your approval. You become the bottleneck on every decision.',
+    // ADR-550: this used to read "Every action waits for your approval before
+    // executing." That is FALSE on a stock workspace. This control writes only
+    // the `default:` block, while file writes resolve through `substrate:`
+    // first (review_policy.py::autonomy_for_substrate) — and workspace genesis
+    // seeds `substrate: delegation: autonomous` (orchestration.py:914, ADR-408
+    // D3, "reversible file work is the steward's hands"). So an operator who
+    // chose Manual still had an agent applying every file edit immediately,
+    // having been told the opposite. The copy now names the scope it actually
+    // governs; widening the control to the substrate block is D3-open.
+    description: 'Spending and outside actions wait for your approval. Everyday edits to your files still happen on their own.',
+    consequence: 'Every spend and every action outside your workspace will pause for your approval.',
   },
   {
     value: 'bounded',
@@ -74,8 +83,8 @@ const LEVELS: {
     // ADR-338 D4.2: surface the schema-inert reality. `bounded` applies the
     // ceiling to capital actions only; substrate writes (file edits) queue
     // under BOTH manual and bounded — only `autonomous` auto-applies them.
-    description: 'Your agent can spend on its own up to your limit. It still checks with you before changing any of your files.',
-    consequence: 'Your agent can spend on its own — up to your limit — without asking first. It still checks with you before changing any of your files, and before any spend above the limit.',
+    description: 'Your agent can spend on its own up to your limit, and asks first above it.',
+    consequence: 'Your agent can spend on its own — up to your limit — without asking first, and checks with you before any spend above the limit.',
   },
   {
     value: 'autonomous',

@@ -27,7 +27,8 @@
 
 import { useEffect, useState } from 'react';
 import { Users, ShieldCheck, Bot, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus, Wallet } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, getActiveWorkspaceId } from '@/lib/api/client';
+import { useWorkspaceMemberships } from '@/lib/workspace/viewer';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
 
@@ -113,6 +114,30 @@ const ROLE_META: Record<string, { label: string; icon: typeof Users; tone: strin
   'foreign-llm': { label: 'External LLM', icon: Cpu, tone: 'text-amber-600 dark:text-amber-400' },
 };
 
+// ADR-550 — the viewer's own standing, said in the second person. Separate from
+// ROLE_META (which labels OTHER people's rows) because the sentence differs:
+// a row says what someone IS, the header says what YOU can do. Same three human
+// roles, so the two maps stay in step by construction — a role added to
+// HUMAN_ROLES without an entry here is a type error.
+const VIEWER_ROLE_LABEL: Record<'owner' | 'member' | 'viewer', string> = {
+  owner: 'owner',
+  member: 'member',
+  viewer: 'viewer',
+};
+
+// What the role actually MEANS in affordance terms — the honest summary of the
+// grant, matching what the server enforces (owner-only invite/narrow/revoke/cap
+// per routes/workspace.py::_require_owner_workspace; a member writes Documents
+// but not System files; a viewer reads).
+const VIEWER_ROLE_HINT: Record<'owner' | 'member' | 'viewer', string> = {
+  owner:
+    'You can invite people, change what everyone can reach, and manage billing.',
+  member:
+    'You can read and write this workspace’s documents. Only the owner can invite people or change access.',
+  viewer:
+    'You can read this workspace. You can’t write to it, invite people, or change access.',
+};
+
 // Narrow-region root → operator-facing name for the NARROW dialog options.
 // ADR-424: the roster displays operator ZONES (Documents/Downloads/System files,
 // resolved backend-side into `write_zones`), never raw kernel roots. This map is
@@ -167,6 +192,9 @@ export function WorkspaceMembersCard({
 }: WorkspaceMembersCardProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  // ADR-550 — the workspace's NAME for the header. Module-cached and already
+  // fetched once per page life by the shell, so this adds no request.
+  const { memberships } = useWorkspaceMemberships();
   // ADR-445 §6 — proactive seat awareness (Free = solo; the 2nd human is paid).
   const [seatInfo, setSeatInfo] = useState<{ human: number; included: number; available: boolean } | null>(null);
   // ADR-386 D2 — lifecycle verb state.
@@ -354,6 +382,36 @@ export function WorkspaceMembersCard({
   const humans = scoped.filter((m) => (HUMAN_ROLES as readonly string[]).includes(m.role));
   const ais = scoped.filter((m) => (AI_ROLES as readonly string[]).includes(m.role));
 
+  // ADR-550 — the viewer's own standing, derived from the roster already
+  // fetched (no second request, no role prop). The server marks the viewer's
+  // own row by appending "(you)" to its label (routes/workspace.py:1357), so
+  // the row is identifiable without a separate identity read.
+  //
+  // Why this is worth a header: the pane's prior line — "Everyone — and
+  // everything — that can write to this workspace" — described the LIST but
+  // never told the reader where THEY stood in it. A member and an owner saw
+  // an identical sentence over a roster whose affordances differ entirely
+  // (invite, narrow, revoke, cap are all owner-only). Naming the workspace and
+  // the viewer's role is the smallest honest answer to "what am I looking at,
+  // and what can I do here" — DP35's affordances-follow-the-grant, said in
+  // words rather than left to be inferred from which buttons are missing.
+  const viewerRow = members.find(
+    (m) => (HUMAN_ROLES as readonly string[]).includes(m.role) && m.label?.includes('(you)'),
+  );
+  const viewerRole = viewerRow?.role as 'owner' | 'member' | 'viewer' | undefined;
+  // The bound workspace's name. `getActiveWorkspaceId()` is deliberately NULL
+  // for an owner on their own workspace (the switcher CLEARS the pin rather
+  // than setting it — client.ts:142-148), so fall back to the membership whose
+  // role matches the viewer's rather than assuming a pin exists.
+  const activeWsId = typeof window === 'undefined' ? null : getActiveWorkspaceId();
+  const workspaceLabel =
+    memberships.find((w) => (activeWsId ? w.workspace_id === activeWsId : w.role === viewerRole))
+      ?.label ?? null;
+  const humanCount = members.filter((m) =>
+    (HUMAN_ROLES as readonly string[]).includes(m.role),
+  ).length;
+  const aiCount = members.filter((m) => (AI_ROLES as readonly string[]).includes(m.role)).length;
+
   if (loading) {
     return (
       <div className={cn('flex items-center gap-2 rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground', className)}>
@@ -538,14 +596,40 @@ export function WorkspaceMembersCard({
 
   return (
     <div className={cn('space-y-6', className)}>
-      {/* One line. The prior version spent five explaining the People/AI-connections
-          split, the MCP transport, and the in-chat-model exclusion — all of it true,
-          none of it needed here: the two section headings below already name the
-          split, and each AI row states "Connects over MCP · writes as itself". */}
+      {/* ADR-550 — the viewer's standing, not a description of the list.
+          The section headings below already name the People/AI split, and each
+          AI row states "Connects over MCP · writes as itself", so the old
+          one-liner ("Everyone — and everything — that can write to this
+          workspace") spent the pane's most prominent line restating the
+          obvious while leaving the reader's OWN role to be inferred from which
+          buttons were missing. */}
       {variant === 'full' && (
-        <p className="text-sm text-muted-foreground">
-          Everyone — and everything — that can write to this workspace.
-        </p>
+        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-medium text-foreground">
+              {workspaceLabel ?? 'This workspace'}
+            </span>
+            {viewerRole && (
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-xs font-medium',
+                  viewerRole === 'owner'
+                    ? 'bg-foreground text-background'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
+                You&rsquo;re the {VIEWER_ROLE_LABEL[viewerRole]}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {viewerRole ? VIEWER_ROLE_HINT[viewerRole] : 'Who can write to this workspace.'}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {humanCount} {humanCount === 1 ? 'person' : 'people'}
+            {aiCount > 0 && ` · ${aiCount} AI ${aiCount === 1 ? 'connection' : 'connections'}`}
+          </p>
+        </div>
       )}
 
       {/* ADR-404 step 5 — invite a human member (owner-only; hidden on 403). */}
