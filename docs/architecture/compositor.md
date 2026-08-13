@@ -111,6 +111,31 @@ state. Singular Implementation: `scopeParamKey(slug, key)` forms the one prefix;
 `useSurfaceParam(slug)` hook (read/write their own params); `SettingsPaneShell`
 takes a `windowSlug` prop. Callers never hand-build the prefix.
 
+**What a param is FOR, and how long it lives.** Two registries in
+`lib/shell/surface-preferences.ts` answer two different questions, and a surface
+that registers in neither gets the wrong default for both:
+
+- `SURFACE_PARAM_KEYS` — which keys a surface OWNS. Unlisted keys are dropped on
+  read. A surface absent from this map is *unconstrained*: any key delivered to
+  it is accepted and persisted forever, including one it has never read.
+- `SURFACE_EPHEMERAL_PARAM_KEYS` — which owned keys must not be REPLAYED on a
+  bare launch. `reconcileUrl` merges `incoming < remembered < delivered`, so a
+  remembered key outranks a live deep-link. The test is whether replaying it
+  answers a question the member is asking *now* (a resting posture — restore) or
+  one they asked once and moved on from (a specific object they drilled into —
+  forget). Document identity is always the second kind.
+
+**One arrival door per surface.** A deep-link param is inbound transport: the
+surface OPENS it and then DRAINS it, in exactly one handler, keyed on the param
+value. Do not add a second consumer — in canvas and mobile modes `SurfaceViewport`
+renders only the foregrounded surface, so a backgrounded window is *unmounted*
+and a cross-surface jump REMOUNTS it; a mount-time capture and a post-mount
+effect then race over one param and both lose (operator-observed 2026-08-13:
+Radar's "open folder" landed on generic Recents with the param stranded in the
+URL). Staleness is handled by the drain plus an honest ephemeral classification,
+never by a guard that can outvote the live signal. Gate:
+`web/scripts/gates/files_arrival_door.mjs`.
+
 **Agent-composed Applications** — the orchestration layer authoring a new
 Application by writing an application-manifest *file* in the substrate
 (everything-is-a-file extends to app definitions; the compositor reads

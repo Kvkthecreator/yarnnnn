@@ -585,6 +585,12 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   docs: ['file', 'system'],
   studio: ['file', 'system'],
   images: ['file', 'system'],
+  // The Finder. `path` names the opened node, `domain` the operation/ folder
+  // shorthand — the only two keys the surface reads (see the `fp.get` pair in
+  // the Files surface). Pinning them also ends a live inert write: a platform
+  // re-route delivered `{platform}` here, which Files has never read, and the
+  // unconstrained default accepted and persisted it forever.
+  files: ['path', 'domain'],
 };
 
 // ----------------------------------------------------------------------------
@@ -651,6 +657,14 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // `chat.lane` is deliberately NOT here — a conversation is a place you live
   // in, and its list stays visible beside it.
   agents: ['agent'],
+  // The Finder's drill-in. `files.path` is document identity by the test above
+  // — a specific node you opened once — and it had the no-clearing-path shape
+  // this section exists to catch: nothing ever cleared it, so a jump into Files
+  // (from Radar, from Settings, from a shared link) became the landing target
+  // forever, outranking the incoming deep-link on every later foreground.
+  // `domain` stays REMEMBERED: it names which operation/ folder the Finder is
+  // resting in, a posture rather than a drill-in.
+  files: ['path'],
   // ADR-494 D5 — both settings doors open on their own front pane. `pane` stays
   // OWNED, so every deep-link still works (the UserMenu's "Connectors" item,
   // `?pane=billing` from the balance glance, a bookmark) — it is only dropped

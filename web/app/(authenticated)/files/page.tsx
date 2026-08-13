@@ -27,15 +27,17 @@
  *               moved to natural-home paths in ADR-231 Phase 3.7.
  *   Uploads   — user-contributed source material (/workspace/uploads/).
  *
- * Deep-link params (COLD-LOAD ONLY, per ADR-297 D19.2):
- *   ?domain={key}  — seed selection to a context domain folder on entry
- *   ?path={path}   — seed selection to any workspace path on entry
+ * Deep-link params (ARRIVAL ONLY, per ADR-297 D19.2):
+ *   ?files.domain={key}  — open a context domain folder
+ *   ?files.path={path}   — open any workspace path
  *
- * These params are read once on mount to seed `selectedPath` (e.g. a shared
- * link, or a cross-surface navigation via navigateToSurface('files', {path})).
- * In-surface file/folder clicks DO NOT write the URL — selection is component
- * state. Writing `/files?path=…` on every click flipped pathname away from
- * /desktop and disrupted the launcher/topbar (operator-observed KVK 2026-06-12).
+ * These are how a deep-link ARRIVES (a shared link, or a cross-surface jump via
+ * navigateToSurface('files', {path})). One handler consumes them — the arrival
+ * effect — which opens the path and then DRAINS the param; see "THE ONE ARRIVAL
+ * DOOR". They are inbound transport only: in-surface file/folder clicks DO NOT
+ * write the URL, because selection is component state. Writing `/files?path=…`
+ * on every click flipped pathname away from /desktop and disrupted the
+ * launcher/topbar (operator-observed KVK 2026-06-12).
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -352,29 +354,14 @@ export default function ContextPage() {
   // ADR-358 D6 (2026-06-25): read this window's OWN deep-link params under
   // the `files.` namespace (`?files.domain=`, `?files.path=`) so they never
   // collide with another open window on the shared /desktop URL. These are
-  // mount-time SEED transports (a shared link / cross-surface jump); the
-  // surface drives its live selection through internal `selectedPath` state
-  // and deliberately does NOT write back to the URL (see the click handlers).
+  // ARRIVAL transports (a shared link / cross-surface jump); the surface drives
+  // its live selection through internal `selectedPath` state and deliberately
+  // does NOT write back to the URL (see the click handlers).
   const fp = useSurfaceParam('files');
   // ADR-451: the Finder routes surface-owned formats to their app.
   const { navigateToSurface } = useSurfacePreferences();
   const domainParam = fp.get('domain');
   const pathParam = fp.get('path');
-
-  // 2026-07-01 (operator-observed KVK): these params are COLD-LOAD SEEDS, but
-  // the surface never CLEARED them after seeding. So a stale `?files.path=` (a
-  // dead deep-link from a prior session) kept re-applying to `selectedPath` on
-  // every 30s tree refresh / window-focus refetch — snapping the operator's
-  // "Uploads" click back to the ghost file and leaving the explorer with no
-  // highlighted node (the ghost path has no matching tree node). Fix: capture
-  // the seed ONCE on first render, then drain the params from the URL after the
-  // first load. The live selection is `selectedPath` state; the URL is not the
-  // source of truth once mounted. `seedConsumedRef` guards the one-shot re-sync.
-  const seedRef = useRef<{ path: string | null; domain: string | null }>({
-    path: pathParam,
-    domain: domainParam,
-  });
-  const seedConsumedRef = useRef(false);
 
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -515,41 +502,10 @@ export default function ContextPage() {
 
       const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
 
-      // Cold-load seed — consumed ONCE on the first load (seedRef captured on
-      // first render), then the params are drained from the URL so subsequent
-      // refetches never re-apply a stale path. After consumption, `selectedPath`
-      // state is the sole source of truth. seedConsumedRef flips true after the
-      // first load whether or not a seed existed — it marks "mount seeding done"
-      // so the cross-surface effect can take over for post-mount jumps.
-      const seed = seedRef.current;
-      const firstLoad = !seedConsumedRef.current;
-      if (firstLoad) {
-        seedConsumedRef.current = true;
-        if (seed.path || seed.domain) {
-          // Drain the seed params from the URL (they've done their one job).
-          fp.set({ path: null, domain: null });
-
-          // ?files.path= — always honour it; syntheticNodeForPath handles paths
-          // not present in the virtual tree (e.g. entity subfolders). Through the
-          // ONE open door: a shared link to a Studio artifact opens Studio, not a
-          // blank inline frame (Option A — the deep-link is an open, same as a
-          // click). A folder / .md / image path falls through openPath to inline.
-          if (seed.path) {
-            openPathRef.current(seed.path);
-            return;
-          }
-          // ?files.domain= — select the domain folder under the operation root
-          // (ADR-388 D1: domains nest under the literal operation/ root). A
-          // domain is a folder → openPath selects it inline.
-          if (seed.domain) {
-            const domainPath = `/workspace/operation/${seed.domain}`;
-            if (resolveNodeByPath(root, domainPath)) {
-              openPathRef.current(domainPath);
-              return;
-            }
-          }
-        }
-      }
+      // A deep-link is NOT handled here. `loadExplorer` re-runs on a 30s timer
+      // and on every window-focus refetch; the arrival effect below owns the
+      // param, keyed on its VALUE, so the tree load and the open are
+      // independent. See "THE ONE ARRIVAL DOOR".
 
       // Preserve current selection if still valid
       setSelectedPath((prev) => {
@@ -561,9 +517,9 @@ export default function ContextPage() {
     } finally {
       setFileTreeLoading(false);
     }
-    // fp.set is stable (from useSurfaceParam); seedRef/seedConsumedRef are refs.
     // Deps intentionally empty — loadExplorer must not re-identify on param
-    // changes (that would retrigger the mount effect's interval wiring).
+    // changes (that would retrigger the mount effect's interval wiring). The
+    // deep-link is not read here at all; the arrival effect owns it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -611,32 +567,44 @@ export default function ContextPage() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
   }, [loadExplorer]);
 
-  // Cross-surface re-seed: a live-mounted Files window can receive a NEW
-  // deep-link param without remounting (e.g. Work → Files entity-to-entity via
-  // navigateToSurface). When a fresh non-empty param appears, apply it to the
-  // selection, then DRAIN it — same one-shot discipline as the mount seed, so
-  // it can never re-clobber on a later tree refresh. Keyed on the param VALUE
-  // (not on `treeNodes`), so tree-identity churn never retriggers it. The
-  // MOUNT-time param is owned by the seed path in loadExplorer; this effect
-  // waits for the seed to be consumed so it only handles POST-mount jumps.
+  // ── THE ONE ARRIVAL DOOR ───────────────────────────────────────────────
+  //
+  // Every way a deep-link REACHES this surface lands here: a cold-load shared
+  // link, and a cross-surface jump (`navigateToSurface('files', {path})`) from
+  // Radar, Settings, or the shell. One handler, keyed on the param VALUE.
+  //
+  // 2026-08-13 (operator-observed KVK, Radar "open folder" → generic Recents).
+  // This REPLACES a two-handler shape — a mount SEED captured on first render
+  // plus this post-mount effect — which raced and lost. In canvas mode (and on
+  // mobile) SurfaceViewport renders only the foregrounded surface, so a
+  // backgrounded Files window is UNMOUNTED; a jump into it therefore REMOUNTS
+  // rather than re-rendering. On that remount the seed captured `null` (the
+  // param reaches the URL via reconcileUrl's history.replaceState, which has
+  // not re-rendered useSearchParams yet), while this effect bailed on
+  // `!seedConsumedRef.current` — a ref that only flips after loadExplorer's
+  // network round-trip. Keyed on values that never changed again, it never
+  // re-fired: param stranded in the URL, `selectedPath` null, Recents.
+  //
+  // The staleness the seed was defending against (a dead `?files.path=`
+  // re-applying on every 30s refetch) is now handled by the two things that
+  // actually address it: this effect never runs on a tree refetch (it is keyed
+  // on the params, not on `treeNodes`), and the DRAIN below removes the param
+  // the moment it is honoured. Belt-and-braces guards that can outvote the
+  // real signal are worse than the staleness they prevent.
   useEffect(() => {
-    if (!seedConsumedRef.current) return; // mount param belongs to the seed
     if (!pathParam && !domainParam) return;
-    // Ignore a value equal to the initial mount seed. fp.set drains the URL via
-    // history.replaceState, which does NOT re-fire useSearchParams — so the
-    // stale mount value can linger in this closure. Only a REAL post-mount
-    // navigation (router push, which does re-render) brings a value != the
-    // seed. This is the belt to the seedConsumedRef braces: even a stray
-    // re-render can't re-apply the ghost path.
-    if (pathParam === seedRef.current.path && domainParam === seedRef.current.domain) return;
-    // Through the ONE open door (openPathRef) — a post-mount deep-link to an
-    // artifact opens its app, folders/unclaimed types fall through to inline.
+    // Through the ONE open door (openPathRef) — a deep-link to an artifact
+    // opens its app, folders/unclaimed types fall through to inline. The path
+    // need not be in the virtual tree: syntheticNodeForPath resolves the
+    // viewer for entity subfolders and `_`-prefixed files.
     if (pathParam) {
       openPathRef.current(pathParam);
     } else if (domainParam) {
       // ADR-388 D1: domains nest under the literal operation/ root.
       openPathRef.current(`/workspace/operation/${domainParam}`);
     }
+    // Drain — the param has done its one job. `selectedPath` is the live
+    // selection from here on; the URL is not the source of truth once open.
     fp.set({ path: null, domain: null });
     // fp.set stable; keyed on the param values so a new jump re-fires but a
     // tree refetch does not. eslint-disable-next-line react-hooks/exhaustive-deps
@@ -647,8 +615,8 @@ export default function ContextPage() {
   // writing `/files?path=…` on every click flipped pathname → /files, which
   // tripped AuthenticatedLayout's pathname→foreground effect + SurfaceViewport's
   // pathnameSlug resolution, disrupting the launcher/topbar (operator-observed
-  // KVK 2026-06-12). `?path=` survives only as a COLD-LOAD deep-link (read on
-  // entry to seed selectedPath) — it is never written from intra-surface clicks.
+  // KVK 2026-06-12). `?path=` survives only as an inbound ARRIVAL param
+  // (opened + drained above) — it is never written from intra-surface clicks.
   // Path-based select — a path string, not a TreeNode. The file may not be in
   // the visible tree (e.g. a folder-Details revision row deep-links into a
   // `_`-prefixed file hidden from the explorer); syntheticNodeForPath resolves

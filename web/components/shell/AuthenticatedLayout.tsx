@@ -211,10 +211,12 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
         case 'document-list':
         case 'platform-list':
         case 'context-browser':
-          navigateToSurface('files');
-          return;
+        // `platform-detail` once delivered `{platform}`, a param the Files
+        // surface has never read — inert, but persisted forever under the
+        // pre-allowlist default. It degrades to the Files surface like its
+        // document-viewer sibling below.
         case 'platform-detail':
-          navigateToSurface('files', { platform: newSurface.platform });
+          navigateToSurface('files');
           return;
         case 'document-viewer':
           // ADR-518: the ADR-249 /docs/{id} upload-detail page is deleted
