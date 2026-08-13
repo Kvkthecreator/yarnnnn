@@ -445,7 +445,9 @@ async def materialize_radar_index(
     Idempotent; only touches its own kind (the disjointness invariant the
     recurrence materializer now also honors). Returns rows touched.
     """
-    from services.scheduling import compute_next_run_at, _parse_iso
+    from services.scheduling import (
+        compute_next_run_at, preserve_due_commitment, _parse_iso,
+    )
     from services.schedule_utils import get_user_timezone
 
     if now is None:
@@ -479,6 +481,16 @@ async def materialize_radar_index(
             logger.error("[RADAR_SCHED] %s/%s schedule resolution failed: %s",
                          user_id[:8], slug, e)
             next_run = None
+
+        # This materializer runs at the TOP of the drain tick — a stored
+        # due-but-unfired next_run_at must survive it so the due scan below
+        # can claim it (see preserve_due_commitment: without this, a
+        # never-run hub with no fire_on_activation — every ADR-567
+        # conversationally-created folder — could never fire).
+        next_run = preserve_due_commitment(
+            _parse_iso(existing_row.get("next_run_at") if existing_row else None),
+            next_run, now=now, paused=hub.paused,
+        )
 
         import json as _json
         row = {

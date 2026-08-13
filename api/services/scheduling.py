@@ -310,6 +310,40 @@ def _resolve_interval(
 # ---------------------------------------------------------------------------
 
 
+def preserve_due_commitment(
+    stored_next: Optional[datetime],
+    computed_next: Optional[datetime],
+    *,
+    now: datetime,
+    paused: bool,
+) -> Optional[datetime]:
+    """A due-but-unfired ``next_run_at`` is a COMMITMENT, never a stale value.
+
+    ``compute_next_run_at`` anchors on ``last_run_at or now``, so for a
+    recurrence that has NEVER run (and declares no ``fire_on_activation``)
+    every re-materialization recomputes from *now* — rolling an already-due
+    firing time forward past the due scan. Where the materializer runs at the
+    top of the same tick whose due scan would claim the row (the radar
+    drainer), that is not a skipped occurrence but a standing loop that can
+    never start: observed live 2026-08-13, a conversationally-created watched
+    folder (ADR-567 D3 writes no fire_on_activation) armed for 09:00 was
+    re-materialized to the next day at the 09:04 tick, permanently.
+
+    The rule: when the stored ``next_run_at`` has come due and the
+    declaration still wants to run (not paused), the materializer must KEEP
+    it, so the due scan claims it. The claim CAS then parks the row on its
+    in-flight sentinel and the post-run record re-anchors on ``last_run_at``
+    — the commitment is consumed by exactly one run, never re-preserved.
+    A paused declaration is honored over any commitment (pause wins, as it
+    does in ``compute_next_run_at``).
+    """
+    if paused:
+        return computed_next
+    if stored_next is not None and stored_next <= now:
+        return stored_next
+    return computed_next
+
+
 def compute_next_run_at(
     rec: Recurrence,
     last_run_at: Optional[datetime] = None,
@@ -482,6 +516,14 @@ async def materialize_scheduling_index(
                 user_id[:8], slug, e,
             )
             next_run = None
+
+        # A stored due-but-unfired next_run_at survives re-materialization
+        # (a Schedule edit, a fork re-sync) — the same commitment rule the
+        # radar drainer needs every tick; see preserve_due_commitment.
+        next_run = preserve_due_commitment(
+            _parse_iso(existing_row.get("next_run_at") if existing_row else None),
+            next_run, now=now, paused=rec.paused,
+        )
 
         # Persist schedule in a string-stable form. JSON-encode lists so
         # the `tasks` column stays valid text and round-trips through
@@ -779,6 +821,7 @@ def _parse_iso(value: Optional[str]) -> Optional[datetime]:
 __all__ = [
     "compute_next_run_at",
     "materialize_scheduling_index",
+    "preserve_due_commitment",
     "get_due_recurrences",
     "claim_task_run",
     "record_task_run",

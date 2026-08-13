@@ -539,6 +539,85 @@ check("openPath consults the declaration claim BEFORE the artifact gate",
       0 < op.find("resolveDeclarationApplication") < op.find("isArtifactCandidate(path)"))
 
 # ---------------------------------------------------------------------------
+# 8. materialize preserves a due-but-unfired commitment (EXECUTED)
+#
+# Falsified live 2026-08-13: materialize_radar_index runs at the TOP of the
+# drain tick and recomputed next_run_at from `now` for a never-run hub
+# (compute_next_run_at anchors on `last_run_at or now`), destroying the due
+# time before the same tick's due scan could claim it. A conversationally-
+# created hub (ADR-567 D3 — no fire_on_activation) could therefore NEVER
+# fire: the desk-e2e hub armed for 09:00 was rolled to the next day at the
+# 09:04 tick (tasks row created 08:59:29, next_run_at 2026-08-14, zero
+# execution events). The rule under test: a stored next_run_at that has come
+# due survives re-materialization; pause still wins.
+# ---------------------------------------------------------------------------
+print()
+print("8. materialize preserves a due-but-unfired commitment (executed)")
+
+from datetime import datetime, timedelta, timezone as _tz
+
+_DUE_ISO = (datetime.now(_tz.utc) - timedelta(minutes=5)).isoformat()
+
+
+class _IdxQuery:
+    def __init__(self, table, updates, stored_next):
+        self._table = table
+        self._updates = updates
+        self._stored_next = stored_next
+        self._op = None
+        self._payload = None
+
+    def select(self, *a, **k): self._op = "select"; return self
+    def update(self, payload): self._op = "update"; self._payload = payload; return self
+    def insert(self, payload): self._op = "insert"; self._payload = payload; return self
+    def delete(self, *a, **k): self._op = "delete"; return self
+    def eq(self, *a, **k): return self
+    def order(self, *a, **k): return self
+    def limit(self, *a, **k): return self
+
+    def execute(self):
+        if self._table == "tasks" and self._op == "select":
+            return SimpleNamespace(data=[{
+                "id": "row-1", "slug": hub.slug, "kind": "radar",
+                "last_run_at": None, "next_run_at": self._stored_next,
+            }])
+        if self._op in ("update", "insert"):
+            self._updates.append((self._op, self._payload))
+        return SimpleNamespace(data=[])
+
+
+class _IdxClient:
+    def __init__(self, stored_next):
+        self.updates = []
+        self._stored_next = stored_next
+
+    def table(self, name):
+        return _IdxQuery(name, self.updates, self._stored_next)
+
+
+from services.radar import materialize_radar_index
+
+_idx_client = _IdxClient(_DUE_ISO)
+asyncio.new_event_loop().run_until_complete(
+    materialize_radar_index(_idx_client, "user-1", [hub])
+)
+_writes = [p for op, p in _idx_client.updates if op == "update"]
+check("due-but-unfired next_run_at survives re-materialization",
+      len(_writes) == 1 and _writes[0].get("next_run_at") == _DUE_ISO)
+
+from services.scheduling import preserve_due_commitment as _pdc
+
+_now = datetime.now(_tz.utc)
+_due = _now - timedelta(minutes=5)
+_future = _now + timedelta(hours=1)
+check("a future stored time is NOT preserved (recompute wins)",
+      _pdc(_future, _now, now=_now, paused=False) == _now)
+check("pause wins over the commitment",
+      _pdc(_due, None, now=_now, paused=True) is None)
+check("no stored time → computed passes through",
+      _pdc(None, _future, now=_now, paused=False) == _future)
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"✗ {len(FAILURES)} check(s) failed: {FAILURES}")
