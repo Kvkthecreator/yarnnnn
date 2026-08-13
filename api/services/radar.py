@@ -620,6 +620,104 @@ def build_radar_posture(topic: str) -> str:
     return _RADAR_POSTURE.format(topic=topic)
 
 
+#: The DESK posture (ADR-567 D4) — the job overlay for a lane bound to a
+#: watched folder's report.md. This is Researcher-as-folder-manager: the
+#: member and the colleague run the folder's lifecycle in conversation, and
+#: the colleague works by writing the folder's files. Composed fresh per turn
+#: (derived-never-stored); the current state block below is what keeps the
+#: conversation honest against the substrate.
+_DESK_POSTURE_FRAME = """THE RESEARCHER'S DESK — you manage the watched folder {root} with the member.
+
+A watched folder runs a standing loop: on a schedule, its declared sources are
+fetched and you (running unaddressed) revise the folder's living report under
+its criterion. At this desk the member talks to you about that loop — setting
+it up, tuning it, and reading its output. You act by WRITING THE FOLDER'S
+FILES; the kernel reads them (the declaration is discovered within ~5 minutes
+of landing; sweeps then fire on its schedule).
+
+THE THREE FILES (all inside {root}/)
+- CRITERION.md — what matters here, in prose. The member's declaration; you
+  draft and revise it FROM what they tell you. WriteFile/EditFile, ordinary
+  markdown, no frontmatter. This governs what the sweep keeps.
+- _radar.yaml — machine config, STRICT YAML, nothing but these keys:
+    schedule: "0 21 * * *"     # UTC cron (or a list of crons)
+    paused: false
+    sources:
+      - id: short-slug         # kebab, unique per source
+        url: https://…         # RSS/Atom feed or page URL
+        max_entries: 8         # optional, 1..20
+  NO prose, NO other keys, at most 12 sources. After writing it, READ IT BACK
+  to confirm it parses as clean YAML — a malformed declaration means the
+  folder silently stops sweeping, and repairing it is YOUR job at this desk.
+- report.md — the living report. The standing sweep is its author; revise it
+  directly only when the member asks for a correction (their corrections
+  compound — the next sweep inherits the head).
+
+SETTING UP (when the state below shows no declaration yet)
+Ask what matters and where to look, in plain words. Then write CRITERION.md
+first, then _radar.yaml. Confirm what you set up: the criterion in one
+sentence, the sources, the cadence, and when the first sweep will run. If the
+member names no cadence, daily is the default. NEVER invent source URLs —
+only feeds the member names or that you know verifiably exist; when unsure,
+say so and ask.
+
+MANAGING (ongoing)
+Add/remove/tune sources, change the cadence, pause/resume (`paused: true`),
+tighten or refocus the criterion — each is an edit to the file that owns the
+fact, and every edit is attributed to this conversation. Prefer EditFile for
+small changes. When the member asks why something was or wasn't in the
+report, answer from the criterion — and offer to revise it if their intent
+has drifted from its text.
+
+THE CURRENT STATE (read fresh this turn)
+{state}"""
+
+
+def build_desk_posture(client: Any, user_id: str, report_path: str) -> str:
+    """The desk job overlay for a radar-bound lane (ADR-567 D4).
+
+    ``report_path`` is the lane's binding (``{root}/report.md``); the root is
+    derived from it. Reads the folder's three files fresh — the state block is
+    what lets the colleague answer from substrate, not memory.
+    """
+    root = report_path.rsplit("/", 1)[0]
+    decl = _read_file(client, user_id, f"{root}/{RADAR_DECLARATION_LEAF}")
+    criterion = _read_file(client, user_id, f"{root}/{CRITERION_LEAF}")
+    report = _read_file(client, user_id, report_path)
+
+    lines: list[str] = []
+    if decl and decl.strip():
+        topic = root[len(_OPERATION_PREFIX):] if root.startswith(_OPERATION_PREFIX) else root
+        parsed = parse_radar_yaml(decl, topic=topic,
+                                  declaration_path=f"{root}/{RADAR_DECLARATION_LEAF}")
+        if parsed is None:
+            lines.append(
+                "- _radar.yaml EXISTS BUT DOES NOT PARSE — the standing loop is "
+                "dark until it is repaired. Read it, fix the YAML, write it back."
+            )
+        else:
+            lines.append(f"- _radar.yaml (parses OK):\n{decl.strip()}")
+    else:
+        lines.append(
+            "- NO DECLARATION YET — this folder is not being watched. Set it up "
+            "with the member (see SETTING UP)."
+        )
+    if criterion and criterion.strip():
+        lines.append(f"- CRITERION.md:\n{criterion.strip()}")
+    else:
+        lines.append("- No CRITERION.md yet.")
+    if report and report.strip():
+        lines.append(
+            f"- report.md head: “{extract_title(report)}” "
+            f"({len(report.splitlines())} lines)."
+        )
+    else:
+        lines.append("- No report yet — the first lands after the first sweep "
+                      "with something worth saying.")
+
+    return _DESK_POSTURE_FRAME.format(root=root, state="\n".join(lines))
+
+
 def _read_file(client, user_id: str, path: str) -> Optional[str]:
     try:
         rows = (
@@ -896,6 +994,7 @@ __all__ = [
     "claim_radar_run",
     "record_radar_run",
     "build_radar_posture",
+    "build_desk_posture",
     "run_radar_sweep",
     "drain_due_radar_sweeps",
 ]

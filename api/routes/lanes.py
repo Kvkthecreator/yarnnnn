@@ -235,6 +235,8 @@ def _lane_row_to_dict(row: dict) -> dict:
         "pinned": bool(lane_meta.get("pinned")),
         # ADR-440 D3 — the Studio binding (None for plain chat lanes).
         "artifact_path": lane_meta.get("artifact_path"),
+        # ADR-567 D4 — the binding app (None for plain chat + pre-567 lanes).
+        "app": lane_meta.get("app"),
         # ADR-450 D3 — the derive binding (None for plain chat lanes).
         "derive_recipe": lane_meta.get("derive_recipe"),
         "derive_source": lane_meta.get("derive_source"),
@@ -588,6 +590,14 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # who replies comes from the cast.
     if agent_slug:
         lane_meta["agent"] = agent_slug
+    # ADR-567 D4 — a bound lane carries its BINDING APP. The runner keys the
+    # job overlay on it (radar → the desk posture, not Studio's): the agent
+    # slug cannot name the app (Docs and Studio share designer), and radar's
+    # artifact is plain markdown, so the document-derived resolution
+    # (data-template) has nothing to read. Selects the JOB only — the resident
+    # was resolved above, the engine rides the resident.
+    if app_slug and is_bound:
+        lane_meta["app"] = app_slug
     artifact_path = artifact_path_req  # parsed once, above (the cap exempts it)
     if artifact_path:
         lane_meta["artifact_path"] = artifact_path
@@ -1113,8 +1123,11 @@ def _turn_stream_response(
                 history=history,
                 user_message=model_message if model_message is not None else content,
                 member_label=getattr(auth, "email", None) or None,
-                # ADR-440 D3 — a bound lane's turns carry the Studio posture.
+                # ADR-440 D3 — a bound lane's turns carry the Studio posture;
+                # ADR-567 D4 — unless its binding app declares another job
+                # (radar → the desk posture).
                 artifact_path=lane_meta.get("artifact_path"),
+                app=lane_meta.get("app"),
                 # ADR-450 D3 — a derive-bound lane's turns carry the recipe.
                 derive_recipe=lane_meta.get("derive_recipe"),
                 derive_source=lane_meta.get("derive_source"),

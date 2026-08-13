@@ -474,6 +474,7 @@ def build_lane_conventions(
     derive_source: Optional[str] = None,
     agent: Optional[str] = None,
     focus: Optional[dict] = None,
+    app: Optional[str] = None,
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -579,7 +580,17 @@ def build_lane_conventions(
             _app = app_for_layout(extract_template(artifact))
             _as_name = (resolve_app(_app) or {}).get("name") or ""
         posture_section += build_agent_posture(agent, _mine, _skills, as_name=_as_name)
-    if artifact_path:
+    if artifact_path and app == "radar":
+        # ADR-567 D4 — the DESK posture: a radar lane is bound to the watched
+        # folder's report.md, and its JOB is folder management (author/revise
+        # CRITERION.md + _radar.yaml, tend the report), not Studio authoring.
+        # The binding app is a LANE fact here: the artifact is plain markdown,
+        # so the document-derived app resolution (data-template) has nothing
+        # to read, and the agent slug cannot name the app (Docs and Studio
+        # share designer). Selects the JOB overlay only — never the resident.
+        from services.radar import build_desk_posture
+        posture_section += "\n" + build_desk_posture(client, user_id, artifact_path) + "\n"
+    elif artifact_path:
         from services.authoring import build_studio_posture
         # `artifact` was read once at the top of the frame (shared with ADR-562 D6's
         # app-name resolution) — still the CURRENT head, still derived-never-stored.
@@ -697,6 +708,9 @@ async def run_lane_turn(
     # a lane turn; per-phase evaluation, pre-rooms baseline recorded). For
     # rooms, session_id is the conversation id.
     ledger_slug: str = "lane",
+    # ADR-567 D4 — the lane's binding app (lane_meta["app"]), selecting the
+    # JOB overlay only (radar → the desk posture). None → byte-identical.
+    app: Optional[str] = None,
 ) -> dict:
     """Run one lane turn: bounded tool loop over the router.
 
@@ -741,6 +755,7 @@ async def run_lane_turn(
         derive_recipe=derive_recipe, derive_source=derive_source,
         agent=agent,
         focus=focus,
+        app=app,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
@@ -889,6 +904,8 @@ async def run_lane_turn_stream(
     session_id: Optional[str] = None,
     # ADR-492 — the metering slug; see ``run_lane_turn``.
     ledger_slug: str = "lane",
+    # ADR-567 D4 — the lane's binding app; see ``run_lane_turn``.
+    app: Optional[str] = None,
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -944,6 +961,7 @@ async def run_lane_turn_stream(
         derive_recipe=derive_recipe, derive_source=derive_source,
         agent=agent,
         focus=focus,
+        app=app,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
