@@ -26,7 +26,7 @@ def _check(label: str, cond: bool, detail: str = "") -> None:
 
 def run() -> bool:
     # ── 1. The program module ────────────────────────────────────────────
-    import services.docs  # noqa: F401 — registers the document row (ADR-518 D3)
+    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518 D3)
     from services.authoring import (
         STUDIO_ARTIFACT_REGION,
         STUDIO_LANE_MAX_TOKENS,

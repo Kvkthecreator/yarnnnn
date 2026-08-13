@@ -95,25 +95,33 @@ export function AgentsSurface() {
     void load();
   }, [load]);
 
-  // §6.10c — start a chat with this colleague. Same door the picker uses:
-  // send WHO, the engine resolves server-side (ADR-460 D4). Then hand off to
-  // /chat foregrounded on the new lane — `chat.lane` is window-namespaced by
-  // navigateToSurface (ADR-358 D6), so this is one window flip, not a route
-  // change out of the OS shell.
+  // §6.10c — start a chat with this colleague.
+  //
+  // ⚠️ KNOWN BROKEN, PRE-EXISTING — dead since ADR-558 (`af5339f`), surfaced by
+  // ADR-562's build. This sent `api.lanes.create({ agent: slug })`: an UNBOUND
+  // lane naming a colleague, which is exactly what ADR-558 D3 refuses with a
+  // 422 ("a chat conversation is created with an engine, not a colleague").
+  // Every click has failed since that ADR landed; the surface rendered the 422
+  // into `startError`, so the failure was visible but never diagnosed.
+  //
+  // NOT FIXED HERE, deliberately (operator's call, 2026-08-13): a real fix must
+  // choose between resolving the engine server-side from the colleague and
+  // having the client name one — and the client is deliberately NOT served
+  // `model` (ADR-460 D4: the chooser never asks an engine question), while
+  // ADR-467 D2 forbids inventing a default. That is an ADR-558/467 decision,
+  // not a drive-by repair inside an app-config re-home.
+  //
+  // Until then the door says so honestly rather than throwing a 422 at a member
+  // who did nothing wrong. The route in: open /chat, pick an engine, then add
+  // this colleague to the cast (ADR-495) — which works today.
   const startChat = useCallback(
-    async (slug: string) => {
-      setStarting(true);
-      setStartError(null);
-      try {
-        const lane = await api.lanes.create({ agent: slug });
-        navigateToSurface('chat', { lane: lane.id });
-      } catch (e) {
-        setStartError(e instanceof Error ? e.message : 'Could not start this chat');
-      } finally {
-        setStarting(false);
-      }
+    (_slug: string) => {
+      setStartError(
+        'Starting a chat from here is unavailable. Open Chat, pick an engine, ' +
+          'then add this colleague to the conversation.',
+      );
     },
-    [navigateToSurface],
+    [],
   );
 
   const mine = useMemo(() => (agents ?? []).filter((a) => a.kernel === false), [agents]);

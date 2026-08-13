@@ -2150,6 +2150,97 @@ def app_for_layout(slug: str | None) -> str | None:
     return row.get("app") if row else None
 
 
+# ---------------------------------------------------------------------------
+# The app registry — an app's AI configuration, declared where the app lives
+# (ADR-562 D1/D2)
+# ---------------------------------------------------------------------------
+#
+# WHY THIS EXISTS. `register_layouts` already made the ratified ruling: an app
+# declares what it owns, the kernel resolves through one door, and the kernel
+# never imports an app. But the app's *AI* facts — WHO its bound lane talks to
+# — lived somewhere else entirely: `web/lib/apps/authoring.ts`, in TypeScript,
+# on the client. Two consequences, both structural:
+#
+#   1. Residency was CLIENT-ASSERTED. `StudioSurface` sent `agent: 'designer'`
+#      over the wire and `create_lane` believed it. An app's resident is a fact
+#      ABOUT THE APP, not a preference the browser gets to state — and the
+#      client could not even read it back, so the panel rendered the ENGINE
+#      ("Claude Sonnet") where a resident had been deliberately pinned.
+#   2. There was no home for app N. Authoring residents sat in TS; radar's sat
+#      hardcoded in `services/radar.py`. A fourth app had nowhere obvious to go,
+#      and nothing held the two declarations to one story.
+#
+# So the app's AI config joins the app's other declarations, through the SAME
+# door: `services/apps/{slug}/` registers its layouts AND its resident, and the
+# kernel resolves `app → resident` server-side. This is not a new mechanism —
+# it is `register_layouts` applied to the fact that was left behind.
+#
+# ⚠️ WHY THIS IS KERNEL CODE AND NOT A MEMBER FOLDER. ADR-464's ruling holds
+# verbatim: "the member's copy is a folder; the kernel's is code." A member's
+# agent is `agents/{slug}/_agent.yaml` in the workspace — theirs to author. An
+# APP is kernel, so its resident is a code declaration. If an app's resident
+# were member-editable substrate, a workspace could re-point Docs' colleague,
+# which is the ADR-460 D3.a cliff arriving through a config file. Same
+# CONVENTION (a declared folder, a manifest, prose instructions), different
+# TREE — and that difference is the cliff.
+#
+# The D3.a cliff holds here too: an app row carries IDENTITY (who) and nothing
+# else. No authority field, no tool grant. An app pins a colleague; it cannot
+# widen one.
+
+_APP_REGISTRY: dict[str, dict] = {}
+
+
+def register_app(slug: str, *, resident: str, name: str | None = None) -> None:
+    """Declare an app's AI configuration (ADR-562 D2). Idempotent, slug-keyed.
+
+    ``resident`` is the kernel agent slug this app's bound lane carries — the
+    ADR-467 D1 ruling, re-homed from the frontend to the app's own module.
+    ``name`` optionally overrides the DISPLAYED colleague name for this app,
+    so Docs may present "Writer" over the same resident without minting an
+    agent (the per-app naming ADR-467 D3 deferred as demand-gated).
+
+    FIRST REGISTRATION WINS, matching `register_layouts` — a second claim on a
+    live slug is a programming error, but silently keeping the incumbent beats
+    crashing an import chain at boot. The gate asserts one declaration per app,
+    which is where a collision is actually caught.
+    """
+    if slug in _APP_REGISTRY:
+        return
+    _APP_REGISTRY[slug] = {
+        "slug": slug,
+        "resident": resident,
+        # `name` is the app's own label for its resident; absent → the agent's
+        # own name is used (resolved at read time, so a registry rename follows).
+        "name": (name or "").strip(),
+    }
+
+
+def resolve_app(slug: str | None) -> dict | None:
+    """An app's registration, or None if the app declared none. Pure."""
+    if not slug:
+        return None
+    return _APP_REGISTRY.get(slug)
+
+
+def resident_for_app(slug: str | None) -> str | None:
+    """The kernel agent slug an app's bound lane carries. None if unregistered.
+
+    ⚠️ Returns None rather than a fallback. A missing registration is a
+    programming error (the app forgot to declare), and a plausible default is
+    worse than an honest absence — the ADR-548 lesson: a fallback degrading to
+    a PLAUSIBLE value hides the bug it should surface. The caller decides what
+    an unregistered app means; here it means "not declared".
+    """
+    row = resolve_app(slug)
+    return row.get("resident") if row else None
+
+
+def all_apps() -> dict[str, dict]:
+    """Every registered app (the gate + the FE payload read this)."""
+    return dict(_APP_REGISTRY)
+
+
 def all_layouts() -> dict[str, dict]:
     """Every registered layout across apps (the vocabulary surface reads this).
 
@@ -2164,8 +2255,28 @@ def resolve_arrangements(slug: str) -> dict:
     return _ARRANGEMENT_REGISTRY.get(canonical_layout_slug(slug), {})
 
 
-# Studio registers its document types with the shared resolver (ADR-472 D2).
+# Studio registers its document types with the shared resolver (ADR-472 D2)
+# and its AI configuration with the app registry (ADR-562 D2). Both are the
+# same act: the app declares what it owns, through one door.
+#
+# ⚠️ WHY STUDIO'S TABLES LIVE HERE AND DOCS'/IMAGES' DO NOT (ADR-562 §4).
+# The other two apps are modules under `services/apps/`. Studio's stayed, and
+# that asymmetry is DELIBERATE — measured, not inherited:
+#
+#   - `STUDIO_BLOCKS` is NOT Studio's. `blocks_for_app()` filters it for EVERY
+#     app and `MEDIA_BLOCK_KINDS` derives from it. It is the shared component
+#     vocabulary wearing a historical name (ADR-443 R4).
+#   - Kernel code reads `STUDIO_LAYOUTS` directly (`document_types()`), and the
+#     tables are wrapped in the ADR-447/ADR-544 grammar canon that documents
+#     what the SHARED machinery implements.
+#
+# Extracting them would either fork that canon or make the kernel import an
+# app — the exact dependency `register_layouts` exists to prevent. **This file
+# is the authoring KERNEL, misnamed for the app that arrived first.** Studio's
+# home being here costs nothing: it declares through the same door as the
+# others, and the DOOR is what makes app config uniform, never the file path.
 register_layouts(STUDIO_LAYOUTS, STUDIO_ARRANGEMENTS)
+register_app("studio", resident="designer")
 
 
 def build_skeleton(layout: str, title: str | None = None) -> str:

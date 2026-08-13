@@ -26,7 +26,7 @@ def _check(label: str, cond: bool) -> None:
 
 def run() -> bool:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from services import images as im
+    from services.apps import images as im
     from services.authoring import (
         MEASURE_GRAINS,
         STUDIO_LAYOUTS,

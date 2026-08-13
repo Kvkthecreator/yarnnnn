@@ -84,12 +84,24 @@ def _create(**kw):
 
 print("1. D1/D3 — a CHAT lane is created with an engine, never a persona")
 
-kind, status, detail = _create(agent="critic")
-check("agent WITHOUT a binding is refused", kind == "http" and status == 422,
+# ADR-562 D3: the client names the APP, never the colleague — so the D3 rule is
+# now driven through `app=`. (`agent=` is gone from the request model entirely;
+# asserting on it here would pass for the WRONG reason — Pydantic refusing an
+# unknown field, not this rule refusing a persona at the chat door.)
+kind, status, detail = _create(app="studio")
+check("a residency WITHOUT a binding is refused", kind == "http" and status == 422,
       f"got {kind}/{status}")
 check("...and the refusal says why (engine, not colleague)",
       bool(detail) and "engine" in detail.lower() and "cast" in detail.lower(),
       f"detail={detail!r}")
+
+# The removal itself, asserted as BEHAVIOUR: a client that still sends `agent`
+# must not quietly get a lane. Pydantic's default would IGNORE an unknown field,
+# which would let a stale client keep asserting identity and be silently obeyed
+# by nothing — the failure mode ADR-562 exists to end.
+check("the request model no longer carries `agent` (identity is server-derived)",
+      "agent" not in L.CreateLaneRequest.model_fields,
+      f"fields={sorted(L.CreateLaneRequest.model_fields)}")
 
 kind, status, detail = _create()
 check("no engine at all is refused", kind == "http" and status == 422, f"got {kind}/{status}")

@@ -41,7 +41,7 @@ def _read(rel: str) -> str:
 
 def run() -> bool:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import services.images  # noqa: F401 — registration side-effect
+    import services.apps.images  # noqa: F401 — registration side-effect
     import routes.studio as rs
     from services.authoring import (
         STUDIO_LAYOUTS,

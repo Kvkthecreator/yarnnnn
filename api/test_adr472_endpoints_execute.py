@@ -75,7 +75,7 @@ def run() -> bool:
     )
     _check(
         "the IMAGES registration import is present (else the stage 404s at create)",
-        "import services.images" in src,
+        "import services.apps.images" in src,
     )
 
     ok = all(c for _, c in _results)

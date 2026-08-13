@@ -29,7 +29,6 @@ import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, PanelRight, Plus, Upload } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
-import { residentFor } from '@/lib/apps/authoring';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
@@ -167,11 +166,23 @@ interface LaneInfo {
   id: string;
   name: string;
   model: string;
+  /** ADR-562 D5 — the resident this lane carries. The panel names the
+   *  COLLEAGUE; the engine is a fact behind the name (ADR-460 D4). */
+  agent?: string | null;
   artifact_path?: string | null;
   /** ADR-450/452 — the derive binding (a "Learn from" lane). */
   derive_recipe?: string | null;
   derive_source?: string | null;
   status: string;
+}
+
+/** The named colleagues the API serves (ADR-460 D4) — slug → display name.
+ *  Studio DISCARDED this array until ADR-562: it created a lane pinning a
+ *  resident, then rendered the engine label because it never read the roster
+ *  back. The join is the whole fix. */
+interface AgentInfo {
+  slug: string;
+  name: string;
 }
 
 interface TemplateInfo {
@@ -368,6 +379,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
   const [models, setModels] = useState<Array<{ id: string; label: string }>>([]);
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [lanes, setLanes] = useState<LaneInfo[]>([]);
   const [laneError, setLaneError] = useState<string | null>(null);
 
@@ -377,6 +389,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const res = await api.lanes.list(true);
       setLanesEnabled(res.enabled);
       setModels(res.models);
+      // ADR-562 D5 — keep the roster. Dropping it here is what made the panel
+      // say "Claude Sonnet is working…" in a lane whose resident is Designer.
+      setAgents((res.agents ?? []) as AgentInfo[]);
       setLanes(res.lanes as LaneInfo[]);
     } catch {
       setLanesEnabled(false);
@@ -414,12 +429,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     api.lanes
       .create({
         name: baseName(artifactPath),
-        // ADR-467 D1 — THIS app's declared RESIDENT, read from the
-        // authoring-app registration rather than a string literal (ADR-518:
-        // three apps share this surface, so the lookup keys on the app).
-        // The lane stays the mind (ADR-440 D3); residency is the creation-time
-        // default made legible, and a settle from here attributes to a person.
-        agent: residentFor(app.slug),
+        // ADR-562 D3 — the surface names WHICH APP is asking; the RESIDENT is
+        // resolved server-side from that app's own declaration
+        // (`services/apps/*`). The client no longer holds the colleague fact —
+        // it held it before and never read it back, so the panel rendered the
+        // engine where a resident had been pinned.
+        app: app.slug,
         artifact_path: artifactPath,
       })
       .then(() => refreshLanes())
@@ -725,6 +740,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     () => models.find((m) => m.id === boundLane?.model)?.label ?? boundLane?.model ?? '',
     [models, boundLane],
   );
+
+  // ADR-562 D5 — WHO this lane is, for the member to read. The resident's name
+  // ("Designer"), falling back to the engine label only when there is no
+  // colleague to name (a pre-registry lane). The SAME chain ChatSurface has
+  // always run; this surface simply never ran it, so a pinned resident was
+  // invisible and the member read the engine instead.
+  //
+  // The engine is not hidden — it stays legible as the lane's own fact
+  // (`modelLabel`, still shown beside the artifact). The rule is ADR-460 D4's:
+  // identity leads, the technical fact rides behind it.
+  const laneLabel = useMemo(() => {
+    const slug = boundLane?.agent;
+    if (slug) {
+      const named = agents.find((a) => a.slug === slug)?.name;
+      if (named) return named;
+    }
+    return modelLabel;
+  }, [agents, boundLane, modelLabel]);
 
   // ── The served kernel vocabulary (ADR-443 R4 + ADR-444 + ADR-447): blocks +
   // arrangements — the toolbar EXECUTES from it, the posture teaches from the
@@ -3761,6 +3794,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 laneId={boundLane.id}
                 laneName={boundLane.name}
                 modelLabel={modelLabel}
+                // ADR-562 D5 — the member reads WHO ("Designer"), not the
+                // engine. This surface created a lane pinning a resident and
+                // then rendered `modelLabel`, so the pin was invisible.
+                speakerLabel={laneLabel}
                 onArtifactWrite={onArtifactWrite}
                 composerSeed={seed}
                 // ADR-443: the canvas (center) IS the artifact view — suppress
@@ -4188,8 +4225,9 @@ function StudioStart({
       await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
         // A canvas target IS an authoring lane (it carries `artifact_path`), so
-        // it gets THIS app's declared resident (ADR-467 D1 via ADR-518).
-        agent: residentFor(app.slug),
+        // it gets THIS app's declared resident — resolved server-side from the
+        // app's own module (ADR-562 D3, re-homing ADR-467 D1).
+        app: app.slug,
         artifact_path: res.path,
         derive_recipe: target.recipe,
         derive_source: source.path,
@@ -4199,10 +4237,10 @@ function StudioStart({
     } else {
       const lane = await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
-        // The design-system target has NO canvas — it lands in /chat as an
-        // ordinary conversation, so it gets an ordinary colleague. Scout is the
-        // fast reader, which is what "learn from this source" asks for.
-        agent: 'scout',
+        // No canvas — it lands in /chat as an ordinary conversation. The
+        // colleague comes from the RECIPE's own declaration (ADR-562 D4); the
+        // `agent: 'scout'` literal that lived here was the same client-asserted
+        // identity the app registry removed, surviving one rung down.
         derive_recipe: target.recipe,
         derive_source: source.path,
       });
@@ -4223,7 +4261,7 @@ function StudioStart({
   const deriveNewSystem = async (source: { path: string; name: string }) => {
     const lane = await api.lanes.create({
       name: `Design system: ${source.name}`.slice(0, 60),
-      agent: 'scout',
+      // The colleague is the recipe's, declared server-side (ADR-562 D4).
       derive_recipe: 'design-system',
       derive_source: source.path,
     });

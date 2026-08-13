@@ -155,7 +155,19 @@ export interface LaneMountSlots {
 interface LanePanelProps extends LaneMountSlots {
   laneId: string;
   laneName: string;
+  /** The ENGINE's label ("Claude Sonnet"). Used where the fact is genuinely
+   *  about the engine — chiefly the vision refusal, which is a capability of
+   *  the model and not of the colleague wearing it. */
   modelLabel: string;
+  /** ADR-562 D5 — WHO is working, for the member to read: the resident's name
+   *  ("Designer") when the lane carries one, else the engine label.
+   *
+   *  A SEPARATE prop rather than a re-pointed `modelLabel`, because the two
+   *  facts diverge: "Designer is working…" is right, but "Designer cannot see
+   *  images" is wrong — vision is the ENGINE's limit, and collapsing them
+   *  would make a colleague answer for a model's capability. Defaults to
+   *  `modelLabel`, so a caller that has no colleague reads exactly as before. */
+  speakerLabel?: string;
   /** Another human is in this conversation's cast — so their turns arrive
    *  out-of-band (they don't ride the viewer's stream) and the transcript must
    *  refresh on an interval.
@@ -193,6 +205,7 @@ export function LanePanel({
   laneId,
   laneName,
   modelLabel,
+  speakerLabel,
   hasOtherHumans = false,
   viewerId = null,
   principalLabels,
@@ -206,6 +219,9 @@ export function LanePanel({
   citePaths,
   onCiteConsumed,
 }: LanePanelProps) {
+  // ADR-562 D5 — who the member reads as working. Falls back to the engine
+  // label, so a mount with no colleague renders byte-identically to pre-562.
+  const speaker = speakerLabel || modelLabel;
   const [messages, setMessages] = useState<LaneMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -653,7 +669,12 @@ export function LanePanel({
           <div className="py-6 px-4 space-y-3">
             {emptyState ?? (
               <div className="text-xs text-muted-foreground text-center space-y-1">
-                <p className="font-medium text-foreground/80">{laneName} · {modelLabel}</p>
+                {/* The colleague names the conversation; the ATTRIBUTION line
+                    below stays on the engine — "you via {model}" is the ledger
+                    fact (ADR-460 D2: the face is an Agent, the fact is your
+                    hands), and a name must never be shown where a receipt is
+                    meant. */}
+                <p className="font-medium text-foreground/80">{laneName} · {speaker}</p>
                 <p>
                   This conversation is private to this lane. The work it produces
                   lands in the shared workspace files, attributed to you via{' '}
@@ -767,8 +788,8 @@ export function LanePanel({
                       <span className="flex items-center gap-2 text-muted-foreground">
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         {(m.tools_called && m.tools_called.length > 0)
-                          ? `${modelLabel} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
-                          : `${modelLabel} is working…`}
+                          ? `${speaker} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
+                          : `${speaker} is working…`}
                       </span>
                     ) : m.role === 'assistant' ? (
                       // 2026-07-09: the lane's reply is markdown, like every

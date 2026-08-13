@@ -454,11 +454,13 @@ export const api = {
     create: (data: {
       /** Optional since Phase A — a nameless lane auto-names on first turn. */
       name?: string;
-      /** ADR-460 D4 — WHO to talk to (a kernel Agent slug). The engine
-       *  resolves server-side. Pass this OR `model`, not both. */
-      agent?: string;
-      /** The engine directly — Studio/derive lanes bind one and never pick a
-       *  character (a bound lane's job is the artifact, not the colleague). */
+      /** ADR-562 D3 — WHICH APP is creating this bound lane (`studio` |
+       *  `docs` | `images`). The RESIDENT is resolved server-side from the
+       *  app's own declaration (`services/apps/*`); the client never names a
+       *  colleague. Bound lanes only — passing it unbound is a 422 (ADR-558). */
+      app?: string;
+      /** The engine directly — a chat lane binds one and never picks a
+       *  character (who replies is the cast's answer, ADR-495). */
       model?: string;
       artifact_path?: string;
       /** ADR-450 D3 — the derive binding (pass both or neither). */

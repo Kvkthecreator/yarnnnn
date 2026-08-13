@@ -48,7 +48,7 @@ def run() -> bool:
     nav = (web / "components/authoring/PagedNavigator.tsx").read_text()
     toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
 
-    import services.docs  # noqa: F401, E402 — registers the document row (ADR-518)
+    import services.apps.docs  # noqa: F401, E402 — registers the document row (ADR-518)
     from services.authoring import (  # noqa: E402
         STUDIO_ARRANGEMENTS,
         STUDIO_LAYOUTS,

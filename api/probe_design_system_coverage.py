@@ -50,8 +50,8 @@ def _kernel_consumed_vars() -> set[str]:
     # ADR-518: layouts live per app (Docs' document · Studio's deck/web ·
     # IMAGES' stage) — sweep the REGISTRY, not one app's table, so every
     # registered skin is measured. The imports register the other apps.
-    import services.docs  # noqa: F401  (registration side-effect)
-    import services.images  # noqa: F401  (registration side-effect)
+    import services.apps.docs  # noqa: F401  (registration side-effect)
+    import services.apps.images  # noqa: F401  (registration side-effect)
 
     blobs = [studio.STUDIO_KERNEL_CSS, studio._SHARED_CSS]
     blobs += [lay.get("skin", "") for lay in studio.all_layouts().values()]

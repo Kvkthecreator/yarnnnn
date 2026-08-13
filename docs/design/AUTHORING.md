@@ -340,9 +340,15 @@ medium's, and flow no longer reaches them.
 ## Vocabulary, templates, skins (the kernel registries — `services/authoring.py`)
 
 > Per-app layout tables register into these shared registries (ADR-472 D2 via ADR-518 D3):
-> `services/docs.py` carries `document`; `services/authoring.py` carries `deck` · `web`;
-> `services/images/stage.py` carries `image`. The app boundary is the module; the
+> `services/apps/docs.py` carries `document`; `services/authoring.py` carries `deck` · `web`;
+> `services/apps/images/stage.py` carries `image`. The app boundary is the module; the
 > machinery below is one implementation, three consumers.
+>
+> **An app declares its AI configuration through the same door** (ADR-562): beside
+> `register_layouts`, each app calls `register_app(slug, resident=…)` — the colleague
+> its bound lane carries, resolved SERVER-side by `create_lane`. Studio's tables stay in
+> `services/authoring.py` because that file is the authoring **kernel** (its
+> `STUDIO_BLOCKS` is filtered for every app), misnamed for the app that arrived first.
 
 - **Block vocabulary**: 16 kinds (prose · heading · callout · quote · **list · numbered** ·
   checklist · divider · toggle · button · metrics · **component** | table · chart |

@@ -26,11 +26,25 @@ from __future__ import annotations
 from typing import Optional
 
 #: The registry (ADR-450 D2). slug → {label, description, accepts, target,
-#: instructions}. v1 sources are workspace files ("file"); repo/webpage legs
-#: arrive as data + intake writers, not new mechanisms (D4).
+#: instructions, resident}. v1 sources are workspace files ("file"); repo/webpage
+#: legs arrive as data + intake writers, not new mechanisms (D4).
+#:
+#: `resident` (ADR-562 D4) — the colleague a lane carrying THIS recipe talks to.
+#: Same rule as an app's residency, one rung down: **the declaration owns its
+#: colleague; the client never names one.** Before ADR-562 the two "Learn from"
+#: call sites in `StudioSurface.tsx` passed `agent: 'scout'` as a literal — the
+#: same client-asserted identity the app registry just removed, surviving where
+#: nobody looked (the `models[0]` smell's third instance).
+#:
+#: An UNBOUND derive lane (no canvas — it lands in /chat) is where this matters:
+#: it has no app, so an app's resident cannot answer for it. Absent → the lane
+#: carries no colleague and the cast answers (ADR-495), which is the correct
+#: default for anything not deliberately postured.
 DERIVE_RECIPES: dict[str, dict] = {
     "context-brief": {
         "label": "Context brief",
+        # The fast reader: "learn from this source" is an ACQUIRE operation.
+        "resident": "scout",
         "description": "A reusable understanding of the source — what it is, what matters, what's open.",
         "accepts": ["file"],
         "target": "One markdown brief in a meaning-folder, citing the source.",
@@ -57,6 +71,9 @@ of its content ("section 2 discusses…"); vague abstraction with no facts.""",
     },
     "design-system": {
         "label": "Design system",
+        # Also the fast reader — deriving a system from a source is reading it
+        # closely, not authoring a new artifact.
+        "resident": "scout",
         "description": "A design-system folder (tokens-first CSS + manifest) Studio artifacts can wear.",
         "accepts": ["file"],
         "target": "A meaning-folder satisfying the ADR-449 contract: _design.yaml (name + ordered css) + the css files it lists.",
@@ -183,6 +200,18 @@ def list_recipes() -> list[dict]:
 
 def get_recipe(slug: str) -> Optional[dict]:
     return DERIVE_RECIPES.get((slug or "").strip())
+
+
+def resident_for_recipe(slug: str) -> Optional[str]:
+    """The colleague a lane carrying this recipe talks to (ADR-562 D4), or None.
+
+    None is a real answer, not a gap: `deck` and `prd` produce a CANVAS, so
+    their lane is an app's and the APP's resident answers (`resident_for_app`).
+    Only the canvas-less recipes — the ones that land in /chat — declare their
+    own, because nothing else can speak for them.
+    """
+    r = get_recipe(slug)
+    return (r or {}).get("resident") or None
 
 
 def build_derive_section(

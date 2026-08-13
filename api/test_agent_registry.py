@@ -36,6 +36,14 @@ from services.agents_registry import (  # noqa: E402
 )
 from services.lane_runner import LANE_MODELS  # noqa: E402
 
+# ADR-562 — the app registry: an app declares its resident in its own module.
+# Importing the package IS the registration (services/apps/__init__.py).
+import services.apps  # noqa: E402,F401  (registration side-effect)
+from services.authoring import (  # noqa: E402
+    all_apps as _all_apps,
+    resident_for_app as _resident_for_app,
+)
+
 _results: list[tuple[str, bool]] = []
 
 
@@ -287,21 +295,22 @@ def run() -> bool:
         l for l in _src.splitlines()
         if not l.lstrip().startswith(("//", "*", "/*"))
     )
-    # ADR-467 D1 — the pin is a DECLARED residency, not a string literal: the
-    # create sites consume `AUTHORING_APPS.studio.resident`, and the
-    # declaration itself (web/lib/apps/authoring.ts) names designer.
+    # ADR-562 D3 — the residency fact moved SERVER-SIDE. The surface names which
+    # APP is asking; it never holds a colleague slug (it held one before and
+    # never read it back, so the pin was invisible to the member).
     _check(
-        "StudioSurface consumes the declared residency (AUTHORING_APPS.studio.resident)",
-        "agent: AUTHORING_APPS.studio.resident" in _code
-        and "agent: 'designer'" not in _code,
+        "StudioSurface names the APP, never a colleague (ADR-562 D3)",
+        "app: app.slug" in _code
+        and "agent: 'designer'" not in _code
+        and "residentFor(" not in _code,
     )
-    _authoring = (
-        Path(__file__).parent.parent / "web" / "lib" / "apps" / "authoring.ts"
-    )
-    _authoring_src = _authoring.read_text() if _authoring.exists() else ""
     _check(
-        "…and the residency declaration names designer (ADR-467 D1)",
-        "studio: { id: 'studio', resident: 'designer' }" in _authoring_src,
+        "…and the retired FRONTEND residency table is deleted (no dual home)",
+        not (Path(__file__).parent.parent / "web" / "lib" / "apps" / "authoring.ts").exists(),
+    )
+    _check(
+        "…and the declaration it carried now lives in the app's own module",
+        _resident_for_app("studio") == "designer",
     )
     _check(
         "…and no longer binds an engine by array index (`models[0].id`)",
@@ -527,15 +536,34 @@ def run() -> bool:
         "`models` STAYS (every model is still routable — Studio/derive bind directly)",
         '"models": [' in routes,
     )
-    _check("create accepts an agent slug", "agent_slug = (req.agent or \"\").strip()" in routes)
-    _check("an unknown slug is a 422", 'detail=f"Unknown agent: {agent_slug}"' in routes)
+    # ADR-562 D3 — create takes the APP and DERIVES the colleague. The client
+    # never names one, so there is no `req.agent` to read.
+    # Scoped to create_lane's OWN body: `req.agent_slug` is the ADR-495 cast-join
+    # endpoint's field and is correct — a bare substring test over the whole
+    # module reads that neighbour as a violation.
+    _create_body = routes[routes.index("async def create_lane("):]
+    _create_body = _create_body[: _create_body.index("\n@router.")]
+    _check(
+        "create takes the APP, not a colleague",
+        "app_slug = (req.app or \"\").strip()" in _create_body
+        and "req.agent" not in _create_body,
+    )
+    _check(
+        "…and resolves the resident from the app's own declaration",
+        "resident_for_app(app_slug)" in routes,
+    )
+    _check("an unknown app is a 422", 'detail=(\n                    f"Unknown app: {app_slug}' in routes)
     _check(
         "the slug lands on the lane BESIDE the model (the face + the fact)",
         'lane_meta["agent"] = agent_slug' in routes,
     )
+    # The turn's responder comes from the CAST (ADR-495), with the lane's own
+    # resident as the fallback — `agent=responder`. Pinning the pre-495 spelling
+    # (`agent=lane_meta.get("agent")`) read a narrowing as a violation.
     _check(
-        "the turn passes the agent through (else the posture never composes)",
-        'agent=lane_meta.get("agent")' in routes,
+        "the turn passes a responder through (else the posture never composes)",
+        "agent=responder," in routes
+        and 'responder = cast_agents[0] if cast_agents else lane_meta.get("agent")' in routes,
     )
     _check(
         "the model stays authoritative on the lane (a registry edit can't rewrite history)",
@@ -855,13 +883,19 @@ def run() -> bool:
     agents_surface = (web / "components" / "agents" / "AgentsSurface.tsx").read_text()
 
     # §6.10a — the conversation header leads with WHO.
+    # The header was EXTRACTED to its own component (ADR-558, `af5339f`); these
+    # assertions followed the behaviour rather than the file. Pinning
+    # `{activeAgent.name}` in ChatSurface.tsx read a REFACTOR as a regression —
+    # the name is computed here (`laneLabel`) and rendered there (`{title}`), so
+    # the gate walks both halves of the seam.
+    _header = (web / "components" / "chat-surface" / "ConversationHeader.tsx").read_text()
     _check(
         "the conversation header names the COLLEAGUE, not just the engine",
-        "activeAgent" in chat and "{activeAgent.name}" in chat,
+        "title={laneLabel(activeLane)}" in chat and "{title}" in _header,
     )
     _check(
         "…using the SAME sub-label rule as the list row (one rule, both places)",
-        "laneSubLabel(activeLane)" in chat,
+        "subtitle={laneSubLabel(activeLane)}" in chat and "{subtitle}" in _header,
     )
     _check(
         "…and the engine is still VISIBLE for agent-less lanes (never deleted)",
@@ -876,18 +910,41 @@ def run() -> bool:
         )
 
     # §6.10c — the bridge, both directions.
+    #
+    # ⚠️ THIS ASSERTION USED TO PIN A DEAD CALL. It required
+    # `api.lanes.create({ agent: slug })`, which ADR-558 D3 made a guaranteed
+    # 422 (an unbound lane may not name a colleague) — so the gate was GREEN
+    # over a door that had not opened since `af5339f`. A gate pinning a call's
+    # SPELLING cannot see that the call fails; only its behaviour can.
+    #
+    # The door is disabled pending an ADR-558/467 decision (the client is not
+    # served `model`, and no default engine may be invented), so what is pinned
+    # now is the HONEST state: it must not silently 422, and it must tell the
+    # member the route that works. Restore a behavioural assertion here when the
+    # door is rebuilt.
+    # Comments stripped: the explanatory comment above NAMES the dead call, and
+    # a raw substring test matches its own prose (the repo's canonical trap).
+    _agents_code = "\n".join(
+        l for l in agents_surface.splitlines()
+        if not l.lstrip().startswith(("//", "*", "/*"))
+    )
     _check(
-        "an agent's card can START A CHAT (the /agents → /chat door)",
-        "api.lanes.create({ agent: slug })" in agents_surface
-        and "navigateToSurface('chat'" in agents_surface,
+        "the /agents → /chat door does not re-open the ADR-558 422 path",
+        "api.lanes.create({ agent: slug })" not in _agents_code,
+    )
+    _check(
+        "…and it names the route that works instead (cast-join in /chat)",
+        "add this colleague to the conversation" in agents_surface,
     )
     _check(
         "…and it SHOWS a failure rather than swallowing it",
         "startError" in agents_surface and 'role="alert"' in agents_surface,
     )
     _check(
+        # Also moved with the header extraction — the link lives where the
+        # identity it wraps is rendered.
         "the conversation links back to the colleague's card (/chat → /agents)",
-        "<SurfaceLink" in chat and 'to="agents"' in chat,
+        "<SurfaceLink" in _header and 'to="agents"' in _header,
     )
 
     # §6.10d — the retired ladder must not grow back in the chat surface.

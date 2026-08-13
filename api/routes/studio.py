@@ -34,11 +34,11 @@ from services.supabase import UserClient
 # the registry holds only Studio's layouts and an IMAGES stage silently 404s at
 # creation — the module IS the registration, so the import is load-bearing and
 # must not be pruned as "unused".
-import services.images  # noqa: F401  (import for registration side-effect)
+import services.apps.images  # noqa: F401  (import for registration side-effect)
 
 # ADR-518 D3: same contract for the Docs app — importing it registers the
 # `document` type (carved out of STUDIO_LAYOUTS) with the shared registry.
-import services.docs  # noqa: F401  (import for registration side-effect)
+import services.apps.docs  # noqa: F401  (import for registration side-effect)
 
 # The cross-app layout resolver (ADR-472 D2). Module-level: the endpoints below
 # use these at request time, so a function-local import in ONE handler would
@@ -1174,7 +1174,7 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # (D4/D5) rasterizes at exactly this size. Only IMAGES stages take this
     # branch — a document has no pixel box, and asking one for dimensions would
     # be the aspect-token mistake in a new costume.
-    from services.images import STAGE_SLUG, resolve_dimensions, stage_root_attrs
+    from services.apps.images import STAGE_SLUG, resolve_dimensions, stage_root_attrs
 
     if req.template == STAGE_SLUG:
         w, h = resolve_dimensions(

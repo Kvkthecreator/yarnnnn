@@ -60,7 +60,7 @@ def get_client():
 
 def migrate_html(html: str) -> tuple[str, tuple[int, int]]:
     """Rewrite one canvas artifact's root. Returns (new_html, (w, h))."""
-    from services.images import stage_root_attrs
+    from services.apps.images import stage_root_attrs
 
     m = re.search(r'<html([^>]*)>', html)
     root_attrs = m.group(1) if m else ""

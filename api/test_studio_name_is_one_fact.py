@@ -63,7 +63,7 @@ def _title(html: str) -> str | None:
 def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(root / "api"))
-    import services.docs  # noqa: F401 — registers the document row (ADR-518)
+    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
     from services.authoring import (
         all_layouts,
         all_templates,

@@ -270,7 +270,7 @@ print("\n6. no user-facing input reaches a systematic call (ADR-556 D3)")
 
 import inspect
 
-from services.images.decompose import plan_layers
+from services.apps.images.decompose import plan_layers
 
 check(
     "plan_layers takes no caller engine",

@@ -14,6 +14,7 @@ three consumers, and every housing surface gains a row rather than a branch.
 Run:  python3 api/test_adr518_docs_app.py   (NOT pytest — check()-gate.)
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -29,8 +30,8 @@ def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-    from services import docs as dx
-    from services import images as im
+    from services.apps import docs as dx
+    from services.apps import images as im
     from services.authoring import (
         STUDIO_LAYOUTS,
         _SCAFFOLD_TITLES,
@@ -128,7 +129,7 @@ def run() -> bool:
     )
     _check(
         "routes/studio.py registers Docs at boot (the load-bearing import)",
-        "import services.docs" in (root / "api/routes/studio.py").read_text(),
+        "import services.apps.docs" in (root / "api/routes/studio.py").read_text(),
     )
     page = (root / "web/app/(authenticated)/docs/page.tsx").read_text()
     _check(
@@ -175,16 +176,49 @@ def run() -> bool:
         "Learn targets are ownership-filtered via the served association",
         "appForKind(t.template) === app.slug" in surface,
     )
-    _check(
-        "the lane resident keys on THIS app (no hardcoded .studio lookup)",
-        "AUTHORING_APPS.studio.resident" not in surface
-        and surface.count("residentFor(app.slug)") == 2,
+    # ADR-562 D3 — the residency fact MOVED to the server. The surface names
+    # WHICH APP is asking; it no longer holds (or can assert) a colleague slug.
+    # `web/lib/apps/authoring.ts` is DELETED — its declaration lives in each
+    # app's own module (`services/apps/*` → `register_app`).
+    # PER-SITE, not a count: every `api.lanes.create({...})` in this surface must
+    # name the app and never a colleague. A count would pass while one site
+    # regressed (and `app: app.slug` legitimately appears outside create — the
+    # ADR-522 focus payload uses it too).
+    # Comments STRIPPED first. Without this the `agent:` assertion below matches
+    # the comment that EXPLAINS the removal ("the `agent: 'scout'` literal that
+    # lived here") — a gate asserting against its own prose, which is the
+    # canonical false-red/false-green trap in this repo.
+    _surface_code = "\n".join(
+        ln for ln in surface.splitlines() if not ln.lstrip().startswith(("//", "*", "/*"))
     )
-    auth = (root / "web/lib/apps/authoring.ts").read_text()
+    _create_calls = re.findall(
+        r"api\.lanes\s*\.?\s*create\(\{(.*?)\}\)", _surface_code, re.DOTALL
+    )
     _check(
-        "AUTHORING_APPS declares all three residencies (Designer, ADR-467 D3)",
-        "docs: { id: 'docs', resident: 'designer' }" in auth
-        and "images: { id: 'images', resident: 'designer' }" in auth,
+        "every lane-create site names THIS app (ADR-562 D3)",
+        bool(_create_calls)
+        and all("app: app.slug" in c for c in _create_calls if "artifact_path" in c),
+    )
+    _check(
+        "no create site names a colleague — identity is server-derived",
+        not any(re.search(r"\bagent:\s*['\"]", c) for c in _create_calls)
+        and "residentFor(" not in surface
+        and "AUTHORING_APPS" not in surface,
+    )
+    _check(
+        "the retired frontend residency table is GONE (no dual declaration)",
+        not (root / "web/lib/apps/authoring.ts").exists(),
+    )
+    # …and the fact it carried still holds, now server-side: all three
+    # authoring apps declare Designer (ADR-467 D3, re-homed).
+    import services.apps  # noqa: F401  (registration side-effect)
+    from services.authoring import resident_for_app
+
+    _check(
+        "all three authoring apps declare Designer (ADR-467 D3, server-side)",
+        resident_for_app("docs") == "designer"
+        and resident_for_app("studio") == "designer"
+        and resident_for_app("images") == "designer",
     )
     # Run-1 finding (2026-08-04 click-pass): the menu/Get-Info handler
     # resolutions omitted `kind`, so a document's menu read "Studio (default)"

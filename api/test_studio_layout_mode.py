@@ -47,7 +47,7 @@ def run() -> bool:
     web = root / "web"
     sys.path.insert(0, str(root / "api"))
 
-    import services.docs  # noqa: F401 — registers the document row (ADR-518)
+    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
     from services.authoring import (
         RETIRED_LAYOUT_SLUGS,
         STUDIO_ARRANGEMENTS,

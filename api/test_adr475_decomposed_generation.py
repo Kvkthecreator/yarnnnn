@@ -78,9 +78,9 @@ class _FakeAuth:
 def run() -> bool:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-    from services.images import STAGE_SLUG, resolve_dimensions, stage_root_attrs
-    from services.images.decompose import _coerce, heuristic_plan
-    from services.images.generate import StubBackend, compose_layers
+    from services.apps.images import STAGE_SLUG, resolve_dimensions, stage_root_attrs
+    from services.apps.images.decompose import _coerce, heuristic_plan
+    from services.apps.images.generate import StubBackend, compose_layers
     from services.authoring import STUDIO_ARTIFACT_REGION, build_skeleton
 
     # ── Build a real stage the way POST /studio/artifacts does ───────────
@@ -215,8 +215,8 @@ def run() -> bool:
            'data-surface="css"' in inner)
 
     # ── 4b. THE GROUND (ADR-475 §12, found by the first live ad) ─────────
-    from services.images.compose import _ground_of
-    from services.images.decompose import _coerce
+    from services.apps.images.compose import _ground_of
+    from services.apps.images.decompose import _coerce
 
     # The exact failure: a dark full-bleed background with light-page ink →
     # dark-on-dark, every layer placed perfectly and unreadable.
@@ -347,7 +347,7 @@ def run() -> bool:
     )
 
     # The ledger only fires on a COSTED call, so exercise a priced backend.
-    from services.images.generate import GenerationBackend, get_backend, set_backend
+    from services.apps.images.generate import GenerationBackend, get_backend, set_backend
 
     class _CostedBackend(GenerationBackend):
         name = "costed"

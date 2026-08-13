@@ -45,7 +45,7 @@ def _h1(html: str):
 
 def main() -> int:
     from services.naming import disambiguate, path_slug
-    import services.docs  # noqa: F401 — registers the document row (ADR-518)
+    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
     from services.authoring import (
         all_layouts,
         all_templates,

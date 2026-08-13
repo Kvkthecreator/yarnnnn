@@ -65,7 +65,25 @@ class CreateLaneRequest(BaseModel):
     # produced a live bug (an Agent added via CastBar never replied — the cast
     # said yes, lane_meta said nobody). One authority per surface.
     model: Optional[str] = None
-    agent: Optional[str] = None
+    # ADR-562 D3 — THE APP ASKS, THE SERVER ANSWERS WHO. A bound lane names the
+    # APP creating it (`studio` | `docs` | `images`); the resident is resolved
+    # server-side from that app's own registration
+    # (`services/apps/*` → `register_app`). `agent` is no longer accepted from
+    # the client at all: an app's resident is a fact ABOUT THE APP, not a
+    # preference the browser states — and a client that could assert it could
+    # also drift from it, which is exactly what happened (the panel rendered the
+    # ENGINE where a resident had been pinned, because the client held the fact
+    # and never read it back).
+    app: Optional[str] = None
+
+    # ADR-562 D3 — REFUSE an `agent` a stale client still sends, never ignore it.
+    # Pydantic's default is to DROP an unknown field, which during a deploy
+    # window (cached bundle → new API) would create a bound lane carrying NO
+    # resident: the client believes it pinned Designer, the lane pins nobody,
+    # and the panel silently falls back to the engine label — the exact defect
+    # this ADR removes, reintroduced by a rollout gap. The ADR-460 strict-key
+    # precedent: a dropped field reads as supported and becomes a bug report.
+    model_config = {"extra": "forbid"}
     # ADR-440 D3 — the Studio binding: a workspace path this lane authors.
     # A lane with a binding is a Studio lane; its turns carry the authoring
     # posture + token profile. Optional; plain chat lanes never set it.
@@ -418,19 +436,20 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # (ADR-460 spec §6: the model is the fact, and the fact is what actually
     # ran — deriving it at turn time would let a registry edit retroactively
     # lie about a past lane's engine).
-    agent_slug = (req.agent or "").strip()
     model = (req.model or "").strip()
+    app_slug = (req.app or "").strip()
     # A BINDING is what makes a lane an app's, and only an app pins a colleague.
     is_bound = bool(
         (req.artifact_path or "").strip()
         or (req.derive_recipe or "").strip()
         or (req.derive_source or "").strip()
     )
-    if agent_slug and not is_bound:
-        # THE ADR-558 D3 LINE. A chat lane has no birth-persona: who replies is
-        # the cast's answer, joined after creation. Refused loudly rather than
-        # ignored — a silently-dropped `agent` would read as supported and
-        # become a bug report (the ADR-460 strict-key precedent).
+    if app_slug and not is_bound:
+        # THE ADR-558 D3 LINE, unchanged in substance: a chat lane has no
+        # birth-persona: who replies is the cast's answer, joined after
+        # creation. Refused loudly rather than ignored — a silently-dropped
+        # residency would read as supported and become a bug report (the
+        # ADR-460 strict-key precedent).
         raise HTTPException(
             status_code=422,
             detail=(
@@ -439,6 +458,38 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
                 "the cast."
             ),
         )
+    # ADR-562 D3 — the resident is DERIVED from the app's own declaration, never
+    # taken from the client. An unregistered app is a caller bug (the ADR-450
+    # precedent: an unknown recipe is a caller bug, not a lane), and refusing
+    # beats a plausible default — ADR-548's lesson, that a fallback degrading to
+    # a plausible value is worse than one that fails.
+    agent_slug = ""
+    if app_slug:
+        # The package import IS the registration (services/apps/__init__.py) —
+        # load-bearing, never prune it as unused. Without it this resolution
+        # would depend on whether some OTHER router happened to be imported
+        # first, and a valid app would 422 on import order alone.
+        import services.apps  # noqa: F401  (registration side-effect)
+        from services.authoring import resident_for_app
+
+        agent_slug = resident_for_app(app_slug) or ""
+        if not agent_slug:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Unknown app: {app_slug}. An app declares its resident in "
+                    "its own module (services/apps/*, ADR-562)."
+                ),
+            )
+    elif (req.derive_recipe or "").strip():
+        # ADR-562 D4 — a canvas-less derive lane (it lands in /chat, so no app
+        # speaks for it) takes the RECIPE's declared colleague. The app wins
+        # when both apply: a derive INTO a canvas is that app's lane, and the
+        # recipe is the job it does there (the lane_runner's character-then-job
+        # order, resolved one layer up).
+        from services.derive_recipes import resident_for_recipe
+
+        agent_slug = resident_for_recipe(req.derive_recipe) or ""
     if agent_slug:
         # Member-first: their named colleagues, then the kernel set.
         agent = resolve_agent(agent_slug, find_member_agents(auth.client, auth.user_id))

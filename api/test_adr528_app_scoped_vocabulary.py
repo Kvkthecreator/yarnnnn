@@ -36,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-import services.docs  # noqa: F401,E402 — registration side-effect (as the app does)
+import services.apps.docs  # noqa: F401,E402 — registration side-effect (as the app does)
 import services.authoring as st  # noqa: E402
 
 PASS, FAIL = 0, 0

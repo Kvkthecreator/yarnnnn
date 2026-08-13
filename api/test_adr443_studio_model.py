@@ -92,7 +92,7 @@ def run() -> bool:
     # ADR-505 D1: the seeded set is THREE — document · deck · web — now across
     # TWO app tables (ADR-518: Docs owns document via services/docs.py; Studio
     # keeps deck/web). The registry is the kernel's one view.
-    import services.docs  # noqa: F401 — registers the document row (ADR-518)
+    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
     from services.authoring import all_layouts as _all_layouts
     _check("kernel seeds 3 layouts: Docs document + Studio deck/web (ADR-505 D1 via ADR-518)",
            set(_all_layouts()) >= {"document", "deck", "web"}

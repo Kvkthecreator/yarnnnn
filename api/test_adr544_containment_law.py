@@ -24,7 +24,7 @@ from services.authoring import (
     STUDIO_LAYOUTS,
     TOKEN_GRAINS,
 )
-from services.images.stage import IMAGES_ARRANGEMENTS
+from services.apps.images.stage import IMAGES_ARRANGEMENTS
 
 AREA_ROLES = {"heading", "body", "media", "aside"}
 
@@ -231,7 +231,7 @@ check(
 # so it is not asserted by reading its source: it RUNS here, over the exact
 # shape §1.1 describes (a bare heading, slot-named regions, a drifted block).
 try:
-    import services.images  # noqa: F401 — registers the IMAGES layout
+    import services.apps.images  # noqa: F401 — registers the IMAGES layout
     from scripts.oneshot.adr544_heal_containment import heal_html
 
     PRE = (

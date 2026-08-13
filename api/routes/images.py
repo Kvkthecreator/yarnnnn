@@ -47,9 +47,9 @@ from services.supabase import UserClient, resolve_principal_id
 # 2026-07-20 (a35d085's parent): every gate stayed green because the symbol was
 # PRESENT in the source, and the endpoint still raised NameError at runtime.
 # The gate for this module CALLS its handler for the same reason.
-from services.images import STAGE_SLUG, stage_dimensions
-from services.images.compose import compose_stage
-from services.images.decompose import plan_layers
+from services.apps.images import STAGE_SLUG, stage_dimensions
+from services.apps.images.compose import compose_stage
+from services.apps.images.decompose import plan_layers
 
 logger = logging.getLogger(__name__)
 

@@ -165,13 +165,20 @@ def resolve_radar_resident() -> tuple[str, str]:
     was minted: the base roster is closed at three addressed operations
     (AGENT-TAXONOMY §5) and a sweep is un-addressed — it is Researcher's
     acquire/read operation running on a clock, so Researcher is the
-    resident. A future hub-chat lane pins ``agent: 'scout'`` in lane_meta
-    (the Studio pin — a lane fact, never an agent fact).
+    resident.
+
+    The SLUG now comes from radar's registration above (ADR-562 D3) — one
+    declaration, read back — while the model + posture still come from the
+    agent row, which is where identity/engine/character live (ADR-460).
 
     Returns ``(model, character_posture)``.
     """
+    import services.apps  # noqa: F401  (registration side-effect — see ADR-562)
     from services.agents_registry import KERNEL_AGENTS
-    row = KERNEL_AGENTS["scout"]
+    from services.authoring import resident_for_app
+
+    slug = resident_for_app("radar") or "scout"
+    row = KERNEL_AGENTS[slug]
     return row["model"], row["posture"]
 
 #: The empty-sweep sentinel the posture contracts. Falsifier 4's honest zero.

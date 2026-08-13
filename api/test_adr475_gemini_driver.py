@@ -50,8 +50,8 @@ class _FakeResp:
 
 
 def run() -> bool:
-    import services.images.generate as gen
-    from services.images.generate import GeminiBackend, StubBackend
+    import services.apps.images.generate as gen
+    from services.apps.images.generate import GeminiBackend, StubBackend
 
     png = b"\x89PNG-fake-bytes"
     ok_payload = {
@@ -147,7 +147,7 @@ def run() -> bool:
     _check("no key → the offline stub (gates stay green with no network)", isinstance(got_keyless, StubBackend))
 
     # ── 6: compose_stage ledgers one row per costed leaf ─────────────────
-    from services.images.compose import compose_stage
+    from services.apps.images.compose import compose_stage
 
     class _CostedBackend(StubBackend):
         name = "costed"
