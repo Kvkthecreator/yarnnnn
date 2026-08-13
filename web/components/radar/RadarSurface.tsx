@@ -1,100 +1,61 @@
 'use client';
 
 /**
- * RadarSurface — the Researcher's desk (ADR-567, re-cutting ADR-486 R2).
+ * RadarSurface — the Researcher's desk (ADR-567, over ADR-564/565).
  *
- * The folder is the object; the app is where it is MANAGED. The center pane
- * shows the watched folder's lifecycle — its identity, its setup restated
- * from the files (CRITERION.md + _radar.yaml), its recent changes, and its
- * living report (ADR-565 D1) — and the bound lane beside it is how the
- * member and Researcher run that lifecycle together (the Docs/Studio shape:
- * artifact + properties + lane; ADR-467 D1's fourth bound-lane app).
+ * Derived from what the member DOES here, in frequency order: read the report
+ * → see what changed → correct something → tune the setup → attach a folder.
+ * The consequence that shapes everything: this is a READING desk. The report
+ * is the canvas (rendered as a document, the last thing to lose width —
+ * AUTHORING.md rule 15); the rail, the setup cards and the lane are chrome
+ * around it and fold first.
  *
- * Creation is conversational with ONE direct gesture (ADR-567 D3): picking
- * the folder is the operator's unscriptable act (ADR-384/564 layer 1 —
- * meaning is never delegated); everything after happens in the lane —
- * Researcher authors CRITERION.md and _radar.yaml through its ordinary
- * tools, and the kernel discovers the declaration on its next tick. The
- * pre-567 create FORM is deleted, not hidden (Singular Implementation).
+ * Layout: watched-folder rail · the folder's lifecycle (center) · Researcher
+ * (the bound lane). Width rides `useWorkbenchWidth` on the desk's own
+ * container (never the viewport, never raw `md:`/`lg:`):
+ *   full/condensed → three columns;
+ *   two-pane       → the rail folds into a header switcher;
+ *   single-pane    → one pane + a Desk/Researcher tab bar.
  *
- * Reports/briefs open in Files (Quick Look) — plain markdown; the record
- * never requires the app. Direct switches (Pause) stay buttons: not every
- * gesture becomes chat.
+ * The desk's identity is the `radar.topic` param — an attach-in-flight IS a
+ * topic with no declaration yet, so a refresh resumes the unconfigured desk
+ * instead of losing it (the substrate is the state machine: the desk promotes
+ * itself the moment Researcher's declaration parses, ADR-567 D3).
+ *
+ * Creation is conversational with exactly ONE direct gesture — the folder
+ * pick (ADR-384/564 layer 1). Direct switches stay direct (Pause/Resume).
+ * The lane is mounted through LaneMountSlots only; the desk owns the report
+ * view, so lane artifact writes render as links, never duplicate cards.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Folder, Loader2, Pause, Play, Plus, Radar as RadarIcon, RefreshCw, X,
+  ChevronDown, Folder, Loader2, MessageSquare, Pause, Play, Plus,
+  Radar as RadarIcon, RefreshCw, X,
 } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, type RadarHubSummary, type RadarHubView } from '@/lib/api/client';
 import {
   useSurfaceParam, useSurfacePreferences,
 } from '@/lib/shell/useSurfacePreferences';
 import { useDeclareFocus } from '@/lib/shell/useSurfaceFocus';
+import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { WorkspacePickerBody } from '@/components/workspace/WorkspacePicker';
+import { DeskActivityRail } from '@/components/radar/DeskActivityRail';
 import type { WorkspaceTreeNode } from '@/types';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
-// ---------------------------------------------------------------------------
-// Shapes (mirror routes/radar.py + routes/lanes.py)
-// ---------------------------------------------------------------------------
-
-interface HubSource { id: string; url: string; max_entries?: number }
-
-interface HubSummary {
-  topic: string;
-  declaration_path: string;
-  schedule?: string | string[] | null;
-  paused: boolean;
-  /** ADR-564 D2 — what matters here (CRITERION.md); replaces the steer. */
-  criterion?: string | null;
-  sources: HubSource[];
-  last_run_at?: string | null;
-  next_run_at?: string | null;
-  /** ADR-565 D1 — the living report, when a sweep has landed one. */
-  report_path?: string | null;
-  report_title?: string | null;
-  // The pre-ADR-565 shelf — legacy reads only.
-  latest_brief_path?: string | null;
-  latest_brief_title?: string | null;
-  brief_count: number;
-}
-
-interface BriefEntry { path: string; title: string; date?: string | null }
-
-interface SweepEvent {
-  slug: string;
-  status: string;
-  created_at?: string | null;
-  error_reason?: string | null;
-}
-
-interface HubView extends HubSummary {
-  /** The living report head content (ADR-565 D1). */
-  report?: string | null;
-  briefs: BriefEntry[];
-  recent_sweeps: SweepEvent[];
-  signal_observed_at?: string | null;
-}
-
-interface LaneInfo {
-  id: string;
-  name: string;
-  model: string;
-  agent?: string | null;
-  app?: string | null;
-  artifact_path?: string | null;
-  status?: string;
-}
-
-// ---------------------------------------------------------------------------
+// Lane env shapes come from the client, never hand-copied (the drift seam
+// the 567 first cut reopened).
+type LanesEnv = Awaited<ReturnType<typeof api.lanes.list>>;
+type LaneRow = LanesEnv['lanes'][number];
 
 const OPERATION_ROOT = '/workspace/operation';
 
-function topicFromDeclarationPath(path: string): string | null {
-  // Any depth under operation/ (ADR-565 D3) — the topic is the folder path.
+export function topicFromDeclarationPath(path: string): string | null {
+  // Any depth under operation/ (ADR-565 D3) — the topic IS the folder path.
   const m = /operation\/(.+)\/_radar\.yaml$/.exec(path || '');
   return m ? m[1] : null;
 }
@@ -111,46 +72,70 @@ function fmtWhen(iso?: string | null): string {
 const kebab = (s: string) =>
   s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-// ---------------------------------------------------------------------------
+/** What the desk knows about the selected folder. The substrate is the state
+ *  machine: `unconfigured` = no parseable declaration YET (a fresh attach, or
+ *  a folder Researcher is mid-setup on); `repair` = a declaration exists and
+ *  fails to parse (ADR-567 D6 — loud, never silently dark). */
+type DeskState =
+  | { phase: 'idle' }
+  | { phase: 'loading' }
+  | { phase: 'ready'; view: RadarHubView }
+  | { phase: 'unconfigured'; criterion: string | null }
+  | { phase: 'repair'; detail: string }
+  | { phase: 'error'; detail: string };
+
+const SETUP_SUGGESTIONS = [
+  "Here's what matters in this folder: ",
+  'Watch these sources: ',
+  'Sweep every morning and keep the report current.',
+];
+
+const TUNE_SUGGESTIONS = [
+  'What changed since last week?',
+  'Tighten the criterion — too much noise gets through.',
+  "Which sources aren't earning their keep?",
+];
 
 export default function RadarSurface() {
   const { navigateToSurface } = useSurfacePreferences();
   const param = useSurfaceParam('radar');
+  const [setWorkbenchNode, wb] = useWorkbenchWidth();
 
-  const [hubs, setHubs] = useState<HubSummary[] | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<HubView | null>(null);
-  const [viewLoading, setViewLoading] = useState(false);
-  const [viewError, setViewError] = useState<string | null>(null);
-  const [attachOpen, setAttachOpen] = useState(false);
-  // A folder chosen for watching that carries NO declaration yet (ADR-567 D3
-  // — the desk's unconfigured state; Researcher sets it up in the lane, the
-  // scheduler discovers it, and the roster row appears on the next refresh).
-  const [pendingFolder, setPendingFolder] = useState<string | null>(null);
-
-  // The desk's subject this render: an existing hub or a pending folder.
-  const deskTopic = pendingFolder ?? selected;
-  const deskRoot = deskTopic ? `${OPERATION_ROOT}/${deskTopic}` : null;
+  const topic = param.get('topic');
+  const deskRoot = topic ? `${OPERATION_ROOT}/${topic}` : null;
   const reportPath = deskRoot ? `${deskRoot}/report.md` : null;
 
-  // ADR-522 — Radar declares its focus deliberately: the hub is the unit.
+  const [hubs, setHubs] = useState<RadarHubSummary[] | null>(null);
+  const [desk, setDesk] = useState<DeskState>({ phase: 'idle' });
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [activityNonce, setActivityNonce] = useState(0);
+  // single-pane: which pane the tab bar shows.
+  const [activePane, setActivePane] = useState<'desk' | 'lane'>('desk');
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Composer seed for the refine-in-chat gestures (LaneMountSlots contract).
+  const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
+
+  const view = desk.phase === 'ready' ? desk.view : null;
+
+  // ADR-522 — the desk declares its focus: the folder is the unit; the report
+  // is the felt object once it exists.
   useDeclareFocus(
     'radar',
-    deskTopic
+    topic
       ? {
           app: 'radar',
-          path: view?.declaration_path ?? (deskRoot ? `${deskRoot}/_radar.yaml` : null),
+          path: view?.report_path ?? (deskRoot ? `${deskRoot}/_radar.yaml` : null),
           scope: 'document',
           id: null,
           pageIndex: null,
-          label: deskTopic,
-          excerpt: view?.report_title ?? view?.latest_brief_title ?? null,
+          label: topic,
+          excerpt: view?.report_title ?? null,
           viewport: null,
         }
       : null,
   );
 
-  const loadHubs = useCallback(async (): Promise<HubSummary[]> => {
+  const loadHubs = useCallback(async (): Promise<RadarHubSummary[]> => {
     try {
       const rows = await api.radar.list();
       setHubs(rows);
@@ -161,50 +146,73 @@ export default function RadarSurface() {
     }
   }, []);
 
-  const loadView = useCallback(async (topic: string) => {
-    setViewLoading(true);
+  const loadDesk = useCallback(async (t: string) => {
+    setDesk((d) => (d.phase === 'ready' ? d : { phase: 'loading' }));
     try {
-      setView(await api.radar.get(topic));
-      setViewError(null);
+      const v = await api.radar.get(t);
+      setDesk({ phase: 'ready', view: v });
     } catch (e) {
-      setView(null);
-      setViewError(e instanceof Error ? e.message : 'failed to load the folder');
-    } finally {
-      setViewLoading(false);
+      const status = (e as { status?: number })?.status;
+      if (status === 404) {
+        // No declaration yet — the unconfigured desk. Show the criterion if
+        // Researcher has already authored one (setup lands file by file).
+        let criterion: string | null = null;
+        try {
+          const f = await api.workspace.getFile(`${OPERATION_ROOT}/${t}/CRITERION.md`);
+          criterion = f?.content ?? null;
+        } catch { /* not written yet */ }
+        setDesk({ phase: 'unconfigured', criterion });
+      } else if (status === 422) {
+        // A declaration exists and fails to parse — the loud repair state
+        // (ADR-567 D6), distinct from a transient read failure below.
+        setDesk({
+          phase: 'repair',
+          detail: e instanceof Error ? e.message : 'declaration unparseable',
+        });
+      } else {
+        setDesk({
+          phase: 'error',
+          detail: e instanceof Error ? e.message : 'the folder could not be read',
+        });
+      }
     }
   }, []);
 
-  // Mount: roster, then the deep-link — `radar.file` (Files association)
-  // wins over `radar.topic`; else the first watched folder.
+  // Mount: roster + consume the Files-association deep-link (`radar.file` is
+  // an open act — converted to `topic`, then cleared; ADR-494's ephemeral
+  // classification keeps it off bare launches).
   useEffect(() => {
     void (async () => {
       const rows = await loadHubs();
       const fromFile = topicFromDeclarationPath(param.get('file') || '');
-      const fromTopic = param.get('topic');
-      const topic =
-        (fromFile && rows.some((h) => h.topic === fromFile) && fromFile) ||
-        (fromTopic && rows.some((h) => h.topic === fromTopic) && fromTopic) ||
-        rows[0]?.topic || null;
-      setSelected(topic);
+      if (fromFile) {
+        param.set({ topic: fromFile, file: null });
+        return;
+      }
+      if (!param.get('topic') && rows.length > 0) {
+        param.set({ topic: rows[0].topic });
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (selected && !pendingFolder) void loadView(selected);
-    else setView(null);
-  }, [selected, pendingFolder, loadView]);
+    if (topic) void loadDesk(topic);
+    else setDesk({ phase: 'idle' });
+  }, [topic, loadDesk]);
 
-  const selectHub = useCallback((topic: string) => {
-    setSelected(topic);
-    setPendingFolder(null);
-    param.set({ topic, file: null });
+  const selectTopic = useCallback((t: string) => {
+    param.set({ topic: t, file: null });
+    setSwitcherOpen(false);
+    setActivePane('desk');
   }, [param]);
 
   const togglePause = useCallback(async () => {
     if (!view) return;
     const updated = await api.radar.update(view.topic, { paused: !view.paused });
-    setView((v) => (v ? { ...v, paused: updated.paused } : v));
+    setDesk((d) =>
+      d.phase === 'ready' ? { ...d, view: { ...d.view, paused: updated.paused } } : d,
+    );
     void loadHubs();
   }, [view, loadHubs]);
 
@@ -212,18 +220,25 @@ export default function RadarSurface() {
     navigateToSurface('files', { path });
   }, [navigateToSurface]);
 
-  // ── Lane environment + the desk's bound lane (find-or-create) ───────────
+  const refreshDesk = useCallback(() => {
+    if (topic) void loadDesk(topic);
+    void loadHubs();
+    setActivityNonce((n) => n + 1);
+  }, [topic, loadDesk, loadHubs]);
+
+  // ── The bound lane (find-or-create; the binding contract is ADR-567 D4:
+  //    create_lane(app='radar', artifact_path={root}/report.md)) ────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
-  const [lanes, setLanes] = useState<LaneInfo[]>([]);
-  const [agents, setAgents] = useState<Array<{ slug: string; name: string }>>([]);
-  const [apps, setApps] = useState<Array<{ slug: string; resident: string; name: string }>>([]);
-  const [models, setModels] = useState<Array<{ id: string; label: string }>>([]);
+  const [lanes, setLanes] = useState<LaneRow[]>([]);
+  const [agents, setAgents] = useState<LanesEnv['agents']>([]);
+  const [apps, setApps] = useState<NonNullable<LanesEnv['apps']>>([]);
+  const [models, setModels] = useState<LanesEnv['models']>([]);
 
   const refreshLanes = useCallback(async () => {
     try {
       const res = await api.lanes.list(true);
       setLanesEnabled(res.enabled);
-      setLanes(res.lanes as LaneInfo[]);
+      setLanes(res.lanes);
       setAgents(res.agents ?? []);
       setApps(res.apps ?? []);
       setModels(res.models ?? []);
@@ -239,38 +254,39 @@ export default function RadarSurface() {
   const boundLane = useMemo(() => {
     if (!reportPath) return null;
     return (
-      lanes.find(
-        (l) => l.status === 'active' && l.artifact_path === reportPath,
-      ) ?? null
+      lanes.find((l) => l.status === 'active' && l.artifact_path === reportPath) ??
+      null
     );
   }, [lanes, reportPath]);
 
   const [creatingLane, setCreatingLane] = useState(false);
   useEffect(() => {
-    if (!reportPath || !deskTopic || !lanesEnabled || boundLane || creatingLane) return;
+    if (!reportPath || !topic || !lanesEnabled || boundLane || creatingLane) return;
+    if (desk.phase === 'idle' || desk.phase === 'loading') return;
     setCreatingLane(true);
     api.lanes
       .create({
-        name: `Watch: ${deskTopic}`.slice(0, 60),
-        // ADR-562 D3/ADR-567 — the surface names WHICH APP is asking; the
+        name: `Watch: ${topic}`.slice(0, 60),
+        // ADR-562 D3/ADR-567 D4 — the surface names WHICH APP is asking; the
         // resident (Researcher) resolves server-side from radar's own
-        // registration, and lane_meta.app selects the DESK job overlay.
+        // registration, and lane_meta.app selects the desk posture.
         app: 'radar',
         artifact_path: reportPath,
       })
       .then(() => refreshLanes())
-      .catch(() => { /* the desk still renders; the lane column shows why */ })
+      .catch(() => { /* the lane column states why below */ })
       .finally(() => setCreatingLane(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportPath, deskTopic, lanesEnabled, boundLane]);
+  }, [reportPath, topic, lanesEnabled, boundLane, desk.phase]);
 
   const modelLabel = useMemo(() => {
     if (!boundLane) return '';
     return models.find((m) => m.id === boundLane.model)?.label ?? boundLane.model;
   }, [boundLane, models]);
 
-  // ADR-562 D5 — the member reads WHO: the app's name for its resident, else
-  // the agent's own name ("Researcher"), else the engine label.
+  // ADR-562 D5 — WHO the member reads: the app's name for its resident
+  // (served from radar's own registration), else the colleague's own name,
+  // else the engine label. Read back from the wire, never asserted here.
   const speakerLabel = useMemo(() => {
     const slug = boundLane?.agent;
     if (slug) {
@@ -282,346 +298,690 @@ export default function RadarSurface() {
     return modelLabel;
   }, [agents, apps, boundLane, modelLabel]);
 
-  // A write landed from the lane (criterion, declaration, report, …): the
-  // desk re-reads the files — and a pending folder promotes to a real hub
-  // the moment its declaration is discovered in the roster.
+  // A lane write landed (criterion, declaration, report, a memo…): re-read
+  // everything the desk projects. An unconfigured desk promotes itself the
+  // moment the declaration parses — no client-side state machine.
   const onLaneWrite = useCallback(() => {
-    void (async () => {
-      const rows = await loadHubs();
-      if (pendingFolder && rows.some((h) => h.topic === pendingFolder)) {
-        setSelected(pendingFolder);
-        setPendingFolder(null);
-        param.set({ topic: pendingFolder, file: null });
-      } else if (selected && !pendingFolder) {
-        void loadView(selected);
-      }
-    })();
-  }, [loadHubs, loadView, pendingFolder, selected, param]);
+    refreshDesk();
+  }, [refreshDesk]);
 
-  // ── render ────────────────────────────────────────────────────────────
+  const seedChat = useCallback((text: string) => {
+    setSeed({ text, nonce: Date.now() });
+    if (wb.singlePane) setActivePane('lane');
+  }, [wb.singlePane]);
+
+  // ── Layout flags ────────────────────────────────────────────────────────
+  const showRailColumn = wb.threeColumn;
+  const laneAvailable = !!topic && lanesEnabled === true;
+  const showLaneColumn = laneAvailable && (!wb.singlePane || activePane === 'lane');
+  const laneWidthClass = wb.fullLabels ? 'w-[400px]' : 'w-[360px]';
+
+  const setupIncomplete = desk.phase === 'unconfigured' || desk.phase === 'repair';
+
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full min-h-0 bg-background text-foreground">
-      {/* Watched folders (the roster) */}
-      <aside className="flex w-64 shrink-0 flex-col border-r">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <RadarIcon className="h-4 w-4" /> Radar
-          </div>
-          <button
-            type="button"
-            title="Watch a folder"
-            onClick={() => setAttachOpen(true)}
-            className="rounded p-1 hover:bg-muted"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {hubs === null ? (
-            <div className="p-4 text-xs text-muted-foreground">Looking…</div>
-          ) : (
-            <>
-              {pendingFolder && (
-                <div className="block w-full border-b bg-muted px-4 py-3 text-left">
-                  <div className="flex items-center gap-1.5 text-sm font-medium">
-                    <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{pendingFolder}</span>
-                  </div>
-                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                    setting up with Researcher…
-                  </div>
-                </div>
-              )}
-              {hubs.length === 0 && !pendingFolder ? (
-                <div className="p-4 text-xs text-muted-foreground">
-                  No folders watched yet. Point Researcher at one and it keeps
-                  a living report while you&apos;re away.
-                </div>
-              ) : (
-                hubs.map((h) => (
-                  <button
-                    key={h.topic}
-                    type="button"
-                    onClick={() => selectHub(h.topic)}
-                    className={`block w-full border-b px-4 py-3 text-left hover:bg-muted/60 ${
-                      selected === h.topic && !pendingFolder ? 'bg-muted' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                        <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{h.topic}</span>
-                      </span>
-                      {h.paused && <Pause className="h-3 w-3 shrink-0 text-muted-foreground" />}
+    <div
+      ref={setWorkbenchNode}
+      className="flex h-full min-h-0 flex-col bg-background text-foreground"
+    >
+      <div className="flex min-h-0 flex-1">
+        {showRailColumn && (
+          <FolderRail
+            hubs={hubs}
+            topic={topic}
+            condensed={!wb.fullLabels}
+            lanesEnabled={lanesEnabled}
+            onSelect={selectTopic}
+            onAttach={() => setAttachOpen(true)}
+          />
+        )}
+
+        {topic ? (
+          <>
+            {(!wb.singlePane || activePane === 'desk') && (
+              <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+                <div className="mx-auto max-w-3xl space-y-8 p-6">
+                  {/* ── The folder — what this desk manages ── */}
+                  <header className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {!showRailColumn ? (
+                          <FolderSwitcher
+                            hubs={hubs}
+                            topic={topic}
+                            open={switcherOpen}
+                            setOpen={setSwitcherOpen}
+                            onSelect={selectTopic}
+                            onAttach={() => { setSwitcherOpen(false); setAttachOpen(true); }}
+                            lanesEnabled={lanesEnabled}
+                          />
+                        ) : (
+                          <>
+                            <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <h1 className="truncate text-lg font-semibold">
+                              {topic.split('/').join(' / ')}
+                            </h1>
+                          </>
+                        )}
+                      </div>
+                      {view && (
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={refreshDesk}
+                            title="Refresh"
+                            className="rounded border p-1.5 hover:bg-muted"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void togglePause()}
+                            className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted"
+                          >
+                            {view.paused
+                              ? (<><Play className="h-3.5 w-3.5" /> Resume</>)
+                              : (<><Pause className="h-3.5 w-3.5" /> Pause</>)}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {h.report_title
-                        ? h.report_title
-                        : h.brief_count > 0
-                          ? `${h.brief_count} brief${h.brief_count === 1 ? '' : 's'}${h.latest_brief_title ? ` · ${h.latest_brief_title}` : ''}`
-                          : 'no report yet'}
-                    </div>
-                  </button>
-                ))
-              )}
-            </>
-          )}
-        </div>
-      </aside>
+                    <p className="text-xs text-muted-foreground">
+                      {desk.phase === 'ready' && view && (
+                        <>
+                          {view.paused ? 'Paused' : 'Standing watch'}
+                          {' · last sweep '}{fmtWhen(view.last_run_at)}
+                          {' · next '}{view.paused ? '—' : fmtWhen(view.next_run_at)}
+                        </>
+                      )}
+                      {desk.phase === 'unconfigured' &&
+                        'Not watched yet — Researcher sets it up in the conversation.'}
+                      {desk.phase === 'loading' && 'Loading…'}
+                      {deskRoot && (
+                        <>
+                          {' · '}
+                          <button
+                            type="button"
+                            className="underline-offset-2 hover:underline"
+                            onClick={() => openInFiles(deskRoot)}
+                            title="The folder in Files — the report and criterion are ordinary files in it"
+                          >
+                            open folder
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  </header>
 
-      {/* The desk: the folder's lifecycle (center) + Researcher (right) */}
-      {deskTopic ? (
-        <>
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl space-y-6 p-6">
-              {/* Folder identity — what this desk manages */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <h1 className="truncate text-lg font-semibold">
-                      {deskTopic.split('/').join(' / ')}
-                    </h1>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {pendingFolder
-                      ? 'Not watched yet — Researcher sets it up in the conversation.'
-                      : view
-                        ? `${view.paused ? 'Paused' : 'Standing'} · last sweep ${fmtWhen(view.last_run_at)} · next ${view.paused ? '—' : fmtWhen(view.next_run_at)}`
-                        : viewLoading ? 'Loading…' : ''}
-                    {deskRoot && (
-                      <>
-                        {' · '}
-                        <button
-                          type="button"
-                          className="underline-offset-2 hover:underline"
-                          onClick={() => openInFiles(deskRoot)}
-                          title="The folder in Files — the report and criterion are ordinary files in it"
-                        >
-                          open folder
-                        </button>
-                      </>
-                    )}
-                  </p>
-                </div>
-                {view && (
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void loadView(view.topic)}
-                      title="Refresh"
-                      className="rounded border p-1.5 hover:bg-muted"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void togglePause()}
-                      className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted"
-                    >
-                      {view.paused
-                        ? (<><Play className="h-3.5 w-3.5" /> Resume</>)
-                        : (<><Pause className="h-3.5 w-3.5" /> Pause</>)}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* An unparseable declaration is a LOUD repair job (ADR-567 D6) */}
-              {!pendingFolder && !view && !viewLoading && viewError && (
-                <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-                  This folder&apos;s declaration could not be read
-                  ({viewError}). The standing loop is dark until it is repaired
-                  — ask Researcher to fix <code>_radar.yaml</code>.
-                </div>
-              )}
-
-              {/* The setup, restated from the files (layer 2 held up to the light) */}
-              {view?.criterion && (
-                <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">What matters here · </span>
-                  {view.criterion}
-                </div>
-              )}
-
-              {/* The living report — the felt unit (ADR-565 D1) */}
-              {!pendingFolder && (
-                <section>
-                  <h2 className="mb-2 text-sm font-medium">Report</h2>
-                  {view?.report ? (
-                    <div className="rounded-md border">
+                  {/* ── Transient read failure — retry, never fake repair ── */}
+                  {desk.phase === 'error' && (
+                    <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                      <p>This folder could not be read right now ({desk.detail}).</p>
                       <button
                         type="button"
-                        onClick={() => view.report_path && openInFiles(view.report_path)}
-                        className="flex w-full items-baseline justify-between gap-3 border-b px-3 py-2.5 text-left hover:bg-muted/60"
-                        title="Open in Files (history + diffs live there)"
+                        onClick={refreshDesk}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs hover:bg-muted"
                       >
-                        <span className="truncate text-sm font-medium">
-                          {view.report_title || 'The living report'}
-                        </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          revised {fmtWhen(view.last_run_at)}
-                        </span>
+                        <RefreshCw className="h-3.5 w-3.5" /> Retry
                       </button>
-                      <div className="max-h-96 overflow-y-auto whitespace-pre-wrap px-3 py-2.5 text-sm">
-                        {view.report}
-                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No report yet — the first revision lands after the next
-                      sweep with something worth saying. An empty sweep is
-                      reported honestly, never padded.
-                    </p>
                   )}
-                </section>
-              )}
 
-              {/* Watching — the source portfolio + cadence */}
-              {view && view.sources.length > 0 && (
-                <section>
-                  <h2 className="mb-2 text-sm font-medium">Watching</h2>
-                  <ul className="space-y-1">
-                    {view.sources.map((s) => (
-                      <li key={s.id} className="truncate text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{s.id}</span> · {s.url}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    Add, prune, or retune sources by telling Researcher.
-                  </p>
-                </section>
-              )}
-
-              {/* Recent changes — the lifecycle, straight off the ledger */}
-              {view && (
-                <section>
-                  <h2 className="mb-2 text-sm font-medium">Recent sweeps</h2>
-                  {view.recent_sweeps.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No sweeps recorded yet.</p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {view.recent_sweeps.map((e, i) => (
-                        <li key={`${e.slug}-${e.created_at}-${i}`} className="flex items-center gap-2 text-xs">
-                          <span className={
-                            e.status === 'success' ? 'text-emerald-600'
-                              : e.status === 'skipped' ? 'text-muted-foreground'
-                                : 'text-red-600'
-                          }>
-                            ●
-                          </span>
-                          <span className="text-muted-foreground">{fmtWhen(e.created_at)}</span>
-                          <span>{e.slug.startsWith('radar-brief') ? 'derive' : 'sweep'}</span>
-                          <span className="text-muted-foreground">
-                            {e.status}{e.error_reason ? ` · ${e.error_reason}` : ''}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-              )}
-
-              {/* The pre-ADR-565 briefs shelf — legacy reads only */}
-              {view && view.briefs.length > 0 && (
-                <section>
-                  <h2 className="mb-2 text-sm font-medium">Earlier briefs</h2>
-                  <ul className="divide-y rounded-md border">
-                    {view.briefs.map((b) => (
-                      <li key={b.path}>
+                  {/* ── Repair — an unparseable declaration is LOUD (D6) ── */}
+                  {desk.phase === 'repair' && (
+                    <div className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+                      <p className="font-semibold">
+                        The watch declaration can&apos;t be read.
+                      </p>
+                      <p className="mt-1 text-xs">
+                        <code>_radar.yaml</code> failed to parse ({desk.detail}).
+                        The standing sweep is dark until it&apos;s repaired — nothing
+                        is being watched.
+                      </p>
+                      {lanesEnabled && (
                         <button
                           type="button"
-                          onClick={() => openInFiles(b.path)}
-                          className="flex w-full items-baseline justify-between gap-3 px-3 py-2.5 text-left hover:bg-muted/60"
+                          onClick={() =>
+                            seedChat('The watch declaration (_radar.yaml) fails to parse — re-read it and repair it.')
+                          }
+                          className="mt-2 inline-flex items-center gap-1.5 rounded border border-red-400 px-2.5 py-1 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900"
                         >
-                          <span className="truncate text-sm">{b.title}</span>
-                          <span className="shrink-0 text-xs text-muted-foreground">{b.date || ''}</span>
+                          <MessageSquare className="h-3.5 w-3.5" /> Ask Researcher to repair it
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Unconfigured — the conversational setup (D3) ── */}
+                  {desk.phase === 'unconfigured' && (
+                    <div className="space-y-4">
+                      <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                        <p className="font-medium">
+                          Tell Researcher what to watch here.
+                        </p>
+                        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                          Say what matters in this folder and where to look.
+                          Researcher writes the criterion and the watch
+                          declaration into the folder — attributed, revisable —
+                          and the standing sweep begins on the next tick
+                          (~5&nbsp;minutes). The first report lands while you
+                          watch.
+                        </p>
+                        {lanesEnabled === false && (
+                          <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                            Setting up happens in conversation with Researcher,
+                            which isn&apos;t enabled on this workspace yet — so
+                            this folder can&apos;t be configured from here right
+                            now.
+                          </p>
+                        )}
+                      </div>
+                      {desk.criterion && (
+                        <section>
+                          <SectionHeading>Criterion — declared</SectionHeading>
+                          <div className="rounded-md border p-4">
+                            <MarkdownRenderer content={desk.criterion} compact />
+                          </div>
+                          <p className="mt-1.5 text-xs text-muted-foreground">
+                            The watch declaration is still pending — Researcher
+                            finishes the setup in the conversation.
+                          </p>
+                        </section>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── The report — the living artifact, THE canvas ── */}
+                  {desk.phase === 'ready' && view && (
+                    <section>
+                      <div className="mb-2 flex items-baseline justify-between gap-3">
+                        <SectionHeading>Report</SectionHeading>
+                        {view.report && (
+                          <span className="text-xs text-muted-foreground">
+                            revised {fmtWhen(view.last_run_at)}
+                            {view.report_path && (
+                              <>
+                                {' · '}
+                                <button
+                                  type="button"
+                                  className="underline-offset-2 hover:underline"
+                                  onClick={() => view.report_path && openInFiles(view.report_path)}
+                                  title="Open the report file — correcting it corrects every future sweep"
+                                >
+                                  edit in Files
+                                </button>
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {view.report ? (
+                        <article className="rounded-md border px-5 py-4">
+                          <MarkdownRenderer content={view.report} />
+                        </article>
+                      ) : (
+                        <p className="rounded-md border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
+                          No report yet. The first revision lands after the next
+                          sweep with something worth saying
+                          {!view.paused && view.next_run_at
+                            ? ` — due ${fmtWhen(view.next_run_at)}`
+                            : ''}.
+                          An empty sweep is reported honestly, never padded.
+                        </p>
+                      )}
+                    </section>
+                  )}
+
+                  {/* ── Recent changes — ONE attributed lifecycle rail ── */}
+                  {desk.phase === 'ready' && deskRoot && (
+                    <section>
+                      <SectionHeading className="mb-2">Recent changes</SectionHeading>
+                      <DeskActivityRail
+                        deskRoot={deskRoot}
+                        sweeps={view?.recent_sweeps ?? []}
+                        refreshNonce={activityNonce}
+                        onReverted={refreshDesk}
+                      />
+                    </section>
+                  )}
+
+                  {/* ── The setup — layer 2 held up to the light (D2.2) ── */}
+                  {desk.phase === 'ready' && view && (
+                    <section className="space-y-5">
+                      <SectionHeading className="mb-0">Setup</SectionHeading>
+
+                      {/* Criterion */}
+                      <div className="rounded-md border">
+                        <div className="flex items-center justify-between border-b px-4 py-2">
+                          <span className="text-xs font-medium">What matters here</span>
+                          {lanesEnabled && (
+                            <SeedButton onClick={() => seedChat('Refine the criterion: ')}>
+                              refine in chat
+                            </SeedButton>
+                          )}
+                        </div>
+                        <div className="px-4 py-3">
+                          {view.criterion ? (
+                            <MarkdownRenderer content={view.criterion} compact />
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              No criterion declared — sweeps hold a conservative
+                              bar. Declaring one sharpens every future sweep.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Source portfolio + the earn-their-keep reading */}
+                      <div className="rounded-md border">
+                        <div className="flex items-center justify-between border-b px-4 py-2">
+                          <span className="text-xs font-medium">Sources</span>
+                          {lanesEnabled && (
+                            <SeedButton onClick={() => seedChat('Add a source: ')}>
+                              add in chat
+                            </SeedButton>
+                          )}
+                        </div>
+                        {view.sources.length === 0 ? (
+                          <p className="px-4 py-3 text-xs text-muted-foreground">
+                            No sources declared yet.
+                          </p>
+                        ) : (
+                          <ul className="divide-y">
+                            {view.sources.map((s) => {
+                              const windowSweeps = view.window_sweeps ?? 0;
+                              const windowChanges = view.window_changes ?? 0;
+                              const idle =
+                                windowChanges >= 3 && (s.cited_count ?? 0) === 0;
+                              return (
+                                <li key={s.id} className="flex items-center gap-3 px-4 py-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate text-xs font-medium">{s.id}</div>
+                                    <div className="truncate text-[11px] text-muted-foreground">{s.url}</div>
+                                  </div>
+                                  {windowSweeps > 0 && (
+                                    <span
+                                      className={`shrink-0 text-[11px] tabular-nums ${idle ? 'text-amber-600' : 'text-muted-foreground'}`}
+                                      title={`Of the last ${windowSweeps} sweeps, ${s.fed_count ?? 0} fetched this source; ${s.cited_count ?? 0} of the last ${windowChanges} report changes drew on it. A source that feeds sweeps but never reaches the report may not be earning its keep.`}
+                                    >
+                                      {s.fed_count ?? 0}/{windowSweeps} sweeps ·{' '}
+                                      {s.cited_count ?? 0}/{windowChanges} changes
+                                    </span>
+                                  )}
+                                  {lanesEnabled && (
+                                    <SeedButton onClick={() => seedChat(`Stop watching ${s.id}. `)}>
+                                      prune
+                                    </SeedButton>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+
+                      {/* Cadence */}
+                      <div className="flex items-center justify-between rounded-md border px-4 py-2.5">
+                        <div className="text-xs">
+                          <span className="font-medium">Cadence</span>
+                          <span className="ml-2 font-mono text-muted-foreground">
+                            {Array.isArray(view.schedule)
+                              ? view.schedule.join(' · ')
+                              : view.schedule || '—'}
+                          </span>
+                        </div>
+                        {lanesEnabled && (
+                          <SeedButton onClick={() => seedChat('Change the cadence: ')}>
+                            change in chat
+                          </SeedButton>
+                        )}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* ── The legacy shelf — the record is the record ── */}
+                  {view && view.briefs.length > 0 && (
+                    <details className="group">
+                      <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+                        Earlier briefs ({view.briefs.length}) — the shelf before the
+                        living report; new sweeps don&apos;t add here
+                      </summary>
+                      <ul className="mt-2 divide-y rounded-md border">
+                        {view.briefs.map((b) => (
+                          <li key={b.path}>
+                            <button
+                              type="button"
+                              onClick={() => openInFiles(b.path)}
+                              className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left hover:bg-muted/60"
+                            >
+                              <span className="truncate text-xs">{b.title}</span>
+                              <span className="shrink-0 text-[11px] text-muted-foreground">{b.date || ''}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              </main>
+            )}
+
+            {/* ── Researcher — the lane the lifecycle runs through ── */}
+            {showLaneColumn && (
+              <aside
+                className={`flex ${wb.singlePane ? 'min-w-0 flex-1' : `${laneWidthClass} shrink-0 border-l`} flex-col`}
+              >
+                {boundLane ? (
+                  <LanePanel
+                    key={boundLane.id}
+                    laneId={boundLane.id}
+                    laneName={boundLane.name}
+                    modelLabel={modelLabel}
+                    speakerLabel={speakerLabel}
+                    onArtifactWrite={onLaneWrite}
+                    artifactWrite="link"
+                    composerSeed={seed}
+                    suggestions={setupIncomplete ? SETUP_SUGGESTIONS : TUNE_SUGGESTIONS}
+                    emptyState={
+                      <div className="space-y-2 text-center text-xs text-muted-foreground">
+                        <p className="text-sm font-medium text-foreground/80">
+                          {setupIncomplete
+                            ? 'Tell Researcher what to watch.'
+                            : 'This folder is Researcher’s desk.'}
+                        </p>
+                        <p>
+                          Say what matters here and where to look — Researcher
+                          writes the criterion and the watch declaration into
+                          the folder, and the standing loop takes it from
+                          there. Add or prune sources, change the cadence, or
+                          tighten the criterion the same way, any time.
+                        </p>
+                      </div>
+                    }
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
+                    {creatingLane || desk.phase === 'loading'
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : 'Researcher’s lane could not be opened.'}
+                  </div>
+                )}
+              </aside>
+            )}
+          </>
+        ) : (
+          /* ── The front door — nothing selected ── */
+          <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
+            <div className="max-w-sm space-y-3 p-6 text-center">
+              <RadarIcon className="mx-auto h-8 w-8 text-muted-foreground" />
+              <h1 className="text-lg font-semibold">Watch a folder</h1>
+              <p className="text-sm text-muted-foreground">
+                Point Researcher at a folder and it keeps a living report there
+                — sweeping the folder&apos;s declared sources on a schedule and
+                folding what changed into the current understanding, under a
+                criterion you set in plain words.
+              </p>
+              {lanesEnabled === false ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Watching a folder is set up in conversation with Researcher,
+                  which isn&apos;t enabled on this workspace yet.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAttachOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border bg-foreground px-3 py-1.5 text-sm text-background"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Watch a folder
+                </button>
               )}
             </div>
           </main>
+        )}
+      </div>
 
-          {/* Researcher — the lane the lifecycle runs through (ADR-567 D2/D3) */}
-          {lanesEnabled && (
-            <aside className="flex w-[400px] shrink-0 flex-col border-l">
-              {boundLane ? (
-                <LanePanel
-                  key={boundLane.id}
-                  laneId={boundLane.id}
-                  laneName={boundLane.name}
-                  modelLabel={modelLabel}
-                  speakerLabel={speakerLabel}
-                  onArtifactWrite={onLaneWrite}
-                  emptyState={
-                    <div className="space-y-2 text-center text-xs text-muted-foreground">
-                      <p className="text-sm font-medium text-foreground/80">
-                        {pendingFolder || !view
-                          ? 'Tell Researcher what to watch.'
-                          : 'This folder is Researcher’s desk.'}
-                      </p>
-                      <p>
-                        Say what matters here and where to look — Researcher
-                        writes the criterion and the watch declaration into the
-                        folder, and the standing loop takes it from there. Add
-                        or prune sources, change the cadence, or tighten the
-                        criterion the same way, any time.
-                      </p>
-                    </div>
-                  }
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
-                  {creatingLane
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : 'Researcher’s lane could not be opened.'}
-                </div>
-              )}
-            </aside>
-          )}
-        </>
-      ) : (
-        <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
-          <div className="max-w-sm space-y-3 p-6 text-center">
-            <RadarIcon className="mx-auto h-8 w-8 text-muted-foreground" />
-            <h1 className="text-lg font-semibold">Watch a folder</h1>
-            <p className="text-sm text-muted-foreground">
-              Point Researcher at a folder and it keeps a living report there —
-              sweeping the folder&apos;s declared sources on a schedule and
-              folding what changed into the current understanding, under a
-              criterion you set in plain words.
-            </p>
+      {/* ── single-pane: the Desk/Researcher tab bar ── */}
+      {wb.singlePane && topic && lanesEnabled && (
+        <nav className="flex shrink-0 border-t">
+          {([['desk', 'Desk'], ['lane', 'Researcher']] as const).map(([pane, label]) => (
             <button
+              key={pane}
               type="button"
-              onClick={() => setAttachOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border bg-foreground px-3 py-1.5 text-sm text-background"
+              onClick={() => setActivePane(pane)}
+              className={`flex-1 py-2.5 text-center text-xs font-medium ${
+                activePane === pane
+                  ? 'border-t-2 border-foreground text-foreground'
+                  : 'text-muted-foreground'
+              }`}
             >
-              <Plus className="h-3.5 w-3.5" /> Watch a folder
+              {label}
             </button>
-          </div>
-        </main>
+          ))}
+        </nav>
       )}
 
       <AttachFolderModal
         open={attachOpen}
         existingTopics={(hubs ?? []).map((h) => h.topic)}
         onClose={() => setAttachOpen(false)}
-        onAttach={(topic) => {
+        onAttach={(t) => {
           setAttachOpen(false);
-          if ((hubs ?? []).some((h) => h.topic === topic)) {
-            selectHub(topic);
-          } else {
-            setPendingFolder(topic);
-            setSelected(null);
-            setView(null);
-            setViewError(null);
-          }
+          selectTopic(t);
         }}
       />
+    </div>
+  );
+}
+
+function SectionHeading({
+  children,
+  className,
+}: { children: React.ReactNode; className?: string }) {
+  return (
+    <h2 className={`text-[11px] font-semibold uppercase tracking-wider text-muted-foreground ${className ?? ''}`}>
+      {children}
+    </h2>
+  );
+}
+
+function SeedButton({
+  onClick,
+  children,
+}: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <MessageSquare className="h-3 w-3" /> {children}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The watched-folder rail — rows are FOLDERS (path-shaped identity), plus the
+// desk's one action. A selected topic with no roster row renders as the
+// setting-up row (the unconfigured desk is a real place, refresh included).
+// ---------------------------------------------------------------------------
+
+function FolderRail({
+  hubs,
+  topic,
+  condensed,
+  lanesEnabled,
+  onSelect,
+  onAttach,
+}: {
+  hubs: RadarHubSummary[] | null;
+  topic: string | null;
+  condensed: boolean;
+  lanesEnabled: boolean | null;
+  onSelect: (topic: string) => void;
+  onAttach: () => void;
+}) {
+  const settingUp = topic && !(hubs ?? []).some((h) => h.topic === topic);
+  return (
+    <aside className={`flex ${condensed ? 'w-52' : 'w-64'} shrink-0 flex-col border-r`}>
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <RadarIcon className="h-4 w-4" /> Radar
+        </div>
+        <button
+          type="button"
+          title={
+            lanesEnabled === false
+              ? 'Watching a folder is set up in conversation with Researcher, which isn’t enabled here yet'
+              : 'Watch a folder'
+          }
+          disabled={lanesEnabled === false}
+          onClick={onAttach}
+          className="rounded p-1 hover:bg-muted disabled:opacity-40"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {hubs === null ? (
+          <div className="p-4 text-xs text-muted-foreground">Looking…</div>
+        ) : (
+          <>
+            {settingUp && topic && (
+              <div className="block w-full border-b bg-muted px-4 py-3 text-left">
+                <FolderRow
+                  topic={topic}
+                  subtitle="setting up with Researcher…"
+                  dot="pending"
+                />
+              </div>
+            )}
+            {hubs.length === 0 && !settingUp ? (
+              <div className="p-4 text-xs text-muted-foreground">
+                No folders watched yet. Point Researcher at one and it keeps a
+                living report while you&apos;re away.
+              </div>
+            ) : (
+              hubs.map((h) => (
+                <button
+                  key={h.topic}
+                  type="button"
+                  onClick={() => onSelect(h.topic)}
+                  className={`block w-full border-b px-4 py-3 text-left hover:bg-muted/60 ${
+                    topic === h.topic ? 'bg-muted' : ''
+                  }`}
+                >
+                  <FolderRow
+                    topic={h.topic}
+                    subtitle={
+                      h.report_title ??
+                      (h.brief_count > 0 ? 'earlier briefs only' : 'no report yet')
+                    }
+                    dot={h.paused ? 'paused' : 'active'}
+                  />
+                </button>
+              ))
+            )}
+          </>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function FolderRow({
+  topic,
+  subtitle,
+  dot,
+}: {
+  topic: string;
+  subtitle: string;
+  dot: 'active' | 'paused' | 'pending';
+}) {
+  const segments = topic.split('/');
+  const name = segments[segments.length - 1];
+  const parents = segments.slice(0, -1).join(' / ');
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+          <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate">{name}</span>
+        </span>
+        <span
+          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+            dot === 'active' ? 'bg-emerald-500' : dot === 'paused' ? 'bg-amber-500' : 'bg-zinc-400'
+          }`}
+          title={dot === 'active' ? 'Standing watch' : dot === 'paused' ? 'Paused' : 'Setting up'}
+        />
+      </div>
+      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+        {parents ? `${parents} / · ` : ''}{subtitle}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The folder switcher — the rail, folded into the header on narrow rungs
+// (rule 15: chrome folds first; the roster never costs the report width).
+// ---------------------------------------------------------------------------
+
+function FolderSwitcher({
+  hubs,
+  topic,
+  open,
+  setOpen,
+  onSelect,
+  onAttach,
+  lanesEnabled,
+}: {
+  hubs: RadarHubSummary[] | null;
+  topic: string;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  onSelect: (topic: string) => void;
+  onAttach: () => void;
+  lanesEnabled: boolean | null;
+}) {
+  return (
+    <div className="relative min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex min-w-0 items-center gap-2 rounded px-1 py-0.5 hover:bg-muted"
+      >
+        <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <h1 className="truncate text-lg font-semibold">
+          {topic.split('/').join(' / ')}
+        </h1>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border bg-card py-1 shadow-lg">
+          {(hubs ?? []).map((h) => (
+            <button
+              key={h.topic}
+              type="button"
+              onClick={() => onSelect(h.topic)}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted ${
+                h.topic === topic ? 'font-medium' : ''
+              }`}
+            >
+              <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{h.topic}</span>
+            </button>
+          ))}
+          <div className="my-1 border-t" />
+          <button
+            type="button"
+            onClick={onAttach}
+            disabled={lanesEnabled === false}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5 shrink-0" /> Watch a folder…
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -724,7 +1084,7 @@ function AttachFolderModal({
               <span className="min-w-0 truncate text-xs text-muted-foreground">
                 {topic
                   ? alreadyWatched
-                    ? `${topic} is already watched — Attach opens its desk.`
+                    ? `${topic} is already watched — this opens its desk.`
                     : `Will watch: operation/${topic}/`
                   : 'Pick a folder (or the Documents root plus a new name).'}
               </span>

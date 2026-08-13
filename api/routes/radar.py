@@ -70,6 +70,11 @@ class HubSource(BaseModel):
     id: str
     url: str
     max_entries: int = Field(default=8, ge=1, le=20)
+    # ADR-564 D5 / ADR-565 D5 — the earn-their-keep reading, derived at read
+    # time on the composed view only (get_hub), never stored, absent on the
+    # cheap list projection.
+    fed_count: Optional[int] = None    # sweeps in the window that fetched this source
+    cited_count: Optional[int] = None  # report derivations in the window citing it
 
 
 class CreateHubRequest(BaseModel):
@@ -128,6 +133,11 @@ class HubView(HubSummary):
     briefs: list[BriefEntry] = []
     recent_sweeps: list[SweepEvent] = []
     signal_observed_at: Optional[str] = None
+    # ADR-564 D5 — the denominators behind each source's fed/cited counts:
+    # how many sweeps (signal revisions) and report derivations the trailing
+    # window actually held, so the FE can say "fetched in 12 of 14 sweeps".
+    window_sweeps: Optional[int] = None
+    window_changes: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +253,78 @@ def _summarize(client, user_id: str, hub, index_row: Optional[dict],
         latest_brief_title=_title_of(latest.get("content", "")) if latest else None,
         brief_count=len(briefs),
     )
+
+
+_STATS_WINDOW = 40  # revisions per chain considered — a trailing window, not an archive scan
+
+
+def _source_stats(
+    client, user_id: str, hub, sources: list[HubSource]
+) -> tuple[list[HubSource], int, int]:
+    """The earn-their-keep instrument (ADR-564 D5, surfaced per ADR-565 D5) —
+    derived at read time from the ledger's reference edges, never stored.
+
+    The window is the hub's OWN signal revision chain — hub-scoped by
+    construction: every sweep revises the signal citing that sweep's raw
+    observations, whose paths carry the source slug (inbound/web/{slug}/…).
+    Per declared source:
+      fed   = sweeps in the window whose signal revision cites the source's raw
+              (i.e. the fetch succeeded and fed entries into the sweep)
+      cited = report revisions of kind 'derivation' in the window citing the
+              source's raw (the derivation used a sweep this source fed)
+
+    Honest limitation, stated rather than implied: the v1 derive cites ALL of
+    a changed sweep's raws (ADR-564 D3's single-turn shape), so `cited` reads
+    "was fetched in a sweep that produced change", not per-claim selectivity.
+    The instrument sharpens when the mechanical selection pass ships under
+    scattered-source pressure. "fed N, cited 0 in K sweeps" is already the
+    pruning affordance D5 names — a source that only ever feeds NO_CHANGE
+    sweeps, or fails to fetch, reads at a glance.
+    """
+    from services.primitives.track_web_sources import _slug as _source_slug
+
+    def _edges(path: str, *, kind: Optional[str] = None) -> list[list]:
+        q = (
+            client.table("workspace_file_versions")
+            .select("derived_from, revision_kind")
+            .eq("user_id", user_id)
+            .eq("path", path)
+        )
+        rows = (
+            q.order("created_at", desc=True).limit(_STATS_WINDOW).execute()
+        ).data or []
+        return [
+            r.get("derived_from") or []
+            for r in rows
+            if (kind is None or r.get("revision_kind") == kind)
+        ]
+
+    try:
+        sweep_edges = _edges(hub.signal_path)
+        change_edges = _edges(hub.report_path, kind="derivation")
+    except Exception as e:  # the instrument must never take down the view
+        logger.warning("[RADAR] source stats failed for %s: %s", hub.topic, e)
+        return sources, 0, 0
+
+    def _counts(needle: str, edge_lists: list[list]) -> int:
+        return sum(
+            1
+            for edges in edge_lists
+            if any(isinstance(p, str) and needle in p for p in edges)
+        )
+
+    enriched: list[HubSource] = []
+    for s in sources:
+        needle = f"/inbound/web/{_source_slug(s.id)}/"
+        enriched.append(
+            s.model_copy(
+                update={
+                    "fed_count": _counts(needle, sweep_edges),
+                    "cited_count": _counts(needle, change_edges),
+                }
+            )
+        )
+    return enriched, len(sweep_edges), len(change_edges)
 
 
 def _declared_sources(content: str) -> list[dict]:
@@ -504,8 +586,15 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
     from services.radar import _read_file as _radar_read_file
     report_head = _radar_read_file(auth.client, actor, hub.report_path)
 
-    return HubView(**summary.model_dump(), report=report_head, briefs=briefs,
-                   recent_sweeps=sweeps, signal_observed_at=signal_observed)
+    # The earn-their-keep reading rides the composed view only (ADR-564 D5).
+    enriched_sources, window_sweeps, window_changes = _source_stats(
+        auth.client, actor, hub, summary.sources
+    )
+    view = HubView(**summary.model_dump(), report=report_head, briefs=briefs,
+                   recent_sweeps=sweeps, signal_observed_at=signal_observed,
+                   window_sweeps=window_sweeps, window_changes=window_changes)
+    view.sources = enriched_sources
+    return view
 
 
 def _strip_frontmatter(content: str) -> str:

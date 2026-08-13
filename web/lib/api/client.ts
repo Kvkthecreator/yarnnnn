@@ -374,6 +374,17 @@ export interface Participant {
   created_at?: string;
 }
 
+export interface RadarSource {
+  id: string;
+  url: string;
+  max_entries?: number;
+  /** ADR-564 D5 — the earn-their-keep reading, derived at read time on the
+   *  composed view only (absent on the list projection): sweeps in the
+   *  trailing window that fetched this source / report derivations citing it. */
+  fed_count?: number | null;
+  cited_count?: number | null;
+}
+
 export interface RadarHubSummary {
   topic: string;
   declaration_path: string;
@@ -382,7 +393,7 @@ export interface RadarHubSummary {
   /** ADR-564 D2 — what matters here (CRITERION.md); replaces the retired
    *  `prompt` steer. */
   criterion?: string | null;
-  sources: Array<{ id: string; url: string; max_entries?: number }>;
+  sources: RadarSource[];
   last_run_at?: string | null;
   next_run_at?: string | null;
   /** ADR-565 D1 — the living report head, when a sweep has landed one. */
@@ -405,6 +416,9 @@ export interface RadarHubView extends RadarHubSummary {
     error_reason?: string | null;
   }>;
   signal_observed_at?: string | null;
+  /** ADR-564 D5 — denominators behind each source's fed/cited counts. */
+  window_sweeps?: number | null;
+  window_changes?: number | null;
 }
 
 /** A radar topic is a meaning-folder path (ADR-565 D3) — encode each segment,

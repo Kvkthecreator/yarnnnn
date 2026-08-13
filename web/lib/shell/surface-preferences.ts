@@ -591,6 +591,13 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // re-route delivered `{platform}` here, which Files has never read, and the
   // unconstrained default accepted and persisted it forever.
   files: ['path', 'domain'],
+  // The Researcher's desk (ADR-567). `topic` names the watched folder under
+  // management — load-bearing identity: an attach-in-flight IS a topic param
+  // with no declaration yet, so a refresh must not lose it. `file` is the
+  // delivered Files-association deep-link, consumed at mount into `topic`.
+  // Registered 2026-08-13 — radar sat in NEITHER registry, and the
+  // unconstrained miss-case reads as permission (the 3f44a8f lesson).
+  radar: ['topic', 'file'],
 };
 
 // ----------------------------------------------------------------------------
@@ -673,6 +680,10 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // document-identity-shaped drill-in by the test above.
   settings: ['pane', 'connector'],
   'workspace-settings': ['pane'],
+  // The desk's `topic` is deliberately RESTORED (like `chat.lane` — the desk
+  // is a place you live in, and the folder roster sits right beside it); only
+  // the delivered Files-association deep-link is an open act, not a posture.
+  radar: ['file'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */
