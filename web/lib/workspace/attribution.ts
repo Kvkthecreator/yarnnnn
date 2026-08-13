@@ -88,6 +88,7 @@ const LANE_MODEL_NAMES: Record<string, string> = {
   'gemini/gemini-2.5-pro': 'Gemini Pro',
   'gemini/gemini-2.5-flash': 'Gemini Flash',
   'deepseek/deepseek-chat': 'DeepSeek',
+  'xai/grok-4.6': 'Grok',
   // Retired — still the honest name on every revision they authored.
   'anthropic/claude-sonnet-4-6': 'Claude Sonnet 4.6',
   'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',

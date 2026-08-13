@@ -93,6 +93,18 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     # DeepSeek cache-hit input is ~2% of the base rate (98% discount, V4 Flash).
     "deepseek-chat":              {"input_per_mtok": 0.14, "output_per_mtok": 0.28,
                                    "cache_read_mult": 0.02, "cache_create_mult": 0.0},
+    # ⚠️ xAI prices by PROMPT LENGTH, and this table is flat (one pair per model,
+    # no length branch in `compute_cost_usd_inclusive`). grok-4.6 is $2/$6 under
+    # 200k prompt tokens and $4/$12 at or above it; the row carries the **≥200k
+    # tier** on purpose. Same reasoning as the standing-list-price rule above:
+    # the high tier over-charges short calls by a KNOWN, bounded amount that is
+    # visible in the ADR-408 D4 rate mirror, whereas the low tier would silently
+    # UNDER-charge every long-context call — the invisible failure this table's
+    # discipline exists to prevent. Revisit only if `compute_cost_usd_inclusive`
+    # learns prompt-length tiers.
+    # Cached input is 25% of base at both tiers ($0.50/$2.00); no cache-write premium.
+    "grok-4.6":                   {"input_per_mtok": 4.00, "output_per_mtok": 12.00,
+                                   "cache_read_mult": 0.25, "cache_create_mult": 0.0},
 }
 # The fall-through rate for a model with no row. Points at the CURRENT Sonnet,
 # not the retired 4.6 — same figures ($3/$15), but a default anchored to a

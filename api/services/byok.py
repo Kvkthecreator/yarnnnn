@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # The providers a BYOK key may be for — the LANE_MODELS prefixes (ADR-411 D5).
 # A key is provider-specific: the resolver only returns it for a matching model.
-BYOK_PROVIDERS = ("anthropic", "openai", "gemini", "deepseek")
+BYOK_PROVIDERS = ("anthropic", "openai", "gemini", "deepseek", "xai")
 
 
 def provider_from_model(model: str) -> str:

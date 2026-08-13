@@ -79,9 +79,15 @@ def run():
         byok.provider_from_model("gemini/gemini-2.5-flash") == "gemini"
         and byok.provider_from_model("anthropic/claude-sonnet-4-6") == "anthropic",
     ))
+    # Derived, not pinned: the assertion is the INVARIANT (BYOK covers exactly
+    # the providers a lane can route to), so adding an engine to LANE_MODELS
+    # never reads as a violation. The old form hard-coded the four-provider
+    # spelling and went red on a legitimate ADDITION.
+    from services.lane_runner import LANE_MODELS
+    _lane_providers = {byok.provider_from_model(m) for m in LANE_MODELS}
     results.append(_check(
         "BYOK_PROVIDERS is the LANE_MODELS provider set",
-        set(byok.BYOK_PROVIDERS) == {"anthropic", "openai", "gemini", "deepseek"},
+        set(byok.BYOK_PROVIDERS) == _lane_providers,
     ))
     # get_byok_key is total: a None workspace_id (N=1 pre-resolve) → None (managed)
     results.append(_check(

@@ -77,6 +77,12 @@ LANE_MODELS: dict[str, dict[str, Any]] = {
     "gemini/gemini-2.5-flash": {"label": "Gemini Flash", "vision": True},      # the Google lane (fast/cheap)
     # ── DeepSeek ─────────────────────────────────────────────────────────
     "deepseek/deepseek-chat": {"label": "DeepSeek", "vision": False},          # cost-floor / sovereign lane
+    # ── xAI ──────────────────────────────────────────────────────────────
+    # A genuinely new price/context point, not a duplicate: $2/$6 sits between
+    # Haiku and Sonnet, with a 500k window. ⚠️ xAI prices by PROMPT LENGTH
+    # (≥200k doubles to $4/$12) and `_BILLING_RATES` is flat — the rate row
+    # carries the ≥200k tier deliberately. See the note there.
+    "xai/grok-4.6": {"label": "Grok", "vision": True},
     # ── RETIRED (honored, not offered) ───────────────────────────────────
     # Superseded engines. They keep every lane already pinned to them running
     # — a lane's engine is what ACTUALLY ran and must not be rewritten — but
@@ -242,6 +248,7 @@ _PROVIDER_KEY_ENV = {
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
+    "xai": "XAI_API_KEY",
 }
 
 #: Engines observed refusing upstream this process, → the provider's own words.

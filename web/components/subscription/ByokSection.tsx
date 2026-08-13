@@ -22,6 +22,7 @@ const PROVIDERS: { value: string; label: string }[] = [
   { value: "openai", label: "OpenAI (GPT)" },
   { value: "gemini", label: "Google (Gemini)" },
   { value: "deepseek", label: "DeepSeek" },
+  { value: "xai", label: "xAI (Grok)" },
 ];
 
 export function ByokSection() {

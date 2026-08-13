@@ -105,13 +105,13 @@ def record(criterion: str, verdict: str, detail: str = "") -> None:
 def _provider_key_present(model: str) -> bool:
     """Is the provider key for this model in env? A missing key is a DEPLOYMENT
     fact (Render parity), reported rather than failed."""
+    # Reads the runtime's OWN map (`lane_runner._PROVIDER_KEY_ENV`) rather than
+    # keeping a second copy: a probe that disagrees with the thing it probes
+    # reports on a deployment that does not exist.
+    from services.lane_runner import _PROVIDER_KEY_ENV
     provider = model.split("/", 1)[0]
-    return bool(os.environ.get({
-        "anthropic": "ANTHROPIC_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "gemini": "GEMINI_API_KEY",
-        "deepseek": "DEEPSEEK_API_KEY",
-    }.get(provider, "__none__"), "").strip())
+    return bool(os.environ.get(
+        _PROVIDER_KEY_ENV.get(provider, "__none__"), "").strip())
 
 
 async def probe_c1_refusal() -> None:
