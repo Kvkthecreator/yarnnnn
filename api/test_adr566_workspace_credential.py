@@ -348,6 +348,66 @@ check(
 )
 
 # ---------------------------------------------------------------------------
+print("\n6b. D5 — the two panes stay two (no re-merge of the ADR-425 pane)")
+# ---------------------------------------------------------------------------
+WEB = API.parent / "web"
+ws_page = (WEB / "app/(authenticated)/workspace-settings/page.tsx").read_text()
+acct_page = (WEB / "app/(authenticated)/settings/page.tsx").read_text()
+
+check(
+    "the workspace door mounts the workspace-credential card",
+    "WorkspaceCredentialsCard" in ws_page,
+)
+# ⚠️ Strip comments before asserting absence. The first draft of this check
+# failed on the workspace page's own ADR-425 note explaining WHERE that section
+# went — an assertion matching its own explanatory comment, the exact trap
+# CLAUDE.md's gate-craft rule names. Assert on CODE, never on prose.
+_ws_code = re.sub(r"//.*$", "", ws_page, flags=re.M)
+_ws_code = re.sub(r"/\*.*?\*/", "", _ws_code, flags=re.S)
+check(
+    "…and does NOT re-mount the account door's human-connector section",
+    "ConnectedIntegrationsSection" not in _ws_code,
+    "ADR-425 D1 — a human's connectors stay in the account door",
+)
+check(
+    "the account door still mounts the human-connector section",
+    "ConnectedIntegrationsSection" in acct_page,
+)
+check(
+    "…and does NOT mount the workspace-credential card",
+    "WorkspaceCredentialsCard" not in acct_page,
+)
+
+card = (WEB / "components/workspace-concepts/WorkspaceCredentialsCard.tsx").read_text()
+check(
+    "the workspace card reads the workspace-credential endpoint, not /integrations",
+    "workspaceCredentials" in card and "api.integrations.list" not in card,
+)
+# Normalize JSX whitespace before matching prose: the copy is line-wrapped by
+# the formatter, so pinning an exact phrase would break on a re-wrap that
+# changed nothing. Match the two CLAIMS the ceiling has to make, not a spelling.
+_card_text = " ".join(card.split())
+check(
+    "the workspace card states the ceiling affirmatively (ADR-535 D3 discipline)",
+    "does not let them act on their own" in _card_text
+    and "waits for someone to approve it" in _card_text,
+)
+
+# The route must precede `/{provider}` or FastAPI resolves it as a provider
+# named "workspace-credentials" — the collision this file warns about twice.
+import routes.integrations as _ri  # noqa: E402
+
+_paths = [r.path for r in _ri.router.routes if hasattr(r, "path")]
+check(
+    "the workspace-credential route is registered",
+    "/integrations/workspace-credentials" in _paths,
+)
+check(
+    "…and precedes /integrations/{provider} (path-collision trap)",
+    _paths.index("/integrations/workspace-credentials") < _paths.index("/integrations/{provider}"),
+)
+
+# ---------------------------------------------------------------------------
 print("\n7. own-agent is the live role, not an invention")
 # ---------------------------------------------------------------------------
 from services.programs import HIRE_GRANT_ROLE  # noqa: E402

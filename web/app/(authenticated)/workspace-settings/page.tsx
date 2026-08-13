@@ -31,7 +31,7 @@
  *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
-import { AlertTriangle, BarChart3, CreditCard, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, CreditCard, KeyRound, Users } from "lucide-react";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 // ADR-491 D1 (2026-07-28) — Billing + Usage return to THIS door (the third and
 // final placement flip): with members real (seats live, ADR-490), billing is
@@ -57,6 +57,10 @@ import { UsagePaneBody } from "@/components/subscription/UsagePaneBody";
 // operator-facing Program hire UI is retired, its lifecycle-drawer component
 // stays in the Setup sequence).
 import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
+// ADR-566 D5 — the workspace's own allocated credentials (its agents' reach).
+// A SECOND, disjoint store from the account door's Connectors pane (ADR-425 D1),
+// never a re-merge of the pane ADR-425 removed.
+import { WorkspaceCredentialsCard } from "@/components/workspace-concepts/WorkspaceCredentialsCard";
 import { useWorkspaceMembers } from "@/lib/workspace/viewer";
 import { WorkspaceDangerZone } from "@/components/workspace-concepts/WorkspaceDangerZone";
 // ADR-425 — the Perception group (Connectors · Sources) left this door:
@@ -107,7 +111,17 @@ const PANE_GROUPS: PaneGroup[] = [
     // what region each holds. Read-only legibility; provisioning is a
     // separate ADR.
     label: "Access",
-    panes: [{ key: "members", label: "Workspace Members", icon: Users }],
+    panes: [
+      { key: "members", label: "Workspace Members", icon: Users },
+      // ADR-566 D5 — the WORKSPACE's own allocated credentials: what its agents
+      // act through. NOT the pane ADR-425 D1 removed (that one showed HUMANS'
+      // connectors under a workspace heading, the mis-scoping 425 fixed, and a
+      // member's own connectors stay in the account door). It sits under Access
+      // because it answers the same question the roster does — what can reach
+      // this workspace, and what can this workspace reach — not under a revived
+      // "Perception" grouping (ADR-425 OQ3: no cosmetic re-merge).
+      { key: "credentials", label: "Agent Credentials", icon: KeyRound },
+    ],
   },
   {
     // ADR-491 D1 — the workspace's money. Billing is authority-gated (the
@@ -174,6 +188,21 @@ export default function WorkspaceSettingsPage() {
         return (
           <section className="mb-8">
             <WorkspaceMembersCard variant="full" />
+          </section>
+        );
+      // ADR-566 D5 — what this workspace's AGENTS act through. The subtitle
+      // does the load-bearing work of keeping the two stores apart at a glance:
+      // a member arriving here must not read it as "my connections".
+      case "credentials":
+        return (
+          <section className="mb-8">
+            <PaneHeader
+              icon={KeyRound}
+              title="Agent Credentials"
+              subtitle="What this workspace's agents can reach. Your own connections live in your account settings."
+              bordered={false}
+            />
+            <WorkspaceCredentialsCard />
           </section>
         );
       // ADR-491 D1 — the workspace's money (returned from the account door).

@@ -2431,6 +2431,22 @@ export const api = {
         }>;
       }>("/api/integrations"),
 
+    // ADR-566 D5 — the WORKSPACE's own allocated credentials: what its agents
+    // act through. A different store and a different question from `list()`
+    // above (that one is the caller's own connectors, ADR-425 D1); the two
+    // never fall back to each other, so they stay two calls.
+    workspaceCredentials: () =>
+      request<{
+        credentials: Array<{
+          id: string;
+          provider: string;
+          status: string;
+          workspace_name: string | null;
+          connected_at: string;
+        }>;
+        can_manage: boolean;
+      }>("/api/integrations/workspace-credentials"),
+
     // Get specific integration
     get: (provider: string) =>
       request<{
