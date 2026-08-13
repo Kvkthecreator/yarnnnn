@@ -379,16 +379,24 @@ export interface RadarHubSummary {
   declaration_path: string;
   schedule?: string | string[] | null;
   paused: boolean;
-  prompt?: string | null;
+  /** ADR-564 D2 — what matters here (CRITERION.md); replaces the retired
+   *  `prompt` steer. */
+  criterion?: string | null;
   sources: Array<{ id: string; url: string; max_entries?: number }>;
   last_run_at?: string | null;
   next_run_at?: string | null;
+  /** ADR-565 D1 — the living report head, when a sweep has landed one. */
+  report_path?: string | null;
+  report_title?: string | null;
+  // The pre-ADR-565 shelf — legacy reads only; new sweeps never add to it.
   latest_brief_path?: string | null;
   latest_brief_title?: string | null;
   brief_count: number;
 }
 
 export interface RadarHubView extends RadarHubSummary {
+  /** The living report head content (ADR-565 D1). */
+  report?: string | null;
   briefs: Array<{ path: string; title: string; date?: string | null }>;
   recent_sweeps: Array<{
     slug: string;
@@ -398,6 +406,11 @@ export interface RadarHubView extends RadarHubSummary {
   }>;
   signal_observed_at?: string | null;
 }
+
+/** A radar topic is a meaning-folder path (ADR-565 D3) — encode each segment,
+ *  keep the '/' separators so the server's `{topic:path}` param reads it. */
+const encodeTopic = (topic: string) =>
+  topic.split("/").map(encodeURIComponent).join("/");
 
 export const api = {
   // ADR-411 (ADR-408 D6): chat lanes — model-pinned helper threads per
@@ -619,18 +632,22 @@ export const api = {
     },
   },
 
-  // ADR-486 — AI Radar, the standing app. Hubs are declarations
-  // (operation/{topic}/_radar.yaml, written through the one door server-side);
-  // the hub view is the D5 lazy projection over substrate + ledger.
+  // ADR-486 (re-cut ADR-564/565) — radar, the standing app. Hubs are
+  // declarations ({folder}/_radar.yaml + CRITERION.md, any depth under
+  // operation/, written through the one door server-side); the hub view is
+  // the D5 lazy projection over substrate + ledger, now carrying the living
+  // report head. A topic may contain '/', so it is encoded per-segment —
+  // never whole (an encoded %2F would still route, but plain segments are
+  // the honest URL).
   radar: {
     list: () => request<RadarHubSummary[]>("/api/radar/hubs"),
     get: (topic: string) =>
-      request<RadarHubView>(`/api/radar/hubs/${encodeURIComponent(topic)}`),
+      request<RadarHubView>(`/api/radar/hubs/${encodeTopic(topic)}`),
     create: (data: {
       topic: string;
       sources: Array<{ id: string; url: string; max_entries?: number }>;
       schedule?: string;
-      prompt?: string;
+      criterion?: string;
       fire_on_activation?: boolean;
     }) =>
       request<RadarHubSummary>("/api/radar/hubs", {
@@ -642,11 +659,11 @@ export const api = {
       data: {
         paused?: boolean;
         schedule?: string;
-        prompt?: string;
+        criterion?: string;
         sources?: Array<{ id: string; url: string; max_entries?: number }>;
       },
     ) =>
-      request<RadarHubSummary>(`/api/radar/hubs/${encodeURIComponent(topic)}`, {
+      request<RadarHubSummary>(`/api/radar/hubs/${encodeTopic(topic)}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),

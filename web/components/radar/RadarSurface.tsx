@@ -44,10 +44,15 @@ interface HubSummary {
   declaration_path: string;
   schedule?: string | string[] | null;
   paused: boolean;
-  prompt?: string | null;
+  /** ADR-564 D2 — what matters here (CRITERION.md); replaces the steer. */
+  criterion?: string | null;
   sources: HubSource[];
   last_run_at?: string | null;
   next_run_at?: string | null;
+  /** ADR-565 D1 — the living report, when a sweep has landed one. */
+  report_path?: string | null;
+  report_title?: string | null;
+  // The pre-ADR-565 shelf — legacy reads only.
   latest_brief_path?: string | null;
   latest_brief_title?: string | null;
   brief_count: number;
@@ -63,6 +68,8 @@ interface SweepEvent {
 }
 
 interface HubView extends HubSummary {
+  /** The living report head content (ADR-565 D1). */
+  report?: string | null;
   briefs: BriefEntry[];
   recent_sweeps: SweepEvent[];
   signal_observed_at?: string | null;
@@ -78,7 +85,8 @@ const CADENCES: Array<{ label: string; cron: string }> = [
 ];
 
 function topicFromDeclarationPath(path: string): string | null {
-  const m = /operation\/([^/]+)\/_radar\.yaml$/.exec(path || '');
+  // Any depth under operation/ (ADR-565 D3) — the topic is the folder path.
+  const m = /operation\/(.+)\/_radar\.yaml$/.exec(path || '');
   return m ? m[1] : null;
 }
 
@@ -121,7 +129,7 @@ export default function RadarSurface() {
           id: null,
           pageIndex: null,
           label: selected,
-          excerpt: view?.latest_brief_title ?? null,
+          excerpt: view?.report_title ?? view?.latest_brief_title ?? null,
           viewport: null,
         }
       : null,
@@ -231,8 +239,11 @@ export default function RadarSurface() {
                   {h.paused && <Pause className="h-3 w-3 shrink-0 text-muted-foreground" />}
                 </div>
                 <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {h.brief_count} brief{h.brief_count === 1 ? '' : 's'}
-                  {h.latest_brief_title ? ` · ${h.latest_brief_title}` : ''}
+                  {h.report_title
+                    ? h.report_title
+                    : h.brief_count > 0
+                      ? `${h.brief_count} brief${h.brief_count === 1 ? '' : 's'}${h.latest_brief_title ? ` · ${h.latest_brief_title}` : ''}`
+                      : 'no report yet'}
                 </div>
               </button>
             ))
@@ -289,38 +300,64 @@ export default function RadarSurface() {
               </div>
             </div>
 
-            {view.prompt && (
-              <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                {view.prompt}
-              </p>
+            {view.criterion && (
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">What matters here · </span>
+                {view.criterion}
+              </div>
             )}
 
-            {/* Briefs shelf — the felt unit */}
+            {/* The living report — the felt unit (ADR-565 D1) */}
             <section>
-              <h2 className="mb-2 text-sm font-medium">Briefs</h2>
-              {view.briefs.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No briefs yet — the first lands after the next sweep with
-                  something worth saying. An empty sweep is reported honestly,
-                  never padded.
-                </p>
+              <h2 className="mb-2 text-sm font-medium">Report</h2>
+              {view.report ? (
+                <div className="rounded-md border">
+                  <button
+                    type="button"
+                    onClick={() => view.report_path && openBrief(view.report_path)}
+                    className="flex w-full items-baseline justify-between gap-3 border-b px-3 py-2.5 text-left hover:bg-muted/60"
+                    title="Open in Files (history + diffs live there)"
+                  >
+                    <span className="truncate text-sm font-medium">
+                      {view.report_title || 'The living report'}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      revised {fmtWhen(view.last_run_at)}
+                    </span>
+                  </button>
+                  <div className="max-h-96 overflow-y-auto whitespace-pre-wrap px-3 py-2.5 text-sm">
+                    {view.report}
+                  </div>
+                </div>
               ) : (
-                <ul className="divide-y rounded-md border">
-                  {view.briefs.map((b) => (
-                    <li key={b.path}>
-                      <button
-                        type="button"
-                        onClick={() => openBrief(b.path)}
-                        className="flex w-full items-baseline justify-between gap-3 px-3 py-2.5 text-left hover:bg-muted/60"
-                      >
-                        <span className="truncate text-sm">{b.title}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">{b.date || ''}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-xs text-muted-foreground">
+                  No report yet — the first revision lands after the next sweep
+                  with something worth saying. An empty sweep is reported
+                  honestly, never padded.
+                </p>
               )}
             </section>
+
+            {/* The pre-ADR-565 briefs shelf — legacy reads only */}
+            {view.briefs.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-medium">Earlier briefs</h2>
+              <ul className="divide-y rounded-md border">
+                {view.briefs.map((b) => (
+                  <li key={b.path}>
+                    <button
+                      type="button"
+                      onClick={() => openBrief(b.path)}
+                      className="flex w-full items-baseline justify-between gap-3 px-3 py-2.5 text-left hover:bg-muted/60"
+                    >
+                      <span className="truncate text-sm">{b.title}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{b.date || ''}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            )}
 
             {/* Sources */}
             <section>
@@ -402,13 +439,17 @@ function CreateHubForm({
   const [topic, setTopic] = useState('');
   const [urls, setUrls] = useState('');
   const [cron, setCron] = useState(CADENCES[0].cron);
-  const [steer, setSteer] = useState('');
+  const [criterion, setCriterion] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const submit = useCallback(async () => {
     setErr(null);
-    const slug = topic.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    // A topic may be a nested meaning-path (ADR-565 D3) — '/' survives the
+    // slug cleanup; each segment kebab-cases independently.
+    const slug = topic.trim().toLowerCase()
+      .replace(/[^a-z0-9/]+/g, '-')
+      .split('/').map((s) => s.replace(/^-+|-+$/g, '')).filter(Boolean).join('/');
     const sources = urls
       .split('\n')
       .map((u) => u.trim())
@@ -433,7 +474,7 @@ function CreateHubForm({
         topic: slug,
         sources,
         schedule: cron,
-        prompt: steer.trim() || undefined,
+        criterion: criterion.trim() || undefined,
       });
       await onCreated(slug);
     } catch (e) {
@@ -441,7 +482,7 @@ function CreateHubForm({
     } finally {
       setBusy(false);
     }
-  }, [topic, urls, cron, steer, onCreated]);
+  }, [topic, urls, cron, criterion, onCreated]);
 
   return (
     <div className="mx-auto max-w-xl space-y-4 p-6">
@@ -491,11 +532,11 @@ function CreateHubForm({
       </label>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium">What matters (optional)</span>
+        <span className="mb-1 block font-medium">What matters here (optional)</span>
         <textarea
-          value={steer}
-          onChange={(e) => setSteer(e.target.value)}
-          placeholder="What should the brief focus on — and what should it skip?"
+          value={criterion}
+          onChange={(e) => setCriterion(e.target.value)}
+          placeholder="What should the report track — and what should it ignore? Lands as CRITERION.md in the folder; revise it any time."
           rows={3}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         />
