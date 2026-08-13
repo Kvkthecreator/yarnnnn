@@ -173,7 +173,10 @@ async def handle_track_web_sources(auth: Any, input: dict) -> dict:
             raw_paths.append(raw_path)
             processed += 1
         except Exception as exc:  # per-source isolation — a dead feed is a recorded fact
-            logger.warning("[TRACK_WEB_SOURCES] %s fetch/parse failed: %s", sid, exc)
+            # %r, not %s — timeout/connect exceptions often str() to "", and an
+            # empty reason cost a live diagnosis (2026-08-13: "fetch/parse
+            # failed: " with nothing after the colon).
+            logger.warning("[TRACK_WEB_SOURCES] %s fetch/parse failed: %r", sid, exc)
             blocks.append({"id": sid, "source_ref": url, "attestation": attestation,
                            "observed_at": observed_at, "status": "error",
                            "error": str(exc)[:200], "entries": []})
