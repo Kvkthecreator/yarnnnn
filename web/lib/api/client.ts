@@ -416,6 +416,12 @@ export const api = {
         enabled: boolean;
         /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. */
         agents: Array<{ slug: string; name: string; blurb: string; icon: string }>;
+        /** ADR-564 — the app registry, served from the app's own declaration
+         *  (`services/apps/*` → `register_app`). `name` is the app's label for
+         *  its resident ("Writer" in Docs), empty when it did not rename one.
+         *  Served rather than mirrored here: a TS copy is the second home
+         *  ADR-562 deleted. */
+        apps?: Array<{ slug: string; resident: string; name: string }>;
         models: Array<{ id: string; label: string; vision?: boolean;
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */

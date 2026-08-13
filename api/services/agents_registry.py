@@ -726,6 +726,7 @@ def build_agent_posture(
     slug: str,
     member_agents: Optional[list[dict]] = None,
     skills: Optional[list[dict]] = None,
+    as_name: Optional[str] = None,
 ) -> str:
     """The Agent's turn-time posture overlay, or "" when there is no Agent. Pure.
 
@@ -768,9 +769,32 @@ def build_agent_posture(
 
     # The member named them — the model should answer to that name, not to the
     # capability's.
-    name = agent.get("name") or ""
+    #
+    # ADR-564 — `as_name` is the APP's name for its resident (Docs calls Designer
+    # "Writer"). It rides the SAME mechanism a member's nickname already used,
+    # which is the point: naming is naming, whoever does it. Three namers now,
+    # one line of prompt — the member (their own Agent), the app (its resident),
+    # and the kernel (the character's own name, the default when nobody renamed).
+    #
+    # It renames, it never re-characterizes: the posture above is still
+    # Designer's, because Docs pinned DESIGNER. A different character would be a
+    # different resident, not a different label — the ADR-460 D1 cut (a name is
+    # not a taxonomy) held one layer up.
+    name = (as_name or "").strip() or agent.get("name") or ""
     section = f"\n\nWHO YOU ARE\n{character}\n"
-    if not agent.get("kernel", True):
+    if as_name and as_name.strip():
+        # The app renamed them. Stated as an OVERRIDE, not merely an alias,
+        # because the character text above opens "You are Designer —" and the
+        # observed behaviour is that the colleague INTRODUCES ITSELF by that
+        # name ("I'm Designer — your maker in this workspace", the 2026-08-13
+        # click-pass). A bare "you are also called X" leaves two names live and
+        # the model picks the one it read first. So: name the override.
+        section += (
+            f"\nIn this app you are called {name} — use that name, not the one "
+            f"in the line above. Same colleague, same craft; the name fits the "
+            f"medium you are working in.\n"
+        )
+    elif not agent.get("kernel", True):
         section += f"\nYou are called {name}. Answer to it.\n"
     tone = (agent.get("tone") or "").strip()
     if tone:

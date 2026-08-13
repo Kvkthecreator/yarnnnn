@@ -308,6 +308,23 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
     return row
 
 
+def _apps_payload() -> list[dict]:
+    """The app registry, FE-shaped (ADR-564).
+
+    `{slug, resident, name}` per registered app — `name` is the app's own label
+    for its resident ("Writer" in Docs), empty when the app did not rename one.
+    Served rather than mirrored in TypeScript: a parallel table is the second
+    home ADR-562 deleted, and it drifts the moment one side is edited.
+    """
+    import services.apps  # noqa: F401  (registration side-effect)
+    from services.authoring import all_apps
+
+    return [
+        {"slug": a["slug"], "resident": a["resident"], "name": a["name"]}
+        for a in all_apps().values()
+    ]
+
+
 def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
     """The capability envelope around the conversation list. Extracted so the
     empty-cast early return serves the identical shape (one envelope, one
@@ -345,6 +362,11 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # joined, never chosen at the door). Personas are configured in
         # `/agents`; this is the list of who is available to invite.
         "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
+        # ADR-564 — the app registry, served so the FE resolves an app's name for
+        # its resident from the SAME declaration the prompt uses. Serving it
+        # beats a parallel TS table: that is precisely the second home ADR-562
+        # deleted, and it would drift the moment one side was edited.
+        "apps": _apps_payload(),
         # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
         # on the capability envelope (no new endpoint, no FE duplication).
         "recipes": list_recipes(),

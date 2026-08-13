@@ -523,6 +523,14 @@ def build_lane_conventions(
 
     posture_section = ""
 
+    # The bound artifact's CURRENT head, read ONCE for the whole frame (derived,
+    # never stored). Two consumers: ADR-564's app-name resolution (below) and
+    # ADR-440 D3's authoring posture (further down). It was read twice for one
+    # commit — a second round-trip per turn for the same bytes.
+    artifact = (
+        _read_workspace_file(client, user_id, artifact_path) if artifact_path else ""
+    )
+
     # ADR-460 D4 — WHO this lane's helper is, composed at turn time from the
     # slug (the ADR-411 D6 derived-never-stored pattern: a posture is not a
     # historical fact about what ran, it is how this Agent works NOW, so it
@@ -546,10 +554,28 @@ def build_lane_conventions(
             _skills = find_agent_skills(
                 client, user_id, _me["manifest_path"].rsplit("/", 1)[0]
             )
-        posture_section += build_agent_posture(agent, _mine, _skills)
+        # ADR-564 — the APP's name for its resident (Docs calls Designer
+        # "Writer"). DERIVED from the artifact's own `data-template`, never
+        # stored on the lane: the app is a fact about the DOCUMENT, so deriving
+        # it means a lane can never carry a stale label for an artifact that
+        # changed hands. Empty for an unbound lane (no artifact → no app → the
+        # character's own name), which is byte-identical to pre-564.
+        _as_name = ""
+        if artifact_path:
+            import services.apps  # noqa: F401  (registration side-effect)
+            from services.authoring import (
+                app_for_layout,
+                extract_template,
+                resolve_app,
+            )
+
+            _app = app_for_layout(extract_template(artifact))
+            _as_name = (resolve_app(_app) or {}).get("name") or ""
+        posture_section += build_agent_posture(agent, _mine, _skills, as_name=_as_name)
     if artifact_path:
         from services.authoring import build_studio_posture
-        artifact = _read_workspace_file(client, user_id, artifact_path)
+        # `artifact` was read once at the top of the frame (shared with ADR-564's
+        # app-name resolution) — still the CURRENT head, still derived-never-stored.
         # `+=`, NOT `=`. This was an assignment until 2026-07-16, which was
         # latent-only because no bound lane carried an agent — the moment
         # Studio's lane got a Designer (ADR-460 §4b), an `=` here would have

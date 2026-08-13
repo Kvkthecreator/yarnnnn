@@ -173,6 +173,58 @@ check("…and keeps the ENGINE for the vision refusal (a model's limit)",
 check("…and keeps the ENGINE on the attribution receipt (`you via {model}`)",
       "you via ${modelLabel}" in _panel)
 
+print("\n── 5b. ADR-564 — an app may NAME its resident ──")
+
+from services.authoring import resolve_app  # noqa: E402
+from services.agents_registry import build_agent_posture  # noqa: E402
+
+check("Docs names its resident Writer",
+      (resolve_app("docs") or {}).get("name") == "Writer")
+check("…and Studio does NOT rename (the character's own name stands)",
+      not (resolve_app("studio") or {}).get("name"))
+
+_docs_posture = build_agent_posture("designer", as_name="Writer")
+_studio_posture = build_agent_posture("designer", as_name="")
+
+# The rename must be an OVERRIDE, not an alias: the character text opens "You
+# are Designer —" and the colleague INTRODUCES ITSELF by name (observed, the
+# 2026-08-13 click-pass). Two live names would let the model pick the first.
+check("the app rename OVERRIDES the character's name in the prompt",
+      "you are called Writer" in _docs_posture
+      and "not the one in the line above" in _docs_posture)
+check("…and an un-renamed app adds no naming line at all",
+      "called" not in _studio_posture)
+# Same character either way — a name is not a taxonomy (ADR-460 D1).
+check("…while the CHARACTER is identical (a name is not a character)",
+      "You are Designer" in _docs_posture and "You are Designer" in _studio_posture)
+
+# The app is DERIVED from the artifact's own bytes, never stored on the lane —
+# so a document that changes hands cannot carry a stale label.
+from services.authoring import app_for_layout, extract_template  # noqa: E402
+
+check("the app derives from the artifact's data-template (never lane state)",
+      app_for_layout(extract_template('<html data-template="document">')) == "docs"
+      and app_for_layout(extract_template('<html data-template="deck">')) == "studio")
+
+_lane_src = (ROOT / "api" / "services" / "lane_runner.py").read_text()
+check("the frame reads the bound artifact ONCE (one round-trip, two consumers)",
+      _lane_src.count("_read_workspace_file(client, user_id, artifact_path)") == 1)
+
+# ⚠️ THE WIRING, not the derivation. Removing `as_name=` from the lane's call
+# left this section GREEN on the first run — the resolver worked and nothing
+# consumed it, which is the exact shape of the width-ladder defect (a gate
+# testing a derivation nothing called). Assert the CALL.
+check("the lane PASSES the app name into the posture (not just resolves it)",
+      "as_name=_as_name" in _lane_src)
+check("…and resolves it from the app registry, keyed by the artifact's app",
+      "resolve_app(_app) or {}).get(\"name\")" in _lane_src)
+
+# Served, never mirrored — a TS copy is the second home ADR-562 deleted.
+check("the app registry is SERVED to the FE (no parallel TS table)",
+      '"apps": _apps_payload()' in _lanes)
+check("…and the surface resolves the app's name from it",
+      "apps.find((a) => a.slug === app.slug)?.name" in _studio_code)
+
 print("\n── 6. no dual approach ──")
 
 check("the retired frontend residency table is DELETED",

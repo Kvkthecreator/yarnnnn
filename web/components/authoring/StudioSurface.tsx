@@ -380,6 +380,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
   const [models, setModels] = useState<Array<{ id: string; label: string }>>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  /** ADR-564 — the served app registry (slug → its name for its resident). */
+  const [apps, setApps] = useState<Array<{ slug: string; resident: string; name: string }>>([]);
   const [lanes, setLanes] = useState<LaneInfo[]>([]);
   const [laneError, setLaneError] = useState<string | null>(null);
 
@@ -392,6 +394,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // ADR-562 D5 — keep the roster. Dropping it here is what made the panel
       // say "Claude Sonnet is working…" in a lane whose resident is Designer.
       setAgents((res.agents ?? []) as AgentInfo[]);
+      setApps(res.apps ?? []);
       setLanes(res.lanes as LaneInfo[]);
     } catch {
       setLanesEnabled(false);
@@ -753,11 +756,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const laneLabel = useMemo(() => {
     const slug = boundLane?.agent;
     if (slug) {
+      // ADR-564 — THIS app's name for its resident wins ("Writer" in Docs).
+      // Read from the served registry, never a TS table: the declaration the
+      // prompt uses is the declaration the glass shows, so the two cannot
+      // disagree about who the member is talking to.
+      const appName = apps.find((a) => a.slug === app.slug)?.name;
+      if (appName) return appName;
       const named = agents.find((a) => a.slug === slug)?.name;
       if (named) return named;
     }
     return modelLabel;
-  }, [agents, boundLane, modelLabel]);
+  }, [agents, apps, app.slug, boundLane, modelLabel]);
 
   // ── The served kernel vocabulary (ADR-443 R4 + ADR-444 + ADR-447): blocks +
   // arrangements — the toolbar EXECUTES from it, the posture teaches from the

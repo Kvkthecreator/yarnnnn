@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.13.1] - An app may call its resident by its own name (Docs → Writer)
+
+### Changed
+- `services/agents_registry.py` (`build_agent_posture`): new `as_name` parameter.
+  When set, the WHO-YOU-ARE section gains one line naming the app's label for
+  the resident and stating it OVERRIDES the character's own name. Absent → the
+  section is byte-identical to before (Studio · IMAGES · every chat lane).
+- `services/apps/docs.py`: `register_app("docs", resident="designer", name="Writer")`
+  — consuming the `name` field ADR-562 left declared and unread.
+- `services/lane_runner.py` (`build_lane_conventions`): resolves the app from the
+  bound artifact's own `data-template` and passes its name through. Also hoists
+  the artifact read to ONE round-trip (it was read twice for one commit).
+
+### Expected behavior
+- In Docs the colleague introduces itself as **Writer**; in Studio and IMAGES it
+  remains **Designer**. Same character, same engine, same capability — only the
+  name differs, because Docs is the capture medium and the name fits it.
+- The rename is stated as an override rather than an alias. Observed failure it
+  answers: the character text opens "You are Designer —" and the colleague
+  INTRODUCES ITSELF by that name (2026-08-13 click-pass screenshot: *"I'm
+  Designer — your maker in this workspace"*). A bare "also called X" leaves two
+  names live and the model uses the one it read first.
+- Cost: +1 line (~150 chars) on bound Docs lanes only. Zero elsewhere.
+
+---
+
 ## [2026.08.12.1] - An unbound lane learns what the member is looking at
 
 ### Changed

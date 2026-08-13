@@ -72,11 +72,23 @@ register_layouts(DOCS_LAYOUTS)
 
 # ADR-562 D3 — the resident, declared where the app lives (re-homed from
 # `web/lib/apps/authoring.ts`, which is DELETED). Designer is triple-resident
-# (Docs · Studio · IMAGES, ADR-467 D3); a writing-postured resident for Docs
-# stays a separate, demand-gated decision, so today's honest declaration is the
-# resident that already carries the authoring lane. When that decision arrives
-# it is a one-line edit HERE — which is the whole point of the re-home.
-register_app("docs", resident="designer")
+# (Docs · Studio · IMAGES, ADR-467 D3).
+#
+# ADR-564 — and in Docs, Designer is called **Writer**. The `name` field ADR-562
+# left declared-and-unconsumed, consumed: the one-line edit its own §6 predicted.
+#
+# A NAME, NOT A CHARACTER — deliberately. "Writing" is not a fourth addressed
+# operation: PRODUCE already covers making, and the base roster is closed at
+# three (AGENT-TAXONOMY §5). A stance over an operation is a POSTURE, which is
+# what Critic established. So Docs pins the same maker and calls them by the
+# name that fits the medium — the member reads "Writer" in a document and
+# "Designer" on a deck, and it is one colleague with one character.
+#
+# Whether Docs eventually earns its own capture-shaped DOCTRINE (capture over
+# polish; keep the member's phrasing; revise in place) is the open discourse on
+# app-level standing instructions — and doctrine is instructions, not identity,
+# so it lands beside this line rather than inside it.
+register_app("docs", resident="designer", name="Writer")
 
 
 __all__ = ["DOCS_LAYOUTS", "DOCUMENT_SLUG"]
