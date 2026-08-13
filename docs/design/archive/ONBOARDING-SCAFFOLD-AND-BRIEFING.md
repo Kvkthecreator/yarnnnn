@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-05
 **Status:** Proposed
-**Depends on:** [ADR-138](../adr/ADR-138-agents-as-work-units.md), [ADR-140](../adr/ADR-140-agent-workforce-model.md), [ADR-145](../adr/ADR-145-task-type-registry.md), [ADR-154](../adr/ADR-154-execution-boundary-reform.md)
+**Depends on:** [ADR-138](../adr/ADR-138-agents-as-work-units.md), [ADR-140](../../adr/archive/ADR-140-agent-workforce-model.md), [ADR-145](../adr/ADR-145-task-type-registry.md), [ADR-154](../adr/ADR-154-execution-boundary-reform.md)
 **Related design docs:** [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v4, [ONBOARDING-TP-AWARENESS.md](ONBOARDING-TP-AWARENESS.md) v2
 
 ---

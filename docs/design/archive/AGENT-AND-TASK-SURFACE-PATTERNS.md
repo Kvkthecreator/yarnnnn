@@ -7,7 +7,7 @@
 - [TASK-OUTPUT-SURFACE-CONTRACT.md](./TASK-OUTPUT-SURFACE-CONTRACT.md) — proposed run-level API contract for `/work`
 - [AGENT-PRESENTATION-PRINCIPLES.md](./AGENT-PRESENTATION-PRINCIPLES.md) — historical framing and prior agent-surface principles
 - [../features/task-types.md](../features/task-types.md) — task registry grouped by `output_kind`
-- [ADR-140](../adr/ADR-140-agent-workforce-model.md) — workforce classes
+- [ADR-140](../../adr/archive/ADR-140-agent-workforce-model.md) — workforce classes
 - [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md) — Thinking Partner as meta-cognitive agent
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — canonical `/agents` list/detail surface
 - [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) — three-layer content rendering model. **Orthogonal layer**: surface-pattern rules in this doc govern *which shell renders for which agent_class / output_kind*; ADR-245 governs *how each shell sources its parsed data* (L1 raw view + L2 content-shape parser + L3 structured affordance). Both are active.

@@ -366,6 +366,6 @@ Example test matrix:
 ## Related Documentation
 
 - [Primitives Architecture v2](./primitives-v2.md)
-- [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md)
-- [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
-- [ADR-037: Chat-First Surface](../adr/ADR-037-chat-first-surface-architecture.md)
+- [ADR-038: Filesystem-as-Context](ADR-038-filesystem-as-context.md)
+- [ADR-036: Two-Layer Architecture](ADR-036-two-layer-architecture.md)
+- [ADR-037: Chat-First Surface](ADR-037-chat-first-surface-architecture.md)

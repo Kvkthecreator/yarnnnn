@@ -5,7 +5,7 @@
 **Authors:** Kevin Kim, Claude
 
 **References:**
-- [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md) — dashboard model being evolved
+- [ADR-037: Chat-First Surface Architecture](../../adr/archive/ADR-037-chat-first-surface-architecture.md) — dashboard model being evolved
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — chat vs headless modes
 - [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — per-agent instructions + memory
 - [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — directives flow through chat

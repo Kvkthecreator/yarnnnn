@@ -255,9 +255,9 @@ TP: Write(ref="agent:new", content={
 - [ ] [four-layer-model.md](../architecture/four-layer-model.md) has bidirectional learning section
 - [ ] [memory.md](../features/memory.md) lists 3 extraction sources
 - [ ] [agents.md](../architecture/agents.md) mentions 3 origins (user_configured, analyst_suggested, signal_emergent)
-- [ ] [ADR-069](../adr/ADR-069-layer-4-content-in-signal-reasoning.md) exists and describes Layer 4 integration
+- [ ] [ADR-069](../adr/archive/ADR-069-layer-4-content-in-signal-reasoning.md) exists and describes Layer 4 integration
 - [ ] [ADR-070](../adr/ADR-070-enhanced-activity-pattern-detection.md) exists and describes 5 pattern types
-- [ ] [ADR-071](../adr/ADR-071-strategic-architecture-principles.md) exists and describes 8 strategic principles
+- [ ] [ADR-071](../adr/archive/ADR-071-strategic-architecture-principles.md) exists and describes 8 strategic principles
 
 **Manual Check**:
 ```bash
@@ -430,7 +430,7 @@ Once validation complete:
 
 ## Related
 
-- [ADR-069: Layer 4 Content Integration](../adr/ADR-069-layer-4-content-in-signal-reasoning.md)
+- [ADR-069: Layer 4 Content Integration](../adr/archive/ADR-069-layer-4-content-in-signal-reasoning.md)
 - [ADR-070: Enhanced Activity Pattern Detection](../adr/ADR-070-enhanced-activity-pattern-detection.md)
-- [ADR-071: Strategic Architecture Principles](../adr/ADR-071-strategic-architecture-principles.md)
+- [ADR-071: Strategic Architecture Principles](../adr/archive/ADR-071-strategic-architecture-principles.md)
 - [Validation Script](../../scripts/validate_phase1_integration.py)

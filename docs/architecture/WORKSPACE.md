@@ -40,7 +40,7 @@ YARNNN is an agent-native operating system per [ADR-222](../adr/ADR-222-agent-na
 
 **Why CONVENTIONS is program-scoped, not kernel-seeded.** CONVENTIONS only means something when a program defines vocabulary, time conventions, proposal envelope rules. A generic workspace doesn't need it; the alpha-trader bundle ships it as `tier: canon` with trading-specific rules. The headless base prompt reads it conditionally — present in program workspaces, skipped in generic ones.
 
-**Why agent substrate is currently Reviewer-only.** The Reviewer is the sole *systemic* persona-bearing agent per [ADR-251](../adr/ADR-251-system-agent-reviewer-first-class-surfaces.md). User-authored domain agents are zero-to-many per workspace; when they exist they get `/workspace/agents/{slug}/AGENT.md` + `memory/`. Production roles (researcher, analyst, writer, tracker, designer, reporting) and platform integrations are Orchestration, not Agents — they don't have substrate per [ADR-216](../adr/ADR-216-orchestration-surface-vs-judgment-persona.md).
+**Why agent substrate is currently Reviewer-only.** The Reviewer is the sole *systemic* persona-bearing agent per [ADR-251](../adr/archive/ADR-251-system-agent-reviewer-first-class-surfaces.md). User-authored domain agents are zero-to-many per workspace; when they exist they get `/workspace/agents/{slug}/AGENT.md` + `memory/`. Production roles (researcher, analyst, writer, tracker, designer, reporting) and platform integrations are Orchestration, not Agents — they don't have substrate per [ADR-216](../adr/ADR-216-orchestration-surface-vs-judgment-persona.md).
 
 ---
 

@@ -244,4 +244,4 @@ Read(ref="agent:uuid/sources/0")
 
 - [Primitives Architecture](./primitives.md) - Full primitive specification
 - [TP Prompt Guide](./tp-prompt-guide.md) - How TP uses primitives
-- [ADR-036](../adr/ADR-036-two-layer-architecture.md) - Two-Layer Architecture
+- [ADR-036](../../adr/archive/ADR-036-two-layer-architecture.md) - Two-Layer Architecture

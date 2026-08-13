@@ -113,5 +113,5 @@ The system is designed so discoverability packaging is mostly automatic:
 
 ## Related
 
-- [ADR-078](../adr/ADR-078-blog-route-architecture.md)
+- [ADR-078](../adr/archive/ADR-078-blog-route-architecture.md)
 - [Content Strategy v1](../working_docs/strategy/CONTENT_STRATEGY_v1.md)

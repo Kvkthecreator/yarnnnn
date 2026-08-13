@@ -433,22 +433,22 @@ The more agents a user runs, the more the system learns what they value. This cr
 ## Related
 
 **Core ADRs**:
-- [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Activity layer and four-layer model formalisation
-- [ADR-072](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Unified content layer and TP execution pipeline (current governing ADR for Layer 3 and Layer 4 execution)
+- [ADR-063](../../adr/archive/ADR-063-activity-log-four-layer-model.md) — Activity layer and four-layer model formalisation
+- [ADR-072](../../adr/archive/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Unified content layer and TP execution pipeline (current governing ADR for Layer 3 and Layer 4 execution)
 - [ADR-080](../adr/ADR-080-unified-agent-modes.md) — Unified agent with chat and headless modes
 
 **Superseded ADRs** (historical context only):
-- [ADR-049](../adr/ADR-049-context-freshness-model-SUPERSEDED.md) — Superseded by ADR-072 (retention-based accumulation replaces TTL-only)
-- [ADR-062](../adr/ADR-062-platform-context-architecture-SUPERSEDED.md) — Superseded by ADR-072 (unified content layer replaces filesystem_items cache)
+- [ADR-049](../../adr/archive/ADR-049-context-freshness-model-SUPERSEDED.md) — Superseded by ADR-072 (retention-based accumulation replaces TTL-only)
+- [ADR-062](../../adr/archive/ADR-062-platform-context-architecture-SUPERSEDED.md) — Superseded by ADR-072 (unified content layer replaces filesystem_items cache)
 
 **Layer-specific ADRs**:
 - [ADR-129](../adr/ADR-129-activity-scoping-two-tier-model.md) — Activity scoping: two-tier model (workspace macro + project micro)
 - [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design
 - [ADR-064](../adr/ADR-064-unified-memory-service.md) — Implicit memory extraction
-- [ADR-068](../adr/ADR-068-signal-emergent-agents.md) — Signal-emergent agents (Superseded by ADR-092)
+- [ADR-068](../../adr/archive/ADR-068-signal-emergent-agents.md) — Signal-emergent agents (Superseded by ADR-092)
 - [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — Agent Intelligence & Mode Taxonomy (dissolves signal processing, defines coordinator/proactive/reactive modes)
 - ADR-128 — Multi-Agent Coherence Protocol (cognitive files, mandate context, cross-agent coordination via workspace)
-- [ADR-071](../adr/ADR-071-strategic-architecture-principles.md) — Strategic architecture principles
+- [ADR-071](../../adr/archive/ADR-071-strategic-architecture-principles.md) — Strategic architecture principles
 
 **Architecture docs**:
 - [agents.md](agents.md) — Agents architecture

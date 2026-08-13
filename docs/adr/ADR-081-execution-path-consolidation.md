@@ -5,9 +5,9 @@
 **Amends:** ADR-080 (Unified Agent Modes) — extends headless mode scope to cover research execution
 **Supersedes:** ADR-045 Phases 2-4 (ResearcherAgent, subagent orchestration) — absorbed into unified agent
 **Related:**
-- [ADR-042: Agent Execution Simplification](ADR-042-agent-execution-simplification.md)
-- [ADR-044: Agent Type Reconceptualization](ADR-044-agent-type-reconceptualization.md)
-- [ADR-045: Agent Orchestration Redesign](ADR-045-agent-orchestration-redesign.md)
+- [ADR-042: Agent Execution Simplification](archive/ADR-042-agent-execution-simplification.md)
+- [ADR-044: Agent Type Reconceptualization](archive/ADR-044-agent-type-reconceptualization.md)
+- [ADR-045: Agent Orchestration Redesign](archive/ADR-045-agent-orchestration-redesign.md)
 - [ADR-080: Unified Agent with Chat and Headless Modes](ADR-080-unified-agent-modes.md)
 
 ---

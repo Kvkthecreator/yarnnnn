@@ -3,7 +3,7 @@
 **Date:** 2026-03-05
 **Status:** Implemented
 **Related:**
-- [ADR-063: Activity Log](../adr/ADR-063-activity-log-four-layer-model.md)
+- [ADR-063: Activity Log](../../adr/archive/ADR-063-activity-log-four-layer-model.md)
 - [Activity Feature Doc](../features/activity.md)
 
 ---

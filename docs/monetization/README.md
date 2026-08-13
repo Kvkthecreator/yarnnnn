@@ -47,7 +47,7 @@
 | [ADR-391: Three-Layer Cost Model](../adr/ADR-391-budget-balance-and-the-three-layer-cost-model.md) | **The cost architecture** (balance=workspace, allocation=principal, ledger=attributed). *Pricing decisions D2/D4/D6 reopened by the value analysis.* |
 | [**ADR-396: The Pricing Model**](../adr/ADR-396-the-pricing-model-type-b-subscription-over-the-metered-balance.md) | **THE RATIFIED MODEL** — Type-B subscription over the metered balance; one meter, two gates, no credit currency. Numbers demand-gated. |
 | [ADR-392: The Connector Lane](../adr/ADR-392-the-connector-lane.md) §D8 | **Retention window** — built pricing-ready (`connector_retention.py`); the model's first non-LLM tier gate. |
-| [ADR-334: Per-Operation Pricing](../adr/ADR-334-per-operation-pricing.md) | **Deferred** — delegation-tiered seats; a Rung-2/Phase-2 layer over ADR-396, not the launch. |
+| [ADR-334: Per-Operation Pricing](../adr/archive/ADR-334-per-operation-pricing.md) | **Deferred** — delegation-tiered seats; a Rung-2/Phase-2 layer over ADR-396, not the launch. |
 | [ADR-171: Token Spend Metering](../adr/ADR-171-token-spend-metering.md) | Universal `cost_usd` meter (amended by ADR-291). |
 
 ### ⚪ HISTORICAL / ARCHIVED — kept for reference, not current

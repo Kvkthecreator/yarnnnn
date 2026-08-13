@@ -738,6 +738,6 @@ Update Google integration card to show both Gmail and Calendar:
 
 ## References
 
-- [ADR-046: Google Calendar Integration](../adr/ADR-046-google-calendar-integration.md)
+- [ADR-046: Google Calendar Integration](ADR-046-google-calendar-integration.md)
 - [Google Calendar API Docs](https://developers.google.com/calendar/api/v3/reference)
 - [OAuth Scopes for Google Calendar](https://developers.google.com/calendar/api/auth)

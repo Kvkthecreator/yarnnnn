@@ -1,6 +1,6 @@
 # ADR-040: Semantic Skill Matching — Validation
 
-> **ADR**: [ADR-040](../adr/ADR-040-semantic-skill-matching.md)
+> **ADR**: [ADR-040](../adr/archive/ADR-040-semantic-skill-matching.md)
 > **Status**: Implemented 2026-02-10
 > **Last Validated**: 2026-02-10 (automated unit tests passed)
 

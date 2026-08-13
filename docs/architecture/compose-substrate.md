@@ -8,7 +8,7 @@
 > - [ADR-148: Output Architecture](../adr/ADR-148-output-artifact-architecture.md) — output pipeline (extended)
 > - [ADR-151/152: Context Domains / Directory Registry](../adr/ADR-152-unified-directory-registry.md) — scope declarations that drive assembly
 > - [ADR-157: Fetch-Asset Skill](../adr/ADR-157-fetch-asset-skill.md) — asset discovery (absorbed)
-> - [ADR-166: Registry Coherence](../adr/ADR-166-registry-coherence-pass.md) — output_kind for revision routing
+> - [ADR-166: Registry Coherence](../adr/archive/ADR-166-registry-coherence-pass.md) — output_kind for revision routing
 > - [output-surfaces.md](output-surfaces.md) — surface types, section kinds, export pipeline
 > - [output-substrate.md](output-substrate.md) — capability + rendering architecture
 > - [WORKSPACE.md](WORKSPACE.md) — workspace architecture (filesystem inventory, layers, bootstrap)

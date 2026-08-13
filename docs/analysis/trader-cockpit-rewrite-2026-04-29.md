@@ -2,7 +2,7 @@
 
 > **Date**: 2026-04-29
 > **Status**: Scoping memo. Precedes ADR-239 per ADR-236 Round 3 step 3.1.
-> **Companion**: [ADR-236 umbrella](../adr/ADR-236-frontend-cockpit-coherence-pass.md), [ADR-228 cockpit](../adr/ADR-228-cockpit-as-delegation-posture.md), [ADR-225 compositor](../adr/ADR-225-compositor-layer.md), [ADR-237 chat role grammar](../adr/ADR-237-chat-role-based-design-system.md), [ADR-238 autonomy FE](../adr/ADR-238-autonomy-mode-fe-consumption.md).
+> **Companion**: [ADR-236 umbrella](../adr/ADR-236-frontend-cockpit-coherence-pass.md), [ADR-228 cockpit](../adr/archive/ADR-228-cockpit-as-delegation-posture.md), [ADR-225 compositor](../adr/ADR-225-compositor-layer.md), [ADR-237 chat role grammar](../adr/ADR-237-chat-role-based-design-system.md), [ADR-238 autonomy FE](../adr/ADR-238-autonomy-mode-fe-consumption.md).
 > **Goal**: Surface the architectural questions ADR-239 needs to answer **before** drafting. The memo doesn't decide; it scopes.
 
 ---

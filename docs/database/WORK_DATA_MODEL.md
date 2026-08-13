@@ -284,6 +284,6 @@ ADR-017 simplifies the previous ADR-009 model:
 
 ## References
 
-- [ADR-017: Unified Work Model](../adr/ADR-017-unified-work-model.md)
-- [ADR-016: Layered Agent Architecture](../adr/ADR-016-work-agents-and-artifacts.md)
-- [ADR-009: Work and Agent Orchestration](../adr/ADR-009-work-agent-orchestration.md) (superseded for scheduling)
+- [ADR-017: Unified Work Model](../adr/archive/ADR-017-unified-work-model.md)
+- [ADR-016: Layered Agent Architecture](../adr/archive/ADR-016-work-agents-and-artifacts.md)
+- [ADR-009: Work and Agent Orchestration](../adr/archive/ADR-009-work-agent-orchestration.md) (superseded for scheduling)

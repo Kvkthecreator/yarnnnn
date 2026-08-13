@@ -2,7 +2,7 @@
 
 > **Status**: Planning
 > **Created**: 2026-02-13
-> **ADR**: [ADR-058-knowledge-base-architecture.md](../adr/ADR-058-knowledge-base-architecture.md)
+> **ADR**: [ADR-058-knowledge-base-architecture.md](ADR-058-knowledge-base-architecture.md)
 
 ---
 

@@ -396,8 +396,8 @@ When requirements seem contradictory (low friction AND strong boundaries), the s
 
 ## References
 
-- [ADR-034: Emergent Context Domains](../adr/ADR-034-emergent-context-domains.md)
-- [ADR-024: Context Classification Layer](../adr/ADR-024-context-classification-layer.md) (superseded approach)
-- [ADR-005: Unified Memory with Embeddings](../adr/ADR-005-unified-memory-with-embeddings.md)
-- [ADR-015: Unified Context Model](../adr/ADR-015-unified-context-model.md)
-- [ADR-032: Platform-Native Frontend Architecture](../adr/ADR-032-platform-native-frontend-architecture.md)
+- [ADR-034: Emergent Context Domains](../adr/archive/ADR-034-emergent-context-domains.md)
+- [ADR-024: Context Classification Layer](../adr/archive/ADR-024-context-classification-layer.md) (superseded approach)
+- [ADR-005: Unified Memory with Embeddings](../adr/archive/ADR-005-unified-memory-with-embeddings.md)
+- [ADR-015: Unified Context Model](../adr/archive/ADR-015-unified-context-model.md)
+- [ADR-032: Platform-Native Frontend Architecture](../adr/archive/ADR-032-platform-native-frontend-architecture.md)

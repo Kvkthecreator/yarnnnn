@@ -6,10 +6,10 @@
 **Related:**
 - [Agent Execution Model](agent-execution-model.md) — unified agent (chat + headless modes), orchestration boundary
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — supersedes ADR-061
-- [ADR-061: Two-Path Architecture](../adr/ADR-061-two-path-architecture.md) — historical (superseded by ADR-080)
-- [ADR-013: Conversation + Surfaces](../adr/ADR-013-conversation-plus-surfaces.md)
-- [ADR-018: Recurring Agents](../adr/ADR-018-recurring-agents.md)
-- [ADR-020: Agent-Centric Chat](../adr/ADR-020-agent-centric-chat.md)
+- [ADR-061: Two-Path Architecture](../../adr/archive/ADR-061-two-path-architecture.md) — historical (superseded by ADR-080)
+- [ADR-013: Conversation + Surfaces](../../adr/archive/ADR-013-conversation-plus-surfaces.md)
+- [ADR-018: Recurring Agents](../../adr/archive/ADR-018-recurring-agents.md)
+- [ADR-020: Agent-Centric Chat](../../adr/archive/ADR-020-agent-centric-chat.md)
 - [Strategic Direction](../strategy/YARNNN_STRATEGIC_DIRECTION.md)
 
 ---
@@ -284,7 +284,7 @@ ADR-124 extends the supervision model further by making agents **visible partici
 
 This doesn't replace the supervision model — it deepens it. The user still supervises, but now through direct dialogue with the agents doing the work, not only through a mediating TP layer.
 
-See [ADR-124](../adr/ADR-124-project-meeting-room.md) for the full proposal.
+See [ADR-124](../../adr/archive/ADR-124-project-meeting-room.md) for the full proposal.
 
 ---
 

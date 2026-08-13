@@ -164,5 +164,5 @@ Workfloor evolves to show cognitive state alongside pulse. Contributor cards: 4-
 - [workspace-conventions.md](../architecture/workspace-conventions.md) — file paths and semantics
 - [agent-framework.md](../architecture/agent-framework.md) — cognitive architecture section
 - [agent-execution-model.md](../architecture/agent-execution-model.md) — pipeline with assessment extraction
-- [ADR-121](ADR-121-pm-intelligence-director.md) — PM intelligence model (prerequisite)
-- [ADR-126](ADR-126-agent-pulse.md) — pulse model (prerequisite)
+- [ADR-121](archive/ADR-121-pm-intelligence-director.md) — PM intelligence model (prerequisite)
+- [ADR-126](archive/ADR-126-agent-pulse.md) — pulse model (prerequisite)

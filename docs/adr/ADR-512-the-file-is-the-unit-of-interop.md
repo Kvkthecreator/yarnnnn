@@ -26,7 +26,7 @@ only** — "the surface is the user's memory mental model." ADR-368's **Correcti
 **preserved as a binding constraint** on every consumer binding, and its D3–D6 mechanics
 (the dump-into-inbound model, operator-visibility, the gate, the foreign-caller audit
 lens, per-request identity, protocol-agnostic verbs) stand unchanged.
-**Revives (at contract altitude)**: [ADR-311](ADR-311-primitive-interop-surface.md)'s D2
+**Revives (at contract altitude)**: [ADR-311](archive/ADR-311-primitive-interop-surface.md)'s D2
 verb contract and §3 (revision-archaeology as the killer capability). Its D1 delivery
 mechanism (the host chains raw primitives) stays dead — ADR-368's channel evidence killed
 the *delivery*, not the *ontology*, and this ADR separates the two rulings ADR-368 merged.

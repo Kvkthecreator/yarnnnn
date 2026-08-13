@@ -106,7 +106,7 @@ Downstream doc work this ADR implies (named, not done here):
 
 - **The Freddie hardening ADR** (ADR-375 §7, still owed) should adopt the rung vocabulary: Freddie = Rung 1 (substrate steward, reversible, harness = budget/pace live + mandate/autonomy carried-not-exercised); persona agents = Rung 2.
 - **A FOUNDATIONS touch** is *not* required by this ADR — it refines an ADR-level granularity, not an axiom. If a future session promotes the ladder to an axiom-level distinction, that is a separate, deliberate Phase-1-of-the-cascade edit.
-- **A Phase-1 packaging note** is implied but not written: [ADR-334](ADR-334-per-operation-pricing.md) prices the autonomy/delegation dial — a **Rung-2** axis. With Rung 2 deferred, the launch needs its own pricing thesis, and ADR-334 should be marked the Phase-2 (Rung-2) model. **Out of scope here; named so it is not lost.**
+- **A Phase-1 packaging note** is implied but not written: [ADR-334](archive/ADR-334-per-operation-pricing.md) prices the autonomy/delegation dial — a **Rung-2** axis. With Rung 2 deferred, the launch needs its own pricing thesis, and ADR-334 should be marked the Phase-2 (Rung-2) model. **Out of scope here; named so it is not lost.**
 
 ## 7. What this does NOT do
 

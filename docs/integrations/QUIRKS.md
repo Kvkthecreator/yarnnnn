@@ -2,7 +2,7 @@
 
 > **Purpose**: Document platform-specific behaviors, gotchas, and workarounds
 > **Updated**: 2026-02-12
-> **Related**: [ADR-047: Platform Integration Validation](../adr/ADR-047-platform-integration-validation.md), [ADR-048: Direct MCP Access](../adr/ADR-048-direct-mcp-access.md)
+> **Related**: [ADR-047: Platform Integration Validation](../adr/archive/ADR-047-platform-integration-validation.md), [ADR-048: Direct MCP Access](../adr/archive/ADR-048-direct-mcp-access.md)
 
 ---
 
@@ -265,6 +265,6 @@ When integrating a new platform:
 ## See Also
 
 - [CHANGELOG.md](CHANGELOG.md) - Version history of integration changes
-- [ADR-026: Integration Architecture](../adr/ADR-026-integration-architecture.md)
-- [ADR-047: Platform Integration Validation](../adr/ADR-047-platform-integration-validation.md)
+- [ADR-026: Integration Architecture](../adr/archive/ADR-026-integration-architecture.md)
+- [ADR-047: Platform Integration Validation](../adr/archive/ADR-047-platform-integration-validation.md)
 - [Testing Environment Guide](../testing/TESTING-ENVIRONMENT.md)

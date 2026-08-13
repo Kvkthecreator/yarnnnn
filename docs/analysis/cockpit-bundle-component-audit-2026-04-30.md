@@ -3,7 +3,7 @@
 > **Date**: 2026-04-30
 > **Author**: KVK, Claude
 > **Scope**: Audit the existing compositor + bundle-component architecture (ADR-225 + ADR-228 + ADR-223 + ADR-224 + `docs/architecture/compositor.md`) against shipped reality, find why the model "isn't working," and propose v2.
-> **Read alongside**: [docs/architecture/compositor.md](../architecture/compositor.md) (canonical reference), [ADR-225](../adr/ADR-225-compositor-layer.md), [ADR-228](../adr/ADR-228-cockpit-as-delegation-posture.md).
+> **Read alongside**: [docs/architecture/compositor.md](../architecture/compositor.md) (canonical reference), [ADR-225](../adr/ADR-225-compositor-layer.md), [ADR-228](../adr/archive/ADR-228-cockpit-as-delegation-posture.md).
 
 ---
 
@@ -11,7 +11,7 @@
 
 The compositor architecture (ADR-225) is **correct in shape**. The kernel/program boundary (ADR-224) is **correctly enforced**. The cockpit four-face model (ADR-228) is **correctly framed**. What "isn't working" is that **the bundle component layer was never actually written for the cockpit faces** — alpha-trader's `SURFACES.yaml` declares only fallback substrate paths, no bundle component overrides, no platform-live binding. The cockpit is running entirely on kernel-default substrate-fallback paths.
 
-This is not an architecture failure. It is an **implementation completeness** gap that ADR-228 itself flagged ("Commits 3-5 deferred"). The frustration the operator reports — "current simply isn't working" — is the consequence of running on placeholder substrate ([ADR-228 substrate-stub follow-up](../adr/ADR-228-cockpit-as-delegation-posture.md) shipped a stub-writer fix; the **content** is still empty).
+This is not an architecture failure. It is an **implementation completeness** gap that ADR-228 itself flagged ("Commits 3-5 deferred"). The frustration the operator reports — "current simply isn't working" — is the consequence of running on placeholder substrate ([ADR-228 substrate-stub follow-up](../adr/archive/ADR-228-cockpit-as-delegation-posture.md) shipped a stub-writer fix; the **content** is still empty).
 
 The v2 proposal: **finish ADR-228 Commits 3–5 as a coordinated sub-ADR (ADR-242)**, with a sharper framing than "platform-live binding." The right framing is the operator's: **dedicated components per program (alpha-trader, alpha-commerce); generic kernel components for any program that hasn't authored its own.** This is exactly ADR-225's contract — just unfilled.
 
@@ -155,7 +155,7 @@ For an alpha-trader workspace with `_performance.md` populated:
 - **Performance face**: renders Reviewer calibration aggregate from `decisions.md` (kernel-default; works correctly)
 - **Tracking face**: renders pending action_proposals + a link-out placeholder for operational state + recent activity (kernel-default; placeholder is the issue)
 
-**The operator runs an Alpaca brokerage account next to this cockpit** ([ADR-228 §"Context"](../adr/ADR-228-cockpit-as-delegation-posture.md)). The cockpit shows **stale reconciled substrate**, not live equity. The visceral experience: "I have to look at two screens because YARNNN's cockpit doesn't actually know my account."
+**The operator runs an Alpaca brokerage account next to this cockpit** ([ADR-228 §"Context"](../adr/archive/ADR-228-cockpit-as-delegation-posture.md)). The cockpit shows **stale reconciled substrate**, not live equity. The visceral experience: "I have to look at two screens because YARNNN's cockpit doesn't actually know my account."
 
 ---
 

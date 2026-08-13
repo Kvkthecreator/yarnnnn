@@ -1,21 +1,21 @@
 # ADR-092: Agent Intelligence & Mode Taxonomy
 
 **Status:** Phase 5 Implemented — Signal Processing Dissolved (Phase 1: schema/types; Phase 2: reactive dispatch; Phase 3: RefreshPlatformContent headless; Phase 4: proactive review pass; Phase 5: coordinator primitives + signal processing removal)
-**Partially superseded by:** [ADR-126: Agent Pulse](ADR-126-agent-pulse.md) — proactive self-assessment (Phase 4) generalized to ALL agents via pulse Tier 2; coordinator mode (Phase 5) dissolved into PM pulse Tier 3. Four modes remain (recurring, goal, reactive, proactive) as starting character — pulse evolves all of them. Mode taxonomy remains valid; mode-specific execution behaviors absorbed into pulse tiers.
+**Partially superseded by:** [ADR-126: Agent Pulse](archive/ADR-126-agent-pulse.md) — proactive self-assessment (Phase 4) generalized to ALL agents via pulse Tier 2; coordinator mode (Phase 5) dissolved into PM pulse Tier 3. Four modes remain (recurring, goal, reactive, proactive) as starting character — pulse evolves all of them. Mode taxonomy remains valid; mode-specific execution behaviors absorbed into pulse tiers.
 **Date:** 2026-03-04
 **Authors:** Kevin Kim, Claude (analysis)
 **Supersedes:**
-- [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md) — signal processing as L3 infrastructure is dissolved; the capability moves into L4 agent intelligence
-- [ADR-074: Signal Scheduling Heuristics](ADR-074-signal-scheduling-heuristics.md) — heuristics for signal cron cadence are replaced by per-mode scheduler behavior
-- [ADR-089: Agent Autonomy & Context-Aware Triggers](ADR-089-agent-autonomy-context-aware-triggers.md) — the "periodic agent review" concept is absorbed and fully specified here
+- [ADR-068: Signal-Emergent Agents](archive/ADR-068-signal-emergent-agents.md) — signal processing as L3 infrastructure is dissolved; the capability moves into L4 agent intelligence
+- [ADR-074: Signal Scheduling Heuristics](archive/ADR-074-signal-scheduling-heuristics.md) — heuristics for signal cron cadence are replaced by per-mode scheduler behavior
+- [ADR-089: Agent Autonomy & Context-Aware Triggers](archive/ADR-089-agent-autonomy-context-aware-triggers.md) — the "periodic agent review" concept is absorbed and fully specified here
 
 **Related:**
-- [ADR-063: Four-Layer Model](ADR-063-activity-log-four-layer-model.md) — this ADR enforces the layer boundary L3 was violating
-- [ADR-072: Unified Content Layer](ADR-072-unified-content-layer-tp-execution-pipeline.md) — L3 stays as defined; this ADR confirms L3 does not reason
+- [ADR-063: Four-Layer Model](archive/ADR-063-activity-log-four-layer-model.md) — this ADR enforces the layer boundary L3 was violating
+- [ADR-072: Unified Content Layer](archive/ADR-072-unified-content-layer-tp-execution-pipeline.md) — L3 stays as defined; this ADR confirms L3 does not reason
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — headless mode gains new primitives under this ADR
-- [ADR-085: RefreshPlatformContent Primitive](ADR-085-refresh-platform-content-primitive.md) — extended to headless mode
+- [ADR-085: RefreshPlatformContent Primitive](archive/ADR-085-refresh-platform-content-primitive.md) — extended to headless mode
 - [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md) — `agent_instructions` and `agent_memory` are the foundation of agent intelligence
-- [ADR-088: Trigger Dispatch](ADR-088-input-gateway-work-serialization.md) — dispatch routing per mode governs how each mode responds to triggers
+- [ADR-088: Trigger Dispatch](archive/ADR-088-input-gateway-work-serialization.md) — dispatch routing per mode governs how each mode responds to triggers
 - [Agent Model Comparison](../architecture/agent-model-comparison.md) — this ADR is the fullest expression of YARNNN's agent model position
 
 ---

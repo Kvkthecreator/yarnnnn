@@ -88,4 +88,4 @@ If splitting becomes necessary, the migration path is:
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — one agent, mode-gated primitives
 - [ADR-092: Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — five modes, signal processing dissolved
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge shared across all modes
-- [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — agent outputs as platform_content
+- [ADR-102: yarnnn Content Platform](../adr/archive/ADR-102-yarnnn-content-platform.md) — agent outputs as platform_content

@@ -6,7 +6,7 @@
 > **Location**: `api/agents/thinking_partner.py`
 > **Primitives**: 10 (ADR-038 + ADR-045 + ADR-085 + list_integrations)
 > **Platform Tools**: Slack, Notion, Gmail, Calendar — all Direct API (ADR-076)
-> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-076: Direct API Consolidation](../adr/ADR-076-direct-api-consolidation.md), [ADR-085: RefreshPlatformContent](../adr/ADR-085-refresh-platform-content-primitive.md)
+> **Related**: [ADR-038: Filesystem-as-Context](../../adr/archive/ADR-038-filesystem-as-context.md), [ADR-076: Direct API Consolidation](../adr/ADR-076-direct-api-consolidation.md), [ADR-085: RefreshPlatformContent](../../adr/archive/ADR-085-refresh-platform-content-primitive.md)
 
 ---
 
@@ -418,7 +418,7 @@ Example test cases:
 ## Related Documentation
 
 - [Primitives Architecture](./primitives.md)
-- [ADR-025: Claude Code Agentic Alignment](../adr/ADR-025-claude-code-agentic-alignment.md)
-- [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
-- [ADR-037: Chat-First Surface](../adr/ADR-037-chat-first-surface-architecture.md)
-- [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md)
+- [ADR-025: Claude Code Agentic Alignment](../../adr/archive/ADR-025-claude-code-agentic-alignment.md)
+- [ADR-036: Two-Layer Architecture](../../adr/archive/ADR-036-two-layer-architecture.md)
+- [ADR-037: Chat-First Surface](../../adr/archive/ADR-037-chat-first-surface-architecture.md)
+- [ADR-038: Filesystem-as-Context](../../adr/archive/ADR-038-filesystem-as-context.md)

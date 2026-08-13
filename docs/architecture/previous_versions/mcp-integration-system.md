@@ -59,7 +59,7 @@ Each platform has ONE integration path. No fallbacks or dual approaches:
 ❌ Bad: Platform → try MCP, fallback to Direct API
 ```
 
-See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for the full architectural decision and learnings.
+See [ADR-050](../../adr/archive/ADR-050-mcp-gateway-architecture.md) for the full architectural decision and learnings.
 
 ---
 
@@ -228,7 +228,7 @@ SlackExporter          NotionExporter   GmailExporter
 
 Follow the established pattern based on whether the platform has a compatible MCP server:
 
-**Decision tree** → see [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md#decision-tree-mcp-vs-direct-api)
+**Decision tree** → see [ADR-050](../../adr/archive/ADR-050-mcp-gateway-architecture.md#decision-tree-mcp-vs-direct-api)
 
 **Direct API pattern** (for platforms without OAuth-compatible MCP servers):
 

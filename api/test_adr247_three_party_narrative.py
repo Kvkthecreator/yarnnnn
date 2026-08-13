@@ -26,7 +26,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths
-ADR_FILE = REPO_ROOT / "docs" / "adr" / "ADR-247-three-party-narrative-model.md"
+ADR_FILE = REPO_ROOT / "docs" / "adr" / "archive" / "ADR-247-three-party-narrative-model.md"
 FOUNDATIONS = REPO_ROOT / "docs" / "architecture" / "FOUNDATIONS.md"
 LAYER_MAPPING = REPO_ROOT / "docs" / "architecture" / "LAYER-MAPPING.md"
 REVIEWER_CARD = REPO_ROOT / "web" / "components" / "tp" / "ReviewerCard.tsx"

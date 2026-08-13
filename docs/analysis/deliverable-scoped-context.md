@@ -305,5 +305,5 @@ If working:
 
 - [ADR-005: Unified Context Model](../adr/ADR-005-unified-context-model.md)
 - [ADR-018: Agent Pipeline](../adr/ADR-018-agent-pipeline.md)
-- [ADR-027: Integration Read Architecture](../adr/ADR-027-integration-read-architecture.md)
-- [ADR-028: Destination-First Agents](../adr/ADR-028-destination-first-agents.md)
+- [ADR-027: Integration Read Architecture](../adr/archive/ADR-027-integration-read-architecture.md)
+- [ADR-028: Destination-First Agents](../adr/archive/ADR-028-destination-first-agents.md)

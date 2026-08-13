@@ -316,6 +316,6 @@ One extraction call per session adds cost. Mitigate by:
 ## Related
 
 - [ADR-059](ADR-059-simplified-context-model.md) — `user_context` table design
-- [ADR-063](ADR-063-activity-log-four-layer-model.md) — Activity layer, four-layer model
+- [ADR-063](archive/ADR-063-activity-log-four-layer-model.md) — Activity layer, four-layer model
 - [ADR-049](ADR-049-context-freshness.md) — Session philosophy (API coherence, not memory)
 - [docs/features/memory.md](../features/memory.md) — User-facing memory documentation

@@ -267,8 +267,8 @@ MCP tool calls that trigger `run_agent` consume token budget (same as any execut
 ## References
 
 - [ADR-075: MCP Connector Technical Architecture](../adr/ADR-075-mcp-connector-architecture.md) — Implementation spec
-- [ADR-050: MCP Gateway Architecture](../adr/ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076 (Direct API clients)
-- [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Backend that MCP surfaces
+- [ADR-050: MCP Gateway Architecture](../adr/archive/ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076 (Direct API clients)
+- [ADR-072: Unified Content Layer](../adr/archive/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Backend that MCP surfaces
 - [ADR-064: Unified Memory Service](../adr/ADR-064-unified-memory-service.md) — Why memory writing is implicit
-- [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md) — Backend-only, not exposed via MCP
+- [ADR-068: Signal-Emergent Agents](../adr/archive/ADR-068-signal-emergent-agents.md) — Backend-only, not exposed via MCP
 - [ACTIVATION_PLAYBOOK.md](../ACTIVATION_PLAYBOOK.md) — Current activation strategy (pre-MCP)

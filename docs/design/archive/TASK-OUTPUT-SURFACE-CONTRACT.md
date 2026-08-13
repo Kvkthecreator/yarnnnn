@@ -7,7 +7,7 @@
 - [SURFACE-CONTRACTS.md](./SURFACE-CONTRACTS.md) — canonical per-tab contracts (ADR-215), including `/work` list/detail surface
 - [../architecture/task-type-orchestration.md](../architecture/task-type-orchestration.md) — task registry and process model
 - [../adr/ADR-130-html-native-output-substrate.md](../adr/ADR-130-html-native-output-substrate.md) — `output.md` + `output.html` substrate
-- [../adr/ADR-166-registry-coherence-pass.md](../adr/ADR-166-registry-coherence-pass.md) — `output_kind` taxonomy
+- [../adr/ADR-166-registry-coherence-pass.md](../../adr/archive/ADR-166-registry-coherence-pass.md) — `output_kind` taxonomy
 - [../adr/ADR-167-list-detail-surfaces.md](../adr/ADR-167-list-detail-surfaces.md) — kind-aware `/work` detail
 - [../adr/ADR-178-task-creation-routes.md](../adr/ADR-178-task-creation-routes.md) — Route A (output-driven) vs Route B (context-driven); DELIVERABLE.md richness at creation
 - [../adr/ADR-149-task-lifecycle.md](../adr/ADR-149-task-lifecycle.md) — DELIVERABLE.md as quality contract; Phase 6 frontend surface (now active)

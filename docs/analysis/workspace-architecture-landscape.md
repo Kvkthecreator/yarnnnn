@@ -204,8 +204,8 @@ This collapses the heartbeat, signal processing, and event trigger concerns into
 | If you want to understand... | Read |
 |------------------------------|------|
 | The schema decision and implementation plan | [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) |
-| The input unification and serialization plan | [ADR-088: Unified Input Processing](../adr/ADR-088-input-gateway-work-serialization.md) |
-| The agent autonomy expansion | [ADR-089: Agent Autonomy & Context-Aware Triggers](../adr/ADR-089-agent-autonomy-context-aware-triggers.md) |
+| The input unification and serialization plan | [ADR-088: Unified Input Processing](../adr/archive/ADR-088-input-gateway-work-serialization.md) |
+| The agent autonomy expansion | [ADR-089: Agent Autonomy & Context-Aware Triggers](../adr/archive/ADR-089-agent-autonomy-context-aware-triggers.md) |
 | How we got here (full analysis, 5 versions) | [workspace-architecture-analysis-2026-03-02.md](workspace-architecture-analysis-2026-03-02.md) |
-| The filesystem-as-context foundation | [ADR-038](../adr/ADR-038-filesystem-as-context.md) |
+| The filesystem-as-context foundation | [ADR-038](../adr/archive/ADR-038-filesystem-as-context.md) |
 | The unified agent modes | [ADR-080](../adr/ADR-080-unified-agent-modes.md) |

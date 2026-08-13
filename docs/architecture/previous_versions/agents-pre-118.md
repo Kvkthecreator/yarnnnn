@@ -4,19 +4,19 @@
 **Date:** 2026-02-26 (updated 2026-03-12 for ADR-109: Scope × Skill × Trigger framework)
 **Related:**
 - [Agent Framework: Scope × Skill × Trigger](agent-framework.md) — canonical taxonomy reference (ADR-109)
-- [ADR-018: Recurring Agents](../adr/ADR-018-recurring-agents.md)
-- [ADR-044: Agent Type Reconceptualization](../adr/ADR-044-agent-type-reconceptualization.md)
-- [ADR-045: Agent Orchestration Redesign](../adr/ADR-045-agent-orchestration-redesign.md)
+- [ADR-018: Recurring Agents](../../adr/archive/ADR-018-recurring-agents.md)
+- [ADR-044: Agent Type Reconceptualization](../../adr/archive/ADR-044-agent-type-reconceptualization.md)
+- [ADR-045: Agent Orchestration Redesign](../../adr/archive/ADR-045-agent-orchestration-redesign.md)
 - [ADR-060: Background Conversation Analyst](../adr/ADR-060-background-conversation-analyst.md)
-- [ADR-066: Delivery-First Redesign](../adr/ADR-066-agent-detail-redesign.md)
-- [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md)
+- [ADR-066: Delivery-First Redesign](../../adr/archive/ADR-066-agent-detail-redesign.md)
+- [ADR-068: Signal-Emergent Agents](../../adr/archive/ADR-068-signal-emergent-agents.md)
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
-- [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — agent outputs as searchable platform_content
+- [ADR-102: yarnnn Content Platform](../../adr/archive/ADR-102-yarnnn-content-platform.md) — agent outputs as searchable platform_content
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, AGENT.md, topic-scoped memory (Phase 2 COMPLETE: workspace as singular source of truth)
-- [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem for agent-produced knowledge (Proposed)
+- [ADR-107: Knowledge Filesystem Architecture](../../adr/archive/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem for agent-produced knowledge (Proposed)
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Agents are Layer 4 (Work)
 
@@ -259,7 +259,7 @@ The architecture distinguishes three storage domains, each with its own lifecycl
 | **Agent Intelligence** | `workspace_files` under `/agents/{slug}/` | Per-agent, private | Persistent | Agent identity, memory, working state (ADR-106) |
 | **Accumulated Knowledge** | `workspace_files` under `/knowledge/` | Per-user, shared | Persistent, version-aware | Agent-produced knowledge artifacts (ADR-107, proposed) |
 
-ADR-107 proposes moving agent-produced outputs from `platform_content` (`platform="yarnnn"`) to structured files under `/knowledge/` — with content-class directories (digests/, research/, analyses/, briefs/, insights/), versioning, and provenance metadata. Outputs enter `/knowledge/` at delivery time, not generation time. See [ADR-107](../adr/ADR-107-knowledge-filesystem-architecture.md) and [Workspace Conventions](workspace-conventions.md).
+ADR-107 proposes moving agent-produced outputs from `platform_content` (`platform="yarnnn"`) to structured files under `/knowledge/` — with content-class directories (digests/, research/, analyses/, briefs/, insights/), versioning, and provenance metadata. Outputs enter `/knowledge/` at delivery time, not generation time. See [ADR-107](../../adr/archive/ADR-107-knowledge-filesystem-architecture.md) and [Workspace Conventions](workspace-conventions.md).
 
 ### Agent in headless mode (ADR-080)
 

@@ -8,9 +8,9 @@
 > **Discourse base:** the 2026-06-08 wake/pace/autonomy/recurrence/cadence audit + discourse, synthesized in [`cadence-and-wakes.md`](../architecture/cadence-and-wakes.md) §1a / §11a / §12a. This ADR ratifies the two in-flight sections of that doc and drives the code change. Receipts inline.
 
 **Supersedes:**
-- [ADR-300](ADR-300-pace-as-atomic-kernel-surface.md) entirely (the `/pace` atomic kernel surface — repurposed to `/budget`).
+- [ADR-300](archive/ADR-300-pace-as-atomic-kernel-surface.md) entirely (the `/pace` atomic kernel surface — repurposed to `/budget`).
 - [ADR-298](ADR-298-reviewer-wake-queue-and-pace.md) D4 (pace declaration `kind: hourly|daily|weekly|continuous`), D5 (pace-as-recurrence-population-constraint), D11 (the "Pace + Autonomy + Persona" trifecta naming — the *first* dial renames). **ADR-298's wake-queue (D1–D3, D6–D10) is NOT superseded** — single-lane execution, the queue substrate, cross-source dedup, and stale-lock reclaim are all preserved.
-- [ADR-313](ADR-313-fire-frequency-gate-partition.md) (the Pace-vs-Token-Budget two-gate partition). ADR-313 named the boundary between two cost/frequency files and chose to keep both; ADR-327 dissolves the partition by collapsing the two files into one. ADR-313's audit (the two gates are not duplicates *as implemented*) is preserved as historical record; its *keep-both* conclusion is reversed because the operator-facing reframe removes pace's reason to be a separate gate.
+- [ADR-313](archive/ADR-313-fire-frequency-gate-partition.md) (the Pace-vs-Token-Budget two-gate partition). ADR-313 named the boundary between two cost/frequency files and chose to keep both; ADR-327 dissolves the partition by collapsing the two files into one. ADR-313's audit (the two gates are not duplicates *as implemented*) is preserved as historical record; its *keep-both* conclusion is reversed because the operator-facing reframe removes pace's reason to be a separate gate.
 
 **Amends:**
 - [ADR-291](ADR-291-unified-cost-ledger.md) (no schema change — the budget gate reads the existing `execution_events` cost ledger; this ADR adds a reader, not a writer).
@@ -42,7 +42,7 @@ The operator's *legitimate* concern was never "how often." It was **"how much wi
 
 ### Problem B — Cost/frequency governance is split across two files
 
-"How often / how much can work fire?" is answered today by **two governance files** with an artificial partition ([ADR-313](ADR-313-fire-frequency-gate-partition.md)):
+"How often / how much can work fire?" is answered today by **two governance files** with an artificial partition ([ADR-313](archive/ADR-313-fire-frequency-gate-partition.md)):
 
 | File | Owns | Enforcement site |
 |---|---|---|

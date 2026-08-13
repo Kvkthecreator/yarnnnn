@@ -6,14 +6,14 @@
 **Date:** 2026-03-12
 **Authors:** Kevin Kim, Claude (analysis + discourse)
 **Supersedes:**
-- [ADR-093: Agent Type Taxonomy](ADR-093-agent-type-taxonomy.md) — 7 purpose-first types decomposed into orthogonal Scope × Role
-- [ADR-082: Agent Type Consolidation](ADR-082-agent-type-consolidation.md) — 27→8 type consolidation
-- [ADR-044: Agent Type Reconceptualization](ADR-044-agent-type-reconceptualization.md) — type_classification binding system
+- [ADR-093: Agent Type Taxonomy](archive/ADR-093-agent-type-taxonomy.md) — 7 purpose-first types decomposed into orthogonal Scope × Role
+- [ADR-082: Agent Type Consolidation](archive/ADR-082-agent-type-consolidation.md) — 27→8 type consolidation
+- [ADR-044: Agent Type Reconceptualization](archive/ADR-044-agent-type-reconceptualization.md) — type_classification binding system
 
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md) — five modes preserved as Trigger axis
 - [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — workspace filesystem, scope-driven strategies
-- [ADR-107: Knowledge Filesystem Architecture](ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` enabling knowledge-scope agents
+- [ADR-107: Knowledge Filesystem Architecture](archive/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` enabling knowledge-scope agents
 - [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md) — four-layer knowledge model
 - [ADR-104: Agent Instructions as Unified Targeting](ADR-104-agent-instructions-unified-targeting.md) — instructions as targeting layer
 

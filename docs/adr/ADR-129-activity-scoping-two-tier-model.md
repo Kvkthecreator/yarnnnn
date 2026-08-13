@@ -178,8 +178,8 @@ Together, these three substrates provide a complete project activity picture wit
 
 ## Related
 
-- [ADR-063](ADR-063-activity-log-four-layer-model.md) — Activity layer origin
-- [ADR-124](ADR-124-project-meeting-room.md) — Meeting room timeline (mergeTimeline)
+- [ADR-063](archive/ADR-063-activity-log-four-layer-model.md) — Activity layer origin
+- [ADR-124](archive/ADR-124-project-meeting-room.md) — Meeting room timeline (mergeTimeline)
 - [ADR-125](ADR-125-project-native-session-architecture.md) — Project-scoped sessions
-- [ADR-126](ADR-126-agent-pulse.md) — Pulse events (high-frequency activity source)
+- [ADR-126](archive/ADR-126-agent-pulse.md) — Pulse events (high-frequency activity source)
 - [ADR-128](ADR-128-multi-agent-coherence-protocol.md) — Cognitive files (implicit workspace activity)

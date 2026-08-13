@@ -196,9 +196,9 @@ See [WORKSPACE.md](../architecture/WORKSPACE.md) for full file semantics. See [a
 
 ## Related
 
-- [ADR-108](../adr/ADR-108-user-memory-filesystem-migration.md) — User memory filesystem migration
+- [ADR-108](../adr/archive/ADR-108-user-memory-filesystem-migration.md) — User memory filesystem migration
 - [ADR-064](../adr/ADR-064-unified-memory-service.md) — Unified Memory Service (original three-source design)
 - [ADR-087](../adr/ADR-087-workspace-scoping-architecture.md) — Agent Scoped Context
 - [ADR-106](../adr/ADR-106-agent-workspace-architecture.md) — Agent Workspace Architecture
-- [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Four-layer model
+- [ADR-063](../adr/archive/ADR-063-activity-log-four-layer-model.md) — Four-layer model
 - [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview

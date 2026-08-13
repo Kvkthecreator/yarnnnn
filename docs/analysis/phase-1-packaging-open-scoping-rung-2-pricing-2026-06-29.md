@@ -3,13 +3,13 @@
 **Date**: 2026-06-29
 **Hat**: A (system canon — a scoping note; surfaces an open item, decides no pricing).
 **Status**: **Open scoping item.** This note does **not** decide Phase-1 pricing — per [ADR-380](../adr/ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) §6, that decision is deliberately not made. It records the gap so it is not lost, and marks the existing pricing ADR as belonging to a different rung.
-**Trigger**: ADR-380 §6 — *"[ADR-334](../adr/ADR-334-per-operation-pricing.md) prices the autonomy/delegation dial — a Rung-2 axis. With Rung 2 deferred, the launch needs its own pricing thesis, and ADR-334 should be marked the Phase-2 (Rung-2) model. Out of scope here; named so it is not lost."*
+**Trigger**: ADR-380 §6 — *"[ADR-334](../adr/archive/ADR-334-per-operation-pricing.md) prices the autonomy/delegation dial — a Rung-2 axis. With Rung 2 deferred, the launch needs its own pricing thesis, and ADR-334 should be marked the Phase-2 (Rung-2) model. Out of scope here; named so it is not lost."*
 
 ---
 
 ## 1. The finding (one sentence)
 
-**The only pricing canon YARNNN has — [ADR-334](../adr/ADR-334-per-operation-pricing.md) (per-operation / delegation-tiered seats: Supervised/Delegated/Autonomous $149/$299/$499, where the AUTONOMY dial IS the pricing axis) — prices a Rung-2 capability that the launch defers; so the Phase-1 launch (Rungs 0–1) has no pricing thesis, and that is an open scoping item, not a decided one.**
+**The only pricing canon YARNNN has — [ADR-334](../adr/archive/ADR-334-per-operation-pricing.md) (per-operation / delegation-tiered seats: Supervised/Delegated/Autonomous $149/$299/$499, where the AUTONOMY dial IS the pricing axis) — prices a Rung-2 capability that the launch defers; so the Phase-1 launch (Rungs 0–1) has no pricing thesis, and that is an open scoping item, not a decided one.**
 
 ## 2. Why ADR-334 is a Rung-2 model (the rung mapping)
 

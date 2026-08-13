@@ -353,8 +353,8 @@ Currently all OAuth tokens resolve to `MCP_USER_ID` (auto-approve). To support m
 ## References
 
 - [MCP Connectors Conceptual Framework](../integrations/MCP-CONNECTORS.md) — Product rationale, user flows, tool mapping decisions
-- [ADR-041: MCP Server Exposure](./ADR-041-mcp-server-exposure.md) — Superseded by this ADR
-- [ADR-050: MCP Gateway Architecture](./ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076
+- [ADR-041: MCP Server Exposure](archive/ADR-041-mcp-server-exposure.md) — Superseded by this ADR
+- [ADR-050: MCP Gateway Architecture](archive/ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076
 - [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) — `FastMCP` server implementation
 - [MCP Specification: Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
 - [MCP Specification: Authorization](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization) — OAuth 2.1 with PKCE

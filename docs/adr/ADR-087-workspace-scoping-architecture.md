@@ -5,11 +5,11 @@
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — one agent, two modes; this ADR bridges them via scoped context
-- [ADR-072: Unified Content Layer](ADR-072-unified-content-layer-tp-execution-pipeline.md) — platform_content as filesystem; agents as views
+- [ADR-072: Unified Content Layer](archive/ADR-072-unified-content-layer-tp-execution-pipeline.md) — platform_content as filesystem; agents as views
 - [ADR-064: Unified Memory Service](ADR-064-unified-memory-service.md) — implicit memory via nightly cron; this ADR adds agent-scoped memory
 - [ADR-067: Session Compaction](ADR-067-session-compaction-architecture.md) — session boundaries and summaries; this ADR routes them per agent
-- [ADR-038: Filesystem as Context](ADR-038-filesystem-as-context.md) — platform sync as "automated git pull"
-- [ADR-088: Trigger Dispatch](ADR-088-input-gateway-work-serialization.md) — `dispatch_trigger()` routes background triggers to generation vs memory update (Step 2, follows this ADR)
+- [ADR-038: Filesystem as Context](archive/ADR-038-filesystem-as-context.md) — platform sync as "automated git pull"
+- [ADR-088: Trigger Dispatch](archive/ADR-088-input-gateway-work-serialization.md) — `dispatch_trigger()` routes background triggers to generation vs memory update (Step 2, follows this ADR)
 - [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback), built on top of the scoped context introduced here
 - [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — v1-v5 analysis, OpenClaw comparison, ghost entity discovery
 - [Development Landscape](../analysis/workspace-architecture-landscape.md) — sequencing and track dependencies
@@ -230,7 +230,7 @@ Architectural reassessment during Phase 2 planning led to significant simplifica
 
 - Semantic overloading: "agent" covers recurring outputs and goal workspaces. Mitigated by UI labeling.
 - 1:1 coupling: shared context across agents would be duplicated. Acceptable pre-PMF.
-- JSONB concurrency on `agent_memory`: last-write-wins. Mitigated by temporal separation. See [ADR-088](ADR-088-input-gateway-work-serialization.md) for future serialization.
+- JSONB concurrency on `agent_memory`: last-write-wins. Mitigated by temporal separation. See [ADR-088](archive/ADR-088-input-gateway-work-serialization.md) for future serialization.
 - Size management: `agent_memory` grows indefinitely. Needs compaction strategy.
 
 ### Neutral
@@ -308,5 +308,5 @@ For consistency across future ADRs and code:
 - [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — v1-v5 analysis, OpenClaw comparison
 - [Development Landscape](../analysis/workspace-architecture-landscape.md) — sequencing and dependencies
 - [ESSENCE.md](../ESSENCE.md) — domain model
-- [ADR-038: Filesystem as Context](ADR-038-filesystem-as-context.md) — foundational model
+- [ADR-038: Filesystem as Context](archive/ADR-038-filesystem-as-context.md) — foundational model
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — the execution model this bridges

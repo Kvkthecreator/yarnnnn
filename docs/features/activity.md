@@ -167,7 +167,7 @@ Typical: **~10-30 rows/day per active user** (was ~20-60 pre-ADR-164). No TTL �
 
 ## Related
 
-- [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Original activity layer design (role since narrowed)
+- [ADR-063](../adr/archive/ADR-063-activity-log-four-layer-model.md) — Original activity layer design (role since narrowed)
 - [ADR-149](../adr/ADR-149-task-lifecycle-architecture.md) — Task lifecycle primitives (evaluation/steering now written to task memory files, not activity_log)
 - [ADR-159](../adr/ADR-159-filesystem-as-memory.md) — Working memory compact index (TP prompt)
 - [ADR-163](../adr/ADR-163-surface-restructure.md) — Surface restructure, /activity page deleted

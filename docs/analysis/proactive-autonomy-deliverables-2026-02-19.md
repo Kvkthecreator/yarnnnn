@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-19
 **Status**: Superseded by ADR-068 — retained for strategic context and ideation record
-**See**: [ADR-068: Signal-Emergent Agents](../adr/ADR-068-signal-emergent-agents.md) for the architectural decision
+**See**: [ADR-068: Signal-Emergent Agents](../adr/archive/ADR-068-signal-emergent-agents.md) for the architectural decision
 **Note**: The "TP agent running autonomously with a task brief" framing in this doc was architecturally incorrect — it violates the Path A/B boundary (ADR-061). The correct model is the orchestrator's Signal Processing phase (Path B). The examples and use cases remain valid; the mechanism was wrong.
 
 ---

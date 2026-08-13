@@ -7,7 +7,7 @@
 - [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md) — source-first mental model, card anatomy
 - [Projects Product Direction](PROJECTS-PRODUCT-DIRECTION.md) — settled decision #8 (PM as coherence monitor)
 - [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) — WorkspaceLayout, persistent panel
-- [ADR-124: Project Meeting Room](../adr/ADR-124-project-meeting-room.md) — project surface architecture
+- [ADR-124: Project Meeting Room](../../adr/archive/ADR-124-project-meeting-room.md) — project surface architecture
 
 ---
 

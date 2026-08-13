@@ -136,4 +136,4 @@ Bootstrap is not "superseded" — it remains the fast-path for platform-connect 
 - [ADR-057: Streamlined Onboarding](ADR-057-streamlined-onboarding.md)
 - [ADR-088: Trigger Dispatch](ADR-088-trigger-dispatch.md)
 - [ADR-109: Agent Framework](ADR-109-agent-framework.md)
-- [ADR-111: Agent Composer](ADR-111-agent-composer.md)
+- [ADR-111: Agent Composer](archive/ADR-111-agent-composer.md)

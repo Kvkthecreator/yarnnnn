@@ -24,9 +24,9 @@
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, archetype-driven strategies
-- [ADR-107: Knowledge Filesystem Architecture](../adr/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem, three storage domains
+- [ADR-107: Knowledge Filesystem Architecture](../adr/archive/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem, three storage domains
 - [ADR-116: Agent Identity & Inter-Agent Knowledge](../adr/ADR-116-agent-identity-inter-agent-knowledge.md) — agent discovery, cross-agent reading, agent cards, MCP exposure
-- [ADR-126: Agent Pulse — Autonomous Awareness Engine](../adr/ADR-126-agent-pulse.md) — pulse model, role-based cadence, three-tier funnel
+- [ADR-126: Agent Pulse — Autonomous Awareness Engine](../adr/archive/ADR-126-agent-pulse.md) — pulse model, role-based cadence, three-tier funnel
 - [ADR-130: Agent Capability Substrate](../adr/ADR-130-html-native-output-substrate.md) — three-registry architecture: agent types, capabilities, runtimes
 - [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model
 - [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md)

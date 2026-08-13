@@ -7,8 +7,8 @@
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — the fullest expression of this model; defines coordinator, proactive, reactive modes and dissolves signal processing
 - [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md)
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md)
-- [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md)
-- [ADR-071: Strategic Architecture Principles](../adr/ADR-071-strategic-architecture-principles.md)
+- [ADR-072: Unified Content Layer](../../adr/archive/ADR-072-unified-content-layer-tp-execution-pipeline.md)
+- [ADR-071: Strategic Architecture Principles](../../adr/archive/ADR-071-strategic-architecture-principles.md)
 - [Agent Execution Model](agent-execution-model.md)
 - [Development Landscape](../analysis/workspace-architecture-landscape.md)
 
@@ -223,8 +223,8 @@ This document exists to prevent the architectural gravity of larger projects (Cl
 
 ## References
 
-- [ADR-038: Filesystem as Context](../adr/ADR-038-filesystem-as-context.md) — the original Claude Code comparison
-- [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — accumulation moat thesis
+- [ADR-038: Filesystem as Context](../../adr/archive/ADR-038-filesystem-as-context.md) — the original Claude Code comparison
+- [ADR-072: Unified Content Layer](../../adr/archive/ADR-072-unified-content-layer-tp-execution-pipeline.md) — accumulation moat thesis
 - [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — the schema that completes the agent as agent
 - [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — full OpenClaw comparison (v4, Section 12)
 - [Development Landscape](../analysis/workspace-architecture-landscape.md) — implementation sequence

@@ -3,7 +3,7 @@
 > What YARNNN delivers. Task types are organized by **`output_kind`** (ADR-166):
 > `accumulates_context` (knowledge tasks), `produces_deliverable` (reports), `external_action` (platform writes), `system_maintenance` (TP back office).
 > Architecture: [docs/architecture/registry-matrix.md](../architecture/registry-matrix.md)
-> ADRs: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md), [ADR-166](../adr/ADR-166-registry-coherence-pass.md)
+> ADRs: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md), [ADR-166](../adr/archive/ADR-166-registry-coherence-pass.md)
 
 ---
 

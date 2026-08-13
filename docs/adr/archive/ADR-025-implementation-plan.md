@@ -2,7 +2,7 @@
 
 **Created:** 2026-02-05
 **Status:** Ready for Implementation
-**Related ADR:** [ADR-025-claude-code-agentic-alignment.md](../adr/ADR-025-claude-code-agentic-alignment.md)
+**Related ADR:** [ADR-025-claude-code-agentic-alignment.md](ADR-025-claude-code-agentic-alignment.md)
 
 ---
 

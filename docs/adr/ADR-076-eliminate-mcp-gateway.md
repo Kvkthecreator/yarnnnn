@@ -118,5 +118,5 @@ All four platforms: same pattern, same language, no subprocess management, no ga
 
 ## See Also
 
-- [ADR-050: MCP Gateway Architecture](ADR-050-mcp-gateway-architecture.md) — Superseded (historical context + learnings)
+- [ADR-050: MCP Gateway Architecture](archive/ADR-050-mcp-gateway-architecture.md) — Superseded (historical context + learnings)
 - [ADR-075: MCP Connector Architecture](ADR-075-mcp-connector-architecture.md) — Inbound MCP server (unaffected)

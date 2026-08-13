@@ -293,7 +293,9 @@ def test_envelope_returns_program_keys_for_alpha_trader_workspace():
 
 def test_adr_280_marked_superseded():
     """ADR-281 supersedes ADR-280; ADR-280 status flips to Superseded."""
-    adr280_path = REPO_ROOT / "docs" / "adr" / "ADR-280-substrate-abi-workspace-guide.md"
+    adr280_path = (
+        REPO_ROOT / "docs" / "adr" / "archive" / "ADR-280-substrate-abi-workspace-guide.md"
+    )
     text = adr280_path.read_text()
     assert "Superseded by [ADR-281]" in text, "ADR-280 must declare Superseded status"
 

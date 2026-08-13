@@ -9,7 +9,7 @@
 > - **The architecture**: [ADR-391](../adr/ADR-391-budget-balance-and-the-three-layer-cost-model.md) — balance (workspace) · allocation (principal) · metering (ledger). *Sound, kept — this is the capture substrate.*
 > - **The value analysis**: [`value-based-pricing-the-action-surface-matrix-2026-06-30.md`](../analysis/value-based-pricing-the-action-surface-matrix-2026-06-30.md) — the action matrix. *Re-cast here as "what to SURFACE," not "what to price."*
 > - **The retention axis**: [ADR-392](../adr/ADR-392-the-connector-lane.md) D8 — `connector_retention.py::resolve_retention_days(tier_max_days=...)`. *A built Layer-2 seam.*
-> - **Deferred**: [ADR-334](../adr/ADR-334-per-operation-pricing.md) — delegation seats. *Rung-2 / Phase-2, not launch.*
+> - **Deferred**: [ADR-334](../adr/archive/ADR-334-per-operation-pricing.md) — delegation seats. *Rung-2 / Phase-2, not launch.*
 
 ---
 

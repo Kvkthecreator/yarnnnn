@@ -2,7 +2,7 @@
 
 > **Status:** Converged 2026-05-21 — ratified by [ADR-297](../adr/ADR-297-surfaces-as-substrate-mirror.md). Preserved as historical artifact of how the decision was reached.
 > **Authors:** KVK, Claude (drafted 2026-05-21)
-> **Touches:** [ADR-244](../adr/ADR-244-workspace-settings-surface.md) · [ADR-266](../adr/ADR-266-workspace-surface-content-discipline.md) · [ADR-251](../adr/ADR-251-system-agent-reviewer-first-class-surfaces.md) · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) · [ADR-243](../adr/ADR-243-schedule-surface.md)
+> **Touches:** [ADR-244](../adr/ADR-244-workspace-settings-surface.md) · [ADR-266](../adr/ADR-266-workspace-surface-content-discipline.md) · [ADR-251](../adr/archive/ADR-251-system-agent-reviewer-first-class-surfaces.md) · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) · [ADR-243](../adr/ADR-243-schedule-surface.md)
 > **Outcome:** ADR-297 ratified Model B (atomic + index dispatcher) with the additional decisions surfaced through subsequent discourse — summon-first overlay launcher, pinned-surface dock with Feed-only default, last-used home, three-tier authorship mirroring substrate (kernel / program / composed), compositor as full surface registry. The "surface shape and surface authorship both mirror substrate" principle was the foundational synthesis.
 
 ---

@@ -457,9 +457,9 @@ The evolution from generic agents to platform-native automation represents a sig
 
 ## References
 
-- [ADR-031: Platform-Native Agent Architecture](../adr/ADR-031-platform-native-agents.md)
-- [ADR-028: Destination-First Agents](../adr/ADR-028-destination-first-agents.md)
-- [ADR-019: Agent Types System](../adr/ADR-019-agent-types.md)
-- [ADR-030: Context Extraction Methodology](../adr/ADR-030-context-extraction-methodology.md)
+- [ADR-031: Platform-Native Agent Architecture](../adr/archive/ADR-031-platform-native-agents.md)
+- [ADR-028: Destination-First Agents](../adr/archive/ADR-028-destination-first-agents.md)
+- [ADR-019: Agent Types System](../adr/archive/ADR-019-agent-types.md)
+- [ADR-030: Context Extraction Methodology](../adr/archive/ADR-030-context-extraction-methodology.md)
 - [Integration Strategy Analysis](./integration-strategy.md)
 - [Integration-First Onboarding](../design/INTEGRATION_FIRST_ONBOARDING.md)

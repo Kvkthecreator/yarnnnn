@@ -262,7 +262,7 @@ These were removed as part of the singular selection UX:
 ## References
 
 - [ADR-053: Tier Model](../adr/ADR-053-tier-gated-monetization.md)
-- [ADR-057: Streamlined Onboarding](../adr/ADR-057-streamlined-onboarding-gated-sync.md)
+- [ADR-057: Streamlined Onboarding](../../adr/archive/ADR-057-streamlined-onboarding-gated-sync.md)
 - [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer.md)
 - [ADR-079: Smart Source Auto-Selection](../adr/ADR-079-smart-source-auto-selection.md)
 - [Backend Orchestration v2.0](../architecture/backend-orchestration.md)

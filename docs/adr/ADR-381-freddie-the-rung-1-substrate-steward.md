@@ -9,7 +9,7 @@
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Owes-from**: [ADR-375](ADR-375-phase-1-substrate-for-humans-and-external-agents.md) §7 Cut 1 — *"name it Freddie (Frankenstein → the creature we intentionally built and are hardening) and harden it as the de-facto system agent… This is a separate ADR. Not built here."* This is that ADR.
 > **Builds on**: [the two-order Freddie direction](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md) (the ratified Picture-B: Freddie = the workspace agent / management; judgment pushed out to 2nd-order persona agents), [ADR-380](ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) (the activation ladder — **Freddie = Rung 1**; the harness split D3 this ADR encodes), [ADR-315](ADR-315-reviewer-occupant-contract.md) (seat≠occupant — Freddie is a *named occupant*, not a new component), [ADR-194](ADR-194-pluggable-reviewer-and-impersonation.md) (the steward seat).
-> **Precedent**: [ADR-251](ADR-251-system-agent-reviewer-first-class-surfaces.md) — the "System Agent" relabel that renamed the cockpit label while keeping the internal `thinking_partner` slug + `meta-cognitive` enum as GLOSSARY data-compat exceptions. D1 follows this precedent exactly.
+> **Precedent**: [ADR-251](archive/ADR-251-system-agent-reviewer-first-class-surfaces.md) — the "System Agent" relabel that renamed the cockpit label while keeping the internal `thinking_partner` slug + `meta-cognitive` enum as GLOSSARY data-compat exceptions. D1 follows this precedent exactly.
 > **Sibling**: [ADR-382](ADR-382-persona-agent-seats-the-rung-2-judgment-layer.md) (the Rung-2 persona-agent seat ADR — concept framed + the accountability axis decided; lifecycle/trust/per-seat-substrate deferred). **D4 + D5 name the seam from Freddie's side; ADR-382 §3 decides where DP24/DP30 land (the persona agent), and inherits the rest of the governed side.**
 > **Dimensional classification** (Axiom 0): **Identity** (Axiom 2 — naming + hardening the 1st-order substrate steward).
 
@@ -188,7 +188,7 @@ Per the operator's D3 instruction ("scope a code change, get go-ahead") the mark
 
 - Upstream vocabulary: [ADR-380](ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) (rungs + the harness split), [the two-order direction](../analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md) (Picture B).
 - Sibling: [ADR-382](ADR-382-persona-agent-seats-the-rung-2-judgment-layer.md) (the Rung-2 persona-agent seat ADR — inherits D4/D5's governed side).
-- Precedent: [ADR-251](ADR-251-system-agent-reviewer-first-class-surfaces.md) (relabel-keep-slug).
+- Precedent: [ADR-251](archive/ADR-251-system-agent-reviewer-first-class-surfaces.md) (relabel-keep-slug).
 - Seat canon generalized: [reviewer-seat-substrate.md](../architecture/reviewer-seat-substrate.md) + [reviewer-occupant.md](../architecture/reviewer-occupant.md) + [reviewer-occupant-contract.md](../architecture/reviewer-occupant-contract.md) (ADR-315).
 - File-structure beneath Freddie: [ADR-383](ADR-383-the-consistent-agent-framework-and-mandate-as-purpose.md) (the consistent agent framework — one file-structure; MANDATE = every agent's purpose, Freddie's is the steward-mandate; the persona-frame re-carve scope). Surfaced *from* this ADR's frame-re-carve discourse.
 - Owed-from: [ADR-375](ADR-375-phase-1-substrate-for-humans-and-external-agents.md) §7 Cut 1.

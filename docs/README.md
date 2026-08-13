@@ -2,25 +2,23 @@
 
 **The source of truth for YARNNN product narrative, architecture, and implementation decisions.**
 
-## Current Canon (as of 2026-04-20)
+## Current Canon
 
-**Start here**: [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) — v6.0, the six-dimensional axiomatic model. Every mechanic in YARNNN occupies a cell in six orthogonal dimensions (Substrate / Identity / Purpose / Trigger / Mechanism / Channel). This is the first-principles frame from which every other doc derives.
+**Start here**: [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) — the six-dimensional axiomatic model (v9.x and moving; read the doc for its live version). Every mechanic in YARNNN occupies a cell in six orthogonal dimensions (Substrate / Identity / Purpose / Trigger / Mechanism / Channel). This is the first-principles frame from which every other doc derives.
 
-**For end-to-end system description**: [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) — entities, execution flow, services, primitives, perception. v1.5, aligned with FOUNDATIONS v6.0.
+**For end-to-end system description**: [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) — entities, execution flow, services, primitives, perception.
 
 The current product story:
 
 - YARNNN is an autonomous agent platform for recurring knowledge work
-- Four cognitive layers (YARNNN / Specialists / Agents / Reviewer) + accumulated context + money-truth reconciliation = the value proposition
 - Users author a team through conversation and supervise it running; switching cost compounds from the first Agent
-- Task types are the product surface — deliverable-first, not agent-first
 - Filesystem is the substrate (Axiom 1); everything else is stateless computation over it
 
 ## Quick Links
 
 | Document | Purpose |
 |----------|---------|
-| [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) | **First principles — six-dimensional axiomatic model (v6.0)** |
+| [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) | **First principles — six-dimensional axiomatic model** |
 | [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) | **How the system works end-to-end** |
 | [architecture/GLOSSARY.md](architecture/GLOSSARY.md) | Canonical terminology (one word, one concept, one layer) |
 | [architecture/YARNNN-DESIGN-PRINCIPLES.md](architecture/YARNNN-DESIGN-PRINCIPLES.md) | Design principles including Spectrum A/B (substrate strict, runtime flexible) |
@@ -28,12 +26,11 @@ The current product story:
 | [NARRATIVE.md](NARRATIVE.md) | External storytelling beats and vocabulary rules |
 | [architecture/orchestration.md](architecture/orchestration.md) | Agent taxonomy and type registry |
 | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) | Execution model and trigger taxonomy |
-| [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) | Task type registry and process execution |
 | [architecture/WORKSPACE.md](architecture/WORKSPACE.md) | Workspace (layers · filesystem · bootstrap · autonomy threshold) — paired with [design/WORKSPACE.md](design/WORKSPACE.md) |
 | [architecture/output-substrate.md](architecture/output-substrate.md) | Output capabilities and rendering |
 | [architecture/primitives-matrix.md](architecture/primitives-matrix.md) | Primitive surface (substrate × mode × capability) |
 | [architecture/DOMAIN-STRESS-MATRIX.md](architecture/DOMAIN-STRESS-MATRIX.md) | Agnostic-thesis conscience — gate for every new ADR |
-| [adr/](adr/) | Architecture Decision Records (87 active, 116 archived) |
+| [adr/](adr/) | Architecture Decision Records — see [adr/README.md](adr/README.md) for the index |
 
 ## Folder Structure
 
@@ -73,8 +70,15 @@ docs/
 ├── features/            # Feature specifications
 │   └── *.md             # Per-feature documentation
 │
-└── operations/          # Ops and troubleshooting
-    └── TROUBLESHOOTING.md
+├── programs/            # Program bundles (.app-equivalents: manifest + reference-workspace)
+├── evaluations/         # Hat-B: scenarios, captures, findings (not shipped to operators)
+├── design/              # Surface contracts and design specs
+├── monetization/        # Pricing and packaging
+├── integrations/        # Per-platform integration notes
+├── gitbook/             # Published external docs
+├── infrastructure/      # Deploy and service topology
+├── alpha/               # alpha-persona operating notes
+└── working_docs/        # Investor/GTM working material (binaries — not canon)
 ```
 
 ## Documentation Standards
@@ -107,7 +111,6 @@ See [adr/README.md](adr/README.md) for template.
 | Product narrative | Current (v12.2) | [ESSENCE.md](ESSENCE.md) |
 | External narrative | Current (v4) | [NARRATIVE.md](NARRATIVE.md) |
 | Agent taxonomy | Current | [architecture/orchestration.md](architecture/orchestration.md) |
-| Task type registry | Shipped (ADR-145) | [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) |
 | Execution model | Current (ADR-141) | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) |
 | Workspace | Current (consolidated 2026-05-12) | [architecture/WORKSPACE.md](architecture/WORKSPACE.md) |
 | Output substrate | Phase 1 shipped (ADR-130) | [architecture/output-substrate.md](architecture/output-substrate.md) |

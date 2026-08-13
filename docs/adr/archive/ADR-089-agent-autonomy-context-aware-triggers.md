@@ -162,5 +162,5 @@ Add optional heartbeat configuration to agents (via `trigger_config` or a dedica
 
 - [OpenClaw Memory Architecture](https://docs.openclaw.ai/concepts/agent-workspace) — HEARTBEAT.md, memory flush pattern
 - [OpenClaw Memory Explained](https://lumadock.com/tutorials/openclaw-memory-explained) — daily logs, compaction, memory promotion
-- [ADR-068 implementation](../adr/ADR-068-signal-emergent-agents.md) — the signal system this builds on
+- [ADR-068 implementation](ADR-068-signal-emergent-agents.md) — the signal system this builds on
 - [event_triggers.py](../../api/services/event_triggers.py) — existing event matching and cooldown infrastructure

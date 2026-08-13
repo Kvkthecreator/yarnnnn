@@ -4,7 +4,7 @@
 **Date:** 2026-03-11
 **Supersedes:** ADR-072 (platform_content as flat knowledge base — extended, not replaced), ADR-087 (agent_memory JSONB — replaced by workspace files)
 **Related:**
-- [ADR-103: Agentic Framework Reframe](ADR-103-agentic-framework-reframe.md) — agents as persistent specialists
+- [ADR-103: Agentic Framework Reframe](archive/ADR-103-agentic-framework-reframe.md) — agents as persistent specialists
 - [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md) — four-layer model (skills/directives/memory/feedback)
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — headless mode primitives
 - [ADR-081: Execution Path Consolidation](ADR-081-execution-path-consolidation.md) — binding-aware strategies

@@ -8,9 +8,9 @@
 **Supersedes:** ADR-061 (Two-Path Architecture) — evolves strict path separation into unified agent with modal execution
 **Amends:** ADR-072 (TP Execution Pipeline) — the "TP headless mode" aspiration is now formalized with precise boundaries
 **Related:**
-- [ADR-042: Agent Execution Simplification](ADR-042-agent-execution-simplification.md)
-- [ADR-045: Agent Orchestration Redesign](ADR-045-agent-orchestration-redesign.md)
-- [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md)
+- [ADR-042: Agent Execution Simplification](archive/ADR-042-agent-execution-simplification.md)
+- [ADR-045: Agent Orchestration Redesign](archive/ADR-045-agent-orchestration-redesign.md)
+- [ADR-068: Signal-Emergent Agents](archive/ADR-068-signal-emergent-agents.md)
 - [Agent Execution Model](../architecture/agent-execution-model.md)
 
 ---

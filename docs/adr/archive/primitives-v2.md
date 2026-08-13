@@ -590,7 +590,7 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ## See Also
 
-- [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
-- [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md)
-- [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md)
+- [ADR-036: Two-Layer Architecture](ADR-036-two-layer-architecture.md)
+- [ADR-037: Chat-First Surface Architecture](ADR-037-chat-first-surface-architecture.md)
+- [ADR-038: Filesystem-as-Context](ADR-038-filesystem-as-context.md)
 - [TP Prompt Guide v5](./tp-prompt-guide.md)
