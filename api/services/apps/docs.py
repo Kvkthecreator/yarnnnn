@@ -74,8 +74,9 @@ register_layouts(DOCS_LAYOUTS)
 # `web/lib/apps/authoring.ts`, which is DELETED). Designer is triple-resident
 # (Docs · Studio · IMAGES, ADR-467 D3).
 #
-# ADR-564 — and in Docs, Designer is called **Writer**. The `name` field ADR-562
-# left declared-and-unconsumed, consumed: the one-line edit its own §6 predicted.
+# ADR-562 D6 — and in Docs, Designer is called **Writer**. The `name` field
+# ADR-562 left declared-and-unconsumed, consumed: the one-line edit its own §6
+# predicted.
 #
 # A NAME, NOT A CHARACTER — deliberately. "Writing" is not a fourth addressed
 # operation: PRODUCE already covers making, and the base roster is closed at

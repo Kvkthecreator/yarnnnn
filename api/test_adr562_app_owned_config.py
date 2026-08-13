@@ -173,7 +173,7 @@ check("…and keeps the ENGINE for the vision refusal (a model's limit)",
 check("…and keeps the ENGINE on the attribution receipt (`you via {model}`)",
       "you via ${modelLabel}" in _panel)
 
-print("\n── 5b. ADR-564 — an app may NAME its resident ──")
+print("\n── 5b. ADR-562 D6 — an app may NAME its resident ──")
 
 from services.authoring import resolve_app  # noqa: E402
 from services.agents_registry import build_agent_posture  # noqa: E402
