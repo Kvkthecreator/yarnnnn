@@ -1,38 +1,45 @@
-"""AI Radar — the standing sweep lane (ADR-486 R0).
+"""AI Radar — the standing sweep lane (ADR-486 R0, re-cut by ADR-564/565).
 
 The first standing (unaddressed) derive organ. A HUB is one meaning-folder
-``operation/{topic}/`` carrying a machine-parsed declaration ``_radar.yaml``:
+under ``operation/`` (any depth — ADR-565 D3) carrying:
 
-    # _radar.yaml — AI Radar hub declaration (ADR-486)
-    schedule: "0 13 * * *"        # UTC cron | @-semantic | list (ADR-268 grammar)
-    paused: false
-    prompt: |                     # optional operator steer for the brief
-      Watch for pricing moves.
-    sources:                      # the TrackWebSources shape (ADR-336) — this
-      - id: anthropic-blog        # file IS the watch declaration; the intake
-        url: https://...          # primitive reads its `sources:` key directly
+    _radar.yaml     — pure machine config (ADR-254 underscore-yaml):
+                        schedule: "0 13 * * *"   # UTC cron | @-semantic | list
+                        paused: false
+                        sources:                 # the TrackWebSources shape
+                          - id: anthropic-blog   # (ADR-336) — the file IS the
+                            url: https://...     # watch declaration
+    CRITERION.md    — the member's declaration of what matters here
+                      (ADR-564 D2 — prose, operator/lane-authored, NEVER
+                      machine-parsed; the retired `prompt:` steer key's
+                      successor)
+    report.md       — the LIVING REPORT (ADR-565 D1): the folder's current
+                      understanding, revised per sweep; the revision chain is
+                      the delta history
 
-One sweep = the ADR-486 D4 loop. It was modelled on the settle pattern made
-standing; ADR-507 deleted that verb, and the placement mechanics it shared with
-this module now live HERE (``extract_title`` / ``strip_fence`` / ``_unique_path``
-below) — they were never settle-specific:
+One sweep = the ADR-486 D4 loop with the ADR-565 artifact:
 
     intake  — TrackWebSources fetches the declared sources, retains raws
               (revision_kind='observation', inbound/web/), distills
-              ``operation/{topic}/_watch_signal.yaml``  (mechanical, $0)
-    derive  — ONE bounded judgment turn distills what CHANGED against the
-              hub's previous brief. The model returns CONTENT ONLY; it may
-              return the exact token NO_BRIEF (an empty sweep honestly
-              reported — falsifier 4 counts these)
-    place   — kernel-deterministic: ``operation/{topic}/briefs/{date}-{slug}.md``
-              (never overwrites — collision suffixes, the settle rule)
+              ``{hub}/_watch_signal.yaml``  (mechanical, $0)
+    derive  — ONE bounded judgment turn, governed by the CRITERION, folds the
+              fresh signal into the current report (member edits in the head
+              are corrections to preserve — correction-compounds). The model
+              returns the full revised report, or the exact token NO_CHANGE
+              (an empty sweep honestly reported — falsifier 4 counts these)
+    place   — kernel-deterministic: the fixed leaf ``report.md``; the write is
+              CONFINED to the hub subtree (ADR-564 D6 / ADR-565 D4)
     cite    — write_revision(revision_kind='derivation',
               derived_from=[signal + the sweep's raw observations])
-    embed   — the retrieval fix (recall reads briefs)
-    meter   — two execution_events rows per sweep:
+    embed   — the retrieval fix (recall reads the report head)
+    meter   — two execution_events rows per sweep (slugs UNCHANGED across the
+              re-cut so every ledger reader keeps working):
               ``radar-sweep:{topic}``  (mechanical intake — falsifier 4 denominator)
               ``radar-brief:{topic}``  (judgment derive — falsifier 2/4 numerator;
-              status='skipped' + error_reason='no_brief' on NO_BRIEF)
+              status='skipped' + error_reason='no_change' on NO_CHANGE)
+
+The pre-ADR-565 dated-brief shelf (``briefs/{date}-{slug}.md``) is superseded;
+existing briefs stay on the record, new sweeps stop adding to the shelf.
 
 Scheduling rides the thin ``tasks`` index with ``kind='radar'`` (the ADR-393
 precedent — one index, one CAS-claim mechanism, one market-context resolver;
@@ -68,38 +75,34 @@ logger = logging.getLogger(__name__)
 
 RADAR_KIND = "radar"
 
-#: Hub declarations live at operation/{topic}/_radar.yaml — single-level topic
-#: folders only (the D4 meaning-folder convention; deeper nesting is skipped
-#: loudly, never silently).
+#: Hub declarations live at {folder}/_radar.yaml under operation/, any depth
+#: (ADR-565 D3 — the single-level rule was an R0 scan simplification, never a
+#: decision). A declaration INSIDE another hub's subtree is refused loudly in
+#: discovery (nested criteria are named-deferred, ADR-565 D3).
 _OPERATION_PREFIX = "/workspace/operation/"
 RADAR_DECLARATION_LEAF = "_radar.yaml"
 
-#: The distilled signal + the briefs shelf, per hub.
+#: Per hub: the distilled signal, the criterion, the living report — and the
+#: superseded briefs shelf (legacy reads only; new sweeps never write it).
 SIGNAL_LEAF = "_watch_signal.yaml"
+CRITERION_LEAF = "CRITERION.md"
+REPORT_LEAF = "report.md"
 BRIEFS_DIR = "briefs"
 
-#: One bounded judgment turn — a brief is ~80 lines, not a report. The
-#: ceiling is the JOB's (a brief runs short), regardless of who executes it —
-#: the `_studio_max_tokens` logic, inverted.
-_BRIEF_MAX_TOKENS = 2048
-_BRIEF_TIMEOUT_S = 120.0
+#: One bounded judgment turn. The ceiling is the JOB's: a living report is a
+#: bounded document (~150 lines contracted), not an unbounded delta — the
+#: 2048-token brief ceiling truncated 14 of 20 briefs mid-thought (ADR-565 §1).
+_REPORT_MAX_TOKENS = 4096
+_DERIVE_TIMEOUT_S = 120.0
 
 
 # ── placement (kernel-deterministic; the model never holds these levers) ─────
 #
-# These three helpers were `services/settle.py`'s until ADR-507 deleted that
-# module. They are re-homed here because radar is their only caller and because
-# NONE of them was ever settle-specific: reading a note's title, unfencing a
-# model's reply, and refusing to overwrite are the mechanics of placing ANY
-# derived note. The pattern outlived the verb, which is why the module docstring
-# still names it as this loop's origin.
-#
-# The fourth, settle's `slugify`, is deliberately NOT re-homed: it was the lossy
-# `[^a-z0-9]+` key ADR-469 replaced. Under a title with no Latin characters it
-# collapsed to the constant `note`, so four Korean-titled briefs on one day
-# collided on one path. `services.naming.path_slug` + `disambiguate` is the
-# canonical split (the path is a key, the name is the artifact's own fact), and
-# the date prefix + `_unique_path` already give collisions a second guard.
+# `extract_title` / `strip_fence` were `services/settle.py`'s until ADR-507
+# deleted that module; re-homed here as the mechanics of placing ANY derived
+# note. Settle's third helper, `_unique_path` (collision-suffix placement),
+# retired with the dated-brief shelf (ADR-565 D1): the report is a FIXED leaf
+# whose history lives on the revision chain, so there is no collision to dodge.
 
 
 def extract_title(note: str) -> str:
@@ -133,24 +136,33 @@ def strip_fence(note: str) -> str:
     return "\n".join(lines[1:-1]).strip()
 
 
-def _unique_path(client: Any, user_id: str, workspace_id: Optional[str], path: str) -> str:
-    """Collision → -2, -3. NEVER overwrite: two sweeps of one hub are two acts,
-    and the ledger's job is to keep both."""
-    base, ext = (path[:-3], ".md") if path.endswith(".md") else (path, "")
-    candidate, n = path, 1
-    while True:
-        try:
-            q = client.table("workspace_files").select("path").eq("path", candidate)
-            if workspace_id:
-                q = q.eq("workspace_id", workspace_id)
-            else:
-                q = q.eq("user_id", user_id)
-            if not (q.limit(1).execute().data or []):
-                return candidate
-        except Exception:
-            return candidate  # fail-open: a collision check is not worth the act
-        n += 1
-        candidate = f"{base}-{n}{ext}"
+def extract_delta_headline(report: str) -> Optional[str]:
+    """The first bullet under a "Recent developments" heading, if the report
+    carries one — the sweep's delta, for the revision message (ADR-565 D1:
+    the message carries the headline; the chain carries the delta). Pure."""
+    in_recent = False
+    for line in (report or "").splitlines():
+        s = line.strip()
+        if s.startswith("#") and "recent development" in s.lower():
+            in_recent = True
+            continue
+        if in_recent:
+            if s.startswith("#"):
+                return None  # section ended without a bullet
+            if s.startswith(("-", "*")):
+                return s.lstrip("-* ").strip()[:140] or None
+    return None
+
+
+def _assert_hub_write(hub: "RadarHub", path: str) -> None:
+    """ADR-564 D6 / ADR-565 D4 — the unattended sweep is write-confined to its
+    hub subtree. A capability constraint asserted at the write site, never a
+    read boundary. Raises rather than writes: a confined actor that would
+    write outside its folder is a bug, not a judgment call."""
+    if not (path == hub.root or path.startswith(hub.root + "/")):
+        raise ValueError(
+            f"radar write-confinement: {path!r} is outside hub root {hub.root!r}"
+        )
 
 
 def resolve_radar_resident() -> tuple[str, str]:
@@ -182,7 +194,10 @@ def resolve_radar_resident() -> tuple[str, str]:
     return row["model"], row["posture"]
 
 #: The empty-sweep sentinel the posture contracts. Falsifier 4's honest zero.
-NO_BRIEF_SENTINEL = "NO_BRIEF"
+#: "NO_BRIEF" is the pre-ADR-565 spelling, accepted at runtime so an engine
+#: echoing the old contract mid-deploy still reads as an honest empty sweep.
+NO_CHANGE_SENTINEL = "NO_CHANGE"
+_EMPTY_SWEEP_TOKENS = {NO_CHANGE_SENTINEL, "NO_BRIEF"}
 
 Schedule = Optional[Union[str, list[str]]]
 
@@ -215,19 +230,31 @@ class RadarHub:
     def signal_path(self) -> str:
         return f"{self.root}/{SIGNAL_LEAF}"
 
+    @property
+    def criterion_path(self) -> str:
+        return f"{self.root}/{CRITERION_LEAF}"
+
+    @property
+    def report_path(self) -> str:
+        return f"{self.root}/{REPORT_LEAF}"
+
 
 def topic_from_declaration_path(path: str) -> Optional[str]:
-    """``/workspace/operation/{topic}/_radar.yaml`` → ``topic``. Pure.
+    """``/workspace/operation/{folder...}/_radar.yaml`` → the folder path
+    relative to ``operation/`` (the topic identifier). Pure.
 
-    None for anything else — including deeper nesting (a hub is ONE
-    single-level meaning-folder; ``operation/a/b/_radar.yaml`` is not a hub).
+    Any depth is a valid hub (ADR-565 D3 — a hub attaches to any
+    meaning-folder; the old single-segment rule was an R0 scan
+    simplification). None for paths outside the convention. Nesting one hub
+    INSIDE another is refused at discovery, not here — this parser has no
+    cross-hub knowledge.
     """
     p = (path or "").strip()
     if not p.startswith(_OPERATION_PREFIX) or not p.endswith(f"/{RADAR_DECLARATION_LEAF}"):
         return None
     middle = p[len(_OPERATION_PREFIX):-(len(RADAR_DECLARATION_LEAF) + 1)]
     parts = [s for s in middle.split("/") if s]
-    return parts[0] if len(parts) == 1 else None
+    return "/".join(parts) if parts else None
 
 
 def parse_radar_yaml(
@@ -369,7 +396,7 @@ def discover_radar_hubs(client, *, workspace_id: Optional[str] = None) -> dict[s
         path = row.get("path") or ""
         topic = topic_from_declaration_path(path)
         if topic is None:
-            logger.warning("[RADAR] %s is not a single-level hub declaration; skipping", path)
+            logger.warning("[RADAR] %s is not a hub declaration path; skipping", path)
             continue
         key = _owner(row)
         if not key:
@@ -383,6 +410,26 @@ def discover_radar_hubs(client, *, workspace_id: Optional[str] = None) -> dict[s
         if hub is None:
             continue
         by_user.setdefault(key, []).append(hub)
+
+    # Nested criteria are named-deferred (ADR-565 D3): a declaration inside
+    # another hub's subtree is refused LOUDLY, never silently — the outer hub
+    # keeps governing its whole subtree (the cascade rule waits for a real
+    # case). Refusal keys on the folder boundary, not string prefix.
+    for key, hubs in by_user.items():
+        roots = {h.topic for h in hubs}
+        kept: list[RadarHub] = []
+        for h in hubs:
+            ancestors = [t for t in roots
+                         if t != h.topic and h.topic.startswith(t + "/")]
+            if ancestors:
+                logger.warning(
+                    "[RADAR] hub %r is nested inside hub %r — refused "
+                    "(nested criteria are named-deferred, ADR-565 D3)",
+                    h.topic, min(ancestors, key=len),
+                )
+                continue
+            kept.append(h)
+        by_user[key] = kept
     return by_user
 
 
@@ -525,46 +572,52 @@ class _RadarAuth:
         self.caller_identity = "system:radar"
 
 
-#: The brief posture — the JOB overlay, composed at sweep time UNDER the
+#: The report posture — the JOB overlay, composed at sweep time UNDER the
 #: resident's character (Researcher's row posture leads; this section follows
 #: — the lane_runner character-then-job order). Never stored. Carries ONLY
 #: what the model needs to distill; the kernel holds placement/citation/embed
-#: (the settle division of labour).
-_RADAR_POSTURE = """THE STANDING RADAR JOB — hub "{topic}".
+#: (the settle division of labour). The hub's CRITERION rides the user message
+#: (per-hub content beside the report + signal), not this overlay.
+_RADAR_POSTURE = """THE STANDING RADAR JOB — the living report for "{topic}".
 
 A scheduled sweep fired in the member's workspace. Nobody is present; the
-brief you write will be read later. You are handed the fresh watch signal
-(distilled entries from the hub's declared web sources, fetched just now) and
-the hub's previous brief (if one exists). Write ONE brief: what changed on
-this topic that matters, since the previous brief. Selectivity IS the job
-here — unlike an addressed research ask, nobody will refine this query;
-choosing what matters is what the brief is for.
-{steer}
+report you maintain will be read later. You are handed THE CRITERION (the
+member's declaration of what matters in this folder), THE CURRENT REPORT
+(the folder's living understanding — it may carry the member's own edits;
+treat those as corrections to preserve, never as noise), and THE FRESH WATCH
+SIGNAL (entries fetched just now from the declared sources).
+
+Return the FULL REVISED REPORT: fold what the signal changes into the current
+understanding, under the criterion. Selection IS the job — nobody will refine
+this query; what the criterion excludes stays out, however interesting.
+
 THE BAR
-- If nothing meaningfully NEW appears in the signal versus the previous brief,
-  reply with exactly: NO_BRIEF
-  An empty sweep honestly reported beats a manufactured insight — never pad.
-- Under ~80 lines. Selective beats complete: drop what a reader wouldn't act on.
-- Every claim traceable to an entry in the signal — cite the entry's url inline
-  as a markdown link. NEVER invent facts, numbers, or sources.
+- If the signal changes nothing under the criterion, reply with exactly:
+  NO_CHANGE
+  An empty sweep honestly reported beats a manufactured update — never pad.
+- Under ~150 lines. The report is the current understanding, not a log —
+  fold, don't append; prune what has stopped mattering.
+- Preserve the member's corrections and voice where the signal doesn't
+  contradict them; when it does, update the claim and cite why.
+- Every new claim cites its signal entry's url inline as a markdown link.
+  NEVER invent facts, numbers, or sources.
 
 THE SHAPE
-- A `# Title` first line naming what changed — not "Radar brief".
-- The delta: what is new and why it matters for this topic.
-- Optionally end with "Watching:" — threads likely to matter next sweep.
+- A `# Title` first line naming the topic's current picture.
+- A short "## Recent developments" section first — what this sweep changed,
+  as dated bullets (prune bullets older than a few sweeps).
+- Then the standing sections of the understanding itself.
 
 THE OUTPUT CONTRACT
-Return the brief's markdown and NOTHING else — or the exact token NO_BRIEF.
-No preamble, no code fence around the whole thing.
+Return the full report's markdown and NOTHING else — or the exact token
+NO_CHANGE. No preamble, no code fence around the whole thing.
 """
 
 
-def build_radar_posture(topic: str, steer: Optional[str] = None) -> str:
-    """The sweep's derive posture — pure."""
-    steer_block = ""
-    if steer and steer.strip():
-        steer_block = f"\nOPERATOR STEER\n{steer.strip()}\n"
-    return _RADAR_POSTURE.format(topic=topic, steer=steer_block)
+def build_radar_posture(topic: str) -> str:
+    """The sweep's derive posture — pure. (The pre-ADR-565 `steer` parameter
+    is retired with the `prompt:` key; the criterion rides the user message.)"""
+    return _RADAR_POSTURE.format(topic=topic)
 
 
 def _read_file(client, user_id: str, path: str) -> Optional[str]:
@@ -583,27 +636,21 @@ def _read_file(client, user_id: str, path: str) -> Optional[str]:
         return None
 
 
-def _latest_brief(client, user_id: str, hub: RadarHub) -> Optional[str]:
-    """The hub's most recent brief body, or None. Date-prefixed leaf names
-    sort chronologically, so max(path) is the latest."""
-    try:
-        rows = (
-            client.table("workspace_files")
-            .select("path, content")
-            .eq("user_id", user_id)
-            .like("path", f"{hub.root}/{BRIEFS_DIR}/%")
-            .order("path", desc=True)
-            .limit(1)
-            .execute()
-        ).data or []
-        return rows[0].get("content") if rows else None
-    except Exception as e:
-        logger.warning("[RADAR] latest-brief read failed for %s: %s", hub.slug, e)
-        return None
+def _read_criterion(client, user_id: str, hub: RadarHub) -> Optional[str]:
+    """The hub's criterion body (`CRITERION.md`), or — migration fallback —
+    the legacy `prompt:` steer still sitting in a pre-ADR-565 declaration.
+    The fallback exists ONLY so a legacy hub keeps its steer until its first
+    touch migrates it (routes/radar.py writes the criterion file on the next
+    authoring pass); it is not a second home for the criterion."""
+    body = _read_file(client, user_id, hub.criterion_path)
+    if body and body.strip():
+        return body
+    legacy = hub.options.get("prompt")
+    return legacy if isinstance(legacy, str) and legacy.strip() else None
 
 
 async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
-    """One sweep of one hub. Returns {success, slug, brief_path?, no_brief?,
+    """One sweep of one hub. Returns {success, slug, report_path?, no_change?,
     error_reason?}. Never raises past its own boundary — the drainer records
     the run either way.
     """
@@ -647,16 +694,23 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
     signal_path = paths_written[0] if paths_written else hub.signal_path
     raw_paths = paths_written[1:]
 
-    # ── 2. derive (one bounded judgment turn, no tools) ──────────────────
+    # ── 2. derive (one bounded, criterion-governed judgment turn, no tools).
+    #      The current report HEAD is the previous understanding — member
+    #      edits included, which is what makes correction compound
+    #      (ADR-565 D1; single-head-many-authors, ADR-384 D4). ─────────────
     signal_body = _read_file(client, user_id, signal_path) or ""
-    previous = _latest_brief(client, user_id, hub)
-    steer = hub.options.get("prompt") if isinstance(hub.options.get("prompt"), str) else None
+    current_report = _read_file(client, user_id, hub.report_path)
+    criterion = _read_criterion(client, user_id, hub)
 
     user_msg = (
-        f"THE FRESH WATCH SIGNAL (just swept):\n\n{signal_body}\n\n"
-        + (f"THE PREVIOUS BRIEF:\n\n{previous}\n" if previous
-           else "THERE IS NO PREVIOUS BRIEF — this is the hub's first sweep. "
-                "Brief what stands out in the signal as the baseline.\n")
+        (f"THE CRITERION (what matters in this folder):\n\n{criterion}\n\n"
+         if criterion else
+         "THERE IS NO CRITERION DECLARED YET — hold a conservative bar: only "
+         "clearly substantive developments on the folder's topic.\n\n")
+        + (f"THE CURRENT REPORT:\n\n{current_report}\n\n" if current_report
+           else "THERE IS NO REPORT YET — this is the hub's first sweep. "
+                "Write the baseline report from what stands out in the signal.\n\n")
+        + f"THE FRESH WATCH SIGNAL (just swept):\n\n{signal_body}\n"
     )
 
     # ADR-557 D1 — radar was the ONE routed caller with no flag check. The
@@ -686,9 +740,9 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
             # Character first, job second — Researcher's row posture leads,
             # the radar job overlay follows (the lane_runner composition
             # order; see resolve_radar_resident).
-            system=resident_character + "\n\n" + build_radar_posture(hub.topic, steer),
-            max_tokens=_BRIEF_MAX_TOKENS,
-            timeout=_BRIEF_TIMEOUT_S,
+            system=resident_character + "\n\n" + build_radar_posture(hub.topic),
+            max_tokens=_REPORT_MAX_TOKENS,
+            timeout=_DERIVE_TIMEOUT_S,
         )
     except Exception as e:
         logger.exception("[RADAR] derive failed for %s/%s: %s", user_id[:8], hub.slug, e)
@@ -703,27 +757,26 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
     note = strip_fence(routed.text or "")
     derive_ms = int((datetime.now(timezone.utc) - derive_started).total_seconds() * 1000)
 
-    if not note.strip() or note.strip() == NO_BRIEF_SENTINEL:
+    if not note.strip() or note.strip() in _EMPTY_SWEEP_TOKENS:
         # The honest empty sweep — metered as skipped so falsifier 4 reads it.
         record_execution_event(
             client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
             mode="judgment", trigger_type="scheduled", status="skipped",
-            error_reason="no_brief", model=routed.ledger_model,
+            error_reason="no_change", model=routed.ledger_model,
             duration_ms=derive_ms, funnel_decision="radar", principal_id=user_id,
             **routed.usage,
         )
-        return {"success": True, "slug": hub.slug, "no_brief": True}
+        return {"success": True, "slug": hub.slug, "no_change": True}
 
-    # ── 3. place (kernel-deterministic; never overwrites) ────────────────
-    from services.naming import path_slug
+    # ── 3. place (kernel-deterministic: the FIXED report leaf — history is
+    #       the revision chain, not the namespace; ADR-565 D1) + confine ───
     title = extract_title(note)
-    date = started.strftime("%Y-%m-%d")
-    path = _unique_path(
-        client, user_id, None,
-        f"{hub.root}/{BRIEFS_DIR}/{date}-{path_slug(title)}.md",
-    )
+    path = hub.report_path
+    _assert_hub_write(hub, path)
 
-    # ── 4. write + cite (ADR-423 kind, ADR-448 edges) ────────────────────
+    # ── 4. write + cite (ADR-423 kind, ADR-448 edges). The revision message
+    #       carries the sweep's delta headline — the chain IS the delta rail.
+    headline = extract_delta_headline(note)
     from services.authored_substrate import write_revision
     revision_id = write_revision(
         client,
@@ -733,19 +786,21 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         # The face is the resident, the fact is the ledger (ADR-460 D2):
         # the member reads "Researcher"; authored_by stays the mechanism.
         authored_by="system:radar",
-        message=f"Researcher's radar brief for hub '{hub.topic}' (standing sweep, {items} sources)",
+        message=(f"Researcher revised the living report: {headline}" if headline
+                 else f"Researcher revised the living report for '{hub.topic}' "
+                      f"(standing sweep, {items} sources)"),
         revision_kind="derivation",
         derived_from=[signal_path, *raw_paths],
     )
 
-    # ── 5. embed (retrieval — a brief nobody can recall is a dead brief) ──
+    # ── 5. embed (retrieval — a report nobody can recall is a dead report) ─
     try:
         from services.primitives.workspace import _embed_workspace_file
         await _embed_workspace_file(client, user_id, path, note)
     except Exception as e:
         logger.warning("[RADAR] embed failed for %s: %s", path, e)
 
-    # ── 6. meter (falsifiers 2 + 4 key on this slug) ─────────────────────
+    # ── 6. meter (falsifiers 2 + 4 key on this slug — UNCHANGED slugs) ────
     record_execution_event(
         client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
         mode="judgment", trigger_type="scheduled", status="success",
@@ -754,7 +809,7 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
     )
 
     logger.info("[RADAR] %s/%s → %s (rev %s)", user_id[:8], hub.slug, path, revision_id[:8])
-    return {"success": True, "slug": hub.slug, "brief_path": path,
+    return {"success": True, "slug": hub.slug, "report_path": path,
             "revision_id": revision_id, "title": title}
 
 
@@ -829,8 +884,10 @@ async def drain_due_radar_sweeps(client) -> tuple[int, int, int]:
 __all__ = [
     "RADAR_KIND",
     "RADAR_DECLARATION_LEAF",
+    "CRITERION_LEAF",
+    "REPORT_LEAF",
     "resolve_radar_resident",
-    "NO_BRIEF_SENTINEL",
+    "NO_CHANGE_SENTINEL",
     "RadarHub",
     "topic_from_declaration_path",
     "parse_radar_yaml",

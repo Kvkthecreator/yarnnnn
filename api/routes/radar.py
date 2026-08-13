@@ -1,18 +1,20 @@
-"""Radar hub routes — ADR-486 R1 (watch authoring) + R2 (the composed view).
+"""Radar hub routes — ADR-486 R1/R2, re-cut by ADR-564/565.
 
-R1 — the first in-product writer of hub declarations (before this, watches
-were bundle-shipped only; the R0 eval hub was declared by a one-shot).
-A member declares a hub: topic + sources + cadence (+ optional steer). The
-declaration lands at ``operation/{topic}/_radar.yaml`` through write_revision
-(the one door), and the kind='radar' index materializes immediately so a
-``fire_on_activation`` hub sweeps on the next scheduler tick (~5 min — the
-felt moment: declare a radar, the first brief arrives while you watch).
+R1 — the authoring path. A member declares a hub on a meaning-folder (any
+depth under ``operation/`` — ADR-565 D3): topic + sources + cadence + the
+CRITERION (what matters here). Two files through the one door: the machine
+config ``{folder}/_radar.yaml`` (schedule · paused · sources — the retired
+``prompt:`` steer key never re-enters) and the prose ``{folder}/CRITERION.md``
+(ADR-564 D2 — operator/lane-authored, never machine-parsed). The kind='radar'
+index materializes immediately so a ``fire_on_activation`` hub sweeps on the
+next scheduler tick (~5 min — declare a radar, the first report arrives while
+you watch).
 
 R2 — ``GET /api/radar/hubs/{topic}`` is a LAZY PROJECTION over the hub
 folder + the ledgers (ADR-486 D5, derived-never-stored): declaration +
-briefs shelf + sweep health from execution_events, composed at read time.
-Nothing here stores dashboard state; the substrate and the ledger are the
-only sources.
+criterion + the LIVING REPORT head (ADR-565 D1) + the legacy briefs shelf +
+sweep health from execution_events, composed at read time. Nothing here
+stores dashboard state; the substrate and the ledger are the only sources.
 
 Auth boundary (ADR-501): everything scopes to the ACTING WORKSPACE'S OWNER
 user_id — the radar stack's end-to-end key (discovery grouping, the
@@ -39,8 +41,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_TOPIC_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$|^[a-z0-9]$")
+_SEGMENT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$|^[a-z0-9]$")
+_MAX_TOPIC_DEPTH = 4  # a meaning-path, not a filing cabinet — reject silly nesting
 _MAX_SOURCES = 12  # the TrackWebSources cap — reject loudly at the door
+
+
+def _validate_topic(topic: str) -> str:
+    """A topic is a meaning-folder path under operation/ (ADR-565 D3): one or
+    more kebab-case segments. Returns the normalized topic or raises 422."""
+    t = (topic or "").strip().strip("/").lower()
+    segments = t.split("/") if t else []
+    if not segments or len(segments) > _MAX_TOPIC_DEPTH or not all(
+        _SEGMENT_RE.match(s) for s in segments
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="topic must be 1..4 kebab-case path segments (a-z, 0-9, hyphens)",
+        )
+    return "/".join(segments)
 
 
 # ---------------------------------------------------------------------------
@@ -58,8 +76,8 @@ class CreateHubRequest(BaseModel):
     topic: str
     sources: list[HubSource]
     schedule: str = "0 21 * * *"  # daily 21:00 UTC default
-    prompt: Optional[str] = None
-    fire_on_activation: bool = True  # first brief within one tick
+    criterion: Optional[str] = None  # what matters here → CRITERION.md (ADR-564 D2)
+    fire_on_activation: bool = True  # first report within one tick
 
 
 class UpdateHubRequest(BaseModel):
@@ -67,7 +85,7 @@ class UpdateHubRequest(BaseModel):
 
     paused: Optional[bool] = None
     schedule: Optional[str] = None
-    prompt: Optional[str] = None
+    criterion: Optional[str] = None  # revises CRITERION.md, never the yaml
     sources: Optional[list[HubSource]] = None
 
 
@@ -76,10 +94,13 @@ class HubSummary(BaseModel):
     declaration_path: str
     schedule: Optional[Any] = None
     paused: bool = False
-    prompt: Optional[str] = None
+    criterion: Optional[str] = None
     sources: list[HubSource] = []
     last_run_at: Optional[str] = None
     next_run_at: Optional[str] = None
+    report_path: Optional[str] = None
+    report_title: Optional[str] = None
+    # The pre-ADR-565 shelf — legacy reads only; new sweeps never add to it.
     latest_brief_path: Optional[str] = None
     latest_brief_title: Optional[str] = None
     brief_count: int = 0
@@ -99,9 +120,11 @@ class SweepEvent(BaseModel):
 
 
 class HubView(HubSummary):
-    """The R2 composed view — summary + briefs shelf + sweep health,
-    projected at read time from substrate + ledger."""
+    """The R2 composed view — summary + the living report head + the legacy
+    briefs shelf + sweep health, projected at read time from substrate +
+    ledger."""
 
+    report: Optional[str] = None  # the living report head (ADR-565 D1)
     briefs: list[BriefEntry] = []
     recent_sweeps: list[SweepEvent] = []
     signal_observed_at: Optional[str] = None
@@ -167,24 +190,23 @@ def compose_declaration_yaml(
     *,
     schedule: Any,
     paused: bool,
-    prompt: Optional[str],
     sources: list[dict],
     fire_on_activation: bool = False,
 ) -> str:
-    """Compose the ``_radar.yaml`` body. Deterministic, machine-class
-    (ADR-254 underscore-yaml): comment header + safe_dump payload."""
+    """Compose the ``_radar.yaml`` body — PURE machine config (ADR-565 D2:
+    the ``prompt:`` steer key is retired; judgment prose lives in
+    ``CRITERION.md``, which no machine writer ever touches). Deterministic,
+    machine-class (ADR-254 underscore-yaml): comment header + safe_dump."""
     payload: dict[str, Any] = {"schedule": schedule}
     if fire_on_activation:
         payload["fire_on_activation"] = True
     payload["paused"] = paused
-    if prompt and prompt.strip():
-        payload["prompt"] = prompt.strip() + "\n"
     payload["sources"] = sources
     header = (
-        "# _radar.yaml — AI Radar hub declaration (ADR-486)\n"
-        "# Standing sweep: schedule fires → sources fetched → what changed\n"
-        "# lands as a cited brief in briefs/. Edit freely; the scheduler\n"
-        "# re-reads this file every tick.\n"
+        "# _radar.yaml — radar hub declaration (ADR-486, re-cut ADR-565)\n"
+        "# Standing sweep: schedule fires → sources fetched → the folder's\n"
+        "# living report.md is revised under CRITERION.md. Machine config\n"
+        "# only — what matters here belongs in CRITERION.md, not this file.\n"
     )
     return header + _yaml.safe_dump(payload, sort_keys=False, allow_unicode=True,
                                     default_flow_style=False)
@@ -192,6 +214,8 @@ def compose_declaration_yaml(
 
 def _summarize(client, user_id: str, hub, index_row: Optional[dict],
                sources: list[dict]) -> HubSummary:
+    from services.radar import _read_criterion, _read_file
+
     briefs = (
         client.table("workspace_files")
         .select("path, content")
@@ -201,17 +225,20 @@ def _summarize(client, user_id: str, hub, index_row: Optional[dict],
         .execute()
     ).data or []
     latest = briefs[0] if briefs else None
+    report_head = _read_file(client, user_id, hub.report_path)
     return HubSummary(
         topic=hub.topic,
         declaration_path=hub.declaration_path,
         schedule=hub.schedule,
         paused=hub.paused,
-        prompt=(hub.options.get("prompt") or None),
+        criterion=_read_criterion(client, user_id, hub),
         sources=[HubSource(**{k: v for k, v in s.items()
                               if k in {"id", "url", "max_entries"}})
                  for s in sources if isinstance(s, dict) and s.get("id") and s.get("url")],
         last_run_at=(index_row or {}).get("last_run_at"),
         next_run_at=(index_row or {}).get("next_run_at"),
+        report_path=hub.report_path if report_head else None,
+        report_title=_title_of(report_head) if report_head else None,
         latest_brief_path=latest.get("path") if latest else None,
         latest_brief_title=_title_of(latest.get("content", "")) if latest else None,
         brief_count=len(briefs),
@@ -270,12 +297,25 @@ async def list_hubs(auth: UserClient) -> list[HubSummary]:
     return out
 
 
+def _write_criterion(auth, actor: str, topic: str, text: str, *, message: str) -> None:
+    """The criterion lands as its own attributed revision of CRITERION.md —
+    never inside the machine yaml (ADR-564 D2)."""
+    from services.authored_substrate import write_revision
+    write_revision(
+        auth.client,
+        user_id=actor,
+        path=f"/workspace/operation/{topic}/CRITERION.md",
+        content=text.strip() + "\n",
+        authored_by="operator",
+        message=message,
+        workspace_id=getattr(auth, "workspace_id", None),
+    )
+
+
 @router.post("/radar/hubs", status_code=201)
 async def create_hub(request: CreateHubRequest, auth: UserClient) -> HubSummary:
     actor = _acting_owner(auth)
-    topic = request.topic.strip().lower()
-    if not _TOPIC_RE.match(topic):
-        raise HTTPException(status_code=422, detail="topic must be a kebab-case slug (a-z, 0-9, hyphens)")
+    topic = _validate_topic(request.topic)
     if not request.sources:
         raise HTTPException(status_code=422, detail="a hub needs at least one source")
     if len(request.sources) > _MAX_SOURCES:
@@ -290,7 +330,6 @@ async def create_hub(request: CreateHubRequest, auth: UserClient) -> HubSummary:
     content = compose_declaration_yaml(
         schedule=request.schedule,
         paused=False,
-        prompt=request.prompt,
         sources=[s.model_dump() for s in request.sources],
         fire_on_activation=request.fire_on_activation,
     )
@@ -305,6 +344,9 @@ async def create_hub(request: CreateHubRequest, auth: UserClient) -> HubSummary:
         message=f"declare radar hub '{topic}' ({len(request.sources)} sources, {request.schedule})",
         workspace_id=getattr(auth, "workspace_id", None),
     )
+    if request.criterion and request.criterion.strip():
+        _write_criterion(auth, actor, topic, request.criterion,
+                         message=f"declare the criterion for '{topic}'")
     await _materialize(auth.client, actor)
 
     from services.radar import parse_radar_yaml
@@ -319,9 +361,10 @@ async def create_hub(request: CreateHubRequest, auth: UserClient) -> HubSummary:
                       [s.model_dump() for s in request.sources])
 
 
-@router.patch("/radar/hubs/{topic}")
+@router.patch("/radar/hubs/{topic:path}")
 async def update_hub(topic: str, request: UpdateHubRequest, auth: UserClient) -> HubSummary:
     actor = _acting_owner(auth)
+    topic = _validate_topic(topic)
     content = _read_declaration(auth.client, actor, topic)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no hub '{topic}'")
@@ -337,12 +380,25 @@ async def update_hub(topic: str, request: UpdateHubRequest, auth: UserClient) ->
         parsed["paused"] = request.paused
     if request.schedule is not None:
         parsed["schedule"] = request.schedule
-    if request.prompt is not None:
-        parsed["prompt"] = request.prompt
     if request.sources is not None:
         if not request.sources or len(request.sources) > _MAX_SOURCES:
             raise HTTPException(status_code=422, detail=f"1..{_MAX_SOURCES} sources per hub")
         parsed["sources"] = [s.model_dump() for s in request.sources]
+
+    # The criterion never rides the yaml. An explicit update revises
+    # CRITERION.md; a legacy declaration still carrying the retired `prompt:`
+    # key migrates it into CRITERION.md at first touch (ADR-565 D2 — the
+    # recompose below drops the key either way, so migrate-before-drop).
+    legacy_steer = parsed.pop("prompt", None)
+    if request.criterion is not None and request.criterion.strip():
+        _write_criterion(auth, actor, topic, request.criterion,
+                         message=f"revise the criterion for '{topic}'")
+    elif isinstance(legacy_steer, str) and legacy_steer.strip():
+        from services.radar import _read_file as _radar_read
+        if not _radar_read(auth.client, actor,
+                           f"/workspace/operation/{topic}/CRITERION.md"):
+            _write_criterion(auth, actor, topic, legacy_steer,
+                             message=f"migrate the legacy steer into the criterion for '{topic}' (ADR-565 D2)")
 
     # fire_on_activation is consume-on-first-update: it is a CREATE-time fact
     # (arm the first sweep), not a standing declaration fact. Re-emitting it
@@ -353,7 +409,6 @@ async def update_hub(topic: str, request: UpdateHubRequest, auth: UserClient) ->
     new_content = compose_declaration_yaml(
         schedule=parsed.get("schedule"),
         paused=bool(parsed.get("paused", False)),
-        prompt=parsed.get("prompt"),
         sources=[s for s in (parsed.get("sources") or []) if isinstance(s, dict)],
     )
 
@@ -381,10 +436,11 @@ async def update_hub(topic: str, request: UpdateHubRequest, auth: UserClient) ->
                       [s for s in (parsed.get("sources") or []) if isinstance(s, dict)])
 
 
-@router.get("/radar/hubs/{topic}")
+@router.get("/radar/hubs/{topic:path}")
 async def get_hub(topic: str, auth: UserClient) -> HubView:
     """R2 — the composed hub view, projected at read time (never stored)."""
     actor = _acting_owner(auth)
+    topic = _validate_topic(topic)
     content = _read_declaration(auth.client, actor, topic)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no hub '{topic}'")
@@ -445,8 +501,11 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
         except _yaml.YAMLError:
             pass
 
-    return HubView(**summary.model_dump(), briefs=briefs, recent_sweeps=sweeps,
-                   signal_observed_at=signal_observed)
+    from services.radar import _read_file as _radar_read_file
+    report_head = _radar_read_file(auth.client, actor, hub.report_path)
+
+    return HubView(**summary.model_dump(), report=report_head, briefs=briefs,
+                   recent_sweeps=sweeps, signal_observed_at=signal_observed)
 
 
 def _strip_frontmatter(content: str) -> str:

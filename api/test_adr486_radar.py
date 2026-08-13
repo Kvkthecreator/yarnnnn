@@ -30,15 +30,15 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 # ---------------------------------------------------------------------------
-# 1. Topic extraction — the single-level meaning-folder rule
+# 1. Topic extraction — any-depth meaning-folder (ADR-565 D3)
 # ---------------------------------------------------------------------------
 print("1. topic_from_declaration_path")
 from services.radar import topic_from_declaration_path
 
 check("valid hub path → topic",
       topic_from_declaration_path("/workspace/operation/competitor-x/_radar.yaml") == "competitor-x")
-check("nested path → None (single-level only)",
-      topic_from_declaration_path("/workspace/operation/a/b/_radar.yaml") is None)
+check("nested path → joined topic (ADR-565 D3 — the single-level rule fell)",
+      topic_from_declaration_path("/workspace/operation/a/b/_radar.yaml") == "a/b")
 check("non-radar leaf → None",
       topic_from_declaration_path("/workspace/operation/x/_sources.yaml") is None)
 check("outside operation/ → None",
@@ -92,22 +92,24 @@ check("paused hub → no next run",
       compute_next_run_at(hub_paused, last_run_at=None, now=now) is None)
 
 # ---------------------------------------------------------------------------
-# 4. Posture — the NO_BRIEF contract + steer inclusion
+# 4. Posture — the NO_CHANGE contract (ADR-565: the living report job)
 # ---------------------------------------------------------------------------
 print("4. build_radar_posture")
-from services.radar import NO_BRIEF_SENTINEL, build_radar_posture
+from services.radar import NO_CHANGE_SENTINEL, build_radar_posture
 
-posture = build_radar_posture("competitor-x", "Watch for pricing moves.")
+posture = build_radar_posture("competitor-x")
 check("names the topic", '"competitor-x"' in posture)
-check("carries the NO_BRIEF contract", NO_BRIEF_SENTINEL in posture)
-check("carries the steer", "Watch for pricing moves." in posture)
-check("no steer → no steer block", "OPERATOR STEER" not in build_radar_posture("t"))
+check("carries the NO_CHANGE contract", NO_CHANGE_SENTINEL in posture)
+check("contracts the FULL revised report (fold, not append)",
+      "FULL REVISED REPORT" in posture and "fold" in posture)
+check("member edits are corrections to preserve (correction-compounds)",
+      "corrections to preserve" in posture)
 check("never-invent bar present", "NEVER invent" in posture)
 
 # ---------------------------------------------------------------------------
-# 5+6. run_radar_sweep EXECUTED — brief path and NO_BRIEF path
+# 5+6. run_radar_sweep EXECUTED — the report revision and the NO_CHANGE path
 # ---------------------------------------------------------------------------
-print("5. run_radar_sweep — brief lands (executed with stubbed I/O)")
+print("5. run_radar_sweep — the living report is revised (executed, stubbed I/O)")
 
 
 class FakeQuery:
@@ -173,7 +175,8 @@ route_calls: list[dict] = []
 
 def make_fake_route(text: str):
     async def fake_route(model, messages, **kwargs):
-        route_calls.append({"model": model, "system": kwargs.get("system", "")})
+        route_calls.append({"model": model, "system": kwargs.get("system", ""),
+                            "user": messages[0]["content"] if messages else ""})
         return SimpleNamespace(text=text, ledger_model="gemini-2.5-flash",
                                usage={"input_tokens": 100, "output_tokens": 50})
     return fake_route
@@ -215,19 +218,29 @@ try:
     ) if sys.version_info < (3, 10) else asyncio.run(run_radar_sweep(FakeClient(), "user-1", hub))
 
     check("sweep succeeds", result.get("success") is True)
-    check("brief placed under briefs/ with date prefix",
-          (result.get("brief_path") or "").startswith(
-              "/workspace/operation/competitor-x/briefs/") and
-          "-pricing-moved" in result.get("brief_path", ""))
+    check("the report is the FIXED leaf (history = the chain, not the namespace)",
+          result.get("report_path") == "/workspace/operation/competitor-x/report.md")
     check("exactly one revision written", len(revisions) == 1)
     rev = revisions[0] if revisions else {}
+    check("revision written to report.md",
+          rev.get("path") == "/workspace/operation/competitor-x/report.md")
     check("revision_kind='derivation'", rev.get("revision_kind") == "derivation")
     check("derived_from cites signal + raw",
           rev.get("derived_from") == [
               "/workspace/operation/competitor-x/_watch_signal.yaml",
               "/workspace/inbound/web/blog/2026-07-24T100000Z.xml"])
     check("authored_by system:radar", rev.get("authored_by") == "system:radar")
-    check("brief embedded (the retrieval fix)", embedded == [rev.get("path")])
+    check("revision message names the report revision",
+          "revised the living report" in (rev.get("message") or ""))
+    check("report embedded (the retrieval fix)", embedded == [rev.get("path")])
+    # The criterion governs the derive: the fixture declaration still carries
+    # the legacy `prompt:` steer and NO CRITERION.md exists, so the migration
+    # fallback must put that steer on the user message as THE CRITERION.
+    check("criterion rides the user message (legacy prompt fallback)",
+          "THE CRITERION" in route_calls[-1]["user"]
+          and "pricing moves" in route_calls[-1]["user"])
+    check("first sweep → baseline-report instruction (no report yet)",
+          "THERE IS NO REPORT YET" in route_calls[-1]["user"])
     sweep_evts = [e for e in events if e.get("slug", "").startswith("radar-sweep:")]
     brief_evts = [e for e in events if e.get("slug", "").startswith("radar-brief:")]
     check("sweep event metered (mechanical)",
@@ -248,16 +261,23 @@ try:
     check("system composes character BEFORE the job overlay",
           0 <= char_pos < job_pos)
 
-    print("6. run_radar_sweep — NO_BRIEF (the honest empty sweep)")
+    print("6. run_radar_sweep — NO_CHANGE (the honest empty sweep)")
+    events.clear(); revisions.clear(); embedded.clear()
+    _router.route_completion = make_fake_route("NO_CHANGE")
+    result2 = asyncio.run(run_radar_sweep(FakeClient(), "user-1", hub))
+    check("no-change sweep still succeeds", result2.get("success") is True and result2.get("no_change") is True)
+    check("nothing written on NO_CHANGE", len(revisions) == 0 and len(embedded) == 0)
+    nb = [e for e in events if e.get("slug") == "radar-brief:competitor-x"]
+    check("derive event skipped + error_reason=no_change (falsifier 4)",
+          len(nb) == 1 and nb[0].get("status") == "skipped"
+          and nb[0].get("error_reason") == "no_change")
+
+    # A mid-deploy engine echoing the pre-565 contract still reads honest.
     events.clear(); revisions.clear(); embedded.clear()
     _router.route_completion = make_fake_route("NO_BRIEF")
-    result2 = asyncio.run(run_radar_sweep(FakeClient(), "user-1", hub))
-    check("no-brief sweep still succeeds", result2.get("success") is True and result2.get("no_brief") is True)
-    check("nothing written on NO_BRIEF", len(revisions) == 0 and len(embedded) == 0)
-    nb = [e for e in events if e.get("slug") == "radar-brief:competitor-x"]
-    check("brief event skipped + error_reason=no_brief (falsifier 4)",
-          len(nb) == 1 and nb[0].get("status") == "skipped"
-          and nb[0].get("error_reason") == "no_brief")
+    result3 = asyncio.run(run_radar_sweep(FakeClient(), "user-1", hub))
+    check("legacy NO_BRIEF token also reads as the empty sweep",
+          result3.get("no_change") is True and len(revisions) == 0)
 finally:
     (_tws.handle_track_web_sources, _router.route_completion,
      _subst.write_revision, _wsp._embed_workspace_file,
@@ -319,6 +339,8 @@ check("resident model is a LANE_MODELS key (priced, routable)", _res_model in LA
 # ---------------------------------------------------------------------------
 print("9. radar routes (R1 authoring + R2 view)")
 
+import yaml as _yaml_mod
+
 import routes.radar as _routes
 from routes.radar import (
     CreateHubRequest, HubSource, UpdateHubRequest,
@@ -327,15 +349,16 @@ from routes.radar import (
 
 # compose → parse round-trip: what the route writes, the walker schedules
 composed = compose_declaration_yaml(
-    schedule="0 21 * * *", paused=False, prompt="Watch pricing.",
+    schedule="0 21 * * *", paused=False,
     sources=[{"id": "blog", "url": "https://example.com/feed", "max_entries": 8}],
     fire_on_activation=True,
 )
 rt = parse_radar_yaml(composed, topic="t", declaration_path="/workspace/operation/t/_radar.yaml")
 check("composed yaml round-trips through parse_radar_yaml",
       rt is not None and rt.schedule == "0 21 * * *"
-      and rt.options.get("fire_on_activation") is True
-      and "Watch pricing." in (rt.options.get("prompt") or ""))
+      and rt.options.get("fire_on_activation") is True)
+check("composed yaml is PURE machine config — no prompt key (ADR-565 D2)",
+      "prompt" not in (_yaml_mod.safe_load(composed) or {}))
 check("composed yaml carries sources for TrackWebSources",
       _routes._declared_sources(composed)[0]["url"] == "https://example.com/feed")
 
@@ -401,11 +424,18 @@ try:
 
     req = CreateHubRequest(topic="competitor-x",
                            sources=[HubSource(id="blog", url="https://example.com/feed")],
-                           prompt="Watch pricing.")
+                           criterion="Watch pricing.")
     summary = asyncio.run(create_hub(req, _route_auth))
     check("create_hub writes the declaration through the one door",
-          len(written) == 1 and written[0]["path"] == "/workspace/operation/competitor-x/_radar.yaml"
+          len(written) == 2 and written[0]["path"] == "/workspace/operation/competitor-x/_radar.yaml"
           and written[0]["authored_by"] == "operator")
+    check("create_hub writes the criterion as its OWN file (ADR-564 D2)",
+          written[1]["path"] == "/workspace/operation/competitor-x/CRITERION.md"
+          and written[1]["authored_by"] == "operator"
+          and "Watch pricing." in written[1]["content"])
+    check("the declaration itself carries NO criterion prose",
+          "Watch pricing." not in _route_client.files[
+              "/workspace/operation/competitor-x/_radar.yaml"])
     check("create_hub returns the hub summary",
           summary.topic == "competitor-x" and summary.sources[0].url == "https://example.com/feed")
 
