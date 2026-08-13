@@ -16,6 +16,18 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
  * The trust marks are MECHANISMS, not certifications. No badge, seal, or
  * third-party logo may appear on this page until an actual audit backs it:
  * a badge reads as externally verified in a way prose does not.
+ *
+ * The closing section splits deliberately (ADR-561 D2 as amended 2026-08-13).
+ * "Planned" is only sayable where a plan exists, so the four gaps are NOT one
+ * list:
+ *   - blob persistence + the private-body read policy ARE scheduled — both are
+ *     named in ADR-561 §7 as owed work, so "on the roadmap" is a fact.
+ *   - SOC 2 / ISO 27001 have NO roadmap in canon. They read "not yet started"
+ *     with a condition (when customers need them), never "planned" — an
+ *     invented timeline is the same defect as an invented badge.
+ *   - DPA / BAA are neither: they are signable agreements, not audits, so they
+ *     route to a conversation rather than a status.
+ * Do not collapse these back into a single sentence.
  */
 
 export const metadata = getMarketingMetadata({
@@ -231,16 +243,33 @@ export default function DataPage() {
 
             <div className="rounded-xl border border-[#1a1a1a]/[0.1] bg-white/70 p-6">
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#1a1a1a]/50">
-                What we don&apos;t have
+                What&apos;s not done yet
               </h2>
               <p className="leading-7 text-[#1a1a1a]/70">
-                No SOC 2, no ISO 27001, no DPA, no BAA. We&apos;re a small team and
-                we&apos;d rather say so than let a badge imply otherwise. Two things
-                we&apos;re still tightening, named plainly: some stored file contents can
-                persist in backing storage after deletion, and reads of private file
-                bodies still lean on application-layer checks rather than database-level
-                rules. If your procurement needs certifications, we&apos;re not ready for
-                you yet.
+                <strong className="font-medium text-[#1a1a1a]/85">On the roadmap.</strong>{" "}
+                Two things we&apos;re tightening, both scheduled work rather than
+                someday-maybe: some stored file contents can persist in backing storage
+                after deletion, and reads of private file bodies still lean on
+                application-layer checks rather than database-level rules. We name them
+                here because you&apos;d have no way to find them otherwise.
+              </p>
+              <p className="mt-4 leading-7 text-[#1a1a1a]/70">
+                <strong className="font-medium text-[#1a1a1a]/85">
+                  Not yet started.
+                </strong>{" "}
+                We hold no SOC 2 or ISO 27001 certification. Those are third-party
+                audits, and we&apos;d rather tell you we haven&apos;t done one than let a
+                badge imply we have — we&apos;ll pursue them when our customers need
+                them, and we&apos;ll say so here when that work begins. A DPA or BAA
+                isn&apos;t an audit but a signed agreement: we don&apos;t offer one off
+                the shelf today, so if you need either,{" "}
+                <a
+                  href="mailto:admin@yarnnn.com"
+                  className="underline underline-offset-4 hover:text-[#1a1a1a]"
+                >
+                  talk to us
+                </a>{" "}
+                and we&apos;ll tell you honestly where we stand.
               </p>
             </div>
 

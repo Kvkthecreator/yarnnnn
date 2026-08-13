@@ -48,7 +48,17 @@ The operator asked whether we could emphasize trust marks in the style of a comp
 
 **We cannot, and the page says so.** A badge reads as *externally verified* in a way prose does not; there is no honest way to render one for an audit that has not happened. `/privacy-architecture` carries a four-mark row in that visual shape, filled with **mechanisms rather than certifications** — never trained on, signed at the write path, no retention timer, exports as plain git. Each maps to enforced behavior.
 
-The page then states plainly: *"No SOC 2, no ISO 27001, no DPA, no BAA. We're a small team and we'd rather say so than let a badge imply otherwise."* This is not an apology. Against a comparable set where the weakest player lets readers assume, saying it is the differentiator a small team can actually hold — and it follows CANON-LOCK-2026-07-30 §19, which already named the constraint as the position: *"a solo founding team with no enterprise privacy/compliance apparatus cannot serve procurement — and does not need to."*
+The page states the absence plainly rather than letting a seal imply otherwise. This is not an apology. Against a comparable set where the weakest player lets readers assume, saying it is the differentiator a small team can actually hold — and it follows CANON-LOCK-2026-07-30 §19, which already named the constraint as the position: *"a solo founding team with no enterprise privacy/compliance apparatus cannot serve procurement — and does not need to."*
+
+**Amendment (2026-08-13, same day).** The operator asked that the gaps read as *planned* rather than merely absent — a fair ask, and honest **only where a plan exists**. The four gaps are therefore split, and must not be recombined:
+
+| Gap | Framing | Why |
+|---|---|---|
+| Blob persistence after deletion; private-body reads on app-layer checks | **"On the roadmap"** | Both are named as owed in §7 below. Scheduled work — "planned" is a fact. |
+| SOC 2, ISO 27001 | **"Not yet started"**, conditioned on customer need | No roadmap exists anywhere in canon. Calling these planned would invent a commitment, which is the same defect as inventing a badge — one asserts a credential we lack, the other a timeline we lack. |
+| DPA, BAA | **Route to a conversation** | Neither is an audit. They are signable agreements, so the honest answer is "not off the shelf; ask us," not a status. |
+
+The rule generalizes: **"planned" is a claim about the future and needs the same evidentiary standard as a claim about the present.** A roadmap item is checkable against the owed list; an aspiration is not.
 
 ## 4. D3 — "Private" is the wrong frame; boundary and receipt are the right one
 
