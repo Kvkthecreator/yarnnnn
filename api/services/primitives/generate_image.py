@@ -145,11 +145,66 @@ async def handle_generate_image(auth: Any, input: dict) -> dict:
         return {"success": False, "error": f"The image provider failed: {exc}"}
 
     from services.authored_substrate import write_revision
+    from services.supabase import get_service_client
+    from services.telemetry import image_generation_cost_usd, record_execution_event
 
+    service = get_service_client()
+
+    # The rented call is ALREADY SPENT by the time we get here, so it is metered
+    # before the write — a substrate failure below must not also lose the bill.
+    # ADR-396's one-meter invariant: `serve_generation` refuses an engine with no
+    # `_IMAGE_RATES` row precisely so this lookup cannot come back empty on a
+    # call that ran (D2.b `unpriced`), which makes a None here a real defect
+    # rather than a free image.
+    cost = image_generation_cost_usd(asset["model"])
+    if cost:
+        try:
+            record_execution_event(
+                service,  # service-role only (RLS 42501) — never auth.client
+                user_id=auth.user_id,
+                # ADR-373/445: attribute the spend to the principal who asked,
+                # so it lands in spend_by_principal and counts against their cap.
+                principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+                slug="generate-image",
+                mode="mechanical",
+                trigger_type="manual",
+                status="success",
+                model=asset["model"],
+                cost_override_usd=cost,
+            )
+        except Exception:  # noqa: BLE001 — never lose the image over the ledger
+            # ERROR, not warning: an unrecorded rented call is unbilled spend —
+            # a correctness failure of the one-meter invariant, not a telemetry
+            # inconvenience (the `compose.py` leaf-write rule, same reasoning).
+            logger.error(
+                "[GENERATE-IMAGE] LEDGER DROP — $%.4f of rented generation "
+                "is unrecorded spend", cost,
+            )
+    else:
+        logger.error(
+            "[GENERATE-IMAGE] UNPRICED model %r rendered an image — the "
+            "availability gate should have refused it; this call is unbilled",
+            asset["model"],
+        )
+
+    # ⚠️ SERVICE CLIENT, deliberately. Image bytes always take the BINARY lane
+    # (a PNG never utf-8-decodes), and the binary lane writes the private
+    # `workspace-cas` bucket, which carries NO `storage.objects` policy by
+    # design — migration 219: "service-role only". A member JWT is 403'd there
+    # with "new row violates row-level security policy", which is exactly what
+    # shipped: every chat-initiated generation failed AFTER paying the vendor.
+    # Every other binary writer already swaps here (`apps/images/compose.py`,
+    # `routes/documents.py` upload, `design_system_import.py`); this one did
+    # not, and the lane hands primitives the member's JWT client (ADR-467).
+    #
+    # This does NOT widen the member's reach: the path is a fixed
+    # `uploads/generated/` name this function builds, never caller-supplied,
+    # and attribution stays the member's via `authored_by` + `user_id`.
     revision_id = write_revision(
-        auth.client,
+        service,
         user_id=auth.user_id,
         path=path,
+        workspace_id=getattr(auth, "workspace_id", None),
         content_bytes=asset["data"],
         content_type=asset["content_type"],
         authored_by=f"member:{auth.user_id}",

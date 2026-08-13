@@ -180,6 +180,85 @@ try:
           "def serve_generation():" in cap_src,
           "a caller-supplied engine would re-weld the vendor to the call site")
 
+    print("\n6. the write actually LANDS — driven, not inspected")
+
+    # ⚠️ THE SHAPE THAT SHIPPED BROKEN. Sections 1-5 were all green while every
+    # chat-initiated generation 403'd: they read the resolver and the surface,
+    # and never DROVE the write. Image bytes always take the BINARY lane (a PNG
+    # never utf-8-decodes), and that lane uploads to the private `workspace-cas`
+    # bucket, which carries NO storage.objects policy by design (migration 219 —
+    # "service-role only"). The lane hands primitives the MEMBER's JWT client
+    # (ADR-467), so passing it through reached the bucket as `authenticated` and
+    # came back 42501, AFTER the vendor had already been paid.
+    #
+    # Asserted by EXECUTION with the seams stubbed, so it fails if a future edit
+    # reverts the swap — a source grep for "service" would pass on a comment.
+    import asyncio
+    import types
+
+    import services.authored_substrate as _AS
+    import services.capabilities as _CAP
+    import services.supabase as _SB
+    import services.telemetry as _TEL
+
+    _seen: dict = {}
+    _SERVICE, _JWT = object(), object()
+    _saved = (_AS.write_revision, _TEL.record_execution_event, _SB.get_service_client,
+              _CAP.serve_generation)
+
+    class _FakeBackend:
+        def generate(self, *, prompt, width, height):
+            # NUL byte -> genuinely undecodable, i.e. the real binary lane.
+            return {"data": b"\x89PNG\r\n\x1a\n\x00\xff", "content_type": "image/png",
+                    "model": "gemini-2.5-flash-image"}
+
+    def _fake_write(db_client, **kw):
+        _seen["write_client"] = db_client
+        _seen["authored_by"] = kw.get("authored_by")
+        _seen["path"] = kw.get("path")
+        return "rev-probe"
+
+    def _fake_record(client, **kw):
+        _seen["ledger_client"] = client
+        _seen["cost"] = kw.get("cost_override_usd")
+        _seen["principal_id"] = kw.get("principal_id")
+        return "evt-probe"
+
+    try:
+        _AS.write_revision = _fake_write
+        _TEL.record_execution_event = _fake_record
+        _SB.get_service_client = lambda: _SERVICE
+        _CAP.serve_generation = lambda: _FakeBackend()
+
+        from services.primitives.generate_image import handle_generate_image
+
+        _auth = types.SimpleNamespace(
+            client=_JWT, user_id="u-probe", principal_id="p-probe",
+            workspace_id="ws-probe",
+        )
+        _res = asyncio.get_event_loop().run_until_complete(
+            handle_generate_image(_auth, {"prompt": "a red bicycle",
+                                          "filename": "red-bicycle"})
+        )
+
+        check("the binary write uses the SERVICE client, never the member JWT",
+              _seen.get("write_client") is _SERVICE
+              and _seen.get("write_client") is not _JWT,
+              "the workspace-cas bucket 403s an `authenticated` principal (mig 219)")
+        check("...and attribution still reads as the MEMBER",
+              _seen.get("authored_by") == "member:u-probe",
+              "the service client is a reach mechanism, never an attribution one")
+        check("the rented call is METERED before the write can fail",
+              bool(_seen.get("cost")),
+              "an unrecorded rented call is unbilled spend (ADR-396 one-meter)")
+        check("spend attributes to the asking principal",
+              _seen.get("principal_id") == "p-probe")
+        check("the call reports success with a revision id",
+              _res.get("success") and _res.get("revision_id") == "rev-probe")
+    finally:
+        (_AS.write_revision, _TEL.record_execution_event, _SB.get_service_client,
+         _CAP.serve_generation) = _saved
+
 finally:
     for k, v in _SAVED.items():
         _env(**{k: v})
