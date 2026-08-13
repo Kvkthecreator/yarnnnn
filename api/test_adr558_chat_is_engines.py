@@ -299,6 +299,42 @@ check("...and the header renders it from a model id, not a label",
 check("the agents surface carries the mark as well",
       "engineBrandIcon(engines[" in agents_surface)
 
+# D5 — ONE mark per vendor, drawn ONCE.
+#
+# THE DEFECT (operator-observed, 2026-08-13): `brand-icons.tsx` and
+# `PlatformIcons.tsx` EACH drew their own Claude glyph and they were DIFFERENT
+# artwork — the Anthropic corporate "A" in the chat surface, the Claude sunburst
+# in the notification panel. One vendor, two brands, depending which surface you
+# looked at. (The ChatGPT paths had also drifted apart by transcription noise.)
+# The mapping module now IMPORTS the marks instead of re-drawing them.
+brand_icons = (web / "lib/ai-providers/brand-icons.tsx").read_text()
+platform_icons = (web / "components/ui/PlatformIcons.tsx").read_text()
+
+check("the engine-mark module imports its artwork rather than re-drawing it",
+      "from '@/components/ui/PlatformIcons'" in brand_icons)
+check("...and draws no vendor <path> of its own",
+      "<path" not in brand_icons,
+      "a second copy of a vendor mark is how the Claude glyphs diverged")
+check("Claude is the PRODUCT's mark, not the Anthropic corporate 'A'",
+      "ClaudeIcon" in brand_icons and "M17.304 3.541" not in brand_icons,
+      "the corporate 'A' path must not come back")
+# Every vendor with a mark must render branded on EVERY surface — the principal
+# badge degraded Gemini to a generic glyph while chat rendered it branded.
+check("the MCP principal badge serves Gemini's mark too",
+      'case "gemini":' in platform_icons)
+for glyph in ("ClaudeIcon", "ChatGPTIcon", "GeminiIcon"):
+    check(f"{glyph} is declared exactly once (in PlatformIcons)",
+          platform_icons.count(f"export const {glyph}") == 1
+          and f"const {glyph} =" not in brand_icons)
+
+# The agent pane must not restate a name where it promises a description.
+# Comments stripped: the fix's own comment NAMES the retired heading to record
+# why it went, and a raw scan matches that prose (the repo's canonical trap —
+# third time this session).
+check("the agent pane shows no 'What they do' tautology for kernel agents",
+      "What they do" not in _as_code,
+      "it rendered 'What they do -> Thinker', the name under a description heading")
+
 # The NUL byte that made a 47KB chat component invisible to `grep`.
 lane_panel_bytes = (web / "components/chat-surface/LanePanel.tsx").read_bytes()
 check("LanePanel.tsx holds no NUL byte (it read as BINARY to grep)",

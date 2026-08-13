@@ -53,6 +53,17 @@ export const ChatGPTIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+// Google / Gemini — the product's four-point spark. Lives here with the other
+// vendor marks (moved from `lib/ai-providers/brand-icons.tsx`, 2026-08-13) so
+// there is ONE home for the artwork: that module owns the engine-id → mark
+// MAPPING, this one owns the glyphs. Two homes is how the Claude mark managed
+// to be the Anthropic "A" on one surface and the sunburst on another.
+export const GeminiIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 0c.62 6.44 5.56 11.38 12 12-6.44.62-11.38 5.56-12 12-.62-6.44-5.56-11.38-12-12C6.44 11.38 11.38 6.44 12 0Z" />
+  </svg>
+);
+
 /**
  * Get platform icon component by provider name
  */
@@ -91,6 +102,11 @@ export function getMcpHostIcon(
       return <ClaudeIcon className={className} />;
     case "chatgpt":
       return <ChatGPTIcon className={className} />;
+    // Gemini has had a mark since the engine registry needed one; this switch
+    // was still degrading it to a generic glyph, so the SAME vendor rendered
+    // branded in the chat surface and unbranded in a principal badge.
+    case "gemini":
+      return <GeminiIcon className={className} />;
     default:
       return null;
   }

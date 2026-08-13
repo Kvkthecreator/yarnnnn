@@ -278,15 +278,26 @@ export function AgentsSurface() {
                 </section>
               )}
 
-              {/* CAPABILITY — who they are. Fixed: it is the job you hired for. */}
+              {/* CAPABILITY — the job, and the engine under it.
+                  ⚠️ THE HEADING IS ONLY HONEST FOR A HIRED AGENT. It read
+                  "What they do → Thinker" on every kernel row (operator
+                  screenshot, 2026-08-13): the name restated under a heading
+                  that promises a description, while the actual description —
+                  the blurb — already sits beside the face two lines up. There
+                  is no capability GAP for a kernel agent (it IS the
+                  capability), so there is nothing to name; the gap is real
+                  only when a member hired one and gave it their own name.
+                  So the line renders only when it says something new. */}
               <section className="space-y-1">
-                <h3 className="text-xs text-muted-foreground">
-                  {active.kernel === false ? 'Hired as' : 'What they do'}
-                </h3>
-                <p className="text-sm">
-                  {active.kernel === false ? (base?.name ?? active.based_on) : active.name}
-                  {base && active.kernel === false ? ` — ${base.blurb}` : ''}
-                </p>
+                {active.kernel === false && (
+                  <>
+                    <h3 className="text-xs text-muted-foreground">Hired as</h3>
+                    <p className="text-sm">
+                      {base?.name ?? active.based_on}
+                      {base ? ` — ${base.blurb}` : ''}
+                    </p>
+                  </>
+                )}
                 {/* The technical fact — visible, never the headline. The
                     provider's mark rides with it (ADR-558 D5). */}
                 {active.engine && (
