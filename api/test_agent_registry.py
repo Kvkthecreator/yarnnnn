@@ -917,11 +917,13 @@ def run() -> bool:
     # over a door that had not opened since `af5339f`. A gate pinning a call's
     # SPELLING cannot see that the call fails; only its behaviour can.
     #
-    # The door is disabled pending an ADR-558/467 decision (the client is not
-    # served `model`, and no default engine may be invented), so what is pinned
-    # now is the HONEST state: it must not silently 422, and it must tell the
-    # member the route that works. Restore a behavioural assertion here when the
-    # door is rebuilt.
+    # THE DOOR IS REBUILT (2026-08-13, the ADR-566 arc), so the behavioural
+    # assertion this comment owed is restored below. The fix composes two live
+    # mechanisms rather than deciding anything new: create an ENGINE lane
+    # (ADR-558 D1) and join the colleague through the CAST (ADR-495) — exactly
+    # what a member does by hand. No birth-persona is written, so ADR-558 D3
+    # holds, and no engine is invented, so ADR-467 D2 holds (the member's own
+    # sticky last-used answers, and its absence routes to the chat door).
     # Comments stripped: the explanatory comment above NAMES the dead call, and
     # a raw substring test matches its own prose (the repo's canonical trap).
     _agents_code = "\n".join(
@@ -933,8 +935,14 @@ def run() -> bool:
         "api.lanes.create({ agent: slug })" not in _agents_code,
     )
     _check(
-        "…and it names the route that works instead (cast-join in /chat)",
-        "add this colleague to the conversation" in agents_surface,
+        "…and it opens the door by composing engine-create + cast-join",
+        "lanes.create({ model:" in _agents_code
+        and "addParticipant" in _agents_code
+        and "agent_slug" in _agents_code,
+    )
+    _check(
+        "…and it reuses the member's own engine rather than inventing one",
+        "readLastEngine" in _agents_code,
     )
     _check(
         "…and it SHOWS a failure rather than swallowing it",

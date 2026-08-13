@@ -44,6 +44,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, MessageCircle, Pencil, Plus, Sparkles } from 'lucide-react';
 import { AgentCard } from '@/components/chat-surface/AgentCard';
+// The member's own sticky last-used engine — the SAME fact the chat door
+// reads (ADR-558 D1). Reusing it is why this door needs no engine question of
+// its own and invents no default (ADR-467 D2).
+import { readLastEngine } from '@/components/chat-surface/NewChatModal';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { AgentFace } from './AgentFace';
@@ -95,33 +99,54 @@ export function AgentsSurface() {
     void load();
   }, [load]);
 
-  // §6.10c — start a chat with this colleague.
+  // §6.10c — start a chat with this colleague. FIXED 2026-08-13 (ADR-566 arc).
   //
-  // ⚠️ KNOWN BROKEN, PRE-EXISTING — dead since ADR-558 (`af5339f`), surfaced by
-  // ADR-562's build. This sent `api.lanes.create({ agent: slug })`: an UNBOUND
-  // lane naming a colleague, which is exactly what ADR-558 D3 refuses with a
-  // 422 ("a chat conversation is created with an engine, not a colleague").
-  // Every click has failed since that ADR landed; the surface rendered the 422
-  // into `startError`, so the failure was visible but never diagnosed.
+  // WHAT WAS BROKEN, AND WHY THE FIX IS THIS SHAPE. This sent
+  // `api.lanes.create({ agent: slug })` — an UNBOUND lane naming a colleague,
+  // which ADR-558 D3 refuses with a 422. Every click failed from `af5339f`
+  // until now; the 422 rendered into `startError`, so it was visible but never
+  // diagnosed (its gate was green over the dead call).
   //
-  // NOT FIXED HERE, deliberately (operator's call, 2026-08-13): a real fix must
-  // choose between resolving the engine server-side from the colleague and
-  // having the client name one — and the client is deliberately NOT served
-  // `model` (ADR-460 D4: the chooser never asks an engine question), while
-  // ADR-467 D2 forbids inventing a default. That is an ADR-558/467 decision,
-  // not a drive-by repair inside an app-config re-home.
+  // The fix composes two mechanisms that already work, and invents nothing:
+  //   1. create an ENGINE lane (ADR-558 D1 — chat asks which engine), and
+  //   2. add this colleague to the CAST (ADR-495 — who replies is the cast).
+  // That is exactly what a member does by hand today (open /chat, pick an
+  // engine, add the colleague); this removes the friction, not the rule.
   //
-  // Until then the door says so honestly rather than throwing a 422 at a member
-  // who did nothing wrong. The route in: open /chat, pick an engine, then add
-  // this colleague to the cast (ADR-495) — which works today.
+  // ⚠️ NO BIRTH-PERSONA IS CREATED. `lane_meta["agent"]` stays unset, so the
+  // cast remains the single authority on who replies — ADR-558 D3 holds
+  // exactly, and the CastBar bug class (cast says yes, lane_meta says nobody)
+  // cannot recur through this door.
+  //
+  // ⚠️ NO ENGINE IS INVENTED (ADR-467 D2). We reuse the member's own sticky
+  // last-used engine — the same per-person fact the chat door already reads —
+  // and when they have none we send them to the chat door to choose rather
+  // than picking for them. This surface still never ASKS an engine question
+  // (ADR-460 D4); it reuses an answer the member already gave.
   const startChat = useCallback(
-    (_slug: string) => {
-      setStartError(
-        'Starting a chat from here is unavailable. Open Chat, pick an engine, ' +
-          'then add this colleague to the conversation.',
-      );
+    async (slug: string) => {
+      setStartError(null);
+      const engine = readLastEngine();
+      if (!engine) {
+        // No remembered engine and no right to invent one. Hand off to the
+        // door whose job is that question.
+        navigateToSurface('chat', {});
+        return;
+      }
+      setStarting(true);
+      try {
+        const lane = await api.lanes.create({ model: engine });
+        await api.lanes.addParticipant(lane.id, { kind: 'agent', agent_slug: slug });
+        navigateToSurface('chat', { lane: lane.id });
+      } catch (e) {
+        // SHOWN, never swallowed (§7's own lesson: the picker's `catch {}` ate
+        // a live 409 and the member saw a click that did nothing).
+        setStartError(e instanceof Error ? e.message : 'Could not start the chat.');
+      } finally {
+        setStarting(false);
+      }
     },
-    [],
+    [navigateToSurface],
   );
 
   const mine = useMemo(() => (agents ?? []).filter((a) => a.kernel === false), [agents]);

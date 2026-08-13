@@ -235,6 +235,34 @@ check("the header agent-link reads the cast first",
 check("laneAgent is retained for BOUND lanes (not deleted wholesale)",
       "const laneAgent = useCallback" in chat)
 
+
+# ---------------------------------------------------------------------------
+# The /agents door — D3 held from the OTHER side (fixed 2026-08-13)
+# ---------------------------------------------------------------------------
+# `/agents` "Start a chat" sent `create({ agent: slug })` — an UNBOUND lane
+# naming a colleague — and 422'd on every click from `af5339f` until the
+# ADR-566 arc. It was invisible because THIS gate only ever checked the server's
+# refusal, never that any door still made the refused call. A green gate over a
+# dead call is the failure mode; these checks close it.
+import re as _re  # noqa: E402
+
+agents_surface = (web / "components/agents/AgentsSurface.tsx").read_text()
+# Strip comments before asserting ABSENCE — this file documents the very call
+# it must not make, so a text scan would match the explanation and read a
+# correct file as a violation.
+_as_code = _re.sub(r"//.*$", "", agents_surface, flags=_re.M)
+_as_code = _re.sub(r"/\*.*?\*/", "", _as_code, flags=_re.S)
+
+check("the /agents door creates with an ENGINE, never a colleague",
+      "lanes.create({ model:" in _as_code and "lanes.create({ agent" not in _as_code,
+      "an unbound lane naming a colleague is the 422 this ADR defines")
+check("...and joins the colleague through the CAST (ADR-495)",
+      "addParticipant" in _as_code and "agent_slug" in _as_code,
+      "who replies must come from the cast, not a birth-persona")
+check("...and invents no engine when the member has none (ADR-467 D2)",
+      "readLastEngine" in _as_code,
+      "a default engine here would be the resident ADR-467 D2 refuses")
+
 print(f"\n{N - len(FAILS)}/{N} checks passed")
 if FAILS:
     print("\nFAILURES:")
