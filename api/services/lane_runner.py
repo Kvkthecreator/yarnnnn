@@ -74,7 +74,7 @@ LANE_MODELS: dict[str, dict[str, Any]] = {
     "openai/gpt-4o-mini": {"label": "GPT-4o mini", "vision": True},            # cheap OpenAI
     # ── Google ───────────────────────────────────────────────────────────
     "gemini/gemini-2.5-pro": {"label": "Gemini Pro", "vision": True},          # frontier Google reasoning
-    "gemini/gemini-2.5-flash": {"label": "Gemini Flash", "vision": True},      # the Google lane (fast/cheap)
+    "gemini/gemini-3.5-flash-lite": {"label": "Gemini Flash", "vision": True}, # the Google lane (fast/cheap)
     # ── DeepSeek ─────────────────────────────────────────────────────────
     "deepseek/deepseek-chat": {"label": "DeepSeek", "vision": False},          # cost-floor / sovereign lane
     # ── xAI ──────────────────────────────────────────────────────────────
@@ -98,6 +98,13 @@ LANE_MODELS: dict[str, dict[str, Any]] = {
     # SYSTEM_CALLS and any pre-refresh lane may still name it.
     "anthropic/claude-haiku-4-5-20251001": {
         "label": "Claude Haiku (4.5)", "vision": True, "retired": True,
+    },
+    # Superseded by gemini-3.5-flash-lite (same list price, higher intelligence
+    # and throughput — Google's own upgrade notice, 2026-08-13). RETIRED rather
+    # than deleted: this row is the TURN-TIME whitelist for every lane already
+    # pinned to it, and a lane's engine is what ACTUALLY ran (ADR-559 D2).
+    "gemini/gemini-2.5-flash": {
+        "label": "Gemini Flash (2.5)", "vision": True, "retired": True,
     },
 }
 

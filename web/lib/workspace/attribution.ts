@@ -86,12 +86,13 @@ const LANE_MODEL_NAMES: Record<string, string> = {
   'openai/gpt-5': 'GPT-5',
   'openai/gpt-4o-mini': 'GPT-4o mini',
   'gemini/gemini-2.5-pro': 'Gemini Pro',
-  'gemini/gemini-2.5-flash': 'Gemini Flash',
+  'gemini/gemini-3.5-flash-lite': 'Gemini Flash',
   'deepseek/deepseek-chat': 'DeepSeek',
   'xai/grok-4.6': 'Grok',
   // Retired — still the honest name on every revision they authored.
   'anthropic/claude-sonnet-4-6': 'Claude Sonnet 4.6',
   'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',
+  'gemini/gemini-2.5-flash': 'Gemini Flash (2.5)',
 };
 
 function laneModelName(raw: string): string {

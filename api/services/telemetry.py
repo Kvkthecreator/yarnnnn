@@ -86,6 +86,15 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     # (10% read / 125% write). OpenAI/Gemini/DeepSeek have no cache-WRITE premium.
     "gpt-5":                      {"input_per_mtok": 1.25, "output_per_mtok": 10.00,
                                    "cache_read_mult": 0.50, "cache_create_mult": 0.0},
+    # Gemini 3.5 Flash-Lite supersedes 2.5 Flash at the SAME list price
+    # ($0.30/$2.50, verified against Google's pricing page 2026-08-13) with
+    # higher measured intelligence and throughput. Cached input is $0.03/MTok
+    # = 10% of base (the 0.25 on the 2.5 rows below is left as-is: correcting
+    # those is a separate claim about a different era's invoice, and a rate row
+    # is only as good as the day it was verified).
+    "gemini-3.5-flash-lite":      {"input_per_mtok": 0.30, "output_per_mtok": 2.50,
+                                   "cache_read_mult": 0.10, "cache_create_mult": 0.0},
+    # RETIRED from the door, still routable for lanes pinned to it (ADR-559 D2).
     "gemini-2.5-flash":           {"input_per_mtok": 0.30, "output_per_mtok": 2.50,
                                    "cache_read_mult": 0.25, "cache_create_mult": 0.0},
     "gemini-2.5-pro":             {"input_per_mtok": 1.25, "output_per_mtok": 10.00,

@@ -111,7 +111,7 @@ KERNEL_AGENTS: dict[str, dict[str, Any]] = {
         "name": "Researcher",
         "blurb": "Digs through material fast — the workspace and the web, with sources.",
         "icon": "compass",
-        "model": "gemini/gemini-2.5-flash",
+        "model": "gemini/gemini-3.5-flash-lite",
         "token_profile": 4096,
         # No `tools` field — capability is UNIFORM (ADR-467 D4; the field this
         # row briefly carried under ADR-463 D4 is retired). Every lane holds the
