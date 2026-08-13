@@ -148,6 +148,12 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     # autonomous it applies. Carries an orthogonal cost ceiling (embed daily cap)
     # checked in the handler — additive, like Schedule's pace cap.
     "Embed",
+    # ADR-568 (amended): GenerateImage's destination became caller-supplied, so
+    # it needs the authorization a hardcoded destination did not — ADR-555's
+    # `upload_documents` finding, applied before it can repeat. Path-addressed
+    # like WriteFile: a governance-locked destination DENYs here, above the
+    # handler, so the primitive still gates nothing itself.
+    "GenerateImage",
 })
 
 #: Subset of GATE_QUEUEABLE_PRIMITIVES that are path-addressed (governance-lock
@@ -156,6 +162,7 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
 #: `_resolve_gate_paths`.
 _PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({
     "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
+    "GenerateImage",
 })
 
 

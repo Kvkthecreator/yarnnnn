@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.13.2] - GenerateImage places by meaning, like every other write
+
+### Changed
+- `services/primitives/generate_image.py` (`GENERATE_IMAGE_TOOL`): the schema
+  gains an OPTIONAL `folder`, and the description now opens with the same law
+  `WriteFile` states — the path is the meaning; authored images live in the
+  Documents home or a meaning-named folder. Omitted → Documents.
+- `services/primitives/generate_image.py` (`_resolve_path`): replaces the
+  hardcoded `/workspace/uploads/generated/`. Traversal is neutralised
+  PER SEGMENT so a real nested folder survives while `..` cannot escape.
+- `services/primitives/permission.py` + `workspace.py::_resolve_gate_paths`:
+  `GenerateImage` joins the ADR-307 uniform gate as a path-addressed verb,
+  composing its destination through the HANDLER's own resolver.
+
+### Expected behavior
+- The model now CHOOSES where a generated image lands and can put it beside
+  the work it serves. Previously every image went to one app-named folder no
+  envelope ever mentioned, so the model could not predict or state its own
+  output path — it had a `filename` and no way to express a destination.
+- The observed failure this fixes: images filed into `uploads/`, the
+  pre-ADR-395 legacy root, which the Finder hides unless it holds legacy
+  files. Authored work (attributed `member:`) was landing in the ARRIVALS
+  zone on a "the path is the badge" theory ADR-555 D1 overturned.
+- A governance-locked destination now DENYs before the handler runs. Nothing
+  else changes: a call with no `folder` behaves as before except for landing
+  in Documents rather than the legacy root.
+
+---
+
 ## [2026.08.13.1] - An app may call its resident by its own name (Docs → Writer)
 
 ### Changed

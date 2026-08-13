@@ -180,6 +180,60 @@ try:
           "def serve_generation():" in cap_src,
           "a caller-supplied engine would re-weld the vendor to the call site")
 
+    print("\n5b. placement is by MEANING, and the gate agrees with the handler")
+
+    # ADR-568 AMENDED. The original §4 hardcoded `uploads/generated/` — an
+    # app-named root, filing AUTHORED work into the ARRIVALS zone, in the
+    # pre-ADR-395 LEGACY root. Placement is now the model's, per ADR-424 D1.
+    from services.primitives.generate_image import (
+        GENERATE_IMAGE_TOOL, _resolve_path,
+    )
+    from services.primitives.permission import (
+        GATE_QUEUEABLE_PRIMITIVES as _GQ,
+        _PATH_ADDRESSED_QUEUEABLE as _PA,
+    )
+    from services.primitives.workspace import _resolve_gate_paths
+
+    check("GenerateImage takes a `folder` the model chooses",
+          "folder" in GENERATE_IMAGE_TOOL["input_schema"]["properties"],
+          "a verb the app places for cannot obey 'the path is the meaning'")
+    check("...and folder is OPTIONAL (Documents is the default home)",
+          "folder" not in GENERATE_IMAGE_TOOL["input_schema"]["required"])
+    check("no folder -> the Documents home, never the legacy uploads/ root",
+          _resolve_path(None, "x") == "/workspace/operation/x.png",
+          f"resolved {_resolve_path(None, 'x')}")
+    check("a meaning-folder is honoured verbatim",
+          _resolve_path("the-acme-deal", "mark") == "/workspace/the-acme-deal/mark.png")
+    check("a nested path keeps its separators",
+          _resolve_path("operation/competitors/acme", "logo")
+          == "/workspace/operation/competitors/acme/logo.png",
+          "a blanket sanitiser would flatten the folder into one segment")
+
+    # Traversal must die per SEGMENT — the separator survives, `..` does not.
+    for _bad in ("../../etc", "..", "a/../../b"):
+        _p = _resolve_path(_bad, "f")
+        check(f"folder {_bad!r} cannot escape the workspace",
+              ".." not in _p and _p.startswith("/workspace/"), _p)
+
+    # ⚠️ ADR-555's sharpest finding: a caller-supplied destination needs an
+    # authorization a hardcoded one did not. The gate ALREADY exists (ADR-307
+    # D1, above every primitive) — this asserts registration, and that the gate
+    # authorizes the SAME path the handler writes. A gate free to disagree with
+    # its handler would check A and write B.
+    check("GenerateImage is registered on the uniform permission gate",
+          "GenerateImage" in _GQ and "GenerateImage" in _PA,
+          "a caller-supplied destination with no gate is the upload_documents defect")
+    for _f in (None, "the-acme-deal", "operation/x", "../../etc"):
+        check(f"gate path == handler path for folder={_f!r}",
+              _resolve_gate_paths("GenerateImage", {"folder": _f, "filename": "n"})
+              == [_resolve_path(_f, "n")[len("/workspace/"):]])
+    check("the neighbouring verbs still resolve from `path`",
+          _resolve_gate_paths("WriteFile", {"path": "/workspace/operation/n.md"})
+          == ["operation/n.md"]
+          and _resolve_gate_paths(
+              "MoveFile", {"path": "operation/a.md", "new_path": "operation/b.md"}
+          ) == ["operation/a.md", "operation/b.md"])
+
     print("\n6. the write actually LANDS — driven, not inspected")
 
     # ⚠️ THE SHAPE THAT SHIPPED BROKEN. Sections 1-5 were all green while every

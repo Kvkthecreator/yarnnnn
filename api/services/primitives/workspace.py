@@ -747,6 +747,17 @@ def _resolve_gate_paths(name: str, input: dict) -> list[str]:
     source gates the write. (If duplicate ever grows a destination argument,
     it must join MoveFile's two-key branch.)
     """
+    # GenerateImage (ADR-568, amended) names its destination as folder+filename
+    # rather than a whole path, so the gate composes it through the HANDLER's
+    # own resolver. Sharing the function is the point: a gate that re-derived
+    # the path would be free to disagree with the write it is authorizing, and
+    # the disagreement would favour the write (checked A, wrote B).
+    if name == "GenerateImage":
+        from .generate_image import _resolve_path
+
+        composed = _resolve_path(input.get("folder"), input.get("filename"))
+        return [composed[len("/workspace/"):]]
+
     keys = ("path", "new_path") if name == "MoveFile" else ("path",)
     paths: list[str] = []
     for key in keys:

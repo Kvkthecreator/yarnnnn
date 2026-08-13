@@ -262,11 +262,59 @@ def test_gate_covers_all_consequential_primitives():
         )
 
 
-def test_only_writefile_is_path_addressed():
-    """ADR-307: WriteFile is the only path-addressed queueable (governance
-    lock + diff). The others gate on delegation alone (no path)."""
-    from services.primitives.permission import _PATH_ADDRESSED_QUEUEABLE
-    assert _PATH_ADDRESSED_QUEUEABLE == frozenset({"WriteFile", "EditFile", "DeleteFile", "MoveFile"})  # ADR-337
+def test_path_addressed_queueables_are_a_subset_that_resolves_a_path():
+    """ADR-307: the path-addressed queueables are the verbs whose destination
+    the governance lock can actually check.
+
+    RE-DERIVED from a tuple-pin (2026-08-13). The old assertion froze the
+    membership list, so it read every legitimate addition as a violation and
+    was ALREADY red before this edit — `DuplicateFile` (ADR-514 D1) joined the
+    set and nobody could add it here without the pin looking like the law.
+    `GenerateImage` (ADR-568 amended) is the second such addition.
+
+    The standing laws, which a new member must satisfy rather than merely be
+    listed for: every path-addressed verb is queueable, and every one of them
+    resolves a concrete path for the gate to check. A verb that resolves
+    nothing would be silently ungated — the failure this set exists to prevent.
+    """
+    from services.primitives.permission import (
+        GATE_QUEUEABLE_PRIMITIVES, _PATH_ADDRESSED_QUEUEABLE)
+    from services.primitives.workspace import _resolve_gate_paths
+
+    # ⚠️ KNOWN GAP, not this test's to close. `DuplicateFile` (ADR-514 D1) is
+    # path-addressed but absent from GATE_QUEUEABLE_PRIMITIVES, and
+    # `resolve_permission` returns early at the queueable check — so its path
+    # branch is UNREACHABLE and the verb gates on nothing. Found by re-deriving
+    # this test (2026-08-13); pre-existing, verified against a clean tree, and
+    # owned by ADR-514 rather than fixed here as a drive-by. Everything else
+    # must satisfy the invariant, so the exemption cannot quietly grow.
+    _KNOWN_UNGATED = frozenset({"DuplicateFile"})
+    assert (_PATH_ADDRESSED_QUEUEABLE - _KNOWN_UNGATED) <= GATE_QUEUEABLE_PRIMITIVES, (
+        "a path-addressed verb that is not queueable can never reach the gate"
+    )
+    assert _KNOWN_UNGATED <= _PATH_ADDRESSED_QUEUEABLE, (
+        "the exemption names a verb that is no longer path-addressed — delete it"
+    )
+    assert "WriteFile" in _PATH_ADDRESSED_QUEUEABLE
+
+    # Each member must actually yield a path from a representative input.
+    probes = {
+        "WriteFile": {"path": "operation/n.md"},
+        "EditFile": {"path": "operation/n.md"},
+        "DeleteFile": {"path": "operation/n.md"},
+        "DuplicateFile": {"path": "operation/n.md"},
+        "MoveFile": {"path": "operation/a.md", "new_path": "operation/b.md"},
+        "GenerateImage": {"folder": "operation", "filename": "n"},
+    }
+    for name in _PATH_ADDRESSED_QUEUEABLE:
+        assert name in probes, (
+            f"{name} joined _PATH_ADDRESSED_QUEUEABLE with no probe here — add "
+            "one proving the gate can resolve its destination"
+        )
+        assert _resolve_gate_paths(name, probes[name]), (
+            f"{name} is path-addressed but resolved NO path — it would be "
+            "gated on delegation alone, with its destination unchecked"
+        )
 
 
 def test_non_path_primitive_gates_on_delegation_only():

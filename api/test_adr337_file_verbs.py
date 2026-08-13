@@ -156,9 +156,14 @@ check(
     # Exact-set on purpose: a new path-addressed verb must be a CONSCIOUS
     # addition here, never a silent one — an unlisted verb writes without the
     # topology gate resolving its path. ADR-514 D1 added DuplicateFile.
-    "path-addressed set is exactly the five write verbs",
+    # ADR-568 (amended) added GenerateImage: its destination became
+    # caller-supplied (folder+filename), so the governance lock must resolve it
+    # exactly as it does a WriteFile path. This tripwire worked as designed —
+    # the registration could not land silently.
+    "path-addressed set is exactly the six write verbs",
     _PATH_ADDRESSED_QUEUEABLE == frozenset({
         "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
+        "GenerateImage",
     }),
 )
 check(

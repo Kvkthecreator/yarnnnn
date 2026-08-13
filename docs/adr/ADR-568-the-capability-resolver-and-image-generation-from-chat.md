@@ -76,7 +76,18 @@ Two defects inherited from the fixed-engine era, both instances of failures this
 
 `GenerateImage` therefore joins `LANE_ARTIFACT_VERBS`, which is already the right place: it is the set whose successful calls land an attributed revision the member should SEE (the artifact card). Nothing about the permission gate changes — consequential primitives gate exactly as before (ADR-307 D1).
 
-**Where the image lands.** `write_revision(content_bytes=…)` — the ONE binary substrate lane (ADR-510), which gives attribution, versioning, and the timeline for free. Path: `uploads/generated/{slug}-{revision}.png`, in Downloads-adjacent territory because it *arrived* from outside (ADR-552's arrival framing) rather than being authored in place. It is a normal file: citable, movable, deletable, and `derived_from` the conversation that produced it.
+**Where the image lands.** `write_revision(content_bytes=…)` — the ONE binary substrate lane (ADR-510), which gives attribution, versioning, and the timeline for free. It is a normal file: citable, movable, deletable, and `derived_from` the conversation that produced it.
+
+> **AMENDED 2026-08-13 — the path is the model's, by meaning.** This paragraph originally specified `uploads/generated/{slug}-{revision}.png`, "in Downloads-adjacent territory because it *arrived* from outside (ADR-552's arrival framing) rather than being authored in place." That was wrong four ways, and the amendment reverses all of them.
+>
+> 1. **The citation was wrong.** ADR-552 is *direct manipulation where members actually look* — grid drag-drop; it contains no arrival framing. The arrival framing is **ADR-555 D1**, and it holds the **opposite** of what it was cited for: *"an `inbound/` write is an observation — the arrival badge on the ledger, not the path."* The fact was never carried by the lane.
+> 2. **It filed AUTHORED work as an arrival.** The image is made during a chat turn and attributed `member:{user_id}`. Authored/arrived is the Documents/Downloads distinction (`workspace_paths.py`), and this is unambiguously the former.
+> 3. **`uploads/` is the pre-ADR-395 LEGACY root**, which the Finder shows only when it holds legacy files. Every generated image resurfaced a root the tree otherwise hides — and after ADR-568 shipped, this was the only writer in the codebase still targeting it.
+> 4. **The app chose the root.** Every other file-creating verb takes a model-supplied path; the lane envelope tells the model *"a file's path is its meaning, chosen by what the file is about."* Giving `GenerateImage` a `filename` and no destination made it the one verb that could not obey its own envelope.
+>
+> **Amended decision.** `GenerateImage` takes an optional `folder`, resolved by `_resolve_path` and defaulting to the Documents home (`DEFAULT_WORK_HOME`); traversal is neutralised per segment so a nested folder survives and `..` cannot escape. Per **ADR-555 D2** — *"the moment a destination becomes caller-supplied it needs [an authorization]"* — `GenerateImage` joins the ADR-307 uniform gate as a **path-addressed** verb, composing its destination through the handler's own resolver so gate and handler cannot disagree. No new gate was built: the ADR-307 chokepoint already sits above every primitive, which is why the original sentence "nothing about the permission gate changes" is now the thing that had to change.
+>
+> The `{slug}-{revision}` element is also dropped: the implementation always wrote `{slug}.png`, and versioning already lives on the revision chain, so a second image of the same name is a new revision rather than a second file.
 
 ## 5. D4 — What this ADR explicitly does NOT do
 
