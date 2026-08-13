@@ -1486,14 +1486,12 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
     (system infrastructure + workspace capabilities), one return list.
     No `runtime: "kernel"` sentinel; no loop-over-CAPABILITIES filter.
     """
-    try:
-        result = auth.client.table("platform_connections").select(
-            "platform, status"
-        ).eq("user_id", auth.user_id).eq("status", "active").execute()
-        connected_providers = {row["platform"] for row in (result.data or [])}
-    except Exception as e:
-        logger.error(f"[PLATFORM-TOOLS] Error loading connected providers: {e}")
-        return []
+    # ADR-566 D4 — the probe reads the SAME store the resolver will. If these
+    # two disagreed, a caller would be offered a tool whose credential it cannot
+    # reach (the ADR-467 §1 Scout-bug shape: a capability that lies).
+    from services.platform_credentials import connected_platforms
+
+    connected_providers = connected_platforms(auth)
 
     tools: list[dict] = []
     seen: set[str] = set()
@@ -1691,23 +1689,17 @@ async def _route_via_composio(auth: Any, provider: str, tool: str, tool_input: d
     if not platform:
         return {"success": False, "error": f"Composio driver: unsupported provider {provider}"}
 
-    # Phase-1 token path — same fetch+decrypt the first-party handlers use.
+    # ADR-566 D4 — the ONE credential path, same as the first-party handlers.
+    from services.platform_credentials import (
+        credential_missing_error,
+        resolve_platform_credential,
+    )
+
+    row = resolve_platform_credential(auth, platform)
+    if not row:
+        return credential_missing_error(auth, platform)
     try:
-        row = (
-            auth.client.table("platform_connections")
-            .select("credentials_encrypted, metadata")
-            .eq("user_id", auth.user_id)
-            .eq("platform", platform)
-            .eq("status", "active")
-            .single()
-            .execute()
-        )
-        if not row.data:
-            return {
-                "success": False,
-                "error": f"No active {platform} integration. Connect it in Settings.",
-            }
-        token = get_token_manager().decrypt(row.data["credentials_encrypted"])
+        token = get_token_manager().decrypt(row["credentials_encrypted"])
     except Exception as e:
         logger.error("[COMPOSIO] Failed to get %s credentials: %s", platform, e)
         return {"success": False, "error": f"Failed to get {platform} credentials"}
@@ -1729,22 +1721,19 @@ async def _route_via_composio(auth: Any, provider: str, tool: str, tool_input: d
 async def _handle_slack_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     """Handle Slack tools via Direct API (ADR-076, replaces MCP Gateway)."""
     from integrations.core.slack_client import get_slack_client
+    from services.platform_credentials import (
+        credential_missing_error,
+        resolve_platform_credential,
+    )
 
-    # Get user's integration credentials
+    # ADR-566 D4 — the ONE credential path. Which store this reads (the human's
+    # account or the workspace's allocation) follows the acting principal; this
+    # call site does not choose and must not.
+    row = resolve_platform_credential(auth, "slack")
+    if not row:
+        return credential_missing_error(auth, "slack")
     try:
-        integration = auth.client.table("platform_connections").select(
-            "credentials_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("platform", "slack").eq("status", "active").single().execute()
-
-        if not integration.data:
-            return {
-                "success": False,
-                "error": "No active Slack integration. Connect it in Settings.",
-            }
-
-        token_manager = get_token_manager()
-        bot_token = token_manager.decrypt(integration.data["credentials_encrypted"])
-
+        bot_token = get_token_manager().decrypt(row["credentials_encrypted"])
     except Exception as e:
         logger.error(f"[PLATFORM-TOOLS] Failed to get Slack credentials: {e}")
         return {
@@ -1896,24 +1885,18 @@ async def _handle_notion_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     """
     from integrations.core.notion_client import get_notion_client
     from integrations.core.tokens import get_token_manager
+    from services.platform_credentials import (
+        credential_missing_error,
+        resolve_platform_credential,
+    )
 
-    # Get user's Notion integration
+    # ADR-566 D4 — the ONE credential path (see the Slack handler's note).
+    row = resolve_platform_credential(auth, "notion")
+    if not row:
+        return credential_missing_error(auth, "notion")
     try:
-        result = auth.client.table("platform_connections").select(
-            "credentials_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("platform", "notion").eq("status", "active").single().execute()
-
-        if not result.data:
-            return {
-                "success": False,
-                "error": "No active Notion integration. Connect it in Settings.",
-            }
-
-        # Decrypt access token
-        token_manager = get_token_manager()
-        access_token = token_manager.decrypt(result.data["credentials_encrypted"])
-        metadata = result.data.get("metadata") or {}
-
+        access_token = get_token_manager().decrypt(row["credentials_encrypted"])
+        metadata = row.get("metadata") or {}
     except Exception as e:
         logger.error(f"[PLATFORM-TOOLS] Failed to get Notion credentials: {e}")
         return {
@@ -2097,21 +2080,17 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     """Handle GitHub tools via Direct API (ADR-147)."""
     from integrations.core.github_client import get_github_client
     from integrations.core.tokens import get_token_manager
+    from services.platform_credentials import (
+        credential_missing_error,
+        resolve_platform_credential,
+    )
 
+    # ADR-566 D4 — the ONE credential path (see the Slack handler's note).
+    row = resolve_platform_credential(auth, "github")
+    if not row:
+        return credential_missing_error(auth, "github")
     try:
-        result = auth.client.table("platform_connections").select(
-            "credentials_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("platform", "github").eq("status", "active").single().execute()
-
-        if not result.data:
-            return {
-                "success": False,
-                "error": "No active GitHub integration. Connect it in Settings.",
-            }
-
-        token_manager = get_token_manager()
-        token = token_manager.decrypt(result.data["credentials_encrypted"])
-
+        token = get_token_manager().decrypt(row["credentials_encrypted"])
     except Exception as e:
         logger.error(f"[PLATFORM-TOOLS] Failed to get GitHub credentials: {e}")
         return {"success": False, "error": "Failed to get GitHub credentials"}
@@ -2204,22 +2183,18 @@ async def _handle_commerce_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     """Handle Commerce tools via Direct API (ADR-183)."""
     from integrations.core.lemonsqueezy_client import get_commerce_client
     from integrations.core.tokens import get_token_manager
+    from services.platform_credentials import (
+        credential_missing_error,
+        resolve_platform_credential,
+    )
 
+    # ADR-566 D4 — the ONE credential path (see the Slack handler's note).
+    result_row = resolve_platform_credential(auth, "commerce")
+    if not result_row:
+        return credential_missing_error(auth, "commerce")
     try:
-        result = auth.client.table("platform_connections").select(
-            "credentials_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("platform", "commerce").eq(
-            "status", "active"
-        ).single().execute()
-
-        if not result.data:
-            return {
-                "success": False,
-                "error": "No active commerce integration. Connect it in Settings.",
-            }
-
         token_manager = get_token_manager()
-        api_key = token_manager.decrypt(result.data["credentials_encrypted"])
+        api_key = token_manager.decrypt(result_row["credentials_encrypted"])
 
     except Exception as e:
         logger.error(f"[PLATFORM-TOOLS] Failed to get commerce credentials: {e}")
@@ -2445,23 +2420,19 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     """Handle Trading tools via Direct API (ADR-187)."""
     from integrations.core.alpaca_client import get_trading_client
     from integrations.core.tokens import get_token_manager
+    from services.platform_credentials import (
+        credential_missing_error,
+        resolve_platform_credential,
+    )
 
+    # ADR-566 D4 — the ONE credential path (see the Slack handler's note).
+    trading_row = resolve_platform_credential(auth, "trading")
+    if not trading_row:
+        return credential_missing_error(auth, "trading")
     try:
-        result = auth.client.table("platform_connections").select(
-            "credentials_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("platform", "trading").eq(
-            "status", "active"
-        ).single().execute()
-
-        if not result.data:
-            return {
-                "success": False,
-                "error": "No active trading integration. Connect it in Settings.",
-            }
-
         token_manager = get_token_manager()
-        credentials = token_manager.decrypt(result.data["credentials_encrypted"])
-        metadata = result.data.get("metadata") or {}
+        credentials = token_manager.decrypt(trading_row["credentials_encrypted"])
+        metadata = trading_row.get("metadata") or {}
         paper = metadata.get("paper", True)
 
         # Credentials stored as "key:secret"
@@ -2886,19 +2857,15 @@ async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     # (ADR-192 Phase 4)
     # =====================================================================
     from integrations.core.resend_client import get_resend_client
+    from services.platform_credentials import (
+        credential_missing_error,
+        resolve_platform_credential,
+    )
 
-    # Fetch credentials + metadata
-    try:
-        result = auth.client.table("platform_connections").select(
-            "credentials_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("platform", "email").eq("status", "active").execute()
-
-        if not result.data:
-            return {"success": False, "error": "No active email (Resend) connection found. Connect via POST /integrations/email/connect first."}
-    except Exception as e:
-        return {"success": False, "error": f"Failed to fetch email credentials: {e}"}
-
-    conn = result.data[0]
+    # ADR-566 D4 — the ONE credential path (see the Slack handler's note).
+    conn = resolve_platform_credential(auth, "email")
+    if not conn:
+        return credential_missing_error(auth, "email")
     token_manager = get_token_manager()
     try:
         api_key = token_manager.decrypt(conn["credentials_encrypted"])

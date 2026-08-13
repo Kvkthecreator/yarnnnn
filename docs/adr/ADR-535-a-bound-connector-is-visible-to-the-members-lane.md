@@ -1,5 +1,11 @@
 # ADR-535 — A bound connector is visible to the member's lane
 
+> **⚠️ D1 is NARROWED to its actual subject by [ADR-566](ADR-566-the-workspace-allocates-the-agents-credential.md) (2026-08-13).** *"A connector binding is a property of the member, not the workspace"* is true of **the member's own connector** — the subject this ADR was about — and was **never a ruling about the workspace's own allocated credential**, which ADR-425 D3 had already reserved and ADR-566 built.
+>
+> **Everything this ADR actually decided stands unchanged**: D2 (`list_integrations` on the uniform lane surface), D3 (the frame states the ceiling affirmatively), D4 (the foreign-caller asymmetry), and §7's ceiling — **a lane still gets no connector CONTENT reach**, and ADR-566 §7 explicitly does not build the per-caller-class rung D4 recorded as owed.
+>
+> **The read to avoid**: D1 answers *"whose bindings does a member's lane see?"* (theirs, and no others). It does not answer *"may a workspace allocate a credential to its agents?"* — that is ADR-425 D3 → ADR-566. The two stores are disjoint (ADR-566 D2) and never fall back to each other.
+
 **Status**: Accepted (2026-08-07, operator-ratified). **Amends ADR-420 §10** (the connector demand-gate) and **ADR-411 D3** (the lane surface's "no platform tools" clause), narrowly and in one direction: *visibility*. Ships code (D2/D3/D4).
 
 **Supersedes nothing. Amends**:

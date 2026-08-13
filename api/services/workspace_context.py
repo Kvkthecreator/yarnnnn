@@ -132,9 +132,20 @@ def account_scope_filter(user_id: str) -> tuple:
     human's platform credential (Slack, Drive, Notion, GitHub) is their own
     account object, not a workspace peripheral — so its reads key on the human,
     never on the acting workspace. Always `("user_id", user_id)`; there is no
-    workspace resolution, by design. (The vestigial `workspace_id` column on
-    those tables is reserved for the future D3 agent-owned connection, which
-    would use its own scope — not this helper.)
+    workspace resolution, by design.
+
+    ⚠️ ADR-566 — THIS IS NOW ONE OF TWO STORES, and they never fall back to each
+    other. The `workspace_id` column on `platform_connections` stopped being
+    "reserved for a future D3 connection": it is the WORKSPACE's own allocated
+    credential, the one its `own-agent` principals act through, read by
+    `platform_credentials.workspace_credential_filter`.
+
+    **Do not reach for this helper to resolve a credential for an ACT.** Which
+    store an act reads follows the acting principal, and that decision lives at
+    one chokepoint — `platform_credentials.resolve_platform_credential`. This
+    helper stays correct for the account door's own CRUD (a human listing and
+    managing their own connectors, ADR-425 D1), which is not a principal
+    question.
     """
     return ("user_id", user_id)
 

@@ -63,7 +63,14 @@ stores:
   email_delivery_log: { scope: member-experience, note: "keyed by recipient — per-member delivery record" }
 
   # --- account: the human across workspaces (user_id) ---
-  platform_connections: { scope: account, note: "a human's platform credential (ADR-425 — the credential is an account object; RLS/index/writes keyed user_id. workspace_id column retained vestigial-for-humans, reserved for the future D3 agent-owned connection)" }
+  # TWO STORES IN ONE TABLE, disjoint by key (ADR-566 D2). `scope: account` is
+  # the HUMAN's credential (ADR-425 D1, keyed user_id — RLS/index/writes). Rows
+  # keyed `workspace_id` are the WORKSPACE's own allocated credential, which its
+  # `own-agent` principals act through (ADR-566 D3 — the column stopped being
+  # "reserved"). Which store an act reads is decided at ONE chokepoint,
+  # `services/platform_credentials.py`, never at a call site, and the two never
+  # fall back to each other.
+  platform_connections: { scope: account, note: "a human's platform credential (ADR-425 D1, keyed user_id) AND the workspace's allocated agent credential (ADR-566 D3, keyed workspace_id) — resolved only via services/platform_credentials.resolve_platform_credential" }
   mcp_oauth_clients: { scope: account, note: "OAuth credential (ADR-075)" }
   mcp_oauth_codes: { scope: account, note: "OAuth credential" }
   mcp_oauth_access_tokens: { scope: account, note: "OAuth credential" }

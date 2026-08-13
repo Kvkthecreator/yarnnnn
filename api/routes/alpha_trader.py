@@ -88,26 +88,13 @@ async def get_money_truth(auth: UserClient) -> MoneyTruthResponse:
     from integrations.core.alpaca_client import get_trading_client
     from datetime import datetime, timezone
 
-    # Read the trading platform connection.
-    try:
-        result = (
-            auth.client.table("platform_connections")
-            .select("credentials_encrypted, metadata, status")
-            .eq("user_id", user_id)
-            .eq("platform", "trading")
-            .limit(1)
-            .execute()
-        )
-    except Exception as exc:
-        logger.warning(f"[ALPHA-TRADER] platform_connections read failed for {user_id[:8]}: {exc}")
-        return MoneyTruthResponse(live=False, fallback_reason="no_platform_connection")
+    # ADR-566 D4 — the ONE credential path. This route HAS an acting principal,
+    # so it must not key the store itself: which store is read follows who is
+    # acting, and the resolver already filters to `status='active'`.
+    from services.platform_credentials import resolve_platform_credential
 
-    rows = result.data or []
-    if not rows:
-        return MoneyTruthResponse(live=False, fallback_reason="no_platform_connection")
-
-    row = rows[0]
-    if row.get("status") != "active":
+    row = resolve_platform_credential(auth, "trading")
+    if not row:
         return MoneyTruthResponse(live=False, fallback_reason="no_platform_connection")
 
     encrypted_credentials = row.get("credentials_encrypted")
@@ -195,20 +182,14 @@ async def _get_alpaca_credentials(auth: UserClient):
     Used by all three Phase C live-brokerage endpoints.
     """
     from integrations.core.tokens import get_token_manager
+    from services.platform_credentials import resolve_platform_credential
 
-    result = (
-        auth.client.table("platform_connections")
-        .select("credentials_encrypted, metadata, status")
-        .eq("user_id", auth.user_id)
-        .eq("platform", "trading")
-        .limit(1)
-        .execute()
-    )
-    rows = result.data or []
-    if not rows or rows[0].get("status") != "active":
+    # ADR-566 D4 — the ONE credential path (see get_money_truth's note).
+    row = resolve_platform_credential(auth, "trading")
+    if not row:
         raise HTTPException(status_code=404, detail="Trading platform not connected")
 
-    encrypted = rows[0].get("credentials_encrypted")
+    encrypted = row.get("credentials_encrypted")
     if not encrypted:
         raise HTTPException(status_code=422, detail="No trading credentials stored")
 
