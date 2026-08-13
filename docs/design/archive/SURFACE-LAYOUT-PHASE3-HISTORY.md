@@ -3,10 +3,10 @@
 **Date:** 2026-03-03
 **Status:** Superseded by [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) (2026-03-04). Tab layout implemented as Phase 3 interim; full Cowork-style layout with scoped chat replaced this.
 **References:**
-- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — Phase 3 spec
+- [ADR-087: Agent Scoped Context](../../adr/ADR-087-workspace-scoping-architecture.md) — Phase 3 spec
 - [ADR-090: Work Tickets Consolidation](../../adr/archive/ADR-090-work-tickets-consolidation.md) — Phase 2 (surface redirects, combined here)
-- [Workspace Architecture Analysis, Section 10.6](../analysis/workspace-architecture-analysis-2026-03-02.md) — Cowork UI benchmark
-- [Workspace Architecture Analysis, Section 11.4](../analysis/workspace-architecture-analysis-2026-03-02.md) — Typed files → UI component mapping
+- [Workspace Architecture Analysis, Section 10.6](../../analysis/workspace-architecture-analysis-2026-03-02.md) — Cowork UI benchmark
+- [Workspace Architecture Analysis, Section 11.4](../../analysis/workspace-architecture-analysis-2026-03-02.md) — Typed files → UI component mapping
 
 ---
 

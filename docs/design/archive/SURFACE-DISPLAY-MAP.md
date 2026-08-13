@@ -1,6 +1,6 @@
 # Surface Display Map
 
-> **SUPERSEDED 2026-04-24 — ADR-215.** This doc was a pre-ADR-214 code snapshot of `/work` and `/context` with a three-surface user journey framing. Canonical per-tab contracts (four tabs: Chat · Work · Agents · Files) now live in [`docs/design/SURFACE-CONTRACTS.md`](../SURFACE-CONTRACTS.md). Preserved here as historical artifact.
+> **SUPERSEDED 2026-04-24 — ADR-215.** This doc was a pre-ADR-214 code snapshot of `/work` and `/context` with a three-surface user journey framing. Canonical per-tab contracts (four tabs: Chat · Work · Agents · Files) now live in [`docs/design/SURFACE-CONTRACTS.md`](../WORKSPACE.md). Preserved here as historical artifact.
 
 **Date:** 2026-04-15
 **Status:** Archived (superseded by ADR-215)

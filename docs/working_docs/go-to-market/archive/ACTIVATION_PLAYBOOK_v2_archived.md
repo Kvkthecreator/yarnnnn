@@ -1,8 +1,8 @@
 # YARNNN Activation Playbook
 
 **Last Updated:** 2026-03-12
-**Status:** Archived (v1) — superseded by [ACTIVATION_100USERS.md](../../ACTIVATION_100USERS.md) for paid activation experiments. This doc remains as reference for the organic content strategy and channel playbook. The 100 Users doc is the live execution file.
-**Reference:** See [GTM_POSITIONING.md](GTM_POSITIONING.md) for messaging framework, [ESSENCE.md](ESSENCE.md) for core thesis.
+**Status:** Archived (v1) — superseded by [ACTIVATION_100USERS.md](../ACTIVATION_100USERS.md) for paid activation experiments. This doc remains as reference for the organic content strategy and channel playbook. The 100 Users doc is the live execution file.
+**Reference:** See [GTM_POSITIONING.md](../../strategy/GTM_POSITIONING.md) for messaging framework, [ESSENCE.md](../../../ESSENCE.md) for core thesis.
 
 ---
 
@@ -271,5 +271,5 @@ These are directional — the real goal is learning which framing converts, not 
 
 ## Related Documents
 
-- [ESSENCE.md](ESSENCE.md) — Core thesis and architecture
-- [GTM_POSITIONING.md](GTM_POSITIONING.md) — Messaging framework, ICP definitions, competitive positioning
+- [ESSENCE.md](../../../ESSENCE.md) — Core thesis and architecture
+- [GTM_POSITIONING.md](../../strategy/GTM_POSITIONING.md) — Messaging framework, ICP definitions, competitive positioning

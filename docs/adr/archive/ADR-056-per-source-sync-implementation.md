@@ -354,7 +354,7 @@ def test_gmail_syncs_by_label():
 
 - [ADR-053: Platform Sync Monetization](ADR-053-platform-sync-monetization.md) - Monetization model
 - [ADR-055: Gmail Label-Based Sync](ADR-055-gmail-label-based-sync.md) - Gmail-specific design
-- [LIMITS.md](../monetization/LIMITS.md) - Limit definitions and enforcement
+- [LIMITS.md](../../monetization/archive/LIMITS.md) - Limit definitions and enforcement
 
 ---
 

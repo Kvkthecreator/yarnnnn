@@ -104,7 +104,7 @@ Medium. Phase 1 + Phase 2 + Phase 3 functionality is structurally working in cod
 ## Cross-references
 
 - Predecessor (yesterday's class-naming redundancy): [`2026-05-24-042952-adr299-class-naming-redundancy/`](../2026-05-24-042952-adr299-class-naming-redundancy/)
-- ADR-299 (current state): [`docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md`](../../adr/ADR-299-kernel-universal-operator-addressing-capability.md)
+- ADR-299 (current state): [`docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md`](../../../adr/ADR-299-kernel-universal-operator-addressing-capability.md)
 - ADR-040 (Notifications, original operator-addressing wire): naming conventions only; the operative code is `api/services/notifications.py`
 - ADR-202 (Daily-Update Email Pointer Template, operator-addressing wire usage): [`docs/adr/ADR-202-...`](../../adr/) — see specifically §1 framing
 - ADR-192 Phase 4 (per-user audience-addressing Resend wire): [`docs/adr/ADR-192-...md`](../../adr/) — §"Phase 4 — Email send capability"

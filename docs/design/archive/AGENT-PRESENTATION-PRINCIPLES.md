@@ -1,13 +1,13 @@
 # Agent Presentation Principles
 
 **Date:** 2026-04-05 (v3 — three-tab center panel, knowledge-first); 2026-04-08 note added for ADR-163 + ADR-164
-**Status:** Archived — superseded by [AGENT-AND-TASK-SURFACE-PATTERNS.md](../AGENT-AND-TASK-SURFACE-PATTERNS.md) (2026-05-02, current canonical). ADR-163 collapsed Agents page; ADR-214 consolidated Reviewer into TP; ADR-241 collapsed to single cockpit persona. Current surface model: [SURFACE-CONTRACTS.md](../SURFACE-CONTRACTS.md) v2.3. Retained as design-evolution record.
+**Status:** Archived — superseded by [AGENT-AND-TASK-SURFACE-PATTERNS.md](AGENT-AND-TASK-SURFACE-PATTERNS.md) (2026-05-02, current canonical). ADR-163 collapsed Agents page; ADR-214 consolidated Reviewer into TP; ADR-241 collapsed to single cockpit persona. Current surface model: [SURFACE-CONTRACTS.md](../WORKSPACE.md) v2.3. Retained as design-evolution record.
 **Supersedes:** v2 (2026-04-04, task-cards-as-bridge vertical stack)
 **Related:**
 - [Surface Architecture](SURFACE-ARCHITECTURE.md) v8 — current model (ADR-163: Chat | Work | Agents | Context, Agents page is roster + identity only)
-- [ADR-176](../adr/ADR-176-work-first-agent-model.md) — universal specialist roster (9 agents: 6 specialists + 3 bots, supersedes ADR-140)
-- [ADR-138](../adr/ADR-138-agents-as-work-units.md) — agents as work units (tasks are WHAT, agents are WHO)
-- [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md) — TP as the 10th agent (meta-cognitive class), back office tasks owned by TP
+- [ADR-176](../../adr/ADR-176-work-first-agent-model.md) — universal specialist roster (9 agents: 6 specialists + 3 bots, supersedes ADR-140)
+- [ADR-138](../../adr/ADR-138-agents-as-work-units.md) — agents as work units (tasks are WHAT, agents are WHO)
+- [ADR-164](../../adr/ADR-164-back-office-tasks-tp-as-agent.md) — TP as the 10th agent (meta-cognitive class), back office tasks owned by TP
 
 > **2026-04-13 update:** After ADR-176, the workforce is 9 agents across 3 classes: specialist × 6 (Researcher, Analyst, Writer, Tracker, Designer, TP) + platform-bot × 3. The ICP-specific domain-steward names (Competitive Intelligence, Market Research, etc.) are replaced by universal specialist roles. After ADR-163, the Agents page is no longer the home and no longer uses a three-tab layout. Work observation moved to `/work`, context browsing to `/context`. The Agents page shrank to a single-view roster + identity + health card. This document's "three-tab center panel" principle is historical — the current Agents page has no tabs. The knowledge-first principle (Principle 1 below) remains directionally valid for the per-agent identity card, but the detail views it described now live on `/work` and `/context` surfaces.
 

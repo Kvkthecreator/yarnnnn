@@ -32,7 +32,7 @@ Three concurrent investigations:
 
 ## Cross-references
 
-- Sibling closure (yesterday): [`2026-05-24-045348-reviewer-schedule-self-misdiagnosis/RESOLUTION.md`](../2026-05-24-045348-reviewer-schedule-self-misdiagnosis/RESOLUTION.md) (ADR-301 pulse envelope structural closure)
+- Sibling closure (yesterday): [`2026-05-24-045348-reviewer-schedule-self-misdiagnosis/RESOLUTION.md`](RESOLUTION.md) (ADR-301 pulse envelope structural closure)
 - Source comments that reference the taxonomy: `api/services/reviewer_chat_surfacing.py:174-207` (3-bucket taxonomy comment citing ADR-289 + ADR-277)
 - Dead gate location: `api/services/reviewer_audit.py:186-188` (`clarify_alert` field that doesn't exist on the tool schema)
 

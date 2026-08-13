@@ -16,7 +16,7 @@
 - [ADR-085: RefreshPlatformContent Primitive](archive/ADR-085-refresh-platform-content-primitive.md) — extended to headless mode
 - [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md) — `agent_instructions` and `agent_memory` are the foundation of agent intelligence
 - [ADR-088: Trigger Dispatch](archive/ADR-088-input-gateway-work-serialization.md) — dispatch routing per mode governs how each mode responds to triggers
-- [Agent Model Comparison](../architecture/agent-model-comparison.md) — this ADR is the fullest expression of YARNNN's agent model position
+- [Agent Model Comparison](../architecture/previous_versions/agent-model-comparison.md) — this ADR is the fullest expression of YARNNN's agent model position
 
 ---
 

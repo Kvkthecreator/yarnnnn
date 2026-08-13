@@ -1,11 +1,11 @@
-> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../../architecture/workspace-init.md). The modal-based onboarding flow described here was replaced by the Settings → Workspace surface (ADR-244). Archived for historical context.
+> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../architecture/WORKSPACE.md). The modal-based onboarding flow described here was replaced by the Settings → Workspace surface (ADR-244). Archived for historical context.
 
 # Onboarding & YARNNN Awareness — Design Brief
 
 **Status:** Active (v5 — cockpit-aligned cold-start; `/chat`-modal flow preserved for re-entry only)
 **Date:** 2026-04-21
 **Supersedes:** v4 (2026-04-09, `/chat`-modal cold-start flow) — cold-start portion superseded; re-entry modal flow preserved.
-**Depends on:** [SURFACE-CONTRACTS.md](SURFACE-CONTRACTS.md) (ADR-215, per-tab contracts + Chat empty-state cold-start behavior), [WORKSPACE-STATE-SURFACE.md](WORKSPACE-STATE-SURFACE.md), [ADR-203](../adr/ADR-203-first-run-guidance-layer.md) (first-run guidance layer), ADR-155 (workspace inference), ADR-165 v7 (workspace state surface)
+**Depends on:** [SURFACE-CONTRACTS.md](../WORKSPACE.md) (ADR-215, per-tab contracts + Chat empty-state cold-start behavior), [WORKSPACE-STATE-SURFACE.md](WORKSPACE-STATE-SURFACE.md), [ADR-203](../../adr/ADR-203-first-run-guidance-layer.md) (first-run guidance layer), ADR-155 (workspace inference), ADR-165 v7 (workspace state surface)
 
 ---
 

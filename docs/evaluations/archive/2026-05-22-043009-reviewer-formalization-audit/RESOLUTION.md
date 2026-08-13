@@ -83,11 +83,11 @@ The PLAYBOOK named the success criterion:
 
 - Audit folder: this folder ([`PLAYBOOK.md`](PLAYBOOK.md) + [`findings.md`](findings.md) + this file)
 - Predecessor stub: [`2026-05-21-021204-reviewer-prompt-strategy-audit-stub/findings.md`](../2026-05-21-021204-reviewer-prompt-strategy-audit-stub/findings.md) — the open thread this audit closed
-- Prior sweep-up incident (same shape): [`2026-04-29 ADR-239 commit-sweepup`](../../analysis/adr239-commit-sweepup-2026-04-29.md)
+- Prior sweep-up incident (same shape): [`2026-04-29 ADR-239 commit-sweepup`](../../../analysis/adr239-commit-sweepup-2026-04-29.md)
 - Canon-content carrier commit: `b4e8a30` (KVK, 2026-05-22, message describes only the UI work but carries the full Hat-A sweep)
 - Hat-B Commit 1: `d35e28a` (this folder's PLAYBOOK + findings)
 - CHANGELOG entry for the canon work: `api/prompts/CHANGELOG.md [2026.05.22.1]`
 - Regression gate: [`api/test_reviewer_formalization.py`](../../../api/test_reviewer_formalization.py)
-- FOUNDATIONS DP21: [`docs/architecture/FOUNDATIONS.md`](../../../docs/architecture/FOUNDATIONS.md) — search for "21. **Reviewer formalization**"
-- GLOSSARY Reviewer entry: [`docs/architecture/GLOSSARY.md`](../../../docs/architecture/GLOSSARY.md) — search for "Canonical formalization (FOUNDATIONS Derived Principle 21)"
+- FOUNDATIONS DP21: [`docs/architecture/FOUNDATIONS.md`](../../../architecture/FOUNDATIONS.md) — search for "21. **Reviewer formalization**"
+- GLOSSARY Reviewer entry: [`docs/architecture/GLOSSARY.md`](../../../architecture/GLOSSARY.md) — search for "Canonical formalization (FOUNDATIONS Derived Principle 21)"
 - Persona frame anchor: [`api/agents/reviewer_agent.py`](../../../api/agents/reviewer_agent.py) — search for "What you are (FOUNDATIONS Derived Principle 21)"

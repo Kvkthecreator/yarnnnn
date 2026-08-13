@@ -323,7 +323,7 @@ Note: `knowledge_extracted` and `knowledge_extracted_at` columns were dropped in
 
 ### 10. agents
 
-Scheduled output configurations. The unit of work in YARNNN — each agent is a self-contained specialist (see [Agent Model Comparison](../architecture/agent-model-comparison.md)).
+Scheduled output configurations. The unit of work in YARNNN — each agent is a self-contained specialist (see [Agent Model Comparison](../architecture/previous_versions/agent-model-comparison.md)).
 
 | Column | Type | Notes |
 |--------|------|-------|

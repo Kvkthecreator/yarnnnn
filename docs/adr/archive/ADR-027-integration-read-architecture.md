@@ -532,6 +532,6 @@ Users may need to re-authorize to grant additional scopes.
 ## References
 
 - [ADR-026: Integration Architecture](./ADR-026-integration-architecture.md)
-- [ESSENCE.md](../ESSENCE.md) - Agent execution pattern
+- [ESSENCE.md](../../ESSENCE.md) - Agent execution pattern
 - [Slack API](https://api.slack.com/methods)
 - [Notion API](https://developers.notion.com/)

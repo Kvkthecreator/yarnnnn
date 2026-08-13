@@ -157,4 +157,4 @@ Answer user with live data (no disclosure needed — it's live)
 - [ADR-050](ADR-050-mcp-gateway-architecture.md) — Platform tools (live API calls during conversation)
 - [ADR-085](ADR-085-refresh-platform-content-primitive.md) — RefreshPlatformContent primitive (supersedes Section 3)
 - [context-pipeline.md](../architecture/context-pipeline.md) — Updated to reflect this ADR
-- [tp-prompt-guide.md](../architecture/tp-prompt-guide.md) — TP prompt versioning
+- [tp-prompt-guide.md](../../architecture/previous_versions/tp-prompt-guide.md) — TP prompt versioning

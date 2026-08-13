@@ -1,4 +1,4 @@
-> **HISTORICAL — Design discourse that produced ADR-106 (March 2026).** Current canonical reference: [docs/architecture/workspace-init.md](../architecture/workspace-init.md). Preserved as decision record for ADR-106's rationale.
+> **HISTORICAL — Design discourse that produced ADR-106 (March 2026).** Current canonical reference: [docs/architecture/workspace-init.md](../architecture/WORKSPACE.md). Preserved as decision record for ADR-106's rationale.
 
 # Agent Workspace Architecture — Design Discourse
 

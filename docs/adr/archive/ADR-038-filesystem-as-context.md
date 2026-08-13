@@ -107,5 +107,5 @@ Steps 1-6 can be done in one PR. Steps 7-9 in a second PR. Steps 10-11 are this 
 
 - Claude Code system prompt analysis (internal)
 - Anthropic Agent SDK documentation
-- [Primitives Architecture v2](../docs/primitives-v2.md)
-- [TP Prompt Guide v5](../docs/tp-prompt-guide.md)
+- [Primitives Architecture v2](primitives-v2.md)
+- [TP Prompt Guide v5](../../architecture/previous_versions/tp-prompt-guide.md)

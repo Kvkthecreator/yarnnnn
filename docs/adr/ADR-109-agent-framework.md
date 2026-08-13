@@ -17,7 +17,7 @@
 - [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md) — four-layer knowledge model
 - [ADR-104: Agent Instructions as Unified Targeting](ADR-104-agent-instructions-unified-targeting.md) — instructions as targeting layer
 
-**Canonical Reference:** [docs/architecture/agent-framework.md](../architecture/agent-framework.md)
+**Canonical Reference:** [docs/architecture/agent-framework.md](../architecture/orchestration.md)
 **Analysis Document:** [docs/analysis/agent-taxonomy-first-principles-2026-03-12.md](../analysis/agent-taxonomy-first-principles-2026-03-12.md)
 
 ---
@@ -168,7 +168,7 @@ Five exception cases validated during discourse (see [analysis document](../anal
 
 ## References
 
-- [Agent Framework (canonical)](../architecture/agent-framework.md) — full Scope × Role matrix, templates, primitive gating, context scoring, interoperability mapping
+- [Agent Framework (canonical)](../architecture/orchestration.md) — full Scope × Role matrix, templates, primitive gating, context scoring, interoperability mapping
 - [Agent Roles Reference](../features/agent-types.md) — per-role output formats, validated details, execution specifics
 - [Analysis: Agent Taxonomy First Principles](../analysis/agent-taxonomy-first-principles-2026-03-12.md) — full discourse, stress-testing, decision rationale
 - [ESSENCE.md](../ESSENCE.md) — updated domain model and agent taxonomy reference

@@ -75,11 +75,11 @@ All 8 layers L1-L8 land as expected. The cutover validation is complete if:
 
 ## Cross-references
 
-- ADR-298: [`docs/adr/ADR-298-reviewer-wake-queue-and-pace.md`](../../adr/ADR-298-reviewer-wake-queue-and-pace.md)
+- ADR-298: [`docs/adr/ADR-298-reviewer-wake-queue-and-pace.md`](../../../adr/ADR-298-reviewer-wake-queue-and-pace.md)
 - Phase 3 commit: `2dfdb98`
 - Phase 1+2+3 cumulative test gate: 134/134 PASS
 - Prior canary v4: [`2026-05-21-044500-canary-v4-substrate-event-revalidation/`](../2026-05-21-044500-canary-v4-substrate-event-revalidation/)
 - Canary harness: [`api/scripts/operator/canary_v4_substrate_event.py`](../../../api/scripts/operator/canary_v4_substrate_event.py)
 - Hook declaration: [`docs/programs/alpha-author/reference-workspace/_hooks.yaml`](../../programs/alpha-author/reference-workspace/_hooks.yaml)
 - Wake drainer: [`api/services/wake_drainer.py`](../../../api/services/wake_drainer.py)
-- ADR-261 D3 amendment (single-lane reversal): [`docs/adr/ADR-261-recurrences-as-prompts.md`](../../adr/ADR-261-recurrences-as-prompts.md) §D3
+- ADR-261 D3 amendment (single-lane reversal): [`docs/adr/ADR-261-recurrences-as-prompts.md`](../../../adr/ADR-261-recurrences-as-prompts.md) §D3

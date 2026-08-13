@@ -1,12 +1,12 @@
 # Surface → Primitives → Actions Map
 
-> **SUPERSEDED 2026-04-24 — ADR-215.** This doc duplicated [`docs/architecture/primitives-matrix.md`](../../architecture/primitives-matrix.md) (ADR-168, canonical) for the primitive definitions, and the surface→action layer is now in [`docs/design/SURFACE-CONTRACTS.md`](../SURFACE-CONTRACTS.md) Part 3 (Affordance Cookbook). Preserved here as historical artifact.
+> **SUPERSEDED 2026-04-24 — ADR-215.** This doc duplicated [`docs/architecture/primitives-matrix.md`](../../architecture/primitives-matrix.md) (ADR-168, canonical) for the primitive definitions, and the surface→action layer is now in [`docs/design/SURFACE-CONTRACTS.md`](../WORKSPACE.md) Part 3 (Affordance Cookbook). Preserved here as historical artifact.
 
 **Date:** 2026-04-04 (v2 — Chat + Agents + Context surfaces)
 **Updated:** 2026-04-15 (v3 — aligned to v12 four-surface nav: /work added, /activity deleted, TriggerTask→ManageTask, navigate targets fixed)
 **Status:** Archived (superseded by ADR-215)
 **Supersedes:** v1 (2026-03-25, Workfloor + Task Page)
-**Note:** Primitive names in this doc may drift from canonical. For the authoritative primitive surface × mode × capability matrix, see [`docs/architecture/primitives-matrix.md`](../architecture/primitives-matrix.md) (ADR-168). This doc's value is the surface→action mapping layer, not the primitive definitions.
+**Note:** Primitive names in this doc may drift from canonical. For the authoritative primitive surface × mode × capability matrix, see [`docs/architecture/primitives-matrix.md`](../../architecture/primitives-matrix.md) (ADR-168). This doc's value is the surface→action mapping layer, not the primitive definitions.
 
 Canonical mapping of what's available on each surface. Defines scope boundaries
 for TP primitives, slash commands, plus menu actions, and suggestion chips.
@@ -59,7 +59,7 @@ Chips disappear once user sends any message.
 
 ### TP Primitives Available (chat mode)
 
-All chat-mode primitives are available. Canonical reference: [primitives-matrix.md](../architecture/primitives-matrix.md). Workspace-relevant summary:
+All chat-mode primitives are available. Canonical reference: [primitives-matrix.md](../../architecture/primitives-matrix.md). Workspace-relevant summary:
 - `UpdateContext` — identity/brand/memory/agent/task/awareness mutations (ADR-146 unified)
 - `ManageTask` — full task lifecycle (create/trigger/update/pause/resume/evaluate/steer/complete) (ADR-168 unified)
 - `ManageAgent` — agent management

@@ -1,6 +1,6 @@
 # User Flow: Platform-First Onboarding (v3)
 
-> **Status**: Superseded by [USER_FLOW_ONBOARDING_V4.md](../USER_FLOW_ONBOARDING_V4.md) (2026-03-16)
+> **Status**: Superseded by [USER_FLOW_ONBOARDING_V4.md](USER_FLOW_ONBOARDING_V4.md) (2026-03-16)
 > **Date**: 2026-02-26
 > **Supersedes**: Onboarding V2 (2026-02-09)
 > **Related ADRs**: ADR-053 (Tier Model), ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-079 (Smart Source Auto-Selection), ADR-091 (Workspace Layout)
@@ -265,4 +265,4 @@ These were removed as part of the singular selection UX:
 - [ADR-057: Streamlined Onboarding](../../adr/archive/ADR-057-streamlined-onboarding-gated-sync.md)
 - [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer.md)
 - [ADR-079: Smart Source Auto-Selection](../adr/ADR-079-smart-source-auto-selection.md)
-- [Backend Orchestration v2.0](../architecture/backend-orchestration.md)
+- [Backend Orchestration v2.0](../../infrastructure/backend-orchestration.md)

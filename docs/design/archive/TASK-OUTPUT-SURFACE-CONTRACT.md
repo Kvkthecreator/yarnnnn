@@ -4,14 +4,14 @@
 **Status:** Decision
 **Related:**
 - [AGENT-AND-TASK-SURFACE-PATTERNS.md](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell rules for agent and task surfaces
-- [SURFACE-CONTRACTS.md](./SURFACE-CONTRACTS.md) — canonical per-tab contracts (ADR-215), including `/work` list/detail surface
+- [SURFACE-CONTRACTS.md](../WORKSPACE.md) — canonical per-tab contracts (ADR-215), including `/work` list/detail surface
 - [../architecture/task-type-orchestration.md](../architecture/task-type-orchestration.md) — task registry and process model
-- [../adr/ADR-130-html-native-output-substrate.md](../adr/ADR-130-html-native-output-substrate.md) — `output.md` + `output.html` substrate
+- [../adr/ADR-130-html-native-output-substrate.md](../../adr/ADR-130-html-native-output-substrate.md) — `output.md` + `output.html` substrate
 - [../adr/ADR-166-registry-coherence-pass.md](../../adr/archive/ADR-166-registry-coherence-pass.md) — `output_kind` taxonomy
-- [../adr/ADR-167-list-detail-surfaces.md](../adr/ADR-167-list-detail-surfaces.md) — kind-aware `/work` detail
-- [../adr/ADR-178-task-creation-routes.md](../adr/ADR-178-task-creation-routes.md) — Route A (output-driven) vs Route B (context-driven); DELIVERABLE.md richness at creation
+- [../adr/ADR-167-list-detail-surfaces.md](../../adr/ADR-167-list-detail-surfaces.md) — kind-aware `/work` detail
+- [../adr/ADR-178-task-creation-routes.md](../../adr/ADR-178-task-creation-routes.md) — Route A (output-driven) vs Route B (context-driven); DELIVERABLE.md richness at creation
 - [../adr/ADR-149-task-lifecycle.md](../adr/ADR-149-task-lifecycle.md) — DELIVERABLE.md as quality contract; Phase 6 frontend surface (now active)
-- [../adr/ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) — three-layer content rendering model. **Orthogonal**: this doc defines the typed packet *envelope* the backend emits per task run; ADR-245 defines how the FE *renders* substrate (parser layer + structured affordance layer). The packet sits at the API/backend boundary; ADR-245's L2 content-shape parsers operate on file content within FE components after the packet is unpacked. Both are active design contracts.
+- [../adr/ADR-245](../../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) — three-layer content rendering model. **Orthogonal**: this doc defines the typed packet *envelope* the backend emits per task run; ADR-245 defines how the FE *renders* substrate (parser layer + structured affordance layer). The packet sits at the API/backend boundary; ADR-245's L2 content-shape parsers operate on file content within FE components after the packet is unpacked. Both are active design contracts.
 
 ## Purpose
 
@@ -23,7 +23,7 @@ The goal is singular:
 - the frontend renders from that packet without parsing raw `manifest.json`
 - `output_kind` continues to choose the shell **as fallback** (Tier 3 of `<MiddleResolver>`'s 4-tier match per ADR-225), but the shell receives structured data instead of reconstructing meaning from markdown files and ad hoc manifest keys
 
-**Composition layer note (ADR-225, post-OS-pivot 2026-04-27):** since this contract was first written, the four kind-aware middles (`DeliverableMiddle` / `TrackingMiddle` / `ActionMiddle` / `MaintenanceMiddle`) became **kernel defaults** rather than hardcoded dispatch targets. `WorkDetail.tsx::KindMiddle` was deleted; `<MiddleResolver>` now consults the active program bundle's `SURFACES.yaml` `tabs.work.detail.middles[]` first, falling through to the kernel-default kind middle when no override matches. **The typed packet contract specified here is what makes this composition possible** — bundle-supplied middles read the same `TaskRunSurface` shape kernel defaults consume, so adding a Dashboard middle for `portfolio-review` (alpha-trader) requires no new endpoint, no new packet shape, just a library component pointing at the same bindings. See [ADR-225](../adr/ADR-225-compositor-layer.md) §4-5 for the four-tier match resolution.
+**Composition layer note (ADR-225, post-OS-pivot 2026-04-27):** since this contract was first written, the four kind-aware middles (`DeliverableMiddle` / `TrackingMiddle` / `ActionMiddle` / `MaintenanceMiddle`) became **kernel defaults** rather than hardcoded dispatch targets. `WorkDetail.tsx::KindMiddle` was deleted; `<MiddleResolver>` now consults the active program bundle's `SURFACES.yaml` `tabs.work.detail.middles[]` first, falling through to the kernel-default kind middle when no override matches. **The typed packet contract specified here is what makes this composition possible** — bundle-supplied middles read the same `TaskRunSurface` shape kernel defaults consume, so adding a Dashboard middle for `portfolio-review` (alpha-trader) requires no new endpoint, no new packet shape, just a library component pointing at the same bindings. See [ADR-225](../../adr/ADR-225-compositor-layer.md) §4-5 for the four-tier match resolution.
 
 ## Problem
 

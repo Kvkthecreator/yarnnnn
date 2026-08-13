@@ -364,7 +364,7 @@ From ClawdBot/Claude Code learnings:
 - [ADR-035: Platform-First Type System](./ADR-035-platform-first-type-system.md)
 - [ADR-037: Chat-First Surface Architecture](./ADR-037-chat-first-surface-architecture.md)
 - [ADR-030: Context Extraction Methodology](./ADR-030-context-extraction-methodology.md)
-- [ESSENCE.md](../ESSENCE.md) - Core product thesis
+- [ESSENCE.md](../../ESSENCE.md) - Core product thesis
 
 ---
 

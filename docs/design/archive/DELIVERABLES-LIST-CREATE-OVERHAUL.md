@@ -3,10 +3,10 @@
 **Date:** 2026-03-05
 **Status:** Implemented
 **Related:**
-- [ADR-092: Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md)
+- [ADR-092: Mode Taxonomy](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md)
 - [ADR-093: Type Taxonomy](../adr/ADR-093-agent-types-overhaul.md)
 - [Workspace Layout](WORKSPACE-LAYOUT-NAVIGATION.md)
-- [Agent Modes](../features/agent-modes.md)
+- [Agent Modes](../../features/agent-modes.md)
 
 ---
 

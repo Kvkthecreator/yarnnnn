@@ -6,7 +6,7 @@
 **References:**
 - [ADR-017: Unified Work Model](ADR-017-unified-work-model.md) — original work_tickets architecture (superseded)
 - [ADR-042: Agent Execution Simplification](ADR-042-agent-execution-simplification.md) — when agents took over
-- [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — agent unification
+- [ADR-080: Unified Agent Modes](../ADR-080-unified-agent-modes.md) — agent unification
 - [ADR-083: Remove RQ Worker](ADR-083-remove-rq-worker.md) — inline execution
 
 ---

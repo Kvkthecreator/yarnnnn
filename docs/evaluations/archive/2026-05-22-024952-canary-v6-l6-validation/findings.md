@@ -94,7 +94,7 @@ No Hat-A action required. No code recommendations. The deployment-ordering anoma
 
 ## Cross-references
 
-- ADR-298: [`docs/adr/ADR-298-reviewer-wake-queue-and-pace.md`](../../adr/ADR-298-reviewer-wake-queue-and-pace.md)
+- ADR-298: [`docs/adr/ADR-298-reviewer-wake-queue-and-pace.md`](../../../adr/ADR-298-reviewer-wake-queue-and-pace.md)
 - Phase 5 commit: `dc36cdf`
 - Canary v5 (structural validation): [`2026-05-22-020000-canary-v5-adr298-cutover/findings.md`](../2026-05-22-020000-canary-v5-adr298-cutover/findings.md)
 - Canary v4 (pre-cutover baseline): [`2026-05-21-044500-canary-v4-substrate-event-revalidation/findings.md`](../2026-05-21-044500-canary-v4-substrate-event-revalidation/findings.md)

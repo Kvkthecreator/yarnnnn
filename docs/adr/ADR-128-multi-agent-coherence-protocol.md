@@ -142,7 +142,7 @@ Contributors read PM's project_assessment.md via `load_context()`. `workspace.py
 This ADR + FOUNDATIONS.md + workspace-conventions.md + agent-framework.md + agent-execution-model.md + CLAUDE.md + CHANGELOG + design docs + feature docs.
 
 ### Phase 6: Cognitive Dashboard
-Workfloor evolves to show cognitive state alongside pulse. Contributor cards: 4-bar assessment (mandate/fitness/context/output). PM card: 5-layer constraint indicator. InlineProfileCard: self-assessment section + confidence trajectory sparkline. Backend: `get_project()` parses cognitive files into structured response. See [COGNITIVE-DASHBOARD-DESIGN.md](../../docs/design/COGNITIVE-DASHBOARD-DESIGN.md).
+Workfloor evolves to show cognitive state alongside pulse. Contributor cards: 4-bar assessment (mandate/fitness/context/output). PM card: 5-layer constraint indicator. InlineProfileCard: self-assessment section + confidence trajectory sparkline. Backend: `get_project()` parses cognitive files into structured response. See [COGNITIVE-DASHBOARD-DESIGN.md](../design/archive/COGNITIVE-DASHBOARD-DESIGN.md).
 
 **Execution order**: Phase 0 + Phase 3 in parallel → Phase 1 → Phase 2 → Phase 4 → Phase 5 → Phase 6.
 
@@ -161,8 +161,8 @@ Workfloor evolves to show cognitive state alongside pulse. Contributor cards: 4-
 ## References
 
 - [FOUNDATIONS.md](../architecture/FOUNDATIONS.md) — Axioms 2, 3, 4
-- [workspace-conventions.md](../architecture/workspace-conventions.md) — file paths and semantics
-- [agent-framework.md](../architecture/agent-framework.md) — cognitive architecture section
+- [workspace-conventions.md](../architecture/WORKSPACE.md) — file paths and semantics
+- [agent-framework.md](../architecture/orchestration.md) — cognitive architecture section
 - [agent-execution-model.md](../architecture/agent-execution-model.md) — pipeline with assessment extraction
 - [ADR-121](archive/ADR-121-pm-intelligence-director.md) — PM intelligence model (prerequisite)
 - [ADR-126](archive/ADR-126-agent-pulse.md) — pulse model (prerequisite)

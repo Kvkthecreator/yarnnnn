@@ -4,7 +4,7 @@
 **Date:** 2026-02-02
 **Refines:** ADR-013 (Conversation + Surfaces) - clarifies, does not supersede
 **Builds On:** ADR-018 (Recurring Agents), ADR-007 (TP Tool Use)
-**See Also:** [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md)
+**See Also:** [Design Principle: Supervision Model](../../architecture/previous_versions/supervision-model.md)
 
 ## Context
 
@@ -32,7 +32,7 @@ This is the **supervision model**: the user is a supervisor overseeing AI-produc
 
 Neither is "primary" or "secondary"—they serve different purposes and are both first-class in their respective dimensions.
 
-See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) for the full conceptual framework.
+See [Design Principle: Supervision Model](../../architecture/previous_versions/supervision-model.md) for the full conceptual framework.
 
 ### Practical Architecture
 
@@ -295,7 +295,7 @@ produces regularly. Your role is to:
 
 ## References
 
-- [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) - Canonical framework
+- [Design Principle: Supervision Model](../../architecture/previous_versions/supervision-model.md) - Canonical framework
 - ADR-013: Conversation + Surfaces UI Architecture
 - ADR-018: Recurring Agents Product Pivot
 - ADR-007: Unified Streaming with Tool Support

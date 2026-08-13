@@ -1,4 +1,4 @@
-> **HISTORICAL — Pre-ADR compass document (March 2026).** Current canonical reference: [docs/architecture/workspace-init.md](../architecture/workspace-init.md). This predates the current init system (ADR-205/206) and describes a workspace layout that no longer exists.
+> **HISTORICAL — Pre-ADR compass document (March 2026).** Current canonical reference: [docs/architecture/workspace-init.md](../architecture/WORKSPACE.md). This predates the current init system (ADR-205/206) and describes a workspace layout that no longer exists.
 
 # Workspace Architecture — Development Landscape
 
@@ -11,21 +11,21 @@ YARNNN | March 2026 | Living compass document
 This document maps the architecture evolution for agent-scoped context, unified input processing, and agent autonomy. It exists so that any contributor can understand what's decided, what's parked, and how the pieces connect.
 
 **Canonical references:**
-- [Agent Model Comparison](../architecture/agent-model-comparison.md) — YARNNN's position and conviction (why this model, not others)
-- [Naming Conventions](../architecture/naming-conventions.md) — full naming strategy (dev → frontend → GTM)
+- [Agent Model Comparison](../architecture/previous_versions/agent-model-comparison.md) — YARNNN's position and conviction (why this model, not others)
+- [Naming Conventions](../architecture/previous_versions/naming-conventions.md) — full naming strategy (dev → frontend → GTM)
 - [workspace-architecture-analysis-2026-03-02.md](workspace-architecture-analysis-2026-03-02.md) — detailed analysis archive (v1–v5, OpenClaw comparison, ghost entity discovery)
 
 ---
 
 ## YARNNN's Model (Summary)
 
-YARNNN is a **agent-centric model**: a network of purpose-built specialists that sleep between executions but get smarter each time they wake up. Task-based foundation with agent-like extensions. See [Agent Model Comparison](../architecture/agent-model-comparison.md) for the full rationale.
+YARNNN is a **agent-centric model**: a network of purpose-built specialists that sleep between executions but get smarter each time they wake up. Task-based foundation with agent-like extensions. See [Agent Model Comparison](../architecture/previous_versions/agent-model-comparison.md) for the full rationale.
 
 ---
 
 ## Naming Convention
 
-Full naming strategy: [Naming Conventions](../architecture/naming-conventions.md).
+Full naming strategy: [Naming Conventions](../architecture/previous_versions/naming-conventions.md).
 
 Quick reference for this document:
 

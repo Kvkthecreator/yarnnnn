@@ -252,9 +252,9 @@ TP: Write(ref="agent:new", content={
 
 **Checklist**:
 
-- [ ] [four-layer-model.md](../architecture/four-layer-model.md) has bidirectional learning section
+- [ ] [four-layer-model.md](../architecture/previous_versions/four-layer-model.md) has bidirectional learning section
 - [ ] [memory.md](../features/memory.md) lists 3 extraction sources
-- [ ] [agents.md](../architecture/agents.md) mentions 3 origins (user_configured, analyst_suggested, signal_emergent)
+- [ ] [agents.md](../gitbook/apps/agents.md) mentions 3 origins (user_configured, analyst_suggested, signal_emergent)
 - [ ] [ADR-069](../adr/archive/ADR-069-layer-4-content-in-signal-reasoning.md) exists and describes Layer 4 integration
 - [ ] [ADR-070](../adr/ADR-070-enhanced-activity-pattern-detection.md) exists and describes 5 pattern types
 - [ ] [ADR-071](../adr/archive/ADR-071-strategic-architecture-principles.md) exists and describes 8 strategic principles

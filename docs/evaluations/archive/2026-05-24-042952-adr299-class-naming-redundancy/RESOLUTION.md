@@ -78,11 +78,11 @@ The `CAPABILITIES` dict + `_resolve_capability` + `CAPABILITY_PROVIDER_MAP` reso
 - Hat-B finding: [`findings.md`](findings.md)
 - Hat-A correction commit: `50df8b4` ("fix(adr-299): reframe class as 'operator-addressing', delete parallel registry")
 - Hat-B observation commit: `aead8bc` ("docs(observations): ADR-299 architectural-class-naming redundancy")
-- ADR-299 (post-Discovery-note): [`docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md`](../../adr/ADR-299-kernel-universal-operator-addressing-capability.md) — note the title now reads "Operator-Addressing Capability"
+- ADR-299 (post-Discovery-note): [`docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md`](../../../adr/ADR-299-kernel-universal-operator-addressing-capability.md) — note the title now reads "Operator-Addressing Capability"
 - Existing CAPABILITIES dict: `api/services/orchestration.py:1129`
 - Regression gate: `api/test_adr299_kernel_universal_capability.py` (8/8 PASS)
 - Phase 1 commit that introduced the redundancy: `3f0cabb` (preserves genuinely-new-and-correct components: tool + handler + structural pin; the rest was redundant + corrected here)
-- Companion ADR pattern (ADR-283 in-place Discovery notes): [`docs/adr/ADR-283-alpha-author-bundle.md`](../../adr/ADR-283-alpha-author-bundle.md) §"Discovery note" + §"Discovery note 2"
+- Companion ADR pattern (ADR-283 in-place Discovery notes): [`docs/adr/ADR-283-alpha-author-bundle.md`](../../../adr/ADR-283-alpha-author-bundle.md) §"Discovery note" + §"Discovery note 2"
 
 ## Status
 

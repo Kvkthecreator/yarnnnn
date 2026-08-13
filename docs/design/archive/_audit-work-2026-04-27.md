@@ -1,6 +1,6 @@
 # Work Surface Audit — 2026-04-27
 
-**Status:** Archived 2026-04-27 — observations absorbed into [ADR-225 Phase 3](../../adr/ADR-225-compositor-layer.md), [SURFACE-CONTRACTS.md v2.0](../SURFACE-CONTRACTS.md), and [docs/architecture/compositor.md](../../architecture/compositor.md). Preserved here for the trail but not canonical. The audit's observation #3 (kind switch fires three times in one detail-page render) was the load-bearing pressure point that motivated Phase 3.
+**Status:** Archived 2026-04-27 — observations absorbed into [ADR-225 Phase 3](../../adr/ADR-225-compositor-layer.md), [SURFACE-CONTRACTS.md v2.0](../WORKSPACE.md), and [docs/architecture/compositor.md](../../architecture/compositor.md). Preserved here for the trail but not canonical. The audit's observation #3 (kind switch fires three times in one detail-page render) was the load-bearing pressure point that motivated Phase 3.
 
 **Method:** Read-only observation. No proposals, no opinions.
 

@@ -30,7 +30,7 @@ D3 — Singular Implementation grep gates (3):
       api/jobs/ api/agents/ returns ZERO live-code invocations
       (annotations / migration-ledger refs allowed).
   16. grep -r 'UpdateContext' docs/architecture/primitives-matrix.md
-      docs/design/SURFACE-CONTRACTS.md returns only annotation refs in
+      docs/design/WORKSPACE.md returns only annotation refs in
       version headers + migration ledger (no active invocation forms).
   17. ADR-231 invariants gate still passes (regression).
 
@@ -324,7 +324,7 @@ def test_no_live_updatecontext_invocations_in_active_canon_docs():
     migration ledgers, or annotations — but NOT in active invocation form."""
     canon_paths = [
         REPO_ROOT / "docs" / "architecture" / "primitives-matrix.md",
-        REPO_ROOT / "docs" / "design" / "SURFACE-CONTRACTS.md",
+        REPO_ROOT / "docs" / "design" / "WORKSPACE.md",
         REPO_ROOT / "CLAUDE.md",
     ]
     bad_hits: list[tuple[Path, int, str]] = []

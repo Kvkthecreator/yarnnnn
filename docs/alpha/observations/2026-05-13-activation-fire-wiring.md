@@ -54,7 +54,7 @@ No new dataclass field — `rec.options` (the existing absorb-unknown-keys surfa
 
 ### Bundle (operator-facing changes)
 
-- **Three existing recurrences marked `fire_on_activation: true`**: `track-account` (broker account snapshot), `track-regime` (VIXY + SPY regime substrate per [ADR-269](../adr/ADR-269-capability-flow-wiring.md) flow + the 2026-05-13 regime-wiring change), `track-universe` (per-ticker bar snapshots feeding signal-evaluation).
+- **Three existing recurrences marked `fire_on_activation: true`**: `track-account` (broker account snapshot), `track-regime` (VIXY + SPY regime substrate per [ADR-269](../../adr/ADR-269-capability-flow-wiring.md) flow + the 2026-05-13 regime-wiring change), `track-universe` (per-ticker bar snapshots feeding signal-evaluation).
 - **One new recurrence**: `falsify-signals` — `schedule: null` (reactive) + `fire_on_activation: true`. Walks 90 days of historical bars through each operator-declared signal, writes per-signal findings to `/workspace/research/findings/{signal_id}.md`. Bootstrap-only — no periodic schedule, re-fires only on explicit `FireInvocation`.
 - **New `/workspace/research/mandate.md`**: operator-facing standing intent for the research substrate. Names fidelity gaps honestly (no slippage model, survivorship bias, no regime conditioning).
 - **New `/workspace/specs/falsify-signals.md`**: schema for findings files (frontmatter with sample_size, win_rate, avg_win_R, expectancy_R, source: replay, baseline_status).
@@ -131,7 +131,7 @@ If activation-fired recurrences fire but periodic recurrences don't subsequently
 
 ## Links
 
-- **ADR**: [ADR-270 Fire-on-Activation Recurrences](../adr/ADR-270-fire-on-activation-recurrences.md)
+- **ADR**: [ADR-270 Fire-on-Activation Recurrences](../../adr/ADR-270-fire-on-activation-recurrences.md)
 - **Kernel change**: `api/services/scheduling.py::compute_next_run_at` — one conditional at the top of the function
 - **Bundle changes**: `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`, `review/principles.md`, new `research/mandate.md` + `specs/falsify-signals.md`
 - **Companion observation (same day)**: [2026-05-13-regime-wiring.md](./2026-05-13-regime-wiring.md) — regime substrate wired, predates and motivates this change

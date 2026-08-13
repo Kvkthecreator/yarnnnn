@@ -1,6 +1,6 @@
 # ADR-050: MCP Gateway Architecture
 
-> **Status**: Superseded by [ADR-076](ADR-076-eliminate-mcp-gateway.md)
+> **Status**: Superseded by [ADR-076](../ADR-076-eliminate-mcp-gateway.md)
 > **Created**: 2026-02-12
 > **Updated**: 2026-02-25
 > **Deciders**: Kevin (solo founder)

@@ -10,10 +10,10 @@
 **Date:** 2026-03-03 (v1), 2026-03-04 (v2 — renamed to Trigger Dispatch, restructured around dispatch_trigger())
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
-- [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md) — `agent_memory` is the write target for medium-strength dispatch
+- [ADR-087: Agent Scoped Context](../ADR-087-workspace-scoping-architecture.md) — `agent_memory` is the write target for medium-strength dispatch
 - [ADR-089: Agent Autonomy](ADR-089-agent-autonomy-context-aware-triggers.md) — autonomous context updates that flow through dispatch
 - [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md) — signal processing, the third dispatch caller
-- [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — headless mode used for both high and medium dispatch actions
+- [ADR-080: Unified Agent Modes](../ADR-080-unified-agent-modes.md) — headless mode used for both high and medium dispatch actions
 - [ADR-083: Remove RQ Worker](ADR-083-remove-rq-worker.md) — inline execution model this ADR builds on
 
 ---

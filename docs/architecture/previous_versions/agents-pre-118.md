@@ -3,21 +3,21 @@
 **Status:** Canonical
 **Date:** 2026-02-26 (updated 2026-03-12 for ADR-109: Scope × Skill × Trigger framework)
 **Related:**
-- [Agent Framework: Scope × Skill × Trigger](agent-framework.md) — canonical taxonomy reference (ADR-109)
+- [Agent Framework: Scope × Skill × Trigger](../orchestration.md) — canonical taxonomy reference (ADR-109)
 - [ADR-018: Recurring Agents](../../adr/archive/ADR-018-recurring-agents.md)
 - [ADR-044: Agent Type Reconceptualization](../../adr/archive/ADR-044-agent-type-reconceptualization.md)
 - [ADR-045: Agent Orchestration Redesign](../../adr/archive/ADR-045-agent-orchestration-redesign.md)
 - [ADR-060: Background Conversation Analyst](../adr/ADR-060-background-conversation-analyst.md)
 - [ADR-066: Delivery-First Redesign](../../adr/archive/ADR-066-agent-detail-redesign.md)
 - [ADR-068: Signal-Emergent Agents](../../adr/archive/ADR-068-signal-emergent-agents.md)
-- [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
-- [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
-- [ADR-101: Agent Intelligence Model](../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
+- [ADR-080: Unified Agent Modes](../../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
+- [ADR-101: Agent Intelligence Model](../../adr/ADR-101-agent-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
 - [ADR-102: yarnnn Content Platform](../../adr/archive/ADR-102-yarnnn-content-platform.md) — agent outputs as searchable platform_content
-- [ADR-104: Agent Instructions as Unified Targeting](../adr/ADR-104-agent-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
-- [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, AGENT.md, topic-scoped memory (Phase 2 COMPLETE: workspace as singular source of truth)
+- [ADR-104: Agent Instructions as Unified Targeting](../../adr/ADR-104-agent-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
+- [ADR-106: Agent Workspace Architecture](../../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, AGENT.md, topic-scoped memory (Phase 2 COMPLETE: workspace as singular source of truth)
 - [ADR-107: Knowledge Filesystem Architecture](../../adr/archive/ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` filesystem for agent-produced knowledge (Proposed)
-- [Agent Execution Model](agent-execution-model.md)
+- [Agent Execution Model](../agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Agents are Layer 4 (Work)
 
 ---
@@ -33,7 +33,7 @@ A **agent** is a standing configuration for AI-generated output — and the accu
 
 When a agent executes, it produces a **agent version** — an immutable record of the generated content, the sources used, and the delivery status.
 
-**Conceptual framing (ADR-092)**: A agent is a lightweight specialist agent. Each has its own instructions, its own accumulated memory, its own execution mode. Twenty agents are twenty specialized agents — with zero resource cost when sleeping. The `mode` field determines the character of execution: clockwork schedule, project lifecycle, event-driven accumulation, autonomous domain review, or meta-coordination of other agents. See [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) and [Agent Modes](../features/agent-modes.md).
+**Conceptual framing (ADR-092)**: A agent is a lightweight specialist agent. Each has its own instructions, its own accumulated memory, its own execution mode. Twenty agents are twenty specialized agents — with zero resource cost when sleeping. The `mode` field determines the character of execution: clockwork schedule, project lifecycle, event-driven accumulation, autonomous domain review, or meta-coordination of other agents. See [ADR-092](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md) and [Agent Modes](../../features/agent-modes.md).
 
 ---
 
@@ -122,7 +122,7 @@ The `origin` field is **immutable provenance** — it records how the agent was 
 
 ## Agent Modes (ADR-092)
 
-The `mode` field defines the agent's **execution character** — how it decides when to act, what triggers it, and how its `agent_memory` accumulates. See [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for full behavioral contracts and implementation phases. See [Agent Modes feature doc](../features/agent-modes.md) for user-facing framing.
+The `mode` field defines the agent's **execution character** — how it decides when to act, what triggers it, and how its `agent_memory` accumulates. See [ADR-092](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md) for full behavioral contracts and implementation phases. See [Agent Modes feature doc](../../features/agent-modes.md) for user-facing framing.
 
 | Mode | Character | Trigger | Generates when | Memory accumulates |
 |------|-----------|---------|----------------|--------------------|
@@ -148,7 +148,7 @@ The `mode` field defines the agent's **execution character** — how it decides 
 
 ## Agent Framework: Scope × Skill × Trigger (ADR-109)
 
-> **Supersedes:** ADR-044 type classification, ADR-082 type consolidation, ADR-093 purpose-first types. See [Agent Framework](agent-framework.md) for the canonical reference.
+> **Supersedes:** ADR-044 type classification, ADR-082 type consolidation, ADR-093 purpose-first types. See [Agent Framework](../orchestration.md) for the canonical reference.
 
 Every agent is defined by two orthogonal axes plus an operational dimension:
 
@@ -188,7 +188,7 @@ Strategy selection moves from `type_classification.binding` to `scope`:
 
 ### Primitive Gating by Skill
 
-Each skill defines its available primitives (see [Agent Framework](agent-framework.md#primitive-gating-by-skill) for the full registry). This replaces the binding-aware tool round limits with skill-appropriate primitive sets.
+Each skill defines its available primitives (see [Agent Framework](../orchestration.md#primitive-gating-by-skill) for the full registry). This replaces the binding-aware tool round limits with skill-appropriate primitive sets.
 
 ### Legacy: Type Classification (ADR-044)
 
@@ -259,7 +259,7 @@ The architecture distinguishes three storage domains, each with its own lifecycl
 | **Agent Intelligence** | `workspace_files` under `/agents/{slug}/` | Per-agent, private | Persistent | Agent identity, memory, working state (ADR-106) |
 | **Accumulated Knowledge** | `workspace_files` under `/knowledge/` | Per-user, shared | Persistent, version-aware | Agent-produced knowledge artifacts (ADR-107, proposed) |
 
-ADR-107 proposes moving agent-produced outputs from `platform_content` (`platform="yarnnn"`) to structured files under `/knowledge/` — with content-class directories (digests/, research/, analyses/, briefs/, insights/), versioning, and provenance metadata. Outputs enter `/knowledge/` at delivery time, not generation time. See [ADR-107](../../adr/archive/ADR-107-knowledge-filesystem-architecture.md) and [Workspace Conventions](workspace-conventions.md).
+ADR-107 proposes moving agent-produced outputs from `platform_content` (`platform="yarnnn"`) to structured files under `/knowledge/` — with content-class directories (digests/, research/, analyses/, briefs/, insights/), versioning, and provenance metadata. Outputs enter `/knowledge/` at delivery time, not generation time. See [ADR-107](../../adr/archive/ADR-107-knowledge-filesystem-architecture.md) and [Workspace Conventions](../WORKSPACE.md).
 
 ### Agent in headless mode (ADR-080)
 
@@ -484,11 +484,11 @@ Every agent carries four layers of knowledge:
 | **Memory** | What happened — observations, review decisions, goals | `/agents/{slug}/memory/*.md` (workspace files — ADR-106 Phase 2, topic-scoped) |
 | **Feedback** | How well it's doing — edit patterns from user corrections | `agent_runs` metrics → `/agents/{slug}/memory/preferences.md` (future) |
 
-> **ADR-106 Phase 2 COMPLETE:** Workspace files are the **singular source of truth** for agent intelligence. DB columns (`agent_instructions`, `agent_memory`) are no longer read or written. `AGENT.md` mirrors Claude Code's `CLAUDE.md`. `memory/` is topic-scoped (like `.claude/memory/`). `thesis.md` is YARNNN-unique — agents build self-evolving domain understanding. `ensure_seeded()` performs one-time lazy migration from DB columns on first workspace access. See [Workspace Conventions](workspace-conventions.md).
+> **ADR-106 Phase 2 COMPLETE:** Workspace files are the **singular source of truth** for agent intelligence. DB columns (`agent_instructions`, `agent_memory`) are no longer read or written. `AGENT.md` mirrors Claude Code's `CLAUDE.md`. `memory/` is topic-scoped (like `.claude/memory/`). `thesis.md` is YARNNN-unique — agents build self-evolving domain understanding. `ensure_seeded()` performs one-time lazy migration from DB columns on first workspace access. See [Workspace Conventions](../WORKSPACE.md).
 
 Feedback is computed by `feedback_engine.py` when users approve versions with edits, and aggregated by `get_past_versions_context()` into "learned preferences" injected into the headless system prompt. The status filter includes both `approved` and `delivered` versions (delivery-first model, ADR-066).
 
-See [ADR-101](../adr/ADR-101-agent-intelligence-model.md) for the full model and prompt composition order.
+See [ADR-101](../../adr/ADR-101-agent-intelligence-model.md) for the full model and prompt composition order.
 
 ---
 
@@ -509,7 +509,7 @@ See [ADR-101](../adr/ADR-101-agent-intelligence-model.md) for the full model and
 ## Implementation Status
 
 **Agent Framework migration (ADR-109, 2026-03-12):**
-- ✅ Documentation complete — canonical reference at [Agent Framework](agent-framework.md)
+- ✅ Documentation complete — canonical reference at [Agent Framework](../orchestration.md)
 - ⚠️ Code migration pending — `scope` + `skill` columns, strategy routing, primitive gating
 - ⚠️ Frontend migration pending — template-based creation UI
 
@@ -575,7 +575,7 @@ The `/agents/[id]` detail page now surfaces per-version execution metadata:
 - Quality trend across versions
 - Execution trace (expandable `work_execution_log` stages)
 
-See [docs/features/email-notifications.md](../features/email-notifications.md) for the related in-app delivery channel consideration.
+See [docs/features/email-notifications.md](../../features/previous_versions/email-notifications.md) for the related in-app delivery channel consideration.
 
 ---
 
@@ -615,7 +615,7 @@ The `ResendExporter` uses `generate_gmail_html()` for HTML formatting (same vari
 
 ### Future: In-App Delivery Channel
 
-See [docs/features/email-notifications.md — Future Consideration](../features/email-notifications.md) for documented architectural path to in-app delivery. The `destinations` array (ADR-031) supports multi-destination delivery, enabling email + in-app simultaneously.
+See [docs/features/email-notifications.md — Future Consideration](../../features/previous_versions/email-notifications.md) for documented architectural path to in-app delivery. The `destinations` array (ADR-031) supports multi-destination delivery, enabling email + in-app simultaneously.
 
 ---
 
@@ -645,4 +645,4 @@ Agents are YARNNN's output layer — structured, versioned, specialist agents th
 
 The agent model is the bridge between YARNNN's knowledge systems (Memory, Activity, Context) and the user's operational world. Every agent is simultaneously a configuration (what to produce), a specialist (how to produce it well), and a knowledge base (what it has learned about this work).
 
-**Architecture note**: Content generation uses the unified agent in headless mode (ADR-080). Coordinator and proactive agents add a review pass before generation. Signal processing as a separate L3 subsystem is dissolved (ADR-092). See [Agent Execution Model](agent-execution-model.md) and [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md).
+**Architecture note**: Content generation uses the unified agent in headless mode (ADR-080). Coordinator and proactive agents add a review pass before generation. Signal processing as a separate L3 subsystem is dissolved (ADR-092). See [Agent Execution Model](../agent-execution-model.md) and [ADR-092](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md).

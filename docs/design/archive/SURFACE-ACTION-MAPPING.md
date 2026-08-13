@@ -1,15 +1,15 @@
 # Surface-Action Mapping — Design Principle
 
-> **SUPERSEDED 2026-04-24 — ADR-215.** The two-surface chat/drawer dichotomy described below is replaced by the four-shape CRUD matrix (Direct · Modal · Chat · Substrate) in [`docs/design/SURFACE-CONTRACTS.md`](../SURFACE-CONTRACTS.md). This doc references retired vocabulary (TP, `agent_instructions` column, drawers). Preserved here as historical artifact.
+> **SUPERSEDED 2026-04-24 — ADR-215.** The two-surface chat/drawer dichotomy described below is replaced by the four-shape CRUD matrix (Direct · Modal · Chat · Substrate) in [`docs/design/SURFACE-CONTRACTS.md`](../WORKSPACE.md). This doc references retired vocabulary (TP, `agent_instructions` column, drawers). Preserved here as historical artifact.
 
 **Date:** 2026-03-10
 **Status:** Archived (superseded by ADR-215)
 **Updated:** 2026-04-15 (route names aligned to v12: /work added, /activity deleted, Context→Files)
 **Related:**
 - [Surface Architecture](SURFACE-ARCHITECTURE.md) v12 — Chat + Work + Files + Agents
-- [Inline Plus Menu](INLINE-PLUS-MENU.md) — action verb taxonomy
-- [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — implementation plan
-- [Workspace Layout & Navigation](archive/WORKSPACE-LAYOUT-NAVIGATION.md) — archived layout structure
+- [Inline Plus Menu](../INLINE-PLUS-MENU.md) — action verb taxonomy
+- [ADR-105: Instructions to Chat Surface](../../adr/ADR-105-instructions-chat-surface-migration.md) — implementation plan
+- [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) — archived layout structure
 
 ---
 
@@ -107,7 +107,7 @@ Mixing them creates confusion: a form field for instructions looks like configur
 
 ## The + menu verb taxonomy
 
-Each action in the + menu has an explicit verb type (from [INLINE-PLUS-MENU.md](INLINE-PLUS-MENU.md)):
+Each action in the + menu has an explicit verb type (from [INLINE-PLUS-MENU.md](../INLINE-PLUS-MENU.md)):
 
 | Verb | Behavior | Example |
 |------|----------|---------|
@@ -124,7 +124,7 @@ The verb determines the interaction pattern. Never default to "pre-fill text" �
 
 The current Instructions drawer tab (behavior textarea + audience fields + prompt preview) violates this principle. It's an **action surface** (changing agent behavior) styled as a **dashboard panel** (form fields in a drawer).
 
-[ADR-105](../adr/ADR-105-instructions-chat-surface-migration.md) addresses this by migrating instruction editing to the chat surface while keeping a read-only view in the drawer.
+[ADR-105](../../adr/ADR-105-instructions-chat-surface-migration.md) addresses this by migrating instruction editing to the chat surface while keeping a read-only view in the drawer.
 
 ---
 

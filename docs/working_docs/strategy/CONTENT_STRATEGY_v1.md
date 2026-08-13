@@ -609,8 +609,8 @@ How the two-layer model drives the full funnel:
 
 ## Related Documents
 
-- [ESSENCE.md](../ESSENCE.md) — Core thesis and architecture
-- [GTM_POSITIONING.md](../GTM_POSITIONING.md) — Messaging framework, ICP definitions, competitive positioning
+- [ESSENCE.md](../../ESSENCE.md) — Core thesis and architecture
+- [GTM_POSITIONING.md](GTM_POSITIONING.md) — Messaging framework, ICP definitions, competitive positioning
 - [ACTIVATION_PLAYBOOK.md](../ACTIVATION_PLAYBOOK.md) — Channel strategy and activation funnel
 - [ICP Deep-Dive v2.docx](YARNNN%20-%20ICP%20Deep-Dive%20v2.docx) — Detailed customer profiles and channel mapping
 - [IR Deck v11 IC Analysis.md](IR%20Deck%20v11%20-%20IC%20Analysis.md) — VC IC simulation and deck hardening recommendations

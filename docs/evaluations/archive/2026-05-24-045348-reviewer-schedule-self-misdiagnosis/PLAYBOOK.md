@@ -46,7 +46,7 @@ ADR-274 (trigger authoring + Operating Context block), ADR-275 (introspection ca
 ## Cross-references
 
 - Sibling observation containing the misclaim being corrected: [`2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) (a separate addendum in *that* folder corrects the publication-binding misframing of `eb375ec3`)
-- Session-start guides: [`sessions/alpha-author-autonomy-loop.md`](../sessions/alpha-author-autonomy-loop.md), [`sessions/alpha-trader-autonomy-loop.md`](../sessions/alpha-trader-autonomy-loop.md)
+- Session-start guides: [`sessions/alpha-author-autonomy-loop.md`](../../sessions/alpha-author-autonomy-loop.md), [`sessions/alpha-trader-autonomy-loop.md`](../../sessions/alpha-trader-autonomy-loop.md)
 - Reviewer's own self-diagnosis substrate write that triggered the audit: `/workspace/review/standing_intent.md` on alpha-trader main (`2abf3f96…`), revision date 2026-05-22T21:01Z
 
 ## What this PLAYBOOK does NOT include

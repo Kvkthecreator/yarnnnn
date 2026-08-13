@@ -157,11 +157,11 @@ Per Hat-B discipline:
 - Scheduler walker invocation: [`api/jobs/unified_scheduler.py`](../../../api/jobs/unified_scheduler.py) (lines 330-348)
 - Funnel decision for substrate_event: [`api/services/wake_evaluation.py`](../../../api/services/wake_evaluation.py) (lines 165-166)
 - Singular invocation gateway: [`api/services/wake.py`](../../../api/services/wake.py) (`submit_wake_proposal`)
-- ADR-296 v2 (the architecture this canary tests): [`ADR-296`](../../adr/ADR-296-continuous-judgment-cycle.md)
+- ADR-296 v2 (the architecture this canary tests): [`ADR-296`](../../../adr/ADR-296-continuous-judgment-cycle.md)
 - ADR-292 v3 (Fix 1A — bundle propagation): [`ADR-292`](../../adr/ADR-292-continuous-substrate-re-apply.md)
 - ADR-294 D2 (operator-proxy caller-identity discipline): [`ADR-294`](../../adr/ADR-294-operator-proxy-substrate-discipline.md)
 - Parent pre-e2e audit: [`findings`](../2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2/findings.md)
-- yarnnn-author session-start guide: [`alpha-author-autonomy-loop`](../sessions/alpha-author-autonomy-loop.md)
+- yarnnn-author session-start guide: [`alpha-author-autonomy-loop`](../../sessions/alpha-author-autonomy-loop.md)
 - yarnnn-author T0 baseline: [`T0`](../2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/)
 - This folder's setup: [`PLAYBOOK.md`](PLAYBOOK.md)
 

@@ -3,7 +3,7 @@
 **Date:** 2026-04-04 (v2 — agent-scoped TP as primary, task-scoped as drill-down)
 **Status:** Proposed
 **Supersedes:** v1 (2026-03-25, workfloor + task-only scoping)
-**Depends on:** [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v3, [ADR-138](../adr/ADR-138-agents-as-work-units.md)
+**Depends on:** [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v3, [ADR-138](../../adr/ADR-138-agents-as-work-units.md)
 
 ---
 

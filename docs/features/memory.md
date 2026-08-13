@@ -190,7 +190,7 @@ Tasks maintain their own knowledge files alongside agent-level files:
 
 **Key distinction**: User memory (`/memory/`) is user-owned, user-visible, and user-editable. Agent cognitive files (`/agents/{slug}/memory/`) and task knowledge files (`/tasks/{slug}/memory/`) are system-managed coordination infrastructure. They are never shown on the Memory page.
 
-See [WORKSPACE.md](../architecture/WORKSPACE.md) for full file semantics. See [agent-framework.md](../architecture/agent-framework.md) for the cognitive architecture.
+See [WORKSPACE.md](../architecture/WORKSPACE.md) for full file semantics. See [agent-framework.md](../architecture/orchestration.md) for the cognitive architecture.
 
 ---
 
@@ -201,4 +201,4 @@ See [WORKSPACE.md](../architecture/WORKSPACE.md) for full file semantics. See [a
 - [ADR-087](../adr/ADR-087-workspace-scoping-architecture.md) — Agent Scoped Context
 - [ADR-106](../adr/ADR-106-agent-workspace-architecture.md) — Agent Workspace Architecture
 - [ADR-063](../adr/archive/ADR-063-activity-log-four-layer-model.md) — Four-layer model
-- [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview
+- [four-layer-model.md](../architecture/previous_versions/four-layer-model.md) — Architectural overview

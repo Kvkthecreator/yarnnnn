@@ -9,7 +9,7 @@
 
 YARNNN organises all persistent state into four layers. Each layer has a distinct purpose, lifecycle, and access rules. **The layers form both a generation pipeline (unidirectional) and a learning system (bidirectional feedback).**
 
-> **ADR-092 update (2026-03-04):** L3 is now genuinely dumb — platform sync writes, downstream consumers mark content retained. Signal processing as a separate L3-level reasoning subsystem is dissolved. Agent intelligence (proactive, reactive, coordinator modes) lives entirely in L4. See [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md).
+> **ADR-092 update (2026-03-04):** L3 is now genuinely dumb — platform sync writes, downstream consumers mark content retained. Signal processing as a separate L3-level reasoning subsystem is dissolved. Agent intelligence (proactive, reactive, coordinator modes) lives entirely in L4. See [ADR-092](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md).
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -92,11 +92,11 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 ## Layer 2 — Activity
 
-> **ADR-129 update (2026-03-22):** Activity now operates as a two-tier scoping model. Workspace-level (macro) events provide supervision; project-level (micro) events surface in project timelines via three substrates (activity events + conversation + workspace changes). See [ADR-129](../adr/ADR-129-activity-scoping-two-tier-model.md) and [docs/features/activity.md](../features/activity.md) for the full event type registry.
+> **ADR-129 update (2026-03-22):** Activity now operates as a two-tier scoping model. Workspace-level (macro) events provide supervision; project-level (micro) events surface in project timelines via three substrates (activity events + conversation + workspace changes). See [ADR-129](../../adr/ADR-129-activity-scoping-two-tier-model.md) and [docs/features/activity.md](../../features/activity.md) for the full event type registry.
 
 **What it is**: The system provenance log — a record of what YARNNN has done. Answers "what happened recently?" not "what do I know?" (Memory) or "what's on the platforms?" (Context).
 
-**Table**: `activity_log` — append-only. 34 event types across two tiers (see [activity.md](../features/activity.md) for the complete registry):
+**Table**: `activity_log` — append-only. 34 event types across two tiers (see [activity.md](../../features/activity.md) for the complete registry):
 
 | Tier | Example events | Scope |
 |---|---|---|
@@ -225,7 +225,7 @@ Agent execution uses the **unified agent in headless mode** — the same agent t
 
 **Status progression**: `generating` → `delivered` (ADR-066 simplified flow)
 
-**Agent intelligence model (ADR-101)**: Each agent carries four layers of knowledge — Skills (type-specific format), Directives (user instructions + audience), Memory (observations, goals, review log), and Feedback (edit patterns from user corrections). These compose into the headless agent's system prompt. See [ADR-101](../adr/ADR-101-agent-intelligence-model.md).
+**Agent intelligence model (ADR-101)**: Each agent carries four layers of knowledge — Skills (type-specific format), Directives (user instructions + audience), Memory (observations, goals, review log), and Feedback (edit patterns from user corrections). These compose into the headless agent's system prompt. See [ADR-101](../../adr/ADR-101-agent-intelligence-model.md).
 
 **Key properties**:
 1. **Provenance closure**: `source_snapshots` now includes `platform_content_ids[]` — specific record IDs that were synthesized. This answers "what content informed this agent?"
@@ -435,23 +435,23 @@ The more agents a user runs, the more the system learns what they value. This cr
 **Core ADRs**:
 - [ADR-063](../../adr/archive/ADR-063-activity-log-four-layer-model.md) — Activity layer and four-layer model formalisation
 - [ADR-072](../../adr/archive/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Unified content layer and TP execution pipeline (current governing ADR for Layer 3 and Layer 4 execution)
-- [ADR-080](../adr/ADR-080-unified-agent-modes.md) — Unified agent with chat and headless modes
+- [ADR-080](../../adr/ADR-080-unified-agent-modes.md) — Unified agent with chat and headless modes
 
 **Superseded ADRs** (historical context only):
 - [ADR-049](../../adr/archive/ADR-049-context-freshness-model-SUPERSEDED.md) — Superseded by ADR-072 (retention-based accumulation replaces TTL-only)
 - [ADR-062](../../adr/archive/ADR-062-platform-context-architecture-SUPERSEDED.md) — Superseded by ADR-072 (unified content layer replaces filesystem_items cache)
 
 **Layer-specific ADRs**:
-- [ADR-129](../adr/ADR-129-activity-scoping-two-tier-model.md) — Activity scoping: two-tier model (workspace macro + project micro)
-- [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design
-- [ADR-064](../adr/ADR-064-unified-memory-service.md) — Implicit memory extraction
+- [ADR-129](../../adr/ADR-129-activity-scoping-two-tier-model.md) — Activity scoping: two-tier model (workspace macro + project micro)
+- [ADR-059](../../adr/ADR-059-simplified-context-model.md) — Memory table design
+- [ADR-064](../../adr/ADR-064-unified-memory-service.md) — Implicit memory extraction
 - [ADR-068](../../adr/archive/ADR-068-signal-emergent-agents.md) — Signal-emergent agents (Superseded by ADR-092)
-- [ADR-092](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — Agent Intelligence & Mode Taxonomy (dissolves signal processing, defines coordinator/proactive/reactive modes)
+- [ADR-092](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — Agent Intelligence & Mode Taxonomy (dissolves signal processing, defines coordinator/proactive/reactive modes)
 - ADR-128 — Multi-Agent Coherence Protocol (cognitive files, mandate context, cross-agent coordination via workspace)
 - [ADR-071](../../adr/archive/ADR-071-strategic-architecture-principles.md) — Strategic architecture principles
 
 **Architecture docs**:
-- [agents.md](agents.md) — Agents architecture
+- [agents.md](../../gitbook/apps/agents.md) — Agents architecture
 - [context-pipeline.md](context-pipeline.md) — Technical pipeline detail for Context
 
 **Implementation**:

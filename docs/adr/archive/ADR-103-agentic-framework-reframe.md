@@ -5,14 +5,14 @@
 **Authors:** Kevin Kim, Claude (analysis)
 **Supersedes:** Portions of naming-conventions.md (Tier 1 vocabulary for "Agent")
 **Updates:**
-- [Agent Model Comparison](../architecture/agent-model-comparison.md) — reframes YARNNN's model position
-- [Naming Conventions](../architecture/naming-conventions.md) — revises Tier 1 vocabulary
-- [ESSENCE.md](../ESSENCE.md) — repositions product thesis
-- [GTM_POSITIONING.md](../GTM_POSITIONING.md) — revises competitive positioning
+- [Agent Model Comparison](../../architecture/previous_versions/agent-model-comparison.md) — reframes YARNNN's model position
+- [Naming Conventions](../../architecture/previous_versions/naming-conventions.md) — revises Tier 1 vocabulary
+- [ESSENCE.md](../../ESSENCE.md) — repositions product thesis
+- [GTM_POSITIONING.md](../../working_docs/strategy/GTM_POSITIONING.md) — revises competitive positioning
 **Related:**
-- [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md)
-- [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md)
-- [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md)
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../ADR-092-agent-intelligence-mode-taxonomy.md)
+- [ADR-101: Agent Intelligence Model](../ADR-101-agent-intelligence-model.md)
+- [ADR-080: Unified Agent Modes](../ADR-080-unified-agent-modes.md)
 - [ADR-072: Unified Content Layer](ADR-072-unified-content-layer-tp-execution-pipeline.md)
 
 ---

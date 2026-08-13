@@ -289,11 +289,11 @@ When building new features or modifying existing systems, ask:
 ## Related
 
 - [ADR-063: Four-Layer Model](ADR-063-activity-log-four-layer-model.md) — Architectural foundation
-- [ADR-064: Implicit Memory Extraction](ADR-064-unified-memory-service.md) — Learning from conversation, feedback, patterns
+- [ADR-064: Implicit Memory Extraction](../ADR-064-unified-memory-service.md) — Learning from conversation, feedback, patterns
 - [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md) — Signal processing orchestration
 - [ADR-069: Layer 4 Content Integration](ADR-069-layer-4-content-in-signal-reasoning.md) — Work as training signal
 - [ADR-070: Enhanced Activity Pattern Detection](ADR-070-enhanced-activity-pattern-detection.md) — 5 pattern types from Activity
-- [Four-Layer Model Architecture](../architecture/four-layer-model.md) — Comprehensive architectural overview with bidirectional learning diagrams
+- [Four-Layer Model Architecture](../../architecture/previous_versions/four-layer-model.md) — Comprehensive architectural overview with bidirectional learning diagrams
 
 ---
 

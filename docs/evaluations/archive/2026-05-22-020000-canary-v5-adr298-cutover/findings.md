@@ -89,7 +89,7 @@ Both are non-blocking and properly scoped to Phase 5.
 ## Cross-references
 
 - PLAYBOOK: [./PLAYBOOK.md](./PLAYBOOK.md)
-- ADR-298: [`docs/adr/ADR-298-reviewer-wake-queue-and-pace.md`](../../adr/ADR-298-reviewer-wake-queue-and-pace.md)
+- ADR-298: [`docs/adr/ADR-298-reviewer-wake-queue-and-pace.md`](../../../adr/ADR-298-reviewer-wake-queue-and-pace.md)
 - Phase 3 commit: `2dfdb98`
 - Prior canary v4 (pre-cutover): [`2026-05-21-044500-canary-v4-substrate-event-revalidation/`](../2026-05-21-044500-canary-v4-substrate-event-revalidation/)
 - Canary harness: [`api/scripts/operator/canary_v4_substrate_event.py`](../../../api/scripts/operator/canary_v4_substrate_event.py) (reused as-is)

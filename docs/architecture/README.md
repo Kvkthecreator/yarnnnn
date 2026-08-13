@@ -38,7 +38,7 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 | [orchestration.md](orchestration.md) | Orchestration capability bundles, production roles, integrations, and dispatch metadata |
 | [agent-execution-model.md](agent-execution-model.md) | 3-layer execution model (mechanical scheduling, LLM generation, TP orchestration) |
 | [**execution-loop.md**](execution-loop.md) | The accumulation cycle — how run N feeds run N+1 (awareness, tracker, feedback, actuation) |
-| [backend-orchestration.md](backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
+| [backend-orchestration.md](../infrastructure/backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
 | [WORKSPACE.md](WORKSPACE.md) | Workspace — layers · filesystem inventory · bootstrap · autonomy threshold (paired with [design/WORKSPACE.md](../design/WORKSPACE.md)) |
 | [registry-matrix.md](registry-matrix.md) | Agent types × task types × output categories — the full registry catalog |
 | [primitives-matrix.md](primitives-matrix.md) | Primitives × substrate × mode × capability — the full primitive surface (ADR-168) |
@@ -61,7 +61,7 @@ For someone new to the codebase:
 7. **[orchestration.md](orchestration.md)** — orchestration capabilities and dispatch
 8. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
 9. **[WORKSPACE.md](WORKSPACE.md)** — workspace layers, filesystem model, bootstrap, autonomy threshold
-10. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
+10. **[backend-orchestration.md](../infrastructure/backend-orchestration.md)** — how everything runs
 
 ## Archived (`docs/architecture/previous_versions/`)
 

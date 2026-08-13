@@ -1,6 +1,6 @@
 # YARNNN Naming Conventions
 
-> **⚠ Superseded by [GLOSSARY.md](GLOSSARY.md) — ratified by ADR-189 (2026-04-17).**
+> **⚠ Superseded by [GLOSSARY.md](../GLOSSARY.md) — ratified by ADR-189 (2026-04-17).**
 >
 > The contents of this document predate the three-layer cognition model (YARNNN / Specialist / Agent) and the glossary discipline established by ADR-189. Several terms below (notably "TP," "Thinking Partner," "Specialist" in its pre-ADR-189 sense) are retired. Use GLOSSARY.md for all current terminology.
 >
@@ -9,10 +9,10 @@
 **Status:** Superseded (2026-04-17, by GLOSSARY.md / ADR-189)
 **Date:** 2026-03-06 (updated from 2026-03-03)
 **Related:**
-- [GLOSSARY.md](GLOSSARY.md) — canonical terminology (current)
-- [ADR-189](../adr/ADR-189-three-layer-cognition.md) — three-layer cognition
+- [GLOSSARY.md](../GLOSSARY.md) — canonical terminology (current)
+- [ADR-189](../../adr/ADR-189-three-layer-cognition.md) — three-layer cognition
 - [Agent Model Comparison](agent-model-comparison.md) — why YARNNN has its own model
-- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — naming convention table (historical)
+- [ADR-087: Agent Scoped Context](../../adr/ADR-087-workspace-scoping-architecture.md) — naming convention table (historical)
 
 ---
 
@@ -116,7 +116,7 @@ Memory (page)        →      user_memory              →   user_memory (table)
 Agent                →      TP / chat mode           →   chat_sessions + session_messages
 ```
 
-> **Note (ADR-106):** Agent intelligence is migrating from DB columns (`agent_instructions`, `agent_memory`) to workspace files (`AGENT.md`, `memory/*.md`). During Phase 1, both exist. Phase 2 will make workspace files the source of truth. See [Workspace Conventions](workspace-conventions.md).
+> **Note (ADR-106):** Agent intelligence is migrating from DB columns (`agent_instructions`, `agent_memory`) to workspace files (`AGENT.md`, `memory/*.md`). During Phase 1, both exist. Phase 2 will make workspace files the source of truth. See [Workspace Conventions](../WORKSPACE.md).
 
 ---
 
@@ -222,8 +222,8 @@ When explaining to someone non-technical:
 ## References
 
 - [Agent Model Comparison](agent-model-comparison.md) — why YARNNN has its own model
-- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — naming convention origin
-- [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — chat mode / headless mode naming
-- [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace path conventions
-- [Workspace Conventions](workspace-conventions.md) — canonical workspace path reference
-- [Development Landscape](../analysis/workspace-architecture-landscape.md) — implementation sequence
+- [ADR-087: Agent Scoped Context](../../adr/ADR-087-workspace-scoping-architecture.md) — naming convention origin
+- [ADR-080: Unified Agent Modes](../../adr/ADR-080-unified-agent-modes.md) — chat mode / headless mode naming
+- [ADR-106: Agent Workspace Architecture](../../adr/ADR-106-agent-workspace-architecture.md) — workspace path conventions
+- [Workspace Conventions](../WORKSPACE.md) — canonical workspace path reference
+- [Development Landscape](../../analysis/workspace-architecture-landscape.md) — implementation sequence

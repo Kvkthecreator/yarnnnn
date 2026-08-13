@@ -179,6 +179,6 @@ This is how YARNNN builds intelligence over time. A user with 6 months of agent 
 
 - [ADR-072](../adr/archive/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Unified content layer and TP execution pipeline
 - [ADR-063](../adr/archive/ADR-063-activity-log-four-layer-model.md) — Four-layer model
-- [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview
+- [four-layer-model.md](../architecture/previous_versions/four-layer-model.md) — Architectural overview
 - [context-pipeline.md](../architecture/context-pipeline.md) — Technical pipeline detail
 - [PLATFORM-INTEGRATIONS.md](../integrations/PLATFORM-INTEGRATIONS.md) — platform connection model

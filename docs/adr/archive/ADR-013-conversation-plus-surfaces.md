@@ -8,7 +8,7 @@ Accepted
 
 ## Refinements
 - [ADR-020: Agent-Centric Chat](ADR-020-agent-centric-chat.md) - Clarifies application to agents
-- [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) - Provides conceptual framework
+- [Design Principle: Supervision Model](../../architecture/previous_versions/supervision-model.md) - Provides conceptual framework
 
 ## Context
 
@@ -232,4 +232,4 @@ The drawer pattern established here remains valid. What's clarified is:
 
 TP also manifests as **inline refinements** (embedded in agent views), not just as the floating drawer. Both are TP; one is conversational, one is direct manipulation.
 
-See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) for the full framework.
+See [Design Principle: Supervision Model](../../architecture/previous_versions/supervision-model.md) for the full framework.

@@ -264,7 +264,7 @@ COMMENT ON COLUMN tasks.declaration_path IS
 
 **Sequence with 3.5**: 3.5 (the data migration script) lands as a code-only commit *before* this migration runs. Then this migration runs against staging + production. The script is then *executed* against each workspace as an operational step, populating `declaration_path` and clearing `/tasks/{slug}/TASK.md`.
 
-**Update [docs/database/ACCESS.md](docs/database/ACCESS.md)** in the same commit per discipline rule 4: add migration 164 entry; update tasks-table column list reflecting post-migration state.
+**Update [docs/database/ACCESS.md](../database/ACCESS.md)** in the same commit per discipline rule 4: add migration 164 entry; update tasks-table column list reflecting post-migration state.
 
 **Test gate**:
 - Migration runs cleanly on staging.
@@ -470,12 +470,12 @@ grep -rn "useTaskDetail\|useTaskOutputs\|useAgentsAndTasks" web/ --include="*.ts
 **Doc updates**:
 
 - [CLAUDE.md](CLAUDE.md): File Locations table — remove `task_pipeline` / `task_types` / `manage_task` / `task_workspace` / `task_derivation` rows; add `invocation_dispatcher` / `recurrence` / `scheduling` / `FireInvocation`. Schema section — update `tasks` table description to match migration 164 COMMENT. Common Pitfalls — refresh post-rename.
-- [docs/architecture/FOUNDATIONS.md](docs/architecture/FOUNDATIONS.md): Axiom 9 status flips to **Implemented**.
-- [docs/architecture/GLOSSARY.md](docs/architecture/GLOSSARY.md): "task" gets a `(legibility wrapper, not substrate)` gloss; "recurrence declaration" added as canonical term.
-- [docs/architecture/SERVICE-MODEL.md](docs/architecture/SERVICE-MODEL.md): execution-loop frame points at `invocation_dispatcher` not `task_pipeline`.
-- [docs/architecture/primitives-matrix.md](docs/architecture/primitives-matrix.md): `ManageTask` row deleted; `FireInvocation` row added; `UpdateContext` widened-targets row updated.
-- [docs/architecture/invocation-and-narrative.md](docs/architecture/invocation-and-narrative.md): implementation-finished status added.
-- [docs/database/ACCESS.md](docs/database/ACCESS.md): tasks table description matches migration 164 reality (already updated in 3.4 — confirm).
+- [docs/architecture/FOUNDATIONS.md](../architecture/FOUNDATIONS.md): Axiom 9 status flips to **Implemented**.
+- [docs/architecture/GLOSSARY.md](../architecture/GLOSSARY.md): "task" gets a `(legibility wrapper, not substrate)` gloss; "recurrence declaration" added as canonical term.
+- [docs/architecture/SERVICE-MODEL.md](../architecture/SERVICE-MODEL.md): execution-loop frame points at `invocation_dispatcher` not `task_pipeline`.
+- [docs/architecture/primitives-matrix.md](../architecture/primitives-matrix.md): `ManageTask` row deleted; `FireInvocation` row added; `UpdateContext` widened-targets row updated.
+- [docs/architecture/invocation-and-narrative.md](../architecture/invocation-and-narrative.md): implementation-finished status added.
+- [docs/database/ACCESS.md](../database/ACCESS.md): tasks table description matches migration 164 reality (already updated in 3.4 — confirm).
 - [api/prompts/CHANGELOG.md](api/prompts/CHANGELOG.md): closing entry summarizing the prompt evolution end-to-end (Phase 1 entry already landed; this is the closer).
 
 **ADR amendment banners**:

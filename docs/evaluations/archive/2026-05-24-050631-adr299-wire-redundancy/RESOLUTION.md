@@ -110,7 +110,7 @@ This is the third architectural-discipline lesson today's session has surfaced (
 - Hat-B observation commit: `0f80355` ("docs(observations): ADR-299 wire redundancy — second-order finding")
 - Yesterday's predecessor correction: [`docs/observations/2026-05-24-042952-adr299-class-naming-redundancy/`](../2026-05-24-042952-adr299-class-naming-redundancy/) — class-naming redundancy that this finding's wire redundancy was orthogonal to
 - The 2026-05-22 sweep-up incident discipline reference: [`docs/observations/2026-05-22-043009-reviewer-formalization-audit/RESOLUTION.md`](../2026-05-22-043009-reviewer-formalization-audit/RESOLUTION.md) — the original verify-staged-set lesson, applied here in real-time
-- ADR-299 (post-Discovery-note-2): [`docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md`](../../adr/ADR-299-kernel-universal-operator-addressing-capability.md)
+- ADR-299 (post-Discovery-note-2): [`docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md`](../../../adr/ADR-299-kernel-universal-operator-addressing-capability.md)
 - System Resend wire: `api/jobs/email.py::send_email` (uses `RESEND_API_KEY` env var)
 - Per-user Resend wire: `api/integrations/core/resend_client.py` (unchanged; still serves `platform_email_send` audience-addressing surface)
 - Regression gate: `api/test_adr299_kernel_universal_capability.py` (9/9 PASS, includes new test for kernel-CAPABILITIES-dict no-wire-gate branch)

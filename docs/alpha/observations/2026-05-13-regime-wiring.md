@@ -131,7 +131,7 @@ Three honest costs of this shape:
 
 - **Operator's declared regime intent**: [_operator_profile.md Signal 5](../../programs/alpha-trader/reference-workspace/context/trading/_operator_profile.md) lines 52-56
 - **Risk file regime scalar declaration**: [_risk.md line 33](../../programs/alpha-trader/reference-workspace/context/trading/_risk.md) `apply_vix_regime_scalar: true`
-- **New spec**: [regime-state.md](../../programs/alpha-trader/reference-workspace/specs/regime-state.md)
+- **New spec**: [regime-state.md](../../programs/alpha-trader/reference-workspace/operation/specs/regime-state.md)
 - **Recurrence + prompt change**: [_recurrences.yaml](../../programs/alpha-trader/reference-workspace/_recurrences.yaml) — new `track-regime` entry + extended `trade-proposal` prompt
 - **Principles rules**: [principles.md](../../programs/alpha-trader/reference-workspace/review/principles.md) Hard rejection rules 6 + 7
 - **Iter-2 (predecessor)**: [2026-05-13-iter2-three-layer-trade-execution-gap-kvk.md](./2026-05-13-iter2-three-layer-trade-execution-gap-kvk.md) — same trap class, different gap

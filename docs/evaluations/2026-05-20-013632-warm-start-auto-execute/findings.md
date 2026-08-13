@@ -70,4 +70,4 @@ The **defense-in-depth pattern** is more visible now than I'd appreciated. The R
 
 ## Cross-reference
 
-Companion v2 findings at [`../2026-05-20-013220-warm-start-auto-execute/findings.md`](../2026-05-20-013220-warm-start-auto-execute/findings.md) document the prompt-fix validation and surfaced the risk_gate column drift that this v3 run validates the fix for.
+Companion v2 findings at [`../2026-05-20-013220-warm-start-auto-execute/findings.md`](findings.md) document the prompt-fix validation and surfaced the risk_gate column drift that this v3 run validates the fix for.

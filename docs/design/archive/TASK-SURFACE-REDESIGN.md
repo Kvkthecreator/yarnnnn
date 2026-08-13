@@ -130,7 +130,7 @@ All backend support exists. Frontend calls needed:
 
 ## References
 
-- [ADR-149: Task Lifecycle Architecture](../adr/ADR-149-task-lifecycle-architecture.md)
-- [ADR-151: Shared Context Domains](../adr/ADR-151-shared-knowledge-domains.md)
-- [Registry Matrix](../architecture/registry-matrix.md)
+- [ADR-149: Task Lifecycle Architecture](../../adr/ADR-149-task-lifecycle-architecture.md)
+- [ADR-151: Shared Context Domains](../../adr/ADR-151-shared-knowledge-domains.md)
+- [Registry Matrix](../../architecture/registry-matrix.md)
 - [SURFACE-ACTION-MAPPING.md](SURFACE-ACTION-MAPPING.md)

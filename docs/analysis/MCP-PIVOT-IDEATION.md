@@ -207,5 +207,5 @@ These changes are NOT yet applied. They document what would change if the qualit
 - [platform-architecture.md](../architecture/platform-architecture.md) — Canonical architecture doc that triggered this analysis
 - [MCP-CONNECTORS.md](../integrations/MCP-CONNECTORS.md) — MCP product rationale and open questions
 - [ESSENCE.md](../ESSENCE.md) — Current core thesis (unchanged)
-- [GTM_POSITIONING.md](../GTM_POSITIONING.md) — Current positioning (unchanged)
+- [GTM_POSITIONING.md](../working_docs/strategy/GTM_POSITIONING.md) — Current positioning (unchanged)
 - [ACTIVATION_PLAYBOOK.md](../ACTIVATION_PLAYBOOK.md) — Current activation strategy (unchanged)

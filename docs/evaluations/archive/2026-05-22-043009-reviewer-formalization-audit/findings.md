@@ -278,7 +278,7 @@ This is exactly the operator's stated session goal: "the codebase's Reviewer fra
 **Verdict**: **DRIFT** (minor)
 
 Current entry:
-> | **Reviewer** | The systemic Agent that occupies the independent judgment seat. One per workspace. Substrate at `/workspace/review/` (seven canonical files — see separate entry). The seat (role) persists; the occupant rotates (human operator / AI reviewer / external service / impersonated admin). All occupant classes render verdicts through the same dispatch flow; the difference is which occupant is currently filling the seat per `OCCUPANT.md`. | An **Agent** in the sharp sense. […] **Distinctness:** Reviewer is not distinguished from other Agents by Identity class (the seat is occupant-swappable). It is distinguished by its Purpose + Trigger cell — independent judgment (Purpose) on Axiom 4 wake events (Trigger; fires when the evaluation funnel escalates across any of the five wake sources per ADR-296 v2 D1). See ADR-194 v2 + ADR-211 + [reviewer-substrate.md](reviewer-substrate.md). |
+> | **Reviewer** | The systemic Agent that occupies the independent judgment seat. One per workspace. Substrate at `/workspace/review/` (seven canonical files — see separate entry). The seat (role) persists; the occupant rotates (human operator / AI reviewer / external service / impersonated admin). All occupant classes render verdicts through the same dispatch flow; the difference is which occupant is currently filling the seat per `OCCUPANT.md`. | An **Agent** in the sharp sense. […] **Distinctness:** Reviewer is not distinguished from other Agents by Identity class (the seat is occupant-swappable). It is distinguished by its Purpose + Trigger cell — independent judgment (Purpose) on Axiom 4 wake events (Trigger; fires when the evaluation funnel escalates across any of the five wake sources per ADR-296 v2 D1). See ADR-194 v2 + ADR-211 + [reviewer-substrate.md](../../../architecture/reviewer-substrate.md). |
 
 This is correct but verbose and doesn't carry the Variant F anchor.
 
@@ -336,9 +336,9 @@ Layers 2, 3, 4 (envelope, primitives, loop nudges) are **substantively aligned**
 
 - Predecessor stub: [`2026-05-21-021204-reviewer-prompt-strategy-audit-stub/findings.md`](../2026-05-21-021204-reviewer-prompt-strategy-audit-stub/findings.md)
 - Canary v3 (text-only fallback empirical trigger): [`2026-05-21-014009-reviewer-round-budget-population-audit/findings.md`](../2026-05-21-014009-reviewer-round-budget-population-audit/findings.md) §"Resolution addendum"
-- ADR-296 v2 (wake architecture canon): [`docs/adr/ADR-296-continuous-judgment-cycle.md`](../../../docs/adr/ADR-296-continuous-judgment-cycle.md)
+- ADR-296 v2 (wake architecture canon): [`docs/adr/ADR-296-continuous-judgment-cycle.md`](../../../adr/ADR-296-continuous-judgment-cycle.md)
 - ADR-298 (wake queue + pace): [`docs/adr/ADR-298-wake-queue-pace.md`](../../../docs/adr/ADR-298-wake-queue-pace.md) (or whatever the canonical filename is — verify at Hat-A time)
-- FOUNDATIONS Derived Principle 20: [`docs/architecture/FOUNDATIONS.md`](../../../docs/architecture/FOUNDATIONS.md) (the structural neighbor for the proposed DP21)
+- FOUNDATIONS Derived Principle 20: [`docs/architecture/FOUNDATIONS.md`](../../../architecture/FOUNDATIONS.md) (the structural neighbor for the proposed DP21)
 - Reviewer persona frame: [`api/agents/reviewer_agent.py::_PERSONA_FRAME`](../../../api/agents/reviewer_agent.py)
 - Reviewer wake envelope: [`api/services/reviewer_envelope.py`](../../../api/services/reviewer_envelope.py)
 - REVIEWER_PRIMITIVES: [`api/services/primitives/registry.py:385-424`](../../../api/services/primitives/registry.py)

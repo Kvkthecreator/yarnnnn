@@ -455,5 +455,5 @@ The change is evolutionary (additive columns, optional migration) but conceptual
 - [ADR-026: Integration Architecture](./ADR-026-integration-architecture.md)
 - [ADR-027: Integration Read Architecture](./ADR-027-integration-read-architecture.md)
 - [ADR-018: Agent Pipeline](./ADR-018-agent-pipeline.md)
-- [ESSENCE.md](../ESSENCE.md)
+- [ESSENCE.md](../../ESSENCE.md)
 - [Analysis: Agent-Scoped Context](../analysis/agent-scoped-context.md)

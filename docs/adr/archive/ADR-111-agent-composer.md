@@ -1,11 +1,11 @@
 # ADR-111: Agent Composer — TP's Compositional Capability
 
-**Status:** **SUPERSEDED by [ADR-156: Composer Sunset](ADR-156-composer-sunset.md)** (2026-04-03). Composer deleted. TP is the single intelligence layer for all judgment. Deterministic lifecycle rules moved to scheduler. Workforce health signals moved to working memory.
+**Status:** **SUPERSEDED by [ADR-156: Composer Sunset](../ADR-156-composer-sunset.md)** (2026-04-03). Composer deleted. TP is the single intelligence layer for all judgment. Deterministic lifecycle rules moved to scheduler. Workforce health signals moved to working memory.
 **Date:** 2026-03-13 (original), 2026-03-16 (revised), 2026-04-03 (superseded)
 **Supersedes:** None
-**Superseded by:** [ADR-156: Composer Sunset](ADR-156-composer-sunset.md) — Composer deleted entirely. TP absorbs workforce composition judgment. Deterministic underperformer pausing moved to scheduler. Work budget + agent health signals moved to working_memory.py.
+**Superseded by:** [ADR-156: Composer Sunset](../ADR-156-composer-sunset.md) — Composer deleted entirely. TP absorbs workforce composition judgment. Deterministic underperformer pausing moved to scheduler. Work budget + agent health signals moved to working_memory.py.
 **Related:** ADR-092 (Mode Taxonomy — proactive/coordinator reframed as TP capabilities), ADR-109 (Agent Framework), ADR-110 (Onboarding Bootstrap — becomes Bootstrap bounded context), ADR-106 (Workspace Architecture), ADR-116 (Agent Identity & Inter-Agent Knowledge — extends Composer with agent dependency graph and supply chain reasoning), ADR-120 (Project Execution & Work Budget — Composer delegates project execution to PM agents, Composer v2.0 prompt in ADR-120 Phase 5)
-**Analysis:** [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md), [FOUNDATIONS.md Axiom 5](../architecture/FOUNDATIONS.md)
+**Analysis:** [TP Composer Autonomy Analysis](../../analysis/tp-composer-autonomy-analysis.md), [FOUNDATIONS.md Axiom 5](../../architecture/FOUNDATIONS.md)
 
 ---
 
@@ -281,10 +281,10 @@ All agent creation paths now funnel through single `create_agent_record()`.
 
 ## References
 
-- [FOUNDATIONS.md](../architecture/FOUNDATIONS.md) — Axiom 5 (Composer as TP capability), Axiom 6 (autonomy as direction)
-- [TP Composer Autonomy Analysis](../analysis/tp-composer-autonomy-analysis.md) — benchmarks, corrections, hardened framing
-- [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md) — proactive/coordinator modes (being reframed as TP capabilities)
-- [ADR-109: Agent Framework](ADR-109-agent-framework.md) — Scope × Skill × Trigger taxonomy, canonical template table
-- [ADR-110: Onboarding Bootstrap](ADR-110-onboarding-bootstrap.md) — becomes Bootstrap bounded context
-- [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — workspace as substrate signal
-- [Agent Model Comparison](../architecture/agent-model-comparison.md) — YARNNN position, two-layer intelligence, decision tests
+- [FOUNDATIONS.md](../../architecture/FOUNDATIONS.md) — Axiom 5 (Composer as TP capability), Axiom 6 (autonomy as direction)
+- [TP Composer Autonomy Analysis](../../analysis/tp-composer-autonomy-analysis.md) — benchmarks, corrections, hardened framing
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../ADR-092-agent-intelligence-mode-taxonomy.md) — proactive/coordinator modes (being reframed as TP capabilities)
+- [ADR-109: Agent Framework](../ADR-109-agent-framework.md) — Scope × Skill × Trigger taxonomy, canonical template table
+- [ADR-110: Onboarding Bootstrap](../ADR-110-onboarding-bootstrap.md) — becomes Bootstrap bounded context
+- [ADR-106: Agent Workspace Architecture](../ADR-106-agent-workspace-architecture.md) — workspace as substrate signal
+- [Agent Model Comparison](../../architecture/previous_versions/agent-model-comparison.md) — YARNNN position, two-layer intelligence, decision tests

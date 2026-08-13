@@ -1,6 +1,6 @@
 # Work Compositor Refactor — Implementation Plan
 
-**Status:** Archived 2026-04-27 — execution complete. All 8 commits landed; decisions absorbed into [ADR-225 Phase 3](../../adr/ADR-225-compositor-layer.md), [SURFACE-CONTRACTS.md v2.0](../SURFACE-CONTRACTS.md), and [docs/architecture/compositor.md](../../architecture/compositor.md). Preserved here as the planning trail.
+**Status:** Archived 2026-04-27 — execution complete. All 8 commits landed; decisions absorbed into [ADR-225 Phase 3](../../adr/ADR-225-compositor-layer.md), [SURFACE-CONTRACTS.md v2.0](../WORKSPACE.md), and [docs/architecture/compositor.md](../../architecture/compositor.md). Preserved here as the planning trail.
 
 **Scope:** Extend the compositor seam on `/work` from "middle content area only" to "full surface" — chrome, list, and cockpit all flow through the same resolver pattern. Singular implementation: one resolver, one match resolution, one extension surface.
 

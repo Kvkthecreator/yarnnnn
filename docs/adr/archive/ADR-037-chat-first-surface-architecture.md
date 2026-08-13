@@ -291,7 +291,7 @@ None directly. Backend APIs remain the same. Frontend consumption patterns chang
 - [ADR-036: Two-Layer Architecture](./ADR-036-two-layer-architecture.md)
 - [ADR-034: Emergent Context Domains](./ADR-034-emergent-context-domains.md)
 - [ADR-023: Supervisor Desk Architecture](./ADR-023-supervisor-desk-architecture.md) (superseded)
-- [DESIGN-PRINCIPLE: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md)
+- [DESIGN-PRINCIPLE: Supervision Model](../../architecture/previous_versions/supervision-model.md)
 
 ---
 

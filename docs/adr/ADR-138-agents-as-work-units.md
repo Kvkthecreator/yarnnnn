@@ -678,7 +678,7 @@ Steps:
 ### Phase 5: Frontend
 **Goal**: User sees agents (team) and tasks (work). No project references anywhere.
 
-> **Detailed specification**: [ADR-139](ADR-139-workfloor-task-surface-architecture.md) + [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md)
+> **Detailed specification**: [ADR-139](ADR-139-workfloor-task-surface-architecture.md) + [SURFACE-ARCHITECTURE.md](../design/archive/SURFACE-ARCHITECTURE.md)
 
 **Three surfaces** (ADR-139 v2):
 - `/workfloor` — Home. Output feed (left hero) + Agent roster grid (right). Chat as drawer. Replaces `/orchestrator`.

@@ -145,7 +145,7 @@ All services deploy automatically on push to `main` branch via Render's GitHub i
 
 ## Related Documentation
 
-- [Backend Orchestration](../architecture/backend-orchestration.md) — canonical reference for all background features
+- [Backend Orchestration](../infrastructure/backend-orchestration.md) — canonical reference for all background features
 - [ADR-083](../adr/archive/ADR-083-remove-rq-worker.md) — decision to remove RQ/Redis worker
 - [ADR-075](../adr/ADR-075-mcp-connector-architecture.md) — MCP Server architecture
 - [ADR-076](../adr/ADR-076-eliminate-mcp-gateway.md) — decision to delete MCP Gateway

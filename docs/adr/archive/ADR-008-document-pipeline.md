@@ -232,6 +232,6 @@ The backend supports all patterns via the API.
 ## References
 
 - [ADR-005: Unified Memory with Embeddings](ADR-005-unified-memory-with-embeddings.md)
-- [Database Schema](../database/SCHEMA.md)
+- [Database Schema](../../database/SCHEMA.md)
 - [Supabase Storage Docs](https://supabase.com/docs/guides/storage)
 - [OpenAI Embeddings](https://platform.openai.com/docs/guides/embeddings)

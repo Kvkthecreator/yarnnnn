@@ -4,9 +4,9 @@
 **Status:** Superseded by [ADR-107](ADR-107-knowledge-filesystem-architecture.md) (Knowledge Filesystem Architecture)
 **Related:**
 - [ADR-072: Unified Content Layer](ADR-072-unified-content-layer.md)
-- [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md)
-- [ADR-092: Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md)
-- [ADR-101: Agent Intelligence Model](ADR-101-agent-intelligence-model.md)
+- [ADR-087: Agent Scoped Context](../ADR-087-workspace-scoping-architecture.md)
+- [ADR-092: Mode Taxonomy](../ADR-092-agent-intelligence-mode-taxonomy.md)
+- [ADR-101: Agent Intelligence Model](../ADR-101-agent-intelligence-model.md)
 
 ---
 

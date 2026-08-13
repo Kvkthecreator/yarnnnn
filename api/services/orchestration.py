@@ -400,7 +400,7 @@ DEFAULT_AWARENESS_MD = """\
 # Program bundles that need CONVENTIONS.md (e.g. alpha-trader) fork it via
 # reference-workspace/ with tier:canon. Generic workspaces do not get a
 # CONVENTIONS.md skeleton — the headless base prompt carries a compact inline
-# summary and the full docs/architecture/workspace-conventions.md is the
+# summary and the full docs/architecture/WORKSPACE.md is the
 # authoritative reference. See CONSTITUTION_FILES in workspace_paths.py.
 
 

@@ -559,8 +559,8 @@ Enter Phase 3 only when Phase 1 and 2 have answered: which ICP, which creative, 
 
 ## What This File Is Not
 
-This is not the content strategy (see [CONTENT_STRATEGY_v1.md](../CONTENT_STRATEGY_v1.md)).
-This is not the messaging framework (see [GTM_POSITIONING.md](../../GTM_POSITIONING.md)).
+This is not the content strategy (see [CONTENT_STRATEGY_v1.md](../strategy/CONTENT_STRATEGY_v1.md)).
+This is not the messaging framework (see [GTM_POSITIONING.md](../strategy/GTM_POSITIONING.md)).
 This is not the IR narrative or investor-facing positioning — those docs stand as-is.
 
 This is the experiment that tests whether any of those strategies are built on a real foundation.

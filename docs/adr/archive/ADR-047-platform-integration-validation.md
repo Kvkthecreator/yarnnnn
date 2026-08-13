@@ -278,4 +278,4 @@ For each new platform:
 - [ADR-026: Integration Architecture](ADR-026-integration-architecture.md)
 - [ADR-039: Agentic Platform Operations](ADR-039-agentic-platform-operations.md)
 - [Integration Changelog](../integrations/CHANGELOG.md)
-- [Platform Quirks Guide](../integrations/QUIRKS.md)
+- [Platform Quirks Guide](../../integrations/QUIRKS.md)

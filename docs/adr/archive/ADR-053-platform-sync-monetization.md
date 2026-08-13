@@ -306,4 +306,4 @@ These are covered by conversation/agent limits per tier, not sync limits.
 - [ADR-038: Filesystem-as-Context](ADR-038-filesystem-as-context.md)
 - [ADR-050: MCP Gateway Architecture](ADR-050-mcp-gateway-architecture.md)
 - [ADR-052: Platform Context Surface](ADR-052-platform-context-surface.md)
-- [LIMITS.md](../../monetization/LIMITS.md)
+- [LIMITS.md](../../monetization/archive/LIMITS.md)

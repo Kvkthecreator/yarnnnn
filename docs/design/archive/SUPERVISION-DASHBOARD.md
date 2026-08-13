@@ -6,8 +6,8 @@
 - [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md) — source-first mental model, grouping
 - [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration surfaces
 - [ADR-111: Agent Composer](../../adr/archive/ADR-111-agent-composer.md) — lifecycle progression, maturity signals
-- [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — five agent modes
-- [FOUNDATIONS.md](../FOUNDATIONS.md) — two-layer intelligence model
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — five agent modes
+- [FOUNDATIONS.md](../../architecture/FOUNDATIONS.md) — two-layer intelligence model
 
 ---
 

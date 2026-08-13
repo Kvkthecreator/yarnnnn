@@ -110,7 +110,7 @@ TP is not the entry point or primary product surface—agents are. But TP is how
 
 Both are TP; they serve different interaction needs. The user is a supervisor who oversees AI-produced work, and TP is their interface for exercising that supervision.
 
-See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) for the full framework.
+See [Design Principle: Supervision Model](supervision-model.md) for the full framework.
 
 ---
 

@@ -300,8 +300,8 @@ curl -X POST https://api.yarnnn.com/api/test-email \
 
 ## Related Documentation
 
-- [Agent Architecture](../architecture/agents.md)
-- [Backend Orchestration](../architecture/backend-orchestration.md) — F3 (Agent Execution), F7 (Weekly Digest)
+- [Agent Architecture](../../gitbook/apps/agents.md)
+- [Backend Orchestration](../../infrastructure/backend-orchestration.md) — F3 (Agent Execution), F7 (Weekly Digest)
 - ADR-018: Agent Scheduling
 - ADR-066: Delivery-First (no approval gate)
 

@@ -4,11 +4,11 @@
 **Date:** 2026-03-11
 **Supersedes:** ADR-059 (Simplified Context Model — `user_memory` table replaced by `/memory/` filesystem)
 **Related:**
-- [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — workspace-files-over-Postgres model
+- [ADR-106: Agent Workspace Architecture](../ADR-106-agent-workspace-architecture.md) — workspace-files-over-Postgres model
 - [ADR-107: Knowledge Filesystem Architecture](ADR-107-knowledge-filesystem-architecture.md) — `/knowledge/` shared filesystem
-- [ADR-064: Unified Memory Service](ADR-064-unified-memory-service.md) — nightly extraction pipeline (write path changes)
+- [ADR-064: Unified Memory Service](../ADR-064-unified-memory-service.md) — nightly extraction pipeline (write path changes)
 - [ADR-063: Activity Log](ADR-063-activity-log-four-layer-model.md) — Layer 2, unchanged
-- [Workspace Conventions](../architecture/workspace-conventions.md) — path tree extension
+- [Workspace Conventions](../../architecture/WORKSPACE.md) — path tree extension
 
 ---
 

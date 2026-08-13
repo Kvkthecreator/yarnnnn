@@ -5,7 +5,7 @@
 **Status:** Live experiment — executing this week
 **Budget:** $150–300 (Reddit ads, Phase 1)
 **Owner:** Kevin
-**References:** [GTM_POSITIONING.md](GTM_POSITIONING.md), [ACTIVATION_PLAYBOOK.md](ACTIVATION_PLAYBOOK.md), [CONTENT_STRATEGY_v1.md](working_docs/CONTENT_STRATEGY_v1.md)
+**References:** [GTM_POSITIONING.md](../../strategy/GTM_POSITIONING.md), [ACTIVATION_PLAYBOOK.md](ACTIVATION_PLAYBOOK.md), [CONTENT_STRATEGY_v1.md](../../strategy/CONTENT_STRATEGY_v1.md)
 
 ---
 
@@ -313,8 +313,8 @@ Update this section with real data as experiments run. This is the living record
 
 ## What This File Is Not
 
-This is not the content strategy (see [CONTENT_STRATEGY_v1.md](working_docs/CONTENT_STRATEGY_v1.md)).
+This is not the content strategy (see [CONTENT_STRATEGY_v1.md](../../strategy/CONTENT_STRATEGY_v1.md)).
 This is not the organic playbook (see [ACTIVATION_PLAYBOOK.md](ACTIVATION_PLAYBOOK.md)).
-This is not the messaging framework (see [GTM_POSITIONING.md](GTM_POSITIONING.md)).
+This is not the messaging framework (see [GTM_POSITIONING.md](../../strategy/GTM_POSITIONING.md)).
 
 This is the experiment that tells us whether any of those strategies are built on a real foundation. If 100 strangers won't pay after seeing the best version of our pitch — that's the most valuable thing we can learn right now.

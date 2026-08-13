@@ -1,6 +1,6 @@
 # Reviewer Principles — alpha-author
 
-> **Purpose**: this file declares the **rule-set the Reviewer persona applies** when auditing alpha-author substrate — *what rules of judgment* the persona evaluates, including (post-2026-05-29 collapse) the self-amendment + anti-patterns + independence rules in §3.5. The persona's **character** (how it sounds) lives in `IDENTITY.md`. The system **minimal frame** (`_compute_minimal_frame`) carries only the principal-shift + action-grammar — not reasoning posture. Partition-discipline canon: [`docs/architecture/agent-composition.md`](../../../../architecture/agent-composition.md) §3.2.1 (inverted boundary).
+> **Purpose**: this file declares the **rule-set the Reviewer persona applies** when auditing alpha-author substrate — *what rules of judgment* the persona evaluates, including (post-2026-05-29 collapse) the self-amendment + anti-patterns + independence rules in §3.5. The persona's **character** (how it sounds) lives in `IDENTITY.md`. The system **minimal frame** (`_compute_minimal_frame`) carries only the principal-shift + action-grammar — not reasoning posture. Partition-discipline canon: [`docs/architecture/agent-composition.md`](../../../../../architecture/agent-composition.md) §3.2.1 (inverted boundary).
 
 > **Operator authors**: tune rules to match your authorial operation. Add rules the bundle defaults don't cover; remove or relax rules that don't fit your shape. The Reviewer applies every rule declared here at every relevant wake.
 

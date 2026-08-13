@@ -81,7 +81,7 @@ Revisit this decision when:
 
 ## References
 
-- [ESSENCE.md](../ESSENCE.md) - Domain model specification
+- [ESSENCE.md](../../ESSENCE.md) - Domain model specification
 - [analysis/MEMORY_PATTERNS.md](../analysis/MEMORY_PATTERNS.md) - Cross-repo analysis
 - yarnnn-app-fullstack: `work-platform/api/src/app/memory/blocks/lifecycle.py`
 - chat_companion: `api/api/src/app/services/context.py`

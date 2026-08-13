@@ -93,11 +93,11 @@ The Reviewer's pre-canary `standing_intent.md` claims *"first audit complete, go
 
 ## Cross-references
 
-- ADR-296 v2 D2: substrate-event wake source — [`ADR-296`](../../adr/ADR-296-continuous-judgment-cycle.md)
+- ADR-296 v2 D2: substrate-event wake source — [`ADR-296`](../../../adr/ADR-296-continuous-judgment-cycle.md)
 - ADR-292 v3: continuous substrate re-apply (Fix 1A) — [`ADR-292`](../../adr/ADR-292-continuous-substrate-re-apply.md)
 - ADR-294 D2: operator-proxy caller-identity discipline — [`ADR-294`](../../adr/ADR-294-operator-proxy-substrate-discipline.md)
 - Parent pre-e2e audit: [findings](../2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2/findings.md)
 - yarnnn-author T0 wall-clock baseline: [PLAYBOOK](../2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/) (Fix 1A is downstream of this)
 - Hook config: [`docs/programs/alpha-author/reference-workspace/_hooks.yaml`](../../programs/alpha-author/reference-workspace/_hooks.yaml)
 - Walker code: [`api/services/wake_sources/substrate_event.py`](../../../api/services/wake_sources/substrate_event.py)
-- Session-start guide: [alpha-author-autonomy-loop](../sessions/alpha-author-autonomy-loop.md)
+- Session-start guide: [alpha-author-autonomy-loop](../../sessions/alpha-author-autonomy-loop.md)

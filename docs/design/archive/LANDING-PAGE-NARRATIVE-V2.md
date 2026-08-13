@@ -747,5 +747,5 @@ The new landing pages should make visitors understand:
 ## Related Documents
 
 - [ADR-044: Agent Type Reconceptualization](../../adr/archive/ADR-044-agent-type-reconceptualization.md)
-- [DECISION-001: Platform Sync Strategy](../product/DECISION-001-platform-sync-strategy.md)
-- [Design Principle: The Supervision Model](./DESIGN-PRINCIPLE-supervision-model.md)
+- [DECISION-001: Platform Sync Strategy](../../architecture/previous_versions/DECISION-001-platform-sync-strategy.md)
+- [Design Principle: The Supervision Model](../../architecture/previous_versions/supervision-model.md)

@@ -1,7 +1,7 @@
 # ADR-068: Signal-Emergent Agents
 
 **Date**: 2026-02-19
-**Status**: Superseded by [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md) (2026-03-04)
+**Status**: Superseded by [ADR-092: Agent Intelligence & Mode Taxonomy](../ADR-092-agent-intelligence-mode-taxonomy.md) (2026-03-04)
 **Updated**: 2026-02-20 — Extended to all platforms (Slack, Notion)
 **Updated**: 2026-02-20 — Architectural reframe: Content significance reasoning (not absence/thresholds)
 **Updated**: 2026-03-04 — Superseded. Signal processing as L3 infrastructure is dissolved. The capability moves into L4 coordinator agents (ADR-092). `origin=signal_emergent` rows are relabeled `coordinator_created` in migration. The two-phase model (orchestration → artifact creation) survives as the coordinator agent pattern.

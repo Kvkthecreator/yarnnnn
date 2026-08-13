@@ -95,10 +95,10 @@ Plus operator-declared deliverable cadence via `_preferences.yaml`:
 - `quarterly-voice-audit` (quarter-end) — quarterly check on voice fingerprint drift vs declared corpus baseline
 
 ### Agent roster (universal roles, contextual application)
-Standard YARNNN agents apply. The **Reviewer** is the load-bearing seat for alpha-author — see [reference-workspace/persona/IDENTITY.md](reference-workspace/persona/IDENTITY.md) for the editor-shaped default persona.
+Standard YARNNN agents apply. The **Reviewer** is the load-bearing seat for alpha-author — see [reference-workspace/persona/IDENTITY.md](reference-workspace/agents/alpha-author/IDENTITY.md) for the editor-shaped default persona.
 
 ### Principles content (program guidance, operator authors)
-Templates ship in [reference-workspace/persona/principles.md](reference-workspace/persona/principles.md). Defaults:
+Templates ship in [reference-workspace/persona/principles.md](reference-workspace/agents/alpha-author/principles.md). Defaults:
 
 - Voice fingerprint enforcement (drift detection against declared `_voice.md` baseline)
 - Continuity audit (every draft checked against prior published corpus for contradiction)

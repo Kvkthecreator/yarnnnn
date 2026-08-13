@@ -249,8 +249,8 @@ Dashboard (empty state)
 ## References
 
 - [Supervision Dashboard](SUPERVISION-DASHBOARD.md)
-- [ADR-110: Onboarding Bootstrap](../adr/ADR-110-onboarding-bootstrap.md)
-- [ADR-113: Auto Source Selection](../adr/ADR-113-auto-source-selection.md)
+- [ADR-110: Onboarding Bootstrap](../../adr/ADR-110-onboarding-bootstrap.md)
+- [ADR-113: Auto Source Selection](../../adr/ADR-113-auto-source-selection.md)
 - [ADR-119: Workspace Filesystem](../adr/ADR-119-workspace-filesystem.md)
 - [ADR-122: Project Type Registry](../../adr/archive/ADR-122-project-type-registry.md)
 - [ADR-124: Project Meeting Room](../../adr/archive/ADR-124-project-meeting-room.md)

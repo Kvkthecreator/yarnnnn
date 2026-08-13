@@ -3,7 +3,7 @@
 **Status:** Canonical (investor-facing architecture reference)
 **Date:** 2026-03-24 (v2 — Era 3 rewrite)
 **Previous:** v1 (2026-03-10, individual-agent model)
-**Related:** [FOUNDATIONS.md](FOUNDATIONS.md), [ADR-130](../adr/ADR-130-html-native-output-substrate.md), [ADR-132](../../adr/archive/ADR-132-work-first-onboarding.md), [ADR-133](../../adr/archive/ADR-133-pm-coordinated-phase-dispatch.md), [ADR-136](../../adr/archive/ADR-136-project-charter-architecture.md)
+**Related:** [FOUNDATIONS.md](../FOUNDATIONS.md), [ADR-130](../../adr/ADR-130-html-native-output-substrate.md), [ADR-132](../../adr/archive/ADR-132-work-first-onboarding.md), [ADR-133](../../adr/archive/ADR-133-pm-coordinated-phase-dispatch.md), [ADR-136](../../adr/archive/ADR-136-project-charter-architecture.md)
 
 ---
 
@@ -356,4 +356,4 @@ A session-based agent that writes your quarterly review starts from scratch ever
 
 ---
 
-*For the value realization chain, see [VALUE-CHAIN.md](VALUE-CHAIN.md). For first principles, see [FOUNDATIONS.md](FOUNDATIONS.md). For the three-registry architecture, see [output-substrate.md](output-substrate.md).*
+*For the value realization chain, see [VALUE-CHAIN.md](VALUE-CHAIN.md). For first principles, see [FOUNDATIONS.md](../FOUNDATIONS.md). For the three-registry architecture, see [output-substrate.md](../output-substrate.md).*

@@ -535,5 +535,5 @@ Requires additional scopes and UX for calendar selection.
 
 - [ADR-031: Platform-Native Agents](./ADR-031-platform-native-agents.md)
 - [ADR-044: Agent Type Reconceptualization](./ADR-044-agent-type-reconceptualization.md)
-- [DECISION-001: Platform Sync Strategy](../product/DECISION-001-platform-sync-strategy.md)
-- [LANDING-PAGE-NARRATIVE-V2](../design/LANDING-PAGE-NARRATIVE-V2.md)
+- [DECISION-001: Platform Sync Strategy](../../architecture/previous_versions/DECISION-001-platform-sync-strategy.md)
+- [LANDING-PAGE-NARRATIVE-V2](../../design/archive/LANDING-PAGE-NARRATIVE-V2.md)

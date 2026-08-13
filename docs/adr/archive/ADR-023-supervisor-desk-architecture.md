@@ -789,7 +789,7 @@ web/
 
 ## References
 
-- [ESSENCE.md](../ESSENCE.md) - Core principles
+- [ESSENCE.md](../../ESSENCE.md) - Core principles
 - [ADR-018: Recurring Agents](ADR-018-recurring-agents.md) - Agent data model
 - [ADR-022: Tab-Based Architecture](ADR-022-tab-based-supervision-architecture.md) - Superseded
 - Factory supervisor mental model (conversation 2026-02-03)

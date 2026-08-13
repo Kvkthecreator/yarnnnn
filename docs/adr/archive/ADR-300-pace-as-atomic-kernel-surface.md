@@ -1,21 +1,21 @@
 # ADR-300 — Pace as Atomic Kernel Surface
 
-> **⚠ SUPERSEDED by [ADR-327](ADR-327-budget-and-the-self-improving-loop.md) (Proposed, 2026-06-08).** Pace retires as a concept — the `/pace` atomic surface this ADR created is repurposed to `/budget` (a dollar budget over a timeframe + window-to-date utilization). `_pace.yaml` collapses with `_token_budget.yaml` into one `_budget.yaml`. The `/pace` route survives only as a redirect stub to `/budget`. The atomic-kernel-surface *pattern* this ADR established (one substrate file → one atomic surface) is preserved and reused for `/budget`; only the pace *concept* dies. See ADR-327 D1/D7.
+> **⚠ SUPERSEDED by [ADR-327](../ADR-327-budget-and-the-self-improving-loop.md) (Proposed, 2026-06-08).** Pace retires as a concept — the `/pace` atomic surface this ADR created is repurposed to `/budget` (a dollar budget over a timeframe + window-to-date utilization). `_pace.yaml` collapses with `_token_budget.yaml` into one `_budget.yaml`. The `/pace` route survives only as a redirect stub to `/budget`. The atomic-kernel-surface *pattern* this ADR established (one substrate file → one atomic surface) is preserved and reused for `/budget`; only the pace *concept* dies. See ADR-327 D1/D7.
 
 > **Same-day vocabulary note (2026-05-24 design polish):** the "Delegation" surface this ADR references throughout — `/delegation`, `DelegationCard`, `[ Delegation ]` launcher position — was renamed to "Autonomy" / `/autonomy` / `AutonomyCard` to align with the substrate file `_autonomy.yaml`. Schema field `default_delegation` is **kept** (precise data-layer term — the delegated level value). `/delegation` route survives as a redirect stub to `/autonomy` for bookmark safety. The architectural decision (atomic kernel surface for pace) is unchanged; only the neighbor surface's operator-facing label moved. See `docs/design/CHANGELOG.md` 2026-05-24 entry.
 
 **Status:** Implemented (2026-05-22)
 **Date:** 2026-05-22
-**Supersedes:** [ADR-298](ADR-298-reviewer-wake-queue-and-pace.md) D5 §"New: cockpit Schedule tab section" (pace rendering site)
-**Amends:** [ADR-297](ADR-297-surfaces-as-substrate-mirror.md) D1 (kernel surface list extends from 15 to 16 with `pace`)
-**Preserves:** ADR-298 D1–D11 (queue substrate, pace semantics, drain model, trifecta canon) · [FOUNDATIONS](../architecture/FOUNDATIONS.md) Axiom 1 (filesystem is substrate) · Axiom 4 (Trigger dimension) · ADR-297 atomic-substrate-mirror discipline
+**Supersedes:** [ADR-298](../ADR-298-reviewer-wake-queue-and-pace.md) D5 §"New: cockpit Schedule tab section" (pace rendering site)
+**Amends:** [ADR-297](../ADR-297-surfaces-as-substrate-mirror.md) D1 (kernel surface list extends from 15 to 16 with `pace`)
+**Preserves:** ADR-298 D1–D11 (queue substrate, pace semantics, drain model, trifecta canon) · [FOUNDATIONS](../../architecture/FOUNDATIONS.md) Axiom 1 (filesystem is substrate) · Axiom 4 (Trigger dimension) · ADR-297 atomic-substrate-mirror discipline
 **Companion concept audit:** in-session 2026-05-22 (pace / cadence / schedule / queue / activity / feed disambiguation)
 
 ## 1. Context
 
-[ADR-298](ADR-298-reviewer-wake-queue-and-pace.md) D11 canonized the **operator dial trifecta** — Pace (Trigger / Axiom 4), Autonomy (Mechanism / Axiom 5), Persona (Identity / Axiom 2) — as the three first-class operator levers. Each maps to its own substrate file and axiom dimension; none substitutes for the others.
+[ADR-298](../ADR-298-reviewer-wake-queue-and-pace.md) D11 canonized the **operator dial trifecta** — Pace (Trigger / Axiom 4), Autonomy (Mechanism / Axiom 5), Persona (Identity / Axiom 2) — as the three first-class operator levers. Each maps to its own substrate file and axiom dimension; none substitutes for the others.
 
-Two of the three already have atomic kernel surfaces per [ADR-297](ADR-297-surfaces-as-substrate-mirror.md) D1:
+Two of the three already have atomic kernel surfaces per [ADR-297](../ADR-297-surfaces-as-substrate-mirror.md) D1:
 
 | Lever | Substrate | Atomic surface |
 |---|---|---|
@@ -155,9 +155,9 @@ None at decision time. All clarifying questions resolved in-session 2026-05-22 (
 
 ## 6. References
 
-- [ADR-298](ADR-298-reviewer-wake-queue-and-pace.md) — Reviewer wake queue + pace substrate (D11 trifecta canon + D5 cockpit-tab decision superseded by this ADR's D3)
-- [ADR-297](ADR-297-surfaces-as-substrate-mirror.md) — atomic kernel surfaces axiom (D1 kernel surface list extended)
-- [ADR-209](ADR-209-authored-substrate.md) — revision-chain attribution model (operator writes via `write_revision`)
-- [ADR-293](ADR-293-governance-operational-substrate-taxonomy.md) — `_pace.yaml` in governance substrate set
-- [FOUNDATIONS](../architecture/FOUNDATIONS.md) Axiom 4 (Trigger dimension)
+- [ADR-298](../ADR-298-reviewer-wake-queue-and-pace.md) — Reviewer wake queue + pace substrate (D11 trifecta canon + D5 cockpit-tab decision superseded by this ADR's D3)
+- [ADR-297](../ADR-297-surfaces-as-substrate-mirror.md) — atomic kernel surfaces axiom (D1 kernel surface list extended)
+- [ADR-209](../ADR-209-authored-substrate.md) — revision-chain attribution model (operator writes via `write_revision`)
+- [ADR-293](../ADR-293-governance-operational-substrate-taxonomy.md) — `_pace.yaml` in governance substrate set
+- [FOUNDATIONS](../../architecture/FOUNDATIONS.md) Axiom 4 (Trigger dimension)
 - In-session concept audit (2026-05-22) — pace / cadence / schedule / queue / activity / feed disambiguation

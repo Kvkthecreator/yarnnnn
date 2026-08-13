@@ -373,9 +373,9 @@ These jobs are completely independent. None calls another. They share the data l
 - [ADR-063: Four-Layer Model](ADR-063-activity-log-four-layer-model.md) — Extended by this ADR
 - [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md) — Signal processing now dual-role
 - [ADR-071: Strategic Architecture Principles](ADR-071-strategic-architecture-principles.md) — Quality flywheel principle implemented
-- [Four-Layer Model Architecture](../architecture/four-layer-model.md) — To be updated
+- [Four-Layer Model Architecture](../../architecture/previous_versions/four-layer-model.md) — To be updated
 - [Context Pipeline](../architecture/context-pipeline.md) — To be updated
-- [Agents Architecture](../architecture/agents.md) — To be updated
+- [Agents Architecture](../../gitbook/apps/agents.md) — To be updated
 
 ---
 

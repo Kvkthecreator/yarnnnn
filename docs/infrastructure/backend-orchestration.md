@@ -203,8 +203,8 @@ Do not add new logging patterns or cost-tracking writes without reading [observa
 
 ## See Also
 
-- [agent-execution-model.md](./agent-execution-model.md) — deep-dive on the 3-layer execution model
-- [SERVICE-MODEL.md](./SERVICE-MODEL.md) — end-to-end system description
+- [agent-execution-model.md](../architecture/agent-execution-model.md) — deep-dive on the 3-layer execution model
+- [SERVICE-MODEL.md](../architecture/SERVICE-MODEL.md) — end-to-end system description
 - [../architecture/observability.md](../architecture/observability.md) — logging, telemetry, error tracking, spend guard (ADR-250)
 - [../monetization/TOKEN-ECONOMICS-ANALYSIS.md](../monetization/TOKEN-ECONOMICS-ANALYSIS.md) — per-consumer cost analysis
 - [../integrations/RENDER-SERVICES.md](../integrations/RENDER-SERVICES.md) — infrastructure operations

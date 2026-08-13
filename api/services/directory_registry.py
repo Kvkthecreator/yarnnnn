@@ -54,14 +54,14 @@ Expansion process:
   3. For context: define entity_structure, synthesis_file
   4. For output: define naming_convention, index_file
   5. Update task types (context_reads/context_writes/output_category)
-  6. Update docs/architecture/workspace-conventions.md
+  6. Update docs/architecture/WORKSPACE.md
   7. Increment version comment above
 
 Current ICP: solo founder / small team. Subject to expansion.
 
 Canonical references:
   - docs/adr/ADR-152-unified-directory-registry.md
-  - docs/architecture/workspace-conventions.md
+  - docs/architecture/WORKSPACE.md
   - docs/architecture/registry-matrix.md
 """
 

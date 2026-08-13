@@ -7,7 +7,7 @@
 - [ADR-104: Agent Instructions Unified Targeting](ADR-104-agent-instructions-unified-targeting.md) — instructions as the single targeting layer
 - [ADR-087: Agent Scoped Context](ADR-087-agent-scoped-context.md) — per-agent instructions + memory
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — one agent, two modes
-- [Surface-Action Mapping](../design/SURFACE-ACTION-MAPPING.md) — design principle
+- [Surface-Action Mapping](../design/archive/SURFACE-ACTION-MAPPING.md) — design principle
 
 ---
 
@@ -17,7 +17,7 @@ ADR-104 established `agent_instructions` as the unified targeting layer — user
 
 The current UI surface for editing instructions is the **Instructions drawer tab**: a textarea for behavior directives, collapsible audience fields (name, role, notes), and a prompt preview. This works but creates a design inconsistency:
 
-1. **Instructions are directives, not configuration.** They change how the agent behaves — closer to "telling TP what to do" than "configuring a setting." The [Surface-Action Mapping](../design/SURFACE-ACTION-MAPPING.md) principle says directives should flow through chat.
+1. **Instructions are directives, not configuration.** They change how the agent behaves — closer to "telling TP what to do" than "configuring a setting." The [Surface-Action Mapping](../design/archive/SURFACE-ACTION-MAPPING.md) principle says directives should flow through chat.
 
 2. **TP can't acknowledge or refine.** When the user types instructions in a drawer textarea, there's no feedback loop. TP doesn't see the edit until the next execution run. In chat, TP can acknowledge ("Got it — I'll focus on action items"), suggest refinements ("Do you want me to also track blockers?"), and persist immediately.
 

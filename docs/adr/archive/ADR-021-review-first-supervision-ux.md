@@ -220,7 +220,7 @@ The onboarding **ends in the review view**, not a dashboard. User's first action
 
 ## References
 
-- [ESSENCE.md](../ESSENCE.md) - Core principles
-- [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md)
+- [ESSENCE.md](../../ESSENCE.md) - Core principles
+- [Design Principle: Supervision Model](../../architecture/previous_versions/supervision-model.md)
 - [ADR-018: Recurring Agents](ADR-018-recurring-agents.md)
 - [ADR-020: Agent-Centric Chat](ADR-020-agent-centric-chat.md)

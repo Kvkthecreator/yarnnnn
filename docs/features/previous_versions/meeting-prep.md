@@ -4,7 +4,7 @@
 **Status:** ARCHIVED — Calendar sunset (ADR-131, 2026-03-22)
 
 > **This feature is archived.** ADR-131 sunset Google Calendar integration. Meeting Prep required Calendar as a dependency. The `prepare` role remains in the agent framework but is non-functional without Calendar data. This document is preserved for historical reference.
-**Related:** [Agent Roles Reference](agent-types.md), [Agent Framework](../architecture/agent-framework.md), [Quality Testing](../development/agent-quality-testing.md)
+**Related:** [Agent Roles Reference](../agent-types.md), [Agent Framework](../../architecture/orchestration.md), [Quality Testing](../development/agent-quality-testing.md)
 **Template:** Meeting Prep (scope: cross_platform, role: prepare, trigger: recurring)
 
 ---

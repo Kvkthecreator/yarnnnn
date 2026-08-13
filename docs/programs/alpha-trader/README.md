@@ -60,11 +60,11 @@ What the program brings to a workspace, beyond what the OS scaffolds at signup. 
 ### Agent roster (universal roles, contextual application)
 - Researcher, Analyst, Writer, Tracker, Designer, Reporting — the universal six
 - Trading Bot — capability bundle, not a persona-bearing Agent
-- Reviewer — Simons-persona principles, capital-EV reasoning over `_money_truth.md`. Default persona shipped in [reference-workspace/persona/IDENTITY.md](reference-workspace/persona/IDENTITY.md).
+- Reviewer — Simons-persona principles, capital-EV reasoning over `_money_truth.md`. Default persona shipped in [reference-workspace/persona/IDENTITY.md](reference-workspace/agents/alpha-trader/IDENTITY.md).
 
 ### Principles content (program guidance, operator authors)
 
-Templates ship in [reference-workspace/persona/principles.md](reference-workspace/persona/principles.md). Defaults:
+Templates ship in [reference-workspace/persona/principles.md](reference-workspace/agents/alpha-trader/principles.md). Defaults:
 
 - Position sizing formula required (`account × risk_percent / stop_distance`), no conviction sizing
 - Signal attribution required on every proposal

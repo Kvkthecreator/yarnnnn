@@ -606,9 +606,9 @@ Only support local downloads (PDF, Markdown, DOCX).
 
 ## References
 
-- [docs/analysis/integration-strategy.md](../analysis/integration-strategy.md) - Detailed analysis
+- [docs/analysis/integration-strategy.md](../../analysis/integration-strategy.md) - Detailed analysis
 - [docs/workflows/DELIVERABLE-WORKFLOW.md](../workflows/DELIVERABLE-WORKFLOW.md) - Phase 4 gap
-- [docs/ESSENCE.md](../ESSENCE.md) - Core principles
+- [docs/ESSENCE.md](../../ESSENCE.md) - Core principles
 - [Slack Block Kit](https://api.slack.com/block-kit)
 - [Notion API](https://developers.notion.com/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)

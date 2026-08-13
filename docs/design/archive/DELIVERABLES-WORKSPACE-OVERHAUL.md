@@ -3,7 +3,7 @@
 **Date:** 2026-03-05
 **Status:** Implemented
 **Related:**
-- [ADR-092: Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md)
+- [ADR-092: Mode Taxonomy](../../adr/ADR-092-agent-intelligence-mode-taxonomy.md)
 - [ADR-093: Type Taxonomy](../adr/ADR-093-agent-types-overhaul.md)
 - [List & Create Overhaul](DELIVERABLES-LIST-CREATE-OVERHAUL.md)
 - [Workspace Layout](WORKSPACE-LAYOUT-NAVIGATION.md)

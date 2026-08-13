@@ -947,4 +947,4 @@ Updated scope types from `'project'` to `'domain'`:
 - [ADR-015: Unified Context Model](./ADR-015-unified-context-model.md)
 - [ADR-024: Context Classification Layer](./ADR-024-context-classification-layer.md) (superseded)
 - [ADR-032: Platform-Native Frontend Architecture](./ADR-032-platform-native-frontend-architecture.md)
-- [Discussion: Context Extraction Audit 2026-02-09](../analysis/context-domains-discussion-2026-02-09.md)
+- [Discussion: Context Extraction Audit 2026-02-09](../../analysis/context-domains-discussion-2026-02-09.md)

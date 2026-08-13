@@ -4,11 +4,11 @@
 **Date:** 2026-03-11
 **Supersedes:** ADR-102 (yarnnn Content Platform — `platform="yarnnn"` rows replaced by `/knowledge/` filesystem)
 **Related:**
-- [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — Phase 1 (agent intelligence in workspace files)
+- [ADR-106: Agent Workspace Architecture](../ADR-106-agent-workspace-architecture.md) — Phase 1 (agent intelligence in workspace files)
 - [ADR-072: Unified Content Layer](ADR-072-unified-content-layer-tp-execution-pipeline.md) — `platform_content` as accumulation layer
-- [ADR-092: Agent Intelligence & Mode Taxonomy](ADR-092-agent-intelligence-mode-taxonomy.md) — agent modes and orchestration
+- [ADR-092: Agent Intelligence & Mode Taxonomy](../ADR-092-agent-intelligence-mode-taxonomy.md) — agent modes and orchestration
 - [ADR-093: Agent Type Taxonomy](ADR-093-agent-type-taxonomy.md) — type system (to be extended)
-- [Analysis: Knowledge Filesystem Discourse](../analysis/knowledge-filesystem-discourse-2026-03-11.md)
+- [Analysis: Knowledge Filesystem Discourse](../../analysis/knowledge-filesystem-discourse-2026-03-11.md)
 
 ---
 

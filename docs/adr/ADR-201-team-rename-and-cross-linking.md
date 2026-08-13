@@ -132,7 +132,7 @@ Audit `AgentContentView.tsx` + any agent-detail sub-components: ensure every age
 ### Docs updated in the same commit (per ADR discipline)
 
 - **[docs/architecture/SERVICE-MODEL.md](../architecture/SERVICE-MODEL.md)** — nav table route column `/agents` → `/team`
-- **[docs/design/SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md)** — route map section
+- **[docs/design/SURFACE-ARCHITECTURE.md](../design/archive/SURFACE-ARCHITECTURE.md)** — route map section
 - **[docs/architecture/GLOSSARY.md](../architecture/GLOSSARY.md)** — add the "team" dual-meaning note
 
 ---

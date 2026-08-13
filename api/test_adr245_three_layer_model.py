@@ -162,12 +162,16 @@ def test_phase_5_supersede_finding_logged():
         "no docs needed archiving."
     )
 
-    # Cross-reference notes present in the three closest-related docs
+    # Cross-reference notes present in the three closest-related docs.
+    # SURFACE-CONTRACTS.md was renamed to WORKSPACE.md (6dbc545) and the other
+    # two moved to design/archive/ — before that was reflected here, every path
+    # missed and the `if not path.exists(): continue` guard skipped the whole
+    # assertion silently.
     design_dir = REPO_ROOT / "docs" / "design"
     for doc in [
-        "SURFACE-CONTRACTS.md",
-        "AGENT-AND-TASK-SURFACE-PATTERNS.md",
-        "TASK-OUTPUT-SURFACE-CONTRACT.md",
+        "WORKSPACE.md",
+        "archive/AGENT-AND-TASK-SURFACE-PATTERNS.md",
+        "archive/TASK-OUTPUT-SURFACE-CONTRACT.md",
     ]:
         path = design_dir / doc
         if not path.exists():

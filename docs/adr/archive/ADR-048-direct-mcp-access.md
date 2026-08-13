@@ -220,4 +220,4 @@ This change follows established principles:
 - [ADR-039: Agentic Platform Operations](ADR-039-agentic-platform-operations.md)
 - [ADR-047: Platform Integration Validation](ADR-047-platform-integration-validation.md)
 - [Integration Changelog](../integrations/CHANGELOG.md)
-- [Platform Quirks Guide](../integrations/QUIRKS.md)
+- [Platform Quirks Guide](../../integrations/QUIRKS.md)

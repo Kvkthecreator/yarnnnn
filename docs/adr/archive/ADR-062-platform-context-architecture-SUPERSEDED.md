@@ -176,6 +176,6 @@ This is deferred pending the above architectural hardening.
 ## Related
 
 - [ADR-038](ADR-038-filesystem-as-context.md) — original filesystem-as-context decision
-- [ADR-059](ADR-059-simplified-context-model.md) — Memory table consolidation
+- [ADR-059](../ADR-059-simplified-context-model.md) — Memory table consolidation
 - [context-pipeline.md](../architecture/context-pipeline.md) — updated to reflect three-layer model
 - [ADR-049](ADR-049-context-freshness-model.md) — TTL and freshness policy for filesystem_items

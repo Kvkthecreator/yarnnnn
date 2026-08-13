@@ -217,5 +217,5 @@ These are deferred. Current implementation is sufficient for Phase 1.
 
 - [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md)
 - [ADR-063: Four-Layer Model](ADR-063-activity-log-four-layer-model.md)
-- [Four-Layer Model Architecture](../architecture/four-layer-model.md)
+- [Four-Layer Model Architecture](../../architecture/previous_versions/four-layer-model.md)
 - [Signal Taxonomy](../architecture/signal-taxonomy.md)

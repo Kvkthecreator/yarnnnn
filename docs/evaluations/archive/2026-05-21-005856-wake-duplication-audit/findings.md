@@ -185,7 +185,7 @@ Resolution addendum in this folder captures all three confirmations.
 - Prior session fix: commit `5364ca7` (walker async-context-leak + workspace_blobs join)
 - Cross-hat discipline: commit `3ba880b` (CLAUDE.md + hook amendment)
 - Parent canary observation: [`2026-05-20-234300-yarnnn-author-substrate-event-canary/`](../2026-05-20-234300-yarnnn-author-substrate-event-canary/findings.md)
-- ADR-296 v2: [`ADR-296`](../../adr/ADR-296-continuous-judgment-cycle.md)
+- ADR-296 v2: [`ADR-296`](../../../adr/ADR-296-continuous-judgment-cycle.md)
 - ADR-289 invocation-id taxonomy (the related telemetry layer): [`ADR-289`](../../adr/ADR-289-invocation-id-taxonomy.md)
 
 ## Resolution addendum (2026-05-21T01:22Z)

@@ -3,11 +3,11 @@
 **Status:** All phases implemented. Phase 1 (workspace conventions, lifecycle TTL, cleanup cron). Phase 2 (PM triage). Phase 3 (UX integration — project-level + TP-level file sharing).
 **Date:** 2026-03-20
 **Related:**
-- [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — governing workspace model
-- [ADR-119: Workspace Filesystem Architecture](ADR-119-workspace-filesystem-architecture.md) — folder conventions, lifecycle column
+- [ADR-106: Agent Workspace Architecture](../ADR-106-agent-workspace-architecture.md) — governing workspace model
+- [ADR-119: Workspace Filesystem Architecture](../ADR-119-workspace-filesystem-architecture.md) — folder conventions, lifecycle column
 - [ADR-124: Project Meeting Room](ADR-124-project-meeting-room.md) — user↔agent conversation surface
 - [ADR-123: Project Objective & Ownership](ADR-123-project-objective-ownership.md) — workspace sovereignty model
-- [Workspace Conventions](../architecture/workspace-conventions.md) — canonical path reference
+- [Workspace Conventions](../../architecture/WORKSPACE.md) — canonical path reference
 
 ---
 
@@ -195,9 +195,9 @@ This consolidation is out of scope for ADR-127.
 
 ## References
 
-- [Workspace Conventions](../architecture/workspace-conventions.md) — canonical path reference (updated alongside this ADR)
-- [ADR-106: Agent Workspace Architecture](ADR-106-agent-workspace-architecture.md) — workspace model
-- [ADR-119: Workspace Filesystem Architecture](ADR-119-workspace-filesystem-architecture.md) — folder conventions, lifecycle, versioning
+- [Workspace Conventions](../../architecture/WORKSPACE.md) — canonical path reference (updated alongside this ADR)
+- [ADR-106: Agent Workspace Architecture](../ADR-106-agent-workspace-architecture.md) — workspace model
+- [ADR-119: Workspace Filesystem Architecture](../ADR-119-workspace-filesystem-architecture.md) — folder conventions, lifecycle, versioning
 - [ADR-121: PM as Intelligence Director](ADR-121-pm-intelligence-director.md) — PM triage capabilities
 - [ADR-124: Project Meeting Room](ADR-124-project-meeting-room.md) — conversation surface where file sharing happens
-- [FOUNDATIONS.md](../architecture/FOUNDATIONS.md) — Axiom 3 (workspace sovereignty)
+- [FOUNDATIONS.md](../../architecture/FOUNDATIONS.md) — Axiom 3 (workspace sovereignty)

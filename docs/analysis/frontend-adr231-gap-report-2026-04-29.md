@@ -66,17 +66,17 @@ These are pure file moves with import-path updates. Zero behavior change. The vo
 
 ### Class D — Design canon refresh (docs/design/SURFACE-CONTRACTS.md)
 
-**D1. Files tab list-mode tree includes `tasks/{slug}/`** ([docs/design/SURFACE-CONTRACTS.md:75](docs/design/SURFACE-CONTRACTS.md#L75))
+**D1. Files tab list-mode tree includes `tasks/{slug}/`** ([docs/design/SURFACE-CONTRACTS.md:75](../design/WORKSPACE.md#L75))
 - Per ADR-231 D2, that directory dissolved.
 - Refresh: replace with `reports/{slug}/`, `context/{domain}/_recurring.yaml`, `operations/{slug}/_action.yaml`, `_shared/back-office.yaml` per shape.
 
-**D2. Work detail "Reads" lists `/workspace/tasks/{slug}/*`** ([docs/design/SURFACE-CONTRACTS.md:119](docs/design/SURFACE-CONTRACTS.md#L119))
+**D2. Work detail "Reads" lists `/workspace/tasks/{slug}/*`** ([docs/design/SURFACE-CONTRACTS.md:119](../design/WORKSPACE.md#L119))
 - Same root cause; reads are now natural-home per shape.
 
-**D3. Cookbook "Create Task" → `TaskSetupModal`** ([docs/design/SURFACE-CONTRACTS.md:227](docs/design/SURFACE-CONTRACTS.md#L227))
+**D3. Cookbook "Create Task" → `TaskSetupModal`** ([docs/design/SURFACE-CONTRACTS.md:227](../design/WORKSPACE.md#L227))
 - File rename pending (C2); behavior correct.
 
-**D4. Inline-to-task graduation refs `ManageTask(action='create')`** ([docs/design/SURFACE-CONTRACTS.md:190](docs/design/SURFACE-CONTRACTS.md#L190))
+**D4. Inline-to-task graduation refs `ManageTask(action='create')`** ([docs/design/SURFACE-CONTRACTS.md:190](../design/WORKSPACE.md#L190))
 - Refresh: `UpdateContext(target='recurrence', action='create')`.
 
 **D5. Snapshot overlay tabs reference paths** — currently `/workspace/context/_shared/MANDATE.md` etc. (correct post-ADR-206) — no fix.

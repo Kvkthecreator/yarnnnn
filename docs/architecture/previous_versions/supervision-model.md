@@ -1,16 +1,16 @@
 # Design Principle: The Supervision Model
 
 **Status:** Canonical — UI/UX and product framing only
-**Scope:** Covers how users interact with and supervise the system (UI/UX, product model). Does NOT cover backend execution paths — see [Agent Execution Model](agent-execution-model.md) for that.
+**Scope:** Covers how users interact with and supervise the system (UI/UX, product model). Does NOT cover backend execution paths — see [Agent Execution Model](../agent-execution-model.md) for that.
 **Date:** 2026-02-02
 **Related:**
-- [Agent Execution Model](agent-execution-model.md) — unified agent (chat + headless modes), orchestration boundary
-- [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — supersedes ADR-061
+- [Agent Execution Model](../agent-execution-model.md) — unified agent (chat + headless modes), orchestration boundary
+- [ADR-080: Unified Agent Modes](../../adr/ADR-080-unified-agent-modes.md) — supersedes ADR-061
 - [ADR-061: Two-Path Architecture](../../adr/archive/ADR-061-two-path-architecture.md) — historical (superseded by ADR-080)
 - [ADR-013: Conversation + Surfaces](../../adr/archive/ADR-013-conversation-plus-surfaces.md)
 - [ADR-018: Recurring Agents](../../adr/archive/ADR-018-recurring-agents.md)
 - [ADR-020: Agent-Centric Chat](../../adr/archive/ADR-020-agent-centric-chat.md)
-- [Strategic Direction](../strategy/YARNNN_STRATEGIC_DIRECTION.md)
+- [Strategic Direction](YARNNN_STRATEGIC_DIRECTION.md)
 
 ---
 
@@ -260,7 +260,7 @@ ADR-126 (Agent Pulse) makes agent awareness **visible to the user**. The supervi
 
 This deepens the supervision model: what the user supervises becomes a living workforce, not a list of scheduled tasks. TP's autonomous capabilities (Composer) thin to portfolio-level decisions because agents self-report their own state via pulse.
 
-See [Agent Developmental Model Considerations](../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis.
+See [Agent Developmental Model Considerations](../../analysis/agent-developmental-model-considerations.md) for the pre-decision analysis.
 
 ### Feedback vs Configuration (orthogonal axes)
 

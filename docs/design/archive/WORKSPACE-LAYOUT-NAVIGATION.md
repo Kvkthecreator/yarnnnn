@@ -6,11 +6,11 @@
 
 **References:**
 - [ADR-037: Chat-First Surface Architecture](../../adr/archive/ADR-037-chat-first-surface-architecture.md) — dashboard model being evolved
-- [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — chat vs headless modes
-- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — per-agent instructions + memory
-- [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — directives flow through chat
+- [ADR-080: Unified Agent Modes](../../adr/ADR-080-unified-agent-modes.md) — chat vs headless modes
+- [ADR-087: Agent Scoped Context](../../adr/ADR-087-workspace-scoping-architecture.md) — per-agent instructions + memory
+- [ADR-105: Instructions to Chat Surface](../../adr/ADR-105-instructions-chat-surface-migration.md) — directives flow through chat
 - [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration design principle
-- [Phase 3 Surface Layout (history)](archive/SURFACE-LAYOUT-PHASE3-HISTORY.md) — tabbed detail page, superseded
+- [Phase 3 Surface Layout (history)](SURFACE-LAYOUT-PHASE3-HISTORY.md) — tabbed detail page, superseded
 
 ---
 

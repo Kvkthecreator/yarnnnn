@@ -1,4 +1,4 @@
-> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../../architecture/workspace-init.md). CONVENTIONS.md is no longer kernel-seeded; it is program-scoped. Archived for historical context.
+> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../architecture/WORKSPACE.md). CONVENTIONS.md is no longer kernel-seeded; it is program-scoped. Archived for historical context.
 
 # Shared Context Workflow — ADR-144
 

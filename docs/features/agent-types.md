@@ -180,6 +180,6 @@ Reflections capture the agent's self-awareness after each run: mandate fitness, 
 | Platform tools | `api/services/platform_tools.py` |
 | Back office executors (TP task runtime) | `api/services/back_office/` (ADR-164) |
 | Agent execution (legacy helpers) | `api/services/agent_execution.py` |
-| Framework reference | [docs/architecture/agent-framework.md](../architecture/agent-framework.md) |
+| Framework reference | [docs/architecture/agent-framework.md](../architecture/orchestration.md) |
 | Targeting architecture | [ADR-104](../adr/ADR-104-agent-instructions-unified-targeting.md) |
 | Quality testing | `docs/development/agent-quality-testing.md` |

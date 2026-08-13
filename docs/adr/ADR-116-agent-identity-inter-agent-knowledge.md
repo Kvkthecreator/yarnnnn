@@ -5,9 +5,9 @@
 **Builds on:** ADR-106 (Workspace Architecture), ADR-107 (Knowledge Filesystem), ADR-109 (Agent Framework), ADR-111 (Composer), ADR-114 (Substrate-Aware Assessment)
 **Related:**
 - [FOUNDATIONS.md](../architecture/FOUNDATIONS.md) — Axiom 3 (Agents as Developing Entities), Axiom 2 (Recursive Perception)
-- [Agent Framework](../architecture/agent-framework.md) — Scope × Skill × Trigger taxonomy
-- [Workspace Conventions](../architecture/workspace-conventions.md) — path tree and access patterns
-- [VALUE-CHAIN.md](../architecture/VALUE-CHAIN.md) — Phase 7 (Compound)
+- [Agent Framework](../architecture/orchestration.md) — Scope × Skill × Trigger taxonomy
+- [Workspace Conventions](../architecture/WORKSPACE.md) — path tree and access patterns
+- [VALUE-CHAIN.md](../architecture/previous_versions/VALUE-CHAIN.md) — Phase 7 (Compound)
 
 ---
 

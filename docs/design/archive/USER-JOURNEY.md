@@ -1,4 +1,4 @@
-> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../../architecture/workspace-init.md) for the init + first-run flow. Archived for historical context.
+> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../architecture/WORKSPACE.md) for the init + first-run flow. Archived for historical context.
 
 # User Journey
 
@@ -15,7 +15,7 @@ Work exists first. Agents serve work, not the other way around.
 
 Users provide raw context once. The system reverse-engineers the work structure, populates the workspace, and starts producing — without the user configuring anything.
 
-**System events surface as chat cards, not toasts.** Every significant system action produces a pre-composed card in the TP chat stream — zero LLM cost. TP reads these as history context on the next real turn. See [ADR-179](../adr/ADR-179-system-event-cards.md).
+**System events surface as chat cards, not toasts.** Every significant system action produces a pre-composed card in the TP chat stream — zero LLM cost. TP reads these as history context on the next real turn. See [ADR-179](../../adr/ADR-179-system-event-cards.md).
 
 ---
 

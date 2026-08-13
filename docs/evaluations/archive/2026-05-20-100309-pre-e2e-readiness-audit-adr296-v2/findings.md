@@ -239,10 +239,10 @@ The five open questions originally listed here have been resolved by the operato
 - ADR-296 v2 commits: `314d378` (migration 177) · `28d48fe` (Checkpoint 1) · `37426c5` (Checkpoint 2) · `a51c812` (PLAYBOOK + E2E contract v5) · `bd09220` (canon rewrite)
 - T0 baselines: [kvk T0](../2026-05-20-040500-kvk-autonomy-demonstration-T0/PLAYBOOK.md) · [yarnnn-author T0](../2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/)
 - Probe-failure observation that contaminates kvk: [post-refusal-self-amendment-probe](../2026-05-20-022520-post-refusal-self-amendment-probe/)
-- E2E contract: [E2E-EXECUTION-CONTRACT.md](../../alpha/E2E-EXECUTION-CONTRACT.md) v5 (post-ADR-296 v2)
-- Session-start guides: [alpha-trader-autonomy-loop.md](../sessions/alpha-trader-autonomy-loop.md) · [alpha-author-autonomy-loop.md](../sessions/alpha-author-autonomy-loop.md)
+- E2E contract: [E2E-EXECUTION-CONTRACT.md](../../../alpha/E2E-EXECUTION-CONTRACT.md) v5 (post-ADR-296 v2)
+- Session-start guides: [alpha-trader-autonomy-loop.md](../../sessions/alpha-trader-autonomy-loop.md) · [alpha-author-autonomy-loop.md](../../sessions/alpha-author-autonomy-loop.md)
 - ADR-292 substrate-update infrastructure: [ADR-292](../../adr/ADR-292-continuous-substrate-re-apply.md) (operator-initiated versioned model)
-- ADR-209 attribution discipline: [ADR-209](../../adr/ADR-209-authored-substrate.md)
+- ADR-209 attribution discipline: [ADR-209](../../../adr/ADR-209-authored-substrate.md)
 
 ---
 

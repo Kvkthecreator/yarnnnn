@@ -8,7 +8,7 @@
 - [ADR-035: Platform-First Agent Type System](ADR-035-platform-first-agent-type-system.md)
 - [ADR-044: Agent Type Reconceptualization](ADR-044-agent-type-reconceptualization.md)
 - [ADR-045: Agent Orchestration Redesign](ADR-045-agent-orchestration-redesign.md)
-- [ADR-081: Execution Path Consolidation](ADR-081-execution-path-consolidation.md)
+- [ADR-081: Execution Path Consolidation](../ADR-081-execution-path-consolidation.md)
 
 ---
 

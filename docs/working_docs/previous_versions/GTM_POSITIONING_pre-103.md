@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-23
 
-**Reference:** See [ESSENCE.md](ESSENCE.md) for core thesis and architecture.
+**Reference:** See [ESSENCE.md](../../ESSENCE.md) for core thesis and architecture.
 
 ---
 

@@ -3,7 +3,7 @@
 > **Status**: Canonical (v2 — Era 3 rewrite)
 > **Date**: 2026-03-24
 > **Previous**: v1 (2026-03-16, platform-first model)
-> **Related**: [FOUNDATIONS.md](FOUNDATIONS.md) (Axioms 2, 4, 5, 6), [NARRATIVE.md](../NARRATIVE.md) (Beats 3-5), [ADR-132](../../adr/archive/ADR-132-work-first-onboarding.md), [ADR-122](../../adr/archive/ADR-122-project-type-registry.md), [ADR-133](../../adr/archive/ADR-133-pm-coordinated-phase-dispatch.md)
+> **Related**: [FOUNDATIONS.md](../FOUNDATIONS.md) (Axioms 2, 4, 5, 6), [NARRATIVE.md](../../NARRATIVE.md) (Beats 3-5), [ADR-132](../../adr/archive/ADR-132-work-first-onboarding.md), [ADR-122](../../adr/archive/ADR-122-project-type-registry.md), [ADR-133](../../adr/archive/ADR-133-pm-coordinated-phase-dispatch.md)
 > **Audience**: Engineering (canonical pipeline reference), IR/Strategy (value compounding narrative)
 
 ---

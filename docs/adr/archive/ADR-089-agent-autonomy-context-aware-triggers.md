@@ -10,12 +10,12 @@
 **Date:** 2026-03-03
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
-- [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md) — the `agent_memory` field this ADR writes to
+- [ADR-087: Agent Scoped Context](../ADR-087-workspace-scoping-architecture.md) — the `agent_memory` field this ADR writes to
 - [ADR-088: Trigger Dispatch](ADR-088-input-gateway-work-serialization.md) — `dispatch_trigger()`, the routing function this ADR's autonomous actions flow through
 - [ADR-068: Signal-Emergent Agents](ADR-068-signal-emergent-agents.md) — existing signal detection + agent creation
-- [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — headless execution mode used for autonomous actions
-- [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — Section 12.6 (Learning 6: Heartbeats), Section 13.6 (existing event-driven paths)
-- [Development Landscape](../analysis/workspace-architecture-landscape.md) — Step 3
+- [ADR-080: Unified Agent Modes](../ADR-080-unified-agent-modes.md) — headless execution mode used for autonomous actions
+- [Pre-ADR Analysis](../../analysis/workspace-architecture-analysis-2026-03-02.md) — Section 12.6 (Learning 6: Heartbeats), Section 13.6 (existing event-driven paths)
+- [Development Landscape](../../analysis/workspace-architecture-landscape.md) — Step 3
 
 ---
 
