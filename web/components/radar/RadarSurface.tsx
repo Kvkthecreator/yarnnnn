@@ -54,7 +54,7 @@ type LaneRow = LanesEnv['lanes'][number];
 
 const OPERATION_ROOT = '/workspace/operation';
 
-export function topicFromDeclarationPath(path: string): string | null {
+function topicFromDeclarationPath(path: string): string | null {
   // Any depth under operation/ (ADR-565 D3) — the topic IS the folder path.
   const m = /operation\/(.+)\/_radar\.yaml$/.exec(path || '');
   return m ? m[1] : null;
@@ -178,18 +178,27 @@ export default function RadarSurface() {
     }
   }, []);
 
-  // Mount: roster + consume the Files-association deep-link (`radar.file` is
-  // an open act — converted to `topic`, then cleared; ADR-494's ephemeral
-  // classification keeps it off bare launches).
+  // ONE arrival door (compositor.md): `radar.file` is inbound transport — the
+  // Files association delivering a declaration path. Drained keyed on the
+  // param VALUE, not at mount, because in desktop windowed mode an already-
+  // mounted Radar receives the param without remounting (a mount-only
+  // consumer strands it — the 3f44a8f defect shape). Converted to `topic`
+  // and cleared; ADR-494's ephemeral classification keeps it off bare
+  // launches.
+  const fileParam = param.get('file');
+  useEffect(() => {
+    if (!fileParam) return;
+    const fromFile = topicFromDeclarationPath(fileParam);
+    param.set(fromFile ? { topic: fromFile, file: null } : { file: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileParam]);
+
+  // Mount: the roster; a bare launch with no topic rests on the first
+  // watched folder (the deep-link drain above wins when present).
   useEffect(() => {
     void (async () => {
       const rows = await loadHubs();
-      const fromFile = topicFromDeclarationPath(param.get('file') || '');
-      if (fromFile) {
-        param.set({ topic: fromFile, file: null });
-        return;
-      }
-      if (!param.get('topic') && rows.length > 0) {
+      if (!param.get('topic') && !param.get('file') && rows.length > 0) {
         param.set({ topic: rows[0].topic });
       }
     })();

@@ -121,8 +121,9 @@ the model, not a caveat on it (ADR-507 D1):
 - **Make — the artifact.** Convergent work does have a stable visual state, so its medium is
   direct manipulation: documents, decks, published pages, composed visuals — shaped by hand and
   by a bound lane, every edit an attributed revision. Apps: `/studio`, `/images`.
-- **Perceive — the world arriving.** Standing attention on declared sources, distilled into
-  briefs the member reads. Apps: `/radar`.
+- **Perceive — the world arriving.** Standing attention on declared sources, maintained as a
+  living report the member reads and corrects (ADR-565; the dated-brief shelf is superseded).
+  Apps: `/radar`.
 
 *Words for exploring, hands for shaping, attention for what arrives.*
 

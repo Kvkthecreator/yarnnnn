@@ -87,7 +87,6 @@ RADAR_DECLARATION_LEAF = "_radar.yaml"
 SIGNAL_LEAF = "_watch_signal.yaml"
 CRITERION_LEAF = "CRITERION.md"
 REPORT_LEAF = "report.md"
-BRIEFS_DIR = "briefs"
 
 #: One bounded judgment turn. The ceiling is the JOB's: a living report is a
 #: bounded document (~150 lines contracted), not an unbounded delta — the

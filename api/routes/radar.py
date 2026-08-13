@@ -106,8 +106,9 @@ class HubSummary(BaseModel):
     report_path: Optional[str] = None
     report_title: Optional[str] = None
     # The pre-ADR-565 shelf — legacy reads only; new sweeps never add to it.
-    latest_brief_path: Optional[str] = None
-    latest_brief_title: Optional[str] = None
+    # (latest_brief_path/title were served-and-never-consumed after the desk
+    # re-cut; deleted 2026-08-13 — the count gates the shelf section, the
+    # composed view lists the entries.)
     brief_count: int = 0
 
 
@@ -132,7 +133,6 @@ class HubView(HubSummary):
     report: Optional[str] = None  # the living report head (ADR-565 D1)
     briefs: list[BriefEntry] = []
     recent_sweeps: list[SweepEvent] = []
-    signal_observed_at: Optional[str] = None
     # ADR-564 D5 — the denominators behind each source's fed/cited counts:
     # how many sweeps (signal revisions) and report derivations the trailing
     # window actually held, so the FE can say "fetched in 12 of 14 sweeps".
@@ -228,13 +228,11 @@ def _summarize(client, user_id: str, hub, index_row: Optional[dict],
 
     briefs = (
         client.table("workspace_files")
-        .select("path, content")
+        .select("path")
         .eq("user_id", user_id)
         .like("path", f"{hub.root}/briefs/%")
-        .order("path", desc=True)
         .execute()
     ).data or []
-    latest = briefs[0] if briefs else None
     report_head = _read_file(client, user_id, hub.report_path)
     return HubSummary(
         topic=hub.topic,
@@ -249,8 +247,6 @@ def _summarize(client, user_id: str, hub, index_row: Optional[dict],
         next_run_at=(index_row or {}).get("next_run_at"),
         report_path=hub.report_path if report_head else None,
         report_title=_title_of(report_head) if report_head else None,
-        latest_brief_path=latest.get("path") if latest else None,
-        latest_brief_title=_title_of(latest.get("content", "")) if latest else None,
         brief_count=len(briefs),
     )
 
@@ -567,22 +563,6 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
                             ("slug", "status", "created_at", "error_reason")})
               for e in events]
 
-    signal_observed = None
-    sig_rows = (
-        auth.client.table("workspace_files")
-        .select("content")
-        .eq("user_id", actor)
-        .eq("path", hub.signal_path)
-        .limit(1)
-        .execute()
-    ).data or []
-    if sig_rows:
-        try:
-            sig = _yaml.safe_load(sig_rows[0].get("content") or "") or {}
-            signal_observed = sig.get("observed_at")
-        except _yaml.YAMLError:
-            pass
-
     from services.radar import _read_file as _radar_read_file
     report_head = _radar_read_file(auth.client, actor, hub.report_path)
 
@@ -591,7 +571,7 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
         auth.client, actor, hub, summary.sources
     )
     view = HubView(**summary.model_dump(), report=report_head, briefs=briefs,
-                   recent_sweeps=sweeps, signal_observed_at=signal_observed,
+                   recent_sweeps=sweeps,
                    window_sweeps=window_sweeps, window_changes=window_changes)
     view.sources = enriched_sources
     return view

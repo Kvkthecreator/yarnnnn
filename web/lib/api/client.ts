@@ -400,8 +400,6 @@ export interface RadarHubSummary {
   report_path?: string | null;
   report_title?: string | null;
   // The pre-ADR-565 shelf — legacy reads only; new sweeps never add to it.
-  latest_brief_path?: string | null;
-  latest_brief_title?: string | null;
   brief_count: number;
 }
 
@@ -415,7 +413,6 @@ export interface RadarHubView extends RadarHubSummary {
     created_at?: string | null;
     error_reason?: string | null;
   }>;
-  signal_observed_at?: string | null;
   /** ADR-564 D5 — denominators behind each source's fed/cited counts. */
   window_sweeps?: number | null;
   window_changes?: number | null;
