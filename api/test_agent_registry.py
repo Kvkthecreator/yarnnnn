@@ -586,10 +586,17 @@ def run() -> bool:
     # The turn's responder comes from the CAST (ADR-495), with the lane's own
     # resident as the fallback — `agent=responder`. Pinning the pre-495 spelling
     # (`agent=lane_meta.get("agent")`) read a narrowing as a violation.
+    # ⚠️ RE-DERIVED 2026-08-13, for the reason the comment above already gives.
+    # This pinned `responder = cast_agents[0] if cast_agents else ...` — the
+    # INTERIM shape (join order, unconditionally), which ADR-495 D3 always
+    # described as pending addressing. When addressing landed, the pin read the
+    # promised fix as a violation. The standing law is that the turn is handed
+    # A responder resolved FROM THE CAST — not which expression resolves it.
     _check(
         "the turn passes a responder through (else the posture never composes)",
         "agent=responder," in routes
-        and 'responder = cast_agents[0] if cast_agents else lane_meta.get("agent")' in routes,
+        and "select_responder(" in routes
+        and 'lane_meta.get("agent")' in routes,
     )
     _check(
         "the model stays authoritative on the lane (a registry edit can't rewrite history)",

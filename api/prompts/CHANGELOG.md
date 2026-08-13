@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.13.3] - The frame names the room (ADR-495 D3 addressing)
+
+### Changed
+- `services/lane_runner.py`: new `_CAST_SECTION` + `_build_cast_section`,
+  composed into `_CONVENTIONS_FRAME` between format discipline and the
+  mandate. Lists the OTHER participants (never the speaker), species-blind,
+  in join order. `build_lane_conventions` and `run_lane_turn_stream` take
+  `cast` + `responder_reason`.
+- `services/addressing.py` (NEW): `@handle` parsing + `select_responder`.
+  Matches display name AND slug, case-insensitively.
+- `routes/lanes.py`: the responder comes from ADDRESSING, not `cast_agents[0]`.
+  Assistant rows now persist `agent_slug` + `responder_reason`.
+
+### Expected behavior
+- **The observed failure this fixes:** a cast of {member, Thinker, Lisa} where
+  the member typed "@lisa can you hear me" and THINKER replied "there's no
+  agent by that name active in this session or workspace that I can see."
+  That was TRUE from inside the prompt — the frame named exactly two entities,
+  itself and the member, so the Agent correctly reported its own context. It
+  was not a hallucination; the injection point did not exist.
+- An Agent now knows who else is in the conversation and is told explicitly
+  that it must not answer as them or invent what they said.
+- `@name` routes the turn to that cast member. An unrecognized handle is NEVER
+  fuzzy-matched — it falls through to the ladder, because a typo silently
+  addressing the wrong colleague is worse than not routing.
+- **A cast of one composes byte-identically to before** (asserted:
+  `solo == none`), so every solo conversation is unchanged.
+- Never-ambient holds: addressing selects WHICH Agent answers a human act; it
+  never causes a turn. Still exactly one reply per turn (ADR-495 D3).
+
+---
+
 ## [2026.08.13.2] - GenerateImage places by meaning, like every other write
 
 ### Changed

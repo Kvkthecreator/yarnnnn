@@ -694,6 +694,67 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
     }
 
 
+def _cast_roster(auth: UserClient, slugs: list[str]) -> dict[str, dict]:
+    """slug → character, for the Agents in this cast.
+
+    Addressing matches on the DISPLAY NAME as well as the slug, because the
+    member reads "Lisa" and never sees `lisa` — and for kernel rows the two
+    differ outright (`sonnet` is displayed "Thinker"). Best-effort: a roster
+    that fails to load degrades to slug-only matching, never a failed turn.
+    """
+    if not slugs:
+        return {}
+    try:
+        from services.agents_registry import find_member_agents, resolve_agent
+
+        member_agents = find_member_agents(auth.client, auth.user_id)
+        out: dict[str, dict] = {}
+        for s in slugs:
+            character = resolve_agent(s, member_agents)
+            if character:
+                out[s] = character
+        return out
+    except Exception:  # noqa: BLE001 — degrade to slugs, never fail the turn
+        logger.warning("[ADDRESSING] roster unavailable; matching on slug only")
+        return {}
+
+
+def _last_responder(auth: UserClient, lane_id: str, cast_agents: list[str]) -> Optional[str]:
+    """The Agent that answered most recently in this conversation, if it is
+    still in the cast.
+
+    Continuity: with several Agents present and no mention, the conversation
+    continues with whoever you were just talking to. Requiring a mention on
+    every turn would make addressing a per-turn picker — the thing ADR-492 D3
+    explicitly refuses.
+
+    Reads the `agent_slug` this route now writes onto assistant rows. Rows
+    written before that (every row predating this change) carry no slug and
+    simply yield None — the ladder then falls to join order, i.e. exactly
+    today's behavior. No backfill needed.
+    """
+    if len(cast_agents) < 2:
+        return None  # the sole-agent and no-agent rungs don't need this read
+    try:
+        res = (
+            auth.client
+            .table("session_messages")
+            .select("metadata")
+            .eq("session_id", lane_id)
+            .eq("role", "assistant")
+            .order("sequence_number", desc=True)
+            .limit(12)
+            .execute()
+        )
+        for row in res.data or []:
+            slug = ((row.get("metadata") or {}).get("agent_slug") or "").strip()
+            if slug and slug in cast_agents:
+                return slug
+    except Exception:  # noqa: BLE001 — continuity is a nicety, never a blocker
+        logger.warning("[ADDRESSING] last-responder read failed for %s", lane_id)
+    return None
+
+
 def _fetch_history(
     auth: UserClient, lane_id: str, *, before_sequence: Optional[int] = None,
     visible_from: int = 0,
@@ -962,10 +1023,27 @@ def _turn_stream_response(
         cast = []
     humans = sum(1 for c in cast if c.get("member_kind") == "human")
     cast_agents = agent_slugs(cast)
-    # The lane's creation-time Agent is the FALLBACK, not the authority: it
-    # covers pre-cast lanes (Studio/derive bind a model with no participant
-    # rows) and an unreadable cast. When the cast has Agents, the cast wins.
-    responder = cast_agents[0] if cast_agents else lane_meta.get("agent")
+    # ADR-492 D3 / ADR-495 D3, finally built: ADDRESSING selects who answers.
+    # This was `cast_agents[0]` — join order, unconditionally — so the
+    # first-invited Agent answered every turn forever and every other face in
+    # the cast was structurally unreachable. The observed failure: a member
+    # typed "@lisa can you hear me" and Thinker replied that no such agent
+    # exists (correctly, from inside its own prompt — see the cast frame in
+    # `lane_runner.build_lane_conventions`).
+    #
+    # The lane's creation-time Agent is still the FALLBACK for pre-cast lanes
+    # (Studio/derive bind a model with no participant rows) and an unreadable
+    # cast. When the cast has Agents, the cast wins. `_last_responder` keeps a
+    # conversation with the SAME Agent going without re-addressing every turn —
+    # the picker ADR-492 D3 refused.
+    from services.addressing import select_responder
+
+    responder, responder_reason = select_responder(
+        content,
+        cast,
+        roster=_cast_roster(auth, cast_agents),
+        fallback=_last_responder(auth, lane_id, cast_agents) or lane_meta.get("agent"),
+    )
     # Nobody replies when the conversation holds people and no Agent. A solo
     # cast keeps today's behavior (the engine IS that conversation). Add an
     # Agent and replies begin; remove it and they stop — stateless and
@@ -1101,6 +1179,16 @@ def _turn_stream_response(
             }
             if stopped:
                 extra["stopped"] = True
+            # WHO spoke, and WHY they were the one. Before this, `responder`
+            # was computed and thrown away: the row recorded only the ENGINE
+            # (`member:{id} via {model}`), so a transcript could never say
+            # which cast member answered — and with addressing live, two
+            # Agents' replies would render identically on reload. The reason
+            # rides along so "why did Lisa answer?" is a record lookup rather
+            # than a re-derivation from the text months later.
+            if responder:
+                extra["agent_slug"] = responder
+                extra["responder_reason"] = responder_reason
             write_narrative_entry(
                 auth.client, lane_id,
                 role="assistant",
@@ -1141,6 +1229,11 @@ def _turn_stream_response(
                 # Agent invited after creation actually answers; `lane_meta` is
                 # only the fallback for pre-cast (Studio/derive) lanes.
                 agent=responder,
+                # ADR-495 D3 — the room, so the frame can name who else is in
+                # it. Without this the Agent believes the conversation is a
+                # dyad and denies that a cast-mate exists.
+                cast=cast,
+                responder_reason=responder_reason,
                 # W0 / ADR-457 D8 — the falsifier join key: this turn's cost
                 # row carries the session it served, so the surface that asked
                 # (think / make / derive) is derivable at read time.

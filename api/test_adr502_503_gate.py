@@ -134,14 +134,42 @@ def test_user_row_attribution_is_written_once_for_every_cast_shape():
 def test_the_responder_comes_from_the_cast():
     """ADR-495 D3 promised N Agents with addressing; the reply path read
     `lane_meta["agent"]` — the creation-time scalar the cast retired. So an
-    Agent invited via the participants drill-in never replied."""
+    Agent invited via the participants drill-in never replied.
+
+    RE-DERIVED 2026-08-13. This gate pinned the literal expression
+    `cast_agents[0] if cast_agents else lane_meta.get("agent")`, which was the
+    INTERIM shape — join order, unconditionally — and its own docstring said so
+    ("ADR-495 D3 promised N Agents WITH ADDRESSING"). Freezing the placeholder
+    made the promised fix read as a violation. The standing laws are asserted
+    instead, by EXECUTION where possible: the cast names the responder, the
+    runner is given it, and `lane_meta` remains the pre-cast fallback only.
+    """
     src = _lanes_src()
     core = src.index("def _turn_stream_response")
     body = src[core : src.index("\n@router", core)]
-    assert "agent_slugs(cast)" in body, "the cast names the responder"
+    assert "select_responder(" in body, "addressing selects who answers"
     assert "agent=responder" in body, "the runner is given the cast's Agent"
-    # lane_meta stays as the documented FALLBACK for pre-cast lanes only.
-    assert 'cast_agents[0] if cast_agents else lane_meta.get("agent")' in body
+    assert 'lane_meta.get("agent")' in body, "pre-cast lanes keep their fallback"
+
+    # The law, executed rather than spelled: an addressed Agent answers, and a
+    # cast-mate is reachable — the two things `cast_agents[0]` made impossible.
+    from services.addressing import select_responder
+
+    cast = [
+        {"member_kind": "agent", "agent_slug": "sonnet"},
+        {"member_kind": "agent", "agent_slug": "lisa"},
+    ]
+    roster = {"sonnet": {"name": "Thinker"}, "lisa": {"name": "Lisa"}}
+    assert select_responder("@lisa hi", cast, roster=roster) == ("lisa", "addressed"), (
+        "the second Agent in a cast must be reachable — join order alone made "
+        "every face after the first structurally unreachable"
+    )
+    assert select_responder("hi", cast[:1], roster=roster)[0] == "sonnet", (
+        "a sole Agent still answers implicitly (ADR-492 D3's degenerate case)"
+    )
+    assert select_responder("hi", [], roster=roster, fallback="designer") == (
+        "designer", "lane_agent",
+    ), "a pre-cast lane still falls back to its creation-time scalar"
 
 
 def test_polling_follows_the_people_not_the_absence_of_an_agent():

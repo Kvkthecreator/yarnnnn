@@ -286,6 +286,36 @@ export function ChatSurface() {
       laneOthers(lane).join(', '),
     [laneOthers],
   );
+  // WHO IS WORKING — one speaker, never the room (ADR-495 D3: "addressing
+  // selects which ONE answers"; ADR-558 D3: "one authority for the responder").
+  //
+  // THE DEFECT THIS FIXES (operator-observed 2026-08-13): the indicator was
+  // passed `laneLabel` — the comma-joined ROOM name — so a cast of {you,
+  // Thinker, Lisa} rendered "Thinker, Lisa is working…" for a single reply.
+  // Two names, one spinner, one answer: it read as though both Agents were
+  // responding, which no ADR permits. `laneLabel` is right for the HEADER (the
+  // room IS named by who is in it) and wrong for the speaker — the same string
+  // answering two different questions.
+  //
+  // Undefined when the speaker is not knowable ahead of the turn (several
+  // Agents, none addressed yet); LanePanel then falls back to the engine label,
+  // which is honest rather than a guess at which face will answer.
+  const laneSpeaker = useCallback(
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
+      const agents = (lane.participants ?? []).filter((p) => p.member_kind === 'agent');
+      if (agents.length === 1) {
+        return (
+          data?.agents?.find((a) => a.slug === agents[0].agent_slug)?.name ||
+          agents[0].agent_slug ||
+          undefined
+        );
+      }
+      // Pre-cast (Studio/derive) lanes carry a resident; a multi-Agent cast has
+      // no single knowable speaker until the turn resolves.
+      return agents.length ? undefined : laneAgent(lane)?.name;
+    },
+    [data, laneAgent],
+  );
   // The row's picture, from the SAME source as its name (ADR-558). A single
   // joined colleague lends their avatar; anything else (a group, a person, an
   // engine-only chat) has no one face, and AgentFace falls back to an initial.
@@ -972,8 +1002,11 @@ export function ChatSurface() {
               modelLabel={laneEngineLabel(activeLane)}
               // ADR-562 D5 — WHO is working. The prop existed and was never
               // passed here, so the panel fell back to the engine label and a
-              // conversation with Lisa introduced itself as an engine.
-              speakerLabel={laneLabel(activeLane)}
+              // conversation with Lisa introduced itself as an engine. Passing
+              // `laneLabel` fixed that but overshot: it is the ROOM's name, so
+              // a 3-member cast read "Thinker, Lisa is working…" for one reply.
+              // One speaker, or none — never the roster (2026-08-13).
+              speakerLabel={laneSpeaker(activeLane)}
               // Freshness follows the PEOPLE, not the absence of an Agent
               // (audited 2026-07-30). This was `laneOtherHumans(...).length > 0`
               // back when that helper returned [] whenever an Agent was in the

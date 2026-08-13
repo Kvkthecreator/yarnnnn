@@ -458,7 +458,28 @@ export and drop the files into the commons, where you read them normally.
 
 ## Format discipline
 {format_discipline}
-{mandate_section}{posture_section}"""
+{cast_section}{mandate_section}{posture_section}"""
+
+
+#: ADR-495 D3 — WHO ELSE is in this conversation. Absent before 2026-08-13, and
+#: its absence was a live defect rather than a missing nicety: a member typed
+#: "@lisa can you hear me" and the Agent answered "there's no agent by that
+#: name active in this session or workspace that I can see" — TRUE from inside
+#: a frame that named exactly two entities, itself and the member. The room had
+#: three participants and the prompt could not say so.
+#:
+#: Empty for a cast of one (the overwhelmingly common case), so a solo
+#: conversation's frame is byte-identical to before.
+_CAST_SECTION = """
+## Who else is here
+This conversation has more than the two of you in it:
+{roster}
+One reply per turn, and this turn is yours — {addressing_note} You are not
+speaking for the others and must not answer as them or invent what they said.
+If the member wants one of them, they address them by name (`@name`) and that
+member answers the next turn; you may suggest it when their question is better
+aimed elsewhere.
+"""
 
 
 def _read_workspace_file(client: Any, user_id: str, path: str) -> str:
@@ -480,6 +501,65 @@ def _read_workspace_file(client: Any, user_id: str, path: str) -> str:
         return ""
 
 
+def _build_cast_section(
+    client: Any,
+    user_id: str,
+    cast: list[dict],
+    *,
+    responder: Optional[str] = None,
+    reason: Optional[str] = None,
+) -> str:
+    """The "who else is here" block, or "" for a cast of one.
+
+    SPECIES-BLIND (ADR-495 D3): humans and Agents are listed the same way, in
+    join order, because the roster answers "who is in this room" — a question
+    that does not care what kind of participant you are. The only asymmetry is
+    the one the substrate already carries: an Agent has a name, a human has a
+    label.
+
+    Best-effort throughout. A roster that cannot be read yields "", which is
+    exactly the pre-2026-08-13 frame — a conversation must never fail to run
+    because the cast was unreadable.
+    """
+    try:
+        others = [
+            p for p in cast
+            if not (p.get("member_kind") == "agent" and p.get("agent_slug") == responder)
+        ]
+        if not others:
+            return ""
+
+        member_agents = None
+        lines: list[str] = []
+        for p in others:
+            if p.get("member_kind") == "agent" and p.get("agent_slug"):
+                if member_agents is None:
+                    from services.agents_registry import find_member_agents
+                    member_agents = find_member_agents(client, user_id)
+                from services.agents_registry import resolve_agent
+                character = resolve_agent(p["agent_slug"], member_agents) or {}
+                name = character.get("name") or p["agent_slug"]
+                blurb = (character.get("blurb") or "").strip()
+                lines.append(f"- {name} — {blurb}" if blurb else f"- {name}")
+            elif p.get("principal_id"):
+                label = (p.get("display_name") or p.get("email") or "").strip()
+                lines.append(f"- {label} (a person)" if label else "- another person")
+        if not lines:
+            return ""
+
+        note = (
+            "the member addressed you."
+            if reason == "addressed"
+            else "you are answering because you spoke last here."
+            if reason == "last_responder"
+            else "no one was addressed by name, so it falls to you."
+        )
+        return _CAST_SECTION.format(roster="\n".join(lines), addressing_note=note)
+    except Exception as exc:  # noqa: BLE001 — never fail a turn over the roster
+        logger.warning("[LANE] cast section unavailable: %s", exc)
+        return ""
+
+
 def build_lane_conventions(
     client: Any,
     user_id: str,
@@ -492,6 +572,8 @@ def build_lane_conventions(
     agent: Optional[str] = None,
     focus: Optional[dict] = None,
     app: Optional[str] = None,
+    cast: Optional[list[dict]] = None,
+    responder_reason: Optional[str] = None,
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -665,10 +747,18 @@ def build_lane_conventions(
         if derive_section:
             posture_section += "\n" + derive_section + "\n"
 
+    # ADR-495 D3 — the room, named. Composed here (not in the posture) because
+    # it is a fact about the CONVERSATION, not about the character wearing the
+    # turn: the same roster is true whichever cast member is answering.
+    cast_section = _build_cast_section(
+        client, user_id, cast or [], responder=agent, reason=responder_reason,
+    )
+
     return _CONVENTIONS_FRAME.format(
         model_label=label,
         member=member,
         model=label,
+        cast_section=cast_section,
         commons_contract=PARTICIPANT_COMMONS_CONTRACT,
         attribution_rule=PARTICIPANT_ATTRIBUTION_RULE,
         citation_rule=PARTICIPANT_CITATION_RULE,
@@ -923,6 +1013,11 @@ async def run_lane_turn_stream(
     ledger_slug: str = "lane",
     # ADR-567 D4 — the lane's binding app; see ``run_lane_turn``.
     app: Optional[str] = None,
+    # ADR-495 D3 — the conversation's participants, so the frame can name the
+    # room. Without it the Agent believes it is alone with the member and will
+    # deny that a cast-mate exists (observed 2026-08-13).
+    cast: Optional[list[dict]] = None,
+    responder_reason: Optional[str] = None,
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -979,6 +1074,8 @@ async def run_lane_turn_stream(
         agent=agent,
         focus=focus,
         app=app,
+        cast=cast,
+        responder_reason=responder_reason,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.

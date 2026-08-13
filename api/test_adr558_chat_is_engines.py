@@ -281,9 +281,18 @@ check("...and the sub-label reads it rather than re-deriving",
       "laneEngineLabel(lane)" in chat_src
       and "a.engine || modelLabel(lane.model)" not in chat_src,
       "re-deriving the engine beside the resolver is how the two disagreed")
+# RE-DERIVED 2026-08-13. This pinned `speakerLabel={laneLabel(activeLane)}`.
+# The prop must be PASSED (the original claim, intact) — but `laneLabel` is the
+# ROOM's name, so a 3-member cast rendered "Thinker, Lisa is working…" for one
+# reply, implying both Agents were answering when ADR-495 D3 permits exactly
+# one. The standing law is that the panel is told who SPEAKS; the room's label
+# is a different question with a different answer.
 check("the panel is told WHO is speaking (ADR-562 D5's prop, finally passed)",
-      "speakerLabel={laneLabel(activeLane)}" in chat_src,
+      "speakerLabel={laneSpeaker(activeLane)}" in chat_src,
       "the prop existed and was never passed, so a chat with Lisa named an engine")
+check("...and the SPEAKER is never the room's roster",
+      "speakerLabel={laneLabel(activeLane)}" not in chat_src,
+      "one reply must never be attributed to two faces (ADR-495 D3 is singular)")
 check("...and the panel's engine label is the one that ANSWERS",
       "modelLabel={laneEngineLabel(activeLane)}" in chat_src,
       "the lane's birth engine is a ledger fact, not the present tense")
