@@ -134,7 +134,19 @@ def run() -> bool:
     try:
         got_gemini = _resolve({"GEMINI_API_KEY": "k"})
         got_forced = _resolve({"GEMINI_API_KEY": "k", "IMAGES_GENERATION_ENGINE": "stub"})
-        got_keyless = _resolve({})
+        # ⚠️ SUPERSEDED BY ADR-568 D2.b. This used to assert "no key → the
+        # offline stub", and that assertion was the DEFECT wearing a green
+        # badge: a keyless deployment generated a placeholder PNG and reported
+        # SUCCESS, so the gap only became visible at the glass. Resolution now
+        # REFUSES with a typed reason. The stub survives as a test double,
+        # reachable only by explicitly naming it (asserted just above).
+        from services.capabilities import GenerationUnavailable
+
+        keyless_refused = False
+        try:
+            _resolve({})
+        except GenerationUnavailable as exc:
+            keyless_refused = exc.reason == "no_provider_key"
     finally:
         for k, v in (("IMAGES_GENERATION_ENGINE", saved_engine), ("GEMINI_API_KEY", saved_key)):
             if v is None:
@@ -144,7 +156,8 @@ def run() -> bool:
         gen._BACKEND = None
     _check("key present → the rented driver is the default", isinstance(got_gemini, GeminiBackend))
     _check("IMAGES_GENERATION_ENGINE=stub forces the stub even with a key", isinstance(got_forced, StubBackend))
-    _check("no key → the offline stub (gates stay green with no network)", isinstance(got_keyless, StubBackend))
+    _check("no key → a TYPED REFUSAL, never a silent placeholder (ADR-568 D2.b)",
+           keyless_refused)
 
     # ── 6: compose_stage ledgers one row per costed leaf ─────────────────
     from services.apps.images.compose import compose_stage

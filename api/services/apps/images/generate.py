@@ -253,14 +253,20 @@ class GeminiBackend(GenerationBackend):
 
         self._api_key = api_key
         self.model = model or os.getenv("IMAGES_GENERATION_MODEL", "gemini-2.5-flash-image")
-        # ADR-396 discipline: the ledger records what the call is billed at.
-        # Image generation has no token count in our rate table, so the driver
-        # carries a per-image figure (list ≈ $0.04; the platform's standard 2×
-        # rate → $0.08 default), env-overridable when the vendor reprices.
+        # ADR-568 D2.a — the price comes from the PRICED TABLE, not from here.
+        # It used to be read from a per-image env var defaulting to 0.08: a
+        # figure nobody re-derives, sitting outside the one rule (ADR-559 D1.a)
+        # that keeps cost honest. (The old var name is deliberately not spelled
+        # here — the gate greps this file for it, and a comment must not be the
+        # thing that makes an assertion pass or fail.)
+        # `telemetry._IMAGE_RATES` is now the single home, same as `_BILLING_RATES`
+        # is for tokens. An unpriced model resolves to None and the ENGINE goes
+        # dark (`generation_availability` → "unpriced") rather than billing a guess.
+        from services.telemetry import image_generation_cost_usd
+
         self._cost_usd = (
-            cost_usd
-            if cost_usd is not None
-            else float(os.getenv("IMAGES_GENERATION_COST_USD", "0.08"))
+            cost_usd if cost_usd is not None
+            else image_generation_cost_usd(self.model)
         )
         self._timeout = timeout
 
@@ -339,17 +345,17 @@ _BACKEND: Optional[GenerationBackend] = None
 
 
 def _default_backend() -> GenerationBackend:
-    import os
+    """The kernel's chosen driver (ADR-568 D1 — `serve_generation` decides).
 
-    engine = (os.getenv("IMAGES_GENERATION_ENGINE") or "").strip().lower()
-    if engine == "stub":
-        return StubBackend()
-    key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    if key and engine in ("", "gemini"):
-        return GeminiBackend(api_key=key)
-    if engine and engine != "gemini":
-        logger.warning("[IMAGES] unknown IMAGES_GENERATION_ENGINE=%r — using stub", engine)
-    return StubBackend()
+    This function used to BE the resolver, and it resolved by degrading:
+    no key → stub, unknown engine → warn + stub. That is why a member with no
+    `GEMINI_API_KEY` got a placeholder PNG and a SUCCESSFUL call (D2.b). The
+    selection now lives at the kernel seam beside `serve_search`, where it can
+    refuse — and refusing is the behaviour change, not the move.
+    """
+    from services.capabilities import serve_generation
+
+    return serve_generation()
 
 
 def get_backend() -> GenerationBackend:

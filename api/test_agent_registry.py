@@ -384,16 +384,33 @@ def run() -> bool:
     # it: the day a primitive stops being a read it stops being serveable, in
     # the same edit, with nobody remembering to.
     _check(
-        "the surface is the eight (five verbs + QueryKnowledge + WebSearch "
-        "+ list_integrations)",
-        lane_tool_names()
-        == LANE_TOOL_NAMES + ("QueryKnowledge", "WebSearch", "list_integrations"),
+        "the surface is the five verbs plus the declared extras",
+        lane_tool_names() == LANE_TOOL_NAMES + LANE_SURFACE_EXTRA,
     )
+    # ⚠️ THE D4.a CEILING, RESTATED (ADR-568 D3) — assert the INVARIANT, not the
+    # spelling. It read `_t in READ_ONLY_PRIMITIVES` for every extra, which was
+    # right while every extra was a read. `GenerateImage` spends money and lands
+    # a revision, and adding it to READ_ONLY_PRIMITIVES to keep this assertion
+    # green would be defeating a gate in order to pass it — the exact
+    # "never pin a spelling; assert behaviour" failure this suite exists to catch.
+    #
+    # The real ceiling was always: nothing reaches the lane surface that the
+    # permission layer has not classified. A name that is in NEITHER set is
+    # unclassified, and that is the thing to refuse.
+    from services.lane_runner import LANE_ARTIFACT_VERBS
+
     for _t in LANE_SURFACE_EXTRA:
         _check(
-            f"surface extra {_t!r} is a non-consequential read (the D4.a ceiling)",
-            _t in READ_ONLY_PRIMITIVES,
+            f"surface extra {_t!r} is classified — a read OR an artifact verb",
+            _t in READ_ONLY_PRIMITIVES or _t in LANE_ARTIFACT_VERBS,
         )
+    # A consequential extra must NOT be smuggled into the read-only set.
+    for _t in LANE_SURFACE_EXTRA:
+        if _t in LANE_ARTIFACT_VERBS:
+            _check(
+                f"consequential extra {_t!r} still passes the ADR-307 gate",
+                _t not in READ_ONLY_PRIMITIVES,
+            )
 
     # ⚠️ THE INVARIANT WHOSE ABSENCE SHIPPED A BUG (2026-07-19), generalized.
     # Three things must name the SAME tool set: the DECLARED payload, the
@@ -402,8 +419,17 @@ def run() -> bool:
     # (kernel agents, postures, and an agentless lane alike), not just scout.
     _payload = {t["function"]["name"] for t in lane_tools_openai()}
     _check(
-        "the DECLARED payload == the EXECUTION allowlist (the eight, exactly)",
-        _payload == set(lane_tool_names()) and len(_payload) == 8,
+        # The count used to be pinned at 8 alongside the set comparison. The
+        # SET EQUALITY is the invariant (payload == allowlist, no drift); the
+        # count was a restatement of the surface's size at one moment, and it
+        # went red on the first ratified addition (ADR-568's `GenerateImage`)
+        # while the invariant it guarded was still perfectly held. Length is
+        # implied by set equality; asserting it twice only adds a way to be
+        # wrong. No duplicates is the part length was really buying — assert
+        # that directly.
+        "the DECLARED payload == the EXECUTION allowlist, with no duplicates",
+        _payload == set(lane_tool_names())
+        and len(lane_tool_names()) == len(_payload),
     )
     _check(
         "the prompt's ## Your tools names the SAME set for every character",

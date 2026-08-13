@@ -55,7 +55,14 @@ def test_read_verbs_produce_nothing_even_though_they_return_a_path():
 
 
 def test_artifact_verbs_are_a_strict_subset_of_the_lane_surface():
-    assert set(LANE_ARTIFACT_VERBS) < set(LANE_TOOL_NAMES)
+    # ADR-568 D3: the surface is the five file verbs PLUS the declared extras,
+    # and an artifact verb may now live in either half (`GenerateImage` is an
+    # extra). The invariant is "every artifact verb is on the surface" — it was
+    # written against LANE_TOOL_NAMES only because every artifact verb happened
+    # to be a file verb at the time.
+    from services.lane_runner import lane_tool_names
+
+    assert set(LANE_ARTIFACT_VERBS) < set(lane_tool_names())
 
 
 def test_a_tool_off_the_lane_surface_produces_nothing():

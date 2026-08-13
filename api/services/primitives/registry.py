@@ -26,6 +26,8 @@ from .edit import EDIT_ENTITY_TOOL, handle_edit_entity
 from .search import SEARCH_ENTITIES_TOOL, handle_search_entities
 from .list import LIST_ENTITIES_TOOL, handle_list_entities
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
+# ADR-568 D3: the second kernel-resolved capability (see capabilities.py).
+from .generate_image import GENERATE_IMAGE_TOOL, handle_generate_image
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
 # ADR-231 Phase 3.7: ManageTask DELETED. Lifecycle dissolves into
@@ -299,6 +301,8 @@ CHAT_PRIMITIVES = [
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
     LIST_INTEGRATIONS_TOOL,
+    # ADR-568 D3: rented image generation, vendor chosen by the kernel.
+    GENERATE_IMAGE_TOOL,
     # ADR-324: INFER_CONTEXT_TOOL DELETED. Identity/brand authoring is no longer
     # a primitive — the chat LLM authors IDENTITY.md/BRAND.md inline via WriteFile
     # (read existing → merge → write); the MCP path routes through the
@@ -546,6 +550,7 @@ HANDLERS: dict[str, Callable] = {
     # "Execute": DELETED (ADR-168 Commit 2 — finish ADR-146 Phase 3)
     # "RefreshPlatformContent": DELETED (ADR-153)
     "WebSearch": handle_web_search,
+    "GenerateImage": handle_generate_image,
     "GetSystemState": handle_get_system_state,
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,

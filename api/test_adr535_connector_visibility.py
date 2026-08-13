@@ -103,10 +103,17 @@ def run() -> bool:
         "list_integrations was ALREADY a non-consequential read (nothing widened)",
         "list_integrations" in READ_ONLY_PRIMITIVES,
     )
+    # ADR-568 D3 restates the ceiling: every extra is CLASSIFIED by the
+    # permission layer — a read, or an artifact verb that passes the gate.
+    # ADR-535's own claim (list_integrations widened nothing) is untouched
+    # above; this loop no longer asserts that EVERY extra must be a read,
+    # because `GenerateImage` is deliberately consequential.
+    from services.lane_runner import LANE_ARTIFACT_VERBS
+
     for _t in LANE_SURFACE_EXTRA:
         _check(
-            f"surface extra {_t!r} derives from permission.py's own set",
-            _t in READ_ONLY_PRIMITIVES,
+            f"surface extra {_t!r} derives from permission.py's own classification",
+            _t in READ_ONLY_PRIMITIVES or _t in LANE_ARTIFACT_VERBS,
         )
     # ⚠️ THE ONE THAT MATTERS. Seeing a connector must never become reading
     # through one. A `platform_*` name on this surface IS connector reach —

@@ -158,14 +158,23 @@ LANE_TOOL_NAMES = ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFile
 #: NOT reaching through one — no `platform_*` tool is on this surface, and the
 #: frame states that edge affirmatively (ADR-535 D3), because a model handed the
 #: inventory will otherwise infer the reach.
-LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations")
+#: ADR-568 D3 adds `GenerateImage` — the first CONSEQUENTIAL name on this
+#: list. The ADR-467 D4.a ceiling is RESTATED, not bent: every name here is in
+#: `READ_ONLY_PRIMITIVES` **or** in `LANE_ARTIFACT_VERBS`. Putting a spending,
+#: revision-landing verb into the read-only set to satisfy a subset check
+#: would be defeating a gate in order to pass it.
+LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations", "GenerateImage")
 
 #: The subset of the lane surface that PRODUCES substrate. A successful call
 #: to one of these lands an attributed revision, and the member should SEE what
 #: their lane made — not just the verb's name (2026-07-09, the artifact card).
 #: ReadFile/SearchFiles/ListFiles also return a `path`, which is why the gate
 #: is on the verb and not merely on the result's shape.
-LANE_ARTIFACT_VERBS = ("WriteFile", "EditFile")
+#: ADR-568 D3: `GenerateImage` belongs here for the reason the set exists —
+#: a successful call lands an attributed revision the member should SEE. It is
+#: also what keeps the restated D4.a ceiling honest: the verb is classified as
+#: consequential rather than smuggled into `READ_ONLY_PRIMITIVES`.
+LANE_ARTIFACT_VERBS = ("WriteFile", "EditFile", "GenerateImage")
 
 
 def artifact_path_from(name: str, result: Any) -> Optional[str]:
@@ -352,6 +361,7 @@ def lane_tools_openai() -> list[dict]:
     """
     # ADR-535 D2: the registry's own LIST_INTEGRATIONS_TOOL, composed — not a
     # parallel lane-local definition (Singular Implementation).
+    from services.primitives.generate_image import GENERATE_IMAGE_TOOL
     from services.primitives.registry import LIST_INTEGRATIONS_TOOL
     from services.primitives.web_search import WEB_SEARCH_PRIMITIVE
     from services.primitives.workspace import (
@@ -368,7 +378,7 @@ def lane_tools_openai() -> list[dict]:
         for t in (READ_FILE_TOOL, WRITE_FILE_TOOL, EDIT_FILE_TOOL,
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE,
-                  LIST_INTEGRATIONS_TOOL)
+                  LIST_INTEGRATIONS_TOOL, GENERATE_IMAGE_TOOL)
     }
     missing = [n for n in lane_tool_names() if n not in by_name]
     if missing:

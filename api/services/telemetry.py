@@ -106,6 +106,33 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     "grok-4.6":                   {"input_per_mtok": 4.00, "output_per_mtok": 12.00,
                                    "cache_read_mult": 0.25, "cache_create_mult": 0.0},
 }
+#: Per-IMAGE list price (ADR-568 D2.a). A rented generation call has no token
+#: count, so it prices per image rather than per MTok — a different unit, hence
+#: a different table, but the SAME rule as `_BILLING_RATES` above: STANDING list
+#: price, never promotional, and an unpriced model is a refusal rather than a
+#: guess.
+#:
+#: This replaces a hardcoded `0.08` default read from `IMAGES_GENERATION_COST_USD`
+#: inside the driver. That figure was the promo-rate hazard in miniature: an env
+#: var nobody re-reads, defaulting to a number nobody re-derives, sitting outside
+#: the one rule that exists to keep cost honest. One home for "what a call costs".
+_IMAGE_RATES: dict[str, float] = {
+    # Google list price for image output, verified 2026-08-13.
+    "gemini-2.5-flash-image": 0.04,
+}
+
+
+def image_generation_cost_usd(model: str) -> Optional[float]:
+    """Standing list price for one generated image, or None when unpriced.
+
+    None is a REFUSAL signal, not a default (the ADR-548 lesson: a plausible
+    fallback hides the bug it should surface). `generation_availability()`
+    reads this and darkens an unpriced engine with `unpriced`, exactly as
+    `unpriced_lane_model` does for a text lane.
+    """
+    return _IMAGE_RATES.get(model)
+
+
 # The fall-through rate for a model with no row. Points at the CURRENT Sonnet,
 # not the retired 4.6 — same figures ($3/$15), but a default anchored to a
 # retired engine would silently outlive the row it names.

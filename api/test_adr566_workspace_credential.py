@@ -337,11 +337,19 @@ check(
     LANE_TOOL_NAMES == ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles"),
     str(LANE_TOOL_NAMES),
 )
-check(
-    "LANE_SURFACE_EXTRA unchanged (ADR-535's three)",
-    LANE_SURFACE_EXTRA == ("QueryKnowledge", "WebSearch", "list_integrations"),
-    str(LANE_SURFACE_EXTRA),
-)
+# ⚠️ A tuple-pin on LANE_SURFACE_EXTRA stood here and was RETIRED by ADR-568.
+# It read `== ("QueryKnowledge", "WebSearch", "list_integrations")` — ADR-566
+# §7's POINT-IN-TIME claim that no new lane reach rode in with the credential
+# work. That was true when written and is not a standing law, so it went red on
+# the first ratified addition (`GenerateImage`, ADR-568 D3) — the recorded
+# pinned-spelling failure shape, where a gate reads a legitimate addition as a
+# violation. Re-spelling it with four names would only defer the same red.
+#
+# The STANDING laws it was standing in for are both asserted elsewhere and stay
+# green: the ADR-467 D4.a ceiling (every extra is read-only OR an artifact verb
+# — test_agent_registry.py + test_adr535_connector_visibility.py, restated by
+# ADR-568 D3), and the no-platform-reach invariant, which is the check directly
+# below and is the one ADR-566 actually cares about.
 check(
     "no platform_* tool reached the lane surface",
     not any(n.startswith("platform_") for n in LANE_TOOL_NAMES + LANE_SURFACE_EXTRA),
