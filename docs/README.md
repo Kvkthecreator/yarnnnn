@@ -104,12 +104,12 @@ See [adr/README.md](adr/README.md) for template.
 
 | Component | Status | Doc |
 |-----------|--------|-----|
-| **First principles** | **Current (v6.0 — six-dimensional model)** | [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) |
-| **Service model** | **Current (v1.5)** | [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) |
-| Glossary | Current (v1.3) | [architecture/GLOSSARY.md](architecture/GLOSSARY.md) |
+| **First principles** | **Current — six-dimensional model** | [architecture/FOUNDATIONS.md](architecture/FOUNDATIONS.md) |
+| **Service model** | **Current** | [architecture/SERVICE-MODEL.md](architecture/SERVICE-MODEL.md) |
+| Glossary | Current | [architecture/GLOSSARY.md](architecture/GLOSSARY.md) |
 | Design principles | Current | [architecture/YARNNN-DESIGN-PRINCIPLES.md](architecture/YARNNN-DESIGN-PRINCIPLES.md) |
-| Product narrative | Current (v12.2) | [ESSENCE.md](ESSENCE.md) |
-| External narrative | Current (v4) | [NARRATIVE.md](NARRATIVE.md) |
+| Product narrative | Current | [ESSENCE.md](ESSENCE.md) |
+| External narrative | Current | [NARRATIVE.md](NARRATIVE.md) |
 | Agent taxonomy | Current | [architecture/orchestration.md](architecture/orchestration.md) |
 | Execution model | Current (ADR-141) | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) |
 | Workspace | Current (consolidated 2026-05-12) | [architecture/WORKSPACE.md](architecture/WORKSPACE.md) |
