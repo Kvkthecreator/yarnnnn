@@ -1,7 +1,9 @@
 """Inference Evaluation Harness — ADR-162 Sub-phase C.
 
-Runs all fixtures in api/eval/inference_fixtures/ through infer_shared_context()
+Runs all fixtures in api/eval/inference_fixtures/ through author_identity_merge()
 and scores each output against the fixture's `expected` block.
+(ADR-324 renamed `infer_shared_context` -> `author_identity_merge` and forbids
+the old name; the call site below is correct, this docstring had lagged.)
 
 Usage (from api/ directory):
     python -m eval.run_inference_eval

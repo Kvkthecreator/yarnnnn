@@ -414,7 +414,7 @@ The recursive property: external data → agent output → next cycle's context 
 
 Inference is the upstream lever for everything downstream — bad inference at IDENTITY.md cascades into wrong domain entities, expensive bootstrap research, and mediocre outputs. ADR-162 makes inference **measurable**, **iterative**, **proactive on uploads**, and **traceable**:
 
-- **Measurable**: `api/eval/run_inference_eval.py` runs a fixture set (10 fixtures) through `infer_shared_context()` and scores entity recall, section completeness, anti-fabrication, length, and richness. Run before any prompt change to detect regressions. See [inference-evaluation.md](../dev/inference-evaluation.md).
+- **Measurable**: `api/eval/run_inference_eval.py` runs a fixture set through `author_identity_merge()` (renamed from `infer_shared_context` by ADR-324, which forbids the old name) and scores entity recall, section completeness, anti-fabrication, length, and richness. Run before any prompt change to detect regressions.
 
 - **Iterative**: After every successful inference, `detect_inference_gaps()` (pure-Python, zero LLM cost) examines the output for missing-but-load-bearing fields. The structured gap report is returned to YARNNN, which issues at most one targeted Clarify per inference cycle when the most important gap is high-severity. Deterministic by design — no shadow LLM judgment, preserves single-intelligence-layer (ADR-156).
 

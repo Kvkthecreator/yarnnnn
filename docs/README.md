@@ -60,12 +60,12 @@ docs/
 │
 ├── development/         # Developer guides
 │   ├── SETUP.md         # Local environment setup
-│   └── ...
+│   └── archive/         # Delivered handoffs + superseded phase plans
 │
 ├── testing/             # Testing documentation
 │   ├── README.md        # Testing philosophy and links
 │   ├── TESTING-ENVIRONMENT.md  # Environment setup and patterns
-│   └── ...
+│   └── archive/         # Completed one-time playbooks
 │
 ├── features/            # Feature specifications
 │   └── *.md             # Per-feature documentation
