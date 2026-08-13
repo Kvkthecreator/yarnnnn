@@ -429,7 +429,7 @@ export const api = {
         enabled: boolean;
         /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. */
         agents: Array<{ slug: string; name: string; blurb: string; icon: string }>;
-        /** ADR-564 — the app registry, served from the app's own declaration
+        /** ADR-562 — the app registry, served from the app's own declaration
          *  (`services/apps/*` → `register_app`). `name` is the app's label for
          *  its resident ("Writer" in Docs), empty when it did not rename one.
          *  Served rather than mirrored here: a TS copy is the second home
