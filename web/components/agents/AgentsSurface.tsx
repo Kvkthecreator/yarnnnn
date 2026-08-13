@@ -48,6 +48,7 @@ import { AgentCard } from '@/components/chat-surface/AgentCard';
 // reads (ADR-558 D1). Reusing it is why this door needs no engine question of
 // its own and invents no default (ADR-467 D2).
 import { readLastEngine } from '@/components/chat-surface/NewChatModal';
+import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { AgentFace } from './AgentFace';
@@ -73,6 +74,8 @@ interface AgentInfo {
 
 export function AgentsSurface() {
   const [agents, setAgents] = useState<AgentInfo[] | null>(null);
+  /** Engine label → model id, for the provider brand mark (ADR-558 D5). */
+  const [engines, setEngines] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [hiring, setHiring] = useState<{ slug?: string } | null>(null);
   // §6.10c — the chat door's in-flight + error state. The error is SHOWN
@@ -88,6 +91,17 @@ export function AgentsSurface() {
     try {
       const res = await api.lanes.list();
       setAgents((res.agents ?? []) as AgentInfo[]);
+      // ADR-558 D5 — the brand mark keys on a MODEL ID, and the agents payload
+      // deliberately serves only the engine's LABEL (`list_agents` withholds
+      // `model` so the chooser is never handed an engine question — ADR-460
+      // D4). The same response already carries the engine catalogue, so the
+      // label resolves to an id here rather than through a second fetch or a
+      // widened agent row.
+      setEngines(
+        Object.fromEntries(
+          (res.models ?? []).map((m: { id: string; label: string }) => [m.label, m.id]),
+        ),
+      );
     } catch {
       setAgents([]);
     } finally {
@@ -273,9 +287,15 @@ export function AgentsSurface() {
                   {active.kernel === false ? (base?.name ?? active.based_on) : active.name}
                   {base && active.kernel === false ? ` — ${base.blurb}` : ''}
                 </p>
-                {/* The technical fact — visible, never the headline. */}
+                {/* The technical fact — visible, never the headline. The
+                    provider's mark rides with it (ADR-558 D5). */}
                 {active.engine && (
-                  <p className="text-xs text-muted-foreground/70">Runs on {active.engine}</p>
+                  <p className="text-xs text-muted-foreground/70 flex items-center gap-1">
+                    <span className="shrink-0 [&>svg]:w-3 [&>svg]:h-3">
+                      {engineBrandIcon(engines[active.engine])}
+                    </span>
+                    Runs on {active.engine}
+                  </p>
                 )}
               </section>
 
@@ -372,7 +392,10 @@ export function AgentsSurface() {
                   <span className="block text-sm">{a.name}</span>
                   <span className="block text-xs text-muted-foreground">{a.blurb}</span>
                   {a.engine && (
-                    <span className="block text-[10px] text-muted-foreground/60">
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                      <span className="shrink-0 [&>svg]:w-2.5 [&>svg]:h-2.5">
+                        {engineBrandIcon(engines[a.engine])}
+                      </span>
                       {a.engine}
                     </span>
                   )}

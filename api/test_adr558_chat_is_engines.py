@@ -263,6 +263,48 @@ check("...and invents no engine when the member has none (ADR-467 D2)",
       "readLastEngine" in _as_code,
       "a default engine here would be the resident ADR-467 D2 refuses")
 
+
+# ---------------------------------------------------------------------------
+# D5 — ONE engine resolution, and the brand mark rides with it
+# ---------------------------------------------------------------------------
+# THE DEFECT (operator screenshot, 2026-08-13): the header read
+# `Lisa · Critic · GPT-5` while the empty state read `New chat · Gemini Flash`.
+# Both were honest about their own source — the header from the CAST agent's
+# registry row, the body from `lane_meta.model` — and BOTH WERE TRUE. Two
+# truths, one screen, and no way to tell which engine answers. The cause was a
+# DUPLICATE derivation, so the fix is a single resolver every reader uses.
+chat_src = (web / "components/chat-surface/ChatSurface.tsx").read_text()
+
+check("there is ONE engine resolver for display (laneEngineLabel)",
+      "const laneEngineLabel = useCallback" in chat_src)
+check("...and the sub-label reads it rather than re-deriving",
+      "laneEngineLabel(lane)" in chat_src
+      and "a.engine || modelLabel(lane.model)" not in chat_src,
+      "re-deriving the engine beside the resolver is how the two disagreed")
+check("the panel is told WHO is speaking (ADR-562 D5's prop, finally passed)",
+      "speakerLabel={laneLabel(activeLane)}" in chat_src,
+      "the prop existed and was never passed, so a chat with Lisa named an engine")
+check("...and the panel's engine label is the one that ANSWERS",
+      "modelLabel={laneEngineLabel(activeLane)}" in chat_src,
+      "the lane's birth engine is a ledger fact, not the present tense")
+
+# ADR-558 D5 — "an engine-first surface should say whose engine it is."
+check("the chat list rows carry the provider brand mark",
+      "engineBrandIcon(laneEngineModel(lane))" in chat_src)
+check("the header carries it too, keyed on the SAME resolution",
+      "engineModel={" in chat_src and "laneEngineModel(activeLane)" in chat_src)
+header_src = (web / "components/chat-surface/ConversationHeader.tsx").read_text()
+check("...and the header renders it from a model id, not a label",
+      "engineBrandIcon(engineModel)" in header_src)
+check("the agents surface carries the mark as well",
+      "engineBrandIcon(engines[" in agents_surface)
+
+# The NUL byte that made a 47KB chat component invisible to `grep`.
+lane_panel_bytes = (web / "components/chat-surface/LanePanel.tsx").read_bytes()
+check("LanePanel.tsx holds no NUL byte (it read as BINARY to grep)",
+      b"\x00" not in lane_panel_bytes,
+      "a literal \\0 join delimiter hid the whole file from shell tooling")
+
 print(f"\n{N - len(FAILS)}/{N} checks passed")
 if FAILS:
     print("\nFAILURES:")

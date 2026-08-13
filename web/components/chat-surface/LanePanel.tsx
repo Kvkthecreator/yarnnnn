@@ -293,7 +293,13 @@ export function LanePanel({
   const citedOnce = useRef<string | null>(null);
   useEffect(() => {
     if (!citePaths?.length) return;
-    const key = citePaths.join(' ');
+    // '\n', never '\0'. This joined on a literal NUL byte, which made `file`
+    // classify this 47KB component as BINARY — so plain `grep` silently SKIPPED
+    // the whole file. An audit for on-screen copy that lives right here (the
+    // empty state) returned nothing four times before the cause was found.
+    // Python gates use read_text() and were unaffected, so nothing was red;
+    // the cost was purely that the file was invisible to shell tooling.
+    const key = citePaths.join('\n');
     if (citedOnce.current === key) return;
     citedOnce.current = key;
     citePaths.forEach(attachWorkspaceFile);

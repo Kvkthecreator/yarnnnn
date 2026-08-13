@@ -44,6 +44,7 @@ import { useWorkspaceMembers } from '@/lib/workspace/viewer';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { api, type Participant } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
+import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useNarrowContainer } from '@/lib/shell/useNarrowContainer';
@@ -309,6 +310,53 @@ export function ChatSurface() {
       lane.participants?.length ?? laneOthers(lane).length + 1,
     [laneOthers],
   );
+  // THE ENGINE THAT WILL ACTUALLY ANSWER — the FE's mirror of the server's
+  // responder rule (`routes/lanes.py::lane_turn`), and the fix for a surface
+  // that told a member two different engines at once.
+  //
+  // THE DEFECT THIS REMOVES (observed 2026-08-13, operator screenshot): the
+  // header read `Lisa · Critic · GPT-5` while the empty state read
+  // `New chat · Gemini Flash`. Both were honest about their own source — the
+  // header from the CAST agent's registry row, the body from `lane_meta.model`
+  // — and both were true: Lisa runs on GPT-5, the lane was born on the
+  // member's sticky engine. Two truths, one screen, no way to tell which one
+  // answers.
+  //
+  // The server already decides this, and it decides for the RESPONDER: when
+  // the cast names a colleague other than the lane's own, the turn re-points
+  // the model to that colleague's. So the lane's birth engine is NOT what runs
+  // — it is a historical fact about an empty transcript, and showing it as the
+  // present tense is the lie. One source, mirrored once, read everywhere.
+  //
+  // ⚠️ This does NOT re-point `lane.model`. That field stays the ledger's
+  // record of what the lane was created on (ADR-460 spec §6: deriving it at
+  // turn time would let a registry edit retroactively relabel past turns).
+  // This resolves a DISPLAY question — who answers next — and nothing else.
+  const laneEngineLabel = useCallback(
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
+      const responder = (lane.participants ?? []).find((p) => p.member_kind === 'agent');
+      const a = responder
+        ? data?.agents?.find((x) => x.slug === responder.agent_slug)
+        : laneAgent(lane);
+      return a?.engine || modelLabel(lane.model);
+    },
+    [data, laneAgent, modelLabel],
+  );
+  // The engine's MODEL ID, for the brand mark (ADR-558 D5 — an engine-first
+  // surface says whose engine it is). Resolved from the LABEL above rather
+  // than from an agent field, and that is deliberate: `list_agents` serves
+  // `engine` (a label) and withholds `model` on purpose — the chooser must
+  // never be handed an engine id (ADR-460 D4). So the icon is derived from the
+  // same label the words use, which is what keeps them from ever disagreeing.
+  // A label with no matching row falls back to the lane's own model, so a
+  // brand mark is never invented for an engine we cannot name.
+  const laneEngineModel = useCallback(
+    (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
+      const label = laneEngineLabel(lane);
+      return data?.models.find((m) => m.label === label)?.id || lane.model;
+    },
+    [data, laneEngineLabel],
+  );
   // The second line: a group says its size; a 1:1 says what the counterpart is
   // (`role · engine` for an Agent — ADR-463 §3, the technical fact stays
   // visible but is never the headline).
@@ -341,12 +389,15 @@ export function ChatSurface() {
       // default state of every new chat, so it is the honest label, not a gap:
       // the member picked an engine and nobody has joined yet.
       const a = joined || laneAgent(lane);
-      if (!a) return modelLabel(lane.model);
-      return [a.kernel === false ? a.role : null, a.engine || modelLabel(lane.model)]
+      // The engine half comes from the ONE resolver (`laneEngineLabel`), never
+      // re-derived here — that duplicate derivation is what let the header and
+      // the empty state disagree in the first place.
+      if (!a) return laneEngineLabel(lane);
+      return [a.kernel === false ? a.role : null, laneEngineLabel(lane)]
         .filter(Boolean)
         .join(' · ');
     },
-    [data, laneAgent, laneMemberCount, modelLabel, userId],
+    [data, laneAgent, laneEngineLabel, laneMemberCount, userId],
   );
 
   // Flat recents — pinned first (Phase-A hygiene), then updated_at desc
@@ -808,6 +859,13 @@ export function ChatSurface() {
                 <span className="text-[11px] text-foreground/70 truncate">
                   {laneLabel(lane)}
                 </span>
+                {/* ADR-558 D5 — an engine-first surface says WHOSE engine it
+                    is. Keyed on the engine that will ANSWER (laneEngineModel),
+                    the same resolution the words use, so the mark and the label
+                    can never name different providers. */}
+                <span className="shrink-0 text-muted-foreground/70 [&>svg]:w-3 [&>svg]:h-3">
+                  {engineBrandIcon(laneEngineModel(lane))}
+                </span>
                 <span className="text-[10px] text-muted-foreground/70 truncate">
                   {laneSubLabel(lane)}
                 </span>
@@ -874,6 +932,13 @@ export function ChatSurface() {
               key={`header-${activeLane.id}`}
               title={laneLabel(activeLane)}
               subtitle={laneSubLabel(activeLane)}
+              // ADR-558 D5 — the mark, only where a single engine is the
+              // answer. A group's sub-label says its SIZE, so there is no one
+              // engine to attribute and a mark there would claim a fact the
+              // words do not make.
+              engineModel={
+                laneMemberCount(activeLane) <= 2 ? laneEngineModel(activeLane) : null
+              }
               faces={headerFaces}
               participantCount={laneMemberCount(activeLane)}
               // The faces link to a card only when a SINGLE Agent is the whole
@@ -900,7 +965,15 @@ export function ChatSurface() {
               key={activeLane.id}
               laneId={activeLane.id}
               laneName={activeLane.name}
-              modelLabel={modelLabel(activeLane.model)}
+              // The engine that will ANSWER, not the one the lane was born on
+              // (`laneEngineLabel`). The birth engine is a ledger fact about an
+              // empty transcript; showing it as the present tense is what made
+              // the header and the body name two different engines.
+              modelLabel={laneEngineLabel(activeLane)}
+              // ADR-562 D5 — WHO is working. The prop existed and was never
+              // passed here, so the panel fell back to the engine label and a
+              // conversation with Lisa introduced itself as an engine.
+              speakerLabel={laneLabel(activeLane)}
               // Freshness follows the PEOPLE, not the absence of an Agent
               // (audited 2026-07-30). This was `laneOtherHumans(...).length > 0`
               // back when that helper returned [] whenever an Agent was in the

@@ -46,6 +46,7 @@
 import { MoreHorizontal, UserPlus } from 'lucide-react';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { cn } from '@/lib/utils';
 
 export interface HeaderFace {
@@ -62,6 +63,11 @@ interface ConversationHeaderProps {
   /** The quiet second line: `N members` for a group, `Critic · GPT-5` or
    *  `Direct chat` for a 1:1. */
   subtitle?: string;
+  /** ADR-558 D5 — the engine's model id, for the provider's brand mark beside
+   *  the subtitle. The MODEL, not a label: the mark keys on the id (the
+   *  `brand-icons` contract). Omitted for a group or a person-only chat, where
+   *  there is no single engine to attribute. */
+  engineModel?: string | null;
   /** Up to three faces, stacked. Empty renders no avatar cluster. */
   faces: HeaderFace[];
   /** Total participants including the viewer, humans AND Agents. Rendered as
@@ -107,6 +113,7 @@ function FaceStack({ faces }: { faces: HeaderFace[] }) {
 export function ConversationHeader({
   title,
   subtitle,
+  engineModel,
   faces,
   participantCount,
   agentSlug,
@@ -119,8 +126,13 @@ export function ConversationHeader({
       <span className="min-w-0">
         <span className="block text-sm font-medium truncate">{title}</span>
         {subtitle && (
-          <span className="block text-[10px] text-muted-foreground truncate">
-            {subtitle}
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground min-w-0">
+            {engineModel && (
+              <span className="shrink-0 [&>svg]:w-2.5 [&>svg]:h-2.5">
+                {engineBrandIcon(engineModel)}
+              </span>
+            )}
+            <span className="truncate">{subtitle}</span>
           </span>
         )}
       </span>

@@ -897,9 +897,16 @@ def run() -> bool:
         "…using the SAME sub-label rule as the list row (one rule, both places)",
         "subtitle={laneSubLabel(activeLane)}" in chat and "{subtitle}" in _header,
     )
+    # ⚠️ THIS PINNED A SPELLING AND CAUGHT A CORRECT CHANGE (2026-08-13). It
+    # required the literal `modelLabel(activeLane.model)`, which the one-engine-
+    # resolver fix replaced with `laneEngineLabel(...)` — the same fact, read
+    # through the single resolver. The PROPERTY it defends is that an agent-less
+    # lane still shows its engine, and that lives in the resolver's fallback
+    # (`a?.engine || modelLabel(lane.model)`), not in any one call site's
+    # wording. Assert the fallback; the ADR-558 gate covers the call sites.
     _check(
         "…and the engine is still VISIBLE for agent-less lanes (never deleted)",
-        "modelLabel(activeLane.model)" in chat,
+        "a?.engine || modelLabel(lane.model)" in chat,
     )
 
     # §6.10b — the copy never asks the member to pick an engine.
