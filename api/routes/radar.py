@@ -344,12 +344,17 @@ async def update_hub(topic: str, request: UpdateHubRequest, auth: UserClient) ->
             raise HTTPException(status_code=422, detail=f"1..{_MAX_SOURCES} sources per hub")
         parsed["sources"] = [s.model_dump() for s in request.sources]
 
+    # fire_on_activation is consume-on-first-update: it is a CREATE-time fact
+    # (arm the first sweep), not a standing declaration fact. Re-emitting it
+    # here kept a never-run hub permanently armed — every pause/resume PATCH
+    # re-composed the flag, and compute_next_run_at (scheduling.py) returns
+    # `now` whenever the flag is set with last_run_at NULL, so each update
+    # re-triggered an immediate fire. Any update after creation drops it.
     new_content = compose_declaration_yaml(
         schedule=parsed.get("schedule"),
         paused=bool(parsed.get("paused", False)),
         prompt=parsed.get("prompt"),
         sources=[s for s in (parsed.get("sources") or []) if isinstance(s, dict)],
-        fire_on_activation=bool(parsed.get("fire_on_activation", False)),
     )
 
     from services.authored_substrate import write_revision

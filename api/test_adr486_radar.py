@@ -422,9 +422,19 @@ try:
     except HTTPException as e:
         check("bad topic → 422", e.status_code == 422)
 
+    check("create arms fire_on_activation in the declaration (a create-time fact)",
+          "fire_on_activation" in _route_client.files[
+              "/workspace/operation/competitor-x/_radar.yaml"])
+
     upd = asyncio.run(update_hub("competitor-x", UpdateHubRequest(paused=True), _route_auth))
     check("update_hub pause persists to the declaration",
           upd.paused is True and "paused: true" in _route_client.files[
+              "/workspace/operation/competitor-x/_radar.yaml"])
+    # Consume-on-first-update: the flag is never re-emitted. Re-emitting kept a
+    # never-run hub permanently armed — compute_next_run_at returns `now` while
+    # the flag is set with last_run_at NULL, so every pause/resume re-fired.
+    check("update_hub consumes fire_on_activation (never re-emitted)",
+          "fire_on_activation" not in _route_client.files[
               "/workspace/operation/competitor-x/_radar.yaml"])
 
     view = asyncio.run(get_hub("competitor-x", _route_auth))
