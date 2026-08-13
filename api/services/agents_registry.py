@@ -770,7 +770,7 @@ def build_agent_posture(
     # The member named them — the model should answer to that name, not to the
     # capability's.
     #
-    # ADR-564 — `as_name` is the APP's name for its resident (Docs calls Designer
+    # ADR-562 D6 — `as_name` is the APP's name for its resident (Docs calls Designer
     # "Writer"). It rides the SAME mechanism a member's nickname already used,
     # which is the point: naming is naming, whoever does it. Three namers now,
     # one line of prompt — the member (their own Agent), the app (its resident),

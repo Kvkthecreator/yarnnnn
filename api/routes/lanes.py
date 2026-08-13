@@ -309,7 +309,7 @@ def _get_lane(auth: UserClient, lane_id: str) -> dict:
 
 
 def _apps_payload() -> list[dict]:
-    """The app registry, FE-shaped (ADR-564).
+    """The app registry, FE-shaped (ADR-562 D6).
 
     `{slug, resident, name}` per registered app — `name` is the app's own label
     for its resident ("Writer" in Docs), empty when the app did not rename one.
@@ -362,7 +362,7 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # joined, never chosen at the door). Personas are configured in
         # `/agents`; this is the list of who is available to invite.
         "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
-        # ADR-564 — the app registry, served so the FE resolves an app's name for
+        # ADR-562 D6 — the app registry, served so the FE resolves an app's name for
         # its resident from the SAME declaration the prompt uses. Serving it
         # beats a parallel TS table: that is precisely the second home ADR-562
         # deleted, and it would drift the moment one side was edited.

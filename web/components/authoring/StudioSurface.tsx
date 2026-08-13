@@ -380,7 +380,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
   const [models, setModels] = useState<Array<{ id: string; label: string }>>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  /** ADR-564 — the served app registry (slug → its name for its resident). */
+  /** ADR-562 D6 — the served app registry (slug → its name for its resident). */
   const [apps, setApps] = useState<Array<{ slug: string; resident: string; name: string }>>([]);
   const [lanes, setLanes] = useState<LaneInfo[]>([]);
   const [laneError, setLaneError] = useState<string | null>(null);
@@ -756,7 +756,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const laneLabel = useMemo(() => {
     const slug = boundLane?.agent;
     if (slug) {
-      // ADR-564 — THIS app's name for its resident wins ("Writer" in Docs).
+      // ADR-562 D6 — THIS app's name for its resident wins ("Writer" in Docs).
       // Read from the served registry, never a TS table: the declaration the
       // prompt uses is the declaration the glass shows, so the two cannot
       // disagree about who the member is talking to.

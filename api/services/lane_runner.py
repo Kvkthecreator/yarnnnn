@@ -531,7 +531,7 @@ def build_lane_conventions(
     posture_section = ""
 
     # The bound artifact's CURRENT head, read ONCE for the whole frame (derived,
-    # never stored). Two consumers: ADR-564's app-name resolution (below) and
+    # never stored). Two consumers: ADR-562 D6's app-name resolution (below) and
     # ADR-440 D3's authoring posture (further down). It was read twice for one
     # commit — a second round-trip per turn for the same bytes.
     artifact = (
@@ -561,7 +561,7 @@ def build_lane_conventions(
             _skills = find_agent_skills(
                 client, user_id, _me["manifest_path"].rsplit("/", 1)[0]
             )
-        # ADR-564 — the APP's name for its resident (Docs calls Designer
+        # ADR-562 D6 — the APP's name for its resident (Docs calls Designer
         # "Writer"). DERIVED from the artifact's own `data-template`, never
         # stored on the lane: the app is a fact about the DOCUMENT, so deriving
         # it means a lane can never carry a stale label for an artifact that
@@ -581,7 +581,7 @@ def build_lane_conventions(
         posture_section += build_agent_posture(agent, _mine, _skills, as_name=_as_name)
     if artifact_path:
         from services.authoring import build_studio_posture
-        # `artifact` was read once at the top of the frame (shared with ADR-564's
+        # `artifact` was read once at the top of the frame (shared with ADR-562 D6's
         # app-name resolution) — still the CURRENT head, still derived-never-stored.
         # `+=`, NOT `=`. This was an assignment until 2026-07-16, which was
         # latent-only because no bound lane carried an agent — the moment
