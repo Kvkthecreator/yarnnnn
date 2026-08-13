@@ -30,6 +30,121 @@ from services.supabase import (
 logger = logging.getLogger(__name__)
 
 
+class ScopeDenied(Exception):
+    """A token reached a verb its scopes do not authorize (ADR-563 D2)."""
+
+    def __init__(self, verb: str, required: str, held: list[str]) -> None:
+        self.verb = verb
+        self.required = required
+        self.held = held
+        super().__init__(
+            f"'{verb}' requires the '{required}' scope; this connection holds "
+            f"{held or ['(none)']}. Re-authorize the connector to grant it."
+        )
+
+
+# ── Scopes (ADR-563) ────────────────────────────────────────────────────────
+#
+# The nine interop verbs are not equally consequential, and until ADR-563 the
+# surface said they were: `valid_scopes=["read"]` was the ONLY scope, so a token
+# LABELLED read could delete a file and mint a member-grant share link. The
+# label was decorative.
+#
+# The tiers are ADDITIVE and ordered — each contains the ones before it. This
+# is the whole reason the transition is non-breaking: `read` is retained as the
+# LEGACY FULL-ACCESS grant it has always effectively been, so every already-
+# connected assistant keeps working, while any token that carries a narrow
+# scope is enforced for real. A new client asking for `files:read` gets exactly
+# the four read verbs.
+SCOPE_READ = "files:read"
+SCOPE_WRITE = "files:write"
+SCOPE_SHARE = "files:share"
+
+# The legacy scope. Every token issued before ADR-563 carries exactly this
+# (schema default `ARRAY['read']`, and both the OAuth and static-bearer paths
+# hardcoded it). It authorizes everything — NOT because that is a good grant,
+# but because narrowing it retroactively would silently break live connectors
+# on a deploy nobody watched. New registrations should request the narrow set.
+SCOPE_LEGACY_FULL = "read"
+
+# verb → the narrow scope it requires. Derived from the SAME distinction the
+# tool annotations already declare (readOnlyHint / destructiveHint) — the gate
+# in `test_adr563_mcp_scope_enforcement.py` asserts the two agree, so a new
+# read-only verb cannot land here demanding write.
+VERB_SCOPES: dict[str, str] = {
+    # pure reads — enumeration and retrieval, write nothing
+    "open": SCOPE_READ,
+    "list": SCOPE_READ,
+    "search": SCOPE_READ,
+    "history": SCOPE_READ,
+    # substrate mutations — each lands an attributed revision
+    "save": SCOPE_WRITE,
+    "edit": SCOPE_WRITE,
+    "delete": SCOPE_WRITE,
+    "move": SCOPE_WRITE,
+    # widens who can reach the workspace at all: 'member' grants full access to
+    # whoever opens the link. Its own tier because granting reach is a
+    # different act from changing content — a token that may write need not be
+    # a token that may hand the workspace to a stranger.
+    "share": SCOPE_SHARE,
+}
+
+# Which held scopes satisfy a requirement. Ordered containment, plus the legacy
+# grant satisfying everything.
+_SATISFIES: dict[str, frozenset[str]] = {
+    SCOPE_READ: frozenset({SCOPE_READ, SCOPE_WRITE, SCOPE_SHARE, SCOPE_LEGACY_FULL}),
+    SCOPE_WRITE: frozenset({SCOPE_WRITE, SCOPE_SHARE, SCOPE_LEGACY_FULL}),
+    SCOPE_SHARE: frozenset({SCOPE_SHARE, SCOPE_LEGACY_FULL}),
+}
+
+# What a newly registering client may ask for. `read` stays valid so existing
+# clients can still refresh, but it is no longer the DEFAULT — a fresh
+# registration that names nothing gets the read-only tier, which is the safe
+# floor rather than the full grant.
+VALID_SCOPES = [SCOPE_READ, SCOPE_WRITE, SCOPE_SHARE, SCOPE_LEGACY_FULL]
+DEFAULT_SCOPES = [SCOPE_READ]
+
+
+def token_scopes() -> list[str]:
+    """The scopes on the CURRENT request's token, or [] when there is none."""
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+
+        token = get_access_token()
+        return list(getattr(token, "scopes", None) or [])
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP Auth] no request token scopes (%s)", exc)
+        return []
+
+
+def assert_scope(verb: str) -> None:
+    """Refuse `verb` unless the request's token authorizes it (ADR-563 D2).
+
+    Called from `resolve_request_client(verb=…)` — the single chokepoint every
+    tool handler already goes through — rather than from nine handlers, so a
+    new verb cannot ship unguarded by forgetting a line. A verb absent from
+    VERB_SCOPES is refused rather than allowed: an unclassified verb is a
+    mistake, and failing open is how the pre-563 surface got here.
+
+    The stdio / static-bearer path has no OAuth token and therefore no scopes;
+    it is one process pinned to one user by env, so it is not a multi-tenant
+    boundary and keeps full access.
+    """
+    required = VERB_SCOPES.get(verb)
+    if required is None:
+        raise ScopeDenied(verb, "a declared scope", [])
+
+    held = token_scopes()
+    if not held:
+        # No token on the request: stdio/static-bearer. Env-pinned, single user.
+        return
+
+    if any(s in _SATISFIES[required] for s in held):
+        return
+
+    raise ScopeDenied(verb, required, held)
+
+
 def _build_client(
     user_id: str,
     client_name: str | None = None,
@@ -68,7 +183,7 @@ def _build_client(
     )
 
 
-def resolve_request_client() -> AuthenticatedClient:
+def resolve_request_client(verb: str | None = None) -> AuthenticatedClient:
     """Resolve the authenticated client for the CURRENT request (ADR-310 D4).
 
     Reads the per-request OAuth token's user_id (the real authenticating
@@ -77,7 +192,16 @@ def resolve_request_client() -> AuthenticatedClient:
     single entry point every HTTP tool handler should call — it replaces
     reading the boot-time lifespan singleton, which pinned every request to
     one user regardless of who authenticated.
+
+    ADR-563: pass `verb` and the caller's scopes are checked BEFORE identity is
+    resolved and before any substrate is touched. The check lives here, at the
+    one door every handler already opens, rather than as nine remembered lines
+    — a guard a call site can forget is not a guard (the pre-563 surface had
+    the scope field and no check at all). Raises `ScopeDenied`.
     """
+    if verb is not None:
+        assert_scope(verb)
+
     user_id = None
     client_id = None
     try:

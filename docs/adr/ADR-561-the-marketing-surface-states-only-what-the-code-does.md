@@ -72,7 +72,7 @@ The message still changed — to name what was removed rather than assert totali
 
 ## 7. Owed
 
-1. **Per-verb MCP scope enforcement** (`mcp_server/server.py:470–478`). The highest-priority item this audit surfaced that copy cannot address.
+1. ~~**Per-verb MCP scope enforcement**~~ — **CLOSED by [ADR-563](ADR-563-the-mcp-scope-authorizes-it-does-not-decorate.md)** (2026-08-13). Three additive scopes (`files:read` ⊂ `files:write` ⊂ `files:share`), enforced at the `resolve_request_client()` chokepoint; the legacy `read` grant is retained so no live connector breaks.
 2. **The `workspace_blobs` blanket read policy** — `USING (true)` from migration 158, never dropped or replaced. Any authenticated user knowing a SHA-256 can read any blob row. Named on the data page as current work; owed as a migration.
 3. **Conversation export**, to make "it's all yours to export" unqualified.
 4. **A copy-vs-code gate.** This ADR's discipline is currently prose. The durable form is a test asserting that the provider list rendered on `/privacy-architecture` matches `LANE_MODELS` — the drift that started this audit would have been caught the day it appeared.

@@ -69,6 +69,34 @@ token's `user_id`; `MCP_USER_ID` survives only as the stdio/static-bearer
 fallback. `/authorize` requires a real yarnnn login binding the Supabase user
 to the auth code. Data isolation is the workspace grant, not the transport.
 
+## Authorization — per-verb scopes (ADR-563)
+
+Identity answers *who*; scopes answer *what they may do*. Three additive tiers,
+ordered by containment:
+
+| Scope | Reaches |
+|---|---|
+| `files:read` | `open` · `list` · `search` · `history` |
+| `files:write` | + `save` · `edit` · `delete` · `move` |
+| `files:share` | + `share` |
+| `read` *(legacy)* | everything — every pre-ADR-563 token carries this |
+
+`files:read` is the **default** for a new registration. `share` is its own tier
+because granting *reach* differs from changing *content*: a token that may write
+need not be one that may hand the workspace to a stranger via a member grant.
+
+The check is `auth.assert_scope(verb)`, reached from
+**`resolve_request_client(verb=…)`** — the same single door that resolves
+identity — so a new verb cannot ship unguarded by forgetting a line. It **fails
+closed**: an unclassified verb is refused, not allowed. `required_scopes` is
+empty at the transport on purpose; enforcing there would reject legacy tokens
+before the containment rule could honor them. The stdio/static-bearer path has
+no token, is env-pinned to one user, and keeps full access.
+
+Before ADR-563 `valid_scopes` was the single string `"read"` and nothing read
+it — a token labelled read could delete a file and mint a member-grant share
+link. Gate: `api/test_adr563_mcp_scope_enforcement.py`.
+
 ## Attribution + client identity
 
 Every write lands `authored_by="yarnnn:mcp:{client}"` (ADR-288) — the room is

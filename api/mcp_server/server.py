@@ -62,7 +62,12 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import AnyHttpUrl
 
-from mcp_server.auth import resolve_request_client, resolve_request_host_id
+from mcp_server import auth as mcp_auth
+from mcp_server.auth import (
+    ScopeDenied,
+    resolve_request_client,
+    resolve_request_host_id,
+)
 from mcp_server.oauth_provider import YarnnnOAuthProvider
 from mcp_server.presentation import affordances as presentation_affordances
 from mcp_server.presentation import hosts as presentation_hosts
@@ -469,13 +474,24 @@ mcp = HostGatedFastMCP(
     auth=AuthSettings(
         issuer_url=AnyHttpUrl(_server_url),
         resource_server_url=AnyHttpUrl(_server_url),
+        # ADR-563: the scope field is no longer decorative. `valid_scopes` was
+        # the single string "read" while the surface bound nine verbs including
+        # delete and share — a token LABELLED read could delete a file and mint
+        # a member grant. The tiers are additive (files:read ⊂ files:write ⊂
+        # files:share); enforcement is per-verb in `auth.assert_scope`, reached
+        # through the one chokepoint every handler already calls.
+        #
+        # `required_scopes` stays EMPTY on purpose: requiring a scope at the
+        # transport would reject every pre-563 token (all carry legacy "read")
+        # before a handler could apply the containment rule that keeps them
+        # working. The authorization decision belongs at the verb, not the door.
         client_registration_options=ClientRegistrationOptions(
             enabled=True,
-            valid_scopes=["read"],
-            default_scopes=["read"],
+            valid_scopes=mcp_auth.VALID_SCOPES,
+            default_scopes=mcp_auth.DEFAULT_SCOPES,
         ),
         revocation_options=RevocationOptions(enabled=True),
-        required_scopes=["read"],
+        required_scopes=[],
     ),
     # Render/Cloudflare reverse proxy changes Host; security handled by OAuth + edge
     transport_security=TransportSecuritySettings(
@@ -663,7 +679,7 @@ async def list_files(
         limit: Max files per page (default and cap 500).
         offset: Page start in path order (use next_offset from a truncated call).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="list")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -732,7 +748,7 @@ async def search(
         query: What to find (topic, entity, keywords). Required.
         limit: Max results (default 10, max 30).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="search")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -796,7 +812,7 @@ async def history(
             or a bare workspace-relative path. Required.
         limit: Max revisions (default 10, max 30).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="history")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -861,7 +877,7 @@ async def open_file(
             or a bare workspace-relative path. Required.
         revisions: How many recent revisions to summarize (default 5, max 10).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="open")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -955,7 +971,7 @@ async def save(
         confirm_full_replace: Required true to wholesale-overwrite a file
             larger than open's content cap (stated intent; prefer `edit`).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="save")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -1026,7 +1042,7 @@ async def edit(
         replace_all: Replace every occurrence (default false).
         message: Optional one-line description of the change.
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="edit")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -1084,7 +1100,7 @@ async def delete(
         reference: The file — same grammar as open. Required.
         message: Why this file is being removed (recorded on the tombstone).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="delete")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -1140,7 +1156,7 @@ async def move(
         new_reference: The destination path (must not already exist). Required.
         message: Why this file is moving (recorded on both revisions).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="move")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
@@ -1202,7 +1218,7 @@ async def share(
             /workspace/{path}, or a bare workspace-relative path.
         access: "member" (full access, default) | "viewer" (read-only).
     """
-    auth = resolve_request_client()
+    auth = resolve_request_client(verb="share")
     client_name = mcp_composition.derive_client_name_from_token(auth)
     if client_name == "unknown":
         client_name = mcp_composition.derive_client_name(
