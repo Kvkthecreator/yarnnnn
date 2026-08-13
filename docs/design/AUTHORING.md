@@ -531,6 +531,52 @@ editor). The standing drift test (ADR-440 §7, held by Docs and
 Studio alike): *does this force a definitional question about the app format, or is
 it just a better editor?*
 
+### No per-app skill files, and no retrieval tier (2026-08-13, operator-ratified)
+
+**An app's instructions to its colleague are GENERATED from the registries above and
+delivered always-on. There is no `AGENTS.md`, no `skills/*.md`, and no
+model-requested tier — deliberately, and this is the record of why.**
+
+The session that asked for one measured the ground first:
+
+- **The instructions already exist.** A bound lane's job overlay is ~13K chars, and
+  it already carries a `## Citing workspace objects (references, never copies)`
+  section teaching the source-first route verbatim — *"write the numbers as a `.csv`
+  in the workspace, then cite it from a chart block"*, with the reason (a projection
+  stays true when the data changes; an authored SVG chart goes stale). The proposal
+  was drafted on a claim that this was missing. **It was not missing; the search was
+  shaped wrong.** Read the composed posture before concluding an instruction is absent.
+- **There is no retrieval seam.** `ReadFile` reaches workspace substrate and the agent
+  workspace only. A kernel file under `services/apps/` is unreachable by the model, so
+  a skills tier is not a wiring job — it needs a NEW primitive that reads kernel code,
+  which is new reach on a surface ADR-467 D4 made uniform on purpose, and ADR-307
+  territory besides.
+- **Progressive disclosure has to earn its keep.** It pays when a body is large (the
+  market ceiling is ~500 lines per instruction file). The entire candidate procedure
+  was **one paragraph** — deferring it would cost a primitive, a permission story, an
+  index and extra tool rounds to save ~229 chars.
+
+**The generated/authored split that governs anything added later**: a fact that already
+lives in a registry row stays GENERATED (it can never drift, and `blocks_for_app()`
+feeds the toolbar and the prompt from one home — ADR-539's one-declared-home rule);
+only judgment that no data structure models is a candidate for AUTHORED prose. Grammar
+is generated. Doctrine would be authored — and we have none that earns bytes yet.
+
+**The philosophy (operator, standing):** *the minimum amount of skill-related
+information, and amend only when the bare minimum cannot do it.* A second home for
+instructions that already ship is the drift ADR-539 and ADR-562 spent a session
+deleting, and it costs the same whether it is a file or a table.
+
+**What would reopen it** (name it in the ADR that does): an app's authored instructions
+genuinely exceeding what belongs in every turn — the ~500-line threshold, measured, not
+predicted — or a doctrine an app needs that no registry can express. At that point the
+tier is warranted, and the shape is ONE domain skill with `references/` beneath it
+(`dataviz`, `xlsx` and the documented BigQuery pattern all bundle a domain; per-artifact
+skill files are an order of magnitude too fine and make descriptions compete for
+selection). **Never one skill per block kind** — the procedure attaches to the `cites`
+class (`source` for table+chart, `picture` for figure+gallery), which is a field the
+registry already groups by.
+
 ## The forward roster (re-based onto ADR-519's phases, 2026-08-05)
 
 > **Scope note (2026-08-06)**: this roster is **Studio's** — ADR-519's phases are the
