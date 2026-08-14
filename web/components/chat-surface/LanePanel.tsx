@@ -247,6 +247,12 @@ interface LanePanelProps extends LaneMountSlots {
    *  because ADR-495 D6 defers human mentions to notifications. Empty (the
    *  default) simply means no menu opens. */
   mentionCandidates?: MentionCandidate[];
+  /** Reports WHO an unaddressed message would go to (the ADR-492 D3 continuity
+   *  rung), so the mount can mark it on the roster. Null when the cast has
+   *  fewer than two Agents — then there is nothing it could have been instead.
+   *  Derived here because the transcript lives here; a second derivation in the
+   *  parent would be free to disagree with this one. */
+  onDefaultResponderChange?: (slug: string | null) => void;
   /** agent slug → the face that answers under it (ADR-495 D3).
    *
    *  A turn is authored BY A PRINCIPAL, and the transcript resolves any
@@ -283,6 +289,7 @@ export function LanePanel({
   principalLabels,
   agentFaces,
   mentionCandidates = [],
+  onDefaultResponderChange,
   onArtifactWrite,
   emptyState,
   suggestions,
@@ -550,15 +557,14 @@ export function LanePanel({
     }
     return null;
   }, [messages, mentionCandidates]);
-  // The member handed the floor back for the NEXT turn. Held in the client and
-  // cleared once used: an "open floor" that persisted would be a second piece
-  // of invisible state, which is the defect this whole affordance exists to
-  // remove.
-  const [floorReleased, setFloorReleased] = useState(false);
-  useEffect(() => setFloorReleased(false), [laneId]);
   const floorName = floorHolder
     ? agentFaces?.[floorHolder]?.name || floorHolder
     : null;
+  // Reported UP rather than re-derived by the parent: the transcript lives
+  // here, and two derivations of "who answers next" would be free to disagree.
+  useEffect(() => {
+    onDefaultResponderChange?.(floorHolder);
+  }, [floorHolder, onDefaultResponderChange]);
 
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const [mentionHighlight, setMentionHighlight] = useState(0);
@@ -782,14 +788,7 @@ export function LanePanel({
             // slot would make every mount re-plumb the same value. The ADR-441
             // D2 rule is about the mount's FRAME, and this isn't one.
             focus: focusRef.current ? focusToWire(focusRef.current) : undefined,
-            // Consumed by THIS turn and cleared below — the release is a
-            // one-shot, not a mode. A persistent "open floor" would be exactly
-            // the invisible state the chip exists to remove.
-            releaseFloor: floorReleased || undefined,
           });
-          // Consumed. The floor is whoever this turn's reply came from, which
-          // the chip re-derives from the transcript on the next render.
-          setFloorReleased(false);
         } else {
           await api.lanes.regenerateStream(laneId, handlers, {
             signal: controller.signal,
@@ -1219,49 +1218,6 @@ export function LanePanel({
             ))}
           </div>
         )}
-        {/* WHO ANSWERS NEXT — the floor, made visible. Only when it is
-            genuinely ambiguous (2+ Agents): a solo conversation has exactly one
-            possible answerer and a chip saying so would be noise. */}
-        {floorName && !editing && (
-          <div className="flex items-center gap-1.5 pb-1.5 text-[11px] text-muted-foreground">
-            {floorReleased ? (
-              // Says what WILL happen, not what we wish happened. Releasing
-              // drops the continuity rung only; an unaddressed turn then falls
-              // to the cast's first Agent. Promising "no one answers" would be
-              // a nicer sentence and a false one.
-              <span>
-                Floor released — <span className="font-medium text-foreground">@</span> someone,
-                or the next reply comes from{' '}
-                <span className="font-medium text-foreground">
-                  {mentionCandidates.find((c) => c.kind === 'agent')?.name ?? 'the first agent'}
-                </span>
-                .
-              </span>
-            ) : (
-              <>
-                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5">
-                  <AgentFace
-                    name={floorName}
-                    avatarUrl={agentFaces?.[floorHolder!]?.avatarUrl}
-                    size="sm"
-                  />
-                  <span className="font-medium text-foreground">{floorName}</span>
-                  <span>answers next</span>
-                  <button
-                    type="button"
-                    onClick={() => setFloorReleased(true)}
-                    className="ml-0.5 rounded p-0.5 hover:bg-muted hover:text-foreground"
-                    aria-label="Let someone else answer"
-                    title="Let someone else answer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-                <span>· @ someone to redirect</span>
-              </>
-            )}
-          </div>
-        )}
         {/* `relative` anchors the '@' menu, which mounts bottom-full — above
             the composer, the way the command picker does. */}
         <div className="relative flex items-end gap-2">
@@ -1387,7 +1343,22 @@ export function LanePanel({
                 addFiles(files);
               }
             }}
-            placeholder={editing ? 'Edit your message…' : `Message ${laneName}…`}
+            // WHO ANSWERS, said once, where a chat surface already says it.
+            //
+            // The first attempt at this was a persistent chip above the
+            // composer ("Thinker answers next ✕ · @ someone to redirect") — a
+            // standing instructional banner for a fact that is only ever
+            // interesting in passing. The rule should be QUIET: a conventional
+            // chat names the recipient in the placeholder and says nothing more.
+            // Two Agents make the room's name ambiguous, so name the one who
+            // will actually answer; below that, the room's name is right.
+            placeholder={
+              editing
+                ? 'Edit your message…'
+                : floorName
+                  ? `Message ${floorName}…`
+                  : `Message ${laneName}…`
+            }
             rows={1}
             style={{ maxHeight: COMPOSER_MAX_PX }}
             className="flex-1 resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[38px]"

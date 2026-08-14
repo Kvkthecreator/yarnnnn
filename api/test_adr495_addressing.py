@@ -303,7 +303,7 @@ def test_the_mention_menu_only_offers_what_the_router_honours():
     # ADR-495 D6 defers human mentions to notifications.
     assert "onItemsChange(selectable)" in menu
     assert "selectable: agentRows" in menu, "only Agents may be picked"
-    assert "doesn&apos;t notify them yet" in menu, "say why a person is inert"
+    assert "no alerts yet" in menu, "say why a person is inert, on the row"
     # A filter matching nobody must CLOSE the menu, or a typed email address
     # strands it over the composer (the StudioSlashPalette lesson).
     assert "onClose();" in menu and "filter.length > 0" in menu
@@ -318,39 +318,42 @@ def test_out_of_band_freshness_is_not_gated_on_species():
     assert "hasOtherHumans={" not in chat, "the gate must not name one species"
 
 
-def test_releasing_the_floor_drops_continuity_only():
-    """The floor is VISIBLE and RELEASABLE (2026-08-14).
+def test_the_default_recipient_is_stated_quietly_not_announced():
+    """WHO answers an unaddressed message must be VISIBLE, not INSTRUCTIONAL.
 
-    `last_responder` is a defensible rule and shipping it invisibly was not: the
-    member could not see who held the floor, could not hand it back, and the
-    rule lived only in a docstring. The chip surfaces it; this asserts the
-    release does exactly what the chip claims — drops the CONTINUITY rung, and
-    nothing else.
+    The first attempt surfaced the continuity rung as a standing chip above the
+    composer ("Thinker answers next ✕ · @ someone to redirect") with a
+    server-side `release_floor` to hand it back. The operator's read was right:
+    that is a permanent instructional banner plus a second gesture, for a fact
+    that is only interesting in passing. A conventional chat states the
+    recipient in the placeholder and marks the standing fact where the roster
+    lives — the redirect gesture is already `@`, and needs no partner.
+
+    Both homes are asserted so the fact cannot silently go missing again, and
+    the banner+release machinery is asserted GONE so it cannot creep back.
     """
-    cast = [
-        {"member_kind": "agent", "agent_slug": "sonnet"},
-        {"member_kind": "agent", "agent_slug": "lisa"},
-    ]
-    roster = {"sonnet": {"name": "Thinker"}, "lisa": {"name": "Lisa"}}
-    # Held: continuity applies.
-    assert select_responder("hi", cast, roster=roster, fallback="lisa") == (
-        "lisa", "last_responder",
+    panel = (WEB / "LanePanel.tsx").read_text()
+    detail = (WEB / "ConversationDetail.tsx").read_text()
+
+    # Quiet home 1 — the composer names who will actually answer.
+    assert "`Message ${floorName}…`" in panel
+    # Quiet home 2 — the roster marks the standing default.
+    assert "defaultResponder" in detail
+    assert "Replies when you don’t say who" in detail
+
+    # The loud version is gone, both halves.
+    # Asserted on RENDERED markup, not prose: both surviving mentions of the
+    # phrase are comments recording why the banner was removed, and a naive
+    # substring check reads its own explanation as a violation.
+    assert ">answers next<" not in panel and "answers next</span>" not in panel, (
+        "a standing instructional banner is not quiet"
     )
-    # Released (the route drops the last-responder fallback): join order.
-    assert select_responder("hi", cast, roster=roster, fallback=None) == (
-        "sonnet", "first_in_cast",
-    )
-    # A mention still outranks everything — releasing is not a veto.
-    assert select_responder("@lisa hi", cast, roster=roster, fallback=None) == (
-        "lisa", "addressed",
-    )
-    # ...and the route must actually branch on it, not just accept the field.
-    src = (pathlib.Path(__file__).parent / "routes/lanes.py").read_text()
-    body = src[src.index("def _turn_stream_response("):]
-    assert "if release_floor" in body, "the release must reach the fallback"
-    assert "release_floor: bool = False" in body, (
-        "passed EXPLICITLY — a helper cannot see the handler's `req` (d978ac6)"
-    )
+    assert "release_floor" not in (
+        pathlib.Path(__file__).parent / "routes/lanes.py"
+    ).read_text(), "the redirect gesture is `@`; a second one is a dead wire"
+
+    # ONE derivation, reported up — two would be free to disagree.
+    assert "onDefaultResponderChange" in panel
 
 
 def test_a_human_always_has_a_readable_label():

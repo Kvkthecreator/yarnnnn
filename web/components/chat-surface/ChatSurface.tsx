@@ -116,6 +116,10 @@ export function ChatSurface() {
   // Studio/derive) files under its engine label, which is honest: that IS
   // what those lanes are.
   const [whoFilter, setWhoFilter] = useState<string | null>(null);
+  // WHO answers an unaddressed message — reported UP by the panel (which holds
+  // the transcript) so the Details roster can mark it. One derivation, two
+  // readers; deriving it again here would be free to disagree with the panel.
+  const [defaultResponder, setDefaultResponder] = useState<string | null>(null);
   // Phase-A hygiene: search (name locally + transcript content server-side,
   // debounced) and inline rename state.
   const [query, setQuery] = useState('');
@@ -939,6 +943,7 @@ export function ChatSurface() {
             // Add is one gesture to the act, not one gesture to a roster the
             // member then has to find the invite inside of.
             startAdding={detailParam === 'add'}
+            defaultResponder={defaultResponder}
             onBack={() => setParam({ detail: null })}
             onCastChanged={(participants) =>
               updateLaneLocal(activeLane.id, { participants })
@@ -1044,6 +1049,7 @@ export function ChatSurface() {
               // mentions to notifications). The handle is what the SERVER
               // matches on — slug or display name, case-insensitive — so the
               // menu can only ever emit something the router honours.
+              onDefaultResponderChange={setDefaultResponder}
               mentionCandidates={(activeLane.participants ?? [])
                 .filter((p) => !(p.member_kind === 'human' && p.principal_id === userId))
                 .map((p) => {

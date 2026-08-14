@@ -119,9 +119,14 @@ export function MentionMenu({
     >
       {agents.length > 0 && (
         <>
-          <div className="px-2 pt-1.5 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-            Agents
-          </div>
+          {/* No "AGENTS" heading when they are the only rows — a section label
+              over an unsectioned list is chrome. It returns below only because
+              People follow and the two need telling apart. */}
+          {people.length > 0 && (
+            <div className="px-2 pt-1.5 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
+              Agents
+            </div>
+          )}
           {agents.map((c, i) => (
             <button
               key={`agent-${c.handle}`}
@@ -162,23 +167,21 @@ export function MentionMenu({
             <div
               key={`human-${c.handle}`}
               aria-disabled
+              // The reason rides on the ROW (title + a quiet trailing word)
+              // rather than a footnote under the list: a sentence of
+              // explanation below a picker is a paragraph the member has to
+              // read every time they reach for the gesture.
+              title="Mentioning a person doesn’t notify them yet"
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm opacity-45 cursor-default"
             >
               <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">no alerts yet</span>
             </div>
           ))}
-          <div className="px-2 pb-1.5 pt-0.5 text-[10px] text-muted-foreground/70">
-            Mentioning a person doesn&apos;t notify them yet.
-          </div>
         </>
       )}
 
-      {agents.length > 0 && (
-        <div className="border-t border-border/60 mt-1 px-2 py-1 text-[10px] text-muted-foreground/70">
-          ↑↓ Navigate · ↵ Select · Esc Close
-        </div>
-      )}
     </div>
   );
 }

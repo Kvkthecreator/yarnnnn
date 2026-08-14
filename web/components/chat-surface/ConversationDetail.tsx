@@ -57,6 +57,13 @@ interface ConversationDetailProps {
   initialParticipants?: Participant[];
   /** Open with the invite popover already showing (the header's Add door). */
   startAdding?: boolean;
+  /** The Agent an UNADDRESSED message goes to (ADR-492 D3's continuity rung —
+   *  whoever spoke last). Marked on the roster rather than announced in the
+   *  composer: it is a standing property of the conversation, and the place a
+   *  member looks to learn who is here is the place to say who replies.
+   *  Absent when the cast has fewer than two Agents — then it is not a fact
+   *  worth stating, because there is nothing it could have been instead. */
+  defaultResponder?: string | null;
   /** Close the drill-in (clears the `chat.detail` param). */
   onBack: () => void;
   /** The cast changed — the parent refreshes its list row + header. */
@@ -71,6 +78,7 @@ export function ConversationDetail({
   viewerId,
   initialParticipants,
   startAdding = false,
+  defaultResponder,
   onBack,
   onCastChanged,
 }: ConversationDetailProps) {
@@ -193,11 +201,23 @@ export function ConversationDetail({
     return personById.get(p.principal_id || '')?.label || 'member';
   };
 
-  /** The window, said plainly — the same sentence for every participant. */
-  const windowNote = (p: Participant) =>
-    p.visible_from_sequence > 0
+  /** The window, said plainly — the same sentence for every participant.
+   *
+   *  The default responder's row says THAT instead: with two Agents present,
+   *  "who answers when I don't say" is the fact a member came here to learn,
+   *  and it outranks a window note that is identical on every other row. */
+  const windowNote = (p: Participant) => {
+    if (
+      defaultResponder &&
+      p.member_kind === 'agent' &&
+      p.agent_slug === defaultResponder
+    ) {
+      return 'Replies when you don’t say who';
+    }
+    return p.visible_from_sequence > 0
       ? `Joined partway — reads from turn ${p.visible_from_sequence}`
       : 'Reads the whole conversation';
+  };
 
   const row = (p: Participant) => {
     const a = p.member_kind === 'agent' ? agentBySlug.get(p.agent_slug || '') : null;
