@@ -1,27 +1,33 @@
 'use client';
 
 /**
- * DeskActivityRail — the watched folder's ONE lifecycle rail (ADR-565 D1 +
- * ADR-567 D2.3).
+ * DeskActivityRail — a desk folder's ONE lifecycle rail (ADR-565 D1 +
+ * ADR-567 D2.3, housing-extracted for ADR-569 D6).
  *
  * ADR-565 D1: "the revision history is the delta rail; the diff is the delta."
- * This rail is that history, generalized to the folder the desk manages: one
+ * This rail is that history, generalized to the folder a desk manages: one
  * merged, attributed, newest-first list of
  *
- *   - every revision under the folder subtree (the report, CRITERION.md,
- *     _radar.yaml, and anything the member drops in — the folder is the
+ *   - every revision under the folder subtree (the maintained artifact, its
+ *     declaration files, and anything the member drops in — the folder is the
  *     subject's home, ADR-565 D3), via the pathPrefix aggregate the revisions
  *     route already serves;
- *   - the sweeps that produced NO revision (NO_CHANGE / failures) from the
- *     execution ledger — the folder's pulse stays honest between changes.
+ *   - the standing runs that produced NO revision (empty/failed/skipped) from
+ *     the execution ledger — the folder's pulse stays honest between changes.
  *
- * A successful sweep is deliberately NOT shown as an event row: its report
- * revision IS the row (one happening, one row). Machine noise is filtered
- * (_watch_signal.yaml, the legacy briefs shelf).
+ * A successful run is deliberately NOT shown as an event row: its revision IS
+ * the row (one happening, one row).
  *
  * A revision row expands to the diff against its PARENT — "what this change
- * did" — and report/criterion rows offer revert (a revert is a new revision,
- * conditional on the head the panel loaded; ADR-406 D2).
+ * did" — and rows the consuming desk declares revertable offer restore (a
+ * revert is a new revision, conditional on the head the panel loaded;
+ * ADR-406 D2).
+ *
+ * The rail is app-agnostic (ADR-518's housing move): each desk passes its own
+ * vocabulary — author labels for its standing writer, operator words for its
+ * folder's files, which paths are machine noise, which are revertable, and how
+ * a run event reads. The defaults are the shared attribution vocabulary and
+ * nothing revertable.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -40,7 +46,7 @@ interface RailRevision {
   path: string;
 }
 
-interface RailSweep {
+export interface RailEvent {
   slug: string;
   status: string;
   created_at?: string | null;
@@ -49,19 +55,9 @@ interface RailSweep {
 
 type RailRow =
   | { kind: 'revision'; at: string; rev: RailRevision }
-  | { kind: 'sweep'; at: string; sweep: RailSweep };
+  | { kind: 'event'; at: string; event: RailEvent };
 
-/** The desk fronts the colleague (ADR-567 D1): the sweep's mechanism
- *  attribution reads as Researcher; everything else keeps the shared
- *  attribution vocabulary. */
-function railAuthorLabel(authoredBy: string): string {
-  if (authoredBy === 'system:radar') return 'Researcher';
-  return formatAuthorLabelOrSystem(authoredBy);
-}
-
-function railAuthorChip(authoredBy: string): string {
-  if (authoredBy === 'system:radar')
-    return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
+function defaultAuthorChip(authoredBy: string): string {
   switch (authorClass(authoredBy)) {
     case 'you':
       return 'bg-blue-500/10 text-blue-700 border-blue-500/30';
@@ -78,41 +74,51 @@ function railAuthorChip(authoredBy: string): string {
   }
 }
 
-/** Operator words for the folder's own files; anything else shows its leaf. */
-function fileChipLabel(deskRoot: string, path: string): string {
-  const rel = path.startsWith(`${deskRoot}/`) ? path.slice(deskRoot.length + 1) : path;
-  if (rel === 'report.md') return 'Report';
-  if (rel === 'CRITERION.md') return 'Criterion';
-  if (rel === '_radar.yaml') return 'Setup';
-  return rel;
-}
-
-function sweepStatusLine(s: RailSweep): string {
-  if (s.status === 'skipped' && s.error_reason === 'no_change')
-    return 'Sweep ran — no change worth reporting';
-  if (s.status === 'skipped' && s.error_reason === 'router_disabled')
-    return 'Sweep skipped — the engine is unavailable';
-  if (s.status === 'skipped') return `Sweep skipped${s.error_reason ? ` — ${s.error_reason}` : ''}`;
-  return `Sweep failed${s.error_reason ? ` — ${s.error_reason}` : ''}`;
+function defaultEventLine(e: RailEvent): string {
+  if (e.status === 'skipped')
+    return `Run skipped${e.error_reason ? ` — ${e.error_reason}` : ''}`;
+  return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
 }
 
 export function DeskActivityRail({
   deskRoot,
-  sweeps,
+  events,
   refreshNonce,
   onReverted,
   className,
+  authorLabel,
+  authorChip,
+  fileLabel,
+  hideRevision,
+  canRevert,
+  eventLine,
 }: {
-  /** Absolute workspace path of the watched folder. */
+  /** Absolute workspace path of the desk's folder. */
   deskRoot: string;
-  /** The hub view's recent sweep events (success rows are folded into their
+  /** The desk's recent ledger events (success rows are folded into their
    *  revisions; only non-success rows render as events). */
-  sweeps: RailSweep[];
+  events: RailEvent[];
   /** Bump to refetch (a lane write landed, the member hit refresh). */
   refreshNonce: number;
   /** A revert landed — the parent should re-read the files it projects. */
   onReverted?: () => void;
   className?: string;
+  /** The desk's word for an author (its standing writer's mechanism actor →
+   *  the colleague's name). Return undefined to fall back to the shared
+   *  attribution vocabulary. */
+  authorLabel?: (authoredBy: string) => string | undefined;
+  /** Chip classes to pair with `authorLabel`; undefined → shared vocabulary. */
+  authorChip?: (authoredBy: string) => string | undefined;
+  /** Operator words for the folder's own files, keyed on the deskRoot-relative
+   *  path. Return undefined to show the leaf as-is. */
+  fileLabel?: (relPath: string) => string | undefined;
+  /** Machine noise the rail should not show (distilled signals, legacy
+   *  shelves). Default: nothing hidden. */
+  hideRevision?: (path: string) => boolean;
+  /** Which paths offer "restore this version". Default: none. */
+  canRevert?: (path: string) => boolean;
+  /** The desk's sentence for a non-success ledger event. */
+  eventLine?: (e: RailEvent) => string;
 }) {
   const [revisions, setRevisions] = useState<RailRevision[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -131,11 +137,7 @@ export function DeskActivityRail({
         if (!alive) return;
         const rows = (res.revisions || [])
           .filter((r): r is typeof r & { path: string } => typeof r.path === 'string')
-          .filter(
-            (r) =>
-              !r.path.endsWith('/_watch_signal.yaml') &&
-              !r.path.includes('/briefs/'),
-          )
+          .filter((r) => !(hideRevision?.(r.path) ?? false))
           .map((r) => ({
             id: r.id,
             authored_by: r.authored_by,
@@ -154,13 +156,14 @@ export function DeskActivityRail({
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskRoot, refreshNonce]);
 
   const rows: RailRow[] = [
     ...(revisions ?? []).map<RailRow>((rev) => ({ kind: 'revision', at: rev.created_at, rev })),
-    ...sweeps
-      .filter((s) => s.status !== 'success' && s.created_at)
-      .map<RailRow>((sweep) => ({ kind: 'sweep', at: sweep.created_at as string, sweep })),
+    ...events
+      .filter((e) => e.status !== 'success' && e.created_at)
+      .map<RailRow>((event) => ({ kind: 'event', at: event.created_at as string, event })),
   ]
     .sort((a, b) => (a.at < b.at ? 1 : -1))
     .slice(0, 20);
@@ -247,10 +250,10 @@ export function DeskActivityRail({
   return (
     <ul className={cn('divide-y rounded-md border', className)}>
       {rows.map((row) => {
-        if (row.kind === 'sweep') {
+        if (row.kind === 'event') {
           return (
             <li
-              key={`sweep-${row.at}-${row.sweep.slug}`}
+              key={`event-${row.at}-${row.event.slug}`}
               className="flex items-baseline gap-2 px-3 py-2 text-xs text-muted-foreground"
             >
               <span
@@ -259,13 +262,16 @@ export function DeskActivityRail({
               >
                 {formatRelativeTime(row.at, { rollToDate: true })}
               </span>
-              <span className="min-w-0">{sweepStatusLine(row.sweep)}</span>
+              <span className="min-w-0">{(eventLine ?? defaultEventLine)(row.event)}</span>
             </li>
           );
         }
         const { rev } = row;
-        const revertable =
-          rev.path.endsWith('/report.md') || rev.path.endsWith('/CRITERION.md');
+        const rel = rev.path.startsWith(`${deskRoot}/`)
+          ? rev.path.slice(deskRoot.length + 1)
+          : rev.path;
+        const chipLabel = fileLabel?.(rel) ?? rel;
+        const revertable = canRevert?.(rev.path) ?? false;
         const expanded = expandedId === rev.id;
         return (
           <li key={rev.id} className="px-3 py-2">
@@ -280,16 +286,16 @@ export function DeskActivityRail({
                 {formatRelativeTime(rev.created_at, { rollToDate: true })}
               </span>
               <span className="shrink-0 rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px]">
-                {fileChipLabel(deskRoot, rev.path)}
+                {chipLabel}
               </span>
               <span
                 className={cn(
                   'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium',
-                  railAuthorChip(rev.authored_by),
+                  authorChip?.(rev.authored_by) ?? defaultAuthorChip(rev.authored_by),
                 )}
                 title={rev.authored_by}
               >
-                {railAuthorLabel(rev.authored_by)}
+                {authorLabel?.(rev.authored_by) ?? formatAuthorLabelOrSystem(rev.authored_by)}
               </span>
               <span className="min-w-0 flex-1 truncate text-xs">{rev.message}</span>
               <span className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted-foreground/50">
