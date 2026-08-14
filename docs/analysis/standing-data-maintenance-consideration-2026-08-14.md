@@ -1,5 +1,13 @@
 # Standing data maintenance — a consideration, not a decision (2026-08-14)
 
+> **Correction (same day, operator)**: this record's §2–§3 framing narrowed the
+> concept to tables/CSV — the KPI table was an *example*, not the category. The
+> general concept is the **maintained file**: any file the member designates as
+> kept current under declared rules, any format; designation (not file-type) is
+> the boundary. Carried into the [ADR-569 draft](../adr/ADR-569-the-maintained-file-standing-currency-under-contract.md),
+> which supersedes this record's table-specific wording. The axiom cut (§7) and
+> the gesture/management split survive unchanged.
+
 > **Status: deliberation record.** Nothing here is ratified. This captures the
 > conceptual boundary that fell out of the 2026-08-14 desk-e2e discourse, so a
 > future ADR starts from the decomposition instead of re-deriving it. The
