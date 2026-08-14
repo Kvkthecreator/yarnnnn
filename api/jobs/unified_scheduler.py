@@ -405,6 +405,26 @@ async def run_unified_scheduler():
             logger.warning("[SCHED] radar lane raised: %s", exc)
 
         # ---------------------------------------------------------------------
+        # ADR-569: the strings lane — maintained files under contract
+        # ({folder}/_string.yaml → the designated leaf, kept current by
+        # Keeper). Sibling to the radar lane, same posture: NOT behind
+        # CONNECTOR_CAPTURE_ENABLED (v1 sources are HTTP pull; the connector
+        # world waits for the ADR-404 re-light), inside AGENT_ENABLED because
+        # a prose string's derive is metered judgment spend. Zero strings
+        # declared → one LIKE scan → no-op.
+        # ---------------------------------------------------------------------
+        try:
+            from services.strings import drain_due_string_runs
+            s_found, s_succeeded, s_failed = await drain_due_string_runs(supabase)
+            if s_found > 0:
+                logger.info(
+                    f"[SCHED] strings: {s_succeeded}/{s_found} run(s) succeeded, "
+                    f"{s_failed} failed"
+                )
+        except Exception as exc:
+            logger.warning("[SCHED] strings lane raised: %s", exc)
+
+        # ---------------------------------------------------------------------
         # ADR-296 v2 D1 + D2: substrate-event wake source walker.
         # For each active user, walk /workspace/_hooks.yaml against recent
         # workspace_file_versions revisions. Hook matches submit wake proposals

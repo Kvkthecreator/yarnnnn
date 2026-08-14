@@ -577,6 +577,33 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
     return view
 
 
+@router.post("/radar/hubs/{topic:path}/run")
+async def run_hub_now(topic: str, auth: UserClient) -> dict:
+    """Sweep now — the manual fire (the ADR-569 D7 direct-switch slot, owed
+    to radar since the desk rebuild). Runs one sweep inline and records,
+    exactly one scheduled sweep's body; the ledger meters it identically."""
+    from datetime import datetime, timezone as _tz
+    from services.radar import parse_radar_yaml, record_radar_run, run_radar_sweep
+
+    actor = _acting_owner(auth)
+    topic = _validate_topic(topic)
+    content = _read_declaration(auth.client, actor, topic)
+    if content is None:
+        raise HTTPException(status_code=404, detail=f"no hub '{topic}'")
+    hub = parse_radar_yaml(content, topic=topic, declaration_path=_hub_path(topic),
+                           user_id=actor)
+    if hub is None:
+        raise HTTPException(status_code=422, detail="declaration unparseable — repair it first")
+
+    result = await run_radar_sweep(auth.client, actor, hub)
+    try:
+        record_radar_run(auth.client, actor, hub,
+                         last_run_at=datetime.now(_tz.utc))
+    except Exception as e:
+        logger.warning("[RADAR] manual-run record failed for %s: %s", topic, e)
+    return result
+
+
 def _strip_frontmatter(content: str) -> str:
     m = re.match(r"^---\s*\n.*?\n---\s*\n", content, re.DOTALL)
     return content[m.end():] if m else content
