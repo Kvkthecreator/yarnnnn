@@ -22,6 +22,7 @@ The claims, at the altitudes they can actually fail:
 """
 
 import ast
+import re
 import sys
 from pathlib import Path
 
@@ -198,6 +199,52 @@ check(
     "4c the viewer contract is view-only again (no edit mode on a renderer)",
     "mode?: 'view' | 'edit'" not in _apps,
 )
+
+
+# ── 5. the app has DOCS' SHAPE, not a sketch of it ───────────────────────
+# The first cut shipped a bare heading + a text list and read as unfinished
+# beside Docs. These assert the affordances that make a document app a peer
+# of Docs rather than a placeholder — the ones a member would go looking for.
+_TEXT = WEB / "components" / "text"
+
+
+def _strip_comments(src: str) -> str:
+    """Code only. An assertion that reads comments can match its own
+    explanatory prose — the trap this repo keeps re-learning, and which
+    check 5k hit while being written (the header says "does NOT ride
+    DeskHousing" and a whole-file grep read that as the violation)."""
+    src = re.sub(r"/\*[\s\S]*?\*/", "", src)
+    return re.sub(r"^\s*//.*$", "", src, flags=re.MULTILINE)
+
+
+_landing = _strip_comments((_TEXT / "TextSurface.tsx").read_text())
+_editor = _strip_comments((_TEXT / "TextEditor.tsx").read_text())
+
+check("5a the landing offers Open (the File-menu pair, not New alone)",
+      "OpenArtifactModal" in _landing and ">\n              Open\n" in _landing)
+check("5b recents are a THUMBNAIL GRID, not a text list",
+      "grid-cols-2" in _landing and "ProseThumb" in _landing)
+check("5c each card carries the ⋯ / right-click organize menu",
+      "useFileContextMenu" in _landing and "onContextMenu" in _landing)
+check("5d creation is a NAMING DIALOG, never window.prompt",
+      "NameDocumentModal" in _landing and "window.prompt" not in _landing)
+check("5e the open state has a crumb that renames the document",
+      "onRename" in _editor and "click to rename" in _editor)
+check("5f the boundary acts are present (Share opens the ONE shared dialog)",
+      "ShareDialog" in _editor and "TextExport" in _editor)
+check("5g the rail is Properties | Chat, the Docs grammar",
+      "'properties', 'Properties'" in _editor and "'chat', 'Chat'" in _editor)
+check("5h the lane stays MOUNTED across a tab switch (a streaming turn survives)",
+      "rightTab === 'chat' ? 'flex' : 'hidden'" in _editor)
+check("5i the rail is reachable at narrow rungs (never an inescapable state)",
+      "sideIsOverlay" in _editor and "Properties and chat" in _editor)
+check("5j exactly ONE <main> landmark (the nested-main defect that clipped "
+      "the rail when Text rode the dashboard housing)",
+      _editor.count("<main") == 1 and _landing.count("<main") == 0)
+check("5k Text does NOT ride DeskHousing (that is the DASHBOARD housing)",
+      "DeskHousing" not in _landing and "DeskHousing" not in _editor)
+check("5l the superseded canvas is deleted (no dual approach)",
+      not (_TEXT / "TextCanvas.tsx").exists())
 
 
 # ── report ───────────────────────────────────────────────────────────────
