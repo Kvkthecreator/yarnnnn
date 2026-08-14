@@ -667,6 +667,22 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
     # created beside its source accepted typing and 403'd every save.
     if not path.endswith(".html") or ".." in path or not operator_can_organize(path):
         raise HTTPException(status_code=403, detail=f"Not a writable artifact path: {path}")
+    # ADR-570 D4 (repairing the ADR-501 S1 shape on THIS door): placement is
+    # not permission. operator_can_organize answers "may an operator put an
+    # artifact here at all"; the per-principal gate answers "may THIS caller
+    # write here" (class ceiling + grants). Without it, a scoped member could
+    # write .html into constitution/ or governance/ past their ceiling —
+    # probe-shaped hole found in the ADR-570 scoping sweep.
+    from services.primitives.workspace import _is_path_locked_for_principal
+
+    if _is_path_locked_for_principal(auth, path):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Your grant in this workspace does not permit writing {path}. "
+                "The workspace owner can widen it from the Access pane."
+            ),
+        )
     if not (req.content or "").strip():
         raise HTTPException(status_code=422, detail="content required")
 

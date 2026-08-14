@@ -651,3 +651,28 @@ def operator_can_organize(path: str) -> bool:
     if leaf.startswith("_") and leaf.lower().endswith(_MACHINE_CONFIG_EXTS):
         return False
     return True
+
+
+# ADR-570 D4: the prose text class — the substrate's prose currency as a
+# FORMAT class. Membership here answers "is this the kind of file a member
+# may edit as text"; WHERE a given principal may write is always
+# `_is_path_locked_for_principal` (class ceiling + grants), and placement
+# integrity (system/, raw inbound/, machine-config leaves) is
+# `operator_can_organize` — the door composes all three, this predicate
+# never re-derives them.
+_PROSE_DOCUMENT_EXTS = (".md", ".markdown", ".txt")
+
+
+def is_prose_document(path: str) -> bool:
+    """True iff `path` is a prose text document (ADR-570 D4).
+
+    Format class only: `.md`/`.markdown`/`.txt`, excluding `_`-prefixed
+    leaves (the underscore marks machine-tended state per ADR-254 — those
+    keep their existing narrow doors) and any traversal-shaped path.
+    """
+    if ".." in path:
+        return False
+    leaf = path.rsplit("/", 1)[-1]
+    if leaf.startswith("_"):
+        return False
+    return leaf.lower().endswith(_PROSE_DOCUMENT_EXTS)

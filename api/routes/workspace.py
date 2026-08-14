@@ -2316,18 +2316,18 @@ async def edit_workspace_file(
     else:
         path = raw_path
 
-    # Safety: only allow editing certain paths (ADR-206 relocation).
+    # ADR-570 D4: the prose text class — .md/.markdown/.txt — is editable at
+    # ANY path that survives the standing placement carves (system/, raw
+    # inbound/, machine leaves — operator_can_organize, the ONE carve law);
+    # which paths a given principal may actually write is the per-principal
+    # gate below (class ceiling + grants), never this list. The old
+    # file-specific .md entries (IDENTITY.md, MANDATE.md, …) are subsumed by
+    # the class rule and deleted. The directory prefixes remain for their
+    # NON-prose members (yaml state under context/, `_feedback.md`, etc.).
+    from services.workspace_paths import is_prose_document, operator_can_organize
+
+    editable_prose = is_prose_document(path) and operator_can_organize(path)
     editable_prefixes = [
-        # ADR-215 R3: authored operator substrate is edited on Files with
-        # `authored_by=operator` attribution. Same revision-chain path as
-        # every other caller (ADR-209).
-        "/workspace/persona/IDENTITY.md",
-        # ADR-432 D1c: operation/BRAND.md removed from editable prefixes (Brand retired).
-        "/workspace/operation/CONVENTIONS.md",
-        "/workspace/constitution/MANDATE.md",
-        "/workspace/governance/AUTONOMY.md",
-        "/workspace/constitution/PRECEDENT.md",
-        "/workspace/persona/principles.md",  # ADR-215 Phase 3 (Reviewer principles)
         "/workspace/system/",     # awareness.md, notes.md, style.md
         "/workspace/uploads/",
         "/workspace/operation/reports/",    # per-recurrence outputs + _feedback.md + _run_log.md (ADR-231 D2)
@@ -2343,10 +2343,14 @@ async def edit_workspace_file(
     # binary lane (fonts/images) is never edited this way.
     editable_ds = _is_design_system_editable(auth.client, auth.user_id, path)
 
-    if not editable_ds and not any(path.startswith(p) or path == p for p in editable_prefixes):
+    if (
+        not editable_prose
+        and not editable_ds
+        and not any(path.startswith(p) or path == p for p in editable_prefixes)
+    ):
         raise HTTPException(
             status_code=403,
-            detail=f"File not editable via API: {path}. Only workspace config and recurrence files are editable.",
+            detail=f"File not editable via API: {path}. Prose documents (.md/.txt), workspace config and recurrence files are editable.",
         )
 
     # ADR-501 S1, COMPLETED (Hat-B probe 2026-07-29): the editable-prefix list
@@ -2384,7 +2388,7 @@ async def edit_workspace_file(
         if body.expected_head_version_id is not None:
             write_kwargs["expected_parent_version_id"] = body.expected_head_version_id
 
-        write_revision(
+        new_head_version_id = write_revision(
             auth.client,
             user_id=auth.user_id,
             path=path,
@@ -2404,6 +2408,10 @@ async def edit_workspace_file(
             "success": True,
             "path": path,
             "updated_at": now,
+            # ADR-570 D5, the studio door's invisible-save shape: return the
+            # new head so the caller can CAS-chain its next save off it
+            # without a refetch.
+            "head_version_id": new_head_version_id,
         }
 
     except StaleWriteError as e:
