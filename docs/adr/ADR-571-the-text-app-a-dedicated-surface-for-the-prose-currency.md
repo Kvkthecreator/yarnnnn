@@ -42,6 +42,20 @@ unchanged.
 
 ### D1 — The Text app: a kernel surface, Docs-shaped, unveiled at birth
 
+> **Amended 2026-08-15 (operator correction, second pass).** The first build
+> satisfied every decision below and still read as *"lazily applied"* beside
+> Docs — because it rode `DeskHousing` (the DASHBOARD housing: Radar/Strings, a
+> rail of subjects over a projected view) and rendered a bare heading over a
+> text list. **Shape-parity is a DECISION, not a finish**: a document app's
+> housing is the one `StudioSurface` established, and the affordances a member
+> looks for — Open beside New, a thumbnail grid with organize verbs, a naming
+> dialog, a renaming crumb, the boundary acts, the Properties|Chat rail — are
+> the app, not decoration on it. Two structural defects came with the wrong
+> housing: a NESTED `<main>` (the housing's plus the front door's) that clipped
+> the rail in production, and a rail that could not exist at all. Re-cut in
+> `fa42a8d`; the shape is now gated (`test_adr571_text_app.py` §5) so a
+> regression names itself instead of shipping green.
+
 Slug `text`, title **Text**, route `/text`, archetype `document`. The surface has
 two states, mirroring Docs: a **landing** (recent prose documents from the
 workspace revision feed, deduped by path and filtered to the prose class, plus a
