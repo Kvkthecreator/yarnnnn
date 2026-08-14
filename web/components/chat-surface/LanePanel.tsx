@@ -1035,8 +1035,11 @@ export function LanePanel({
                       // other model reply in the product. It rendered as raw
                       // text for no reason other than that LanePanel was a
                       // reimplementation.
+                      // ADR-570 D6 (ADR-398 D3 reaching this surface): a
+                      // named workspace path in a reply is a link into Files
+                      // — the first hop of the connector round-trip.
                       <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1.5 prose-pre:my-2">
-                        <MarkdownRenderer content={m.content} />
+                        <MarkdownRenderer content={m.content} linkifySubstrate />
                       </div>
                     ) : (
                       renderWithMentions(m.content, knownHandles)

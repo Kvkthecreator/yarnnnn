@@ -30,17 +30,31 @@ interface MarkdownRendererProps {
 // override below routes through SurfaceLink → Files at that path. Code
 // spans/fences are left untouched (a path inside backticks is quoted
 // substrate, and rewriting inside code would corrupt it).
+//
+// TWO detection rules, because the namespace has two shapes (ADR-570 D6):
+// the kernel roots are enumerable (the allowlist below), but MEANING-NAMED
+// folders are unenumerable by design (DP33 — `marketing/video/…` is a path
+// someone chose, not a root we know). A file under a meaning folder is
+// recognized by its EXTENSION instead: a slash-bearing token ending in a
+// substrate extension. Both rules stay OS-owned — the model never authors
+// URLs; a miss lands on Files' honest "isn't here" state.
 const SUBSTRATE_PATH_RE =
   /(^|[\s(])((?:\/workspace\/)?(?:operation|constitution|persona|governance|contract|system|inbound|uploads)\/[A-Za-z0-9_\-./]*[A-Za-z0-9_\-/])/g;
+const SUBSTRATE_FILE_RE =
+  /(^|[\s(])((?:\/workspace\/)?[A-Za-z0-9_\-][A-Za-z0-9_\-./]*\/[A-Za-z0-9_\-.]+\.(?:md|markdown|txt|csv|json|ya?ml|html|pdf|png|jpe?g|svg|webp))\b/g;
 const PROPOSAL_ID_RE = /proposal_id=([0-9a-f]{6,36})(\.{0,3})/g;
 const YARNNN_FILES_PREFIX = '#yarnnn-files:';
 const YARNNN_QUEUE_PREFIX = '#yarnnn-queue:';
 
 function linkifySegment(text: string): string {
-  let out = text.replace(SUBSTRATE_PATH_RE, (_m, lead: string, path: string) => {
+  const toLink = (_m: string, lead: string, path: string) => {
     const abs = path.startsWith('/workspace/') ? path : `/workspace/${path}`;
     return `${lead}[${path}](${YARNNN_FILES_PREFIX}${encodeURIComponent(abs)})`;
-  });
+  };
+  // Root rule first; the file rule then only sees what the roots didn't
+  // claim (a linkified path sits behind `[`, which neither lead accepts).
+  let out = text.replace(SUBSTRATE_PATH_RE, toLink);
+  out = out.replace(SUBSTRATE_FILE_RE, toLink);
   out = out.replace(PROPOSAL_ID_RE, (_m, id: string) =>
     `[proposal ${id.slice(0, 8)}](${YARNNN_QUEUE_PREFIX}${id})`
   );
