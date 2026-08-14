@@ -3,15 +3,18 @@
 /**
  * TextSurface — the Text app (ADR-571).
  *
- * The prose currency gets a door of its own: `.md`/`.markdown`/`.txt`
- * opened with a cursor, Editor (the app's name for the designer resident —
- * ADR-562, the Docs/"Writer" shape) in a bound lane beside the canvas.
+ * The prose currency gets a door of its own, shaped like Docs because it IS
+ * Docs' peer: two states — a LANDING (the member's own recent documents,
+ * with the Open/New pair) and an OPEN state (the editor canvas + a
+ * Properties|Chat rail carrying Editor's lane). The difference from Docs is
+ * the medium and only the medium: plain markdown, a textarea, no block
+ * grammar (ADR-456 D1's grade constraint).
  *
- * Docs-shaped, deliberately: a landing of recent prose documents + a New
- * gesture, then an open state whose canvas is the editor. It rides the
- * shared DeskHousing (ADR-518's move, generalized by ADR-569) rather than
- * re-implementing the chrome — subject = the open document, artifactPath =
- * the same path, so the lane binds to exactly the file being edited.
+ * It deliberately does NOT ride `DeskHousing` — that is the DASHBOARD
+ * housing (Radar/Strings: a rail of subjects over a projected view). A
+ * document app's shape is the one StudioSurface already established, and
+ * copying the wrong housing is what made the first cut read as "lazily
+ * applied" beside Docs.
  *
  * The write path is ADR-570's, unchanged: `PATCH /workspace/file` under the
  * prose class ∧ carve law ∧ principal gate, CAS-guarded — a connector
@@ -19,13 +22,16 @@
  * the head, never a silent clobber.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText, Loader2, Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FileText, FolderOpen, Loader2, MoreHorizontal, Plus, ScrollText } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
-import { DeskHousing } from '@/components/desk/DeskHousing';
-import { TextCanvas } from '@/components/text/TextCanvas';
-import { formatTimestamp } from '@/lib/formatting';
+import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
+import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
+import { OpenArtifactModal } from '@/components/authoring/OpenArtifactModal';
+import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
+import { TextEditor } from '@/components/text/TextEditor';
+import { NameDocumentModal } from '@/components/text/NameDocumentModal';
 import { cn } from '@/lib/utils';
 
 /** Recents come from the substrate revision feed — types derived, never restated. */
@@ -36,15 +42,20 @@ const PROSE_RE = /\.(md|markdown|txt)$/i;
 
 const relPath = (p: string) => (p.startsWith(WORKSPACE_PREFIX) ? p.slice(WORKSPACE_PREFIX.length) : p);
 const absPath = (p: string) => (p.startsWith('/') ? p : `${WORKSPACE_PREFIX}${p}`);
-const leafOf = (p: string) => p.split('/').pop() || p;
-/** The document's name — its leaf without the extension, title-cased lightly. */
-const nameOf = (p: string) => leafOf(p).replace(PROSE_RE, '');
+export const leafOf = (p: string) => p.split('/').pop() || p;
 
-const SUGGESTIONS = [
-  'Tighten this — same meaning, fewer words',
-  'What is unclear to someone reading this cold?',
-  'Restructure it so the main point lands first',
-];
+/**
+ * The document's NAME — ADR-459's rule, applied to prose: what the document
+ * IS, never its storage encoding. A prose file is named by its LEAF (the
+ * member typed `transcript.md`), so the extension comes off and separators
+ * become spaces; Docs titleizes the meaning FOLDER instead because its leaf
+ * is a type marker (`document.html`).
+ */
+export function documentName(path: string): string {
+  const bare = leafOf(path).replace(PROSE_RE, '').replace(/[-_]+/g, ' ').trim();
+  if (!bare) return leafOf(path);
+  return bare.charAt(0).toUpperCase() + bare.slice(1);
+}
 
 export default function TextSurface() {
   const { get: getParam, set: setParam } = useSurfaceParam('text');
@@ -53,9 +64,6 @@ export default function TextSurface() {
 
   const [recents, setRecents] = useState<RevisionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  // Bumped after a save so the landing's recents re-read on return.
   const [feedKey, setFeedKey] = useState(0);
 
   // ── Recents: the substrate revision feed, deduped by path and filtered to
@@ -65,14 +73,17 @@ export default function TextSurface() {
     let cancelled = false;
     setLoading(true);
     api.workspace
-      .recentRevisions(60)
+      .recentRevisions(80)
       .then((res) => {
         if (cancelled) return;
         const seen = new Set<string>();
         const rows: RevisionRow[] = [];
         for (const r of res.revisions) {
-          if (!r.path || !PROSE_RE.test(r.path) || seen.has(r.path)) continue;
-          seen.add(r.path);
+          const p = r.path || '';
+          const leaf = leafOf(p);
+          if (!PROSE_RE.test(leaf) || leaf.startsWith('_') || seen.has(p)) continue;
+          if (p.includes('/inbound/')) continue; // arrivals are records, not documents
+          seen.add(p);
           rows.push(r);
         }
         setRecents(rows);
@@ -84,194 +95,220 @@ export default function TextSurface() {
 
   const open = useCallback((path: string) => setParam({ file: relPath(path) }), [setParam]);
   const close = useCallback(() => setParam({ file: null }), [setParam]);
+  const refresh = useCallback(() => setFeedKey((n) => n + 1), []);
 
-  // ── New: a named document in Documents/, created through the SAME member
-  //    door every save uses (ADR-570 D4) — no second write path, and the
-  //    placement gate answers identically for creation and for editing.
-  const createDocument = useCallback(async () => {
-    const typed = window.prompt('Name this document');
-    const name = (typed || '').trim();
-    if (!name) return;
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'untitled';
-    const path = `${WORKSPACE_PREFIX}Documents/${slug}.md`;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      await api.workspace.editFile(path, `# ${name}\n\n`, undefined, `create ${slug}.md`);
-      setFeedKey((n) => n + 1);
-      open(path);
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : 'Could not create the document.');
-    } finally {
-      setCreating(false);
-    }
-  }, [open]);
-
-  const laneName = useMemo(() => (openPath ? nameOf(openPath).slice(0, 60) : ''), [openPath]);
-
+  if (openPath) {
+    return (
+      <TextEditor
+        key={openPath}
+        path={openPath}
+        onClose={close}
+        onSaved={refresh}
+        onRenamed={(next) => setParam({ file: relPath(next) })}
+      />
+    );
+  }
   return (
-    <DeskHousing
-      app="text"
-      subject={openPath}
-      artifactPath={openPath}
-      laneReady={!!openPath}
-      laneName={laneName}
-      laneTabLabel="Editor"
-      suggestions={SUGGESTIONS}
-      laneFallbackLabel="Editor could not be opened for this document."
-      laneEmptyState={
-        <>
-          <p className="font-medium text-foreground/80">Editor is reading this document.</p>
-          <p className="mt-1">
-            Ask for a tighter draft, a restructure, or a second opinion — every
-            change Editor makes lands as a signed revision you can see and revert.
-          </p>
-        </>
-      }
-      onLaneWrite={() => setFeedKey((n) => n + 1)}
-      renderRail={() => (
-        <RecentList
-          rows={recents}
-          loading={loading}
-          activePath={openPath}
-          onOpen={open}
-          onNew={createDocument}
-          creating={creating}
-          compact
-        />
-      )}
-      renderFrontDoor={() => (
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
-          <div className="mx-auto w-full max-w-3xl space-y-6 p-6">
-            <div className="space-y-2">
-              <h1 className="text-lg font-semibold">Text</h1>
-              <p className="text-sm text-muted-foreground">
-                Plain-text prose — transcripts, notes, briefs, every{' '}
-                <span className="font-mono text-xs">.md</span> in the workspace.
-                Open one with a cursor, refine it with Editor beside you, and
-                every save lands as a signed revision your connectors read back.
-              </p>
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={createDocument}
-                  disabled={creating}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-foreground px-3 py-1.5 text-sm text-background disabled:opacity-50"
-                >
-                  {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  New document
-                </button>
-              </div>
-              {createError && <p className="text-xs text-destructive">{createError}</p>}
-            </div>
-            <RecentList
-              rows={recents}
-              loading={loading}
-              activePath={null}
-              onOpen={open}
-              heading="Recent documents"
-            />
-          </div>
-        </main>
-      )}
-    >
-      {() =>
-        openPath ? (
-          <TextCanvas
-            path={openPath}
-            onClose={close}
-            onSaved={() => setFeedKey((n) => n + 1)}
-          />
-        ) : null
-      }
-    </DeskHousing>
+    <TextLanding
+      recents={recents}
+      loading={loading}
+      onOpen={open}
+      onChanged={refresh}
+    />
   );
 }
 
-function RecentList({
-  rows,
+// ── The landing ─────────────────────────────────────────────────────────────
+// Structural mirror of the Docs landing (StudioSurface's start state): the
+// app's own glyph + invitation on the left, the Open/New pair on the right,
+// then "Continue where you left off" as a thumbnail grid with a ⋯ menu per
+// card. Same grid, same card anatomy, same organize verbs.
+
+function TextLanding({
+  recents,
   loading,
-  activePath,
   onOpen,
-  onNew,
-  creating,
-  compact,
-  heading,
+  onChanged,
 }: {
-  rows: RevisionRow[];
+  recents: RevisionRow[];
   loading: boolean;
-  activePath: string | null;
   onOpen: (path: string) => void;
-  onNew?: () => void;
-  creating?: boolean;
-  compact?: boolean;
-  heading?: string;
+  onChanged: () => void;
 }) {
+  const [openPickerOn, setOpenPickerOn] = useState(false);
+  const [namingOpen, setNamingOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The same organize grammar every surface uses — rename/move/trash through
+  // the shared hook, so a document reorganizes here exactly as in Files.
+  const { verbs: organizeVerbs, modals: organizeModals } = useFileOrganizeVerbs({
+    onAfterMutate: onChanged,
+  });
+  const { openMenu, menu: recentMenu } = useFileContextMenu({
+    onOpen: (t) => onOpen(t.path),
+    ...organizeVerbs,
+  });
+
+  const hasRecents = recents.length > 0;
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        {heading ? (
-          <h2 className="text-sm font-medium">{heading}</h2>
-        ) : (
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Documents
-          </span>
-        )}
-        {onNew && (
-          <button
-            type="button"
-            onClick={onNew}
-            disabled={creating}
-            title="New document"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
-          >
-            <Plus className="h-3 w-3" /> New
-          </button>
-        )}
-      </div>
-      {loading ? (
-        <div className="flex items-center gap-2 p-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3 w-3 animate-spin" /> Reading recent documents…
+    <div className="h-full overflow-y-auto p-6 sm:p-8">
+      <div className="mx-auto w-full max-w-4xl space-y-6">
+        {/* Header row — the app's glyph + invitation, the Open/New pair. */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <ScrollText className="h-5 w-5 text-muted-foreground" />
+              <h1 className="text-lg font-semibold">Text</h1>
+            </div>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Plain-text prose — transcripts, notes, briefs. Open one with a
+              cursor, refine it with Editor beside you, and every save lands as
+              a signed revision your connectors read back.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOpenPickerOn(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Open
+            </button>
+            <button
+              type="button"
+              onClick={() => setNamingOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-sm text-background transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New
+            </button>
+          </div>
         </div>
-      ) : rows.length === 0 ? (
-        <p className="p-2 text-xs text-muted-foreground">
-          No prose documents yet. New document starts one, or write a{' '}
-          <span className="font-mono">.md</span> from chat or a connector.
+
+        {/* Recents — the emphasis, the Docs card anatomy: a text preview
+            thumbnail, the document's own name, then the kind + quiet date. */}
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading your documents…
+          </div>
+        ) : hasRecents ? (
+          <div className="space-y-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Continue where you left off
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {recents.map((r) => {
+                const path = r.path || '';
+                const target = { path, name: leafOf(path), isFile: true };
+                return (
+                  <div
+                    key={path}
+                    className="group relative rounded-lg border border-border p-2 transition-colors hover:bg-muted/20"
+                    onContextMenu={(e) => openMenu(target, e)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onOpen(path)}
+                      className="block w-full text-left"
+                    >
+                      <ProseThumb preview={r.preview} />
+                      <span className="mt-2 flex items-center gap-1.5">
+                        <FileText className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+                        <span className="min-w-0 truncate text-sm font-medium">
+                          {documentName(path)}
+                        </span>
+                      </span>
+                      <span className="mt-1 block truncate text-[11px]">
+                        <span className="font-medium text-sky-600 dark:text-sky-400">Document</span>
+                        {r.created_at ? (
+                          <span className="text-muted-foreground" title={formatAbsolute(r.created_at)}>
+                            {` · ${formatRelativeTime(r.created_at, { rollToDate: true })}`}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Actions for ${documentName(path)}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openMenu(target, e);
+                      }}
+                      className="absolute right-1.5 top-1.5 rounded-md bg-background/80 p-1 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border p-8 text-center">
+            <ScrollText className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
+            <p className="text-sm font-medium text-foreground/80">No documents yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
+              New starts one. Anything written as <span className="font-mono">.md</span> —
+              by you, by a colleague in chat, or by a connected AI — shows up here.
+            </p>
+          </div>
+        )}
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+
+      {organizeModals}
+      {recentMenu}
+      <OpenArtifactModal
+        open={openPickerOn}
+        onClose={() => setOpenPickerOn(false)}
+        onOpen={(p) => {
+          setOpenPickerOn(false);
+          onOpen(p);
+        }}
+        appSlug="text"
+      />
+      <NameDocumentModal
+        open={namingOpen}
+        onClose={() => setNamingOpen(false)}
+        onCreated={(path) => {
+          setNamingOpen(false);
+          onChanged();
+          onOpen(path);
+        }}
+        onError={setError}
+      />
+    </div>
+  );
+}
+
+/**
+ * The card thumbnail. Docs renders the artifact's real HTML in a scaled
+ * iframe; prose has no rendered form to scale, so the honest analog is the
+ * document's own opening lines set in the reading face — which is exactly
+ * what `recent-revisions` already computes (`preview`), no extra read.
+ */
+function ProseThumb({ preview }: { preview?: string | null }) {
+  return (
+    <div
+      className={cn(
+        'relative h-[120px] w-full overflow-hidden rounded border border-border/60',
+        'bg-[var(--surface-raised,theme(colors.background))] p-2.5',
+      )}
+    >
+      {preview ? (
+        <p className="whitespace-pre-wrap break-words text-[7px] leading-[1.5] text-foreground/70 line-clamp-[11]">
+          {preview}
         </p>
       ) : (
-        <ul className="space-y-0.5">
-          {rows.map((r) => {
-            const active = activePath === r.path;
-            return (
-              <li key={r.path}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(r.path!)}
-                  className={cn(
-                    'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/40',
-                    active && 'bg-muted/60',
-                  )}
-                >
-                  <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{nameOf(r.path || '')}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {compact
-                        ? relPath(r.path || '').split('/').slice(0, -1).join('/') || 'workspace'
-                        : r.preview || relPath(r.path || '')}
-                    </span>
-                    {!compact && r.created_at && (
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
-                        {formatTimestamp(r.created_at, true)}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="flex h-full items-center justify-center">
+          <FileText className="h-6 w-6 text-muted-foreground/40" />
+        </div>
       )}
+      {/* The fade Docs' scaled iframe gets for free — the page continues. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background to-transparent" />
     </div>
   );
 }

@@ -21,7 +21,12 @@ import { useEffect, useState } from 'react';
 
 import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
-import { isArtifactCandidate } from '@/lib/file-types';
+import { isArtifactCandidate, resolveSurfaceApplication } from '@/lib/file-types';
+
+/** Apps whose artifacts appear in the served `/studio/artifacts` index — the
+ *  HTML-authoring apps. A prose app (ADR-571) has no row there and scopes by
+ *  the type registry alone. */
+const SERVED_INDEX_APPS = new Set(['docs', 'studio', 'images']);
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { studioShapeStyle } from './studioShapes';
 import { artifactNameFromPath, kindGuessFromPath } from './artifactNaming';
@@ -52,6 +57,14 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
   const [owned, setOwned] = useState<Set<string> | null>(null);
   useEffect(() => {
     if (!open) return;
+    // ADR-571: the served artifact index is the HTML-artifact index (types
+    // lifted from `data-template`), so an app whose medium is PROSE has no
+    // row in it. Such an app scopes by the type registry alone — which is
+    // the stronger answer anyway (it is the same one `openPath` uses).
+    if (!SERVED_INDEX_APPS.has(appSlug)) {
+      setOwned(null);
+      return;
+    }
     let live = true;
     api.studio
       .artifacts(appSlug)
@@ -72,6 +85,10 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
    *  registry (ADR-451, ADR-473 D2), never to a local extension test. */
   const isOpenable = (node: WorkspaceTreeNode): boolean => {
     if (node.type !== 'file' || !isArtifactCandidate(node.path)) return false;
+    // The registry's answer first: the app that OWNS this file's type must be
+    // the app asking. Without this an html-authoring app would offer prose
+    // (and Text would offer decks) the moment `isArtifactCandidate` widened.
+    if (resolveSurfaceApplication(node.path)?.surface !== appSlug) return false;
     return owned ? owned.has(node.path) : true;
   };
 
