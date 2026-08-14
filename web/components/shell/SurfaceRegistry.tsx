@@ -46,6 +46,10 @@ import DocsPage from '@/app/(authenticated)/docs/page';
 // briefs). Dedicated app from day one (the Images lesson); search-only tier
 // until the R3 unveil.
 import RadarPage from '@/app/(authenticated)/radar/page';
+// ADR-569 — Strings: the maintained file, kept by Keeper (the second desk on
+// the shared DeskHousing). Search-only tier until the D8 falsifiers earn the
+// unveil (registration ≠ unveil, ADR-486 D7).
+import StringsPage from '@/app/(authenticated)/strings/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
 // redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
@@ -100,6 +104,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   studio: StudioPage,  // ADR-440 — the layout app (deck · web, re-cut by ADR-518)
   images: ImagesPage,  // ADR-472 — the second authoring app (stages → rendered rasters)
   radar: RadarPage,    // ADR-486 — the standing app (hubs → sweeps → cited briefs)
+  strings: StringsPage,  // ADR-569 — the maintained file, kept by Keeper
   recurrence: RecurrencePage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.

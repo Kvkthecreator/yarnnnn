@@ -355,6 +355,33 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/radar",
         "summary": "Standing topic hubs that sweep while you're away — declared sources fetched on schedule, what changed distilled into a cited brief. Watch → observe → derive → compose; every brief traces to the observations it was made from.",
     },
+    {
+        # ADR-569 — Strings, the maintained file kept by Keeper. The second
+        # member-facing manifestation of the ADR-564 frame (radar is its
+        # shipped specialization, re-read by D1): the member DESIGNATES a
+        # file, declares its contract (CONTRACT.md) + sources + cadence
+        # ({folder}/_string.yaml), and the standing loop keeps the head
+        # current while member corrections compound (ADR-384 D4). The write
+        # is confined to the designated leaf ONLY — un-designated files are
+        # never a standing writer's target (the D1 law). This surface is
+        # Keeper's desk on the shared desk housing (D6, the ADR-518 move):
+        # string roster + the composed view (file canvas by format · what
+        # changed · setup · consumers), projected at read time.
+        #
+        # launcher_tier starts SEARCH-ONLY (D6 — registration ≠ unveil, the
+        # ADR-486 D7 rule): reachable by summon-by-name + the Files gesture,
+        # unpromoted until the D8 falsifiers are read.
+        "slug": "strings",
+        "launcher_tier": "search-only",  # ADR-569 D6 — unveil gated on the D8 falsifiers
+        "register": "application",
+        "title": "Strings",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # strings are meaning-placed in the file's own folder
+        "icon_key": "cable",
+        "default_pinned": False,  # search-only tier: not in the Dock
+        "route": "/strings",
+        "summary": "Files you designate as kept current — a contract in plain words, declared sources pulled on schedule, Keeper revising the head while your corrections compound. Docs and decks that cite a maintained file stay current by reference.",
+    },
     # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
     # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
     # interior) — an axis operators don't hold, producing two "what happened"

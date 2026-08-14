@@ -598,6 +598,13 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // Registered 2026-08-13 — radar sat in NEITHER registry, and the
   // unconstrained miss-case reads as permission (the 3f44a8f lesson).
   radar: ['topic', 'file'],
+  // Keeper's desk (ADR-569). `topic` names the string's folder; `target`
+  // carries a designation-in-flight's leaf (the picked file before Keeper's
+  // declaration parses — a refresh must not lose it, or the unconfigured
+  // desk loses its lane binding). `file` is the delivered Files-association
+  // deep-link ("Keep this current…"), consumed into topic/target. Registered
+  // at birth — the unconstrained miss-case reads as permission (3f44a8f).
+  strings: ['topic', 'target', 'file'],
 };
 
 // ----------------------------------------------------------------------------
@@ -684,6 +691,11 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // is a place you live in, and the folder roster sits right beside it); only
   // the delivered Files-association deep-link is an open act, not a posture.
   radar: ['file'],
+  // Same rule for Keeper's desk (ADR-569): `topic` + `target` restore (the
+  // designation-in-flight is a real place — losing `target` on refresh
+  // strands the unconfigured desk without its lane); the delivered `file`
+  // deep-link is an open act, not a posture.
+  strings: ['file'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */

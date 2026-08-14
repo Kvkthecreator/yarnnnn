@@ -428,6 +428,50 @@ export interface RadarHubView extends RadarHubSummary {
   window_changes?: number | null;
 }
 
+// ADR-569 — string shapes (mirror api/routes/strings.py). A STRING is the
+// member's designation of one file as kept current: {folder}/_string.yaml +
+// CONTRACT.md, the designated target leaf revised by Keeper.
+export interface StringSource {
+  id: string;
+  url: string;
+}
+
+export interface StringSummary {
+  topic: string; // the folder path relative to /workspace/
+  declaration_path: string;
+  target: string; // the designated leaf, folder-relative
+  target_path?: string | null; // absolute, present once the file exists
+  format?: 'md' | 'csv' | 'json' | 'txt' | null;
+  schedule?: string | string[] | null;
+  paused: boolean;
+  sources: StringSource[];
+  /** ADR-569 D2 — what the file must stay true to (CONTRACT.md). */
+  contract?: string | null;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  /** Parseable-but-cannot-run (D3, served loudly): missing_target |
+   *  invalid_target | unsupported_format | sources_invalid. */
+  problem?: string | null;
+}
+
+export interface StringView extends StringSummary {
+  /** The maintained leaf's head. */
+  content?: string | null;
+  /** The machine-checkable half of the contract (csv columns / json keys). */
+  shape: { columns?: string[]; keys?: string[] };
+  recent_runs: Array<{
+    slug: string;
+    status: string;
+    created_at?: string | null;
+    error_reason?: string | null;
+  }>;
+  /** The last write REFUSED (shape violation et al.) — read from the ledger,
+   *  cleared by the next success. */
+  repair?: { reason: string; detail?: string | null; at?: string | null } | null;
+  /** D5 — which files cite this leaf (derived at read time, never stored). */
+  consumers: string[];
+}
+
 /** A radar topic is a meaning-folder path (ADR-565 D3) — encode each segment,
  *  keep the '/' separators so the server's `{topic:path}` param reads it. */
 const encodeTopic = (topic: string) =>
@@ -688,6 +732,32 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    /** Sweep now — the manual fire (the ADR-569 D7 direct-switch slot). */
+    run: (topic: string) =>
+      request<{ success: boolean; no_change?: boolean; error_reason?: string }>(
+        `/api/radar/hubs/${encodeTopic(topic)}/run`,
+        { method: "POST" },
+      ),
+  },
+
+  // ADR-569 — strings, the maintained file kept by Keeper. Declarations are
+  // conversational (Keeper authors them through its lane — no create route);
+  // these are the projections the desk reads plus the direct switches.
+  strings: {
+    list: () => request<StringSummary[]>("/api/strings"),
+    get: (topic: string) =>
+      request<StringView>(`/api/strings/${encodeTopic(topic)}`),
+    update: (topic: string, data: { paused?: boolean }) =>
+      request<StringSummary>(`/api/strings/${encodeTopic(topic)}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    /** Run now — the manual fire (D7). */
+    run: (topic: string) =>
+      request<{ success: boolean; no_change?: boolean; error_reason?: string; detail?: string }>(
+        `/api/strings/${encodeTopic(topic)}/run`,
+        { method: "POST" },
+      ),
   },
 
   // ADR-440 — the Studio (the first authoring app). Templates are kernel

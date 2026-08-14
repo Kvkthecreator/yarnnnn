@@ -22,6 +22,7 @@ import {
   Clock,
   CreditCard,
   FileText,
+  Cable,
   FolderKanban,
   FolderOpen,
   Home,
@@ -113,6 +114,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // surface (search-only tier until R3) so the Launcher's summon-by-name row
   // and the eventual Dock tile wear the same object from day one.
   radar: Radar,
+  // ADR-569: the STRINGS app glyph — the file with a string attached to the
+  // world. Registered at birth (search-only tier) — the Images lesson: an
+  // icon_key with no registry entry falls through to the generic Box.
+  cable: Cable,
   // ADR-297 D19.5.2 (2026-05-22): layout-dashboard DELETED. Was only
   // mapped to Cockpit; swapped to square-activity to disambiguate
   // from Launcher's layout-grid glyph (both rendered as 4-square
