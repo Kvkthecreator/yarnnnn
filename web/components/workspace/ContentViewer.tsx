@@ -80,6 +80,14 @@ interface ContentViewerProps {
    * Absent = a plain listing, exactly as before.
    */
   dnd?: ListingDnd;
+  /**
+   * ADR-570: the Open With choice for the open FILE — which app of the
+   * file's type to mount (e.g. 'markdown.editor'). A selection threaded to
+   * FileBody, never a re-derivation. Absent = the type's default app.
+   */
+  appId?: string | null;
+  /** ADR-570 D3: the chosen app handed the frame back; `saved` → refetch. */
+  onAppDone?: (saved: boolean) => void;
 }
 
 /**
@@ -125,6 +133,8 @@ export function ContentViewer({
   onGetInfo,
   verbs,
   dnd,
+  appId,
+  onAppDone,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -156,6 +166,8 @@ export function ContentViewer({
       onOpenChatDraft={onOpenChatDraft}
       onDeleted={onDeleted}
       verbs={verbs}
+      appId={appId}
+      onAppDone={onAppDone}
     />
   );
 }
@@ -349,31 +361,42 @@ function FileView({
   onOpenChatDraft,
   onDeleted,
   verbs,
+  appId,
+  onAppDone,
 }: {
   path: string;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
   onDeleted?: () => void;
+  // ADR-570: Open With choice + hand-back (see ContentViewerProps).
+  appId?: string | null;
+  onAppDone?: (saved: boolean) => void;
   /**
-   * The operator's file verbs → right-click menu on the OPEN file itself.
-   * Without this, right-clicking a file you'd just opened bubbled to the
-   * Files canvas menu (New Folder / Add Files) — the open file was the one
-   * context on the surface that lost its own verbs the moment it gained
-   * focus (the inverse of the Finder, where the focused object is the most
-   * verb-rich). Same bundle, same menu, same gates as every other mount.
+   * The operator's file verbs → right-click menu on the OPEN file itself
+   * (same bundle, same menu, same gates as every other mount) — without it,
+   * right-clicking the open file bubbled to the Files canvas menu, so the
+   * focused object was the one context that lost its own verbs.
    */
   verbs?: FileVerbs;
 }) {
+  const { openMenu, menu } = useFileContextMenu(verbs);
   const { confirm, runAction } = useFeedback();
   const [deleting, setDeleting] = useState(false);
-  const { openMenu, menu } = useFileContextMenu(verbs);
   // ADR-436 §6: the shared file-load hook (was a hand-written getFile + revision
   // state machine). `withRevision` fetches the ADR-209 Phase-4 head author in
   // parallel (surfaced on the header); a 404 is an honest `notFound` state (a
   // stale deep-link / synthetic node), distinct from a real load `error`.
+  // ADR-570 D7: a save in a non-default app (the editor) bumps the reload key
+  // so Preview comes back showing the NEW head, not the bytes it loaded with.
+  const [reloadKey, setReloadKey] = useState(0);
   const { file, loading, notFound, error, headRevision } = useFileLoad(path, {
     withRevision: true,
+    reloadKey,
   });
+  const handleAppDone = (saved: boolean) => {
+    if (saved) setReloadKey((n) => n + 1);
+    onAppDone?.(saved);
+  };
 
   // ADR-329/ADR-400 'delete' verb — trash-semantics (the backend archives via
   // lifecycle; ADR-209-retained, reversible; restorable from Trash). Operator-
@@ -552,7 +575,7 @@ function FileView({
             Get-Info modal). Singular home: Get Info (right-click or the header
             button). The file body shows content; "who wrote it" + the full
             history live one click away. */}
-        <FileBody file={file} />
+        <FileBody file={file} appId={appId} onDone={handleAppDone} />
       </div>
       {menu}
     </div>

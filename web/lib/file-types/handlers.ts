@@ -43,7 +43,6 @@
  */
 
 import {
-  resolveViewerApplication,
   resolveSurfaceApplication,
   resolveDeclarationApplication,
   type SurfaceApplication,
@@ -78,21 +77,30 @@ export interface Handler {
   acceptsMultiple: boolean;
 }
 
-/** The in-frame renderer, as a handler row. Always last-resort, never surface. */
-function inlineHandler(path: string, contentType?: string): Handler | null {
-  const [appId] = resolveApps(path, contentType);
-  const app = APPS[appId];
-  if (!app) return null;
-  const kind = resolveViewerApplication(path, contentType);
-  return {
-    id: app.id,
-    // "Quick Look" is the honest name for preview-in-place; the kind
-    // disambiguates when several inline handlers ever coexist.
-    label: kind === 'download' ? 'Download' : 'Preview',
-    delivery: 'document',
-    open: { via: 'inline' },
-    acceptsMultiple: false,
-  };
+/**
+ * The in-frame renderers, as handler rows. Always last-resort, never surface.
+ *
+ * ADR-570: the FULL `resolveApps` list, one row per app — the first inline
+ * app is the type's default (Preview), and a second app claiming the same
+ * type (the markdown editor) is a real alternative the Open With menu can
+ * offer. The pre-570 shape (`const [appId] = resolveApps(...)`) discarded
+ * the tail, which made a second inline app registered-but-unreachable —
+ * the same hiding-in-an-else shape ADR-514 D2 unwound for `.html`.
+ */
+function inlineHandlers(path: string, contentType?: string): Handler[] {
+  return resolveApps(path, contentType)
+    .map((appId) => APPS[appId])
+    .filter(Boolean)
+    .map((app) => ({
+      id: app.id,
+      // The app's own operator-facing name ('Preview' / 'Editor' /
+      // 'Download') — with two inline apps on one type, a kind-derived
+      // label would name them identically.
+      label: app.label,
+      delivery: 'document' as const,
+      open: { via: 'inline' as const },
+      acceptsMultiple: false,
+    }));
 }
 
 function surfaceHandler(app: SurfaceApplication): Handler {
@@ -152,10 +160,10 @@ export function resolveHandlers(subject: HandlerSubject): Handler[] {
     handlers.push(surfaceHandler(owning));
   }
 
-  // The inline renderer — the fallthrough that `openPath` used to hardcode as
-  // an else-branch. Making it a ROW is what gives `.html` its second handler.
-  const inline = inlineHandler(path, contentType);
-  if (inline) handlers.push(inline);
+  // The inline renderers — the fallthrough that `openPath` used to hardcode
+  // as an else-branch. Making them ROWS is what gives `.html` its second
+  // handler (ADR-514 D2) and `.md` its editor (ADR-570).
+  handlers.push(...inlineHandlers(path, contentType));
 
   handlers.push(CHAT_HANDLER);
   return handlers;

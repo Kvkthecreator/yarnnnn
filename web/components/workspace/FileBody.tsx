@@ -18,12 +18,18 @@
  *   - ArtifactCard   — the inline chat card (render-on-write)
  *   - FileOpenModal  — chat-open, the explicit-open frame (ADR-436 §7)
  *
- * ADR-236: this RENDERS. It never edits — chat is the canonical mutation
- * surface. `compact` is a display hint (trims heights), not a fork.
+ * ADR-236 as re-cut by ADR-570 D3: a viewer app never edits (chat is the
+ * conversational mutation surface); an editor app edits only through the
+ * member write door. `compact` is a display hint (trims heights), not a fork.
+ *
+ * `appId` (ADR-570) is a SELECTION among the apps that own the file's type —
+ * the Open With choice passed down by the mount — never a re-derivation:
+ * FileBody stays the one kind-switch, and an id that doesn't own the type
+ * falls back to the default app (a stale choice can't strand a file).
  */
 
 import { Download, ExternalLink } from 'lucide-react';
-import { resolveApp } from '@/lib/file-types/apps';
+import { resolveApp, resolveApps, APPS } from '@/lib/file-types/apps';
 import { useSignedBlobUrl } from '@/components/workspace/viewers/blob';
 import { cn } from '@/lib/utils';
 import type { WorkspaceFile } from '@/types';
@@ -45,13 +51,21 @@ interface FileBodyProps {
   /** Trim intrinsic heights for an inline card mount. Display hint, not a fork. */
   compact?: boolean;
   className?: string;
+  /** ADR-570: the mount's chosen app for this open (Open With). See header. */
+  appId?: string | null;
+  /** ADR-570 D3: hand-back channel for a non-default app (see ViewerAppProps). */
+  onDone?: (saved: boolean) => void;
 }
 
-export function FileBody({ file, compact = false, className }: FileBodyProps) {
-  const { renderer: Renderer } = resolveApp(file.path, file.content_type);
+export function FileBody({ file, compact = false, className, appId, onDone }: FileBodyProps) {
+  const chosen =
+    appId && resolveApps(file.path, file.content_type).includes(appId)
+      ? APPS[appId]
+      : null;
+  const { renderer: Renderer } = chosen ?? resolveApp(file.path, file.content_type);
   return (
     <div className={cn('space-y-4', className)}>
-      <Renderer file={file} compact={compact} />
+      <Renderer file={file} compact={compact} onDone={onDone} />
     </div>
   );
 }

@@ -22,16 +22,21 @@
  * kernel change?") runs red until an App(principal) ADR flips it — correctly,
  * per ESSENCE v15 positioning.
  *
- * ── THE APP CONTRACT ──────────────────────────────────────────────────────
+ * ── THE APP CONTRACT (re-cut by ADR-570 D3) ───────────────────────────────
  * An app is a frame-agnostic RENDERER (`ViewerApp` — `components/workspace/
- * viewers`). It owns types + draws content; it never owns its frame (the mount
- * does) and never edits (mutation → chat, ADR-236).
+ * viewers`). It owns types + draws content; it never owns its frame (the
+ * mount does). A VIEWER app (`mode: 'view'`, the default) never edits; an
+ * EDITOR app (`mode: 'edit'`) edits ONLY through the member write door
+ * (`PATCH /workspace/file`), conditionally + attributed — never a side
+ * channel. Chat remains the conversational mutation path (ADR-236); the
+ * editor is the cursor path; both land attributed revisions on one chain.
  */
 
 import type { ViewerApp } from '@/components/workspace/viewers';
 import {
   TextViewer,
   MarkdownViewer,
+  MarkdownEditor,
   WebViewer,
   ImageViewer,
   MediaPlayer,
@@ -51,12 +56,20 @@ export type AppId = string;
 
 interface AppRegistration {
   id: AppId;
+  /** Operator-facing name — the Open With row and the handler label. */
+  label: string;
   /** The `ViewerApplication` kinds this app renders. */
   ownsTypes: ViewerApplication[];
   /** The frame-agnostic renderer component. */
   renderer: ViewerApp;
   /** True if the app reads the blob (`content_url`) not the text column. */
   needsBlob: boolean;
+  /**
+   * ADR-570 D3: `view` (default) renders and never edits; `edit` edits only
+   * through the member write door. An editor is never the first-registered
+   * app for a type — Preview stays the default open everywhere.
+   */
+  mode?: 'view' | 'edit';
 }
 
 /**
@@ -64,15 +77,19 @@ interface AppRegistration {
  * party's app would be an additional row of the exact same shape.
  */
 export const APPS: Record<AppId, AppRegistration> = {
-  'text.viewer': { id: 'text.viewer', ownsTypes: ['text'], renderer: TextViewer, needsBlob: false },
-  'markdown.viewer': { id: 'markdown.viewer', ownsTypes: ['markdown'], renderer: MarkdownViewer, needsBlob: false },
-  'web.viewer': { id: 'web.viewer', ownsTypes: ['html'], renderer: WebViewer, needsBlob: false },
-  'image.viewer': { id: 'image.viewer', ownsTypes: ['image'], renderer: ImageViewer, needsBlob: false },
-  'media.player': { id: 'media.player', ownsTypes: ['video', 'audio'], renderer: MediaPlayer, needsBlob: true },
-  'pdf.viewer': { id: 'pdf.viewer', ownsTypes: ['pdf'], renderer: PdfViewer, needsBlob: true },
-  'table.viewer': { id: 'table.viewer', ownsTypes: ['csv'], renderer: TableViewer, needsBlob: false },
+  'text.viewer': { id: 'text.viewer', label: 'Preview', ownsTypes: ['text'], renderer: TextViewer, needsBlob: false },
+  'markdown.viewer': { id: 'markdown.viewer', label: 'Preview', ownsTypes: ['markdown'], renderer: MarkdownViewer, needsBlob: false },
+  // ADR-570: the SECOND app claiming a type — the ADR-436 §11 falsification
+  // boundary crossed on purpose. Registered AFTER the viewer, so Preview
+  // stays the default open; the editor surfaces via Open With / Get Info.
+  'markdown.editor': { id: 'markdown.editor', label: 'Editor', ownsTypes: ['markdown'], renderer: MarkdownEditor, needsBlob: false, mode: 'edit' },
+  'web.viewer': { id: 'web.viewer', label: 'Preview', ownsTypes: ['html'], renderer: WebViewer, needsBlob: false },
+  'image.viewer': { id: 'image.viewer', label: 'Preview', ownsTypes: ['image'], renderer: ImageViewer, needsBlob: false },
+  'media.player': { id: 'media.player', label: 'Preview', ownsTypes: ['video', 'audio'], renderer: MediaPlayer, needsBlob: true },
+  'pdf.viewer': { id: 'pdf.viewer', label: 'Preview', ownsTypes: ['pdf'], renderer: PdfViewer, needsBlob: true },
+  'table.viewer': { id: 'table.viewer', label: 'Preview', ownsTypes: ['csv'], renderer: TableViewer, needsBlob: false },
   // The download terminal (not a viewer app — the resolver's binary terminal).
-  'download.terminal': { id: 'download.terminal', ownsTypes: ['download'], renderer: DownloadTerminal, needsBlob: true },
+  'download.terminal': { id: 'download.terminal', label: 'Download', ownsTypes: ['download'], renderer: DownloadTerminal, needsBlob: true },
 };
 
 /**
@@ -93,12 +110,9 @@ const APPS_BY_TYPE: Record<string, AppId[]> = (() => {
 /**
  * Resolve a file to the ordered list of app ids that can open it (ADR-436 §4).
  *
- * The default is first; alternatives follow. Today every type has exactly ONE
- * app, so this returns a singleton and the caller mounts `apps[0]` —
- * byte-identical to the pre-split single-return resolver. When a second app
- * ever claims a type, the "Open With" picker lights up (render only when
- * `length > 1`) with NO kernel change — the app-layer §11 falsification
- * boundary.
+ * The default is first; alternatives follow. The `markdown` type carries the
+ * first two-app contest (viewer + editor, ADR-570) — the "Open With" picker
+ * lights up wherever `length > 1`, and default mounts still take `apps[0]`.
  *
  * Tier-1 (path-exact) is handled INSIDE the resolved app (the Markdown app owns
  * the IDENTITY case, `isIdentityPath`), not by a branch here — the tier stays a
