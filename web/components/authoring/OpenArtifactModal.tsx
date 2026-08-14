@@ -21,15 +21,20 @@ import { useEffect, useState } from 'react';
 
 import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
+import { FileText } from 'lucide-react';
 import { isArtifactCandidate, resolveSurfaceApplication } from '@/lib/file-types';
+import { documentName } from '@/components/text/TextSurface';
+import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
+import { studioShapeStyle } from './studioShapes';
+import { artifactNameFromPath, kindGuessFromPath } from './artifactNaming';
+
+/** A prose document names itself by its LEAF (ADR-571), not by its folder. */
+const isProsePath = (p: string) => /\.(md|markdown|txt)$/i.test(p);
 
 /** Apps whose artifacts appear in the served `/studio/artifacts` index — the
  *  HTML-authoring apps. A prose app (ADR-571) has no row there and scopes by
  *  the type registry alone. */
 const SERVED_INDEX_APPS = new Set(['docs', 'studio', 'images']);
-import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
-import { studioShapeStyle } from './studioShapes';
-import { artifactNameFromPath, kindGuessFromPath } from './artifactNaming';
 
 interface OpenArtifactModalProps {
   open: boolean;
@@ -102,8 +107,19 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
       emptyMessage="Nothing to open yet — hit New to make something."
       selectable={isOpenable}
       leaf={{
-        label: (node) => artifactNameFromPath(node.path),
+        // ADR-571: the NAME rule is the app's, not one hardcoded rule.
+        // Docs titleizes the meaning FOLDER because its leaf is a type
+        // marker (`document.html`); a prose document's leaf IS its name,
+        // so the folder rule labelled every row "Documents" / "Uploads"
+        // (found by driving the picker, 2026-08-15).
+        label: (node) =>
+          isProsePath(node.path)
+            ? documentName(node.path)
+            : artifactNameFromPath(node.path),
         icon: (node) => {
+          if (isProsePath(node.path)) {
+            return { Glyph: FileText, className: 'text-sky-600 dark:text-sky-400' };
+          }
           const style = studioShapeStyle(kindGuessFromPath(node.path));
           return { Glyph: style.icon, className: style.color };
         },
