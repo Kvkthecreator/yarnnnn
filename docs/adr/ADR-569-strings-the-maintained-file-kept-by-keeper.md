@@ -4,8 +4,15 @@
 > strings and keeper accordingly. double check the scope and ratify the documentation"*,
 > closing the standing-maintenance discourse; deliberation trail:
 > [standing-data-maintenance-consideration-2026-08-14](../analysis/standing-data-maintenance-consideration-2026-08-14.md)).
-> **Not yet built** — implementation is delegated to its own session, staged per §3's
-> closing item. Naming ratified: app **Strings** (slug `strings`), colleague **Keeper**
+> **BUILT** (2026-08-14, staged per §3: housing extraction → kernel lane → desk →
+> doors → gate; `api/test_adr569_strings.py`, executed + falsified by construction).
+> One implementation-time taxonomy call, recorded: **Keeper landed as a KERNEL
+> POSTURE over Produce** (`based_on: designer` — the Critic shape), not a fourth
+> `KERNEL_AGENTS` base row: keeping a designated file true is landing revisions,
+> custodially postured, and the axiom-derived three-operation base roster stays
+> closed (its gate underived). Resolution is the one folded character namespace,
+> so "the agents registry gains `keeper`" holds exactly as written — pinnable
+> resident, engine behind the name, member-hireable via `based_on`. Naming ratified: app **Strings** (slug `strings`), colleague **Keeper**
 > (slug `keeper`), declaration **`_string.yaml`**. Drafting history: the first cut
 > over-narrowed to tables/CSV and was corrected by the operator same day — the KPI
 > table was an *example*; the concept is the maintained FILE, any format the member

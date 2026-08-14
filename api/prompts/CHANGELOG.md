@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.14.1] - Keeper's character + the strings desk/run postures (ADR-569)
+
+### Changed
+- `services/agents_registry.py`: `KERNEL_POSTURES` gains `keeper` — the
+  Strings app's resident (a POSTURE over Produce, `based_on: designer`; the
+  Critic shape, so the axiom-derived three-operation base roster stays
+  closed). New character text: custodian of maintained files — fidelity over
+  novelty, preserve member corrections, never invent, name source/contract
+  disagreements plainly.
+- `services/strings.py` (NEW module): two job overlays, both composed under
+  the resident's character (character first, job second — the lane_runner
+  order). `_KEEPER_RUN_POSTURE` — the standing prose run (the radar report
+  posture's shape: full revised file or exact NO_CHANGE, fold-don't-append,
+  preserve corrections, cite sources inline, never pad). `_KEEPER_DESK_FRAME`
+  — the bound-lane desk job (ADR-567 D4's mechanism, one more branch in
+  `build_lane_conventions`): teaches the D1 law (only the DESIGNATED target
+  is a standing writer's target), the three files, the strict `_string.yaml`
+  grammar (target/schedule/sources/shape), read-back after machine config,
+  never-invent-sources, and shape-violation repair; state block read fresh
+  per turn.
+
+### Expected behavior
+- A lane bound with `app='strings'` speaks as Keeper and manages the string's
+  lifecycle (author CONTRACT.md + _string.yaml, tend the designated file)
+  instead of receiving Studio's authoring posture — the same defect class
+  ADR-567 D4 fixed for radar, prevented at birth here.
+- A prose (md) string's scheduled run folds fresh source material into the
+  file under CONTRACT.md, honoring member edits and returning NO_CHANGE
+  honestly. Not a repeated-failure fix: these are new surfaces shipping with
+  their app (the radar precedent, 2026-08-04). Steward frame untouched —
+  size ratchets unaffected (run to prove, not because they bind).
+
 ## [2026.08.13.3] - The frame names the room (ADR-495 D3 addressing)
 
 ### Changed
