@@ -1007,18 +1007,66 @@ export function ChatSurface() {
               // a 3-member cast read "Thinker, Lisa is working…" for one reply.
               // One speaker, or none — never the roster (2026-08-13).
               speakerLabel={laneSpeaker(activeLane)}
-              // Freshness follows the PEOPLE, not the absence of an Agent
-              // (audited 2026-07-30). This was `laneOtherHumans(...).length > 0`
-              // back when that helper returned [] whenever an Agent was in the
-              // cast — so a 3-person chat with an Agent got NO polling and the
-              // others' messages never arrived until remount. Any conversation
-              // with another human needs out-of-band refresh, because their
-              // turns don't ride the asker's stream.
-              hasOtherHumans={laneOtherHumans(activeLane).length > 0}
+              // Freshness follows every OTHER PRINCIPAL, not one species
+              // (2026-08-14). The 2026-07-30 pass fixed a group-with-an-Agent
+              // that polled never and left the mirror image standing: a solo-
+              // human conversation with two Agents also polled never, so an
+              // Agent turn addressed from another tab never arrived until
+              // remount. The question is "can a turn arrive that I did not
+              // cause?" — true whenever anyone else is in the cast.
+              //
+              // Reads the CAST, not `laneOthers` — that helper falls back to
+              // the lane's own Agent for pre-cast (Studio/derive) lanes, so it
+              // is never empty and would poll every solo lane forever.
+              canReceiveOutOfBandTurns={
+                (activeLane.participants ?? []).filter(
+                  (p) => !(p.member_kind === 'human' && p.principal_id === userId),
+                ).length > 0
+              }
               viewerId={userId}
               principalLabels={Object.fromEntries(
                 people.map((p) => [p.principal_id, p.label]),
               )}
+              // The other half of the same lookup: a turn is authored by a
+              // PRINCIPAL, and the transcript resolves humans and Agents the
+              // same way (ADR-495 D3). Keyed by the whole roster rather than
+              // this lane's cast, so a reply from an Agent since REMOVED from
+              // the conversation still renders with its name and face — the
+              // transcript is a historical record, not a live membership view.
+              agentFaces={Object.fromEntries(
+                (data?.agents ?? []).map((a) => [
+                  a.slug,
+                  { name: a.name, avatarUrl: a.avatar_url },
+                ]),
+              )}
+              // The '@' roster: this conversation's cast, viewer excluded.
+              // Agents route; people render inert (ADR-495 D6 defers human
+              // mentions to notifications). The handle is what the SERVER
+              // matches on — slug or display name, case-insensitive — so the
+              // menu can only ever emit something the router honours.
+              mentionCandidates={(activeLane.participants ?? [])
+                .filter((p) => !(p.member_kind === 'human' && p.principal_id === userId))
+                .map((p) => {
+                  if (p.member_kind === 'agent') {
+                    const a = data?.agents?.find((x) => x.slug === p.agent_slug);
+                    return {
+                      kind: 'agent' as const,
+                      handle: a?.name?.replace(/\s+/g, '') || p.agent_slug || '',
+                      name: a?.name || p.agent_slug || 'agent',
+                      avatarUrl: a?.avatar_url,
+                      blurb: a?.blurb,
+                    };
+                  }
+                  const label =
+                    people.find((x) => x.principal_id === p.principal_id)?.label ||
+                    `member-${(p.principal_id || '').slice(0, 8)}`;
+                  return {
+                    kind: 'human' as const,
+                    handle: label.split('@')[0],
+                    name: label,
+                  };
+                })
+                .filter((c) => c.handle)}
               suggestions={deriveSuggestions}
               // Phase-A hygiene: the first turn auto-names a default-named
               // lane server-side; reflect it in the list + header.

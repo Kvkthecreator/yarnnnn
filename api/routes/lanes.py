@@ -975,6 +975,16 @@ def _turn_stream_response(
 
     SSE grammar mirrors the steward (`data: {json}\\n\\n`, frames keyed by
     their JSON discriminator):
+      - {"speaker": {"agent_slug", "reason"}}
+                                       — WHO is answering, sent BEFORE the
+                                         first delta so the in-flight bubble is
+                                         attributed the moment it appears.
+                                         Added 2026-08-14 with addressing: the
+                                         server always knew the responder and
+                                         never put it on the wire, so a live
+                                         reply from Lisa rendered under the
+                                         lane's engine label. Absent for a
+                                         direct (agent-less) conversation.
       - {"text_delta": str}            — a streamed text fragment
       - {"tool": str}                  — a tool the turn called
       - {"artifact": {"path", "verb"}} — a WriteFile/EditFile landed; the FE
@@ -1159,6 +1169,7 @@ def _turn_stream_response(
         rounds = 0
         errored: Optional[str] = None
         persisted = False
+        spoke = False  # the speaker frame is sent once, before the first delta
 
         def persist_reply(*, stopped: bool) -> None:
             """ONE assistant row at close — shared by the clean path and the
@@ -1239,6 +1250,15 @@ def _turn_stream_response(
                 # (think / make / derive) is derivable at read time.
                 session_id=lane_id,
             ):
+                if not spoke and responder:
+                    # WHO, before WHAT. The bubble must never render an
+                    # anonymous spinner while a named colleague is answering —
+                    # that is the shape that read "Gemini Flash is working…"
+                    # in a conversation with Lisa.
+                    spoke = True
+                    yield sse({"speaker": {
+                        "agent_slug": responder, "reason": responder_reason,
+                    }})
                 if kind == "delta":
                     accumulated.append(payload)
                     yield sse({"text_delta": payload})
@@ -1280,6 +1300,11 @@ def _turn_stream_response(
             "tools_called": tools_called,
             "artifacts": artifacts,
         }
+        if responder:
+            # Also on the terminal frame, not only the pre-delta one: a
+            # tool-only turn yields no delta, and a client that reconnects
+            # mid-stream would otherwise finalize an unattributed bubble.
+            done["agent_slug"] = responder
         if renamed:
             done["lane_name"] = renamed
         yield sse(done)

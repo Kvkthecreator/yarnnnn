@@ -166,8 +166,14 @@ check("…and hands the panel a speaker label",
       "speakerLabel={laneLabel}" in _studio_code)
 
 # The two facts must stay SEPARATE: who is working vs what the engine can do.
+# RE-DERIVED 2026-08-14. This pinned `${speaker} is working…`, the lane-level
+# string. ADR-495 D3 addressing made identity a fact about a MESSAGE — the
+# per-message author is preferred and `speaker` remains the fallback for a lane
+# with no cast — so the pin read a strictly-better spelling as a violation. The
+# standing claim is unchanged: the indicator names WHO IS WORKING, never the
+# engine (which is why the two checks below stay exactly as they were).
 check("the panel renders the SPEAKER for 'is working…'",
-      "${speaker} is working…" in _panel)
+      "is working…`" in _panel and "${modelLabel} is working" not in _panel)
 check("…and keeps the ENGINE for the vision refusal (a model's limit)",
       "${modelLabel} cannot see images" in _panel)
 check("…and keeps the ENGINE on the attribution receipt (`you via {model}`)",

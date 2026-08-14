@@ -295,6 +295,10 @@ async function request<T>(
  *  separate from the steward's). Shared by send and regenerate (Phase A). */
 type LaneStreamHandlers = {
   onDelta: (text: string) => void;
+  /** WHO is answering this turn — arrives BEFORE the first delta so the
+   *  in-flight bubble is attributed the moment it appears (ADR-495 D3
+   *  addressing). Absent for a direct, agent-less conversation. */
+  onSpeaker?: (s: { agent_slug: string; reason?: string }) => void;
   onTool?: (name: string) => void;
   /** A WriteFile/EditFile landed — render the file inline (artifact card). */
   onArtifact?: (a: { path: string; verb: string }) => void;
@@ -302,6 +306,9 @@ type LaneStreamHandlers = {
     rounds: number;
     tools_called: string[];
     artifacts: string[];
+    /** WHO answered — also on the terminal frame, because a tool-only turn
+     *  yields no delta and would otherwise finalize unattributed. */
+    agent_slug?: string;
     /** Present when the turn auto-named a default-named lane (Phase A). */
     lane_name?: string;
     /** True when the turn was a human-to-human broadcast (no engine reply) —
@@ -340,7 +347,9 @@ async function streamLaneTurn(
   try {
     for await (const evt of sseEvents(res.body)) {
       if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
-      else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
+      else if (evt.speaker && typeof evt.speaker === "object") {
+        handlers.onSpeaker?.(evt.speaker as { agent_slug: string; reason?: string });
+      } else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
       else if (evt.artifact && typeof evt.artifact === "object") {
         handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
       } else if (typeof evt.error === "string") handlers.onError?.(evt.error);
@@ -349,6 +358,7 @@ async function streamLaneTurn(
           rounds: (evt.rounds as number) ?? 0,
           tools_called: (evt.tools_called as string[]) ?? [],
           artifacts: (evt.artifacts as string[]) ?? [],
+          agent_slug: typeof evt.agent_slug === "string" ? evt.agent_slug : undefined,
           lane_name: typeof evt.lane_name === "string" ? evt.lane_name : undefined,
           direct: evt.direct === true,
         });

@@ -76,13 +76,16 @@ def test_edit_and_resend_verifies_the_author():
 def test_fe_direct_conversation_wiring():
     lane_panel = (WEB / "components/chat-surface/LanePanel.tsx").read_text()
     assert "authorPrincipalId" in lane_panel
-    # `isDirect` → `hasOtherHumans` (2026-07-30). The old name bundled "other
-    # humans are here" with "no Agent is here"; the polling gate wants only the
-    # first, and under the old name a group chat WITH an Agent never polled.
-    assert "hasOtherHumans" in lane_panel
-    assert "isDirect" not in lane_panel.replace("RENAMED from `isDirect`", "")
-    # Foreign user rows never offer edit-and-resend.
-    assert "m.role === 'user' && !foreign && !m.id.startsWith('local-')" in lane_panel
+    # `isDirect` → `hasOtherHumans` → `canReceiveOutOfBandTurns` (2026-08-14).
+    # See the polling test below for why the name moved twice; what matters
+    # here is only that the panel carries an out-of-band-refresh predicate.
+    assert "canReceiveOutOfBandTurns" in lane_panel
+    assert "isDirect" not in lane_panel.replace("It was `isDirect`, which", "")
+    # Only the VIEWER'S OWN rows offer edit-and-resend. This asserted
+    # `m.role === 'user' && !foreign`, which was the species-split spelling:
+    # `foreign` required role==='user', so an assistant row could never be
+    # attributed. `isOwn` is the same claim without the split (2026-08-14).
+    assert "{isOwn && !m.id.startsWith('local-') && (" in lane_panel
     chat = (WEB / "components/chat-surface/ChatSurface.tsx").read_text()
     assert "laneOtherHumans" in chat
     assert "Direct chat" in chat
@@ -173,8 +176,27 @@ def test_the_responder_comes_from_the_cast():
 
 
 def test_polling_follows_the_people_not_the_absence_of_an_agent():
+    """RE-DERIVED 2026-08-14 — this gate has now been re-spelled twice for the
+    same reason, which is the tell that it was pinning a spelling.
+
+    The predicate started as `isDirect`, became `hasOtherHumans` when a
+    group-with-an-Agent was found never to poll, and is now
+    `canReceiveOutOfBandTurns` because the mirror image was still broken: a
+    SOLO-human conversation with two Agents also polled never, so an Agent turn
+    addressed from another tab never arrived until remount.
+
+    The standing law is neither species: freshness must not be gated on the
+    OTHER PARTY BEING HUMAN. Asserted as a negative on the gate expression,
+    which is what actually went wrong all three times.
+    """
     chat = (WEB / "components/chat-surface/ChatSurface.tsx").read_text()
-    assert "hasOtherHumans={laneOtherHumans(activeLane).length > 0}" in chat
+    panel = (WEB / "components/chat-surface/LanePanel.tsx").read_text()
+    start = chat.index("canReceiveOutOfBandTurns={")
+    gate_expr = chat[start : chat.index("}\n", start)]
+    assert "laneOtherHumans" not in gate_expr and "human" not in gate_expr.lower().replace(
+        "member_kind === 'human'", ""
+    ), "out-of-band freshness must not be gated on the other party being HUMAN"
+    assert "canReceiveOutOfBandTurns" in panel, "the panel reads the same predicate"
     # laneOtherHumans must NOT bail out when an Agent is in the cast — that
     # early return is what disabled group-chat freshness. Anchored on the NEXT
     # declaration rather than a named sibling: this used to slice to

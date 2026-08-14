@@ -39,7 +39,7 @@
  * surface). Assistant text renders as markdown, as it always should have.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import {
   ArrowUp,
@@ -63,7 +63,47 @@ import { formatDaySeparator, formatAbsolute } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentFace } from '@/components/agents/AgentFace';
+import { MentionMenu, type MentionCandidate } from './MentionMenu';
 import { ArtifactCard } from './ArtifactCard';
+
+/** Render a member's text with recognized `@handles` marked (ADR-492 D3).
+ *
+ * A mention is ADDRESSING METADATA that happens to live in authored content —
+ * the server deliberately leaves the `@name` in the message rather than
+ * stripping it (`services/addressing.py`), so the transcript keeps exactly what
+ * was typed. But rendering it as undifferentiated prose hid the fact that the
+ * turn was ROUTED: "@lisa can you hear me" looked identical to a sentence about
+ * someone called Lisa.
+ *
+ * Only handles that resolve are marked. An unknown one stays plain, which makes
+ * a typo visible as a typo — the same reason the server refuses to fuzzy-match:
+ * silently styling `@lisaa` as a live mention would claim a delivery that never
+ * happened. The grammar mirrors the server's `_MENTION`.
+ */
+function renderWithMentions(text: string, known: Set<string>): ReactNode {
+  if (!text || !known.size || !text.includes('@')) return text;
+  const out: ReactNode[] = [];
+  const re = /(^|\s)@([\w-]+)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (!known.has(m[2].toLowerCase())) continue;
+    const at = m.index + m[1].length;
+    if (at > last) out.push(text.slice(last, at));
+    out.push(
+      <span
+        key={`${at}-${m[2]}`}
+        className="rounded bg-foreground/15 px-1 py-px font-medium"
+      >
+        @{m[2]}
+      </span>,
+    );
+    last = at + m[2].length + 1;
+  }
+  if (!out.length) return text;
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
 
 /** Day label for a message's separator (local date). '' when no timestamp. */
 function dayKey(ts?: string): string {
@@ -91,6 +131,19 @@ interface LaneMessage {
   /** Direct conversations (2+ humans, no agent): WHO wrote this user row.
    *  Absent on solo-lane rows — every user row there is the viewer's own. */
   authorPrincipalId?: string;
+  /** WHICH Agent authored this assistant row (ADR-495 D3 addressing).
+   *
+   *  A turn is authored BY A PRINCIPAL — that is the whole model, and the
+   *  species of the principal is not what decides how it renders. Before this
+   *  field the transcript could only express "mine vs. the machine's": every
+   *  reply, from every Agent, rendered as one anonymous grey column. With two
+   *  Agents in a cast that is not a cosmetic gap — Lisa's answer and Thinker's
+   *  answer were indistinguishable on reload.
+   *
+   *  Absent on rows written before addressing shipped, and on direct
+   *  (agent-less) conversations — both fall back to the unattributed render,
+   *  so no backfill is needed. */
+  agentSlug?: string;
 }
 
 /** A composer attachment mid-flight: uploading → uploaded (path set) | failed. */
@@ -168,21 +221,37 @@ interface LanePanelProps extends LaneMountSlots {
    *  would make a colleague answer for a model's capability. Defaults to
    *  `modelLabel`, so a caller that has no colleague reads exactly as before. */
   speakerLabel?: string;
-  /** Another human is in this conversation's cast — so their turns arrive
-   *  out-of-band (they don't ride the viewer's stream) and the transcript must
-   *  refresh on an interval.
+  /** This conversation can receive turns the viewer did not cause — so they
+   *  arrive out-of-band (they don't ride the viewer's stream) and the
+   *  transcript must refresh on an interval.
    *
-   *  RENAMED from `isDirect` (audited 2026-07-30). "Direct" bundled two
-   *  independent facts — "other humans are here" and "no Agent is here" — and
-   *  the polling gate wanted only the first. Under the old name a group chat
-   *  WITH an Agent polled never, so peers' messages never arrived. Whether
-   *  anyone auto-replies is the SERVER's decision from the cast; the client
-   *  only needs to know if it must go looking for turns it won't be pushed. */
-  hasOtherHumans?: boolean;
+   *  RENAMED TWICE, and the history is the point. It was `isDirect`, which
+   *  bundled "other humans are here" with "no Agent is here"; the 2026-07-30
+   *  audit split those and renamed it `hasOtherHumans`, fixing a group-with-an-
+   *  Agent that polled never. That rename fixed one half and froze the other:
+   *  a SOLO-human conversation with two Agents also polls never, so an Agent
+   *  turn triggered from another tab never arrives (2026-08-14).
+   *
+   *  The honest predicate is neither species — it is "is there any other
+   *  principal in this cast?" */
+  canReceiveOutOfBandTurns?: boolean;
   /** The viewer's principal id — the own-vs-other test for user rows. */
   viewerId?: string | null;
   /** principal_id → display label (email) for foreign user-row authorship. */
   principalLabels?: Record<string, string>;
+  /** Everyone addressable in this conversation, viewer excluded — the '@'
+   *  menu's roster (ADR-492 D3). Agents route; people are shown inert,
+   *  because ADR-495 D6 defers human mentions to notifications. Empty (the
+   *  default) simply means no menu opens. */
+  mentionCandidates?: MentionCandidate[];
+  /** agent slug → the face that answers under it (ADR-495 D3).
+   *
+   *  A turn is authored BY A PRINCIPAL, and the transcript resolves any
+   *  principal — human or Agent — to a name and a face through this map and
+   *  `principalLabels`. Passing a LOOKUP rather than a single `speakerLabel`
+   *  string is the whole correction: identity is a fact about a MESSAGE, not
+   *  about the lane, and a lane-level string cannot express two Agents. */
+  agentFaces?: Record<string, { name: string; avatarUrl?: string }>;
   /** Phase-A hygiene: the turn auto-named a default-named lane (server truth
    *  rides the done frame) — the mount updates its list/header. */
   onLaneRenamed?: (name: string) => void;
@@ -206,9 +275,11 @@ export function LanePanel({
   laneName,
   modelLabel,
   speakerLabel,
-  hasOtherHumans = false,
+  canReceiveOutOfBandTurns = false,
   viewerId = null,
   principalLabels,
+  agentFaces,
+  mentionCandidates = [],
   onArtifactWrite,
   emptyState,
   suggestions,
@@ -366,6 +437,12 @@ export function LanePanel({
         typeof m.metadata?.author_principal_id === 'string'
           ? (m.metadata.author_principal_id as string)
           : undefined,
+      // The API has written this since addressing shipped; nothing read it,
+      // so a reloaded multi-agent transcript rendered every reply anonymously.
+      agentSlug:
+        typeof m.metadata?.agent_slug === 'string'
+          ? (m.metadata.agent_slug as string)
+          : undefined,
     }));
 
   useEffect(() => {
@@ -398,19 +475,91 @@ export function LanePanel({
     }
   }, [laneId]);
 
-  // Direct conversations: the other participant's messages arrive out-of-band
-  // (no stream to ride), so refresh on a slow interval while mounted. Paused
-  // mid-send so a resync never clobbers the optimistic rows. (Realtime is the
-  // deferred RLS work — session subscriptions are creator-scoped today.)
+  // Turns that don't ride the viewer's stream arrive out-of-band, so refresh
+  // on a slow interval while mounted. Paused mid-send so a resync never
+  // clobbers the optimistic rows. (Realtime is the deferred RLS work —
+  // session subscriptions are creator-scoped today.)
+  //
+  // THE GATE IS "CAN A TURN ARRIVE THAT I DIDN'T CAUSE?", and the answer is
+  // yes for ANY other principal — not only humans. Under the previous
+  // `hasOtherHumans` gate a solo-human conversation with two Agents polled
+  // NEVER: an Agent reply triggered by anyone else (or by an addressed turn
+  // from another tab) simply never arrived until the lane was remounted. The
+  // 2026-07-30 audit fixed the mirror-image bug (a group WITH an Agent got no
+  // polling) and left this half standing, because at the time only one Agent
+  // could ever answer and only a human could ever be the other party.
   useEffect(() => {
-    if (!hasOtherHumans || sending) return;
+    if (!canReceiveOutOfBandTurns || sending) return;
     const t = setInterval(() => void resyncMessages(), 15_000);
     return () => clearInterval(t);
-  }, [hasOtherHumans, sending, resyncMessages]);
+  }, [canReceiveOutOfBandTurns, sending, resyncMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
+
+  // ── THE '@' GESTURE (ADR-492 D3) ──────────────────────────────────────
+  // The run being typed after an '@', or null. Mirrors the CARET, not just the
+  // text: a mention is only live while the caret sits inside its run, so
+  // clicking away closes the menu without any extra bookkeeping.
+  //
+  // The grammar matches the server's (`services/addressing.py::_MENTION`) —
+  // `[\w-]+` after a start-of-string-or-whitespace boundary. Keeping the two in
+  // agreement is what stops the menu offering a completion the router would not
+  // honour; an email address is not a mention on either side.
+  const readMentionRun = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el || el.selectionStart !== el.selectionEnd) return null;
+    const caret = el.selectionStart;
+    const upto = el.value.slice(0, caret);
+    const m = /(?:^|\s)@([\w-]*)$/.exec(upto);
+    if (!m) return null;
+    return { query: m[1], start: caret - m[1].length - 1 };
+  }, []);
+  // Every spelling that resolves to someone here — slug AND display name, the
+  // two the server matches on. Used to mark mentions in the transcript, so an
+  // unrecognized handle stays visibly plain.
+  const knownHandles = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of mentionCandidates) {
+      if (c.kind !== 'agent') continue;
+      s.add(c.handle.toLowerCase());
+      s.add(c.name.replace(/\s+/g, '').toLowerCase());
+    }
+    return s;
+  }, [mentionCandidates]);
+  const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
+  const [mentionHighlight, setMentionHighlight] = useState(0);
+  const mentionItemsRef = useRef<MentionCandidate[]>([]);
+  const syncMention = useCallback(() => {
+    setMention((prev) => {
+      const next = readMentionRun(textareaRef.current);
+      if (prev?.query === next?.query && prev?.start === next?.start) return prev;
+      return next;
+    });
+  }, [readMentionRun]);
+  useEffect(() => {
+    if (!mention) setMentionHighlight(0);
+  }, [mention?.start, mention]);
+
+  /** Complete the run to a real handle. Writes `@handle ` and puts the caret
+   *  after it, so the member keeps typing their sentence uninterrupted. */
+  const pickMention = useCallback(
+    (c: MentionCandidate) => {
+      const el = textareaRef.current;
+      if (!el || !mention) return;
+      const before = input.slice(0, mention.start);
+      const after = input.slice(el.selectionStart);
+      const next = `${before}@${c.handle} ${after}`;
+      setInput(next);
+      setMention(null);
+      requestAnimationFrame(() => {
+        const pos = before.length + c.handle.length + 2;
+        el.focus();
+        el.setSelectionRange(pos, pos);
+      });
+    },
+    [input, mention],
+  );
 
   // ADR-440 v1.1 — composer seeding (pointing + insert menu). Appends when
   // the member already typed something; replaces when the composer is empty.
@@ -485,11 +634,18 @@ export function LanePanel({
         setMessages((prev) =>
           prev.filter((m) => !(m.id === replyId && !m.content && !m.artifacts?.length)),
         );
+      // WHO, before WHAT — the frame arrives ahead of the first delta, so the
+      // spinner names the colleague answering instead of the lane's engine.
+      const stampSpeaker = (agentSlug: string) =>
+        setMessages((prev) =>
+          prev.map((m) => (m.id === replyId ? { ...m, agentSlug } : m)),
+        );
       const handlers = {
         onDelta: (text: string) => {
           sawDelta = true;
           appendDelta(text);
         },
+        onSpeaker: ({ agent_slug }: { agent_slug: string }) => stampSpeaker(agent_slug),
         onTool: (name: string) =>
           setMessages((prev) =>
             prev.map((m) =>
@@ -514,17 +670,22 @@ export function LanePanel({
         onDone: ({
           tools_called,
           artifacts,
+          agent_slug,
           lane_name,
           direct,
         }: {
           rounds: number;
           tools_called: string[];
           artifacts: string[];
+          agent_slug?: string;
           lane_name?: string;
           direct?: boolean;
         }) => {
           // Phase-A hygiene: the server auto-named this lane on first turn.
           if (lane_name) onLaneRenamed?.(lane_name);
+          // Belt-and-braces for a turn that emitted no delta (tool-only), or a
+          // reader that joined after the speaker frame went by.
+          if (agent_slug) stampSpeaker(agent_slug);
           // A direct-conversation turn is a broadcast — there is no reply, so
           // the placeholder goes away rather than becoming "[no reply]".
           if (direct) {
@@ -711,27 +872,51 @@ export function LanePanel({
           const thisDay = dayKey(m.created_at);
           const showDay = thisDay !== '' && thisDay !== prevDay;
           const isLast = i === messages.length - 1;
-          // Direct conversations: a user row someone ELSE wrote reads on the
-          // left with their name — own-vs-other, never all-right-aligned.
-          const foreign =
-            m.role === 'user' &&
-            !!m.authorPrincipalId &&
-            !!viewerId &&
-            m.authorPrincipalId !== viewerId;
-          const foreignLabel = foreign
-            ? principalLabels?.[m.authorPrincipalId!] ||
-              `member-${m.authorPrincipalId!.slice(0, 8)}`
-            : null;
+          // ── AUTHORSHIP ────────────────────────────────────────────────
+          // ONE model for every turn: a message is authored by a PRINCIPAL,
+          // and the principal's species is not what decides how it renders.
+          //
+          // THE DEFECT THIS REPLACES (operator-observed 2026-08-13). `foreign`
+          // used to require `role === 'user'`, so a *human* could be someone
+          // else but an *assistant* was always "the machine" — one anonymous
+          // grey column. That was fine while exactly one Agent could reply;
+          // with addressing (ADR-495 D3) Lisa's answer and Thinker's answer
+          // rendered identically, and consecutive replies from DIFFERENT
+          // Agents even grouped into one visual run (`authorPrincipalId` is
+          // undefined on both, and `undefined !== undefined` is false).
+          //
+          // It was the same species law ADR-495 stripped out of the substrate,
+          // still living in the renderer: `conversation_cast.py` is
+          // species-blind; this was not.
+          //
+          // `authorKey` identifies the speaker for grouping; `attributed`
+          // means "someone other than the viewer, who we can name".
+          const isOwn = m.role === 'user' && (!m.authorPrincipalId || m.authorPrincipalId === viewerId);
+          const authorKey = m.role === 'assistant'
+            ? `agent:${m.agentSlug ?? ''}`
+            : `human:${m.authorPrincipalId ?? 'self'}`;
+          const agentFace = m.agentSlug ? agentFaces?.[m.agentSlug] : undefined;
+          const authorLabel = m.role === 'assistant'
+            ? agentFace?.name || m.agentSlug || null
+            : isOwn
+              ? null
+              : principalLabels?.[m.authorPrincipalId!] ||
+                `member-${(m.authorPrincipalId ?? '').slice(0, 8)}`;
+          // A row gets the gutter + name when we can say WHO spoke and it is
+          // not the viewer. An unattributed assistant row (pre-addressing
+          // history, or a direct conversation) keeps exactly its old look.
+          const attributed = !isOwn && !!authorLabel;
           // Consecutive-run grouping (the conventional messaging shape): a run
-          // of turns from the SAME person shows the face + name once, at the
-          // top. Repeating both on every line is the noise that made a
-          // multi-human transcript hard to scan.
+          // of turns from the SAME author shows the face + name once, at the
+          // top. Keyed on the AUTHOR now, not the role — so Lisa-then-Thinker
+          // is two runs, as it reads to a human.
           const prev = i > 0 ? messages[i - 1] : null;
-          const startsRun =
-            !prev ||
-            prev.role !== m.role ||
-            prev.authorPrincipalId !== m.authorPrincipalId ||
-            showDay;
+          const prevKey = prev
+            ? prev.role === 'assistant'
+              ? `agent:${prev.agentSlug ?? ''}`
+              : `human:${prev.authorPrincipalId ?? 'self'}`
+            : null;
+          const startsRun = !prev || prevKey !== authorKey || showDay;
           return (
             <div key={m.id} className="group">
               {showDay && (
@@ -749,31 +934,35 @@ export function LanePanel({
               {/* The bubble is speech. An artifact is not speech — it renders
                   below, at row width, outside the bubble (ADR-236: render +
                   open, never edit). A tool-only turn shows only the card. */}
-              {/* A foreign row's author name sits ABOVE the bubble, indented
-                  past the avatar gutter, and only at the top of a run — the
-                  conventional grouping. Its own row rather than a wrapper, so
-                  the bubble's own layout below is untouched. */}
-              {foreign && startsRun && (
+              {/* An attributed row's author name sits ABOVE the bubble,
+                  indented past the avatar gutter, and only at the top of a run
+                  — the conventional grouping. Its own row rather than a
+                  wrapper, so the bubble's own layout below is untouched. */}
+              {attributed && startsRun && (
                 <span className="block pl-[1.875rem] pb-0.5 text-[10px] text-muted-foreground">
-                  {foreignLabel}
+                  {authorLabel}
                 </span>
               )}
               {(m.content || m.role === 'user' || !m.artifacts?.length) && (
                 <div
                   className={cn(
                     'flex',
-                    m.role === 'user' && !foreign ? 'justify-end' : 'justify-start',
-                    // A foreign row gets an avatar GUTTER: the face on the left,
-                    // the bubble beside it. Continuation rows keep the gutter
-                    // width (an empty span) so their bubbles stay aligned under
-                    // the first — the face appears once per run.
-                    foreign && 'items-end gap-1.5',
+                    isOwn ? 'justify-end' : 'justify-start',
+                    // An attributed row gets an avatar GUTTER: the face on the
+                    // left, the bubble beside it. Continuation rows keep the
+                    // gutter width (an empty span) so their bubbles stay
+                    // aligned under the first — the face appears once per run.
+                    attributed && 'items-end gap-1.5',
                   )}
                 >
-                  {foreign && (
+                  {attributed && (
                     <span className="w-6 shrink-0">
                       {startsRun && (
-                        <AgentFace name={foreignLabel || '?'} size="sm" />
+                        <AgentFace
+                          name={authorLabel || '?'}
+                          avatarUrl={agentFace?.avatarUrl}
+                          size="sm"
+                        />
                       )}
                     </span>
                   )}
@@ -781,9 +970,9 @@ export function LanePanel({
                     title={m.created_at ? formatAbsolute(m.created_at) : undefined}
                     className={cn(
                       'max-w-[85%] rounded-lg px-3 py-2 text-sm break-words',
-                      m.role === 'user' && !foreign
+                      isOwn
                         ? 'bg-primary text-primary-foreground whitespace-pre-wrap'
-                        : foreign
+                        : attributed && m.role === 'user'
                           ? 'bg-muted text-foreground whitespace-pre-wrap border border-border/60'
                           : 'bg-muted text-foreground',
                     )}
@@ -793,9 +982,14 @@ export function LanePanel({
                     {m.role === 'assistant' && !m.content ? (
                       <span className="flex items-center gap-2 text-muted-foreground">
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        {/* Per-MESSAGE speaker (ADR-495 D3). The lane-level
+                            `speaker` is the fallback for a lane that has no
+                            cast; once the SSE speaker frame lands, the row
+                            names the colleague actually answering rather than
+                            the engine behind them. */}
                         {(m.tools_called && m.tools_called.length > 0)
-                          ? `${speaker} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
-                          : `${speaker} is working…`}
+                          ? `${authorLabel || speaker} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
+                          : `${authorLabel || speaker} is working…`}
                       </span>
                     ) : m.role === 'assistant' ? (
                       // 2026-07-09: the lane's reply is markdown, like every
@@ -806,7 +1000,7 @@ export function LanePanel({
                         <MarkdownRenderer content={m.content} />
                       </div>
                     ) : (
-                      m.content
+                      renderWithMentions(m.content, knownHandles)
                     )}
                     {/* Phase-A attachments: what this user turn carried. */}
                     {m.role === 'user' && m.attachments && m.attachments.length > 0 && (
@@ -845,7 +1039,7 @@ export function LanePanel({
                 <div
                   className={cn(
                     'flex gap-0.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
-                    m.role === 'user' && !foreign ? 'justify-end' : 'justify-start',
+                    isOwn ? 'justify-end' : 'justify-start',
                   )}
                 >
                   <button
@@ -861,7 +1055,7 @@ export function LanePanel({
                       <Copy className="w-3 h-3" />
                     )}
                   </button>
-                  {m.role === 'user' && !foreign && !m.id.startsWith('local-') && (
+                  {isOwn && !m.id.startsWith('local-') && (
                     <button
                       type="button"
                       onClick={() => startEdit(m)}
@@ -985,7 +1179,22 @@ export function LanePanel({
             ))}
           </div>
         )}
-        <div className="flex items-end gap-2">
+        {/* `relative` anchors the '@' menu, which mounts bottom-full — above
+            the composer, the way the command picker does. */}
+        <div className="relative flex items-end gap-2">
+          {mention && mentionCandidates.length > 0 && (
+            <MentionMenu
+              candidates={mentionCandidates}
+              filter={mention.query}
+              highlight={mentionHighlight}
+              onHighlight={setMentionHighlight}
+              onPick={pickMention}
+              onClose={() => setMention(null)}
+              onItemsChange={(items) => {
+                mentionItemsRef.current = items;
+              }}
+            />
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -1042,8 +1251,40 @@ export function LanePanel({
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // After the value lands, so the caret read is the post-edit one.
+              requestAnimationFrame(syncMention);
+            }}
+            onSelect={syncMention}
+            onBlur={() => setMention(null)}
             onKeyDown={(e) => {
+              // The MENU owns these keys while it is open — the textarea keeps
+              // focus (the caret must not leave the run), so the host arbitrates
+              // rather than the palette. Same inversion as StudioSlashPalette.
+              const items = mentionItemsRef.current;
+              if (mention && items.length > 0) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setMentionHighlight((h) => Math.min(h + 1, items.length - 1));
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setMentionHighlight((h) => Math.max(h - 1, 0));
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  pickMention(items[Math.min(mentionHighlight, items.length - 1)]);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setMention(null);
+                  return;
+                }
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 void send();

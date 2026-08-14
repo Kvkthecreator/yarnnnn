@@ -248,6 +248,76 @@ def test_the_assistant_row_records_who_spoke():
     assert 'extra["responder_reason"] = responder_reason' in body
 
 
+# ---------------------------------------------------------------------------
+# 6. The surface — a turn is authored BY A PRINCIPAL
+# ---------------------------------------------------------------------------
+
+WEB = pathlib.Path(__file__).parent.parent / "web/components/chat-surface"
+
+
+def test_the_transcript_has_no_species_split():
+    """`foreign` required `role === 'user'`, so a HUMAN could be someone else
+    but an ASSISTANT was always "the machine" — one anonymous grey column. That
+    is the same species law ADR-495 D3 stripped out of the substrate, left
+    standing in the renderer. Authorship must be one model for every turn."""
+    panel = (WEB / "LanePanel.tsx").read_text()
+    body = panel[panel.index("{messages.map("):]
+    assert "const foreign =" not in body, (
+        "a species-split author test cannot express two Agents in one cast"
+    )
+    assert "const isOwn =" in body and "const authorKey =" in body
+    # Run-grouping must key on the AUTHOR, not the role — otherwise consecutive
+    # replies from DIFFERENT Agents collapse into one visual run (both have
+    # authorPrincipalId === undefined, and undefined !== undefined is false).
+    assert "prevKey !== authorKey" in body
+
+
+def test_the_message_carries_who_spoke():
+    """The API has persisted `metadata.agent_slug` since addressing shipped;
+    nothing read it, so a RELOADED multi-agent transcript was anonymous."""
+    panel = (WEB / "LanePanel.tsx").read_text()
+    assert "agentSlug?: string;" in panel, "the message model needs a speaker slot"
+    assert "m.metadata?.agent_slug" in panel, "mapMessages must read what the API writes"
+    # ...and the LIVE bubble, before the row is ever persisted.
+    assert "onSpeaker" in panel
+    client = (WEB.parent.parent / "lib/api/client.ts").read_text()
+    assert "onSpeaker?" in client, "the SSE reader must dispatch the speaker frame"
+
+
+def test_the_server_puts_the_speaker_on_the_wire():
+    """The route always knew the responder and never sent it, so a live reply
+    from Lisa rendered under the lane's engine label."""
+    src = (pathlib.Path(__file__).parent / "routes/lanes.py").read_text()
+    body = src[src.index("def _turn_stream_response"):]
+    assert '"speaker"' in body, "WHO must precede WHAT on the wire"
+    assert 'done["agent_slug"] = responder' in body, (
+        "a tool-only turn yields no delta and would finalize unattributed"
+    )
+
+
+def test_the_mention_menu_only_offers_what_the_router_honours():
+    """An unresolved handle is never fuzzy-matched server-side, so a menu that
+    could emit an invalid handle would promise a routing that never happens."""
+    menu = (WEB / "MentionMenu.tsx").read_text()
+    # People are DISPLAYED (the cast is species-blind) but not selectable —
+    # ADR-495 D6 defers human mentions to notifications.
+    assert "onItemsChange(selectable)" in menu
+    assert "selectable: agentRows" in menu, "only Agents may be picked"
+    assert "doesn&apos;t notify them yet" in menu, "say why a person is inert"
+    # A filter matching nobody must CLOSE the menu, or a typed email address
+    # strands it over the composer (the StudioSlashPalette lesson).
+    assert "onClose();" in menu and "filter.length > 0" in menu
+
+
+def test_out_of_band_freshness_is_not_gated_on_species():
+    """A solo-human conversation with two Agents polled NEVER, so an Agent turn
+    addressed from another tab never arrived until remount."""
+    panel = (WEB / "LanePanel.tsx").read_text()
+    chat = (WEB / "ChatSurface.tsx").read_text()
+    assert "canReceiveOutOfBandTurns" in panel
+    assert "hasOtherHumans={" not in chat, "the gate must not name one species"
+
+
 def test_the_frontend_shows_one_speaker_not_the_room():
     """The indicator read "Thinker, Lisa is working…" for a single reply — the
     ROOM label passed to a prop documented as "the resident's name"."""
