@@ -699,6 +699,15 @@ def build_lane_conventions(
         # Selects the JOB overlay only — never the resident.
         from services.strings import build_keeper_desk_posture
         posture_section += "\n" + build_keeper_desk_posture(client, user_id, artifact_path) + "\n"
+    elif artifact_path and app == "text":
+        # ADR-571 D4 — the Text app's JOB overlay. Same reasoning as the two
+        # branches above, and here it is load-bearing rather than merely
+        # tidy: the studio fallback lifts `data-template` from the artifact,
+        # an .md has none, so it resolves to `document` and would hand the
+        # colleague an HTML-BLOCK contract for a markdown file. The job is
+        # this one prose document, written whole and plain.
+        from services.apps.text import build_text_posture
+        posture_section += "\n" + build_text_posture(client, user_id, artifact_path) + "\n"
     elif artifact_path:
         from services.authoring import build_studio_posture
         # `artifact` was read once at the top of the frame (shared with ADR-562 D6's

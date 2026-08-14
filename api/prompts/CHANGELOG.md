@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.15.1] - The Text app's job overlay (ADR-571)
+
+### Changed
+- `services/apps/text.py` (NEW module): `build_text_posture` — the JOB
+  overlay for a text-bound lane, composed under the resident's character
+  (character first, job second — the lane_runner order). No new character
+  text and NO new posture row: Editor is the app's NAME for the designer
+  resident (`register_app("text", resident="designer", name="Editor")` —
+  the Docs/"Writer" shape, ADR-562), because Editor's character IS the
+  writing character; only the name differs.
+- `services/lane_runner.py`: one branch — `lane_meta.app == "text"` selects
+  the overlay above.
+- Expected behavior: a lane bound to a `.md` is told its job is THIS prose
+  document — read the head fresh, refine conversationally, write whole and
+  plain (no HTML, no block ids, no `data-*`), cite `derived_from` when
+  authoring from a source, and never rewrite the document to change a
+  sentence. **Why it is needed rather than nice**: without the branch the
+  lane falls through to `build_studio_posture`, which lifts `data-template`
+  from the artifact — an `.md` has none, so it silently resolves to
+  `document` and the colleague is handed an HTML-BLOCK contract for a
+  markdown file. Observed hazard, named in ADR-570's scoping; the same
+  reason radar and strings each carry a branch.
+
+---
+
 ## [2026.08.14.1] - Keeper's character + the strings desk/run postures (ADR-569)
 
 ### Changed

@@ -385,6 +385,29 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/strings",
         "summary": "Files you designate as kept current — a contract in plain words, declared sources pulled on schedule, Keeper revising the head while your corrections compound. Docs and decks that cite a maintained file stay current by reference.",
     },
+    {
+        # ADR-571 — Text, the dedicated surface for the prose currency
+        # (.md/.txt), Docs-shaped: a landing of recent prose documents + a
+        # plain-text editor canvas with a bound Editor lane (the app's name
+        # for the designer resident — ADR-562, the Docs/"Writer" shape).
+        # Every save is a signed revision through the ADR-570 member door
+        # (CAS-guarded; a 409 names who moved the head). Files hands the
+        # prose class to this app the way it hands .html to Docs; Preview
+        # stays one Open With away. Born UNVEILED (primary + Dock) — the
+        # operator's correction that created this app was the unveil
+        # decision ("my understanding was that it is a dedicated app. just
+        # like docs").
+        "slug": "text",
+        "launcher_tier": "primary",  # ADR-571 D1 — unveiled at birth, operator-directed
+        "register": "application",
+        "title": "Text",
+        "archetype": "document",
+        "substrate_paths": [],  # prose is meaning-placed; the app owns no namespace
+        "icon_key": "scroll-text",
+        "default_pinned": True,  # ships in the Dock beside Docs
+        "route": "/text",
+        "summary": "Plain-text prose — transcripts, notes, briefs, every .md in the workspace. Open with a cursor, refine with Editor beside you, and every save lands as a signed revision your connectors read back.",
+    },
     # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
     # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
     # interior) — an axis operators don't hold, producing two "what happened"

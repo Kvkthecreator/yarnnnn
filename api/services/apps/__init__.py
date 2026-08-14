@@ -57,6 +57,10 @@ declaration per app and that every registered app names a resolvable resident.
 # A new app adds its line here — one place, checked by the gate.
 from services.apps import docs as docs  # noqa: F401,E402  (registration side-effect)
 from services.apps import images as images  # noqa: F401,E402  (registration side-effect)
+# text (ADR-571) — the prose-currency app. Registers itself in its own module
+# (the Docs shape), because `services/apps/text.py` also holds the lane's job
+# overlay and already imports `services.authoring` for the registration.
+from services.apps import text as text  # noqa: F401,E402  (registration side-effect)
 
 # radar (ADR-486) is an app with a resident too — a sweep on a clock rather than
 # a canvas, which changes what it DOES, not what kind of fact its colleague is.
