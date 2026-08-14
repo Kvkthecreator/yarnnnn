@@ -167,6 +167,24 @@ def resolve_owner_workspace_id(user_id: str) -> Optional[str]:
     return _resolve_owner_workspace_id_cached(user_id)
 
 
+# The mint-time placeholder name (both mint sites: here + the account-reset
+# re-mint). A workspace still carrying it has never been named by its owner —
+# outward surfaces (invite email/landing, share landing) treat it as unnamed
+# and keep their own generic phrasing instead of leaking "My Workspace" to a
+# recipient it isn't "my" to.
+DEFAULT_WORKSPACE_NAME = "My Workspace"
+
+
+def display_workspace_name(name: Optional[str]) -> Optional[str]:
+    """The workspace's chosen name, or None while it still wears the mint default."""
+    if not name:
+        return None
+    trimmed = name.strip()
+    if not trimmed or trimmed.lower() == DEFAULT_WORKSPACE_NAME.lower():
+        return None
+    return trimmed
+
+
 def ensure_owner_workspace(user_id: str) -> str:
     """Mint the caller's owner workspace if none exists (ADR-465 D2 — lazy genesis).
 
@@ -192,7 +210,7 @@ def ensure_owner_workspace(user_id: str) -> str:
         return fresh.data[0]["id"]
     inserted = (
         client.table("workspaces")
-        .insert({"name": "My Workspace", "owner_id": user_id})
+        .insert({"name": DEFAULT_WORKSPACE_NAME, "owner_id": user_id})
         .execute()
     )
     if not inserted.data:

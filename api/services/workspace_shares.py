@@ -245,7 +245,10 @@ def get_share_by_token(token: str) -> Optional[dict[str, Any]]:
         .limit(1)
         .execute()
     ).data or []
-    share["workspace_name"] = ws[0].get("name") if ws else None
+    # Mint-default names read as UNNAMED (workspace identity phase 1) — the
+    # share landing keeps its generic phrasing for an unnamed workspace.
+    from services.supabase import display_workspace_name
+    share["workspace_name"] = display_workspace_name(ws[0].get("name")) if ws else None
     return share
 
 

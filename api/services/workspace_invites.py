@@ -197,7 +197,11 @@ def get_invite_by_token(token: str) -> Optional[dict[str, Any]]:
         .limit(1)
         .execute()
     ).data or []
-    invite["workspace_name"] = ws[0].get("name") if ws else None
+    # Mint-default names read as UNNAMED here (workspace identity phase 1):
+    # the invite landing falls back to its own generic phrasing rather than
+    # presenting "My Workspace" to someone it isn't "my" to.
+    from services.supabase import display_workspace_name
+    invite["workspace_name"] = display_workspace_name(ws[0].get("name")) if ws else None
     return invite
 
 

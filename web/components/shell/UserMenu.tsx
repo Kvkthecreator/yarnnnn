@@ -359,7 +359,15 @@ export function UserMenu({ email }: UserMenuProps) {
                   onClick={() => handleSwitchWorkspace(m)}
                   className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
                 >
-                  <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                  {/* Workspace identity phase 1 — the owner-chosen glyph
+                      (emoji) when set; the org glyph otherwise. */}
+                  {m.icon ? (
+                    <span className="w-4 h-4 shrink-0 flex items-center justify-center text-sm leading-none">
+                      {m.icon}
+                    </span>
+                  ) : (
+                    <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                  )}
                   <span className="flex-1 min-w-0">
                     <span className="block truncate">{m.label}</span>
                     <span className="block text-[11px] text-muted-foreground">

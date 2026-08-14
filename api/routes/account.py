@@ -725,9 +725,10 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             deleted[table] = _delete_rows(client, table, user_id, optional=True)
 
         # Reset workspace row to default
+        from services.supabase import DEFAULT_WORKSPACE_NAME
         deleted["workspaces"] = _delete_rows(client, "workspaces", user_id, user_column="owner_id")
         client.table("workspaces").insert({
-            "name": "My Workspace",
+            "name": DEFAULT_WORKSPACE_NAME,
             "owner_id": user_id,
         }).execute()
 

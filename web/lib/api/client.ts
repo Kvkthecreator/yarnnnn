@@ -2083,15 +2083,27 @@ export const api = {
       request<{
         memberships: Array<{
           workspace_id: string;
-          role: 'owner' | 'member';
+          role: 'owner' | 'member' | 'viewer';
           label: string;
           is_active: boolean;
+          /** Workspace identity phase 1 — owner-chosen glyph (emoji); null →
+           *  the default org glyph. */
+          icon: string | null;
         }>;
         /** ADR-501: the caller's workspace-clear authority in the ACTING
          *  workspace, server-derived from the grant (owner OR the
          *  `workspace:clear` scope) — read this, never predict from role. */
         can_clear: boolean;
       }>("/api/workspace/memberships"),
+
+    // Workspace identity phase 1 — rename / re-glyph the acting workspace.
+    // Owner-gated server-side (RLS UPDATE policy; a member's PATCH 403s).
+    // `icon: null` clears the glyph; omit a field to leave it unchanged.
+    updateIdentity: (body: { name?: string; icon?: string | null }) =>
+      request<{ workspace_id: string; name: string; icon: string | null }>(
+        "/api/workspace",
+        { method: "PATCH", body: JSON.stringify(body) },
+      ),
 
     // ADR-439 — BYOK (enterprise-tier). GET is readable on any tier (the FE
     // shows availability); the write verbs are owner + enterprise-gated server-side.

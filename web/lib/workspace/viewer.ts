@@ -52,6 +52,9 @@ export interface WorkspaceMembershipRow {
   role: 'owner' | 'member' | 'viewer';
   label: string;
   is_active: boolean;
+  /** Workspace identity phase 1 — owner-chosen glyph (emoji); null/absent →
+   *  the default org glyph. */
+  icon?: string | null;
 }
 
 export interface WorkspaceRoster {

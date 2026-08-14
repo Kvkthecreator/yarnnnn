@@ -188,9 +188,30 @@ class WorkspaceTimelineResponse(BaseModel):
 class WorkspaceMembership(BaseModel):
     """One workspace the CALLER can act in (ADR-407 Phase 5 — the switcher)."""
     workspace_id: str
-    role: str                              # owner | member
-    label: str                             # humanized (owner email / 'My workspace')
+    role: str                              # owner | member | viewer
+    label: str                             # workspace name, else humanized fallback (owner email / 'My workspace')
     is_active: bool                        # True if this is the acting workspace
+    # Workspace identity phase 1 (2026-08-14): the owner-chosen glyph (emoji).
+    # None → the FE renders its default org glyph.
+    icon: Optional[str] = None
+
+
+class WorkspaceIdentityUpdate(BaseModel):
+    """PATCH /api/workspace — rename / re-glyph the acting workspace.
+
+    Both fields optional; only provided fields are written. `icon` accepts
+    null/"" to clear. The gate is the RLS UPDATE policy (owner-only, mig 002):
+    the write goes through the CALLER's client, so a non-owner's PATCH matches
+    zero rows and 403s — never a service-role bypass.
+    """
+    name: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class WorkspaceIdentityResponse(BaseModel):
+    workspace_id: str
+    name: str
+    icon: Optional[str] = None
 
 
 class WorkspaceMembershipsResponse(BaseModel):
@@ -1130,6 +1151,58 @@ async def get_workspace_timeline(
     return WorkspaceTimelineResponse(entries=entries[:limit], has_more=page_full)
 
 
+@router.patch("/workspace", response_model=WorkspaceIdentityResponse)
+async def update_workspace_identity(
+    body: WorkspaceIdentityUpdate, auth: UserClient
+) -> WorkspaceIdentityResponse:
+    """Rename / re-glyph the ACTING workspace (workspace identity phase 1).
+
+    Owner-gated by construction: the update runs through the caller's own
+    client, so the RLS UPDATE policy (owner_id = auth.uid(), mig 002) is the
+    enforcement — a member's PATCH matches zero rows and 403s. The name is
+    what invite emails, the invite/share landings, and the switcher show.
+    """
+    from services.supabase import resolve_owner_workspace_id
+
+    workspace_id = auth.workspace_id or resolve_owner_workspace_id(auth.user_id)
+    if not workspace_id:
+        raise HTTPException(status_code=404, detail="No workspace to update")
+
+    update: dict = {}
+    if "name" in body.model_fields_set:
+        name = (body.name or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Workspace name cannot be empty")
+        if len(name) > 80:
+            raise HTTPException(status_code=400, detail="Workspace name is too long (80 max)")
+        update["name"] = name
+    if "icon" in body.model_fields_set:
+        icon = (body.icon or "").strip()
+        if len(icon) > 16:
+            raise HTTPException(status_code=400, detail="Workspace icon is too long")
+        update["icon"] = icon or None
+    if not update:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
+    rows = (
+        auth.client.table("workspaces")
+        .update(update)
+        .eq("id", workspace_id)
+        .execute()
+    ).data or []
+    if not rows:
+        # RLS matched nothing — the caller is not this workspace's owner.
+        raise HTTPException(
+            status_code=403, detail="Only the workspace owner can change its name or icon"
+        )
+    row = rows[0]
+    return WorkspaceIdentityResponse(
+        workspace_id=workspace_id,
+        name=row.get("name") or "",
+        icon=row.get("icon"),
+    )
+
+
 @router.get("/workspace/memberships", response_model=WorkspaceMembershipsResponse)
 async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsResponse:
     """The workspaces the CALLER can act in (ADR-407 Phase 5 — the switcher).
@@ -1140,7 +1213,11 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
     the current request resolved to (X-Workspace-Id → owner fallback), so the
     switcher can render the current binding without re-deriving it.
     """
-    from services.supabase import get_service_client, resolve_owner_workspace_id
+    from services.supabase import (
+        display_workspace_name,
+        get_service_client,
+        resolve_owner_workspace_id,
+    )
 
     svc = get_service_client()
     acting = auth.workspace_id or resolve_owner_workspace_id(auth.user_id)
@@ -1150,8 +1227,23 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
     try:
         own_ws = resolve_owner_workspace_id(auth.user_id)
         if own_ws:
+            # Workspace identity phase 1: the label is the CHOSEN name; a
+            # workspace still wearing the mint default reads "My workspace"
+            # (what this row always said before names were writable).
+            own_name, own_icon = None, None
+            try:
+                own_row = (
+                    svc.table("workspaces").select("name, icon")
+                    .eq("id", own_ws).limit(1).execute()
+                ).data or []
+                if own_row:
+                    own_name = display_workspace_name(own_row[0].get("name"))
+                    own_icon = own_row[0].get("icon")
+            except Exception:  # noqa: BLE001 — label degrades, row still renders
+                pass
             memberships.append(WorkspaceMembership(
-                workspace_id=own_ws, role="owner", label="My workspace",
+                workspace_id=own_ws, role="owner",
+                label=own_name or "My workspace", icon=own_icon,
                 is_active=(own_ws == acting),
             ))
             seen.add(own_ws)
@@ -1174,21 +1266,33 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
             if not ws_id or ws_id in seen:
                 continue
             seen.add(ws_id)
+            # A NAMED workspace is labeled by its name (which also stops
+            # leaking the owner's email to every member); one still wearing
+            # the mint default keeps the owner-email fallback — "My Workspace"
+            # would be a nonsense label on a workspace that isn't the
+            # caller's.
             label = "Shared workspace"
+            icon = None
             try:
                 owner_row = (
-                    svc.table("workspaces").select("owner_id").eq("id", ws_id).limit(1).execute()
+                    svc.table("workspaces").select("owner_id, name, icon")
+                    .eq("id", ws_id).limit(1).execute()
                 ).data or []
                 if owner_row:
-                    from jobs.unified_scheduler import get_user_email
-                    email = await get_user_email(svc, owner_row[0]["owner_id"])
-                    if email:
-                        label = f"{email}'s workspace"
+                    icon = owner_row[0].get("icon")
+                    named = display_workspace_name(owner_row[0].get("name"))
+                    if named:
+                        label = named
+                    else:
+                        from jobs.unified_scheduler import get_user_email
+                        email = await get_user_email(svc, owner_row[0]["owner_id"])
+                        if email:
+                            label = f"{email}'s workspace"
             except Exception:
                 pass
             memberships.append(WorkspaceMembership(
                 workspace_id=ws_id, role=r.get("role") or "member", label=label,
-                is_active=(ws_id == acting),
+                icon=icon, is_active=(ws_id == acting),
             ))
     except Exception as e:
         logger.warning("[MEMBERSHIPS] grant lookup failed: %s", e)
@@ -1789,12 +1893,15 @@ async def invite_member(body: InviteCreateRequest, auth: UserClient) -> InviteSu
         raise HTTPException(status_code=status, detail=str(e))
 
     # Best-effort email (never blocks — the returned link is the fallback).
+    # An unnamed workspace (mint default) passes None so the mail keeps its
+    # generic phrasing — "My Workspace" is nonsense addressed to an invitee.
     ws_name = None
     try:
+        from services.supabase import display_workspace_name
         from services.workspace_invites import _svc
         rows = (_svc().table("workspaces").select("name")
                 .eq("id", workspace_id).limit(1).execute()).data or []
-        ws_name = rows[0].get("name") if rows else None
+        ws_name = display_workspace_name(rows[0].get("name")) if rows else None
     except Exception:  # noqa: BLE001
         pass
     await send_invite_email(

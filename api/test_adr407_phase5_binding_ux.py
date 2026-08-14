@@ -37,8 +37,12 @@ def test_backend_endpoint() -> None:
     text = (ROOT / "routes/workspace.py").read_text()
     checks = [
         ("memberships endpoint exists", '@router.get("/workspace/memberships"' in text),
+        # ADR-517 D6 widened the grant query to include viewer; the pin
+        # tracked the pre-517 spelling and read the widening as a violation
+        # (pre-existing red, repaired 2026-08-14 with the workspace-identity
+        # change that touched this endpoint).
         ("owner labeled + member grants queried",
-         '"My workspace"' in text and '.in_("role", ["member"])' in text),
+         '"My workspace"' in text and '.in_("role", ["member", "viewer"])' in text),
         ("is_active reflects the request binding", "is_active=(own_ws == acting)" in text),
         ("response model declared", "class WorkspaceMembershipsResponse" in text),
     ]
