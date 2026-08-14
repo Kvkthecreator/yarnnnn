@@ -173,7 +173,11 @@ const APP_SURFACES: Record<string, SurfaceApplication> = {
   docs: { surface: 'docs', param: 'file', label: 'Docs' }, // ADR-518 — the writing app
   studio: { surface: 'studio', param: 'file', label: 'Studio' },
   images: { surface: 'images', param: 'file', label: 'Images' },
+  text: { surface: 'text', param: 'file', label: 'Text' }, // ADR-571 — the prose app
 };
+
+/** The prose class the Text app owns (ADR-571 D2 / ADR-570 D4's format class). */
+const PROSE_EXT_RE = /\.(md|markdown|txt)$/i;
 
 const DEFAULT_ARTIFACT_APP = 'studio';
 
@@ -239,15 +243,21 @@ export function knownKind(path: string): string | undefined {
   return PATH_KIND.get(path);
 }
 
-/** Could this path be an authoring-app artifact at all? (ADR-473)
+/** Could this path be an app-claimed document at all? (ADR-473, widened by
+ *  ADR-571 D2)
  *  A cheap path-only pre-check so the Finder reads content ONLY for files that
- *  might route to an app — never for a `.md`, an image, or an arrival. */
+ *  might route to an app — never for an image or an arrival. Prose (`.md`)
+ *  now qualifies: the Text app claims the class by EXTENSION, so no content
+ *  read is needed for it, but it must pass this gate to reach the claim at
+ *  all — `openPath` consults `resolveSurfaceApplication` only past here. */
 export function isArtifactCandidate(path: string, contentType?: string): boolean {
   const p = path.toLowerCase();
   const t = (contentType || '').toLowerCase();
   const isHtml = p.endsWith('.html') || p.endsWith('.htm') || t.includes('text/html');
   const isArrival = p.includes('/inbound/') || p.startsWith('inbound/');
-  return isHtml && !isArrival;
+  const leaf = p.split('/').pop() || p;
+  const isProse = PROSE_EXT_RE.test(leaf) && !leaf.startsWith('_');
+  return (isHtml || isProse) && !isArrival;
 }
 
 /** The artifact's declared document type — its root `data-template` (ADR-459
@@ -297,6 +307,15 @@ export function resolveSurfaceApplication(
   // authoring canvas (ADR-451 D1).
   const isHtml = p.endsWith('.html') || p.endsWith('.htm') || t.includes('text/html');
   const isArrival = p.includes('/inbound/') || p.startsWith('inbound/');
+  // ADR-571 D2 — the PROSE class is claimed by the Text app, the same way
+  // .html is claimed by an authoring app. The two exclusions mirror the
+  // member write door exactly (ADR-570 D4): an arrival is a retained
+  // observation, and an `_`-prefixed leaf is machine-tended state, so
+  // neither opens in an editor. Preview stays one Open With away.
+  const leaf = p.split('/').pop() || p;
+  if (PROSE_EXT_RE.test(leaf) && !isArrival && !leaf.startsWith('_')) {
+    return APP_SURFACES.text;
+  }
   if (!isHtml || isArrival) return null;
   // ADR-473 D2: the OWNING app comes from the artifact's declared type. The
   // ADR-451 hardcode (every html → Studio) is replaced, not supplemented —

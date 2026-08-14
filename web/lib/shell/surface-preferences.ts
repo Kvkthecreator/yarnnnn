@@ -74,6 +74,7 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 export const DEFAULT_KEPT_SURFACES: string[] = [
   'chat',
   'docs', // ADR-518 — the writing app (full unveil, D5)
+  'text', // ADR-571 — the prose app (unveiled at birth, operator-directed)
   'studio',
   'radar', // ADR-486 unveil (2026-07-28) — the standing app joins the Dock
   'strings', // ADR-569 unveil (2026-08-14, operator decision) — the maintained file
@@ -305,6 +306,14 @@ const DOCK_RESEED_GENERATIONS: Array<{ keyPrefix: string; previous: string[] }> 
   {
     keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-14-strings:',
     previous: ['chat', 'docs', 'studio', 'radar', 'files', 'agents'],
+  },
+  // 2026-08-14 — +text (ADR-571, unveiled at birth: the operator's correction
+  // that created the app WAS the unveil decision). An un-curated Dock
+  // converges to Chat · Docs · Text · Studio · Radar · Strings · Files ·
+  // Agents in one read; a curated one is left alone, as always.
+  {
+    keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-14-text:',
+    previous: ['chat', 'docs', 'studio', 'radar', 'strings', 'files', 'agents'],
   },
 ];
 
@@ -595,6 +604,9 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   docs: ['file', 'system'],
   studio: ['file', 'system'],
   images: ['file', 'system'],
+  // ADR-571 — Text owns only `file` (no design systems on plain prose).
+  // Registered at birth: the unconstrained miss-case reads as permission.
+  text: ['file'],
   // The Finder. `path` names the opened node, `domain` the operation/ folder
   // shorthand — the only two keys the surface reads (see the `fp.get` pair in
   // the Files surface). Pinning them also ends a live inert write: a platform

@@ -39,6 +39,7 @@ export type KernelSurfaceSlug =
   | 'images'  // ADR-472 — the second authoring app (stages, rendered rasters)
   | 'radar'   // ADR-486 — the standing app (topic hubs, sweeps, cited briefs)
   | 'strings' // ADR-569 — the maintained file, kept by Keeper (search-only tier)
+  | 'text'    // ADR-571 — the prose app (md · txt), Editor beside the canvas
   | 'recurrence'
   // ADR-491 D3 (2026-07-28): `budget` LEFT the union — the Budget pane
   // dissolved (its numbers live on Workspace Settings → Usage; /budget is a
@@ -124,7 +125,7 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // ADR-491 D3: `budget` LEFT (pane dissolved into Usage; slug retired).
   // ADR-491 D1: `billing` + `usage` join (pane-grade on the workspace door).
   // ADR-518: `docs` joins — the writing app, carved from Studio.
-  'chat', 'docs', 'studio', 'images', 'radar', 'strings', 'recurrence', 'billing', 'usage', 'autonomy',
+  'chat', 'docs', 'text', 'studio', 'images', 'radar', 'strings', 'recurrence', 'billing', 'usage', 'autonomy',
   'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).

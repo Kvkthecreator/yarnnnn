@@ -50,6 +50,9 @@ import RadarPage from '@/app/(authenticated)/radar/page';
 // the shared DeskHousing). Unveiled 2026-08-14 by operator decision (the
 // Radar precedent); shipped search-only for hours, primary since.
 import StringsPage from '@/app/(authenticated)/strings/page';
+// ADR-571 — Text: the prose app (md · txt). Docs-shaped, unveiled at birth by
+// operator direction ("a dedicated app. just like docs").
+import TextPage from '@/app/(authenticated)/text/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
 // redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
@@ -101,6 +104,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // default, and the old URLs are next.config redirects.
   chat: ChatPage,  // ADR-412 D3 — the lanes workbench; ADR-435 — the dock anchor (Home deleted)
   docs: DocsPage,      // ADR-518 — the writing app (document · flow · caret-first)
+  text: TextPage,      // ADR-571 — the prose app (md · txt), Editor beside the canvas
   studio: StudioPage,  // ADR-440 — the layout app (deck · web, re-cut by ADR-518)
   images: ImagesPage,  // ADR-472 — the second authoring app (stages → rendered rasters)
   radar: RadarPage,    // ADR-486 — the standing app (hubs → sweeps → cited briefs)
