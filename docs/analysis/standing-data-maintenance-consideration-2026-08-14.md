@@ -97,8 +97,56 @@ a conversation you re-run. (ESSENCE: record = moat.)
   ADR-564 D3 "machinery under pressure" rule again).
 - App/surface: its own desk? a Files affordance? NOT decided here.
 
-## 7. Explicit non-decisions
+## 7. The axiomatic cut (2026-08-14, same-day follow-up discourse)
+
+**The differentiation claim, made precise.** Scheduled file updates are
+commodity (Zapier writes a sheet on cron; Coda packs pull on schedule;
+ChatGPT has scheduled tasks). The moat is the COMPOSITION, every leg already
+ratified: one attributed commons for the feed's output + the human's
+corrections + the artifacts that consume it (Axiom 1, ADR-209); correction
+compounds (ADR-384 D4); artifacts reference rather than copy (ADR-448 +
+projection); the loop itself is declared in files and managed in conversation
+(ADR-564 + the ADR-567 pattern). The doctrine sentence:
+
+> **Currency is a property of the record, not of a conversation** — a file's
+> head can carry a standing promise of being kept true, and the promise
+> itself is declared, attributed, and correctable like everything else.
+
+Deliberately NOT a new FOUNDATIONS axiom — a composition, the ADR-564 §3
+posture again. Grounding: the kernel already half-runs this (alpha-ops
+recurrences maintain declared leaves on schedule); what does not exist is the
+member-facing, contract-governed, desk-managed cut.
+
+**The flow generalizes the shipped desk verbatim**: pick the subject (one
+direct gesture — file or folder) → declare in conversation (source, schema/
+mapping, cadence) → standing writer maintains the fixed leaf → correct the
+data or the contract → artifacts project. Scenario pairing worth keeping: one
+meaning-folder can hold BOTH a criterion-governed report.md (radar,
+understanding) and a contract-governed table (feed, state).
+
+**Gesture vs management (the surface question).** The GESTURE belongs
+everywhere the file is — right-click "Keep this current…" in Files (and the
+document apps) is layer 1, the ADR-514 doors-in-context precedent, cheap and
+non-exclusive. The MANAGEMENT belongs at a DESK, because every imagined
+component is existing kernel machinery: instructions = the contract file
+(CRITERION.md pattern, schema-class); change log = the revision chain
+(DeskActivityRail generalizes); schedule = `_*.yaml` + tasks index +
+preserve_due_commitment; dedicated agent = the app resident (ADR-562
+register_app). Files itself must not become the home — the record's mirror is
+"not an act" (ESSENCE v18). ⚠️ "Dashboard" caution: a workspace-global
+overview of standing loops is the ADR-486 D2 banned shape; the compliant form
+is the rail-of-subjects desk, each subject's page its own dashboard.
+
+**Held, with its decision signal named**: one-app-vs-two (a sibling desk vs
+radar widened into "the standing-attention app") is the ADR-565 D8
+unified-name question, deferred to the maintainer-phase discourse. Signal: if
+members hold one mental model ("what's being kept current while I'm away"),
+one desk with two artifact classes; if the governance grammars pull the
+surfaces apart (prose criterion vs schema contract), two apps under one
+frame.
+
+## 8. Explicit non-decisions
 
 This document ratifies nothing, changes no radar behavior, and does not open
 the connector re-light. Radar's contract stands exactly as ADR-564/565/567
-shipped it.
+shipped it. The app-count question is held per §7.
