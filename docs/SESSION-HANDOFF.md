@@ -1,65 +1,69 @@
-# Session handoff — 2026-08-13 (the data-handling honesty arc, ADR-561 + ADR-563)
+# Session handoff — 2026-08-14 (multi-agent conversations: addressing → surface → default)
 
-`origin/main`. Two ADRs shipped. The operator asked for a marketing audit on
-data handling; it surfaced a false *mechanism*, and that fix became ADR-563.
+`origin/main` clean. Started as "image generation is broken"; became the
+multi-principal chat arc. Everything below is pushed and deployed.
 
-> **Renumbered at close.** This arc's second ADR drafted as 562; a concurrent
-> lane (app-owned AI config) had staged **562** first, so mine moved to **563**.
-> The lesson is already in canon — *verify the ADR number AT COMMIT TIME*. Note
-> the blanket rename briefly rewrote the OTHER lane's CLAUDE.md row; caught and
-> restored. When renumbering, scope the sed to your own files.
+> **The prior handoff (ADR-561 + ADR-563, data-handling honesty) is ABSORBED.**
+> Its owed items live in memory (`project_adr561_marketing_honesty_audit`,
+> `project_adr563_mcp_scope_enforcement`) — chiefly `workspace_blobs USING(true)`
+> and a narrow-scope MCP client. Nothing from it is stranded here.
 
 ## 1. What landed
 
 | Commit | What |
 |---|---|
-| `01c2ccc` | **ADR-561** — four false marketing claims retracted; blob deletion wired into L5; `/privacy-architecture` rebuilt + footer-linked |
-| `03d0251` | **ADR-563** — MCP scopes were decorative; three additive tiers enforced at the chokepoint |
+| `346f19a` | Image gen 403'd: the binary lane needs the SERVICE client (`workspace-cas` is service-role-only, mig 219) — and the call was never metered |
+| `12ab92e` | Image path: placement by MEANING, not the pre-ADR-395 `uploads/` legacy root |
+| `54b32bc` | **ADR-495 D3 addressing, finally built** — `@lisa` routes the turn |
+| `5ce5d99` | The multi-agent surface — a turn is authored by a PRINCIPAL |
+| `0f24405` | A person has a name — one resolver; `member-2abf3f96` was a UUID leak |
+| `f25b977` → `b82d7b3` | The default recipient, made visible → then made QUIET |
 
 ## 2. The finding worth carrying
 
-**The engineering was more honest than the copy.** ADR-478 D2 explicitly refused
-the 30-day retention timer the privacy page promised. The audit's other three
-falsehoods were the same shape — copy written *about* the architecture rather
-than *against* it. The tell was that the site contradicted itself: the landing
-chips advertised Gemini while `/privacy` named only Anthropic + OpenAI.
+**A model that denies what the UI shows may be telling the truth.** Thinker
+answered "there's no agent by that name … that I can see" about a cast-mate the
+header displayed. It was correct: `_CONVENTIONS_FRAME` named exactly two
+entities and `build_lane_conventions` had no cast parameter. Not a
+hallucination — a missing injection point. The tell was the scoped hedge.
 
-Then the audit found a false *mechanism*: `valid_scopes=["read"]` was the only
-MCP scope and **nothing read `token.scopes`** — a token labelled read could
-`delete` and mint a member-grant `share` link, and that label reached the
-consent screen. Fixed additively so no live connector breaks (`read` retained as
-the legacy full-access grant).
+**Species law survives in the renderer.** ADR-495 made the cast species-blind in
+substrate; `LanePanel`'s `foreign` still required `role === 'user'`, so an
+assistant could never be "someone else". Twelve symptoms, one line.
+
+**Ask what the default means before building the next feature.** I shipped
+addressing, then the surface, then offered a *concurrency* decision — while the
+no-mention path (what almost every message is) was undesigned. The operator
+stopped me. Then I over-corrected into a standing instructional banner, and they
+stopped me again. Both catches were right.
 
 ## 3. Owed
 
-**From ADR-561:**
-- `workspace_blobs` still carries `USING (true)` from migration 158 — never
-  dropped. Any authenticated user knowing a SHA-256 can read any blob row.
-  Named on the data page as current work; owed as a migration.
-- **Conversation export** — the git export omits conversations, so "it's all
-  yours to export" stays qualified.
-- **Click-pass** on the changed marketing pages (`/`, `/privacy`,
-  `/privacy-architecture`, `/faq`). `next build` is green; nothing was driven.
+- **Click-pass the quiet version** (`b82d7b3`): placeholder should read
+  "Message Thinker…"; Details should mark one agent "Replies when you don't say
+  who". Nothing was driven after that commit.
+- **`DuplicateFile` is path-addressed but NOT gate-queueable** → its path branch
+  is unreachable, so the verb gates on nothing. Found while re-deriving
+  `test_adr307_permission_taxonomy`; named there as a self-checking exemption.
+  **ADR-514's to close, not this arc's.**
+- **Realtime is still a 15s poll.** The gate is now correct (any other
+  principal, not "another human"), but the mechanism is unchanged; real
+  subscriptions are blocked on session RLS being creator-scoped.
+- **Deferred, deliberately**: concurrent turns (needs an ADR — ADR-495 D3 and
+  ADR-558 D3 both say ONE responder), human-mention notifications (ADR-495 D6,
+  needs an attention surface), FE `@` autocomplete beyond the menu.
 
-**From ADR-563:**
-- **A client that actually requests the narrow scopes.** Enforcement is live but
-  every live token holds the legacy grant, so *nothing is yet restricted in
-  practice* — the mechanism is correct and unexercised in production.
-- Consent-screen copy in operator language (`files:read` is not a sentence).
-- `MCP_BEARER_TOKEN` static path — one hardcoded `MCP_USER_ID`, full access.
+## 4. Verification notes
 
-**Housekeeping:**
-- **CLAUDE.md is at ~49.9K against a 50K ceiling.** I reclaimed a pre-existing
-  breach (50,242 at HEAD) by moving ADR-209's closed phase history to the
-  ledger, but the headroom is thin and the file wants a real ablation pass.
-  ⚠️ The ratchet is **pytest-style** — `python3 test_claude_md_ratchet.py`
-  exits 0 without running anything. Use `python3 -m pytest`.
-
-## 4. Verification notes for the next session
-
-- `test_adr563_mcp_scope_enforcement.py` is **script-style** (`python3`), like
-  ADR-474/476/478. Under pytest it reports a false PASS.
-- The ADR-563 runtime proof needs py3.11 + the MCP SDK (`/tmp/mcpenv`); system
-  python3 is 3.9. App deps must be installed until `mcp_server.server` imports.
-- ADR-476's gate is **16/17 — the one red is pre-existing** (an account-settings
-  UI check), verified against a clean tree. Don't chase it as a regression.
+- `test_adr495_addressing.py` is **pytest-style** — 24 checks, run with
+  `python3 -m pytest` from `api/`.
+- **Four gates pinned a spelling this session** and were re-derived, not
+  re-spelled: `test_adr502_503` (its polling check has now been renamed
+  THREE times for the same reason), `test_agent_registry`, `test_adr558`,
+  `test_adr562`. When a gate needs renaming a third time, the gate is wrong.
+- ⚠️ **Green gates kept testing helpers, not wiring.** Neutering
+  `select_responder("")` at the route left all 30 checks green. The new
+  AST-walking check on the call site is the fix; prefer that shape when a pure
+  function is reached through one call site.
+- `test_adr307_permission_taxonomy::test_non_path_primitive_gates_on_delegation_only`
+  is RED pre-existing (Schedule under autonomous), verified on a clean tree.
