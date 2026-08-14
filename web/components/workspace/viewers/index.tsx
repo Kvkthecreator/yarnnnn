@@ -8,13 +8,11 @@
  * it does NOT own its frame (header/chrome/bounds) — the MOUNT owns that. This
  * is the macOS model: Preview.app renders; the window server frames.
  *
- * The contract every app honors (ADR-436 §5, re-cut by ADR-570 D3):
+ * The contract every app honors (ADR-436 §5):
  *   - signature `(props: ViewerAppProps) => JSX.Element | null`
- *   - a VIEWER app never edits; an EDITOR app (`mode: 'edit'` in the
- *     registry) edits ONLY through the member write door
- *     (`PATCH /workspace/file`), conditionally + attributed — never a side
- *     channel. Chat remains the conversational mutation path; both land
- *     attributed revisions on the same chain.
+ *   - renders content only; NEVER edits. Editing is an app SURFACE's job
+ *     (ADR-571: prose → Text, .html → Docs/Studio) or chat's (ADR-236) —
+ *     both through the member write door, attributed on one chain.
  *   - `compact` is a display hint (trims intrinsic heights), not a fork
  *   - blob-backed apps route through `useSignedBlobUrl` + degrade to BlobMissing
  *
@@ -38,14 +36,6 @@ export interface ViewerAppProps {
   file: WorkspaceFile;
   /** Trim intrinsic heights for an inline card mount. Display hint, not a fork. */
   compact?: boolean;
-  /**
-   * ADR-570 D3 — the mount's hand-back channel for a NON-default app: an
-   * editor calls `onDone(true)` after a save (the mount refetches and mounts
-   * the default app) or `onDone(false)` on cancel. A selection channel, not a
-   * frame claim — the mount still owns the frame. Absent in card mounts,
-   * which only ever mount the default app.
-   */
-  onDone?: (saved: boolean) => void;
 }
 
 export type ViewerApp = (props: ViewerAppProps) => JSX.Element | null;
@@ -257,12 +247,6 @@ export const TableViewer: ViewerApp = ({ file, compact }) => {
     </div>
   );
 };
-
-// ---------------------------------------------------------------------------
-// The editor app for the markdown type (ADR-570) lives in its own module —
-// it carries save state + the API client, which the pure renderers don't.
-// ---------------------------------------------------------------------------
-export { MarkdownEditor } from './MarkdownEditor';
 
 // ---------------------------------------------------------------------------
 // Download Terminal — not an app; the resolver's binary terminal (ADR-436 §1).

@@ -70,7 +70,6 @@ import {
   resolveSurfaceApplication,
 } from '@/lib/file-types';
 import { resolveHandlers, applyDefaultOverride } from '@/lib/file-types/handlers';
-import { resolveApps } from '@/lib/file-types/apps';
 import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
@@ -367,10 +366,6 @@ export default function ContextPage() {
 
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  // ADR-570: the Open With choice for the OPEN file — which app of the type's
-  // set to mount inline (e.g. 'markdown.editor'). Selection state beside
-  // selectedPath (D19.2 — never a URL write); null = the type's default app.
-  const [inlineApp, setInlineApp] = useState<{ path: string; appId: string } | null>(null);
   // ADR-400 D4: the Trash nav item toggles the center pane to the Trash view.
   const [showTrash, setShowTrash] = useState(false);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
@@ -664,14 +659,9 @@ export default function ContextPage() {
   // open; the gate's ban is on open-a-file setSelectedPath outside the funnel,
   // and it allowlists the two Details sites by name.
   const openPath = useCallback((path: string) => {
-    // ADR-570: which INLINE app mounts is part of the open decision — the
-    // default open clears any prior Open With choice; an override-chosen
-    // inline app (the editor) arrives via `appId`.
-    const selectInline = (appId?: string) => {
+    const selectInline = () => {
       setShowTrash(false);
       setSelectedPath(path);
-      const defaultApp = resolveApps(path)[0];
-      setInlineApp(appId && appId !== defaultApp ? { path, appId } : null);
       activateBodyRef.current(); // narrow: drill into the viewer
     };
     // ADR-486: a hub DECLARATION (operation/{topic}/_radar.yaml) is claimed by
@@ -683,14 +673,12 @@ export default function ContextPage() {
       navigateToSurface(declApp.surface, { [declApp.param]: path });
       return;
     }
-    // A non-artifact path (folder, image, arrival) never routes to an app —
+    // A non-candidate path (folder, image, arrival) never routes to an app —
     // isArtifactCandidate is a cheap path-only pre-check, so we don't read
-    // content for the 500-row tree, only for a file that might route. The
-    // ADR-570 carve: a type with MORE than one inline app (.md — viewer +
-    // editor) falls through to the async branch, because the file's own
-    // Opens-With override (ADR-514 D2.4) must be consulted for the choice to
-    // be honest — a set-default that the open ignores is decoration.
-    if (!isArtifactCandidate(path) && resolveApps(path).length <= 1) {
+    // content for the 500-row tree, only for a file that might route. Since
+    // ADR-571 it admits PROSE too (the Text app claims .md by extension), so
+    // a document reaches the surface claim below without a content read.
+    if (!isArtifactCandidate(path)) {
       selectInline();
       return;
     }
@@ -725,7 +713,7 @@ export default function ContextPage() {
         navigateToSurface(chosen.open.surface, { [chosen.open.param]: path });
         return;
       }
-      selectInline(chosen?.id);
+      selectInline();
     })();
   }, [navigateToSurface]);
   // ADR-514 D2.2 — the handler set for a menu target. `Open` above fires the
@@ -796,10 +784,6 @@ export default function ContextPage() {
       }
       setShowTrash(false);
       setSelectedPath(t.path);
-      // ADR-570: an explicit Open With on an inline handler mounts THAT app
-      // (the editor); choosing the type's default is the same as a plain open.
-      const defaultApp = resolveApps(t.path)[0];
-      setInlineApp(handlerId !== defaultApp ? { path: t.path, appId: handlerId } : null);
       activateBodyRef.current();
     },
     [navigateToSurface],
@@ -1272,13 +1256,8 @@ export default function ContextPage() {
               // tree (the archived file self-filters out server-side).
               // D19.2: selection is component state, never a URL write.
               setSelectedPath(null);
-              setInlineApp(null);
               loadExplorer();
             }}
-            // ADR-570: the Open With choice for the open file; the mismatch
-            // guard makes a stale choice inert when selection moves on.
-            appId={inlineApp && inlineApp.path === selectedNode.path ? inlineApp.appId : null}
-            onAppDone={() => setInlineApp(null)}
           />
         )}
       </div>

@@ -22,21 +22,22 @@
  * kernel change?") runs red until an App(principal) ADR flips it — correctly,
  * per ESSENCE v15 positioning.
  *
- * ── THE APP CONTRACT (re-cut by ADR-570 D3) ───────────────────────────────
+ * ── THE APP CONTRACT ──────────────────────────────────────────────────────
  * An app is a frame-agnostic RENDERER (`ViewerApp` — `components/workspace/
  * viewers`). It owns types + draws content; it never owns its frame (the
- * mount does). A VIEWER app (`mode: 'view'`, the default) never edits; an
- * EDITOR app (`mode: 'edit'`) edits ONLY through the member write door
- * (`PATCH /workspace/file`), conditionally + attributed — never a side
- * channel. Chat remains the conversational mutation path (ADR-236); the
- * editor is the cursor path; both land attributed revisions on one chain.
+ * mount does) and NEVER edits.
+ *
+ * Editing lives one level up, in an app SURFACE (ADR-571): a prose document
+ * edits in Text, an .html artifact in Docs/Studio, each through the member
+ * write door with CAS + attribution. Chat remains the conversational
+ * mutation path (ADR-236). A renderer here is the Quick Look analog — it
+ * shows you the file; the surface is where you change it.
  */
 
 import type { ViewerApp } from '@/components/workspace/viewers';
 import {
   TextViewer,
   MarkdownViewer,
-  MarkdownEditor,
   WebViewer,
   ImageViewer,
   MediaPlayer,
@@ -64,12 +65,6 @@ interface AppRegistration {
   renderer: ViewerApp;
   /** True if the app reads the blob (`content_url`) not the text column. */
   needsBlob: boolean;
-  /**
-   * ADR-570 D3: `view` (default) renders and never edits; `edit` edits only
-   * through the member write door. An editor is never the first-registered
-   * app for a type — Preview stays the default open everywhere.
-   */
-  mode?: 'view' | 'edit';
 }
 
 /**
@@ -78,11 +73,11 @@ interface AppRegistration {
  */
 export const APPS: Record<AppId, AppRegistration> = {
   'text.viewer': { id: 'text.viewer', label: 'Preview', ownsTypes: ['text'], renderer: TextViewer, needsBlob: false },
+  // ADR-571: markdown's EDITOR is no longer an inline app here — editing
+  // prose is the Text app (a surface, claimed in `APP_SURFACES`), the way
+  // editing an .html artifact is Docs/Studio. This row renders it; the
+  // surface edits it.
   'markdown.viewer': { id: 'markdown.viewer', label: 'Preview', ownsTypes: ['markdown'], renderer: MarkdownViewer, needsBlob: false },
-  // ADR-570: the SECOND app claiming a type — the ADR-436 §11 falsification
-  // boundary crossed on purpose. Registered AFTER the viewer, so Preview
-  // stays the default open; the editor surfaces via Open With / Get Info.
-  'markdown.editor': { id: 'markdown.editor', label: 'Editor', ownsTypes: ['markdown'], renderer: MarkdownEditor, needsBlob: false, mode: 'edit' },
   'web.viewer': { id: 'web.viewer', label: 'Preview', ownsTypes: ['html'], renderer: WebViewer, needsBlob: false },
   'image.viewer': { id: 'image.viewer', label: 'Preview', ownsTypes: ['image'], renderer: ImageViewer, needsBlob: false },
   'media.player': { id: 'media.player', label: 'Preview', ownsTypes: ['video', 'audio'], renderer: MediaPlayer, needsBlob: true },
