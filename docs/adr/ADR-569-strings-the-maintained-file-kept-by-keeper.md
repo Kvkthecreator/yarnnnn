@@ -1,13 +1,19 @@
-# ADR-569: The maintained file — standing currency under contract, kept by Keeper
+# ADR-569: Strings — the maintained file: standing currency under contract, kept by Keeper
 
-> **Status**: **Proposed** (2026-08-14, operator ratification pending — drafted from the
-> 2026-08-14 boundary discourse; deliberation trail:
+> **Status**: **Accepted** (2026-08-14, operator-ratified — *"aligned. please update to
+> strings and keeper accordingly. double check the scope and ratify the documentation"*,
+> closing the standing-maintenance discourse; deliberation trail:
 > [standing-data-maintenance-consideration-2026-08-14](../analysis/standing-data-maintenance-consideration-2026-08-14.md)).
-> **First draft over-narrowed to tables/CSV and was corrected by the operator same day**
-> — the KPI table was an *example*; the concept is the maintained FILE, any format the
-> member designates. **Names are provisional** per the ADR-486 precedent: the app name
-> ("Keep") and the colleague name ("Keeper") are recommendations for the operator to run
-> with or retitle. **Nothing builds before ratification.**
+> **Not yet built** — implementation is delegated to its own session, staged per §3's
+> closing item. Naming ratified: app **Strings** (slug `strings`), colleague **Keeper**
+> (slug `keeper`), declaration **`_string.yaml`**. Drafting history: the first cut
+> over-narrowed to tables/CSV and was corrected by the operator same day — the KPI
+> table was an *example*; the concept is the maintained FILE, any format the member
+> designates. A "Watch" app name was considered and refused (head-on collision with
+> radar's own operator vocabulary — "watched folder", "Watch a folder", DP27's
+> "watches are declared"); "Manager" refused as a colleague (hierarchy word, not a
+> craft); "Maintainer" was the runner-up (semantically precise, OSS resonance) held
+> back by the ADR-565 D7/D8 "maintainer phase" naming friction.
 > **Date**: 2026-08-14
 > **Dimension**: **Substrate** (a designated machine-tended file class: currency under
 > contract) + **Purpose** (the contract declaration) primary; **Channel** (the desk
@@ -24,8 +30,9 @@
 > correction compounds on a maintained head), ADR-486 D2 (subject-first guards,
 > inherited), ADR-404 (connector sources — NOT re-lit here), ADR-429 (pricing — named,
 > not engaged).
-> **Amends**: nothing yet — on ratification, ADR-467 D1 / ADR-558's bound-lane roster
-> gains a fifth row, and GLOSSARY gains the Maintain vocabulary.
+> **Amends**: **GLOSSARY** (the Perceive act gains the Strings vocabulary — done with
+> this ratification). On build: ADR-467 D1 / ADR-558's bound-lane roster gains its
+> fifth row (`strings`), and the agents registry gains `keeper`.
 
 ---
 
@@ -43,7 +50,10 @@ and the discourse that followed found the *want* is real, general, and decompose
   kind of governance (a criterion about the arriving world). The member cannot yet
   designate *a file of their choosing* — a KPI table, a competitor one-pager, a
   glossary, a roster, a JSON state mirror — and declare the rules under which it is
-  kept current. That general mechanism is this ADR.
+  kept current. That general mechanism is this ADR, and its object is the **string**:
+  the standing tie between a source and a file the member has designated as kept
+  current. (The name is house-structural, not decorative — yarnnn's identity is the
+  thread, and this app is the file with a string attached to the world.)
 
 The differentiation claim, made precise in the deliberation record: scheduled file
 updates are commodity (Zapier writes a sheet on cron); the moat is the composition only
@@ -60,7 +70,8 @@ A **maintained file** is a file the member DESIGNATES as kept current: a declare
 contract (what it must stay true to), declared sources (where currency comes from), a
 cadence, and a standing writer that revises its head — while the member corrects it
 like any file, and every correction compounds into future cycles
-(single-head-many-authors, ADR-384 D4). Format is NOT the boundary; **designation is**:
+(single-head-many-authors, ADR-384 D4). The designation itself is the **string**.
+Format is NOT the boundary; **designation is**:
 
 > **Un-designated files are never a standing writer's target. Designation is the
 > member's explicit act, and it converts the file to the machine-tended class — where
@@ -68,13 +79,13 @@ like any file, and every correction compounds into future cycles
 > current without designation, through reference: projection is how an artifact reads a
 > moving file without anyone writing the artifact.**
 
-This corrects the first draft's narrowing (tables only) and re-reads ADR-565: radar's
-`report.md` is a maintained file that was never member-designated — the app designates
-it, shapes its governance as a criterion, and fixes its leaf. Radar is a
-*specialization* of this frame, shipped first. Deliberately NOT a new FOUNDATIONS
-axiom (the ADR-564 §3 posture): this composes Axiom 1 + ADR-209/384/448.
+This re-reads ADR-565: radar's `report.md` is a maintained file that was never
+member-designated — the app designates it, shapes its governance as a criterion, and
+fixes its leaf. Radar is a *specialization* of this frame, shipped first. Deliberately
+NOT a new FOUNDATIONS axiom (the ADR-564 §3 posture): this composes Axiom 1 +
+ADR-209/384/448.
 
-**v1 designation scope**: `md`, `csv`, `json`, `txt` — file formats whose unattended
+**v1 designation scope**: `md`, `csv`, `json`, `txt` — formats whose unattended
 revision does not fight an authoring surface's editing model. Designating an
 authoring-app artifact (a Studio deck's HTML, a Docs document) is **named-deferred**,
 with the reason recorded: a standing writer revising inside Studio's medium collides
@@ -90,14 +101,13 @@ Mirroring the radar grammar (CRITERION.md + `_radar.yaml`):
   stay true to; for structured formats, what each column/field means; for prose, its
   conventions and voice. Operator- and lane-authored, revisable by correction, **never
   machine-parsed**. Judgment prose never rides machine config.
-- **`_keep.yaml`** — machine class: `target` (the designated leaf, folder-relative),
+- **`_string.yaml`** — machine class: `target` (the designated leaf, folder-relative),
   `sources` (v1: pull — HTTP endpoints; see D4), `schedule`, `paused`, and — for
   structured formats only — `shape` (the machine-checkable half: columns/types for
   CSV, a schema for JSON). Machine-composed, `safe_dump`, comment header.
 
-Both live in the designated file's folder; one folder may hold several maintained
-files (several `_keep` declarations is a v1-refused complication — one per folder, the
-radar single-declaration posture, loudly, until a real case demands more).
+Both live in the designated file's folder; one folder holds ONE string in v1 (the
+radar single-declaration posture — refused loudly, until a real case demands more).
 
 ### D3 — The write is confined, attributed, and loud on violation
 
@@ -111,17 +121,18 @@ conventions in `CONTRACT.md` and rely on the correction loop, exactly radar's po
 
 ### D4 — Execution rides the existing machinery; judgment where the format demands
 
-Discovery and cadence reuse the radar pattern verbatim: the tick discovers `_keep.yaml`
-declarations, materializes a `kind='keep'` slice of the tasks index (the
-`preserve_due_commitment` rule applies by construction), claims via CAS, meters on the
-execution ledger (`keep-sweep:{topic}` / `keep-write:{topic}`). The transform runs at
-the depth the format needs: mechanical for structured pulls (fetch → parse → map →
-validate → write), a bounded judgment turn where the contract demands interpretation
-(a prose file kept current IS a judgment derive — governed by `CONTRACT.md` the way
-radar's is by its criterion; ADR-564 D3's machinery-under-pressure rule holds for
-anything beyond that). **v1 sources: pull only** — HTTP endpoints (CSV/JSON/RSS/pages).
-Connector sources (Stripe, GA, Sheets — the real KPI world) enter through the ADR-404
-re-light per ADR-565 D7 phase-next; **this ADR does not flip `CONNECTOR_CAPTURE_ENABLED`.**
+Discovery and cadence reuse the radar pattern verbatim: the tick discovers
+`_string.yaml` declarations, materializes a `kind='string'` slice of the tasks index
+(the `preserve_due_commitment` rule applies by construction), claims via CAS, meters
+on the execution ledger (`string-sweep:{topic}` / `string-write:{topic}`). The
+transform runs at the depth the format needs: mechanical for structured pulls (fetch →
+parse → map → validate → write), a bounded judgment turn where the contract demands
+interpretation (a prose file kept current IS a judgment derive — governed by
+`CONTRACT.md` the way radar's is by its criterion; ADR-564 D3's
+machinery-under-pressure rule holds for anything beyond that). **v1 sources: pull
+only** — HTTP endpoints (CSV/JSON/RSS/pages). Connector sources (Stripe, GA, Sheets —
+the real KPI world) enter through the ADR-404 re-light per ADR-565 D7 phase-next;
+**this ADR does not flip `CONNECTOR_CAPTURE_ENABLED`.**
 
 ### D5 — Consumption is reference-only, and the desk shows the consumers
 
@@ -131,7 +142,7 @@ and the inverted provenance instrument: **which artifacts reference this file**
 (derived at read time, never stored — ADR-486 D5 discipline), so the member sees the
 blast radius of a contract change before making it.
 
-### D6 — A dedicated app on the shared desk housing; the colleague is Keeper
+### D6 — Strings is a dedicated app on the shared desk housing; the colleague is Keeper
 
 **A separate app, not radar widened** — the ADR-518 reason (the split is housing): the
 governance grammars and canvases differ enough that one surface would branch on
@@ -139,20 +150,19 @@ manifestation everywhere. The housing consolidates instead: the desk chrome (rai
 subjects · center lifecycle · bound lane · width ladder · activity rail) extracts into
 **one parameterized desk component** with two app doors — the `StudioSurface` move.
 
-- **App**: provisional name **"Keep"** (slug `keep`) — function-named like Radar,
-  because the medium is plural by design (any designated format); a medium name would
-  repeat the first draft's narrowing. Launcher tier starts `search-only`
-  (registration ≠ unveil, ADR-486 D7).
+- **App**: **Strings** (slug `strings`) — function-named like Radar; the medium is
+  plural by design, so a medium name would repeat the first draft's narrowing.
+  Launcher tier starts `search-only` (registration ≠ unveil, ADR-486 D7).
 - **Colleague**: **Keeper** (slug `keeper`) — tending and fidelity, not judgment:
   "Researcher watches the world; Keeper keeps your files true." Declared as the app's
-  resident in the app's OWN module via `register_app("keep", resident="keeper")`
+  resident in the app's OWN module via `register_app("strings", resident="keeper")`
   (ADR-562; engine follows the resident, server-side, never client-asserted).
-- **Bound lane**: `create_lane(app='keep', artifact_path={folder}/{target-leaf})`;
+- **Bound lane**: `create_lane(app='strings', artifact_path={folder}/{target-leaf})`;
   `lane_meta.app` selects the Keeper desk posture (ADR-567 D4's mechanism, one more
   branch). The ADR-467 D1 / ADR-558 roster gains its fifth row consciously.
 - **ADR-486 D2 guards inherit unchanged**: subject-first; the rail of subjects is the
   only roster; each subject's page is its own dashboard; a workspace-global "all my
-  maintained files" pane is the banned shape.
+  strings" pane is the banned shape.
 - **The ADR-565 D8 unified-name question stays open — and this generalization TILTS
   it**: under "maintained files," radar reads as a shipped specialization, which
   strengthens the eventual single standing-attention desk. Held for the
@@ -166,7 +176,7 @@ to the same gesture: the app's own picker, and **Files' right-click "Keep this
 current…"** on a file or folder (doors-in-context, ADR-514 — the gesture may live
 everywhere the file does; the management may not). Then the member tells Keeper what
 the file must stay true to and where currency comes from; Keeper authors `CONTRACT.md`
-+ `_keep.yaml`; the tick discovers; the loop begins. The form-free discipline holds.
++ `_string.yaml`; the tick discovers; the loop begins. The form-free discipline holds.
 
 The center pane, by act frequency (the reading-desk derivation, format-generic):
 
@@ -190,14 +200,14 @@ maintained file it is table stakes, and radar is owed the same switch).
 
 ### D8 — Falsifiers, pre-registered
 
-Read before any launcher-tier promotion: (1) files designated (excluding the
+Read before any launcher-tier promotion: (1) strings attached (excluding the
 developer's), across MORE THAN ONE format (a CSV-only uptake would mean the general
 frame wasn't the demand — the first draft's narrowing, tested); (2) **consumer edges
 exist** — artifacts or derivations citing a maintained leaf (the composition is the
 product; a maintained file nobody reads is a cron job with a nicer ledger);
-(3) member corrections of leaf or contract observed on the ledger; (4) designations
-alive at 30d; (5) repair states entered AND exited (the loud-contract mechanism
-observed working, not just designed).
+(3) member corrections of leaf or contract observed on the ledger; (4) strings alive
+at 30d; (5) repair states entered AND exited (the loud-contract mechanism observed
+working, not just designed).
 
 ## 3. What this ADR does NOT do
 
@@ -207,8 +217,10 @@ observed working, not just designed).
   collision reason; reference remains the answer).
 - **No workspace-global overview** (D6 — ADR-486 D2 inherited).
 - **No new axiom** (D1 — composition, the ADR-564 §3 posture).
+- **No new act** (Strings lives under Perceive — ADR-507's open set is not extended
+  here; an act-level "Maintain" would be an ESSENCE amendment, not taken).
 - **No pricing decision** (ADR-429 engages no earlier than connector sources make
   volume real — the ADR-565 §4 posture).
 - **No app-merge decision** (D6 holds ADR-565 D8 open, tilt recorded, fold kept cheap).
-- **Does not build**: implementation stages post-ratification (housing extraction →
-  kernel lane → desk → doors), each stage against the gates named in its commit.
+- **Ratified ≠ built**: implementation is its own session, staged (housing extraction
+  → kernel lane → desk → doors), each stage against the gates named in its commit.
