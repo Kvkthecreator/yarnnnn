@@ -144,6 +144,12 @@ class LaneTurnRequest(BaseModel):
     # Phase-A attachments (v1 scope: this turn only — history stays text, so
     # a later turn or a regenerate does not re-see the image bytes).
     attachments: Optional[list[LaneAttachment]] = None
+    # The member handed the floor back for THIS turn (2026-08-14). With several
+    # Agents present and no mention, `select_responder` continues with whoever
+    # spoke last; this says "not them — I'll say who." Per-turn and never
+    # stored: an "open floor" that persisted would be a second piece of the
+    # invisible state this affordance exists to remove.
+    release_floor: Optional[bool] = None
 
 
 class LanePatchRequest(BaseModel):
@@ -965,6 +971,11 @@ def _turn_stream_response(
     # always keeps the plain text + attachments metadata.
     model_message=None,
     attachments_meta: Optional[list[dict]] = None,
+    # The member released the floor for this turn (see `LaneTurnRequest`).
+    # Passed EXPLICITLY: this helper cannot see the route handler's `req`, and
+    # reaching for a free name that only resolves in the caller is how a whole
+    # chat surface went down once (`name 'req' is not defined`, d978ac6).
+    release_floor: bool = False,
     # ADR-522 D2 — WHERE the member is standing, this turn. Transient: it is
     # read off the request and threaded in, never off `lane_meta` (durable).
     # A regenerate passes None — focus is per-turn and never persisted, so
@@ -1052,7 +1063,15 @@ def _turn_stream_response(
         content,
         cast,
         roster=_cast_roster(auth, cast_agents),
-        fallback=_last_responder(auth, lane_id, cast_agents) or lane_meta.get("agent"),
+        # Releasing the floor drops the CONTINUITY rung only. The mention rung
+        # still outranks everything (an addressed turn is addressed), and the
+        # pre-cast `lane_meta` fallback still applies — a Studio lane has one
+        # possible answerer and "release" is meaningless there.
+        fallback=(
+            lane_meta.get("agent")
+            if release_floor
+            else _last_responder(auth, lane_id, cast_agents) or lane_meta.get("agent")
+        ),
     )
     # Nobody replies when the conversation holds people and no Agent. A solo
     # cast keeps today's behavior (the engine IS that conversation). Add an
@@ -1384,6 +1403,7 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
         model_message=model_message,
         attachments_meta=attachments_meta,
         focus=req.focus,
+        release_floor=bool(req.release_floor),
     )
 
 

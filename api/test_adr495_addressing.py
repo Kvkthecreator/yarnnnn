@@ -318,6 +318,41 @@ def test_out_of_band_freshness_is_not_gated_on_species():
     assert "hasOtherHumans={" not in chat, "the gate must not name one species"
 
 
+def test_releasing_the_floor_drops_continuity_only():
+    """The floor is VISIBLE and RELEASABLE (2026-08-14).
+
+    `last_responder` is a defensible rule and shipping it invisibly was not: the
+    member could not see who held the floor, could not hand it back, and the
+    rule lived only in a docstring. The chip surfaces it; this asserts the
+    release does exactly what the chip claims — drops the CONTINUITY rung, and
+    nothing else.
+    """
+    cast = [
+        {"member_kind": "agent", "agent_slug": "sonnet"},
+        {"member_kind": "agent", "agent_slug": "lisa"},
+    ]
+    roster = {"sonnet": {"name": "Thinker"}, "lisa": {"name": "Lisa"}}
+    # Held: continuity applies.
+    assert select_responder("hi", cast, roster=roster, fallback="lisa") == (
+        "lisa", "last_responder",
+    )
+    # Released (the route drops the last-responder fallback): join order.
+    assert select_responder("hi", cast, roster=roster, fallback=None) == (
+        "sonnet", "first_in_cast",
+    )
+    # A mention still outranks everything — releasing is not a veto.
+    assert select_responder("@lisa hi", cast, roster=roster, fallback=None) == (
+        "lisa", "addressed",
+    )
+    # ...and the route must actually branch on it, not just accept the field.
+    src = (pathlib.Path(__file__).parent / "routes/lanes.py").read_text()
+    body = src[src.index("def _turn_stream_response("):]
+    assert "if release_floor" in body, "the release must reach the fallback"
+    assert "release_floor: bool = False" in body, (
+        "passed EXPLICITLY — a helper cannot see the handler's `req` (d978ac6)"
+    )
+
+
 def test_a_human_always_has_a_readable_label():
     """Operator-observed 2026-08-14: a peer rendered as "member-2abf3f96".
 

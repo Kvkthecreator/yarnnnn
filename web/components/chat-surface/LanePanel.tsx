@@ -530,6 +530,36 @@ export function LanePanel({
     }
     return s;
   }, [mentionCandidates]);
+  // ── WHO ANSWERS NEXT (the floor) ──────────────────────────────────────
+  // With several Agents present and no mention, the server continues with
+  // whoever spoke last (`select_responder`'s `last_responder` rung). That rule
+  // is defensible; SHIPPING IT INVISIBLY WAS NOT. The member had no way to see
+  // who held the floor, no way to hand it back, and the rule lived only in a
+  // Python docstring — the "remembered state, no clearing path" smell.
+  //
+  // Derived, never stored (2026-08-14, deliberately): the conversation's
+  // default-recipient model is still being found, so this reads the state the
+  // transcript already carries rather than committing a schema to a rule that
+  // may change. `agentSlug` is on every assistant row, so the floor-holder is
+  // just the last one to speak.
+  const floorHolder = useMemo(() => {
+    if (mentionCandidates.filter((c) => c.kind === 'agent').length < 2) return null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const s = messages[i].agentSlug;
+      if (s) return s;
+    }
+    return null;
+  }, [messages, mentionCandidates]);
+  // The member handed the floor back for the NEXT turn. Held in the client and
+  // cleared once used: an "open floor" that persisted would be a second piece
+  // of invisible state, which is the defect this whole affordance exists to
+  // remove.
+  const [floorReleased, setFloorReleased] = useState(false);
+  useEffect(() => setFloorReleased(false), [laneId]);
+  const floorName = floorHolder
+    ? agentFaces?.[floorHolder]?.name || floorHolder
+    : null;
+
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const [mentionHighlight, setMentionHighlight] = useState(0);
   const mentionItemsRef = useRef<MentionCandidate[]>([]);
@@ -752,7 +782,14 @@ export function LanePanel({
             // slot would make every mount re-plumb the same value. The ADR-441
             // D2 rule is about the mount's FRAME, and this isn't one.
             focus: focusRef.current ? focusToWire(focusRef.current) : undefined,
+            // Consumed by THIS turn and cleared below — the release is a
+            // one-shot, not a mode. A persistent "open floor" would be exactly
+            // the invisible state the chip exists to remove.
+            releaseFloor: floorReleased || undefined,
           });
+          // Consumed. The floor is whoever this turn's reply came from, which
+          // the chip re-derives from the transcript on the next render.
+          setFloorReleased(false);
         } else {
           await api.lanes.regenerateStream(laneId, handlers, {
             signal: controller.signal,
@@ -1180,6 +1217,49 @@ export function LanePanel({
                 </button>
               </span>
             ))}
+          </div>
+        )}
+        {/* WHO ANSWERS NEXT — the floor, made visible. Only when it is
+            genuinely ambiguous (2+ Agents): a solo conversation has exactly one
+            possible answerer and a chip saying so would be noise. */}
+        {floorName && !editing && (
+          <div className="flex items-center gap-1.5 pb-1.5 text-[11px] text-muted-foreground">
+            {floorReleased ? (
+              // Says what WILL happen, not what we wish happened. Releasing
+              // drops the continuity rung only; an unaddressed turn then falls
+              // to the cast's first Agent. Promising "no one answers" would be
+              // a nicer sentence and a false one.
+              <span>
+                Floor released — <span className="font-medium text-foreground">@</span> someone,
+                or the next reply comes from{' '}
+                <span className="font-medium text-foreground">
+                  {mentionCandidates.find((c) => c.kind === 'agent')?.name ?? 'the first agent'}
+                </span>
+                .
+              </span>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5">
+                  <AgentFace
+                    name={floorName}
+                    avatarUrl={agentFaces?.[floorHolder!]?.avatarUrl}
+                    size="sm"
+                  />
+                  <span className="font-medium text-foreground">{floorName}</span>
+                  <span>answers next</span>
+                  <button
+                    type="button"
+                    onClick={() => setFloorReleased(true)}
+                    className="ml-0.5 rounded p-0.5 hover:bg-muted hover:text-foreground"
+                    aria-label="Let someone else answer"
+                    title="Let someone else answer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+                <span>· @ someone to redirect</span>
+              </>
+            )}
           </div>
         )}
         {/* `relative` anchors the '@' menu, which mounts bottom-full — above

@@ -581,6 +581,10 @@ export const api = {
         /** ADR-522 D2: what the member is looking at — per-turn, because focus
          *  is volatile. The durable lane↔artifact binding is separate. */
         focus?: FocusWire;
+        /** The member handed the floor back for THIS turn: with several Agents
+         *  and no mention, don't continue with whoever spoke last. Per-turn,
+         *  never stored. */
+        releaseFloor?: boolean;
       },
     ): Promise<void> =>
       streamLaneTurn(
@@ -592,6 +596,7 @@ export const api = {
             : {}),
           ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
           ...(opts?.focus ? { focus: opts.focus } : {}),
+          ...(opts?.releaseFloor ? { release_floor: true } : {}),
         },
         handlers,
         opts?.signal,
