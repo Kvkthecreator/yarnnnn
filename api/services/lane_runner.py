@@ -689,6 +689,16 @@ def build_lane_conventions(
         # share designer). Selects the JOB overlay only — never the resident.
         from services.radar import build_desk_posture
         posture_section += "\n" + build_desk_posture(client, user_id, artifact_path) + "\n"
+    elif artifact_path and app == "strings":
+        # ADR-569 D6 (the ADR-567 D4 mechanism, one more branch) — a strings
+        # lane is bound to the maintained file's target leaf, and its JOB is
+        # the string's lifecycle (author/revise CONTRACT.md + _string.yaml,
+        # tend the designated file), not Studio authoring. Same reasoning as
+        # radar's branch: the target is plain md/csv/json/txt (no
+        # data-template to read) and the agent slug cannot name the app.
+        # Selects the JOB overlay only — never the resident.
+        from services.strings import build_keeper_desk_posture
+        posture_section += "\n" + build_keeper_desk_posture(client, user_id, artifact_path) + "\n"
     elif artifact_path:
         from services.authoring import build_studio_posture
         # `artifact` was read once at the top of the frame (shared with ADR-562 D6's

@@ -75,6 +75,16 @@ export interface FileVerbs {
    * carve (system/, inbound/, virtual groups).
    */
   onNewFolder?: (t: { path: string; name: string }) => void;
+  /**
+   * Per-target extra entries (ADR-455's extension point), riding the VERBS
+   * bundle so one wiring reaches every surface the bundle is threaded to
+   * (tree · grid · listing) — the same reason the bundle exists (a second
+   * arg per surface would be the ADR-514 D2.6 prop wall again). First
+   * consumer: the Files door into Keeper's desk ("Keep this current…",
+   * ADR-569 D7 — the gesture lives where the file does; the management
+   * does not).
+   */
+  extraItemsFor?: (t: FileMenuTarget) => FileMenuExtraItem[];
 }
 
 
@@ -376,7 +386,7 @@ export function useFileContextMenu(
       onOpenWith={verbs.onOpenWith}
       handlers={verbs.handlersFor?.(state.target)}
       onNewFolder={verbs.onNewFolder ? () => verbs.onNewFolder!(state.target) : undefined}
-      extraItems={extraItemsFor?.(state.target)}
+      extraItems={(extraItemsFor ?? verbs.extraItemsFor)?.(state.target)}
     />
   ) : null;
 

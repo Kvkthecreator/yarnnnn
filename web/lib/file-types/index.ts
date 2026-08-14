@@ -274,6 +274,12 @@ export function resolveDeclarationApplication(path: string): SurfaceApplication 
   if (/^operation\/[^/]+\/_radar\.yaml$/.test(rel)) {
     return { surface: 'radar', param: 'file', label: 'Radar' };
   }
+  // ADR-569 — a string declaration ({folder}/_string.yaml, any meaning-folder)
+  // opens Keeper's desk on that folder. Same one-leaf-one-namespace rule:
+  // never "yaml opens Strings".
+  if (/\/_string\.yaml$/.test(rel)) {
+    return { surface: 'strings', param: 'file', label: 'Strings' };
+  }
   return null;
 }
 

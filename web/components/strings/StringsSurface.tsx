@@ -595,6 +595,18 @@ export default function StringsSurface() {
                   can&apos;t be designated from here right now.
                 </p>
               )}
+              {/* The folder door arrives without a leaf — the pick is still
+                  the member's one direct gesture, offered here so the desk
+                  never strands them without Keeper's lane. */}
+              {!targetParam && lanesEnabled !== false && (
+                <button
+                  type="button"
+                  onClick={() => setAttachOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Pick the file to keep current
+                </button>
+              )}
             </div>
             {desk.contract && (
               <section>

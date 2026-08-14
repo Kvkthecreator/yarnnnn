@@ -67,3 +67,10 @@ from services.apps import images as images  # noqa: F401,E402  (registration sid
 from services.authoring import register_app as _register_app  # noqa: E402
 
 _register_app("radar", resident="scout")
+
+# strings (ADR-569) — the maintained file, kept by Keeper. Declared here for
+# the same reason as radar's row: `services/strings.py` deliberately carries
+# no module-level `services.*` imports (cycle-free), and every app's residency
+# reads in one list. The resident is IDENTITY only (ADR-562): the engine
+# follows the keeper row in KERNEL_AGENTS, never a caller-supplied model.
+_register_app("strings", resident="keeper")

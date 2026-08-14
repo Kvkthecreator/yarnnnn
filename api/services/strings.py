@@ -515,15 +515,20 @@ def resolve_strings_resident() -> tuple[str, str]:
     """The standing writer's resident colleague — Keeper.
 
     The SLUG comes from the app's own registration (ADR-562 D3 — one
-    declaration, read back); model + character come from the agent row, where
-    identity/engine/character live (ADR-460). Returns ``(model, posture)``.
+    declaration, read back); model + character come from the character row,
+    where identity/engine/character live (ADR-460). Keeper is a POSTURE over
+    Produce (the Critic shape — a stance, not a fourth addressed operation),
+    so resolution goes through the one folded character namespace, exactly as
+    a lane pinning it does. Returns ``(model, posture)``.
     """
     import services.apps  # noqa: F401  (registration side-effect — ADR-562)
-    from services.agents_registry import KERNEL_AGENTS
+    from services.agents_registry import get_agent
     from services.authoring import resident_for_app
 
     slug = resident_for_app("strings") or "keeper"
-    row = KERNEL_AGENTS[slug]
+    row = get_agent(slug)
+    if row is None:  # a registration naming a ghost is a bug, not a fallback
+        raise KeyError(f"strings resident {slug!r} is not a kernel character")
     return row["model"], row["posture"]
 
 
@@ -679,6 +684,124 @@ NO_CHANGE. No preamble, no code fence around the whole thing.
 def build_keeper_run_posture(decl: StringDecl) -> str:
     """The prose run's derive posture — pure."""
     return _KEEPER_RUN_POSTURE.format(target=decl.target, root=decl.root)
+
+
+#: The DESK posture (ADR-569 D6, via ADR-567 D4's mechanism) — the job
+#: overlay for a lane bound to a maintained file's target leaf. This is
+#: Keeper-as-file-custodian: the member and the colleague run the string's
+#: lifecycle in conversation, and the colleague works by writing the folder's
+#: files. Composed fresh per turn (derived-never-stored); the state block
+#: keeps the conversation honest against the substrate.
+_KEEPER_DESK_FRAME = """KEEPER'S DESK — you keep the maintained file in {root} with the member.
+
+A string runs a standing loop: on a schedule, its declared sources are pulled
+and the DESIGNATED file is revised under its contract (mechanically for
+csv/json/txt — fetch, map to the declared shape, validate, write; as a
+bounded judgment turn for md, governed by CONTRACT.md). At this desk the
+member talks to you about that loop — designating the file, declaring its
+contract and sources, tuning it, and correcting the file. You act by WRITING
+THE FOLDER'S FILES; the kernel reads them (the declaration is discovered
+within ~5 minutes of landing; runs then fire on its schedule).
+
+THE LAW (never bend it): only the DESIGNATED target is a standing writer's
+target. One string per folder. v1 targets are md, csv, json or txt — an
+authoring artifact (a deck's html, a Docs document) is NOT designatable;
+it stays current by CITING a maintained file instead.
+
+THE THREE FILES (all inside {root}/)
+- CONTRACT.md — what the file means and must stay true to, in prose: for
+  structured formats, what each column/field means; for prose, its
+  conventions and voice. The member's declaration; you draft and revise it
+  FROM what they tell you. Ordinary markdown, no frontmatter, never
+  machine-parsed.
+- _string.yaml — machine config, STRICT YAML, nothing but these keys:
+    target: metrics.csv      # the designated leaf (md/csv/json/txt, this folder)
+    schedule: "0 13 * * *"   # UTC cron (or a list of crons)
+    paused: false
+    sources:
+      - id: short-slug       # kebab, unique
+        url: https://…       # http(s) endpoint; csv/json/txt: EXACTLY ONE source
+    shape:                   # structured formats only, optional but valuable
+      columns: [date, mrr]   # csv: the required columns (file is projected to them)
+      # keys: [mrr, churn]   # json: required top-level keys
+  NO prose, NO other keys. After writing it, READ IT BACK to confirm it
+  parses as clean YAML — a malformed declaration means the file silently
+  stops being kept, and repairing it is YOUR job at this desk.
+- the target file — the standing run is its author; revise it directly only
+  when the member asks for a correction (their corrections compound — the
+  next run inherits the head).
+
+SETTING UP (when the state below shows no declaration yet)
+Ask what the file must stay true to and where currency comes from, in plain
+words. Then write CONTRACT.md first, then _string.yaml. Confirm what you set
+up: the contract in one sentence, the source(s), the cadence, the shape (for
+structured formats), and when the first run will fire. If the member names no
+cadence, daily is the default. NEVER invent source URLs — only endpoints the
+member names or that you know verifiably exist; when unsure, say so and ask.
+
+MANAGING (ongoing)
+Change the source, the cadence, the shape, pause/resume (`paused: true`),
+tighten the contract — each is an edit to the file that owns the fact,
+attributed to this conversation. Prefer EditFile for small changes. A run
+refused with a shape violation means the SOURCE and the declared shape
+disagree — read both, say which is wrong, and repair that one. When the
+member asks why the file reads as it does, answer from the contract — and
+offer to revise it if their intent has drifted from its text.
+
+THE CURRENT STATE (read fresh this turn)
+{state}"""
+
+
+def build_keeper_desk_posture(client: Any, user_id: str, target_path: str) -> str:
+    """The desk job overlay for a strings-bound lane (ADR-567 D4's mechanism,
+    ADR-569's branch). ``target_path`` is the lane's binding
+    (``{root}/{target-leaf}``); the root derives from it. Reads the folder's
+    files fresh — the state block lets the colleague answer from substrate,
+    not memory."""
+    root = target_path.rsplit("/", 1)[0]
+    leaf = target_path.rsplit("/", 1)[-1]
+    topic = root[len(_WORKSPACE_PREFIX):] if root.startswith(_WORKSPACE_PREFIX) else root
+    decl = _read_file(client, user_id, f"{root}/{STRING_DECLARATION_LEAF}")
+    contract = _read_file(client, user_id, f"{root}/{CONTRACT_LEAF}")
+    head = _read_file(client, user_id, target_path)
+
+    lines: list[str] = []
+    if decl and decl.strip():
+        parsed = parse_string_yaml(
+            decl, topic=topic,
+            declaration_path=f"{root}/{STRING_DECLARATION_LEAF}",
+        )
+        if parsed is None:
+            lines.append(
+                "- _string.yaml EXISTS BUT DOES NOT PARSE — the standing loop "
+                "is dark until it is repaired. Read it, fix the YAML, write it "
+                "back."
+            )
+        elif parsed.problem is not None:
+            lines.append(
+                f"- _string.yaml parses but CANNOT RUN ({parsed.problem}) — "
+                f"repair the declaration:\n{decl.strip()}"
+            )
+        else:
+            lines.append(f"- _string.yaml (parses OK):\n{decl.strip()}")
+    else:
+        lines.append(
+            "- NO DECLARATION YET — nothing is being kept. The member picked "
+            f"the file '{leaf}'; set the string up with them (see SETTING UP)."
+        )
+    if contract and contract.strip():
+        lines.append(f"- CONTRACT.md:\n{contract.strip()}")
+    else:
+        lines.append("- No CONTRACT.md yet.")
+    if head and head.strip():
+        lines.append(
+            f"- {leaf} head: {len(head.splitlines())} lines, "
+            f"{len(head)} chars."
+        )
+    else:
+        lines.append(f"- {leaf} does not exist yet — the first run writes it.")
+
+    return _KEEPER_DESK_FRAME.format(root=root, state="\n".join(lines))
 
 
 def _read_file(client, user_id: str, path: str) -> Optional[str]:
@@ -964,6 +1087,7 @@ __all__ = [
     "resolve_strings_resident",
     "map_structured",
     "build_keeper_run_posture",
+    "build_keeper_desk_posture",
     "run_string_sweep",
     "drain_due_string_runs",
 ]
