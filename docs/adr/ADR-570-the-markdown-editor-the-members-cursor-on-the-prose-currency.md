@@ -1,9 +1,11 @@
 # ADR-570: The markdown editor — the member's cursor reaches the prose currency
 
-> **Status**: **Proposed** (2026-08-14, operator ratification pending — scoped from the
-> 2026-08-14 connector round-trip session; the operator asked for the framing to be
-> hardened and the surround checked before building). **Nothing builds before
-> ratification.** Names are provisional per the ADR-486 precedent: app id
+> **Status**: **Accepted + Implemented** (2026-08-14 — drafted from the connector
+> round-trip session's scoping; ratified same day by the operator, who delegated
+> implementation: *"markdown editor app sounds right … can you scope this in full,
+> i'd actually would like to implement this"* → *"now would like to delegate the
+> details in the implementation"*. Stages 1–3 landed `17fe1bf` · `7f22e7d` ·
+> `daa77c3`; the D8 click-pass is owed). Names as shipped: app id
 > `markdown.editor`, operator-facing label **"Editor"**.
 > **Date**: 2026-08-14
 > **Dimension**: **Channel** (a new app on the file-type registry + one widened write
