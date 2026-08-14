@@ -59,8 +59,8 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 // ORDER is meaning, not registry-declaration accident (the Dock renders `kept`
 // in its stored order, so this array IS the on-screen order):
 //
-//     Chat  │  Docs  Studio  Radar  │  Files  Agents
-//     think     make (write · lay out)  perceive   <-- the record -->
+//     Chat  │  Docs  Studio  Radar  Strings  │  Files  Agents
+//     think     make (write · lay out)  perceive (watch · keep)  <-- the record -->
 //
 // Chat first (ADR-457's Think verb — the steward's voice + the activation
 // landing). Then the MAKERS (ADR-457 Make, split by ADR-518: Docs writes,
@@ -76,6 +76,7 @@ export const DEFAULT_KEPT_SURFACES: string[] = [
   'docs', // ADR-518 — the writing app (full unveil, D5)
   'studio',
   'radar', // ADR-486 unveil (2026-07-28) — the standing app joins the Dock
+  'strings', // ADR-569 unveil (2026-08-14, operator decision) — the maintained file
   'files',
   'agents',
   // 'images' — removed 2026-07-28 (ADR-488): the app went internal pre-beta.
@@ -295,6 +296,15 @@ const DOCK_RESEED_GENERATIONS: Array<{ keyPrefix: string; previous: string[] }> 
   {
     keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-04-docs:',
     previous: ['chat', 'studio', 'radar', 'files', 'agents'],
+  },
+  // 2026-08-14 — +strings (ADR-569 unveil, operator decision same day as the
+  // build — the Radar precedent: "handled exactly like Studio"; the D8
+  // falsifiers stay armed as MEASURES of the standing loop, no longer as the
+  // unveil's gate). An un-curated six-app Dock converges to Chat · Docs ·
+  // Studio · Radar · Strings · Files · Agents in one read.
+  {
+    keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-14-strings:',
+    previous: ['chat', 'docs', 'studio', 'radar', 'files', 'agents'],
   },
 ];
 

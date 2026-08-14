@@ -160,6 +160,10 @@ subjects · center lifecycle · bound lane · width ladder · activity rail) ext
 - **App**: **Strings** (slug `strings`) — function-named like Radar; the medium is
   plural by design, so a medium name would repeat the first draft's narrowing.
   Launcher tier starts `search-only` (registration ≠ unveil, ADR-486 D7).
+  *(Build-day amendment: UNVEILED to primary + the Dock 2026-08-14 by operator
+  decision — "i do want it to be fully published" — the Radar-unveil precedent
+  taken the same way; the D8 falsifiers stay armed as measures, no longer as
+  the unveil's gate.)*
 - **Colleague**: **Keeper** (slug `keeper`) — tending and fidelity, not judgment:
   "Researcher watches the world; Keeper keeps your files true." Declared as the app's
   resident in the app's OWN module via `register_app("strings", resident="keeper")`

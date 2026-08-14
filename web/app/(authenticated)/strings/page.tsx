@@ -11,8 +11,9 @@
  * canvas · what changed · setup · consumers) — a lazy projection over
  * substrate + ledger, never stored state.
  *
- * launcher_tier starts search-only (registration ≠ unveil — the ADR-486 D7
- * rule; the D8 falsifiers gate promotion).
+ * Unveiled to primary + the Dock 2026-08-14, same day as the build (operator
+ * decision — the Radar precedent). The D8 falsifiers stay armed as measures
+ * of the standing loop, no longer as the unveil's gate.
  */
 
 import StringsSurface from '@/components/strings/StringsSurface';

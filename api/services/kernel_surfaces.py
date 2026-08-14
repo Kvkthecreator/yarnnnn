@@ -368,17 +368,20 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # string roster + the composed view (file canvas by format · what
         # changed · setup · consumers), projected at read time.
         #
-        # launcher_tier starts SEARCH-ONLY (D6 — registration ≠ unveil, the
-        # ADR-486 D7 rule): reachable by summon-by-name + the Files gesture,
-        # unpromoted until the D8 falsifiers are read.
+        # launcher_tier started SEARCH-ONLY (D6 — registration ≠ unveil, the
+        # ADR-486 D7 rule). UNVEILED 2026-08-14, same day as the build
+        # (operator decision — "i do want it to be fully published"; the
+        # Radar precedent, whose own unveil was taken early the same way).
+        # The D8 falsifiers stay armed as MEASURES of the standing loop, no
+        # longer as the unveil's gate.
         "slug": "strings",
-        "launcher_tier": "search-only",  # ADR-569 D6 — unveil gated on the D8 falsifiers
+        "launcher_tier": "primary",  # ADR-569 unveil 2026-08-14 (was search-only per D6)
         "register": "application",
         "title": "Strings",
         "archetype": "dashboard",
         "substrate_paths": [],  # strings are meaning-placed in the file's own folder
         "icon_key": "cable",
-        "default_pinned": False,  # search-only tier: not in the Dock
+        "default_pinned": True,  # ships in the Dock with the other apps
         "route": "/strings",
         "summary": "Files you designate as kept current — a contract in plain words, declared sources pulled on schedule, Keeper revising the head while your corrections compound. Docs and decks that cite a maintained file stay current by reference.",
     },

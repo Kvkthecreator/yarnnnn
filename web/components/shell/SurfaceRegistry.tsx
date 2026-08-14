@@ -47,8 +47,8 @@ import DocsPage from '@/app/(authenticated)/docs/page';
 // until the R3 unveil.
 import RadarPage from '@/app/(authenticated)/radar/page';
 // ADR-569 — Strings: the maintained file, kept by Keeper (the second desk on
-// the shared DeskHousing). Search-only tier until the D8 falsifiers earn the
-// unveil (registration ≠ unveil, ADR-486 D7).
+// the shared DeskHousing). Unveiled 2026-08-14 by operator decision (the
+// Radar precedent); shipped search-only for hours, primary since.
 import StringsPage from '@/app/(authenticated)/strings/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
