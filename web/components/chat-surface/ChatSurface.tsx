@@ -154,7 +154,7 @@ export function ChatSurface() {
     () =>
       wsMembers
         .filter((m) => (m.role === 'owner' || m.role === 'member') && m.principal_id !== userId)
-        .map((m) => ({ principal_id: m.principal_id, label: m.label || `member-${m.principal_id.slice(0, 8)}` })),
+        .map((m) => ({ principal_id: m.principal_id, label: m.label || 'A member' })),
     [wsMembers, userId],
   );
   // One screen at a time when the space is tight (the Files/SettingsPaneShell
@@ -236,7 +236,7 @@ export function ChatSurface() {
         .map(
           (p) =>
             people.find((x) => x.principal_id === p.principal_id)?.label ||
-            `member-${p.principal_id!.slice(0, 8)}`,
+            'A member',
         );
     },
     [people, userId],
@@ -270,7 +270,7 @@ export function ChatSurface() {
               p.agent_slug ||
               'agent'
             : people.find((x) => x.principal_id === p.principal_id)?.label ||
-              `member-${(p.principal_id || '').slice(0, 8)}`,
+              'A member',
         );
       if (out.length) return out;
       // Pre-cast lanes (Studio/derive, pre-registry) have no participant rows:
@@ -486,7 +486,7 @@ export function ChatSurface() {
         faces.push({
           name:
             people.find((x) => x.principal_id === p.principal_id)?.label ||
-            `member-${p.principal_id.slice(0, 8)}`,
+            'A member',
         });
       }
     }
@@ -1059,7 +1059,7 @@ export function ChatSurface() {
                   }
                   const label =
                     people.find((x) => x.principal_id === p.principal_id)?.label ||
-                    `member-${(p.principal_id || '').slice(0, 8)}`;
+                    'A member';
                   return {
                     kind: 'human' as const,
                     handle: label.split('@')[0],

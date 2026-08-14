@@ -1289,17 +1289,30 @@ async def get_workspace_members(
             if r.get("connected_by"):
                 human_ids.add(str(r["connected_by"]))
 
+        # THE ONE RESOLVER (`services/principal_display.py`), not a second
+        # derivation. This loop used to call `get_user_by_id` itself, once per
+        # member, with three differences that were all regressions: no cache (N
+        # sequential admin round-trips per roster read), email-ADDRESS only
+        # (the resolver prefers `user_metadata.full_name`, then the email's
+        # local part — a handle, not an address), and a bare `except` that
+        # logged at DEBUG and left the label None.
+        #
+        # That None is the reported defect: every other principal class ends in
+        # `or principal_id`, humans ended in nothing, so one transient admin
+        # failure rendered a member as "member-2abf3f96" in the transcript.
+        from services.principal_display import UNRESOLVED_MEMBER, resolve_member_names
+
         human_emails: dict[str, str] = {}
-        for pid in human_ids:
-            if pid == auth.user_id and auth.email:
-                human_emails[pid] = auth.email
-                continue
-            try:
-                u = svc.auth.admin.get_user_by_id(pid)
-                if u and getattr(u, "user", None) and u.user.email:
-                    human_emails[pid] = u.user.email
-            except Exception as exc:  # noqa: BLE001 — humanization is best-effort
-                logger.debug("[WORKSPACE_API] member email lookup failed for %s: %s", pid[:8], exc)
+        try:
+            human_emails.update(
+                {k: v for k, v in resolve_member_names(svc, list(human_ids)).items() if v}
+            )
+        except Exception as exc:  # noqa: BLE001 — humanization is best-effort
+            logger.warning("[WORKSPACE_API] member name resolution failed: %s", exc)
+        # The caller's own address is known without a lookup and is the more
+        # useful self-label (they recognize their own email).
+        if auth.email:
+            human_emails[auth.user_id] = auth.email
 
         # ADR-445 §7 Phase 4 — the per-member cap map (owner-set), read once for the
         # roster. Absent = uncapped. Best-effort — a read failure leaves all None.
@@ -1358,8 +1371,13 @@ async def get_workspace_members(
 
             label: Optional[str] = None
             if role in ("owner", "member", "viewer"):
-                label = human_emails.get(principal_id)
-                if label and principal_id == auth.user_id:
+                # A TERMINAL fallback, like every other class below. Humans were
+                # the only principals whose label could come back None, and the
+                # surfaces that consume it each invented their own UUID-shaped
+                # stand-in — which `principal_display.UNRESOLVED_MEMBER` exists
+                # precisely to prevent ("NEVER a UUID or email").
+                label = human_emails.get(principal_id) or UNRESOLVED_MEMBER
+                if principal_id == auth.user_id:
                     label = f"{label} (you)"
             elif role in ("foreign-llm", "platform", "a2a"):
                 # Provider host-id → friendly label; legacy client_id → name lookup.

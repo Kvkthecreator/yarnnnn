@@ -318,6 +318,38 @@ def test_out_of_band_freshness_is_not_gated_on_species():
     assert "hasOtherHumans={" not in chat, "the gate must not name one species"
 
 
+def test_a_human_always_has_a_readable_label():
+    """Operator-observed 2026-08-14: a peer rendered as "member-2abf3f96".
+
+    Humans were the ONLY principal class whose label could come back None —
+    every other branch ends in `or principal_id` — so one transient admin-API
+    hiccup produced a UUID-shaped stand-in in the transcript. The endpoint also
+    re-implemented resolution instead of using the ONE resolver, which is why
+    it had neither the cache nor the `user_metadata` name lookup.
+
+    `principal_display` states the invariant it exists to hold: a degraded
+    label is "NEVER a UUID or email".
+    """
+    src = (pathlib.Path(__file__).parent / "routes/workspace.py").read_text()
+    # Anchored on the exact def — `get_workspace_memberships` is a DIFFERENT,
+    # similarly-named endpoint and a prefix match silently audits the wrong one.
+    body = src[src.index("def get_workspace_members("):]
+    body = body[: body.index("\n@router")] if "\n@router" in body else body
+    assert "resolve_member_names(" in body, "use the ONE resolver, not a second derivation"
+    assert "svc.auth.admin.get_user_by_id" not in body, (
+        "a second, uncached, name-blind derivation is what shipped the defect"
+    )
+    assert "or UNRESOLVED_MEMBER" in body, "humans need a terminal fallback like every other class"
+
+    # ...and no surface may invent a UUID-shaped stand-in of its own.
+    for name in ("ChatSurface.tsx", "LanePanel.tsx"):
+        text = (WEB / name).read_text()
+        assert "member-${" not in text, (
+            f"{name} prints a UUID prefix as a person's name — the exact string "
+            "principal_display forbids"
+        )
+
+
 def test_the_frontend_shows_one_speaker_not_the_room():
     """The indicator read "Thinker, Lisa is working…" for a single reply — the
     ROOM label passed to a prop documented as "the resident's name"."""

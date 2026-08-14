@@ -90,10 +90,13 @@ function renderWithMentions(text: string, known: Set<string>): ReactNode {
     if (!known.has(m[2].toLowerCase())) continue;
     const at = m.index + m[1].length;
     if (at > last) out.push(text.slice(last, at));
+    // A CHIP, not a highlight. The mention is a routing act, and the member
+    // should be able to see at a glance which turns were addressed — a tinted
+    // word reads as emphasis, a bordered token reads as a thing.
     out.push(
       <span
         key={`${at}-${m[2]}`}
-        className="rounded bg-foreground/15 px-1 py-px font-medium"
+        className="inline-flex items-center rounded-md bg-background/20 ring-1 ring-current/25 px-1.5 py-px mx-px text-[0.9em] font-medium align-baseline"
       >
         @{m[2]}
       </span>,
@@ -901,7 +904,7 @@ export function LanePanel({
             : isOwn
               ? null
               : principalLabels?.[m.authorPrincipalId!] ||
-                `member-${(m.authorPrincipalId ?? '').slice(0, 8)}`;
+                'A member';
           // A row gets the gutter + name when we can say WHO spoke and it is
           // not the viewer. An unattributed assistant row (pre-addressing
           // history, or a direct conversation) keeps exactly its old look.

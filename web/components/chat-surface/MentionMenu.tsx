@@ -142,14 +142,12 @@ export function MentionMenu({
               )}
             >
               <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate">{c.name}</span>
-                {c.blurb && (
-                  <span className="block truncate text-[11px] text-muted-foreground">
-                    {c.blurb}
-                  </span>
-                )}
-              </span>
+              {/* The NAME alone. The blurb was here and it was noise at the
+                  moment of choosing: the member is picking a colleague they
+                  already know, mid-sentence, and a two-line row pushed the
+                  list past a glance. Who they are belongs on the Agents
+                  surface; this is an address book. */}
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
             </button>
           ))}
         </>
