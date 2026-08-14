@@ -1,0 +1,104 @@
+# Standing data maintenance — a consideration, not a decision (2026-08-14)
+
+> **Status: deliberation record.** Nothing here is ratified. This captures the
+> conceptual boundary that fell out of the 2026-08-14 desk-e2e discourse, so a
+> future ADR starts from the decomposition instead of re-deriving it. The
+> operator's framing prompt: *"what IF the user does want something that needs
+> updating, continuously, under a set of rules — say a table or csv file, or a
+> specific slide in the deck that references it. Think of a weekly KPI deck,
+> linked to csv tables per slide, where an outside source provides the update."*
+
+## 1. The originating misread, and what it exposed
+
+During the first desk click-pass the operator attached a radar folder and asked
+Researcher to work on an existing deck — on the assumption that the standing
+loop could update an authored artifact in the watched folder. It cannot, by
+ratified design: the sweep writes exactly one judgment output (`report.md`, at
+a kernel-fixed leaf, write-confined by `_assert_hub_write` — ADR-564 D6 /
+ADR-565 D1+D4), plus its machine signal and the inbound raw observations.
+Authored artifacts change only by attended acts.
+
+Two learnings, one per direction:
+
+- **Surface**: the confinement contract is invisible on the desk — the member
+  had to ask. (Owed: one sentence on the glass.)
+- **Concept**: the *want* behind the misread is real and deserves its own
+  frame instead of leaking into radar through lane usage.
+
+## 2. The decomposition: the KPI deck is two mechanisms, one already shipped
+
+A "continuously updated KPI deck" = a **data layer** + a **presentation
+layer**, and the deck must never be the write target:
+
+1. **Presentation — already shipped.** Studio artifacts cite data files by
+   reference (`data-ref` / chart blocks; the composed authoring posture
+   teaches "write the numbers as a `.csv`, then cite it from a chart block —
+   a projection stays true when the data changes"). A slide that PROJECTS
+   from `kpis/weekly.csv` re-renders when the CSV head moves, with zero
+   writes to the deck. The authorship boundary survives untouched.
+2. **Data — the genuinely new half.** A standing loop that revises a *data
+   file* from an outside source under declared rules. This exists nowhere
+   today, and it is **not radar**.
+
+## 3. Why it is not radar: same frame, different species
+
+ADR-564 is deliberately the frame ABOVE the app ("any future standing intake
+is a third manifestation"). The data feed is a second manifestation, differing
+on exactly the axes the frame parameterizes:
+
+| | Radar (shipped) | Standing data feed (unratified) |
+|---|---|---|
+| Artifact | prose *understanding* (`report.md`) | structured *state* (CSV/table at a fixed leaf) |
+| Governance | criterion — prose judgment ("what matters here") | contract — schema/mapping, machine-checkable |
+| Derive | one bounded judgment turn | mostly mechanical transformation |
+| Correction | edit the prose head; compounds (ADR-565 D1) | correct a row / revise the mapping contract |
+
+Stretching radar's criterion grammar over schema'd data would blur both apps.
+Radar maintains **understanding**; a feed would maintain **state**; the deck
+maintains nothing — it references.
+
+## 4. The boundary law (the sentence worth keeping)
+
+> **Unattended writers revise machine-tended files at fixed, declared leaves;
+> authored artifacts change only by attended acts — and stay current anyway,
+> through reference, because projection is how an artifact reads moving data
+> without anyone writing the artifact.**
+
+Corollaries:
+
+- A slide/deck/doc is NEVER a standing loop's write target — in any future
+  manifestation. "Keep this slide current" resolves to "keep the file it
+  cites current."
+- The desk-lane's ability to edit arbitrary files under the member's grant is
+  attended conversation, not the loop — and for authored artifacts it is the
+  wrong door anyway (the desk posture lacks the medium's conventions; a deck
+  wants Studio's lane).
+
+## 5. Why this is the differentiation thesis, not scope creep
+
+The case is only *expressible* on a persistent, attributed, shared filesystem:
+a scheduled writer, a human author, and a projecting artifact meet in files,
+with attribution deciding who did what and the revision chain making every
+layer correctable. A chat-oriented framework can generate the CSV on request;
+it has nowhere for the CSV to live, accumulate corrections, and be cited
+from. The standing work product is a file whose head is always current — not
+a conversation you re-run. (ESSENCE: record = moat.)
+
+## 6. What a future ADR would need to decide (named, not taken)
+
+- The declaration grammar (a `_feed.yaml`-class machine file: source, cadence,
+  target leaf, mapping/schema contract) and its fixed-leaf output class.
+- The contract's validation posture (a schema violation is a loud repair
+  state, not a silent bad write — the ADR-567 D6 shape).
+- Source classes: real KPI sources are mostly platforms → gated on the
+  connector re-light (ADR-404, entered per ADR-565 D7 phase-next with the
+  ADR-564 frame as its answer). Web/API-pull variants may precede it.
+- Whether the mechanical transform ever needs a judgment turn (probably the
+  ADR-564 D3 "machinery under pressure" rule again).
+- App/surface: its own desk? a Files affordance? NOT decided here.
+
+## 7. Explicit non-decisions
+
+This document ratifies nothing, changes no radar behavior, and does not open
+the connector re-light. Radar's contract stands exactly as ADR-564/565/567
+shipped it.
