@@ -1,12 +1,21 @@
 # ADR-570: The markdown editor — the member's cursor reaches the prose currency
 
-> **Status**: **Accepted + Implemented** (2026-08-14 — drafted from the connector
-> round-trip session's scoping; ratified same day by the operator, who delegated
-> implementation: *"markdown editor app sounds right … can you scope this in full,
-> i'd actually would like to implement this"* → *"now would like to delegate the
-> details in the implementation"*. Stages 1–3 landed `17fe1bf` · `7f22e7d` ·
-> `daa77c3`; the D8 click-pass is owed). Names as shipped: app id
-> `markdown.editor`, operator-facing label **"Editor"**.
+> **Status**: **Accepted + Implemented, HOUSING SUPERSEDED by
+> [ADR-571](ADR-571-the-text-app-a-dedicated-surface-for-the-prose-currency.md)**
+> (2026-08-14 — drafted from the connector round-trip session's scoping; ratified
+> same day by the operator, who delegated implementation. Stages 1–3 landed
+> `17fe1bf` · `7f22e7d` · `daa77c3`).
+>
+> ⚠️ **Read D1/D2 as history, not as current design.** The operator's correction
+> the next day — *"my understanding was that it is a dedicated app. just like
+> docs"* — re-cut the housing: prose edits in the **Text app** (a kernel surface
+> with a bound **Editor** lane), not in an inline `markdown.editor` app inside
+> Files. That registry row, its module, and its selection plumbing are DELETED
+> (`fe62786`). **Everything below the housing CARRIES unchanged and is still
+> current**: D4's member write door widened by format class, the studio door's
+> principal-gate repair, D5's CAS/409 spine (now inside the Text canvas), and
+> D6's chat-seam linkification. ADR-571 §1 records why the two come apart —
+> the ADR-550→551 shape: a mechanism can be live and still be housed wrong.
 > **Date**: 2026-08-14
 > **Dimension**: **Channel** (a new app on the file-type registry + one widened write
 > door) primary; **Substrate** (no new file class — the prose currency as it stands)

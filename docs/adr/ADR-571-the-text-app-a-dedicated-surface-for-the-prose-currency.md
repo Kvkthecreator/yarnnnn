@@ -1,9 +1,12 @@
 # ADR-571: The Text app — a dedicated surface for the prose currency
 
-> **Status**: **Accepted** (2026-08-14, operator-corrected re-cut of ADR-570's
-> housing, directed in-session: *"my understanding was that it is a dedicated app.
-> just like docs. that's why i asked to mimic docs app in full"* — names chosen by
-> the operator: app **Text**, colleague **Editor**).
+> **Status**: **Accepted + Implemented** (2026-08-14 correction, shipped
+> 2026-08-15 — operator-corrected re-cut of ADR-570's housing, directed
+> in-session: *"my understanding was that it is a dedicated app. just like docs.
+> that's why i asked to mimic docs app in full"*; names chosen by the operator:
+> app **Text**, colleague **Editor**. Landed `c187d75` (registration + lane
+> branch) · `cc3b7ed` (the surface) · `fe62786` (ADR-570's inline housing
+> retired). The D6 click-pass is owed.)
 > **Date**: 2026-08-14
 > **Dimension**: **Channel** (a new kernel surface + bound lane) primary;
 > **Identity** (an app-named colleague over an existing resident) secondary.
