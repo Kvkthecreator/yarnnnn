@@ -246,6 +246,21 @@ check("5k Text does NOT ride DeskHousing (that is the DASHBOARD housing)",
 check("5l the superseded canvas is deleted (no dual approach)",
       not (_TEXT / "TextCanvas.tsx").exists())
 
+# The landing's recents request must be INSIDE the route's own cap. Found in
+# production: the surface asked for 80, the route caps at 50, every load 422'd
+# and the landing rendered "No documents yet" — a rejected request wearing an
+# empty state's clothes. Read the cap from the ROUTE, never restate it.
+_route_src = (API / "routes" / "workspace.py").read_text()
+_cap_m = re.search(
+    r"async def get_recent_revisions[\s\S]{0,600}?limit:\s*int\s*=\s*Query\(\s*\d+\s*,[^)]*?le=(\d+)",
+    _route_src,
+)
+_asked_m = re.search(r"\.recentRevisions\((\d+)\)", _landing)
+check("5m the recents request is within the route's cap (a 422 reads as an "
+      "empty landing, not as an error)",
+      bool(_cap_m) and bool(_asked_m) and int(_asked_m.group(1)) <= int(_cap_m.group(1)),
+      f"cap={_cap_m.group(1) if _cap_m else '?'} asked={_asked_m.group(1) if _asked_m else '?'}")
+
 
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0

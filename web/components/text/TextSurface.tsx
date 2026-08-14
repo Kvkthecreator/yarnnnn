@@ -73,7 +73,10 @@ export default function TextSurface() {
     let cancelled = false;
     setLoading(true);
     api.workspace
-      .recentRevisions(80)
+      // 50 is the route's CAP (`Query(20, ge=1, le=50)`), not a preference:
+      // 80 returned 422 on every load and the landing read as "No documents
+      // yet" — an empty state that was really a rejected request.
+      .recentRevisions(50)
       .then((res) => {
         if (cancelled) return;
         const seen = new Set<string>();
