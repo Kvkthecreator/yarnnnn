@@ -602,6 +602,86 @@ check("7o the ~20 existing chat mounts keep their face byte-for-byte "
       str(_r)[:220])
 
 
+# ── 8. the CAS conflict, read off the REAL wire (ADR-572 D7) ─────────────
+# Found by driving a real 409 in production on 2026-08-16. The API serves the
+# stale-write detail under `error.hint.current_head`; this client read only
+# FastAPI's older `detail.current_head`, so BOTH fields came back undefined:
+# the banner said the generic "Someone else" instead of naming who moved the
+# head, and the "Save mine over theirs" button VANISHED (it is conditional on
+# currentHeadId) — leaving one exit where the design promises two.
+#
+# Invisible to types, to `next build`, and to all 103 prior checks: a field
+# read that yields `undefined` is not an error, and the fallback string reads
+# like intended copy. So the probe replays the VERBATIM body from the wire.
+_CONFLICT_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f, 'utf8'),
+    { transforms: ['typescript', 'jsx', 'imports'], jsxRuntime: 'automatic', production: true }).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) {
+    const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts', '/index.tsx', '/index.ts']) {
+      try { return orig.call(this, b + e, ...a); } catch (x) { /* next */ }
+    }
+  }
+  return orig.call(this, r, ...a);
+};
+const { readConflict } = require(WEB + '/components/text/conflict.ts');
+
+// VERBATIM from production, 2026-08-16 (PATCH /api/workspace/file, stale base).
+const live = {"error":{"code":"conflict","message":"Request failed.","hint":{
+  "error":"stale_write","path":"/workspace/Documents/adr572-click-pass.md",
+  "expected_head_version_id":"4e6c4f93-f168-4ae3-b1ab-2b690fd3b7b3",
+  "current_head":{"id":"507258bf-dc88-442d-82ec-ba2e346b941a",
+    "authored_by":"operator","message":"edit file","created_at":"2026-08-16T12:14:48Z"}}}};
+// The older FastAPI shape, which must keep working.
+const legacy = { detail: { current_head: { id: 'abc123', authored_by: 'operator' } } };
+
+const a = readConflict(live);
+const b = readConflict(legacy);
+const empty = readConflict(null);
+console.log(JSON.stringify({
+  // The button's existence depends on this being non-null.
+  live_head: a.currentHeadId === '507258bf-dc88-442d-82ec-ba2e346b941a',
+  live_names_actor: !!a.actor && a.actor !== 'Someone else',
+  legacy_head: b.currentHeadId === 'abc123',
+  legacy_names_actor: !!b.actor && b.actor !== 'Someone else',
+  // An unreadable body must still produce a usable banner, never a crash.
+  empty_degrades: empty.currentHeadId === null && empty.actor === 'Someone else',
+}));
+"""
+
+_c = _run_probe_web = None
+try:
+    _c = json.loads(
+        subprocess.run(
+            ["node", "-e", _CONFLICT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+    _c = {"error": str(exc)}
+
+check("8a the CURRENT wire envelope yields the head id — the 'Save mine over "
+      "theirs' button is conditional on it, so a miss DELETES an exit",
+      _c.get("live_head") is True, str(_c)[:220])
+check("8b the current envelope names WHO moved the head (not 'Someone else')",
+      _c.get("live_names_actor") is True, str(_c)[:220])
+check("8c the legacy `detail` envelope still reads (the shape is not this "
+      "component's to pin; a reader that survives either cannot break again)",
+      _c.get("legacy_head") is True and _c.get("legacy_names_actor") is True,
+      str(_c)[:220])
+check("8d an unreadable body degrades to a usable banner, never a crash",
+      _c.get("empty_degrades") is True, str(_c)[:220])
+check("8e the editor READS through that helper (not a re-inlined field access)",
+      "readConflict(err.data)" in _editor and "detail?.current_head" not in _editor)
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:
