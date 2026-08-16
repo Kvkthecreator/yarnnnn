@@ -1,4 +1,4 @@
-# Session handoff — 2026-08-16: ADR-572 shipped + CLICK-PASSED
+# Session handoff — 2026-08-16: ADR-572 shipped, click-passed, then RE-CUT to one canvas
 
 `origin/main` at the ADR-572 click-pass commit. **The Text↔Docs parity arc is
 closed and DRIVEN on production.** The reading face, outline, task lists,
@@ -11,13 +11,29 @@ to a different layer.
 > starting-table rows were **wrong about Docs** and are corrected below so the
 > mistake is not re-inherited.
 
-## What shipped (ADR-572)
+## What shipped (ADR-572, as re-cut by D8)
 
-The Text canvas no longer shows raw markdown source. Read|Write toggle (Read
-default), zoom, a doc-grade serif reading skin, a markdown toolbar
-(⌘B/⌘I/⌘K + heading/list/task-list/quote/table/link/rule), find/replace (⌘F), a heading
-outline in Properties, Print/PDF, a rendered landing thumbnail, a single-pane
-bottom tab bar, and a load-error retry.
+**ONE canvas** (`ProseCanvas`, CodeMirror-grade): always editable, always
+styled, no mode toggle. A permanent markdown toolbar (⌘B/⌘I/⌘K + heading /
+list / **task list** / quote / table / link / rule), zoom, find via
+`@codemirror/search`, a heading outline in Properties, Print/PDF, a rendered
+landing thumbnail, a single-pane bottom tab bar, and a load-error retry.
+
+### ⭐⭐⭐ Why D8 exists — the correction that matters most this arc
+
+The operator looked at the shipped app and said **"i don't see them"** about
+the formatting controls. They were all real and all gated green — and all
+**behind Write mode, on a surface that opened in Read**. The feature set was
+invisible on arrival.
+
+And the split was never required: **ADR-456 D1 permits
+"textarea/CodeMirror-grade"** — I read that *ceiling as a floor*, built the
+textarea, then split the canvas to get styling back. CodeMirror is the option
+the ADR names.
+
+**Carry this forward: a feature behind a mode the surface does not open in is
+a feature the member does not have.** And: read a constraint for what it
+PERMITS, not only for what it forbids.
 
 New modules under `web/components/text/`: `ProseReader.tsx`,
 `MarkdownToolbar.tsx`, `FindReplaceBar.tsx`, `markdownEdits.ts`, `outline.ts`,
@@ -144,7 +160,7 @@ about where a derived brief lands.
 ## Verification that must stay green
 
 ```
-cd api && python3 test_adr571_text_app.py             # 108/108, SCRIPT-STYLE (pytest = false pass)
+cd api && python3 test_adr571_text_app.py             # 119/119, SCRIPT-STYLE (pytest = false pass)
 node web/lib/file-types/__gate_adr514_d2.mjs          # 41/41, from REPO ROOT
 cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
 cd api && python3 test_adr562_app_owned_config.py     # script-style

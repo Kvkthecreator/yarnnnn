@@ -52,6 +52,13 @@ medium genuinely needs that Docs happens not to have.**
 
 ### D1 — The canvas has two faces, and a rendered view is not a block model
 
+> **SUPERSEDED BY D8** (same day). This shipped a Read/Write toggle: a rendered
+> view you could not type into, and a textarea you could. It hid every
+> formatting control behind a mode the surface did not open in, and it was not
+> required by the constraint. Kept here because the *reasoning below* about what
+> makes a view legal is what D8 builds on — the mode split is what was wrong,
+> not the "a rendered view is not a block model" argument.
+
 **Read** renders the markdown (`ProseReader`); **Write** is the textarea ADR-456
 D1 requires. One source of truth (`text`), one direction of flow (source →
 render). **Read is the default on open** — an existing document is something you
@@ -150,6 +157,56 @@ indicator**, because the CAS conflict here is a *product surface*: a connector
 may hold the same file, and ADR-570's 409 names who moved the head. A member
 needs to know which bytes are theirs before that conversation starts. Recorded
 as a divergence rather than drifted into.
+
+### D8 — ONE canvas: CodeMirror-grade, the option D1 should have taken
+
+> **Operator correction, same day**: *"do we need to split the modes? like docs
+> app can we just have one mode"* — and before that, plainly: *"i don't see
+> them"* (the formatting controls).
+
+**D1's Read/Write toggle is deleted.** It was wrong twice over:
+
+1. **It hid the app.** The toolbar, the task-list button and find all lived in
+   Write mode, and the surface *opened in Read*. Every control ADR-572 shipped
+   was invisible on arrival. The operator looked at the app and did not see the
+   features — because they were behind a mode.
+2. **It was not required by the constraint.** ADR-456 D1 permits
+   *"textarea/**CodeMirror**-grade, never block-grade"*. I read that ceiling as
+   a floor, built the textarea, and then split the canvas to get styling back.
+   CodeMirror is the option the ADR names, and it gives one always-editable,
+   always-styled canvas.
+
+`ProseCanvas` is that canvas: `@codemirror/lang-markdown` for the grammar, a
+`HighlightStyle` carrying the same serif hierarchy `PROSE_READING_SKIN` defines,
+the toolbar as a permanent row above it, and `@codemirror/search` for find.
+
+**Why this is not block-grade** — the property the whole thesis rests on:
+CodeMirror's document is a **plain string**, and styling is a decoration layer
+recomputed from it on each update. Nothing enters the document; no node maps
+back to a source position; no id is minted. A block editor stores a tree with
+identity and serializes it back out. Gated in §9 by **executing** the round
+trip: deliberately awkward markdown (mixed `*`/`+` bullets, setext underlines,
+tabs, trailing spaces, a fence) comes back **byte-identical**, and §9f1 asserts
+this component's own change handler emits the document unmodified.
+
+> That second check exists because the first one **passed a falsification**: a
+> normalizing `.replace()` inserted into the update listener left §9f green,
+> since §9f tested CodeMirror's state in isolation rather than my wiring. The
+> "gate tests the library, not the caller" shape, caught by falsifying.
+
+**Deleted, not kept beside it** (singular implementation): `FindReplaceBar` and
+the `findAll`/`replaceOne`/`replaceAll` helpers — `@codemirror/search` is the
+better find (incremental, match-highlighted, regex-capable) and two searches
+would be a dual implementation. `ProseReader` **survives** for the two places
+that need a rendered document with no editor attached: the landing thumbnail
+and Print/PDF.
+
+**The honest limitation**: the markdown marks stay **visible** — `## Heading`
+renders large and serif with a dimmed `##` still present (the Obsidian/iA
+Writer face). Hiding them requires knowing which rendered node owns which
+source range, i.e. the node↔offset map that is the banned shape. Named here so
+the absence does not read as an oversight. Print/PDF and the landing thumbnail
+still show the fully-clean render, because neither has a caret.
 
 ## 3. Not done / explicitly out of scope
 
