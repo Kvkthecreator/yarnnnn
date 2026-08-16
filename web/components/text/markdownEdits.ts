@@ -216,47 +216,6 @@ export function insertRule(text: string, start: number, end: number): Edit {
   return { text: before + snippet + after, selectionStart: caret, selectionEnd: caret };
 }
 
-/**
- * Find every case-insensitive occurrence of `needle`, as [start, end) pairs.
- * Literal, never a regex — a member typing `a.b` means those three characters.
- */
-export function findAll(text: string, needle: string): Array<[number, number]> {
-  if (!needle) return [];
-  const hay = text.toLowerCase();
-  const n = needle.toLowerCase();
-  const out: Array<[number, number]> = [];
-  let i = hay.indexOf(n);
-  while (i !== -1) {
-    out.push([i, i + needle.length]);
-    i = hay.indexOf(n, i + needle.length);
-  }
-  return out;
-}
-
-/** Replace one match. */
-export function replaceOne(text: string, span: [number, number], with_: string): Edit {
-  const next = text.slice(0, span[0]) + with_ + text.slice(span[1]);
-  return {
-    text: next,
-    selectionStart: span[0],
-    selectionEnd: span[0] + with_.length,
-  };
-}
-
-/** Replace every match, left to right. */
-export function replaceAll(text: string, needle: string, with_: string): Edit {
-  const spans = findAll(text, needle);
-  if (!spans.length) return { text, selectionStart: 0, selectionEnd: 0 };
-  let out = '';
-  let cursor = 0;
-  for (const [s, e] of spans) {
-    out += text.slice(cursor, s) + with_;
-    cursor = e;
-  }
-  out += text.slice(cursor);
-  return { text: out, selectionStart: 0, selectionEnd: 0 };
-}
-
 /** The character offset at which 0-based `line` begins. */
 export function offsetOfLine(text: string, line: number): number {
   let off = 0;

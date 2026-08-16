@@ -1,7 +1,19 @@
 'use client';
 
 /**
- * ProseReader — the reading face of a markdown document (ADR-572).
+ * ProseReader — a STATIC render of a markdown document (ADR-572).
+ *
+ * ## What this is for, after D8
+ *
+ * It was the canvas's Read mode until ADR-572 D8 collapsed Text to one
+ * CodeMirror-grade canvas. It survives for the two places that need a rendered
+ * document with **no editor attached**:
+ *
+ *   - the landing thumbnail (`TextSurface::ProseThumb`), and
+ *   - Print/PDF (`printProse`), which needs an HTML string.
+ *
+ * It is deliberately NOT mounted beside the canvas — that would be the dual
+ * implementation D8 removed.
  *
  * ## Why this exists
  *

@@ -9,16 +9,18 @@
  * Properties|Chat rail carrying Editor's bound lane — the same two tabs, the
  * same never-unmount rule so a streaming turn survives a tab switch.
  *
- * ## The canvas has two faces, and neither is a block model
+ * ## ONE canvas (ADR-572 D8)
  *
- * ADR-572 D1: **Read** renders the markdown (`ProseReader` — serif headings,
- * styled tables, a real reading measure); **Write** is the textarea ADR-456 D1
- * requires. One source of truth (`text`), one direction of flow (source →
- * render). The rendered view never writes, holds no ids, and annotates
- * nothing; delete it and the file is unchanged. That is what makes it a view.
+ * `ProseCanvas` is CodeMirror-grade: always editable, always styled, no mode
+ * toggle. The first cut split Read from Write, and the operator's correction —
+ * *"do we need to split the modes? like docs app can we just have one mode"* —
+ * was right: Docs has one canvas, and the split hid every formatting control
+ * behind a mode the surface did not open in.
  *
- * Read is the DEFAULT on open, because a document that already exists is
- * something you arrive to read; Write is one click (or a keystroke) away.
+ * ADR-456 D1 permits "textarea/CodeMirror-grade"; the split read that ceiling
+ * as a floor. CodeMirror's document is a plain STRING and its styling is a
+ * decoration layer recomputed each update — nothing enters the file, so the
+ * `.md` stays byte-identical. See `ProseCanvas` for the full argument.
  *
  * ## What is deliberately NOT Docs
  *
@@ -38,12 +40,9 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
-  Eye,
   FileText,
   Loader2,
   PanelRight,
-  Pencil,
-  Search,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
@@ -53,9 +52,8 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { TextExport } from '@/components/text/TextExport';
-import { ProseReader } from '@/components/text/ProseReader';
+import { ProseCanvas, type ProseCanvasHandle } from '@/components/text/ProseCanvas';
 import { MarkdownToolbar, type ToolbarAction } from '@/components/text/MarkdownToolbar';
-import { FindReplaceBar } from '@/components/text/FindReplaceBar';
 import { readConflict, type ConflictState } from '@/components/text/conflict';
 import { parseOutline, readingMinutes } from '@/components/text/outline';
 import {
@@ -63,8 +61,6 @@ import {
   insertRule,
   insertTable,
   offsetOfLine,
-  replaceAll as replaceAllIn,
-  replaceOne,
   toggleChecklist,
   toggleHeading,
   toggleList,
@@ -118,12 +114,10 @@ export function TextEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<ConflictState | null>(null);
   const baseHead = useRef<string | null>(null);
-  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const canvasRef = useRef<ProseCanvasHandle | null>(null);
 
-  // ── View state (ADR-572 D1/D2) — none of it touches the file.
-  const [mode, setMode] = useState<'read' | 'write'>('read');
+  // ── View state (ADR-572 D2) — zoom only; it never touches the file.
   const [zoom, setZoom] = useState(1);
-  const [finding, setFinding] = useState(false);
 
   // Rail: Properties | Chat, the Docs grammar. The lane stays MOUNTED while
   // Properties is up (CSS-hidden) so a streaming turn survives the switch.
@@ -182,28 +176,19 @@ export function TextEditor({
   }, [savedAt]);
 
   // ── Applying a source edit ──────────────────────────────────────────────
-  // Every formatting/insert/replace path funnels through here: set the text,
-  // then restore the caret the pure function computed. The restore has to wait
-  // for React to paint the new value, hence the rAF — setting
-  // selectionStart before the DOM holds the new string clamps it to the old
-  // length and the caret jumps to the end.
+  // Every formatting/insert path funnels through here. The canvas owns the
+  // caret, so the pure function's computed selection is handed straight to it
+  // as one transaction — no rAF dance, and undo treats it as a single step.
   const applyEdit = useCallback((edit: Edit) => {
+    canvasRef.current?.apply(edit.text, edit.selectionStart, edit.selectionEnd);
     setText(edit.text);
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(edit.selectionStart, edit.selectionEnd);
-    });
   }, []);
 
   const runAction = useCallback(
     (action: ToolbarAction) => {
-      const ta = taRef.current;
-      // With no textarea (Read mode), an edit has no caret to act on.
-      if (!ta) return;
-      const s = ta.selectionStart;
-      const e = ta.selectionEnd;
+      const sel = canvasRef.current?.selection();
+      if (!sel) return;
+      const [s, e] = sel;
       switch (action.kind) {
         case 'wrap': return applyEdit(toggleWrap(text, s, e, action.marker));
         case 'heading': return applyEdit(toggleHeading(text, s, e, action.level));
@@ -218,38 +203,32 @@ export function TextEditor({
     [text, applyEdit],
   );
 
-  /** Select a source span and scroll it into view (find + outline jump). */
+  /** Select a source range and scroll it into view (the outline jump). */
   const reveal = useCallback((span: [number, number]) => {
-    setMode('write');
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(span[0], span[1]);
-      // Approximate scroll: the fraction of the document before the match.
-      const ratio = span[0] / Math.max(1, ta.value.length);
-      ta.scrollTop = Math.max(0, ratio * ta.scrollHeight - ta.clientHeight / 3);
-    });
+    canvasRef.current?.reveal(span[0], span[1]);
   }, []);
 
-  // ── Keyboard: ⌘S save · ⌘F find · ⌘B/⌘I/⌘K formatting ──────────────────
+  // ── Keyboard: ⌘S save · ⌘B/⌘I/⌘K formatting ────────────────────────────
   // Window-level, because the document is the subject of the whole surface
-  // (the Docs reflex). Formatting keys only bite in Write mode — in Read mode
-  // there is no caret and ⌘B should fall through to the browser.
+  // (the Docs reflex). No mode gate any more — there is one canvas, so a
+  // formatting key always has a caret to act on.
+  //
+  // ⌘F is NOT handled here: `@codemirror/search`'s own keymap owns it inside
+  // the canvas, which is the better find than the one this surface shipped
+  // (incremental, match-highlighted, regex-capable) — so the hand-rolled bar
+  // is deleted rather than kept beside it (ADR-572 D8, no dual implementation).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       const k = e.key.toLowerCase();
       if (k === 's') { e.preventDefault(); void save(); return; }
-      if (k === 'f') { e.preventDefault(); setMode('write'); setFinding(true); return; }
-      if (mode !== 'write') return;
       if (k === 'b') { e.preventDefault(); runAction({ kind: 'wrap', marker: '**' }); }
       else if (k === 'i') { e.preventDefault(); runAction({ kind: 'wrap', marker: '_' }); }
       else if (k === 'k') { e.preventDefault(); runAction({ kind: 'link' }); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [save, runAction, mode]);
+  }, [save, runAction]);
 
   // Rename through the shared organize grammar; the surface follows the file
   // to its new path (the Docs `setParam({ file })` reflex).
@@ -366,45 +345,6 @@ export function TextEditor({
         </div>
 
         <div className="min-w-0 flex-1" />
-
-        {/* Read | Write — the two faces of one source (ADR-572 D1). */}
-        <div
-          role="group"
-          aria-label="View mode"
-          className="flex shrink-0 items-center rounded-md border border-border p-0.5"
-        >
-          {([['read', 'Read', Eye], ['write', 'Write', Pencil]] as const).map(([m, label, Icon]) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              aria-pressed={mode === m}
-              title={m === 'read' ? 'Read the rendered document' : 'Edit the markdown source'}
-              className={cn(
-                'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors',
-                mode === m
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Icon className="h-3 w-3" />
-              {fullLabels && label}
-            </button>
-          ))}
-        </div>
-
-        {/* Find — the source search (⌘F). Write-mode act, shown always so the
-            affordance is discoverable; pressing it switches mode. */}
-        <button
-          type="button"
-          onClick={() => { setMode('write'); setFinding((v) => !v); }}
-          title="Find and replace (⌘F)"
-          aria-label="Find and replace"
-          aria-expanded={finding}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-        >
-          <Search className="h-3.5 w-3.5" />
-        </button>
 
         {/* Zoom — a VIEW control (doesn't touch the file), Docs' own clamp. */}
         <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
@@ -544,46 +484,19 @@ export function TextEditor({
                 Try again
               </button>
             </div>
-          ) : mode === 'read' ? (
-            // ── Read: the rendered document. A VIEW — never writes, holds no
-            //    ids, annotates nothing (ADR-572 D1).
-            <div className="min-h-0 flex-1 overflow-auto">
-              <div className="mx-auto w-full max-w-[68ch] px-8 py-10">
-                <ProseReader text={text} zoom={zoom} />
-              </div>
-            </div>
           ) : (
-            // ── Write: the textarea ADR-456 D1 requires, with the source
-            //    affordances (formatting row, find) above it.
+            // ── ONE canvas: always editable, always styled (ADR-572 D8).
+            //    The toolbar is a permanent row above it, not a mode-gated
+            //    one — nothing here is hidden behind a state the surface
+            //    doesn't open in, which is what the Read/Write split did.
             <>
               <MarkdownToolbar onAction={runAction} />
-              {finding && (
-                <FindReplaceBar
-                  text={text}
-                  onReveal={reveal}
-                  onReplaceOne={(span, w) => applyEdit(replaceOne(text, span, w))}
-                  onReplaceAll={(n, w) => applyEdit(replaceAllIn(text, n, w))}
-                  onClose={() => setFinding(false)}
-                />
-              )}
-              <div className="min-h-0 flex-1 overflow-auto">
-                <div
-                  className="mx-auto w-full max-w-3xl px-6 py-8"
-                  style={zoom === 1 ? undefined : { zoom }}
-                >
-                  <textarea
-                    ref={taRef}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    spellCheck
-                    placeholder="Start writing…"
-                    className={cn(
-                      'min-h-[70vh] w-full resize-none bg-transparent font-mono text-[13px] leading-[1.75]',
-                      'text-foreground outline-none placeholder:text-muted-foreground/50',
-                    )}
-                  />
-                </div>
-              </div>
+              <ProseCanvas
+                value={text}
+                onChange={setText}
+                handleRef={(h) => { canvasRef.current = h; }}
+                zoom={zoom}
+              />
             </>
           )}
         </main>
