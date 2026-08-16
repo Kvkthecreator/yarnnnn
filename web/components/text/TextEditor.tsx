@@ -64,6 +64,7 @@ import {
   offsetOfLine,
   replaceAll as replaceAllIn,
   replaceOne,
+  toggleChecklist,
   toggleHeading,
   toggleList,
   toggleQuote,
@@ -217,6 +218,7 @@ export function TextEditor({
         case 'wrap': return applyEdit(toggleWrap(text, s, e, action.marker));
         case 'heading': return applyEdit(toggleHeading(text, s, e, action.level));
         case 'list': return applyEdit(toggleList(text, s, e, action.ordered));
+        case 'checklist': return applyEdit(toggleChecklist(text, s, e));
         case 'quote': return applyEdit(toggleQuote(text, s, e));
         case 'link': return applyEdit(insertLink(text, s, e));
         case 'table': return applyEdit(insertTable(text, s, e));

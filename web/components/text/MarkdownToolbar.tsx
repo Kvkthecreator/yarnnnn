@@ -22,6 +22,7 @@ import {
   Italic,
   Link2,
   List,
+  ListChecks,
   ListOrdered,
   Minus,
   Quote,
@@ -34,6 +35,7 @@ export type ToolbarAction =
   | { kind: 'wrap'; marker: string }
   | { kind: 'heading'; level: number }
   | { kind: 'list'; ordered: boolean }
+  | { kind: 'checklist' }
   | { kind: 'quote' }
   | { kind: 'link' }
   | { kind: 'table' }
@@ -62,6 +64,10 @@ const GROUPS: Item[][] = [
   [
     { icon: List, label: 'Bulleted list', action: { kind: 'list', ordered: false } },
     { icon: ListOrdered, label: 'Numbered list', action: { kind: 'list', ordered: true } },
+    // Docs' `checklist` kind, which markdown expresses natively (GFM task
+    // list) and the shared renderer already paints — the one Insert row that
+    // survives the medium translation with no annotation.
+    { icon: ListChecks, label: 'Task list', action: { kind: 'checklist' } },
     { icon: Quote, label: 'Quote', action: { kind: 'quote' } },
   ],
   [

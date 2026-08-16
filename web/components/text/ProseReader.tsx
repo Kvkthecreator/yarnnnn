@@ -64,6 +64,13 @@ export const PROSE_READING_SKIN = cn(
   'prose-h4:text-[1.05rem] prose-h4:mt-6 prose-h4:mb-2',
   // Body rhythm.
   'prose-p:my-4 prose-ul:my-4 prose-ol:my-4 prose-li:my-1',
+  // GFM task lists. `remark-gfm` emits a real `<input type="checkbox">` inside
+  // the `<li>`, and Tailwind's prose leaves it sitting on the list marker. Drop
+  // the marker, pull the box into the gutter, and align it to the first line —
+  // the treatment Docs gets from its kernel `☐` pseudo-element rule.
+  '[&_li:has(>input[type=checkbox])]:list-none',
+  '[&_li>input[type=checkbox]]:mr-2 [&_li>input[type=checkbox]]:-ml-5',
+  '[&_li>input[type=checkbox]]:align-middle [&_li>input[type=checkbox]]:accent-foreground',
   // Quote — a rule and a lift, not a grey box.
   'prose-blockquote:border-l-2 prose-blockquote:border-foreground/25',
   'prose-blockquote:pl-4 prose-blockquote:not-italic prose-blockquote:text-foreground/75',

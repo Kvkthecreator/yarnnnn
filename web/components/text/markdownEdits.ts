@@ -119,6 +119,39 @@ export function toggleList(text: string, start: number, end: number, ordered: bo
   };
 }
 
+/**
+ * Toggle a GFM task list (`- [ ] item`) over the selected lines.
+ *
+ * This is Docs' `checklist` block kind, which Docs persists as
+ * `<ul data-block="checklist">` plus a kernel CSS rule painting a `☐`
+ * pseudo-element. Markdown expresses the same thing natively, and `remark-gfm`
+ * — already in the shared renderer — renders it as real checkboxes. So the
+ * affordance survives the medium translation with no annotation at all: the
+ * bytes are `- [ ] `, which any connector reads back as a task list.
+ *
+ * Toggling off strips the marker AND the box, returning ordinary lines —
+ * the round-trip property every function in this file holds to.
+ */
+export function toggleChecklist(text: string, start: number, end: number): Edit {
+  const [from, to] = lineSpan(text, start, end);
+  const lines = text.slice(from, to).split('\n');
+  const checked = lines.every((l) => /^ {0,3}[-*+]\s+\[[ xX]\]\s?/.test(l) || !l.trim());
+  const next = lines
+    .map((l) => {
+      if (checked) return l.replace(/^( {0,3})[-*+]\s+\[[ xX]\]\s?/, '$1');
+      if (!l.trim()) return l;
+      // An existing bullet becomes a task; a bare line gets both.
+      const bare = l.replace(/^ {0,3}(?:[-*+]|\d+\.)\s+/, '');
+      return `- [ ] ${bare}`;
+    })
+    .join('\n');
+  return {
+    text: text.slice(0, from) + next + text.slice(to),
+    selectionStart: from,
+    selectionEnd: from + next.length,
+  };
+}
+
 /** Toggle a `> ` blockquote over the selected lines. */
 export function toggleQuote(text: string, start: number, end: number): Edit {
   const [from, to] = lineSpan(text, start, end);
