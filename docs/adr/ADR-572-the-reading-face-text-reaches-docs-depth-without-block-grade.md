@@ -234,6 +234,33 @@ Docs' palette serves 16 kinds. Classified by the markup each writes:
   reading/editing gap, and it deserves its own decision about where a derived
   brief lands. Noted here so it is not re-discovered as novel.
 
+### D7 — The conflict envelope: read BOTH shapes, because the surface owns neither
+
+Driven in production on 2026-08-16 (a second principal moved the head while the
+editor held a stale base). **The 409 fired correctly and the banner appeared —
+and it was wrong in two ways at once.**
+
+The API serves the stale-write detail at `error.hint.current_head`; the client
+read only FastAPI's older `detail.current_head`. Both fields came back
+`undefined`, so:
+
+1. the banner said the generic *"Someone else"* instead of naming who moved the
+   head — the ADR-570 D5 promise that a 409 **names** the actor; and
+2. **the "Save mine over theirs" button vanished entirely**, because it is
+   conditional on `currentHeadId`. The member was left with one exit where the
+   design promises two — the strictly worse failure, and the silent one.
+
+`readConflict` (`components/text/conflict.ts`) now accepts either envelope and
+degrades to a usable banner on an unreadable body. Both shapes rather than the
+new one alone: **the envelope is not this component's to pin**, and a reader
+that survives either cannot break again on the next migration.
+
+**Invisible to every static check** — 103 gate checks, `tsc`, and `next build`
+were all green over it, because a field read that yields `undefined` is not a
+type error and the fallback string reads like intended copy. The gate now
+replays the **verbatim production 409 body** (§8) and falsifies: restoring the
+`detail`-only read fails 8a and 8b with exactly the production symptom.
+
 ## 4. Falsifiers / click-pass
 
 (1) A 1,000-word `.md` opens in Read and renders as a document — serif headings,
@@ -246,6 +273,38 @@ Read view. (7) A landing card shows rendered prose, not `# `. (8) At a phone
 width the bottom bar switches Document|Editor and neither pane is unreachable.
 (9) Saving still lands a signed revision; a concurrent MCP edit still 409s with
 the connector's attribution.
+
+### 4.1 Click-pass RESULT (2026-08-16, driven on production)
+
+**Passed**, on a document authored through the app's own New gesture:
+
+- the canvas renders as a **document** — serif headings, a real bordered table,
+  bold/italic/strikethrough, monospace inline code, a styled quote, a divider;
+- **task lists render as real checkboxes**, checked state carried and aligned
+  in the gutter;
+- a fenced block stays literal, and its `#` line is **not** in the outline —
+  the outline showed 4 headings, not 5;
+- the Properties outline indents by level and updates live as the source
+  changes; word count, heading count and reading time all track;
+- New → naming dialog → create → open works; Save lands a signed revision;
+- the CAS 409 fires on a concurrently-moved head, preserves the member's text,
+  and merges nothing silently.
+
+**Two defects found, one fixed:**
+
+- **D7 above** (fixed): the conflict envelope mismatch.
+- **A stale surface param** (NOT ADR-572's, pre-existing): navigating to
+  `/text?text.file=A` can be **overwritten by the remembered param** from the
+  member's shell state, landing on document B. Reproduced twice; the browser
+  ends on a URL it was not sent to. This is the ADR-297-family
+  "remembered state races the param" shape and belongs to the surface-param
+  layer, not to Text. **Left unfixed and handed off** rather than patched
+  inside this app, because the fix belongs where the param is restored.
+
+Not driven: **Print/PDF** (the print dialog is a native modal the harness
+cannot dismiss) and the **MCP-authored round-trip**, because the connector and
+the browser session resolve to **different workspaces** in this environment —
+the connector's writes 404 for the session and vice versa. Both remain owed.
 
 ## 5. Verification
 

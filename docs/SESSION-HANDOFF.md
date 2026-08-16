@@ -1,7 +1,10 @@
-# Session handoff — 2026-08-16: ADR-572 shipped; the Text click-pass is owed
+# Session handoff — 2026-08-16: ADR-572 shipped + CLICK-PASSED
 
-`origin/main` at the ADR-572 commit. **The Text↔Docs parity arc is closed in
-code and canon; what is owed is driving it.**
+`origin/main` at the ADR-572 click-pass commit. **The Text↔Docs parity arc is
+closed and DRIVEN on production.** The reading face, outline, task lists,
+tables, fences, save and the CAS 409 all pass on a real document. Two defects
+were found by driving; one is fixed, one is handed off below because it belongs
+to a different layer.
 
 > The prior handoff (ADR-571 phase 2 — the canvas gap) is **ABSORBED**. Its
 > audit ran, its table is in ADR-572 §1, and the build landed. Two of its
@@ -82,19 +85,48 @@ Also: Docs has **no markdown export**, and its right-click **"History" row is a
 dead end** (`menuHistory` just calls `setRightTab('design')` onto a pane with no
 history section). Not worth porting.
 
-## What is OWED
+## The click-pass RESULT (driven on production, 2026-08-16)
 
-1. **⭐ The operator click-pass** — the whole point, and the thing gates cannot
-   do. ADR-572 §4 lists nine falsifiers. The sharpest four:
-   - open a real 1,000-word `.md` → it reads as a **document** (serif headings,
-     a real table, no visible `#`/`**`), not a source dump;
-   - ⌘B over a selection wraps, pressing again **round-trips to the original
-     bytes**;
-   - the Properties outline jumps to the right line;
-   - Export → Print/PDF looks like the Read view on A4.
-2. **ADR-571 D6 click-pass** — still owed from the prior arc: launcher → Text →
-   open a connector-authored `.md` → Editor lane speaks → save → **a 409 driven
-   by a real MCP edit**.
+**Passed** — canvas renders as a document (serif headings, bordered table,
+bold/italic/strike, mono code, quote, divider); **task lists render as real
+checkboxes** with checked state; a fenced `#` stays literal and is **absent
+from the outline** (4 headings, not 5); the outline indents and updates live;
+New → name → create → open works; Save lands a signed revision; the **CAS 409
+fires**, preserves the member's text, and merges nothing silently.
+
+### ⭐⭐⭐ Defect found and FIXED: the 409 envelope (ADR-572 D7)
+
+The conflict banner appeared and was wrong **in two ways at once**. The API
+serves the detail at `error.hint.current_head`; the client read FastAPI's older
+`detail.current_head`. Both fields came back `undefined`, so the banner said
+the generic **"Someone else"** instead of naming who moved the head — and
+**the "Save mine over theirs" button VANISHED**, because it is conditional on
+`currentHeadId`. One exit where the design promises two, and the silent half.
+
+**103 gate checks, `tsc`, and `next build` were all green over it** — a field
+read that yields `undefined` is not a type error, and the fallback string reads
+like intended copy. `readConflict` now accepts either envelope; the gate replays
+the **verbatim production 409 body** (§8) and falsifies.
+
+### ⭐⭐ Defect found, NOT fixed — handed off (it is not Text's)
+
+**A stale surface param can overwrite the requested one.** Navigating to
+`/text?text.file=A` landed on document B, because the shell restored the
+remembered param over the URL. Reproduced twice; the browser ends on a URL it
+was never sent to. This is the **ADR-297-family "remembered state races the
+param"** shape and belongs to the surface-param layer. **Left unfixed
+deliberately** — patching it inside Text would put the fix in the wrong house
+(the ADR-550→551 lesson this arc keeps re-learning).
+
+## Still OWED
+
+1. **Print/PDF** — not driven: the print dialog is a native modal the harness
+   cannot dismiss. Needs a human eye on the A4 output.
+2. **ADR-571 D6, the MCP half** — not driveable in this environment: the
+   connector and the browser session resolve to **different workspaces**, so
+   connector writes 404 for the session and vice versa. The CAS 409 itself was
+   proven via a second principal moving the head; what remains unproven is
+   specifically the *connector-attributed* 409.
 
 ## Deferred, deliberately — named so it is not re-discovered as novel
 
@@ -107,7 +139,7 @@ about where a derived brief lands.
 ## Verification that must stay green
 
 ```
-cd api && python3 test_adr571_text_app.py             # 103/103, SCRIPT-STYLE (pytest = false pass)
+cd api && python3 test_adr571_text_app.py             # 108/108, SCRIPT-STYLE (pytest = false pass)
 node web/lib/file-types/__gate_adr514_d2.mjs          # 41/41, from REPO ROOT
 cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
 cd api && python3 test_adr562_app_owned_config.py     # script-style
