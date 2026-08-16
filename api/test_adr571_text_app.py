@@ -355,6 +355,15 @@ out.ol_numbers = l.text === '1. a\n2. b\n3. c';
 out.ol_untoggles = M.toggleList(l.text, 0, l.text.length, true).text === 'a\nb\nc';
 out.ul_marks = M.toggleList('a\nb', 0, 3, false).text === '- a\n- b';
 
+// Checklist — Docs' `checklist` kind, which markdown expresses NATIVELY (GFM
+// task list) so it needs no annotation. The one Insert row that survives the
+// medium translation intact.
+const ck = M.toggleChecklist('a\nb', 0, 3);
+out.checklist_marks = ck.text === '- [ ] a\n- [ ] b';
+out.checklist_untoggles = M.toggleChecklist(ck.text, 0, ck.text.length).text === 'a\nb';
+out.checklist_promotes_bullet = M.toggleChecklist('- x', 0, 3).text === '- [ ] x';
+out.checklist_keeps_checked_on_clear = M.toggleChecklist('- [x] d', 0, 7).text === 'd';
+
 // Quote toggles.
 const q = M.toggleQuote('x\ny', 0, 3);
 out.quote_marks = q.text === '> x\n> y';
@@ -438,6 +447,10 @@ for _key, _label in [
     ("ol_numbers", "6s an ordered list renumbers from 1"),
     ("ol_untoggles", "6t a list toggles off"),
     ("ul_marks", "6u a bulleted list marks each line"),
+    ("checklist_marks", "6u1 a task list is GFM source (`- [ ] `), not a data-* block"),
+    ("checklist_untoggles", "6u2 a task list toggles off to ordinary lines"),
+    ("checklist_promotes_bullet", "6u3 an existing bullet promotes to a task"),
+    ("checklist_keeps_checked_on_clear", "6u4 a CHECKED task clears too"),
     ("quote_marks", "6v quote marks each line"),
     ("quote_untoggles", "6w quote toggles off"),
     ("link_shape", "6x a link keeps the selection as its TEXT"),
@@ -512,6 +525,7 @@ const brief = [
   '## Positioning', '', '| Medium | Currency |', '| --- | --- |', '| Text | .md |', '',
   '---', '', '> The round-trip is the thesis.', '', '- One', '- Two', '',
   '```sh', '# not a heading', '```', '',
+  '- [ ] open task', '- [x] done task', '',
 ].join('\n');
 const doc = renderToStaticMarkup(React.createElement(ProseReader, { text: brief }));
 const chat = R({ content: '# h\n\n| a |\n| - |\n| b |' });
@@ -526,6 +540,9 @@ console.log(JSON.stringify({
   quote: /<blockquote/.test(doc),
   list: /<ul>/.test(doc) && /<li>One<\/li>/.test(doc),
   fence_literal: doc.includes('# not a heading'),
+  // A GFM task list must reach the reading face as REAL checkboxes, with the
+  // checked state carried — otherwise `- [ ] ` reads as literal punctuation.
+  tasklist: /<input[^>]*type="checkbox"/.test(doc) && /checked/.test(doc),
   no_raw_hash: !/>#\s*Creative/.test(doc),
   no_raw_stars: !doc.includes('**not**'),
   // The skin the canvas, the thumbnail and print all share — asserted as an
@@ -564,6 +581,8 @@ for _key, _label in [
     ("quote", "7g `>` renders as a blockquote"),
     ("list", "7h `- ` renders as a list"),
     ("fence_literal", "7i a fenced block keeps its literal text"),
+    ("tasklist", "7i1 a GFM task list renders as REAL checkboxes, checked "
+                 "state carried (Docs' `checklist` kind, with no annotation)"),
     ("no_raw_hash", "7j no raw `#` survives into the reading face"),
     ("no_raw_stars", "7k no raw `**` survives into the reading face"),
     ("serif", "7L the document reading skin is actually applied"),
