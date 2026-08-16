@@ -12,7 +12,7 @@ code and canon; what is owed is driving it.**
 
 The Text canvas no longer shows raw markdown source. Read|Write toggle (Read
 default), zoom, a doc-grade serif reading skin, a markdown toolbar
-(⌘B/⌘I/⌘K + heading/list/quote/table/link/rule), find/replace (⌘F), a heading
+(⌘B/⌘I/⌘K + heading/list/task-list/quote/table/link/rule), find/replace (⌘F), a heading
 outline in Properties, Print/PDF, a rendered landing thumbnail, a single-pane
 bottom tab bar, and a load-error retry.
 
@@ -39,6 +39,36 @@ rather than out-specifying it. Default `'chat'`, so all ~20 existing
 
 **Carry this forward: a class-attribute override is never proof of a cascade
 override.**
+
+## The Properties-pane question, settled with evidence (ADR-572 §3.1)
+
+The operator asked whether dismissing `StudioDesignTab` wholesale was too
+coarse. **It was**, so it was re-audited at CONTROL grain. The finding:
+
+⭐⭐⭐ **Everything that is a TAG or a semantic type has a markdown equivalent;
+everything that is PRESENTATION persists as `data-*`, an inline custom
+property, or a `<head>` stylesheet.** That line is the same one ADR-456 D1
+drew, reached independently from the write paths.
+
+- Already shipped (tag-shaped): bold/italic/strike/code, the **typography
+  ramp** (a tag swap `p ↔ h1..h6` that sets *no token* — it is literally
+  `onTurnInto`), turn-into list/quote.
+- Refused, with the write path quoted in the ADR: colour →
+  `<span data-mark="accent">`, align → `data-align`, **document font →
+  `data-font` on the artifact's `<html>`** (a `.md` has no root element).
+
+Two things not to re-derive: **bold is a tag only because `projection.ts`
+forces `styleWithCSS` off** (flip it and even bold has no markdown
+equivalent); and **Docs already refuses point size / line spacing / font family
+from itself** (ADR-449 — "those are METRICS and the design system owns them").
+
+**If the reading face should look different, change the app's SKIN**
+(`PROSE_READING_SKIN`, one place, every document) — never per-span state in the
+file. The refusal is the feature; it protects the round-trip.
+
+**Insert had one real gap: checklist** — GFM `- [ ] `, already renderable by
+`remark-gfm`. Shipped. Everything else in the 16-kind palette needs `data-*`,
+`data-ref` citations, or raw HTML.
 
 ## Two corrections to the old handoff's table — do not re-inherit them
 
@@ -77,7 +107,7 @@ about where a derived brief lands.
 ## Verification that must stay green
 
 ```
-cd api && python3 test_adr571_text_app.py             # 98/98, SCRIPT-STYLE (pytest = false pass)
+cd api && python3 test_adr571_text_app.py             # 103/103, SCRIPT-STYLE (pytest = false pass)
 node web/lib/file-types/__gate_adr514_d2.mjs          # 41/41, from REPO ROOT
 cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
 cd api && python3 test_adr562_app_owned_config.py     # script-style

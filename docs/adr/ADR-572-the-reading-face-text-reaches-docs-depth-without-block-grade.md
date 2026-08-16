@@ -153,7 +153,74 @@ as a divergence rather than drifted into.
 
 ## 3. Not done / explicitly out of scope
 
-Named rather than worked around, per the operator's instruction:
+Named rather than worked around, per the operator's instruction.
+
+### 3.1 The Properties pane's typography / colour / alignment controls
+
+**Audited at control grain, not module grain** (2026-08-16, after the operator
+asked whether dismissing `StudioDesignTab` wholesale was too coarse — it was).
+The finding is a clean split, and the line it falls on is not a coincidence:
+
+| Docs control | Persists as | Verdict |
+|---|---|---|
+| Bold / Italic / Strike / Code | **HTML tag** (`<strong>`/`<em>`/`<s>`/`<code>`) | ✅ **shipped** as `**` `_` `~~` `` ` `` |
+| Typography ramp (H1/H2/H3 ↔ Text) | **tag swap** `p ↔ h1..h6` — sets no token | ✅ **shipped** as `#`/`##`/`###` |
+| Turn into → list / numbered / checklist / quote | tag + `data-block` | ✅ **shipped** (the tag half) |
+| Underline | `<u>` | ❌ markdown has no underline |
+| **Colour** (5 roles) | `<span data-mark="accent">` | ❌ `data-*` on a minted span |
+| **Highlight** (4 roles) | `<span data-highlight="warn">` | ❌ `data-*` on a minted span |
+| **Align / Indent** | `data-align="center"` / `data-indent="2"` | ❌ `data-*` on the block |
+| **Document font face** | `data-font` **on the artifact's `<html>`** | ❌ markdown has no root element |
+| Document width (`measure`) | `data-measure="wide"` on `<html>` | ❌ same |
+| Design system apply/remove | a `<style data-skin>` element in `<head>` | ❌ the machinery ADR-456 D1 names |
+| W/H measure fields | `data-w` marker + inline `style="--yw: 60%"` | ❌ (also media-blocks-only on flow) |
+
+**Everything that is a tag or a semantic type has a markdown equivalent and is
+shipped. Everything that is presentation persists as `data-*`, an inline
+custom property, or a `<head>` stylesheet — the mechanisms this app may not
+write.** That is the same line ADR-456 D1 drew, arrived at independently from
+the write paths.
+
+Two details worth keeping, because they are load-bearing and non-obvious:
+
+1. **Bold is a tag only because a flag says so.** `projection.ts` forces
+   `execCommand('styleWithCSS', false, 'false')`, so the engine emits `<b>`
+   rather than `<span style="font-weight:bold">`, and `artifactOps.ts`
+   normalizes `B→strong`. Flip that flag and even bold becomes inline-style and
+   loses its markdown equivalent. The parity here rests on a deliberate choice
+   upstream, not on a property of rich text.
+2. **Docs already refuses this category from itself.** `StudioDesignTab.tsx`:
+   *"Deliberately NOT here: point size, line spacing, font family. Those are
+   METRICS and the design system owns them (ADR-449) — §4 records the refusal
+   rather than leaving the absence to look like an oversight."* And colour is
+   *"a ROLE, never a value … ADR-449 forbids a picker."* Giving Text these
+   controls would mean giving it what Docs withholds from itself, in a medium
+   with nowhere to store them.
+
+**A prose document has no element to carry presentation.** A `.md` has no root,
+no class attribute, no stylesheet. Expressing a colour role would mean writing
+raw `<span data-mark>` HTML into the markdown — which forfeits the
+byte-for-byte connector round-trip that is the product thesis. **The refusal is
+the feature.** If the reading face needs to look different, that is the app's
+skin to change (one place, every document), never per-span state in the file.
+
+### 3.2 The Insert palette, kind by kind
+
+Docs' palette serves 16 kinds. Classified by the markup each writes:
+
+- ✅ **Shipped**: heading, list, numbered, quote, divider, table — and
+  **checklist**, added by this audit (`- [ ] `; GFM, and `remark-gfm` was
+  already in the pipeline rendering real checkboxes). Docs persists checklist
+  as `<ul data-block="checklist">` plus a kernel `☐` CSS rule; markdown says
+  the same thing natively with no annotation. **Leaving it out was an
+  oversight, not a constraint** — corrected here.
+- ❌ **Out, with reason**: `callout` (`<aside data-block>`), `button`
+  (`<p data-block="button">`), `metrics` (`<div class="metric">`), `component`,
+  and the citation kinds `figure` / `gallery` / `chart` / `table`-from-source
+  (all carry `data-ref` + `data-ref-rev` — the citation machinery). `toggle` is
+  `<details><summary>`, expressible only as raw embedded HTML.
+
+### 3.3 The rest
 
 - **Design systems, skins, tokens** — that IS Studio machinery (ADR-456 D1).
 - **Block insertion, per-block Properties, arrangements, citation pins** — all
