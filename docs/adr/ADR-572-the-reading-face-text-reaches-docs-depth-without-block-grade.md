@@ -194,6 +194,24 @@ this component's own change handler emits the document unmodified.
 > since §9f tested CodeMirror's state in isolation rather than my wiring. The
 > "gate tests the library, not the caller" shape, caught by falsifying.
 
+**D8 CLICK-PASSED on production** (2026-08-16, cold load — no clicks first,
+which is the arrival state the mode split failed): the toolbar's 13 buttons are
+visible immediately with **no mode toggle** anywhere; headings render large and
+serif with the `#`/`##` dimmed beside them, `**bold**` bold, `~~strike~~`
+struck, `` `code` `` mono, the table aligned. Driven end to end: click into the
+canvas → type → press **Heading 1** → the source gains `# ` and the Properties
+outline updates → press **Task list** → the line becomes `- [ ] `. **Bold
+round-trips**: pressing it twice returns the original bytes exactly. Throughout,
+the file on disk stayed **byte-identical and free of any `data-*`** — the canvas
+never wrote (verified against the API, not the DOM).
+
+> **A probe artifact worth recording**, because it nearly produced a false
+> negative: a synthesized `window.getSelection()` is **ignored** by CodeMirror,
+> which reads `view.state.selection`. Scripted selection made the toolbar act on
+> a *stale caret* and looked like a broken button. Only a real click + real
+> keystrokes exercise the actual path — the same lesson as driving the surface
+> at all, one level down.
+
 **Deleted, not kept beside it** (singular implementation): `FindReplaceBar` and
 the `findAll`/`replaceOne`/`replaceAll` helpers — `@codemirror/search` is the
 better find (incremental, match-highlighted, regex-capable) and two searches
