@@ -1,132 +1,117 @@
-# Session handoff — 2026-08-16: close the Text↔Docs gap (ADR-571 phase 2)
+# Session handoff — 2026-08-16: ADR-572 shipped; the Text click-pass is owed
 
-`origin/main` at `3a9350a`. The Text app ships and is structurally correct; the
-gap now is **the canvas and the feature depth**, not the housing.
+`origin/main` at the ADR-572 commit. **The Text↔Docs parity arc is closed in
+code and canon; what is owed is driving it.**
 
-> **The prior handoff (multi-agent conversations, ADR-495) is ABSORBED.** Its
-> owed items live in memory (`project_adr495_addressing`) — chiefly the
-> quiet-default click-pass and the FE @-autocomplete. Two items from it are
-> carried in §"Owed from earlier arcs" below so nothing is stranded.
+> The prior handoff (ADR-571 phase 2 — the canvas gap) is **ABSORBED**. Its
+> audit ran, its table is in ADR-572 §1, and the build landed. Two of its
+> starting-table rows were **wrong about Docs** and are corrected below so the
+> mistake is not re-inherited.
 
-## Where things stand
+## What shipped (ADR-572)
 
-ADR-570 gave prose a member write door (format class ∧ carve law ∧ principal
-gate, CAS-guarded). ADR-571 gave it a dedicated app — slug `text`, colleague
-**Editor** (the app's name for the `designer` resident, ADR-562's Docs/"Writer"
-shape), unveiled in the launcher + Dock. Two operator corrections shaped it:
+The Text canvas no longer shows raw markdown source. Read|Write toggle (Read
+default), zoom, a doc-grade serif reading skin, a markdown toolbar
+(⌘B/⌘I/⌘K + heading/list/quote/table/link/rule), find/replace (⌘F), a heading
+outline in Properties, Print/PDF, a rendered landing thumbnail, a single-pane
+bottom tab bar, and a load-error retry.
 
-1. It was first built inline in Files → re-cut to a dedicated app (ADR-571).
-2. It was first built on `DeskHousing` (the DASHBOARD housing — Radar/Strings)
-   and read as *"lazily applied"* beside Docs → rebuilt on the Docs shape
-   (`fa42a8d`).
+New modules under `web/components/text/`: `ProseReader.tsx`,
+`MarkdownToolbar.tsx`, `FindReplaceBar.tsx`, `markdownEdits.ts`, `outline.ts`,
+`printProse.ts`. `MarkdownRenderer` gained one opt-in prop (`scale`).
 
-**The operator's standing instruction — carry it into the new session — is
-vis-à-vis parity with the Docs app**: *"try and have essentially all (most that
-can be applied) features and look and feel. a direct comparison to
-implementation seems fine."* Plus the standing disciplines: delegate the
-details, commit+push to `main` with testing where warranted, **scope in
-deletion of legacy/dual approaches**, and keep docs + codebase consistent.
+**ADR-456 D1 is intact and now gated as an absence over the whole app
+directory** — no block ids, no `data-*`, no Studio machinery. The file stays a
+plain `.md`.
 
-## The gap, named by the operator's own screenshot
+## The one defect this arc found, and how
 
-The Text canvas shows **raw monospace source** — `# Creative Brief — YARNNN`,
-`**not**`, `---` — while Docs renders its document (serif headings, styled
-tables, real typography, zoom). A 1,062-word brief reads as a source dump.
-That is the headline gap; the feature depth behind it is the rest.
+⭐⭐⭐ **`prose-sm` vs `prose-base` — two font-size rules on one element resolve
+by STYLESHEET ORDER, not class order.** The document skin won *by luck* (the
+compiled sheet happened to emit `prose-base` later); any unrelated file changing
+which utilities Tailwind emits could have silently dropped every document to
+chat size. **`next build`, `tsc`, and all 83 source-level gate checks were green
+across it.** Only *rendering the pipeline and reading the output* caught it.
 
-**Measured scale gap**: Docs is ~5,600 lines across 26 modules
-(`web/components/authoring/`); Text is ~1,100 across 4
-(`web/components/text/`).
+Fixed with an opt-in `scale?: 'chat' | 'inherit'` that **withholds** the class
+rather than out-specifying it. Default `'chat'`, so all ~20 existing
+`MarkdownRenderer` mounts are byte-identical (gated, §7o).
 
-## The one constraint that is NOT negotiable
+**Carry this forward: a class-attribute override is never proof of a cascade
+override.**
 
-**ADR-456 D1** (verbatim, `docs/adr/ADR-456-*.md`):
+## Two corrections to the old handoff's table — do not re-inherit them
 
-> **Named-deferred**: a `markdown.editor` app … (the ADR-436 Open-With moment —
-> **textarea/CodeMirror-grade, never block-grade**; Studio's machinery must not
-> leak into it).
+- **"Docs has an outline nav"** — it has one *in the Properties pane*
+  (ADR-526 D2), **not** a rail. ADR-542 D5 deleted flow's outline tab as "a dead
+  doorway." Building a navigator rail would *exceed* Docs.
+- **"Docs has find/replace"** — **it has none, anywhere.** Text's ⌘F is an
+  addition beyond parity, taken because the medium needs it.
 
-And: *"`.md` is the substrate's prose currency; `.html` is the Studio's
-authored-artifact currency… Studio is never bimodal."*
+Also: Docs has **no markdown export**, and its right-click **"History" row is a
+dead end** (`menuHistory` just calls `setRightTab('design')` onto a pane with no
+history section). Not worth porting.
 
-So: **do not port the block model.** No block ids, no `data-*` annotations, no
-arrangements, no citation pins, no per-block Properties inspector. The file must
-stay a plain `.md` that connectors read and write byte-for-byte — that
-round-trip is the whole product thesis. **A rendered VIEW is not a block
-model**; rendering markdown for reading is the honest way to close the visual
-gap without becoming bimodal. If a proposed feature requires annotating the
-source, it is out of scope — say so rather than smuggling it in.
+## What is OWED
 
-## Suggested first move (assess, then propose — this operator asks-with)
+1. **⭐ The operator click-pass** — the whole point, and the thing gates cannot
+   do. ADR-572 §4 lists nine falsifiers. The sharpest four:
+   - open a real 1,000-word `.md` → it reads as a **document** (serif headings,
+     a real table, no visible `#`/`**`), not a source dump;
+   - ⌘B over a selection wraps, pressing again **round-trips to the original
+     bytes**;
+   - the Properties outline jumps to the right line;
+   - Export → Print/PDF looks like the Read view on A4.
+2. **ADR-571 D6 click-pass** — still owed from the prior arc: launcher → Text →
+   open a connector-authored `.md` → Editor lane speaks → save → **a 409 driven
+   by a real MCP edit**.
 
-Do a **feature-by-feature audit of Docs vs Text** and bring back a table before
-building. Known candidates, roughly by value:
+## Deferred, deliberately — named so it is not re-discovered as novel
 
-| Docs has | Text today | Notes |
-|---|---|---|
-| Rendered canvas (serif, tables, headings) | raw textarea | **The headline gap.** `MarkdownRenderer` (react-markdown + remark-gfm + mermaid) already exists and is mounted in ~10 places — reuse it, don't write one. Design call: preview/edit toggle, split view, or live render. |
-| Zoom control | — | View-only, cheap. |
-| `ArtifactThumb` (real scaled render) | text-preview card | Could render markdown at scale instead. |
-| Insert menu / slash palette | — | Markdown-SYNTAX insertion (heading, list, table, link) is fine; BLOCK insertion is not. |
-| Find/replace, outline nav | — | Genuinely useful at 1,000+ words. |
-| `LearnFromFlowModal` (derive a doc from a source) | — | Works for prose; a lane derive. |
-| Design systems / skins / tokens | — | **Out of scope** — that IS Studio machinery. |
-| Properties inspector (per-block) | doc-level facts | Keep doc-level; per-block is the banned shape. |
-| Export → print/PDF | download .md + copy AI ref | Print of a RENDERED view becomes possible once the canvas renders. |
-| Revision history in-surface | points at Files → Get Info | Docs' trace affordance may be portable. |
-
-Also check whether `MarkdownRenderer` needs a doc-grade reading skin: Docs'
-typography comes from the artifact's own HTML + design system, and prose has
-none, so the reading face is the app's to define.
-
-## Files you will touch
-
-- `web/components/text/` — `TextSurface.tsx` (landing), `TextEditor.tsx` (open
-  state: crumb · Save · Share/Export · Properties|Chat rail), `TextExport.tsx`,
-  `NameDocumentModal.tsx`.
-- Reference implementation: `web/components/authoring/StudioSurface.tsx` (the
-  landing is its start state ~`:4282`; open-state chrome ~`:3380-3800`).
-- Backend: `api/services/apps/text.py` (registration + `build_text_posture`);
-  `api/services/lane_runner.py` (the `app == "text"` branch).
-- Gate: `api/test_adr571_text_app.py` — **script-style, run
-  `python3 test_adr571_text_app.py`** (pytest reports a false pass). 37/37 now.
-- ADR: `docs/adr/ADR-571-*.md` — amend it, or write ADR-572 if a real design
-  decision emerges (e.g. how a rendered canvas coexists with source editing).
+**`context-brief`** exists in `api/services/derive_recipes.py`, targets
+**markdown**, resident `scout`, and has **zero FE consumers**. It is the Docs
+"Learn from…" analog for prose and Text is its natural home. Left out because it
+is a *creation* flow, not a reading/editing gap, and it needs its own decision
+about where a derived brief lands.
 
 ## Verification that must stay green
 
 ```
-cd api && python3 test_adr571_text_app.py             # 37/37, script-style
+cd api && python3 test_adr571_text_app.py             # 98/98, SCRIPT-STYLE (pytest = false pass)
 node web/lib/file-types/__gate_adr514_d2.mjs          # 41/41, from REPO ROOT
-cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q
+cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
 cd api && python3 test_adr562_app_owned_config.py     # script-style
 cd api && python3 test_adr297_navigation_enactment.py # 22/5 is the PRE-EXISTING baseline
-cd web && node_modules/.bin/next build                # `pnpm` is NOT on PATH; 171/171 pages
+cd web && node_modules/.bin/next build                # `pnpm` NOT on PATH; 171/171 pages
 ```
 
 ## Traps this arc paid for — do not re-pay them
 
-- ⭐**A green gate is not a finished app.** Every registration gate passed while
-  the surface read as a placeholder. Gate the AFFORDANCE (§5 of the ADR-571
-  gate does this), not just that a symbol exists.
-- ⭐**Drive the deployed surface.** Both real defects this arc (a 422 that
-  rendered as "No documents yet"; picker rows labelled by folder) were invisible
-  to gates AND to `next build`, and were found only by clicking.
-- ⭐**A rejected request wears an empty state's clothes.** Check the network
-  panel, not just the DOM.
-- ⭐**Strip comments before asserting in a gate** — an assertion can match its
-  own explanatory prose (hit twice in this arc).
-- ⭐**Vercel FE deploys lag the push by minutes**, and client markers live in
-  hashed chunks, so `curl` of the HTML cannot detect them. Verify in the
-  browser; confirm you are on the NEW bundle before concluding anything.
-- The ADR-297 parity gate has **5 pre-existing failures** (`sources`,
-  `system-agent`, `program`, `/openapi`) — verified against a stashed tree.
-  Do not chase them.
+- ⭐⭐⭐ **A green gate is not a rendered surface.** The scale collision passed
+  every static check. When the claim is *visual*, **render it and inspect the
+  output** — §7 of the gate now does this permanently.
+- ⭐⭐⭐ **A gate can pass its own falsification by asserting its own argument.**
+  7n's first spelling called `MarkdownRenderer` with `scale:'inherit'` itself,
+  so it tested the probe's input, not the wiring. It now renders `ProseReader`.
+  **Falsify every new check — a gate you have not broken is a gate you have not
+  written.**
+- ⭐⭐ **Never pin a spelling** (third time this arc): 6k first asserted the copy
+  `"the request failed"` and went red because JSX had *wrapped it across a
+  newline* — it was testing prettier, not the affordance. It now asserts the
+  error branch contains a control that re-runs the fetch.
+- ⭐ **Audit the reference implementation before copying it.** Two of the prior
+  handoff's "Docs has…" rows were false; building them would have exceeded the
+  app being mirrored while feeling like parity.
+- ⭐ **Vercel FE deploys lag the push by minutes**, and client markers live in
+  hashed chunks, so `curl` cannot detect them. Confirm the NEW bundle in the
+  browser before concluding anything.
+- The ADR-297 gate has **5 pre-existing failures** (`sources`, `system-agent`,
+  `program`, `/openapi`). Do not chase them.
 
 ## Owed from earlier arcs (unrelated to Text, still open)
 
 - **ADR-570 D8 click-pass** — the connector round-trip end to end, including a
-  real MCP-driven 409. All pieces are live; never driven as one pass.
+  real MCP-driven 409. All pieces live; never driven as one pass.
 - **ADR-495**: click-pass the quiet default (`b82d7b3`) — placeholder should
   read "Message Thinker…"; FE @-autocomplete for mentions is unbuilt.
 - **ADR-514**: `DuplicateFile` is path-addressed but NOT gate-queueable, so its

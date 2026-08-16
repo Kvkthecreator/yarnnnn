@@ -18,6 +18,12 @@
 > ADR-486 D7 + ADR-297 (surface registration + parity), ADR-514 D2 (Open With —
 > Preview stays one click away), ADR-550→551 (the precedent this follows: an
 > operator-corrected reversal recorded as its own ADR, same week).
+> **Amended by**: **ADR-572** (2026-08-16) — the app's DEPTH. ADR-571 got the
+> shape right and the canvas still showed raw markdown source; ADR-572 gives it
+> the reading face (Read|Write), zoom, the Properties outline, a markdown
+> toolbar, find/replace and Print/PDF, and retires §D6/§3's reason for
+> withholding print. The grade constraint below is unchanged and now gated as an
+> absence over the whole app directory.
 > **Amends**: ADR-570 D1/D2 (housing): the editor is no longer an inline app in
 > Files — the `markdown.editor` registry row and its selection plumbing are DELETED
 > (singular implementation). ADR-570 D3's re-cut of "never edits" survives in
