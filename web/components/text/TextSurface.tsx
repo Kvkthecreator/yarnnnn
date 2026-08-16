@@ -32,6 +32,7 @@ import { OpenArtifactModal } from '@/components/authoring/OpenArtifactModal';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { TextEditor } from '@/components/text/TextEditor';
 import { NameDocumentModal } from '@/components/text/NameDocumentModal';
+import { ProseReader } from '@/components/text/ProseReader';
 import { cn } from '@/lib/utils';
 
 /** Recents come from the substrate revision feed — types derived, never restated. */
@@ -289,9 +290,17 @@ function TextLanding({
 
 /**
  * The card thumbnail. Docs renders the artifact's real HTML in a scaled
- * iframe; prose has no rendered form to scale, so the honest analog is the
- * document's own opening lines set in the reading face — which is exactly
- * what `recent-revisions` already computes (`preview`), no extra read.
+ * `sandbox=""` iframe; ADR-572 D2 gives prose the same treatment one medium
+ * down — the preview is RENDERED as markdown in the reading face and scaled,
+ * rather than shown as raw source. A card that reads `# Creative Brief` while
+ * the document it opens reads *Creative Brief* is the landing telling a small
+ * lie about the app.
+ *
+ * No extra fetch: `recent-revisions` already computes `preview`, so this
+ * renders the head of the document the feed already handed us. It is a partial
+ * document by construction (a truncated prefix), so an unterminated fence or
+ * table degrades to plain text — acceptable in a 120px card, and the reason
+ * the fade is kept: the page visibly continues.
  */
 function ProseThumb({ preview }: { preview?: string | null }) {
   return (
@@ -302,9 +311,11 @@ function ProseThumb({ preview }: { preview?: string | null }) {
       )}
     >
       {preview ? (
-        <p className="whitespace-pre-wrap break-words text-[7px] leading-[1.5] text-foreground/70 line-clamp-[11]">
-          {preview}
-        </p>
+        // `zoom` shrinks the real reading face to card scale, so the thumbnail
+        // is the same typography the canvas shows — the ArtifactThumb property.
+        <div style={{ zoom: 0.34 }} className="pointer-events-none select-none">
+          <ProseReader text={preview} />
+        </div>
       ) : (
         <div className="flex h-full items-center justify-center">
           <FileText className="h-6 w-6 text-muted-foreground/40" />

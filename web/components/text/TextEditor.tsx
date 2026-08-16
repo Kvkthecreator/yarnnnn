@@ -1,23 +1,36 @@
 'use client';
 
 /**
- * TextEditor — Text's open state (ADR-571).
+ * TextEditor — Text's open state (ADR-571, deepened to Docs parity by ADR-572).
  *
  * The Docs open-state shape, one medium down: a crumb row (app · document
- * name, click to rename) with the boundary acts (Share · Export) on the
- * right, the canvas in the middle, and the Properties|Chat rail carrying
- * Editor's bound lane — the same two tabs, the same never-unmount rule so a
- * streaming turn survives a tab switch.
+ * name, click to rename) with the view controls and boundary acts (Read/Write ·
+ * zoom · Share · Export) on the right, the canvas in the middle, and the
+ * Properties|Chat rail carrying Editor's bound lane — the same two tabs, the
+ * same never-unmount rule so a streaming turn survives a tab switch.
  *
- * The canvas is a textarea by decision (ADR-456 D1): never block-grade, no
- * Studio machinery. What it DOES carry is everything the medium can honestly
- * support — the reading face, a word count, ⌘S, and the CAS conflict banner.
+ * ## The canvas has two faces, and neither is a block model
+ *
+ * ADR-572 D1: **Read** renders the markdown (`ProseReader` — serif headings,
+ * styled tables, a real reading measure); **Write** is the textarea ADR-456 D1
+ * requires. One source of truth (`text`), one direction of flow (source →
+ * render). The rendered view never writes, holds no ids, and annotates
+ * nothing; delete it and the file is unchanged. That is what makes it a view.
+ *
+ * Read is the DEFAULT on open, because a document that already exists is
+ * something you arrive to read; Write is one click (or a keystroke) away.
+ *
+ * ## What is deliberately NOT Docs
+ *
+ * Docs autosaves on a 2s idle timer with no Save button and no dirty state.
+ * Text keeps an explicit Save + ⌘S + a dirty indicator, because the CAS
+ * conflict here is a PRODUCT surface (a connector may hold the same file) and
+ * a member needs to know which bytes are theirs before a 409 names someone
+ * else. Divergence recorded in ADR-572 D5.
  *
  * The save path is ADR-570's, unchanged: `PATCH /workspace/file` (prose class
  * ∧ carve law ∧ principal gate), CAS-guarded on the head the document was
- * loaded with. The 409 is a product surface, not an edge case — the commons
- * is multi-principal, and a connector may revise this same file mid-session,
- * so the conflict names WHO moved the head and offers two explicit exits.
+ * loaded with.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,9 +38,12 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
+  Eye,
   FileText,
   Loader2,
   PanelRight,
+  Pencil,
+  Search,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
@@ -37,6 +53,23 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { TextExport } from '@/components/text/TextExport';
+import { ProseReader } from '@/components/text/ProseReader';
+import { MarkdownToolbar, type ToolbarAction } from '@/components/text/MarkdownToolbar';
+import { FindReplaceBar } from '@/components/text/FindReplaceBar';
+import { parseOutline, readingMinutes } from '@/components/text/outline';
+import {
+  insertLink,
+  insertRule,
+  insertTable,
+  offsetOfLine,
+  replaceAll as replaceAllIn,
+  replaceOne,
+  toggleHeading,
+  toggleList,
+  toggleQuote,
+  toggleWrap,
+  type Edit,
+} from '@/components/text/markdownEdits';
 import { documentName, leafOf } from '@/components/text/TextSurface';
 import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
 import { cn } from '@/lib/utils';
@@ -46,6 +79,10 @@ type LaneRow = LanesEnv['lanes'][number];
 
 const WORKSPACE_PREFIX = '/workspace/';
 const relPath = (p: string) => (p.startsWith(WORKSPACE_PREFIX) ? p.slice(WORKSPACE_PREFIX.length) : p);
+
+/** Docs' clamp (`StudioSurface`: 0.25–2), so the two apps zoom alike. */
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 2;
 
 interface ConflictState {
   actor: string;
@@ -83,12 +120,22 @@ export function TextEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<ConflictState | null>(null);
   const baseHead = useRef<string | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // ── View state (ADR-572 D1/D2) — none of it touches the file.
+  const [mode, setMode] = useState<'read' | 'write'>('read');
+  const [zoom, setZoom] = useState(1);
+  const [finding, setFinding] = useState(false);
 
   // Rail: Properties | Chat, the Docs grammar. The lane stays MOUNTED while
   // Properties is up (CSS-hidden) so a streaming turn survives the switch.
   const [rightTab, setRightTab] = useState<'properties' | 'chat'>('properties');
   const [sideOpen, setSideOpen] = useState(true);
-  const { sideIsOverlay, fullLabels } = wb;
+  const { sideIsOverlay, singlePane, fullLabels } = wb;
+  // The single-pane rung shows ONE pane at a time with a bottom tab bar — the
+  // Docs ladder's last rung. Without it the rail would be unreachable on a
+  // phone (the ADR-519 lesson: never ship an inescapable state).
+  const [activePane, setActivePane] = useState<'canvas' | 'chat'>('canvas');
 
   const [shareTarget, setShareTarget] = useState<{ path: string; name: string } | null>(null);
 
@@ -143,26 +190,80 @@ export function TextEditor({
     return () => clearTimeout(t);
   }, [savedAt]);
 
-  // ⌘S anywhere in the surface, not just the textarea — the document is the
-  // subject of the whole window (the Docs reflex).
+  // ── Applying a source edit ──────────────────────────────────────────────
+  // Every formatting/insert/replace path funnels through here: set the text,
+  // then restore the caret the pure function computed. The restore has to wait
+  // for React to paint the new value, hence the rAF — setting
+  // selectionStart before the DOM holds the new string clamps it to the old
+  // length and the caret jumps to the end.
+  const applyEdit = useCallback((edit: Edit) => {
+    setText(edit.text);
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+    });
+  }, []);
+
+  const runAction = useCallback(
+    (action: ToolbarAction) => {
+      const ta = taRef.current;
+      // With no textarea (Read mode), an edit has no caret to act on.
+      if (!ta) return;
+      const s = ta.selectionStart;
+      const e = ta.selectionEnd;
+      switch (action.kind) {
+        case 'wrap': return applyEdit(toggleWrap(text, s, e, action.marker));
+        case 'heading': return applyEdit(toggleHeading(text, s, e, action.level));
+        case 'list': return applyEdit(toggleList(text, s, e, action.ordered));
+        case 'quote': return applyEdit(toggleQuote(text, s, e));
+        case 'link': return applyEdit(insertLink(text, s, e));
+        case 'table': return applyEdit(insertTable(text, s, e));
+        case 'rule': return applyEdit(insertRule(text, s, e));
+      }
+    },
+    [text, applyEdit],
+  );
+
+  /** Select a source span and scroll it into view (find + outline jump). */
+  const reveal = useCallback((span: [number, number]) => {
+    setMode('write');
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(span[0], span[1]);
+      // Approximate scroll: the fraction of the document before the match.
+      const ratio = span[0] / Math.max(1, ta.value.length);
+      ta.scrollTop = Math.max(0, ratio * ta.scrollHeight - ta.clientHeight / 3);
+    });
+  }, []);
+
+  // ── Keyboard: ⌘S save · ⌘F find · ⌘B/⌘I/⌘K formatting ──────────────────
+  // Window-level, because the document is the subject of the whole surface
+  // (the Docs reflex). Formatting keys only bite in Write mode — in Read mode
+  // there is no caret and ⌘B should fall through to the browser.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void save();
-      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 's') { e.preventDefault(); void save(); return; }
+      if (k === 'f') { e.preventDefault(); setMode('write'); setFinding(true); return; }
+      if (mode !== 'write') return;
+      if (k === 'b') { e.preventDefault(); runAction({ kind: 'wrap', marker: '**' }); }
+      else if (k === 'i') { e.preventDefault(); runAction({ kind: 'wrap', marker: '_' }); }
+      else if (k === 'k') { e.preventDefault(); runAction({ kind: 'link' }); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [save]);
+  }, [save, runAction, mode]);
 
   // Rename through the shared organize grammar; the surface follows the file
   // to its new path (the Docs `setParam({ file })` reflex).
   const { verbs: organizeVerbs, modals: organizeModals } = useFileOrganizeVerbs({
     onAfterMutate: (newPath) => {
       onSaved?.();
-      // Follow the file to its new path; a trashed document has no open
-      // state to return to, so the surface goes back to the landing.
       if (newPath && newPath !== path) onRenamed?.(newPath);
       else if (!newPath) onClose();
       else setReloadKey((n) => n + 1);
@@ -231,12 +332,17 @@ export function TextEditor({
     () => (text.trim() ? text.trim().split(/\s+/).length : 0),
     [text],
   );
+  const outline = useMemo(() => parseOutline(text), [text]);
 
   const name = documentName(path);
+  // On the single-pane rung the rail becomes a tabbed pane; above it, an
+  // overlay drawer or a resting column.
+  const showCanvas = !singlePane || activePane === 'canvas';
+  const showRail = singlePane ? activePane === 'chat' : true;
 
   return (
     <div ref={setWorkbenchNode} className="flex h-full min-h-0 flex-col">
-      {/* ── The crumb row + boundary acts ─────────────────────────────── */}
+      {/* ── The crumb row + view controls + boundary acts ───────────────── */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
         <button
           type="button"
@@ -269,8 +375,77 @@ export function TextEditor({
 
         <div className="min-w-0 flex-1" />
 
-        {/* Save state — the quiet half of the header, like Docs' zoom. */}
-        <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:block">
+        {/* Read | Write — the two faces of one source (ADR-572 D1). */}
+        <div
+          role="group"
+          aria-label="View mode"
+          className="flex shrink-0 items-center rounded-md border border-border p-0.5"
+        >
+          {([['read', 'Read', Eye], ['write', 'Write', Pencil]] as const).map(([m, label, Icon]) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              title={m === 'read' ? 'Read the rendered document' : 'Edit the markdown source'}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors',
+                mode === m
+                  ? 'bg-foreground text-background'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className="h-3 w-3" />
+              {fullLabels && label}
+            </button>
+          ))}
+        </div>
+
+        {/* Find — the source search (⌘F). Write-mode act, shown always so the
+            affordance is discoverable; pressing it switches mode. */}
+        <button
+          type="button"
+          onClick={() => { setMode('write'); setFinding((v) => !v); }}
+          title="Find and replace (⌘F)"
+          aria-label="Find and replace"
+          aria-expanded={finding}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+        >
+          <Search className="h-3.5 w-3.5" />
+        </button>
+
+        {/* Zoom — a VIEW control (doesn't touch the file), Docs' own clamp. */}
+        <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - 0.1) * 100) / 100))}
+            className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            className="min-w-[3ch] rounded px-1 py-0.5 text-[11px] tabular-nums text-muted-foreground hover:bg-muted/40"
+            title="Reset zoom to 100%"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + 0.1) * 100) / 100))}
+            className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+        </div>
+
+        {/* Save state — the quiet half of the header. */}
+        <span className="hidden shrink-0 text-[11px] text-muted-foreground lg:block">
           {saving ? 'Saving…' : dirty ? 'Unsaved changes' : savedAt ? 'Saved' : `${words} words`}
         </span>
         <button
@@ -296,7 +471,7 @@ export function TextEditor({
           compact={!fullLabels}
         />
 
-        {sideIsOverlay && (
+        {sideIsOverlay && !singlePane && (
           <button
             type="button"
             onClick={() => setSideOpen((v) => !v)}
@@ -312,7 +487,8 @@ export function TextEditor({
 
       {/* ── Canvas + rail ─────────────────────────────────────────────── */}
       <div className="relative flex min-h-0 flex-1">
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
+        {showCanvas && (
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {conflict && (
             <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs">
               <div className="flex items-start gap-2">
@@ -361,35 +537,78 @@ export function TextEditor({
               it may have been moved or never written.
             </div>
           ) : error ? (
-            <div className="flex flex-1 items-center justify-center p-8 text-sm text-destructive">
-              {error}
+            /* A real failure says so, and offers the retry — never "it doesn't
+               exist", which reads as data loss (the Docs honesty rule). */
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                Couldn’t load {relPath(path)}. The document is still there — the
+                request failed.
+              </p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((n) => n + 1)}
+                className="rounded border border-border px-2.5 py-1 text-xs hover:bg-muted/40"
+              >
+                Try again
+              </button>
+            </div>
+          ) : mode === 'read' ? (
+            // ── Read: the rendered document. A VIEW — never writes, holds no
+            //    ids, annotates nothing (ADR-572 D1).
+            <div className="min-h-0 flex-1 overflow-auto">
+              <div className="mx-auto w-full max-w-[68ch] px-8 py-10">
+                <ProseReader text={text} zoom={zoom} />
+              </div>
             </div>
           ) : (
-            // The reading measure Docs gives its canvas: a centered column,
-            // generous leading, the page ground behind it.
-            <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-8">
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                spellCheck
-                placeholder="Start writing…"
-                className={cn(
-                  'min-h-[70vh] w-full resize-none bg-transparent font-mono text-[13px] leading-[1.75]',
-                  'text-foreground outline-none placeholder:text-muted-foreground/50',
-                )}
-              />
-            </div>
+            // ── Write: the textarea ADR-456 D1 requires, with the source
+            //    affordances (formatting row, find) above it.
+            <>
+              <MarkdownToolbar onAction={runAction} />
+              {finding && (
+                <FindReplaceBar
+                  text={text}
+                  onReveal={reveal}
+                  onReplaceOne={(span, w) => applyEdit(replaceOne(text, span, w))}
+                  onReplaceAll={(n, w) => applyEdit(replaceAllIn(text, n, w))}
+                  onClose={() => setFinding(false)}
+                />
+              )}
+              <div className="min-h-0 flex-1 overflow-auto">
+                <div
+                  className="mx-auto w-full max-w-3xl px-6 py-8"
+                  style={zoom === 1 ? undefined : { zoom }}
+                >
+                  <textarea
+                    ref={taRef}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    spellCheck
+                    placeholder="Start writing…"
+                    className={cn(
+                      'min-h-[70vh] w-full resize-none bg-transparent font-mono text-[13px] leading-[1.75]',
+                      'text-foreground outline-none placeholder:text-muted-foreground/50',
+                    )}
+                  />
+                </div>
+              </div>
+            </>
           )}
         </main>
+        )}
 
         {/* The rail — Properties | Chat, Docs' grammar. At the narrow rungs it
-            becomes an overlay with a header door (never an unreachable pane). */}
+            becomes an overlay with a header door; at the narrowest it is a
+            pane the bottom bar switches to (never an unreachable pane). */}
+        {showRail && (
         <aside
           className={cn(
-            'flex min-h-0 flex-col border-l border-border bg-background',
-            sideIsOverlay
-              ? cn('absolute inset-y-0 right-0 z-20 w-[min(22rem,85vw)] shadow-lg', sideOpen ? 'flex' : 'hidden')
-              : 'w-80 shrink-0',
+            'flex min-h-0 flex-col border-border bg-background',
+            singlePane
+              ? 'min-w-0 flex-1'
+              : sideIsOverlay
+                ? cn('absolute inset-y-0 right-0 z-20 w-[min(22rem,85vw)] border-l shadow-lg', sideOpen ? 'flex' : 'hidden')
+                : 'w-80 shrink-0 border-l',
           )}
         >
           <div className="flex shrink-0 border-b border-border">
@@ -411,9 +630,9 @@ export function TextEditor({
           </div>
 
           {/* Properties — what a prose document HAS. Docs' inspector answers
-              block properties; a plain-text document has no blocks, so this
-              answers the document itself: where it lives, who touched it
-              last, how long it is. */}
+              block properties AND carries the document's Outline (ADR-526 D2
+              put the outline in the pane, not a rail); Text mirrors the
+              outline and answers the document itself for the rest. */}
           <div className={cn('min-h-0 flex-1 overflow-auto', rightTab === 'properties' ? 'block' : 'hidden')}>
             <div className="space-y-4 p-3 text-xs">
               <section className="space-y-1">
@@ -423,6 +642,41 @@ export function TextEditor({
                   <span className="truncate" title={relPath(path)}>{leafOf(path)}</span>
                 </p>
                 <p className="break-all font-mono text-[10px] text-muted-foreground">{relPath(path)}</p>
+              </section>
+
+              {/* The OUTLINE — Docs' own pane section, addressed by SOURCE
+                  LINE rather than by block id (ADR-572 D3). A line number is
+                  a coordinate into the bytes, not an annotation on them. */}
+              <section className="space-y-1">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Outline
+                </p>
+                {outline.length > 0 ? (
+                  <ul className="space-y-px">
+                    {outline.map((h) => (
+                      <li key={`${h.line}-${h.text}`}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const off = offsetOfLine(text, h.line);
+                            reveal([off, off + h.text.length]);
+                          }}
+                          title={h.text}
+                          style={{ paddingLeft: `${(h.level - 1) * 10}px` }}
+                          className="flex w-full items-baseline truncate rounded px-1 py-px text-left text-[10px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                        >
+                          <span className="truncate">{h.text}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  // The honest empty state — never invent a structure the
+                  // document doesn't have (Docs' rule, ADR-526 §7).
+                  <p className="text-[10px] text-muted-foreground">
+                    No headings yet — add one and it appears here.
+                  </p>
+                )}
               </section>
 
               <section className="space-y-1">
@@ -451,6 +705,10 @@ export function TextEditor({
                 </p>
                 <p className="text-muted-foreground">
                   {words.toLocaleString()} words · {text.length.toLocaleString()} characters
+                </p>
+                <p className="text-muted-foreground">
+                  {outline.length.toLocaleString()} heading{outline.length === 1 ? '' : 's'} ·
+                  {' '}about {readingMinutes(words)} min read
                 </p>
               </section>
 
@@ -502,7 +760,31 @@ export function TextEditor({
             )}
           </div>
         </aside>
+        )}
       </div>
+
+      {/* The single-pane rung's bottom tab bar: one pane at a time. 44px is
+          the touch floor (Apple/Google) and this is the PRIMARY navigation on
+          a phone — the Docs ladder's last rung, ported. */}
+      {singlePane && (
+        <nav className="flex shrink-0 border-t border-border">
+          {([['canvas', 'Document'], ['chat', 'Editor']] as const).map(([pane, label]) => (
+            <button
+              key={pane}
+              type="button"
+              onClick={() => setActivePane(pane)}
+              className={cn(
+                'min-h-[44px] flex-1 py-2 text-xs font-medium transition-colors',
+                activePane === pane
+                  ? 'border-t-2 border-foreground text-foreground'
+                  : 'border-t-2 border-transparent text-muted-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {organizeModals}
       <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />

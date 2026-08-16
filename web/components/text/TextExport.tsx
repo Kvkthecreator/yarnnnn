@@ -7,15 +7,22 @@
  * this component never mints a link itself). Export is a small anchored
  * panel, the StudioToolbar popover grammar.
  *
- * What Export OFFERS differs from Docs by medium, honestly: a prose document
- * has no rendered form, so print-to-PDF would be printing a textarea. The
- * boundary acts that actually mean something here are taking the file
- * (download the exact bytes) and handing another AI its address (the interop
+ * What Export offers reached Docs parity in ADR-572 D4. The original cut
+ * withheld Print/PDF on the honest ground that "a prose document has no
+ * rendered form, so print-to-PDF would be printing a textarea" — true until
+ * the reading face existed. It does now (`ProseReader`), so the same three
+ * acts Docs offers are all available: print the RENDERED document, take the
+ * file (the exact bytes), and hand another AI its address (the interop
  * reference — the round-trip this app exists to serve).
+ *
+ * Markdown export needs no row: the file already IS markdown. Docs' own panel
+ * says "Markdown export arrives with the interchange wave" — Text is the app
+ * where that sentence is already answered by Download.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Download, Link2, Share2, Upload } from 'lucide-react';
+import { Check, Download, Link2, Printer, Share2, Upload } from 'lucide-react';
+import { printProse } from '@/components/text/printProse';
 import { cn } from '@/lib/utils';
 
 const WORKSPACE_PREFIX = '/workspace/';
@@ -101,6 +108,19 @@ export function TextExport({
 
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-background p-1 shadow-lg">
+          <button
+            type="button"
+            onClick={() => { printProse(text, name); setOpen(false); }}
+            className="flex w-full items-start gap-2 rounded-md p-2 text-left hover:bg-muted/50"
+          >
+            <Printer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span>
+              <span className="block text-xs font-medium">Print / PDF…</span>
+              <span className="block text-[11px] text-muted-foreground">
+                The document as you read it, on A4.
+              </span>
+            </span>
+          </button>
           <button
             type="button"
             onClick={download}
