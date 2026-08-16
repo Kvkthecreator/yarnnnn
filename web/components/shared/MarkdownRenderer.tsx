@@ -23,6 +23,23 @@ interface MarkdownRendererProps {
    *  SurfaceLinks (OS-owned linkification — the model never authors URLs).
    *  Opt-in: chat bubbles only, never file-viewer content. */
   linkifySubstrate?: boolean;
+  /**
+   * ADR-572 D1 — who owns the type SCALE.
+   *
+   * Default `'chat'` keeps this component's historical face (`prose-sm` plus
+   * `text-xs` tables), which every existing mount was written against.
+   *
+   * `'inherit'` emits NO scale class at all, handing the decision to the
+   * caller's `className`. Text's reading face needs this: passing
+   * `prose-base` alongside `prose-sm` puts two font-size rules on one element,
+   * and CSS resolves that by STYLESHEET ORDER, not by the order of names in
+   * the class attribute. Measured 2026-08-16 — `prose-base` happened to be
+   * emitted later and won, but nothing pinned it there, so a document could
+   * silently drop to chat size the next time an unrelated file changed which
+   * utilities Tailwind emits. An override that works by luck is a defect that
+   * has not fired yet.
+   */
+  scale?: 'chat' | 'inherit';
 }
 
 // ── ADR-398 D3: OS-owned substrate linkification ──────────────────────────
@@ -131,17 +148,30 @@ function MermaidBlock({ code }: { code: string }) {
   );
 }
 
-export function MarkdownRenderer({ content, className, compact, linkifySubstrate }: MarkdownRendererProps) {
+export function MarkdownRenderer({
+  content,
+  className,
+  compact,
+  linkifySubstrate,
+  scale = 'chat',
+}: MarkdownRendererProps) {
   const rendered = linkifySubstrate ? linkifySubstrateRefs(content) : content;
+  const chatScale = scale === 'chat';
   return (
     <div
       className={cn(
         'prose dark:prose-invert max-w-none',
-        compact ? 'prose-sm prose-p:my-0.5' : 'prose-sm',
+        // The scale classes are WITHHELD under `scale="inherit"` so the caller
+        // owns font-size outright — see the prop's docstring for why sharing
+        // the decision across two classes is unsafe.
+        chatScale && (compact ? 'prose-sm prose-p:my-0.5' : 'prose-sm'),
+        compact && !chatScale && 'prose-p:my-0.5',
         // Table styling
         'prose-table:border-collapse prose-table:w-full',
-        'prose-th:border prose-th:border-border prose-th:px-3 prose-th:py-1.5 prose-th:bg-muted/50 prose-th:text-left prose-th:text-xs prose-th:font-medium',
-        'prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-1.5 prose-td:text-xs',
+        'prose-th:border prose-th:border-border prose-th:px-3 prose-th:py-1.5 prose-th:bg-muted/50 prose-th:text-left prose-th:font-medium',
+        chatScale && 'prose-th:text-xs',
+        'prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-1.5',
+        chatScale && 'prose-td:text-xs',
         className,
       )}
     >
