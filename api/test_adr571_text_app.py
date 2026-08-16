@@ -262,6 +262,327 @@ check("5m the recents request is within the route's cap (a 422 reads as an "
       f"cap={_cap_m.group(1) if _cap_m else '?'} asked={_asked_m.group(1) if _asked_m else '?'}")
 
 
+# ── 6. ADR-572: the depth that makes it a PEER of Docs, not a shell ──────
+# §5 gates the SHAPE (a document app's chrome). These gate the DEPTH: the
+# reading face, the source affordances, and — the load-bearing half — that
+# none of it crossed into block grade. The pure edit functions are TRANSPILED
+# AND CALLED, because a gate that greps for a symbol proves the symbol exists
+# and nothing about what it does.
+_reader = _strip_comments((_TEXT / "ProseReader.tsx").read_text())
+_export = _strip_comments((_TEXT / "TextExport.tsx").read_text())
+
+check("6a the canvas RENDERS markdown (the headline gap: a brief must not "
+      "read as a source dump)",
+      "ProseReader" in _editor and "MarkdownRenderer" in _reader)
+check("6b it reuses the ONE markdown pipeline (no second parser)",
+      "react-markdown" not in _reader and "remark" not in _reader)
+check("6c the reading face is a DOC skin, not the chat face",
+      "prose-headings:font-serif" in _reader and "font-serif" in _reader)
+check("6d Read|Write is a real toggle over one source",
+      "'read'" in _editor and "'write'" in _editor and "mode === 'read'" in _editor)
+check("6e zoom is a VIEW control with Docs' own clamp",
+      "ZOOM_MIN = 0.25" in _editor and "ZOOM_MAX = 2" in _editor)
+check("6f the markdown toolbar is mounted (Docs' Insert, in characters)",
+      "MarkdownToolbar" in _editor)
+check("6g find/replace is mounted and keyed to ⌘F",
+      "FindReplaceBar" in _editor and "'f'" in _editor)
+check("6h the Properties pane carries the OUTLINE (ADR-526 D2's home)",
+      "parseOutline" in _editor and "No headings yet" in _editor)
+check("6i Print/PDF is offered over the RENDERED document",
+      "printProse" in _export and "Print / PDF" in _export)
+check("6j the single-pane rung has a bottom tab bar at the touch floor",
+      "singlePane" in _editor and "min-h-[44px]" in _editor)
+# The retry must be a REACHABLE ACT in the load-error branch, not a phrase.
+# The first spelling of this check pinned the copy "the request failed" and
+# went red because JSX had wrapped it across a newline — the assertion was
+# testing the prettier config, not the affordance (the "never pin a spelling"
+# trap, hit a third time in this arc). What matters is that the error branch
+# offers a control that re-runs the fetch.
+_err_branch = re.search(r"\)\s*:\s*error\s*\?([\s\S]{0,900}?)\)\s*:", _editor)
+check("6k a failed LOAD offers a retry that re-runs the fetch (never 'it "
+      "does not exist', which reads as data loss)",
+      bool(_err_branch)
+      and "setReloadKey" in _err_branch.group(1)
+      and "<button" in _err_branch.group(1),
+      "no retry control found in the error branch")
+
+# ── the constraint, gated: ADR-456 D1 grade ──────────────────────────────
+# Text may never become block-grade. This is the check that must FAIL if a
+# future session ports Studio machinery in, so it is spelled as an absence
+# over the whole app directory, not over one file.
+_all_text_src = "\n".join(
+    _strip_comments(p.read_text())
+    for p in sorted(_TEXT.glob("*.ts")) + sorted(_TEXT.glob("*.tsx"))
+)
+for _banned, _why in [
+    ("data-block-id", "block identity"),
+    ("data-block=", "block annotation"),
+    ("StudioCanvas", "Studio canvas machinery"),
+    ("FlowEditor", "the block-grade editor"),
+    ("prosemirror", "a block document model"),
+    ("resolveArtifactHtml", "the artifact projection"),
+]:
+    check(f"6L Text stays textarea-grade — no {_why} ({_banned})",
+          _banned not in _all_text_src)
+
+# The pure source-edit functions, EXECUTED. `markdownEdits` is deliberately
+# React-free and total so this probe can call it directly: the file must stay
+# a plain .md, so what these return IS the product claim.
+_EDITS_PROBE = r"""
+const { transform } = require(process.argv[2]);
+const src = require('fs').readFileSync(process.argv[1], 'utf8');
+const js = transform(src, { transforms: ['typescript', 'imports'] }).code;
+const mod = { exports: {} };
+new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+const M = mod.exports;
+const out = {};
+
+// Bold wraps, and toggles back OFF — round-trips to the original bytes.
+const b1 = M.toggleWrap('hello world', 6, 11, '**');
+out.bold_wraps = b1.text === 'hello **world**';
+out.bold_selects_inner = b1.text.slice(b1.selectionStart, b1.selectionEnd) === 'world';
+out.bold_untoggles = M.toggleWrap(b1.text, 8, 13, '**').text === 'hello world';
+
+// Heading sets, and re-applying the SAME level clears it.
+const h = M.toggleHeading('Title\nbody', 0, 3, 2);
+out.heading_sets = h.text === '## Title\nbody';
+out.heading_clears = M.toggleHeading(h.text, 0, 3, 2).text === 'Title\nbody';
+out.heading_replaces_level = M.toggleHeading(h.text, 0, 3, 1).text === '# Title\nbody';
+
+// Lists renumber from 1 and toggle off.
+const l = M.toggleList('a\nb\nc', 0, 5, true);
+out.ol_numbers = l.text === '1. a\n2. b\n3. c';
+out.ol_untoggles = M.toggleList(l.text, 0, l.text.length, true).text === 'a\nb\nc';
+out.ul_marks = M.toggleList('a\nb', 0, 3, false).text === '- a\n- b';
+
+// Quote toggles.
+const q = M.toggleQuote('x\ny', 0, 3);
+out.quote_marks = q.text === '> x\n> y';
+out.quote_untoggles = M.toggleQuote(q.text, 0, q.text.length).text === 'x\ny';
+
+// Link keeps the selection as the TEXT and puts the caret in the target.
+const lk = M.insertLink('see docs here', 4, 8);
+out.link_shape = lk.text === 'see [docs]() here';
+out.link_caret_in_target = lk.text[lk.selectionStart - 1] === '(';
+
+// Table is GFM, on its own lines.
+const t = M.insertTable('para', 4, 4);
+out.table_is_gfm = t.text.includes('| --- | --- |') && t.text.includes('\n\n|');
+
+// find/replace is LITERAL, case-insensitive, and total.
+out.find_counts = M.findAll('a A ab a', 'a').length === 4;
+out.find_empty_is_none = M.findAll('abc', '').length === 0;
+out.replace_all = M.replaceAll('a b a', 'a', 'X').text === 'X b X';
+out.replace_one = M.replaceOne('a b a', [0, 1], 'X').text === 'X b a';
+
+// Line offsets — the outline's addressing.
+out.offset_first = M.offsetOfLine('aa\nbb\ncc', 0) === 0;
+out.offset_third = M.offsetOfLine('aa\nbb\ncc', 2) === 6;
+
+console.log(JSON.stringify(out));
+"""
+
+_OUTLINE_PROBE = r"""
+const { transform } = require(process.argv[2]);
+const src = require('fs').readFileSync(process.argv[1], 'utf8');
+const js = transform(src, { transforms: ['typescript', 'imports'] }).code;
+const mod = { exports: {} };
+new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+const { parseOutline, readingMinutes } = mod.exports;
+
+const doc = [
+  '# Title', '', 'body text', '',
+  '## Section one', '', '```sh', '# not a heading', '```', '',
+  '### Deep', '', 'Setext H2', '---------', '', '#nothashheading', '',
+  '## **Bold** section', '',
+].join('\n');
+const o = parseOutline(doc);
+const out = {
+  levels: o.map((h) => h.level),
+  texts: o.map((h) => h.text),
+  // The ADDRESS is a source line — a coordinate, never an annotation.
+  lines_are_numbers: o.every((h) => Number.isInteger(h.line)),
+  first_line: o[0] && o[0].line === 0,
+  fence_skipped: !o.some((h) => h.text === 'not a heading'),
+  needs_space: !o.some((h) => h.text === 'hashheading'),
+  setext_found: o.some((h) => h.text === 'Setext H2' && h.level === 2),
+  markup_stripped: o.some((h) => h.text === 'Bold section'),
+  empty_doc: parseOutline('').length === 0,
+  reading_floor: readingMinutes(0) === 1,
+  reading_scales: readingMinutes(2380) === 10,
+};
+console.log(JSON.stringify(out));
+"""
+
+
+def _run_probe(script: str, target: Path) -> dict:
+    try:
+        return json.loads(
+            subprocess.run(
+                ["node", "-e", script, str(target), str(WEB / "node_modules" / "sucrase")],
+                capture_output=True, text=True, timeout=30, check=True,
+            ).stdout
+        )
+    except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+        return {"error": str(exc)}
+
+
+_edits = _run_probe(_EDITS_PROBE, _TEXT / "markdownEdits.ts")
+for _key, _label in [
+    ("bold_wraps", "6m bold WRAPS the selection in markdown characters"),
+    ("bold_selects_inner", "6n the selection survives the wrap"),
+    ("bold_untoggles", "6o bold toggles OFF — the bytes round-trip exactly"),
+    ("heading_sets", "6p a heading is set as ATX source"),
+    ("heading_clears", "6q re-applying the same level clears it"),
+    ("heading_replaces_level", "6r a different level replaces, never stacks"),
+    ("ol_numbers", "6s an ordered list renumbers from 1"),
+    ("ol_untoggles", "6t a list toggles off"),
+    ("ul_marks", "6u a bulleted list marks each line"),
+    ("quote_marks", "6v quote marks each line"),
+    ("quote_untoggles", "6w quote toggles off"),
+    ("link_shape", "6x a link keeps the selection as its TEXT"),
+    ("link_caret_in_target", "6y the caret lands in the empty target"),
+    ("table_is_gfm", "6z a table is GFM source on its own lines"),
+    ("find_counts", "6aa find is literal + case-insensitive"),
+    ("find_empty_is_none", "6ab an empty needle matches nothing"),
+    ("replace_all", "6ac replace-all replaces every occurrence"),
+    ("replace_one", "6ad replace-one replaces exactly one"),
+    ("offset_first", "6ae line 0 is offset 0"),
+    ("offset_third", "6af a later line resolves to its real offset"),
+]:
+    check(_label, _edits.get(_key) is True, str(_edits)[:200])
+
+_out = _run_probe(_OUTLINE_PROBE, _TEXT / "outline.ts")
+check("6ag the outline finds headings in document order",
+      _out.get("levels") == [1, 2, 3, 2, 2], str(_out)[:200])
+check("6ah headings are addressed by SOURCE LINE — a coordinate into the "
+      "bytes, never a block id written into them (ADR-456 D1)",
+      _out.get("lines_are_numbers") is True and _out.get("first_line") is True,
+      str(_out)[:200])
+check("6ai a `#` inside a fenced block is CODE, not a section",
+      _out.get("fence_skipped") is True, str(_out)[:200])
+check("6aj `#nospace` is not a heading (CommonMark)",
+      _out.get("needs_space") is True, str(_out)[:200])
+check("6ak setext headings are found", _out.get("setext_found") is True, str(_out)[:200])
+check("6al inline markup is stripped for the label",
+      _out.get("markup_stripped") is True, str(_out)[:200])
+check("6am an empty document has an empty outline (never an invented one)",
+      _out.get("empty_doc") is True, str(_out)[:200])
+check("6an reading time floors at 1 min", _out.get("reading_floor") is True, str(_out)[:200])
+check("6ao reading time scales at 238wpm", _out.get("reading_scales") is True, str(_out)[:200])
+
+
+# ── 7. the reading face, RENDERED (ADR-572 D1) ───────────────────────────
+# The headline claim of this arc is visual: a brief must read as a document,
+# not as a source dump. No amount of source-grepping can assert that, so the
+# real pipeline is mounted and its OUTPUT is inspected. This probe is what
+# caught the scale collision below — it was invisible to `next build`, to
+# tsc, and to every check in §6.
+_RENDER_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f, 'utf8'),
+    { transforms: ['typescript', 'jsx', 'imports'], jsxRuntime: 'automatic', production: true }).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) {
+    const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts', '/index.tsx', '/index.ts']) {
+      try { return orig.call(this, b + e, ...a); } catch (x) { /* next */ }
+    }
+  }
+  return orig.call(this, r, ...a);
+};
+const { renderToStaticMarkup } = require(WEB + '/node_modules/react-dom/server');
+const React = require(WEB + '/node_modules/react');
+const { MarkdownRenderer } = require(WEB + '/components/shared/MarkdownRenderer.tsx');
+// The REAL reading-face component, not a hand-assembled stand-in. An earlier
+// spelling of this probe called MarkdownRenderer directly with
+// `scale:'inherit'` — so it asserted its own argument and stayed green when
+// ProseReader stopped passing the prop (caught by falsification, 2026-08-16).
+// Rendering ProseReader is what makes 7n a check on the WIRING.
+const { ProseReader, PROSE_READING_SKIN } = require(WEB + '/components/text/ProseReader.tsx');
+const R = (p) => renderToStaticMarkup(React.createElement(MarkdownRenderer, p));
+
+const brief = [
+  '# Creative Brief', '', 'This is **not** a block model. It is _plain markdown_.', '',
+  '## Positioning', '', '| Medium | Currency |', '| --- | --- |', '| Text | .md |', '',
+  '---', '', '> The round-trip is the thesis.', '', '- One', '- Two', '',
+  '```sh', '# not a heading', '```', '',
+].join('\n');
+const doc = renderToStaticMarkup(React.createElement(ProseReader, { text: brief }));
+const chat = R({ content: '# h\n\n| a |\n| - |\n| b |' });
+
+console.log(JSON.stringify({
+  h1: /<h1[^>]*>Creative Brief<\/h1>/.test(doc),
+  h2: /<h2[^>]*>Positioning<\/h2>/.test(doc),
+  strong: /<strong>not<\/strong>/.test(doc),
+  em: /<em>plain markdown<\/em>/.test(doc),
+  table: /<table/.test(doc) && /<th[^>]*>Medium/.test(doc),
+  hr: /<hr/.test(doc),
+  quote: /<blockquote/.test(doc),
+  list: /<ul>/.test(doc) && /<li>One<\/li>/.test(doc),
+  fence_literal: doc.includes('# not a heading'),
+  no_raw_hash: !/>#\s*Creative/.test(doc),
+  no_raw_stars: !doc.includes('**not**'),
+  // The skin the canvas, the thumbnail and print all share — asserted as an
+  // export so it cannot quietly become a per-mount literal.
+  serif: /prose-headings:font-serif/.test(doc)
+         && /prose-headings:font-serif/.test(PROSE_READING_SKIN),
+  // The scale collision: the doc face must not carry the chat face's
+  // font-size classes, because two font-size rules on one element resolve by
+  // STYLESHEET order, not class order.
+  doc_no_chat_scale: !/\bprose-sm\b/.test(doc) && !/prose-td:text-xs/.test(doc),
+  doc_has_base: /\bprose-base\b/.test(doc),
+  // ...and every pre-existing chat mount must be untouched by that change.
+  chat_keeps_sm: /\bprose-sm\b/.test(chat),
+  chat_keeps_td_xs: /prose-td:text-xs/.test(chat),
+  compact_keeps_tight: /prose-p:my-0\.5/.test(R({ content: 'x', compact: true })),
+}));
+"""
+
+try:
+    _r = json.loads(
+        subprocess.run(
+            ["node", "-e", _RENDER_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=120, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+    _r = {"error": str(exc)}
+
+for _key, _label in [
+    ("h1", "7a a `# ` line renders as an H1, not as visible source"),
+    ("h2", "7b `## ` renders as an H2"),
+    ("strong", "7c `**bold**` renders as <strong>"),
+    ("em", "7d `_italic_` renders as <em>"),
+    ("table", "7e a GFM table renders as a real <table>"),
+    ("hr", "7f `---` renders as a rule"),
+    ("quote", "7g `>` renders as a blockquote"),
+    ("list", "7h `- ` renders as a list"),
+    ("fence_literal", "7i a fenced block keeps its literal text"),
+    ("no_raw_hash", "7j no raw `#` survives into the reading face"),
+    ("no_raw_stars", "7k no raw `**` survives into the reading face"),
+    ("serif", "7L the document reading skin is actually applied"),
+    ("doc_has_base", "7m the doc face sets a document type scale"),
+]:
+    check(_label, _r.get(_key) is True, str(_r)[:220])
+
+check("7n the doc face carries NO chat scale class — two font-size rules on "
+      "one element resolve by STYLESHEET order, so an override that wins by "
+      "luck is a defect that has not fired yet (measured 2026-08-16)",
+      _r.get("doc_no_chat_scale") is True, str(_r)[:220])
+check("7o the ~20 existing chat mounts keep their face byte-for-byte "
+      "(scale='chat' is the default; the new prop is opt-IN)",
+      _r.get("chat_keeps_sm") is True
+      and _r.get("chat_keeps_td_xs") is True
+      and _r.get("compact_keeps_tight") is True,
+      str(_r)[:220])
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:
