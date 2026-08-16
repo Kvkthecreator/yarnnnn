@@ -261,6 +261,12 @@ type error and the fallback string reads like intended copy. The gate now
 replays the **verbatim production 409 body** (§8) and falsifies: restoring the
 `detail`-only read fails 8a and 8b with exactly the production symptom.
 
+**Verified on the deployed surface** (re-driven after the fix shipped): the
+banner now carries **both** exits, names the actor, and "Save mine over theirs"
+lands the member's text on the moved head — after which the banner clears, Save
+returns to disabled, and the file on disk is **still plain markdown with no
+block annotation**.
+
 ## 4. Falsifiers / click-pass
 
 (1) A 1,000-word `.md` opens in Read and renders as a document — serif headings,
