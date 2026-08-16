@@ -271,21 +271,34 @@ check("5m the recents request is within the route's cap (a 422 reads as an "
 _reader = _strip_comments((_TEXT / "ProseReader.tsx").read_text())
 _export = _strip_comments((_TEXT / "TextExport.tsx").read_text())
 
-check("6a the canvas RENDERS markdown (the headline gap: a brief must not "
-      "read as a source dump)",
-      "ProseReader" in _editor and "MarkdownRenderer" in _reader)
+_canvas = _strip_comments((_TEXT / "ProseCanvas.tsx").read_text())
+
+check("6a the canvas STYLES markdown in place (the headline gap: a brief must "
+      "not read as a source dump)",
+      "ProseCanvas" in _editor and "HighlightStyle" in _canvas
+      and "syntaxHighlighting" in _canvas)
 check("6b it reuses the ONE markdown pipeline (no second parser)",
       "react-markdown" not in _reader and "remark" not in _reader)
 check("6c the reading face is a DOC skin, not the chat face",
       "prose-headings:font-serif" in _reader and "font-serif" in _reader)
-check("6d Read|Write is a real toggle over one source",
-      "'read'" in _editor and "'write'" in _editor and "mode === 'read'" in _editor)
+# ADR-572 D8 — ONE canvas. The Read/Write toggle is DELETED: it hid every
+# formatting control behind a mode the surface did not open in. This asserts
+# the ABSENCE, so a future session cannot reintroduce the split quietly.
+check("6d there is NO mode toggle — one always-editable canvas (D8)",
+      "setMode(" not in _editor and "'read' | 'write'" not in _editor
+      and "mode === 'read'" not in _editor)
+check("6d1 the toolbar is ALWAYS mounted, never mode-gated",
+      "<MarkdownToolbar onAction={runAction} />" in _editor
+      and "mode ===" not in _editor)
 check("6e zoom is a VIEW control with Docs' own clamp",
       "ZOOM_MIN = 0.25" in _editor and "ZOOM_MAX = 2" in _editor)
 check("6f the markdown toolbar is mounted (Docs' Insert, in characters)",
       "MarkdownToolbar" in _editor)
-check("6g find/replace is mounted and keyed to ⌘F",
-      "FindReplaceBar" in _editor and "'f'" in _editor)
+check("6g search rides @codemirror/search inside the canvas; the hand-rolled "
+      "bar is DELETED (no dual implementation)",
+      "searchKeymap" in _canvas
+      and not (_TEXT / "FindReplaceBar.tsx").exists()
+      and "FindReplaceBar" not in _editor)
 check("6h the Properties pane carries the OUTLINE (ADR-526 D2's home)",
       "parseOutline" in _editor and "No headings yet" in _editor)
 check("6i Print/PDF is offered over the RENDERED document",
@@ -378,11 +391,11 @@ out.link_caret_in_target = lk.text[lk.selectionStart - 1] === '(';
 const t = M.insertTable('para', 4, 4);
 out.table_is_gfm = t.text.includes('| --- | --- |') && t.text.includes('\n\n|');
 
-// find/replace is LITERAL, case-insensitive, and total.
-out.find_counts = M.findAll('a A ab a', 'a').length === 4;
-out.find_empty_is_none = M.findAll('abc', '').length === 0;
-out.replace_all = M.replaceAll('a b a', 'a', 'X').text === 'X b X';
-out.replace_one = M.replaceOne('a b a', [0, 1], 'X').text === 'X b a';
+// ADR-572 D8 — the hand-rolled find/replace is DELETED; `@codemirror/search`
+// owns it inside the canvas. Assert the ABSENCE so it cannot creep back as a
+// second implementation beside CodeMirror's.
+out.no_local_find = typeof M.findAll === 'undefined'
+  && typeof M.replaceAll === 'undefined' && typeof M.replaceOne === 'undefined';
 
 // Line offsets — the outline's addressing.
 out.offset_first = M.offsetOfLine('aa\nbb\ncc', 0) === 0;
@@ -456,10 +469,8 @@ for _key, _label in [
     ("link_shape", "6x a link keeps the selection as its TEXT"),
     ("link_caret_in_target", "6y the caret lands in the empty target"),
     ("table_is_gfm", "6z a table is GFM source on its own lines"),
-    ("find_counts", "6aa find is literal + case-insensitive"),
-    ("find_empty_is_none", "6ab an empty needle matches nothing"),
-    ("replace_all", "6ac replace-all replaces every occurrence"),
-    ("replace_one", "6ad replace-one replaces exactly one"),
+    ("no_local_find", "6aa the hand-rolled find/replace is DELETED — `@codemirror/search` owns it, and two searches would be a dual "
+                      "implementation"),
     ("offset_first", "6ae line 0 is offset 0"),
     ("offset_third", "6af a later line resolves to its real offset"),
 ]:
@@ -680,6 +691,112 @@ check("8d an unreadable body degrades to a usable banner, never a crash",
       _c.get("empty_degrades") is True, str(_c)[:220])
 check("8e the editor READS through that helper (not a re-inlined field access)",
       "readConflict(err.data)" in _editor and "detail?.current_head" not in _editor)
+
+
+# ── 9. the ONE canvas is CodeMirror-grade, never block-grade (ADR-572 D8) ─
+# The single canvas is what makes the app usable; THIS is what keeps it legal.
+# ADR-456 D1 permits "textarea/CodeMirror-grade, never block-grade", and the
+# whole distinction rests on one property: CodeMirror's document is a plain
+# STRING and its styling is a decoration layer recomputed each update. A block
+# editor stores a tree with identity and serializes it back out.
+check("9a the canvas is CodeMirror, the grade ADR-456 D1 NAMES as permitted",
+      "@codemirror/view" in _canvas and "@codemirror/state" in _canvas)
+check("9b it holds a plain STRING — the doc is read out with toString(), never "
+      "serialized from a node tree",
+      "doc.toString()" in _canvas)
+check("9c styling is a HIGHLIGHT layer over the source, not markup written "
+      "into it (decorations are derived from offsets; nothing maps a rendered "
+      "node back to a source position)",
+      "HighlightStyle.define" in _canvas)
+
+# The grade constraint, restated over the canvas specifically. §6L covers the
+# whole directory; this names the block-editor packages that would be the
+# tempting way to get a prettier canvas, and must never appear.
+for _pkg in ("prosemirror", "@lexical", "slate", "tiptap", "milkdown"):
+    check(f"9d the canvas is not a block editor — no {_pkg}", _pkg not in _canvas)
+
+# The dependency floor, read from the REAL package.json: a block-editor
+# package must not enter web/ through this app's door.
+_pkg_json = json.loads((WEB / "package.json").read_text())
+_deps = {**_pkg_json.get("dependencies", {}), **_pkg_json.get("devDependencies", {})}
+check("9e @codemirror/lang-markdown is a real dependency (the highlighter is "
+      "the markdown grammar, not a hand-rolled regex pass)",
+      "@codemirror/lang-markdown" in _deps, str(sorted(_deps))[:200])
+
+# The property that IS the product thesis, EXECUTED: a round-trip through the
+# canvas's own state must return byte-identical text. Grepping cannot show
+# this; a block model would fail it by normalizing the markup.
+_CM_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f, 'utf8'),
+    { transforms: ['typescript', 'jsx', 'imports'], jsxRuntime: 'automatic', production: true }).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) {
+    const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts', '/index.tsx', '/index.ts']) {
+      try { return orig.call(this, b + e, ...a); } catch (x) { /* next */ }
+    }
+  }
+  return orig.call(this, r, ...a);
+};
+const { EditorState } = require(WEB + '/node_modules/@codemirror/state');
+const { markdown, markdownLanguage } = require(WEB + '/node_modules/@codemirror/lang-markdown');
+
+// Awkward markdown a normalizing editor would "tidy": mixed bullets, trailing
+// spaces, setext, a fence, tabs. Byte-identical out is the product thesis.
+const src = [
+  '# Title  ', '', 'Setext', '======', '',
+  '*  star bullet', '+  plus bullet', '- [x] done', '',
+  '\ttab-indented line', '', '```sh', '# not a heading', '```', '',
+  'trailing spaces here   ', '',
+].join('\n');
+const st = EditorState.create({ doc: src, extensions: [markdown({ base: markdownLanguage })] });
+const out = st.doc.toString();
+// And an edit transaction leaves everything else untouched.
+const st2 = st.update({ changes: { from: 0, to: 0, insert: 'X' } }).state;
+console.log(JSON.stringify({
+  round_trips: out === src,
+  edit_is_surgical: st2.doc.toString() === 'X' + src,
+  no_ids_added: !/data-block-id|data-block=/.test(out),
+}));
+"""
+_cm = _run_probe_cm = None
+try:
+    _cm = json.loads(
+        subprocess.run(
+            ["node", "-e", _CM_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+    _cm = {"error": str(exc)}
+
+check("9f awkward markdown round-trips BYTE-IDENTICAL through the canvas's "
+      "own state (mixed bullets, setext, tabs, trailing spaces, a fence) — "
+      "a normalizing/block editor fails exactly here",
+      _cm.get("round_trips") is True, str(_cm)[:220])
+# 9f proves the LIBRARY does not normalize. This proves MY COMPONENT does not
+# either — the distinction that matters, and the one 9f alone missed: a
+# `.replace()` inside the updateListener passed 9f untouched (caught by this
+# gate's own falsification run, 2026-08-16). The handler must hand the doc
+# straight out.
+_emit = re.search(r"updateListener\.of\(\((\w+)\) => \{(.*?)\}\)", _canvas, re.S)
+check("9f1 the change handler emits the document UNMODIFIED — no normalizing "
+      "rewrite between the canvas and the file",
+      bool(_emit) and ".toString()" in _emit.group(2)
+      and ".replace(" not in _emit.group(2)
+      and ".trim(" not in _emit.group(2)
+      and ".normalize(" not in _emit.group(2),
+      (_emit.group(2)[:160] if _emit else "no updateListener found"))
+check("9g an edit is SURGICAL — it changes what was typed and nothing else",
+      _cm.get("edit_is_surgical") is True, str(_cm)[:220])
+check("9h no ids or data-* are introduced by the editor",
+      _cm.get("no_ids_added") is True, str(_cm)[:220])
 
 
 # ── report ───────────────────────────────────────────────────────────────
