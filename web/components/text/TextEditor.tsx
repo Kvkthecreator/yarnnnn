@@ -56,6 +56,7 @@ import { TextExport } from '@/components/text/TextExport';
 import { ProseReader } from '@/components/text/ProseReader';
 import { MarkdownToolbar, type ToolbarAction } from '@/components/text/MarkdownToolbar';
 import { FindReplaceBar } from '@/components/text/FindReplaceBar';
+import { readConflict, type ConflictState } from '@/components/text/conflict';
 import { parseOutline, readingMinutes } from '@/components/text/outline';
 import {
   insertLink,
@@ -85,16 +86,12 @@ const relPath = (p: string) => (p.startsWith(WORKSPACE_PREFIX) ? p.slice(WORKSPA
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 2;
 
-interface ConflictState {
-  actor: string;
-  currentHeadId: string | null;
-}
-
 const SUGGESTIONS = [
   'Tighten this — same meaning, fewer words',
   'What is unclear to someone reading this cold?',
   'Restructure so the main point lands first',
 ];
+
 
 export function TextEditor({
   path,
@@ -167,14 +164,7 @@ export function TextEditor({
         onSaved?.();
       } catch (err) {
         if (err instanceof APIError && err.status === 409) {
-          const detail = (err.data as {
-            detail?: { current_head?: { id?: string; authored_by?: string } };
-          } | null)?.detail;
-          const head = detail?.current_head;
-          setConflict({
-            actor: formatAuthorLabel(head?.authored_by ?? '') || 'Someone else',
-            currentHeadId: head?.id ?? null,
-          });
+          setConflict(readConflict(err.data));
         } else {
           setSaveError(err instanceof Error ? err.message : 'Save failed');
         }
