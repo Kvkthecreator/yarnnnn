@@ -56,11 +56,12 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { EditorState, RangeSetBuilder, type Extension } from '@codemirror/state';
+import { EditorState, RangeSetBuilder, StateField, type Extension } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
   ViewPlugin,
+  WidgetType,
   keymap,
   drawSelection,
   highlightActiveLine,
@@ -166,50 +167,38 @@ const PROSE_THEME = EditorView.theme({
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(250,160,40,0.55)' },
   '.cm-placeholder': { color: 'var(--muted-foreground, #888)', fontStyle: 'italic' },
 
-  // ── Table rows (ADR-572 D10, re-cut by D14) ─────────────────────────────
-  // D10 set the rows in MONO at code size so the source pipes would line up
-  // column-wise. The operator drove it: *"the table rendering still looks
-  // off"* — and it did, because a grey monospace slab reads as a CODE BLOCK,
-  // which is the one thing a table must not look like.
-  //
-  // Now that the marks hide unconditionally (D14), the pipes go with them and
-  // each cell can be drawn as a real cell: body face, a dividing rule between
-  // columns, and padding. The row is still just a styled LINE — no <table>
-  // element, no node↔offset map, nothing written to the file.
-  '.cm-line.cm-tableRow': {
+  // ── Tables (ADR-572 D10 → D14 → D15) ────────────────────────────────────
+  // D10 styled the table LINES; D14 hid the pipes and boxed each cell with
+  // mark decorations. Both were driven and both looked wrong, for one
+  // structural reason: a line decoration styles ONE LINE, lines lay out
+  // independently, so cells in different rows share no column box and the
+  // dividers land at different x. D15 replaces the range with a real <table>,
+  // so alignment comes from the browser's own table layout.
+  '.cm-mdTableWrap': { margin: '1em 0', overflowX: 'auto' },
+  '.cm-mdTable': {
+    borderCollapse: 'collapse',
+    width: '100%',
     fontFamily: 'inherit',
-    borderLeft: `1px solid ${TABLE.borderColor}`,
-    borderRight: `1px solid ${TABLE.borderColor}`,
+    fontSize: FACE.cellSize,
   },
-  '.cm-line.cm-tableRow-first': {
-    borderTop: `1px solid ${TABLE.borderColor}`,
+  '.cm-mdTable th, .cm-mdTable td': {
+    border: `1px solid ${TABLE.borderColor}`,
+    padding: TABLE.cellPadding,
+    textAlign: 'left',
+    verticalAlign: 'top',
+  },
+  '.cm-mdTable th': {
+    fontWeight: TABLE.headerWeight,
     backgroundColor: 'var(--table-head, rgba(128,128,128,0.06))',
   },
-  '.cm-line.cm-tableRow-last': {
-    borderBottom: `1px solid ${TABLE.borderColor}`,
-  },
-  // The header row carries the weight the rendered face gives its `<th>`.
-  '.cm-line.cm-tableRow-header': { fontWeight: TABLE.headerWeight },
-  // Each cell gets its own box. `cm-tableCell` is a MARK decoration over the
-  // text between two pipes, so the divider sits exactly where the column
-  // boundary is rather than at a guessed character offset.
-  '.cm-tableCell': {
-    display: 'inline-block',
-    padding: `0 ${TABLE.cellPadding.split(' ')[1] || '0.6em'}`,
-    borderRight: `1px solid ${TABLE.borderColor}`,
-  },
-  '.cm-tableCell-last': { borderRight: 'none' },
-  // The delimiter row (`| --- |`) carries no information once the grid is
-  // drawn — it becomes the rule under the header.
-  '.cm-line.cm-tableDelimiter': {
-    fontSize: '0',
-    lineHeight: '0',
-    height: '0',
-    overflow: 'hidden',
-    borderBottom: `1px solid ${TABLE.borderColor}`,
+  // While the caret is inside a table its SOURCE is shown, so the rows read as
+  // what they are — the same "editing reveals the source" rule the marks obey.
+  '.cm-line.cm-tableSource': {
+    fontFamily: FACE.mono,
+    fontSize: FACE.codeSize,
+    backgroundColor: 'var(--table-tint, rgba(128,128,128,0.045))',
   },
 });
-
 /**
  * Live preview — hide the markdown marks except on the line being edited
  * (ADR-572 D13).
@@ -284,6 +273,11 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
       from,
       to,
       enter(node) {
+        // A table's range is REPLACED wholesale by the widget (D15), so a mark
+        // decoration inside it has nothing to attach to — CodeMirror rejects
+        // the overlap outright (`RangeSet.spans`). Tables own their own
+        // rendering; this plugin stays out of them.
+        if (node.name === 'Table') return false;
         if (!HIDDEN_MARKS.has(node.name)) return;
         let end = node.to;
         // `# ` — swallow the space too, or the heading keeps a hanging indent.
@@ -320,105 +314,182 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
  * `.md` is byte-identical. The test is the same one the file header states:
  * decorations are derived FROM offsets, never the reverse.
  */
-const tableRows = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = buildTableDecorations(view);
-    }
-    update(u: ViewUpdate) {
-      if (u.docChanged || u.viewportChanged) {
-        this.decorations = buildTableDecorations(u.view);
+/**
+ * The table renderer is a **StateField, not a ViewPlugin** (ADR-572 D15).
+ *
+ * CodeMirror refuses block-level decorations from a plugin outright — *"Block
+ * decorations may not be specified via plugins"* — because a plugin's
+ * decorations are computed after layout, and a block widget changes layout.
+ * The first cut of D15 was a ViewPlugin and threw on mount. A StateField is
+ * computed from the state before the view measures anything, which is exactly
+ * what a range-replacing widget needs.
+ *
+ * It is still derived, still transient, and still writes nothing: the field
+ * holds a decoration set recomputed from the document, never part of it.
+ */
+const tableField = StateField.define<DecorationSet>({
+  create: (state) => buildTableDecorations(state),
+  update(deco, tr) {
+    // The caret moving in or out of a table swaps the widget for its source,
+    // so a pure selection change must recompute too.
+    if (!tr.docChanged && !tr.selection) return deco.map(tr.changes);
+    return buildTableDecorations(tr.state);
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/**
+ * A real `<table>` painted over the source rows (ADR-572 D15).
+ *
+ * ## Why a widget, and why the previous two attempts failed
+ *
+ * D10 styled the table LINES (mono, a tint, a left border) so the source pipes
+ * would align. D14 hid the pipes and drew per-cell boxes with mark decorations.
+ * The operator drove both: *"the table rendering still looks off… these should
+ * be rather conventional approaches"* — and the screenshot showed exactly why.
+ * **Every row's column divider sat at a different x.**
+ *
+ * That is not a CSS bug to chase. A line decoration styles ONE LINE, and each
+ * line is laid out independently, so cells in different rows share no column
+ * box. With a proportional face, "Verse 1" and "Final chorus" can never line
+ * up. **No refinement of a line-based approach can align columns**; a table
+ * needs the rows in one grid, which means one element spanning them.
+ *
+ * So the whole table range is replaced by a `<table>` built from the parsed
+ * rows. Alignment then comes from the browser's own table layout — the
+ * conventional thing the operator asked for.
+ *
+ * ## Why this is still not a block model (ADR-456 D1)
+ *
+ * The widget is rendered FROM the source on each update and thrown away on the
+ * next. It holds no id, is never serialized, and nothing maps a cell back to a
+ * source position for writing. The document remains the plain `.md` — clicking
+ * the table dismisses the widget and hands back the raw rows to edit. Delete
+ * this class and the file is unchanged, which is the same test every other
+ * decoration here passes.
+ */
+class TableWidget extends WidgetType {
+  constructor(
+    private readonly rows: string[][],
+    private readonly src: string,
+  ) {
+    super();
+  }
+
+  // CodeMirror reuses a widget when `eq` says the content is unchanged, so
+  // comparing the SOURCE keeps the DOM stable while the member types elsewhere.
+  eq(other: TableWidget) {
+    return other.src === this.src;
+  }
+
+  toDOM(view: EditorView) {
+    // The view's OWN document, never the global one: the canvas may be
+    // rendered into another window (a popped-out surface, a print frame), and
+    // `document.createElement` there builds nodes the view cannot adopt.
+    const document = view.dom.ownerDocument;
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-mdTableWrap';
+    const table = document.createElement('table');
+    table.className = 'cm-mdTable';
+    const [head, ...body] = this.rows;
+    if (head) {
+      const thead = table.createTHead();
+      const tr = thead.insertRow();
+      for (const cell of head) {
+        const th = document.createElement('th');
+        th.textContent = cell;
+        tr.appendChild(th);
       }
     }
-  },
-  { decorations: (v) => v.decorations },
-);
+    const tbody = table.createTBody();
+    for (const row of body) {
+      const tr = tbody.insertRow();
+      for (const cell of row) {
+        const td = tr.insertCell();
+        td.textContent = cell;
+      }
+    }
+    wrap.appendChild(table);
+    return wrap;
+  }
 
-function buildTableDecorations(view: EditorView): DecorationSet {
-  const doc = view.state.doc;
-  // Line decorations and the per-cell mark decorations are collected together
-  // and sorted, because `RangeSetBuilder` demands one ascending sequence and a
-  // line's own decoration must precede the marks inside it.
+  // The member must be able to click INTO the table to edit its source, so the
+  // widget does not swallow events — CodeMirror maps the click to a position
+  // and the cursor lands in the row, which un-hides it via `editing` below.
+  ignoreEvent() {
+    return false;
+  }
+}
+
+/** Split a GFM row on unescaped pipes, dropping the leading/trailing empties. */
+function splitRow(line: string): string[] {
+  const cells: string[] = [];
+  let cur = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '\\' && line[i + 1] === '|') { cur += '|'; i++; continue; }
+    if (ch === '|') { cells.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  cells.push(cur);
+  if (cells.length && !cells[0].trim()) cells.shift();
+  if (cells.length && !cells[cells.length - 1].trim()) cells.pop();
+  return cells.map((c) => c.trim());
+}
+
+const DELIMITER_RE = /^\s*\|?[\s:|-]*\|[\s:|-]*$/;
+
+function buildTableDecorations(state: EditorState): DecorationSet {
+  const doc = state.doc;
   const out: Array<{ from: number; to: number; deco: Decoration }> = [];
+  const caret = state.selection.main;
 
-  for (const { from, to } of view.visibleRanges) {
-    syntaxTree(view.state).iterate({
-      from,
-      to,
+  {
+    // A StateField has no viewport, so the whole tree is walked. Tables are
+    // sparse in prose and `iterate` skips non-matching subtrees, so this is
+    // cheaper than it reads.
+    syntaxTree(state).iterate({
       enter(node) {
         if (node.name !== 'Table') return;
-        const first = doc.lineAt(node.from).number;
-        const last = doc.lineAt(node.to).number;
-        for (let n = first; n <= last; n++) {
-          const line = doc.line(n);
-          const text = line.text;
-          // The delimiter row (`| --- |`) is pure punctuation: once the grid
-          // is drawn it says nothing, so it collapses into the header's rule.
-          const isDelimiter = /^\s*\|?[\s:|-]*\|[\s:|-]*$/.test(text) && text.includes('-');
+        const start = doc.lineAt(node.from);
+        const end = doc.lineAt(node.to);
 
-          out.push({
-            from: line.from,
-            to: line.from,
-            deco: Decoration.line({
-              class: [
-                'cm-tableRow',
-                n === first ? 'cm-tableRow-first cm-tableRow-header' : '',
-                n === last ? 'cm-tableRow-last' : '',
-                isDelimiter ? 'cm-tableDelimiter' : '',
-              ]
-                .filter(Boolean)
-                .join(' '),
-            }),
-          });
-          if (isDelimiter) {
-            // Replace the row's TEXT as well as collapsing its box: a
-            // zero-height line still contributes its characters to selection,
-            // copy and find, so `| --- |` would come back on a ⌘C.
-            if (line.to > line.from) {
-              out.push({ from: line.from, to: line.to, deco: Decoration.replace({}) });
-            }
-            continue;
-          }
-
-          // Split the row on its unescaped pipes and wrap each cell. The pipes
-          // themselves are hidden, so the borders below ARE the columns.
-          const bounds: number[] = [];
-          for (let i = 0; i < text.length; i++) {
-            if (text[i] === '|' && (i === 0 || text[i - 1] !== '\\')) bounds.push(i);
-          }
-          if (bounds.length < 2) continue;
-          for (let i = 0; i < bounds.length; i++) {
-            const p = bounds[i];
-            // Hide the pipe itself.
+        // EDITING: the caret (or a selection) is inside this table, so the
+        // member is working on its source — show the raw rows. A widget that
+        // stayed put while you typed behind it would be a lie about the file.
+        const editing = caret.from <= end.to && caret.to >= start.from;
+        if (editing) {
+          for (let n = start.number; n <= end.number; n++) {
+            const line = doc.line(n);
             out.push({
-              from: line.from + p,
-              to: line.from + p + 1,
-              deco: Decoration.replace({}),
-            });
-            // The cell is the span up to the NEXT pipe.
-            const next = bounds[i + 1];
-            if (next === undefined) break;
-            const cellFrom = line.from + p + 1;
-            const cellTo = line.from + next;
-            if (cellTo <= cellFrom) continue;
-            out.push({
-              from: cellFrom,
-              to: cellTo,
-              deco: Decoration.mark({
-                class:
-                  i === bounds.length - 2 ? 'cm-tableCell cm-tableCell-last' : 'cm-tableCell',
-              }),
+              from: line.from,
+              to: line.from,
+              deco: Decoration.line({ class: 'cm-tableSource' }),
             });
           }
+          return;
         }
+
+        // RESTING: replace the whole range with a real <table>. One element
+        // spanning every row is the only way columns can align — which is what
+        // the two line-based attempts could never do.
+        const rows: string[][] = [];
+        for (let n = start.number; n <= end.number; n++) {
+          const text = doc.line(n).text;
+          if (DELIMITER_RE.test(text) && text.includes('-')) continue;
+          rows.push(splitRow(text));
+        }
+        if (rows.length === 0) return;
+        const src = doc.sliceString(start.from, end.to);
+        out.push({
+          from: start.from,
+          to: end.to,
+          deco: Decoration.replace({ widget: new TableWidget(rows, src), block: true }),
+        });
       },
     });
   }
 
-  // Line decorations sort before marks at the same offset (`Decoration.line`
-  // has side -1 by construction), so a stable sort on `from` then `to` is
-  // enough for the builder's ordering contract.
   out.sort((a, b2) => a.from - b2.from || a.to - b2.to);
   const b = new RangeSetBuilder<Decoration>();
   for (const r of out) b.add(r.from, r.to, r.deco);
@@ -525,8 +596,9 @@ export function ProseCanvas({
       // Hides the markdown marks off the line being edited (D13) — must come
       // BEFORE tableRows so a table's own pipes are never hidden.
       livePreview,
-      // Draws the table grid the highlight layer structurally cannot (D10).
-      tableRows,
+      // Renders tables as real <table> elements (D15) — a StateField, because
+      // CodeMirror forbids block decorations from a plugin.
+      tableField,
       PROSE_THEME,
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),

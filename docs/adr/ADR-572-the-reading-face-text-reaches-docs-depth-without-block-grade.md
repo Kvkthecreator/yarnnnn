@@ -626,6 +626,67 @@ Gate 188 → **196**. Three D13 assertions are now *contradicted* by D14 and are
 recorded as superseded in the gate rather than deleted, so the reversal leaves a
 trace.
 
+### D15 — A real `<table>`, and the slash pick that did nothing
+
+#### D15.a — the pick applied nothing, because the composition was the defect
+
+Operator: *"the slash command pops up but when i select it nothing happens."*
+
+`takeSlash` did two things to the view — `deleteRange(run)`, then `applyEdit()`
+whose text had been computed from a string the view had **already moved past** —
+plus two `setText` calls racing one render. Every piece verified correctly in
+isolation: the run parser, the state wiring, the deletion, the edit functions,
+even the two dispatches replayed by hand against a real `EditorView`.
+
+**Bisecting was the wrong instinct — the composition itself was the defect.**
+The run is plain text in a plain string, so cutting it out and applying the edit
+is ONE pure computation over `text`, handed to the canvas as ONE transaction:
+the same path every toolbar button already takes, and one that cannot
+half-apply.
+
+#### D15.b — a table is a `<table>`; no line-based approach can align columns
+
+Operator: *"the table doesn't look right. these should be rather conventional
+approaches"*, with a screenshot showing **every row's divider at a different x**.
+
+Two attempts had failed here. D10 styled the table LINES (mono, a tint, a left
+border) so the source pipes would align; D14 hid the pipes and boxed each cell
+with mark decorations. Both are line decorations, and that is the whole problem:
+**a line decoration styles ONE LINE, and lines lay out independently.** Cells in
+different rows share no column box, so with a proportional face "Verse 1" and
+"Final chorus" can never line up. No refinement of that approach could have
+worked — the third attempt had to change the mechanism, not the CSS.
+
+The table range is now replaced by a real `<table>` built from the parsed rows,
+so alignment comes from the browser's own table layout. Putting the caret inside
+reveals the source rows for editing; leaving renders it again.
+
+**A `WidgetType` is not a block model.** It is built FROM the source each
+update, holds no id, is never serialized, and nothing maps a cell back to a
+source position for writing. Delete the class and the file is unchanged — the
+same test every other decoration here passes, and the document is asserted
+byte-identical with a widget on screen (§16c).
+
+⭐ **The mechanism forced a second correction**: block-level decorations may not
+come from a `ViewPlugin` — CodeMirror throws *"Block decorations may not be
+specified via plugins"* on mount, because a plugin's decorations are computed
+after layout and a block widget changes layout. The first cut of D15 was a
+ViewPlugin and died immediately; the renderer is a `StateField` (§16e). The
+`livePreview` plugin also had to stop decorating inside table ranges, since a
+mark inside a replaced range has nothing to attach to.
+
+#### The pattern, stated once more
+
+Three approaches to one table across three decisions, each shipped, each driven,
+each wrong — and the third was only reachable after the second failed **for a
+reason the first two shared**. That reason was legible from the screenshot
+(dividers at different x), not from any gate: the gates asserted that cells were
+decorated, which was true and useless.
+
+Gate 196 → **202**. Five superseded table assertions are recorded as reversed
+in the gate rather than deleted, because a line-based table failing twice for
+one structural reason is worth keeping visible.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.

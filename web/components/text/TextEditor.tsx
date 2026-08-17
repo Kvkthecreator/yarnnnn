@@ -354,27 +354,44 @@ export function TextEditor({
 
   useEffect(() => { setSlashIndex(0); }, [slash?.filter]);
 
+  /**
+   * Take a slash pick — as ONE edit (ADR-572 D15).
+   *
+   * The first cut did this in two steps: `deleteRange(run)` on the view, then
+   * `applyEdit(...)` — a second dispatch whose text was computed from a string
+   * the view had already moved past, plus two `setText` calls racing one
+   * render. It worked in isolation for every piece and **did nothing when the
+   * member clicked a row** (*"the slash command pops up but when i select it
+   * nothing happens"*).
+   *
+   * Bisecting the composition was the wrong instinct: the composition itself
+   * was the defect. The run is plain text in a plain string, so removing it and
+   * applying the edit is ONE pure computation over `text`, handed to the canvas
+   * as ONE transaction — the same path every toolbar button already takes, and
+   * one that cannot half-apply.
+   *
+   * The canvas reads the current document itself (`selection()`), so nothing
+   * here depends on React state having caught up.
+   */
   const takeSlash = useCallback(
     (item: SlashItem) => {
       const run = slash;
       if (!run) return;
       setSlash(null);
-      // Delete the `/filter` run FIRST, then compute the edit against the
-      // shortened document — otherwise every offset the edit functions return
-      // is shifted by the length of a run that is about to disappear.
-      canvasRef.current?.deleteRange(run.from, run.to);
+      // Cut the `/filter` run out first — every offset below is into `next`.
       const next = text.slice(0, run.from) + text.slice(run.to);
-      setText(next);
       const at = run.from;
+      let edit: Edit;
       switch (item.action.kind) {
-        case 'heading': return applyEdit(toggleHeading(next, at, at, item.action.level));
-        case 'list': return applyEdit(toggleList(next, at, at, item.action.ordered));
-        case 'checklist': return applyEdit(toggleChecklist(next, at, at));
-        case 'quote': return applyEdit(toggleQuote(next, at, at));
-        case 'table': return applyEdit(insertTable(next, at, at));
-        case 'rule': return applyEdit(insertRule(next, at, at));
+        case 'heading': edit = toggleHeading(next, at, at, item.action.level); break;
+        case 'list': edit = toggleList(next, at, at, item.action.ordered); break;
+        case 'checklist': edit = toggleChecklist(next, at, at); break;
+        case 'quote': edit = toggleQuote(next, at, at); break;
+        case 'table': edit = insertTable(next, at, at); break;
+        case 'rule': edit = insertRule(next, at, at); break;
         default: return;
       }
+      applyEdit(edit);
     },
     [slash, text, applyEdit],
   );

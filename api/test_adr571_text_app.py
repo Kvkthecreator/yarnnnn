@@ -952,14 +952,11 @@ try:
 except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
     _d10 = {"error": str(exc)}
 
-check("11a a GFM table is VISIBLY a table on the CANVAS — every source row "
-      "decorated (operator: 'the table render on the tool bar doesn't show "
-      "the rendered style on the editor')",
-      _d10.get("canvas_table_rows") is True, str(_d10)[:260])
-check("11a1 the table's header row is marked as such",
-      _d10.get("canvas_table_header") is True, str(_d10)[:260])
-check("11a2 the table's last row closes the grid",
-      _d10.get("canvas_table_last") is True, str(_d10)[:260])
+# 11a/11a1/11a2 asserted D10's LINE-decoration table (a styled row per source
+# line). D15 replaces the whole range with a real <table>, so those assertions
+# are now false BY DESIGN — §15b tests the replacement. Recorded, not deleted:
+# the line-based approach was driven twice and failed for a structural reason
+# worth keeping visible (lines lay out independently, so columns cannot align).
 check("11b the decoration layer did NOT displace syntax highlighting",
       _d10.get("canvas_styled") is True, str(_d10)[:260])
 check("11c the canvas writes NOTHING into the document — no data-* reaches "
@@ -1577,14 +1574,9 @@ check("15a the markdown marks are hidden ALWAYS, including on the line the "
       str(_d14)[:300])
 check("15a1 inline marks (`**`) are hidden too",
       _d14.get("bold_hidden") is True, str(_d14)[:300])
-check("15b a table renders as a GRID OF CELLS, pipes hidden — D10 set the rows "
-      "in mono at code size, which reads as a CODE BLOCK, the one thing a "
-      "table must not look like (operator: 'the table rendering still looks off')",
-      _d14.get("pipes_hidden") is True and _d14.get("cells", 0) >= 6,
-      str(_d14)[:300])
-check("15b1 the `| --- |` delimiter row collapses into the header rule — it "
-      "carries no information once the grid is drawn",
-      _d14.get("delimiter_collapsed") is True, str(_d14)[:300])
+# 15b/15b1 asserted D14's per-cell MARK decorations. D15 replaces those too —
+# see §16, which asserts a real <table>. Two line-based attempts failed here
+# for the same structural reason; the record of that is the point.
 check("15c the document is BYTE-IDENTICAL through all of it — every one of "
       "these is a decoration read FROM offsets, never written back",
       _d14.get("doc_byte_identical") is True, str(_d14)[:300])
@@ -1602,6 +1594,140 @@ check("15f the palette filters, and its rows are the SAME ToolbarAction values "
       "the toolbar dispatches — a second DOOR to one mechanism, never a second "
       "mechanism (the rule Docs states for its own toolbar/slash pair)",
       _d14.get("slash_filters") is True, str(_d14)[:300])
+
+
+
+# ── 16. ADR-572 D15 — a real <table>, and the slash pick that did nothing ──
+# Two operator reports: "the slash command pops up but when i select it nothing
+# happens", and "the table doesn't look right… these should be rather
+# conventional approaches" (with a screenshot showing every row's divider at a
+# different x — the structural failure of ANY line-based table).
+_D15_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f,'utf8'),{transforms:['typescript','jsx','imports'],jsxRuntime:'automatic',production:true}).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) { const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts']) { try { return orig.call(this, b + e, ...a); } catch (x) {} } }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<!doctype html><body><div id="h"></div></body>', { pretendToBeVisual: true });
+const def = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+def('IS_REACT_ACT_ENVIRONMENT', true);
+const React = require(WEB + '/node_modules/react');
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+const { act } = React;
+const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
+const E = require(WEB + '/components/text/markdownEdits.ts');
+
+const DOC = '## Structure\n\n| Section | Idea |\n| --- | --- |\n'
+  + '| Verse 1 | lists everything |\n| Final chorus | half the volume |\n\nafter\n';
+let value = DOC, handle = null;
+const host = dom.window.document.getElementById('h');
+act(() => createRoot(host).render(React.createElement(ProseCanvas, {
+  value, onChange: (v) => { value = v; }, handleRef: (h) => { if (h) handle = h; },
+})));
+const q = (s) => host.querySelectorAll(s).length;
+const headers = [...host.querySelectorAll('.cm-mdTable th')].map((e) => e.textContent);
+const body = [...host.querySelectorAll('.cm-mdTable tbody tr')].map((tr) =>
+  [...tr.cells].map((c) => c.textContent));
+const resting = { table: q('table.cm-mdTable'), src: q('.cm-tableSource') };
+const off = DOC.indexOf('| Verse 1') + 3;
+act(() => handle.reveal(off, off));
+const editing = { table: q('table.cm-mdTable'), src: q('.cm-tableSource') };
+act(() => handle.reveal(0, 0));
+const back = q('table.cm-mdTable');
+
+// The slash pick, as ONE edit computed over `text` (D15) — the shape that
+// replaced two dispatches racing one render.
+const withRun = 'Hello\n\n/';
+const cut = withRun.slice(0, 7) + withRun.slice(8);
+const picked = E.toggleQuote(cut, 7, 7);
+
+console.log(JSON.stringify({
+  is_real_table: resting.table === 1,
+  header_cells: headers.length === 2 && headers[0] === 'Section',
+  // Real <td>s in real <tr>s is what makes columns align — the property two
+  // line-based attempts could not have.
+  body_grid: body.length === 2 && body[0].length === 2
+    && body[1][0] === 'Final chorus',
+  delimiter_absent: !body.some((r) => r.join('').includes('---')),
+  // Caret in → source; caret out → rendered again.
+  editing_shows_source: editing.table === 0 && editing.src === 4,
+  leaving_re_renders: back === 1,
+  doc_byte_identical: value === DOC,
+  // The pick produces the same markdown a toolbar press would.
+  pick_applies: picked.text === 'Hello\n\n> ',
+  pick_caret_ready: picked.selectionEnd === 'Hello\n\n> '.length,
+}));
+"""
+
+try:
+    _d15 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D15_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=180, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d15 = {"error": str(exc)}
+
+check("16a a table renders as a REAL <table> element — two line-based attempts "
+      "(D10's styled rows, D14's per-cell marks) both failed because a line "
+      "decoration styles ONE LINE and lines lay out independently, so cells in "
+      "different rows share no column box and the dividers land at different x "
+      "(operator: 'these should be rather conventional approaches')",
+      _d15.get("is_real_table") is True, str(_d15)[:300])
+check("16a1 its header row is real <th> cells",
+      _d15.get("header_cells") is True, str(_d15)[:300])
+check("16a2 its body is a real grid of <td> — this is what makes the columns "
+      "align, and it is a property no line-based approach can have",
+      _d15.get("body_grid") is True, str(_d15)[:300])
+check("16a3 the `| --- |` delimiter row is not a body row",
+      _d15.get("delimiter_absent") is True, str(_d15)[:300])
+check("16b putting the caret INSIDE a table reveals its source, so the rows "
+      "stay editable — a widget that stayed put while you typed behind it "
+      "would be a lie about the file",
+      _d15.get("editing_shows_source") is True, str(_d15)[:300])
+check("16b1 leaving the table renders it again",
+      _d15.get("leaving_re_renders") is True, str(_d15)[:300])
+check("16c the document is BYTE-IDENTICAL with a widget on screen — the "
+      "widget is built FROM the source each update and never written back, so "
+      "ADR-456 D1 holds (delete the class and the file is unchanged)",
+      _d15.get("doc_byte_identical") is True, str(_d15)[:300])
+check("16d a slash pick APPLIES — it was two dispatches racing one render "
+      "(deleteRange, then an apply whose text the view had moved past) and did "
+      "nothing on click; it is now ONE pure edit over `text`, the same path "
+      "every toolbar button takes (operator: 'pops up but when i select it "
+      "nothing happens')",
+      _d15.get("pick_applies") is True, str(_d15)[:300])
+check("16d1 and the caret lands ready to type",
+      _d15.get("pick_caret_ready") is True, str(_d15)[:300])
+
+# The block-decoration rule that forced the StateField — a ViewPlugin throws
+# "Block decorations may not be specified via plugins" on mount.
+_canvas_src = (WEB / "components" / "text" / "ProseCanvas.tsx").read_text(encoding="utf-8")
+check("16e the table renderer is a StateField, NOT a ViewPlugin — CodeMirror "
+      "refuses block decorations from a plugin outright, and the first cut of "
+      "D15 was a ViewPlugin that threw on mount",
+      re.search(r"StateField\.define<DecorationSet>", _canvas_src) is not None
+      and "block: true" in _canvas_src,
+      "the table widget is not provided from a StateField")
+check("16f the slash pick is ONE edit — no `deleteRange` + `applyEdit` pair, "
+      "which is the composition that silently half-applied",
+      "deleteRange(run.from" not in _strip_comments(
+          (WEB / "components" / "text" / "TextEditor.tsx").read_text(encoding="utf-8")),
+      "the two-dispatch pick survives")
 
 
 # ── report ───────────────────────────────────────────────────────────────
