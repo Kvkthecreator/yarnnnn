@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from unittest import mock
 from pathlib import Path
 
 API_DIR = Path(__file__).parent
@@ -370,6 +371,102 @@ def test_migration_grants_and_notnull() -> None:
     record("migration 189 adds principal_grants + owner grants + NOT NULL flip", ok, "")
 
 
+
+# ---------------------------------------------------------------------------
+# D6 — the MCP door fills the chokepoint (built 2026-08-17)
+# ---------------------------------------------------------------------------
+#
+# `test_authenticated_client_has_workspace_id` proves the FIELD exists. These
+# prove the MCP path FILLS it — which it did not, for two years after D6 was
+# ratified. The connector built its client with `workspace_id=None`, so every
+# read/write fell to the per-user default and a member working in a workspace
+# they did not OWN had writes land elsewhere: succeeding, returning a revision
+# id, invisible in the surface they were looking at. Observed 2026-08-16.
+
+
+def test_mcp_client_is_workspace_stamped() -> None:
+    """EVERY AuthenticatedClient built in the MCP auth module passes a
+    workspace_id. Asserted by AST over the module, not by grep: there are two
+    construction sites (the base build and the client-name re-stamp) and the
+    re-stamp is the one a fix forgets — it is reachable only when a real
+    connector NAMES itself, so a miss there ships green and breaks in prod."""
+    import ast
+
+    src = (Path(__file__).parent / "mcp_server" / "auth.py").read_text()
+    builds = [
+        n for n in ast.walk(ast.parse(src))
+        if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "AuthenticatedClient"
+    ]
+    missing = [n.lineno for n in builds if "workspace_id" not in {k.arg for k in n.keywords}]
+    record(
+        "D6: every MCP AuthenticatedClient is workspace-stamped",
+        len(builds) >= 2 and not missing,
+        f"builds={len(builds)} missing_at_lines={missing}",
+    )
+
+
+def test_mcp_stamp_reaches_the_scope_filter() -> None:
+    """The stamp is only worth anything if it reaches the SCOPE FILTER every
+    MCP read/write applies. Executed: a stamped client must key on
+    workspace_id, an unstamped one falls back to user_id — which IS the
+    divergence that made connector writes invisible."""
+    from services.mcp_composition import _substrate_scope
+
+    class _Auth:
+        def __init__(self, user_id, workspace_id):
+            self.user_id, self.workspace_id = user_id, workspace_id
+
+    stamped = _substrate_scope(_Auth("u1", "WS-A"))
+    record(
+        "D6: a stamped workspace keys the MCP scope filter on workspace_id",
+        stamped == ("workspace_id", "WS-A"),
+        f"got {stamped}",
+    )
+
+    with mock.patch("services.supabase.resolve_workspace_for_principal", return_value=None), \
+         mock.patch("services.supabase.resolve_owner_workspace_id", return_value=None):
+        unstamped = _substrate_scope(_Auth("u1", None))
+    record(
+        "D6: the pre-fix shape (no workspace) fell back to user_id — the bug",
+        unstamped == ("user_id", "u1"),
+        f"got {unstamped}",
+    )
+
+
+def test_mcp_workspace_resolution_degrades() -> None:
+    """A resolution failure must return None (restoring pre-D6 behavior), never
+    raise: a connector that cannot resolve a workspace should still read its own
+    substrate rather than 500."""
+    import mcp_server.auth as mcp_auth
+
+    with mock.patch(
+        "services.supabase.resolve_workspace_for_principal",
+        side_effect=RuntimeError("db down"),
+    ):
+        got = mcp_auth.resolve_mcp_workspace("u1")
+    record("D6: workspace resolution degrades to None, never raises", got is None, f"got {got!r}")
+
+
+def test_owner_workspace_pick_is_ordered() -> None:
+    """`.limit(1)` with no ORDER BY is an arbitrary pick that the lru_cache then
+    freezes for the process lifetime — and the API and the long-lived MCP
+    service could cache DIFFERENT answers for the same user. The query must be
+    ordered."""
+    import ast
+
+    src = (Path(__file__).parent / "services" / "supabase.py").read_text()
+    fn = next(
+        n for n in ast.walk(ast.parse(src))
+        if isinstance(n, (ast.FunctionDef,)) and n.name == "_resolve_owner_workspace_id_cached"
+    )
+    calls = {c.func.attr for c in ast.walk(fn) if isinstance(c, ast.Call) and hasattr(c.func, "attr")}
+    record(
+        "D6: the owner-workspace pick is ORDERED (not an arbitrary cached row)",
+        "order" in calls and "limit" in calls,
+        f"calls={sorted(calls)}",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -389,6 +486,10 @@ def main() -> int:
     test_migration_leaves_blobs_untouched()
     test_migration_reuses_existing_workspaces()
     test_migration_grants_and_notnull()
+    test_mcp_client_is_workspace_stamped()
+    test_mcp_stamp_reaches_the_scope_filter()
+    test_mcp_workspace_resolution_degrades()
+    test_owner_workspace_pick_is_ordered()
 
     total = len(RESULTS)
     passed = sum(1 for _, ok, _ in RESULTS if ok)

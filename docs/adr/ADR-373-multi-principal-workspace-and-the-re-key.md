@@ -113,6 +113,49 @@ The deepest-seeming risk of a multi-party substrate — "two principals write co
 
 ### D6 — Identity resolution gains a workspace+grant lookup; the auth MECHANISM (ADR-371) is untouched
 
+> **BUILT 2026-08-17** (the workspace half). Ratified here and left unbuilt for
+> the intervening period: `resolve_request_client` kept returning a bare
+> `user_id` client with `workspace_id=None`, so every MCP read/write fell
+> through to `effective_workspace_id`'s per-principal default.
+>
+> **That was not cosmetic.** A member working in a workspace they do not OWN had
+> every connector write land in their owner workspace instead — succeeding,
+> returning a revision id, and invisible in the surface they were looking at. An
+> incorrect success with no error anywhere, which is the failure mode Sentry
+> cannot see. Found 2026-08-16 while attempting the ADR-570 D8 connector
+> round-trip: an MCP `save` returned a revision_id while the browser 404'd the
+> same path, and a browser-created file was `found: false` to MCP.
+>
+> The fix stamps `workspace_id` at both `AuthenticatedClient` construction sites
+> in `mcp_server/auth.py`, resolved through the SAME
+> `resolve_workspace_for_principal` the browser's JWT door uses. A connector
+> still cannot NAME a workspace (no header, no tool argument, no token claim) —
+> it takes the principal's default — so the multi-workspace *selection* problem
+> remains open; what is closed is that the connector now binds to the same
+> workspace the member's own default resolves to, and the scope filter keys on
+> `workspace_id` rather than `user_id`.
+>
+> Two adjacent defects fixed with it: `_resolve_owner_workspace_id_cached` did
+> `.limit(1)` with **no `ORDER BY`** and then `lru_cache`d the result, so an
+> account owning more than one workspace row got an arbitrary pick frozen for the
+> process lifetime — and the API process and the long-lived MCP process could
+> cache *different* answers for the same user. Now ordered oldest-first. The MCP
+> resolution is deliberately **not** cached at that layer: the MCP service has no
+> request recycle (unlike the API's `--limit-max-requests 10000`), so a value
+> cached there would outlive a workspace change indefinitely.
+>
+> Gated by execution in `test_adr373_rekey.py` (four D6 checks, falsified): every
+> construction site is workspace-stamped (AST — the client-name re-stamp is the
+> site a fix forgets, and it is reachable only when a real connector NAMES
+> itself, so a miss there ships green and breaks in prod); the stamp reaches the
+> scope filter; resolution failure degrades to `None` rather than raising; the
+> owner pick is ordered.
+>
+> **Still deferred**: the `role/grant` half of "resolves `principal →
+> (workspace_id, role, grant)`" — `principal_id` already threads to the grant
+> gate (D2), so what remains is a connector being able to *choose* among
+> workspaces it reaches.
+
 `resolve_request_client` ([`api/mcp_server/auth.py`](../../api/mcp_server/auth.py)) today returns a `user_id`. Post-ADR it resolves `principal → (workspace_id, role, grant)`. Both auth paths gain the lookup: the OAuth path (claude.ai/ChatGPT/human-login) and the static-bearer path (`MCP_USER_ID`, Claude Desktop). **What a principal does to authenticate is unchanged** — ADR-371's self-contained boundary, in-popup login, and `client_credentials` for A2A all survive. The `a2a:` prefix (spec'd in ADR-371 D3, confirmed *absent* from `VALID_AUTHOR_PREFIXES` today — genuinely build-deferred, not half-shipped) is added when the first A2A caller is real; the re-key is its prerequisite, not its trigger.
 
 ## 4. Implementation scope (four pre-cut seams)

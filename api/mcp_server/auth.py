@@ -172,6 +172,25 @@ def _build_client(
     human-readable room, used for attribution): the gate keys on the stable id,
     attribution names the room. When no grant row exists for ``(client_id,
     workspace)`` the gate falls to the ``mcp`` class default = today's behavior.
+
+    ADR-373 **D6 (built 2026-08-17)**: the client is stamped with a
+    ``workspace_id``, resolved the SAME way the browser's JWT door resolves it
+    (``resolve_workspace_for_principal``). Before this, the MCP client carried
+    ``workspace_id=None`` and every read/write fell through to the rung-3
+    default inside ``effective_workspace_id`` — so the connector could not
+    address a workspace at all.
+
+    That was not a verification inconvenience: a member working in a workspace
+    they do not OWN had every connector write land in their owner workspace
+    instead, **succeeding, returning a revision id, and being invisible in the
+    surface they were looking at**. An incorrect success with no error anywhere.
+    Observed 2026-08-16 — an MCP `save` returned a revision_id while the
+    browser 404'd the same path, and vice versa.
+
+    D6 was ratified in ADR-373 and never built ("Post-ADR it resolves
+    ``principal → (workspace_id, role, grant)``"). This discharges it for the
+    workspace half; the role/grant half already routes through ``principal_id``
+    above.
     """
     caller_identity = f"yarnnn:mcp:{client_name}" if client_name and client_name != "unknown" else "yarnnn:mcp"
     return AuthenticatedClient(
@@ -180,7 +199,37 @@ def _build_client(
         email=None,
         caller_identity=caller_identity,
         principal_id=principal_id,
+        workspace_id=resolve_mcp_workspace(user_id),
     )
+
+
+def resolve_mcp_workspace(user_id: str) -> str | None:
+    """The workspace an MCP request binds to (ADR-373 D6).
+
+    Deliberately the SAME function the browser's JWT door calls, with no
+    requested id: a connector has no way to name a workspace (no header, no
+    tool argument, no token claim), so it takes the principal's default —
+    owner workspace, else newest active grant.
+
+    **Resolved per request, never cached here.** The MCP service is a
+    long-lived process with no request recycle (unlike the API's
+    ``--limit-max-requests 10000``), so a value cached at this layer would
+    outlive a workspace change indefinitely. ``resolve_owner_workspace_id``
+    has its own ``lru_cache`` with an invalidation path; this adds no second,
+    un-invalidatable one.
+
+    Best-effort by design: a resolution failure returns None, which restores
+    exactly the pre-D6 behavior (fall through to ``effective_workspace_id``'s
+    own rungs) rather than failing the request. A connector that cannot
+    resolve a workspace should still be able to read its own substrate.
+    """
+    try:
+        from services.supabase import resolve_workspace_for_principal
+
+        return resolve_workspace_for_principal(user_id)
+    except Exception as exc:  # noqa: BLE001 — never block a request on this
+        logger.debug("[ADR-373 D6] workspace resolve failed for %s: %s", user_id, exc)
+        return None
 
 
 def resolve_request_client(verb: str | None = None) -> AuthenticatedClient:
@@ -259,6 +308,13 @@ def resolve_request_client(verb: str | None = None) -> AuthenticatedClient:
         email=None,
         caller_identity=f"yarnnn:mcp:{client_name}",
         principal_id=principal_id,
+        # ADR-373 D6 — carried from `base`, not re-resolved: this re-stamp
+        # changes only the attribution string, and a second resolve would be a
+        # second DB round trip that could disagree with the first. Dropping it
+        # here would ALSO have silently un-scoped every client whose name
+        # resolves (i.e. every real claude.ai/ChatGPT caller) while leaving
+        # the unnamed fallback path correct — a bug reachable only in prod.
+        workspace_id=base.workspace_id,
     )
 
 

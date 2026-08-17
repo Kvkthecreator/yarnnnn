@@ -227,7 +227,15 @@ def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
         result = (
             client.table("workspaces")
             .select("id")
-            .eq("owner_id", user_id)
+            # ADR-373 D6 (2026-08-17) — ORDER BY is load-bearing, not tidiness.
+            # This was `.limit(1)` with no ordering, so an account owning more
+            # than one workspace row got an ARBITRARY pick that the lru_cache
+            # below then froze for the process lifetime. Two processes (the API
+            # and the long-lived MCP service) could cache DIFFERENT answers for
+            # the same user and disagree about where that user's substrate
+            # lives — permanently, since the MCP service has no request recycle.
+            # Oldest-first: the first workspace an owner made is their home.
+            .order("created_at", desc=False)
             .limit(1)
             .execute()
         )
