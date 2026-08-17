@@ -137,15 +137,46 @@ are stripped from the remembered set. Every peer was listed (`docs.file`,
 the gate asserts the **invariant** over all seven document surfaces rather than
 the single row.
 
-## Still OWED
+## Residuals — TWO CLOSED, one owed
 
-1. **Print/PDF** — not driven: the print dialog is a native modal the harness
-   cannot dismiss. Needs a human eye on the A4 output.
-2. **ADR-571 D6, the MCP half** — not driveable in this environment: the
-   connector and the browser session resolve to **different workspaces**, so
-   connector writes 404 for the session and vice versa. The CAS 409 itself was
-   proven via a second principal moving the head; what remains unproven is
-   specifically the *connector-attributed* 409.
+### ✅ The stale surface param — FIXED + DRIVEN (`9962a92`)
+A missed registry row, not a mechanism bug. Verified live: a bare `/text` now
+stays bare and lands on the landing; a deep-link is honoured and opens the right
+document. Gate asserts the **invariant** across all seven document surfaces.
+
+### ✅ ADR-373 D6 — the connector could not address a workspace (`e0fa233`)
+⭐⭐⭐ **The most serious defect this arc.** `resolve_request_client` returned a
+client with `workspace_id=None`, so MCP reads/writes keyed on `user_id` while
+the browser keyed on `workspace_id`. A member working in a workspace they do not
+OWN had every connector write land elsewhere — **succeeding, returning a
+revision id, invisible in the surface they were looking at.**
+
+⭐⭐⭐ **Ratified in ADR-373 D6 and never built.** The clause is written in the
+tense of intent ("Post-ADR it resolves…"), so a doc search finds it and it reads
+as done. **A ratified ADR is evidence of a decision, never of an
+implementation** — verify load-bearing clauses in the code.
+
+**Proven live** with a clean control: a connector write from minutes *before*
+the deploy still 404s to the browser; one from *after* reads 200. The ADR-570 D8
+round-trip works end to end for the first time.
+
+⚠️ **OWED (needs DB access — I have none from here): pre-fix rows are
+STRANDED.** Substrate written through the connector before this deploy carries a
+workspace_id neither door resolves to, plus the NULL-workspace rows
+`write_revision` leaves on a resolution failure. Not lost, unaddressed. The
+audit query is in ADR-373 D6 — **read it before any bulk UPDATE**, since a row
+in another workspace may legitimately belong there.
+
+### ⏳ Print/PDF click-pass — still owed
+Blocked on tooling, not understanding: the print dialog is a native modal the
+browser harness cannot dismiss. **Two minutes of operator time**: open a
+document in Text → Export → Print/PDF → confirm the A4 page reads as a document.
+
+### Also still open
+- **A connector cannot NAME a workspace** — no header, no tool argument, no
+  token claim. It takes the principal's default, so a member with several
+  reachable workspaces cannot point the connector at a specific one. ADR-373
+  D6's `role/grant` half.
 
 ## Deferred, deliberately — named so it is not re-discovered as novel
 
