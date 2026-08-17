@@ -55,6 +55,55 @@ function allLinesMarked(lines: string[], re: RegExp): boolean {
 }
 
 /**
+ * Does this gesture mean "start a NEW line here" rather than "convert the line
+ * I'm on"? (ADR-572 D11)
+ *
+ * Docs keeps these as two separate acts — **Insert** mints a new block,
+ * **Turn into** converts the current one, and they live in different sections
+ * of the Properties pane. Text collapsed them into one toolbar, so a button
+ * that reads as *insert* behaved as *turn into*: with the caret resting at the
+ * end of a finished paragraph, pressing Quote glued `> ` onto that paragraph
+ * instead of opening a quote beneath it. The operator's screenshot shows
+ * exactly that — a `> dddd` welded to the end of a body paragraph.
+ *
+ * Rather than double the toolbar, the CARET disambiguates, which is how
+ * Notion and Obsidian read the same gesture:
+ *
+ *   - a selection, or a caret anywhere INSIDE the line → convert it
+ *   - a caret at the END of a non-empty, unmarked line → open a new line
+ *   - an empty line → mark it in place (D10's fix; there is nothing to convert)
+ *
+ * The "unmarked" clause matters: at the end of `- item` the member is
+ * continuing a list, and toggling should still turn that item off rather than
+ * silently appending a second bullet.
+ */
+export function shouldOpenNewLine(
+  text: string,
+  start: number,
+  end: number,
+  markerRe: RegExp,
+): boolean {
+  if (start !== end) return false; // a selection always means "convert this"
+  const [from, to] = lineSpan(text, start, end);
+  const line = text.slice(from, to);
+  if (!line.trim()) return false; // empty line → mark in place (D10)
+  if (markerRe.test(line)) return false; // already marked → toggle it off
+  return start === to; // at the very end of the line → open a new one
+}
+
+/** Insert a fresh line carrying `marker` directly below the caret's line. */
+function openNewLine(text: string, start: number, end: number, marker: string): Edit {
+  const [, to] = lineSpan(text, start, end);
+  const snippet = `\n${marker}`;
+  const caret = to + snippet.length;
+  return {
+    text: text.slice(0, to) + snippet + text.slice(to),
+    selectionStart: caret,
+    selectionEnd: caret,
+  };
+}
+
+/**
  * Wrap the selection in a marker, or unwrap it if already wrapped (a toggle,
  * the way ⌘B behaves in every editor). With no selection, insert the marker
  * pair and place the caret between them so typing continues inside.
@@ -94,8 +143,11 @@ export function toggleWrap(text: string, start: number, end: number, marker: str
  * in characters.
  */
 export function toggleHeading(text: string, start: number, end: number, level: number): Edit {
-  const [from, to] = lineSpan(text, start, end);
   const prefix = '#'.repeat(level) + ' ';
+  if (shouldOpenNewLine(text, start, end, /^ {0,3}#{1,6}\s+/)) {
+    return openNewLine(text, start, end, prefix);
+  }
+  const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
   const allAtLevel = lines.every((l) => new RegExp(`^ {0,3}#{${level}} `).test(l));
   const next = lines
@@ -117,6 +169,10 @@ export function toggleHeading(text: string, start: number, end: number, level: n
  * button expects to see 1, 2, 3.
  */
 export function toggleList(text: string, start: number, end: number, ordered: boolean): Edit {
+  const listRe = ordered ? /^ {0,3}\d+\.\s+/ : /^ {0,3}[-*+]\s+/;
+  if (shouldOpenNewLine(text, start, end, listRe)) {
+    return openNewLine(text, start, end, ordered ? '1. ' : '- ');
+  }
   const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
   const blankSpan = lines.every((l) => !l.trim());
@@ -155,6 +211,9 @@ export function toggleList(text: string, start: number, end: number, ordered: bo
  * the round-trip property every function in this file holds to.
  */
 export function toggleChecklist(text: string, start: number, end: number): Edit {
+  if (shouldOpenNewLine(text, start, end, /^ {0,3}[-*+]\s+\[[ xX]\]\s?/)) {
+    return openNewLine(text, start, end, '- [ ] ');
+  }
   const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
   const blankSpan = lines.every((l) => !l.trim());
@@ -177,6 +236,9 @@ export function toggleChecklist(text: string, start: number, end: number): Edit 
 
 /** Toggle a `> ` blockquote over the selected lines. */
 export function toggleQuote(text: string, start: number, end: number): Edit {
+  if (shouldOpenNewLine(text, start, end, /^ {0,3}> ?/)) {
+    return openNewLine(text, start, end, '> ');
+  }
   const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
   const blankSpan = lines.every((l) => !l.trim());

@@ -186,12 +186,30 @@ export function TextEditor({
   const writeTail = useRef<Promise<void>>(Promise.resolve());
   const savingRef = useRef(false);
 
+  /**
+   * The bytes the LAST queued commit sent, updated synchronously inside the
+   * queue. `baselineRef` mirrors React state, which lags a tick — so two
+   * triggers firing close together (the idle timer, then a blur flush) both
+   * saw the OLD baseline and both wrote, minting a duplicate revision of
+   * identical bytes. The revision log is the product; it must not carry
+   * phantom entries because two timers agreed.
+   */
+  const inFlightBody = useRef<string | null>(null);
+
   const commit = useCallback(
     (expectedHead?: string | null): Promise<void> => {
       const run = async () => {
         const body = textRef.current;
         // Nothing new to say — never mint an empty revision (Docs' rule).
-        if (expectedHead === undefined && body === baselineRef.current) return;
+        // Checked against the queue's own record as well as React state,
+        // because state has not necessarily re-rendered since the last commit.
+        if (
+          expectedHead === undefined &&
+          (body === baselineRef.current || body === inFlightBody.current)
+        ) {
+          return;
+        }
+        inFlightBody.current = body;
         savingRef.current = true;
         setSaving(true);
         setSaveError(null);
@@ -584,18 +602,26 @@ export function TextEditor({
                     >
                       Discard mine, show theirs
                     </button>
-                    {conflict.currentHeadId && (
-                      <button
-                        type="button"
-                        // Commit against THEIR head — the explicit override.
-                        // Passing the head (rather than omitting it) also
-                        // bypasses the no-op guard, so this always writes.
-                        onClick={() => void commit(conflict.currentHeadId)}
-                        className="rounded-md border border-border px-2 py-1 hover:bg-muted/40"
-                      >
-                        Save mine over theirs
-                      </button>
-                    )}
+                    {/* ADR-572 D11 — the override is ALWAYS offered.
+                        It was conditional on `currentHeadId`, so whenever the
+                        server could not name the head the button silently
+                        vanished and the member was left with one exit where
+                        the design promises two. D7 fixed one cause of that
+                        (an envelope mismatch); the condition itself was the
+                        deeper defect, because ANY future cause reproduces it.
+                        `null` means "write regardless of head" — the same
+                        force-overwrite the member is asking for, so the
+                        affordance no longer depends on the diagnosis. */}
+                    <button
+                      type="button"
+                      // Commit against THEIR head — the explicit override.
+                      // Passing the head explicitly (even as null) bypasses
+                      // the no-op guard, so this always writes.
+                      onClick={() => void commit(conflict.currentHeadId)}
+                      className="rounded-md border border-border px-2 py-1 hover:bg-muted/40"
+                    >
+                      Save mine over theirs
+                    </button>
                   </div>
                 </div>
               </div>

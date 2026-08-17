@@ -1139,6 +1139,126 @@ check("11M the colour/highlight/align REFUSAL is printed IN THE PANE, the way "
       "the refusal is invisible to the member")
 
 
+# ── 12. ADR-572 D11 — insert vs turn-into, and two autosave defects ──────
+# Found by the operator driving D10 on production. The screenshot showed
+# `> dddd` WELDED to the end of a body paragraph: pressing Quote with the caret
+# resting at the end of a finished line converted that line instead of opening
+# a new one. Docs keeps Insert and Turn-into as separate acts; Text collapsed
+# them into one toolbar, so the button read as insert and behaved as turn-into.
+_D11_PROBE = r"""
+const fs = require('fs');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+const js = transform(fs.readFileSync(WEB + '/components/text/markdownEdits.ts', 'utf8'),
+  { transforms: ['typescript', 'imports'] }).code;
+const mod = { exports: {} };
+new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+const M = mod.exports;
+
+const P = 'Hello there.';   // a FINISHED paragraph
+const E = P.length;         // caret resting at its end
+const Q = '> quoted', B = '- item', K = '- [ ] task';
+const D = 'one\ntwo\nthree';
+
+console.log(JSON.stringify({
+  // The operator's exact gesture, for every line-shaped kind.
+  new_quote:  M.toggleQuote(P, E, E).text      === P + '\n> ',
+  new_task:   M.toggleChecklist(P, E, E).text  === P + '\n- [ ] ',
+  new_bullet: M.toggleList(P, E, E, false).text === P + '\n- ',
+  new_number: M.toggleList(P, E, E, true).text  === P + '\n1. ',
+  new_head:   M.toggleHeading(P, E, E, 2).text  === P + '\n## ',
+  // The caret must land ready to type, not before the marker.
+  caret_ready: M.toggleQuote(P, E, E).selectionStart === (P + '\n> ').length,
+  // TURN-INTO must survive: a caret INSIDE the line still converts it.
+  inside_converts: M.toggleQuote(P, 5, 5).text === '> ' + P,
+  head_inside_converts: M.toggleHeading(P, 5, 5, 2).text === '## ' + P,
+  // A SELECTION always means convert — never insert.
+  selection_converts: M.toggleQuote(P, 0, E).text === '> ' + P,
+  multiline_converts: M.toggleList('a\nb', 0, 3, false).text === '- a\n- b',
+  // At the end of an ALREADY-marked line the member is continuing a list, so
+  // the toggle must turn it OFF, not append a second marker.
+  marked_toggles_off: M.toggleQuote(Q, Q.length, Q.length).text === 'quoted'
+    && M.toggleList(B, B.length, B.length, false).text === 'item'
+    && M.toggleChecklist(K, K.length, K.length).text === 'task',
+  // D10's empty-line fix must survive D11.
+  empty_still_marks: M.toggleQuote('Hi\n\n', 4, 4).text === 'Hi\n\n> '
+    && M.toggleChecklist('Hi\n\n', 4, 4).text === 'Hi\n\n- [ ] ',
+  // Mid-document: the new line goes BELOW, and nothing after it moves.
+  mid_doc: M.toggleQuote(D, 7, 7).text === 'one\ntwo\n> \nthree',
+  // D10 regression: toggling OFF across an internal gap.
+  gap_off: M.toggleList('- a\n\n- b', 0, 8, false).text === 'a\n\nb',
+}));
+"""
+
+try:
+    _d11 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D11_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d11 = {"error": str(exc)}
+
+for _k, _lbl in [
+    ("new_quote", "12a Quote"),
+    ("new_task", "12a1 Task list"),
+    ("new_bullet", "12a2 Bulleted list"),
+    ("new_number", "12a3 Numbered list"),
+    ("new_head", "12a4 Heading"),
+]:
+    check(f"{_lbl} at the END of a finished paragraph OPENS A NEW LINE — the "
+          f"operator's screenshot showed `> dddd` welded onto a body paragraph, "
+          f"because a button that reads as INSERT behaved as TURN-INTO",
+          _d11.get(_k) is True, str(_d11)[:300])
+check("12b the caret lands PAST the new marker, ready to type",
+      _d11.get("caret_ready") is True, str(_d11)[:300])
+check("12c TURN-INTO survives — a caret INSIDE the line still converts it "
+      "(the affordance Docs puts in a separate pane section)",
+      _d11.get("inside_converts") is True and _d11.get("head_inside_converts") is True,
+      str(_d11)[:300])
+check("12d a SELECTION always converts, never inserts — single and multi-line",
+      _d11.get("selection_converts") is True and _d11.get("multiline_converts") is True,
+      str(_d11)[:300])
+check("12e at the end of an ALREADY-marked line the toggle turns it OFF rather "
+      "than appending a second marker — the member is continuing a list, not "
+      "starting one",
+      _d11.get("marked_toggles_off") is True, str(_d11)[:300])
+check("12f D10's empty-line fix SURVIVES D11 (an empty line has nothing to "
+      "convert, so it is marked in place)",
+      _d11.get("empty_still_marks") is True, str(_d11)[:300])
+check("12g mid-document the new line opens BELOW and nothing after it moves",
+      _d11.get("mid_doc") is True, str(_d11)[:300])
+check("12h D10 regression — toggling OFF across an internal gap still works",
+      _d11.get("gap_off") is True, str(_d11)[:300])
+
+# ── 12i-j. the two autosave defects the same click-pass exposed ──────────
+# Assert the ref is READ IN THE GUARD, not merely declared. The first spelling
+# checked `"inFlightBody" in _editor` and PASSED its own falsification: deleting
+# the comparison left the `useRef` declaration and the JSDoc behind, both
+# carrying the name. Sixth occurrence this arc of a check matching a name where
+# it meant a behaviour — the declaration is not the guard.
+_noop_guard = re.search(
+    r"body\s*===\s*baselineRef\.current\s*\|\|\s*body\s*===\s*inFlightBody\.current"
+    r"|body\s*===\s*inFlightBody\.current\s*\|\|\s*body\s*===\s*baselineRef\.current",
+    _editor_ast,
+)
+check("12i the no-op guard consults the QUEUE's own record, not only React "
+      "state — `baselineRef` mirrors state and lags a render, so two triggers "
+      "firing close together (idle timer, then a blur flush) both saw the old "
+      "baseline and BOTH wrote, minting a duplicate revision of identical bytes",
+      _noop_guard is not None and "inFlightBody.current = body" in _editor_ast,
+      "the in-flight body is not READ in the no-op guard (or never assigned)")
+check("12j 'Save mine over theirs' is ALWAYS offered — it was conditional on "
+      "`currentHeadId`, so whenever the server could not name the head the "
+      "button silently vanished and the member had ONE exit where the design "
+      "promises two. D7 fixed one CAUSE of that; the condition itself was the "
+      "deeper defect, because any future cause reproduces it",
+      re.search(r"\{conflict\.currentHeadId\s*&&", _editor_ast) is None
+      and "Save mine over theirs" in _editor_ast,
+      "the override button is still conditional on a field the server may omit")
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:

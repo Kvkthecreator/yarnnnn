@@ -408,6 +408,88 @@ of the behaviour rather than the behaviour.** The rule stands and needs no
 restating: name the BEHAVIOUR, strip comments before asserting an absence, and
 break every check you write.
 
+### D11 — Insert is not Turn-into, and two autosave defects
+
+**From the operator's D10 click-pass**, driving the shipped build.
+
+#### D11.a — the toolbar collapsed two acts into one button
+
+The screenshot showed **`> dddd` welded onto the end of a body paragraph**.
+Pressing Quote with the caret resting at the end of a finished line *converted
+that line* instead of opening a quote beneath it — and the same held for
+heading, bulleted list, numbered list and task list. Measured across all
+twelve toolbar kinds: the four line-shaped ones rewrote the current line; the
+inline and block ones appended correctly.
+
+**Docs keeps these as two separate acts.** `StudioDesignTab` has an **Insert**
+section that mints a new block and a **Turn into** section that converts the
+current one; they are different rows in different places. Text collapsed both
+into a single toolbar, so a button that *reads* as insert *behaved* as
+turn-into. Not a coding error — a modelling one, inherited when the toolbar was
+built from Docs' Insert palette while implementing Docs' Turn-into semantics.
+
+**Decision** (operator-chosen over splitting the toolbar): the **caret
+disambiguates**, as it does in Notion and Obsidian.
+
+| Gesture | Result |
+|---|---|
+| Selection (any size) | **convert** — never insert |
+| Caret *inside* a line | **convert** — this is "turn this into a heading" |
+| Caret at the *end* of a non-empty, **unmarked** line | **open a new line** below |
+| Caret on an *empty* line | **mark in place** (D10 — nothing to convert) |
+| Caret at the end of an *already-marked* line | **toggle off** — the member is continuing a list, not starting one |
+
+One helper, `shouldOpenNewLine()`, consulted by all four line-toggles; the
+inline wraps and the block inserts are untouched. Rejected: doubling the
+toolbar to ~19 buttons to mirror Docs' two sections literally, in a medium
+where most rows do both jobs.
+
+#### D11.b — the autosave could mint a duplicate revision
+
+`commit`'s no-op guard compared against `baselineRef`, which mirrors React
+state and therefore **lags a render**. Two triggers firing close together (the
+idle timer, then a blur flush) both read the stale baseline and both wrote —
+two revisions of byte-identical content. **The revision log is the product**;
+it must not carry phantom entries because two timers agreed. Fixed with an
+`inFlightBody` ref updated *synchronously inside the queue*.
+
+#### D11.c — the conflict banner could still drop an exit
+
+The screenshot also showed the 409 banner with **one button**, and the generic
+**"Someone else"** — the shape D7 already fixed once. D7 addressed one *cause*
+(an envelope mismatch); the **condition itself was the deeper defect**:
+
+```tsx
+{conflict.currentHeadId && <button>Save mine over theirs</button>}
+```
+
+Any cause that leaves the head unnamed reproduces the same silent loss of an
+exit. And there is a live second cause: `_read_head_revision_summary` filters
+by `_substrate_scope(user_id, ws)`, so a revision authored through the MCP
+connector under a **different workspace resolution** is invisible to the
+browser's scope query — it returns `None`, `current_head` defaults to `{}`, and
+the banner has no id and no actor. (That connector-side asymmetry is ADR-373
+D6 / ADR-573 territory, not this ADR's.)
+
+**Decision**: the override is **always offered**. `commit(null)` sends no
+`expected_head_version_id`, which is an unguarded write — precisely the
+force-overwrite the member is asking for. **The affordance no longer depends on
+the diagnosis.**
+
+**Carry this forward: when a control is conditional on data a peer system
+supplies, the condition is a silent-failure surface. Ask whether the control
+can be made unconditional instead of fixing each cause of the missing field.**
+
+#### D11 gate craft — a sixth check matched a name, not a behaviour
+
+12i first asserted `"inFlightBody" in TextEditor.tsx`. Deleting the comparison
+from the guard left the `useRef` declaration and the JSDoc behind, both
+carrying the name, and the check stayed green. It now matches the comparison
+inside the condition. **The declaration is not the guard** — sixth occurrence
+this arc, all caught by falsification.
+
+Gate 160 → **174**.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.
