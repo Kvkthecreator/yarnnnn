@@ -34,13 +34,23 @@
  * stores a string and paints over it. The distinction is the whole product
  * thesis, and it is gated (§6L, §9).
  *
- * ## The honest limitation
+ * ## Live preview (ADR-572 D13) — and a claim this file used to make wrongly
  *
- * The markdown marks stay **visible** — `## Heading` renders large and serif
- * with a dimmed `##` still present, the way Obsidian and iA Writer do it.
- * Hiding the marks entirely requires knowing which rendered node corresponds to
- * which source range, i.e. the node↔offset map that is the banned shape. Named
- * here so the absence does not read as an oversight.
+ * The marks are **hidden off the line being edited** and revealed on it, the
+ * Obsidian "live preview" face. This header previously called the visible
+ * marks an "honest limitation", asserting that hiding them needed the
+ * node↔offset map ADR-456 D1 bans. **That was wrong** — and it was the same
+ * misreading D8 had just corrected one section above.
+ *
+ * D1 constrains the document **MODEL**: a string, never a tree of identified
+ * blocks. It says nothing about rendered appearance. Hiding a mark is
+ * `Decoration.replace()` over a range read from the syntax tree and recomputed
+ * each update — nothing is written to the document, nothing maps a rendered
+ * node back for serialization, and the `.md` stays byte-identical. Exactly the
+ * test the table decoration already passed.
+ *
+ * **Twice now, a limitation this app "had" was a constraint I under-read.**
+ * Before recording the next one, execute the thing you are calling impossible.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -109,8 +119,9 @@ const PROSE_HIGHLIGHT = HighlightStyle.define([
   // A task marker (`[ ]` / `[x]`) is tagged `tags.atom`. Give it the mono face
   // so the box reads as a box and its glyphs line up down the list.
   { tag: tags.atom, fontFamily: FACE.mono, opacity: '0.85' },
-  // The MARKS themselves — dimmed, never hidden. Hiding them is the banned
-  // shape (it needs the node↔offset map); dimming is pure presentation.
+  // The MARKS themselves — dimmed on the line being edited, and HIDDEN
+  // elsewhere by the `livePreview` plugin (D13). This rule is what the member
+  // sees when a line is active and its source is revealed for editing.
   { tag: tags.processingInstruction, opacity: MARK_OPACITY.syntax, fontWeight: '400', fontSize: '0.85em' },
   { tag: tags.contentSeparator, opacity: MARK_OPACITY.structural },
   { tag: tags.list, opacity: '1' },
@@ -183,6 +194,105 @@ const PROSE_THEME = EditorView.theme({
   // gives its `<th>`.
   '.cm-line.cm-tableRow-header': { fontWeight: TABLE.headerWeight },
 });
+
+/**
+ * Live preview — hide the markdown marks except on the line being edited
+ * (ADR-572 D13).
+ *
+ * ## The correction this represents
+ *
+ * ADR-572 D8 shipped the marks permanently VISIBLE and called it an "honest
+ * limitation", claiming that hiding them needs the node↔offset map ADR-456 D1
+ * bans. **That was wrong, and it is the same misreading D8 itself corrected**:
+ * D1 constrains the document MODEL ("textarea/CodeMirror-grade, never
+ * block-grade") — a string rather than a tree of identified blocks. It says
+ * nothing about rendered appearance.
+ *
+ * Hiding a mark is `Decoration.replace()` over a range read from the syntax
+ * tree and recomputed each update. Nothing is written to the document, nothing
+ * maps a rendered node back for serialization, and the `.md` stays
+ * byte-identical — the same test the table decoration passes. Verified by
+ * executing it before the claim was made, which is what D8's version lacked.
+ *
+ * ## Why "except on the active line"
+ *
+ * Hiding marks unconditionally (Typora's default) means editing a heading or a
+ * link while unable to see the syntax you are editing, and a malformed link
+ * reads as plain text. Revealing the marks on the line the caret occupies is
+ * the Obsidian "live preview" behaviour: the document reads as a document, and
+ * the moment you enter a line its source appears so it can be edited honestly.
+ * The operator asked for "closest to Notion" — this is the closest reachable
+ * without adopting the block model the format cannot carry.
+ */
+const REVEALED_ON_ACTIVE_LINE = new Set([
+  'HeaderMark',
+  'EmphasisMark',
+  'StrikethroughMark',
+  'CodeMark',
+  'QuoteMark',
+  'LinkMark',
+  'URL',
+]);
+
+const livePreview = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = buildPreviewDecorations(view);
+    }
+    update(u: ViewUpdate) {
+      // `selectionSet` matters as much as `docChanged`: moving the caret onto
+      // a line must reveal that line's marks.
+      if (u.docChanged || u.selectionSet || u.viewportChanged) {
+        this.decorations = buildPreviewDecorations(u.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+function buildPreviewDecorations(view: EditorView): DecorationSet {
+  const { state } = view;
+  const doc = state.doc;
+  // Every line touched by a selection stays in source form, so a multi-line
+  // selection does not half-hide the text being worked on.
+  const active = new Set<number>();
+  for (const r of state.selection.ranges) {
+    const first = doc.lineAt(r.from).number;
+    const last = doc.lineAt(r.to).number;
+    for (let n = first; n <= last; n++) active.add(n);
+  }
+
+  // Collected then sorted: `RangeSetBuilder` requires ascending order, and the
+  // tree does not guarantee it across nested inline nodes.
+  const marks: Array<[number, number]> = [];
+  for (const { from, to } of view.visibleRanges) {
+    syntaxTree(state).iterate({
+      from,
+      to,
+      enter(node) {
+        if (!REVEALED_ON_ACTIVE_LINE.has(node.name)) return;
+        if (active.has(doc.lineAt(node.from).number)) return;
+        let end = node.to;
+        // `# ` — swallow the space too, or the heading keeps a hanging indent.
+        if (node.name === 'HeaderMark' && doc.sliceString(end, end + 1) === ' ') {
+          end += 1;
+        }
+        if (end > node.from) marks.push([node.from, end]);
+      },
+    });
+  }
+  marks.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+
+  const b = new RangeSetBuilder<Decoration>();
+  let prevEnd = -1;
+  for (const [from, to] of marks) {
+    if (from < prevEnd) continue; // skip overlaps (nested inline marks)
+    b.add(from, to, Decoration.replace({}));
+    prevEnd = to;
+  }
+  return b.finish();
+}
 
 /**
  * Mark every line belonging to a GFM table, so the theme above can draw a
@@ -298,6 +408,9 @@ export function ProseCanvas({
       // plain text rather than pulling a language bundle per fence.
       markdown({ base: markdownLanguage }),
       syntaxHighlighting(PROSE_HIGHLIGHT),
+      // Hides the markdown marks off the line being edited (D13) — must come
+      // BEFORE tableRows so a table's own pipes are never hidden.
+      livePreview,
       // Draws the table grid the highlight layer structurally cannot (D10).
       tableRows,
       PROSE_THEME,

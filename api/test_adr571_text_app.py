@@ -1378,6 +1378,114 @@ check("13f a toolbar press is its OWN history entry — `history()` coalesces "
       _d12.get("apply_isolates_history") is True, str(_d12)[:300])
 
 
+# ── 14. ADR-572 D13 — live preview, and the constraint re-read ───────────
+# The operator: "think that closest to notion (not sure why i see the # or
+# alike)". D8 shipped the marks permanently visible and called it an honest
+# limitation, claiming ADR-456 D1 banned hiding them. That was WRONG — D1
+# constrains the document MODEL (a string, never a tree of identified blocks),
+# not the rendered appearance. Hiding a mark is Decoration.replace() over a
+# range read from the syntax tree; the .md stays byte-identical. §14 mounts the
+# real canvas and READS WHAT IT PAINTED, because no source check can see it.
+_D13_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f, 'utf8'),
+    { transforms: ['typescript', 'jsx', 'imports'], jsxRuntime: 'automatic', production: true }).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) {
+    const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts']) { try { return orig.call(this, b + e, ...a); } catch (x) {} }
+  }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<!doctype html><body><div id="h"></div></body>', { pretendToBeVisual: true });
+const def = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+def('IS_REACT_ACT_ENVIRONMENT', true);
+const React = require(WEB + '/node_modules/react');
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+const { act } = React;
+const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
+
+const DOC = '# Standing facts\n\nSome **bold** and _em_ text.\n\n## The copy bank\n\n'
+  + '| Users | None yet |\n| --- | --- |\n| Revenue | None |\n\n> a quote\n';
+let handle = null, value = DOC;
+const host = dom.window.document.getElementById('h');
+const root = createRoot(host);
+act(() => root.render(React.createElement(ProseCanvas, {
+  value, onChange: (v) => { value = v; }, handleRef: (h) => { if (h) handle = h; },
+})));
+const shown = () => host.querySelector('.cm-content').textContent;
+
+act(() => handle.reveal(0, 0));           // caret on line 1
+const s1 = shown();
+const off = DOC.indexOf('## The copy bank') + 3;
+act(() => handle.reveal(off, off));       // caret on the H2
+const s2 = shown();
+
+console.log(JSON.stringify({
+  active_keeps_marks: s1.includes('# Standing facts'),
+  inactive_hides_h2: !s1.includes('## The copy bank') && s1.includes('The copy bank'),
+  inactive_hides_bold: !s1.includes('**bold**') && s1.includes('bold'),
+  inactive_hides_em: !s1.includes('_em_') && s1.includes('em'),
+  inactive_hides_quote: !s1.includes('> a quote') && s1.includes('a quote'),
+  // The table's pipes are NOT syntax marks to hide — the grid decoration
+  // needs them, and hiding them would leave cells running together.
+  table_pipes_survive: s1.includes('| Users | None yet |'),
+  // Moving the caret reveals that line and re-hides the one just left.
+  caret_reveals: s2.includes('## The copy bank'),
+  caret_rehides: !s2.includes('# Standing facts') && s2.includes('Standing facts'),
+  // The whole point: none of this touches the file.
+  doc_byte_identical: value === DOC,
+}));
+"""
+
+try:
+    _d13 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D13_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=180, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d13 = {"error": str(exc)}
+
+for _k, _lbl in [
+    ("inactive_hides_h2", "14a a heading's `## ` is HIDDEN off the active line"),
+    ("inactive_hides_bold", "14a1 `**` is hidden"),
+    ("inactive_hides_em", "14a2 `_` is hidden"),
+    ("inactive_hides_quote", "14a3 `> ` is hidden"),
+]:
+    check(f"{_lbl} — the operator asked for 'closest to notion (not sure why i "
+          f"see the # or alike)'; D8's claim that hiding needs the banned "
+          f"node↔offset map re-read D1's MODEL constraint as an appearance one",
+          _d13.get(_k) is True, str(_d13)[:300])
+check("14b the ACTIVE line keeps its marks — editing syntax you cannot see is "
+      "Typora's most-complained-about behaviour, and a malformed link would "
+      "read as plain text",
+      _d13.get("active_keeps_marks") is True, str(_d13)[:300])
+check("14c moving the caret REVEALS that line and re-hides the one just left "
+      "(the live-preview gesture, driven through the real view)",
+      _d13.get("caret_reveals") is True and _d13.get("caret_rehides") is True,
+      str(_d13)[:300])
+check("14d a table's PIPES survive — they are the grid's own structure, not "
+      "syntax to hide; hiding them would run the cells together",
+      _d13.get("table_pipes_survive") is True, str(_d13)[:300])
+check("14e the document is BYTE-IDENTICAL through all of it — decorations are "
+      "read FROM offsets and never written back, so ADR-456 D1's actual "
+      "constraint (the MODEL is a string) holds with live preview on",
+      _d13.get("doc_byte_identical") is True, str(_d13)[:300])
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:

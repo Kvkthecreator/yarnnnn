@@ -490,6 +490,65 @@ this arc, all caught by falsification.
 
 Gate 160 → **174**.
 
+### D12 — Typing after a toolbar insert was destroyed
+
+Operator: *"post insert, i input text, the inputted gets ignored and goes to new
+line."* Reproduced against a real `EditorView` before diagnosing.
+
+The external-change effect was guarded only by `if (current === value) return`
+— *push the prop in whenever it differs from the doc*. That **cannot tell an
+external write from a stale render of the member's own text**, and after a
+toolbar press the two are guaranteed to diverge:
+
+1. the toolbar dispatches its edit; the update listener queues a `setText`
+2. the member types immediately; the doc moves on
+3. React re-renders with the value queued in (1), now one keystroke behind
+4. `current !== value`, so the effect applied the stale prop and **deleted the
+   character just typed**, snapping the caret back
+
+The guard is now a **set** of everything the canvas has emitted since the last
+external write. A single "last emitted" value is not enough — by step (3) the
+member's own typing has already overwritten it, so the stale prop no longer
+matches. That spelling was written, watched to fail, and replaced.
+
+Two fixes in the same path: `apply` dispatches a **minimal diff** rather than
+`{from: 0, to: doc.length}` (a whole-document replace rewrites lines the edit
+never touched), and carries `isolateHistory` so one undo reverses one button
+press rather than being coalesced with the typing that follows.
+
+### D13 — Live preview, and the constraint re-read a second time
+
+Operator: *"think that closest to notion (not sure why i see the # or alike),
+and tables and other views."*
+
+**D8 shipped the marks permanently visible and called it an "honest
+limitation"**, asserting that hiding them required the node↔offset map ADR-456
+D1 bans. **That claim was false.** D1 constrains the document **MODEL** —
+"textarea/CodeMirror-grade, never block-grade", i.e. a string rather than a tree
+of identified blocks. It says nothing about rendered appearance.
+
+Hiding a mark is `Decoration.replace()` over a range read from the syntax tree
+and recomputed each update: nothing enters the document, nothing maps a rendered
+node back for serialization, and the `.md` stays byte-identical — the same test
+the D10 table decoration already passed. Verified by **executing it** before the
+correction was written, which is precisely what D8's claim lacked.
+
+Shipped: marks hidden on every line **except the one the caret occupies**, where
+they reveal for editing (the Obsidian live-preview face). Hiding them
+unconditionally was rejected — editing syntax you cannot see is Typora's
+most-complained-about behaviour, and a malformed link would read as plain text.
+A table's pipes are deliberately **not** hidden: they are the grid's own
+structure, and hiding them runs the cells together.
+
+**This is the second time in one arc that a "limitation" of this app was a
+constraint I under-read** (D8 was the first: I read "CodeMirror-grade" as a
+ceiling and built a textarea). The rule that follows: **before recording a
+limitation, execute the thing you are calling impossible.** A limitation
+asserted from a reading is a hypothesis; one asserted from a failed experiment
+is a fact.
+
+Gate 174 → **188**.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.
