@@ -190,6 +190,13 @@ async def mcp_oauth_consent_info(
 async def mcp_oauth_callback(
     auth: UserClient,
     code: str = Query(..., description="Pending MCP auth code from /authorize"),
+    workspace_id: Optional[str] = Query(
+        None,
+        description=(
+            "ADR-573: the workspace to bind this connection to. Must be one the "
+            "operator reaches. Omitted → the principal's default (ADR-373 D6)."
+        ),
+    ),
 ) -> MCPCallbackResponse:
     """Bind the authenticated operator to a pending MCP auth code AFTER explicit
     consent, then return the OAuth client redirect URL for the browser.
@@ -215,12 +222,40 @@ async def mcp_oauth_callback(
         )
         raise HTTPException(status_code=409, detail="This authorization request is already bound to another account.")
 
+    # ADR-573: the chosen workspace, validated against the operator's REACH.
+    # Fail closed — a workspace the operator cannot reach is a 403, never a
+    # silent fall back to their default. Silently substituting a different
+    # workspace than the one addressed is precisely the incorrect-success
+    # ADR-373 D6 was built to end; doing it at the consent door would put it
+    # straight back, with the operator believing they chose.
+    bound_workspace: Optional[str] = None
+    if workspace_id:
+        from services.supabase import principal_reaches_workspace
+
+        if not principal_reaches_workspace(auth.user_id, workspace_id):
+            logger.warning(
+                "[ADR-573] user %s cannot reach workspace %s — refusing bind",
+                auth.user_id[:8], workspace_id[:8],
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have access to that workspace.",
+            )
+        bound_workspace = workspace_id
+
     # Bind the real operator onto the pending code (consent granted).
     if not existing_user:
-        svc.table("mcp_oauth_codes").update({"user_id": auth.user_id}).eq("code", code).execute()
+        update = {"user_id": auth.user_id}
+        # Only written when chosen: leaving it NULL means "resolve the
+        # principal's default", which is the pre-573 behaviour every existing
+        # connector already has.
+        if bound_workspace:
+            update["workspace_id"] = bound_workspace
+        svc.table("mcp_oauth_codes").update(update).eq("code", code).execute()
         logger.info(
-            "[MCP OAuth] Bound user %s to auth code, client %s (consent)",
+            "[MCP OAuth] Bound user %s to auth code, client %s, workspace %s (consent)",
             auth.user_id[:8], row.get("client_id"),
+            (bound_workspace or "(default)")[:8],
         )
 
     # Build the OAuth client redirect target (code + original state). The web

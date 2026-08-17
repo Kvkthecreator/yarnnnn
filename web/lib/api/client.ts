@@ -3211,9 +3211,12 @@ export const api = {
         legacy_full_access: boolean;
       }>(`/api/mcp/oauth-consent?code=${encodeURIComponent(code)}`),
     // Binds the operator to the code — POST, called only on explicit Approve.
-    completeAuthorize: (code: string) =>
+    // ADR-573: `workspaceId` binds the connection to a specific workspace the
+    // operator reaches. Omitted → the principal's default (ADR-373 D6).
+    completeAuthorize: (code: string, workspaceId?: string | null) =>
       request<{ redirect_url: string }>(
-        `/api/mcp/oauth-callback?code=${encodeURIComponent(code)}`,
+        `/api/mcp/oauth-callback?code=${encodeURIComponent(code)}` +
+          (workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : ""),
         { method: "POST" }
       ),
   },

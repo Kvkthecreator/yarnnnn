@@ -34,12 +34,25 @@ type ConsentInfo = {
   legacy_full_access: boolean;
 };
 
+/** ADR-573 — one workspace the operator may bind this connection to. */
+type WorkspaceChoice = {
+  workspace_id: string;
+  label: string;
+  role: string;
+  icon: string | null;
+};
+
 function MCPAuthorizeHandler() {
   const searchParams = useSearchParams();
   const supabase = createClient();
   const [info, setInfo] = useState<ConsentInfo | null>(null);
   const [phase, setPhase] = useState<"loading" | "consent" | "approving" | "done">("loading");
   const [error, setError] = useState<string | null>(null);
+  // ADR-573 — the workspaces this operator reaches, and which one they picked.
+  // `chosen` starts at the server-resolved default so approving without
+  // touching the picker is byte-identical to the pre-573 flow.
+  const [workspaces, setWorkspaces] = useState<WorkspaceChoice[]>([]);
+  const [chosen, setChosen] = useState<string | null>(null);
 
   const code = searchParams.get("code");
 
@@ -62,7 +75,19 @@ function MCPAuthorizeHandler() {
       try {
         const consent = await api.mcp.consentInfo(code);
         setInfo(consent);
+        setChosen(consent.workspace_id);
         setPhase("consent");
+        // ADR-573 — the picker's options come from the EXISTING memberships
+        // endpoint (the switcher's, ADR-407 Phase 5), not a second list that
+        // could disagree with it about what this operator reaches.
+        // Best-effort: a failure leaves the default binding and no picker,
+        // which is the pre-573 flow — never a blocked connection.
+        try {
+          const { memberships } = await api.workspace.memberships();
+          setWorkspaces(memberships ?? []);
+        } catch {
+          setWorkspaces([]);
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Could not load the connection request.";
         setError(msg);
@@ -77,7 +102,7 @@ function MCPAuthorizeHandler() {
     if (!code) return;
     setPhase("approving");
     try {
-      const { redirect_url } = await api.mcp.completeAuthorize(code);
+      const { redirect_url } = await api.mcp.completeAuthorize(code, chosen);
       setPhase("done");
       window.location.href = redirect_url;
     } catch (e) {
@@ -108,7 +133,9 @@ function MCPAuthorizeHandler() {
           <div className="text-left">
             <p className="text-gray-800 mb-4">
               <span className="font-semibold">{clientLabel}</span> is requesting access to{" "}
-              {info.workspace_name ? (
+              {workspaces.length > 1 ? (
+                "one of your yarnnn workspaces"
+              ) : info.workspace_name ? (
                 <span className="font-semibold">{info.workspace_name}</span>
               ) : (
                 "your yarnnn workspace"
@@ -123,6 +150,40 @@ function MCPAuthorizeHandler() {
               <p className="text-sm text-gray-600 mb-4">
                 Connecting as <span className="font-medium text-gray-900">{info.account_email}</span>
               </p>
+            )}
+
+            {/* WHERE — ADR-573. Shown as a PICKER only when the operator
+                actually reaches more than one workspace; with a single
+                workspace a chooser is noise, and the sentence above already
+                names it. A connector binds to ONE workspace: before this it
+                silently took the principal's default, so a member of a shared
+                commons could not point their assistant at the commons at all. */}
+            {workspaces.length > 1 && (
+              <div className="mb-4">
+                <label
+                  htmlFor="mcp-workspace"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Workspace
+                </label>
+                <select
+                  id="mcp-workspace"
+                  value={chosen ?? ""}
+                  onChange={(e) => setChosen(e.target.value || null)}
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                >
+                  {workspaces.map((w) => (
+                    <option key={w.workspace_id} value={w.workspace_id}>
+                      {w.icon ? `${w.icon} ` : ""}
+                      {w.label}
+                      {w.role === "owner" ? " (yours)" : ` (${w.role})`}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  This connection reaches only the workspace you choose.
+                </p>
+              </div>
             )}
 
             {/* WHAT — the token's REAL scopes (ADR-563), one sentence each,

@@ -112,6 +112,7 @@ def _build_client(
     user_id: str,
     client_name: str | None = None,
     principal_id: str | None = None,
+    bound_workspace_id: str | None = None,
 ) -> AuthenticatedClient:
     """Build a service-key client scoped to a specific user_id.
 
@@ -162,17 +163,31 @@ def _build_client(
         email=None,
         caller_identity=caller_identity,
         principal_id=principal_id,
-        workspace_id=resolve_mcp_workspace(user_id),
+        # ADR-573 — the token's chosen workspace when it has one, else the
+        # principal's default. Reach is re-checked inside the resolver.
+        workspace_id=resolve_mcp_workspace(user_id, bound_workspace_id),
     )
 
 
-def resolve_mcp_workspace(user_id: str) -> str | None:
-    """The workspace an MCP request binds to (ADR-373 D6).
+def resolve_mcp_workspace(user_id: str, bound_workspace_id: str | None = None) -> str | None:
+    """The workspace an MCP request binds to (ADR-373 D6, selection by ADR-573).
 
-    Deliberately the SAME function the browser's JWT door calls, with no
-    requested id: a connector has no way to name a workspace (no header, no
-    tool argument, no token claim), so it takes the principal's default —
-    owner workspace, else newest active grant.
+    Deliberately the SAME function the browser's JWT door calls. ADR-573 gives
+    it the same ARGUMENT too: ``bound_workspace_id`` is the connector's
+    equivalent of the browser's ``X-Workspace-Id`` header — the workspace the
+    operator chose at the consent screen, stamped on the token.
+
+    **Reach is re-checked here, every request, not trusted from the token.**
+    ``resolve_workspace_for_principal`` returns None when the principal cannot
+    reach the requested workspace, and ``principal_reaches_workspace`` is
+    deliberately uncached, so a member revoked after the token was minted loses
+    reach on their very next call. A stamped workspace therefore NARROWS what a
+    connection addresses; it can never grant reach the principal lacks.
+
+    ``None`` (every pre-573 token, and any connection whose operator did not
+    choose) resolves the principal's default — owner workspace, else newest
+    active grant. That is exactly the ADR-373 D6 behaviour, which is why ADR-573
+    ships without a backfill.
 
     **Resolved per request, never cached here.** The MCP service is a
     long-lived process with no request recycle (unlike the API's
@@ -185,9 +200,27 @@ def resolve_mcp_workspace(user_id: str) -> str | None:
     exactly the pre-D6 behavior (fall through to ``effective_workspace_id``'s
     own rungs) rather than failing the request. A connector that cannot
     resolve a workspace should still be able to read its own substrate.
+
+    ⚠️ The one asymmetry with the browser: an UNREACHABLE requested workspace
+    403s at the JWT door, but here it degrades to the default rather than
+    failing the tool call. That is deliberate — the operator is not present to
+    re-authorize mid-session, and a connector that silently stops working is
+    worse than one that falls back to the substrate it can always reach. The
+    reach loss is still enforced (the unreachable workspace is never returned).
     """
     try:
         from services.supabase import resolve_workspace_for_principal
+
+        if bound_workspace_id:
+            reached = resolve_workspace_for_principal(user_id, bound_workspace_id)
+            if reached:
+                return reached
+            logger.warning(
+                "[ADR-573] token-bound workspace %s is unreachable for %s — "
+                "falling back to the principal default",
+                str(bound_workspace_id)[:8], str(user_id)[:8],
+            )
+            return resolve_workspace_for_principal(user_id)
 
         return resolve_workspace_for_principal(user_id)
     except Exception as exc:  # noqa: BLE001 — never block a request on this
@@ -216,6 +249,10 @@ def resolve_request_client(verb: str | None = None) -> AuthenticatedClient:
 
     user_id = None
     client_id = None
+    # ADR-573 — initialized BEFORE the try: the stdio / static-bearer path takes
+    # the except branch, and a name bound only inside the try would raise
+    # UnboundLocalError at the call below rather than degrading to the default.
+    bound_workspace_id = None
     try:
         from mcp.server.auth.middleware.auth_context import get_access_token
 
@@ -227,6 +264,9 @@ def resolve_request_client(verb: str | None = None) -> AuthenticatedClient:
         # id — the gate's grant-consult key. (Distinct from the room NAME used
         # for attribution, resolved below.)
         client_id = getattr(token, "client_id", None)
+        # ADR-573: the workspace chosen at consent, stamped on this token.
+        # None on every pre-573 token → the principal's default (ADR-373 D6).
+        bound_workspace_id = getattr(token, "workspace_id", None)
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP Auth] no request token user (%s); falling back to env", exc)
 
@@ -253,7 +293,13 @@ def resolve_request_client(verb: str | None = None) -> AuthenticatedClient:
     # the token carried no client_id — the gate then keys on the owner grant,
     # still class-default in N=1.
     principal_id = client_id or user_id
-    base = _build_client(user_id, principal_id=principal_id)
+    base = _build_client(
+        user_id,
+        principal_id=principal_id,
+        # ADR-573 — the consent-time binding. Resolved ONCE here; the re-stamp
+        # below carries `base.workspace_id` rather than resolving again.
+        bound_workspace_id=bound_workspace_id,
+    )
     client_name = None
     try:
         from services.mcp_composition import derive_client_name_from_token

@@ -116,19 +116,28 @@ def _ensure_foreign_llm_grant(user_id: str, client_id: str, granted_by: str) -> 
         )
 
 
+# ADR-573: `workspace_id` rides alongside `user_id` on all three token shapes.
+# Optional everywhere — None means "resolve the principal's default"
+# (ADR-373 D6), which is what every pre-573 token carries and why this ships
+# without a backfill or a deploy-day repointing of live connectors.
+
+
 class YarnnnAccessToken(AccessToken):
     """Access token with user_id for data scoping."""
     user_id: str
+    workspace_id: str | None = None
 
 
 class YarnnnAuthCode(AuthorizationCode):
     """Auth code with user_id."""
     user_id: str
+    workspace_id: str | None = None
 
 
 class YarnnnRefreshToken(RefreshToken):
     """Refresh token with user_id."""
     user_id: str
+    workspace_id: str | None = None
 
 
 def _get_mcp_user_id() -> str:
@@ -276,6 +285,10 @@ class YarnnnOAuthProvider(
             redirect_uri=row["redirect_uri"],
             redirect_uri_provided_explicitly=True,
             user_id=row["user_id"],
+            # ADR-573 — the workspace the operator chose at the consent screen,
+            # bound onto the code by POST /api/mcp/oauth-callback alongside the
+            # user. Carried to the tokens at exchange.
+            workspace_id=row.get("workspace_id"),
         )
 
     async def exchange_authorization_code(
@@ -283,6 +296,11 @@ class YarnnnOAuthProvider(
     ) -> OAuthToken:
         user_id = authorization_code.user_id
         scopes = authorization_code.scopes
+        # ADR-573 — the consent-time choice, carried onto BOTH tokens. It must
+        # ride the refresh token too: silent rotation is how live connectors
+        # stay alive, and a rotation that dropped the binding would migrate a
+        # bound connector back to the default with nobody acting.
+        workspace_id = getattr(authorization_code, "workspace_id", None)
 
         # Generate tokens
         access_token = secrets.token_urlsafe(32)
@@ -295,6 +313,7 @@ class YarnnnOAuthProvider(
             "client_id": client.client_id,
             "user_id": user_id,
             "scopes": scopes,
+            "workspace_id": workspace_id,
             "expires_at": (now + timedelta(seconds=ACCESS_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
@@ -304,6 +323,7 @@ class YarnnnOAuthProvider(
             "client_id": client.client_id,
             "user_id": user_id,
             "scopes": scopes,
+            "workspace_id": workspace_id,
             "expires_at": (now + timedelta(seconds=REFRESH_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
@@ -375,6 +395,7 @@ class YarnnnOAuthProvider(
             client_id=row["client_id"],
             scopes=row.get("scopes", ["read"]),
             user_id=row["user_id"],
+            workspace_id=row.get("workspace_id"),  # ADR-573
         )
 
     async def exchange_refresh_token(
@@ -385,6 +406,12 @@ class YarnnnOAuthProvider(
     ) -> OAuthToken:
         user_id = refresh_token.user_id
         effective_scopes = scopes if scopes else refresh_token.scopes
+        # ADR-573 — preserve the binding across rotation. This is the site that
+        # matters most for the LIVE population: connectors stay alive by silent
+        # refresh, so a rotation that dropped workspace_id would quietly return
+        # a bound connector to the principal's default. (The same reasoning
+        # ADR-386 D1.a applied to the grant auto-provision hook.)
+        workspace_id = getattr(refresh_token, "workspace_id", None)
 
         # Rotate: new access token + new refresh token
         new_access = secrets.token_urlsafe(32)
@@ -397,6 +424,7 @@ class YarnnnOAuthProvider(
             "client_id": client.client_id,
             "user_id": user_id,
             "scopes": effective_scopes,
+            "workspace_id": workspace_id,
             "expires_at": (now + timedelta(seconds=ACCESS_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
@@ -406,6 +434,7 @@ class YarnnnOAuthProvider(
             "client_id": client.client_id,
             "user_id": user_id,
             "scopes": effective_scopes,
+            "workspace_id": workspace_id,
             "expires_at": (now + timedelta(seconds=REFRESH_TOKEN_LIFETIME)).isoformat(),
         }).execute()
 
@@ -473,6 +502,9 @@ class YarnnnOAuthProvider(
             scopes=row.get("scopes", ["read"]),
             expires_at=int(expires_at.timestamp()),
             user_id=row["user_id"],
+            # ADR-573 — read per request by `resolve_mcp_workspace`. NULL on
+            # every pre-573 token, which resolves the principal's default.
+            workspace_id=row.get("workspace_id"),
         )
 
     # --- Revocation ---
