@@ -42,6 +42,17 @@ _pass = 0
 _fail = 0
 
 
+def _declared_grains(py: str) -> set:
+    """The grain slugs MEASURE_GRAINS actually declares, read as a SET.
+
+    Read rather than pinned so a RENAME or a NARROWING (ADR-544 D3 moved
+    position from `staged` to `artboard`) is not mistaken for a violation of
+    the aperture it tightens. Only a WIDENING past the frame-bounded set is one.
+    """
+    m = re.search(r"MEASURE_GRAINS = \{([^}]*)\}", py)
+    return set(re.findall(r'"([a-z-]+)"', m.group(1))) if m else set()
+
+
 def _check(label: str, cond: bool) -> None:
     global _pass, _fail
     print(("[PASS] " if cond else "[FAIL] ") + label)
@@ -73,12 +84,32 @@ for fn in ("resizeMove", "resizeEnd", "moveMove", "moveEnd"):
     _check(f"{fn} takes NO raw frame.getBoundingClientRect() denominator",
            "frame.getBoundingClientRect()" not in body)
 
+print("\n-- 1b. D6: the ORIGIN travels with the box, and the overlay draws it --")
+_check("frameRects names the content ORIGIN, not only the content WIDTH",
+       "contentLeft:" in proj and "contentTop:" in proj)
+_check("showFrame reads frameRects (its fifth caller, once the only bypass)",
+       "frameRects(" in proj[proj.index("function showFrame("):
+                             proj.index("function hideFrame(")])
+_check("the deck stage is READ from the document, never restated as a literal",
+       # The canvas declared its own `992` and pinned .slide to it with
+       # !important, overriding the document's own --stage-w. Now it reads the
+       # same var chain PagedNavigator uses, with the SHARED fallback constant.
+       "DECK_STAGE_FALLBACK_W" in proj
+       and re.search(r"^\s*const\s+DECK_STAGE_W\b", proj, re.M) is None
+       and "var(--stage-w," in proj)
+
 print("\n-- 2. D3: the clamp reads the SERVED bound; the receipt reports what landed --")
 _check("the served bounds reach the runtime as data (__yarnnnMeasureBounds)",
        "__yarnnnMeasureBounds" in proj)
 _check("resolveArtifactHtml accepts measureBounds", "measureBounds?:" in proj)
 _check("StudioCanvas threads it as a projection input",
-       "measureBounds" in canvas and "measureBounds]" in canvas)
+       # NEVER pin a SPELLING: this asserted the literal "measureBounds]" — the
+       # dep array's LAST entry — so appending `blockLabels` to that array read
+       # as the mechanism being removed. The invariant is that the value reaches
+       # the projection call AND re-runs the effect, not where it sits in a list.
+       "measureBounds" in canvas
+       and re.search(r"resolveArtifactHtml\([^)]*measureBounds", canvas, re.S) is not None
+       and re.search(r"\},\s*\[[^\]]*measureBounds[^\]]*\]\)", canvas, re.S) is not None)
 _check("StudioSurface derives it from the SERVED vocabulary.measures",
        "vocabulary?.measures ?? []" in surface)
 i = proj.index("function resizeMove(")
@@ -116,8 +147,15 @@ _check("STAGE_DEFAULT_W is no longer declared (zero importers, false promise)",
        re.search(r"^\s*(export\s+)?const\s+STAGE_DEFAULT_W\b", proj, re.M) is None)
 
 print("\n-- 6. The ADR-461 D4 aperture is UNCHANGED (this ADR widens nothing) --")
-_check("measures still apply to block-staged/media only",
-       'MEASURE_GRAINS = {"block-staged", "media"}' in studio_py)
+_check("aperture: measures apply to FRAME-BOUNDED grains only (never a reflowing page)",
+       # Asserted as a SET, not a literal — the same correction the executing
+       # gate already carries. This pinned `{"block-staged", "media"}`; ADR-544
+       # D3 renamed the grains and NARROWED position to `artboard`, so a
+       # deliberate narrowing read as a violation of the aperture it tightened.
+       # What must hold is the ADR-461 D4 boundary: no grain outside the
+       # frame-bounded set, ever.
+       _declared_grains(studio_py) <= {"staged", "artboard", "media"}
+       and len(_declared_grains(studio_py)) > 0)
 _check("w keeps its served bound [10,100]",
        re.search(r'"w":\s*\{[^}]*"min":\s*10[^}]*"max":\s*100', studio_py, re.S) is not None)
 _check("h keeps its distinct floor of 1 (the axes honestly differ)",

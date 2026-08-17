@@ -28,6 +28,14 @@ function extractFn(name) {
   throw new Error(`ADR-485 gate: could not brace-match ${name}`);
 }
 
+/** Strip comments before asserting an ABSENCE. A source that documents the
+ *  rectangle it no longer draws will match a bare regex looking for that
+ *  rectangle — the assertion reads its own explanation and passes (or fails)
+ *  for the wrong reason. Every `!/.../` check below runs on stripped source. */
+function stripComments(s) {
+  return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+}
+
 let pass = 0, fail = 0;
 const t = (label, cond) => { console.log((cond ? '[PASS] ' : '[FAIL] ') + label); cond ? pass++ : fail++; };
 
@@ -87,6 +95,67 @@ t(`round trip: five repeats do not decay (${trail.join(' -> ')})`, trail.every((
 const commitH = (px) => Math.round((px / f.contentH) * 100);
 t('round trip: height drag-to-fill commits 100%', commitH(CONTENT_H) === 100);
 
+// ── 2b. D6: THE EAST/SOUTH ORIGIN — can a block reach its frame's edge? ─────
+// The round trip above proves the DENOMINATOR. It says nothing about the
+// ORIGIN, and that is where the defect lived for as long as this gate has been
+// green: `pct = (e.clientX - br.left) / f.contentW` measured from the BLOCK's
+// own left edge and divided by the FRAME's content width. For a block laid out
+// flush at the content-left the two agree — which is why every synthetic case
+// here passed. For a block INSET from it (a flow block in a padded container,
+// a `.col` offset by its gap) they do not, and the value is short by exactly
+// the inset: the member drags to the true right edge and the number stops
+// below 100, so `maxPct = 100` never binds and full width is unreachable.
+{
+  const INSET = 120; // the block sits 120px right of the frame's content-left
+  const blockLeft = f.contentLeft + INSET;
+  const contentRight = f.contentLeft + f.contentW;
+
+  // The member drags the EAST handle to the frame's true content-right edge.
+  const fixedPct = ((contentRight - f.contentLeft) / f.contentW) * 100;
+  const oldPct = ((contentRight - blockLeft) / f.contentW) * 100;
+
+  t('D6: frameRects names the content ORIGIN, not only the content WIDTH',
+    f.contentLeft === PAD_X && f.contentTop === PAD_Y);
+  t('D6: dragging east to the frame edge reaches 100% (frame-relative origin)',
+    Math.round(fixedPct) === 100);
+  t(`FALSIFIER: the block-relative origin tops out at ${Math.round(oldPct)}%, short by the inset`,
+    Math.round(oldPct) === Math.round(100 - (INSET / f.contentW) * 100) && oldPct < 100);
+  // The same defect on the vertical axis — the south drag is the twin.
+  const blockTop = f.contentTop + 60;
+  const contentBottom = f.contentTop + f.contentH;
+  t('D6: dragging south to the frame edge reaches 100%',
+    Math.round(((contentBottom - f.contentTop) / f.contentH) * 100) === 100);
+  t('FALSIFIER: the block-relative vertical origin cannot reach 100%',
+    ((contentBottom - blockTop) / f.contentH) * 100 < 100);
+
+  // And the SHIPPED source must use the origin, not the block's own edge.
+  const body = stripComments(extractFn('resizeMove'));
+  t('D6: resizeMove measures width from f.contentLeft', /f\.contentLeft/.test(body));
+  t('D6: resizeMove measures height from f.contentTop', /f\.contentTop/.test(body));
+  t('D6: no east/south drag divides a block-relative delta by contentW',
+    !/e\.clientX\s*-\s*br\.left/.test(body) && !/e\.clientY\s*-\s*br\.top/.test(body));
+}
+
+// ── 2c. D6: the OVERLAY draws the rectangle the math uses ──────────────────
+// The green frame outline is the affordance the member aims at. It drew the
+// BORDER box while every percent resolves against the CONTENT box, so it was
+// larger than the addressable area by the frame's padding — the member aimed
+// at green, the clamp stopped them short, and the two rectangles disagreed.
+{
+  // Strip comments before asserting an ABSENCE: this file documents the
+  // rectangle it no longer draws, and a bare regex matched its own explanation.
+  const body = stripComments(extractFn('showFrame'));
+  t('D6: showFrame reads frameRects (the one place the box model is answered)',
+    /frameRects\(/.test(body));
+  t('D6: showFrame no longer draws the raw border box',
+    !/frame\.getBoundingClientRect\(\)/.test(body));
+  t('D6: it paints the content box, so the green outline IS 100%',
+    /f\.contentW/.test(body) && /f\.contentLeft/.test(body));
+  // FALSIFIER: the border box overstates the addressable width by the padding.
+  t('FALSIFIER: the border box overstates the frame by 2x padding (992 vs 864)',
+    FRAME.width - f.contentW === 2 * PAD_X);
+}
+
 // ── 3. FALSIFIER — restore the border-box denominator, the ratchet returns ──
 const badCommitW = (px) => Math.round((px / FRAME.width) * 100);
 let bv = 100; const badTrail = [100];
@@ -99,7 +168,7 @@ t('FALSIFIER: and its first drag loses ~112px', Math.abs(CONTENT_W - paintW(badC
 // The arithmetic above proves the FORMULA; this proves the SHIPPED CODE uses
 // it. resizeEnd/moveEnd must not reach for frame.getBoundingClientRect().
 for (const fn of ['resizeEnd', 'moveEnd', 'resizeMove', 'moveMove']) {
-  const body = extractFn(fn);
+  const body = stripComments(extractFn(fn));
   t(`${fn}: takes its rectangles from frameRects()`, /frameRects\(/.test(body));
   t(`${fn}: no raw frame.getBoundingClientRect() denominator`,
     !/frame\.getBoundingClientRect\(\)/.test(body));

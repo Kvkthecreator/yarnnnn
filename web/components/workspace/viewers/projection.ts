@@ -43,6 +43,10 @@ import {
   labelForJS,
   STRUCTURAL_PAGE_SEL,
 } from '@/components/authoring/structureLabels';
+import {
+  DECK_STAGE_FALLBACK_H,
+  DECK_STAGE_FALLBACK_W,
+} from '@/components/authoring/stageGeometry';
 import type { WorkspaceFile } from '@/types';
 
 function artifactDir(artifactPath: string): string {
@@ -588,8 +592,17 @@ div[data-block-id]:not([data-block]):hover:not(:has([data-block]:hover)):not(:ha
 // to fit, never a box that collapses with the column. The parent auto-fits the
 // initial zoom to the column width (StudioCanvas), so a deck fills the canvas
 // on open without the operator touching the zoom.
-const DECK_STAGE_W = 992; // 62rem — the slide's natural landscape width
-const DECK_STAGE_H = Math.round((DECK_STAGE_W * 9) / 16); // 16:9 → 558
+// ADR-485 D6 — the box is READ, never restated. This declared its own `992`
+// and pinned the slide to it with `!important`, so the canvas asserted a
+// geometry the DOCUMENT already declares: a deck authored at any other stage
+// size (IMAGES seeds its own W×H; ADR-472 D3 made dimensions first-class)
+// rendered at 992 in the editor while `stageGeometry.readStageSize` read the
+// true value for the fit math — the two disagreed by construction, which is the
+// very split `stageGeometry.ts` was created to end. The navigator had already
+// converged on the right shape (`PagedNavigator.tsx`): pin to the SAME var
+// chain the document uses, with the shared fallback for a deck that predates
+// the kernel retrofit. This is now the third reader of one constant, not the
+// third copy of one number.
 
 const DECK_STAGE_CSS = `
 /* ADR-482 D4: the app-chrome accent, declared ONCE. It was a bare #6366f1
@@ -604,8 +617,8 @@ const DECK_STAGE_CSS = `
 }
 html[data-template="deck"] body { display: flex; flex-direction: column; align-items: center; }
 html[data-template="deck"] .slide {
-  width: ${DECK_STAGE_W}px !important;
-  height: ${DECK_STAGE_H}px !important;
+  width: var(--stage-w, ${DECK_STAGE_FALLBACK_W}px) !important;
+  height: var(--stage-h, ${DECK_STAGE_FALLBACK_H}px) !important;
   aspect-ratio: auto !important;
   flex: 0 0 auto;
 }
@@ -3835,6 +3848,13 @@ const OBJECT_SCRIPT = `
       // What width:%/height:% resolve against.
       contentW: Math.max(1, r.width - bl - br_ - pl - pr),
       contentH: Math.max(1, r.height - bt - bb - pt - pb),
+      // ADR-485 D6 — the ORIGIN the content box measures FROM. A denominator
+      // without its origin is half a rectangle: the east/south drags divided by
+      // contentW/contentH while measuring from the BLOCK's own edge, so a block
+      // inset from the content edge could never reach 100%. Named here, beside
+      // the box it belongs to, so no caller re-derives it.
+      contentLeft: r.left + bl + pl,
+      contentTop: r.top + bt + pt,
       // What left:%/top:% resolve against, and the origin they measure FROM
       // (the padding edge = the border edge inset by the border width).
       padW: Math.max(1, r.width - bl - br_),
@@ -3866,16 +3886,26 @@ const OBJECT_SCRIPT = `
       frameEl.className = 'yarnnn-frame';
       document.body.appendChild(frameEl);
     }
-    var r = frame.getBoundingClientRect();
+    // ADR-485 D6 — THE OVERLAY DRAWS THE RECTANGLE THE MATH USES. This drew
+    // frame.getBoundingClientRect() (the BORDER box) while every percent
+    // resolves against the CONTENT box, so the green outline was larger than
+    // the area a measure can address — by exactly the frame's padding. The
+    // member aimed at the green edge, the clamp stopped them short of it, and
+    // the affordance and the constraint were two different rectangles.
+    //
+    // frameRects is the one place the box model is answered (D1); this was its
+    // fifth reader and the only one that bypassed it. Now the green outline IS
+    // 100%: reaching it and committing 100 are the same act.
+    var f = frameRects(frame);
     var z = zf();
     // txt null = at-rest context (the frame's NAME alone rides the selection);
     // a live gesture appends its numbers — "side · 62% × 40%".
     frameEl.setAttribute('data-label', txt ? frameLabel(frame) + ' · ' + txt : frameLabel(frame));
     frameEl.style.display = 'block';
-    frameEl.style.left = ((r.left + window.scrollX) / z) + 'px';
-    frameEl.style.top = ((r.top + window.scrollY) / z) + 'px';
-    frameEl.style.width = (r.width / z) + 'px';
-    frameEl.style.height = (r.height / z) + 'px';
+    frameEl.style.left = ((f.contentLeft + window.scrollX) / z) + 'px';
+    frameEl.style.top = ((f.contentTop + window.scrollY) / z) + 'px';
+    frameEl.style.width = (f.contentW / z) + 'px';
+    frameEl.style.height = (f.contentH / z) + 'px';
   }
   function hideFrame() {
     if (frameEl) frameEl.style.display = 'none';
@@ -4119,11 +4149,24 @@ const OBJECT_SCRIPT = `
         block.style.left = Math.max(0, Math.min(100,
           ((newLeft - f.padLeft) / f.padW) * 100)) + '%';
       } else {
-        pct = ((e.clientX - br.left) / f.contentW) * 100;
+        // ADR-485 D6 — the EAST drag's origin. br.left is the BLOCK's edge;
+        // f.contentW is the FRAME's content width. Mixing them measures a
+        // width from one rectangle and divides it by another, so a block that
+        // sits inset from the content-left (every flow block in a padded
+        // container, and any block a .col gap offsets) can never reach 100%:
+        // dragging to the frame's true right edge yields only
+        // (contentRight − blockLeft)/contentW, short by exactly the inset.
+        // maxPct = 100 never bound, because the value never got there — the
+        // member ran out of green before running out of percent.
+        //
+        // The west branch above was already frame-relative; this is the same
+        // arithmetic, made consistent. Measure from the CONTENT-LEFT origin so
+        // the numerator and the denominator describe one rectangle.
+        pct = ((e.clientX - f.contentLeft) / f.contentW) * 100;
         // A positioned block's width is bounded by the room to its right —
         // (100 − x%); a flow block by the frame itself (100%).
         maxPct = positioned
-          ? 100 - ((br.left - f.padLeft) / f.contentW) * 100
+          ? 100 - ((br.left - f.contentLeft) / f.contentW) * 100
           : 100;
       }
       pct = Math.max(MEASURE_MIN.w, Math.min(Math.max(MEASURE_MIN.w, Math.min(MEASURE_MAX.w, maxPct)), pct));
@@ -4144,9 +4187,11 @@ const OBJECT_SCRIPT = `
         hpct = ((br.bottom - e.clientY) / f.contentH) * 100;
         hMax = 100;
       } else {
-        hpct = ((e.clientY - br.top) / f.contentH) * 100;
+        // ADR-485 D6 — the SOUTH drag's origin, the width defect's twin.
+        // Same rule: measure from the frame's content-top, not the block's own.
+        hpct = ((e.clientY - f.contentTop) / f.contentH) * 100;
         hMax = positioned
-          ? 100 - ((br.top - f.padTop) / f.contentH) * 100
+          ? 100 - ((br.top - f.contentTop) / f.contentH) * 100
           : 100;
       }
       hpct = Math.max(MEASURE_MIN.h, Math.min(Math.max(MEASURE_MIN.h, Math.min(MEASURE_MAX.h, hMax)), hpct));

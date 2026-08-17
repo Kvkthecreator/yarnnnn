@@ -74,6 +74,26 @@ The runtime now receives the served bounds (interpolated into the pointer script
 
 The kernel rule is `.slide [data-block][data-x][data-y]` — both required. The Design tab gated "Return to flow" on `hasAttribute('data-x')` alone, so a block with `data-x` and no `data-y` (writable by a lane, since the posture teaches the attributes as prose) offered an affordance for a state it was not in, and clicking it landed a revision that changed nothing visible.
 
+### D6 — The origin travels with the box (amendment, 2026-08-17)
+
+**The operator, on the same surface, one layer over:** *"I feel like I'm grabbing within the green selected, but then I can't width out to it."*
+
+D1 named the **denominator** — `width:%` resolves against the frame's content box — and fixed every caller to divide by it. It never named the **ORIGIN**, and half a rectangle is not a rectangle. The east and south drags measured a delta from the **block's own edge** and divided it by the **frame's content width**:
+
+```js
+pct = ((e.clientX - br.left) / f.contentW) * 100   // two rectangles, one fraction
+```
+
+For a block laid out flush at the content-left the two agree, which is why D1's round-trip proof passed and why the executing gate stayed green over this for as long as it has existed. For a block **inset** from it — every flow block in a padded container, any block a `.col` gap offsets — they do not. Dragging to the frame's true right edge yields `(contentRight − blockLeft)/contentW`, short by exactly the inset. `maxPct = 100` never bound, **because the value never got there.** The member ran out of green before they ran out of percent.
+
+The west branch was already frame-relative (D1 rewrote it); the east/south branches were the ones D1 did not visit. `frameRects` now returns `contentLeft`/`contentTop` beside `contentW`/`contentH`, so the origin is named once, where the box it belongs to is named.
+
+**And the overlay drew a third rectangle.** `showFrame` painted `frame.getBoundingClientRect()` — the **border** box — while every percent resolves against the content box. The green outline was therefore *larger than the addressable area*, by exactly the frame's padding: the member aimed at green, the clamp stopped them short of it, and **the affordance and the constraint were two different rectangles.** This was `frameRects`' fifth reader and the only one that bypassed it. It now paints the content box, so reaching the green edge and committing `100` are the same act.
+
+**The lesson, which is D1's own generalized:** D1 said *name the rectangle once*. It named the rectangle's **size** once and left its **position** to four call sites. A denominator without its origin is half an answer, and the half that was missing is the half the member's hand touches.
+
+**The legacy duplicate, deleted.** `projection.ts` declared its own `DECK_STAGE_W = 992` and pinned `.slide` to it with `!important` in `pointer` mode — a VIEWER-baked width overriding the DOCUMENT's own `--stage-w`. `stageGeometry.ts`'s docstring already claimed this triple-copy was removed; the canvas copy was still live, so a deck authored at any other stage size (IMAGES seeds its own W×H per ADR-472 D3) rendered at 992 in the editor while `readStageSize` read the true value for the fit math — **the two disagreed by construction**, which is the exact split `stageGeometry.ts` exists to end. It now reads the same `var(--stage-w, …)` chain `PagedNavigator` converged on, with the shared fallback constant imported rather than restated. Third reader of one constant, not third copy of one number.
+
 ### D5 — What this does NOT do
 
 - **Does not widen ADR-461 D4.** No continuous value reaches `article`/`page`/`document`. The three re-opening conditions in ADR-461 §D4 are untouched and none is claimed.
@@ -99,7 +119,12 @@ Four suspected defects did not survive execution. Recording them so they are not
 4. A width drag below 10% previews at 10%, not 1%, and the revision message reads `10%`.
 5. Restoring the border-box denominator makes the executing gate red (the gate ships this falsifier).
 6. `grep` shows no continuous value admitted on `article`/`page`/`document`.
+7. **(D6)** A block **inset** from its frame's content-left reaches `100%` on an east drag. Restoring the block-relative origin caps it at `100 − inset%` and makes the executing gate red — verified by editing the shipped source, not only by arithmetic (the gate ships the arithmetic falsifier; the source edit was run once by hand and the check failed as predicted).
+8. **(D6)** The green frame outline and the addressable area are the same rectangle: `showFrame` reads `frameRects`, and no raw `frame.getBoundingClientRect()` survives in it.
+9. **(D6)** No `DECK_STAGE_W` literal survives in `projection.ts`; the deck stage rule reads `var(--stage-w, …)`.
 
 ## 7. The one-line statement
 
 **A percent is meaningless until you say what it is a percent of. The gesture measured the border box, CSS resolved the content box, and the carry never re-asked — three answers to a question nobody had written down. Name the rectangle once, clamp from the served bound, and report what landed.**
+
+**And a rectangle is a size AND an origin (D6).** Naming only the size left the origin to four call sites, so the drag that could not reach the edge survived the ADR written to fix the drag that could not reach the edge. **The rectangle the member aims at must be the rectangle the math uses** — when the affordance and the constraint disagree, the member is right and the code is wrong.
