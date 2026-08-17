@@ -250,6 +250,164 @@ owning a `file`/`path` key must strip it from the remembered set. All seven
 document surfaces are asserted, so the next document app that forgets names
 itself instead of shipping the same bug.
 
+### D10 — The operator's second click-pass: one reading face, Docs' file handling, and a refusal made visible
+
+**Five findings from driving the D8/D9 build (2026-08-17).** All five were
+invisible to `next build`, to `tsc`, and to all 128 checks then in the gate —
+the arc's fourth consecutive demonstration that **a green gate is not a
+rendered surface**. Two were structural; three were surface defects.
+
+#### D10.a — ONE reading face, declared once (the table finding)
+
+The operator: *"the table render on the tool bar doesn't show the rendered
+style on the editor (ensure similar concept is streamlined)."* The instinct
+behind "streamlined" was the real finding.
+
+**Cause 1 — the parent-tag trap.** `@lezer/markdown` styles a table header
+with the **generic** `tags.heading`, while `PROSE_HIGHLIGHT` mapped
+`heading1…heading6`. Those are **children** (`heading1: t(heading)`), and tag
+inheritance flows parent→child only — so a rule on the child never matches the
+parent node. Measured by resolving the real `HighlightStyle`, not by reading
+it: `heading (table header) -> NO CLASS`. Table cells (`tags.content`) and
+task markers (`tags.atom`) had no rule at all.
+
+**Cause 2 — two hand-maintained descriptions of one face.**
+`PROSE_READING_SKIN` (Tailwind, → thumbnail + print) and `PROSE_HIGHLIGHT`
+(CodeMirror, → the canvas) were independent, and had already drifted: the skin
+styled tables, quotes, rules and task checkboxes; the highlight styled none of
+them. **The landing thumbnail and the print sheet were more styled than the
+canvas the member types in.** Tables were merely where it became visible; it
+would have recurred control by control.
+
+**Decision**: `components/text/readingFace.ts` owns the type scale, the faces,
+the measure and the table treatment. Both renderers derive from it. The canvas
+additionally gets a `tableRows` **line decoration** so a table reads as a
+table — syntax highlighting can colour pipes but cannot draw a grid.
+
+**This is not the banned node↔offset map.** ADR-456 D1 forbids mapping a
+rendered node *back* to a source position — what a block editor needs to
+serialize an edit. This runs the other way and never round-trips: the tree is
+read to decide which LINES get a CSS class, the classes are discarded on the
+next update, and nothing they touch is serialized. Gated: §11c asserts no
+`data-*` reaches the source, and §9f's byte-identical round-trip still passes
+with the decoration live.
+
+#### D10.b — Type tokens: the canvas was reading Docs' vocabulary
+
+`ProseCanvas` read `var(--font-serif)`; `PROSE_READING_SKIN` used Tailwind's
+`font-serif`. Neither `--font-serif` nor `--font-mono` was declared **anywhere**
+in `globals.css`, and `tailwind.config.ts` extended `fontFamily` with `brand`
+only.
+
+The deeper point: `--font-serif` **is** a real token — an **artifact-skin**
+token (`skinVars.ts`), declared by an applied design system and parsed at
+runtime by `skinVarMap()`. It exists only inside a skinned Docs artifact. **A
+`.md` has no skin and no root element to carry one**, so in Text that var could
+never resolve; the inline fallback always won, silently, while Tailwind's
+utility resolved to its stock stack. One document, two faces, by construction.
+
+**Decision**: declare `--font-serif` / `--font-mono` in `globals.css` as the
+**app** type vocabulary (distinct from the artifact vocabulary), and point
+Tailwind's `serif`/`mono` at them, so a utility class and a `var()` read cannot
+diverge. Same shape as ADR-561: code naming a token that was never defined and
+quietly taking a private fallback.
+
+#### D10.c — The toolbar was dead on an empty line
+
+Operator: *"the tool bar inserts don't work for an empty line."* Executed the
+pure functions: **list, numbered list, checklist and quote were no-ops on a
+blank line**; heading, table, divider and bold worked.
+
+One cause, three sites. The "already marked?" test was
+`lines.every(l => /marker/.test(l) || !l.trim())`. The blank-line clause exists
+so a gap **inside a multi-line selection** does not veto toggling off — but
+when the span is blank *entirely*, it makes the predicate vacuously **true**,
+so the toggle takes the **un-mark** branch and strips a marker that was never
+there. The button did nothing on precisely the line where pressing a button
+beats typing `- `.
+
+Fixed with a named `allLinesMarked()` helper: an all-blank span is **not**
+marked. §11j gates the multi-line-with-gap case in both directions, because
+that is what the naive fix breaks.
+
+#### D10.d — File handling is Docs', and **D5's premise was false**
+
+Operator: *"do we need a distinct save button? like other apps like docs or
+studio APPs can we not explore similar approach on the file handling."*
+
+**D5 justified Text's Save button on a factual claim about Docs that does not
+hold.** D5 said Docs "autosaves on a 2s idle timer with no Save button and no
+dirty state", and inferred Text needed a manual Save because *its* CAS conflict
+is a product surface. But Docs' `writeAndAdvance` is a **queued CAS commit per
+operation** — `writeArtifact(path, html, baseHead, message)`, CAS base read
+inside the queue, a 409 handler that refetches the head and re-applies **once**,
+an honest reload only on a second conflict.
+
+Docs has everything the Save button was justified by — CAS, conflict handling,
+attributed revisions — **and still has no button, no dirty flag, no manual
+gesture**. Text was therefore not *more careful* than Docs; it was *less
+capable*, and it handed the member the difference as a chore. The ADR-550→551
+shape again: a live, correct mechanism in the wrong housing.
+
+**Decision** (operator-approved): autosave on idle-2s (Docs' own
+`COMMIT_IDLE_MS`) plus blur/visibility/teardown flush, over the unchanged
+ADR-570 CAS path, serialized through a `writeTail` so two commits cannot race
+their CAS base. **The Save button is DELETED**, not kept beside it — two save
+models in one surface is the dual-approach shape CLAUDE.md §2 forbids. ⌘S
+survives as a force-commit. The header reports ("Editing… / Saving… / Saved")
+rather than asks.
+
+**What survives from D5 is the 409 banner**, and the asymmetry justifying it is
+real: Docs commits *operations* it can replay onto a fresh head; Text commits
+*whole text*, which cannot be re-applied without inventing a merge. So a
+conflict asks the member. That is the honest residue of D5's reasoning.
+
+#### D10.e — The `⋯`, and a refusal nobody could read
+
+Two findings in one pane, with opposite verdicts.
+
+**The `⋯` was a genuine gap.** It exists on the landing cards and **vanished
+once a document was open** — the open state wired rename only, behind clicking
+the crumb. The moment the member is actually working on a document was the one
+moment they could not act on it as a file. Fixed by reusing the **shared**
+`useFileContextMenu` (Docs hand-rolls ~90 lines of inline popover for this;
+deliberately not copied), with Copy link added through the documented
+`extraItemsFor` point. `openMenuFromButton` is now returned from the hook so
+any pane can anchor the menu — previously it was internal, reachable only via
+`Kebab`, which renders on coarse pointers only.
+
+**Colour and Highlight stay refused — but §3.1 executed its own decision
+badly.** The reasoning holds: both persist as `<span data-mark>` /
+`<span data-highlight>`, which is `data-*` written into the source, forfeiting
+the round-trip. §3.1 explicitly said it wanted the absence *"named rather than
+leaving the absence to look like an oversight"* — **and then named it only in
+this ADR**, where no member reads it. Docs prints its refusals **in the pane**
+("emphasis via the palette variables — never raw color"; ADR-449's metrics
+refusal). Text now does the same, in an **Appearance** section, in the member's
+language.
+
+**Carry this forward: a refusal documented only in canon is invisible. If the
+absence is deliberate, the surface has to say so where the absence is felt.**
+
+#### D10 gate craft — two checks passed their own falsification
+
+Both were caught only because every new check was falsified, and both are the
+*same* error one screen apart:
+
+- **11h** asserted `"var(--font-serif)" in tailwind.config.ts`. Repointing
+  `serif` at a hardcoded `["Georgia","serif"]` left the string present **in the
+  check's own explanatory comment** and in the `mono:` line beside it. Now
+  extracts the per-key value and asserts *that*.
+- **11L** required `openMenuFromButton` **and** the string `"File actions"`.
+  Deleting the `aria-label` left `title="File actions"` behind and the check
+  stayed green. Now matches the wired `onClick` handler and the mounted menu
+  node.
+
+**Fourth and fifth occurrences this arc of an assertion matching a decoration
+of the behaviour rather than the behaviour.** The rule stands and needs no
+restating: name the BEHAVIOUR, strip comments before asserting an absence, and
+break every check you write.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.
@@ -302,6 +460,14 @@ raw `<span data-mark>` HTML into the markdown — which forfeits the
 byte-for-byte connector round-trip that is the product thesis. **The refusal is
 the feature.** If the reading face needs to look different, that is the app's
 skin to change (one place, every document), never per-span state in the file.
+
+> **Amended by D10.e (2026-08-17).** The refusal above is UNCHANGED and still
+> correct — but this section only ever stated it *here*. The operator opened
+> the pane, saw Docs' Colour and Highlight swatches absent, and read a
+> considered refusal as a gap, which is the exact outcome the paragraph above
+> says it wants to avoid. **Docs prints its refusals in the pane; Text now does
+> too** (the "Appearance" section). A refusal documented only in canon is
+> invisible to the person it is being explained to.
 
 ### 3.2 The Insert palette, kind by kind
 
@@ -414,12 +580,25 @@ the connector's writes 404 for the session and vice versa. Both remain owed.
 ## 5. Verification
 
 `api/test_adr571_text_app.py` (script-style — `python3 test_adr571_text_app.py`;
-pytest reports a false pass) extends 37 → **98 checks**. §6 gates the depth and
+pytest reports a false pass) extends 37 → **160 checks**. §6 gates the depth and
 the grade constraint; §7 **renders the real pipeline** and inspects the output —
-the only check that could have caught the D1 scale collision.
+the only check that could have caught the D1 scale collision. **§11 mounts the
+real `ProseCanvas` in jsdom** and reads what CodeMirror produced, which is the
+only way D10.a's finding is visible at all.
 
 Every new section was **falsified**: breaking fence handling fails 6ai; a
 smuggled `data-block-id` fails 6L; dropping `scale="inherit"` fails 7n. The
 first spelling of 7n asserted its own argument and stayed green through that
 last falsification — it now renders `ProseReader` itself, so it checks the
 wiring rather than the probe's own input.
+
+**D10's five fixes were each falsified** (removing the table plugin fails 11a
+while 11b stays green, proving 11a tests the table and not "did anything
+render"; restoring the buggy blank-line predicate in `toggleQuote` alone fails
+11i3 and nothing else; re-adding a Save button fails 11k; deleting the kebab
+fails 11L; deleting the Appearance section fails 11M). **Two checks passed
+their own falsification and were rewritten** — see D10's gate-craft note.
+
+Full set green at the D10 commit: **160/160** here, 19 pytest
+(`test_lane_artifacts` + `test_adr570_member_prose_door`), ADR-562 green,
+`__gate_adr514_d2.mjs` 41/41, `next build` 171/171 pages with `tsc` clean.

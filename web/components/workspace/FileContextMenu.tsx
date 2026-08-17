@@ -390,5 +390,10 @@ export function useFileContextMenu(
     />
   ) : null;
 
-  return { openMenu, menu, hasVerbs, coarse, Kebab };
+  // `openMenuFromButton` is returned (ADR-572 D10) so a surface can anchor
+  // this menu under its OWN kebab on any pointer — the Properties-pane `⋯`
+  // that Docs hand-rolls as ~90 lines of inline popover. `Kebab` stays the
+  // convenience wrapper for the coarse-pointer ROW case; a pane that always
+  // shows its kebab needs the opener, not the conditional button.
+  return { openMenu, openMenuFromButton, menu, hasVerbs, coarse, Kebab };
 }

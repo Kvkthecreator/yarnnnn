@@ -35,6 +35,26 @@ function lineSpan(text: string, start: number, end: number): [number, number] {
 }
 
 /**
+ * Is every line in this span already carrying the marker?
+ *
+ * The blank-line clause is why this is a named helper rather than an inline
+ * `.every()`. A blank line inside a MULTI-line selection must not veto the
+ * "already marked" verdict — you toggle a list off even though the paragraph
+ * gap between two items carries no `- `. But when the span is blank ENTIRELY
+ * (the member put the caret on an empty line and pressed the button), the
+ * permissive clause made `.every()` vacuously true, so the toggle took the
+ * UN-mark branch and stripped a marker that was never there. The button did
+ * nothing, on precisely the line where pressing a button beats typing `- `.
+ *
+ * So: a span with no content at all is NOT marked. Found by driving the
+ * surface — every gate and `next build` were green over it (ADR-572 D10).
+ */
+function allLinesMarked(lines: string[], re: RegExp): boolean {
+  if (lines.every((l) => !l.trim())) return false;
+  return lines.every((l) => re.test(l) || !l.trim());
+}
+
+/**
  * Wrap the selection in a marker, or unwrap it if already wrapped (a toggle,
  * the way ⌘B behaves in every editor). With no selection, insert the marker
  * pair and place the caret between them so typing continues inside.
@@ -99,15 +119,17 @@ export function toggleHeading(text: string, start: number, end: number, level: n
 export function toggleList(text: string, start: number, end: number, ordered: boolean): Edit {
   const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
-  const marked = ordered
-    ? lines.every((l) => /^ {0,3}\d+\.\s+/.test(l) || !l.trim())
-    : lines.every((l) => /^ {0,3}[-*+]\s+/.test(l) || !l.trim());
+  const blankSpan = lines.every((l) => !l.trim());
+  const marked = allLinesMarked(lines, ordered ? /^ {0,3}\d+\.\s+/ : /^ {0,3}[-*+]\s+/);
   let n = 0;
   const next = lines
     .map((l) => {
       const bare = l.replace(/^ {0,3}(?:[-*+]|\d+\.)\s+/, '');
       if (marked) return bare;
-      if (!bare.trim()) return bare;
+      // A blank line inside a mixed span stays blank (it is the gap between
+      // items); a span that is blank THROUGHOUT is the member asking to start
+      // a list here, so it gets the marker and the caret.
+      if (!bare.trim() && !blankSpan) return bare;
       n += 1;
       return ordered ? `${n}. ${bare}` : `- ${bare}`;
     })
@@ -135,11 +157,12 @@ export function toggleList(text: string, start: number, end: number, ordered: bo
 export function toggleChecklist(text: string, start: number, end: number): Edit {
   const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
-  const checked = lines.every((l) => /^ {0,3}[-*+]\s+\[[ xX]\]\s?/.test(l) || !l.trim());
+  const blankSpan = lines.every((l) => !l.trim());
+  const checked = allLinesMarked(lines, /^ {0,3}[-*+]\s+\[[ xX]\]\s?/);
   const next = lines
     .map((l) => {
       if (checked) return l.replace(/^( {0,3})[-*+]\s+\[[ xX]\]\s?/, '$1');
-      if (!l.trim()) return l;
+      if (!l.trim() && !blankSpan) return l;
       // An existing bullet becomes a task; a bare line gets both.
       const bare = l.replace(/^ {0,3}(?:[-*+]|\d+\.)\s+/, '');
       return `- [ ] ${bare}`;
@@ -156,9 +179,12 @@ export function toggleChecklist(text: string, start: number, end: number): Edit 
 export function toggleQuote(text: string, start: number, end: number): Edit {
   const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
-  const quoted = lines.every((l) => /^ {0,3}> ?/.test(l) || !l.trim());
+  const blankSpan = lines.every((l) => !l.trim());
+  const quoted = allLinesMarked(lines, /^ {0,3}> ?/);
   const next = lines
-    .map((l) => (quoted ? l.replace(/^ {0,3}> ?/, '') : l.trim() ? `> ${l}` : l))
+    .map((l) =>
+      quoted ? l.replace(/^ {0,3}> ?/, '') : l.trim() || blankSpan ? `> ${l}` : l,
+    )
     .join('\n');
   return {
     text: text.slice(0, from) + next + text.slice(to),

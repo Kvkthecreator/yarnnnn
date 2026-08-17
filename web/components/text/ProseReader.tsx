@@ -47,6 +47,7 @@
  */
 
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { FACE, HEADING_SCALE } from '@/components/text/readingFace';
 import { cn } from '@/lib/utils';
 
 /**
@@ -64,11 +65,20 @@ import { cn } from '@/lib/utils';
 export const PROSE_READING_SKIN = cn(
   // Base: serif, document-sized, generous leading. `prose-base` replaces the
   // renderer's `prose-sm` default; `max-w-none` lets the parent own the measure.
+  // `font-serif` now resolves to `var(--font-serif)` (ADR-572 D10), the same
+  // stack the canvas uses — before that, the utility and the canvas's var read
+  // two different stacks and one document had two faces.
   'prose-base max-w-none font-serif text-foreground',
   '[&_p]:leading-[1.75] [&_li]:leading-[1.75]',
   // Headings — the single loudest signal that this is a document. Serif,
   // tight leading, real hierarchy, generous space above and little below (a
   // heading belongs to what FOLLOWS it).
+  //
+  // The sizes are spelled as literal classes because Tailwind scans SOURCE
+  // TEXT — an interpolated `prose-h1:text-[${x}]` emits no rule at all. So the
+  // gate asserts these agree with `HEADING_SCALE` (§10) rather than a build
+  // step enforcing it: the constant is the declaration, this is its spelling,
+  // and a check fails if they part company.
   'prose-headings:font-serif prose-headings:font-semibold prose-headings:tracking-[-0.01em]',
   'prose-h1:text-[2rem] prose-h1:leading-[1.2] prose-h1:mt-0 prose-h1:mb-4',
   'prose-h2:text-[1.5rem] prose-h2:leading-[1.3] prose-h2:mt-10 prose-h2:mb-3',
@@ -90,8 +100,14 @@ export const PROSE_READING_SKIN = cn(
   'prose-hr:my-10 prose-hr:border-border',
   // Tables read at body size in a document. Under `scale="inherit"` the
   // renderer withholds its `text-xs` chat-table rules entirely, so this SETS
-  // the size rather than out-specifying a competing rule.
+  // the size rather than out-specifying a competing rule. The grid is drawn
+  // explicitly (D10) so the rendered face and the canvas both show a table as
+  // a table — the canvas draws its own via the `tableRows` line decoration.
   '[&_th]:text-[0.9rem] [&_td]:text-[0.9rem] [&_thead_th]:font-semibold',
+  '[&_table]:w-full [&_table]:border-collapse [&_table]:my-6',
+  '[&_th]:border [&_td]:border [&_th]:border-border [&_td]:border-border',
+  '[&_th]:px-3 [&_th]:py-1.5 [&_td]:px-3 [&_td]:py-1.5 [&_th]:text-left',
+  '[&_thead_th]:bg-muted/40',
   // Code stays MONO inside a serif document — it is the one thing whose glyph
   // width carries meaning.
   'prose-code:font-mono prose-code:text-[0.85em] prose-code:before:content-none prose-code:after:content-none',

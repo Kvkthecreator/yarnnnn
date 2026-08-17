@@ -44,56 +44,86 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { EditorState, type Extension } from '@codemirror/state';
+import { EditorState, RangeSetBuilder, type Extension } from '@codemirror/state';
 import {
+  Decoration,
   EditorView,
+  ViewPlugin,
   keymap,
   drawSelection,
   highlightActiveLine,
   rectangularSelection,
+  type DecorationSet,
+  type ViewUpdate,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags } from '@lezer/highlight';
+import { FACE, HEADING_SCALE, MARK_OPACITY, TABLE } from '@/components/text/readingFace';
 import { cn } from '@/lib/utils';
 
 /**
  * The document reading face, expressed as syntax highlighting.
  *
- * This is `PROSE_READING_SKIN`'s intent one layer down: the same serif
- * hierarchy and the same "code stays mono" rule, but applied to *marked-up
- * source* rather than to rendered HTML. Sizes are `em`-relative so the zoom
- * control scales the whole document from one place.
+ * Every number comes from `readingFace.ts` — the ONE declaration the rendered
+ * skin also derives from (ADR-572 D10). This file no longer restates the type
+ * scale; restating it is what let the canvas and the print sheet drift apart.
+ *
+ * ## The parent-tag trap, named so it is not re-set
+ *
+ * `tags.heading1` is defined as `t(heading)` — a CHILD of `tags.heading`. Tag
+ * inheritance flows parent→child, so a rule on `heading1` does NOT match a
+ * node tagged with the bare `heading`. `@lezer/markdown` tags a **table
+ * header** with exactly that bare `heading`, so before D10 a table header
+ * resolved to no class at all and the whole table rendered as raw pipes.
+ *
+ * The bare `tags.heading` rule below is therefore load-bearing, and it must
+ * stay FIRST: `HighlightStyle` resolves the most specific matching rule, so
+ * the numbered rules still win for real headings while the generic rule
+ * catches table headers. Verified by executing the parser, not by reading it.
  */
 const PROSE_HIGHLIGHT = HighlightStyle.define([
+  // The GENERIC heading tag — a table header, and any node the grammar tags
+  // as a heading without a level. Must not inherit a document H1's size.
+  { tag: tags.heading, fontWeight: TABLE.headerWeight, fontFamily: FACE.serif },
   // Headings — the loudest signal that this is a document, not a code file.
-  { tag: tags.heading1, fontSize: '1.9em', fontWeight: '600', fontFamily: 'var(--font-serif, Georgia, serif)', lineHeight: '1.25' },
-  { tag: tags.heading2, fontSize: '1.45em', fontWeight: '600', fontFamily: 'var(--font-serif, Georgia, serif)', lineHeight: '1.3' },
-  { tag: tags.heading3, fontSize: '1.2em', fontWeight: '600', fontFamily: 'var(--font-serif, Georgia, serif)' },
-  { tag: tags.heading4, fontSize: '1.05em', fontWeight: '600', fontFamily: 'var(--font-serif, Georgia, serif)' },
+  { tag: tags.heading1, fontSize: HEADING_SCALE.h1.em, fontWeight: HEADING_SCALE.h1.weight, fontFamily: FACE.serif, lineHeight: HEADING_SCALE.h1.leading },
+  { tag: tags.heading2, fontSize: HEADING_SCALE.h2.em, fontWeight: HEADING_SCALE.h2.weight, fontFamily: FACE.serif, lineHeight: HEADING_SCALE.h2.leading },
+  { tag: tags.heading3, fontSize: HEADING_SCALE.h3.em, fontWeight: HEADING_SCALE.h3.weight, fontFamily: FACE.serif, lineHeight: HEADING_SCALE.h3.leading },
+  { tag: tags.heading4, fontSize: HEADING_SCALE.h4.em, fontWeight: HEADING_SCALE.h4.weight, fontFamily: FACE.serif, lineHeight: HEADING_SCALE.h4.leading },
   { tag: tags.heading5, fontWeight: '600' },
   { tag: tags.heading6, fontWeight: '600' },
   { tag: tags.strong, fontWeight: '700' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through', opacity: '0.7' },
   { tag: tags.link, textDecoration: 'underline', textUnderlineOffset: '2px' },
-  { tag: tags.url, opacity: '0.6' },
+  { tag: tags.url, opacity: MARK_OPACITY.url },
   // Code is the one thing whose glyph width carries meaning.
-  { tag: tags.monospace, fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)', fontSize: '0.88em' },
+  { tag: tags.monospace, fontFamily: FACE.mono, fontSize: FACE.codeSize },
   { tag: tags.quote, fontStyle: 'normal', opacity: '0.8' },
+  // A table CELL is ordinary body content — tagged `tags.content`, which had
+  // no rule at all before D10, so cells fell through to the editor default.
+  { tag: tags.content, fontFamily: 'inherit' },
+  // A task marker (`[ ]` / `[x]`) is tagged `tags.atom`. Give it the mono face
+  // so the box reads as a box and its glyphs line up down the list.
+  { tag: tags.atom, fontFamily: FACE.mono, opacity: '0.85' },
   // The MARKS themselves — dimmed, never hidden. Hiding them is the banned
   // shape (it needs the node↔offset map); dimming is pure presentation.
-  { tag: tags.processingInstruction, opacity: '0.35', fontWeight: '400', fontSize: '0.85em' },
-  { tag: tags.contentSeparator, opacity: '0.45' },
+  { tag: tags.processingInstruction, opacity: MARK_OPACITY.syntax, fontWeight: '400', fontSize: '0.85em' },
+  { tag: tags.contentSeparator, opacity: MARK_OPACITY.structural },
   { tag: tags.list, opacity: '1' },
 ]);
 
 /** The canvas chrome: a document page, not a code editor. */
 const PROSE_THEME = EditorView.theme({
   '&': {
-    fontFamily: 'var(--font-serif, Georgia, "Iowan Old Style", serif)',
+    // The app type token (ADR-572 D10) — the same stack Tailwind's
+    // `font-serif` now resolves to, so the canvas and the print sheet wear
+    // one face. Previously this read a Docs ARTIFACT-SKIN var that a `.md`
+    // can never define, so the inline fallback always won and diverged.
+    fontFamily: FACE.serif,
     fontSize: '16px',
     backgroundColor: 'transparent',
     height: '100%',
@@ -101,13 +131,13 @@ const PROSE_THEME = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': {
     fontFamily: 'inherit',
-    lineHeight: '1.75',
+    lineHeight: FACE.lineHeight,
     overflow: 'auto',
     // The reading measure, centred — the same column ProseReader gives.
     padding: '2.5rem 0',
   },
   '.cm-content': {
-    maxWidth: '46rem',
+    maxWidth: FACE.measure,
     margin: '0 auto',
     padding: '0 1.5rem',
     caretColor: 'var(--foreground, #111)',
@@ -122,7 +152,96 @@ const PROSE_THEME = EditorView.theme({
   '.cm-searchMatch': { backgroundColor: 'rgba(250,200,80,0.35)' },
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(250,160,40,0.55)' },
   '.cm-placeholder': { color: 'var(--muted-foreground, #888)', fontStyle: 'italic' },
+
+  // ── Table rows (ADR-572 D10) ────────────────────────────────────────────
+  // Syntax highlighting alone cannot make a table read as a table: it can
+  // colour the pipes but not draw the grid, so a table rendered as raw
+  // punctuation on the canvas while the print sheet and the landing thumbnail
+  // drew a real bordered table. This is a LINE decoration, applied to the
+  // lines the parser identifies as table rows — presentation only, computed
+  // from offsets, nothing written into the document.
+  //
+  // Mono for the cells, so the pipes of consecutive rows line up vertically
+  // and the columns read as columns while you type. That is the honest
+  // canvas-grade answer: an aligned source table, not a rendered one.
+  '.cm-line.cm-tableRow': {
+    fontFamily: FACE.mono,
+    fontSize: FACE.codeSize,
+    backgroundColor: 'var(--table-tint, rgba(128,128,128,0.045))',
+    borderLeft: `2px solid ${TABLE.borderColor}`,
+    paddingLeft: '0.5em',
+  },
+  '.cm-line.cm-tableRow-first': {
+    borderTop: `1px solid ${TABLE.borderColor}`,
+    paddingTop: '0.15em',
+  },
+  '.cm-line.cm-tableRow-last': {
+    borderBottom: `1px solid ${TABLE.borderColor}`,
+    paddingBottom: '0.15em',
+  },
+  // The header row of a table carries the header weight the rendered face
+  // gives its `<th>`.
+  '.cm-line.cm-tableRow-header': { fontWeight: TABLE.headerWeight },
 });
+
+/**
+ * Mark every line belonging to a GFM table, so the theme above can draw a
+ * grid around it (ADR-572 D10).
+ *
+ * ## Why this is not the banned node↔offset map
+ *
+ * ADR-456 D1 forbids a map from a RENDERED NODE back to a source position —
+ * the thing a block editor needs to write an edit back out. This is the
+ * opposite direction and it never round-trips: the syntax tree is read to
+ * decide which LINES get a CSS class, the classes are thrown away on the next
+ * update, and nothing they touch is ever serialized. Take this away and the
+ * `.md` is byte-identical. The test is the same one the file header states:
+ * decorations are derived FROM offsets, never the reverse.
+ */
+const tableRows = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = buildTableDecorations(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged) {
+        this.decorations = buildTableDecorations(u.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+function buildTableDecorations(view: EditorView): DecorationSet {
+  const b = new RangeSetBuilder<Decoration>();
+  const doc = view.state.doc;
+  for (const { from, to } of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from,
+      to,
+      enter(node) {
+        if (node.name !== 'Table') return;
+        const first = doc.lineAt(node.from).number;
+        const last = doc.lineAt(node.to).number;
+        for (let n = first; n <= last; n++) {
+          const line = doc.line(n);
+          // The delimiter row (`| --- |`) is structural punctuation: it stays
+          // in the grid but is dimmed by the `contentSeparator` tag rule.
+          const cls = [
+            'cm-tableRow',
+            n === first ? 'cm-tableRow-first cm-tableRow-header' : '',
+            n === last ? 'cm-tableRow-last' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+          b.add(line.from, line.from, Decoration.line({ class: cls }));
+        }
+      },
+    });
+  }
+  return b.finish();
+}
 
 export interface ProseCanvasHandle {
   /** [from, to) of the current selection, in source offsets. */
@@ -165,6 +284,8 @@ export function ProseCanvas({
       // plain text rather than pulling a language bundle per fence.
       markdown({ base: markdownLanguage }),
       syntaxHighlighting(PROSE_HIGHLIGHT),
+      // Draws the table grid the highlight layer structurally cannot (D10).
+      tableRows,
       PROSE_THEME,
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),

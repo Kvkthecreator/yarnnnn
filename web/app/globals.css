@@ -13,6 +13,26 @@
 
 :root {
   --font-pacifico: "Pacifico", cursive;
+
+  /* ── Type tokens (ADR-572 D10) ────────────────────────────────────────
+     The APP's type vocabulary, distinct from the artifact-skin vocabulary
+     in `skinVars.ts`. Those (`--font-serif` inside a Docs artifact) are
+     declared by an applied design system and parsed at runtime by
+     `skinVarMap()`; they exist only inside a skinned artifact's document.
+
+     Text has no skin and no artifact `<html>` to carry one — a `.md` cannot
+     have a design system applied to it. So `ProseCanvas` reading
+     `var(--font-serif)` was reaching into a namespace that can never resolve
+     in its medium: the var was always undefined and the inline fallback
+     always won, silently, while `PROSE_READING_SKIN` used Tailwind's
+     `font-serif` and got a DIFFERENT stack. One document, two faces.
+
+     Declaring them here gives the app layer its own type tokens, mapped into
+     Tailwind's `fontFamily` so `font-serif`/`font-mono` and `var(--font-*)`
+     resolve to the SAME stack by construction rather than by coincidence. */
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
   --muted: 240 4.8% 95.9%;

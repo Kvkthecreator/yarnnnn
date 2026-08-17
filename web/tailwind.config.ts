@@ -11,6 +11,14 @@ const config: Config = {
     extend: {
       fontFamily: {
         brand: ["'Pacifico'", "cursive"],
+        // ADR-572 D10 — point Tailwind's `font-serif`/`font-mono` at the app
+        // type tokens in globals.css, so a utility class and a `var(--font-*)`
+        // read resolve to one stack. Before this, `font-serif` took Tailwind's
+        // stock default while `var(--font-serif)` was undefined and fell back
+        // to a hand-written stack, giving the SAME prose document two faces
+        // (the canvas vs. the print sheet and the landing thumbnail).
+        serif: ["var(--font-serif)"],
+        mono: ["var(--font-mono)"],
       },
       colors: {
         background: "hsl(var(--background))",

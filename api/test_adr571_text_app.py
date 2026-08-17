@@ -850,6 +850,295 @@ for _slug, _keys in sorted(_owned.items()):
         )
 
 
+# ── 11. ADR-572 D10 — the operator's click-pass findings ─────────────────
+# Five defects the operator found by DRIVING the shipped app. Every one was
+# invisible to `next build`, to tsc, and to the 128 checks above, because each
+# is about behaviour or rendered output rather than about source text.
+#
+# The rule these checks are written to: EXECUTE the thing. §11a-c mount the
+# real CodeMirror canvas in jsdom and read what it produced; §11d calls the
+# real edit functions. A grep would have passed over all five defects.
+
+# ── 11a-c. one reading face, and the table that had none ─────────────────
+_CANVAS_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f, 'utf8'),
+    { transforms: ['typescript', 'jsx', 'imports'], jsxRuntime: 'automatic', production: true }).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) {
+    const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts', '/index.tsx', '/index.ts']) {
+      try { return orig.call(this, b + e, ...a); } catch (x) { /* next */ }
+    }
+  }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<!doctype html><body><div id="h"></div></body>', { pretendToBeVisual: true });
+const def = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+
+const React = require(WEB + '/node_modules/react');
+const { renderToStaticMarkup } = require(WEB + '/node_modules/react-dom/server');
+const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
+const { ProseReader, PROSE_READING_SKIN } = require(WEB + '/components/text/ProseReader.tsx');
+const FACE_MOD = require(WEB + '/components/text/readingFace.ts');
+const { HEADING_SCALE, FACE } = FACE_MOD;
+
+// Mount the REAL canvas component (not a hand-assembled EditorView), so this
+// checks the wiring — the lesson 7n paid for when it asserted its own input.
+const host = dom.window.document.getElementById('h');
+const src = '# Title\n\n| Medium | Currency |\n| --- | --- |\n| Text | .md |\n\n- [ ] task\n\n~~gone~~\n';
+let handle = null;
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+def('IS_REACT_ACT_ENVIRONMENT', true);
+const { act } = require(WEB + '/node_modules/react');
+const root = createRoot(host);
+act(() => {
+  root.render(React.createElement(ProseCanvas, {
+    value: src, onChange: () => {}, handleRef: (h) => { handle = h; },
+  }));
+});
+const canvasHtml = host.innerHTML;
+const liveDoc = handle ? null : null;
+
+// The rendered reading face, for the cross-engine comparison.
+const readerHtml = renderToStaticMarkup(React.createElement(ProseReader, { text: src }));
+
+const out = {
+  // 11a — the table must be VISIBLY a table on the canvas, not raw pipes.
+  //       Three source lines => three decorated rows, header and last marked.
+  canvas_table_rows: (canvasHtml.match(/cm-tableRow(?![-\w])/g) || []).length >= 3,
+  canvas_table_header: /cm-tableRow-header/.test(canvasHtml),
+  canvas_table_last: /cm-tableRow-last/.test(canvasHtml),
+  // 11b — the canvas still renders headings/marks (the decoration layer did
+  //       not displace syntax highlighting).
+  canvas_styled: /class="[^"]*\bcm-/.test(canvasHtml) && canvasHtml.includes('Title'),
+  // 11c — the file is untouched by all of it (ADR-456 D1 still holds).
+  canvas_doc_identical: canvasHtml.includes('Medium') && !/data-block|data-mark|data-align/.test(canvasHtml),
+  // 11d — BOTH engines draw a table. Before D10 the rendered face drew a
+  //       grid and the canvas drew nothing, so the thumbnail and the print
+  //       sheet were more styled than the surface you type in.
+  reader_table: /<table/.test(readerHtml) && /<th[^>]*>/.test(readerHtml),
+  // 11e — the shared declaration is REACHED by both, not restated. If the
+  //       reader's literal classes drift from HEADING_SCALE, this fails.
+  scale_agrees_h1: PROSE_READING_SKIN.includes('prose-h1:text-[' + HEADING_SCALE.h1.rem + ']'),
+  scale_agrees_h2: PROSE_READING_SKIN.includes('prose-h2:text-[' + HEADING_SCALE.h2.rem + ']'),
+  scale_agrees_h3: PROSE_READING_SKIN.includes('prose-h3:text-[' + HEADING_SCALE.h3.rem + ']'),
+  // 11f — the canvas reads the APP type token, never a Docs artifact-skin var
+  //       with an inline fallback (which can never resolve in a .md and so
+  //       always silently took a DIFFERENT stack than Tailwind's font-serif).
+  face_is_token: FACE.serif === 'var(--font-serif)' && FACE.mono === 'var(--font-mono)',
+};
+console.log(JSON.stringify(out));
+"""
+
+try:
+    _d10 = json.loads(
+        subprocess.run(
+            ["node", "-e", _CANVAS_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=180, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+    _d10 = {"error": str(exc)}
+
+check("11a a GFM table is VISIBLY a table on the CANVAS — every source row "
+      "decorated (operator: 'the table render on the tool bar doesn't show "
+      "the rendered style on the editor')",
+      _d10.get("canvas_table_rows") is True, str(_d10)[:260])
+check("11a1 the table's header row is marked as such",
+      _d10.get("canvas_table_header") is True, str(_d10)[:260])
+check("11a2 the table's last row closes the grid",
+      _d10.get("canvas_table_last") is True, str(_d10)[:260])
+check("11b the decoration layer did NOT displace syntax highlighting",
+      _d10.get("canvas_styled") is True, str(_d10)[:260])
+check("11c the canvas writes NOTHING into the document — no data-* reaches "
+      "the source (ADR-456 D1 holds with the table decoration in place)",
+      _d10.get("canvas_doc_identical") is True, str(_d10)[:260])
+check("11d the RENDERED face draws a table too — both engines agree, so the "
+      "print sheet and the landing thumbnail cannot be more styled than the "
+      "canvas the member types in",
+      _d10.get("reader_table") is True, str(_d10)[:260])
+for _k, _lbl in [("scale_agrees_h1", "h1"), ("scale_agrees_h2", "h2"), ("scale_agrees_h3", "h3")]:
+    check(f"11e the reading skin's {_lbl} size AGREES with HEADING_SCALE — "
+          f"one declaration, two renderers; a drift is a failed check, never "
+          f"a quiet asymmetry",
+          _d10.get(_k) is True, str(_d10)[:260])
+check("11f the canvas face is the APP type token (var(--font-serif)), not a "
+      "Docs ARTIFACT-SKIN var — a .md has no skin, so that var could never "
+      "resolve and the inline fallback silently won a DIFFERENT stack than "
+      "Tailwind's font-serif: one document, two faces",
+      _d10.get("face_is_token") is True, str(_d10)[:260])
+
+# The type tokens must actually be declared, or `var(--font-serif)` is just a
+# prettier spelling of the same undefined read.
+_globals_css = (WEB / "app" / "globals.css").read_text(encoding="utf-8")
+_tw_config = (WEB / "tailwind.config.ts").read_text(encoding="utf-8")
+check("11g --font-serif and --font-mono are DECLARED in globals.css (the app "
+      "type vocabulary, distinct from skinVars.ts's artifact vocabulary)",
+      "--font-serif:" in _globals_css and "--font-mono:" in _globals_css,
+      "missing from :root")
+# Read the ACTUAL mapping, not the file's text. The first spelling of this
+# check asserted `"var(--font-serif)" in _tw_config` and PASSED its own
+# falsification: pointing `serif` at a hardcoded `["Georgia","serif"]` left the
+# string present in this check's own explanatory comment and in the `mono:`
+# line beside it. Fourth time this arc that an assertion matched something
+# other than the thing it names — so it now extracts the per-key value.
+def _tw_font(key: str) -> str:
+    m = re.search(rf"^\s*{key}:\s*\[([^\]]*)\]", _strip_comments(_tw_config), re.M)
+    return m.group(1) if m else ""
+
+
+check("11h Tailwind's font-serif POINTS AT the token, so a `font-serif` class "
+      "and a `var(--font-serif)` read cannot resolve to different stacks",
+      "var(--font-serif)" in _tw_font("serif"),
+      f"tailwind serif => {_tw_font('serif')!r}")
+check("11h1 Tailwind's font-mono POINTS AT the token",
+      "var(--font-mono)" in _tw_font("mono"),
+      f"tailwind mono => {_tw_font('mono')!r}")
+
+# ── 11i. the toolbar on an empty line ────────────────────────────────────
+# Operator: "the tool bar inserts don't work for an empty line." Four of the
+# eight source edits were silent no-ops on a blank line — the ONE place a
+# member reaches for the button instead of typing the marker by hand.
+_EMPTY_PROBE = r"""
+const fs = require('fs');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+const js = transform(fs.readFileSync(WEB + '/components/text/markdownEdits.ts', 'utf8'),
+  { transforms: ['typescript', 'imports'] }).code;
+const mod = { exports: {} };
+new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+const M = mod.exports;
+const D = 'Hi\n\n';           // caret at 4 == a blank line at the end
+console.log(JSON.stringify({
+  // Each must MARK the empty line, and leave the caret past the marker.
+  list:      M.toggleList(D, 4, 4, false).text === 'Hi\n\n- ',
+  ordered:   M.toggleList(D, 4, 4, true).text  === 'Hi\n\n1. ',
+  checklist: M.toggleChecklist(D, 4, 4).text   === 'Hi\n\n- [ ] ',
+  quote:     M.toggleQuote(D, 4, 4).text       === 'Hi\n\n> ',
+  caret_usable: M.toggleChecklist('', 0, 0).selectionEnd === 6,
+  // The controls that ALREADY worked must be untouched.
+  heading_ok: M.toggleHeading(D, 4, 4, 2).text === 'Hi\n\n## ',
+  table_ok:   M.insertTable(D, 4, 4).text.includes('| Column | Column |'),
+  // REGRESSION: the permissive blank-line clause exists so a gap INSIDE a
+  // multi-line selection does not veto toggling OFF. That must still hold —
+  // this is the behaviour the naive fix breaks.
+  multiline_off: M.toggleList('- a\n\n- b', 0, 8, false).text === 'a\n\nb',
+  multiline_quote_off: M.toggleQuote('> a\n\n> b', 0, 8).text === 'a\n\nb',
+  multiline_on_keeps_gap: M.toggleList('a\n\nb', 0, 4, false).text === '- a\n\n- b',
+  // A non-empty line is unchanged by the fix.
+  nonempty: M.toggleList('Hello', 0, 5, false).text === '- Hello',
+}));
+"""
+
+try:
+    _e = json.loads(
+        subprocess.run(
+            ["node", "-e", _EMPTY_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _e = {"error": str(exc)}
+
+for _k, _lbl in [
+    ("list", "11i a bulleted list"),
+    ("ordered", "11i1 a numbered list"),
+    ("checklist", "11i2 a task list"),
+    ("quote", "11i3 a quote"),
+]:
+    check(f"{_lbl} can be started ON AN EMPTY LINE — the blank-line clause made "
+          f"the 'already marked?' test vacuously true, so the toggle took the "
+          f"UN-mark branch and the button did nothing",
+          _e.get(_k) is True, str(_e)[:260])
+check("11i4 the caret lands PAST the inserted marker, ready to type",
+      _e.get("caret_usable") is True, str(_e)[:260])
+check("11i5 heading + table on an empty line still work (they always did)",
+      _e.get("heading_ok") is True and _e.get("table_ok") is True, str(_e)[:260])
+check("11j REGRESSION — a blank line INSIDE a multi-line selection still does "
+      "not veto toggling off; that is what the permissive clause was for, and "
+      "the naive fix breaks exactly here",
+      _e.get("multiline_off") is True and _e.get("multiline_quote_off") is True,
+      str(_e)[:260])
+check("11j1 REGRESSION — toggling a multi-line span ON preserves its gap",
+      _e.get("multiline_on_keeps_gap") is True, str(_e)[:260])
+check("11j2 REGRESSION — a non-empty line is unaffected",
+      _e.get("nonempty") is True, str(_e)[:260])
+
+# ── 11k. file handling matches Docs (D10 supersedes D5) ──────────────────
+_editor = (WEB / "components" / "text" / "TextEditor.tsx").read_text(encoding="utf-8")
+# Comments stripped before asserting an ABSENCE — an assertion has matched its
+# own explanatory comment three times this arc.
+_editor_ast = _strip_comments(_editor)
+
+check("11k the Save BUTTON is deleted — saving is automatic, and two save "
+      "models in one surface is the dual-approach shape CLAUDE.md §2 forbids",
+      not re.search(r"<button[^>]*>[^<]*\bSave\b\s*</button>", _editor_ast, re.S)
+      and ">\n          Save\n        </button>" not in _editor,
+      "a Save button survives in TextEditor")
+check("11k1 an idle debounce commits the document (Docs' COMMIT_IDLE_MS)",
+      "COMMIT_IDLE_MS" in _editor and "2000" in _editor, "no idle commit")
+check("11k2 the commit reads the LIVE text through a ref — a timer closing "
+      "over `text` writes a revision one keystroke behind and reports success",
+      "textRef" in _editor and "textRef.current" in _editor, "stale-closure risk")
+check("11k3 writes are SERIALIZED — a second commit's CAS base is the head "
+      "the first one acked, so they must not race (Docs' writeTail rule)",
+      "writeTail" in _editor, "concurrent commits can race the CAS base")
+check("11k4 leaving the document flushes pending text (beforeunload + "
+      "visibilitychange + teardown), or autosave silently loses the last edit",
+      "beforeunload" in _editor and "visibilitychange" in _editor, "no flush")
+check("11k5 the 409 CONFLICT BANNER SURVIVES — Docs can auto-recompute a "
+      "conflict because it commits replayable OPS; Text commits whole text, "
+      "so it must ask the member instead of inventing a merge",
+      "setConflict(readConflict(" in _editor and "Save mine over theirs" in _editor,
+      "the conflict banner was lost with the Save button")
+
+# ── 11L. the Properties pane: the ⋯, and the visible refusal ─────────────
+# Assert the WIRING (a button whose handler opens the menu on this file), not
+# the presence of two labels. The first spelling required `openMenuFromButton`
+# and the string "File actions" — deleting the aria-label left `title="File
+# actions"` behind and the check stayed green. Same lesson as 11h, one screen
+# apart: a check must name the BEHAVIOUR, never a decoration of it.
+_kebab_wired = re.search(
+    r"onClick=\{\(e\)\s*=>\s*openMenuFromButton\(\s*\{\s*path\s*,", _editor_ast
+)
+check("11L the OPEN document's Properties pane carries the ⋯ file menu, WIRED "
+      "to this document — it existed on the landing cards and vanished once a "
+      "document was open, so the moment the member was working on a file was "
+      "the one moment they could not act on it as one",
+      _kebab_wired is not None and "{fileMenu}" in _editor_ast,
+      "no kebab wired to openMenuFromButton, or the menu node is not mounted")
+check("11L1 it reuses the SHARED menu, not a re-typed popover — Docs hand-rolls "
+      "~90 lines of inline JSX for this and that must not be copied",
+      "useFileContextMenu" in _editor
+      and not re.search(r"absolute right-0 top-full z-30", _editor),
+      "the pane forked its own popover")
+check("11L2 the shared hook EXPORTS the button opener, so a pane can anchor "
+      "the menu on any pointer (Kebab is coarse-pointer only)",
+      "openMenuFromButton," in (WEB / "components" / "workspace" / "FileContextMenu.tsx")
+      .read_text(encoding="utf-8").split("return {")[-1],
+      "openMenuFromButton is still internal")
+check("11M the colour/highlight/align REFUSAL is printed IN THE PANE, the way "
+      "Docs prints its own ('never raw color'; ADR-449's metrics refusal). "
+      "ADR-572 §3.1 said it wanted the absence named rather than looking like "
+      "an oversight — it named it only in the ADR, where no member reads it",
+      "Appearance" in _editor
+      and re.search(r"colour|color", _editor, re.I) is not None
+      and "highlight" in _editor.lower(),
+      "the refusal is invisible to the member")
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:
