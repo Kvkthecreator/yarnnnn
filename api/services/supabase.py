@@ -227,6 +227,20 @@ def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
         result = (
             client.table("workspaces")
             .select("id")
+            # ⚠️ THE OWNERSHIP FILTER IS THE WHOLE FUNCTION. Without it this
+            # selects the oldest workspace in the TABLE and hands it to every
+            # caller — a cross-tenant resolution, not a mis-ordering.
+            #
+            # It was dropped on 2026-08-17 while adding the ORDER BY below (the
+            # `.eq()` was replaced rather than joined by it), and the ordering
+            # made the wrong answer DETERMINISTIC: every principal resolved to
+            # one specific stranger's workspace. Observed live the same day —
+            # a connector authenticated as an account with no ownership and no
+            # grant into that workspace wrote three attributed revisions into
+            # it, succeeding, while its own 275-file substrate read as 19 files.
+            # The service key bypasses RLS, so nothing below this line would
+            # have caught it. Never remove it; never let a "fix" replace it.
+            .eq("owner_id", user_id)
             # ADR-373 D6 (2026-08-17) — ORDER BY is load-bearing, not tidiness.
             # This was `.limit(1)` with no ordering, so an account owning more
             # than one workspace row got an ARBITRARY pick that the lru_cache
