@@ -130,6 +130,18 @@ class WorkspaceMember(BaseModel):
     # with the one powerbox matcher (never re-derived FE-side).
     can_read: Optional[bool] = None
     can_write: Optional[bool] = None
+    # ADR-563 — the CONNECTION's scope tier, a DIFFERENT AXIS from the path
+    # regions above. `read_scopes`/`write_scopes` say WHERE a principal may
+    # reach; this says WHAT VERBS its OAuth token authorizes (files:read ⊂
+    # files:write ⊂ files:share, or the legacy full-access `read`). A connector
+    # narrowed to Documents can still hold a token that may delete and share
+    # within it — the two axes compose and neither implies the other.
+    #
+    # foreign-llm rows only (nothing else authenticates by OAuth token). None
+    # when the principal has no live token — i.e. the grant outlives the
+    # session, which is exactly the state worth seeing.
+    connection_scopes: Optional[list[str]] = None
+    connection_legacy_full: bool = False
 
 
 class WorkspaceMembersResponse(BaseModel):
@@ -1378,6 +1390,41 @@ async def get_workspace_members(
             except Exception as exc:  # best-effort humanization
                 logger.debug("[WORKSPACE_API] legacy member client-name lookup failed: %s", exc)
 
+        # ADR-563 — the CONNECTION scope tier per foreign-LLM principal.
+        #
+        # The join is not direct: a grant is keyed on the PROVIDER host-id
+        # (ADR-373 D2.a — `claude.ai`, stable across re-registrations) while
+        # tokens are keyed on the churning OAuth `client_id`. `client_ids_for_
+        # provider` is the existing bridge (eviction already needs it), so this
+        # reuses it rather than inventing a second mapping.
+        #
+        # Scoped to `connected_by` where present so one member's ChatGPT does
+        # not report another member's tier — the ADR-431 distinction that makes
+        # revoke work per-connection.
+        from services.mcp_scopes import is_legacy_full
+
+        connection_scopes: dict[str, list[str]] = {}
+        llm_rows = [r for r in rows if r.get("role") == "foreign-llm"]
+        if llm_rows:
+            try:
+                from services.principal_grants import client_ids_for_provider
+
+                for r in llm_rows:
+                    pid = r["principal_id"]
+                    ids = client_ids_for_provider(workspace_id, pid) or [pid]
+                    q = (
+                        svc.table("mcp_oauth_access_tokens")
+                        .select("scopes, expires_at, user_id")
+                        .in_("client_id", ids)
+                    )
+                    if r.get("connected_by"):
+                        q = q.eq("user_id", str(r["connected_by"]))
+                    tok = (q.order("expires_at", desc=True).limit(1).execute()).data or []
+                    if tok and tok[0].get("scopes"):
+                        connection_scopes[pid] = list(tok[0]["scopes"])
+            except Exception as exc:  # best-effort — never fail the roster
+                logger.debug("[ADR-563] connection-scope lookup failed: %s", exc)
+
         # ADR-404 step 5 follow-on (operator-observed 2026-07-04): humanize
         # HUMAN principals for every viewer, not just the owner viewing
         # themself. A member's roster showed raw UUIDs for the owner row and
@@ -1546,6 +1593,12 @@ async def get_workspace_members(
                 spend_cap_usd=member_caps.get(principal_id),
                 can_read=can_read,
                 can_write=can_write,
+                # ADR-563 — the verb tier the live token carries (foreign-llm
+                # only; None when no live token backs the grant).
+                connection_scopes=connection_scopes.get(principal_id),
+                connection_legacy_full=is_legacy_full(
+                    connection_scopes.get(principal_id) or []
+                ),
             ))
 
         # ADR-445 §6 — proactive seat awareness. Human seats = active grants with a

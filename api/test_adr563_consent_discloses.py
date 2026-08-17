@@ -183,6 +183,38 @@ def run() -> int:
         all(k in client_src for k in ("account_email", "workspace_name", "grants")),
     )
 
+    # ── D6. The members pane shows the tier, as its OWN axis ────────────────
+    # ADR-563 made the tiers enforced; the pane still showed only PATH regions
+    # (ADR-532 read_scopes/write_scopes), so an operator could not tell a
+    # legacy full-access connector from a read-only one. The two axes must stay
+    # distinguishable: merging the tier into the write-zone chip row would imply
+    # one narrows the other.
+    ws_route = open("routes/workspace.py").read()
+    pane = open("../web/components/workspace-concepts/WorkspaceMembersCard.tsx").read()
+
+    _check(
+        "D6. the members route resolves the connection's token scopes",
+        "connection_scopes" in ws_route and "mcp_oauth_access_tokens" in ws_route,
+    )
+    # Grants key on the PROVIDER host-id, tokens on the churning client_id.
+    # Reuse the existing bridge rather than inventing a second mapping.
+    _check(
+        "D6. it bridges provider host-id → client_ids (not a second mapping)",
+        "client_ids_for_provider" in ws_route,
+    )
+    _check(
+        "D6. legacy full access is computed by the SHARED helper, not re-derived",
+        "from services.mcp_scopes import is_legacy_full" in ws_route,
+    )
+    _check(
+        "D6. the pane renders the tier from the payload",
+        re.search(r"m\s*\.\s*connection_scopes", pane) is not None,
+    )
+    _check(
+        "D6. the tier is a SEPARATE line from the write-zone chips (two axes)",
+        "connectionTier" in pane and "describeConnectionTier" in pane,
+    )
+
     total = len(FAILURES)
     print(
         f"\nADR-563 consent-disclosure gate: "
@@ -193,7 +225,7 @@ def run() -> int:
     return 1 if FAILURES else 0
 
 
-_RUN = 18
+_RUN = 23
 
 if __name__ == "__main__":
     sys.exit(run())

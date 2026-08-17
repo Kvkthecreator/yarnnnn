@@ -61,6 +61,31 @@ def _scoped(query, user_id: str):
     Unresolvable → legacy user_id scoping, byte-identical in N=1. The
     RPC-backed search paths re-keyed to p_workspace_id in migration 201
     (ADR-407 Phase 1) — the named lag is closed.
+
+    **Why this RE-DERIVES rather than being told (examined 2026-08-17, kept).**
+    ``AuthenticatedClient`` carries a ``workspace_id`` and its own docstring
+    argues the workspace should be "derived once and threaded". ``AgentWorkspace``
+    has no such field, so it resolves here on every call — which reads like the
+    second, un-swept path. It was measured before being "fixed":
+
+    - The owner branch (``resolve_owner_workspace_id``) is ``lru_cache``d, so a
+      repeated call is a dict lookup, not a DB round-trip.
+    - The uncached branch is the newest-active-grant fallback, reached ONLY by a
+      principal with an active grant and no owned workspace. **Production count
+      of such principals: 0** (queried 2026-08-17).
+
+    So threading a workspace through the ~90 ``AgentWorkspace``/``UserMemory``
+    construction sites would change no behavior and save no query today, while
+    touching most of the service layer. That is supply far ahead of demand
+    (the ADR-420 §10 test), and the churn is itself the risk.
+
+    **The condition that changes this**: member-only principals becoming real
+    (ADR-465 D2 join-only genesis makes them possible — an invitee who never
+    takes an owner-act). At that point the fallback runs uncached per query, and
+    the right fix is to accept an explicit ``workspace_id`` here, sourced from
+    the caller's ``AuthenticatedClient`` — not to add a second cache, which
+    would outlive a workspace change (the reason ADR-373 D6 declined to cache
+    at the MCP layer).
     """
     from services.workspace_context import effective_workspace_id
     ws = effective_workspace_id(user_id)

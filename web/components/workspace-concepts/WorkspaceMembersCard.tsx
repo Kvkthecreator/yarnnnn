@@ -114,6 +114,51 @@ const ROLE_META: Record<string, { label: string; icon: typeof Users; tone: strin
   'foreign-llm': { label: 'External LLM', icon: Cpu, tone: 'text-amber-600 dark:text-amber-400' },
 };
 
+// ADR-563 — the CONNECTION's verb tier, as one operator-facing label.
+//
+// A different axis from the write/read REGIONS this pane already shows: those
+// answer "where may this principal reach", this answers "what may its token do
+// there". Both are real and neither implies the other — a connector narrowed to
+// Documents can still hold a token that deletes and shares within it.
+//
+// The tiers are additive (files:read ⊂ files:write ⊂ files:share) and `read` is
+// the LEGACY full-access grant every pre-ADR-563 token carries, so it is named
+// plainly rather than shown as if it were a narrow scope — that silence is the
+// exact thing ADR-563 exists to end. Order matters: check widest first.
+function describeConnectionTier(
+  scopes: string[] | null,
+  legacyFull: boolean,
+): { label: string; tone: string } | null {
+  if (legacyFull) {
+    return {
+      label: 'Everything (full access)',
+      tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    };
+  }
+  if (!scopes || scopes.length === 0) return null;
+  if (scopes.includes('files:share')) {
+    return {
+      label: 'Read, write & share',
+      tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    };
+  }
+  if (scopes.includes('files:write')) {
+    return {
+      label: 'Read & write',
+      tone: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    };
+  }
+  if (scopes.includes('files:read')) {
+    return {
+      label: 'Read only',
+      tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    };
+  }
+  // An unrecognized scope is shown as unknown rather than guessed at — never
+  // imply a capability this build does not understand.
+  return { label: 'Unrecognized permission', tone: 'bg-muted text-muted-foreground' };
+}
+
 // ADR-550 — the viewer's own standing, said in the second person. Separate from
 // ROLE_META (which labels OTHER people's rows) because the sentence differs:
 // a row says what someone IS, the header says what YOU can do. Same three human
@@ -464,6 +509,13 @@ export function WorkspaceMembersCard({
         // program, not someone's connection) and keeps the role glyph.
         const isExternalAI = m.role === 'foreign-llm';
         const connectedByName = m.connected_by_is_you ? 'You' : (m.connected_by_label ?? null);
+        // ADR-563 — the token's verb tier, resolved to one operator-facing
+        // label. Named for the CONSEQUENCE, not the scope string: the operator
+        // is deciding about capability, not reading an OAuth field.
+        const connectionTier = describeConnectionTier(
+          m.connection_scopes ?? null,
+          m.connection_legacy_full === true,
+        );
         // ADR-424 — show OPERATOR ZONES (Documents/Downloads/System files), NOT
         // the raw kernel roots. write_zones is the backend's operator projection.
         const zones = m.write_zones ?? [];
@@ -539,6 +591,33 @@ export function WorkspaceMembersCard({
                   </span>
                 )}
               </div>
+              {/* ADR-563 — the CONNECTION's verb tier. Deliberately its own
+                  line, not another chip in the row above: that row is the PATH
+                  axis (where this principal may reach), and this is the VERB
+                  axis (what its token may do there). Merging them would imply
+                  one narrows the other — a connector scoped to Documents can
+                  still hold a token that deletes and shares within it.
+                  Enforcement is `assert_scope`; this is the same table read for
+                  display, so the pane cannot claim a tier the gate disagrees
+                  with. */}
+              {isExternalAI && connectionTier && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground/70">Can do:</span>
+                  <span
+                    className={cn(
+                      'rounded px-1.5 py-0.5 text-[11px] font-medium',
+                      connectionTier.tone,
+                    )}
+                  >
+                    {connectionTier.label}
+                  </span>
+                  {m.connection_legacy_full && (
+                    <span className="text-[10px] text-muted-foreground/60">
+                      granted before scoped permissions existed
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             {governable && (
               <div className="relative shrink-0">

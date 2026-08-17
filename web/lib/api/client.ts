@@ -2216,6 +2216,11 @@ export const api = {
           spend_cap_usd: number | null; // ADR-445 §7 Phase 4 — owner-set cap on the shared pool (null = uncapped)
           can_read?: boolean | null; // ADR-512 D6 — only when ?path= was passed
           can_write?: boolean | null;
+          // ADR-563 — the CONNECTION's verb tier, a different axis from the
+          // path regions above: those say WHERE, this says WHAT VERBS the
+          // OAuth token authorizes. foreign-llm only; null = no live token.
+          connection_scopes?: string[] | null;
+          connection_legacy_full?: boolean;
         }>;
         grant_consult_active: boolean;
         // ADR-445 §6 — proactive seat awareness at the members surface.
