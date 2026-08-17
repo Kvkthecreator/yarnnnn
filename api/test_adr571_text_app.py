@@ -1801,7 +1801,12 @@ check("17d the diagram's body is SELECTED so it can be typed over",
       _d17.get("mermaid_selects_body") is True, str(_d17)[:300])
 check("17e none of the three writes `data-*` or raw HTML — this is the test "
       "that decided WHICH kinds were addable, and the reason gallery, callout, "
-      "metrics, button and table-from-CSV were refused",
+      "metrics and button are refused. "
+      "SUPERSEDED IN PART by D18: this check used to name table-from-CSV in "
+      "that refused list. The refusal was too strong — it conflated a SNAPSHOT "
+      "(rows written as real markdown; possible, and now shipped) with an "
+      "AUTOMATICALLY LIVE view (a pointer; still refused, and still for this "
+      "reason). §18 asserts the snapshot obeys the very rule stated here.",
       _d17.get("no_data_attrs") is True and _d17.get("no_html") is True,
       str(_d17)[:300])
 
@@ -1834,6 +1839,203 @@ check("17g the renderer RESOLVES a workspace image path — the CAS serving URL 
       "its own access per read",
       "MarkdownImage" in _renderer and "blobUrl" in _renderer,
       "an image path would render as a broken <img>")
+
+
+# ── 18. ADR-572 D18 — a CSV table is a SNAPSHOT, and the rows are in the file ──
+# Operator asked whether a CSV-sourced table is structurally impossible in
+# markdown. It is not. Three cases, one blocked:
+#   - snapshot (rows + a prose source note)  → possible; SHIPPED here
+#   - automatically live                      → blocked (a pointer, = Docs'
+#     `data-ref`, whose content is EMPTY in the file — an ADR-574 pause reason)
+#   - a `csv-table` fence carrying both       → possible but a CONVENTION;
+#     not taken (the operator chose the snapshot)
+#
+# The whole decision rests on ONE property, so that is what §18 measures: after
+# an insert, are the CSV's actual values present as text in the `.md`?
+_D18_PROBE = r"""
+const fs = require('fs');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+const load = (rel) => {
+  const js = transform(fs.readFileSync(WEB + rel, 'utf8'),
+    { transforms: ['typescript', 'imports'] }).code;
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require', js)(m, m.exports, () => ({}));
+  return m.exports;
+};
+const M = load('/components/text/markdownEdits.ts');
+const WHEN = new Date(2026, 7, 17); // local-time ctor: the fn reads local parts
+
+// A deliberately NASTY csv: a quoted comma, a quoted newline, an escaped
+// quote, an embedded pipe, and a short (ragged) row. Assembled from char
+// codes where a literal would collide with this file's own string quoting.
+const Q = String.fromCharCode(34);   // "
+const NL = String.fromCharCode(10);  // \n
+const CR = String.fromCharCode(13);  // \r
+const NASTY =
+  'Region,Owner,Note' + CR + NL +
+  'APAC,' + Q + 'Kim, Kevin' + Q + ',' + Q + 'said ' + Q + Q + 'ok' + Q + Q + Q + NL +
+  'EMEA,Lee,' + Q + 'a | pipe' + Q + NL +
+  'US,Ray,' + Q + 'two' + NL + 'lines' + Q + NL +
+  'LATAM' + NL;
+
+const rows = M.parseCsv(NASTY);
+const snap = M.csvToMarkdownTable(NASTY);
+const ins = M.insertCsvTable('Intro.', 6, 6, 'data/q3.csv', NASTY, WHEN);
+
+// Every data value must survive into the document as TEXT. This is the
+// property Docs' citation block lacks and the reason this kind is legal.
+const VALUES = ['APAC', 'Kim, Kevin', 'EMEA', 'a \\| pipe', 'LATAM',
+                'said ' + Q + 'ok' + Q];
+
+const capped = 'h' + NL + Array.from({length: 250}, (_, i) => 'r' + i).join(NL);
+const cappedSnap = M.csvToMarkdownTable(capped);
+
+console.log(JSON.stringify({
+  // parseCsv
+  quoted_comma_is_one_cell: rows[1][1] === 'Kim, Kevin',
+  escaped_quote_unwrapped: rows[1][2] === 'said "ok"',
+  quoted_newline_is_one_cell: rows[3][2] === 'two\nlines',
+  // the table
+  values_present_as_text: VALUES.every((v) => ins.text.includes(v)),
+  pipe_escaped: snap.table.includes('a \\| pipe'),
+  // An unescaped pipe would SPLIT the row, so the header's width must hold on
+  // every row. Count CELL boundaries the way a GFM parser does — an ESCAPED
+  // `\|` is content, not a delimiter. The first spelling of this check split
+  // on a bare '|' and FAILED against correct output: it counted the escaped
+  // pipe as a boundary, i.e. it asserted the very corruption the escape
+  // prevents. Falsification caught it; the gate was wrong, not the code.
+  all_rows_same_width: (() => {
+    const ls = snap.table.trim().split('\n');
+    const w = (l) => l.replace(/\\\|/g, '').split('|').length;
+    return ls.every((l) => w(l) === w(ls[0]));
+  })(),
+  // The control for the check above: with the escape REMOVED the widths must
+  // disagree, proving this measures alignment and not "did it split at all".
+  unescaped_pipe_would_break: (() => {
+    const ls = snap.table.trim().split('\n').map((l) => l.replace(/\\\|/g, '|'));
+    return !ls.every((l) => l.split('|').length === ls[0].split('|').length);
+  })(),
+  ragged_row_padded: snap.table.includes('| LATAM |  |  |'),
+  newline_folded_in_cell: !snap.table.split('\n').some((l) => l && !l.startsWith('|')),
+  has_delimiter_row: /\|\s*---\s*\|/.test(snap.table),
+  // provenance
+  note_names_source_and_date: ins.text.includes('_From `data/q3.csv` · snapshot 2026-08-17'),
+  note_is_italic_prose: !/data-|<[a-z]/i.test(M.csvSourceNote('a.csv', WHEN)),
+  // the legality property, asserted on the FULL inserted document
+  no_data_attrs: !/data-/.test(ins.text),
+  no_html: !/<[a-z]/i.test(ins.text),
+  no_fence: !ins.text.includes('```'),
+  // the cap
+  cap_applied: cappedSnap.rows === M.CSV_SNAPSHOT_ROW_CAP && cappedSnap.omitted === 50,
+  cap_disclosed: M.csvSourceNote('a.csv', WHEN, 50).includes('50 more in the source'),
+  cap_silent_when_none: !M.csvSourceNote('a.csv', WHEN, 0).includes('more in the source'),
+  // an empty source says so rather than writing a broken grid
+  empty_csv_says_so: M.insertCsvTable('', 0, 0, 'e.csv', '', WHEN).text.includes('no rows'),
+  empty_csv_no_bare_grid: !M.insertCsvTable('', 0, 0, 'e.csv', '', WHEN).text.includes('|  |'),
+}));
+"""
+
+try:
+    _d18 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D18_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d18 = {"error": str(exc)}
+
+check("18a the CSV parser is QUOTE-AWARE — a naive split(',') corrupts exactly "
+      "the data worth tabulating: `\"Kim, Kevin\"` becomes two cells and every "
+      "column after it shifts, silently",
+      _d18.get("quoted_comma_is_one_cell") is True
+      and _d18.get("escaped_quote_unwrapped") is True
+      and _d18.get("quoted_newline_is_one_cell") is True, str(_d18)[:400])
+check("18b ⭐ THE DECIDING PROPERTY — every CSV VALUE is present in the .md as "
+      "TEXT. This is the whole reason a CSV table is legal here and Docs' is "
+      "not: Docs writes `<div data-block='table' data-ref='…csv'></div>`, an "
+      "EMPTY element whose rows are manufactured at render time, so a connector "
+      "reads a container with no data in it (an ADR-574 pause reason).",
+      _d18.get("values_present_as_text") is True, str(_d18)[:400])
+check("18c a `|` inside a cell is ESCAPED, and every row keeps the header's "
+      "width — an unescaped pipe ENDS the cell, silently splitting one column "
+      "into two and knocking the rest of the grid out of alignment",
+      _d18.get("pipe_escaped") is True and _d18.get("all_rows_same_width") is True
+      and _d18.get("unescaped_pipe_would_break") is True,
+      str(_d18)[:400])
+check("18d a ragged row is PADDED, not rejected — a short row is a real thing "
+      "in real CSV, and a table that renders beats a refusal that does not; a "
+      "quoted newline is folded so it cannot end the row",
+      _d18.get("ragged_row_padded") is True
+      and _d18.get("newline_folded_in_cell") is True
+      and _d18.get("has_delimiter_row") is True, str(_d18)[:400])
+check("18e the SOURCE NOTE names the file and the date. A snapshot's defect is "
+      "SILENCE — rows that look live and are not — so the freeze is stated in "
+      "the document, as ordinary italic prose a member can edit or delete",
+      _d18.get("note_names_source_and_date") is True
+      and _d18.get("note_is_italic_prose") is True, str(_d18)[:400])
+check("18f the inserted document carries NO `data-*`, NO raw HTML and NO fence "
+      "— it is the same GFM table the member could have typed. The `csv-table` "
+      "fence alternative was offered and NOT taken: it round-trips, but it is a "
+      "CONVENTION other markdown tools render as a code block.",
+      _d18.get("no_data_attrs") is True and _d18.get("no_html") is True
+      and _d18.get("no_fence") is True, str(_d18)[:400])
+check("18g the row cap is applied AND DISCLOSED in the note — a snapshot that "
+      "silently drops rows is the same silence the note exists to prevent; with "
+      "nothing omitted the note stays quiet",
+      _d18.get("cap_applied") is True and _d18.get("cap_disclosed") is True
+      and _d18.get("cap_silent_when_none") is True, str(_d18)[:400])
+check("18h an empty source writes the note plus '(that file has no rows)', "
+      "never a bare `|  |` grid — a broken-looking table would misreport an "
+      "empty file as a malformed one",
+      _d18.get("empty_csv_says_so") is True
+      and _d18.get("empty_csv_no_bare_grid") is True, str(_d18)[:400])
+
+check("18i BOTH doors render `csvtable` — the toolbar and `/` are two doors to "
+      "one mechanism (ADR-505 D4), so a kind reachable from only one is a split. "
+      "Parses the rendered arrays rather than grepping the token, because the "
+      "token also lives in the ToolbarAction union and in these comments.",
+      "csvtable" in _toolbar_kinds and "csvtable" in _slash_kinds,
+      f"toolbar={sorted(_toolbar_kinds)} slash={sorted(_slash_kinds)}")
+
+_editor_src = (WEB / "components" / "text" / "TextEditor.tsx").read_text(encoding="utf-8")
+_editor_nc = _strip_comments(_editor_src)
+check("18j the CSV insert reads the document from the CANVAS at apply time "
+      "(`canvasRef.current?.text()`), not from the React `text` closed over at "
+      "pick time. It is the only insert that AWAITS I/O, so the member can type "
+      "while the fetch is in flight — applying the captured string would delete "
+      "those keystrokes (the D12 stale-prop shape, which shipped once already).",
+      re.search(r"canvasRef\.current\?\.text\(\)", _editor_nc) is not None
+      and "insertCsvTable(current" in _editor_nc,
+      "a stale-string apply would silently destroy typing during the fetch")
+# The `catch` block of takeCsv, isolated. Its BODY is what must not insert.
+_csv_catch = re.search(
+    r"const takeCsv[\s\S]*?\}\s*catch\s*\{([\s\S]*?)\}\s*finally", _editor_nc)
+_csv_catch_body = _csv_catch.group(1) if _csv_catch else ""
+check("18k a FAILED read inserts NOTHING and says so — writing a source note "
+      "with no rows under it would assert 'that file is empty', a different and "
+      "false claim when the request simply failed. "
+      "EIGHTH occurrence this arc of a check matching a NAME where it meant a "
+      "BEHAVIOUR: the first spelling required `setCsvError` + the copy string "
+      "and PASSED its own falsification — replacing the catch body with an "
+      "insert left the setter in its own `useState`/timeout and the copy in the "
+      "JSX. It now reads the CATCH BODY and requires that no insert happens there.",
+      _csv_catch is not None
+      and "setCsvError" in _csv_catch_body
+      and "insertCsvTable" not in _csv_catch_body
+      and "applyEdit" not in _csv_catch_body
+      and "nothing was inserted" in _editor_src,
+      f"catch body: {_csv_catch_body.strip()[:160]!r}")
+
+_strings_src = (WEB / "components" / "strings" / "StringsSurface.tsx").read_text(encoding="utf-8")
+check("18L ONE CSV parser, not two. Strings had its own copy; D18 needed the "
+      "same behaviour in Text, and a second parser whose bugs are SILENT (a "
+      "mis-split cell shifts every later column) is drift worth an import to "
+      "avoid. Strings must IMPORT it and declare no local `function parseCsv`.",
+      "from '@/components/text/markdownEdits'" in _strings_src
+      and re.search(r"function\s+parseCsv", _strings_src) is None,
+      "a second CSV parser was reintroduced")
 
 
 # ── report ───────────────────────────────────────────────────────────────

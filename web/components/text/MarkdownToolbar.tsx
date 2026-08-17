@@ -28,6 +28,7 @@ import {
   ListOrdered,
   Minus,
   Quote,
+  Sheet,
   Strikethrough,
   Table,
   Workflow,
@@ -50,7 +51,13 @@ export type ToolbarAction =
   | { kind: 'code' }
   | { kind: 'mermaid' }
   /** Opens the workspace image picker; the path arrives on the pick. */
-  | { kind: 'image' };
+  | { kind: 'image' }
+  /**
+   * ADR-572 D18 — a table SNAPSHOT from a workspace CSV. Opens the same
+   * picker listing CSVs; the rows are read and written as real markdown.
+   * Distinct from `table` (an empty skeleton to type into).
+   */
+  | { kind: 'csvtable' };
 
 interface Item {
   icon: LucideIcon;
@@ -83,6 +90,10 @@ const GROUPS: Item[][] = [
   ],
   [
     { icon: Table, label: 'Table', action: { kind: 'table' } },
+    // ADR-572 D18 — the same grid, filled from a CSV the workspace already
+    // holds. The rows land as real markdown, which is what Docs' citation
+    // block cannot do.
+    { icon: Sheet, label: 'Table from CSV', action: { kind: 'csvtable' } },
     { icon: Minus, label: 'Divider', action: { kind: 'rule' } },
   ],
   // ADR-572 D17 — the media row. Every one of these keeps its content in the

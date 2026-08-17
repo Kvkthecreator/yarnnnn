@@ -363,6 +363,154 @@ export function insertImage(text: string, start: number, end: number, path: stri
   return { text: before + snippet + after, selectionStart: caret, selectionEnd: caret };
 }
 
+/**
+ * Parse CSV into rows of cells (ADR-572 D18).
+ *
+ * Quote-aware, because a naive `split(',')` corrupts exactly the data most
+ * worth tabulating: `"Kim, Kevin"` becomes two cells and every column after it
+ * shifts. Handles quoted commas, quoted NEWLINES (a cell may span source
+ * lines), and the `""` escape for a literal quote.
+ *
+ * Two parsers for this already existed in the tree — `viewers/projection.ts`
+ * (line-split, so a quoted newline breaks it) and `StringsSurface.tsx` (this
+ * shape, but private to a component file). This is the Strings shape, lifted
+ * into the pure module where the gate can CALL it, and re-exported to Strings
+ * so a third copy is not created. The projection one is left alone: it feeds
+ * `csvToTableHtml` for the Docs artifact path, which this app does not use.
+ */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else inQuotes = false;
+      } else cell += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some((v) => v.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  row.push(cell);
+  if (row.some((v) => v.trim() !== '')) rows.push(row);
+  return rows;
+}
+
+/**
+ * Escape one cell for a GFM table row.
+ *
+ * A `|` inside a cell ENDS the cell — so an unescaped pipe silently splits one
+ * column into two and knocks every later column out of alignment. A newline
+ * inside a quoted CSV cell ends the ROW for the same reason. Both are folded
+ * rather than dropped: the data stays visible and the grid stays intact.
+ */
+function csvCellToMarkdown(cell: string): string {
+  return cell.trim().replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
+/** How many data rows a snapshot writes before it stops. */
+export const CSV_SNAPSHOT_ROW_CAP = 200;
+
+export interface CsvSnapshot {
+  /** The GFM table (header + delimiter + body), newline-terminated. */
+  table: string;
+  /** Data rows written (excludes the header). */
+  rows: number;
+  /** Data rows in the source that were NOT written, because of the cap. */
+  omitted: number;
+}
+
+/**
+ * Render CSV as a GFM table — rows as REAL TEXT (ADR-572 D18).
+ *
+ * This is the whole reason a CSV table is legal in this app while Docs' is
+ * not. Docs writes `<div data-block="table" data-ref="…/data.csv"></div>` —
+ * an EMPTY element whose rows are manufactured at render time from a separate
+ * file, so a connector reading the artifact gets a container with no data in
+ * it (a named reason ADR-574 paused Docs). Here the numbers are in the `.md`:
+ * ChatGPT reads them, `git diff` shows them changing, and any markdown tool
+ * renders a table because it IS one.
+ *
+ * The trade this makes, stated so it is not mistaken for an oversight: the
+ * data is a SNAPSHOT and does not track the source. That is why the caller
+ * writes a provenance line above it (`csvSourceNote`) — the freeze is only
+ * dishonest if the document does not admit to it.
+ *
+ * Ragged rows are padded to the header's width rather than rejected: a short
+ * row is a real thing in real CSV, and a table that renders is worth more than
+ * a refusal that does not.
+ */
+export function csvToMarkdownTable(csv: string, cap = CSV_SNAPSHOT_ROW_CAP): CsvSnapshot {
+  const all = parseCsv(csv);
+  if (all.length === 0) return { table: '', rows: 0, omitted: 0 };
+  const [head, ...body] = all;
+  const width = Math.max(1, head.length);
+  const kept = body.slice(0, cap);
+  const line = (cells: string[]) => {
+    const padded = Array.from({ length: width }, (_, i) => csvCellToMarkdown(cells[i] ?? ''));
+    return `| ${padded.join(' | ')} |`;
+  };
+  const rows = [
+    line(head),
+    `| ${Array.from({ length: width }, () => '---').join(' | ')} |`,
+    ...kept.map(line),
+  ];
+  return { table: `${rows.join('\n')}\n`, rows: kept.length, omitted: body.length - kept.length };
+}
+
+/**
+ * The provenance line written above a snapshot (ADR-572 D18).
+ *
+ * Italic prose, not an annotation — it carries no `data-*`, parses as ordinary
+ * emphasis everywhere, and a member may edit or delete it like any sentence.
+ * It exists because a snapshot's defect is SILENCE: rows that look live and
+ * are not. Naming the source and the date makes the freeze a stated fact, and
+ * tells the next reader where to look to refresh it.
+ */
+export function csvSourceNote(path: string, on: Date, omitted = 0): string {
+  const stamp = `${on.getFullYear()}-${String(on.getMonth() + 1).padStart(2, '0')}-${String(on.getDate()).padStart(2, '0')}`;
+  const more = omitted > 0 ? ` · first ${CSV_SNAPSHOT_ROW_CAP} rows, ${omitted} more in the source` : '';
+  return `_From \`${path}\` · snapshot ${stamp}${more}_`;
+}
+
+/**
+ * Insert a CSV's rows as a GFM table, under a source note (ADR-572 D18).
+ *
+ * The second two-step insert (the picker supplies the path, a read supplies
+ * the content), and the shape is deliberately identical to `insertImage`'s so
+ * the two doors behave the same way.
+ */
+export function insertCsvTable(
+  text: string,
+  start: number,
+  end: number,
+  path: string,
+  csv: string,
+  now: Date,
+): Edit {
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const tail = after && !after.startsWith('\n') ? '\n' : '';
+  const { table, omitted } = csvToMarkdownTable(csv);
+  // An unreadable or empty CSV writes the note alone rather than a broken
+  // grid — the member sees which file came back empty instead of a `| |`.
+  const body = table
+    ? `${csvSourceNote(path, now, omitted)}\n\n${table}`
+    : `${csvSourceNote(path, now)}\n\n_(that file has no rows)_\n`;
+  const snippet = lead + body + tail;
+  const caret = before.length + snippet.length;
+  return { text: before + snippet + after, selectionStart: caret, selectionEnd: caret };
+}
+
 /** A thematic break on its own line. */
 export function insertRule(text: string, start: number, end: number): Edit {
   const before = text.slice(0, start);

@@ -40,6 +40,7 @@ import {
 } from '@/lib/shell/useSurfacePreferences';
 import { useDeclareFocus } from '@/lib/shell/useSurfaceFocus';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { parseCsv, CSV_SNAPSHOT_ROW_CAP } from '@/components/text/markdownEdits';
 import { WorkspacePickerBody } from '@/components/workspace/WorkspacePicker';
 import { DeskHousing, type DeskContext } from '@/components/desk/DeskHousing';
 import {
@@ -134,35 +135,13 @@ function runStatusLine(e: RailEvent): string {
 
 // ── Format renderers — the canvas, by format (D7.1) ─────────────────────────
 
-/** Small CSV parser (quotes + escaped quotes) — display only; the kernel
- *  validated the shape before the head ever held this content. */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { cell += '"'; i++; }
-        else inQuotes = false;
-      } else cell += c;
-    } else if (c === '"') inQuotes = true;
-    else if (c === ',') { row.push(cell); cell = ''; }
-    else if (c === '\n' || c === '\r') {
-      if (c === '\r' && text[i + 1] === '\n') i++;
-      row.push(cell); cell = '';
-      if (row.some((v) => v.trim() !== '')) rows.push(row);
-      row = [];
-    } else cell += c;
-  }
-  row.push(cell);
-  if (row.some((v) => v.trim() !== '')) rows.push(row);
-  return rows;
-}
+// The CSV parser used to be declared here. ADR-572 D18 needed the same one in
+// Text (to write a CSV's rows into a `.md`), and a second copy of a parser
+// whose bugs are silent — a mis-split cell shifts every column after it — is
+// exactly the drift worth spending an import to avoid. It moved to the pure
+// `markdownEdits` module, where the gate CALLS it; behaviour is unchanged.
 
-const _CSV_ROW_CAP = 200;
+const _CSV_ROW_CAP = CSV_SNAPSHOT_ROW_CAP;
 
 function CsvTable({ text }: { text: string }) {
   const rows = useMemo(() => parseCsv(text), [text]);

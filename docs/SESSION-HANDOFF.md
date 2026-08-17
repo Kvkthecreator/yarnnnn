@@ -1,5 +1,99 @@
 # Session handoff — 2026-08-17
 
+---
+
+# Part C — ADR-572 D18: the CSV question, answered by measuring first
+
+**The operator asked whether a CSV-sourced table is structurally impossible in
+markdown. It is not — and D17's `❌` was too strong.** The refusal had collapsed
+three different things into one verdict.
+
+| | What is in the file | Verdict |
+|---|---|---|
+| **Snapshot** — rows as GFM + an italic source note | the ROWS | ✅ **shipped** |
+| **Automatically live** | a POINTER (= Docs' `data-ref`) | ❌ unchanged |
+| **`csv-table` fence** — rows + `source=`, refresh on demand | the ROWS | ⚖️ offered, **declined** |
+
+The surviving refusal is the middle row, and it is D17's own reason: a
+self-updating table must hold a pointer instead of rows, which is exactly the
+empty-container shape ADR-574 names as a reason Docs paused.
+
+## ⭐⭐⭐ The finding worth carrying
+
+**Nothing had to be built to answer the question.** `/studio/citable` already
+served the workspace's CSVs (`tables`, beside `images`), `StudioCitablePicker`
+already carried the title *"Insert a table from a CSV"* for Docs, and
+`GET /api/workspace/file` already returned content by path. The machinery was
+shipped; only *what goes in the file* was ever open.
+
+**Checking that BEFORE writing the refusal is what turned a feasibility claim
+into a design choice.** This is D13/D15's rule applied one step earlier —
+*execute the thing you are calling impossible* — and it is the third time this
+arc that a recorded "limitation" was a constraint under-read.
+
+⭐ The fence option's cost was **larger than I first stated**: our own
+`MarkdownRenderer` matches `/language-(\w+)/`, which `csv-table source=…` does
+not satisfy — so it needs a handler in the shared renderer *and* a canvas
+widget, not one. Corrected to the operator before they chose.
+
+## What shipped
+
+`Table from CSV` in both doors (toolbar + `/csv`), reusing the image picker
+with `cites='source'`. It writes a real GFM table under
+`_From `data/q3.csv` · snapshot 2026-08-17_`.
+
+- **A snapshot's defect is SILENCE, not staleness** — rows that look live and
+  are not. The provenance line is ordinary italic prose in the document (no
+  `data-*`), so a connector reads it, a member can edit it, and the freeze is a
+  stated fact. Re-running the insert is the refresh.
+- **One quote-aware parser, not two.** Strings had its own copy; a naive
+  `split(',')` makes `"Kim, Kevin"` two cells and shifts every later column
+  *silently*, and an unescaped `|` ends the cell. Folded into the pure module
+  where the gate **calls** it.
+- **The only insert that awaits I/O**, so it reads the document from the canvas
+  at apply time — the captured string would delete typing done during the fetch
+  (the D12 shape, already shipped once here). A failed read inserts **nothing**
+  rather than asserting "that file is empty".
+
+## ⭐⭐⭐ Gate craft — two more, from ten falsifiers
+
+- **An EIGHTH check passed its own falsification.** 18k required `setCsvError`
+  + the error copy; gutting the catch body left the setter in its own
+  `useState`/timeout and the copy in the JSX. → now reads the **catch body**
+  and asserts no insert happens there. Same class as 17f, 11h, 11L.
+- **⭐⭐ 18c FAILED against CORRECT output** — it split on a bare `|`, counting
+  an escaped `\|` as a cell boundary, i.e. asserting the very corruption the
+  escape prevents. **The gate was wrong, not the code.** It now counts
+  boundaries the way GFM does, with a control proving it measures alignment and
+  not "did it split at all".
+
+## Part C verification
+
+```
+cd api && python3 test_adr571_text_app.py            # 221/221, SCRIPT-STYLE
+cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
+cd api && python3 test_adr562_app_owned_config.py    # GREEN
+node web/lib/file-types/__gate_adr514_d2.mjs         # 41/41, from REPO ROOT
+cd web && node_modules/.bin/next build               # 171/171, tsc clean
+```
+
+⚠️ **A transient `tsc` failure in `viewers/projection.ts` was NOT a defect** —
+the peer lane was mid-write in that file and the reported error line moved
+between two runs seconds apart. It landed as `9fe241c` and builds clean.
+**Before diagnosing a parse error in a file you did not touch, check whether
+another lane is writing it.**
+
+## Part C owed
+
+- **Click-pass D18**: `/csv` → pick a CSV → the rows land as a grid under the
+  source note; then a CSV with a quoted comma and an embedded `|`, to see the
+  escape hold on the real surface.
+- Everything owed by Parts A and B below is unchanged.
+
+---
+
+# (earlier parts)
+
 **Two lanes ran concurrently today and both landed.** They touch disjoint files
 except `ADR-LEDGER.md`, where both entries coexist (verified). Read whichever
 part matches your next task; the shared residuals are consolidated at the end

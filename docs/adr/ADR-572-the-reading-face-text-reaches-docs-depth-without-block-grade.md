@@ -714,7 +714,7 @@ survive in the file**:
 | **Image** | ✅ shipped | `![alt](path)` is native. The bytes are a real substrate file. |
 | **Diagram (mermaid)** | ✅ shipped | A fence. The shared renderer **already painted these** — a pure gap. |
 | **Code block** | ✅ shipped | A fence. Docs has no such kind; this exceeds the reference app. |
-| **Table from CSV** | ❌ | The rows are not in the file. A snapshot would freeze silently; a live view is a `data-ref`. |
+| **Table from CSV** | ⚠️ **amended by D18** | The `❌` was too strong. It conflated a SNAPSHOT (rows written as real markdown — possible, and now shipped) with an AUTOMATICALLY LIVE view (a pointer — still refused, and still for this reason). |
 | **Gallery** | ❌ | A CSS grid over N citations; in markdown that is just N images. |
 | **Callout / toggle / component** | ❌ | Studio-only, and each needs `data-*`. Nothing to port. |
 | **Button / metrics** | ❌ | The affordance lives in CSS keyed on `data-block`. |
@@ -737,6 +737,106 @@ the token in the `ToolbarAction` union and in the check's own comment, and it
 stayed green. It now parses the rendered arrays and reads the action kinds out.
 
 Gate 202 → **209**.
+
+### D18 — A CSV table is a SNAPSHOT, and the rows are in the file
+
+Operator: *"is a CSV-sourced table structurally impossible in markdown?"*
+
+**No — and D17's `❌` for it was too strong.** The refusal collapsed three
+different things into one verdict. Separated, only the middle one is blocked:
+
+| | In the file | Verdict |
+|---|---|---|
+| **Snapshot** — read the `.csv`, write its rows as GFM | the ROWS | ✅ **shipped** |
+| **Automatically live** — updates when the CSV changes | a POINTER | ❌ refused |
+| **`csv-table` fence** — rows + a `source=` info string, refresh on demand | the ROWS | ⚖️ possible, **not taken** |
+
+**The refusal that survives is the middle row, and it is the same refusal
+D17 already made.** For a table to update itself, the document must hold a
+pointer instead of rows — which is exactly Docs'
+`<div data-block="table" data-ref="…/data.csv"></div>`, an element whose
+content is **empty in the file** and manufactured at render time. That is a
+named reason ADR-574 paused Docs. Nothing about that changed.
+
+**What was wrong was calling the snapshot impossible.** Rows written as a GFM
+table are ordinary markdown: a connector reads the numbers, `git diff` shows
+them changing, and any markdown tool renders a table because it *is* one. The
+test D17 itself declared — *"does its content survive in the file"* — the
+snapshot passes.
+
+#### The trade the snapshot makes, and why it is stated in the document
+
+A snapshot freezes. The defect of a frozen table is not staleness but
+**silence**: rows that look live and are not. So the insert writes a
+provenance line above the grid —
+
+```markdown
+_From `data/q3.csv` · snapshot 2026-08-17_
+```
+
+— ordinary italic prose, carrying no `data-*`, which a member may edit or
+delete like any sentence. It names the source and the date, so the freeze is a
+stated fact and the next reader knows where to look to refresh it. Re-running
+the insert is the refresh. **Provenance in the file, not in a convention.**
+
+#### The third option, offered and declined
+
+A fence carrying both — rows as text, provenance in the info string — was put
+to the operator with its cost, and **not taken**:
+
+````markdown
+```csv-table source=data/q3.csv snapshot=2026-08-17
+| Region | Q3 |
+| --- | --- |
+| APAC | 412 |
+```
+````
+
+It round-trips (the rows are real text) and it could carry a "refresh from
+source" action. But it is a **convention, not a standard**: another markdown
+tool renders it as a code block rather than a table. ⭐ And the cost was
+**larger than first stated** — our own `MarkdownRenderer` matches
+`/language-(\w+)/`, which a `csv-table source=…` info string does not satisfy,
+so it would need a fence handler in the shared renderer *and* a widget in the
+canvas. Recorded here so the option is not re-discovered as free.
+
+#### What this decision actually turned on
+
+Nothing had to be built to find out. `/studio/citable` **already** serves the
+workspace's CSVs (`tables`, beside `images`), the picker **already** carries the
+title *"Insert a table from a CSV"* for Docs, and `GET /api/workspace/file`
+**already** returns content by path. The machinery was shipped; only the
+question of *what goes in the file* was open. **Checking that first is what
+turned a feasibility claim into a design choice** — the D13/D15 lesson applied
+before writing the refusal rather than after: *execute the thing you are
+calling impossible.*
+
+#### Two details that are load-bearing
+
+1. **The parser is quote-aware, and there is now only one of it.** A naive
+   `split(',')` corrupts precisely the data worth tabulating — `"Kim, Kevin"`
+   becomes two cells and every column after it shifts, silently. A `|` inside a
+   cell is escaped for the same reason: an unescaped pipe *ends the cell* and
+   breaks the grid. Strings had its own copy of this parser; a second copy of a
+   function whose bugs are invisible is drift worth an import to avoid, so it
+   moved into the pure module where the gate **calls** it.
+2. **The CSV insert is the only one that awaits I/O**, so it reads the document
+   from the CANVAS at apply time rather than from the React string captured at
+   pick time. Applying the captured string would delete anything typed while the
+   fetch was in flight — the D12 stale-prop shape, which has already shipped
+   once in this app. A failed read inserts **nothing** and says so: writing a
+   note with no rows under it would assert *"that file is empty"*, which is a
+   different and false claim when the request simply failed.
+
+Gate 209 → **221**. ⭐ **An eighth check passed its own falsification**: 18k
+required `setCsvError` and the error copy, and deleting the catch's *behaviour*
+left the setter in its own `useState` and the copy in the JSX. It now reads the
+**catch body** and asserts no insert happens there. Same error class as 17f,
+11h and 11L — a check matching a *decoration* of the behaviour. ⭐ And 18c's
+first spelling **failed against correct output**: it counted an escaped `\|` as
+a cell boundary, i.e. it asserted the very corruption the escape prevents. The
+gate was wrong, not the code; it now counts boundaries the way a GFM parser
+does, with a control proving it measures alignment rather than "did it split".
 
 ## 3. Not done / explicitly out of scope
 
@@ -811,9 +911,13 @@ Docs' palette serves 16 kinds. Classified by the markup each writes:
   oversight, not a constraint** — corrected here.
 - ❌ **Out, with reason**: `callout` (`<aside data-block>`), `button`
   (`<p data-block="button">`), `metrics` (`<div class="metric">`), `component`,
-  and the citation kinds `figure` / `gallery` / `chart` / `table`-from-source
-  (all carry `data-ref` + `data-ref-rev` — the citation machinery). `toggle` is
-  `<details><summary>`, expressible only as raw embedded HTML.
+  and the citation kinds `figure` / `gallery` / `chart` (all carry `data-ref` +
+  `data-ref-rev` — the citation machinery). `toggle` is `<details><summary>`,
+  expressible only as raw embedded HTML.
+  **Amended by D18**: `table`-from-source used to be listed here. What is
+  refused is Docs' *mechanism* (a `data-ref` pointer whose rows are not in the
+  file), not the *outcome* — a CSV's rows written as a real GFM table is
+  shipped, because the content survives in the document.
 
 ### 3.3 The rest
 

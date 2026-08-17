@@ -499,6 +499,16 @@ function buildTableDecorations(state: EditorState): DecorationSet {
 export interface ProseCanvasHandle {
   /** [from, to) of the current selection, in source offsets. */
   selection: () => [number, number];
+  /**
+   * The document as the VIEW currently holds it (ADR-572 D18).
+   *
+   * Every other insert computes from React's `text`, which is safe because the
+   * gesture is synchronous. The CSV insert awaits a fetch, and the member can
+   * type while it is in flight — applying the string captured at pick time
+   * would delete those keystrokes (the D12 stale-prop shape). This reads the
+   * truth at apply time instead.
+   */
+  text: () => string;
   /** Replace the whole document and place the selection — the toolbar path. */
   apply: (text: string, from: number, to: number) => void;
   /** Reveal a source range (outline jump, find). */
@@ -643,6 +653,7 @@ export function ProseCanvas({
         const r = view.state.selection.main;
         return [r.from, r.to];
       },
+      text: () => view.state.doc.toString(),
       apply: (text, from, to) => {
         // A MINIMAL change, not a whole-document replace (ADR-572 D12). The
         // edit functions return a full new string, but dispatching that as

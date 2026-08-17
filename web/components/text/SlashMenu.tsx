@@ -41,6 +41,7 @@ import {
   ListOrdered,
   Minus,
   Quote,
+  Sheet,
   Table,
   Workflow,
 } from 'lucide-react';
@@ -71,6 +72,9 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: 'task', label: 'Task list', hint: 'Tick items off', icon: ListChecks, action: { kind: 'checklist' }, keywords: ['todo', 'checkbox', 'check'] },
   { id: 'quote', label: 'Quote', hint: 'Set text apart', icon: Quote, action: { kind: 'quote' }, keywords: ['blockquote', 'cite'] },
   { id: 'table', label: 'Table', hint: 'Rows and columns', icon: Table, action: { kind: 'table' }, keywords: ['grid'] },
+  // ADR-572 D18 — `/csv` reaches it in four keystrokes. Sits beside the empty
+  // table because that is what a member is looking for when they want one.
+  { id: 'csvtable', label: 'Table from CSV', hint: 'Rows from a workspace file', icon: Sheet, action: { kind: 'csvtable' }, keywords: ['csv', 'data', 'spreadsheet', 'import'] },
   { id: 'divider', label: 'Divider', hint: 'A section break', icon: Minus, action: { kind: 'rule' }, keywords: ['hr', 'rule', 'line', 'separator'] },
   // ADR-572 D17 — the media kinds. Listed last because they are heavier acts
   // than a list or a heading, and `/img` reaches them in three keystrokes.

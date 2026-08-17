@@ -75,6 +75,7 @@ import { StudioCitablePicker } from '@/components/authoring/StudioCitablePicker'
 import { readConflict, type ConflictState } from '@/components/text/conflict';
 import { parseOutline, readingMinutes } from '@/components/text/outline';
 import {
+  insertCsvTable,
   insertFence,
   insertImage,
   insertLink,
@@ -331,29 +332,77 @@ export function TextEditor({
         case 'rule': return applyEdit(insertRule(text, s, e));
         case 'code': return applyEdit(insertFence(text, s, e));
         case 'mermaid': return applyEdit(insertMermaid(text, s, e));
-        // The only two-step insert: the path comes from the picker, so the
-        // caret is parked and the edit lands on the pick.
-        case 'image': return setImagePicker({ at: s });
+        // The two-step inserts: the path comes from the picker, so the caret
+        // is parked and the edit lands on the pick.
+        case 'image': return setPicker({ at: s, for: 'image' });
+        case 'csvtable': return setPicker({ at: s, for: 'csvtable' });
       }
     },
     [text, applyEdit],
   );
 
-  // ── The workspace image picker (ADR-572 D17) ────────────────────────────
+  // ── The workspace file picker (ADR-572 D17, D18) ────────────────────────
   // Reuses Docs' `StudioCitablePicker` and its `/studio/citable` listing —
-  // there is no second image index, and no upload flow here for the same
-  // reason Docs has none: images arrive through Files or IMAGES, and Insert
-  // cites what the workspace already holds.
-  const [imagePicker, setImagePicker] = useState<{ at: number } | null>(null);
+  // there is no second index, and no upload flow here for the same reason Docs
+  // has none: files arrive through Files or IMAGES, and Insert cites what the
+  // workspace already holds.
+  //
+  // ONE picker serving two kinds, not two pickers: the endpoint already
+  // returns both lists (`images` and `tables`), and `cites` selects between
+  // them. `for` carries which insert the pick will run.
+  const [picker, setPicker] = useState<{ at: number; for: 'image' | 'csvtable' } | null>(null);
+  /** Set while a picked CSV is being read, so the pane can say so. */
+  const [csvLoading, setCsvLoading] = useState(false);
 
   const takeImage = useCallback(
     (path: string) => {
-      const at = imagePicker?.at ?? canvasRef.current?.selection()?.[0] ?? text.length;
-      setImagePicker(null);
+      const at = picker?.at ?? canvasRef.current?.selection()?.[0] ?? text.length;
+      setPicker(null);
       applyEdit(insertImage(text, at, at, relPath(path)));
     },
-    [imagePicker, text, applyEdit],
+    [picker, text, applyEdit],
   );
+
+  /**
+   * Take a CSV pick — read the file, write its rows (ADR-572 D18).
+   *
+   * The only insert in this app that performs I/O, because it is the only one
+   * whose content lives in another file. It resolves to TEXT before touching
+   * the document: the rows are written into the `.md` as real markdown, so
+   * what a connector reads back is a table, not a pointer to one.
+   *
+   * `text` is re-read from the canvas rather than closed over — the member can
+   * keep typing while the picker is open and the fetch is in flight, and
+   * applying a stale string would delete whatever they wrote (the D12 shape).
+   */
+  const takeCsv = useCallback(
+    async (path: string) => {
+      const at = picker?.at ?? canvasRef.current?.selection()?.[0] ?? text.length;
+      setPicker(null);
+      setCsvLoading(true);
+      try {
+        const file = await api.workspace.getFile(relPath(path));
+        const current = canvasRef.current?.text() ?? text;
+        const where = Math.min(at, current.length);
+        applyEdit(insertCsvTable(current, where, where, relPath(path), file.content ?? '', new Date()));
+      } catch {
+        // A read that fails writes NOTHING. A source note with no rows under
+        // it would read as "that file is empty", which is a different and
+        // false claim — the file may be fine and the request may not have been.
+        setCsvError(relPath(path));
+      } finally {
+        setCsvLoading(false);
+      }
+    },
+    [picker, text, applyEdit],
+  );
+
+  const [csvError, setCsvError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!csvError) return;
+    const t = setTimeout(() => setCsvError(null), 6000);
+    return () => clearTimeout(t);
+  }, [csvError]);
 
   /** Select a source range and scroll it into view (the outline jump). */
   const reveal = useCallback((span: [number, number]) => {
@@ -417,10 +466,11 @@ export function TextEditor({
         case 'code': edit = insertFence(next, at, at); break;
         case 'mermaid': edit = insertMermaid(next, at, at); break;
         case 'image':
+        case 'csvtable':
           // Two-step: cut the run now (so the `/img` text is gone while the
-          // picker is open), then land the image where it stood.
+          // picker is open), then land the insert where it stood.
           applyEdit({ text: next, selectionStart: at, selectionEnd: at });
-          setImagePicker({ at });
+          setPicker({ at, for: item.action.kind });
           return;
         default: return;
       }
@@ -1009,20 +1059,38 @@ export function TextEditor({
         </nav>
       )}
 
-      {imagePicker && (
+      {picker && (
         <StudioCitablePicker
-          kind="figure"
-          cites="picture"
+          // `table` makes the picker title read "Insert a table from a CSV",
+          // which it already carried for Docs; `cites` switches the listing
+          // between the two arrays the endpoint already returns.
+          kind={picker.for === 'csvtable' ? 'table' : 'figure'}
+          cites={picker.for === 'csvtable' ? 'source' : 'picture'}
           left={Math.round(window.innerWidth / 2) - 150}
           top={Math.round(window.innerHeight / 3)}
-          onPickOne={(p) => takeImage(p)}
+          onPickOne={(p) => (picker.for === 'csvtable' ? void takeCsv(p) : takeImage(p))}
           // Gallery is Docs' multi-select, and it does not translate: a gallery
           // is a CSS grid over N citations, which in markdown degrades to N
           // consecutive images — i.e. to using Image N times. So the door is
           // single-pick, and the callback is a no-op rather than absent.
-          onPickGallery={() => setImagePicker(null)}
-          onClose={() => setImagePicker(null)}
+          onPickGallery={() => setPicker(null)}
+          onClose={() => setPicker(null)}
         />
+      )}
+      {/* ADR-572 D18 — a CSV read is the one insert that can be slow or fail,
+          so it says so. Silence during the fetch reads as a dead click, and a
+          silent failure reads as "that file was empty". */}
+      {(csvLoading || csvError) && (
+        <div
+          role="status"
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border border-border bg-popover px-3 py-1.5 text-xs shadow-md"
+        >
+          {csvLoading ? (
+            <span className="text-muted-foreground">Reading the CSV…</span>
+          ) : (
+            <span className="text-destructive">Couldn’t read {csvError} — nothing was inserted.</span>
+          )}
+        </div>
       )}
       {organizeModals}
       {fileMenu}
