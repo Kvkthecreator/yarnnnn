@@ -151,6 +151,34 @@ The deepest-seeming risk of a multi-party substrate — "two principals write co
 > scope filter; resolution failure degrades to `None` rather than raising; the
 > owner pick is ordered.
 >
+> **PROVEN LIVE 2026-08-17**, with the cleanest possible control: a file written
+> by the connector MINUTES BEFORE the deploy still 404s to the browser, while a
+> file written by the connector AFTER the deploy reads 200. Same account, same
+> path shape, the deploy the only variable. The ADR-570 D8 connector round-trip
+> works end to end for the first time.
+>
+> ⚠️ **Pre-fix rows are STRANDED and need a backfill.** Substrate written
+> through the connector before this deploy carries the wrong (or NULL)
+> `workspace_id`, and is now invisible to BOTH doors — the browser (scoped to
+> the member's workspace) and the connector (now correctly scoped to the same
+> one). It is not lost, just unaddressed. The remediation query, for an operator
+> with DB access:
+>
+> ```sql
+> -- How much is stranded, and where does it actually live?
+> SELECT workspace_id, count(*), min(created_at), max(created_at)
+> FROM workspace_files
+> WHERE authored_by LIKE 'yarnnn:mcp%'
+> GROUP BY workspace_id ORDER BY 2 DESC;
+> ```
+>
+> Do NOT bulk-reassign without reading the result: a row whose `workspace_id`
+> is a REAL other workspace may belong there. The rows to repair are the ones
+> whose workspace does not match the authoring principal's resolved default —
+> and the NULL-`workspace_id` rows `write_revision` leaves behind on a
+> resolution failure (`authored_substrate.py`), which are unreachable from
+> either scope branch.
+
 > **Still deferred**: the `role/grant` half of "resolves `principal →
 > (workspace_id, role, grant)`" — `principal_id` already threads to the grant
 > gate (D2), so what remains is a connector being able to *choose* among
