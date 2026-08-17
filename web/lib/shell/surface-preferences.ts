@@ -73,8 +73,10 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 // ≈ 252px, inside a 375px viewport, and the Dock already overflow-x scrolls.
 export const DEFAULT_KEPT_SURFACES: string[] = [
   'chat',
-  'docs', // ADR-518 — the writing app (full unveil, D5)
-  'text', // ADR-571 — the prose app (unveiled at birth, operator-directed)
+  'text', // ADR-571 — the prose app; ADR-574 D1 — the TEXT PREMISE (leads for text)
+  // 'docs' — removed 2026-08-17 (ADR-574 D2): the app PAUSED to search-only.
+  // Hidden, not unplugged — /docs still routes and a document still opens
+  // there. Reopening is ADR-574 §5, and only as a Publish surface (D4).
   'studio',
   'radar', // ADR-486 unveil (2026-07-28) — the standing app joins the Dock
   'strings', // ADR-569 unveil (2026-08-14, operator decision) — the maintained file
@@ -314,6 +316,17 @@ const DOCK_RESEED_GENERATIONS: Array<{ keyPrefix: string; previous: string[] }> 
   {
     keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-14-text:',
     previous: ['chat', 'docs', 'studio', 'radar', 'strings', 'files', 'agents'],
+  },
+  // 2026-08-17 — −docs (ADR-574 D2, the app pauses to search-only). The
+  // inverse of every generation above it, and the ADR-488 move re-run: an
+  // un-curated eight-app Dock converges to Chat · Text · Studio · Radar ·
+  // Strings · Files · Agents in one read. A curated Dock — including a
+  // DELIBERATE Docs pin — is left alone, as always: that is the whole point
+  // of the byte-equality test, and pausing must not clobber authorship any
+  // more than unveiling did.
+  {
+    keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-17-docs-paused:',
+    previous: ['chat', 'docs', 'text', 'studio', 'radar', 'strings', 'files', 'agents'],
   },
 ];
 

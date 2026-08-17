@@ -27,7 +27,11 @@ const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf
 const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
 const ops = readFileSync('web/components/authoring/artifactOps.ts', 'utf8');
 const kernel = readFileSync('api/services/authoring.py', 'utf8');
-const docs = readFileSync('api/services/docs.py', 'utf8');
+// The Docs module lives under the apps package (ADR-518 D3's module boundary,
+// re-homed with the rest of `services/apps/*`). This path was stale and the
+// gate CRASHED on contact — it never ran a single check. Repaired by ADR-574,
+// independent of that ADR's decisions.
+const docs = readFileSync('api/services/apps/docs.py', 'utf8');
 
 let pass = 0,
   fail = 0;

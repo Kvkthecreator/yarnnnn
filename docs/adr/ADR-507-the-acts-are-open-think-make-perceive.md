@@ -2,6 +2,8 @@
 
 > **⚠️ Amended by [ADR-518](ADR-518-docs-and-studio-the-writing-app-and-the-layout-app.md) (2026-08-04)**: the Make act's app list is `docs` · `studio` · `images` — the growth rule ran as designed (a new app is a row under an existing act), with an ADR anyway because the split re-cut an existing app's scope, not merely added a row.
 
+> **⚠️ Further amended by [ADR-574](ADR-574-the-prose-currency-leads-text-is-the-text-app-docs-pauses.md) (2026-08-17)**: the Make act's app list is **`text` (leads) · `studio` · `docs` (paused) · `images` (internal)**. ADR-574 D5 records the **symmetric case D1 never stated**: the growth rule says a new *app* is a free row under an existing act, but **un-leading an app needs an ADR** — it changes what the product names at rest, even though mechanically it is two registry fields and a dock generation. D1's openness claim is strengthened, not weakened: an act's app list contracts as well as grows, and reading the current inventory as the model is the failure this ADR exists to correct.
+
 - **Status**: **Accepted + Implemented** (2026-07-30, operator-ratified through the
   settle-axiom discourse — *"i think that keep this, settle should not be the axiom. think →
   make have their dedicated surfaces… and thus, apps can increase and the current list is not

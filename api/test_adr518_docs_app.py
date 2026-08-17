@@ -121,11 +121,26 @@ def run() -> bool:
         and '"route": "/docs"' in ks
         and '"icon_key": "file-text"' in ks,
     )
+    # ADR-574 D2 SUPERSEDES ADR-518 D5's unveil: the app is PAUSED. This check
+    # is re-pointed rather than deleted, so the housing stays gated in its new
+    # state and a half-flip (tier moved, pin left, or the reverse) FAILS here
+    # as well as in test_adr297_phase1.py's set-coherence assert.
+    # Read off the PARSED row, never the source text: a source-substring check
+    # can be satisfied by a neighbouring row or by this very comment.
+    from services.kernel_surfaces import KERNEL_SURFACES as _KS
+
+    _docs_row = next((s for s in _KS if s["slug"] == "docs"), None)
     _check(
-        "Docs unveils in FULL (D5) — primary tier, default-pinned",
-        '"slug": "docs"' in ks.split('"slug": "studio"')[0]
-        and ks.split('"slug": "docs"')[1].split('"slug":')[0].count('"launcher_tier": "primary"') == 1
-        and ks.split('"slug": "docs"')[1].split('"slug":')[0].count('"default_pinned": True') == 1,
+        "Docs is PAUSED (ADR-574 D2) — search-only tier AND unpinned, together",
+        _docs_row is not None
+        and _docs_row.get("launcher_tier") == "search-only"
+        and _docs_row.get("default_pinned") is False,
+    )
+    _check(
+        "paused is NOT unplugged — the row keeps its route and application register",
+        _docs_row is not None
+        and _docs_row.get("route") == "/docs"
+        and _docs_row.get("register") == "application",
     )
     _check(
         "routes/studio.py registers Docs at boot (the load-bearing import)",
@@ -154,9 +169,18 @@ def run() -> bool:
         "docs params are OWNED and EPHEMERAL like its siblings",
         prefs.count("docs: ['file', 'system']") == 2,
     )
+    # ADR-574 D2: docs LEAVES the default Dock, carried by a new generation.
+    # The 2026-08-04 generation stays in the ladder (generations are history,
+    # never rewritten) — what must be true now is that docs is absent from the
+    # default list and that the pausing generation exists.
+    _kept = prefs.split("DEFAULT_KEPT_SURFACES")[1].split("];")[0]
     _check(
-        "docs ships in the default Dock with a reseed generation",
-        "'docs', // ADR-518" in prefs
+        "docs has LEFT the default Dock (ADR-574 D2)",
+        "'docs'," not in _kept and "'text'," in _kept,
+    )
+    _check(
+        "the pausing dock-reseed generation exists, preserving the ladder's history",
+        "dock-reseed-2026-08-17-docs-paused" in prefs
         and "dock-reseed-2026-08-04-docs" in prefs,
     )
     surface = (root / "web/components/authoring/StudioSurface.tsx").read_text()

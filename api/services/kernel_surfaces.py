@@ -256,18 +256,34 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # over the SAME shared authoring machinery (one grammar, one write
         # door — the split is housing, not a fork; the /images precedent
         # re-run). Owns the `document` type via services/docs.py's registered
-        # row (the app boundary is the MODULE, ADR-473 D2). Unveiled in full
-        # from day one (ADR-518 D5): its distinctive capability — the flow
-        # editor — is the system's most-exercised medium, so the ADR-486 D7
-        # bar is met at ship; the ADR-488 hidden-tier precedent does not apply.
+        # row (the app boundary is the MODULE, ADR-473 D2).
+        #
+        # PAUSED 2026-08-17 (ADR-574 D2) — the ADR-488 template, re-run:
+        # HIDDEN, NOT UNPLUGGED. The route, this row, the `document` layout
+        # registration, the flow editor and every gate stay live; a document
+        # still opens into /docs via ADR-473 type→app routing, and the app is
+        # findable by flat search. What changed is which app the product LEADS
+        # with for text: `.md` reaches BOTH doors and a `document` artifact
+        # reaches only one — measured, an MCP `open` on an artifact returns
+        # ~24KB of kernel CSS and never reaches <body> (ADR-574 §2b). Docs and
+        # Text shipped side by side, both primary, with no bridge between them
+        # (ADR-456 Wave 4 never landed); the pair was incoherent at the Dock.
+        # D5's unveil evidence ("9 of 18 live artifacts") is retired as
+        # INAPPLICABLE, not refuted — those artifacts are 100% test data.
+        # Reopening is a decision recorded against ADR-574 §5, and its only
+        # sanctioned form is an outbound PUBLISH surface (D4) — never a more
+        # HTML-native word processor.
+        #
+        # ⚠️ tier and pin move TOGETHER — test_adr297_phase1.py gates
+        # `default_pinned == the primary tier` as a set; a half-flip fails.
         "slug": "docs",
-        "launcher_tier": "primary",  # ADR-518 D5 — full unveil
+        "launcher_tier": "search-only",  # ADR-574 D2 — paused (was primary, ADR-518 D5)
         "register": "application",
         "title": "Docs",
         "archetype": "document",
         "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
         "icon_key": "file-text",
-        "default_pinned": True,  # ships in the Dock (dock-reseed generation 2026-08-04)
+        "default_pinned": False,  # ADR-574 D2 — left the default Dock (was True, 2026-08-04)
         "route": "/docs",
         "summary": "Write documents as living artifacts — notes, drafts, PRDs captured and revised at the caret: a model-pinned lane drafts and patches the file while the page re-renders it, every citation a live workspace reference, every edit an attributed revision.",
     },

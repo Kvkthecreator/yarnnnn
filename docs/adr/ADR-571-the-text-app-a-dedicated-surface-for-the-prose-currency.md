@@ -1,5 +1,7 @@
 # ADR-571: The Text app — a dedicated surface for the prose currency
 
+> **⚠️ Promoted by [ADR-574](ADR-574-the-prose-currency-leads-text-is-the-text-app-docs-pauses.md) (2026-08-17)**: Text is now **the text-based premise** — the app the product leads with for text — and Docs is **paused** to `search-only`. D1's shape-parity framing ("Docs-shaped, mimicking Docs") is preserved as this ADR's history, but the direction has inverted: **the app being mirrored is the one that stepped back.** The reason is the currency, not the canvas — `.md` reaches **both doors** (the desk and the interop face), while a `document` artifact is invisible through the second (ADR-574 §2b). Everything in D1–D6 stands unchanged; §3's grade constraint ("no block model, ever, in Text") is **reaffirmed** — Text leads because it is the prose currency's surface, not because it should grow toward Docs' machinery.
+
 > **Status**: **Accepted + Implemented** (2026-08-14 correction, shipped
 > 2026-08-15 — operator-corrected re-cut of ADR-570's housing, directed
 > in-session: *"my understanding was that it is a dedicated app. just like docs.
