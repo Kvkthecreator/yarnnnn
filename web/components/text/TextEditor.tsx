@@ -911,39 +911,6 @@ export function TextEditor({
                 </p>
               </section>
 
-              {/* APPEARANCE — the REFUSAL, printed where the absence is felt
-                  (ADR-572 D10).
-
-                  ADR-572 §3.1 decided that colour, highlight, alignment and
-                  indent cannot exist here: each persists as `data-*` on a
-                  minted span, and a `.md` has no element to carry it. The
-                  reasoning holds. What did NOT hold was WHERE it was written —
-                  only in the ADR. The operator opened the pane, saw Docs'
-                  Colour and Highlight swatches missing, and read a considered
-                  refusal as a gap, which is exactly the outcome §3.1 said it
-                  wanted to avoid ("named rather than leaving the absence to
-                  look like an oversight").
-
-                  Docs prints its own refusals in this pane — "emphasis via the
-                  palette variables — never raw color", and ADR-449's metrics
-                  refusal. This is Text's, in the same place, in the member's
-                  language. A refusal documented only in canon is invisible. */}
-              <section className="space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Appearance
-                </p>
-                <p className="text-muted-foreground">
-                  Text colour, highlight, alignment and indent aren’t offered here.
-                  A markdown file has nowhere to keep them — storing them would mean
-                  writing HTML into your document, and it would stop being the plain{' '}
-                  <span className="font-mono">.md</span> your connectors read back.
-                </p>
-                <p className="text-muted-foreground/80">
-                  Structure — headings, lists, quotes, tables, emphasis — is in the
-                  toolbar, because markdown carries it natively. How the page looks
-                  is the app’s to set, the same for every document.
-                </p>
-              </section>
             </div>
           </div>
 

@@ -1126,14 +1126,17 @@ check("11L2 the shared hook EXPORTS the button opener, so a pane can anchor "
       "openMenuFromButton," in (WEB / "components" / "workspace" / "FileContextMenu.tsx")
       .read_text(encoding="utf-8").split("return {")[-1],
       "openMenuFromButton is still internal")
-check("11M the colour/highlight/align REFUSAL is printed IN THE PANE, the way "
-      "Docs prints its own ('never raw color'; ADR-449's metrics refusal). "
-      "ADR-572 §3.1 said it wanted the absence named rather than looking like "
-      "an oversight — it named it only in the ADR, where no member reads it",
-      "Appearance" in _editor
-      and re.search(r"colour|color", _editor, re.I) is not None
-      and "highlight" in _editor.lower(),
-      "the refusal is invisible to the member")
+# 11M asserted the Appearance section that D10 added to print the
+# colour/highlight refusal in the pane. **D16 removes it entirely** — the
+# operator: *"we don't need this appearance info on properties at all remove
+# altogether."* The refusal REASONING still holds (markdown has nowhere to keep
+# a colour), but a paragraph explaining an absence is itself clutter in a pane
+# that should describe the document, not litigate its design. Recorded rather
+# than deleted: D10 added this copy deliberately, and the reversal is the point.
+check("11M the Appearance explainer is GONE from the pane — a refusal does not "
+      "need a standing paragraph once it is simply how the app works",
+      "APPEARANCE" not in _editor and "Appearance" not in _editor,
+      "the Appearance section survives")
 
 
 # ── 12. ADR-572 D11 — insert vs turn-into, and two autosave defects ──────
