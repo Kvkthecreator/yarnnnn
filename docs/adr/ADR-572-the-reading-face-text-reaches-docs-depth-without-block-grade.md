@@ -687,6 +687,57 @@ Gate 196 → **202**. Five superseded table assertions are recorded as reversed
 in the gate rather than deleted, because a line-based table failing twice for
 one structural reason is worth keeping visible.
 
+### D17 — The media kinds markdown carries natively (and the ones it cannot)
+
+Operator: *"can't we have similar other format types like images, gallery,
+table csv, component alike? check studio apps to infer what i mean."*
+
+Docs' registry was audited kind by kind. **Two corrections to what this ADR
+previously recorded**: §3.2 said "Docs' palette serves 16 kinds" — 16 is the
+REGISTRY count; `callout`, `toggle` and `component` are `apps: ("studio",)` and
+**Docs offers 13**. And **there is no `code` block kind at all** — `blockRows`
+maps a code icon for a registry row that does not exist.
+
+The decisive finding is the one ADR-574's audit already reached independently:
+Docs' four citation kinds (`figure`, `gallery`, `table`, `chart`) persist as
+**empty elements** — `<div data-block="table" data-ref="…/data.csv"></div>` has
+no rows in it; `csvToTableHtml` manufactures them at render time from a separate
+file. **A connector reading a Docs artifact gets empty containers**, which
+ADR-574 names as a reason Docs is being paused. Porting that mechanism into Text
+would import the exact defect Text is replacing Docs for.
+
+So the test for each kind was not *can it be built* but **does its content
+survive in the file**:
+
+| Kind | Verdict | Why |
+|---|---|---|
+| **Image** | ✅ shipped | `![alt](path)` is native. The bytes are a real substrate file. |
+| **Diagram (mermaid)** | ✅ shipped | A fence. The shared renderer **already painted these** — a pure gap. |
+| **Code block** | ✅ shipped | A fence. Docs has no such kind; this exceeds the reference app. |
+| **Table from CSV** | ❌ | The rows are not in the file. A snapshot would freeze silently; a live view is a `data-ref`. |
+| **Gallery** | ❌ | A CSS grid over N citations; in markdown that is just N images. |
+| **Callout / toggle / component** | ❌ | Studio-only, and each needs `data-*`. Nothing to port. |
+| **Button / metrics** | ❌ | The affordance lives in CSS keyed on `data-block`. |
+
+**The accepted loss, named:** Docs pins a citation with `data-ref-rev`, so a
+moved image falls back to the cited revision. Markdown has nowhere to keep a
+revision id, so a moved image renders as "Image not found: `path`" — the path
+named, the source still valid. The alternative is HTML in the file.
+
+**One resolution detail that had to be built** (D17's only new machinery): a
+workspace path is not fetchable, and the CAS serving URL is minted per request
+with a 1-hour TTL (ADR-427 D4), so it **cannot** be written into the document —
+that would store a capability that expires, a document that renders today and
+breaks tomorrow. `MarkdownRenderer` resolves the path per read instead. The
+`.md` keeps the portable path; the viewer mints its own access.
+
+⭐ **A seventh gate matched a name where it meant a behaviour.** 17f grepped for
+`'mermaid'` in each door's file; deleting the Diagram row from the toolbar left
+the token in the `ToolbarAction` union and in the check's own comment, and it
+stayed green. It now parses the rendered arrays and reads the action kinds out.
+
+Gate 202 → **209**.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.

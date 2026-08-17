@@ -1733,6 +1733,109 @@ check("16f the slash pick is ONE edit — no `deleteRange` + `applyEdit` pair, "
       "the two-dispatch pick survives")
 
 
+
+# ── 17. ADR-572 D17 — the media kinds markdown carries natively ──────────
+# Operator: "can't we have similar other format types like images, gallery,
+# table csv, component alike? check studio apps to infer what i mean."
+#
+# The audit's decisive finding: Docs' rich kinds (figure/gallery/table/chart)
+# persist as EMPTY `data-ref` elements resolved client-side only — a connector
+# reading a Docs artifact gets empty containers, which ADR-574 names as a
+# reason Docs is being paused. Porting them would import that defect. So the
+# three added are the ones whose CONTENT lives in the file.
+_D17_PROBE = r"""
+const fs = require('fs');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+const load = (rel) => {
+  const js = transform(fs.readFileSync(WEB + rel, 'utf8'),
+    { transforms: ['typescript', 'imports'] }).code;
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require', js)(m, m.exports, () => ({}));
+  return m.exports;
+};
+const M = load('/components/text/markdownEdits.ts');
+const D = 'Hello.';
+const img = M.insertImage(D, 6, 6, 'notes/diagram.png');
+const mer = M.insertMermaid(D, 6, 6);
+const code = M.insertFence(D, 6, 6);
+const all = img.text + mer.text + code.text;
+console.log(JSON.stringify({
+  image_is_markdown: img.text === 'Hello.\n\n![diagram](notes/diagram.png)\n',
+  mermaid_is_fence: mer.text.includes('```mermaid\ngraph TD'),
+  code_is_fence: code.text.includes('```\n'),
+  fence_wraps_selection: M.insertFence('let x = 1', 0, 9).text === '```\nlet x = 1\n```\n',
+  mermaid_selects_body: mer.text.slice(mer.selectionStart, mer.selectionEnd).startsWith('graph TD'),
+  // The property that separates these from Docs' citation blocks.
+  no_data_attrs: !/data-/.test(all),
+  no_html: !/<[a-z]/i.test(all),
+}));
+"""
+
+try:
+    _d17 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D17_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d17 = {"error": str(exc)}
+
+check("17a Image inserts native markdown `![alt](path)` — Docs writes "
+      "`<figure data-block><img data-ref data-ref-rev>`, which pins the cited "
+      "revision but is `data-*` on a minted element (ADR-456 D1) and "
+      "unreadable as markdown. The pin is the accepted loss.",
+      _d17.get("image_is_markdown") is True, str(_d17)[:300])
+check("17b Diagram inserts a ```mermaid fence — the shared renderer ALREADY "
+      "paints these, so this was a pure gap. The diagram's whole source is in "
+      "the file; Docs' `chart` is an empty <div data-ref='…csv'> whose bars "
+      "are manufactured at render time.",
+      _d17.get("mermaid_is_fence") is True, str(_d17)[:300])
+check("17c Code inserts a fence, and wraps a selection when there is one. "
+      "Docs has NO code block kind at all (blockRows maps an icon for a "
+      "registry row that does not exist), so this exceeds the reference app.",
+      _d17.get("code_is_fence") is True and _d17.get("fence_wraps_selection") is True,
+      str(_d17)[:300])
+check("17d the diagram's body is SELECTED so it can be typed over",
+      _d17.get("mermaid_selects_body") is True, str(_d17)[:300])
+check("17e none of the three writes `data-*` or raw HTML — this is the test "
+      "that decided WHICH kinds were addable, and the reason gallery, callout, "
+      "metrics, button and table-from-CSV were refused",
+      _d17.get("no_data_attrs") is True and _d17.get("no_html") is True,
+      str(_d17)[:300])
+
+_toolbar = (WEB / "components" / "text" / "MarkdownToolbar.tsx").read_text(encoding="utf-8")
+_slash = (WEB / "components" / "text" / "SlashMenu.tsx").read_text(encoding="utf-8")
+# Assert the RENDERED ROWS, not the presence of a string. The first spelling
+# grepped for `'mermaid'` anywhere in each file and PASSED its own
+# falsification: deleting the Diagram row from the toolbar left the token in
+# the `ToolbarAction` union and in this feature's own comment. **Seventh time
+# this arc** that a check matched a name where it meant a behaviour — so it now
+# parses the GROUPS/SLASH_ITEMS arrays and reads the action kinds out.
+def _kinds_in(src: str, array_name: str) -> set:
+    """The `kind:` values inside a named array literal."""
+    m = re.search(rf"{array_name}[^=]*=\s*\[(.*?)\n\];", src, re.S)
+    return set(re.findall(r"kind:\s*'([a-z]+)'", m.group(1))) if m else set()
+
+
+_toolbar_kinds = _kinds_in(_strip_comments(_toolbar), "GROUPS")
+_slash_kinds = _kinds_in(_strip_comments(_slash), "SLASH_ITEMS")
+check("17f BOTH doors RENDER the new kinds — the toolbar and `/` are two doors "
+      "to one mechanism, so a kind reachable from only one of them is a split",
+      {"image", "mermaid", "code"} <= _toolbar_kinds
+      and {"image", "mermaid", "code"} <= _slash_kinds,
+      f"toolbar={sorted(_toolbar_kinds)} slash={sorted(_slash_kinds)}")
+
+_renderer = (WEB / "components" / "shared" / "MarkdownRenderer.tsx").read_text(encoding="utf-8")
+check("17g the renderer RESOLVES a workspace image path — the CAS serving URL "
+      "is minted with a 1-hour TTL (ADR-427 D4), so it cannot be written into "
+      "the document; the `.md` keeps the portable PATH and the viewer mints "
+      "its own access per read",
+      "MarkdownImage" in _renderer and "blobUrl" in _renderer,
+      "an image path would render as a broken <img>")
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:

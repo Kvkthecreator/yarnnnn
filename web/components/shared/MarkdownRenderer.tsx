@@ -95,6 +95,62 @@ function linkifySubstrateRefs(content: string): string {
 }
 
 /** Renders mermaid code blocks as SVG diagrams */
+/**
+ * An `<img>` whose `src` may be a workspace path (ADR-572 D17).
+ *
+ * Markdown's own image syntax with a substrate path — `![alt](notes/x.png)` —
+ * is the only image form that keeps the file portable: the path is text a
+ * connector reads, rewrites and round-trips. What it is NOT is fetchable, so
+ * the viewer resolves it here.
+ *
+ * The URL is minted, never stored: `GET /workspace/file` returns a CAS serving
+ * URL with a 1-hour TTL (ADR-427 D4), so baking one into the document would
+ * write a capability that expires — a file that renders today and 404s
+ * tomorrow. Resolution belongs to the reader, per read.
+ */
+function MarkdownImage({ src, alt, ...props }: { src: string; alt: string }) {
+  const [resolved, setResolved] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  // Anything with a scheme (https:, data:, blob:) is already fetchable.
+  const isExternal = /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//');
+
+  useEffect(() => {
+    if (isExternal || !src) return;
+    let cancelled = false;
+    setFailed(false);
+    const path = src.startsWith('/workspace/') ? src : `/workspace/${src.replace(/^\/+/, '')}`;
+    import('@/lib/api/client')
+      .then(({ api }) => api.workspace.getFile(path))
+      .then(async (f) => {
+        const url = (f as { content_url?: string | null }).content_url;
+        if (!url) throw new Error('no content_url');
+        // An already-minted CAS URL is usable as-is; the legacy
+        // `?storage_path=` shape needs the authenticated exchange.
+        if (!/[?&]storage_path=/.test(url)) return url;
+        const { api } = await import('@/lib/api/client');
+        return (await api.documents.blobUrl(url)).url;
+      })
+      .then((url) => { if (!cancelled) setResolved(url); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [src, isExternal]);
+
+  if (isExternal) return <img src={src} alt={alt} {...props} />;
+  if (failed) {
+    // Name the path rather than showing a broken glyph — the member can see
+    // WHICH file is missing, and the source is still valid markdown.
+    return (
+      <span className="inline-block rounded border border-dashed border-border px-2 py-1 text-xs text-muted-foreground">
+        Image not found: <span className="font-mono">{src}</span>
+      </span>
+    );
+  }
+  if (!resolved) {
+    return <span className="inline-block h-4 w-24 animate-pulse rounded bg-muted align-middle" aria-hidden />;
+  }
+  return <img src={resolved} alt={alt} {...props} />;
+}
+
 function MermaidBlock({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string | null>(null);
@@ -179,6 +235,18 @@ export function MarkdownRenderer({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
+          // ADR-572 D17 — an image whose `src` is a WORKSPACE PATH.
+          //
+          // `![alt](notes/diagram.png)` is native markdown, and the bytes are a
+          // real substrate file — but a workspace path is not a URL a browser
+          // can fetch, and the CAS serving URL is minted per request with a
+          // 1-hour TTL (ADR-427 D4), so it cannot be baked into the file
+          // either. Resolving here keeps the SOURCE portable: the `.md` holds
+          // a path a connector can read and rewrite, and the viewer mints its
+          // own access. An absolute URL is left alone.
+          img({ src, alt, ...props }) {
+            return <MarkdownImage src={typeof src === 'string' ? src : ''} alt={alt ?? ''} {...props} />;
+          },
           a({ href, children, ...props }) {
             // ADR-398 D3: internal substrate links route through SurfaceLink
             // (window-manager navigation, ADR-297) — never a hard navigation.

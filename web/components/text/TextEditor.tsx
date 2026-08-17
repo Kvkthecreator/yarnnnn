@@ -71,10 +71,14 @@ import { TextExport } from '@/components/text/TextExport';
 import { ProseCanvas, type ProseCanvasHandle, type SlashRun } from '@/components/text/ProseCanvas';
 import { MarkdownToolbar, type ToolbarAction } from '@/components/text/MarkdownToolbar';
 import { SlashMenu, filterSlashItems, type SlashItem } from '@/components/text/SlashMenu';
+import { StudioCitablePicker } from '@/components/authoring/StudioCitablePicker';
 import { readConflict, type ConflictState } from '@/components/text/conflict';
 import { parseOutline, readingMinutes } from '@/components/text/outline';
 import {
+  insertFence,
+  insertImage,
   insertLink,
+  insertMermaid,
   insertRule,
   insertTable,
   offsetOfLine,
@@ -325,9 +329,30 @@ export function TextEditor({
         case 'link': return applyEdit(insertLink(text, s, e));
         case 'table': return applyEdit(insertTable(text, s, e));
         case 'rule': return applyEdit(insertRule(text, s, e));
+        case 'code': return applyEdit(insertFence(text, s, e));
+        case 'mermaid': return applyEdit(insertMermaid(text, s, e));
+        // The only two-step insert: the path comes from the picker, so the
+        // caret is parked and the edit lands on the pick.
+        case 'image': return setImagePicker({ at: s });
       }
     },
     [text, applyEdit],
+  );
+
+  // ── The workspace image picker (ADR-572 D17) ────────────────────────────
+  // Reuses Docs' `StudioCitablePicker` and its `/studio/citable` listing —
+  // there is no second image index, and no upload flow here for the same
+  // reason Docs has none: images arrive through Files or IMAGES, and Insert
+  // cites what the workspace already holds.
+  const [imagePicker, setImagePicker] = useState<{ at: number } | null>(null);
+
+  const takeImage = useCallback(
+    (path: string) => {
+      const at = imagePicker?.at ?? canvasRef.current?.selection()?.[0] ?? text.length;
+      setImagePicker(null);
+      applyEdit(insertImage(text, at, at, relPath(path)));
+    },
+    [imagePicker, text, applyEdit],
   );
 
   /** Select a source range and scroll it into view (the outline jump). */
@@ -389,6 +414,14 @@ export function TextEditor({
         case 'quote': edit = toggleQuote(next, at, at); break;
         case 'table': edit = insertTable(next, at, at); break;
         case 'rule': edit = insertRule(next, at, at); break;
+        case 'code': edit = insertFence(next, at, at); break;
+        case 'mermaid': edit = insertMermaid(next, at, at); break;
+        case 'image':
+          // Two-step: cut the run now (so the `/img` text is gone while the
+          // picker is open), then land the image where it stood.
+          applyEdit({ text: next, selectionStart: at, selectionEnd: at });
+          setImagePicker({ at });
+          return;
         default: return;
       }
       applyEdit(edit);
@@ -976,6 +1009,21 @@ export function TextEditor({
         </nav>
       )}
 
+      {imagePicker && (
+        <StudioCitablePicker
+          kind="figure"
+          cites="picture"
+          left={Math.round(window.innerWidth / 2) - 150}
+          top={Math.round(window.innerHeight / 3)}
+          onPickOne={(p) => takeImage(p)}
+          // Gallery is Docs' multi-select, and it does not translate: a gallery
+          // is a CSS grid over N citations, which in markdown degrades to N
+          // consecutive images — i.e. to using Image N times. So the door is
+          // single-pick, and the callback is a no-op rather than absent.
+          onPickGallery={() => setImagePicker(null)}
+          onClose={() => setImagePicker(null)}
+        />
+      )}
       {organizeModals}
       {fileMenu}
       <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />

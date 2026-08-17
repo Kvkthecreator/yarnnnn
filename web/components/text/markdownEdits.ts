@@ -294,6 +294,75 @@ export function insertTable(text: string, start: number, end: number): Edit {
   };
 }
 
+/**
+ * A fenced code block (ADR-572 D17).
+ *
+ * Docs has NO code block — `blockRows.tsx` maps a code icon for a registry row
+ * that does not exist, so code there is an inline mark plus a `<pre>` that
+ * parses as prose. Markdown has had fences since CommonMark, the shared
+ * renderer already highlights them, and prose documents routinely quote
+ * commands. So this exceeds the reference app rather than matching it —
+ * taken because the medium carries it for free.
+ */
+export function insertFence(text: string, start: number, end: number, lang = ''): Edit {
+  const sel = text.slice(start, end);
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const body = sel || '';
+  const snippet = `${lead}\`\`\`${lang}\n${body}\n\`\`\`\n`;
+  // With a selection the caret lands after it; with none, inside the fence
+  // ready to type.
+  const caret = before.length + lead.length + 3 + lang.length + 1 + body.length;
+  return { text: before + snippet + after, selectionStart: caret, selectionEnd: caret };
+}
+
+/**
+ * A mermaid diagram — a fenced block the shared renderer ALREADY paints
+ * (`MermaidBlock`), which Insert simply never offered (ADR-572 D17).
+ *
+ * The whole diagram is text in the file, so a connector reads and edits it as
+ * source. That is the property Docs' `chart` block lacks: a chart there is an
+ * empty `<div data-ref="…csv">` whose bars are manufactured at render time.
+ */
+export function insertMermaid(text: string, start: number, end: number): Edit {
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const body = 'graph TD\n  A[Start] --> B[Next]';
+  const snippet = `${lead}\`\`\`mermaid\n${body}\n\`\`\`\n`;
+  const caret = before.length + lead.length + 11; // just inside, on the first line
+  return {
+    text: before + snippet + after,
+    selectionStart: caret,
+    selectionEnd: caret + body.length,
+  };
+}
+
+/**
+ * An image, by workspace PATH (ADR-572 D17).
+ *
+ * `![alt](path)` — the native form, and the only one that keeps the document
+ * portable. Docs writes `<figure data-block="figure"><img data-ref="…"
+ * data-ref-rev="…">`, which pins the cited revision but is unreadable as
+ * markdown and, being `data-*` on a minted element, is the shape ADR-456 D1
+ * forbids here.
+ *
+ * **The pin is the deliberate loss.** Docs can fall back to a cited revision
+ * when an image moves; markdown has nowhere to keep a revision id, so a moved
+ * image renders as "not found" and names the path. Recorded rather than
+ * worked around: the alternative is HTML in the file.
+ */
+export function insertImage(text: string, start: number, end: number, path: string, alt = ''): Edit {
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const label = alt || path.split('/').pop()?.replace(/\.[^.]+$/, '') || 'image';
+  const snippet = `${lead}![${label}](${path})\n`;
+  const caret = before.length + snippet.length;
+  return { text: before + snippet + after, selectionStart: caret, selectionEnd: caret };
+}
+
 /** A thematic break on its own line. */
 export function insertRule(text: string, start: number, end: number): Edit {
   const before = text.slice(0, start);

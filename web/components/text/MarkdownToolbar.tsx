@@ -16,9 +16,11 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Bold,
+  Code,
   Heading1,
   Heading2,
   Heading3,
+  Image as ImageIcon,
   Italic,
   Link2,
   List,
@@ -28,6 +30,7 @@ import {
   Quote,
   Strikethrough,
   Table,
+  Workflow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -39,7 +42,15 @@ export type ToolbarAction =
   | { kind: 'quote' }
   | { kind: 'link' }
   | { kind: 'table' }
-  | { kind: 'rule' };
+  | { kind: 'rule' }
+  // ADR-572 D17 — the three kinds markdown carries NATIVELY that Insert did
+  // not offer. Each keeps its content IN the file, which is what separates
+  // them from Docs' citation blocks (`figure`/`gallery`/`table`/`chart`
+  // persist as empty `data-ref` elements resolved client-side only).
+  | { kind: 'code' }
+  | { kind: 'mermaid' }
+  /** Opens the workspace image picker; the path arrives on the pick. */
+  | { kind: 'image' };
 
 interface Item {
   icon: LucideIcon;
@@ -73,6 +84,13 @@ const GROUPS: Item[][] = [
   [
     { icon: Table, label: 'Table', action: { kind: 'table' } },
     { icon: Minus, label: 'Divider', action: { kind: 'rule' } },
+  ],
+  // ADR-572 D17 — the media row. Every one of these keeps its content in the
+  // `.md`: an image is a path, a diagram is its own source, code is fenced.
+  [
+    { icon: ImageIcon, label: 'Image', action: { kind: 'image' } },
+    { icon: Workflow, label: 'Diagram', action: { kind: 'mermaid' } },
+    { icon: Code, label: 'Code block', action: { kind: 'code' } },
   ],
 ];
 

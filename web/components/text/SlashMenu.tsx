@@ -31,15 +31,18 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
+  Code,
   Heading1,
   Heading2,
   Heading3,
+  Image as ImageIcon,
   List,
   ListChecks,
   ListOrdered,
   Minus,
   Quote,
   Table,
+  Workflow,
 } from 'lucide-react';
 import type { ToolbarAction } from '@/components/text/MarkdownToolbar';
 import { cn } from '@/lib/utils';
@@ -69,6 +72,11 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: 'quote', label: 'Quote', hint: 'Set text apart', icon: Quote, action: { kind: 'quote' }, keywords: ['blockquote', 'cite'] },
   { id: 'table', label: 'Table', hint: 'Rows and columns', icon: Table, action: { kind: 'table' }, keywords: ['grid'] },
   { id: 'divider', label: 'Divider', hint: 'A section break', icon: Minus, action: { kind: 'rule' }, keywords: ['hr', 'rule', 'line', 'separator'] },
+  // ADR-572 D17 — the media kinds. Listed last because they are heavier acts
+  // than a list or a heading, and `/img` reaches them in three keystrokes.
+  { id: 'image', label: 'Image', hint: 'From your workspace', icon: ImageIcon, action: { kind: 'image' }, keywords: ['img', 'picture', 'photo', 'figure'] },
+  { id: 'mermaid', label: 'Diagram', hint: 'A mermaid diagram', icon: Workflow, action: { kind: 'mermaid' }, keywords: ['mermaid', 'chart', 'flow', 'graph'] },
+  { id: 'code', label: 'Code block', hint: 'Fenced, with a language', icon: Code, action: { kind: 'code' }, keywords: ['fence', 'snippet', 'pre'] },
 ];
 
 /** Rows matching `filter`, in declaration order. Empty filter → everything. */
