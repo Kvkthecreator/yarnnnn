@@ -157,27 +157,50 @@ The deepest-seeming risk of a multi-party substrate — "two principals write co
 > path shape, the deploy the only variable. The ADR-570 D8 connector round-trip
 > works end to end for the first time.
 >
-> ⚠️ **Pre-fix rows are STRANDED and need a backfill.** Substrate written
-> through the connector before this deploy carries the wrong (or NULL)
-> `workspace_id`, and is now invisible to BOTH doors — the browser (scoped to
-> the member's workspace) and the connector (now correctly scoped to the same
-> one). It is not lost, just unaddressed. The remediation query, for an operator
-> with DB access:
+> ✅ **The stranded-row backfill was AUDITED 2026-08-17 and is NOT NEEDED.**
+> The caveat below was written from the mechanism, before anyone counted. The
+> count says the blast radius is two rows, and both are this arc's own probes.
+>
+> **Correcting the query first — the one published here could never run.**
+> `authored_by` does not exist on `workspace_files`; attribution lives on
+> `workspace_file_versions` (verified against the live schema). A remediation
+> query that errors on contact is worse than none: it reads as a discharged
+> obligation. The runnable form, which also answers the question the original
+> could not — *does each row's workspace match its author?*:
 >
 > ```sql
-> -- How much is stranded, and where does it actually live?
-> SELECT workspace_id, count(*), min(created_at), max(created_at)
-> FROM workspace_files
-> WHERE authored_by LIKE 'yarnnn:mcp%'
-> GROUP BY workspace_id ORDER BY 2 DESC;
+> -- Every MCP-authored version, and whether its workspace belongs to its author.
+> SELECT v.user_id, v.workspace_id, w.name AS ws_name,
+>        w.owner_id = v.user_id AS user_owns_it,
+>        count(*) AS versions, count(DISTINCT v.path) AS paths,
+>        max(v.created_at)::date AS last
+> FROM workspace_file_versions v
+> LEFT JOIN workspaces w ON w.id = v.workspace_id
+> WHERE v.authored_by LIKE 'yarnnn:mcp%'
+> GROUP BY 1,2,3,4 ORDER BY 5 DESC;
 > ```
 >
-> Do NOT bulk-reassign without reading the result: a row whose `workspace_id`
-> is a REAL other workspace may belong there. The rows to repair are the ones
-> whose workspace does not match the authoring principal's resolved default —
-> and the NULL-`workspace_id` rows `write_revision` leaves behind on a
-> resolution failure (`authored_substrate.py`), which are unreachable from
-> either scope branch.
+> **Result (2026-08-17, production):** 53 MCP-authored versions across 4
+> workspaces. Three groups have `user_owns_it = t` — author writing into their
+> own workspace, correct then and correct now. **One group has
+> `user_owns_it = f`: 2 versions, one path, `Documents/d6-probe-2.md`, written
+> 02:15–02:17 UTC on 2026-08-17** — the D6 probe itself, caught mid-flight by
+> the very bug it was probing. There is no third-party data in the wrong place.
+>
+> **NULL-`workspace_id` rows: zero**, on both substrate tables. The
+> `write_revision` resolution-failure path that would leave them has evidently
+> never fired in production.
+>
+> **No bulk UPDATE was run, and none is warranted** — the standing warning
+> holds and is now moot: a row whose workspace is a REAL other workspace may
+> belong there, and every row here does, except two disposable probes. Deleting
+> them would rewrite an attributed revision chain (ADR-209) to tidy two test
+> files, which is a worse trade than leaving them. **Left in place
+> deliberately.**
+>
+> Orphaned versions (history whose live `workspace_files` row is gone) number 21
+> across all four workspaces, including correctly-owned ones — that is ordinary
+> deletion history, not stranding, and it is what the versions table is *for*.
 
 > **Still deferred**: the `role/grant` half of "resolves `principal →
 > (workspace_id, role, grant)`" — `principal_id` already threads to the grant
