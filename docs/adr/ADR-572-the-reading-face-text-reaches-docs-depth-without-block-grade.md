@@ -226,6 +226,30 @@ source range, i.e. the node↔offset map that is the banned shape. Named here so
 the absence does not read as an oversight. Print/PDF and the landing thumbnail
 still show the fully-clean render, because neither has a caret.
 
+### D9 — `text.file` is document identity: owned, but never replayed
+
+The stale-param defect the D8 click-pass surfaced, diagnosed and fixed. **It is
+a registration omission, not a mechanism bug.**
+
+`reconcileUrl` merges `{...incoming, ...remembered, ...delivered}` — the
+remembered set deliberately **outranks** the incoming URL. That is why
+document-identity params are stripped from `remembered`
+(`SURFACE_EPHEMERAL_PARAM_KEYS`): a drill-in must never become a permanent
+landing target. Every peer surface is listed — `docs.file`, `studio.file`,
+`images.file`, `files.path`, `radar.file`, `strings.file`. **ADR-571 registered
+`text` in `SURFACE_PARAM_KEYS` (owned) and missed the ephemeral one**, so a
+stored document id beat whatever the member asked for.
+
+Symptoms, all one cause: `/text?text.file=A` landed on B; a bare `/text`
+reopened the last document; an explicitly emptied `?text.file=` was refilled;
+and a **trashed** document kept reopening.
+
+**Text is the third surface to miss a registry at birth** (radar 2026-08-13,
+files before it), so §10 gates the **invariant**, not the row: every surface
+owning a `file`/`path` key must strip it from the remembered set. All seven
+document surfaces are asserted, so the next document app that forgets names
+itself instead of shipping the same bug.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.

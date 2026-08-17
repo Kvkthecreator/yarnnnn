@@ -124,20 +124,18 @@ read that yields `undefined` is not a type error, and the fallback string reads
 like intended copy. `readConflict` now accepts either envelope; the gate replays
 the **verbatim production 409 body** (§8) and falsifies.
 
-### ⭐⭐ Defect found, NOT fixed — handed off (it is not Text's)
+### ⭐⭐ The stale surface param — FIXED (ADR-572 D9)
 
-**A stale surface param can overwrite the requested one.** Navigating to
-`/text?text.file=A` landed on document B, because the shell restored the
-remembered param over the URL. **Reproduced four times, on three distinct
-paths** — a different file's param, a bare `/text` with NO param, and an
-explicitly emptied `?text.file=`. All three end on a URL the browser was never
-sent to, so the restore beats the URL rather than merely filling a gap. It also
-survives a trashed target: the surface reopens a document that is in Trash.
-`useSurfaceParam('text')` restores `file` on mount without checking whether the
-URL already answered the question. This is the **ADR-297-family "remembered state races the
-param"** shape and belongs to the surface-param layer. **Left unfixed
-deliberately** — patching it inside Text would put the fix in the wrong house
-(the ADR-550→551 lesson this arc keeps re-learning).
+Diagnosed as a **registration omission, not a mechanism bug**. `reconcileUrl`
+merges `{...incoming, ...remembered, ...delivered}`, so `remembered`
+deliberately outranks the URL — which is exactly why document-identity params
+are stripped from the remembered set. Every peer was listed (`docs.file`,
+`studio.file`, `files.path`, `radar.file`, `strings.file`); **ADR-571 registered
+`text` as OWNED and missed the EPHEMERAL registry.**
+
+⭐⭐ **Third surface to miss a registry at birth** (radar, files before it), so
+the gate asserts the **invariant** over all seven document surfaces rather than
+the single row.
 
 ## Still OWED
 
