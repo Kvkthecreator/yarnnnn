@@ -3192,10 +3192,19 @@ export const api = {
   mcp: {
     // Read-only: describe the client behind a pending code for the consent
     // screen. Binds nothing (security 2026-08-01 — no auto-bind on page load).
+    // Describes the pending connection: who you'd approve as, which workspace
+    // it reaches, and what it may do (ADR-563 scopes, ADR-373 D6 workspace).
     consentInfo: (code: string) =>
-      request<{ client_name: string | null; client_id: string; redirect_host: string }>(
-        `/api/mcp/oauth-consent?code=${encodeURIComponent(code)}`
-      ),
+      request<{
+        client_name: string | null;
+        client_id: string;
+        redirect_host: string;
+        account_email: string | null;
+        workspace_name: string | null;
+        workspace_id: string | null;
+        grants: string[];
+        legacy_full_access: boolean;
+      }>(`/api/mcp/oauth-consent?code=${encodeURIComponent(code)}`),
     // Binds the operator to the code — POST, called only on explicit Approve.
     completeAuthorize: (code: string) =>
       request<{ redirect_url: string }>(

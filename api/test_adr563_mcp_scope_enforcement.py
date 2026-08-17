@@ -17,6 +17,7 @@ import sys
 import types
 import logging
 import os
+from typing import Dict, FrozenSet, List, Optional
 
 FAILURES: list[str] = []
 
@@ -31,24 +32,46 @@ def _check(label: str, cond: bool) -> bool:
 
 
 def _load_scope_tables():
-    """Load auth.py's pure-data scope tables without the app runtime.
+    """Load the pure-data scope tables + assert_scope without the app runtime.
 
-    The module imports services.supabase (and transitively the supabase SDK),
+    The modules import services.supabase (and transitively the supabase SDK),
     which is not importable under the baseline interpreter. The scope tables and
     assert_scope are pure data + stdlib, so compile just those nodes. This keeps
     the gate runnable in CI without a live environment.
+
+    **Two files, in dependency order.** The tier definitions moved to
+    `services/mcp_scopes.py` so the API service — which serves the consent
+    screen and CANNOT import `mcp_server.auth` (py3.9 venv, py3.11-only `mcp`
+    SDK) — reads the SAME table this gate checks. `mcp_server/auth.py`
+    re-exports them.
+
+    This loader must follow the definitions to their home: it keeps only
+    Assign/AnnAssign nodes, so an `import` re-export is INVISIBLE to it. Loading
+    auth.py alone after the move left `SCOPE_READ` undefined and the gate
+    errored — which is the honest failure. Silently passing because the names
+    resolved from a stale copy would have been the dangerous one.
     """
-    src = open("mcp_server/auth.py").read()
-    tree = ast.parse(src)
-    keep = [
-        n
-        for n in tree.body
-        if isinstance(n, (ast.Assign, ast.AnnAssign, ast.ClassDef))
-        or (isinstance(n, ast.FunctionDef) and n.name in ("assert_scope", "token_scopes"))
-    ]
     mod = types.ModuleType("scopes")
-    mod.__dict__.update(logging=logging, os=os)
-    exec(compile(ast.Module(body=keep, type_ignores=[]), "scopes", "exec"), mod.__dict__)
+    # `typing` names are supplied because the node filter strips the imports:
+    # mcp_scopes.py annotates its tables (Dict/FrozenSet/List/Optional).
+    mod.__dict__.update(
+        logging=logging, os=os,
+        Dict=Dict, FrozenSet=FrozenSet, List=List, Optional=Optional,
+    )
+    for path in ("services/mcp_scopes.py", "mcp_server/auth.py"):
+        tree = ast.parse(open(path).read())
+        keep = [
+            n
+            for n in tree.body
+            if isinstance(n, (ast.Assign, ast.AnnAssign, ast.ClassDef))
+            or (
+                isinstance(n, ast.FunctionDef)
+                and n.name
+                in ("assert_scope", "token_scopes", "satisfied_by", "describe_scopes",
+                    "normalize_scopes", "is_legacy_full")
+            )
+        ]
+        exec(compile(ast.Module(body=keep, type_ignores=[]), "scopes", "exec"), mod.__dict__)
     return mod
 
 
@@ -90,8 +113,11 @@ def run() -> int:
     )
 
     # ── D2. Containment: the tiers actually nest ────────────────────────────
+    # Calls the SHIPPED `satisfied_by` rather than re-deriving the containment
+    # here: a gate that re-implements the rule can only prove the rule agrees
+    # with itself. This is the function `assert_scope` actually calls.
     def allows(held: list[str], verb: str) -> bool:
-        return any(s in a._SATISFIES[a.VERB_SCOPES[verb]] for s in held)
+        return a.satisfied_by(a.VERB_SCOPES[verb], held)
 
     ok &= _check(
         "D2. files:read reaches the four reads and NOTHING else",

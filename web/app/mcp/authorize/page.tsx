@@ -27,6 +27,11 @@ type ConsentInfo = {
   client_name: string | null;
   client_id: string;
   redirect_host: string;
+  account_email: string | null;
+  workspace_name: string | null;
+  workspace_id: string | null;
+  grants: string[];
+  legacy_full_access: boolean;
 };
 
 function MCPAuthorizeHandler() {
@@ -101,11 +106,48 @@ function MCPAuthorizeHandler() {
           <p className="text-gray-600">Loading the connection request…</p>
         ) : phase === "consent" && info ? (
           <div className="text-left">
-            <p className="text-gray-800 mb-3">
-              <span className="font-semibold">{clientLabel}</span> is requesting access to your
-              yarnnn workspace — it will be able to <span className="font-semibold">read and
-              write your memory</span> on your behalf.
+            <p className="text-gray-800 mb-4">
+              <span className="font-semibold">{clientLabel}</span> is requesting access to{" "}
+              {info.workspace_name ? (
+                <span className="font-semibold">{info.workspace_name}</span>
+              ) : (
+                "your yarnnn workspace"
+              )}
+              .
             </p>
+
+            {/* WHO — the account the bind will use. It comes from the JWT, so on
+                a shared browser or a second account this is the difference
+                between approving as yourself and approving as someone else. */}
+            {info.account_email && (
+              <p className="text-sm text-gray-600 mb-4">
+                Connecting as <span className="font-medium text-gray-900">{info.account_email}</span>
+              </p>
+            )}
+
+            {/* WHAT — the token's REAL scopes (ADR-563), one sentence each,
+                riskiest last. Replaces a fixed sentence that used pre-ADR-512
+                vocabulary and understated a legacy token's actual reach: it
+                never mentioned deletion or member-granting share links. */}
+            <p className="text-sm font-medium text-gray-700 mb-2">It will be able to:</p>
+            <ul className="mb-4 space-y-1.5">
+              {info.grants.map((g) => (
+                <li key={g} className="flex gap-2 text-sm text-gray-700">
+                  <span aria-hidden="true" className="text-gray-400">
+                    •
+                  </span>
+                  <span>{g}</span>
+                </li>
+              ))}
+            </ul>
+
+            {info.legacy_full_access && (
+              <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                This app is requesting <span className="font-semibold">full access</span> rather
+                than a narrower permission. Only approve if you trust it with everything above.
+              </p>
+            )}
+
             <p className="text-sm text-gray-500 mb-6">
               Redirects to <span className="font-mono">{info.redirect_host}</span>. Only approve
               if you started this connection from an app you trust.

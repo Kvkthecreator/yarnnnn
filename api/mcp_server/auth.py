@@ -45,64 +45,27 @@ class ScopeDenied(Exception):
 
 # ── Scopes (ADR-563) ────────────────────────────────────────────────────────
 #
-# The nine interop verbs are not equally consequential, and until ADR-563 the
-# surface said they were: `valid_scopes=["read"]` was the ONLY scope, so a token
-# LABELLED read could delete a file and mint a member-grant share link. The
-# label was decorative.
+# The tier definitions live in `services/mcp_scopes.py`, NOT here. The consent
+# screen must name the same capabilities this module enforces, and it is served
+# by the API service, which cannot import this module (py3.9 venv + the
+# py3.11-only `mcp` SDK — the same constraint that put
+# `delete_tokens_for_client` in `services/principal_grants.py`).
 #
-# The tiers are ADDITIVE and ordered — each contains the ones before it. This
-# is the whole reason the transition is non-breaking: `read` is retained as the
-# LEGACY FULL-ACCESS grant it has always effectively been, so every already-
-# connected assistant keeps working, while any token that carries a narrow
-# scope is enforced for real. A new client asking for `files:read` gets exactly
-# the four read verbs.
-SCOPE_READ = "files:read"
-SCOPE_WRITE = "files:write"
-SCOPE_SHARE = "files:share"
-
-# The legacy scope. Every token issued before ADR-563 carries exactly this
-# (schema default `ARRAY['read']`, and both the OAuth and static-bearer paths
-# hardcoded it). It authorizes everything — NOT because that is a good grant,
-# but because narrowing it retroactively would silently break live connectors
-# on a deploy nobody watched. New registrations should request the narrow set.
-SCOPE_LEGACY_FULL = "read"
-
-# verb → the narrow scope it requires. Derived from the SAME distinction the
-# tool annotations already declare (readOnlyHint / destructiveHint) — the gate
-# in `test_adr563_mcp_scope_enforcement.py` asserts the two agree, so a new
-# read-only verb cannot land here demanding write.
-VERB_SCOPES: dict[str, str] = {
-    # pure reads — enumeration and retrieval, write nothing
-    "open": SCOPE_READ,
-    "list": SCOPE_READ,
-    "search": SCOPE_READ,
-    "history": SCOPE_READ,
-    # substrate mutations — each lands an attributed revision
-    "save": SCOPE_WRITE,
-    "edit": SCOPE_WRITE,
-    "delete": SCOPE_WRITE,
-    "move": SCOPE_WRITE,
-    # widens who can reach the workspace at all: 'member' grants full access to
-    # whoever opens the link. Its own tier because granting reach is a
-    # different act from changing content — a token that may write need not be
-    # a token that may hand the workspace to a stranger.
-    "share": SCOPE_SHARE,
-}
-
-# Which held scopes satisfy a requirement. Ordered containment, plus the legacy
-# grant satisfying everything.
-_SATISFIES: dict[str, frozenset[str]] = {
-    SCOPE_READ: frozenset({SCOPE_READ, SCOPE_WRITE, SCOPE_SHARE, SCOPE_LEGACY_FULL}),
-    SCOPE_WRITE: frozenset({SCOPE_WRITE, SCOPE_SHARE, SCOPE_LEGACY_FULL}),
-    SCOPE_SHARE: frozenset({SCOPE_SHARE, SCOPE_LEGACY_FULL}),
-}
-
-# What a newly registering client may ask for. `read` stays valid so existing
-# clients can still refresh, but it is no longer the DEFAULT — a fresh
-# registration that names nothing gets the read-only tier, which is the safe
-# floor rather than the full grant.
-VALID_SCOPES = [SCOPE_READ, SCOPE_WRITE, SCOPE_SHARE, SCOPE_LEGACY_FULL]
-DEFAULT_SCOPES = [SCOPE_READ]
+# Re-exported so every existing `from mcp_server.auth import SCOPE_*` call site
+# and the ADR-563 gate keep working against ONE definition. A second copy here
+# would be the pre-563 defect re-created at the surface: a label that can
+# disagree with the check.
+from services.mcp_scopes import (  # noqa: F401  (re-exported for call sites)
+    SCOPE_READ,
+    SCOPE_WRITE,
+    SCOPE_SHARE,
+    SCOPE_LEGACY_FULL,
+    VERB_SCOPES,
+    VALID_SCOPES,
+    DEFAULT_SCOPES,
+    SATISFIES as _SATISFIES,
+    satisfied_by,
+)
 
 
 def token_scopes() -> list[str]:
@@ -139,7 +102,7 @@ def assert_scope(verb: str) -> None:
         # No token on the request: stdio/static-bearer. Env-pinned, single user.
         return
 
-    if any(s in _SATISFIES[required] for s in held):
+    if satisfied_by(required, held):
         return
 
     raise ScopeDenied(verb, required, held)

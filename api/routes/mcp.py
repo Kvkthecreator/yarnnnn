@@ -43,10 +43,41 @@ router = APIRouter()
 
 class MCPConsentInfo(BaseModel):
     """What the operator is being asked to approve — shown on the consent screen
-    BEFORE any bind write. Read-only; carries no capability."""
+    BEFORE any bind write. Read-only; carries no capability.
+
+    Answers the three questions a consent screen must answer, which this one did
+    not until 2026-08-17: **who am I approving as** (`account_email`), **what
+    will it reach** (`workspace_name`), and **what may it do** (`grants`).
+
+    Before, it showed only the client and its redirect host, and the FE printed a
+    FIXED sentence — "read and write your memory" — that was wrong in both
+    directions: 'memory' is pre-ADR-512 vocabulary (the unit of interop is the
+    FILE), and a legacy `read` token can also DELETE and mint member-grant share
+    links. ADR-563 made the tiers real; this makes them visible, which is the
+    half that was still owed.
+    """
     client_name: Optional[str]
     client_id: str
     redirect_host: str
+    # WHO — the account this connection would be bound to. The bind takes its
+    # identity from the JWT, so on a shared browser (or a second Google account)
+    # the operator could previously approve as someone they did not intend.
+    account_email: Optional[str]
+    # WHERE — the workspace this connection will reach. `None` while the
+    # workspace still wears the mint default name (`display_workspace_name`), so
+    # the FE can say "your workspace" rather than leak "My Workspace".
+    # A connector cannot NAME a workspace (ADR-373 D6, still deferred): it takes
+    # the principal's default. This shows WHICH one that resolves to, computed
+    # through the SAME resolver the connector itself will use.
+    workspace_name: Optional[str]
+    workspace_id: Optional[str]
+    # WHAT — one operator-facing sentence per capability, from the token's real
+    # scopes (ADR-563), not a fixed paragraph.
+    grants: list[str]
+    # Whether those scopes are the LEGACY full-access grant. Surfaced so the
+    # screen can say so plainly instead of quietly describing full access in the
+    # same tone as a narrow one.
+    legacy_full_access: bool
 
 
 class MCPCallbackResponse(BaseModel):
@@ -108,10 +139,50 @@ async def mcp_oauth_consent_info(
         client_name = client_row.data[0].get("client_name")
 
     redirect_host = urlsplit(row["redirect_uri"]).netloc or row["redirect_uri"]
+
+    # WHERE this connection will land. Resolved through the SAME function the
+    # connector's own auth uses (ADR-373 D6's `resolve_mcp_workspace` wraps it),
+    # so the screen cannot promise one workspace while the token reaches
+    # another — the display/gate divergence ADR-501 D1 named.
+    from services.supabase import (
+        resolve_workspace_for_principal,
+        display_workspace_name,
+    )
+
+    workspace_id = None
+    workspace_name = None
+    try:
+        workspace_id = resolve_workspace_for_principal(auth.user_id)
+        if workspace_id:
+            ws = (
+                svc.table("workspaces")
+                .select("name")
+                .eq("id", workspace_id)
+                .limit(1)
+                .execute()
+            )
+            if ws.data:
+                workspace_name = display_workspace_name(ws.data[0].get("name"))
+    except Exception as exc:  # pragma: no cover — description must not fail
+        # Best-effort, matching `resolve_mcp_workspace`'s own posture: a
+        # resolution failure degrades to "your workspace" rather than blocking
+        # the operator from connecting at all.
+        logger.warning("[MCP consent] workspace resolve failed: %s", exc)
+
+    # WHAT it may do — from the pending code's real scopes (ADR-563).
+    from services.mcp_scopes import normalize_scopes, describe_scopes, is_legacy_full
+
+    scopes = normalize_scopes(row.get("scope"))
+
     return MCPConsentInfo(
         client_name=client_name,
         client_id=row.get("client_id"),
         redirect_host=redirect_host,
+        account_email=auth.email,
+        workspace_name=workspace_name,
+        workspace_id=workspace_id,
+        grants=describe_scopes(scopes),
+        legacy_full_access=is_legacy_full(scopes),
     )
 
 
