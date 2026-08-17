@@ -34,13 +34,15 @@
  * stores a string and paints over it. The distinction is the whole product
  * thesis, and it is gated (§6L, §9).
  *
- * ## Live preview (ADR-572 D13) — and a claim this file used to make wrongly
+ * ## Live preview (D13, re-cut by D14) — and a claim this file made wrongly
  *
- * The marks are **hidden off the line being edited** and revealed on it, the
- * Obsidian "live preview" face. This header previously called the visible
- * marks an "honest limitation", asserting that hiding them needed the
- * node↔offset map ADR-456 D1 bans. **That was wrong** — and it was the same
- * misreading D8 had just corrected one section above.
+ * The markdown marks are **hidden**, and tables render as a real cell grid.
+ * This header previously called the visible marks an "honest limitation",
+ * asserting that hiding them needed the node↔offset map ADR-456 D1 bans.
+ * **That was wrong** — the same misreading D8 had just corrected one section
+ * above. D13 then hid them everywhere EXCEPT the caret's line; the operator
+ * drove that and rejected it too (*"i don't want the hashtags visible"*), so
+ * D14 hides them unconditionally.
  *
  * D1 constrains the document **MODEL**: a string, never a tree of identified
  * blocks. It says nothing about rendered appearance. Hiding a mark is
@@ -119,9 +121,9 @@ const PROSE_HIGHLIGHT = HighlightStyle.define([
   // A task marker (`[ ]` / `[x]`) is tagged `tags.atom`. Give it the mono face
   // so the box reads as a box and its glyphs line up down the list.
   { tag: tags.atom, fontFamily: FACE.mono, opacity: '0.85' },
-  // The MARKS themselves — dimmed on the line being edited, and HIDDEN
-  // elsewhere by the `livePreview` plugin (D13). This rule is what the member
-  // sees when a line is active and its source is revealed for editing.
+  // The MARKS themselves. The `livePreview` plugin (D14) hides them outright,
+  // so this rule only paints the transient frames before the syntax tree has
+  // parsed a mark the member is mid-way through typing.
   { tag: tags.processingInstruction, opacity: MARK_OPACITY.syntax, fontWeight: '400', fontSize: '0.85em' },
   { tag: tags.contentSeparator, opacity: MARK_OPACITY.structural },
   { tag: tags.list, opacity: '1' },
@@ -164,35 +166,48 @@ const PROSE_THEME = EditorView.theme({
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(250,160,40,0.55)' },
   '.cm-placeholder': { color: 'var(--muted-foreground, #888)', fontStyle: 'italic' },
 
-  // ── Table rows (ADR-572 D10) ────────────────────────────────────────────
-  // Syntax highlighting alone cannot make a table read as a table: it can
-  // colour the pipes but not draw the grid, so a table rendered as raw
-  // punctuation on the canvas while the print sheet and the landing thumbnail
-  // drew a real bordered table. This is a LINE decoration, applied to the
-  // lines the parser identifies as table rows — presentation only, computed
-  // from offsets, nothing written into the document.
+  // ── Table rows (ADR-572 D10, re-cut by D14) ─────────────────────────────
+  // D10 set the rows in MONO at code size so the source pipes would line up
+  // column-wise. The operator drove it: *"the table rendering still looks
+  // off"* — and it did, because a grey monospace slab reads as a CODE BLOCK,
+  // which is the one thing a table must not look like.
   //
-  // Mono for the cells, so the pipes of consecutive rows line up vertically
-  // and the columns read as columns while you type. That is the honest
-  // canvas-grade answer: an aligned source table, not a rendered one.
+  // Now that the marks hide unconditionally (D14), the pipes go with them and
+  // each cell can be drawn as a real cell: body face, a dividing rule between
+  // columns, and padding. The row is still just a styled LINE — no <table>
+  // element, no node↔offset map, nothing written to the file.
   '.cm-line.cm-tableRow': {
-    fontFamily: FACE.mono,
-    fontSize: FACE.codeSize,
-    backgroundColor: 'var(--table-tint, rgba(128,128,128,0.045))',
-    borderLeft: `2px solid ${TABLE.borderColor}`,
-    paddingLeft: '0.5em',
+    fontFamily: 'inherit',
+    borderLeft: `1px solid ${TABLE.borderColor}`,
+    borderRight: `1px solid ${TABLE.borderColor}`,
   },
   '.cm-line.cm-tableRow-first': {
     borderTop: `1px solid ${TABLE.borderColor}`,
-    paddingTop: '0.15em',
+    backgroundColor: 'var(--table-head, rgba(128,128,128,0.06))',
   },
   '.cm-line.cm-tableRow-last': {
     borderBottom: `1px solid ${TABLE.borderColor}`,
-    paddingBottom: '0.15em',
   },
-  // The header row of a table carries the header weight the rendered face
-  // gives its `<th>`.
+  // The header row carries the weight the rendered face gives its `<th>`.
   '.cm-line.cm-tableRow-header': { fontWeight: TABLE.headerWeight },
+  // Each cell gets its own box. `cm-tableCell` is a MARK decoration over the
+  // text between two pipes, so the divider sits exactly where the column
+  // boundary is rather than at a guessed character offset.
+  '.cm-tableCell': {
+    display: 'inline-block',
+    padding: `0 ${TABLE.cellPadding.split(' ')[1] || '0.6em'}`,
+    borderRight: `1px solid ${TABLE.borderColor}`,
+  },
+  '.cm-tableCell-last': { borderRight: 'none' },
+  // The delimiter row (`| --- |`) carries no information once the grid is
+  // drawn — it becomes the rule under the header.
+  '.cm-line.cm-tableDelimiter': {
+    fontSize: '0',
+    lineHeight: '0',
+    height: '0',
+    overflow: 'hidden',
+    borderBottom: `1px solid ${TABLE.borderColor}`,
+  },
 });
 
 /**
@@ -214,17 +229,25 @@ const PROSE_THEME = EditorView.theme({
  * byte-identical — the same test the table decoration passes. Verified by
  * executing it before the claim was made, which is what D8's version lacked.
  *
- * ## Why "except on the active line"
+ * ## Marks are hidden ALWAYS, not "except on the active line" (D14)
  *
- * Hiding marks unconditionally (Typora's default) means editing a heading or a
- * link while unable to see the syntax you are editing, and a malformed link
- * reads as plain text. Revealing the marks on the line the caret occupies is
- * the Obsidian "live preview" behaviour: the document reads as a document, and
- * the moment you enter a line its source appears so it can be edited honestly.
- * The operator asked for "closest to Notion" — this is the closest reachable
- * without adopting the block model the format cannot carry.
+ * D13 shipped the Obsidian compromise — marks revealed on the line the caret
+ * occupied — on my reasoning that editing syntax you cannot see is
+ * disorienting. **The operator drove it and rejected it**: *"i don't want the
+ * hashtags visible."* On a surface being promoted to the primary writing app
+ * (ADR-574), a `##` appearing the moment you click into a heading is the
+ * source leaking through the document, which is exactly the thing the reading
+ * face exists to stop.
+ *
+ * The concern behind D13 is answered structurally instead of by revealing
+ * source: the heading's SIZE already says which level it is, the toolbar
+ * changes it, and the outline lists it. A member never needs to read `##` to
+ * know they are in an H2.
+ *
+ * Hiding is still pure decoration — nothing is written, the `.md` is
+ * byte-identical, and deleting this plugin restores the raw source.
  */
-const REVEALED_ON_ACTIVE_LINE = new Set([
+const HIDDEN_MARKS = new Set([
   'HeaderMark',
   'EmphasisMark',
   'StrikethroughMark',
@@ -241,9 +264,7 @@ const livePreview = ViewPlugin.fromClass(
       this.decorations = buildPreviewDecorations(view);
     }
     update(u: ViewUpdate) {
-      // `selectionSet` matters as much as `docChanged`: moving the caret onto
-      // a line must reveal that line's marks.
-      if (u.docChanged || u.selectionSet || u.viewportChanged) {
+      if (u.docChanged || u.viewportChanged) {
         this.decorations = buildPreviewDecorations(u.view);
       }
     }
@@ -254,14 +275,6 @@ const livePreview = ViewPlugin.fromClass(
 function buildPreviewDecorations(view: EditorView): DecorationSet {
   const { state } = view;
   const doc = state.doc;
-  // Every line touched by a selection stays in source form, so a multi-line
-  // selection does not half-hide the text being worked on.
-  const active = new Set<number>();
-  for (const r of state.selection.ranges) {
-    const first = doc.lineAt(r.from).number;
-    const last = doc.lineAt(r.to).number;
-    for (let n = first; n <= last; n++) active.add(n);
-  }
 
   // Collected then sorted: `RangeSetBuilder` requires ascending order, and the
   // tree does not guarantee it across nested inline nodes.
@@ -271,8 +284,7 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
       from,
       to,
       enter(node) {
-        if (!REVEALED_ON_ACTIVE_LINE.has(node.name)) return;
-        if (active.has(doc.lineAt(node.from).number)) return;
+        if (!HIDDEN_MARKS.has(node.name)) return;
         let end = node.to;
         // `# ` — swallow the space too, or the heading keeps a hanging indent.
         if (node.name === 'HeaderMark' && doc.sliceString(end, end + 1) === ' ') {
@@ -324,8 +336,12 @@ const tableRows = ViewPlugin.fromClass(
 );
 
 function buildTableDecorations(view: EditorView): DecorationSet {
-  const b = new RangeSetBuilder<Decoration>();
   const doc = view.state.doc;
+  // Line decorations and the per-cell mark decorations are collected together
+  // and sorted, because `RangeSetBuilder` demands one ascending sequence and a
+  // line's own decoration must precede the marks inside it.
+  const out: Array<{ from: number; to: number; deco: Decoration }> = [];
+
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
       from,
@@ -336,20 +352,76 @@ function buildTableDecorations(view: EditorView): DecorationSet {
         const last = doc.lineAt(node.to).number;
         for (let n = first; n <= last; n++) {
           const line = doc.line(n);
-          // The delimiter row (`| --- |`) is structural punctuation: it stays
-          // in the grid but is dimmed by the `contentSeparator` tag rule.
-          const cls = [
-            'cm-tableRow',
-            n === first ? 'cm-tableRow-first cm-tableRow-header' : '',
-            n === last ? 'cm-tableRow-last' : '',
-          ]
-            .filter(Boolean)
-            .join(' ');
-          b.add(line.from, line.from, Decoration.line({ class: cls }));
+          const text = line.text;
+          // The delimiter row (`| --- |`) is pure punctuation: once the grid
+          // is drawn it says nothing, so it collapses into the header's rule.
+          const isDelimiter = /^\s*\|?[\s:|-]*\|[\s:|-]*$/.test(text) && text.includes('-');
+
+          out.push({
+            from: line.from,
+            to: line.from,
+            deco: Decoration.line({
+              class: [
+                'cm-tableRow',
+                n === first ? 'cm-tableRow-first cm-tableRow-header' : '',
+                n === last ? 'cm-tableRow-last' : '',
+                isDelimiter ? 'cm-tableDelimiter' : '',
+              ]
+                .filter(Boolean)
+                .join(' '),
+            }),
+          });
+          if (isDelimiter) {
+            // Replace the row's TEXT as well as collapsing its box: a
+            // zero-height line still contributes its characters to selection,
+            // copy and find, so `| --- |` would come back on a ⌘C.
+            if (line.to > line.from) {
+              out.push({ from: line.from, to: line.to, deco: Decoration.replace({}) });
+            }
+            continue;
+          }
+
+          // Split the row on its unescaped pipes and wrap each cell. The pipes
+          // themselves are hidden, so the borders below ARE the columns.
+          const bounds: number[] = [];
+          for (let i = 0; i < text.length; i++) {
+            if (text[i] === '|' && (i === 0 || text[i - 1] !== '\\')) bounds.push(i);
+          }
+          if (bounds.length < 2) continue;
+          for (let i = 0; i < bounds.length; i++) {
+            const p = bounds[i];
+            // Hide the pipe itself.
+            out.push({
+              from: line.from + p,
+              to: line.from + p + 1,
+              deco: Decoration.replace({}),
+            });
+            // The cell is the span up to the NEXT pipe.
+            const next = bounds[i + 1];
+            if (next === undefined) break;
+            const cellFrom = line.from + p + 1;
+            const cellTo = line.from + next;
+            if (cellTo <= cellFrom) continue;
+            out.push({
+              from: cellFrom,
+              to: cellTo,
+              deco: Decoration.mark({
+                class:
+                  i === bounds.length - 2 ? 'cm-tableCell cm-tableCell-last' : 'cm-tableCell',
+              }),
+            });
+          }
         }
       },
     });
   }
+
+  // Line decorations sort before marks at the same offset (`Decoration.line`
+  // has side -1 by construction), so a stable sort on `from` then `to` is
+  // enough for the builder's ordering contract.
+  out.sort((a, b2) => a.from - b2.from || a.to - b2.to);
+  const b = new RangeSetBuilder<Decoration>();
+  for (const r of out) b.add(r.from, r.to, r.deco);
   return b.finish();
 }
 
@@ -361,17 +433,57 @@ export interface ProseCanvasHandle {
   /** Reveal a source range (outline jump, find). */
   reveal: (from: number, to: number) => void;
   focus: () => void;
+  /** Delete a source range (the slash run, once a pick lands). */
+  deleteRange: (from: number, to: number) => void;
+  /** Viewport coordinates of a source offset, for anchoring the palette. */
+  coordsAt: (pos: number) => { left: number; top: number; bottom: number } | null;
+}
+
+/**
+ * The `/` run behind the caret, or null (ADR-572 D14).
+ *
+ * A run is live only when `/` sits at the very start of a line or after
+ * whitespace — otherwise `and/or` would open a palette mid-word. Any space in
+ * the filter closes it: a slash command is one token, and "/table of contents"
+ * is prose the member is typing, not a filter that happens to match nothing.
+ */
+export interface SlashRun {
+  /** Offset of the `/` itself — the start of the range a pick replaces. */
+  from: number;
+  /** The caret; the run is `[from, to)`. */
+  to: number;
+  /** What was typed after the `/`. */
+  filter: string;
+}
+
+export function readSlashRun(doc: string, caret: number): SlashRun | null {
+  let i = caret - 1;
+  while (i >= 0) {
+    const ch = doc[i];
+    if (ch === '/') break;
+    // A newline or a space ends the search: the run must be one token, and a
+    // `/` on a previous line is not behind this caret in any useful sense.
+    if (ch === '\n' || ch === ' ' || ch === '\t') return null;
+    i--;
+  }
+  if (i < 0 || doc[i] !== '/') return null;
+  const before = i === 0 ? '\n' : doc[i - 1];
+  if (before !== '\n' && before !== ' ' && before !== '\t') return null;
+  return { from: i, to: caret, filter: doc.slice(i + 1, caret) };
 }
 
 export function ProseCanvas({
   value,
   onChange,
+  onSlashRun,
   handleRef,
   zoom = 1,
   className,
 }: {
   value: string;
   onChange: (next: string) => void;
+  /** The `/` run behind the caret, or null when there is none (D14). */
+  onSlashRun?: (run: SlashRun | null) => void;
   handleRef?: (h: ProseCanvasHandle | null) => void;
   zoom?: number;
   className?: string;
@@ -382,6 +494,8 @@ export function ProseCanvas({
   // stable — rebuilding the EditorState on every render would drop the caret.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onCaretRef = useRef(onSlashRun);
+  onCaretRef.current = onSlashRun;
 
   /**
    * Every document this canvas has EMITTED since the last external write —
@@ -417,13 +531,25 @@ export function ProseCanvas({
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       EditorView.updateListener.of((u) => {
-        if (!u.docChanged) return;
-        const next = u.state.doc.toString();
-        // Record what we EMIT, so the echo arriving back as `value` a render
-        // later is recognised as ours and not re-applied over newer typing
-        // (ADR-572 D12).
-        emittedRef.current.add(next);
-        onChangeRef.current(next);
+        if (u.docChanged) {
+          const next = u.state.doc.toString();
+          // Record what we EMIT, so the echo arriving back as `value` a render
+          // later is recognised as ours and not re-applied over newer typing
+          // (ADR-572 D12).
+          emittedRef.current.add(next);
+          onChangeRef.current(next);
+        }
+        // The slash palette lives in the SURFACE, but only the view knows the
+        // caret — so every doc/selection change reports the run behind it
+        // (ADR-572 D14). Read here rather than in the surface because the
+        // surface's `text` lags a render, and a palette anchored to stale
+        // coordinates points at the wrong line.
+        if (u.docChanged || u.selectionSet) {
+          const sel = u.state.selection.main;
+          onCaretRef.current?.(
+            sel.empty ? readSlashRun(u.state.doc.toString(), sel.head) : null,
+          );
+        }
       }),
     ],
     [],
@@ -491,6 +617,14 @@ export function ProseCanvas({
         view.focus();
       },
       focus: () => view.focus(),
+      deleteRange: (from, to) => {
+        view.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from } });
+        view.focus();
+      },
+      coordsAt: (pos) => {
+        const c = view.coordsAtPos(pos);
+        return c ? { left: c.left, top: c.top, bottom: c.bottom } : null;
+      },
     };
     handleRef?.(handle);
 

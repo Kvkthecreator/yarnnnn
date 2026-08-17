@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, FolderOpen, Loader2, MoreHorizontal, Plus, ScrollText } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
@@ -100,6 +101,29 @@ export default function TextSurface() {
   const open = useCallback((path: string) => setParam({ file: relPath(path) }), [setParam]);
   const close = useCallback(() => setParam({ file: null }), [setParam]);
   const refresh = useCallback(() => setFeedKey((n) => n + 1), []);
+
+  // ── One locator, never two (ADR-572 D14) ────────────────────────────────
+  // The open state draws its OWN crumb row (`Text / Babo song concept`) in the
+  // editor's chrome, so the OS strip must suppress for this surface — the
+  // 2026-07-14 ruling `useSelfLocatedSurface` exists to enforce. ADR-571 built
+  // the crumb row and never made the declaration, so BOTH painted: a bare
+  // "Text" band above the app's own `Text / …` row.
+  //
+  // Studio's exact pattern, including the `Boolean(openPath)` gate: the LANDING
+  // has no crumb of its own, so it keeps the OS strip rather than going
+  // unnamed. Fourth surface to miss a shell registration at birth (radar,
+  // files, then text's ephemeral params — ADR-572 D9).
+  useSelfLocatedSurface('text', Boolean(openPath));
+
+  // The crumb segments themselves. The desktop chrome renders them inline, but
+  // the OS strip still needs them for the MOBILE back-chip, which is drawn
+  // from the registry rather than from the surface.
+  useWindowCrumb(
+    'text',
+    openPath
+      ? [{ label: documentName(openPath), kind: 'artifact', onClick: close }]
+      : [],
+  );
 
   if (openPath) {
     return (

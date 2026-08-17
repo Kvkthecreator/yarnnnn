@@ -68,8 +68,9 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { TextExport } from '@/components/text/TextExport';
-import { ProseCanvas, type ProseCanvasHandle } from '@/components/text/ProseCanvas';
+import { ProseCanvas, type ProseCanvasHandle, type SlashRun } from '@/components/text/ProseCanvas';
 import { MarkdownToolbar, type ToolbarAction } from '@/components/text/MarkdownToolbar';
+import { SlashMenu, filterSlashItems, type SlashItem } from '@/components/text/SlashMenu';
 import { readConflict, type ConflictState } from '@/components/text/conflict';
 import { parseOutline, readingMinutes } from '@/components/text/outline';
 import {
@@ -333,6 +334,74 @@ export function TextEditor({
   const reveal = useCallback((span: [number, number]) => {
     canvasRef.current?.reveal(span[0], span[1]);
   }, []);
+
+  // ── The `/` insert palette (ADR-572 D14) ────────────────────────────────
+  // Notion's gesture, which Docs also has. The run is read by the CANVAS (only
+  // the view knows the caret) and handed up; the palette is chrome, so it lives
+  // here beside the toolbar it shares its actions with.
+  const [slash, setSlash] = useState<SlashRun | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const slashItems = useMemo(() => filterSlashItems(slash?.filter ?? ''), [slash]);
+  // A filter that matches nothing closes the palette rather than showing an
+  // empty box — the member is typing prose that happens to start with `/`.
+  const slashOpen = slash !== null && slashItems.length > 0;
+  const slashCoords = useMemo(
+    () => (slash ? canvasRef.current?.coordsAt(slash.from) ?? null : null),
+    // `text` is a dep so the anchor re-reads as the line moves under the caret.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slash, text],
+  );
+
+  useEffect(() => { setSlashIndex(0); }, [slash?.filter]);
+
+  const takeSlash = useCallback(
+    (item: SlashItem) => {
+      const run = slash;
+      if (!run) return;
+      setSlash(null);
+      // Delete the `/filter` run FIRST, then compute the edit against the
+      // shortened document — otherwise every offset the edit functions return
+      // is shifted by the length of a run that is about to disappear.
+      canvasRef.current?.deleteRange(run.from, run.to);
+      const next = text.slice(0, run.from) + text.slice(run.to);
+      setText(next);
+      const at = run.from;
+      switch (item.action.kind) {
+        case 'heading': return applyEdit(toggleHeading(next, at, at, item.action.level));
+        case 'list': return applyEdit(toggleList(next, at, at, item.action.ordered));
+        case 'checklist': return applyEdit(toggleChecklist(next, at, at));
+        case 'quote': return applyEdit(toggleQuote(next, at, at));
+        case 'table': return applyEdit(insertTable(next, at, at));
+        case 'rule': return applyEdit(insertRule(next, at, at));
+        default: return;
+      }
+    },
+    [slash, text, applyEdit],
+  );
+
+  // ↑/↓/Enter/Tab/Escape belong to the palette while it is open. Capture phase,
+  // because CodeMirror's own keymap would otherwise move the caret or insert a
+  // newline before this handler ever sees the key.
+  useEffect(() => {
+    if (!slashOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+        e.preventDefault();
+        setSlashIndex((i) => (i + 1) % slashItems.length);
+      } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+        e.preventDefault();
+        setSlashIndex((i) => (i - 1 + slashItems.length) % slashItems.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        takeSlash(slashItems[slashIndex] ?? slashItems[0]);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setSlash(null);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [slashOpen, slashItems, slashIndex, takeSlash]);
 
   // ── Keyboard: ⌘S save · ⌘B/⌘I/⌘K formatting ────────────────────────────
   // Window-level, because the document is the subject of the whole surface
@@ -668,9 +737,19 @@ export function TextEditor({
               <ProseCanvas
                 value={text}
                 onChange={setText}
+                onSlashRun={setSlash}
                 handleRef={(h) => { canvasRef.current = h; }}
                 zoom={zoom}
               />
+              {slashOpen && slashCoords && (
+                <SlashMenu
+                  items={slashItems}
+                  active={slashIndex}
+                  coords={slashCoords}
+                  onPick={takeSlash}
+                  onHover={setSlashIndex}
+                />
+              )}
             </>
           )}
         </main>

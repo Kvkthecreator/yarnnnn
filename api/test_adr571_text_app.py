@@ -1469,21 +1469,139 @@ for _k, _lbl in [
           f"see the # or alike)'; D8's claim that hiding needs the banned "
           f"node↔offset map re-read D1's MODEL constraint as an appearance one",
           _d13.get(_k) is True, str(_d13)[:300])
-check("14b the ACTIVE line keeps its marks — editing syntax you cannot see is "
-      "Typora's most-complained-about behaviour, and a malformed link would "
-      "read as plain text",
-      _d13.get("active_keeps_marks") is True, str(_d13)[:300])
-check("14c moving the caret REVEALS that line and re-hides the one just left "
-      "(the live-preview gesture, driven through the real view)",
-      _d13.get("caret_reveals") is True and _d13.get("caret_rehides") is True,
-      str(_d13)[:300])
-check("14d a table's PIPES survive — they are the grid's own structure, not "
-      "syntax to hide; hiding them would run the cells together",
-      _d13.get("table_pipes_survive") is True, str(_d13)[:300])
+# 14b/14c/14d were D13's and are REVERSED by D14 — kept as a record of what
+# changed rather than deleted, because a check that silently disappears leaves
+# no trace that the behaviour it defended was a decision someone overturned.
+#
+#   14b "the ACTIVE line keeps its marks"  → D14 hides them everywhere; the
+#       operator drove D13 and rejected it ("i don't want the hashtags
+#       visible"). §15a now asserts the OPPOSITE, deliberately.
+#   14c "moving the caret reveals that line" → same reversal.
+#   14d "a table's PIPES survive"          → D14 hides them and draws real
+#       cells instead; §15b asserts the grid.
+#
+# The reasoning behind 14b was mine, not the operator's, and it lost on
+# contact: a `##` appearing when you click into a heading is the source leaking
+# through the document, which is what the reading face exists to stop.
 check("14e the document is BYTE-IDENTICAL through all of it — decorations are "
       "read FROM offsets and never written back, so ADR-456 D1's actual "
       "constraint (the MODEL is a string) holds with live preview on",
       _d13.get("doc_byte_identical") is True, str(_d13)[:300])
+
+
+
+# ── 15. ADR-572 D14 — marks always hidden, a real table, and `/` ─────────
+# Three operator asks from driving D13: "i don't want the hashtags visible",
+# "the table rendering still looks off", and "can you consider if we can use
+# the slash command shortcut key on the page like notion?".
+_D14_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f,'utf8'),{transforms:['typescript','jsx','imports'],jsxRuntime:'automatic',production:true}).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) { const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts']) { try { return orig.call(this, b + e, ...a); } catch (x) {} } }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<!doctype html><body><div id="h"></div></body>', { pretendToBeVisual: true });
+const def = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+def('IS_REACT_ACT_ENVIRONMENT', true);
+const React = require(WEB + '/node_modules/react');
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+const { act } = React;
+const { ProseCanvas, readSlashRun } = require(WEB + '/components/text/ProseCanvas.tsx');
+const { filterSlashItems, SLASH_ITEMS } = require(WEB + '/components/text/SlashMenu.tsx');
+
+const DOC = '## Structure\n\n| Section | Idea |\n| --- | --- |\n| Verse 1 | lists everything |\n'
+  + '| Chorus | sung warmly |\n\n## The one good line\n\nplain **bold** text\n';
+let value = DOC, handle = null;
+const host = dom.window.document.getElementById('h');
+act(() => createRoot(host).render(React.createElement(ProseCanvas, {
+  value, onChange: (v) => { value = v; }, handleRef: (h) => { if (h) handle = h; },
+})));
+const el = host.querySelector('.cm-content');
+const t = el.textContent;
+// Put the caret ON the first heading — under D13 that revealed its marks.
+act(() => handle.reveal(2, 2));
+const tActive = host.querySelector('.cm-content').textContent;
+
+console.log(JSON.stringify({
+  h2_hidden: !t.includes('## Structure') && t.includes('Structure'),
+  bold_hidden: !t.includes('**bold**') && t.includes('bold'),
+  // The D14 change: hidden even when the caret is ON that line.
+  hidden_on_active_line: !tActive.includes('## Structure'),
+  // The table is a GRID of cells, not a monospace slab.
+  pipes_hidden: !t.includes('| Section'),
+  cells: el.querySelectorAll('.cm-tableCell').length,
+  rows: el.querySelectorAll('.cm-tableRow').length,
+  delimiter_collapsed: el.querySelectorAll('.cm-tableDelimiter').length === 1
+    && !t.includes('---'),
+  doc_byte_identical: value === DOC,
+  // `/` runs.
+  slash_start: JSON.stringify(readSlashRun('/', 1)) === JSON.stringify({from:0,to:1,filter:''}),
+  slash_filter: (readSlashRun('/ta', 3) || {}).filter === 'ta',
+  slash_not_midword: readSlashRun('and/or', 6) === null,
+  slash_not_url: readSlashRun('see http://x', 12) === null,
+  slash_space_closes: readSlashRun('/table of', 9) === null,
+  // The palette's rows come from the SAME actions the toolbar dispatches.
+  slash_filters: filterSlashItems('quo').length === 1
+    && filterSlashItems('todo').some((i) => i.id === 'task')
+    && filterSlashItems('').length === SLASH_ITEMS.length,
+}));
+"""
+
+try:
+    _d14 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D14_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=180, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d14 = {"error": str(exc)}
+
+check("15a the markdown marks are hidden ALWAYS, including on the line the "
+      "caret occupies — D13's reveal-on-active-line was driven and rejected "
+      "(operator: 'i don't want the hashtags visible')",
+      _d14.get("h2_hidden") is True and _d14.get("hidden_on_active_line") is True,
+      str(_d14)[:300])
+check("15a1 inline marks (`**`) are hidden too",
+      _d14.get("bold_hidden") is True, str(_d14)[:300])
+check("15b a table renders as a GRID OF CELLS, pipes hidden — D10 set the rows "
+      "in mono at code size, which reads as a CODE BLOCK, the one thing a "
+      "table must not look like (operator: 'the table rendering still looks off')",
+      _d14.get("pipes_hidden") is True and _d14.get("cells", 0) >= 6,
+      str(_d14)[:300])
+check("15b1 the `| --- |` delimiter row collapses into the header rule — it "
+      "carries no information once the grid is drawn",
+      _d14.get("delimiter_collapsed") is True, str(_d14)[:300])
+check("15c the document is BYTE-IDENTICAL through all of it — every one of "
+      "these is a decoration read FROM offsets, never written back",
+      _d14.get("doc_byte_identical") is True, str(_d14)[:300])
+for _k, _lbl in [
+    ("slash_start", "15d `/` at the start of a line opens a run"),
+    ("slash_filter", "15d1 the text after `/` is the filter"),
+    ("slash_not_midword", "15e `and/or` does NOT open a palette"),
+    ("slash_not_url", "15e1 a URL's `//` does NOT open a palette"),
+    ("slash_space_closes", "15e2 a space in the filter closes the run"),
+]:
+    check(f"{_lbl} — the Notion gesture the operator asked for, with the "
+          f"false-positive cases that make it usable in prose",
+          _d14.get(_k) is True, str(_d14)[:300])
+check("15f the palette filters, and its rows are the SAME ToolbarAction values "
+      "the toolbar dispatches — a second DOOR to one mechanism, never a second "
+      "mechanism (the rule Docs states for its own toolbar/slash pair)",
+      _d14.get("slash_filters") is True, str(_d14)[:300])
 
 
 # ── report ───────────────────────────────────────────────────────────────

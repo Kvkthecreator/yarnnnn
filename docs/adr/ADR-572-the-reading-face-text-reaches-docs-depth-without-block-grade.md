@@ -549,6 +549,83 @@ is a fact.
 
 Gate 174 → **188**.
 
+### D14 — Marks hidden outright, a real table grid, `/` insert, and one locator
+
+Four items from the D13 click-pass. **Three of the four reverse a decision of
+mine that the operator overturned by driving it**, which is the pattern of this
+whole arc.
+
+#### D14.a — the marks are hidden ALWAYS (reverses D13)
+
+D13 shipped the Obsidian compromise: marks revealed on the caret's line, hidden
+elsewhere. My reasoning was that editing syntax you cannot see is disorienting.
+**The operator drove it and rejected it** — *"i don't want the hashtags
+visible."*
+
+On a surface being promoted to the primary writing app (ADR-574), a `##`
+appearing the moment you click into a heading is **the source leaking through
+the document**, which is precisely what the reading face exists to stop. The
+concern behind D13 is answered structurally instead: the heading's size says
+which level it is, the toolbar changes it, and the outline lists it. Nobody
+needs to read `##` to know they are in an H2.
+
+#### D14.b — a table is a grid of cells, not a monospace slab
+
+D10 gave table rows `FACE.mono` at code size so the source pipes would align
+column-wise, and called that "the honest canvas-grade answer." Driven:
+*"the table rendering still looks off."* It did — **a grey monospace block reads
+as a CODE BLOCK**, the one thing a table must not look like.
+
+With marks hidden unconditionally the pipes go too, so each cell is drawn as a
+real cell: body face, a dividing rule at the column boundary (a mark decoration
+over the span between pipes, so the rule sits where the boundary *is* rather
+than at a guessed character offset), and the `| --- |` delimiter row collapses
+into the header's rule — it carries no information once the grid exists, and it
+is replaced rather than merely zero-heighted so a ⌘C does not bring it back.
+
+#### D14.c — the `/` insert palette
+
+Operator: *"can you consider if we can use the slash command shortcut key on
+the page like notion?"* Docs has the same gesture and **none of its machinery
+transfers**: there the canvas is a sandboxed iframe, so the runtime bridges
+every step across the frame boundary (`onSlashOpen` with a frame-relative rect,
+`onSlashFilter` mirroring the run out, `onSlashMove`/`onSlashEnter` because the
+parent cannot hear the document's keys, a `slashTake` nonce commanding the
+deletion). In CodeMirror the caret, the text and the keymap are all in one
+document: read the run behind the caret, show a list, replace the run on pick.
+
+The palette dispatches the **same `ToolbarAction` values the toolbar does** — a
+second *door* to one mechanism, never a second mechanism (the rule Docs states
+for its own toolbar/slash pair). Bold/italic/link are deliberately absent: they
+act on a selection, and a slash run is by definition a collapsed caret.
+
+A run opens only after a line start or whitespace, and any space closes it, so
+`and/or` and `http://…` do not open a palette in ordinary prose. Gated (§15e).
+
+#### D14.d — one locator, never two
+
+Operator: *"the breadcrumb i think was double implemented. compare against
+studio apps."* Correct. Text draws its own crumb row (`Text / Babo song
+concept`) but never called `useSelfLocatedSurface`, the hook that exists to
+enforce the 2026-07-14 ruling — *one "you are here", never two* — so the OS
+strip painted a second `Text` band above it. Studio declares it; Text was built
+after and did not.
+
+**Fourth surface to miss a shell registration at birth** (radar, files, then
+Text's own ephemeral params in D9). The landing keeps the OS strip, exactly as
+Studio's start state does, because it has no crumb of its own.
+
+#### What this arc keeps proving
+
+Three of these four were **decisions I made and defended in an ADR**, each
+overturned the moment the operator used the thing. None were caught by a gate,
+because none were defects — they were judgements, and a judgement can only be
+falsified by the person the surface is for.
+
+Gate 188 → **196**. Three D13 assertions are now *contradicted* by D14 and are
+recorded as superseded in the gate rather than deleted, so the reversal leaves a
+trace.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.
