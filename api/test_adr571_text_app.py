@@ -799,6 +799,57 @@ check("9h no ids or data-* are introduced by the editor",
       _cm.get("no_ids_added") is True, str(_cm)[:220])
 
 
+# ── 10. document identity is never REPLAYED from storage (ADR-572 D9) ────
+# `text.file` was OWNED (§3h) but absent from the EPHEMERAL list, and those are
+# two different registries. In `reconcileUrl` the merge order is
+# `{...incoming, ...remembered, ...delivered}` — so `remembered` OUTRANKS the
+# URL, and a stored document id beat the one the member asked for. Observed
+# four times on three paths (another file's param, a bare `/text`, an
+# explicitly emptied `?text.file=`), and it reopened a TRASHED document.
+_prefs = (WEB / "lib" / "shell" / "surface-preferences.ts").read_text()
+
+
+def _registry(name: str) -> dict[str, list[str]]:
+    """Parse a `Record<string, readonly string[]>` literal into {slug: [keys]},
+    comments stripped — an assertion that reads comments can match its own
+    explanatory prose (the trap this repo keeps re-learning)."""
+    m = re.search(name + r"\s*:\s*Record<[^>]*>\s*=\s*\{(.*?)\n\};", _prefs, re.S)
+    if not m:
+        return {}
+    body = re.sub(r"//.*", "", m.group(1))
+    out: dict[str, list[str]] = {}
+    for row in re.finditer(r"'?([a-z-]+)'?\s*:\s*\[([^\]]*)\]", body):
+        out[row.group(1)] = re.findall(r"'([^']+)'", row.group(2))
+    return out
+
+
+_owned = _registry("SURFACE_PARAM_KEYS")
+_ephemeral = _registry("SURFACE_EPHEMERAL_PARAM_KEYS")
+
+check("10a both param registries parse (the gate is reading real rows)",
+      len(_owned) >= 5 and len(_ephemeral) >= 5,
+      f"owned={len(_owned)} ephemeral={len(_ephemeral)}")
+check("10b text.file is EPHEMERAL — a document is a drill-in, never a posture",
+      "file" in _ephemeral.get("text", []), str(_ephemeral.get("text")))
+
+# The CLASS of bug, not just this instance: any surface owning a document
+# identity key must strip it from the remembered set. Text is the third surface
+# to miss a registry at birth (radar 2026-08-13, files before it) — so the
+# invariant is asserted over EVERY surface, and a new document app that forgets
+# names itself instead of shipping the same bug.
+_IDENTITY_KEYS = ("file", "path")
+for _slug, _keys in sorted(_owned.items()):
+    for _k in _IDENTITY_KEYS:
+        if _k not in _keys:
+            continue
+        check(
+            f"10c {_slug}.{_k} is a document identity — it must be stripped "
+            f"from the REMEMBERED set, or a stored value outranks the URL",
+            _k in _ephemeral.get(_slug, []),
+            f"{_slug} ephemeral={_ephemeral.get(_slug)}",
+        )
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:

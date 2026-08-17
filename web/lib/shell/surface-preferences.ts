@@ -718,6 +718,15 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // strands the unconfigured desk without its lane); the delivered `file`
   // deep-link is an open act, not a posture.
   strings: ['file'],
+  // ADR-572 D9 — Text's document identity, missed when ADR-571 created the app.
+  // `text.file` is the same shape as `docs.file` / `studio.file`: a specific
+  // document you opened once, not a posture. Absent from this list it was
+  // REMEMBERED, and because `remembered` outranks `incoming` in reconcileUrl,
+  // the stored value beat the URL — so `/text?text.file=A` landed on B, a bare
+  // `/text` reopened the last document, an explicitly emptied `?text.file=`
+  // was refilled, and a TRASHED document kept reopening. Four repros on three
+  // paths, 2026-08-16.
+  text: ['file'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */
