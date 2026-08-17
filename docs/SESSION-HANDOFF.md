@@ -1,9 +1,153 @@
-# Session handoff — 2026-08-17: the MCP connector audit, and what it produced
+# Session handoff — 2026-08-17
 
-`origin/main` at `ec58956`. The audit asked: **does the connector show user
+**Two lanes ran concurrently today and both landed.** They touch disjoint files
+except `ADR-LEDGER.md`, where both entries coexist (verified). Read whichever
+part matches your next task; the shared residuals are consolidated at the end
+of Part A.
+
+- **Part A — ADR-572 D10**: the Text app's second operator click-pass (`f852c82`).
+- **Part B — the MCP connector audit**: ADR-563/573 (`ec58956`, `116792d`).
+
+---
+
+# Part A — ADR-572 D10: the operator's second click-pass
+
+`f852c82`. **Five operator findings diagnosed, fixed, gated and pushed.** Two
+were structural (a face split, and a false premise inside a ratified decision);
+three were surface defects. None were visible to `next build`, to `tsc`, or to
+the 128 gate checks that were green over them.
+
+## What shipped
+
+| # | Operator's words | What it actually was |
+|---|---|---|
+| 1 | *"the table render doesn't show the rendered style on the editor"* | **Two hand-maintained faces**, drifted. The table was only where it showed. |
+| 2 | *"the tool bar inserts don't work for an empty line"* | One predicate bug, three call sites. |
+| 3 | *"do we need a distinct save button?"* | **D5's premise about Docs was factually false.** |
+| 4 | *"the ... file handling is not available. colour and highlight, also not available"* | A real gap **and** a correct-but-invisible refusal. |
+| 5 | *"the design system application also please double check"* | The canvas was reading a token namespace its medium cannot have. |
+
+New module: `web/components/text/readingFace.ts` — the ONE reading-face
+declaration both renderers derive from.
+
+## ⭐⭐⭐ The two findings worth carrying forward
+
+**1. A refusal documented only in canon is invisible.** ADR-572 §3.1 refused
+colour/highlight for good reasons and said, in writing, that it wanted the
+absence *"named rather than leaving the absence to look like an oversight"* —
+then named it only in the ADR. The operator opened the pane and read it as a
+gap, exactly as predicted. Docs prints its refusals **in the pane**; Text now
+does too. **If an absence is deliberate, the surface has to say so where the
+absence is felt.**
+
+**2. A ratified decision can rest on a false premise about a neighbouring
+module.** D5 justified Text's Save button by asserting Docs "autosaves with no
+CAS". Docs' `writeAndAdvance` is a queued CAS commit per operation with a 409
+refetch-and-retry. Docs had everything the button was justified by and still
+had no button. **Text was not more careful than Docs — it was less capable, and
+it handed the member the difference as a chore** (the ADR-550→551 shape: a live,
+correct mechanism in the wrong housing). Sibling of Part B's *"a ratified ADR is
+evidence of a decision, never of an implementation"*: **verify the claim an ADR
+makes about its neighbour, not only the decision it draws from it.**
+
+## The parent-tag trap (D10.a), named so it is not re-set
+
+`tags.heading1` is `t(heading)` — a **child** of `tags.heading`. Tag inheritance
+flows parent→child, so a rule on the child **never** matches a node tagged with
+the bare parent. `@lezer/markdown` tags a **table header** with exactly that
+bare `heading`. Measured, not read:
+
+```
+heading (table header) -> NO CLASS (unstyled)
+heading1               -> ͼo
+content (table cell)   -> NO CLASS (unstyled)
+atom (task marker)     -> NO CLASS (unstyled)
+```
+
+Same shape as D1's `prose-sm`/`prose-base` collision: **a rule that looks like
+it covers the case and doesn't.**
+
+## The type-token finding (D10.b) is subtler than "a missing token"
+
+`--font-serif` **is** a real token — an **artifact-skin** token (`skinVars.ts`),
+declared by an applied design system and parsed at runtime by `skinVarMap()`. It
+exists only inside a skinned Docs artifact. **A `.md` has no skin**, so in Text
+that var could never resolve; the inline fallback always won while Tailwind's
+`font-serif` took its stock stack. Two faces on one document, by construction.
+The fix declares an **app** type vocabulary distinct from the **artifact** one.
+
+## ⭐⭐⭐ Gate craft — two checks passed their own falsification
+
+Both caught only because every new check was falsified. Same error, one screen
+apart:
+
+- **11h** asserted `"var(--font-serif)" in tailwind.config.ts`. Repointing
+  `serif` at `["Georgia","serif"]` left the string present **in the check's own
+  explanatory comment** and in the `mono:` line beside it. → now extracts the
+  per-key value.
+- **11L** required `openMenuFromButton` **and** `"File actions"`. Deleting the
+  `aria-label` left `title="File actions"` behind. → now matches the wired
+  `onClick` and the mounted menu node.
+
+**Fourth and fifth occurrences this arc** of an assertion matching a
+*decoration* of the behaviour rather than the behaviour. (Part B hit the same
+shape independently — see its gate-craft note.)
+
+Also worth keeping: **11a's falsification is what proves it tests the table.**
+Removing the plugin fails 11a while `canvas_styled` stays `True` — without that
+control, 11a could have been passing on "did anything render at all".
+
+## Part A verification
+
+```
+cd api && python3 test_adr571_text_app.py            # 160/160, SCRIPT-STYLE (pytest = false pass)
+cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
+cd api && python3 test_adr562_app_owned_config.py    # script-style
+node web/lib/file-types/__gate_adr514_d2.mjs         # 41/41, from REPO ROOT
+cd web && node_modules/.bin/next build               # `pnpm` NOT on PATH; 171/171 pages
+```
+
+⚠️ **`__gate_adr514_d2.mjs` prints a stray `Node.js v25.1.0` line after its
+summary.** It exits 0 and reports `ALL PASS — 41/41`. A `tail -3` on it looks
+like a crash and is not one — **read the summary line or the exit code**, not
+the tail. (Nearly reported as a false negative this session.)
+
+## Part A owed — the D10 click-pass
+
+Everything was gated by mounting the real components and executing the real
+functions, but **not driven on production**. Drive it **cold**:
+
+1. Open a document with a table → it reads as a **grid**, not raw pipes.
+2. Caret on an **empty line** → bulleted list / task list / quote → each inserts
+   its marker with the caret ready to type.
+3. Type, then **stop** → the header goes `Editing…` → `Saving…` → `Saved` within
+   ~2s. **There is no Save button** — confirm nothing reads as lost.
+4. Properties → the **`⋯`** beside the filename → Copy link / Duplicate /
+   Rename / Move / Move to Trash.
+5. Properties → **Appearance** → the refusal reads as a decision, not a gap.
+
+## Traps Part A paid for
+
+- ⭐⭐⭐ **A green gate is not a rendered surface** (fifth time). Five defects,
+  128 green checks, clean `tsc` and clean `next build` across all of them. §11
+  now mounts the real canvas in jsdom, because a source grep cannot see which
+  CSS class a tag resolved to.
+- ⭐⭐ **Check the detector before trusting a negative** — a passing gate's
+  trailing output read as a crash.
+- ⭐⭐ **A concurrent lane can land work in your tree.** The MCP files present at
+  this session's start were committed by the Part B lane mid-flight; `git add -A`
+  would have swept them. Staged by explicit pathspec, verified with
+  `git log -S"<my string>"`.
+
+---
+
+# Part B — the MCP connector audit, and what it produced
+
+The audit asked: **does the connector show user
 information and let you select a workspace — in the OAuth flow, and in the app?**
 Four items shipped; one was **deliberately dropped after measurement**, and that
-is the most reusable finding here.
+is the most reusable finding here. (Lane commits: `52b6538`, `3803c5b`,
+`ec58956`, `116792d`.)
 
 > The prior handoff (ADR-572 D8, `dbccbd1`) is **ABSORBED**. Two of its owed
 > items are now CLOSED by this session — the stranded-row backfill (audited, not
