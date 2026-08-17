@@ -1,230 +1,178 @@
-# Session handoff — 2026-08-16: ADR-572 shipped, click-passed, then RE-CUT to one canvas
+# Session handoff — 2026-08-17: the MCP connector audit, and what it produced
 
-`origin/main` at the ADR-572 click-pass commit. **The Text↔Docs parity arc is
-closed and DRIVEN on production.** The reading face, outline, task lists,
-tables, fences, save and the CAS 409 all pass on a real document. Two defects
-were found by driving; one is fixed, one is handed off below because it belongs
-to a different layer.
+`origin/main` at `ec58956`. The audit asked: **does the connector show user
+information and let you select a workspace — in the OAuth flow, and in the app?**
+Four items shipped; one was **deliberately dropped after measurement**, and that
+is the most reusable finding here.
 
-> The prior handoff (ADR-571 phase 2 — the canvas gap) is **ABSORBED**. Its
-> audit ran, its table is in ADR-572 §1, and the build landed. Two of its
-> starting-table rows were **wrong about Docs** and are corrected below so the
-> mistake is not re-inherited.
+> The prior handoff (ADR-572 D8, `dbccbd1`) is **ABSORBED**. Two of its owed
+> items are now CLOSED by this session — the stranded-row backfill (audited, not
+> needed) and "a connector cannot NAME a workspace" (ADR-573). Its remaining
+> item, the Print/PDF click-pass, is carried forward below.
 
-## What shipped (ADR-572, as re-cut by D8)
+## ⭐⭐⭐ The correction that opened this session — carry it
 
-**ONE canvas** (`ProseCanvas`, CodeMirror-grade): always editable, always
-styled, no mode toggle. A permanent markdown toolbar (⌘B/⌘I/⌘K + heading /
-list / **task list** / quote / table / link / rule), zoom, find via
-`@codemirror/search`, a heading outline in Properties, Print/PDF, a rendered
-landing thumbnail, a single-pane bottom tab bar, and a load-error retry.
+The audit's first finding was **WRONG**. I reported that MCP requests fall
+through to a per-principal default with `workspace_id` unset — a real defect,
+**fixed at `e0fa233` five hours before this session started**. I read the
+*fixed* file and did not notice the D6 block inside it.
 
-### ⭐⭐⭐ Why D8 exists — the correction that matters most this arc
+**A file read mid-session is evidence of that moment only.** A peer lane was
+committing into the same working tree throughout. Before auditing anything, run
+`git log --oneline -10` for work that landed after your context was built.
 
-The operator looked at the shipped app and said **"i don't see them"** about
-the formatting controls. They were all real and all gated green — and all
-**behind Write mode, on a surface that opened in Read**. The feature set was
-invisible on arrival.
+The paired lesson, from the parallel lane: **a ratified ADR is evidence of a
+decision, never of an implementation.** D6 was ratified, cross-referenced,
+written in the tense of intent — and never built.
 
-And the split was never required: **ADR-456 D1 permits
-"textarea/CodeMirror-grade"** — I read that *ceiling as a floor*, built the
-textarea, then split the canvas to get styling back. CodeMirror is the option
-the ADR names.
+## What shipped
 
-**Carry this forward: a feature behind a mode the surface does not open in is
-a feature the member does not have.** And: read a constraint for what it
-PERMITS, not only for what it forbids.
+### 1. ADR-373 D6's stranded-row backfill — AUDITED, not needed (`4b550bc`)
 
-New modules under `web/components/text/`: `ProseReader.tsx`,
-`MarkdownToolbar.tsx`, `FindReplaceBar.tsx`, `markdownEdits.ts`, `outline.ts`,
-`printProse.ts`. `MarkdownRenderer` gained one opt-in prop (`scale`).
+The prior handoff warned pre-fix connector rows were stranded and needed a
+backfill. **Counted against production: they aren't.** 53 MCP-authored versions
+across 4 workspaces; exactly **2 sit in a workspace their author doesn't own**,
+and both are `Documents/d6-probe-2.md` — the D6 probe itself, caught by the bug
+it was probing. **Zero NULL-`workspace_id` rows** on either substrate table.
 
-**ADR-456 D1 is intact and now gated as an absence over the whole app
-directory** — no block ids, no `data-*`, no Studio machinery. The file stays a
-plain `.md`.
+⭐ **The published remediation query could never have run**: it selected
+`authored_by FROM workspace_files`, and that column lives on
+`workspace_file_versions`. **A query that errors on contact is worse than no
+query — it reads as a discharged obligation.** Replaced with a runnable form
+that also answers what the original couldn't: *does each row's workspace belong
+to its author?*
 
-## The one defect this arc found, and how
+No bulk UPDATE run, none warranted. Deleting the two probe rows would rewrite an
+attributed revision chain (ADR-209) to tidy test files.
 
-⭐⭐⭐ **`prose-sm` vs `prose-base` — two font-size rules on one element resolve
-by STYLESHEET ORDER, not class order.** The document skin won *by luck* (the
-compiled sheet happened to emit `prose-base` later); any unrelated file changing
-which utilities Tailwind emits could have silently dropped every document to
-chat size. **`next build`, `tsc`, and all 83 source-level gate checks were green
-across it.** Only *rendering the pipeline and reading the output* caught it.
+### 2. ADR-563 consent screen — who, where, what (`52b6538`)
 
-Fixed with an opt-in `scale?: 'chat' | 'inherit'` that **withholds** the class
-rather than out-specifying it. Default `'chat'`, so all ~20 existing
-`MarkdownRenderer` mounts are byte-identical (gated, §7o).
+The screen named the client and redirect host, then printed a **fixed sentence
+wrong twice over**: *"read and write your memory"* — `memory` is pre-ADR-512
+vocabulary (the unit of interop is the FILE), and a legacy `read` token can also
+**DELETE** files and mint share links granting **MEMBER** access. Neither was
+mentioned. ADR-563 made the tiers *enforced*; the consent surface never showed
+them.
 
-**Carry this forward: a class-attribute override is never proof of a cascade
-override.**
+It also never said **which account** the bind would use (identity comes from the
+JWT — on a shared browser, that is approving as someone else), nor **which
+workspace**.
 
-## The Properties-pane question, settled with evidence (ADR-572 §3.1)
+⭐ Tier definitions moved to **`api/services/mcp_scopes.py`**: the API serves the
+consent screen and **cannot import `mcp_server.auth`** (py3.9 venv + py3.11-only
+`mcp` SDK — the same constraint that put `delete_tokens_for_client` in
+`services/principal_grants.py`). `auth.py` re-exports them. A route-side copy
+would have rebuilt the pre-563 defect at the surface: a label free to disagree
+with the check.
 
-The operator asked whether dismissing `StudioDesignTab` wholesale was too
-coarse. **It was**, so it was re-audited at CONTROL grain. The finding:
+### 3. Members pane — the connection's verb tier (`3803c5b`)
 
-⭐⭐⭐ **Everything that is a TAG or a semantic type has a markdown equivalent;
-everything that is PRESENTATION persists as `data-*`, an inline custom
-property, or a `<head>` stylesheet.** That line is the same one ADR-456 D1
-drew, reached independently from the write paths.
+The pane showed only the **path** axis (ADR-532 read/write regions). Production
+carries **both** `read` (legacy full) and `files:read` tokens today, and they
+rendered identically. Now its own line — merging it into the zone chips would
+imply one narrows the other, and it doesn't: a connector scoped to `Documents`
+can still hold a token that deletes and shares within it.
 
-- Already shipped (tag-shaped): bold/italic/strike/code, the **typography
-  ramp** (a tag swap `p ↔ h1..h6` that sets *no token* — it is literally
-  `onTurnInto`), turn-into list/quote.
-- Refused, with the write path quoted in the ADR: colour →
-  `<span data-mark="accent">`, align → `data-align`, **document font →
-  `data-font` on the artifact's `<html>`** (a `.md` has no root element).
+### 4. ADR-573 — the connector is bound to a workspace at consent (`ec58956`)
 
-Two things not to re-derive: **bold is a tag only because `projection.ts`
-forces `styleWithCSS` off** (flip it and even bold has no markdown
-equivalent); and **Docs already refuses point size / line spacing / font family
-from itself** (ADR-449 — "those are METRICS and the design system owns them").
+⭐⭐⭐ **The demand was measured, not assumed.** Exactly one production principal
+reaches two workspaces: owns `My Workspace`, holds an active member grant into
+the shared `yarnnn workspace`. **All three of their connector writes landed in
+the owner workspace** — the commons their membership exists FOR was
+*unaddressable* from the connector.
 
-**If the reading face should look different, change the app's SKIN**
-(`PROSE_READING_SKIN`, one place, every document) — never per-span state in the
-file. The refusal is the feature; it protects the round-trip.
+The operator now picks at consent; stamped on the code, carried to **both**
+tokens, read per request.
 
-**Insert had one real gap: checklist** — GFM `- [ ] `, already renderable by
-`remark-gfm`. Shipped. Everything else in the 16-kind palette needs `data-*`,
-`data-ref` citations, or raw HTML.
+- **A stamp NARROWS, never grants** — routed through the same
+  `resolve_workspace_for_principal` the JWT door uses, and
+  `principal_reaches_workspace` is uncached, so a member revoked *after* their
+  token was minted loses reach on their next call.
+- **NULL is not a missing value; it is "the principal's default."** All **421**
+  live pre-573 tokens carry it. **No backfill** — stamping them would *freeze* a
+  default that may legitimately move. Nothing repointed on deploy day.
+- The binding **rides the refresh token**, or silent rotation un-binds every live
+  connector with nobody acting (the ADR-386 D1.a shape).
 
-## Two corrections to the old handoff's table — do not re-inherit them
+## ⭐⭐⭐ The item I DROPPED — and why it matters more than the ones I built
 
-- **"Docs has an outline nav"** — it has one *in the Properties pane*
-  (ADR-526 D2), **not** a rail. ADR-542 D5 deleted flow's outline tab as "a dead
-  doorway." Building a navigator rail would *exceed* Docs.
-- **"Docs has find/replace"** — **it has none, anywhere.** Text's ⌘F is an
-  addition beyond parity, taken because the medium needs it.
+I had recommended threading `workspace_id` into `AgentWorkspace`: it re-derives
+on every call, while `AuthenticatedClient`'s own docstring says to derive once
+and thread. It **reads** like an un-swept second path. Measured before "fixing":
 
-Also: Docs has **no markdown export**, and its right-click **"History" row is a
-dead end** (`menuHistory` just calls `setRightTab('design')` onto a pane with no
-history section). Not worth porting.
+- the owner branch is `lru_cache`d — a repeat call is a dict lookup, not a query;
+- the uncached branch needs a principal with an active grant and **no owned
+  workspace** — **production count: 0**.
 
-## The click-pass RESULT (driven on production, 2026-08-16)
+~90 construction sites, zero behaviour change, zero queries saved. **Dropped**,
+with the rationale and the reversing condition recorded *in
+`api/services/workspace.py`* so it is not re-proposed from the shape alone.
 
-**Passed** — canvas renders as a document (serif headings, bordered table,
-bold/italic/strike, mono code, quote, divider); **task lists render as real
-checkboxes** with checked state; a fenced `#` stays literal and is **absent
-from the outline** (4 headings, not 5); the outline indents and updates live;
-New → name → create → open works; Save lands a signed revision; the **CAS 409
-fires**, preserves the member's text, and merges nothing silently.
+**Measure the exposure before paying for the cleanup.** A pattern that looks
+wrong is not the same as a pattern that costs anything.
 
-### ⭐⭐⭐ Defect found and FIXED: the 409 envelope (ADR-572 D7)
+## Gate craft this session paid for
 
-The conflict banner appeared and was wrong **in two ways at once**. The API
-serves the detail at `error.hint.current_head`; the client read FastAPI's older
-`detail.current_head`. Both fields came back `undefined`, so the banner said
-the generic **"Someone else"** instead of naming who moved the head — and
-**the "Save mine over theirs" button VANISHED**, because it is conditional on
-`currentHeadId`. One exit where the design promises two, and the silent half.
-
-**103 gate checks, `tsc`, and `next build` were all green over it** — a field
-read that yields `undefined` is not a type error, and the fallback string reads
-like intended copy. `readConflict` now accepts either envelope; the gate replays
-the **verbatim production 409 body** (§8) and falsifies.
-
-### ⭐⭐ The stale surface param — FIXED (ADR-572 D9)
-
-Diagnosed as a **registration omission, not a mechanism bug**. `reconcileUrl`
-merges `{...incoming, ...remembered, ...delivered}`, so `remembered`
-deliberately outranks the URL — which is exactly why document-identity params
-are stripped from the remembered set. Every peer was listed (`docs.file`,
-`studio.file`, `files.path`, `radar.file`, `strings.file`); **ADR-571 registered
-`text` as OWNED and missed the EPHEMERAL registry.**
-
-⭐⭐ **Third surface to miss a registry at birth** (radar, files before it), so
-the gate asserts the **invariant** over all seven document surfaces rather than
-the single row.
-
-## Residuals — TWO CLOSED, one owed
-
-### ✅ The stale surface param — FIXED + DRIVEN (`9962a92`)
-A missed registry row, not a mechanism bug. Verified live: a bare `/text` now
-stays bare and lands on the landing; a deep-link is honoured and opens the right
-document. Gate asserts the **invariant** across all seven document surfaces.
-
-### ✅ ADR-373 D6 — the connector could not address a workspace (`e0fa233`)
-⭐⭐⭐ **The most serious defect this arc.** `resolve_request_client` returned a
-client with `workspace_id=None`, so MCP reads/writes keyed on `user_id` while
-the browser keyed on `workspace_id`. A member working in a workspace they do not
-OWN had every connector write land elsewhere — **succeeding, returning a
-revision id, invisible in the surface they were looking at.**
-
-⭐⭐⭐ **Ratified in ADR-373 D6 and never built.** The clause is written in the
-tense of intent ("Post-ADR it resolves…"), so a doc search finds it and it reads
-as done. **A ratified ADR is evidence of a decision, never of an
-implementation** — verify load-bearing clauses in the code.
-
-**Proven live** with a clean control: a connector write from minutes *before*
-the deploy still 404s to the browser; one from *after* reads 200. The ADR-570 D8
-round-trip works end to end for the first time.
-
-⚠️ **OWED (needs DB access — I have none from here): pre-fix rows are
-STRANDED.** Substrate written through the connector before this deploy carries a
-workspace_id neither door resolves to, plus the NULL-workspace rows
-`write_revision` leaves on a resolution failure. Not lost, unaddressed. The
-audit query is in ADR-373 D6 — **read it before any bulk UPDATE**, since a row
-in another workspace may legitimately belong there.
-
-### ⏳ Print/PDF click-pass — still owed
-Blocked on tooling, not understanding: the print dialog is a native modal the
-browser harness cannot dismiss. **Two minutes of operator time**: open a
-document in Text → Export → Print/PDF → confirm the A4 page reads as a document.
-
-### Also still open
-- **A connector cannot NAME a workspace** — no header, no tool argument, no
-  token claim. It takes the principal's default, so a member with several
-  reachable workspaces cannot point the connector at a specific one. ADR-373
-  D6's `role/grant` half.
-
-## Deferred, deliberately — named so it is not re-discovered as novel
-
-**`context-brief`** exists in `api/services/derive_recipes.py`, targets
-**markdown**, resident `scout`, and has **zero FE consumers**. It is the Docs
-"Learn from…" analog for prose and Text is its natural home. Left out because it
-is a *creation* flow, not a reading/editing gap, and it needs its own decision
-about where a derived brief lands.
+- ⭐⭐⭐ **A falsifier FAILED and exposed a worthless check.** My FE grants check
+  grepped `"grants"` and `".map("` independently; replacing `info.grants.map(…)`
+  with `[].map(…)` left both tokens present, so **a screen rendering nothing read
+  green**. Now matches the iteration over the payload. *A co-occurrence check
+  cannot defend a specific site.*
+- ⭐⭐ **Moving a definition can blind a gate.** ADR-563's AST loader keeps only
+  `Assign` nodes, so an `import` re-export is invisible to it. It errored
+  honestly — the dangerous version passes on a stale copy. It now follows the
+  definitions to their new home, and calls the **shipped** `satisfied_by` rather
+  than re-deriving containment (a gate that re-implements a rule can only prove
+  the rule agrees with itself).
+- ⭐⭐ **`bound_workspace_id` initialized inside the `try`** would raise
+  `UnboundLocalError` on the stdio/static-bearer path, which takes the *except*
+  branch. Caught while writing; now gated by AST.
+- ⭐ **A comment can satisfy a check about behaviour.** My own explanatory comment
+  quoting the banned copy failed the "copy is deleted" check. The gate was right.
 
 ## Verification that must stay green
 
 ```
-cd api && python3 test_adr571_text_app.py             # 119/119, SCRIPT-STYLE (pytest = false pass)
-node web/lib/file-types/__gate_adr514_d2.mjs          # 41/41, from REPO ROOT
-cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
-cd api && python3 test_adr562_app_owned_config.py     # script-style
-cd api && python3 test_adr297_navigation_enactment.py # 22/5 is the PRE-EXISTING baseline
-cd web && node_modules/.bin/next build                # `pnpm` NOT on PATH; 171/171 pages
+cd api && /tmp/mcpenv/bin/python3.11 test_adr573_connector_workspace_binding.py  # 18/18
+cd api && python3 test_adr563_consent_discloses.py                              # 23/23
+cd api && /tmp/mcpenv/bin/python3.11 test_adr563_mcp_scope_enforcement.py       # 16/16
+cd api && /tmp/mcpenv/bin/python3.11 test_adr373_rekey.py                       # 20/20
+cd api && python3 test_adr373_sweep_spine.py                                    # 26/26
+cd api && python3 test_security_2026_08_01_fixes.py                             # ALL PASS
+cd web && node_modules/.bin/next build                                          # 171/171
 ```
 
-## Traps this arc paid for — do not re-pay them
+⭐ Anything importing `mcp_server/*` needs **py3.11** (`/tmp/mcpenv`); the API
+venv is 3.9 and dies at import on a `str | None` default annotation.
+⭐ `test_adr404_member_invites.py` has **1 PRE-EXISTING failure** — verified by
+stashing this work and re-running, not assumed.
+⭐ Migrations run through `scripts/db/run-migration.sh` (`--dry-run` first); the
+runner's exit code is **not** verification — read the live object back.
 
-- ⭐⭐⭐ **A green gate is not a rendered surface.** The scale collision passed
-  every static check. When the claim is *visual*, **render it and inspect the
-  output** — §7 of the gate now does this permanently.
-- ⭐⭐⭐ **A gate can pass its own falsification by asserting its own argument.**
-  7n's first spelling called `MarkdownRenderer` with `scale:'inherit'` itself,
-  so it tested the probe's input, not the wiring. It now renders `ProseReader`.
-  **Falsify every new check — a gate you have not broken is a gate you have not
-  written.**
-- ⭐⭐ **Never pin a spelling** (third time this arc): 6k first asserted the copy
-  `"the request failed"` and went red because JSX had *wrapped it across a
-  newline* — it was testing prettier, not the affordance. It now asserts the
-  error branch contains a control that re-runs the fetch.
-- ⭐ **Audit the reference implementation before copying it.** Two of the prior
-  handoff's "Docs has…" rows were false; building them would have exceeded the
-  app being mirrored while feeling like parity.
-- ⭐ **Vercel FE deploys lag the push by minutes**, and client markers live in
-  hashed chunks, so `curl` cannot detect them. Confirm the NEW bundle in the
-  browser before concluding anything.
-- The ADR-297 gate has **5 pre-existing failures** (`sources`, `system-agent`,
-  `program`, `/openapi`). Do not chase them.
+## Still OWED
 
-## Owed from earlier arcs (unrelated to Text, still open)
+1. **ADR-573 operator click-pass** — re-authorize a connector, pick the *second*
+   workspace, prove the write lands there. The one principal who can drive it is
+   `2be30ac5…` (owns `My Workspace`, member of `yarnnn workspace`).
+2. **ADR-563 consent click-pass** — read the new screen on a real re-authorize:
+   account, workspace, real tier, legacy-full warning.
+3. **Print/PDF click-pass** (carried from ADR-572) — a native modal the harness
+   cannot dismiss. Two minutes of operator time: Text → Export → Print/PDF →
+   confirm the A4 page reads as a document.
+4. **The connector is still not TOLD which workspace it is in.** ADR-533 D6
+   refuses to export workspace *intent* into a third-party context window;
+   whether the workspace **name** — as distinct from its mandate — should cross
+   that line is **unaddressed**. Note the instructions string is composed at
+   **import time**, so per-connection identity would have to be a **resource**,
+   never the instructions.
 
-- **ADR-570 D8 click-pass** — the connector round-trip end to end, including a
-  real MCP-driven 409. All pieces live; never driven as one pass.
-- **ADR-495**: click-pass the quiet default (`b82d7b3`) — placeholder should
-  read "Message Thinker…"; FE @-autocomplete for mentions is unbuilt.
-- **ADR-514**: `DuplicateFile` is path-addressed but NOT gate-queueable, so its
-  path branch is unreachable and the verb gates on nothing. ADR-514's to close.
+## Deferred, deliberately — named so it is not re-discovered as novel
+
+- **A per-verb `workspace` argument** was considered and rejected in ADR-573 §2:
+  nine signatures change, the **model** becomes the chooser (a wrong guess writes
+  to the wrong commons with full attribution), and ADR-512 D5's
+  `yarnnn://workspace/…` grammar has no workspace slot.
+- **`context-brief`** (carried from ADR-572) — in
+  `api/services/derive_recipes.py`, targets markdown, resident `scout`, **zero FE
+  consumers**. Text is its natural home; it needs its own decision about where a
+  derived brief lands.
