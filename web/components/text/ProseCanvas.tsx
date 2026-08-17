@@ -56,7 +56,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
@@ -273,6 +273,20 @@ export function ProseCanvas({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  /**
+   * Every document this canvas has EMITTED since the last external write —
+   * the echo guard (ADR-572 D12).
+   *
+   * A SET, not a single "last emitted" value. The first spelling held only the
+   * most recent emission and still lost the keystroke: by the time React
+   * re-rendered with the toolbar's queued value, the member's own typing had
+   * already overwritten the ref, so the stale prop no longer matched and was
+   * applied anyway. Any prop we have ever produced is an echo, however many
+   * edits ago — cleared on a genuine external write, so it cannot grow without
+   * bound during a session.
+   */
+  const emittedRef = useRef<Set<string>>(new Set([value]));
+
   const extensions = useMemo<Extension[]>(
     () => [
       history(),
@@ -290,7 +304,13 @@ export function ProseCanvas({
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       EditorView.updateListener.of((u) => {
-        if (u.docChanged) onChangeRef.current(u.state.doc.toString());
+        if (!u.docChanged) return;
+        const next = u.state.doc.toString();
+        // Record what we EMIT, so the echo arriving back as `value` a render
+        // later is recognised as ours and not re-applied over newer typing
+        // (ADR-572 D12).
+        emittedRef.current.add(next);
+        onChangeRef.current(next);
       }),
     ],
     [],
@@ -313,9 +333,40 @@ export function ProseCanvas({
         return [r.from, r.to];
       },
       apply: (text, from, to) => {
+        // A MINIMAL change, not a whole-document replace (ADR-572 D12). The
+        // edit functions return a full new string, but dispatching that as
+        // `{from: 0, to: doc.length}` makes every toolbar press one
+        // document-sized undo step and rewrites lines the edit never touched.
+        // Diffing to the changed span keeps undo per-edit and leaves the rest
+        // of the document — and any decoration over it — untouched.
+        const cur = view.state.doc.toString();
+        if (cur === text) {
+          view.dispatch({ selection: { anchor: from, head: to } });
+          view.focus();
+          return;
+        }
+        let head = 0;
+        const max = Math.min(cur.length, text.length);
+        while (head < max && cur[head] === text[head]) head++;
+        let tail = 0;
+        while (
+          tail < max - head &&
+          cur[cur.length - 1 - tail] === text[text.length - 1 - tail]
+        ) {
+          tail++;
+        }
         view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: text },
+          changes: {
+            from: head,
+            to: cur.length - tail,
+            insert: text.slice(head, text.length - tail),
+          },
           selection: { anchor: from, head: to },
+          // A toolbar press is ONE deliberate act, so it gets its own history
+          // entry. Without this, `history()` coalesces it with the typing that
+          // follows within ~500ms, and a single ⌘Z swallows both the character
+          // just typed and the button press before it.
+          annotations: isolateHistory.of('full'),
         });
         view.focus();
       },
@@ -338,16 +389,51 @@ export function ProseCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * The last document this canvas EMITTED. Anything else arriving as `value`
+   * is genuinely external (ADR-572 D12).
+   *
+   * ## The defect this fixes — typing after a toolbar insert was destroyed
+   *
+   * The old guard was `if (current === value) return`, i.e. "push it in
+   * whenever the prop differs from the doc". That cannot tell an EXTERNAL
+   * write from a STALE RENDER of the member's own text, and after a toolbar
+   * insert the two are guaranteed to diverge:
+   *
+   *   1. the toolbar dispatches the edit → doc is `"abc\n- "`, and the
+   *      update listener fires `onChange`, so a `setText` is queued;
+   *   2. the member immediately types `x` → doc is `"abc\n- x"`;
+   *   3. React re-renders with the QUEUED value, `"abc\n- "`;
+   *   4. `current !== value`, so this effect dispatched the stale prop and
+   *      **deleted the typed character**, snapping the caret back.
+   *
+   * The member sees: press a toolbar button, type, and the text vanishes onto
+   * the previous line. Reproduced against a real `EditorView`; the fix is to
+   * compare against what this canvas last emitted rather than against the doc,
+   * so an echo of our own text is recognised and ignored.
+   */
   // External changes (a load, a lane write, a conflict resolution) are pushed
   // in as a transaction — never by recreating the state, which would lose the
-  // caret and the undo history. Guarded on inequality so the member's own
-  // keystrokes don't round-trip back through here.
+  // caret and the undo history.
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
+    // An echo of something we emitted — the member has simply typed on since.
+    if (emittedRef.current.has(value)) return;
     const current = view.state.doc.toString();
     if (current === value) return;
-    view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+    // A genuine external write: this is the new baseline, so the echo set is
+    // reset to it rather than accumulating across the session.
+    emittedRef.current = new Set([value]);
+    // Preserve the caret across an external replace: hold its offset from the
+    // END of the document, so text arriving above it does not strand it.
+    const sel = view.state.selection.main;
+    const tailOffset = current.length - sel.head;
+    const nextHead = Math.max(0, Math.min(value.length, value.length - tailOffset));
+    view.dispatch({
+      changes: { from: 0, to: current.length, insert: value },
+      selection: { anchor: nextHead, head: nextHead },
+    });
   }, [value]);
 
   return (

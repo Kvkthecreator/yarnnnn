@@ -1259,6 +1259,125 @@ check("12j 'Save mine over theirs' is ALWAYS offered — it was conditional on "
       "the override button is still conditional on a field the server may omit")
 
 
+# ── 13. ADR-572 D12 — typing after a toolbar insert was destroyed ────────
+# The operator: "post insert, i input text, the inputted gets ignored and goes
+# to new line." Reproduced against a real EditorView: after a toolbar press,
+# React re-renders with the value the update listener QUEUED, which is now one
+# keystroke behind, and the external-change effect applied that stale prop over
+# the newer document — deleting the character just typed and snapping the caret
+# back. Invisible to types and to `next build`: both values are valid strings.
+_D12_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f, 'utf8'),
+    { transforms: ['typescript', 'jsx', 'imports'], jsxRuntime: 'automatic', production: true }).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) {
+    const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts', '/index.tsx', '/index.ts']) {
+      try { return orig.call(this, b + e, ...a); } catch (x) { /* next */ }
+    }
+  }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<!doctype html><body><div id="h"></div></body>', { pretendToBeVisual: true });
+const def = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+def('IS_REACT_ACT_ENVIRONMENT', true);
+
+const React = require(WEB + '/node_modules/react');
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+const { act } = React;
+const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
+
+let handle = null, value = 'abc';
+const root = createRoot(dom.window.document.getElementById('h'));
+const render = () => act(() => {
+  root.render(React.createElement(ProseCanvas, {
+    value, onChange: (v) => { value = v; }, handleRef: (h) => { if (h) handle = h; },
+  }));
+});
+render();
+
+// 1. The toolbar press. Its emission is what React will re-render with.
+act(() => handle.apply('abc\n- ', 6, 6));
+const staleProp = value;
+
+// 2. The member types immediately, before that render lands.
+act(() => handle.apply('abc\n- x', 7, 7));
+const afterTyping = value;
+
+// 3. React re-renders with the STALE value from step 1. The canvas must
+//    recognise its OWN echo and leave the newer document alone.
+value = staleProp;
+render();
+const survived = value !== 'abc\n- ' || handle.selection()[0] >= 7;
+
+// 4. A GENUINE external write (a lane, a conflict reload) must still land.
+value = 'abc\n- x\n\nfrom the lane';
+render();
+const externalLanded = handle.selection()[0] >= 0;
+
+const src = fs.readFileSync(WEB + '/components/text/ProseCanvas.tsx', 'utf8');
+console.log(JSON.stringify({
+  typed_survives: survived,
+  after_typing_ok: afterTyping === 'abc\n- x',
+  external_lands: externalLanded,
+  // The guard must be a SET of everything emitted, not the last emission:
+  // by the time the stale prop arrives, the member's typing has already
+  // superseded a single-value ref, so the echo would not be recognised.
+  guard_is_a_set: /emittedRef\s*=\s*useRef<Set<string>>/.test(src)
+    && /emittedRef\.current\.has\(value\)/.test(src)
+    && /emittedRef\.current\.add\(/.test(src),
+  // `apply` must be a MINIMAL change, not a whole-document replace.
+  apply_is_minimal: !/changes:\s*\{\s*from:\s*0,\s*to:\s*view\.state\.doc\.length/.test(src),
+  // ...and its own undo step, or one ⌘Z eats the press AND the typing.
+  apply_isolates_history: /annotations:\s*isolateHistory\.of/.test(src),
+}));
+"""
+
+try:
+    _d12 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D12_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=180, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d12 = {"error": str(exc)}
+
+check("13a typing immediately after a toolbar insert SURVIVES — the stale "
+      "render the insert itself queued must not be applied over the newer "
+      "document (operator: 'post insert, i input text, the inputted gets "
+      "ignored and goes to new line')",
+      _d12.get("typed_survives") is True, str(_d12)[:300])
+check("13b the insert itself still reaches the document",
+      _d12.get("after_typing_ok") is True, str(_d12)[:300])
+check("13c a GENUINE external write (a lane, a conflict reload) still lands — "
+      "the echo guard must not deafen the canvas to real writes",
+      _d12.get("external_lands") is True, str(_d12)[:300])
+check("13d the echo guard is a SET of everything emitted, not the LAST "
+      "emission — a single-value ref is overwritten by the member's own typing "
+      "before the stale prop arrives, so the echo goes unrecognised",
+      _d12.get("guard_is_a_set") is True, str(_d12)[:300])
+check("13e `apply` dispatches a MINIMAL change, never a whole-document "
+      "replace — the latter rewrites lines the edit never touched",
+      _d12.get("apply_is_minimal") is True, str(_d12)[:300])
+check("13f a toolbar press is its OWN history entry — `history()` coalesces "
+      "edits within ~500ms, so without this one ⌘Z swallows both the character "
+      "just typed and the button press before it",
+      _d12.get("apply_isolates_history") is True, str(_d12)[:300])
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:
