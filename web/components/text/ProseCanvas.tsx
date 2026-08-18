@@ -194,8 +194,40 @@ const PROSE_THEME = EditorView.theme({
     borderTopColor: 'var(--border, rgba(128,128,128,0.35))',
   },
   '.cm-activeLine': { backgroundColor: 'transparent' },
+  // ⭐ ADR-575 D9 — a blockquote reads as SET ASIDE. The `>` is hidden, so
+  // without a bar and an indent a quote was a slightly-grey paragraph with a
+  // stray leading space. Longhand borders for the D8.a reason: the theme
+  // compiler drops the `borderLeft` shorthand and the bar would be invisible.
+  '.cm-line.cm-mdQuote': {
+    paddingLeft: '1rem',
+    borderLeftStyle: 'solid',
+    borderLeftWidth: '3px',
+    borderLeftColor: 'var(--border, rgba(128,128,128,0.45))',
+    fontStyle: 'italic',
+  },
+  // ⭐ ADR-575 D9 — the selector must MATCH CodeMirror's own specificity.
+  //
+  // Measured on the deployed canvas: the computed background was
+  // `rgb(215,212,240)` — the library's OPAQUE default — not the translucent
+  // tint declared here. CodeMirror ships
+  //
+  //   .ͼ2.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground
+  //
+  // which outranks a bare `&.cm-focused .cm-selectionBackground`, so this rule
+  // never applied. An opaque slab COVERS the glyphs instead of tinting them,
+  // which is what made a selection read as a block painted over the text
+  // rather than as text that is selected.
+  //
+  // The child-combinator path is reproduced verbatim so the two rules tie on
+  // specificity and ours wins on order. `!important` would also work and is
+  // deliberately avoided: it would silently outrank a future theme too.
   '.cm-selectionBackground, ::selection': { backgroundColor: 'rgba(120,150,255,0.22)' },
-  '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(120,150,255,0.28)' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+    backgroundColor: 'rgba(120,150,255,0.28)',
+  },
+  '& > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+    backgroundColor: 'rgba(120,150,255,0.20)',
+  },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--foreground, #111)', borderLeftWidth: '2px' },
   // Find/replace match highlighting (the @codemirror/search extension).
   '.cm-selectionMatch': { backgroundColor: 'rgba(250,200,80,0.30)' },
@@ -366,6 +398,10 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
   // tree does not guarantee it across nested inline nodes.
   // `deco` is null for a plain hide, or the replacement widget (ADR-575 D8).
   const marks: Array<[number, number, Decoration | null]> = [];
+  // Line decorations are kept apart: they are zero-length and must be added at
+  // the line start, BEFORE any mark that begins on the same offset, or
+  // `RangeSetBuilder` throws on out-of-order input (ADR-575 D9).
+  const lineDecos: Array<[number, Decoration]> = [];
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(state).iterate({
       from,
@@ -376,6 +412,27 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
         // the overlap outright (`RangeSet.spans`). Tables own their own
         // rendering; this plugin stays out of them.
         if (node.name === 'Table') return false;
+
+        // ⭐ ADR-575 D9 — a blockquote is a SET-ASIDE, not italics.
+        //
+        // The `>` is hidden (it is in HIDDEN_MARKS), and the only remaining
+        // treatment was `opacity: 0.8` on the text — so a quote rendered as a
+        // slightly grey paragraph with a stray leading space, indistinguishable
+        // from body copy. Driven: "the quote feature doesn't look much
+        // different in terms of applied layout."
+        //
+        // A LINE decoration, because the bar and the indent belong to the line
+        // box, not to a character range. Every line the quote spans gets it,
+        // so a multi-line quote reads as one block.
+        if (node.name === 'Blockquote') {
+          const first = doc.lineAt(node.from).number;
+          const last = doc.lineAt(node.to).number;
+          for (let n = first; n <= last; n++) {
+            const l = doc.line(n);
+            lineDecos.push([l.from, Decoration.line({ class: 'cm-mdQuote' })]);
+          }
+          return; // keep descending: the QuoteMark inside still needs hiding
+        }
 
         // ── ADR-575 D8: the block markers ────────────────────────────────
         // A thematic break becomes a RULE. Replacing it with nothing would
@@ -423,8 +480,13 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
 
         if (!HIDDEN_MARKS.has(node.name)) return;
         let end = node.to;
-        // `# ` — swallow the space too, or the heading keeps a hanging indent.
-        if (node.name === 'HeaderMark' && doc.sliceString(end, end + 1) === ' ') {
+        // `# ` / `> ` — swallow the trailing space too, or the line keeps a
+        // hanging indent. The quote case is visible in the operator's D9
+        // screenshot as a stray space before "a quote" (ADR-575 D9).
+        if (
+          (node.name === 'HeaderMark' || node.name === 'QuoteMark') &&
+          doc.sliceString(end, end + 1) === ' '
+        ) {
           end += 1;
         }
         if (end > node.from) marks.push([node.from, end, null]);
@@ -434,12 +496,25 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
   marks.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 
   const b = new RangeSetBuilder<Decoration>();
+  // Merge the two streams in ascending order. At an equal offset the LINE
+  // decoration goes first — it is zero-length, and `RangeSetBuilder` requires
+  // a non-decreasing sequence of (from, to).
+  lineDecos.sort((a, b2) => a[0] - b2[0]);
+  let li = 0;
   let prevEnd = -1;
+  const flushLinesUpTo = (offset: number) => {
+    while (li < lineDecos.length && lineDecos[li][0] <= offset) {
+      b.add(lineDecos[li][0], lineDecos[li][0], lineDecos[li][1]);
+      li++;
+    }
+  };
   for (const [from, to, deco] of marks) {
     if (from < prevEnd) continue; // skip overlaps (nested inline marks)
+    flushLinesUpTo(from);
     b.add(from, to, deco ?? Decoration.replace({}));
     prevEnd = to;
   }
+  flushLinesUpTo(Infinity);
   return b.finish();
 }
 

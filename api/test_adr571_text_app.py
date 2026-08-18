@@ -2277,6 +2277,9 @@ const DOC = [
   '',
   '---',
   '',
+  '> a quote',
+  '> spanning two lines',
+  '',
   'after',
   '',
 ].join('\n');
@@ -2319,6 +2322,12 @@ console.log(JSON.stringify({
   doc_byte_identical: value === DOC,
   // The operator's case.
   empty_list_line_shows_bullet: emptyBullets === 1,
+  // ADR-575 D9 — EVERY line of a quote carries the class, so a multi-line
+  // quote reads as one block rather than a bar beside its first line only.
+  quote_lines_marked: host.querySelectorAll('.cm-line.cm-mdQuote').length === 2,
+  // …and the `>` leaves no hanging space behind it.
+  quote_has_no_leading_space: [...host.querySelectorAll('.cm-line.cm-mdQuote')]
+    .every((l) => !/^\s/.test(l.textContent)),
 }));
 """
 
@@ -2427,6 +2436,45 @@ check("20i …and REAL setext headings still parse. `---` is untouched by the "
       _d20b.get("setext_h2_survives") is True
       and _d20b.get("setext_h1_survives") is True
       and _d20b.get("rule_is_not_heading") is True, str(_d20b)[:300])
+
+_sel_rule = re.search(
+    r"'&\.cm-focused > \.cm-scroller > \.cm-selectionLayer \.cm-selectionBackground'",
+    _canvas_nc)
+check("20j ⭐ the selection rule MATCHES CodeMirror's own specificity. Measured "
+      "on the deployed canvas: the computed background was `rgb(215,212,240)` "
+      "— the library's OPAQUE default — not the translucent tint the theme "
+      "declares, because CodeMirror ships "
+      "`.ͼ2.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground` "
+      "which outranks a bare `&.cm-focused .cm-selectionBackground`. The theme's "
+      "colour had NEVER applied, and an opaque slab COVERS the glyphs instead "
+      "of tinting them — a selection that reads as a block painted over the "
+      "text. `!important` is deliberately avoided: it would outrank a future "
+      "theme too.",
+      _sel_rule is not None, "the selection rule cannot outrank the library default")
+
+_quote_rule = re.search(r"'\.cm-line\.cm-mdQuote':\s*\{(.*?)\}", _canvas_nc, re.S)
+check("20k ⭐ a BLOCKQUOTE is set aside — a left bar and an indent, not just "
+      "italics. The `>` is hidden, so the only treatment was `opacity: 0.8` on "
+      "the text and a quote rendered as a slightly-grey paragraph with a stray "
+      "leading space. Longhand borders, for the D8.a reason: the theme "
+      "compiler drops the shorthand and the bar would be invisible.",
+      _quote_rule is not None
+      and "borderLeftWidth" in _quote_rule.group(1)
+      and "borderLeftStyle" in _quote_rule.group(1)
+      and "paddingLeft" in _quote_rule.group(1)
+      and "borderLeft:" not in _quote_rule.group(1),
+      f"quote rule: {_quote_rule.group(1).strip()[:150] if _quote_rule else 'absent'!r}")
+check("20m EVERY line of a multi-line quote carries the class (mounted and "
+      "read back), so a quote reads as ONE block rather than a bar beside its "
+      "first line — and the `>` leaves no hanging space",
+      _d20.get("quote_lines_marked") is True
+      and _d20.get("quote_has_no_leading_space") is True, str(_d20)[:400])
+check("20L the quote's `>` swallows its trailing SPACE, as `# ` does — "
+      "otherwise the line keeps a hanging indent, which is the stray space "
+      "visible before 'a quote' in the operator's screenshot",
+      re.search(r"QuoteMark'\s*\)\s*&&", _canvas_nc) is not None
+      or re.search(r"node\.name === 'QuoteMark'[\s\S]{0,120}end \+= 1", _canvas_nc) is not None,
+      "the quote marker leaves its trailing space behind")
 
 check("20f the document is BYTE-IDENTICAL with every widget on screen — these "
       "are decorations, not content. Delete them and the `.md` is unchanged "
