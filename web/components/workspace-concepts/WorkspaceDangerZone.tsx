@@ -7,15 +7,17 @@
  * in a multi-member workspace they remove EVERY member's work, not the
  * caller's own rows. Under ADR-407's three-scope taxonomy that makes them
  * workspace-scope, not account-scope — so they live here rather than in
- * System Settings → Account (which keeps L3/L4/L5: a member's own platform
- * connections, their account reset, their deactivation).
+ * User Settings → Data & Privacy (which keeps L3/L4/L5: a member's own platform
+ * connections, their account reset, their deactivation). The door was renamed
+ * from "System Settings" so its menu label matches its window title; the pane
+ * KEY is still `account`, which is why the href below is unchanged.
  *
  * The backend gates both on owner-grade authority (ADR-476 D2 —
  * `workspaces.owner_id` or a grant carrying `workspace:clear`), so a
  * non-owner member gets a 403. This component surfaces that up-front rather
  * than letting the operator discover it at confirm time.
  *
- * Singular Implementation: the purge CARDS live only here. System Settings
+ * Singular Implementation: the purge CARDS live only here. User Settings
  * mounts nothing of L1/L2 — it links across.
  */
 
@@ -213,7 +215,7 @@ export function WorkspaceDangerZone() {
         Looking for account-level actions? Disconnecting your own platform
         connections, resetting your account, and deactivating live in{" "}
         <a href="/settings?settings.pane=account" className="underline">
-          System Settings → Account
+          User Settings → Data &amp; Privacy
         </a>
         .
       </p>
