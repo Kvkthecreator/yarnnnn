@@ -93,9 +93,28 @@ itself.**
 
 ---
 
-## 3. The one question that must be answered first: ATTRIBUTION
+## 3. ATTRIBUTION — ANSWERED 2026-08-18
 
-Everything mechanical is understood. The genuinely unresolved question is:
+> **RESOLVED by the operator**: *"if the system update was via some workspace
+> user or principal, that's the update owner for attribution."*
+>
+> **Raw** stays `system:{mechanism}` + `revision_kind='observation'`.
+> **Derived** carries **`system:derive-{lane} on behalf of {owner}`**, where
+> `{owner}` is the principal who connected the source
+> (`platform_connections.connected_by` — named 3× in canon, never built; build
+> it WITH the derive step).
+>
+> ⭐ This needed no new ontology: it is the **`mcp` lane's shape already in
+> production** (identify the CONNECTION, not the transport). ADR-401 D1 stays
+> intact — the peripheral never becomes a principal — and ADR-378 §7
+> (platform-as-principal) stays closed.
+>
+> The full contract, including the binding path grammar and the per-lane derive
+> rule, is canon at [`intake-pipeline.md`](intake-pipeline.md). **Read that
+> first.** What follows is the reasoning that produced the answer, kept because
+> the alternatives are worth knowing.
+
+The question was:
 
 > **When derive promotes raw into `operation/`, who authors the derived file?**
 
@@ -113,12 +132,17 @@ The constraints that make this hard, and that a future ADR cannot wave away:
   writing a raw observation"* as an INTAKE-SHAPE claim (the source is data), not
   a mandate to provision connector principals.
 
-**There may be precedent rather than a seam**: radar's raws are also
-`system:`-attributed, and radar's derive turn produces a signal the commons
-reads. If radar already answered this question for HTTP sources, connectors may
-inherit the answer rather than force ADR-378 §7 open. **This should be the first
-thing checked** — it could reduce the ADR from a foundational decision to an
-extension of existing practice.
+**The precedent was real, and better than expected.** Production shows FOUR
+intake lanes, not two, and `mcp` already attributes raw to the connected
+principal (`yarnnn:mcp:Claude`) rather than to a mechanism — because an MCP
+client is a principal WITH A GRANT (ADR-431), not a peripheral. Connectors
+inherit that shape for DERIVED material. The ADR is an extension of existing
+practice, not a foundational decision.
+
+⭐ **Correction to an earlier claim in this file**: the split is not
+connector-vs-HTTP. It is *which lanes got a derive step* — `uploads` has one
+(`system:extract` → `derivation`), `web` has one (radar/Strings distil), `mcp`
+correctly needs none, and `slack` is the gap.
 
 ---
 
@@ -193,14 +217,19 @@ capability is unwanted.
 
 1. **Re-measure §2** — these are point-in-time receipts, and the surface roster
    churns fast.
-2. **Answer §3 first.** Check radar's attribution for its derived signal. If it
-   set a precedent, connectors likely inherit it and the ADR is an extension. If
-   not, the ADR must confront ADR-378 §7 (platform-as-principal) directly, and
-   that is a foundational decision deserving its own scope.
+2. **§3 is ANSWERED** (2026-08-18) — attribution is settled and the contract is
+   canon at [`intake-pipeline.md`](intake-pipeline.md). The remaining work is
+   the derive step itself: a bounded judgment turn reading
+   `inbound/{platform}/{selector}/` and writing understanding into the commons,
+   authored `system:derive-{lane} on behalf of {owner}`, citing `derived_from`.
+   **Build `platform_connections.connected_by` in the same change** — it is the
+   `{owner}` record and has been named in canon three times without being built.
 3. **Frame the ADR as "connector data reaching the commons"** — not "GitHub
    derive". The gap is uniform across Slack, Notion, and GitHub, and should be
    decided once at the connector layer.
-4. **Decide the DISPOSITION question explicitly**: is connector data meant to
+4. **Fix in passing**: the `slack` lane writes `revision_kind='authored'` for
+   RAW; raw is an `observation` (intake-pipeline.md §3).
+5. **Decide the DISPOSITION question explicitly**: is connector data meant to
    reach the commons as durable substrate (capture→derive, the radar pattern), or
    to reach a TURN as transient context (chat tool calls, the deleted §5 seam),
    or both? These are different products with different attribution consequences,

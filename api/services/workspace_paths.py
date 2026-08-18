@@ -139,7 +139,13 @@ def is_agent_grant_sidecar(path: str) -> bool:
     return leaf in AGENT_GRANT_SIDECAR_LEAVES
 # The RAW intake lane (ADR-376 / FOUNDATIONS DP32 — the ledger-intake axiom).
 # Machine/external contributions land here as IMMUTABLE attributed raw
-# observations: inbound/{transport}/{principal}/{slug}.md. Sibling to uploads/
+# observations: inbound/{lane}/{selector}/{stamp}.{ext} — see
+# docs/architecture/intake-pipeline.md, the binding grammar.
+#   lane     = HOW it arrived (web · slack · uploads · mcp)
+#   selector = WHICH slice (a feed slug, a channel id, or — for uploads/mcp —
+#              a principal; `{principal}` is the SPECIAL CASE, not the general
+#              form, which this comment previously stated as though general)
+# Sibling to uploads/
 # (the human raw root) — both OUTSIDE the constitution/operation/governance cut,
 # both reasoned-against-never-rewritten. The DERIVED understanding the seat
 # builds from a raw observation lands in operation/ carrying a `derived_from`
