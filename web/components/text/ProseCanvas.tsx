@@ -157,6 +157,35 @@ const PROSE_THEME = EditorView.theme({
     caretColor: 'var(--foreground, #111)',
   },
   '.cm-line': { padding: '0' },
+  // ── ADR-575 D8 — the block markers, drawn rather than shown ─────────────
+  // A bullet is a glyph in the gutter of its own line, not a literal `- `.
+  // `inline-block` with a fixed width gives the hanging indent a list needs
+  // without any per-line measurement.
+  '.cm-mdBullet': {
+    display: 'inline-block',
+    width: '1.25em',
+    marginLeft: '-0.15em',
+    color: 'var(--muted-foreground, #666)',
+    // Tabular so `9.`/`10.` do not shift the text after them.
+    fontVariantNumeric: 'tabular-nums',
+  },
+  '.cm-mdTask': {
+    display: 'inline-block',
+    width: '1.35em',
+    fontFamily: FACE.mono,
+    color: 'var(--muted-foreground, #666)',
+  },
+  '.cm-mdTaskDone': { opacity: '0.65' },
+  // A thematic break is a RULE. Drawn as a border on an inline-block so it
+  // occupies the replaced range without becoming a block decoration — a block
+  // widget from this plugin would throw ("Block decorations may not be
+  // specified via plugins", the D15 lesson).
+  '.cm-mdRule': {
+    display: 'inline-block',
+    width: '100%',
+    verticalAlign: 'middle',
+    borderTop: '1px solid var(--border, rgba(128,128,128,0.35))',
+  },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-selectionBackground, ::selection': { backgroundColor: 'rgba(120,150,255,0.22)' },
   '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(120,150,255,0.28)' },
@@ -246,6 +275,67 @@ const HIDDEN_MARKS = new Set([
   'URL',
 ]);
 
+/**
+ * ⭐ ADR-575 D8 — the BLOCK markers, which this set never covered.
+ *
+ * Found by driving the canvas: every mark in `HIDDEN_MARKS` above is an
+ * INLINE mark, so `#`, `**` and `` ` `` were hidden while every block-level
+ * marker leaked through as literal source. Measured on the deployed surface:
+ *
+ *   - a bulleted list rendered `- first item`, dash and all
+ *   - a task list rendered `- [ ] `, with no checkbox
+ *   - Divider rendered `---` as three dashes, with no rule
+ *   - an EMPTY list line (`- ` with nothing after it) rendered as a blank
+ *     line with no bullet at all — the "inserted formatting disappears"
+ *     the operator reported
+ *
+ * The reading face was therefore only half-built: inline marks were being
+ * suppressed while the structure they sit inside was still showing its source.
+ *
+ * These are NOT added to `HIDDEN_MARKS`, because hiding a `- ` outright is
+ * what produced the invisible-bullet case: a list item with its marker
+ * replaced by nothing is indistinguishable from an empty paragraph. A list
+ * needs a GLYPH, and a thematic break needs a RULE, so each is replaced by a
+ * widget rather than erased.
+ *
+ * Still pure decoration: the widgets are rebuilt from the syntax tree on every
+ * update, hold no id, and are never serialized. Delete this and the `.md` is
+ * byte-identical — the same test D13/D15 pass.
+ */
+class BulletWidget extends WidgetType {
+  constructor(readonly label: string) { super(); }
+  eq(other: BulletWidget) { return other.label === this.label; }
+  toDOM() {
+    const s = document.createElement('span');
+    s.className = 'cm-mdBullet';
+    s.textContent = this.label;
+    return s;
+  }
+  ignoreEvent() { return false; }
+}
+
+class RuleWidget extends WidgetType {
+  eq() { return true; }
+  toDOM() {
+    const s = document.createElement('span');
+    s.className = 'cm-mdRule';
+    return s;
+  }
+  ignoreEvent() { return false; }
+}
+
+class TaskBoxWidget extends WidgetType {
+  constructor(readonly checked: boolean) { super(); }
+  eq(other: TaskBoxWidget) { return other.checked === this.checked; }
+  toDOM() {
+    const s = document.createElement('span');
+    s.className = 'cm-mdTask' + (this.checked ? ' cm-mdTaskDone' : '');
+    s.textContent = this.checked ? '☑' : '☐';
+    return s;
+  }
+  ignoreEvent() { return false; }
+}
+
 const livePreview = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
@@ -267,7 +357,8 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
 
   // Collected then sorted: `RangeSetBuilder` requires ascending order, and the
   // tree does not guarantee it across nested inline nodes.
-  const marks: Array<[number, number]> = [];
+  // `deco` is null for a plain hide, or the replacement widget (ADR-575 D8).
+  const marks: Array<[number, number, Decoration | null]> = [];
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(state).iterate({
       from,
@@ -278,13 +369,58 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
         // the overlap outright (`RangeSet.spans`). Tables own their own
         // rendering; this plugin stays out of them.
         if (node.name === 'Table') return false;
+
+        // ── ADR-575 D8: the block markers ────────────────────────────────
+        // A thematic break becomes a RULE. Replacing it with nothing would
+        // leave a blank line that reads as an accident.
+        if (node.name === 'HorizontalRule') {
+          marks.push([node.from, node.to, Decoration.replace({ widget: new RuleWidget() })]);
+          return false;
+        }
+        // A list marker becomes a GLYPH. `ListMark` covers `-`/`*`/`+` and
+        // the `1.` of an ordered list; an ordered marker keeps its own number
+        // so the sequence the source states is the sequence shown.
+        if (node.name === 'ListMark') {
+          let end = node.to;
+          if (doc.sliceString(end, end + 1) === ' ') end += 1;
+          const raw = doc.sliceString(node.from, node.to);
+          const ordered = /\d/.test(raw);
+          // A task item's `[ ]` follows the marker; it is rendered by the
+          // Task branch below, so the bullet is dropped for those lines to
+          // avoid painting a bullet AND a checkbox.
+          const after = doc.sliceString(end, end + 4);
+          if (/^\[[ xX]\]/.test(after)) {
+            marks.push([node.from, end, Decoration.replace({})]);
+            return false;
+          }
+          marks.push([
+            node.from,
+            end,
+            Decoration.replace({ widget: new BulletWidget(ordered ? raw : '•') }),
+          ]);
+          return false;
+        }
+        // `[ ]` / `[x]` — a real box. Tagged `Task`/`TaskMarker` by
+        // @lezer/markdown's GFM task-list extension.
+        if (node.name === 'TaskMarker') {
+          let end = node.to;
+          if (doc.sliceString(end, end + 1) === ' ') end += 1;
+          const checked = /[xX]/.test(doc.sliceString(node.from, node.to));
+          marks.push([
+            node.from,
+            end,
+            Decoration.replace({ widget: new TaskBoxWidget(checked) }),
+          ]);
+          return false;
+        }
+
         if (!HIDDEN_MARKS.has(node.name)) return;
         let end = node.to;
         // `# ` — swallow the space too, or the heading keeps a hanging indent.
         if (node.name === 'HeaderMark' && doc.sliceString(end, end + 1) === ' ') {
           end += 1;
         }
-        if (end > node.from) marks.push([node.from, end]);
+        if (end > node.from) marks.push([node.from, end, null]);
       },
     });
   }
@@ -292,9 +428,9 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
 
   const b = new RangeSetBuilder<Decoration>();
   let prevEnd = -1;
-  for (const [from, to] of marks) {
+  for (const [from, to, deco] of marks) {
     if (from < prevEnd) continue; // skip overlaps (nested inline marks)
-    b.add(from, to, Decoration.replace({}));
+    b.add(from, to, deco ?? Decoration.replace({}));
     prevEnd = to;
   }
   return b.finish();

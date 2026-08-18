@@ -2219,6 +2219,151 @@ check("19k the migration REFUSES to publish if RLS is off. Publishing to a "
       "the migration does not check RLS before publishing")
 
 
+# ── 20. ADR-575 D8 — the BLOCK markers, which live preview never covered ──
+# Operator, driving the canvas: "inserted formattings, when clicking enter it
+# disappears, undo, and alike."
+#
+# Measured on the deployed surface before any fix: every entry in
+# HIDDEN_MARKS is an INLINE mark, so `#`, `**` and `` ` `` were suppressed
+# while every BLOCK marker leaked through as literal source —
+#
+#   Bulleted list  → rendered "- first item", dash and all
+#   Task list      → rendered "- [ ] ", no checkbox
+#   Divider        → rendered "---", no rule
+#   An EMPTY list line ("- " alone) → a BLANK line with no bullet at all,
+#                     which is the "it disappears" the operator reported
+#
+# The reading face was half-built: inline marks hidden, the structure they sit
+# inside still showing its source. §20 mounts the REAL canvas and reads what it
+# painted, because no source check can see which glyph a decoration produced.
+_D20_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f,'utf8'),{transforms:['typescript','jsx','imports'],jsxRuntime:'automatic',production:true}).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) { const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts']) { try { return orig.call(this, b + e, ...a); } catch (x) {} } }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<!doctype html><body><div id="h"></div></body>', { pretendToBeVisual: true });
+const def = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+def('IS_REACT_ACT_ENVIRONMENT', true);
+const React = require(WEB + '/node_modules/react');
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+const { act } = React;
+const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
+
+const DOC = [
+  '# Title',
+  '',
+  '- first item',
+  '- second item',
+  '',
+  '1. one',
+  '2. two',
+  '',
+  '- [ ] open',
+  '- [x] done',
+  '',
+  '---',
+  '',
+  'after',
+  '',
+].join('\n');
+
+let value = DOC;
+const host = dom.window.document.getElementById('h');
+act(() => createRoot(host).render(React.createElement(ProseCanvas, {
+  value, onChange: (v) => { value = v; },
+})));
+
+const txt = host.querySelector('.cm-content').textContent;
+const bullets = [...host.querySelectorAll('.cm-mdBullet')].map((e) => e.textContent);
+const tasks = [...host.querySelectorAll('.cm-mdTask')].map((e) => e.textContent);
+
+// The empty-list-line case the operator hit: `- ` with nothing after it must
+// still paint a bullet, not vanish into a blank line.
+const EMPTY = 'text\n\n- ';
+let v2 = EMPTY;
+const host2 = dom.window.document.createElement('div');
+dom.window.document.body.appendChild(host2);
+act(() => createRoot(host2).render(React.createElement(ProseCanvas, {
+  value: v2, onChange: (v) => { v2 = v; },
+})));
+const emptyBullets = host2.querySelectorAll('.cm-mdBullet').length;
+
+console.log(JSON.stringify({
+  // No literal source markers survive in the rendered text.
+  no_literal_dash: !/^- /m.test(txt),
+  no_literal_ordered: !/^\d+\. /m.test(txt),
+  no_literal_task: !txt.includes('[ ]') && !txt.includes('[x]'),
+  no_literal_rule: !txt.split('\n').some((l) => l.trim() === '---'),
+  // …because each was replaced by a real affordance.
+  bullet_glyphs: bullets.filter((b) => b === '•').length === 2,
+  ordered_keeps_number: bullets.includes('1.') && bullets.includes('2.'),
+  task_boxes: tasks.length === 2 && tasks.includes('☐') && tasks.includes('☑'),
+  rule_drawn: host.querySelectorAll('.cm-mdRule').length === 1,
+  // A task line paints a BOX, never a box AND a bullet.
+  no_double_marker: bullets.length === 4,
+  // The whole point: decoration only. The document is untouched.
+  doc_byte_identical: value === DOC,
+  // The operator's case.
+  empty_list_line_shows_bullet: emptyBullets === 1,
+}));
+"""
+
+try:
+    _d20 = json.loads(
+        subprocess.run(
+            ["node", "-e", _D20_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=180, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d20 = {"error": str(exc)[:400]}
+
+check("20a ⭐⭐⭐ NO BLOCK MARKER SURVIVES AS LITERAL SOURCE. Every entry in "
+      "HIDDEN_MARKS is an INLINE mark, so live preview hid `#`/`**`/`` ` `` "
+      "and left `- `, `1. `, `[ ]` and `---` showing. The reading face was "
+      "half-built. Measured on production, not inferred.",
+      _d20.get("no_literal_dash") is True
+      and _d20.get("no_literal_ordered") is True
+      and _d20.get("no_literal_task") is True
+      and _d20.get("no_literal_rule") is True, str(_d20)[:400])
+check("20b a bullet is a GLYPH, and an ordered marker KEEPS ITS NUMBER — "
+      "replacing `1.` with a dot would make the document lie about its own "
+      "sequence",
+      _d20.get("bullet_glyphs") is True
+      and _d20.get("ordered_keeps_number") is True, str(_d20)[:400])
+check("20c a task marker is a real BOX, checked state carried, and a task line "
+      "paints a box NEVER a box AND a bullet",
+      _d20.get("task_boxes") is True
+      and _d20.get("no_double_marker") is True, str(_d20)[:400])
+check("20d a thematic break is a RULE. Hiding it outright would leave a blank "
+      "line that reads as an accident — which is why these are replaced by "
+      "widgets rather than added to HIDDEN_MARKS.",
+      _d20.get("rule_drawn") is True, str(_d20)[:400])
+check("20e ⭐ THE OPERATOR'S CASE — an EMPTY list line (`- ` with nothing "
+      "after it) still paints a bullet. Erasing the marker made a fresh list "
+      "item indistinguishable from a blank line: press the button, watch the "
+      "formatting 'disappear'.",
+      _d20.get("empty_list_line_shows_bullet") is True, str(_d20)[:400])
+check("20f the document is BYTE-IDENTICAL with every widget on screen — these "
+      "are decorations, not content. Delete them and the `.md` is unchanged "
+      "(the same test D13/D15 pass).",
+      _d20.get("doc_byte_identical") is True, str(_d20)[:400])
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:
