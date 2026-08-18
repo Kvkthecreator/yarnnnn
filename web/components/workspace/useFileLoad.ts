@@ -17,6 +17,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, APIError } from '@/lib/api/client';
 import type { WorkspaceFile } from '@/types';
 
+/** Last successful load per path — written by EVERY consumer, read only under
+ *  `cachedFirst`. Exists for remount continuity, not for freshness: the chat
+ *  transcript's post-turn resync gives every row a new identity, and a card
+ *  the member was already reading re-mounted into a spinner. */
+const lastLoaded = new Map<string, WorkspaceFile>();
+
 /** Head-revision authorship (ADR-209 Phase 4), surfaced on the file header. */
 export interface HeadRevision {
   authored_by: string;
@@ -49,13 +55,21 @@ export interface FileLoadState {
  * Load a workspace file by path. Pass `withRevision` to also fetch the head
  * revision in parallel (the Files header wants it; the chat card does not).
  * `reloadKey` bumps to force a refetch.
+ *
+ * `cachedFirst` (2026-08-18): render the last successful load immediately and
+ * revalidate in the background — no spinner on a remount of content already
+ * seen. OPT-IN, for display-only mounts (the chat ArtifactCard). Editor-shaped
+ * consumers must NOT set it: they run `setText(content)` effects off `file`,
+ * and a cached-then-fresh double emission is exactly the mid-typing stale-prop
+ * shape ADR-572 D12 / ADR-575 removed.
  */
 export function useFileLoad(
   path: string,
-  opts?: { withRevision?: boolean; reloadKey?: number },
+  opts?: { withRevision?: boolean; reloadKey?: number; cachedFirst?: boolean },
 ): FileLoadState {
   const withRevision = opts?.withRevision ?? false;
   const reloadKey = opts?.reloadKey ?? 0;
+  const cachedFirst = opts?.cachedFirst ?? false;
 
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,19 +119,34 @@ export function useFileLoad(
       return;
     }
 
-    setLoading(true);
+    // Cached-first: show the last load now, revalidate silently below.
+    const cached = cachedFirst ? lastLoaded.get(path) : undefined;
+    if (cached) {
+      setFile(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     setNotFound(false);
     setHeadRevision(null);
 
     api.workspace
       .getFile(path)
-      .then((data) => { if (!cancelled) setFile(data); })
+      .then((data) => {
+        lastLoaded.set(path, data);
+        if (!cancelled) setFile(data);
+      })
       .catch((err) => {
         if (cancelled) return;
         if (err instanceof APIError && err.status === 404) {
+          // The path is gone — a cached body must not outlive it.
+          lastLoaded.delete(path);
+          setFile(null);
           setNotFound(true);
-        } else {
+        } else if (!cached) {
+          // With a cached body on screen, a transient refetch failure stays
+          // silent — the member is reading content, not a load state.
           setError(err?.message || 'Failed to load file');
         }
       })
@@ -129,7 +158,7 @@ export function useFileLoad(
     }
 
     return () => { cancelled = true; cancelledRef.current = true; };
-  }, [path, reloadKey, withRevision, fetchHeadRevision]);
+  }, [path, reloadKey, withRevision, cachedFirst, fetchHeadRevision]);
 
   return { file, loading, notFound, error, headRevision, refreshRevision };
 }

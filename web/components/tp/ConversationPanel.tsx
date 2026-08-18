@@ -22,6 +22,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
+import { useStickToBottom, JumpToLatest } from '@/hooks/useStickToBottom';
 import {
   Loader2,
   X,
@@ -128,7 +129,9 @@ export function ConversationPanel({
   const [input, setInput] = useState('');
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);
   const [actionCard, setActionCard] = useState<ActionCardConfig | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // THE scroll policy (2026-08-18) — shared with LanePanel; one rule, two
+  // transcripts. Follows the bottom only while the reader is there.
+  const { containerRef, contentRef, pinned, scrollToBottom } = useStickToBottom();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Commit G (2026-05-11): autonomy chip + popover left the composer.
@@ -158,6 +161,7 @@ export function ConversationPanel({
     } else {
       sendMessage(message, { surface, locator });
       setActionCard(null);
+      scrollToBottom();
     }
   };
 
@@ -175,12 +179,6 @@ export function ConversationPanel({
     getDocxTextBlocks,
     fileInputRef,
   } = useFileAttachments();
-
-  useEffect(() => {
-    if (messages.length === 0 && status.type === 'idle') return;
-
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, status]);
 
   // The composer auto-grow rule, shared with LanePanel (/chat + the Studio
   // lane) — this panel's local copy was the original; the hook is it, lifted.
@@ -222,6 +220,8 @@ export function ConversationPanel({
     });
     setInput('');
     clearAttachments();
+    // The member's own act always reveals itself — sending re-pins the view.
+    scrollToBottom();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -230,8 +230,11 @@ export function ConversationPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+      {/* Messages — relative wrapper: scroll container inside, JumpToLatest
+          floating over its bottom edge (useStickToBottom's mount contract). */}
+      <div className="relative flex-1 min-h-0">
+      <div ref={containerRef} className="h-full overflow-y-auto px-3 py-3">
+      <div ref={contentRef} className="space-y-2.5">
         {messages.length === 0 && !isLoading && emptyState && (
           <div className="py-4 px-2">
             {typeof emptyState === 'function'
@@ -285,7 +288,9 @@ export function ConversationPanel({
           </div>
         )}
 
-        <div ref={messagesEndRef} />
+      </div>
+      </div>
+      {!pinned && <JumpToLatest onClick={() => scrollToBottom('smooth')} />}
       </div>
 
       {/* Input */}

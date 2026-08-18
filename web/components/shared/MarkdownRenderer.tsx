@@ -154,12 +154,19 @@ function MarkdownImage({ src, alt, ...props }: { src: string; alt: string }) {
 function MermaidBlock({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
+  // DEBOUNCED + KEEP-LAST-GOOD (2026-08-18). This block mounts the moment a
+  // ```mermaid fence OPENS in a streaming reply, so `code` grows delta by
+  // delta and almost every intermediate form fails to parse — rendered
+  // naively, the block flickered placeholder → source-as-error → placeholder
+  // until the fence closed. Two rules calm it: attempt a render only after
+  // the source has been stable for a beat, and never discard a rendered
+  // diagram because a later (partial) form failed — the last good SVG stands
+  // until a newer form succeeds. Until the FIRST success, the source itself
+  // is the one quiet face (it is what the file honestly contains).
   useEffect(() => {
     let cancelled = false;
-
-    async function render() {
+    const t = setTimeout(async () => {
       try {
         const mermaid = (await import('mermaid')).default;
         mermaid.initialize({
@@ -170,28 +177,18 @@ function MermaidBlock({ code }: { code: string }) {
         const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
         const { svg: rendered } = await mermaid.render(id, code);
         if (!cancelled) setSvg(rendered);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || 'Mermaid render failed');
+      } catch {
+        /* invalid (often just incomplete) source — keep the current face */
       }
-    }
-
-    render();
-    return () => { cancelled = true; };
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [code]);
 
-  if (error) {
+  if (!svg) {
     return (
       <pre className="overflow-auto rounded-lg border border-border bg-muted/20 p-4 text-sm whitespace-pre-wrap text-muted-foreground">
         {code}
       </pre>
-    );
-  }
-
-  if (!svg) {
-    return (
-      <div className="flex items-center justify-center py-6 text-sm text-muted-foreground/50">
-        Rendering diagram...
-      </div>
     );
   }
 

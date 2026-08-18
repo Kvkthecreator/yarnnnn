@@ -37,10 +37,23 @@
  * `ArtifactCard` → `FileBody` — the same viewer the Files surface uses. The
  * card renders and opens; it never edits (ADR-236: chat is the mutation
  * surface). Assistant text renders as markdown, as it always should have.
+ *
+ * 2026-08-18 — SCROLL POLICY + THE SPEECH/ARTIFACT BALANCE. Scrolling is
+ * `useStickToBottom` (shared with ConversationPanel — one policy, two
+ * transcripts): follow the bottom only while the reader is AT the bottom;
+ * a reader who scrolled up is never yanked back, and the way down is the
+ * JumpToLatest chip. The local scrollIntoView-per-render effect this replaces
+ * force-scrolled on every streaming delta AND on every 15s out-of-band poll.
+ * Companion polish, same session: the artifact card holds its tile posture
+ * mid-stream and unfolds on turn end (the words stay primary while they
+ * arrive), the poll resync is an identity no-op when the transcript is
+ * unchanged, and tool verbs render via `toolLabels` — never raw primitive
+ * names (the `WriteFile…` footer defect, second half).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
+import { useStickToBottom, JumpToLatest } from '@/hooks/useStickToBottom';
 import {
   ArrowUp,
   Check,
@@ -65,6 +78,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { MentionMenu, type MentionCandidate } from './MentionMenu';
 import { ArtifactCard } from './ArtifactCard';
+import { toolLabelLine } from './toolLabels';
 
 /** Render a member's text with recognized `@handles` marked (ADR-492 D3).
  *
@@ -326,7 +340,8 @@ export function LanePanel({
   // attributed file, exactly like a lane-produced ArtifactCard in reverse.
   const [workspacePickOpen, setWorkspacePickOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // THE scroll policy (2026-08-18, see header) — shared with ConversationPanel.
+  const { containerRef, contentRef, pinned, scrollToBottom } = useStickToBottom();
   // The composer grows with what you're writing, then holds and scrolls — the
   // CLI gesture. `rows={1}` alone pins it at one line forever (a CSS max-h is
   // only a ceiling; nothing pushes the box up to it), so the height is written
@@ -475,11 +490,29 @@ export function LanePanel({
 
   /** Silent transcript resync — swaps optimistic local ids for DB ids (edit/
    *  regenerate need them) and picks up a server-persisted partial after a
-   *  stop. The mount stays put (`key={laneId}` remounts on lane switch). */
+   *  stop. The mount stays put (`key={laneId}` remounts on lane switch).
+   *
+   *  IDENTITY NO-OP when nothing changed (2026-08-18). The 15s out-of-band
+   *  poll calls this on lanes that are usually quiet; unconditionally adopting
+   *  the fetched array gave every row a new identity, which remounted every
+   *  ArtifactCard (refetch + spinner flash) and re-fired anything keyed on the
+   *  array. Same content → keep the same objects. */
   const resyncMessages = useCallback(async () => {
     try {
       const res = await api.lanes.messages(laneId);
-      setMessages(mapMessages(res.messages));
+      const next = mapMessages(res.messages);
+      setMessages((prev) =>
+        prev.length === next.length &&
+        prev.every(
+          (m, i) =>
+            m.id === next[i].id &&
+            m.content === next[i].content &&
+            (m.artifacts?.length ?? 0) === (next[i].artifacts?.length ?? 0) &&
+            (m.tools_called?.length ?? 0) === (next[i].tools_called?.length ?? 0),
+        )
+          ? prev
+          : next,
+      );
     } catch {
       /* non-fatal — the optimistic view stands */
     }
@@ -503,10 +536,6 @@ export function LanePanel({
     const t = setInterval(() => void resyncMessages(), 15_000);
     return () => clearInterval(t);
   }, [canReceiveOutOfBandTurns, sending, resyncMessages]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, sending]);
 
   // ── THE '@' GESTURE (ADR-492 D3) ──────────────────────────────────────
   // The run being typed after an '@', or null. Mirrors the CARET, not just the
@@ -662,6 +691,9 @@ export function LanePanel({
           return [...prev.slice(0, lastUser + 1), { id: replyId, role: 'assistant', content: '' }];
         });
       }
+      // The member's own act always reveals itself — sending re-pins the view
+      // (the one growth that overrides a scrolled-up reading position).
+      scrollToBottom();
 
       const appendDelta = (text: string) =>
         setMessages((prev) =>
@@ -812,7 +844,7 @@ export function LanePanel({
         }
       }
     },
-    [laneId, sending, onArtifactWrite, onLaneRenamed, resyncMessages],
+    [laneId, sending, onArtifactWrite, onLaneRenamed, resyncMessages, scrollToBottom],
   );
 
   const send = useCallback(async () => {
@@ -865,7 +897,13 @@ export function LanePanel({
           a member who wants a conversation kept now simply asks — the lane's
           WriteFile + the conventions' placement/citation/format teaching absorb
           it, with no dedicated button, route or metered verb. */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
+      {/* `relative` wrapper: the scroll container inside, the JumpToLatest
+          chip floating over its bottom edge. The content wrapper is the
+          ResizeObserver target — transcript growth (deltas, cards finishing
+          their load, diagrams rendering) is what the follow rule watches. */}
+      <div className="relative flex-1 min-h-0">
+        <div ref={containerRef} className="h-full overflow-y-auto px-3 py-3">
+          <div ref={contentRef} className="space-y-3">
         {loading && (
           <div className="text-xs text-muted-foreground py-6 text-center">
             Loading {laneName}…
@@ -1026,8 +1064,10 @@ export function LanePanel({
                             cast; once the SSE speaker frame lands, the row
                             names the colleague actually answering rather than
                             the engine behind them. */}
+                        {/* Verbs in the member's language (`toolLabels`) —
+                            raw primitive names are internal vocabulary. */}
                         {(m.tools_called && m.tools_called.length > 0)
-                          ? `${authorLabel || speaker} · ${Array.from(new Set(m.tools_called)).join(' · ')}…`
+                          ? `${authorLabel || speaker} · ${toolLabelLine(m.tools_called, 'doing')}…`
                           : `${authorLabel || speaker} is working…`}
                       </span>
                     ) : m.role === 'assistant' ? (
@@ -1067,7 +1107,7 @@ export function LanePanel({
                     {m.content && m.tools_called && m.tools_called.length > 0 && (
                       <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
                         <Wrench className="w-3 h-3" />
-                        {Array.from(new Set(m.tools_called)).join(' · ')}
+                        {toolLabelLine(m.tools_called, 'did')}
                       </div>
                     )}
                   </div>
@@ -1145,6 +1185,11 @@ export function LanePanel({
                         path={a.path}
                         verb={a.verb}
                         attribution={`you via ${modelLabel}`}
+                        // Tile posture while the turn still streams (this row
+                        // is the in-flight reply): the write is visible the
+                        // moment it lands, but the full render waits for the
+                        // words — mid-turn, the message stays primary.
+                        streaming={sending && isLast}
                       />
                     ),
                   )}
@@ -1156,7 +1201,9 @@ export function LanePanel({
         {error && (
           <div className="text-xs text-destructive text-center">{error}</div>
         )}
-        <div ref={bottomRef} />
+          </div>
+        </div>
+        {!pinned && <JumpToLatest onClick={() => scrollToBottom('smooth')} />}
       </div>
 
       {/* The composer sits on the bottom edge, so on a phone it must clear the

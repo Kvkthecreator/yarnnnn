@@ -65,6 +65,24 @@
  * surprise. The dispatch stays HERE at the file-type altitude — mounts still
  * only declare card-vs-none (ADR-443 §3) — and the per-type thumb TECHNIQUE
  * (iframe / img / glyph) lives in `ArtifactThumb`, not in this mount.
+ *
+ * ── SPEECH STAYS PRIMARY (2026-08-18, operator-observed) ──────────────────
+ *
+ * The inline `.md` render had grown to outweigh the message it accompanies:
+ * a full-row 360px document next to an 85%-width muted bubble, arriving
+ * mid-stream — the member's eyes landed on the file and never read the words.
+ * Three calibrations, none of which revisit the depth rule above:
+ *
+ *   - `streaming` (mount-passed): while the turn is still streaming, the card
+ *     holds its HEADER only — the write is visible the moment it lands (the
+ *     lane contract rendered, 2026-07-09), but the render unfolds on turn end.
+ *     A side effect worth keeping: the file body prefetches during the
+ *     stream, so the unfold is usually instant.
+ *   - collapsed height 360 → 240px: enough to read the document's opening and
+ *     know what it is; not enough to drown the reply.
+ *   - "Show more" is BOUNDED (70vh, internal scroll): an unbounded expand
+ *     made the transcript itself a mile of document, with "Show less"
+ *     stranded past it. Full-length reading lives in the Open modal.
  */
 
 import { useState } from 'react';
@@ -91,8 +109,9 @@ import {
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 
-/** Collapsed height of the preview body before the fade + "Show more". */
-const COLLAPSED_MAX_PX = 360;
+/** Collapsed height of the preview body before the fade + "Show more".
+ *  Sized to coexist with speech, not to replace the Open modal (see header). */
+const COLLAPSED_MAX_PX = 240;
 
 interface ArtifactCardProps {
   /** Absolute workspace path, as returned by the primitive (`/workspace/…`). */
@@ -101,11 +120,16 @@ interface ArtifactCardProps {
   verb?: string;
   /** Who the lane wrote as, e.g. "you via Gemini Pro". */
   attribution?: string;
+  /** The turn that produced this card is still streaming: hold the tile
+   *  posture (header only) and unfold the render when it ends (see header). */
+  streaming?: boolean;
 }
 
-export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
+export function ArtifactCard({ path, verb, attribution, streaming = false }: ArtifactCardProps) {
   // ADR-436 §6: the shared file-load hook (was a hand-written getFile machine).
-  const { file, loading, notFound, error } = useFileLoad(path);
+  // `cachedFirst`: this mount re-mounts on every post-turn transcript resync
+  // (row identities swap local→DB); a card already read must not respin.
+  const { file, loading, notFound, error } = useFileLoad(path, { cachedFirst: true });
   const [expanded, setExpanded] = useState(false);
   // ADR-436 §7: the chat-open mount — the artifact opens in its own frame.
   const [openInModal, setOpenInModal] = useState(false);
@@ -200,36 +224,45 @@ export function ArtifactCard({ path, verb, attribution }: ArtifactCardProps) {
       </div>
 
       {/* ── body: the one shared viewer, bounded ── */}
-      {loading && (
+      {/* Mid-stream the body stays folded (header-only tile) — the load below
+          still runs, so the unfold on turn end is usually instant. */}
+      {!streaming && loading && (
         <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Opening {filename}…
         </div>
       )}
 
-      {notFound && (
+      {!streaming && notFound && (
         <div className="px-3 py-6 text-center text-xs text-muted-foreground">
           <FileQuestion className="mx-auto mb-2 h-5 w-5 opacity-40" />
           This file is no longer at {relPath}.
         </div>
       )}
 
-      {error && (
+      {!streaming && error && (
         <div className="px-3 py-6 text-center text-xs text-muted-foreground">
           Couldn’t open this file. It’s still in the workspace — try Files.
         </div>
       )}
 
-      {!loading && !notFound && !error && file && (
+      {!streaming && !loading && !notFound && !error && file && (
         <>
+          {/* Expanded is BOUNDED: the card scrolls internally at 70vh so the
+              transcript never becomes the document. "Show less" stays below,
+              reachable without scrolling the document back down. */}
           <div
-            className={cn('relative px-3 py-3', !expanded && 'overflow-hidden')}
+            className={cn(
+              'relative px-3 py-3',
+              !expanded && 'overflow-hidden',
+              expanded && 'max-h-[70vh] overflow-y-auto',
+            )}
             style={!expanded ? { maxHeight: COLLAPSED_MAX_PX } : undefined}
           >
             <FileBody file={file} compact />
             {!expanded && (
               // The fade is decorative and must not eat clicks on the body.
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background to-transparent" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background to-transparent" />
             )}
           </div>
           <button
