@@ -1,4 +1,4 @@
-"""ADR-331 — Setup-as-Rendering: the surviving surface invariants + harvest.
+"""ADR-331 — Setup-as-Rendering: the surviving surface invariants.
 
 SCOPED DOWN 2026-07-22 (was 24 tests, 9 of them red). Two thirds of this gate
 outlived what it guarded, so it asserted a deleted wizard and a moved upload
@@ -26,10 +26,10 @@ What remains is what still guards live code:
                      ARCHETYPES tuple and the TS Archetype union; the surface
                      owns no substrate; `/setup` stays auth-gated and its icon
                      resolves (no Box fallback).
-  Phase 2 (D3, D4) — harvest is an ordinary attributed invocation: the
-                     `agent:harvest` author string validates against the
-                     existing is_valid_author taxonomy (no new author prefix);
-                     the metadata-only dry-run endpoint performs no writes.
+  Phase 2 (D3, D4) — DELETED. The harvest feature is removed (2026-08-18):
+                     zero callers since ADR-437 deleted its FE client block,
+                     and ADR-577 made its one execution path refuse
+                     credentials. Its assertions are removed with it.
 
 Pure-Python / pure-fs assertions where possible. No DB, no network, no LLM.
 """
@@ -99,88 +99,6 @@ def test_phase1_rocket_icon_registered():
 
 
 # =============================================================================
-# Phase 2 — harvest invocation attribution (D3)
 # =============================================================================
 
 
-def test_phase2_agent_harvest_author_validates():
-    """D3: harvest writes attributed substrate with `agent:harvest` — this
-    must validate against the existing is_valid_author taxonomy (the `agent:`
-    prefix is already valid; harvest adds no new author prefix)."""
-    from services.authored_substrate import is_valid_author
-
-    assert is_valid_author("agent:harvest"), (
-        "ADR-331 D3: `agent:harvest` must validate against is_valid_author — "
-        "harvest is an ordinary attributed invocation, no new author prefix."
-    )
-
-
-def test_phase2_harvest_caller_identity_is_agent_harvest():
-    """D3: the harvest service attributes writes as agent:harvest (the
-    caller_identity that flows to WriteFile's authored_by)."""
-    from services.harvest import HARVEST_CALLER_IDENTITY
-
-    assert HARVEST_CALLER_IDENTITY == "agent:harvest"
-
-
-def test_phase2_harvest_dry_run_does_no_writes():
-    """D4: the dry-run is metadata-only — no write/WriteFile/write_revision
-    in the dry-run path. We assert the source never imports a write primitive
-    in the dry-run function body (static guard against accidental writes)."""
-    import inspect
-
-    from services.harvest import harvest_dry_run
-
-    src = inspect.getsource(harvest_dry_run)
-    for banned in ("write_revision", "WriteFile", "handle_write_file"):
-        assert banned not in src, (
-            f"ADR-331 D4: harvest_dry_run must perform NO writes (found {banned!r})"
-        )
-
-
-def test_phase2_harvest_scope_normalization_drops_unknown_providers():
-    """D4: the picker's ephemeral scope is normalized; unknown providers are
-    dropped, known ones (slack/notion/github) survive with their range."""
-    from services.harvest import _normalize_sources
-
-    scope = {"sources": [
-        {"provider": "slack", "id": "C1", "range_days": 30},
-        {"provider": "bogus", "id": "x"},
-        {"provider": "notion", "id": "p1"},
-    ]}
-    norm = _normalize_sources(scope)
-    assert [s["provider"] for s in norm] == ["slack", "notion"]
-    assert norm[0]["range_days"] == 30
-
-
-def test_phase2_harvest_not_in_default_providers_or_new_primitive():
-    """D3 anti-goal: harvest adds no new primitive. The harvest service uses
-    execute_primitive + existing read tools; it does not register a primitive
-    handler. Assert no 'harvest' handler in the primitive registry."""
-    from services.primitives.registry import HANDLERS
-
-    assert not any("harvest" in name.lower() for name in HANDLERS), (
-        "ADR-331 D3: harvest must NOT register a new primitive — it's an "
-        "invocation using existing read tools + WriteFile."
-    )
-
-
-def test_phase2_harvest_route_registered():
-    """D3/D4: the /harvest/dry-run + /harvest/run endpoints are registered."""
-    from routes import harvest as harvest_route
-
-    paths = {r.path for r in harvest_route.router.routes}
-    assert "/harvest/dry-run" in paths
-    assert "/harvest/run" in paths
-
-
-def test_phase2_changelog_entry_present():
-    """Prompt-change protocol: the harvest prompt requires a CHANGELOG entry."""
-    changelog = _read(REPO_ROOT / "api" / "prompts" / "CHANGELOG.md")
-    assert "ADR-331 Phase 2: harvest invocation system prompt" in changelog, (
-        "ADR-331 Phase 2 adds a harvest-shaped LLM prompt — CHANGELOG entry required."
-    )
-
-
-# =============================================================================
-# Phase 3 — multi-file + .zip upload (D5)

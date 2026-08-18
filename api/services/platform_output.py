@@ -10,9 +10,9 @@ Supported formats:
 Email HTML rendering moved to compose engine (render/compose.py surface_type="digest").
 
 Usage:
-    from services.platform_output import generate_platform_output
+    from services.platform_output import generate_slack_blocks
 
-    blocks = generate_platform_output(
+    blocks = generate_slack_blocks(
         platform="slack",
         content=markdown_content,
         variant="slack_digest",
@@ -309,124 +309,3 @@ def _chunk_text(text: str, max_length: int = 2800) -> list[str]:
 # Unified Interface
 # =============================================================================
 
-def generate_platform_output(
-    platform: Literal["slack", "email", "notion", "download"],
-    content: str,
-    variant: Optional[str] = None,
-    metadata: Optional[dict] = None,
-) -> dict:
-    """
-    Generate platform-native output format.
-
-    Args:
-        platform: Target platform
-        content: Markdown content to convert
-        variant: Platform-specific variant (slack_digest, email_summary, etc.)
-        metadata: Additional context for generation
-
-    Returns:
-        Dict with:
-        - format: Output format type ("blocks", "html", "markdown")
-        - content: The converted content (blocks list for Slack, HTML string, etc.)
-        - raw: Original markdown content
-    """
-    metadata = metadata or {}
-
-    if platform == "slack":
-        blocks = generate_slack_blocks(content, variant or "default", metadata)
-        return {
-            "format": "blocks",
-            "content": blocks,
-            "raw": content,
-        }
-
-    elif platform == "email":
-        # Email HTML composed via render service (surface_type="digest") in delivery.py
-        return {
-            "format": "markdown",
-            "content": content,
-            "raw": content,
-        }
-
-    elif platform == "notion":
-        # TODO: Implement Notion block generation
-        return {
-            "format": "markdown",
-            "content": content,
-            "raw": content,
-        }
-
-    else:  # download or unknown
-        return {
-            "format": "markdown",
-            "content": content,
-            "raw": content,
-        }
-
-
-
-# Email HTML generation removed — email rendering now handled by compose engine
-# (render/compose.py surface_type="digest") called from delivery.py.
-# See ADR-148 and the _compose_email_html() function in delivery.py.
-
-
-# =============================================================================
-# Slack Digest Prompt Template
-# =============================================================================
-
-SLACK_DIGEST_PROMPT = """You are creating a Slack channel digest for: {channel_name}
-
-TIME PERIOD: {time_period}
-
-The digest should highlight what's important, not just summarize everything.
-Focus on platform-semantic signals in the context.
-
-SECTIONS TO GENERATE:
-
-## 🔥 Hot Threads
-Threads with high engagement (many replies, reactions). What were people talking about?
-
-## ❓ Unanswered Questions
-Questions that haven't been answered yet. Flag these for attention.
-
-## ⏳ Stalled Discussions
-Threads that started but went quiet - may need follow-up.
-
-## ✅ Action Items
-Concrete tasks or follow-ups mentioned in conversations.
-
-## 📋 Decisions Made
-Decisions that were reached in discussions.
-
-## 💬 Key Discussions
-Other notable conversations worth knowing about.
-
-CONTEXT FROM CHANNEL:
-{gathered_context}
-
-{ephemeral_context}
-
-INSTRUCTIONS:
-- Be concise but specific - use names and details from context
-- If a section has nothing notable, skip it entirely
-- Format for Slack: use *bold* for emphasis, bullet points for lists
-- Include message timestamps or rough times when referencing discussions
-- Prioritize actionable information over general chatter
-- If you detect urgency markers or blockers, highlight them prominently
-
-Generate the digest now:"""
-
-
-def get_slack_digest_prompt(
-    channel_name: str,
-    gathered_context: str,
-    ephemeral_context: str = "",
-    time_period: str = "Last 7 days",
-) -> str:
-    """Get the prompt for generating a Slack digest."""
-    return SLACK_DIGEST_PROMPT.format(
-        channel_name=channel_name,
-        time_period=time_period,
-        gathered_context=gathered_context,
-        ephemeral_context=ephemeral_context,
-    )

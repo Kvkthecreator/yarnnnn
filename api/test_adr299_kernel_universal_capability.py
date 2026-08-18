@@ -376,23 +376,6 @@ def test_resolution_uses_system_infrastructure_tools_merge() -> None:
     )
 
 
-def test_user_tools_surfacing_includes_system_infrastructure() -> None:
-    """ADR-299 rewrite D3: get_platform_tools_for_user also merges
-    SYSTEM_INFRASTRUCTURE_TOOLS — system infrastructure surfaces to every
-    LLM-invokable agent path, by definition."""
-    import inspect
-    from services import platform_tools
-
-    source = inspect.getsource(platform_tools.get_platform_tools_for_user)
-
-    assert "SYSTEM_INFRASTRUCTURE_TOOLS" in source, (
-        "get_platform_tools_for_user does NOT reference "
-        "SYSTEM_INFRASTRUCTURE_TOOLS — the rewrite requires both agent-path "
-        "tool-surfacing functions to merge system-infrastructure tools "
-        "unconditionally (it's part of the kernel's operating surface)."
-    )
-
-
 def test_reviewer_primitives_excludes_all_system_infrastructure_tools() -> None:
     """ADR-299 D8 + ADR-304 D6 — Reviewer-side exclusion is the architectural
     commitment, applies to ALL system-infrastructure tools.
@@ -504,7 +487,6 @@ if __name__ == "__main__":
         test_handler_refuses_llm_supplied_addressee_fields,
         test_send_operator_email_not_in_capability_resolution_maps,
         test_resolution_uses_system_infrastructure_tools_merge,
-        test_user_tools_surfacing_includes_system_infrastructure,
         test_reviewer_primitives_excludes_all_system_infrastructure_tools,
         test_bundle_capability_resolution_not_regressed,
         test_kernel_capabilities_module_stays_deleted,

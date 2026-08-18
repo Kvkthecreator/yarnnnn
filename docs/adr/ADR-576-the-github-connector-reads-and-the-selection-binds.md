@@ -171,6 +171,10 @@ With D2 in force the copy also becomes true in a second sense: selection binds r
 
 ## 5. What this ADR does not decide
 
+> **The deferred items below are carried forward in
+> [`connector-reach-and-the-commons.md`](../architecture/connector-reach-and-the-commons.md)**
+> — the standing brief for that discourse. Read it before reopening any of them.
+
 - **Derive (ADR-401 §3 stage 5) stays open.** No code path derives `inbound/github/` → `operation/`. Even with capture enabled, raw would accumulate and never reach the commons. That is the largest gap in the connector arc and needs its own ADR; it is not a GitHub question.
 - **Read-surface breadth (commits, PR diffs, file contents, search) is not added here.** §1e documents the gap. Adding those verbs under a *narrowed* scope is coherent follow-on work; adding them in the same change as a scope narrowing and a reach boundary would make the blast radius unreviewable.
 - **`PLATFORM_REGISTRY`'s collapse into `CONNECTOR_REGISTRY`** — named above, deferred.

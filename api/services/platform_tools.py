@@ -1366,98 +1366,19 @@ CAPABILITY_PROVIDER_MAP = {
 # Dynamic Tool Loading
 # =============================================================================
 
-async def get_platform_tools_for_user(auth: Any) -> list[dict]:
-    """
-    Get platform tools for the YARNNN chat-mode agent.
-
-    Per ADR-304 D3 (2026-05-27): YARNNN chat honors bundle MANIFEST
-    capability declarations. Tools surface in two layers:
-
-      Layer 1 — System infrastructure (SYSTEM_INFRASTRUCTURE_TOOLS):
-        Unconditional. Operator-addressing kernel plumbing per ADR-299
-        D1 + ADR-304 D1 — addressee structurally pinned to operator-
-        identity. Surfaces regardless of bundle activation or platform
-        connections.
-
-      Layer 2 — Workspace capabilities declared by active program bundles:
-        Reads `list_bundle_capabilities()` (union of capability
-        declarations from all active program bundles per
-        `bundles_active_for_workspace`), gates on `platform_connections`
-        via the kernel's _resolve_capability path. Tools surface because
-        the bundle DECLARES the capability, NOT because the operator
-        happens to have an OAuth connection to the provider.
-
-    This matches the headless gating semantics (`get_platform_tools_for_
-    capabilities` reads explicit capability declarations + provider
-    gate). Pre-ADR-304 behavior — iterating raw `platform_connections`
-    rows and surfacing every tool of every connected provider — is
-    DELETED per Singular Implementation. No dual paths.
-
-    Pre-activation workspaces (no active program bundle) see Layer 1
-    only — system infrastructure is the kernel surface every workspace
-    gets. To unlock workspace tools, the operator activates a program
-    whose MANIFEST declares the needed capabilities (ADR-226).
-
-    Args:
-        auth: Auth context with user_id and client
-
-    Returns:
-        List of tool definitions: SYSTEM_INFRASTRUCTURE_TOOLS first,
-        then bundle-MANIFEST-declared workspace capability tools whose
-        platform_connection_requirement is satisfied.
-    """
-    tools: list[dict] = []
-    seen_names: set[str] = set()
-
-    # Layer 1 — system infrastructure surfaces unconditionally.
-    for tool in SYSTEM_INFRASTRUCTURE_TOOLS:
-        tool_name = tool.get("name")
-        if tool_name and tool_name not in seen_names:
-            tools.append(tool)
-            seen_names.add(tool_name)
-
-    # Layer 2 — bundle MANIFEST capability declarations.
-    # Lazy imports to avoid circular import + to keep zero-bundle
-    # workspaces from paying any cost.
-    bundle_capability_count = 0
-    declared_capabilities: list[str] = []
-    try:
-        from services.bundle_reader import list_bundle_capabilities
-        from services.orchestration import capability_available
-
-        bundle_caps = list_bundle_capabilities()
-        for cap_name in bundle_caps.keys():
-            if not capability_available(auth.user_id, cap_name, auth.client):
-                continue
-            declared_capabilities.append(cap_name)
-            for tool_name in PLATFORM_TOOLS_BY_CAPABILITY.get(cap_name, []):
-                if tool_name in seen_names:
-                    continue
-                # Find the tool definition across PLATFORM_TOOLS_BY_PROVIDER.
-                for provider_tools in PLATFORM_TOOLS_BY_PROVIDER.values():
-                    for tool in provider_tools:
-                        if tool.get("name") == tool_name:
-                            tools.append(tool)
-                            seen_names.add(tool_name)
-                            bundle_capability_count += 1
-                            break
-                    if tool_name in seen_names:
-                        break
-
-        logger.info(
-            "[PLATFORM-TOOLS] YARNNN chat tools: %s total "
-            "(%s system-infrastructure + %s bundle-declared from caps %s)",
-            len(tools),
-            len(SYSTEM_INFRASTRUCTURE_TOOLS),
-            bundle_capability_count,
-            sorted(declared_capabilities),
-        )
-
-    except Exception as e:
-        logger.error(f"[PLATFORM-TOOLS] Error loading bundle-declared tools: {e}")
-
-    return tools
-
+# ADR-577 cleanup (2026-08-18) — `get_platform_tools_for_user` is DELETED.
+#
+# It assembled platform tools "for the YARNNN chat-mode agent" and had ZERO
+# production callers; its six tests passed by `inspect.getsource()` on the
+# function body rather than executing it — green CI over dead code, the pattern
+# that hid three defects in the ADR-576/577 audit.
+#
+# ⭐ NAMED SEAM, not a silent removal: this was the exact place where
+# "chat reaches a connector" would land if that is ever decided. No chat lane,
+# app lane, or steward can reach a connector today (see
+# docs/architecture/connector-reach-and-the-commons.md §2a, §5). The DECISION it
+# anticipated was never made and remains open — recreate this deliberately, with
+# a driven test, or not at all.
 
 async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]) -> list[dict]:
     """

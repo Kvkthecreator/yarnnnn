@@ -116,7 +116,6 @@ print("\n3. no bare model literals left in migrated machinery")
 
 MIGRATED = [
     "services/wake_evaluation.py",
-    "services/harvest.py",
     "services/context_inference.py",
     "services/recurrence_prompt_inference.py",
     "services/primitives/web_search.py",

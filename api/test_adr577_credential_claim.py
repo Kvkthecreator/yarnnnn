@@ -225,7 +225,6 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
     # -- the member's own connector management + discovery (by definition) --
     "routes/integrations.py",
     "routes/workspace.py",              # workspace summary: platform names only
-    "services/landscape.py",            # discovery for the settings picker
     "integrations/validation.py",       # the health probe (ADR-576 D3)
     # -- ENUMERATION only (platform/status/created_at; never the token) --
     "services/bundle_reader.py",

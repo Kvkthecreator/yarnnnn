@@ -126,11 +126,6 @@ SYSTEM_CALLS: dict[str, SystemCall] = {
         tier=TIER_STANDARD,
         reason="Refines a recurrence's standing prompt — authored text that then runs repeatedly.",
     ),
-    "harvest": SystemCall(
-        model="anthropic/claude-sonnet-5",
-        tier=TIER_STANDARD,
-        reason="A 12-round bounded tool loop curating connector material into the commons.",
-    ),
     "specialist_dispatch": SystemCall(
         model="anthropic/claude-sonnet-5",
         tier=TIER_STANDARD,

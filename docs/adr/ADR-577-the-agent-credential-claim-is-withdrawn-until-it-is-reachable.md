@@ -146,6 +146,11 @@ The ADR-566 gate matched only reads containing `credentials_encrypted`, so `capa
 
 ## 7. What this ADR does not do, and what must be true when it is undone
 
+> Carried forward in
+> [`connector-reach-and-the-commons.md`](../architecture/connector-reach-and-the-commons.md),
+> including the DELETED-BUT-NAMED seams (§5 there) so they are not rediscovered
+> as gaps.
+
 Not decided here, and deliberately left for first real demand:
 
 - **The agent credential store.** ADR-425 D3's reservation stands. When an agent genuinely needs platform reach, it returns as a *whole*: allocation door (POST/DELETE), workspace-aware RLS, `UNIQUE(workspace_id, platform)`, a `workspace_id`-bearing auth object, real `own-agent` grants, and the D5 pane. **Partial delivery is what this ADR is cleaning up; it must not recur.**
