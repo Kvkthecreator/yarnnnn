@@ -2148,6 +2148,53 @@ check("19j the migration PUBLISHES the table and verifies the LIVE object — "
       and _pub_verify is not None
       and "workspace_file_versions" in _pub_verify.group(0),
       "migration 240 missing, or its publication-verify block is absent")
+_sess_rt = (WEB / "lib" / "realtime" / "use-session-messages-realtime.ts").read_text(encoding="utf-8")
+check("19L ⭐⭐⭐ THE SOCKET CARRIES THE USER'S TOKEN (`realtime.setAuth`). "
+      "FOUND BY DRIVING PRODUCTION, invisible to 232 green checks. Realtime "
+      "re-checks RLS per subscriber using the JWT the SOCKET carries — not the "
+      "one the REST calls carry. Without setAuth the socket connects as anon, "
+      "`auth.uid()` is NULL inside the policy, and every row is dropped while "
+      "the channel still reports \"Subscribed to PostgreSQL\" with the correct "
+      "filter. Measured: the `phx_join` frame carried no access_token, a peer "
+      "write landed as a real revision row, and the client got only heartbeats. "
+      "BOTH realtime hooks must do it — the omission was latent in the "
+      "session-messages hook first, which is where this pattern was copied from.",
+      "realtime.setAuth" in _strip_comments(_rt_src)
+      and "realtime.setAuth" in _strip_comments(_sess_rt),
+      "a realtime hook subscribes without handing the socket the user's JWT")
+check("19m setAuth is sequenced BEFORE subscribe() in the file-revisions hook — "
+      "fire-and-forget beside the join is a race whose losing side is SILENT: "
+      "it resolves from cache locally and fails on a cold load",
+      # Assert the ORDER by index, not by a windowed regex. The first spelling
+      # used `[\s\S]{0,400}` between setAuth and .channel and FAILED against
+      # correct code — the real gap is 632 chars to .subscribe. A window is a
+      # guess about formatting; an index comparison is the actual claim.
+      (lambda s: (
+          "setAuth" in s
+          and s.index("setAuth") < s.index(".channel(") < s.index(".subscribe(")
+      ))(_strip_comments(_rt_src)),
+      "the join is not sequenced behind the session read")
+
+_mig241 = (API.parent / "supabase" / "migrations"
+           / "241_adr575_file_versions_replica_identity_full.sql")
+_mig241_src = _mig241.read_text(encoding="utf-8") if _mig241.exists() else ""
+# SQL comments stripped before asserting: the first spelling required
+# "REPLICA IDENTITY FULL" anywhere in the file and PASSED its own
+# falsification — deleting the ALTER left the phrase in this migration's own
+# explanatory header. TENTH occurrence this arc of a check matching prose
+# instead of code.
+_mig241_code = re.sub(r"^\s*--.*$", "", _mig241_src, flags=re.MULTILINE)
+check("19n REPLICA IDENTITY FULL on the published table — Realtime evaluates "
+      "RLS against the row as reconstructed FROM THE WAL RECORD, which under "
+      "DEFAULT carries only the primary key. This table's policy keys on "
+      "`workspace_id`, which is NOT the PK, so it reads NULL there. Verified "
+      "live: relreplident = 'f'.",
+      re.search(r"ALTER TABLE public\.workspace_file_versions\s+REPLICA IDENTITY FULL",
+                _mig241_code) is not None
+      and "relreplident" in _mig241_code
+      and "RAISE EXCEPTION" in _mig241_code,
+      "migration 241 missing or does not verify replica identity")
+
 check("19k the migration REFUSES to publish if RLS is off. Publishing to a "
       "replication slot is the moment a disabled RLS flag stops being latent "
       "and starts broadcasting every workspace's revision feed. Falsified "

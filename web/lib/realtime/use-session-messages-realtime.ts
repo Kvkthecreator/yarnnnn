@@ -123,6 +123,24 @@ export function useSessionMessagesRealtime(
     const supabase = createClient();
     const channelName = `session-messages:${sessionId}`;
 
+    // ⭐ ADR-575 D7 — the socket needs the USER's token, not the anon apikey.
+    //
+    // Realtime re-checks RLS per subscriber using the JWT the SOCKET carries.
+    // This table's policy resolves `auth.uid()`, which is NULL for anon, so
+    // without `setAuth` the channel reports `"Subscribed to PostgreSQL"` and
+    // then silently delivers nothing. Found while driving the Text surface
+    // (ADR-575) — the same omission was latent HERE first, and this hook is
+    // where the pattern was copied from, so it is fixed at the source rather
+    // than only in the new tenant.
+    //
+    // Set BEFORE subscribing — see the file-revisions hook for why the race
+    // matters: the losing side is the silent one, and it resolves from cache
+    // locally while failing on a cold load.
+    void supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token;
+      if (token) supabase.realtime.setAuth(token);
+    });
+
     const channel = supabase
       .channel(channelName)
       .on(

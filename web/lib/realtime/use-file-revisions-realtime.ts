@@ -120,43 +120,76 @@ export function useFileRevisionsRealtime(
     // `/` and may contain characters a channel topic should not carry raw.
     const channelName = `file-revisions:${encodeURIComponent(path)}`;
 
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        'postgres_changes' as any,
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'workspace_file_versions',
-          // Server-side filter: this client is told about ONE file. Filtering
-          // in the callback instead would ship every workspace revision to
-          // every open editor and discard them locally.
-          filter: `path=eq.${path}`,
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (payload: any) => {
-          try {
-            const row = payload?.new as FileRevisionRow | undefined;
-            if (!row?.id) return;
-            if (isOwnRef.current?.(row)) return; // the member's own echo
-            onForeignRef.current(row);
-          } catch (err) {
-            onErrorRef.current?.(err);
-          }
-        },
-      )
-      .subscribe((status: string, err?: Error) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          onErrorRef.current?.(err ?? new Error(`channel status: ${status}`));
-        }
-      });
+    // ⭐ ADR-575 D7 — HAND THE SOCKET THE USER'S TOKEN.
+    //
+    // Realtime re-checks this table's RLS per subscriber, and it does so using
+    // the JWT the SOCKET carries — not the one the REST calls carry. Without
+    // `setAuth` the socket connects with the anon apikey, `auth.uid()` is NULL
+    // inside the policy, `workspace_id IN (owned ∪ granted)` matches nothing,
+    // and every row is dropped **silently**: the channel still reports
+    // `"Subscribed to PostgreSQL"` with the correct filter and simply never
+    // delivers.
+    //
+    // Measured on production before this line existed: the `phx_join` frame
+    // carried no `access_token`, a peer write landed as a real revision row,
+    // and the client received only Phoenix heartbeats.
+    //
+    // `setAuth` MUST land before `subscribe()`, so the whole join is sequenced
+    // behind the session read. Calling it fire-and-forget beside the join is a
+    // race whose losing side is the silent one — it would work locally, where
+    // the session resolves from cache, and fail on a cold load.
+    let cancelled = false;
+    let channel: RealtimeChannel | null = null;
 
-    channelRef.current = channel;
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (token) supabase.realtime.setAuth(token);
+      } catch (err) {
+        onErrorRef.current?.(err);
+      }
+      if (cancelled) return;
+
+      channel = supabase
+        .channel(channelName)
+        .on(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          'postgres_changes' as any,
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'workspace_file_versions',
+            // Server-side filter: this client is told about ONE file. Filtering
+            // in the callback instead would ship every workspace revision to
+            // every open editor and discard them locally.
+            filter: `path=eq.${path}`,
+          },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (payload: any) => {
+            try {
+              const row = payload?.new as FileRevisionRow | undefined;
+              if (!row?.id) return;
+              if (isOwnRef.current?.(row)) return; // the member's own echo
+              onForeignRef.current(row);
+            } catch (err) {
+              onErrorRef.current?.(err);
+            }
+          },
+        )
+        .subscribe((status: string, err?: Error) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            onErrorRef.current?.(err ?? new Error(`channel status: ${status}`));
+          }
+        });
+
+      channelRef.current = channel;
+    })();
 
     return () => {
+      cancelled = true;
       try {
-        channel.unsubscribe();
+        channel?.unsubscribe();
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn('[useFileRevisionsRealtime] cleanup failed:', err);
