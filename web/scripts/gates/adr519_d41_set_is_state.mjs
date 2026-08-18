@@ -86,7 +86,12 @@ t('selection stays a single subject (no ids array grew on it)',
     ['the path row', /\{!multiObject && pathRow\}/],
     ['the verb row', /\{!multiObject && \(\s*\n\s*<VerbRow/],
     ['Position', /\{!multiObject && !!selectedEl\?\.closest\('\.slide'\)/],
-    ['Layout', /\{!multiObject && \(nonColorTokens\.length/],
+    // Re-pinned 2026-08-18: this required the OPEN PAREN of the old two-clause
+    // guard `(nonColorTokens.length > 0 || sizeMeasures.length > 0)`. When the
+    // block W/H mount was withdrawn the guard lost its second clause — and its
+    // parenthesis — so a check about WITHDRAWING OVER A SET failed over
+    // punctuation while `!multiObject &&` was untouched. Pin the withdrawal.
+    ['Layout', /\{!multiObject && \(?nonColorTokens\.length/],
     ['the typography ramp', /\{!multiObject && rampSection\}/],
     ['Turn into', /\{!multiObject && turnIntoSection\}/],
     ['the colour swatches', /!multiBlockRange && !multiObject && colorTokens\.length/],

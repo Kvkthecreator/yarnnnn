@@ -204,12 +204,22 @@ _check("ADR-520 D3: X/Y entry rides MeasureField through onSetMeasure",
 # ── Singular implementation (no duplicate mounts after the moves) ──────────
 _check("ONE Position section (the tail mount is deleted, not shadowed)",
        object_r.count(">Position</p>") == 1 and tab.count(">Position</p>") == 1)
-# ADR-520 D2 re-cut: the size fields mount at BOTH sizing grains (block Layout
-# + staged-container Layout) — exactly two, and never a third Size section.
-_check("size fields at exactly the two sizing grains; no Size section revival",
-       tab.count("sizeMeasures.map") == 2 and ">Size</p>" not in tab
+# ADR-520 D2 re-cut: the size fields mounted at BOTH sizing grains (block
+# Layout + staged-container Layout) — exactly two, never a third Size section.
+#
+# AMENDED 2026-08-18 (operator): the BLOCK mount is withdrawn from the pane
+# while the Layout section's shape is decided. This is NOT a loosened check —
+# the count is re-pinned DOWN, to one, so a silent re-appearance still fails.
+# The container keeps its pair; `sizeMeasures` stays derived and the ops stay
+# reachable, so restoring is re-adding the mount.
+#
+# The two claims this check has always really made both survive: the fields
+# never mount more than once per grain, and the deleted "Size" section never
+# comes back as a third home for them.
+_check("size fields at the container grain only (block mount withdrawn); no Size revival",
+       tab.count("sizeMeasures.map") == 1 and ">Size</p>" not in tab
        and container_r.count("sizeMeasures.map") == 1
-       and object_r.count("sizeMeasures.map") == 1)
+       and object_r.count("sizeMeasures.map") == 0)
 _check("ONE Turn into mount (moved to Content, not copied)",
        tab.count(">Turn into</p>") == 1)
 _check("ONE media-picker mount (moved to container Content, not copied)",

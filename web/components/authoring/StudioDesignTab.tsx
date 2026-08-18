@@ -2961,7 +2961,7 @@ export function StudioDesignTab({
               unreachable. A guard behind a scope that cannot be entered is dead
               code that reads as live policy. Objects (a figure) keep the
               section: they ARE boxes. */}
-          {!multiObject && (nonColorTokens.length > 0 || sizeMeasures.length > 0) && (
+          {!multiObject && nonColorTokens.length > 0 && (
             <div className={SECTION}>
               <p className={HEADING}>Layout</p>
               {nonColorTokens.map((t) => (
@@ -2972,20 +2972,17 @@ export function StudioDesignTab({
                   onSet={(v) => onSetToken('block', t.key, v)}
                 />
               ))}
-              {/* ADR-520 D3 — W/H as editable fields (two-clamp; emptying
-                  the field is the Auto reset). The corner drag still works;
-                  this is its keyboard twin. */}
-              <MeasureRow>
-                {sizeMeasures.map((m) => (
-                  <MeasureField
-                    key={m.key}
-                    m={m}
-                    value={measureValue(m)}
-                    onCommit={(v) => onSetMeasure(m.key as 'w' | 'h', v)}
-                    onClear={() => onClearMeasure(m.key as 'w' | 'h')}
-                  />
-                ))}
-              </MeasureRow>
+              {/* THE BLOCK'S W/H FIELDS ARE WITHDRAWN (2026-08-18, operator).
+                  ADR-520 D3 mounted them as the corner drag's keyboard twin,
+                  and that reasoning is not withdrawn with them — the CONTAINER
+                  keeps its pair, and the canvas handles still size a block. It
+                  is this mount, at this grain, that the operator wants out of
+                  the pane while the Layout section's shape is decided.
+
+                  `sizeMeasures` stays DERIVED (the vocabulary still declares
+                  w/h at block grain, and `onSetMeasure`/`onClearMeasure` still
+                  reach it) — nothing upstream is torn out for a presentation
+                  call, so restoring is re-adding the mount. */}
             </div>
           )}
           {!multiObject && rampSection}
