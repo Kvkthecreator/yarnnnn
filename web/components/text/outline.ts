@@ -38,6 +38,12 @@ const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})/;
 const ATX_RE = /^ {0,3}(#{1,6})\s+(.*)$/;
 /** Setext underline: `===` (h1) or `---` (h2) under a non-blank line. */
 const SETEXT_RE = /^ {0,3}(=+|-+)\s*$/;
+/**
+ * A list item: `- `, `* `, `+ `, or `1. ` — INCLUDING an empty one (ADR-575
+ * D8.b). The trailing space is optional because `- ` with nothing after it is
+ * a real, empty list item, which is exactly the case that broke this.
+ */
+const LIST_ITEM_RE = /^ {0,3}([-*+]|\d{1,9}[.)])(\s|$)/;
 
 /**
  * Strip the inline markup a heading may carry so the outline row reads as
@@ -85,12 +91,27 @@ export function parseOutline(source: string): OutlineEntry[] {
     }
 
     // Setext: this line is the underline, the PREVIOUS one is the heading.
+    //
+    // ⭐ ADR-575 D8.b — a LIST is not a heading. Found by driving the canvas:
+    // pressing Enter at the end of a bulleted list leaves
+    //
+    //     - second item
+    //     - ⏎
+    //
+    // and `- ` matched SETEXT_RE, so the outline listed "- second item" as an
+    // H2 and the Properties pane counted two headings in a document with one.
+    // Measured against @lezer/markdown: the real parser sees THREE list items
+    // and ZERO headings there.
+    //
+    // Both sides of the pair are guarded, because either alone is wrong:
+    //   - an underline may not itself be a list item (`- ` continuing a list)
+    //   - a heading may not be a list item (a bullet is not a title)
     const setext = SETEXT_RE.exec(line);
-    if (setext && i > 0) {
+    if (setext && i > 0 && !LIST_ITEM_RE.test(line)) {
       const prev = lines[i - 1];
       // Must follow a real paragraph line, and `---` after a blank line is a
       // thematic break, not a heading.
-      if (prev.trim() && !ATX_RE.test(prev) && !FENCE_RE.test(prev)) {
+      if (prev.trim() && !ATX_RE.test(prev) && !FENCE_RE.test(prev) && !LIST_ITEM_RE.test(prev)) {
         const text = plain(prev);
         if (text) out.push({ line: i - 1, level: setext[1][0] === '=' ? 1 : 2, text });
       }

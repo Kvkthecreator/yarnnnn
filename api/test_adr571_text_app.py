@@ -2374,6 +2374,60 @@ check("20g ⭐ the rule uses BORDER LONGHANDS, not the `borderTop` shorthand. "
       and "borderTop:" not in _rule_block.group(1),
       f"rule block: {_rule_block.group(1).strip()[:160] if _rule_block else 'absent'!r}")
 
+_D20B_PROBE = r"""
+const fs = require('fs');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+const load = (rel) => {
+  const js = transform(fs.readFileSync(WEB + rel, 'utf8'),
+    { transforms: ['typescript', 'imports'] }).code;
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require', js)(m, m.exports, () => ({}));
+  return m.exports;
+};
+const O = load('/components/text/outline.ts');
+const names = (src) => O.parseOutline(src).map((e) => e.level + ':' + e.text);
+console.log(JSON.stringify({
+  // The operator's case: Enter at the end of a list leaves `- ` behind it.
+  list_is_not_heading: JSON.stringify(names('# Title\n\n- a\n- b\n- \n')) === '["1:Title"]',
+  // A bare `-` (no trailing space) is still a list item, not an underline.
+  bare_dash_is_not_heading: names('# T\n\n- a\n-\n').length === 1,
+  // …while REAL setext headings still parse.
+  setext_h2_survives: JSON.stringify(names('My Section\n---\n')) === '["2:My Section"]',
+  setext_h1_survives: JSON.stringify(names('My Title\n===\n')) === '["1:My Title"]',
+  // `---` after a blank line is a thematic break, not a heading (unchanged).
+  rule_is_not_heading: names('para\n\n---\n').length === 0,
+}));
+"""
+
+try:
+    _d20b = json.loads(
+        subprocess.run(
+            ["node", "-e", _D20B_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _d20b = {"error": str(exc)[:300]}
+
+check("20h ⭐ A LIST IS NOT A HEADING. Found by driving the canvas: pressing "
+      "Enter at the end of a bulleted list leaves `- ` on its own line, which "
+      "matched the setext-underline regex — so the outline listed the item "
+      "above it as an H2 and Properties counted two headings in a "
+      "one-heading document. Measured against @lezer/markdown: the real parser "
+      "sees three LIST ITEMS and zero headings there. Both sides of the pair "
+      "are guarded — an underline may not be a list item, and a heading may "
+      "not be one either.",
+      _d20b.get("list_is_not_heading") is True
+      and _d20b.get("bare_dash_is_not_heading") is True, str(_d20b)[:300])
+check("20i …and REAL setext headings still parse. `---` is untouched by the "
+      "list guard, so `My Section\\n---` is still an H2 and a `---` after a "
+      "blank line is still a thematic break. A fix that silenced setext "
+      "entirely would have passed 20h and broken the feature.",
+      _d20b.get("setext_h2_survives") is True
+      and _d20b.get("setext_h1_survives") is True
+      and _d20b.get("rule_is_not_heading") is True, str(_d20b)[:300])
+
 check("20f the document is BYTE-IDENTICAL with every widget on screen — these "
       "are decorations, not content. Delete them and the `.md` is unchanged "
       "(the same test D13/D15 pass).",
