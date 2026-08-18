@@ -2358,6 +2358,22 @@ check("20e ⭐ THE OPERATOR'S CASE — an EMPTY list line (`- ` with nothing "
       "item indistinguishable from a blank line: press the button, watch the "
       "formatting 'disappear'.",
       _d20.get("empty_list_line_shows_bullet") is True, str(_d20)[:400])
+_canvas_src = (WEB / "components" / "text" / "ProseCanvas.tsx").read_text(encoding="utf-8")
+_canvas_nc = _strip_comments(_canvas_src)
+_rule_block = re.search(r"'\.cm-mdRule':\s*\{(.*?)\}", _canvas_nc, re.S)
+check("20g ⭐ the rule uses BORDER LONGHANDS, not the `borderTop` shorthand. "
+      "Driven after the first cut shipped: the divider rendered with "
+      "`borderTopWidth: 0px` and was INVISIBLE — a blank gap where a rule "
+      "should be, which is worse than the literal `---` it replaced. "
+      "CodeMirror's theme compiler did not carry the shorthand through; "
+      "`.cm-cursor` in this same theme already uses longhands for this reason. "
+      "A shorthand here fails SILENTLY — it renders, it just renders nothing.",
+      _rule_block is not None
+      and "borderTopWidth" in _rule_block.group(1)
+      and "borderTopStyle" in _rule_block.group(1)
+      and "borderTop:" not in _rule_block.group(1),
+      f"rule block: {_rule_block.group(1).strip()[:160] if _rule_block else 'absent'!r}")
+
 check("20f the document is BYTE-IDENTICAL with every widget on screen — these "
       "are decorations, not content. Delete them and the `.md` is unchanged "
       "(the same test D13/D15 pass).",

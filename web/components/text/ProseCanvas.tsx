@@ -180,11 +180,18 @@ const PROSE_THEME = EditorView.theme({
   // occupies the replaced range without becoming a block decoration — a block
   // widget from this plugin would throw ("Block decorations may not be
   // specified via plugins", the D15 lesson).
+  // ⭐ LONGHANDS, not the `borderTop` shorthand. Driven after the first cut:
+  // the rule rendered with `borderTopWidth: 0px` and was invisible — a blank
+  // gap where a divider should be, which is worse than the literal `---` it
+  // replaced. CodeMirror's theme compiler did not carry the shorthand through;
+  // `.cm-cursor` in this same theme already uses longhands for exactly this.
   '.cm-mdRule': {
     display: 'inline-block',
     width: '100%',
     verticalAlign: 'middle',
-    borderTop: '1px solid var(--border, rgba(128,128,128,0.35))',
+    borderTopStyle: 'solid',
+    borderTopWidth: '1px',
+    borderTopColor: 'var(--border, rgba(128,128,128,0.35))',
   },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-selectionBackground, ::selection': { backgroundColor: 'rgba(120,150,255,0.22)' },
