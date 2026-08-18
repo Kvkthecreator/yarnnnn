@@ -14,6 +14,7 @@ past import checks, type checks, and every existing gate:
      broken at 37426c5. Every call raised TypeError into a bare `except` and
      failed open to `escalate` — the cheap tier never ran once.
   2. `repurpose` read `response.text` off a `-> str`. A REGISTERED primitive.
+     (The module itself was deleted by ADR-579 D9; the lesson stands.)
   3. `routes/images.py` let a client name any engine into `route_completion`
      with no LANE_MODELS check and no billing gate.
 
@@ -119,7 +120,6 @@ MIGRATED = [
     "services/context_inference.py",
     "services/recurrence_prompt_inference.py",
     "services/primitives/web_search.py",
-    "services/primitives/repurpose.py",
     "services/primitives/dispatch_specialist.py",
     "services/memory.py",
     "services/session_continuity.py",

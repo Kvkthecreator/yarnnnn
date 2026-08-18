@@ -97,7 +97,7 @@ def test_consequential_default_is_fail_closed():
     for name in ("WriteFile", "Schedule",
                  "ManageHook", "ManageAgent", "ManageDomains", "ProposeAction",
                  "ExecuteProposal", "FireInvocation",
-                 "Compose", "RepurposeOutput", "EditEntity",
+                 "Compose", "EditEntity",
                  "SyncPlatformState", "__nonexistent_primitive__"):
         assert not is_read_only(name), (
             f"{name} must be treated as consequential (fail-closed) per ADR-307 D2"

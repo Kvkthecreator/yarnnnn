@@ -121,7 +121,6 @@ _OWNER_RESOLVED_MODULES = {
     "services/primitives/scaffold.py",
     "services/primitives/search.py",
     "services/primitives/embed.py",
-    "services/primitives/repurpose.py",
     # Hat-B developer toolchain — never serves a real operator (CLAUDE.md).
     "services/operator_proxy/scenarios.py",
     "services/operator_proxy/capture.py",

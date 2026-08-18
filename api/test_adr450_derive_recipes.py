@@ -5,7 +5,7 @@ Structural gate, pure-Python (no DB). Run directly:
 `python test_adr450_derive_recipes.py` (the ADR-415 lesson — __main__, not pytest).
 
 Asserts:
-  1. The registry: exactly the three v1 recipes (context-brief · design-system
+  1. The registry: the ratified recipes (design-system
      · prd), each with the D2 row shape and non-trivial SKILL.md-grade
      instructions.
   2. The chooser payload (list_recipes) is light — slug/label/description/
@@ -49,8 +49,8 @@ def run() -> int:
 
     # ── 1. the registry ───────────────────────────────────────────────────
     passed &= _check(
-        "the v1 recipes (ADR-452 added deck)",
-        set(DERIVE_RECIPES.keys()) == {"context-brief", "design-system", "prd", "deck"},
+        "the ratified recipes (ADR-452 added deck; ADR-579 D9 deleted context-brief)",
+        set(DERIVE_RECIPES.keys()) == {"design-system", "prd", "deck"},
         detail=str(sorted(DERIVE_RECIPES.keys())),
     )
     for slug, r in DERIVE_RECIPES.items():

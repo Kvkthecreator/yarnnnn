@@ -112,11 +112,6 @@ SYSTEM_CALLS: dict[str, SystemCall] = {
             "The model arbitrates the search loop; it does not author."
         ),
     ),
-    "repurpose": SystemCall(
-        model="anthropic/claude-haiku-4-5",
-        tier=TIER_CHEAP,
-        reason="Reformatting authored output to a channel shape — form, not content.",
-    ),
     "identity_inference": SystemCall(
         model="anthropic/claude-sonnet-5",
         tier=TIER_STANDARD,

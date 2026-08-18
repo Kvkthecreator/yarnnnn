@@ -1,6 +1,7 @@
 # ADR-185: Distribution Derivatives — Rich Post-Pipeline Repackaging
 
-> **Status**: Proposed
+> **Status**: **CLOSED — refused** (2026-08-18, [ADR-579](ADR-579-three-verbs-that-write-one-act-that-doesnt.md) D9). Never implemented in the FE; the `RepurposeOutput` primitive it extended is deleted. Repurposing survives as a lane judgment act producing a NEW cited artifact (ADR-579 D8), never a post-pipeline repackaging pass (ADR-333 D5).
+> **Original status**: Proposed
 > **Date**: 2026-04-15
 > **Related**: ADR-148 (Output Artifact Architecture — RepurposeOutput primitive), ADR-170 (Compose Substrate — section kinds, surface types), ADR-177 (Section Kind Rendering — compose pipeline), ADR-174 (CONVENTIONS.md — workspace-wide rules), ADR-149 (Task Lifecycle — DELIVERABLE.md quality contract), ADR-181 (Feedback Layer — source-agnostic actuation), ADR-169 (MCP Context Hub — cross-LLM surface), ADR-182 (Pre-Gather — pipeline cost model)
 

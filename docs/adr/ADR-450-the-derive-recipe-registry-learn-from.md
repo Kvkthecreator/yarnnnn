@@ -4,6 +4,7 @@
 highest-leverage wins while ensuring we can actually pull it off"). The operator-facing face of the
 ADR-448 derive step. Derivation: the [load-bearing-files note](../analysis/load-bearing-files-are-a-graph-fact-the-reference-edge-derive-step-and-design-system-2026-07-12.md) §4
 + the 2026-07-12→13 session discourse (verb-not-workflow; contracts + recipes, not sub-processes).
+> **Registry amended by [ADR-579](ADR-579-three-verbs-that-write-one-act-that-doesnt.md) D9 (2026-08-18)**: `context-brief` DELETED — zero FE consumers since ratification (a registry row without a door); subsumed by ADR-579 D8's NEW-from-sources flow. The registry is `design-system` · `prd` · `deck`.
 > **D5 superseded same day by [ADR-452](ADR-452-the-studio-landing-learn-from-as-a-creation-path.md)**
 > (operator framing correction): Learn-from is a **creation act, not a file operation** — the Files
 > context-menu entrance was removed; the entrance is the **Studio landing** (+ a fourth `deck`

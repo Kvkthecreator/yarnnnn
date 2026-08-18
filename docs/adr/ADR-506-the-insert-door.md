@@ -258,6 +258,7 @@ In ADR-482 §10's shape — **the act completes**, not the affordance appears:
   (`content` / `data` / `media`) that the palette renders flat. If that grouping is worth
   surfacing, it belongs in `StudioSlashPalette` where **both** doors inherit it — not behind
   the button, which would give the typed gesture the worse list. Named, not taken.
+  **Taken by [ADR-579](ADR-579-three-verbs-that-write-one-act-that-doesnt.md) D4 (2026-08-18)**: both doors group the one list by provenance — Add (from the workspace, derived from `cites`) · New (thin air) — with the third group (with-the-colleague) arriving with ADR-579 D7.
 - **A `⌘K` shortcut.** `/` types at the caret and the button is now discoverable; a third door
   needs its own justification.
 - **The IMAGES stage's missing page-grain buttons.** `routes/studio.py` builds the served

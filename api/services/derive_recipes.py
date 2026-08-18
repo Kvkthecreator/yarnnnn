@@ -41,34 +41,6 @@ from typing import Optional
 #: carries no colleague and the cast answers (ADR-495), which is the correct
 #: default for anything not deliberately postured.
 DERIVE_RECIPES: dict[str, dict] = {
-    "context-brief": {
-        "label": "Context brief",
-        # The fast reader: "learn from this source" is an ACQUIRE operation.
-        "resident": "scout",
-        "description": "A reusable understanding of the source — what it is, what matters, what's open.",
-        "accepts": ["file"],
-        "target": "One markdown brief in a meaning-folder, citing the source.",
-        "instructions": """Produce a CONTEXT BRIEF — a derived understanding the workspace can
-reuse, not a copy of the source (the raw is already retained; your job is the
-understanding).
-
-Steps:
-1. Read the source fully before writing anything.
-2. Write ONE markdown file into the meaning-folder that fits the topic (an
-   existing peer folder if one matches; otherwise a sensibly named new one, or
-   the Documents home). Name it after the subject, not the source file.
-3. Shape: a one-paragraph "What this is" · key facts and figures (verbatim
-   where precision matters) · the entities/people/systems involved · decisions
-   or claims the source makes · open questions / gaps you noticed.
-
-Quality bar:
-- Under ~150 lines. Selective beats complete — drop what a reader wouldn't act on.
-- Every load-bearing claim traceable to the source; never invent specifics.
-- Write for a colleague who will NOT read the source.
-
-Anti-patterns: wholesale copying; summarizing the document's structure instead
-of its content ("section 2 discusses…"); vague abstraction with no facts.""",
-    },
     "design-system": {
         "label": "Design system",
         # Also the fast reader — deriving a system from a source is reading it

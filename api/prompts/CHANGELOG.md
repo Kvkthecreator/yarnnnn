@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.18.1] - RepurposeOutput deleted (ADR-579 D9)
+
+### Changed
+- `services/primitives/repurpose.py`: DELETED — the primitive was broken
+  (`NameError` on `tw` after the paid LLM call), had zero FE consumers since
+  ADR-185 (closed refused), and is doctrinally refused by ADR-333 D5 (a second
+  production pass over finished content). Registry import, `CHAT_PRIMITIVES`
+  entry, and dispatch row removed; the `repurpose` system-call row and the
+  `/recurrences/{slug}/repurpose` route deleted with it.
+- `agents/cockpit_awareness.py`: the not-in-your-surface roster no longer
+  names RepurposeOutput (it no longer exists to withhold).
+- Expected behavior: the chat model can no longer call a primitive that
+  crashed after spending; no live surface loses anything (zero callers).
+  Repurposing re-enters later as ADR-579 D8's NEW-from-sources lane act.
+
 ## [2026.08.15.1] - The Text app's job overlay (ADR-571)
 
 ### Changed

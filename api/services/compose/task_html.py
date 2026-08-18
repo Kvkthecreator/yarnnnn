@@ -18,7 +18,6 @@ Callers:
   - api/routes/recurrences.py: report export (artifact_kind="report")
   - api/routes/authored.py: authored-piece composition (artifact_kind="authored")
   - api/services/delivery.py: email body composition
-  - api/services/primitives/repurpose.py: format conversion
   (No eager session-close caller — ADR-333 D2 retired the push.)
 
 ADR-417: content-addressed caching (ADR-213) went with the render service. The

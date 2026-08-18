@@ -24,7 +24,6 @@ Endpoints:
 - GET  /recurrences/{slug}/outputs/latest        latest output
 - GET  /recurrences/{slug}/outputs/{date_folder} specific dated output
 - GET  /recurrences/{slug}/export                export latest output
-- POST /recurrences/{slug}/repurpose             repurpose latest output
 """
 
 from __future__ import annotations
@@ -589,7 +588,7 @@ async def get_recurrence_output_by_date(
 
 
 # =============================================================================
-# Export + Repurpose
+# Export
 # =============================================================================
 
 
@@ -609,18 +608,3 @@ async def export_recurrence_output(
         detail="File export (PDF/XLSX) was retired (ADR-417). View the composed "
                "report in-app, or share via Slack/Notion.",
     )
-
-
-@router.post("/{slug}/repurpose")
-async def repurpose_recurrence_output(
-    slug: str,
-    payload: dict,
-    auth: UserClient,
-) -> dict:
-    """Repurpose latest output to a different target format."""
-    from services.primitives.repurpose import handle_repurpose
-    return await handle_repurpose(auth, {
-        "task_slug": slug,
-        "target": payload.get("target"),
-        "output_date": payload.get("output_date"),
-    })

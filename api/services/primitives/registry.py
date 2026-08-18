@@ -108,7 +108,6 @@ from .track_web_sources import handle_track_web_sources
 # ADR-335 Crawl-B Increment B (enacts ADR-335 D4/D5): generic MCP-transport
 # standing-watch executor (the first binding reads a repo via GitHub MCP).
 from .track_foreign import handle_track_foreign
-from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
     EXECUTE_PROPOSAL_TOOL, handle_execute_proposal,
@@ -327,8 +326,6 @@ CHAT_PRIMITIVES = [
     # Operator/Reviewer/specialist may direct mid-session composition.
     # Also runs as opt-out structural default at session-close (separate hook).
     COMPOSE_TOOL,
-    # Repurpose (ADR-148 Phase 4)
-    REPURPOSE_OUTPUT_TOOL,
     # Approval loop (3) — ADR-193
     PROPOSE_ACTION_TOOL,
     EXECUTE_PROPOSAL_TOOL,
@@ -419,7 +416,6 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 # requested via Clarify, surfaced as concern in reasoning, or escalated):
 #   - Restructure the operation: ManageDomains, ManageAgent (create/update/archive),
 #     InferContext, InferWorkspace
-#   - Repurpose deliverables: RepurposeOutput
 #   - Bind execution downstream of someone else's verdict: ExecuteProposal, RejectProposal
 #     (the dispatcher executes ExecuteProposal/RejectProposal on Reviewer's verdict —
 #      Reviewer doesn't call them itself)
@@ -629,7 +625,6 @@ HANDLERS: dict[str, Callable] = {
     "Embed": handle_embed,
     "DiscoverAgents": handle_discover_agents,
     "ReadAgentFile": handle_read_agent_file,
-    "RepurposeOutput": handle_repurpose_output,
     # ADR-193: Approval loop
     "ProposeAction": handle_propose_action,
     "ExecuteProposal": handle_execute_proposal,
