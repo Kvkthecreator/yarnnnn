@@ -89,14 +89,16 @@ _check(
     "Write with AI" not in menu,
 )
 _check(
-    "Update and Ask section headers render",
-    ">\n            Update\n          </div>" in menu
-    and ">\n            Ask\n          </div>" in menu,
+    "Update and Ask are the menu's verb TIERS (two-tier, expandable)",
+    '<span className="truncate">Update</span>' in menu
+    and '<span className="truncate">Ask</span>' in menu
+    and "setUpdateOpen" in menu
+    and "setAskOpen" in menu,
 )
 # Structural order: Rewrite (Update's colleague row) must come BEFORE the Ask
-# header; Check/Ask must come AFTER it — Check writes nothing and may not sit
-# in a write section.
-ask_at = menu.index(">\n            Ask\n          </div>")
+# tier opens; Check/Ask must come AFTER it — Check writes nothing and may not
+# sit in a write tier.
+ask_at = menu.index("{askOpen && (")
 # Anchor on the WIRED handlers, not the labels — a label also appears in the
 # file's own doc comments, and an assertion matching a comment is the recorded
 # failure class this suite exists to avoid.

@@ -32,6 +32,8 @@ import { BlockRow, groupBlockRows } from './blockRows';
 
 interface StudioSlashPaletteProps {
   vocabulary: StudioVocabulary | null;
+  /** ADR-579 D6 — a toolbar verb door filters to its group; null = full list. */
+  verb?: 'add' | 'new' | null;
   /** The run typed after the '/', mirrored from the in-document caret. */
   filter: string;
   /** Anchor within the canvas wrapper (already clamped by the surface). */
@@ -50,6 +52,7 @@ interface StudioSlashPaletteProps {
 
 export function StudioSlashPalette({
   vocabulary,
+  verb = null,
   filter,
   left,
   top,
@@ -73,8 +76,8 @@ export function StudioSlashPalette({
           (b) => b.label.toLowerCase().includes(q) || b.kind.toLowerCase().includes(q),
         )
       : all;
-    return groupBlockRows(matched);
-  }, [vocabulary, filter]);
+    return groupBlockRows(matched).filter((g) => !verb || g.key === verb);
+  }, [vocabulary, filter, verb]);
   const items = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
   useEffect(() => {

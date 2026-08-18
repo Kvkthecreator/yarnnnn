@@ -1,6 +1,6 @@
 # ADR-579 — Three verbs that write, one act that doesn't: ADD · NEW · UPDATE, and ASK
 
-> **Status**: **Accepted** (2026-08-18); D4/D5/D9 **Implemented** same day, D6–D8 phased.
+> **Status**: **Accepted** (2026-08-18); D4/D5/D9 **Implemented** same day; **D5.a/D6 Implemented same day** after the operator's click-pass follow-up (*"these also get replaced, swapped in full with the triad… while right click menu triad perhaps becomes 2 tier, nested"*); D7–D8 phased.
 > Operator-ratified through the insert-model discourse: *"the top buttons than gets
 > stremline towards ADD, NEW, UPDATE … that consistency applies to the center buttons,
 > right click, AND the chat pane"*, with full sequencing delegated: *"do the resolution in
@@ -128,17 +128,34 @@ now structural). The member-facing label "Insert block…" renames to **"New blo
 ADR-509's language — is unchanged: it names *placement*, which is still what the code
 does).
 
-### D6 — The toolbar triad (phase: next)
+**D5.a — two-tier (operator-ratified same day, implemented).** The flat sections became
+the menu's **top tier**: Update and Ask are expandable rows (the convert-submenu
+pattern), so the menu reads `New block… → plumbing → Update ▸ → Ask ▸ → This block` at
+a glance and expands on intent. Every wired handler is unchanged — a tier is chrome,
+never a second write path (ADR-462 D1). Move/Bring/Turn-into and their ADR-482/541
+withdrawal rules live inside the Update tier with conditions intact; the badge marks
+the colleague's paid rows exactly as before.
 
-The Studio toolbar re-cuts to the verb cluster: **[+ New]** (page grain: the New-‹noun›
-gallery; block grain: the palette's New group) · **[+ Add]** (the palette's Add group →
-citable picker at the resolved target) · **[Update]** (Re-arrange today; Apply design
-system when it earns a door). One door per verb, each opening the *same* underlying
-lists (the one-list rule holds; the door is chrome, the list is law). Deliberately
-phased behind a click-pass: three of ADR-505's four insert decisions were overturned
-the moment the operator used them — *"a judgement can only be falsified by the person
-the surface is for"* (ADR-572 D14). The current three buttons stay until the triad is
-driven on the real surface.
+### D6 — The toolbar triad — **Implemented** (operator-ratified in full, same day)
+
+The Studio toolbar re-cuts to the verb cluster **wholesale** — the operator's ruling:
+*"these also get replaced, swapped in full with the triad (thus, even new slide,
+re-arrange find their appropriate home under new discipline)."*
+
+- **[+ Add]** — no dropdown (Add has no page-grain member): opens the one grouped
+  palette filtered to the from-the-workspace group, at the resolved target (paged) or
+  the caret (flow).
+- **[+ New]** — on paged, a dropdown carrying BOTH grains: `Block…` (the palette's New
+  group at the resolved target) above the New-‹noun› arrangement gallery. On flow, the
+  direct block door (types the `/` — ADR-506 D1 preserved).
+- **[Update]** — Re-arrange re-homed under its verb; judgment, plan validation, and the
+  `Refining…` state unchanged (ADR-479, ADR-524 D4). Absent on flow (no page-grain
+  update exists there; block-grain Update lives in the right-click menu, at the target).
+
+The verb rides `onInsert(at, verb?)` → `openInsertMenu(x, y, verb)` /
+`pendingSlashVerb` → the palettes filter to the verb's group. **One list, one write
+path** under every door (the ADR-506 D3 rule holds — the filter is a view of the one
+grouping, never a second list). The standalone Insert button is deleted.
 
 ### D7 — The pane hosts structured turns, never a second surface (phase)
 

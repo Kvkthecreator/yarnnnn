@@ -206,10 +206,15 @@ interface StudioToolbarProps {
   mode: 'flow' | 'paged' | undefined;
   /** EXECUTE: open the block palette at the caret (ADR-506 D1). Universal and
    *  ungated — the SAME palette `/` opens, in every type, with no per-type
-   *  subsetting (ADR-505 D4). */
-  /** Carries the button's own rect so the paged menu can drop from it; the
-   *  flow door ignores the point and types the '/' at the caret. */
-  onInsert: (at: { x: number; y: number }) => void;
+   *  subsetting (ADR-505 D4). Carries the button's own rect so the paged menu
+   *  can drop from it; the flow door ignores the point and types the '/' at
+   *  the caret.
+   *
+   *  ADR-579 D6 — the optional VERB names which door pressed it: 'add' filters
+   *  the palette to the from-the-workspace group, 'new' to the thin-air group;
+   *  absent = the full grouped list (the right-click door). One list, one
+   *  write path underneath either way. */
+  onInsert: (at: { x: number; y: number }, verb?: 'add' | 'new') => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
   /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
@@ -344,38 +349,85 @@ export function StudioToolbar({
     // content occupies, because the content shrinks first.
     <div ref={rootRef} className="relative flex min-w-0 items-center gap-1 border-b border-border px-2 py-1.5">
       <div ref={menuRef} className="relative flex min-w-0 items-center gap-1">
-      {/* "Media ▾" is DELETED (ADR-466 D4) — its kinds live in the located
-          palette, which hosts the cited-file picker at the insertion point.
-          Insert is located with no exceptions; the toolbar keeps only the
-          PAGE-grain pair below (paged layouts — a flow artifact has no page
-          unit to offer). */}
-      {/* `+` not `▾`: New ADDS something (the OS teaches `+` as "insert"
-          everywhere else); Re-arrange picks among options, so it carries no +.
-          ADR-505 D4: the PAGE grain is this button's alone — the block grain is
-          `/` at the caret, and the gutter that used to offer a third route is
-          deleted. */}
-      {isPaged && arrangements.length > 0 && (
+      {/* ── THE VERB TRIAD (ADR-579 D6, operator-ratified in full) ─────────
+          [+ Add] · [+ New] · [Update] replace New-‹noun› / Re-arrange /
+          Insert WHOLESALE: the page-grain acts re-home under their verbs
+          (New ‹noun› inside New; Re-arrange inside Update) instead of
+          standing beside them as siblings. The verbs are constant; the
+          GRAIN lives inside each door (ADR-579 D2), so the member never
+          has to choose a grain before choosing an intent.
+          "Media ▾" stays DELETED (ADR-466 D4); the one-list rule holds —
+          each verb door opens the SAME grouped palette filtered to its
+          group, never a second list. */}
+
+      {/* ADD — it exists elsewhere; bring it here. No dropdown: Add has no
+          page-grain member (you cannot Add a slide from the workspace), so
+          the button IS the door — the palette's from-the-workspace group at
+          the resolved target (paged) or the caret (flow). */}
+      <button
+        type="button"
+        className={btn}
+        onClick={(e) => {
+          setOpen(null);
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          onInsert({ x: r.left, y: r.bottom + 4 }, 'add');
+        }}
+        title={
+          isPaged
+            ? 'Add from the workspace — into the selected slot, or this page'
+            : 'Add from the workspace — an image, or a table from a CSV'
+        }
+        aria-label={compact ? 'Add' : undefined}
+      >
+        <Plus className="h-3 w-3" />
+        {!compact && ' Add'}
+      </button>
+
+      {/* NEW — it doesn't exist; create it. On paged the dropdown carries
+          BOTH grains: Block… (the palette's thin-air group at the resolved
+          target) and the New-‹noun› arrangement gallery (page grain). On
+          flow there is no page unit, so the button is the block door
+          directly — it types the '/' the member could have typed
+          (ADR-506 D1). */}
+      {isPaged && arrangements.length > 0 ? (
         <button
           type="button"
           className={btn}
-          title={compact ? `New ${pageNoun}` : undefined}
-          aria-label={compact ? `New ${pageNoun}` : undefined}
+          title={compact ? 'New' : `A new block, or a new ${pageNoun}`}
+          aria-label={compact ? 'New' : undefined}
           onClick={() => setOpen(open === 'new' ? null : 'new')}
         >
           <LayoutGrid className="h-3 w-3" />
           {!compact && (
             <>
               {' '}
-              New {pageNoun} <Plus className="h-3 w-3" />
+              New <Plus className="h-3 w-3" />
             </>
           )}
         </button>
+      ) : (
+        <button
+          type="button"
+          className={btn}
+          onClick={(e) => {
+            setOpen(null);
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            onInsert({ x: r.left, y: r.bottom + 4 }, 'new');
+          }}
+          title="New block — the same palette / opens at the caret"
+          aria-label={compact ? 'New' : undefined}
+        >
+          <Plus className="h-3 w-3" />
+          {!compact && ' New'}
+        </button>
       )}
-      {/* Re-arrange — re-lay the CURRENT page (ADR-466 D5): the PowerPoint
-          pair, New slide beside it. Since 2026-07-21 this is the ONE mount —
-          the Properties page-scope gallery was deleted as a full duplicate;
-          the label follows the act ("Re-arrange"), not the noun ("Layout").
-          Needs an anchored page. */}
+
+      {/* UPDATE — it exists here; change it, at this door's grain: the page.
+          Re-arrange re-homes under its verb; the judgment, the plan
+          validation, and the Refining… state are unchanged (ADR-479,
+          ADR-524 D4). Absent on flow: a flow document has no page-grain
+          update to offer, and block-grain Update lives in the right-click
+          menu, where the target is. Needs an anchored page. */}
       {isPaged && arrangements.length > 0 && (
         <button
           type="button"
@@ -383,21 +435,18 @@ export function StudioToolbar({
           disabled={!hasPageAnchor || !!planning}
           title={
             hasPageAnchor
-              ? `Change this ${pageNoun}'s layout`
+              ? `Update this ${pageNoun} — re-arrange its layout`
               : `Select a ${pageNoun} first — click it on the canvas or in the strip`
           }
-          aria-label={compact ? 'Re-arrange' : undefined}
+          aria-label={compact ? 'Update' : undefined}
           onClick={() => setOpen(open === 'layout' ? null : 'layout')}
         >
           {/* ADR-524 D4: the page has ALREADY re-arranged mechanically by the
               time this shows — the judgment is refining that placement, not
-              producing the first one. "Refining…" says which of the two the
-              member is looking at; "Re-arranging…" would imply nothing had
-              happened yet, which is now false.
-              Compact keeps the SPINNING state legible without the word: the
-              glyph pulses, so "it is thinking" survives the label collapse. */}
+              producing the first one. Compact keeps the SPINNING state legible
+              without the word: the glyph pulses. */}
           <LayoutTemplate className={`h-3 w-3 ${compact && planning ? 'animate-pulse' : ''}`} />
-          {!compact && (planning ? 'Refining…' : 'Re-arrange')}
+          {!compact && (planning ? 'Refining…' : 'Update')}
         </button>
       )}
 
@@ -419,9 +468,28 @@ export function StudioToolbar({
           anchors every op and scopes the Design tab. Only its third display
           is gone. */}
 
-      {/* The New ‹slide|section› gallery — arrangement wireframes (D7.1). */}
+      {/* The NEW panel (ADR-579 D6): block grain first — the commoner act —
+          then the New-‹slide|section› arrangement gallery (D7.1). Two grains,
+          one verb, one door. */}
       {open === 'new' && (
         <div className={panel}>
+          <button
+            type="button"
+            onClick={(e) => {
+              setOpen(null);
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              onInsert({ x: r.left, y: r.bottom + 4 }, 'new');
+            }}
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] hover:bg-muted/30"
+          >
+            <Plus className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="truncate">
+              Block…{' '}
+              <span className="text-muted-foreground">
+                — into the selected slot, or this {pageNoun}
+              </span>
+            </span>
+          </button>
           <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             New {pageNoun}
           </p>
@@ -488,73 +556,10 @@ export function StudioToolbar({
         </div>
       )}
 
-      {/* ── INSERT (ADR-506 D1, re-placed by D4) ───────────────────────────
-          A DOOR to the one insert gesture, never a second mechanism: it asks
-          the runtime to type a '/' at a resolved caret, and everything after
-          that is the gesture the member could have typed (ADR-505 D4 — "/ is
-          deliberately universal and ungated"; ADR-466 D4 — "insert is located
-          with no exceptions").
-
-          UNGATED BY TYPE, deliberately. There is no `mode` test here and no
-          per-type kind subsetting behind it — that matrix is exactly what
-          ADR-505 D4 deleted, and re-introducing it would rebuild the hole
-          ADR-482 fell into. Every type gets the same button opening the same
-          palette; what DIFFERS per type is the page-grain pair BEFORE it,
-          which is the difference that is real.
-
-          Why it exists at all, given `/` already works: ADR-505 D4 deleted the
-          hover gutter on every mode, so `/` became the ONLY block-insert route
-          anywhere — discoverable only by already knowing it. ADR-482 §7 left
-          this button explicitly open ("revisit only if `/` proves insufficient
-          in use"); it did.
-
-          LAST IN THE LEFT CLUSTER, not centred on the row (ADR-506 D4). It
-          shipped absolutely-centred, reasoning that a laid-out button would
-          "drift" when the page-grain pair mounts. Rendered, that reasoning
-          inverted: absolute centring detaches the button from the controls it
-          belongs with, so on a document it floats alone in dead space and on a
-          deck it sits across a gap from Re-arrange — reading as unrelated
-          chrome rather than the third verb in one toolbar. The toolbar's verbs
-          are ONE cluster and a member scans them left-to-right; the ordering
-          that carries meaning is grain (page · page · block), not position on
-          the row. The mount-time shift is a one-time settle, which is what
-          every other button in this row already does.
-
-          Ordered AFTER the pair on purpose: New ‹noun› and Re-arrange are
-          PAGE-grain and mode-gated; Insert is BLOCK-grain and universal. On a
-          flow document the pair is absent and Insert is simply the first
-          button — the same cluster, one verb shorter. */}
-      <button
-        type="button"
-        className={btn}
-        onClick={(e) => {
-          // Insert now lives INSIDE `menuRef` — the click-away boundary — so a
-          // press on it no longer counts as "outside" and the open gallery
-          // would survive, leaving the palette to open underneath a stale
-          // panel. Moving into the cluster means inheriting the cluster's
-          // dismissal duty: close explicitly. (Centred-and-outside, this was
-          // free; that is the kind of cost a re-placement quietly carries.)
-          setOpen(null);
-          // The button's own rect anchors the paged menu, so it drops from the
-          // control the member just pressed. On flow the surface ignores the
-          // point and types the '/' at the caret instead (ADR-506 D1's door).
-          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          onInsert({ x: r.left, y: r.bottom + 4 });
-        }}
-        title={
-          isPaged
-            ? 'Insert a block — into the selected slot, or this page'
-            : 'Insert a block — the same palette / opens at the caret'
-        }
-        aria-label={compact ? 'Insert' : undefined}
-      >
-        <Plus className="h-3 w-3" />
-        {/* Insert keeps its label LONGEST if a future rung ever collapses these
-            one at a time: it is the block-grain verb, present in every mode,
-            while New/Re-arrange are page-grain and paged-only. Today the whole
-            cluster collapses together at one rung. */}
-        {!compact && ' Insert'}
-      </button>
+      {/* The standalone Insert button is DELETED (ADR-579 D6): its two
+          halves re-homed under the verb doors above — the from-the-workspace
+          kinds behind Add, the thin-air kinds behind New. The door history
+          (ADR-506 D1/D4, ADR-482 §7) lives with those buttons now. */}
 
       </div>
     </div>

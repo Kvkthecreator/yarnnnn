@@ -194,10 +194,10 @@ def main() -> bool:
         and "meter" not in menu.split("Turn into")[1].split("</div>")[0],
     )
     _check(
-        "the section headers name the VERB, never the mechanism (ADR-579 D3/D5)",
+        "the tiers name the VERB, never the mechanism (ADR-579 D3/D5, two-tier)",
         "Write with AI" not in menu
-        and ">\n            Update\n          </div>" in menu
-        and ">\n            Ask\n          </div>" in menu,
+        and '<span className="truncate">Update</span>' in menu
+        and '<span className="truncate">Ask</span>' in menu,
     )
 
     print("\n── D6: the AI verbs — a seed is a sentence not a button ──")

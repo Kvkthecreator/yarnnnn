@@ -38,6 +38,8 @@ import type { StudioVocabulary } from './StudioToolbar';
 
 interface StudioBlockInsertMenuProps {
   vocabulary: StudioVocabulary | null;
+  /** ADR-579 D6 — a toolbar verb door filters to its group; null = full list. */
+  verb?: 'add' | 'new' | null;
   /** Viewport point to anchor at (the toolbar button's rect, or the
    *  right-click point already mapped to the page by the canvas). */
   x: number;
@@ -50,6 +52,7 @@ interface StudioBlockInsertMenuProps {
 
 export function StudioBlockInsertMenu({
   vocabulary,
+  verb = null,
   x,
   y,
   targetLabel,
@@ -130,7 +133,7 @@ export function StudioBlockInsertMenu({
       {/* ADR-579 D4 — the same provenance grouping the flow palette renders
           (one grouping module, two mounts — the ADR-506 D3 one-list rule
           extended to the grouping, so the doors cannot drift apart). */}
-      {groupBlockRows(items).map((g) => (
+      {groupBlockRows(items).filter((g) => !verb || g.key === verb).map((g) => (
         <div key={g.key}>
           <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
             {g.label}

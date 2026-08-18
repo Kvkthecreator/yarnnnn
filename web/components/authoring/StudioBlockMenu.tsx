@@ -23,7 +23,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Copy, ClipboardPaste, CopyPlus, Plus, Trash2, Type,
-  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, Sparkles, SearchCheck, Link2, History,
+  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, PenLine, Sparkles, SearchCheck, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
 import { isConvertible, turnIntoTargets } from './StudioDesignTab';
@@ -146,6 +146,9 @@ export function StudioBlockMenu({
   onCopyLink, onHistory, onInsert, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
+  // ADR-579 D5 two-tier — the verb tiers (one open at a time).
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
   // SANDBOXED IFRAME, so a click on the artifact fires in the frame's own
   // document and these parent listeners never hear it. The canvas's point
@@ -332,125 +335,123 @@ export function StudioBlockMenu({
             </>
           )}
           {SEP}
-          {/* ADR-579 D5 — the UPDATE section: every row below changes the
-              block that already exists (convert · move · stack · rewrite).
-              The verb is the header; the seam inside it is WHO — the badge on
-              Rewrite marks the colleague's paid act (ADR-462 D4, unchanged).
-              Plumbing above stays unlabeled: every OS has it. */}
-          <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
-            Update
-          </div>
-          {/* ADR-479 D5 — Turn into, in one gesture. Shown only when the
-              conversion is LEGAL: a text kind, and never a citation (a figure
-              or table wears data-ref on its own root, and flattening it would
-              bake a live reference into prose — the op refuses, so the menu
-              must not offer). A row that offers what the op will refuse is the
-              same class of lie D4 deleted. */}
-          {turnIntoKinds.length > 0 && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setTurnOpen((v) => !v)}
-                className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
-              >
-                <span className="text-muted-foreground"><Type className={ICO} /></span>
-                <span className="truncate">Turn into</span>
-                <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
-              </button>
-              {turnOpen && (
-                <div className="mt-0.5 border-l-2 border-border/60 pl-1">
-                  {turnIntoKinds.map((b) => (
-                    <button
-                      key={b.key}
-                      type="button"
-                      onClick={() => run(() => onTurnInto(b.kind, b.label, b.fragment))}
-                      className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
-                    >
-                      <span className="truncate">{b.label}</span>
-                    </button>
-                  ))}
+          {/* ADR-579 D5, two-tier (operator-ratified): the verb rows ARE the
+              menu's top tier — Update and Ask expand inline (the same pattern
+              the convert submenu uses), so the flat menu stays short and the
+              triad reads at a glance. Every wired handler is unchanged: a
+              tier is chrome, never a second write path (ADR-462 D1). The seam
+              inside each verb is WHO — the badge marks the colleague's paid
+              acts (ADR-462 D4); plumbing above stays unlabeled. */}
+          <button
+            type="button"
+            onClick={() => { setUpdateOpen((v) => !v); setAskOpen(false); }}
+            className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+          >
+            <span className="text-muted-foreground"><PenLine className={ICO} /></span>
+            <span className="truncate">Update</span>
+            <ChevronRight
+              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${updateOpen ? 'rotate-90' : ''}`}
+            />
+          </button>
+          {updateOpen && (
+            <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+              {/* ADR-479 D5 — Turn into, in one gesture. Shown only when the
+                  conversion is LEGAL: a text kind, and never a citation (a
+                  figure or table wears data-ref on its own root, and
+                  flattening it would bake a live reference into prose — the
+                  op refuses, so the menu must not offer). */}
+              {turnIntoKinds.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setTurnOpen((v) => !v)}
+                    className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                  >
+                    <span className="text-muted-foreground"><Type className={ICO} /></span>
+                    <span className="truncate">Turn into</span>
+                    <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
+                  </button>
+                  {turnOpen && (
+                    <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+                      {turnIntoKinds.map((b) => (
+                        <button
+                          key={b.key}
+                          type="button"
+                          onClick={() => run(() => onTurnInto(b.kind, b.label, b.fragment))}
+                          className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                        >
+                          <span className="truncate">{b.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
+              {/* Move up/down is DOCUMENT order; Bring forward/backward is
+                  Z-ORDER on a POSITIONED block (ADR-471 D-d). PAGED only for
+                  reordering (ADR-482 D5 — on flow a block is an annotation,
+                  not an enclosure). ADR-541 D4: the single-subject rows
+                  withdraw over a set and SAY so once. */}
+              {inSet && (isPaged || target.positioned) && (
+                <p className="px-2 py-[5px] text-[10px] leading-snug text-muted-foreground">
+                  Move and stacking act on one block at a time ({setCount} selected).
+                </p>
+              )}
+              {isPaged && !inSet && (
+                <>
+                  <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
+                    Move up
+                  </Row>
+                  <Row icon={<ArrowDown className={ICO} />} onClick={() => run(onMoveDown)}>
+                    Move down
+                  </Row>
+                </>
+              )}
+              {target.positioned && !inSet && (
+                <>
+                  <Row icon={<ChevronsUp className={ICO} />} onClick={() => run(onBringForward)}>
+                    Bring forward
+                  </Row>
+                  <Row icon={<ChevronsDown className={ICO} />} onClick={() => run(onBringBackward)}>
+                    Bring backward
+                  </Row>
+                </>
+              )}
+              {/* D6: Rewrite SEEDS the composer and sends nothing — a head
+                  start on a sentence, not a button. Shorter/longer/sharper
+                  are things the member TYPES (no rewrites-with-adjectives). */}
+              <Row icon={<Sparkles className={ICO} />} onClick={() => run(onRewrite)} meter>
+                Rewrite…
+              </Row>
             </div>
           )}
-        </>
-      )}
-      {/* Re-arrange is GONE from this menu (ADR-479 D4). Every other row here
-          acts on the block you right-clicked; Re-arrange acts on the PAGE
-          containing it — a scope violation, and the reason the row was wired to
-          `menuOpenDesign` (which only switches tabs). The gallery it pointed at
-          was deleted 2026-07-21 as a duplicate of the toolbar's, so the row had
-          become a hint nothing listens for (the ADR-477 D10 defect). The
-          toolbar's page-scoped button is the one mount. */}
-      {/* Move up/down is DOCUMENT order and says so. Bring forward/backward is
-          Z-ORDER — the token arrived (ADR-471 D-d: composed visuals made
-          blocks overlap on purpose), so the frame-gated rows ADR-462 D3 scored
-          are finally honest: they appear only on a POSITIONED block (the
-          DOM-side gate travels in the target), and the op writes --yz. */}
-      {/* ADR-482 D5: PAGED only. Reordering is an enclosure verb — it moves a
-          block past its neighbours in a sequence of them. On flow the member
-          edits one continuous surface and moves text by selecting and typing,
-          the way every writing tool works; offering "move this block up" there
-          asks them to think in a unit ADR-480 D2 dissolved into an annotation.
-          The op survives (it is still reachable structurally); the menu simply
-          stops advertising it where it does not describe the medium. */}
-      {/* ADR-541 D4 — the single-subject rows withdraw over a set and SAY so
-          once: document order and z-order give a set no one answer, and a row
-          silently acting on one of N is the defect the audit named. */}
-      {hasBlock && inSet && (isPaged || target.positioned) && (
-        <p className="px-2 py-[5px] text-[10px] leading-snug text-muted-foreground">
-          Move and stacking act on one block at a time ({setCount} selected).
-        </p>
-      )}
-      {hasBlock && isPaged && !inSet && (
-        <>
-          <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
-            Move up
-          </Row>
-          <Row icon={<ArrowDown className={ICO} />} onClick={() => run(onMoveDown)}>
-            Move down
-          </Row>
-        </>
-      )}
-      {hasBlock && target.positioned && !inSet && (
-        <>
-          <Row icon={<ChevronsUp className={ICO} />} onClick={() => run(onBringForward)}>
-            Bring forward
-          </Row>
-          <Row icon={<ChevronsDown className={ICO} />} onClick={() => run(onBringBackward)}>
-            Bring backward
-          </Row>
-        </>
-      )}
-      {hasBlock && (
-        <>
-          {/* D6: Rewrite SEEDS the composer and sends nothing — the row is a
-              head start on a sentence, not a button. Shorter/longer/sharper
-              are things the member TYPES, which is why there is one row and
-              not three: `Make shorter` and `Expand this` were rewrites with a
-              pre-typed adjective. ADR-579 D5: it lives under Update — it
-              changes the block, with the colleague; the badge is the meter. */}
-          <Row icon={<Sparkles className={ICO} />} onClick={() => run(onRewrite)} meter>
-            Rewrite…
-          </Row>
-          {SEP}
-          {/* ADR-579 D5 — the ASK section: neither row lands a revision; both
-              produce an ANSWER in the pane, and neither belonged in a
-              write-named section (ADR-462 D4's own observation — the badge
-              means METERED, not MUTATING — now structural). The old
-              mechanism-named header is retired per ADR-579 D3: sections name
-              the verb, the badge carries the cost. */}
-          <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
-            Ask
-          </div>
-          <Row icon={<SearchCheck className={ICO} />} onClick={() => run(onCheck)} meter>
-            Check this…
-          </Row>
-          {/* The open question — the third distinct act (see the prop doc):
-              seeds the selection reference and flips to Chat. */}
-          <Row icon={<MessageSquare className={ICO} />} onClick={() => run(onAsk)} meter>
-            Ask about this…
-          </Row>
+          {/* ASK — neither row lands a revision; both produce an ANSWER in
+              the pane (the badge means METERED, not MUTATING — ADR-462 D4,
+              now structural). The old mechanism-named header is retired per
+              ADR-579 D3. */}
+          <button
+            type="button"
+            onClick={() => { setAskOpen((v) => !v); setUpdateOpen(false); }}
+            className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-amber-50 dark:hover:bg-amber-950/30"
+          >
+            <span className="text-amber-700 dark:text-amber-500"><MessageSquare className={ICO} /></span>
+            <span className="truncate">Ask</span>
+            <ChevronRight
+              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${askOpen ? 'rotate-90' : ''}`}
+            />
+          </button>
+          {askOpen && (
+            <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+              <Row icon={<SearchCheck className={ICO} />} onClick={() => run(onCheck)} meter>
+                Check this…
+              </Row>
+              {/* The open question — the third distinct act (see the prop
+                  doc): seeds the selection reference and flips to Chat. */}
+              <Row icon={<MessageSquare className={ICO} />} onClick={() => run(onAsk)} meter>
+                Ask about this…
+              </Row>
+            </div>
+          )}
           {SEP}
           <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
             This block

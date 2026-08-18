@@ -2361,6 +2361,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     top: number;
     filter: string;
     highlight: number;
+    /** ADR-579 D6 — a toolbar verb door on flow filters the palette to its
+     *  group; a typed '/' carries null and shows the full grouped list. */
+    verb: 'add' | 'new' | null;
   } | null>(null);
   // The LAST open run, mirrored into a ref. A pick must survive the close that
   // races it: the runtime's in-frame mousedown fires (capture phase) on the very
@@ -2407,7 +2410,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         top: Math.max(8, Math.min(rect.bottom + 6, maxTop)),
         filter: '',
         highlight: 0,
+        // ADR-579 D6 — consumed once: the verb rides only the open that the
+        // toolbar door invoked; the next typed '/' is unfiltered.
+        verb: pendingSlashVerb.current,
       });
+      pendingSlashVerb.current = null;
     },
     [],
   );
@@ -2448,6 +2455,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // (the slashTake pattern) so clicking Insert twice fires twice.
   const [slashInvoke, setSlashInvoke] = useState<{ nonce: number } | null>(null);
   const invokeNonce = useRef(0);
+  // ADR-579 D6 — the verb a toolbar door wants the NEXT slash-open to carry.
+  // A ref, not state: it is set and consumed inside one runtime round-trip.
+  const pendingSlashVerb = useRef<'add' | 'new' | null>(null);
   const invokeSlash = useCallback(() => {
     invokeNonce.current += 1;
     setSlashInvoke({ nonce: invokeNonce.current });
@@ -2570,6 +2580,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     slideIndex: number | null;
     pageIndex: number | null;
     label: string;
+    /** ADR-579 D6 — the verb door that opened this menu (null = full list). */
+    verb: 'add' | 'new' | null;
   } | null>(null);
 
   // Resolve where a paged insert lands, most specific first:
@@ -2621,7 +2633,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }, [selection, template, viewportPage]);
 
   const openInsertMenu = useCallback(
-    (x: number, y: number) => {
+    (x: number, y: number, verb?: 'add' | 'new') => {
       // A door that opens onto NOTHING is indistinguishable from a dead button.
       // The menu returns null on an empty roster (correctly — "a menu with no
       // acts is not a menu"), so when the roster is empty because the fetch
@@ -2630,7 +2642,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         setOpError('Insert is unavailable — the block list could not be loaded. Reload to retry.');
         return;
       }
-      setInsertMenu({ x, y, ...resolveInsertTarget() });
+      setInsertMenu({ x, y, verb: verb ?? null, ...resolveInsertTarget() });
     },
     [resolveInsertTarget, vocabularyError, vocabulary],
   );
@@ -2644,9 +2656,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // is still answering (the ADR-482 D3 lesson — chrome must not depend on an
   // async mode value to be CORRECT, only to be optimal).
   const onInsertPressed = useCallback(
-    (at: { x: number; y: number }) => {
-      if (resolvedMode === 'flow') { invokeSlash(); return; }
-      openInsertMenu(at.x, at.y);
+    (at: { x: number; y: number }, verb?: 'add' | 'new') => {
+      if (resolvedMode === 'flow') {
+        // The verb rides the runtime round-trip: the button types the '/',
+        // and the palette that opens is filtered to the verb's group
+        // (ADR-579 D6). A typed '/' never sets this.
+        pendingSlashVerb.current = verb ?? null;
+        invokeSlash();
+        return;
+      }
+      openInsertMenu(at.x, at.y, verb);
     },
     [resolvedMode, invokeSlash, openInsertMenu],
   );
@@ -3682,6 +3701,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               {slash && (
                 <StudioSlashPalette
                   vocabulary={vocabulary}
+                  verb={slash.verb}
                   filter={slash.filter}
                   left={slash.left}
                   top={slash.top}
@@ -3776,6 +3796,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               {insertMenu && (
                 <StudioBlockInsertMenu
                   vocabulary={vocabulary}
+                  verb={insertMenu.verb}
                   x={insertMenu.x}
                   y={insertMenu.y}
                   targetLabel={insertMenu.label}

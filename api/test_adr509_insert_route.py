@@ -72,10 +72,11 @@ def main() -> int:
     print("\n-- D2: paged has a mouse route, with TWO mounts --")
     _check("the native insert menu exists", (WEB / "components/authoring/StudioBlockInsertMenu.tsx").exists())
     _check(
-        "mount 1 — the toolbar Insert forks by medium in ONE place",
+        "mount 1 — the toolbar door forks by medium in ONE place (verb rides it, ADR-579 D6)",
         "const onInsertPressed" in SURFACE
-        and "if (resolvedMode === 'flow') { invokeSlash(); return; }" in SURFACE
-        and "openInsertMenu(at.x, at.y)" in SURFACE,
+        and "if (resolvedMode === 'flow') {" in SURFACE
+        and "pendingSlashVerb.current = verb ?? null;" in SURFACE
+        and "openInsertMenu(at.x, at.y, verb)" in SURFACE,
     )
     _check(
         "mount 2 — the right-click row opens the SAME menu at the click point",
