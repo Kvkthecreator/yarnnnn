@@ -25,6 +25,12 @@ const surface = readFileSync('web/components/authoring/StudioSurface.tsx', 'utf8
 const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
 const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf8');
 
+// Strip comments before any ABSENCE- or SHAPE-assertion: a check that greps
+// raw source can match the very prose written to explain the thing it forbids
+// (this arc's recurring gate defect). Block comments and // lines both go.
+const stripComments = (src) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
 let pass = 0,
   fail = 0;
 const t = (label, cond) => {
@@ -58,8 +64,24 @@ t('selection stays a single subject (no ids array grew on it)',
 {
   const oi = pane.indexOf("{scope === 'object' && (");
   const obj = pane.slice(oi);
-  t('the Identity heading names the COUNT over a set, never a stale label',
-    /multiObject\s*\n?\s*\?\s*`\$\{groupIds!\.length\} objects selected`/.test(obj));
+  // Re-pinned 2026-08-18: this pinned the TERNARY SHAPE
+  // (`multiObject ? \`${groupIds!.length} objects selected\``), so folding the
+  // single-subject label into the crumb read as a violation while the invariant
+  // it defends was untouched. Assert the INVARIANT: over a set, the heading
+  // renders the count — and the guard is `multiObject`, not some other branch.
+  // Strip comments first, or this matches the prose explaining itself.
+  {
+    const src = stripComments(obj);
+    // A WINDOW, not a brace match: the JSX here nests `{HEADING}` inside the
+    // branch, so any non-greedy `\{...\}` closes on the wrong brace and never
+    // reaches the count. Take the text FOLLOWING the multiObject guard and
+    // assert the count renders inside it, before the else-branch opens.
+    const i = src.indexOf('{multiObject ?');
+    const win = i >= 0 ? src.slice(i, i + 220) : '';
+    t('the Identity heading names the COUNT over a set, never a stale label',
+      /\$\{groupIds!\.length\} objects selected/.test(win)
+        && /className=\{HEADING\}/.test(win));
+  }
   for (const [what, re] of [
     ['the path row', /\{!multiObject && pathRow\}/],
     ['the verb row', /\{!multiObject && \(\s*\n\s*<VerbRow/],

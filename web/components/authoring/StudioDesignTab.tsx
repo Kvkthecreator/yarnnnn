@@ -624,7 +624,23 @@ function AppliedSystemCue({
  *  pattern, one tier over — the tier D3 declared "untouched" and did not examine.
  *  Reordering is an ENCLOSURE act: it presumes a sequence of boxes. A figure on
  *  flow is an object (it has a box) but it sits in continuous prose (there is no
- *  sequence to step through), so the medium decides this, not the tier. */
+ *  sequence to step through), so the medium decides this, not the tier.
+ *
+ *  ICON-ONLY, ONE LINE (2026-08-18). Four labelled buttons WRAPPED at the pane's
+ *  320px, so the row cost two lines whenever `reorder` was on — the identity
+ *  section ran four rows deep for what is one label and four verbs. The labels
+ *  move to `title`/`aria-label`, which is where a screen reader was already
+ *  reading them from.
+ *
+ *  WHAT STAYS ON THE ROW IS A FREQUENCY JUDGEMENT, not a symmetry one. Duplicate
+ *  and the two moves are the verbs a member repeats while shaping a block, so
+ *  they stay one click away. DELETE MOVES BEHIND THE `⋯`: it is the one verb
+ *  here that is not idempotent, and a bare unlabelled trash icon sitting beside
+ *  three benign ones is a mis-click that costs a block. Behind the menu it keeps
+ *  a WORD ("Delete"), which is the affordance that makes it safe to offer at
+ *  all — the FILE card's own grammar (ADR-572 D10), reused rather than reinvented.
+ *  The act stays revertible either way (it lands as a revision), but revertible
+ *  is not a licence to make it easy to do by accident. */
 function VerbRow({
   noun,
   onVerb,
@@ -634,36 +650,76 @@ function VerbRow({
   onVerb: (v: StructVerb) => void;
   reorder?: boolean;
 }) {
+  const [menu, setMenu] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  // Close on an outside press — the same dismissal the FILE card's menu uses.
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setMenu(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menu]);
   const btn =
-    'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
+    'inline-flex items-center justify-center rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
   return (
-    <div className="flex flex-wrap gap-1">
-      <button type="button" className={btn} onClick={() => onVerb('duplicate')}>
-        <Copy className="h-3 w-3" /> Duplicate
+    <div ref={wrapRef} className="relative flex items-center gap-1">
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onVerb('duplicate')}
+        title={`Duplicate this ${noun}`}
+        aria-label={`Duplicate this ${noun}`}
+      >
+        <Copy className="h-3.5 w-3.5" />
       </button>
       {reorder && (
         <>
-          <button type="button" className={btn} onClick={() => onVerb('up')} title={`Move ${noun} up`}>
-            <ArrowUp className="h-3 w-3" /> Up
+          <button
+            type="button"
+            className={btn}
+            onClick={() => onVerb('up')}
+            title={`Move ${noun} up`}
+            aria-label={`Move ${noun} up`}
+          >
+            <ArrowUp className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             className={btn}
             onClick={() => onVerb('down')}
             title={`Move ${noun} down`}
+            aria-label={`Move ${noun} down`}
           >
-            <ArrowDown className="h-3 w-3" /> Down
+            <ArrowDown className="h-3.5 w-3.5" />
           </button>
         </>
       )}
       <button
         type="button"
-        className={`${btn} hover:border-red-300 hover:text-red-600`}
-        onClick={() => onVerb('delete')}
-        title={`Delete this ${noun} (a revision — revertible)`}
+        className={btn}
+        onClick={() => setMenu((v) => !v)}
+        title="More actions"
+        aria-label="More actions"
       >
-        <Trash2 className="h-3 w-3" /> Delete
+        <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
+      {menu && (
+        <div className="absolute left-0 top-full z-30 mt-1 w-44 rounded-md border border-border bg-background p-1 shadow-md">
+          <button
+            type="button"
+            onClick={() => {
+              setMenu(false);
+              onVerb('delete');
+            }}
+            title={`Delete this ${noun} (a revision — revertible)`}
+            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-red-600"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2623,13 +2679,33 @@ export function StudioDesignTab({
                 member has selected: the same staleness `d878242` found on flow,
                 at the object tier. The count is the only honest label a set
                 has — a set carries no label, no box and no tier of its own. */}
-            <p className={HEADING}>
-              {multiObject
-                ? `${groupIds!.length} objects selected`
-                : (selection?.label ??
-                   (selection?.blockKind ? (labelMap[selection.blockKind] ?? selection.blockKind) : null) ??
-                   'block')}
-            </p>
+            {/* THE LABEL IS THE CRUMB'S LAST RUNG (2026-08-18). Both crumbs
+                below already END with this exact string — pathRow in green,
+                headingRow as its trailing span — so a heading above them said
+                the block's name twice and cost a line to do it. The crumb wins
+                because it says the same thing AND says where the block sits.
+
+                It survives on the MULTI-SELECT branch, which is not symmetry:
+                a set withdraws both crumbs (see below), so with the heading
+                gone too the section would open with no subject at all. "5
+                objects selected" is the only honest label a set has. */}
+            {multiObject ? (
+              <p className={HEADING}>{`${groupIds!.length} objects selected`}</p>
+            ) : (
+              // No crumb resolves here (a block on flow with no enclosing
+              // heading; a paged block whose page is unresolved) — so the
+              // label is the ONLY thing that would name the subject. Falling
+              // back to it keeps the section from opening anonymously.
+              !pathRow && !headingRow && (
+                <p className={HEADING}>
+                  {selection?.label ??
+                    (selection?.blockKind
+                      ? (labelMap[selection.blockKind] ?? selection.blockKind)
+                      : null) ??
+                    'block'}
+                </p>
+              )
+            )}
             {/* ADR-541 D4 — the same one notice at the object tier (see range). */}
             {multiObject && (
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
