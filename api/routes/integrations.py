@@ -353,81 +353,15 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
 
 
 # =============================================================================
-# Workspace credentials (ADR-566 D5) — what the workspace's AGENTS act through
-# IMPORTANT: Must be defined BEFORE /{provider} route to avoid path collision
+# ADR-577 D3 — the workspace-credentials route is DELETED.
+#
+# It served ADR-566 D5's pane: "what this workspace's AGENTS act through". The
+# store it read is withdrawn (ADR-577 D1) — it was unfillable (this route was
+# GET-only; no allocation door was ever built), mis-filled (migration 201's
+# owner-fill trigger stamps every human connect with a workspace_id), and so the
+# pane rendered the OWNER'S PERSONAL TOKENS as workspace agent credentials.
+# Do not reinstate without the whole of ADR-577 §7.
 # =============================================================================
-
-
-class WorkspaceCredentialResponse(BaseModel):
-    """One credential the WORKSPACE allocated to its agents (ADR-566 D3).
-
-    Deliberately NOT `IntegrationResponse`: that model describes a HUMAN's own
-    connector (ADR-425 D1) and the two stores must stay legibly distinct at the
-    wire too, or the panes that render them will drift back together — which is
-    the "two facts crammed into one row" shape ADR-425 §1 diagnosed.
-    """
-    id: str
-    provider: str
-    status: str
-    workspace_name: Optional[str] = None
-    connected_at: datetime
-
-
-class WorkspaceCredentialListResponse(BaseModel):
-    credentials: list[WorkspaceCredentialResponse]
-    #: Whether THIS viewer may allocate/revoke. Allocation is workspace
-    #: governance (ADR-491 D1's convention), so a member reads the pane and
-    #: an authorized principal acts on it.
-    can_manage: bool = False
-
-
-@router.get("/integrations/workspace-credentials")
-async def list_workspace_credentials(auth: UserClient) -> WorkspaceCredentialListResponse:
-    """The credentials this WORKSPACE has allocated to its agents (ADR-566 D5).
-
-    NOT the caller's own connectors — those are the account door's
-    (`GET /integrations`, ADR-425 D1). This reads the workspace-keyed store,
-    the one an `own-agent` principal acts through.
-
-    Read is member-visible (commons legibility, DP29): knowing what the
-    workspace's agents can reach is not privileged, and hiding it would make
-    an agent's capabilities unexplainable. MUTATION is authority-gated.
-    """
-    from services.platform_credentials import workspace_credential_filter
-    from services.principal_grants import has_billing_authority
-    from services.workspace_context import effective_workspace_id
-
-    ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
-    if not ws:
-        return WorkspaceCredentialListResponse(credentials=[], can_manage=False)
-
-    try:
-        result = (
-            auth.client.table("platform_connections")
-            .select("id, platform, status, metadata, created_at")
-            .eq(*workspace_credential_filter(ws))
-            .execute()
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.error("[INTEGRATIONS] workspace-credential list failed for %s: %s", ws[:8], e)
-        raise HTTPException(status_code=500, detail="Failed to list workspace credentials")
-
-    creds = [
-        WorkspaceCredentialResponse(
-            id=row["id"],
-            provider=row["platform"],
-            status=row["status"],
-            workspace_name=(row.get("metadata") or {}).get("workspace_name"),
-            connected_at=row["created_at"],
-        )
-        for row in (result.data or [])
-    ]
-    try:
-        can_manage = has_billing_authority(auth.user_id, ws)
-    except Exception:  # noqa: BLE001 — authority read degrades to read-only
-        can_manage = False
-    return WorkspaceCredentialListResponse(credentials=creds, can_manage=can_manage)
-
 
 # =============================================================================
 # Integration Summary (ADR-033: Dashboard Platform Cards)

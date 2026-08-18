@@ -1,39 +1,46 @@
 """Platform credential resolution — the single chokepoint (ADR-566 D4).
 
 WHY THIS MODULE EXISTS
-Before ADR-566 there was ONE credential store (`platform_connections` keyed
-`user_id`, ADR-425 D1) and EIGHT inline lookups spelling `.eq("user_id",
-auth.user_id)` across `services/platform_tools.py`. That was survivable with one
-store. ADR-566 adds a second — the WORKSPACE's own allocated credential, the
-one its agents act through — and eight independent call sites become eight
-independent opportunities to read the wrong store.
+There was ONE credential store (`platform_connections` keyed `user_id`,
+ADR-425 D1) and EIGHT inline lookups spelling `.eq("user_id", auth.user_id)`
+across `services/platform_tools.py` — eight independent opportunities to read
+the wrong row, or to forget the agent question entirely.
 
 That is the defect class ADR-563 closed for MCP scopes: the check belongs at the
 seam that already resolves identity, never at each call site, and it FAILS
-CLOSED. This module is that seam for credentials.
+CLOSED. This module is that seam for credentials. ADR-566 introduced a second
+store here; ADR-577 withdrew it (§ below). The seam is what had lasting value.
 
-THE TWO STORES (ADR-566 D2) — disjoint, never a fallback for each other:
+THE ONE STORE (ADR-577 D1) — a human's account credential, keyed `user_id`:
 
-    a human's connector        →  keyed user_id      →  the member acts, and
-                                                        their lane as their hands
-    the workspace's connector  →  keyed workspace_id →  an `own-agent` principal
-                                                        acts, gated by ADR-307
+    a human's connector  →  keyed user_id  →  the member acts, and their lane
+                                              as their hands
 
-⚠️ NO CROSS-STORE FALLBACK, EVER ⚠️
-An agent whose workspace credential is missing gets NOTHING — it does not
-silently fall through to the owner's personal token. That fallback IS the
-"reuse the owner's credential" branch ADR-566 D3 RETIRED, and it would arrive
-through an error path where nobody chose it. It is also the ADR-548 shape: a
-fallback degrading to a PLAUSIBLE value is worse than one that fails, because
-the plausible one ships and nobody sees it. `resolve_platform_credential`
-returns None and the caller reports "not connected".
+⚠️ AN AGENT GETS NOTHING, AND IS TOLD SO ⚠️
+An agent-shaped caller is REFUSED a credential here and logged at WARNING. It
+does not fall through to the owner's personal token. That fallback is the
+"reuse the owner's credential" branch ADR-425 D3 RETIRED and ADR-566 D2
+forbade — and until ADR-577 it was what production actually did, because the
+guard that forbade it keyed on a grant role (`own-agent`) that ZERO rows hold,
+behind a `workspace_id` that `HeadlessAuth` never carried. The refusal below
+keys on what the auth object ACTUALLY carries, so it is reachable.
+
+⚠️ THERE IS NO WORKSPACE CREDENTIAL STORE ⚠️
+ADR-566's second store is withdrawn (ADR-577 D1/D3): it was unfillable (no
+allocation route), mis-filled (migration 201's owner-fill trigger stamped every
+human connect into it), and unreadable (RLS is `user_id = auth.uid()`).
+`platform_connections.workspace_id` means ROUTING — which workspace a
+credential feeds (ADR-425 AD1) — never ownership. Do not re-read it as a store.
 
 ⚠️ THIS GRANTS NO AUTHORITY ⚠️
 Resolving a credential is REACH, not authority (ADR-566 D1). Every consequential
 act through one still passes the ADR-307 gate and waits on the witness dial
-(ADR-405 D2). An agent holding a workspace Slack credential can PROPOSE a Slack
-write; it cannot SEND one without the gate's approval. Nothing here is a
-bypass, and nothing here is a field on an agent row (ADR-460 D3.a — the cliff).
+(ADR-405 D2).
+
+⚠️ RE-ENTRY TEST (ADR-577 §7) ⚠️
+Before any future change may claim an agent acts through a workspace
+credential, it must exhibit a DRIVEN TRACE — a real auth object, through this
+resolver, returning the workspace row. Not a passing gate. Not a docstring.
 """
 
 from __future__ import annotations
@@ -43,63 +50,45 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-#: The principal classes that act through the WORKSPACE's allocated credential.
-#: `own-agent` is the live role programs already mint on activation
-#: (`services/programs.py::HIRE_GRANT_ROLE`) — not a new class, not a reserved
-#: enum. Every other principal reads its own account store or nothing.
-_WORKSPACE_CREDENTIAL_ROLES = frozenset({"own-agent"})
+#: Caller-identity prefixes that mark an AGENT-shaped caller (ADR-577 D1.a).
+#: These are what `HeadlessAuth` actually stamps (`registry.py`: "specialist:{role}")
+#: and what agent dispatch paths carry — as opposed to a member's lane, which
+#: stamps `member:{id} via {model}` (ADR-411 D4) and IS the member's hands.
+#:
+#: ⚠️ Keyed on the caller identity, deliberately, because that is the fact the
+#: auth object CARRIES. ADR-566 keyed the same question on a `principal_grants`
+#: role (`own-agent`) — the more principled fact — and the guard was therefore
+#: UNREACHABLE: zero rows hold that role, and `HeadlessAuth` carries no
+#: `workspace_id` to look one up with. A principled guard that never runs
+#: protects nothing. Re-key this on the grant ONLY together with a driven trace
+#: (ADR-577 §7).
+_AGENT_CALLER_PREFIXES = ("specialist:", "agent:")
 
 #: The columns a credential read needs. Kept here so the two store reads cannot
 #: drift apart in what they select (they are decrypted by the same manager).
 _CREDENTIAL_COLUMNS = "credentials_encrypted, metadata, status"
 
 
-def workspace_credential_filter(workspace_id: str) -> tuple:
-    """The (column, value) scope for the WORKSPACE's own credential store.
+def is_agent_caller(auth: Any) -> bool:
+    """Is this caller an AGENT acting on its own, rather than a human's hands?
 
-    The counterpart to `workspace_context.account_scope_filter`, and the reason
-    `platform_connections.workspace_id` exists: ADR-425 D3 retained the column
-    for exactly this case and ADR-566 D3 makes it load-bearing. Always
-    `("workspace_id", workspace_id)` — there is no user resolution, by design,
-    because the whole point is that this credential belongs to no human.
+    ADR-577 D1.a. True for headless agent dispatch (`HeadlessAuth`, which stamps
+    `caller_identity = "specialist:{role}"`). False for a member, and false for
+    a member's chat LANE — a lane stamps `member:{id} via {model}` and is the
+    member's hands, so it correctly reads that member's account store even
+    though an AI is driving it.
+
+    FAILS TOWARD REFUSAL for agents: an unreadable caller identity on a
+    `headless` auth is treated as an agent, because the cost of wrongly refusing
+    an agent (a tool reports "not connected") is far below the cost of wrongly
+    handing it a human's personal OAuth token.
     """
-    return ("workspace_id", workspace_id)
-
-
-def is_agent_principal(auth: Any) -> bool:
-    """Does this caller act through the WORKSPACE's credential, not a human's?
-
-    Reads the acting principal's GRANT ROLE — the same `principal_grants` fact
-    the ADR-307 gate consults, resolved through the same uniform abstraction
-    (`resolve_principal_id`, ADR-373 D2). `own-agent` is the workspace's own
-    hired agent (`programs.py::HIRE_GRANT_ROLE`, minted on activation);
-    everything else — owner, member, viewer, foreign-llm, a2a, platform — acts
-    as or through a human and reads the account store.
-
-    ⚠️ Deliberately the ROLE, never the `caller_identity` STRING. A lane stamps
-    `member:{id} via {model}` (ADR-411 D4) and IS the member's hands, so it must
-    resolve to the account store even though an AI is driving it. The grant is
-    the fact; the string is a label. Keying on the string would hand a chat lane
-    the workspace's credential, which is exactly the reach ADR-566 §7 refuses.
-
-    FAILS CLOSED: any resolution failure returns False (the account store), the
-    conservative answer — a human reading their own credential is always safe;
-    a wrongly-classified agent reading the workspace's is the thing to prevent.
-    """
-    try:
-        from services.principal_grants import _load_active_grant
-        from services.supabase import resolve_principal_id
-
-        principal_id = resolve_principal_id(auth)
-        workspace_id = (getattr(auth, "workspace_id", None) or "").strip()
-        if not principal_id or not workspace_id:
-            return False
-        grant = _load_active_grant(principal_id, workspace_id)
-        role = ((grant or {}).get("role") or "").strip()
-        return role in _WORKSPACE_CREDENTIAL_ROLES
-    except Exception as exc:  # noqa: BLE001 — classification degrades to human
-        logger.debug("[CREDENTIAL] principal classification failed: %s", exc)
-        return False
+    identity = (getattr(auth, "caller_identity", None) or "").strip().lower()
+    if identity.startswith(_AGENT_CALLER_PREFIXES):
+        return True
+    # A headless auth with no legible identity is agent-shaped by construction —
+    # only agent dispatch builds one (`registry.py::HeadlessAuth`).
+    return bool(getattr(auth, "headless", False)) and not identity.startswith("member:")
 
 
 def resolve_platform_credential(
@@ -107,9 +96,9 @@ def resolve_platform_credential(
 ) -> Optional[dict]:
     """The ONE path to a platform credential row. Returns None when there is none.
 
-    Selects the store from the acting principal ALONE (ADR-566 D4):
+    Selects from the acting principal ALONE (ADR-566 D4, as amended by ADR-577):
 
-      - an `own-agent` principal  → the workspace's allocated credential
+      - an AGENT caller           → None (REFUSED — no workspace store exists)
       - any human principal       → that human's account credential
       - an unrecognized principal → None (FAIL CLOSED)
 
@@ -118,34 +107,34 @@ def resolve_platform_credential(
     plaintext token. Never raises: a credential read that blows up must degrade
     to "not connected", never to a traceback on a member's turn.
 
-    ⚠️ The two stores NEVER fall back to each other (D3/D4). If you find
+    ⚠️ An agent NEVER falls through to a human's credential. If you find
     yourself wanting to add an `or` here, that is the retired owner-reuse branch
-    asking to come back through an error path.
+    asking to come back through an error path — and until ADR-577 it succeeded,
+    because the guard that forbade it could not run.
     """
     plat = (platform or "").strip()
     if not plat:
         return None
 
-    if is_agent_principal(auth):
-        ws = (workspace_id or getattr(auth, "workspace_id", None) or "").strip()
-        if not ws:
-            # An agent principal with no resolvable workspace has no credential
-            # to reach. Refusing beats guessing — the alternative is reading
-            # SOME human's store, which is the retired branch.
-            logger.warning(
-                "[CREDENTIAL] own-agent principal with no workspace — refusing "
-                "(no cross-store fallback, ADR-566 D4)"
-            )
-            return None
-        scope = workspace_credential_filter(ws)
-    else:
-        from services.workspace_context import account_scope_filter
+    if is_agent_caller(auth):
+        # ADR-577 D1.a — the refusal that ADR-566 D2 specified and could not
+        # reach. An agent has no credential of its own (the workspace store is
+        # withdrawn), and the owner's personal token is not a substitute.
+        logger.warning(
+            "[CREDENTIAL] agent caller (%s) requested %s — REFUSING; agents hold "
+            "no platform credential (ADR-577 D1). Not falling through to a "
+            "human's token.",
+            (getattr(auth, "caller_identity", None) or "unknown"), plat,
+        )
+        return None
 
-        user_id = (getattr(auth, "user_id", None) or "").strip()
-        if not user_id:
-            logger.warning("[CREDENTIAL] no acting principal — refusing (fail closed)")
-            return None
-        scope = account_scope_filter(user_id)
+    from services.workspace_context import account_scope_filter
+
+    user_id = (getattr(auth, "user_id", None) or "").strip()
+    if not user_id:
+        logger.warning("[CREDENTIAL] no acting principal — refusing (fail closed)")
+        return None
+    scope = account_scope_filter(user_id)
 
     try:
         res = (
@@ -178,18 +167,19 @@ def connected_platforms(auth: Any, *, workspace_id: Optional[str] = None) -> set
     Never raises: an enumeration failure degrades to "nothing connected", which
     withholds tools rather than offering ones that cannot run.
     """
-    if is_agent_principal(auth):
-        ws = (workspace_id or getattr(auth, "workspace_id", None) or "").strip()
-        if not ws:
-            return set()
-        scope = workspace_credential_filter(ws)
-    else:
-        from services.workspace_context import account_scope_filter
+    if is_agent_caller(auth):
+        # Agents hold no credential (ADR-577 D1), so they are offered no
+        # platform tool. This MUST agree with resolve_platform_credential above
+        # or an agent is offered a tool whose token it cannot reach — the
+        # ADR-467 §1 "capability that lies" shape.
+        return set()
 
-        user_id = (getattr(auth, "user_id", None) or "").strip()
-        if not user_id:
-            return set()
-        scope = account_scope_filter(user_id)
+    from services.workspace_context import account_scope_filter
+
+    user_id = (getattr(auth, "user_id", None) or "").strip()
+    if not user_id:
+        return set()
+    scope = account_scope_filter(user_id)
 
     try:
         res = (
@@ -214,12 +204,16 @@ def credential_missing_error(auth: Any, platform: str) -> dict:
     member connects in their own account door.
     """
     plat = (platform or "").strip() or "platform"
-    if is_agent_principal(auth):
+    if is_agent_caller(auth):
+        # Honest about WHY, and it does not send anyone to a pane that cannot
+        # fix it: no allocation surface exists (ADR-577 D3). Connecting the
+        # platform in a member's own account door would NOT grant this agent
+        # reach, so the message must not imply that it would.
         return {
             "success": False,
             "error": (
-                f"No {plat} credential is allocated to this workspace. "
-                "An owner can allocate one in Workspace Settings → Connectors."
+                f"Agents hold no {plat} credential. Platform reach for agents "
+                "is not available (ADR-577)."
             ),
         }
     return {

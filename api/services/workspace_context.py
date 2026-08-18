@@ -135,10 +135,11 @@ def account_scope_filter(user_id: str) -> tuple:
     workspace resolution, by design.
 
     ⚠️ ADR-566 — THIS IS NOW ONE OF TWO STORES, and they never fall back to each
-    other. The `workspace_id` column on `platform_connections` stopped being
-    "reserved for a future D3 connection": it is the WORKSPACE's own allocated
-    credential, the one its `own-agent` principals act through, read by
-    `platform_credentials.workspace_credential_filter`.
+    other. ⚠️ ADR-577 D2 CORRECTS the ADR-566 reading below: `workspace_id` on
+    `platform_connections` means ROUTING — which workspace a credential feeds
+    (ADR-425 AD1) — NOT ownership, and NOT a second credential store. The
+    workspace store is withdrawn; `workspace_credential_filter` is deleted.
+    Agents hold no platform credential (ADR-577 D1).
 
     **Do not reach for this helper to resolve a credential for an ACT.** Which
     store an act reads follows the acting principal, and that decision lives at
