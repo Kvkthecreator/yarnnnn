@@ -2217,6 +2217,34 @@ export const api = {
         { method: "POST", body: JSON.stringify({ name }) },
       ),
 
+    // ADR-578 — the delete LIFECYCLE (delete → restore → purge). Namespaced
+    // under /lifecycle/ because a bare /workspace/{id} route is a catch-all
+    // that shadows every literal /workspace/* sibling (DELETE /workspace/byok
+    // resolved to delete_workspace before this prefix existed).
+    deletePreview: (id: string) =>
+      request<{
+        workspace_id: string;
+        name: string;
+        is_last_owned: boolean;
+        other_principals: Array<{ principal_id: string; role: string }>;
+        deleted_at: string | null;
+      }>(`/api/workspace/lifecycle/${id}/preview`),
+    softDelete: (id: string) =>
+      request<{ workspace_id: string; name: string; deleted: boolean }>(
+        `/api/workspace/lifecycle/${id}`,
+        { method: "DELETE" },
+      ),
+    restore: (id: string) =>
+      request<{ workspace_id: string; restored: boolean }>(
+        `/api/workspace/lifecycle/${id}/restore`,
+        { method: "POST" },
+      ),
+    purge: (id: string) =>
+      request<{ workspace_id: string; purged: boolean; deleted: Record<string, number> }>(
+        `/api/workspace/lifecycle/${id}/purge`,
+        { method: "POST" },
+      ),
+
     // ADR-439 — BYOK (enterprise-tier). GET is readable on any tier (the FE
     // shows availability); the write verbs are owner + enterprise-gated server-side.
     getByok: () => request<ByokStatus>("/api/workspace/byok"),

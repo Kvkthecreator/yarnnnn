@@ -1267,6 +1267,111 @@ async def create_owned_workspace(
     )
 
 
+# ⚠️ The lifecycle verbs live under `/workspace/lifecycle/{id}`, NOT the
+# prettier `/workspace/{id}`. A bare path-param segment at this level is a
+# CATCH-ALL that shadows every literal `/workspace/*` sibling registered after
+# it: with `DELETE /workspace/{workspace_id}` registered first, a real
+# `DELETE /workspace/byok` matched `delete_workspace` and would have tried to
+# delete a workspace named "byok". Verified by resolving the route against the
+# live app, not by reading the decorators. Do not "simplify" this prefix away.
+class WorkspaceDeletePreview(BaseModel):
+    """What deleting THIS workspace costs — read before the confirm (ADR-578 D4)."""
+    workspace_id: str
+    name: str
+    is_last_owned: bool
+    other_principals: list
+    deleted_at: Optional[str] = None
+
+
+def _assert_delete_authority(user_id: str, workspace_id: str) -> None:
+    """ADR-578 D2 — delete reuses the L1/L2 clear gate, no new capability.
+
+    Deleting a workspace is strictly heavier than clearing one, and clearing is
+    already owner-grade (ADR-476 D2), so a separate permission would add
+    vocabulary without adding a decision.
+    """
+    from services.principal_grants import has_workspace_clear_authority
+
+    if not has_workspace_clear_authority(user_id, workspace_id):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Deleting this workspace requires the workspace owner (or a "
+                "principal granted `workspace:clear`). It removes every "
+                "member's work, not only your own."
+            ),
+        )
+
+
+@router.get("/workspace/lifecycle/{workspace_id}/preview", response_model=WorkspaceDeletePreview)
+async def preview_workspace_delete(workspace_id: str, auth: UserClient) -> WorkspaceDeletePreview:
+    """Who loses access if this workspace is deleted (ADR-578 D4).
+
+    The witness dial (ADR-405): the operator may end a shared commons, but not
+    without being shown who it lands on. The confirm surface reads this rather
+    than printing a generic "cannot be undone".
+    """
+    from services.supabase import get_service_client, resolve_owned_workspace_ids
+    from services.workspace_delete import other_principals
+
+    _assert_delete_authority(auth.user_id, workspace_id)
+    svc = get_service_client()
+    rows = (
+        svc.table("workspaces").select("id, name, owner_id, deleted_at")
+        .eq("id", workspace_id).limit(1).execute()
+    ).data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    ws = rows[0]
+    owned = resolve_owned_workspace_ids(auth.user_id)
+    return WorkspaceDeletePreview(
+        workspace_id=workspace_id,
+        name=ws.get("name") or "",
+        is_last_owned=(owned == [workspace_id]),
+        other_principals=other_principals(svc, workspace_id, ws.get("owner_id")),
+        deleted_at=ws.get("deleted_at"),
+    )
+
+
+@router.delete("/workspace/lifecycle/{workspace_id}")
+async def delete_workspace(workspace_id: str, auth: UserClient) -> dict:
+    """Soft-delete a workspace (ADR-578 D1). Reversible; destroys nothing."""
+    from services.supabase import get_service_client
+    from services.workspace_delete import WorkspaceDeleteError, soft_delete_workspace
+
+    _assert_delete_authority(auth.user_id, workspace_id)
+    try:
+        return soft_delete_workspace(get_service_client(), auth.user_id, workspace_id)
+    except WorkspaceDeleteError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/workspace/lifecycle/{workspace_id}/restore")
+async def restore_deleted_workspace(workspace_id: str, auth: UserClient) -> dict:
+    """Undo a soft delete (ADR-578 D1)."""
+    from services.supabase import get_service_client
+    from services.workspace_delete import WorkspaceDeleteError, restore_workspace
+
+    _assert_delete_authority(auth.user_id, workspace_id)
+    try:
+        return restore_workspace(get_service_client(), auth.user_id, workspace_id)
+    except WorkspaceDeleteError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/workspace/lifecycle/{workspace_id}/purge")
+async def purge_deleted_workspace(workspace_id: str, auth: UserClient) -> dict:
+    """Terminal purge (ADR-578 D1 second act). Requires a prior soft-delete."""
+    from services.supabase import get_service_client
+    from services.workspace_delete import WorkspaceDeleteError, purge_workspace
+
+    _assert_delete_authority(auth.user_id, workspace_id)
+    try:
+        return purge_workspace(get_service_client(), auth.user_id, workspace_id)
+    except WorkspaceDeleteError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.get("/workspace/memberships", response_model=WorkspaceMembershipsResponse)
 async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsResponse:
     """The workspaces the CALLER can act in (ADR-407 Phase 5 — the switcher).
@@ -1332,8 +1437,22 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
             .in_("role", ["member", "viewer"])
             .execute()
         ).data or []
+        # ADR-578 D1: a grant into a soft-deleted workspace shows nothing —
+        # the owner branch already filters via resolve_owned_workspace_ids.
+        try:
+            live_ids = {
+                w["id"] for w in (
+                    svc.table("workspaces").select("id, deleted_at")
+                    .in_("id", [r.get("workspace_id") for r in rows if r.get("workspace_id")])
+                    .execute()
+                ).data or [] if not w.get("deleted_at")
+            } if rows else set()
+        except Exception:  # noqa: BLE001 — degrade to showing them
+            live_ids = {r.get("workspace_id") for r in rows}
         for r in rows:
             ws_id = r.get("workspace_id")
+            if ws_id and ws_id not in live_ids:
+                continue
             if not ws_id or ws_id in seen:
                 continue
             seen.add(ws_id)

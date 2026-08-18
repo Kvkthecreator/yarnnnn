@@ -212,13 +212,30 @@ def test_resolver() -> None:
         )
 
     # requested + active grant → honored (grant lookup via service client)
-    grant_client = FakeClient(responses={("principal_grants", "select"): [{"id": "g1"}]})
+    grant_client = FakeClient(responses={
+        ("principal_grants", "select"): [{"id": "g1"}],
+        # ADR-578: `_workspace_is_live` consults workspaces; deleted_at None = live.
+        ("workspaces", "select"): [{"deleted_at": None}],
+    })
     with patch.object(sb, "resolve_owned_workspace_ids", return_value=["ws-own"]), \
          patch.object(sb, "resolve_owner_workspace_id", return_value="ws-own"), \
          patch.object(sb, "get_service_client", return_value=grant_client):
         _assert(
             sb.resolve_workspace_for_principal("u1", "ws-other") == "ws-other",
             "requested granted workspace → honored",
+        )
+
+    # ADR-578: a grant into a SOFT-DELETED workspace grants nothing.
+    deleted_ws = FakeClient(responses={
+        ("principal_grants", "select"): [{"id": "g1"}],
+        ("workspaces", "select"): [{"deleted_at": "2026-08-18T00:00:00Z"}],
+    })
+    with patch.object(sb, "resolve_owned_workspace_ids", return_value=[]), \
+         patch.object(sb, "resolve_owner_workspace_id", return_value=None), \
+         patch.object(sb, "get_service_client", return_value=deleted_ws):
+        _assert(
+            sb.resolve_workspace_for_principal("u1", "ws-deleted") is None,
+            "requested DELETED workspace → None (ADR-578: unreachable)",
         )
 
     # requested + no reach → None (fail-closed; auth layer 403s)
@@ -240,7 +257,10 @@ def test_resolver() -> None:
 
     # fresh invitee: no owned workspace → newest grant's workspace
     invitee = FakeClient(
-        responses={("principal_grants", "select"): [{"workspace_id": "ws-commons"}]}
+        responses={
+            ("principal_grants", "select"): [{"workspace_id": "ws-commons"}],
+            ("workspaces", "select"): [{"deleted_at": None}],
+        }
     )
     with patch.object(sb, "resolve_owner_workspace_id", return_value=None), \
          patch.object(sb, "get_service_client", return_value=invitee):

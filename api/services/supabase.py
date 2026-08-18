@@ -241,6 +241,9 @@ def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
             # The service key bypasses RLS, so nothing below this line would
             # have caught it. Never remove it; never let a "fix" replace it.
             .eq("owner_id", user_id)
+            # ADR-578 D1: never resolve a soft-deleted workspace as someone's
+            # home — it is unreachable, so returning it would 403 every request.
+            .is_("deleted_at", "null")
             # ADR-373 D6 (2026-08-17) — ORDER BY is load-bearing, not tidiness.
             # This was `.limit(1)` with no ordering, so an account owning more
             # than one workspace row got an ARBITRARY pick that the lru_cache
@@ -296,10 +299,14 @@ def resolve_owned_workspace_ids(user_id: str) -> list:
         client = get_service_client()
         result = (
             client.table("workspaces")
-            .select("id")
+            .select("id, deleted_at")
             # The ownership filter is the whole function — see the warning on
             # `_resolve_owner_workspace_id_cached`. Never remove it.
             .eq("owner_id", user_id)
+            # ADR-578 D1: a soft-deleted workspace is UNREACHABLE. Filtering
+            # here is what makes the reach check refuse it — one filter, not a
+            # deleted_at test at every call site.
+            .is_("deleted_at", "null")
             .order("created_at", desc=False)
             .execute()
         )
@@ -307,6 +314,22 @@ def resolve_owned_workspace_ids(user_id: str) -> list:
     except Exception as exc:  # pragma: no cover — best-effort, fail-closed
         logger.warning("[ADR-373] owned-workspace list failed for %s: %s", user_id, exc)
         return []
+
+
+def _workspace_is_live(workspace_id: str) -> bool:
+    """False if the workspace is soft-deleted or gone (ADR-578 D1)."""
+    try:
+        rows = (
+            get_service_client()
+            .table("workspaces")
+            .select("deleted_at")
+            .eq("id", workspace_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        return bool(rows) and not rows[0].get("deleted_at")
+    except Exception:  # pragma: no cover — fail-closed
+        return False
 
 
 def principal_reaches_workspace(user_id: str, workspace_id: str) -> bool:
@@ -332,7 +355,8 @@ def principal_reaches_workspace(user_id: str, workspace_id: str) -> bool:
             .limit(1)
             .execute()
         )
-        return bool(result.data)
+        # ADR-578 D1: a grant into a soft-deleted workspace grants nothing.
+        return bool(result.data) and _workspace_is_live(workspace_id)
     except Exception as exc:  # pragma: no cover — validation is fail-closed
         logger.warning(
             "[ADR-373] workspace reach check failed for %s→%s: %s",
@@ -373,11 +397,16 @@ def resolve_workspace_for_principal(
             .eq("principal_id", user_id)
             .eq("status", "active")
             .order("created_at", desc=True)
-            .limit(1)
+            .limit(5)
             .execute()
         )
-        if result.data:
-            return result.data[0]["workspace_id"]
+        # ADR-578 D1: skip grants into soft-deleted workspaces — a fresh invitee
+        # must not land on a commons that no longer exists. Fetch a few and take
+        # the newest LIVE one.
+        for row in (result.data or []):
+            wid = row.get("workspace_id")
+            if wid and _workspace_is_live(wid):
+                return wid
     except Exception as exc:  # pragma: no cover — best-effort
         logger.debug("[ADR-373] grant-workspace resolve failed for %s: %s", user_id, exc)
     return None

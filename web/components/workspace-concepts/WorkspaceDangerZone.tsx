@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api/client";
+import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
+import { WorkspaceDeleteCard } from "./WorkspaceDeleteCard";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -55,6 +57,11 @@ export function WorkspaceDangerZone() {
   // Derived, never stored (DP29). The backend gate remains the authority —
   // this only avoids offering an action that would 403.
   const [canClear, setCanClear] = useState(true);
+  // The ACTING workspace, from the server's own `is_active` flag. NOT
+  // getActiveWorkspaceId(): the pin is null for an owner (switching to your own
+  // workspace CLEARS it), which is precisely the caller who may delete.
+  const { memberships } = useWorkspaceMemberships();
+  const activeWorkspaceId = memberships.find((m) => m.is_active)?.workspace_id ?? null;
   const [otherMemberCount, setOtherMemberCount] = useState(0);
 
   useEffect(() => {
@@ -202,6 +209,10 @@ export function WorkspaceDangerZone() {
         onCancel={() => setConfirming(null)}
         onConfirm={() => void run("workspace")}
       />
+
+      {/* ADR-578 — ending the workspace, below the two that empty it. Clearing
+          keeps the workspace; deleting ends it. */}
+      <WorkspaceDeleteCard workspaceId={activeWorkspaceId} />
 
       {result && (
         <p
