@@ -286,6 +286,17 @@ def display_author(
     if species == "system":
         if a.startswith("yarnnn:") and not a.startswith("yarnnn:mcp:"):
             return "YARNNN"
+        # ADR-580 D4: a connector-derive revision composes the ratified
+        # attribution sentence — `system:derive-{lane} on behalf of {owner}`
+        # (intake-pipeline.md §3). The owner rides author_identity_uuid
+        # (platform_connections.connected_by at write time); the sentence is
+        # COMPOSED here, never stored — a UUID must not ride authored_by, and
+        # a stored display name would freeze a name that moves. Unresolvable
+        # owner → the plain mechanism string, never a UUID.
+        if a.startswith("system:derive-") and author_identity_uuid:
+            who = names.get(str(author_identity_uuid))
+            if who:
+                return f"{a} on behalf of {who}"
         return a or "system"
 
     return _scrub(a)

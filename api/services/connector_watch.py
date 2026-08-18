@@ -350,9 +350,10 @@ async def seed_connector_capture(
 
 # ADR-401 Phase 4 — the operator-tunable read cadence. Bounded choices (floor
 # 15min) rather than free cron: the capture lane is mechanical + unmetered
-# (ADR-396 carve), but each run with new content proposes ONE derive wake
-# (ADR-401 D5) — the funnel + pace bound the judgment side, so no ADR-298
-# pace gate applies here; the enum floor is the guardrail on API volume.
+# (ADR-396 carve). The per-run derive wake ADR-401 D5 once proposed here is
+# RETIRED (2026-07-03 amendment); the connector derive lane (ADR-580) follows
+# at its own pace with a new-raw gate, so read cadence never multiplies
+# judgment spend — the enum floor is the guardrail on API volume.
 # All values are BARE session-less intervals (resolvable on any workspace).
 CONNECTOR_CADENCE_CHOICES: tuple = (
     "@every 15min",

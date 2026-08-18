@@ -110,7 +110,7 @@ machinery, not a contributor). Live precedent:
 | Lane | `authored_by` | `revision_kind` |
 |---|---|---|
 | `web` | `system:track-web-sources` | `observation` |
-| `slack` | `system:sync-platform-state` | `authored` ⚠️ |
+| `slack` | `system:sync-platform-state` | `observation` |
 | `uploads` | `operator` | `observation` |
 | `mcp` | `yarnnn:mcp:Claude` / `:chatgpt` | `observation` + `authored` |
 
@@ -121,8 +121,10 @@ Two lanes are deliberate exceptions, not drift to be normalized:
 - **`mcp`** — the connected principal is named because it is a **principal with
   a grant** (ADR-431), not a peripheral. An MCP write is that principal's act.
 
-⚠️ `slack` writing `revision_kind='authored'` for raw is a **defect**, not an
-exception — raw is an observation. Fix when the connector lane is next touched.
+The `slack` lane's 48 historical `'authored'` rows were relabeled
+`'observation'` by migration 244 (ADR-580 D8) — they predated ADR-423's
+vocabulary and were mislabeled by migration 208's backfill default; the live
+writer had already been fixed by `f355d26` (2026-07-09).
 
 ### Derived — attributed to the mechanism, ON BEHALF OF the connection owner
 
@@ -145,9 +147,15 @@ system:derive-{lane} on behalf of {owner}
   not the transport) applied to derived material.
 
 **`platform_connections.connected_by` is the record of `{owner}`.** Named by
-ADR-407 D5, deferred by ADR-425 AD5, extended to grants by ADR-431, **never
-built on that table**. It stops being bookkeeping here and becomes the
-attribution source of record — build it with the derive step, not before.
+ADR-407 D5, deferred by ADR-425 AD5, extended to grants by ADR-431 — **built
+by ADR-580 D5 (migration 244)**, with the derive step, as this document asked.
+
+**Physical encoding (ADR-580 D4)**: the sentence is composed at DISPLAY, never
+stored. On the ledger, `authored_by = "system:derive-{lane}"` (the mechanism)
+and the owner rides `author_identity_uuid = connected_by` — the MCP lane's
+identity-rider shape. A raw UUID never rides the `authored_by` string
+(`principal_display._scrub` law); a stored display name would freeze a name
+that moves.
 
 Every derived file carries `derived_from` citing its raw source (ADR-209). The
 GC is evidence-bounded on that edge: cited raw is never pruned.
@@ -163,11 +171,12 @@ Whether a lane distils is a decision, and the reason must be stated:
 | `web` | **yes** | RSS/Atom is machine-shaped; unusable until distilled |
 | `uploads` | **yes** | `system:extract` → `derivation` (text out of blobs) |
 | `mcp` | **no** | an MCP write is already meaningful authored prose — there is nothing to distil |
-| `slack` | **NO — and this is the gap** | platform raw needs distillation exactly as web raw does; nothing was ever built |
+| `slack` / `notion` / `github` | **yes** (ADR-580) | `services/connector_derive.py` — one bounded turn per watched selector maintains `operation/_connectors/{platform}/{selector}.md`, citing the raw; dormant with the capture lane (ADR-404 D2) |
 
-**`mcp` not deriving is correct.** `slack` not deriving is the open gap — the
-subject of
-[`connector-reach-and-the-commons.md`](connector-reach-and-the-commons.md).
+**`mcp` not deriving is correct.** The connector gap this table once named is
+closed by [ADR-580](../adr/ADR-580-the-connector-derive-step.md); the brief
+that framed it ([`connector-reach-and-the-commons.md`](connector-reach-and-the-commons.md))
+is retained as the discourse record.
 
 This is why the contract binds stages 1 and 4 but not 2–3: a rule that every
 lane must derive would make `mcp`'s correct shape a defect.
@@ -182,9 +191,10 @@ lane must derive would make `mcp`'s correct shape a defect.
   seam where that would land was deleted and is recorded in
   `connector-reach-and-the-commons.md` §5.
 - **Which lanes exist.** By §2, deliberately.
-- **The connector derive step itself** — designed in
-  `connector-reach-and-the-commons.md`; this document supplies the contract it
-  must satisfy.
+- **The connector derive step itself** — built by
+  [ADR-580](../adr/ADR-580-the-connector-derive-step.md) against this
+  document's contract; the framing discourse is
+  `connector-reach-and-the-commons.md`.
 
 ---
 
@@ -198,4 +208,4 @@ lane must derive would make `mcp`'s correct shape a defect.
 | `revision_kind` vocabulary | ADR-423, `authored_substrate.py:221` |
 | Peripheral is not a principal | ADR-401 D1 §3 |
 | MCP principal holds a grant | ADR-431 |
-| `connected_by` named, never built | ADR-407 D5 · ADR-425 AD5 · ADR-431 |
+| `connected_by` named 3×, built with the derive step | ADR-407 D5 · ADR-425 AD5 · ADR-431 · **ADR-580 D5 (mig 244)** |

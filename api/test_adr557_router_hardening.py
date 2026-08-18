@@ -132,8 +132,13 @@ ROUTED_CALLERS = {
     "services/lane_runner.py": "lanes",
     "services/session_continuity.py": "transport",
     "services/studio_arrangement_plan.py": "transport",
-    "services/images/decompose.py": "transport",
-    "services/radar.py": "transport",
+    # ADR-562 moved decompose under apps/ (the roster lagged the move and this
+    # gate crashed on the stale path — found 2026-08-18 while adding ADR-580's row).
+    "services/apps/images/decompose.py": "transport",
+    # ADR-580 D6: the standing lanes' ONE turn home — radar, Strings, and the
+    # connector derive all route through it; none touches the transport directly
+    # (held per-lane by test_adr580_connector_derive.py §5).
+    "services/derive_turn.py": "transport",
 }
 found = set()
 for path in pathlib.Path("services").rglob("*.py"):
@@ -158,11 +163,16 @@ for path, kind in ROUTED_CALLERS.items():
         # Machinery keeps the transport flag; it must NOT read the product one.
         check(f"{path}: does not read the product flag", "lanes_enabled" not in body)
 
-# radar was the hole. It must now pre-check rather than rely on the chokepoint
-# alone — a sweep should say "router off", not "derive raised".
+# radar was the hole. The D1 guard moved WITH the derive call (ADR-580 D6):
+# the shared bounded turn pre-checks the transport flag for every standing
+# lane; each lane still meters router-off as its own reason, not a failed
+# derive — §4 below EXECUTES that degrade on the real sweep.
+turn_body = pathlib.Path("services/derive_turn.py").read_text()
+check("the shared derive turn pre-checks the transport flag (the D1 guard's home)",
+      "model_router_enabled" in turn_body)
 radar = pathlib.Path("services/radar.py").read_text()
-check("radar pre-checks the transport flag (the D1 hole)",
-      "model_router_enabled" in radar)
+check("radar routes its derive through the shared turn",
+      "run_bounded_derive_turn" in radar)
 check("radar meters router-off as its own reason, not a failed derive",
       "router_disabled" in radar)
 

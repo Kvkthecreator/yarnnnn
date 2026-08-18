@@ -1,13 +1,15 @@
 # Connector Reach and the Commons — the open question, framed
 
-> **Status**: an OPEN discourse, deliberately unresolved. This document exists so
-> the framing survives a closed session: it records what was measured, what was
-> decided, what was deliberately deleted, and the one question that must be
-> answered before any code is written. **Nothing here is ratified canon** — it is
-> the brief for a future ADR.
+> **Status**: **RESOLVED by [ADR-580](../adr/ADR-580-the-connector-derive-step.md)**
+> (2026-08-18) — the derive step is built (`services/connector_derive.py`),
+> `connected_by` exists (migration 244), and the disposition question (§7.5) is
+> decided: durable substrate; the transient seam stays a named seam. Retained as
+> the discourse record — §2's receipts are point-in-time and §5's named-seams
+> list remains load-bearing (those deletions are still deletions).
 >
-> **Last measured**: 2026-08-18 (ADR-576, ADR-577). Every claim below carries a
-> receipt from that audit; re-measure before trusting any of it.
+> **Last measured**: 2026-08-18 (ADR-576, ADR-577; re-measured the same day by
+> the ADR-580 session — one correction: the slack `'authored'` defect was in the
+> 48 DATA rows, not the live writer, which `f355d26` had already fixed).
 
 ---
 
@@ -213,7 +215,14 @@ capability is unwanted.
 
 ---
 
-## 7. How to resume this discourse
+## 7. How to resume this discourse — CLOSED by ADR-580
+
+> Every numbered item below was executed on 2026-08-18: §2 re-measured (one
+> correction, noted in the header), the derive step built with `connected_by`
+> in the same change, the ADR framed at the connector layer (one step for
+> slack/notion/github), the slack rows relabeled (migration 244), and the
+> disposition decided (durable substrate — ADR-580 D1). Kept verbatim below as
+> the record of what the brief asked.
 
 1. **Re-measure §2** — these are point-in-time receipts, and the surface roster
    churns fast.

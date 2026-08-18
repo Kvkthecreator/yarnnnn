@@ -1635,6 +1635,10 @@ async def oauth_callback(
                 "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
                 "metadata": token_data["metadata"],
                 "status": token_data["status"],
+                # ADR-580 D5: the connecting principal — the attribution
+                # record derived material rides "on behalf of" (ADR-407 D5,
+                # named 3× in canon before being built here).
+                "connected_by": token_data["user_id"],
             }).execute()
 
             logger.info(f"[INTEGRATIONS] Connected {provider} for user {token_data['user_id']}")
@@ -2577,6 +2581,7 @@ async def connect_email(
             "credentials_encrypted": encrypted_key,
             "metadata": metadata,
             "status": "active",
+            "connected_by": user_id,  # ADR-580 D5
         }).execute()
         connection_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"[INTEGRATIONS] Created email (Resend) connection for {user_id}")
@@ -2653,6 +2658,7 @@ async def connect_commerce(
             "credentials_encrypted": encrypted_key,
             "metadata": metadata,
             "status": "active",
+            "connected_by": user_id,  # ADR-580 D5
         }).execute()
         connection_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"[INTEGRATIONS] Created commerce connection for {user_id}")
@@ -2966,6 +2972,7 @@ async def connect_trading(
             "credentials_encrypted": encrypted_credentials,
             "metadata": metadata,
             "status": "active",
+            "connected_by": user_id,  # ADR-580 D5
         }).execute()
         connection_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"[INTEGRATIONS] Created trading connection for {user_id}")

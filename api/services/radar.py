@@ -98,10 +98,13 @@ _DERIVE_TIMEOUT_S = 120.0
 # ── placement (kernel-deterministic; the model never holds these levers) ─────
 #
 # `extract_title` / `strip_fence` were `services/settle.py`'s until ADR-507
-# deleted that module; re-homed here as the mechanics of placing ANY derived
-# note. Settle's third helper, `_unique_path` (collision-suffix placement),
-# retired with the dated-brief shelf (ADR-565 D1): the report is a FIXED leaf
-# whose history lives on the revision chain, so there is no collision to dodge.
+# deleted that module; `extract_title` re-homed here as the mechanics of
+# placing ANY derived note, and `strip_fence` moved on to `services/derive_turn`
+# (ADR-580 D6 — the turn's mechanics are shared by radar, Strings, and the
+# connector derive). Settle's third helper, `_unique_path` (collision-suffix
+# placement), retired with the dated-brief shelf (ADR-565 D1): the report is a
+# FIXED leaf whose history lives on the revision chain, so there is no
+# collision to dodge.
 
 
 def extract_title(note: str) -> str:
@@ -118,21 +121,6 @@ def extract_title(note: str) -> str:
             return s.lstrip("#").strip() or "Untitled note"
         return s[:120]
     return "Untitled note"
-
-
-def strip_fence(note: str) -> str:
-    """Drop a whole-note ``` fence if the model wrapped it despite the contract.
-
-    Pure. Only strips when the note OPENS with a fence and CLOSES with one —
-    a fenced code block *inside* the note is content and stays.
-    """
-    s = (note or "").strip()
-    if not s.startswith("```"):
-        return s
-    lines = s.splitlines()
-    if len(lines) < 2 or not lines[-1].strip().startswith("```"):
-        return s
-    return "\n".join(lines[1:-1]).strip()
 
 
 def extract_delta_headline(report: str) -> Optional[str]:
@@ -822,13 +810,28 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         + f"THE FRESH WATCH SIGNAL (just swept):\n\n{signal_body}\n"
     )
 
-    # ADR-557 D1 — radar was the ONE routed caller with no flag check. The
-    # transport now refuses (RouterDisabled) rather than reaching a provider on
-    # whatever key is in env, but a sweep should still say WHY it produced no
-    # brief: "the router is off" is configuration, not a failed derive, and
-    # metering it as `derive_raised` would read as weather.
-    from services.model_router import RouterDisabled, model_router_enabled, route_completion
-    if not model_router_enabled():
+    # The turn's mechanics (router gate → completion → fence strip → honest
+    # no-change) are the shared bounded derive turn (ADR-580 D6). The ADR-557
+    # D1 posture is preserved: "the router is off" is configuration, not a
+    # failed derive, and metering it as `derive_raised` would read as weather.
+    from services.derive_turn import run_bounded_derive_turn
+
+    resident_model, resident_character = resolve_radar_resident()
+    derive_started = datetime.now(timezone.utc)
+    turn = await run_bounded_derive_turn(
+        model=resident_model,
+        # Character first, job second — Researcher's row posture leads,
+        # the radar job overlay follows (the lane_runner composition
+        # order; see resolve_radar_resident).
+        system=resident_character + "\n\n" + build_radar_posture(hub.topic),
+        user_msg=user_msg,
+        max_tokens=_REPORT_MAX_TOKENS,
+        timeout=_DERIVE_TIMEOUT_S,
+        no_change_tokens=tuple(_EMPTY_SWEEP_TOKENS),
+    )
+    derive_ms = int((datetime.now(timezone.utc) - derive_started).total_seconds() * 1000)
+
+    if turn.status == "router_disabled":
         logger.info(
             "[RADAR] router off — skipping derive for %s/%s", user_id[:8], hub.slug,
         )
@@ -840,42 +843,28 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
         )
         return {"success": False, "slug": hub.slug, "error_reason": "router_disabled"}
 
-    resident_model, resident_character = resolve_radar_resident()
-    derive_started = datetime.now(timezone.utc)
-    try:
-        routed = await route_completion(
-            resident_model,
-            [{"role": "user", "content": user_msg}],
-            # Character first, job second — Researcher's row posture leads,
-            # the radar job overlay follows (the lane_runner composition
-            # order; see resolve_radar_resident).
-            system=resident_character + "\n\n" + build_radar_posture(hub.topic),
-            max_tokens=_REPORT_MAX_TOKENS,
-            timeout=_DERIVE_TIMEOUT_S,
-        )
-    except Exception as e:
-        logger.exception("[RADAR] derive failed for %s/%s: %s", user_id[:8], hub.slug, e)
+    if turn.status == "raised":
+        logger.error("[RADAR] derive failed for %s/%s: %s", user_id[:8], hub.slug, turn.error)
         record_execution_event(
             client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
             mode="judgment", trigger_type="scheduled", status="failed",
-            error_reason="derive_raised", error_detail=str(e)[:500],
+            error_reason="derive_raised", error_detail=(turn.error or "")[:500],
             funnel_decision="radar", principal_id=user_id,
         )
         return {"success": False, "slug": hub.slug, "error_reason": "derive_raised"}
 
-    note = strip_fence(routed.text or "")
-    derive_ms = int((datetime.now(timezone.utc) - derive_started).total_seconds() * 1000)
-
-    if not note.strip() or note.strip() in _EMPTY_SWEEP_TOKENS:
+    if turn.status == "no_change":
         # The honest empty sweep — metered as skipped so falsifier 4 reads it.
         record_execution_event(
             client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
             mode="judgment", trigger_type="scheduled", status="skipped",
-            error_reason="no_change", model=routed.ledger_model,
+            error_reason="no_change", model=turn.ledger_model,
             duration_ms=derive_ms, funnel_decision="radar", principal_id=user_id,
-            **routed.usage,
+            **turn.usage,
         )
         return {"success": True, "slug": hub.slug, "no_change": True}
+
+    note = turn.text
 
     # ── 3. place (kernel-deterministic: the FIXED report leaf — history is
     #       the revision chain, not the namespace; ADR-565 D1) + confine ───
@@ -913,8 +902,8 @@ async def run_radar_sweep(client, user_id: str, hub: RadarHub) -> dict:
     record_execution_event(
         client, user_id=user_id, slug=f"radar-brief:{hub.topic}",
         mode="judgment", trigger_type="scheduled", status="success",
-        model=routed.ledger_model, duration_ms=derive_ms,
-        funnel_decision="radar", principal_id=user_id, **routed.usage,
+        model=turn.ledger_model, duration_ms=derive_ms,
+        funnel_decision="radar", principal_id=user_id, **turn.usage,
     )
 
     logger.info("[RADAR] %s/%s → %s (rev %s)", user_id[:8], hub.slug, path, revision_id[:8])

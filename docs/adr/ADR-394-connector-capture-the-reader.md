@@ -98,6 +98,18 @@ The **per-platform read-tool binding** (`read_tool` / `selector_arg`) is a kerne
 
 ### D3 — Derive is the seat's existing act, ratified by reference (no new step)
 
+> **⚠️ AMENDED by [ADR-580](ADR-580-the-connector-derive-step.md) D2
+> (2026-08-18).** The seat's derive-and-cite act stands, but as the SOLE
+> derive path it was a documented property no path established: in seven
+> weeks the seat never engaged connector raw once, and zero derived files
+> existed. The intake-pipeline contract's stage-2 guarantee ("without a
+> distil step, `inbound/` is unreachable by the commons by design") needs a
+> standing mechanism — `services/connector_derive.py`, one bounded turn per
+> watched selector, pace-decoupled from capture per the ADR-401 D5
+> amendment. The wake-vs-capture conflation this D3 guarded against remains
+> guarded: capture still wakes no one, and derive still never fires per
+> capture run.
+
 **This is the decision the operator sharpened, and it is the load-bearing separation-of-concerns of this ADR.** ADR-393 §7-6 *leaned* derive wake-side but deferred ratification "to when it's built." It is now built-adjacent, so this ADR ratifies it — **and ratifies that Phase C builds no derive step of its own.**
 
 Derive is **not** a scheduled LLM job. Framing it as "a derive recurrence that fires on a cadence and summarizes the channel" reintroduces exactly the wake-vs-capture conflation ADR-393 killed for capture. The disciplined framing, already canon in ADR-376 line 77 and **already built for the MCP slice** (`mcp_composition.py` — read raw → author a *new* `operation/…` object carrying `derived_from` → raw stays immutable → `trace` walks it → `recall` reads derived-first):

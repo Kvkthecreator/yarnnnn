@@ -897,15 +897,9 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
     else:
         # md — the judgment derive, governed by CONTRACT.md (D4: a prose file
         # kept current IS a judgment derive; the contract is its criterion).
-        from services.model_router import model_router_enabled, route_completion
-        if not model_router_enabled():
-            record_execution_event(
-                client, user_id=user_id, slug=f"string-write:{topic}",
-                mode="judgment", trigger_type="scheduled", status="skipped",
-                error_reason="router_disabled",
-                funnel_decision="string", principal_id=user_id,
-            )
-            return {"success": False, "slug": decl.slug, "error_reason": "router_disabled"}
+        # The turn's mechanics (router gate → completion → fence strip →
+        # honest no-change) are the shared bounded derive turn (ADR-580 D6).
+        from services.derive_turn import run_bounded_derive_turn
 
         contract = _read_file(client, user_id, decl.contract_path)
         material = "\n\n".join(
@@ -923,33 +917,35 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
             + f"THE FRESH SOURCE MATERIAL (just fetched):\n\n{material}\n"
         )
         resident_model, resident_character = resolve_strings_resident()
-        try:
-            routed = await route_completion(
-                resident_model,
-                [{"role": "user", "content": user_msg}],
-                system=resident_character + "\n\n" + build_keeper_run_posture(decl),
-                max_tokens=_STRING_MAX_TOKENS,
-                timeout=_DERIVE_TIMEOUT_S,
+        turn = await run_bounded_derive_turn(
+            model=resident_model,
+            system=resident_character + "\n\n" + build_keeper_run_posture(decl),
+            user_msg=user_msg,
+            max_tokens=_STRING_MAX_TOKENS,
+            timeout=_DERIVE_TIMEOUT_S,
+            no_change_tokens=(NO_CHANGE_SENTINEL,),
+        )
+        if turn.status == "router_disabled":
+            record_execution_event(
+                client, user_id=user_id, slug=f"string-write:{topic}",
+                mode="judgment", trigger_type="scheduled", status="skipped",
+                error_reason="router_disabled",
+                funnel_decision="string", principal_id=user_id,
             )
-        except Exception as e:
-            logger.exception("[STRINGS] derive failed for %s/%s: %s", user_id[:8], decl.slug, e)
+            return {"success": False, "slug": decl.slug, "error_reason": "router_disabled"}
+        if turn.status == "raised":
+            logger.error("[STRINGS] derive failed for %s/%s: %s", user_id[:8], decl.slug, turn.error)
             record_execution_event(
                 client, user_id=user_id, slug=f"string-write:{topic}",
                 mode="judgment", trigger_type="scheduled", status="failed",
-                error_reason="derive_raised", error_detail=str(e)[:500],
+                error_reason="derive_raised", error_detail=(turn.error or "")[:500],
                 funnel_decision="string", principal_id=user_id,
             )
             return {"success": False, "slug": decl.slug, "error_reason": "derive_raised"}
-        text = (routed.text or "").strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            if len(lines) >= 2 and lines[-1].strip().startswith("```"):
-                text = "\n".join(lines[1:-1]).strip()
-        content = text + ("\n" if text and not text.endswith("\n") else "")
         write_mode = "judgment"
-        ledger_model = routed.ledger_model
-        usage = routed.usage
-        if not text or text in (NO_CHANGE_SENTINEL,):
+        ledger_model = turn.ledger_model
+        usage = turn.usage
+        if turn.status == "no_change":
             record_execution_event(
                 client, user_id=user_id, slug=f"string-write:{topic}",
                 mode="judgment", trigger_type="scheduled", status="skipped",
@@ -957,6 +953,8 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
                 funnel_decision="string", principal_id=user_id, **usage,
             )
             return {"success": True, "slug": decl.slug, "no_change": True}
+        text = turn.text
+        content = text + ("\n" if not text.endswith("\n") else "")
 
     write_ms = int((datetime.now(timezone.utc) - write_started).total_seconds() * 1000)
 

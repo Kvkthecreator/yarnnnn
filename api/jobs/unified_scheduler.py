@@ -346,6 +346,28 @@ async def run_unified_scheduler():
                 logger.warning("[SCHED] capture lane raised: %s", exc)
 
         # ---------------------------------------------------------------------
+        # ADR-580: the connector derive lane — the intake pipeline's distil
+        # step for platform raw. Walks active content-platform connections and
+        # derives every watched selector with raw NEWER than the deriver's own
+        # last digest write, at most once per DERIVE_MIN_INTERVAL_HOURS — the
+        # ADR-401 D5 amendment holds: derive pace is decoupled from capture
+        # cadence, and a quiet world costs $0. Runs AFTER the capture drain so
+        # a derive can read the raw this tick just retained; gated with it
+        # (ADR-404 D2 — capture and derive are one lane, one flag).
+        # ---------------------------------------------------------------------
+        if capture_lane_on:
+            try:
+                from services.connector_derive import drain_due_connector_derives
+                d_found, d_succeeded, d_failed = await drain_due_connector_derives(supabase)
+                if d_found > 0:
+                    logger.info(
+                        f"[SCHED] connector derives: {d_succeeded}/{d_found} succeeded, "
+                        f"{d_failed} failed"
+                    )
+            except Exception as exc:
+                logger.warning("[SCHED] connector derive lane raised: %s", exc)
+
+        # ---------------------------------------------------------------------
         # ADR-394 D4 / ADR-401 D4: connector raw-lane GC — evidence-bounded
         # retention. A sibling maintenance step to the capture drain. For each
         # active user, gather the raw paths a derived act cites (GROUP BY over

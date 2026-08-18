@@ -150,7 +150,7 @@ def is_agent_grant_sidecar(path: str) -> bool:
 # both reasoned-against-never-rewritten. The DERIVED understanding the seat
 # builds from a raw observation lands in operation/ carrying a `derived_from`
 # citation back to its inbound/ source. uploads/ is the N=human case of the same
-# raw-lane shape. The per-{transport}/{principal} sublane is single-writer by
+# raw-lane shape. The per-{lane}/{selector} sublane is single-writer by
 # construction today (a convention ADR-373's per-principal grant later enforces).
 INBOUND_ROOT = "inbound/"
 

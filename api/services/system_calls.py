@@ -126,6 +126,17 @@ SYSTEM_CALLS: dict[str, SystemCall] = {
         tier=TIER_STANDARD,
         reason="Refines a recurrence's standing prompt — authored text that then runs repeatedly.",
     ),
+    "connector_derive": SystemCall(
+        model="anthropic/claude-sonnet-5",
+        tier=TIER_STANDARD,
+        reason=(
+            "ADR-580: the intake pipeline's distil step for connector lanes — "
+            "one bounded turn maintaining a member-read living digest from "
+            "platform raw. Authored prose members correct and agents recall; "
+            "the new-raw gate + 6h floor bound the call count, so quality "
+            "dominates. Machinery, not an app: nobody picks this engine."
+        ),
+    ),
     "specialist_dispatch": SystemCall(
         model="anthropic/claude-sonnet-5",
         tier=TIER_STANDARD,

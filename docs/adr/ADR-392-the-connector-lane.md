@@ -72,6 +72,7 @@ The per-connection channel/page/label setup is **Phase 2 (Select)**, and it need
 - **Surface**: Channels surface → Connections pane → click a connected platform → a **per-platform selection subsurface** (the `landscape.resources` list with per-item in/out toggles). One level down, on the Channels surface (ADR-385), as the operator scoped.
 - **Substrate**: the selection is a **watch declaration** (DP27 — declared, never crawled), the peripheral analogue of the web-watch. It gives `selected_sources` its consumer. It names *what slice is perceived*; it triggers nothing.
 - **NOT a new `operation/` domain**: the connector's data does not create an `operation/slack/` tree. Raw → `inbound/slack/`; derived → subject-placed in `operation/` (meaning-organized, not platform-organized). Platform structure lives only in the quarantined raw lane. This is the anti-bloat discipline restated.
+  > **Amended in letter by [ADR-580](ADR-580-the-connector-derive-step.md) D3 (2026-08-18)**: one BOUNDED living digest per operator-watched selector lives at `operation/_connectors/{platform}/{selector}.md` — beside the watch declaration, not a content tree, and nothing there grows with message volume. The refusal this clause aimed at (unbounded platform mirroring into `operation/`) stands; subject-placement of durable insights remains a judgment act citing the digest.
 
 ### D8 — Retention window: a substrate-read anti-bloat dial, pricing-ready (un-defers ADR-376 §8 GC)
 
