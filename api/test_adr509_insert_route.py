@@ -107,7 +107,14 @@ def main() -> int:
     )
 
     print("\n-- D2: the target is resolved most-specific-first, and NAMED --")
-    target = re.search(r"const resolveInsertTarget = useCallback\(\(\) => \{[\s\S]{0,1600}?\}, \[", SURFACE)
+    # NEVER pin a LENGTH. This window was `{0,1600}` and the body grew past it
+    # when the viewport fallback landed, so a CORRECT change read as "the
+    # resolver has vanished". Bound the match on the callback's own closing
+    # dependency array instead — the structure, not the size.
+    target = re.search(
+        r"const resolveInsertTarget = useCallback\(\(\) => \{[\s\S]*?\n  \}, \[[^\]]*\]\);",
+        SURFACE,
+    )
     _check("resolveInsertTarget is findable", bool(target))
     if target:
         body = target.group(0)
@@ -118,6 +125,36 @@ def main() -> int:
         _check(
             "there is always a fallback (append to the current page — never 'nowhere')",
             "slot: null, blockId: null" in body,
+        )
+        # THE BUG THIS PAIR EXISTS FOR (2026-08-18). The fallback branch existed
+        # and the check above passed, but it resolved slideIndex/pageIndex to
+        # ALL-NULL — and all-null is not "the current page". `arrangedPageAt`
+        # returns null for it, so `insertBlock` fell to `defaultFlow`, which is
+        # the LAST slide. On slide 2 of 10 the block landed on slide 10, while
+        # the menu promised "Insert into this slide". A branch that EXISTS is
+        # not a branch that lands where it says.
+        # Assert the WIRING, not the mention. A first draft of this check tested
+        # `"viewportPage" in body` and stayed GREEN when the fallback was
+        # reverted to all-null — because the derived locals still named it. The
+        # viewport must reach the ANCHOR FIELDS, which are what insertBlock reads.
+        # `\w+` is NOT enough — it matches the very `null` being falsified. The
+        # rung between the selection and the final null must be a NAMED value.
+        _check(
+            "the viewport reaches slideIndex — 'this slide' is the one on screen",
+            re.search(r"const slideIndex = sel\?\.slideIndex \?\? (?!null)\w+", body) is not None,
+        )
+        _check(
+            "the viewport reaches pageIndex too (web sections, same rule)",
+            re.search(r"const pageIndex = sel\?\.pageIndex \?\? (?!null)\w+", body) is not None,
+        )
+        _check(
+            "and the viewport is a DEPENDENCY, never closed over stale",
+            re.search(r"\}, \[[^\]]*viewportPage[^\]]*\]\);", body) is not None,
+        )
+        _check(
+            "the viewport index is keyed to the right space (deck=slide, else=page)",
+            "template === 'deck' ? viewportPage : null" in body
+            and "template === 'deck' ? null : viewportPage" in body,
         )
         _check(
             "the page noun follows the type (deck says slide, web says section)",

@@ -773,6 +773,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // same source. One fetch per open. (Layouts are served too but the Studio no
   // longer switches type — ADR-447 deleted the format-switcher.) ──
   const [vocabulary, setVocabulary] = useState<StudioVocabulary | null>(null);
+  /** The vocabulary fetch FAILED, as distinct from not having answered yet.
+   *  Without this the two states are indistinguishable at the insert door, and
+   *  the failed one renders as an empty menu that looks like a dead button. */
+  const [vocabularyError, setVocabularyError] = useState(false);
 
   // ── The artifact's NAME (ADR-469's lift, completed FE-side by ADR-483) ────
   // ONE derivation for every surface that shows the name — the crumb, the
@@ -978,10 +982,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           ...v,
           blocks: v.blocks.filter((b) => !b.apps || b.apps.includes(app.slug)),
         };
-        if (live) setVocabulary(scoped);
+        if (live) {
+          setVocabulary(scoped);
+          setVocabularyError(false);
+        }
       })
       .catch(() => {
-        /* toolbar menus stay empty — chat authoring unaffected */
+        // NOT silent. "Toolbar menus stay empty" is exactly the state the
+        // operator met as "Insert doesn't work": the vocabulary IS the block
+        // list, so a failed fetch makes every insert door render nothing, and
+        // the only thing left in the console was an unrelated Sentry beacon to
+        // blame. A failure the member can SEE beats a failure they must guess.
+        // `live` is respected so an unmounted surface never reports.
+        if (live) setVocabularyError(true);
       });
     return () => {
       live = false;
@@ -1421,7 +1434,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // real computation re-runs against live state inside the write queue (an
       // op queued behind another must apply to the previous op's result).
       if (!compute(file.content)) {
-        setOpError('Could not apply that here — select something in the document first.');
+        // The old copy said "select something in the document first" — naming a
+        // cause that is largely UNREACHABLE (insertBlock never returns null for
+        // a missing anchor; it falls through to the page and appends anyway,
+        // the "never 'nowhere'" rule). The reachable causes are structural: a
+        // fragment that would not parse, an anchor that no longer exists. So it
+        // blamed the member for a failure that was ours and prescribed an
+        // action that would not have helped.
+        //
+        // 49 call sites share this one guard, so the copy must not name a cause
+        // it cannot know. It states WHAT happened and offers the one recovery
+        // that always applies, instead of guessing WHY.
+        setOpError('That change could not be applied. Reload and try again.');
         return;
       }
       // A structural op does NOT reload. The old comment here said it must
@@ -2557,8 +2581,23 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // a paged surface. Mirrors the toolbar door's own caret ladder (ADR-506 D1).
   const resolveInsertTarget = useCallback(() => {
     const sel = selection;
-    const slideIndex = sel?.slideIndex ?? null;
-    const pageIndex = sel?.pageIndex ?? null;
+    // ADR-522 D3, applied here: the SELECTION wins where it exists, and the
+    // VIEWPORT fills where it doesn't. On a staged deck the member pages with
+    // the navigator and selects nothing, so the viewport is the only signal
+    // that says which slide is on screen — the focus declaration has read it
+    // this way since D3, and the Properties pane names "SLIDE 2" from it.
+    //
+    // Without this the ladder's last rung resolved to all-null, and all-null is
+    // NOT "the current page": `arrangedPageAt` returns null for it, so
+    // `insertBlock` fell through to `defaultFlow`, which is the LAST slide of
+    // the deck. On slide 2 of 10 the block landed on slide 10 — while the menu,
+    // reading `nth == null`, promised "Insert into this slide". The label and
+    // the landing named two different places, and the label was the one the
+    // member believed.
+    const viewIndex = template === 'deck' ? viewportPage : null;
+    const viewPageIndex = template === 'deck' ? null : viewportPage;
+    const slideIndex = sel?.slideIndex ?? viewIndex ?? null;
+    const pageIndex = sel?.pageIndex ?? viewPageIndex ?? null;
     if (sel?.blockId) {
       return {
         slot: null, blockId: sel.blockId, slideIndex, pageIndex,
@@ -2576,11 +2615,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       slot: null, blockId: null, slideIndex, pageIndex,
       label: nth == null ? `this ${noun}` : `${noun} ${nth + 1}`,
     };
-  }, [selection, template]);
+    // `viewportPage` is a DEPENDENCY, not a closed-over constant — the sibling
+    // gate test_adr522_focus_is_threaded_not_closed_over.py exists because this
+    // exact value was once captured stale.
+  }, [selection, template, viewportPage]);
 
   const openInsertMenu = useCallback(
-    (x: number, y: number) => setInsertMenu({ x, y, ...resolveInsertTarget() }),
-    [resolveInsertTarget],
+    (x: number, y: number) => {
+      // A door that opens onto NOTHING is indistinguishable from a dead button.
+      // The menu returns null on an empty roster (correctly — "a menu with no
+      // acts is not a menu"), so when the roster is empty because the fetch
+      // FAILED, say so here rather than letting the press look ignored.
+      if (vocabularyError && !vocabulary?.blocks.length) {
+        setOpError('Insert is unavailable — the block list could not be loaded. Reload to retry.');
+        return;
+      }
+      setInsertMenu({ x, y, ...resolveInsertTarget() });
+    },
+    [resolveInsertTarget, vocabularyError, vocabulary],
   );
 
   // The ONE place the toolbar's Insert forks by medium — and the only place the

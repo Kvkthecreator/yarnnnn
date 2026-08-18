@@ -115,6 +115,28 @@ The menu **states the destination** (*"Insert into slide 3"*). On a spatial surf
 with an unstated target is the ambiguity that makes members undo and retry — the same reason
 ADR-466 D5 forewarns an arrangement that would move content to a new page.
 
+### D3.a — "The page they are looking at" means the VIEWPORT (amendment, 2026-08-18)
+
+**The operator:** *"the current insert action is falsely providing the wrong console error log, and not actually inserting things correctly."*
+
+D3 wrote the rule correctly and the implementation read the last rung wrongly. `resolveInsertTarget`'s fallback returned `slideIndex: null, pageIndex: null` — and **all-null is not "the current page"**. `arrangedPageAt` returns `null` for it, so `insertBlock` fell through to `defaultFlow`, which is **the LAST slide of the deck**. On slide 2 of 10 with nothing selected, the block landed on slide 10. Meanwhile the menu, reading `nth == null`, promised *"Insert into this slide"*. **The label and the landing named two different places, and the label was the one the member believed.**
+
+The fix is not new machinery: ADR-522 D3 had already established the precedence — *the selection wins where it exists, the viewport fills where it doesn't* — and the focus declaration has read `viewportPage` that way since it landed. That is why the Properties pane correctly says "SLIDE 2" on the very screen where Insert targets slide 10: **two readers of the same question, one of which never got the amendment.** The insert ladder now reads the viewport at its last rung, keyed to the same index space the page grain uses (deck → `slideIndex`, web → `pageIndex`).
+
+**Why the gate did not catch it.** `test_adr509_insert_route.py` asserted *"there is always a fallback — never 'nowhere'"* by matching the literal `slot: null, blockId: null`. That proves the **branch exists**; it says nothing about whether the branch names a **reachable** page. A branch that exists is not a branch that lands where it says.
+
+### D3.b — A door that opens onto nothing must say so
+
+The same report named a second thing: an unrelated **Sentry ingest beacon** (`sentry.javascript.nextjs/10.51.0`, blocked by the browser's network stack → `ERR_INTERNET_DISCONNECTED`) was the only line in the console, so it read as the explanation for the insert failure. It was not related, and it could not have been: **Insert has no console instrumentation at all.**
+
+That absence was the real defect. Three silences compounded:
+
+- the vocabulary fetch caught to a bare comment (*"toolbar menus stay empty"*) — and the vocabulary **is** the block list;
+- the menu correctly returns `null` on an empty roster (*"a menu with no acts is not a menu"*), so the press looked **ignored**;
+- the one message the path could produce blamed the **selection** (*"select something in the document first"*) for a cause that is largely unreachable — `insertBlock` never returns `null` for a missing anchor, by D3's own rule. It told the member to do something that would not have helped, for a failure that was ours.
+
+**A failure the member can see beats a failure they must guess.** The fetch now records that it failed (distinct from *not yet answered*), the door reports rather than opening onto an empty menu, and the shared op-guard — 49 call sites — states *what* happened without naming a cause it cannot know.
+
 ### D4 — Per-MEDIUM is not per-TYPE subsetting
 
 ADR-506 D3 refused per-type kinds because it would rebuild the mode-conditional matrix that
@@ -149,6 +171,14 @@ that had no mouse route at all.
 2. On a `document`, typing `/` still opens the palette at the caret.
 3. On a `deck` with nothing selected, toolbar Insert → the menu says *"this slide"* (or
    *"slide N"*), and picking Callout lands a callout on that slide.
+   **(D3.a — this falsifier was written on day one, never run, and was FALSE for two
+   years of slides.)** State it in the form that would have caught it: scroll to **slide 2
+   of a 10-slide deck**, select nothing, Insert → Callout. The callout must land on
+   **slide 2**, not slide 10. Reverting the viewport rung makes it land on the last slide
+   while the menu still says *"this slide"* — and the gate's new checks go red.
+9. **(D3.b)** With the vocabulary fetch failing, pressing Insert reports *"Insert is
+   unavailable…"* rather than opening a menu that renders nothing. Restoring the bare
+   `catch {}` makes the press look ignored again.
 4. On a `deck`, right-clicking a block offers **Insert block…** first; on a `document` that
    row is absent.
 5. Right-clicking bare deck canvas yields a menu (Insert), where it previously yielded none.
