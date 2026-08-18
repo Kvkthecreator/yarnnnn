@@ -58,6 +58,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { PANE_HEADING, PANE_SECTION } from '@/lib/authoring/pane-spine';
 import {
   type StudioMeasure,
   type StudioSelection,
@@ -307,7 +308,7 @@ function TokenControl({
     'rounded px-1.5 py-0.5 text-[10px] transition-colors border';
   return (
     <div>
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className={`mb-1 ${PANE_HEADING}`}>
         {token.label}
       </p>
       <div className="flex flex-wrap gap-1" title={token.description}>
@@ -384,7 +385,7 @@ function StyleSelect({
   }, [open]);
   return (
     <div ref={ref} className="relative">
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className={`mb-1 ${PANE_HEADING}`}>
         {label}
       </p>
       <button
@@ -724,8 +725,11 @@ function VerbRow({
   );
 }
 
-const SECTION = 'space-y-2 border-b border-border p-3';
-const HEADING = 'text-[10px] font-medium uppercase tracking-wide text-muted-foreground';
+// The pane grammar is SHARED, not per-app (2026-08-18). These were local
+// consts here while Text inline-styled the same declaration four times over —
+// identical pixels, no way to see them drift. One home: lib/authoring/pane-spine.
+const SECTION = PANE_SECTION;
+const HEADING = PANE_HEADING;
 // ADR-528 follow-up (2026-08-06) — MODULE scope, beside its two siblings.
 //
 // It was a component-body `const` ~450 lines below `turnIntoSection`, which

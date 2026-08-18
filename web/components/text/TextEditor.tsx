@@ -60,6 +60,7 @@ import {
   PanelRight,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
+import { PANE_HEADING, PANE_SECTION } from '@/lib/authoring/pane-spine';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
@@ -1026,7 +1027,7 @@ export function TextEditor({
                   LINE rather than by block id (ADR-572 D3). A line number is
                   a coordinate into the bytes, not an annotation on them. */}
               <section className="space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                <p className={PANE_HEADING}>
                   Outline
                 </p>
                 {outline.length > 0 ? (
@@ -1057,8 +1058,43 @@ export function TextEditor({
                 )}
               </section>
 
+              {/* ── THE READBACK TAIL (lib/authoring/pane-spine) ──────────────
+                  Everything below is a FACT about the document, not a control.
+                  The shared spine puts Identity first, controls next, readback
+                  last — so the member's eye lands on the subject, walks what
+                  they can change, and finds the facts where facts always are.
+
+                  Text has no control rungs at all (markdown has no box, so no
+                  Position or Layout), which is exactly why the tail had to be
+                  named: without it, conforming would have meant rendering
+                  sections this app does not have. "Last edited" used to sit
+                  ABOVE Length and Format — one fact interleaved with two, for
+                  no reason but the order they were written in. */}
               <section className="space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                <p className={PANE_HEADING}>
+                  Length
+                </p>
+                <p className="text-muted-foreground">
+                  {words.toLocaleString()} words · {text.length.toLocaleString()} characters
+                </p>
+                <p className="text-muted-foreground">
+                  {outline.length.toLocaleString()} heading{outline.length === 1 ? '' : 's'} ·
+                  {' '}about {readingMinutes(words)} min read
+                </p>
+              </section>
+
+              <section className="space-y-1">
+                <p className={PANE_HEADING}>
+                  Format
+                </p>
+                <p className="text-muted-foreground">
+                  Markdown, plain text. It stays a <span className="font-mono">.md</span> file —
+                  the same one your connectors read and write.
+                </p>
+              </section>
+
+              <section className="space-y-1">
+                <p className={PANE_HEADING}>
                   Last edited
                 </p>
                 {headRevision ? (
@@ -1074,29 +1110,6 @@ export function TextEditor({
                 <p className="text-muted-foreground/80">
                   Every save is signed and revertible — the full history lives in
                   Files → Get Info.
-                </p>
-              </section>
-
-              <section className="space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Length
-                </p>
-                <p className="text-muted-foreground">
-                  {words.toLocaleString()} words · {text.length.toLocaleString()} characters
-                </p>
-                <p className="text-muted-foreground">
-                  {outline.length.toLocaleString()} heading{outline.length === 1 ? '' : 's'} ·
-                  {' '}about {readingMinutes(words)} min read
-                </p>
-              </section>
-
-              <section className="space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Format
-                </p>
-                <p className="text-muted-foreground">
-                  Markdown, plain text. It stays a <span className="font-mono">.md</span> file —
-                  the same one your connectors read and write.
                 </p>
               </section>
 

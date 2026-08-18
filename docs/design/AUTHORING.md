@@ -239,11 +239,50 @@ Legend: ✅ shipped · 🔜 declared (built when its phase lands, never by accid
 | page grain | ✅ **New slide** + **Re-arrange** (the gallery's one mount, toolbar) | — (no page unit) | ✅ New band |
 | refused | 🚫 slash as sole route on paged · 🚫 the hover gutter (deleted every mode, ADR-505 D4) · 🚫 per-medium menu subsetting (both doors offer every kind — what differs is which door, never what's in it) | | |
 
-### The pane (Design tab) — one spine, scope follows selection (ADR-519 D3)
+### The pane — one spine, EVERY authoring app (ADR-519 D3, generalized 2026-08-18)
 
-**The spine is fixed**: Identity → Position → Layout → Style → Content. A scope renders
-only the sections its grain has — it never re-orders or renames a section. The member
-learns the panel once.
+**The spine is fixed**:
+
+> **Identity → [ Position → Layout → Text → Style → Content ] → Readback**
+> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└──────────── controls ────────────┘
+
+A surface renders only the sections its grain has — it **never re-orders or renames**
+one. The member learns the panel once, and that promise only survives if every app
+spends the member's learning the same way.
+
+**Absence is legitimate; re-ordering never is.** Absence is a property of the grain — a
+range has no box, so it composes no Position. Re-ordering is a property of nothing; it is
+drift. That asymmetry is the whole rule.
+
+**Readback is the rung that made this cross-app.** ADR-519 fixed the order for Studio,
+whose pane is nearly all controls, and gated it (`test_adr519_pane_spine.py`) — but that
+gate reads two files, **both Studio's**. Text grew its own pane beside it with its own
+heading styles, its own section rhythm and its own order, and every check stayed green:
+*the rule was real and the divergence was invisible, because the rule lived in a docstring
+about one component.* Text's pane is nearly all **facts** (Length, Format, Last edited).
+Demanding Position/Layout of it would be a fiction — markdown has no box. Demanding its
+facts come **last** is a rule it can actually satisfy, and it is what makes two panes read
+as one product: eye lands on the subject, walks the controls, finds the facts where facts
+always are.
+
+| | Studio | Text |
+|---|---|---|
+| **Identity** | file card · label/crumb · verb row | file card · Outline |
+| **controls** | Position · Layout · Text · Style · Content (per scope) | — (no box, no layout surface) |
+| **Readback** | — | Length · Format · Last edited |
+
+**One implementation, not one convention.** The rung order and the two class strings live
+in **`web/lib/authoring/pane-spine.ts`**; both apps import them. A copied Tailwind string
+is identical the day it is written, which is precisely why nothing catches it drifting —
+Studio held a local `HEADING` const, Text inline-styled the same declaration four times,
+and two *further* copies in Studio had already picked up an `mb-1` prefix. The cross-app
+gate is **`web/scripts/gates/pane_spine_cross_app.mjs`** (per-scope ordering stays owned
+by `test_adr519_pane_spine.py`, so the two gates never assert the same claim and disagree).
+
+> **Adding a section?** Give it a rung. If it is a thing the member can *change*, it goes
+> in the control band in spine order. If it is a thing they can only *read*, it joins the
+> readback tail. If it is neither, that is a signal the section is answering a question
+> the pane was not asked.
 
 **On flow the scope set is `document | range | object` (ADR-528 D2) — `block` is not a
 scope a continuous document can produce.** On a stage `block` genuinely IS a selection
