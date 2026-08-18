@@ -262,6 +262,53 @@ def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
     return None
 
 
+def resolve_owned_workspace_ids(user_id: str) -> list:
+    """EVERY workspace this principal owns, oldest-first (ADR-465 D2 + genesis).
+
+    The plural sibling of `resolve_owner_workspace_id`, which is deliberately
+    zero-or-ONE: it answers "where is this principal's HOME" and its first
+    element is that same answer. Ownership itself has never been capped — there
+    is no unique constraint on `workspaces.owner_id` — and since deliberate
+    genesis shipped a principal can hold several.
+
+    Two callers need the plural form and would be WRONG with the singular one:
+      - `principal_reaches_workspace`, which otherwise refuses the owner of a
+        NON-home workspace access to their own commons (observed on production
+        2026-08-18: the owner of a freshly-created workspace was 403'd out of it
+        because the singular resolver returned their OLDER workspace, and the
+        `X-Workspace-Id` pin the create flow had just written no longer matched
+        anything reachable — locking them out of every endpoint, switcher
+        included).
+      - the memberships/switcher endpoint, which would list one owned workspace
+        and silently hide the rest.
+
+    NOT cached, and that is deliberate: the singular resolver is `lru_cache`d
+    because a home is stable, but this set CHANGES the moment genesis runs, and
+    a stale empty/short answer here is an authorization refusal rather than a
+    mis-route. `create_workspace` clears the singular cache; nothing has to
+    remember to clear this one.
+
+    Ownership ground truth is the `owner_id` COLUMN, never an `owner`-role grant
+    row (see `principal_grants.has_billing_authority` — live workspaces exist
+    whose owner has no grant row, so keying on the grant would 403 real owners).
+    """
+    try:
+        client = get_service_client()
+        result = (
+            client.table("workspaces")
+            .select("id")
+            # The ownership filter is the whole function — see the warning on
+            # `_resolve_owner_workspace_id_cached`. Never remove it.
+            .eq("owner_id", user_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return [r["id"] for r in (result.data or [])]
+    except Exception as exc:  # pragma: no cover — best-effort, fail-closed
+        logger.warning("[ADR-373] owned-workspace list failed for %s: %s", user_id, exc)
+        return []
+
+
 def principal_reaches_workspace(user_id: str, workspace_id: str) -> bool:
     """Whether a human principal may bind a request to a workspace (ADR-373).
 
@@ -270,7 +317,10 @@ def principal_reaches_workspace(user_id: str, workspace_id: str) -> bool:
     lose reach on their next request, not at cache eviction.
     """
     try:
-        if resolve_owner_workspace_id(user_id) == workspace_id:
+        # EVERY owned workspace, not just the home one. The singular resolver
+        # is oldest-first, so an owner of a second workspace failed BOTH
+        # branches here and was locked out of their own commons (2026-08-18).
+        if workspace_id in resolve_owned_workspace_ids(user_id):
             return True
         client = get_service_client()
         result = (

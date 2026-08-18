@@ -1280,6 +1280,7 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
     from services.supabase import (
         display_workspace_name,
         get_service_client,
+        resolve_owned_workspace_ids,
         resolve_owner_workspace_id,
     )
 
@@ -1289,25 +1290,31 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
     seen: set[str] = set()
 
     try:
-        own_ws = resolve_owner_workspace_id(auth.user_id)
-        if own_ws:
+        # EVERY owned workspace, oldest-first — not just the home one. The
+        # singular `resolve_owner_workspace_id` answers "where is home"; using it
+        # here listed ONE owned workspace and silently hid the rest, so a
+        # workspace the member had just created was unreachable from the
+        # switcher that is supposed to reach it (2026-08-18).
+        own_ids = resolve_owned_workspace_ids(auth.user_id)
+        own_rows: dict = {}
+        if own_ids:
+            try:
+                fetched = (
+                    svc.table("workspaces").select("id, name, icon")
+                    .in_("id", own_ids).execute()
+                ).data or []
+                own_rows = {r["id"]: r for r in fetched}
+            except Exception:  # noqa: BLE001 — labels degrade, rows still render
+                pass
+        for own_ws in own_ids:
             # Workspace identity phase 1: the label is the CHOSEN name; a
             # workspace still wearing the mint default reads "My workspace"
             # (what this row always said before names were writable).
-            own_name, own_icon = None, None
-            try:
-                own_row = (
-                    svc.table("workspaces").select("name, icon")
-                    .eq("id", own_ws).limit(1).execute()
-                ).data or []
-                if own_row:
-                    own_name = display_workspace_name(own_row[0].get("name"))
-                    own_icon = own_row[0].get("icon")
-            except Exception:  # noqa: BLE001 — label degrades, row still renders
-                pass
+            row = own_rows.get(own_ws) or {}
+            own_name = display_workspace_name(row.get("name"))
             memberships.append(WorkspaceMembership(
                 workspace_id=own_ws, role="owner",
-                label=own_name or "My workspace", icon=own_icon,
+                label=own_name or "My workspace", icon=row.get("icon"),
                 is_active=(own_ws == acting),
             ))
             seen.add(own_ws)

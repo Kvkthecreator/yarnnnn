@@ -192,15 +192,29 @@ def test_resolver() -> None:
     import services.supabase as sb
 
     # requested + owner → honored
-    with patch.object(sb, "resolve_owner_workspace_id", return_value="ws-own"):
+    # RE-POINTED 2026-08-18: the owner branch of `principal_reaches_workspace`
+    # now consults the PLURAL `resolve_owned_workspace_ids` — the singular
+    # home resolver is oldest-first, so an owner of a SECOND workspace failed
+    # this branch and was 403'd out of their own commons. The invariant under
+    # test ("an owner reaches a workspace they own") is unchanged; only the
+    # mechanism it names is.
+    with patch.object(sb, "resolve_owned_workspace_ids", return_value=["ws-own"]):
         _assert(
             sb.resolve_workspace_for_principal("u1", "ws-own") == "ws-own",
             "requested own workspace → honored",
         )
 
+    # requested + a SECOND owned workspace → honored (the 2026-08-18 lockout)
+    with patch.object(sb, "resolve_owned_workspace_ids", return_value=["ws-own", "ws-own-2"]):
+        _assert(
+            sb.resolve_workspace_for_principal("u1", "ws-own-2") == "ws-own-2",
+            "requested SECOND owned workspace → honored (not just home)",
+        )
+
     # requested + active grant → honored (grant lookup via service client)
     grant_client = FakeClient(responses={("principal_grants", "select"): [{"id": "g1"}]})
-    with patch.object(sb, "resolve_owner_workspace_id", return_value="ws-own"), \
+    with patch.object(sb, "resolve_owned_workspace_ids", return_value=["ws-own"]), \
+         patch.object(sb, "resolve_owner_workspace_id", return_value="ws-own"), \
          patch.object(sb, "get_service_client", return_value=grant_client):
         _assert(
             sb.resolve_workspace_for_principal("u1", "ws-other") == "ws-other",
@@ -209,7 +223,8 @@ def test_resolver() -> None:
 
     # requested + no reach → None (fail-closed; auth layer 403s)
     no_grant = FakeClient(responses={("principal_grants", "select"): []})
-    with patch.object(sb, "resolve_owner_workspace_id", return_value="ws-own"), \
+    with patch.object(sb, "resolve_owned_workspace_ids", return_value=["ws-own"]), \
+         patch.object(sb, "resolve_owner_workspace_id", return_value="ws-own"), \
          patch.object(sb, "get_service_client", return_value=no_grant):
         _assert(
             sb.resolve_workspace_for_principal("u1", "ws-stranger") is None,

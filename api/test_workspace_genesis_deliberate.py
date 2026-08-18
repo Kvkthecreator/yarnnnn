@@ -204,6 +204,39 @@ check(
     "WorkspaceCreatePane" not in asrc,
 )
 
+print("\n[8] The creator can REACH what they just created")
+# THE DEFECT THIS SUITE MISSED (found by an operator click-pass, 2026-08-18).
+# Genesis minted the row, the pane pinned X-Workspace-Id to it, and
+# `principal_reaches_workspace` then REFUSED it: the owner branch used the
+# oldest-first SINGULAR resolver, which returns the creator's OLDER workspace,
+# and there is no grant row (ownership ground truth is the `owner_id` COLUMN —
+# see principal_grants.has_billing_authority — so genesis correctly writes no
+# owner grant). Both branches failed → 403 on every request → the member was
+# locked out of a workspace they own, switcher included.
+sup2 = open(os.path.join(HERE, "services", "supabase.py")).read()
+check("8a. a PLURAL owned-workspace resolver exists", "def resolve_owned_workspace_ids" in sup2)
+_reach = re.search(r"def principal_reaches_workspace\(.*?\n(?=\n\ndef |\n\n@)", sup2, re.S)
+_rbody = re.sub(r"#.*", "", _reach.group(0)) if _reach else ""
+check(
+    "8b. the reach check consults EVERY owned workspace, not just home",
+    "resolve_owned_workspace_ids(" in _rbody,
+)
+check(
+    "8c. it no longer equality-compares the SINGULAR home resolver "
+    "(that is what locked the owner out)",
+    "resolve_owner_workspace_id(user_id) == workspace_id" not in _rbody,
+)
+check(
+    "8d. the plural resolver keeps the ownership filter (never a cross-tenant list)",
+    bool(re.search(r"def resolve_owned_workspace_ids.*?\.eq\(\s*[\"']owner_id[\"']", sup2, re.S)),
+)
+_memb = re.search(r"async def get_workspace_memberships\(.*?\n(?=\n\n@router)", rsrc, re.S)
+_mbody = re.sub(r"#.*", "", _memb.group(0)) if _memb else ""
+check(
+    "8e. the switcher lists ALL owned workspaces (else the new one is hidden)",
+    "resolve_owned_workspace_ids(" in _mbody,
+)
+
 print(f"\n{'='*66}")
 if failures:
     print(f"FAILED {len(failures)}/{checks}")
