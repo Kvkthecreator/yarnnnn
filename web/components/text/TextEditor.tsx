@@ -73,6 +73,7 @@ import { MarkdownToolbar, type ToolbarAction } from '@/components/text/MarkdownT
 import { SlashMenu, filterSlashItems, type SlashItem } from '@/components/text/SlashMenu';
 import { StudioCitablePicker } from '@/components/authoring/StudioCitablePicker';
 import { readConflict, type ConflictState } from '@/components/text/conflict';
+import { useFileRevisionsRealtime } from '@/lib/realtime/use-file-revisions-realtime';
 import { parseOutline, readingMinutes } from '@/components/text/outline';
 import {
   insertCsvTable,
@@ -132,7 +133,7 @@ export function TextEditor({
 }) {
   const [setWorkbenchNode, wb] = useWorkbenchWidth();
   const [reloadKey, setReloadKey] = useState(0);
-  const { file, loading, notFound, error, headRevision } = useFileLoad(path, {
+  const { file, loading, notFound, error, headRevision, refreshRevision } = useFileLoad(path, {
     withRevision: true,
     reloadKey,
   });
@@ -181,6 +182,14 @@ export function TextEditor({
   const baselineRef = useRef(baseline);
   baselineRef.current = baseline;
 
+  // Revision ids this editor authored, so the realtime echo of our OWN save is
+  // not reported back as a peer edit (ADR-575). Declared here, above `commit`,
+  // because `commit` writes to it — a `const` used before its declaration line
+  // is a temporal-dead-zone throw at runtime, which no build step catches.
+  const ownRevisions = useRef<Set<string>>(new Set());
+  /** A peer's revision landed while the member had unsaved text. */
+  const [peerEdit, setPeerEdit] = useState<{ actor: string; at: string } | null>(null);
+
   /**
    * Commit the current text as one attributed CAS revision.
    *
@@ -227,10 +236,22 @@ export function TextEditor({
             'Edited in Text',
             expectedHead === undefined ? baseHead.current : expectedHead,
           );
-          baseHead.current = (res as { head_version_id?: string }).head_version_id ?? null;
+          const newHead = (res as { head_version_id?: string }).head_version_id ?? null;
+          baseHead.current = newHead;
+          // Remember our own revision ids so the realtime echo of THIS save is
+          // not announced back to the member as somebody else's edit
+          // (ADR-575).
+          if (newHead) ownRevisions.current.add(newHead);
           setBaseline(body);
           setConflict(null);
+          setPeerEdit(null);
           setSavedAt(Date.now());
+          // A save changes the REVISION, not the member's text — so refresh
+          // only the revision. `reloadKey` would re-run `getFile` and re-fire
+          // the `setText(content)` effect, destroying a keystroke that landed
+          // during the refetch (the D12 shape). This is the fix for Properties
+          // reading "No revisions yet." on a file with four revisions.
+          refreshRevision();
           onSaved?.();
         } catch (err) {
           if (err instanceof APIError && err.status === 409) {
@@ -251,8 +272,44 @@ export function TextEditor({
       writeTail.current = next.catch(() => undefined);
       return next;
     },
-    [path, onSaved],
+    [path, onSaved, refreshRevision],
   );
+
+  // ── Hearing about other principals' writes (ADR-575) ────────────────────
+  //
+  // The conflict banner used to be the FIRST notice that anyone else had
+  // touched this document: whole-document CAS with no subscription means a
+  // peer's write is discovered by colliding with it at save time. Measured on
+  // production — `/workspace/seulki/babo-song-concept.md` had four revisions,
+  // one authored by `yarnnn:mcp:claude.ai`, while the open editor showed
+  // "No revisions yet." and an unexplained 409.
+  //
+  // Notion's members never see that screen, and the reason is not their block
+  // model: rendering a record subscribes the client to it, and the server
+  // pushes a version on commit. This is that. Whole-document CAS is unchanged
+  // — the 409 still exists and still asks — but it becomes RARE and INFORMED
+  // instead of routine and surprising.
+  useFileRevisionsRealtime({
+    path,
+    isOwnWrite: (row) => ownRevisions.current.has(row.id),
+    onForeignRevision: (row) => {
+      // The head moved under us. Two different situations, and conflating them
+      // is what made the old banner confusing:
+      //
+      //   - the member has NOT typed since their last save → nothing of theirs
+      //     is at stake, so take their revision silently. The document is
+      //     reloaded and LAST EDITED updates. No decision to make.
+      //   - the member HAS unsaved text → do NOT touch the document (that
+      //     would discard their typing). Tell them now, while they can still
+      //     act, rather than at save time.
+      refreshRevision();
+      if (textRef.current === baselineRef.current) {
+        setReloadKey((n) => n + 1);
+      } else {
+        setPeerEdit({ actor: row.authored_by, at: row.created_at });
+      }
+    },
+  });
 
   // ── Autosave: idle-2s, flushed on blur and teardown (ADR-572 D10) ───────
   // Ported from Docs (`COMMIT_IDLE_MS = 2000` in `FlowEditor`), which is the
@@ -716,6 +773,14 @@ export function TextEditor({
             <>
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> Saving…
             </>
+          ) : conflict ? (
+            // ADR-575. A conflict SUSPENDS autosave (the effect returns early
+            // on `conflict`), so the surface must not keep saying "Editing…",
+            // whose whole point is that nothing is at risk. During a conflict
+            // something is: nothing will be written until the member chooses.
+            <span className="flex items-center gap-1 text-amber-600">
+              <AlertTriangle className="h-3 w-3" aria-hidden /> Paused — resolve above
+            </span>
           ) : dirty ? (
             'Editing…'
           ) : savedAt ? (
@@ -753,6 +818,46 @@ export function TextEditor({
       <div className="relative flex min-h-0 flex-1">
         {showCanvas && (
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {/* ADR-575 — the peer-write notice. Shown when someone else's
+              revision lands WHILE the member has unsaved text, which is the
+              moment the old design said nothing and then raised a 409 at save
+              time. It is informational, not a decision: the member's text is
+              untouched and saving still works (their save will simply be the
+              one that moves the head). Suppressed once a real conflict is up,
+              so the surface never stacks two amber bars saying similar things. */}
+          {peerEdit && !conflict && (
+            <div className="border-b border-border bg-muted/40 px-4 py-2 text-xs">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <div className="space-y-2">
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {formatAuthorLabel(peerEdit.actor) || peerEdit.actor}
+                    </span>{' '}
+                    saved a new version of this document
+                    {peerEdit.at ? ` ${formatRelativeTime(peerEdit.at, { rollToDate: true })}` : ''}.
+                    Your text here is untouched — saving will put your version on top.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setPeerEdit(null); setReloadKey((n) => n + 1); }}
+                      className="rounded-md border border-border px-2 py-1 hover:bg-muted/40"
+                    >
+                      Discard mine, show theirs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPeerEdit(null)}
+                      className="rounded-md px-2 py-1 text-muted-foreground hover:bg-muted/40"
+                    >
+                      Keep writing
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {conflict && (
             <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs">
               <div className="flex items-start gap-2">

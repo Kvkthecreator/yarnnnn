@@ -2038,6 +2038,125 @@ check("18L ONE CSV parser, not two. Strings had its own copy; D18 needed the "
       "a second CSV parser was reintroduced")
 
 
+# ── 19. ADR-575 — the surface HEARS other principals' writes ─────────────
+# Operator drove the deployed surface and found three claims on one screen
+# that cannot all be true: a conflict banner ("someone else revised this"),
+# the header reading "Editing…" (whose copy means *nothing is at risk*), and
+# Properties reading "No revisions yet."
+#
+# Measured on production — /workspace/seulki/babo-song-concept.md had FOUR
+# revisions (three `operator`, one `yarnnn:mcp:claude.ai`) while the open
+# editor said it had none. Two defects with ONE root: every mutation path
+# bumped `reloadKey` EXCEPT autosave, and nothing subscribed to peer writes,
+# so a 409 was the FIRST notice anyone else had touched the document.
+_load_src = (WEB / "components" / "workspace" / "useFileLoad.ts").read_text(encoding="utf-8")
+_load_nc = _strip_comments(_load_src)
+_rt_path = WEB / "lib" / "realtime" / "use-file-revisions-realtime.ts"
+_rt_src = _rt_path.read_text(encoding="utf-8") if _rt_path.exists() else ""
+_rt_nc = _strip_comments(_rt_src)
+
+# The commit() success branch, isolated. Asserting over the whole file would
+# match the `refreshRevision` in useFileLoad's import or in a comment — the
+# name-vs-behaviour trap this arc has now paid for eight times.
+_commit_ok = re.search(
+    r"const res = await api\.workspace\.editFile\(([\s\S]*?)\} catch", _editor_nc)
+_commit_body = _commit_ok.group(1) if _commit_ok else ""
+check("19a ⭐ THE ROOT — a successful save REFRESHES the head revision. Every "
+      "mutation path bumped `reloadKey` except autosave, the one that runs "
+      "constantly, so Properties' LAST EDITED was frozen at MOUNT: production "
+      "showed 'No revisions yet.' on a file with four revisions.",
+      _commit_ok is not None and "refreshRevision()" in _commit_body,
+      f"commit success branch: {_commit_body.strip()[:200]!r}")
+check("19b the refresh is REVISION-ONLY, never a full reload. `reloadKey` "
+      "re-runs `getFile`, which re-fires the consumer's `setText(content)` "
+      "effect — a keystroke landing during that refetch is destroyed (the "
+      "D12 stale-prop shape, already shipped once here). A save changes the "
+      "revision, not the member's text.",
+      "setReloadKey" not in _commit_body
+      and "refreshRevision" in _load_nc
+      and re.search(r"refreshRevision\s*=\s*useCallback", _load_nc) is not None,
+      f"commit success branch: {_commit_body.strip()[:200]!r}")
+check("19c useFileLoad exposes ONE head-revision fetcher, shared by mount and "
+      "refresh — two fetchers could disagree about what 'the head' is",
+      _load_nc.count("listRevisions") == 1
+      and "fetchHeadRevision" in _load_nc, str(_load_nc.count("listRevisions")))
+
+check("19d ⭐ the surface SUBSCRIBES to this file's revisions (ADR-575). The "
+      "conflict banner was the FIRST notice of a peer write, because "
+      "whole-document CAS with no subscription discovers a collision only at "
+      "save time. Notion's members never see that screen — rendering a record "
+      "subscribes the client, and the server pushes a version on commit.",
+      "useFileRevisionsRealtime" in _editor_nc
+      and "workspace_file_versions" in _rt_nc
+      and "postgres_changes" in _rt_nc,
+      "no realtime subscription on the open document")
+check("19e the subscription filters SERVER-side to this one path — filtering "
+      "in the callback would ship every workspace revision to every open "
+      "editor and discard them locally",
+      re.search(r"filter:\s*`path=eq\.\$\{path\}`", _rt_nc) is not None,
+      "the filter is not server-side on path")
+check("19f ⭐ the member's OWN save is not reported back to them as a peer "
+      "edit. Every autosave INSERTs a revision that returns down this channel; "
+      "without the echo rule the surface would accuse the member of editing "
+      "behind their own back, ~2s after every pause.",
+      "isOwnWrite" in _rt_nc and "ownRevisions" in _editor_nc
+      and re.search(r"ownRevisions\.current\.add", _editor_nc) is not None
+      and re.search(r"isOwnWrite:\s*\(row\)\s*=>\s*ownRevisions\.current\.has", _editor_nc)
+      is not None,
+      "the editor's own revisions are not filtered from the feed")
+check("19g `ownRevisions` is declared ABOVE `commit`, which writes to it. A "
+      "`const` read before its declaration line is a temporal-dead-zone THROW "
+      "at runtime — invisible to tsc and to `next build`, which is exactly "
+      "the class of defect this app keeps shipping green.",
+      _editor_nc.index("const ownRevisions") < _editor_nc.index("const commit = useCallback"),
+      "ownRevisions is declared after commit — TDZ throw on first save")
+check("19h a peer revision arriving with NO unsaved text reloads silently; "
+      "with unsaved text it NOTIFIES instead. Reloading over unsaved text "
+      "would discard the member's typing — the two cases are different and "
+      "conflating them is what made the old banner confusing.",
+      re.search(r"if \(textRef\.current === baselineRef\.current\)[\s\S]{0,80}setReloadKey",
+                _editor_nc) is not None
+      and "setPeerEdit" in _editor_nc,
+      "the peer-write handler does not branch on unsaved text")
+
+check("19i the header does NOT read 'Editing…' while a conflict suspends "
+      "autosave. The effect returns early on `conflict`, so nothing will be "
+      "written until the member chooses — but 'Editing…' was chosen to mean "
+      "*nothing is at risk*. Three mutually exclusive claims were on one "
+      "screen; this is the copy half.",
+      re.search(r"conflict \?[\s\S]{0,400}?Paused", _editor_nc) is not None
+      and re.search(r"\) : dirty \?\s*\(\s*'Editing…'", _editor_nc) is not None,
+      "the status label still reads Editing… during a conflict")
+
+_mig = (API.parent / "supabase" / "migrations"
+        / "240_adr575_file_versions_realtime_publication.sql")
+_mig_src = _mig.read_text(encoding="utf-8") if _mig.exists() else ""
+# The publication-verify block ONLY. The first spelling required
+# `pg_publication_tables` + `RAISE EXCEPTION` anywhere in the file and PASSED
+# its own falsification — deleting the whole verify block left both tokens in
+# the SIBLING RLS block below it. NINTH occurrence this arc of an assertion
+# matching a token that lives somewhere else; extract the branch, then assert.
+_pub_verify = re.search(
+    r"SELECT EXISTS \([\s\S]*?pg_publication_tables[\s\S]*?\) INTO in_pub;"
+    r"[\s\S]*?IF NOT in_pub THEN[\s\S]*?RAISE EXCEPTION[\s\S]*?END IF;",
+    _mig_src)
+check("19j the migration PUBLISHES the table and verifies the LIVE object — "
+      "an ALTER that silently no-ops still exits 0, and a subscription on an "
+      "unpublished table receives NOTHING while reporting SUBSCRIBED (the "
+      "failure that reads as 'realtime is wired and quiet')",
+      "ALTER PUBLICATION supabase_realtime ADD TABLE public.workspace_file_versions" in _mig_src
+      and _pub_verify is not None
+      and "workspace_file_versions" in _pub_verify.group(0),
+      "migration 240 missing, or its publication-verify block is absent")
+check("19k the migration REFUSES to publish if RLS is off. Publishing to a "
+      "replication slot is the moment a disabled RLS flag stops being latent "
+      "and starts broadcasting every workspace's revision feed. Falsified "
+      "against production: the member sees 2 workspaces / 1517 rows of 6 / "
+      "1758; a principal with no grants sees 0.",
+      "relrowsecurity" in _mig_src and "refused" in _mig_src.lower(),
+      "the migration does not check RLS before publishing")
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:

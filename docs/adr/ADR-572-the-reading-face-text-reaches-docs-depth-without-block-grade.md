@@ -960,6 +960,17 @@ type error and the fallback string reads like intended copy. The gate now
 replays the **verbatim production 409 body** (§8) and falsifies: restoring the
 `detail`-only read fails 8a and 8b with exactly the production symptom.
 
+> **Amended by ADR-575 (2026-08-18).** D7's reasoning above is sound about the
+> ENVELOPE and remains in force. But its premise — that a 409 *"cannot be
+> re-applied without inventing a merge"* — is **false about the medium**.
+> Merging prose is the most solved problem, not the least: Jupiter/OT and
+> sequence CRDTs operate on flat character sequences, which is exactly what a
+> `.md` is. More importantly, ADR-575 found the banner fires so often because
+> **nothing subscribed** to other principals' writes, so a 409 was the FIRST
+> notice anyone else had touched the document. The banner was the cost of not
+> listening. Text now hears peer revisions as they land; the 409 remains, rare
+> and informed.
+
 **Verified on the deployed surface** (re-driven after the fix shipped): the
 banner now carries **both** exits, names the actor, and "Save mine over theirs"
 lands the member's text on the moved head — after which the banner clears, Save

@@ -1,4 +1,110 @@
-# Session handoff — 2026-08-17
+# Session handoff — 2026-08-18
+
+---
+
+# Part D — ADR-575: the document hears other principals before it collides
+
+**The operator drove the deployed surface and found a logic collision.** One
+screenshot carried three claims that cannot all be true:
+
+| The surface said | Actually true |
+|---|---|
+| *"Someone else revised this document"* | there had been a 409 |
+| **`Editing…`** (copy means *nothing is at risk*) | autosave was **suspended** |
+| **`No revisions yet.`** | **four** revisions existed in production |
+
+Their diagnosis was right and better than mine: *"most likely the way the
+autosave to features and thus artifact mutation is handled."*
+
+## ⭐⭐⭐ The turn that made this worth doing
+
+I proposed two repairs (refresh the revision, fix the copy). **The operator
+refused the symptom fix and asked for the benchmark** — *"how does Notion handle
+their multi-user workspace to artifacts?"* That overturned the framing:
+
+- **Notion never shows a "choose whose version wins" dialog for prose.** Text
+  merges; only non-text properties are LWW.
+- **"Last edited by" is PUSHED** — MessageStore sends a *version number*, the
+  client refetches what went stale. The push is an invalidation signal, never
+  content.
+- **ADR-572 D7's premise was false.** It said a 409 "cannot be re-applied
+  without inventing a merge". **Merging prose is the most solved problem, not
+  the least** — OT and sequence CRDTs operate on flat character sequences, which
+  is exactly what a `.md` is. Blocks add the *harder* problem (tree moves).
+  **Fourth instance this arc of a constraint read as a ceiling.**
+
+What blocks genuinely buy, and we cannot have: **conflict-domain partitioning**
+(Figma — a conflict needs *same property, same object*; a markdown string is one
+object with one property) and **stable anchors**. So we cannot have edits that
+never meet. We can have edits we *hear about* before they meet.
+
+**The conflict banner was the cost of not listening**, handed to the member as a
+decision.
+
+## What shipped
+
+- **Migration 240** publishes `workspace_file_versions` to `supabase_realtime`.
+  ⭐ Verified against production FIRST: the publication carried only
+  `chat_sessions` + `session_messages`, so a subscription would have delivered
+  **nothing while reporting `SUBSCRIBED`**.
+- **`useFileRevisionsRealtime`** — second tenant of the primitive
+  `use-session-messages-realtime.ts` already declared reusable. Server-side
+  filter on `path=eq.…`.
+- ⭐ **The own-write echo rule.** Every autosave INSERTs a row that comes back
+  down the channel; without the filter the surface announces the member's own
+  typing as a peer edit ~2s after every pause.
+- **Revision-only refresh on save** — `reloadKey` would re-fire `setText` and
+  destroy a keystroke landing during the refetch (the D12 shape, already shipped
+  once here).
+- **A peer write branches on unsaved text**: none → reload silently; unsaved →
+  notify, never touch the document.
+- **`Paused — resolve above`** so the header says one thing at a time.
+
+Whole-document CAS is **unchanged** — the 409 still asks, but becomes rare.
+
+## ⭐⭐ RLS was falsified, not assumed
+
+In a `ROLLBACK` txn as the real principal: 6 workspaces / 1758 revisions exist;
+member `2be30ac5…` sees **2 / 1517** (owner ∪ one grant); a principal with no
+grants sees **0**. Publishing widens *when* a member finds out, never *what*
+they may see. The migration also **refuses to publish if RLS is off**.
+
+## ⭐⭐⭐ Gate craft — 9 falsifiers, two findings
+
+- **19g catches a temporal-dead-zone throw that `tsc` passes CLEAN.**
+  `ownRevisions` is written by `commit` and must be declared above it; the
+  broken form throws on first save with a green typecheck **and** a green
+  `next build`. I verified `tsc` exits 0 on it.
+- **19j passed its own falsification** (NINTH this arc). It required
+  `pg_publication_tables` + `RAISE EXCEPTION` anywhere in the migration —
+  deleting the whole verify block left both tokens in the **sibling RLS block**.
+  Now extracts the branch.
+
+## Part D verification
+
+```
+cd api && python3 test_adr571_text_app.py            # 232/232, SCRIPT-STYLE
+cd api && python3 -m pytest test_lane_artifacts.py test_adr570_member_prose_door.py -q   # 19
+cd api && python3 test_adr562_app_owned_config.py    # GREEN
+node web/lib/file-types/__gate_adr514_d2.mjs         # 41/41, from REPO ROOT
+cd web && node_modules/.bin/next build               # 171/171, tsc clean
+```
+
+## Part D owed — a TWO-PRINCIPAL click-pass
+
+This is the one thing gates cannot do. Two browsers, two principals:
+
+1. B saves → A's `LAST EDITED` updates **without A reloading**; A's document
+   reloads silently (A had not typed).
+2. A types, then B saves → A sees the notice, **A's text is still there**,
+   `Keep writing` dismisses it.
+3. A saves normally → **no** peer notice (the echo rule).
+4. Force a 409 → header reads `Paused — resolve above`; both exits work.
+5. Network tab during typing: one WebSocket, **no** `getFile` per save.
+
+⚠️ A peer lane committed into this tree mid-session (`9fe241c`, `1d81883` —
+the latter touched `TextEditor.tsx` in the Properties FILE row, disjoint from
+this work). Stage by explicit pathspec; verify with `git log -S`.
 
 ---
 

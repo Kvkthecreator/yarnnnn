@@ -13,7 +13,7 @@
  * a real load `error` (ADR-388 follow-up).
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, APIError } from '@/lib/api/client';
 import type { WorkspaceFile } from '@/types';
 
@@ -32,6 +32,17 @@ export interface FileLoadState {
   error: string | null;
   /** The head revision, when `withRevision` is set. */
   headRevision: HeadRevision | null;
+  /**
+   * Re-read the head revision WITHOUT re-reading the file (ADR-575).
+   *
+   * `reloadKey` reloads both, which is right for a rename or a discard but
+   * wrong after an autosave: re-running `getFile` re-fires the consumer's
+   * `setText(content)` effect, and a keystroke landing during that refetch is
+   * destroyed (the ADR-572 D12 stale-prop shape, which has already shipped
+   * once in Text). Saving changes the revision, not the member's text — so the
+   * refresh that follows a save must touch only the revision.
+   */
+  refreshRevision: () => void;
 }
 
 /**
@@ -52,8 +63,32 @@ export function useFileLoad(
   const [error, setError] = useState<string | null>(null);
   const [headRevision, setHeadRevision] = useState<HeadRevision | null>(null);
 
+  /**
+   * Fetch the head revision for a path. Shared by the mount effect and by
+   * `refreshRevision`, so the two can never drift on what "the head" means.
+   * `cancelledRef` guards a response landing after unmount or a path change.
+   */
+  const cancelledRef = useRef(false);
+  const fetchHeadRevision = useCallback((forPath: string) => {
+    api.workspace
+      .listRevisions({ path: forPath }, 1)
+      .then((res) => {
+        const head = res.revisions[0];
+        if (!cancelledRef.current && head) {
+          setHeadRevision({ authored_by: head.authored_by, created_at: head.created_at });
+        }
+      })
+      .catch(() => { /* informational — non-fatal */ });
+  }, []);
+
+  const refreshRevision = useCallback(() => {
+    if (!path || !withRevision) return;
+    fetchHeadRevision(path);
+  }, [path, withRevision, fetchHeadRevision]);
+
   useEffect(() => {
     let cancelled = false;
+    cancelledRef.current = false;
 
     // NO path = nothing to load — not a miss. Callers legitimately render this
     // hook before a file is chosen (the Studio landing has no artifact; the file
@@ -90,19 +125,11 @@ export function useFileLoad(
 
     if (withRevision) {
       // Non-blocking on the file render; absence falls back to updated_at.
-      api.workspace
-        .listRevisions({ path }, 1)
-        .then((res) => {
-          const head = res.revisions[0];
-          if (!cancelled && head) {
-            setHeadRevision({ authored_by: head.authored_by, created_at: head.created_at });
-          }
-        })
-        .catch(() => { /* informational — non-fatal */ });
+      fetchHeadRevision(path);
     }
 
-    return () => { cancelled = true; };
-  }, [path, reloadKey, withRevision]);
+    return () => { cancelled = true; cancelledRef.current = true; };
+  }, [path, reloadKey, withRevision, fetchHeadRevision]);
 
-  return { file, loading, notFound, error, headRevision };
+  return { file, loading, notFound, error, headRevision, refreshRevision };
 }
