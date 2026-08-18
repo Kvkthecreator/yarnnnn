@@ -226,6 +226,21 @@ class WorkspaceIdentityResponse(BaseModel):
     icon: Optional[str] = None
 
 
+class WorkspaceCreateRequest(BaseModel):
+    """POST /api/workspace — mint a NEW owned workspace, named by the caller.
+
+    Name-only by deliberate scope: genesis is staged in
+    `services/workspace_genesis.py`, and future steps (directory shape, starting
+    structure) are added THERE rather than by widening this model at call sites.
+    `extra="forbid"` so a client sending a field we have not built yet is
+    REFUSED rather than silently dropped — the ADR-562 lesson (a pin that is
+    real and invisible).
+    """
+    model_config = {"extra": "forbid"}
+
+    name: str
+
+
 class WorkspaceMembershipsResponse(BaseModel):
     memberships: list[WorkspaceMembership]
     # ADR-501: the caller's workspace-clear authority in the ACTING workspace,
@@ -1212,6 +1227,43 @@ async def update_workspace_identity(
         workspace_id=workspace_id,
         name=row.get("name") or "",
         icon=row.get("icon"),
+    )
+
+
+@router.post("/workspace", response_model=WorkspaceIdentityResponse, status_code=201)
+async def create_owned_workspace(
+    body: WorkspaceCreateRequest, auth: UserClient
+) -> WorkspaceIdentityResponse:
+    """Create a NEW workspace owned by the caller (ADR-465 D2, deliberate genesis).
+
+    The counterpart to the cold-user door's `ensure_owner_workspace`: that one is
+    implicit, idempotent and carries the $3 signup grant; this one is explicit,
+    named, non-idempotent and mints at ZERO balance (the grant is per-person, not
+    per-workspace — see services/workspace_genesis.py).
+
+    Open to ANY authenticated principal, including a member-only one who owns
+    nothing yet — that is ADR-465:129's ratified "explicitly start your own
+    workspace", the case a share-first arrival has had no path to until now.
+
+    Deliberately NOT owner-gated on the acting workspace: the caller is asking
+    for a commons of their own, which says nothing about their role in the one
+    they happen to be bound to. Genesis stamps `owner_id` from the authenticated
+    user, so the caller can only ever create a workspace they own.
+
+    The response is the new workspace's identity; the CLIENT then binds to it
+    (X-Workspace-Id) and hard-navigates, the same rebind the invite/share accept
+    paths take (ADR-407 D9 — a bind change requires a full reload).
+    """
+    from services.workspace_genesis import WorkspaceGenesisError, create_workspace
+
+    try:
+        row = create_workspace(auth.user_id, body.name)
+    except WorkspaceGenesisError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    logger.info("[WORKSPACE] %s created workspace %s", auth.user_id, row["id"])
+    return WorkspaceIdentityResponse(
+        workspace_id=row["id"], name=row["name"], icon=row.get("icon")
     )
 
 

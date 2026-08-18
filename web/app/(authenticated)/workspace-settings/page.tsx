@@ -31,7 +31,7 @@
  *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
-import { AlertTriangle, BarChart3, Building2, CreditCard, KeyRound, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, Building2, CreditCard, KeyRound, Plus, Users } from "lucide-react";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 // ADR-491 D1 (2026-07-28) — Billing + Usage return to THIS door (the third and
 // final placement flip): with members real (seats live, ADR-490), billing is
@@ -66,6 +66,8 @@ import { WorkspaceDangerZone } from "@/components/workspace-concepts/WorkspaceDa
 // Workspace identity phase 1 (2026-08-14) — name + icon, the workspace's own
 // identity. Owner-edited (RLS-gated server-side), member-readable.
 import { WorkspaceGeneralPane } from "@/components/workspace-concepts/WorkspaceGeneralPane";
+// Deliberate genesis (ADR-465 D2), 2026-08-18 — its own pane beside General.
+import { WorkspaceCreatePane } from "@/components/workspace-concepts/WorkspaceCreatePane";
 // ADR-425 — the Perception group (Connectors · Sources) left this door:
 // Connectors → the account door (a credential is a human's account object),
 // Sources → hidden. ConnectedIntegrationsSection now mounts in settings/page.tsx;
@@ -112,7 +114,15 @@ const PANE_GROUPS: PaneGroup[] = [
     // Workspace identity phase 1 (2026-08-14) — the workspace's own name +
     // icon. What the switcher, invite emails, and invite/share landings show.
     label: "Workspace",
-    panes: [{ key: "general", label: "General", icon: Building2 }],
+    panes: [
+      { key: "general", label: "General", icon: Building2 },
+      // Deliberate genesis (ADR-465 D2), 2026-08-18 operator ruling: the
+      // workspace door, not the account door — a workspace is the billing unit
+      // (ADR-416) and a commons (ADR-378), not a personal object. Its own pane
+      // rather than a button inside General: General edits THIS workspace's
+      // identity; creating another one is not a property of it.
+      { key: "create", label: "Create Workspace", icon: Plus },
+    ],
   },
   {
     // ADR-373 D2 — the multi-principal access view. Who (humans, agents,
@@ -203,6 +213,14 @@ export default function WorkspaceSettingsPage() {
               bordered={false}
             />
             <WorkspaceGeneralPane />
+          </section>
+        );
+      // Deliberate genesis (ADR-465 D2). No PaneHeader: the pane carries its own
+      // heading + the honest-consequence block, which must read as one unit.
+      case "create":
+        return (
+          <section className="mb-8">
+            <WorkspaceCreatePane />
           </section>
         );
       case "members":

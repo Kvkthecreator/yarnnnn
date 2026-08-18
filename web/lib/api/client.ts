@@ -2170,6 +2170,17 @@ export const api = {
         { method: "PATCH", body: JSON.stringify(body) },
       ),
 
+    // Create a NEW owned workspace (ADR-465 D2 deliberate genesis). Name-only
+    // by scope; future genesis steps are added server-side in
+    // services/workspace_genesis.py, not by widening this call. The caller must
+    // rebind (setActiveWorkspace) + hard-navigate afterwards — a bind change
+    // requires a full reload (ADR-407 D9).
+    create: (name: string) =>
+      request<{ workspace_id: string; name: string; icon: string | null }>(
+        "/api/workspace",
+        { method: "POST", body: JSON.stringify({ name }) },
+      ),
+
     // ADR-439 — BYOK (enterprise-tier). GET is readable on any tier (the FE
     // shows availability); the write verbs are owner + enterprise-gated server-side.
     getByok: () => request<ByokStatus>("/api/workspace/byok"),

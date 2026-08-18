@@ -73,15 +73,37 @@ def main():
         "if not auth.workspace_id:" in ws_route
         and "ensure_owner_workspace(auth.user_id)" in ws_route))
     # the only production caller is the state route (+ the definition itself)
-    import subprocess
-    hits = subprocess.run(
-        ["grep", "-rl", "ensure_owner_workspace", "routes/", "services/", "mcp_server/", "agents/"],
-        capture_output=True, text=True,
-    ).stdout.split()
-    hits = [h for h in hits if not h.endswith("supabase.py")]
+    # RE-CUT 2026-08-18: this grepped for the NAME, so any file that merely
+    # DISCUSSES the cold-user door (services/workspace_genesis.py's docstring
+    # compares itself against it) read as a caller. Assert on actual CALL sites
+    # via AST instead — the invariant is unchanged, the mechanism can now tell
+    # code from documentation. Also drops the .pyc hits the -rl grep returned.
+    import ast as _ast
+    callers = []
+    for _root, _dirs, _files in os.walk("."):
+        if any(sk in _root for sk in ("__pycache__", "node_modules", ".git")):
+            continue
+        if not _root.startswith(("./routes", "./services", "./mcp_server", "./agents")):
+            continue
+        for _f in _files:
+            if not _f.endswith(".py") or _f == "supabase.py":
+                continue
+            _p = os.path.join(_root, _f)
+            try:
+                _t = _ast.parse(open(_p, encoding="utf-8").read())
+            except SyntaxError:
+                continue
+            for _n in _ast.walk(_t):
+                if isinstance(_n, _ast.Call):
+                    _fn = _n.func
+                    _nm = getattr(_fn, "id", None) or getattr(_fn, "attr", None)
+                    if _nm == "ensure_owner_workspace":
+                        callers.append(_p.lstrip("./"))
+                        break
+    callers = sorted(set(callers))
     results.append(_check(
-        "2d no other production caller (accept/invite paths never mint)",
-        hits == ["routes/workspace.py"], str(hits)))
+        "2d no other production CALLER (accept/invite paths never mint)",
+        callers == ["routes/workspace.py"], str(callers)))
 
     # 3. member-aware tolerance at the three audited sites
     from services import workspace_context as wc
