@@ -33,7 +33,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { BlockRow, type BlockRowItem } from './blockRows';
+import { BlockRow, groupBlockRows, type BlockRowItem } from './blockRows';
 import type { StudioVocabulary } from './StudioToolbar';
 
 interface StudioBlockInsertMenuProps {
@@ -127,13 +127,23 @@ export function StudioBlockInsertMenu({
       <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
         Insert into {targetLabel}
       </p>
-      {items.map((b) => (
-        <BlockRow
-          key={b.kind}
-          item={b}
-          active={false}
-          onPick={() => onPick(b.kind, b.label, b.fragment)}
-        />
+      {/* ADR-579 D4 — the same provenance grouping the flow palette renders
+          (one grouping module, two mounts — the ADR-506 D3 one-list rule
+          extended to the grouping, so the doors cannot drift apart). */}
+      {groupBlockRows(items).map((g) => (
+        <div key={g.key}>
+          <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+            {g.label}
+          </p>
+          {g.items.map((b) => (
+            <BlockRow
+              key={b.kind}
+              item={b}
+              active={false}
+              onPick={() => onPick(b.kind, b.label, b.fragment)}
+            />
+          ))}
+        </div>
       ))}
     </div>
   );

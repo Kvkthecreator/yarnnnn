@@ -283,8 +283,12 @@ export function StudioBlockMenu({
           that already exists. */}
       {onInsert && isPaged && (
         <>
+          {/* ADR-579 D5 — the member-facing label is the grammar's word for
+              creation (NEW); the internal `insert` vocabulary (props, ops,
+              ADR-509's language) is unchanged — it names PLACEMENT, which is
+              still what the code does. */}
           <Row icon={<Plus className={ICO} />} onClick={() => run(onInsert)}>
-            Insert block…
+            New block…
           </Row>
           {(hasBlock || hasClipboard) && SEP}
         </>
@@ -328,6 +332,14 @@ export function StudioBlockMenu({
             </>
           )}
           {SEP}
+          {/* ADR-579 D5 — the UPDATE section: every row below changes the
+              block that already exists (convert · move · stack · rewrite).
+              The verb is the header; the seam inside it is WHO — the badge on
+              Rewrite marks the colleague's paid act (ADR-462 D4, unchanged).
+              Plumbing above stays unlabeled: every OS has it. */}
+          <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+            Update
+          </div>
           {/* ADR-479 D5 — Turn into, in one gesture. Shown only when the
               conversion is LEGAL: a text kind, and never a citation (a figure
               or table wears data-ref on its own root, and flattening it would
@@ -412,18 +424,25 @@ export function StudioBlockMenu({
       )}
       {hasBlock && (
         <>
-          {SEP}
-          <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
-            Write with AI
-          </div>
-          {/* D6: BOTH seed the composer and send nothing — the row is a head
-              start on a sentence, not a button. Shorter/longer/sharper are
-              things the member TYPES, which is why there are two rows and not
-              four: `Make shorter` and `Expand this` were rewrites with a
-              pre-typed adjective. */}
+          {/* D6: Rewrite SEEDS the composer and sends nothing — the row is a
+              head start on a sentence, not a button. Shorter/longer/sharper
+              are things the member TYPES, which is why there is one row and
+              not three: `Make shorter` and `Expand this` were rewrites with a
+              pre-typed adjective. ADR-579 D5: it lives under Update — it
+              changes the block, with the colleague; the badge is the meter. */}
           <Row icon={<Sparkles className={ICO} />} onClick={() => run(onRewrite)} meter>
             Rewrite…
           </Row>
+          {SEP}
+          {/* ADR-579 D5 — the ASK section: neither row lands a revision; both
+              produce an ANSWER in the pane, and neither belonged in a
+              write-named section (ADR-462 D4's own observation — the badge
+              means METERED, not MUTATING — now structural). The old
+              mechanism-named header is retired per ADR-579 D3: sections name
+              the verb, the badge carries the cost. */}
+          <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+            Ask
+          </div>
           <Row icon={<SearchCheck className={ICO} />} onClick={() => run(onCheck)} meter>
             Check this…
           </Row>

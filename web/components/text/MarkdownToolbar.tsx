@@ -88,20 +88,21 @@ const GROUPS: Item[][] = [
     { icon: ListChecks, label: 'Task list', action: { kind: 'checklist' } },
     { icon: Quote, label: 'Quote', action: { kind: 'quote' } },
   ],
+  // ADR-572 D17 — every kind here keeps its content in the `.md`: a diagram
+  // is its own source, code is fenced.
   [
     { icon: Table, label: 'Table', action: { kind: 'table' } },
-    // ADR-572 D18 — the same grid, filled from a CSV the workspace already
-    // holds. The rows land as real markdown, which is what Docs' citation
-    // block cannot do.
-    { icon: Sheet, label: 'Table from CSV', action: { kind: 'csvtable' } },
     { icon: Minus, label: 'Divider', action: { kind: 'rule' } },
-  ],
-  // ADR-572 D17 — the media row. Every one of these keeps its content in the
-  // `.md`: an image is a path, a diagram is its own source, code is fenced.
-  [
-    { icon: ImageIcon, label: 'Image', action: { kind: 'image' } },
     { icon: Workflow, label: 'Diagram', action: { kind: 'mermaid' } },
     { icon: Code, label: 'Code block', action: { kind: 'code' } },
+  ],
+  // ADR-579 D4 — the ADD pair, from the workspace: the two picker-backed
+  // kinds (ADR-572 D17/D18) sit together as the toolbar's mirror of the slash
+  // palette's Add group. An image is a path; the CSV's rows land as real
+  // markdown (which is what Docs' citation block cannot do).
+  [
+    { icon: ImageIcon, label: 'Image', action: { kind: 'image' } },
+    { icon: Sheet, label: 'Table from CSV', action: { kind: 'csvtable' } },
   ],
 ];
 

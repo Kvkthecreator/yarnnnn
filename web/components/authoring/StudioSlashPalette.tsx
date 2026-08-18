@@ -28,7 +28,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { StudioVocabulary } from './StudioToolbar';
 // ONE rendered list, two mounts (this palette on flow; the native Insert menu
 // on paged). The icon map moved with it — see blockRows.tsx.
-import { BlockRow } from './blockRows';
+import { BlockRow, groupBlockRows } from './blockRows';
 
 interface StudioSlashPaletteProps {
   vocabulary: StudioVocabulary | null;
@@ -61,14 +61,21 @@ export function StudioSlashPalette({
 }: StudioSlashPaletteProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const items = useMemo(() => {
+  // ADR-579 D4 — the one provenance grouping (New · Add), shared with the
+  // paged mount. Filtering searches across both groups; the FLAT list reported
+  // up is the grouped order, so the keyboard index and the rendered rows can
+  // never disagree.
+  const groups = useMemo(() => {
     const all = vocabulary?.blocks ?? [];
     const q = filter.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(
-      (b) => b.label.toLowerCase().includes(q) || b.kind.toLowerCase().includes(q),
-    );
+    const matched = q
+      ? all.filter(
+          (b) => b.label.toLowerCase().includes(q) || b.kind.toLowerCase().includes(q),
+        )
+      : all;
+    return groupBlockRows(matched);
   }, [vocabulary, filter]);
+  const items = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
   useEffect(() => {
     onItemsChange(items);
@@ -100,16 +107,32 @@ export function StudioSlashPalette({
       className="absolute z-30 w-72 rounded-md border border-border bg-background p-1 shadow-lg"
     >
       <div className="max-h-72 overflow-y-auto">
-        {items.map((b, i) => (
-          <BlockRow
-            key={b.kind}
-            item={b}
-            active={i === highlight}
-            scrollIntoViewWhenActive
-            onPick={() => onPick(b.kind, b.label, b.fragment)}
-            onHover={() => onHighlight(i)}
-          />
-        ))}
+        {(() => {
+          // Running flat index across groups — the highlight is an index into
+          // the flat list this component reports up via onItemsChange.
+          let flat = -1;
+          return groups.map((g) => (
+            <div key={g.key}>
+              <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+                {g.label}
+              </p>
+              {g.items.map((b) => {
+                flat += 1;
+                const i = flat;
+                return (
+                  <BlockRow
+                    key={b.kind}
+                    item={b}
+                    active={i === highlight}
+                    scrollIntoViewWhenActive
+                    onPick={() => onPick(b.kind, b.label, b.fragment)}
+                    onHover={() => onHighlight(i)}
+                  />
+                );
+              })}
+            </div>
+          ));
+        })()}
       </div>
     </div>
   );

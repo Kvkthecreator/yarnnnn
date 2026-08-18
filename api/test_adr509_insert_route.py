@@ -87,7 +87,7 @@ def main() -> int:
     # because the substring survived. Locate the JSX block and assert the Row is
     # actually inside it, with nothing disabling the branch.
     row = re.search(
-        r"\{([^}]*?)onInsert && isPaged && \([\s\S]{0,400}?Insert block…[\s\S]{0,120}?</Row>",
+        r"\{([^}]*?)onInsert && isPaged && \([\s\S]{0,400}?New block…[\s\S]{0,120}?</Row>",
         BLOCKMENU,
     )
     _check("the located Insert row is findable and renders a Row", bool(row))

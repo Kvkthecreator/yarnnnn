@@ -59,6 +59,35 @@ export interface BlockRowItem {
   label: string;
   fragment: string;
   description?: string;
+  /** ADR-539 D1 — what the kind cites, served on the vocabulary row. */
+  cites?: 'none' | 'source' | 'picture';
+}
+
+export interface BlockRowGroup {
+  key: 'new' | 'add';
+  label: string;
+  items: BlockRowItem[];
+}
+
+/**
+ * ADR-579 D4 (taking ADR-506 §7's named-not-taken deferral): the ONE grouping
+ * both mounts render — the `/` palette on flow and the native Insert menu on
+ * paged. Grouped by PROVENANCE (ADR-466 D4), derived from the served row's
+ * `cites` (ADR-539 D2) — never a hand-kept kind list, so the grouping cannot
+ * drift from the registry.
+ *
+ * NEW leads (thin air — the caret's common case); ADD follows (from the
+ * workspace — the picker-backed kinds). Order within each group is the served
+ * order. The third provenance — with the colleague, "from inference" — arrives
+ * with ADR-579 D7 and gets its slot here when it does. Labels name the VERB,
+ * never the mechanism (ADR-579 D3).
+ */
+export function groupBlockRows(items: BlockRowItem[]): BlockRowGroup[] {
+  const isAdd = (b: BlockRowItem) => (b.cites ?? 'none') !== 'none';
+  return [
+    { key: 'new' as const, label: 'New', items: items.filter((b) => !isAdd(b)) },
+    { key: 'add' as const, label: 'Add — from the workspace', items: items.filter(isAdd) },
+  ].filter((g) => g.items.length > 0);
 }
 
 interface BlockRowProps {
