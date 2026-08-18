@@ -85,7 +85,19 @@ t('selection stays a single subject (no ids array grew on it)',
   for (const [what, re] of [
     ['the path row', /\{!multiObject && pathRow\}/],
     ['the verb row', /\{!multiObject && \(\s*\n\s*<VerbRow/],
-    ['Position', /\{!multiObject && !!selectedEl\?\.closest\('\.slide'\)/],
+    // Re-pinned 2026-08-18: this pinned the STAGE TEST that used to open the
+    // guard (`!!selectedEl?.closest('.slide')`). That test now lives inside
+    // `blockPositioned`, which the section reads instead — so the check failed
+    // over where the condition is COMPUTED while the withdrawal it defends was
+    // untouched. Pin `!multiObject &&` opening the Position mount, which is the
+    // only thing this row is about.
+    // Anchored to the SECTION, not to the expression. The first re-pin matched
+    // `{!multiObject && blockPositioned` anywhere in the region — and the new
+    // Identity BADGE opens with exactly that, so stripping the Position
+    // section's own guard still passed. A falsifier caught it. Require the
+    // guard that is immediately followed by the posMeasures readback, which is
+    // the mount this row is about.
+    ['Position', /\{!multiObject && blockPositioned && posMeasures\.length > 0 && \(/],
     // Re-pinned 2026-08-18: this required the OPEN PAREN of the old two-clause
     // guard `(nonColorTokens.length > 0 || sizeMeasures.length > 0)`. When the
     // block W/H mount was withdrawn the guard lost its second clause — and its

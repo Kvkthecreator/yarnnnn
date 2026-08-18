@@ -192,8 +192,14 @@ _check("posMeasures derives x/y from the served measures, block-staged only",
        re.search(r"posMeasures = useMemo\(\(\) => \{\s*\n\s*if \(scope !== 'object' \|\| "
                  r"!selectedEl\?\.closest\('\.slide'\)\) return \[\];", tab) is not None
        and "(m.key === 'x' || m.key === 'y') && admits(m, 'block', { staged: true })" in tab)
+# Re-pinned 2026-08-18: this pinned the old LOCAL name `positioned`, computed
+# inside the section's own IIFE. The state is now derived once for the whole
+# pane (`blockPositioned` — two readers: this section and the Identity badge),
+# so the check failed over a rename while the guard it defends got STRICTER
+# (`!multiObject &&` was added). Pin the CONJUNCTION, not the variable's name.
 _check("the readback renders only in the POSITIONED state (flow shows no coordinates)",
-       "positioned && posMeasures.length > 0 && (" in object_r)
+       re.search(r"(?:blockP|p)ositioned && posMeasures\.length > 0 && \(", object_r)
+       is not None)
 # ADR-520 D3 re-cut: numeric ENTRY landed (the two-clamp MeasureField) —
 # X/Y fields commit through onSetMeasure; "In flow" stays the only x/y clear.
 _check("ADR-520 D3: X/Y entry rides MeasureField through onSetMeasure",

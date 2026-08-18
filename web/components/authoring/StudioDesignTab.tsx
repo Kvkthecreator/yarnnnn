@@ -54,6 +54,7 @@ import {
   Link2,
   Loader2,
   MoreHorizontal,
+  Move,
   Palette,
   Pencil,
   StretchHorizontal,
@@ -1553,6 +1554,22 @@ export function StudioDesignTab({
     // kernel state; its identity changes only with the vocabulary fetch.
     [doc, mode, rungs.join()],
   );
+  /** IS THIS BLOCK POSITIONED? (2026-08-18)
+   *
+   *  The kernel rule requires BOTH x and y (ADR-485 D4) — read the state the
+   *  kernel reads, never one axis. Derived here, once, because two places now
+   *  ask: the Identity badge and the Position section's own mount.
+   *
+   *  A staged block only — `.slide` is the coordinate space; a block outside
+   *  one has no positioned state to be in. */
+  const blockPositioned = useMemo(
+    () =>
+      !!selectedEl?.closest('.slide') &&
+      selectedEl.hasAttribute('data-x') &&
+      selectedEl.hasAttribute('data-y'),
+    [selectedEl],
+  );
+
   const pathRow =
     // ADR-546 D6 — GATED BY MODE, not by an assumed absence.
     //
@@ -2808,6 +2825,25 @@ export function StudioDesignTab({
             {/* Single-subject rows: the path names ONE ancestry, the verbs act
                 on ONE id. Both withdraw over a set rather than answering for
                 the primary while the member is looking at five. */}
+            {/* THE POSITIONED BADGE (2026-08-18). "In flow" is the default and
+                the overwhelming case, so a standing Position section spent a
+                heading, two chips and a border to tell almost every block that
+                nothing unusual is true of it. The EXCEPTION is what deserves
+                the room: when a block IS positioned it silently ignores the
+                slide's layout, and a member who cannot see that reads the
+                layout controls as broken. That is the surprise ADR-511 D4
+                mounted the section to prevent, and the badge keeps the guard
+                while the section itself withdraws to the state it describes. */}
+            {!multiObject && blockPositioned && (
+              <button
+                type="button"
+                onClick={onReturnToFlow}
+                title="Positioned on this slide — it no longer follows the layout. Click to return it."
+                className="inline-flex items-center gap-1 rounded border border-amber-300/70 bg-amber-50/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 transition-colors hover:bg-amber-100/70 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-200"
+              >
+                <Move className="h-3 w-3 shrink-0" /> Positioned
+              </button>
+            )}
             {!multiObject && pathRow}
             {!multiObject && headingRow}
             {!multiObject && (
@@ -2886,66 +2922,42 @@ export function StudioDesignTab({
               the kernel rule requires BOTH x and y — read the state the
               kernel reads. X/Y readback (ADR-519 Phase A): the drag's numeric
               receipt; entry lands in Phase C. */}
-          {!multiObject && !!selectedEl?.closest('.slide') && (() => {
-            const positioned =
-              selectedEl.hasAttribute('data-x') && selectedEl.hasAttribute('data-y');
-            const chip = (active: boolean) =>
-              `rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
-                active
-                  ? 'border-foreground/50 text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-muted/40'
-              }`;
-            return (
-              <div className={SECTION}>
-                <p className={HEADING}>Position</p>
-                <div className="flex gap-1">
-                  {/* The standing explainer is GONE (2026-08-18) — a
-                      paragraph restating what two chips already say, on every
-                      block, forever. Its ONE load-bearing clause was the way
-                      BACK, so that moves onto the button it describes: when
-                      the block is positioned, "In flow" is enabled and its
-                      tooltip says what clicking it does. The state stays
-                      legible (the chips) and the reversal stays discoverable
-                      (the control), without prose in between. */}
-                  <button
-                    type="button"
-                    className={chip(!positioned)}
-                    onClick={positioned ? onReturnToFlow : undefined}
-                    disabled={!positioned}
-                    title={
-                      positioned
-                        ? 'Return this block to the slide’s layout'
-                        : 'This block follows the slide’s layout'
-                    }
-                  >
-                    In flow
-                  </button>
-                  <button
-                    type="button"
-                    className={chip(positioned)}
-                    disabled
-                    title="Drag the block on the canvas to position it freely"
-                  >
-                    Positioned
-                  </button>
-                </div>
-                {positioned && posMeasures.length > 0 && (
-                  <MeasureRow>
-                    {/* ADR-520 D3 — X/Y as editable fields (two-clamp, the
-                        keyboard beside the drag). "In flow" stays the clear. */}
-                    {posMeasures.map((m) => (
-                      <MeasureField
-                        key={m.key}
-                        m={m}
-                        value={measureValue(m)}
-                        onCommit={(v) => onSetMeasure(m.key as 'x' | 'y', v)}
-                      />
-                    ))}
-                  </MeasureRow>
-                )}
-              </div>
-            );
-          })()}
+          {/* POSITION — MOUNTED ONLY IN THE STATE IT DESCRIBES (2026-08-18).
+              It used to render on every staged block: a heading, a two-chip
+              row and a border, to say "in flow" — the default, and true of
+              almost every block ever selected. A section that reports the
+              absence of news on every subject is the redundancy the FILE row
+              and the block label were also carrying.
+
+              The two chips are gone with it. `Positioned` was permanently
+              DISABLED (the state is entered by dragging on the canvas, never
+              from the pane), so the pair was one live control and one label
+              wearing a button's clothes. What survives is what the pair was
+              FOR: the state (the Identity badge) and the way back (the badge
+              is the button). ADR-511 D4's guarantee — the state is legible
+              before it surprises — is stronger for being where the eye lands.
+
+              What remains here is the X/Y READBACK, which has no other home:
+              it is real, editable, two-clamped data (ADR-520 D3) and only
+              exists in this state anyway (`positioned && posMeasures.length`
+              was already its old guard). */}
+          {!multiObject && blockPositioned && posMeasures.length > 0 && (
+            <div className={SECTION}>
+              <p className={HEADING}>Position</p>
+              <MeasureRow>
+                {/* ADR-520 D3 — X/Y as editable fields (two-clamp, the
+                    keyboard beside the drag). The badge stays the clear. */}
+                {posMeasures.map((m) => (
+                  <MeasureField
+                    key={m.key}
+                    m={m}
+                    value={measureValue(m)}
+                    onCommit={(v) => onSetMeasure(m.key as 'x' | 'y', v)}
+                  />
+                ))}
+              </MeasureRow>
+            </div>
+          )}
           {/* Layout — the non-colour block tokens (size/align; media add
               height/fit) + the W/H size readback (ADR-485 follow-on), one
               section per the spine. Palette-backed tokens are NOT here — they
