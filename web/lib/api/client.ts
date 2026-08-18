@@ -193,6 +193,43 @@ type RequestOptions = RequestInit & { __retriedWithoutWorkspace?: boolean };
  *  event, not a per-call one. */
 let reloadScheduled = false;
 
+/** The stale-pin 403 signature (ADR-499). The server raises this ONLY when an
+ *  `X-Workspace-Id` header was present and the caller cannot reach it
+ *  (`services/supabase.py::get_user_client`), so it is precisely "your pin is
+ *  wrong" and never an ordinary authorization refusal. Exported so every
+ *  transport that sends the pin tests the SAME condition — a second transport
+ *  spelling this check itself is how the two drift. */
+export function isStaleWorkspacePin(status: number, detail: unknown): boolean {
+  return (
+    status === 403 &&
+    typeof detail === "string" &&
+    detail.startsWith("No active grant into workspace") &&
+    !!getActiveWorkspaceId()
+  );
+}
+
+/** Clear the stale pin and schedule the page-level reload, once.
+ *
+ *  Exported for transports that do NOT go through `request()` — notably the
+ *  chat/SSE transport, which hand-builds its headers, sends the pin, and
+ *  returns a raw `Response`. Without this it surfaced a stale-pin 403 as an
+ *  ordinary chat error: no heal, no retry, no reload, so the member stayed
+ *  pinned to an unreachable workspace while `request()` callers around them
+ *  healed. The reload guard is module-scoped and SHARED, so a heal here and a
+ *  heal in `request()` still produce exactly one navigation.
+ *
+ *  Returns true if this call performed the heal (the caller may want to say
+ *  "reconnecting" rather than print the raw server error). */
+export function healStaleWorkspacePin(): boolean {
+  clearActiveWorkspace();
+  if (typeof window === "undefined" || reloadScheduled) return false;
+  reloadScheduled = true;
+  // Same 150ms rationale as the request() path: let other in-flight heals
+  // settle so the reload is the last thing that happens, not a race.
+  setTimeout(() => window.location.reload(), 150);
+  return true;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestOptions = {}
@@ -235,11 +272,10 @@ async function request<T>(
     // it, which falls back to the caller's owner workspace (the N=1 default).
     // Scoped narrowly to this one detail string so an ordinary authorization
     // 403 (owner-only verbs, etc.) is never swallowed.
-    const staleWorkspacePin =
-      response.status === 403 &&
-      typeof (data as { detail?: unknown } | null)?.detail === "string" &&
-      ((data as { detail: string }).detail).startsWith("No active grant into workspace") &&
-      !!getActiveWorkspaceId();
+    const staleWorkspacePin = isStaleWorkspacePin(
+      response.status,
+      (data as { detail?: unknown } | null)?.detail,
+    );
 
     if (staleWorkspacePin && !options.__retriedWithoutWorkspace) {
       clearActiveWorkspace();

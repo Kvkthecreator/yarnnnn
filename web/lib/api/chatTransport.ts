@@ -1,4 +1,4 @@
-import { getActiveWorkspaceId } from "./client";
+import { getActiveWorkspaceId, healStaleWorkspacePin, isStaleWorkspacePin } from "./client";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -79,13 +79,45 @@ export async function postChatWithFallback({
     const isLastAttempt = i === urls.length - 1;
 
     try {
-      return await fetch(url, {
+      const response = await fetch(url, {
         method: "POST",
         headers,
         body,
         credentials: "include",
         signal,
       });
+
+      // ADR-499's self-heal reaches this transport too (2026-08-18).
+      //
+      // This path sends `X-Workspace-Id` (see above) but returns a raw
+      // `Response`, so it never consulted the heal that `request()` performs:
+      // a stale pin surfaced as an ordinary chat error ("Chat request failed:
+      // 403"), with no clear, no retry and no reload. The member stayed pinned
+      // to an unreachable workspace — and chat is exactly where they would sit
+      // and retry — while every `request()` caller around them healed.
+      //
+      // Observed as the sibling of the 2026-08-18 lockout: a workspace the
+      // member had just created was momentarily unreachable, and this
+      // transport was the one surface that could not recover from it.
+      //
+      // The predicate and the reload guard are SHARED with `request()`, so the
+      // two can never disagree about what a stale pin looks like, and a heal
+      // in either place still produces exactly one navigation.
+      if (response.status === 403) {
+        // Read from a CLONE: the body must stay unconsumed for the caller,
+        // which parses its own error detail (and streams it on success).
+        let detail: unknown;
+        try {
+          detail = (await response.clone().json())?.detail;
+        } catch {
+          // Not JSON — cannot be the stale-pin shape; fall through untouched.
+        }
+        if (isStaleWorkspacePin(response.status, detail)) {
+          healStaleWorkspacePin();
+        }
+      }
+
+      return response;
     } catch (error) {
       lastError = error;
       if (isLastAttempt || !isRetriableNetworkError(error)) {
