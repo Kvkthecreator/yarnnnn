@@ -33,6 +33,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlignCenter,
   AlignCenterHorizontal,
   AlignCenterVertical,
   AlignEndHorizontal,
@@ -40,6 +41,8 @@ import {
   AlignStartHorizontal,
   AlignStartVertical,
   AlignHorizontalSpaceBetween,
+  AlignLeft,
+  AlignRight,
   AlignVerticalSpaceBetween,
   ArrowDown,
   ArrowUp,
@@ -293,6 +296,47 @@ interface StudioDesignTabProps {
    * now (StudioShareExport, right of zoom). */
 }
 
+/** The GLYPHABLE token values (2026-08-18).
+ *
+ *  The container's Layout rows have worn conventional icons since ADR-520 D3
+ *  (`LayoutRows` takes an optional `Icon` per option); the BLOCK's tokens went
+ *  through TokenControl, which had no icon path at all. Same concept, two
+ *  grammars, one pane — Align rendered as glyphs at the container grain and as
+ *  the words "Auto / Center / Right" one scope down.
+ *
+ *  ONLY WHERE THE GLYPH IS THE CONVENTION. A text-alignment icon is read
+ *  faster than its word by anyone who has used a word processor; "Hug"/"Fill"
+ *  and "Serif"/"Sans" have no such glyph, and inventing one would trade a word
+ *  the member can read for a picture they must decode. So this map is keyed by
+ *  token AND value, and every token absent from it keeps its labels.
+ *
+ *  NOT the container's align icons. `align` here is TEXT-align (the kernel
+ *  rule is `text-align`; absence = left), while the container's Align is the
+ *  flex CROSS AXIS. Two different questions that share a word — giving them
+ *  the same glyph would assert a kinship the CSS does not have.
+ *
+ *  `indent` is deliberately absent: its values are RUNG DEPTHS derived from
+ *  FLOW_RUNGS (ADR-546 D1), so the number IS the meaning and a stack of
+ *  identical arrows would say less than "1 · 2 · 3". */
+const TOKEN_GLYPHS: Record<string, Record<string, LucideIcon>> = {
+  align: {
+    center: AlignCenter,
+    end: AlignRight,
+  },
+};
+
+/** The glyph the DEFAULT ("Auto") wears, per token. Only for tokens in
+ *  TOKEN_GLYPHS — a lone worded "Auto" beside two glyphs is the odd one out. */
+const TOKEN_AUTO_GLYPHS: Record<string, LucideIcon> = {
+  // `align`'s absence is LEFT, stated in the token's own description.
+  align: AlignLeft,
+};
+
+/** The glyph a token value wears, or null when it should keep its word. */
+function glyphFor(tokenKey: string, value: string): LucideIcon | null {
+  return TOKEN_GLYPHS[tokenKey]?.[value] ?? null;
+}
+
 /** One token family as a segmented control. "Auto" is the default (absence —
  *  clearing removes the attribute; the default value is never written). */
 function TokenControl({
@@ -306,37 +350,59 @@ function TokenControl({
 }) {
   const seg =
     'rounded px-1.5 py-0.5 text-[10px] transition-colors border';
+  // The default's own glyph, only for a token whose values are glyphed at all
+  // (see TOKEN_GLYPHS). Wrapped in an object so the JSX can name it uppercase
+  // without a second const.
+  const autoGlyph = TOKEN_AUTO_GLYPHS[token.key]
+    ? { Icon: TOKEN_AUTO_GLYPHS[token.key] }
+    : null;
   return (
     <div>
       <p className={`mb-1 ${PANE_HEADING}`}>
         {token.label}
       </p>
       <div className="flex flex-wrap gap-1" title={token.description}>
+        {/* AUTO IS A VALUE, NOT AN ABSENCE OF ONE — to the eye. On a glyph row
+            it must wear a glyph too, or the default reads as the odd one out
+            and the row loses the scannability the icons bought. `align`'s
+            absence IS left (the token's own description says so), so the
+            default's glyph is the honest one: AlignLeft. A token with no glyph
+            map keeps the word. */}
         <button
           type="button"
           onClick={() => onSet(null)}
+          title={autoGlyph ? `${token.label}: default` : undefined}
+          aria-label={autoGlyph ? `${token.label}: default` : undefined}
           className={`${seg} ${
             current == null
               ? 'border-foreground/50 text-foreground'
               : 'border-border text-muted-foreground hover:bg-muted/40'
           }`}
         >
-          Auto
+          {autoGlyph ? <autoGlyph.Icon className="h-3.5 w-3.5" /> : 'Auto'}
         </button>
-        {token.values.map((v) => (
-          <button
-            key={v.value}
-            type="button"
-            onClick={() => onSet(current === v.value ? null : v.value)}
-            className={`${seg} ${
-              current === v.value
-                ? 'border-indigo-400 bg-indigo-50/60 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200'
-                : 'border-border text-muted-foreground hover:bg-muted/40'
-            }`}
-          >
-            {v.label}
-          </button>
-        ))}
+        {token.values.map((v) => {
+          const Icon = glyphFor(token.key, v.value);
+          return (
+            <button
+              key={v.value}
+              type="button"
+              onClick={() => onSet(current === v.value ? null : v.value)}
+              // The label survives as the tooltip whenever a glyph replaces it
+              // — the LayoutRows grammar (ADR-520 D3), reused rather than
+              // reinvented, so a screen reader still hears the word.
+              title={Icon ? v.label : undefined}
+              aria-label={Icon ? v.label : undefined}
+              className={`${seg} ${
+                current === v.value
+                  ? 'border-indigo-400 bg-indigo-50/60 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200'
+                  : 'border-border text-muted-foreground hover:bg-muted/40'
+              }`}
+            >
+              {Icon ? <Icon className="h-3.5 w-3.5" /> : v.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -99,5 +99,41 @@ const text = readFileSync('web/components/text/TextEditor.tsx', 'utf8');
     verbs > 0 && layout > 0 && verbs < layout);
 }
 
+// ── 5. ONE control grammar: a glyph row is a glyph row at every grain ─────
+//
+// The container's LayoutRows have worn conventional icons since ADR-520 D3;
+// the block's tokens went through TokenControl, which had NO icon path — so
+// Align rendered as glyphs at one grain and as words one scope down. Same
+// concept, two grammars, one pane.
+{
+  const src = strip(studio);
+  t('TokenControl has a glyph path (the container grammar reaches the block)',
+    /const Icon = glyphFor\(token\.key, v\.value\);/.test(src)
+      && /\{Icon \? <Icon className="h-3\.5 w-3\.5" \/> : v\.label\}/.test(src));
+  // A glyph must never SILENCE the word: LayoutRows keeps the label as the
+  // tooltip, and a screen reader must still hear it here.
+  t('a glyphed value keeps its label as title + aria-label',
+    /title=\{Icon \? v\.label : undefined\}/.test(src)
+      && /aria-label=\{Icon \? v\.label : undefined\}/.test(src));
+  // The default is a value TO THE EYE. On a glyph row a worded "Auto" beside
+  // two icons is the odd one out.
+  t('the default wears a glyph on a glyphed row (Auto is not the odd one out)',
+    /const autoGlyph = TOKEN_AUTO_GLYPHS\[token\.key\]/.test(src)
+      && /\{autoGlyph \? <autoGlyph\.Icon/.test(src));
+  // The map is keyed by token AND value, so a token with no conventional glyph
+  // (Hug/Fill, Serif/Sans) keeps its words rather than being given a picture
+  // the member has to decode.
+  const map = (src.match(/const TOKEN_GLYPHS[^=]*= \{([\s\S]*?)\n\};/) ?? [])[1] ?? '';
+  t('the glyph map is per-token, not blanket',
+    map.length > 0 && /align:\s*\{/.test(map));
+  t('`indent` keeps its numbers (rung depth IS the meaning, ADR-546 D1)',
+    !/\bindent:\s*\{/.test(map));
+  // TEXT-align is not the container's CROSS-AXIS align. Sharing a word is not
+  // sharing a concept, and sharing the glyph would assert a kinship the CSS
+  // does not have.
+  t('block align uses TEXT-align glyphs, never the container cross-axis ones',
+    /center: AlignCenter,/.test(map) && !/AlignCenterVertical/.test(map));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
