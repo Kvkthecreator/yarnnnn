@@ -1015,11 +1015,20 @@ function MeasureField({
   onClear?: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 py-0.5">
-      <span className="text-[11px] text-muted-foreground" title={m.description}>
+    // ONE CELL, not a full-width row (2026-08-18). Each measure was a
+    // label-left / field-right row of its own, so W and H alone cost two rows
+    // plus their gap — in a section that already carries Width and Align. The
+    // pair now sits side by side (`MeasureRow` below), which is also how a
+    // member reads W×H: as one dimension, not two facts.
+    <label className="flex min-w-0 flex-1 items-center gap-1.5">
+      <span className="shrink-0 text-[11px] text-muted-foreground" title={m.description}>
         {m.label}
       </span>
-      <span className="flex items-center gap-1">
+      {/* The UNIT SITS INSIDE THE FIELD — it belongs to the number, and as a
+          separate cell it was a third column that had to be aligned across
+          rows. Absolute so the input keeps its own padding and the number
+          stays right-aligned against it. */}
+      <span className="relative min-w-0 flex-1">
         <input
           key={value ?? 'auto'}
           type="number"
@@ -1027,7 +1036,7 @@ function MeasureField({
           max={m.max}
           defaultValue={value ?? ''}
           placeholder="Auto"
-          aria-label={m.label}
+          aria-label={`${m.label} (${m.unit})`}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -1044,12 +1053,24 @@ function MeasureField({
             if (!Number.isFinite(v) || v === value) return;
             onCommit(v);
           }}
-          className="w-14 rounded border border-border bg-background px-1.5 py-0.5 text-right text-xs tabular-nums outline-none focus:border-indigo-400/60"
+          className="w-full min-w-0 rounded border border-border bg-background py-0.5 pl-1.5 pr-5 text-right text-xs tabular-nums outline-none focus:border-indigo-400/60"
         />
-        <span className="w-3 shrink-0 text-[10px] text-muted-foreground">{m.unit}</span>
+        <span className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-[10px] text-muted-foreground">
+          {m.unit}
+        </span>
       </span>
-    </div>
+    </label>
   );
+}
+
+/** The measures of one section, laid out as PAIRS (W beside H, X beside Y).
+ *
+ *  A measure is half a dimension; stacking them vertically made the pane taller
+ *  for no reading benefit, since the member's question is "how big" not "how
+ *  wide, then how tall". Wraps, so a narrow rail still degrades to one per
+ *  line rather than crushing the fields. */
+function MeasureRow({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{children}</div>;
 }
 
 /** ADR-520 D4 — one row of the selection's structure (the walk the navigator's
@@ -2602,15 +2623,17 @@ export function StudioDesignTab({
             />
             {/* ADR-520 D2/D3 — a STAGED container's W/H: the drag's keyboard
                 twin (the handles live on the canvas; empty = Auto). */}
-            {sizeMeasures.map((m) => (
-              <MeasureField
-                key={m.key}
-                m={m}
-                value={measureValue(m)}
-                onCommit={(v) => onSetMeasure(m.key as 'w' | 'h', v)}
-                onClear={() => onClearMeasure(m.key as 'w' | 'h')}
-              />
-            ))}
+            <MeasureRow>
+              {sizeMeasures.map((m) => (
+                <MeasureField
+                  key={m.key}
+                  m={m}
+                  value={measureValue(m)}
+                  onCommit={(v) => onSetMeasure(m.key as 'w' | 'h', v)}
+                  onClear={() => onClearMeasure(m.key as 'w' | 'h')}
+                />
+              ))}
+            </MeasureRow>
           </div>
           {/* Content — the media-role picker: the one job the old slot scope
               did that a plain container cannot, resolved from the registry
@@ -2876,20 +2899,38 @@ export function StudioDesignTab({
               <div className={SECTION}>
                 <p className={HEADING}>Position</p>
                 <div className="flex gap-1">
+                  {/* The standing explainer is GONE (2026-08-18) — a
+                      paragraph restating what two chips already say, on every
+                      block, forever. Its ONE load-bearing clause was the way
+                      BACK, so that moves onto the button it describes: when
+                      the block is positioned, "In flow" is enabled and its
+                      tooltip says what clicking it does. The state stays
+                      legible (the chips) and the reversal stays discoverable
+                      (the control), without prose in between. */}
                   <button
                     type="button"
                     className={chip(!positioned)}
                     onClick={positioned ? onReturnToFlow : undefined}
                     disabled={!positioned}
+                    title={
+                      positioned
+                        ? 'Return this block to the slide’s layout'
+                        : 'This block follows the slide’s layout'
+                    }
                   >
                     In flow
                   </button>
-                  <button type="button" className={chip(positioned)} disabled>
+                  <button
+                    type="button"
+                    className={chip(positioned)}
+                    disabled
+                    title="Drag the block on the canvas to position it freely"
+                  >
                     Positioned
                   </button>
                 </div>
                 {positioned && posMeasures.length > 0 && (
-                  <div className="space-y-0.5">
+                  <MeasureRow>
                     {/* ADR-520 D3 — X/Y as editable fields (two-clamp, the
                         keyboard beside the drag). "In flow" stays the clear. */}
                     {posMeasures.map((m) => (
@@ -2900,13 +2941,8 @@ export function StudioDesignTab({
                         onCommit={(v) => onSetMeasure(m.key as 'x' | 'y', v)}
                       />
                     ))}
-                  </div>
+                  </MeasureRow>
                 )}
-                <p className="text-[10px] text-muted-foreground">
-                  {positioned
-                    ? 'Dragged to a point on this slide — it no longer follows the layout. "In flow" returns it.'
-                    : 'Follows the slide’s layout. Drag the block on the canvas to position it freely.'}
-                </p>
               </div>
             );
           })()}
@@ -2939,15 +2975,17 @@ export function StudioDesignTab({
               {/* ADR-520 D3 — W/H as editable fields (two-clamp; emptying
                   the field is the Auto reset). The corner drag still works;
                   this is its keyboard twin. */}
-              {sizeMeasures.map((m) => (
-                <MeasureField
-                  key={m.key}
-                  m={m}
-                  value={measureValue(m)}
-                  onCommit={(v) => onSetMeasure(m.key as 'w' | 'h', v)}
-                  onClear={() => onClearMeasure(m.key as 'w' | 'h')}
-                />
-              ))}
+              <MeasureRow>
+                {sizeMeasures.map((m) => (
+                  <MeasureField
+                    key={m.key}
+                    m={m}
+                    value={measureValue(m)}
+                    onCommit={(v) => onSetMeasure(m.key as 'w' | 'h', v)}
+                    onClear={() => onClearMeasure(m.key as 'w' | 'h')}
+                  />
+                ))}
+              </MeasureRow>
             </div>
           )}
           {!multiObject && rampSection}
