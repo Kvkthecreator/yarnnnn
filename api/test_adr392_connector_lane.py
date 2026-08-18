@@ -231,10 +231,22 @@ def _test_write_ready():
 
     out = []
 
-    # 19 — the three first-party providers are write-ready
-    ok19 = all(connection_is_write_ready(p) for p in ("slack", "notion", "github"))
+    # 19 — every provider that DECLARES a write scope marker is write-ready.
+    #
+    # ADR-576 D1.a replaced the previous form, which hardcoded
+    # ('slack','notion','github') and so asserted its own conclusion. GitHub was
+    # listed as write-ready while shipping no write_github capability at all —
+    # the baked-in provider list is exactly what let an over-broad `repo` scope
+    # (force-push on every private repo) sit unexamined behind a green gate.
+    # Derive the set instead; the reverse direction is asserted in
+    # test_adr576_github_connector.py.
+    from integrations.core.oauth import WRITE_SCOPE_MARKERS
+
+    declared = [p for p, m in WRITE_SCOPE_MARKERS.items() if m is not None]
+    not_ready = [p for p in sorted(declared) if not connection_is_write_ready(p)]
     out.append(_check(
-        "19 slack/notion/github connections are write-ready by construction", ok19))
+        "19 every provider declaring a write scope marker is write-ready",
+        not not_ready, f"offenders={not_ready}"))
 
     # 20 — cross-check: every write_{platform} kernel capability whose provider has
     #      an OAuth config is write-ready (the regression guard for new providers).

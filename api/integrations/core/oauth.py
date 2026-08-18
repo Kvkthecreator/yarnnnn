@@ -99,9 +99,23 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         client_secret_env="GITHUB_CLIENT_SECRET",
         authorize_url="https://github.com/login/oauth/authorize",
         token_url="https://github.com/login/oauth/access_token",
+        # ADR-576 D1 — GitHub is a READ connector. `repo` (full read+write on
+        # every private repo: code, secrets, Actions, force-push, ref deletion)
+        # was held under the D9 write-ready invariant for a `write_github`
+        # capability that has never existed. The write path it justified
+        # (github_client.create_issue) had zero callers and is deleted.
+        #
+        # Trade recorded in the ADR: `public_repo` covers PUBLIC repos only.
+        # Private-repo metadata is unreachable on a classic OAuth app by any
+        # scope narrower than `repo`, so private repos leave the read surface.
+        # Restoring them belongs to the GitHub App / fine-grained-PAT migration
+        # (ADR-576 §5), which grants metadata:read + contents:read WITHOUT any
+        # write authority — not to re-widening this list.
         scopes=[
-            "repo",        # Read/write access to repos, issues, PRs
-            "read:user",   # Read user profile info
+            "repo:status",  # commit statuses (read)
+            "public_repo",  # public repo metadata, issues, releases (read)
+            "read:org",     # org-team repo visibility (see list_repos affiliation)
+            "read:user",    # user profile info (login/id/avatar) — oauth.py callback
         ],
         redirect_path="/api/integrations/github/callback",
     ),
@@ -138,16 +152,35 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
 # write scope, forcing a re-auth. The connect flow requesting write scopes up
 # front is what makes a connection write-ready by construction.
 #
-# Today this already holds for the first-party providers (slack: chat:write +
-# im:write; github: repo; notion: app-level, no per-OAuth scope). This map makes
-# the invariant EXPLICIT and the validator below GUARDS it: adding a provider
-# that ships a write_{platform} capability but read-only OAuth scopes fails the
-# check loudly instead of shipping a connection that can't write. `None` = the
-# provider's write authority is not expressed as an OAuth scope (notion's app-
-# level model; a Composio-BYO provider whose scopes it owns) — exempt.
+# ADR-576 D1.a — the invariant is BIDIRECTIONAL. It is not "a write capability
+# implies its scope"; it is "a write capability and its write scope imply each
+# other". The original one-directional form was structurally blind in the other
+# direction: GitHub held `repo` (force-push on every private repo) for a
+# `write_github` capability that never existed, and nothing could notice —
+# `connection_is_write_ready` only fails when a capability LACKS its scope.
+#
+# The reverse half is a GATE assertion, not a runtime branch (an over-broad
+# grant is a review-time defect, not a request-time one): see
+# test_adr576_github_connector.py, which derives BOTH directions from
+# CAPABILITIES + WRITE_SCOPE_MARKERS so neither list can drift alone.
+#
+# Today the forward half holds for the first-party providers (slack: chat:write
+# + im:write; notion: app-level, no per-OAuth scope; github: no write capability,
+# so no marker). This map makes the invariant EXPLICIT and the validator below
+# GUARDS the forward half: adding a provider that ships a write_{platform}
+# capability but read-only OAuth scopes fails the check loudly instead of
+# shipping a connection that can't write. `None` = no write scope is claimed —
+# either the authority is not expressed as an OAuth scope (notion's app-level
+# model; a Composio-BYO provider whose scopes it owns), or the provider ships no
+# write capability at all (github) — exempt either way.
 WRITE_SCOPE_MARKERS: dict[str, Optional[list[str]]] = {
     "slack": ["chat:write", "im:write"],
-    "github": ["repo"],
+    # ADR-576 D1 — GitHub ships NO write_github capability, so it declares no
+    # write scope. This is an exemption by absence-of-capability, distinct from
+    # notion's exemption by not-scope-expressed. D1.a makes the invariant
+    # BIDIRECTIONAL: a marker here with no write_{platform} capability now
+    # fails CI, so this entry cannot silently regrow a scope nothing exercises.
+    "github": None,
     "notion": None,   # write authority set at the Notion app level, not per-OAuth
     "reddit": ["submit"],
 }

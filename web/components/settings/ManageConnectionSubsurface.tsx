@@ -406,10 +406,19 @@ export function ManageConnectionSubsurface({
 
             {/* SCOPE — the aperture (above the line). */}
             <SectionShell title="Scope">
+              {/* ADR-576 D3.a — the dormancy caveat belongs WHERE THE PROMISE IS
+                  MADE. The connected list row already says "not reading"; this
+                  section, which promises perception, said nothing. */}
               <p className="mb-2 text-xs text-muted-foreground">
                 Selected {resourceNoun} become your operation&apos;s perception.
                 Selecting is a declaration, not a sync.
               </p>
+              {!captureEnabled && (
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Background reading is paused, so nothing is being captured on a
+                  schedule. Your selection still bounds what agents may reach.
+                </p>
+              )}
               {resources.length === 0 ? (
                 <p className="py-2 text-sm text-muted-foreground">
                   No {resourceNoun} discovered. Try Refresh.

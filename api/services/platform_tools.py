@@ -2076,6 +2076,67 @@ async def _execute_notion_tool(
 # ADR-131: _handle_google_tool, _execute_gmail_tool, _execute_calendar_tool deleted (sunset)
 
 
+async def _github_selected_repos(auth: Any) -> list[str]:
+    """The operator's declared GitHub aperture, in the operator's own casing.
+
+    ADR-576 D2. Empty list = no declaration = UNRESTRICTED (never "deny all").
+
+    Casing is PRESERVED here and folded only at comparison time
+    (_github_aperture_denial). Returning a lowercased set would corrupt the repo
+    names this list is also used to ANSWER with — `list_repos` echoes them
+    straight back to the agent, and `owner/Repo` is not a valid substitute for
+    `Owner/Repo` in a URL or a subsequent tool call.
+
+    Fail-OPEN by design: a substrate read failure must not silently shrink what
+    the operator can reach. A boundary that closes on an unrelated error would
+    present as "repo not found", which is the incorrect-success shape that
+    monitoring cannot see. The aperture is a declared narrowing, not a
+    security control — the OAuth scope is the security control.
+    """
+    from services.connector_watch import read_selected_ids
+
+    client = getattr(auth, "client", None)
+    user_id = getattr(auth, "user_id", None)
+    if client is None or not user_id:
+        return []
+    try:
+        ids = await read_selected_ids(client, user_id, "github")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(
+            "[PLATFORM-TOOLS] github aperture read failed (%s) — treating as "
+            "unrestricted", e,
+        )
+        return []
+    return [str(i).strip() for i in ids if str(i).strip()]
+
+
+def _github_aperture_denial(repo: str, selected_repos: list[str]) -> Optional[dict]:
+    """Refuse a repo outside the declared aperture — legibly (ADR-576 D2).
+
+    Returns None when allowed. The refusal NAMES the aperture and where to
+    widen it: a silent empty result would read to the agent as "no issues",
+    which is a wrong answer wearing a success.
+
+    Comparison folds case (GitHub full names are case-insensitive, so a model
+    echoing `owner/REPO` must not be spuriously refused); the message quotes the
+    operator's own casing.
+    """
+    if not selected_repos:
+        return None  # nothing declared → unrestricted
+    if str(repo).strip().lower() in {s.lower() for s in selected_repos}:
+        return None
+    in_scope = ", ".join(sorted(selected_repos)[:10]) or "(none)"
+    return {
+        "success": False,
+        "error": (
+            f"'{repo}' is outside this workspace's declared GitHub aperture. "
+            f"In scope: {in_scope}. The operator can widen it in "
+            f"Settings → Connectors → GitHub → SCOPE."
+        ),
+        "aperture": "declared",
+    }
+
+
 async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     """Handle GitHub tools via Direct API (ADR-147)."""
     from integrations.core.github_client import get_github_client
@@ -2097,7 +2158,33 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
 
     github_client = get_github_client()
 
+    # ADR-576 D2 — the selection is an ACCESS BOUNDARY, not only a capture
+    # cadence. Before this, `list_repos` returned every repo the token could
+    # see (including ones the operator explicitly DESELECTED) and the four
+    # repo-addressed tools accepted any `owner/repo` from the model with only a
+    # format check. The SCOPE pane's checkbox grammar read as an aperture and
+    # bound nothing an agent touched.
+    #
+    # EMPTY selection means UNRESTRICTED (D2): an operator who never opened the
+    # pane must not have a boundary spring shut on them. The aperture binds
+    # only once DECLARED.
+    selected_repos = await _github_selected_repos(auth)
+
     if tool == "list_repos":
+        if selected_repos:
+            # An explicit declaration is the answer — no page-then-filter, which
+            # is what made the tool's max_repos=50 disagree with the landscape's
+            # 200 (ADR-576 §1d).
+            formatted = [{"name": name} for name in selected_repos]
+            return {
+                "success": True,
+                "result": {
+                    "repos": formatted,
+                    "count": len(formatted),
+                    "aperture": "declared",
+                },
+            }
+
         repos = await github_client.list_repos(token=token, max_repos=50)
         if isinstance(repos, dict) and repos.get("error"):
             return {"success": False, "error": repos.get("error", "GitHub API error")}
@@ -2112,12 +2199,22 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
                 "updated_at": repo.get("updated_at"),
                 "private": repo.get("private", False),
             })
-        return {"success": True, "result": {"repos": formatted, "count": len(formatted)}}
+        return {
+            "success": True,
+            "result": {
+                "repos": formatted,
+                "count": len(formatted),
+                "aperture": "unrestricted",
+            },
+        }
 
     elif tool == "get_issues":
         repo = tool_input.get("repo")
         if not repo or "/" not in repo:
             return {"success": False, "error": "repo is required (format: owner/repo)"}
+        denial = _github_aperture_denial(repo, selected_repos)
+        if denial:
+            return denial
 
         state = tool_input.get("state", "open")
         limit = min(tool_input.get("limit", 20), 50)
@@ -2152,6 +2249,9 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         repo = tool_input.get("repo")
         if not repo or "/" not in repo:
             return {"success": False, "error": "repo is required (format: owner/repo)"}
+        denial = _github_aperture_denial(repo, selected_repos)
+        if denial:
+            return denial
         metadata = await github_client.get_repo_metadata(token=token, repo=repo)
         if isinstance(metadata, dict) and metadata.get("error"):
             return {"success": False, "error": metadata.get("error", "GitHub API error")}
@@ -2161,6 +2261,9 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         repo = tool_input.get("repo")
         if not repo or "/" not in repo:
             return {"success": False, "error": "repo is required (format: owner/repo)"}
+        denial = _github_aperture_denial(repo, selected_repos)
+        if denial:
+            return denial
         readme = await github_client.get_readme(token=token, repo=repo)
         if isinstance(readme, dict) and readme.get("error"):
             return {"success": False, "error": readme.get("error", "GitHub API error")}
@@ -2170,6 +2273,9 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         repo = tool_input.get("repo")
         if not repo or "/" not in repo:
             return {"success": False, "error": "repo is required (format: owner/repo)"}
+        denial = _github_aperture_denial(repo, selected_repos)
+        if denial:
+            return denial
         limit = tool_input.get("limit", 10)
         releases = await github_client.get_releases(token=token, repo=repo, per_page=limit)
         if releases and isinstance(releases[0], dict) and releases[0].get("error"):

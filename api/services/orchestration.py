@@ -1308,9 +1308,18 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "tools": ["platform_notion_create_page", "platform_notion_append_block"],
         "platform_connection_requirement": {"platform": "notion", "status": "active"},
     },
+    # ADR-576 §5 drift fix: this listed 2 tools where PLATFORM_TOOLS_BY_CAPABILITY
+    # (platform_tools.py) listed 5 — the three reference reads were unreachable
+    # through this declaration. GitHub ships NO write_github capability (D1).
     "read_github": {
         "category": "tool", "runtime": "external:github", "feeds": "context",
-        "tools": ["platform_github_list_repos", "platform_github_get_issues"],
+        "tools": [
+            "platform_github_list_repos",
+            "platform_github_get_issues",
+            "platform_github_get_repo_metadata",
+            "platform_github_get_readme",
+            "platform_github_get_releases",
+        ],
         "platform_connection_requirement": {"platform": "github", "status": "active"},
     },
     # ADR-353 §15a: Reddit publishing. KERNEL-UNIVERSAL — Reddit is a generic

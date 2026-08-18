@@ -195,6 +195,8 @@ async def _test_read(auth: Any, provider: str, config: dict) -> CapabilityStatus
             result = await _test_slack_read(auth, result)
         elif provider == "notion":
             result = await _test_notion_read(auth, result)
+        elif provider == "github":
+            result = await _test_github_read(auth, result)
         else:
             result.status = "skipped"
             result.details["reason"] = "No read test for this provider"
@@ -274,6 +276,52 @@ async def _test_notion_read(auth: Any, result: CapabilityStatus) -> CapabilitySt
     result.details = {
         "pages_found": len(pages),
         "first_page": pages[0] if pages else None,
+    }
+
+    return result
+
+
+async def _test_github_read(auth: Any, result: CapabilityStatus) -> CapabilityStatus:
+    """Test GitHub read capabilities (ADR-576 D3).
+
+    Before this, GitHub was absent from PLATFORM_REGISTRY, so `Test connection`
+    returned `unknown — Unknown provider: github` and the probe could not fail
+    HONESTLY — it could not run at all. Adding the registry key alone was not
+    enough: without this branch the probe would clear the unknown-provider guard
+    and then report a skipped read, which is a different kind of silence.
+    """
+    from integrations.core.github_client import get_github_client
+    from integrations.core.tokens import get_token_manager
+
+    integration = auth.client.table("platform_connections").select(
+        "credentials_encrypted"
+    ).eq("user_id", auth.user_id).eq("platform", "github").single().execute()
+
+    if not integration.data:
+        result.status = "failed"
+        result.error = "No GitHub integration"
+        return result
+
+    token_manager = get_token_manager()
+    access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
+
+    github_client = get_github_client()
+    repos = await github_client.list_repos(token=access_token, max_repos=1)
+
+    # The client returns an {"error": ...} dict rather than raising on a
+    # 401/403 — a truthy list is NOT the only shape to check.
+    if isinstance(repos, dict) and repos.get("error"):
+        result.status = "failed"
+        result.error = str(repos.get("error"))
+        return result
+
+    if not isinstance(repos, list):
+        repos = []
+
+    result.status = "ok"
+    result.details = {
+        "repos_found": len(repos),
+        "first_repo": repos[0].get("full_name") if repos else None,
     }
 
     return result

@@ -146,11 +146,6 @@ class GitHubAPIClient:
     # User
     # =========================================================================
 
-    async def get_user(self, token: str) -> dict:
-        """Get authenticated user profile."""
-        result = await self._request("GET", "/user", token)
-        return result if isinstance(result, dict) else {}
-
     # =========================================================================
     # Repositories
     # =========================================================================
@@ -165,8 +160,15 @@ class GitHubAPIClient:
         """
         List repos accessible to the authenticated user.
 
-        Returns personal + collaborator repos, sorted by most recently updated.
-        Excludes forks by default for cleaner landscape.
+        Returns owned + collaborator + org-team repos, sorted by most recently
+        updated. Forks are NOT excluded here — they are only deprioritized when
+        scoring smart defaults (landscape.py::_score_github_repos). ADR-576 §1e:
+        the docstring previously claimed a fork filter this method never applied.
+
+        `organization_member` is included per ADR-576 D1 — without it, repos
+        reachable only through org-team membership are invisible to both this
+        tool and the landscape, so an operator whose work lives in an org sees
+        a misleadingly empty list. Requires the `read:org` OAuth scope.
         """
         repos = await self._paginate(
             "/user/repos",
@@ -174,7 +176,7 @@ class GitHubAPIClient:
             params={
                 "sort": sort,
                 "direction": direction,
-                "affiliation": "owner,collaborator",
+                "affiliation": "owner,collaborator,organization_member",
             },
             max_pages=max(1, max_repos // 100),
         )
@@ -219,49 +221,9 @@ class GitHubAPIClient:
             max_pages=max_pages,
         )
 
-    async def get_issue_comments(
-        self,
-        token: str,
-        repo: str,
-        issue_number: int,
-        per_page: int = 10,
-    ) -> list[dict]:
-        """Get comments on an issue (top N for context)."""
-        result = await self._request(
-            "GET",
-            f"/repos/{repo}/issues/{issue_number}/comments",
-            token,
-            params={"per_page": per_page, "page": 1},
-        )
-        return result if isinstance(result, list) else []
-
     # =========================================================================
     # Pull Requests
     # =========================================================================
-
-    async def list_pull_requests(
-        self,
-        token: str,
-        repo: str,
-        state: str = "all",
-        sort: str = "updated",
-        direction: str = "desc",
-        per_page: int = 30,
-        max_pages: int = 3,
-    ) -> list[dict]:
-        """
-        List pull requests for a repository.
-
-        Note: GitHub Issues API also returns PRs (they share numbering).
-        This endpoint gives PR-specific fields (mergeable, head, base).
-        """
-        return await self._paginate(
-            f"/repos/{repo}/pulls",
-            token,
-            params={"state": state, "sort": sort, "direction": direction},
-            per_page=per_page,
-            max_pages=max_pages,
-        )
 
     # =========================================================================
     # Reference reads (ADR-158 Phase 5 — repo metadata, docs, releases)
@@ -335,31 +297,6 @@ class GitHubAPIClient:
                 "author": (r.get("author") or {}).get("login"),
             })
         return releases
-
-    async def get_languages(self, token: str, repo: str) -> dict:
-        """Get language breakdown (bytes per language)."""
-        data = await self._request("GET", f"/repos/{repo}/languages", token)
-        if isinstance(data, dict) and data.get("error"):
-            return data
-        return data  # {language: bytes_count}
-
-    # =========================================================================
-    # Write operations (Phase 2 — delivery)
-    # =========================================================================
-
-    async def create_issue(
-        self,
-        token: str,
-        repo: str,
-        title: str,
-        body: str,
-        labels: Optional[list[str]] = None,
-    ) -> dict:
-        """Create an issue in a repository."""
-        payload: dict[str, Any] = {"title": title, "body": body}
-        if labels:
-            payload["labels"] = labels
-        return await self._request("POST", f"/repos/{repo}/issues", token, json_body=payload)
 
     # =========================================================================
     # Token Refresh

@@ -145,6 +145,56 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
 
         "version": "2026-02-12",
     },
+
+    # ADR-576 D3 — GitHub was absent from this registry while present in
+    # OAUTH_CONFIGS and CONNECTOR_CAPTURE_BINDINGS (two of four registries), so
+    # validate_integration returned `Unknown provider: github` and the operator's
+    # `Test connection` button could never pass.
+    #
+    # NOTE: unlike the slack/notion entries above, this one declares NO
+    # `mcp_server`/`transport`. Those fields describe the ADR-050 MCP gateway
+    # that ADR-076 DELETED — they are fossil canon kept only because these dicts
+    # are still read. Do not copy them into new entries. The correct end-state
+    # is collapsing this registry into CONNECTOR_REGISTRY (ADR-576 §5).
+    "github": {
+        "display_name": "GitHub",
+
+        "params": {
+            "repo": {
+                "description": "Repository full name",
+                "valid_patterns": [r"^[\w.-]+/[\w.-]+$"],
+                "valid_examples": ["Kvkthecreator/yarnnnn"],
+                "invalid_patterns": [r"^https://"],
+                "invalid_examples": ["https://github.com/owner/repo", "repo"],
+                "resolution_tool": "platform_github_list_repos",
+                "error_hint": "Use owner/repo, not a URL. Use platform_github_list_repos to find it.",
+            },
+        },
+
+        # ADR-576 D1: GitHub is a READ connector — no write capability ships.
+        "capabilities": {
+            "read": {
+                "supported": True,
+                "platform_tool": "platform_github_list_repos",
+                "notes": "Repos, issues/PRs, metadata, README, releases",
+            },
+        },
+
+        "auth": {
+            "type": "oauth",
+            "token_field": "credentials_encrypted",
+            "env_name": "GITHUB_TOKEN",
+        },
+
+        "quirks": [
+            "Issues API returns PRs as issue-shaped rows (type disambiguates)",
+            "Repo selection is an aperture: unselected repos are refused (ADR-576 D2)",
+            "Public repos only — private reads need the GitHub App migration (ADR-576 §5)",
+            "No commits, diffs, file contents, or search (ADR-576 §1e)",
+        ],
+
+        "version": "2026-08-18",
+    },
 }
 
 
