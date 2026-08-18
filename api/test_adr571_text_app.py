@@ -2160,8 +2160,23 @@ check("19L ⭐⭐⭐ THE SOCKET CARRIES THE USER'S TOKEN (`realtime.setAuth`). "
       "BOTH realtime hooks must do it — the omission was latent in the "
       "session-messages hook first, which is where this pattern was copied from.",
       "realtime.setAuth" in _strip_comments(_rt_src)
-      and "realtime.setAuth" in _strip_comments(_sess_rt),
+      and "realtime.setAuth" in _strip_comments(_sess_rt)
+      and "resolveAccessToken" in _strip_comments(_rt_src)
+      and "resolveAccessToken" in _strip_comments(_sess_rt),
       "a realtime hook subscribes without handing the socket the user's JWT")
+
+_tokmod = WEB / "lib" / "realtime" / "access-token.ts"
+_tok_src = _tokmod.read_text(encoding="utf-8") if _tokmod.exists() else ""
+check("19o the token resolver FALLS BACK to the auth cookie. `getSession()` on "
+      "the legacy `createClientComponentClient` yielded NO token on the "
+      "deployed surface — measured: the join carried no access_token and "
+      "delivered nothing even after setAuth shipped. Proven by joining a raw "
+      "socket with `access_token: <cookie[0]>`, which DID receive a real "
+      "postgres_changes INSERT frame for the same peer write.",
+      "getSession" in _strip_comments(_tok_src)
+      and re.search(r"sb-.*-auth-token", _tok_src) is not None
+      and "Array.isArray" in _strip_comments(_tok_src),
+      "the resolver has no cookie fallback — the socket stays anon")
 check("19m setAuth is sequenced BEFORE subscribe() in the file-revisions hook — "
       "fire-and-forget beside the join is a race whose losing side is SILENT: "
       "it resolves from cache locally and fails on a cold load",

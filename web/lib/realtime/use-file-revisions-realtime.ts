@@ -47,6 +47,7 @@
 import { useEffect, useRef } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
+import { resolveAccessToken } from '@/lib/realtime/access-token';
 
 export interface FileRevisionRow {
   id: string;
@@ -143,8 +144,7 @@ export function useFileRevisionsRealtime(
 
     void (async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
+        const token = await resolveAccessToken(supabase);
         if (token) supabase.realtime.setAuth(token);
       } catch (err) {
         onErrorRef.current?.(err);

@@ -34,6 +34,7 @@
 import { useEffect, useRef } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
+import { resolveAccessToken } from '@/lib/realtime/access-token';
 
 export interface SessionMessageRow {
   id: string;
@@ -136,8 +137,7 @@ export function useSessionMessagesRealtime(
     // Set BEFORE subscribing — see the file-revisions hook for why the race
     // matters: the losing side is the silent one, and it resolves from cache
     // locally while failing on a cold load.
-    void supabase.auth.getSession().then(({ data }) => {
-      const token = data.session?.access_token;
+    void resolveAccessToken(supabase).then((token) => {
       if (token) supabase.realtime.setAuth(token);
     });
 

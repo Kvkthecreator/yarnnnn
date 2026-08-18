@@ -147,6 +147,68 @@ conflict suspends autosave; `Editing…` keeps its original meaning.
 **Whole-document CAS is unchanged.** The 409 still exists and still asks. It
 becomes **rare and informed** instead of routine and surprising.
 
+### D6/D7 — Subscribed, filtered, and silent (found by driving production)
+
+**The click-pass found the feature did not work at all**, and neither cause was
+visible to 232 green checks, `tsc`, or `next build`.
+
+The channel joined correctly:
+
+```
+["1",null,"realtime:file-revisions:%2Fworkspace%2FDocuments%2Fadr572-click-pass.md",
+ "system",{"message":"Subscribed to PostgreSQL","status":"ok", ...}]
+```
+
+with the right server-side filter. A peer then wrote through the real API; the
+revision row landed (`b5da51e9…`, confirmed in `workspace_file_versions`).
+**No INSERT frame was ever delivered — only Phoenix heartbeats.**
+
+**Three theories were refuted by measurement before the real ones were found**,
+which is the part worth keeping:
+
+1. *"The table isn't published"* — it is; migration 240 verified the catalog.
+2. *"RLS forbids the subscriber"* — it does not. As the real principal, in a
+   `ROLLBACK` transaction, `SELECT … WHERE id=b5da51e9…` returns **1**.
+3. *"The policy subquery is too complex"* — `session_messages`' working policy
+   also subqueries another table and delivers today.
+
+**D6 — `REPLICA IDENTITY DEFAULT`** (migration 241). Realtime re-checks RLS
+against the row **as reconstructed from the WAL record**. Under `DEFAULT` that
+record carries only the **primary key**, so every other column reads NULL during
+the check. This table's policy keys on `workspace_id` — not the PK — so the
+predicate could never be satisfied and the row was dropped silently.
+`session_messages` was unaffected because its policy keys on `session_id`, which
+its own record carries. ⭐ Note this is not a general "set FULL on realtime
+tables" rule: it is required exactly when the **policy references a column
+outside the replica identity**.
+
+**D7 — the socket carried no user JWT.** Realtime evaluates RLS using the token
+the **socket** holds, not the one the REST calls hold. Nothing called
+`realtime.setAuth()`, so the socket connected with the anon apikey, `auth.uid()`
+was NULL, and rows were dropped while the channel still reported `SUBSCRIBED`.
+Measured directly — the `phx_join` frame carried no `access_token`:
+
+```
+["1","1","realtime:file-revisions:…","phx_join",
+ {"config":{"postgres_changes":[{"event":"INSERT","schema":"public",
+  "table":"workspace_file_versions","filter":"path=eq./workspace/…"}],...}}]
+```
+
+⭐⭐⭐ **The omission was latent in `use-session-messages-realtime.ts` first** —
+the hook this pattern was copied from, whose policy also resolves `auth.uid()`.
+So it is fixed **at the source**, not only in the new tenant. The
+`session_messages` subscription was very likely never delivering in production
+either; the surrounding code refetches on chat-turn, which would have masked it.
+
+In the file-revisions hook the join is **sequenced behind the session read**.
+Fire-and-forget beside `subscribe()` is a race whose losing side is the silent
+one: it resolves from cache locally and fails on a cold load.
+
+**The lesson, stated plainly: publishing a table is necessary and not
+sufficient.** Migration 240's own header warned about a subscription that
+reports `SUBSCRIBED` and delivers nothing — and did not prevent it. **A gate
+asserting the wiring cannot see whether a byte ever crossed the socket.**
+
 ## 5. Verification
 
 ```
