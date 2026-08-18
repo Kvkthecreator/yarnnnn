@@ -62,6 +62,24 @@ set +x
 
 echo "→ applying $(basename "$MIGRATION")$([[ $DRY_RUN == 1 ]] && echo ' (DRY RUN — will ROLLBACK)')"
 
+# ⚠️ A migration that carries its OWN `COMMIT;` DEFEATS --dry-run.
+#
+# The preview below relies on --single-transaction plus an appended ROLLBACK.
+# If the file commits internally, that COMMIT fires FIRST: the changes land for
+# real and the trailing ROLLBACK hits no open transaction (the giveaway is
+# `WARNING: there is no transaction in progress`, which is easy to read as
+# harmless noise). Observed 2026-08-18 — a "--dry-run" of migration 243 applied
+# an RLS policy change to production.
+#
+# Refuse rather than silently apply. Migrations must NOT open or close their own
+# transaction; the runner owns that.
+if grep -qiE '^[[:space:]]*(BEGIN|COMMIT)[[:space:]]*;' "$MIGRATION"; then
+  echo "error: $(basename "$MIGRATION") contains its own BEGIN/COMMIT." >&2
+  echo "       The runner supplies the transaction (--single-transaction), and a" >&2
+  echo "       self-committing file makes --dry-run APPLY FOR REAL. Remove them." >&2
+  exit 3
+fi
+
 if [[ $DRY_RUN == 1 ]]; then
   # Preview: run inside one transaction and ROLLBACK. We append ROLLBACK and let
   # --single-transaction supply the opening BEGIN (no manual BEGIN — that would

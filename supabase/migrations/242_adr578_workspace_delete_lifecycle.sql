@@ -22,10 +22,12 @@
 --    commons (ADR-478 D3's semantic, one scope up — unrecoverable, not
 --    unremembered).
 --
+-- NOTE: no BEGIN/COMMIT here — the runner supplies the transaction
+-- (--single-transaction). A self-committing migration defeats --dry-run: the
+-- internal COMMIT fires first and the preview APPLIES FOR REAL.
+--
 -- Rollback: drop the two columns, drop workspace_ref, restore the two FKs to
 -- ON DELETE CASCADE, re-assert NOT NULL on balance_transactions.workspace_id.
-
-BEGIN;
 
 -- ── 1. Soft-delete state ────────────────────────────────────────────────────
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -108,4 +110,3 @@ BEGIN
   END IF;
 END $$;
 
-COMMIT;
