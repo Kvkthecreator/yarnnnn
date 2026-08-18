@@ -279,10 +279,15 @@ def run() -> bool:
         "EVERY scope, every template" in design,
     )
     # (Re-pinned 2026-07-24/25: Share + Export relocated to the header cluster
-    #  — StudioShareExport, right of zoom — so the pane's head is File alone.)
-    _check("D6 File leads the head; Share/Export left for the header cluster",
-           "File</p>" in design and "Share</p>" not in design
-           and "Export</p>" not in design)
+    #  — StudioShareExport, right of zoom — so the pane's head is File alone.
+    #  Re-pinned again 2026-08-18: the "File" HEADING is gone — a heading over a
+    #  self-describing icon+name+⋯ row cost a whole line the name now spends on
+    #  itself. D6 is about file identity LEADING, not about a label, so pin the
+    #  file CARD (the rename affordance + its ⋯ menu), never its spelling.)
+    _check("D6 the file card leads the head; Share/Export left for the header cluster",
+           'aria-label="Rename this artifact"' in design
+           and 'aria-label="File actions"' in design
+           and "Share</p>" not in design and "Export</p>" not in design)
 
     # ── D7 — the crumb carries the type glyph ─────────────────────────────
     _check("D7 the IMAGES stage has a shape row", "image: { icon: ImageGlyph" in shapes)

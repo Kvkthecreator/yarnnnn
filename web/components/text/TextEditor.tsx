@@ -893,14 +893,15 @@ export function TextEditor({
               outline and answers the document itself for the rest. */}
           <div className={cn('min-h-0 flex-1 overflow-auto', rightTab === 'properties' ? 'block' : 'hidden')}>
             <div className="space-y-4 p-3 text-xs">
-              {/* FILE — the document as a file, with the same organize verbs
-                  every other surface offers. The `⋯` is the Docs FILE-card
-                  affordance, served from the SHARED menu (ADR-572 D10). */}
+              {/* The file itself — the same organize verbs every other surface
+                  offers, behind the Docs FILE-card `⋯` served from the SHARED
+                  menu (ADR-572 D10). NO "File" heading: the icon + name + ⋯
+                  already say what this row is, and the label cost a whole
+                  line that the name now spends on itself. */}
               <section className="space-y-1">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">File</p>
                 <div className="flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
-                  <span className="min-w-0 flex-1 truncate font-medium" title={relPath(path)}>
+                  <FileText className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium" title={relPath(path)}>
                     {leafOf(path)}
                   </span>
                   <button

@@ -2011,9 +2011,11 @@ export function StudioDesignTab({
               verb row: the file shows its name (the Finder grammar), the name
               is the rename affordance (double-click, edit in place — the same
               one commit path as the crumb), and the remaining verbs wait
-              behind ⋯. Common to every scope and every template. */}
+              behind ⋯. Common to every scope and every template.
+              ONE line, no "File" heading (2026-08-18): the shape icon + name +
+              ⋯ is already self-describing, so the label only spent a line the
+              name can use for itself. */}
           <div className={SECTION}>
-            <p className={HEADING}>File</p>
             <div ref={fileMenuRef} className="relative flex items-center gap-1.5">
               {(() => {
                 const { icon: ShapeIcon, color } = studioShapeStyle(layout);
