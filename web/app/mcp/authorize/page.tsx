@@ -40,6 +40,7 @@ type WorkspaceChoice = {
   label: string;
   role: string;
   icon: string | null;
+  is_active: boolean;
 };
 
 function MCPAuthorizeHandler() {
@@ -84,7 +85,15 @@ function MCPAuthorizeHandler() {
         // which is the pre-573 flow — never a blocked connection.
         try {
           const { memberships } = await api.workspace.memberships();
-          setWorkspaces(memberships ?? []);
+          const list = memberships ?? [];
+          setWorkspaces(list);
+          // The picker must show what the token will actually bind: if the
+          // server-side default resolution degraded to null but memberships
+          // loaded, select the acting workspace (else the first) explicitly
+          // rather than stamping NULL behind a picker that names a workspace.
+          if (!consent.workspace_id && list.length > 0) {
+            setChosen((list.find((w) => w.is_active) ?? list[0]).workspace_id);
+          }
         } catch {
           setWorkspaces([]);
         }
@@ -152,13 +161,16 @@ function MCPAuthorizeHandler() {
               </p>
             )}
 
-            {/* WHERE — ADR-573. Shown as a PICKER only when the operator
-                actually reaches more than one workspace; with a single
-                workspace a chooser is noise, and the sentence above already
-                names it. A connector binds to ONE workspace: before this it
-                silently took the principal's default, so a member of a shared
-                commons could not point their assistant at the commons at all. */}
-            {workspaces.length > 1 && (
+            {/* WHERE — ADR-573. The picker shows whenever memberships loaded,
+                even for a single workspace: the binding is explicit, never
+                implied (2026-08-19 — the one-workspace screen read as if no
+                selection existed at all). Zero workspaces = the memberships
+                fetch failed or a fresh account; the sentence above degrades
+                and the NULL binding resolves the principal's default.
+                A connector binds to ONE workspace: before this it silently
+                took the principal's default, so a member of a shared commons
+                could not point their assistant at the commons at all. */}
+            {workspaces.length > 0 && (
               <div className="mb-4">
                 <label
                   htmlFor="mcp-workspace"
