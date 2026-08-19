@@ -183,13 +183,42 @@ lane must derive would make `mcp`'s correct shape a defect.
 
 ---
 
-## 5. What this does not decide
+## 5. The two dispositions of platform reach
 
-- **Whether apps get LIVE tool-call reach to a platform** (transient turn
-  context) as opposed to intake (durable commons substrate). Two different
-  products; conflating them is what produced four reach implementations. The
-  seam where that would land was deleted and is recorded in
-  `connector-reach-and-the-commons.md` §5.
+One transport, two dispositions — **named vocabulary**, added 2026-08-19 after
+the operator re-hit the ambiguity that produced four parallel reach
+implementations. The line between them is the line between this architecture
+and "conventional MCP connectors" on other platforms:
+
+| | **Intake** (this document) | **Turn reach** (NOT built) |
+|---|---|---|
+| The question | "the workspace **stays current** with the platform" | "ask the platform something **now**" |
+| Shape | standing: retain → distil → signal → read | a tool call inside one conversation turn |
+| Where the result lives | the commons — attributed, versioned, compounding | the turn's context — **dies with the turn** |
+| Who drives | the scheduler; no human in the loop | a member, conversationally |
+| Cost bound | the pace law (new-raw gate + floor) | per-turn; unbounded unless designed |
+| Credentials | deterministic capture machinery only — no LLM turn ever holds one | needs its own ADR-577-compatible answer |
+| Status | **live** (dormant behind `CONNECTOR_CAPTURE_ENABLED`) | a **named seam** (`connector-reach-and-the-commons.md` §5) — deleted as unreachable, deliberately not rebuilt |
+
+Conventional MCP connectors elsewhere are **turn reach** — that is the
+industry norm, and YARNNN's divergence from it is deliberate: an autonomous
+agent has no member-driven turn to put transient context into, and only intake
+feeds the record. The two dispositions share one transport
+(`handle_platform_tool` — capture literally calls it) and can coexist; turn
+reach can be **added** beside intake later, but the attributed record cannot be
+recovered retroactively if intake wasn't running — the asymmetry that makes
+intake the default and turn reach the opt-in.
+
+**The rule**: any proposal touching platform reach declares its disposition in
+its first paragraph. A proposal that cannot say which it serves is both at
+once, and is re-running the conflation.
+
+---
+
+## 6. What this does not decide
+
+- **Whether to open the turn-reach seam** (§5). Its surface, its ADR-577
+  answer, and its cost bound are a future ADR's subject.
 - **Which lanes exist.** By §2, deliberately.
 - **The connector derive step itself** — built by
   [ADR-580](../adr/ADR-580-the-connector-derive-step.md) against this
@@ -198,7 +227,7 @@ lane must derive would make `mcp`'s correct shape a defect.
 
 ---
 
-## 6. Receipts
+## 7. Receipts
 
 | Claim | Source |
 |---|---|
