@@ -49,9 +49,16 @@ def main():
         panel = f.read()
     with open("../web/components/workspace/ShareDialog.tsx", encoding="utf-8") as f:
         dialog = f.read()
+    # ADR-537 D2 re-pointed this check (same move as 2c below): FileReach was
+    # MOVED into the one ShareDialog — per-file reach renders where sharing is
+    # managed, and a second reach surface is the dual-surface problem ADR-529
+    # D4 deleted. Anchor on the WIRED call (`getMembers(path)` feeding
+    # setReach), never on the component name: "FileReach" survives in COMMENTS
+    # in both files, so a name-match would pass on prose.
     results.append(_check(
-        "2a Get Info mounts per-file reach",
-        "function FileReach" in panel and "<FileReach" in panel))
+        "2a per-file reach renders in the ONE ShareDialog (ADR-537 D2)",
+        "getMembers(path)" in dialog and "setReach(" in dialog
+        and "<FileReach" not in panel))
     results.append(_check(
         "2b no client-side scope matching (server computes; panel renders)",
         "startsWith" not in inspect.getsource(w.get_workspace_members) or
