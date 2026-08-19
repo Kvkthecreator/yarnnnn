@@ -2931,6 +2931,14 @@ export const api = {
           connected_at: string | null;
         } | null;
         capture: { schedule: string | null; paused: boolean } | null;
+        // ADR-582 — the three per-connection dials, defaults applied.
+        // OPTIONAL: the API deploys separately; an older payload has no
+        // `settings` and the dials section simply doesn't render.
+        settings?: {
+          cadence: string;
+          destination: string | null;
+          digest: boolean;
+        } | null;
         cadence_choices: string[];
         agent_enabled: boolean;
         // ADR-404 D2: false while the capture lane is dormant — the FE hides
@@ -2938,18 +2946,30 @@ export const api = {
         connector_capture_enabled?: boolean;
       }>(`/api/integrations/${provider}/capture-signal`),
 
-    // ADR-401 Phase 4: the CADENCE dial — set the connector's read interval
-    // (bounded enum, floor 15min). 404 until a selection is saved (the
-    // capture entry is seeded at select-time).
-    updateCadence: (provider: "slack" | "notion" | "github", schedule: string) =>
+    // ADR-582 D2/D3/D5: the three per-connection dials — cadence (bounded
+    // enum, floor 15min), destination (null → the default inbound lane),
+    // digest (the opt-in derive consumer). Partial: send only what changed;
+    // destination:null is a real instruction (reset to the default lane).
+    updateConnectorSettings: (
+      provider: "slack" | "notion" | "github",
+      patch: {
+        cadence?: string;
+        destination?: string | null;
+        digest?: boolean;
+      },
+    ) =>
       request<{
         success: boolean;
         provider: string;
-        schedule: string;
+        settings: {
+          cadence: string;
+          destination: string | null;
+          digest: boolean;
+        };
         choices: string[];
-      }>(`/api/integrations/${provider}/cadence`, {
+      }>(`/api/integrations/${provider}/connector-settings`, {
         method: "PUT",
-        body: JSON.stringify({ schedule }),
+        body: JSON.stringify(patch),
       }),
 
     // ADR-401 D6: health is DERIVED, never stored — this runs the real

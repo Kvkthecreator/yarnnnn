@@ -179,19 +179,46 @@ def connector_settings(row: dict) -> dict:
     }
 
 
+def _validate_destination(value: Any) -> Optional[str]:
+    """Normalize + validate an operator destination folder. None/empty → None
+    (the intake-grammar default lane). ValueError on a shape that could escape
+    the workspace or break the deterministic per-selector filing."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("destination must be a folder path string")
+    dest = value.strip().strip("/")
+    if not dest:
+        return None
+    if len(dest) > 120:
+        raise ValueError("destination is too long (max 120 characters)")
+    if "\\" in dest or any(ord(c) < 32 for c in dest):
+        raise ValueError("destination contains invalid characters")
+    if any(seg in ("", ".", "..") for seg in dest.split("/")):
+        raise ValueError("destination must be a plain folder path (no . or ..)")
+    return dest
+
+
 def update_connector_settings(
     client: Any, user_id: str, platform: str, patch: dict,
 ) -> Optional[dict]:
     """Merge a patch into settings["connector"] on the connection row.
 
-    Validates cadence against CONNECTOR_CADENCE_CHOICES (ValueError outside
-    the enum). Returns the stored connector object, or None when the platform
-    is not connected."""
+    THE validation chokepoint for the three ADR-582 dials — every caller
+    (route, scheduler stamp) goes through here, so a knob cannot be stored in
+    a shape the walk would misread. Validates cadence against
+    CONNECTOR_CADENCE_CHOICES, destination via _validate_destination (both
+    ValueError on bad input); coerces digest to bool. Returns the stored
+    connector object, or None when the platform is not connected."""
     if "cadence" in patch and patch["cadence"] not in CONNECTOR_CADENCE_CHOICES:
         raise ValueError(
             f"invalid cadence {patch['cadence']!r}; "
             f"choices: {', '.join(CONNECTOR_CADENCE_CHOICES)}"
         )
+    if "destination" in patch:
+        patch = {**patch, "destination": _validate_destination(patch["destination"])}
+    if "digest" in patch:
+        patch = {**patch, "digest": bool(patch["digest"])}
     plat = (platform or "").strip().lower()
     rows = (
         client.table("platform_connections")

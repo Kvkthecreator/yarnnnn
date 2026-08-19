@@ -665,28 +665,55 @@ async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[
     return {"retention_days": written, "success": True, "clamped": clamped, "tier_max_days": tier_max}
 
 
-class CadenceRequest(BaseModel):
-    schedule: str
+class ConnectorSettingsRequest(BaseModel):
+    """The three ADR-582 dials. Partial: only the fields present are written.
+    extra="forbid" so a stale FE field is refused loudly, never silently
+    dropped (the ADR-562 lesson)."""
+
+    model_config = {"extra": "forbid"}
+
+    cadence: Optional[str] = None
+    destination: Optional[str] = None
+    digest: Optional[bool] = None
 
 
-@router.put("/integrations/{provider}/cadence")
-async def update_connector_cadence(
+@router.put("/integrations/{provider}/connector-settings")
+async def update_connector_settings_route(
     provider: str,
-    request: CadenceRequest,
+    request: ConnectorSettingsRequest,
     auth: UserClient,
 ) -> dict[str, Any]:
-    """Set the connector's read cadence (ADR-582 D2 — a connection setting).
+    """Set the connector's per-connection knobs (ADR-582 D2/D3/D5 — the three
+    dials on `settings["connector"]`): cadence (bounded choices, floor 15min —
+    the guardrail on API volume), destination (where snapshots land; empty →
+    the intake-grammar default lane), digest (the opt-in ADR-580 consumer,
+    default off). Replaces the cadence-only PUT (its one FE caller rendered
+    only behind the dormant capture flag — zero live callers at the rename).
 
-    Writes `settings.connector.cadence` on the connection row (bounded
-    choices, floor 15min — the guardrail on API volume). 400 on an
-    out-of-enum schedule; 404 when the platform is not connected.
+    400 on an out-of-enum cadence or an invalid destination; 404 when the
+    platform is not connected.
     """
-    from services.connectors import CONNECTOR_CADENCE_CHOICES, update_connector_settings
+    from services.connectors import (
+        CONNECTOR_CADENCE_CHOICES,
+        connector_settings,
+        update_connector_settings,
+    )
+
+    patch = request.model_dump(exclude_unset=True)
+    # destination=null is a real instruction (reset to the default lane);
+    # cadence/digest nulls are not — drop them so a partial write can't
+    # accidentally clear a knob it didn't mean to touch.
+    patch = {
+        k: v for k, v in patch.items()
+        if v is not None or k == "destination"
+    }
+    if not patch:
+        raise HTTPException(status_code=400, detail="No settings provided.")
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
     try:
         touched = update_connector_settings(
-            auth.client, auth.user_id, db_platform, {"cadence": request.schedule},
+            auth.client, auth.user_id, db_platform, patch,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -694,10 +721,18 @@ async def update_connector_cadence(
         raise HTTPException(
             status_code=404, detail=f"No {provider} connection found.",
         )
+    # Echo the normalized, defaults-applied view (what the walk will read),
+    # not the raw patch.
+    stored = connector_settings({"platform": db_platform,
+                                 "settings": {"connector": touched}})
     return {
         "success": True,
         "provider": provider,
-        "schedule": request.schedule,
+        "settings": {
+            "cadence": stored["cadence"],
+            "destination": stored["destination"],
+            "digest": stored["digest"],
+        },
         "choices": list(CONNECTOR_CADENCE_CHOICES),
     }
 
@@ -1582,11 +1617,16 @@ async def oauth_callback(
             user_id = token_data["user_id"]
 
             # Update existing - clear landscape to force rediscovery from new workspace
+            # ⚠️ Write only columns platform_connections actually has. This dict
+            # carried a `last_error: None` from the original user_integrations
+            # schema (migration 023); platform_connections has no such column, so
+            # PostgREST refused the WHOLE update (PGRST204) — every RE-connect
+            # exchanged a fresh token and then dropped it (prod receipt
+            # 2026-08-19 04:28:23, notion).
             update_data = {
                 "credentials_encrypted": token_data["credentials_encrypted"],
                 "metadata": token_data["metadata"],
                 "status": token_data["status"],
-                "last_error": None,
                 "updated_at": datetime.utcnow().isoformat(),
                 # Clear old landscape data so it's refetched from new workspace
                 "landscape": None,
@@ -2242,14 +2282,15 @@ async def get_capture_signal(
     provider: str,
     auth: UserClient,
 ) -> dict[str, Any]:
-    """Declared × observed for a connector's capture lane (ADR-393 D3 / ADR-392 Phase B).
+    """Declared × observed for a connector's capture lane (ADR-393 D3, re-cut by ADR-582).
 
-    Joins two substrate reads:
-      - DECLARED — the connector-watch declaration (operation/_connectors/{platform}/
-        _watch.yaml): which selectors (channels/pages/repos) the operator put in
-        scope. This is the "what should be perceived" half.
+    Joins two reads:
+      - DECLARED — the selection, from the ONE store
+        (platform_connections.landscape.selected_sources, ADR-582 D2): which
+        selectors (channels/pages/repos) the operator put in scope. This is
+        the "what should be perceived" half.
       - OBSERVED — the per-declaration health blocks in _capture_signal.yaml
-        (written by the capture lane, ADR-393): status · observed_at · items ·
+        (written by the capture walk, ADR-393): status · observed_at · items ·
         last_error. This is the "what was actually captured, and how fresh" half.
 
     The FE renders each selected selector with its freshness (or "not reading yet"
@@ -2263,8 +2304,10 @@ async def get_capture_signal(
       - `granted_scopes` — the OAuth consent fact (metadata.scope, comma-joined
         at exchange for Slack/GitHub; Notion grants app-level access → []).
       - `connection` — {workspace_name, connected_at} for the header line.
-      - `capture` — the connector's `_captures.yaml` entry {schedule, paused}
-        (seeded at select-time, ADR-394 D2); null until a selection is saved.
+      - `capture` — {schedule, paused}; paused = empty selection (ADR-582:
+        there is no seeded entry any more).
+      - `settings` — the three ADR-582 dials {cadence, destination, digest},
+        defaults applied; null when unconnected.
       - `agent_enabled` — the deploy-level gate (ADR-375 D4): when False,
         captures never run regardless of cadence; the FE must say so rather
         than imply reads are happening.
@@ -2272,12 +2315,13 @@ async def get_capture_signal(
     Returns:
       {
         "provider": str,
-        "declared": [{id, name, selected}],   # the full watch declaration
+        "declared": [{id, name, selected}],   # every selectable, with in/out state
         "observed": {slug: {status, observed_at, items, last_error, target}},
         "workspace_capture_count": int,        # captures with any observed block
         "granted_scopes": [str],
         "connection": {workspace_name, connected_at} | None,
         "capture": {schedule, paused} | None,
+        "settings": {cadence, destination, digest} | None,
         "agent_enabled": bool,
       }
     """
@@ -2344,11 +2388,20 @@ async def get_capture_signal(
     # CADENCE — the connection's setting (ADR-582 D2). "Paused" is simply an
     # empty selection now — no seeded entry to pause.
     capture: Optional[dict[str, Any]] = None
+    settings_obj: Optional[dict[str, Any]] = None
     if conn_row:
         cs = connector_settings(conn_row)
         capture = {
             "schedule": cs["cadence"],
             "paused": not any(d.get("selected") for d in declared),
+        }
+        # The three ADR-582 dials, defaults applied — the owed FE settings
+        # surface reads this one object (extend-not-fork: same round-trip the
+        # Manage drill-in already makes).
+        settings_obj = {
+            "cadence": cs["cadence"],
+            "destination": cs["destination"],
+            "digest": cs["digest"],
         }
 
     return {
@@ -2359,6 +2412,7 @@ async def get_capture_signal(
         "granted_scopes": granted_scopes,
         "connection": connection,
         "capture": capture,
+        "settings": settings_obj,
         "cadence_choices": list(CONNECTOR_CADENCE_CHOICES),
         "agent_enabled": is_agent_enabled(),
         # ADR-404 D2: the FE hides CADENCE + YIELD + the retention dial while

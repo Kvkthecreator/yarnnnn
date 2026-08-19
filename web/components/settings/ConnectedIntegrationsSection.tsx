@@ -317,6 +317,12 @@ export function ConnectedIntegrationsSection({
         <ManageConnectionSubsurface
           meta={activeMeta}
           onBack={() => onBackFromManage?.()}
+          // The drill-in's ⋮ menu is the ONE Disconnect for selection-capable
+          // connectors (their list rows are drill-ins, not cards — before this
+          // they had no disconnect affordance at all). After the row deletes,
+          // the connected-guard above falls back to the list.
+          onDisconnect={() => handleDisconnectIntegration(activeMeta.provider)}
+          disconnecting={disconnectingProvider === activeMeta.provider}
         />
       </section>
     );
@@ -361,6 +367,16 @@ export function ConnectedIntegrationsSection({
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {describeOauthFailure(oauthOutcome.reason, oauthOutcome.error)}
+              {/* A failed RE-connect leaves the previous credential in place, so
+                  the row below still says Connected — say so, or the banner and
+                  the badge read as contradicting each other. */}
+              {oauthOutcome.provider &&
+                platformStatuses[oauthOutcome.provider] === "active" && (
+                  <>
+                    {" "}
+                    Your earlier connection is untouched and still active.
+                  </>
+                )}
             </p>
           </div>
           {onDismissOauthOutcome && (

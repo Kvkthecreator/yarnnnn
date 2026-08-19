@@ -309,7 +309,14 @@ class NotionAPIClient:
                     timeout=30.0,
                 )
                 if response.status_code != 200:
-                    break
+                    # Raise like search() does — a silent break here returned []
+                    # and made an expired/revoked token look like a workspace
+                    # with zero shared pages (landscape discovery then stored
+                    # that lie as an honest-looking empty landscape).
+                    error_data = response.json()
+                    raise RuntimeError(
+                        f"Notion API error: {error_data.get('message', response.text)}"
+                    )
                 data = response.json()
 
             all_results.extend(data.get("results", []))

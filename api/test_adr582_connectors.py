@@ -342,6 +342,141 @@ check("6f the connector source path calls no platform API and no HTTP",
       "handle_platform_tool" not in _calls_in(rcs)
       and "httpx" not in ast.unparse(rcs))
 
+# ═════════════════════════════════════════════════════════════════════════════
+print("§7 the settings surface — dials validated, doors honest (2026-08-19)")
+# ═════════════════════════════════════════════════════════════════════════════
+
+from services.connectors import _validate_destination, update_connector_settings  # noqa: E402
+
+check("7a destination: empty/slashes normalize to None (the default lane)",
+      _validate_destination("") is None
+      and _validate_destination("  /  ") is None
+      and _validate_destination("/Projects/Acme/") == "Projects/Acme")
+
+for bad in ("../escape", "a/../b", "a/./b", "a//b", "a\\b", "x" * 121):
+    try:
+        _validate_destination(bad)
+        check(f"7b destination rejects {bad[:20]!r}", False)
+    except ValueError:
+        check(f"7b destination rejects {bad[:20]!r}", True)
+
+
+class _SettingsQ:
+    def __init__(self, store):
+        self._store = store
+
+    def __getattr__(self, name):
+        return lambda *a, **k: self
+
+    def update(self, payload):
+        self._store["updated"] = payload
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+        return SimpleNamespace(data=[{"id": "row1", "settings": self._store.get("settings", {})}])
+
+
+class _SettingsC:
+    def __init__(self, store):
+        self._store = store
+
+    def table(self, name):
+        return _SettingsQ(self._store)
+
+
+_store: dict = {"settings": {}}
+stored = update_connector_settings(_SettingsC(_store), "u1", "slack",
+                                   {"digest": "yes", "destination": " Projects/Acme/ "})
+check("7c digest is COERCED to bool at the chokepoint (never a truthy string "
+      "the walk would store verbatim)",
+      stored is not None and stored.get("digest") is True
+      and _store["updated"]["settings"]["connector"]["digest"] is True,
+      str(stored))
+check("7d destination is normalized at the chokepoint",
+      stored is not None and stored.get("destination") == "Projects/Acme")
+
+try:
+    update_connector_settings(_SettingsC({"settings": {}}), "u1", "slack",
+                              {"cadence": "@every 1min"})
+    check("7e an out-of-enum cadence raises", False)
+except ValueError:
+    check("7e an out-of-enum cadence raises", True)
+
+# --- the route roster: one settings door, the cadence-only door is gone ------
+import routes.integrations as ri  # noqa: E402
+
+route_paths = {r.path for r in ri.router.routes}
+check("7f PUT connector-settings exists (the three dials' one door)",
+      "/integrations/{provider}/connector-settings" in route_paths,
+      str(sorted(p for p in route_paths if "cadence" in p or "connector-settings" in p)))
+check("7g the cadence-only route is DELETED (singular implementation)",
+      "/integrations/{provider}/cadence" not in route_paths)
+
+# --- the reconnect crash: the callback writes only columns that EXIST --------
+# platform_connections has no `last_error` column (measured in production,
+# 2026-08-19 — PGRST204 refused the WHOLE update, so every re-connect
+# exchanged a fresh token and dropped it). The write-set is pinned to the
+# columns the fix intends, so a re-added dead column fails here and a new
+# column is added consciously.
+_ri_tree = ast.parse((API / "routes" / "integrations.py").read_text())
+_cb = next(n for n in ast.walk(_ri_tree)
+           if isinstance(n, ast.AsyncFunctionDef) and n.name == "oauth_callback")
+_update_dicts = [
+    n.value for n in ast.walk(_cb)
+    if isinstance(n, ast.Assign) and isinstance(n.value, ast.Dict)
+    and any(isinstance(t, ast.Name) and t.id == "update_data" for t in n.targets)
+]
+_keys = {k.value for d in _update_dicts for k in d.keys
+         if isinstance(k, ast.Constant)}
+check("7h the reconnect update_data exists and is inspectable",
+      len(_update_dicts) == 1, f"found {len(_update_dicts)}")
+check("7i the reconnect writes NO dead column (last_error crashed every "
+      "re-connect via PGRST204)",
+      bool(_keys) and "last_error" not in _keys
+      and _keys <= {"credentials_encrypted", "metadata", "status", "updated_at",
+                    "landscape", "landscape_discovered_at",
+                    "refresh_token_encrypted"},
+      str(sorted(_keys)))
+
+# --- discovery honesty: a failed listing RAISES, never masquerades as [] ----
+_ls_tree = ast.parse((API / "services" / "landscape.py").read_text())
+_disc = next(n for n in ast.walk(_ls_tree)
+             if isinstance(n, ast.AsyncFunctionDef) and n.name == "discover_landscape")
+check("7j discover_landscape swallows NOTHING (no try/except — a revoked "
+      "token must not read as an empty landscape)",
+      not any(isinstance(n, ast.Try) for n in ast.walk(_disc)))
+
+_nc_tree = ast.parse((API / "integrations" / "core" / "notion_client.py").read_text())
+_sp = next(n for n in ast.walk(_nc_tree)
+           if isinstance(n, ast.AsyncFunctionDef) and n.name == "search_paginated")
+_status_ifs = [
+    n for n in ast.walk(_sp)
+    if isinstance(n, ast.If)
+    and any(isinstance(c, ast.Attribute) and c.attr == "status_code"
+            for c in ast.walk(n.test))
+]
+check("7k search_paginated's non-200 branch RAISES (the silent break made a "
+      "dead token look like zero shared pages)",
+      len(_status_ifs) == 1
+      and any(isinstance(x, ast.Raise) for x in ast.walk(_status_ifs[0]))
+      and not any(isinstance(x, ast.Break) for n in _status_ifs
+                  for x in ast.walk(n)))
+
+# --- the capture-signal payload carries the dials -----------------------------
+_cs = next(n for n in ast.walk(_ri_tree)
+           if isinstance(n, ast.AsyncFunctionDef) and n.name == "get_capture_signal")
+_ret_keys = {
+    k.value
+    for n in ast.walk(_cs) if isinstance(n, ast.Return)
+    and isinstance(n.value, ast.Dict)
+    for k in n.value.keys if isinstance(k, ast.Constant)
+}
+check("7l capture-signal serves the settings object beside the existing shape "
+      "(extend, not fork)",
+      {"settings", "capture", "declared", "observed",
+       "cadence_choices"} <= _ret_keys, str(sorted(_ret_keys)))
+
 n = PASS + FAIL
 print(f"\n{PASS}/{n} ADR-582 assertions pass")
 sys.exit(0 if FAIL == 0 else 1)

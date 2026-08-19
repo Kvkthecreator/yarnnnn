@@ -93,15 +93,17 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
 
         auth_token = token_manager.decrypt(integration["credentials_encrypted"])
 
-        try:
-            notion_client = get_notion_client()
-            # ADR-077: Paginated search for full workspace discovery
-            pages = await notion_client.search_paginated(
-                access_token=auth_token, query="", max_results=500
-            )
-        except Exception as e:
-            logger.warning(f"[LANDSCAPE] Notion search failed: {e}")
-            return {"resources": []}
+        # A failed search RAISES (the route 502s with a reconnect hint). It used
+        # to be swallowed into {"resources": []} — which made a revoked token
+        # indistinguishable from "zero pages shared", and turned the operator's
+        # Refresh into a loop that re-ran the same silent failure. An honest
+        # empty is only the SUCCESS case: a valid token that enumerates nothing
+        # (Notion grants access page-by-page).
+        notion_client = get_notion_client()
+        # ADR-077: Paginated search for full workspace discovery
+        pages = await notion_client.search_paginated(
+            access_token=auth_token, query="", max_results=500
+        )
 
         resources = []
         for page in pages:
@@ -125,15 +127,12 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
         token = token_manager.decrypt(integration["credentials_encrypted"])
         github_client = get_github_client()
 
-        try:
-            repos = await github_client.list_repos(token=token, max_repos=200)
-        except Exception as e:
-            logger.warning(f"[LANDSCAPE] GitHub repo listing failed: {e}")
-            return {"resources": []}
+        # Same discipline as the notion branch: a failed listing RAISES rather
+        # than masquerading as an empty landscape.
+        repos = await github_client.list_repos(token=token, max_repos=200)
 
         if isinstance(repos, dict) and repos.get("error"):
-            logger.warning(f"[LANDSCAPE] GitHub API error: {repos}")
-            return {"resources": []}
+            raise RuntimeError(f"GitHub repo listing failed: {repos.get('error')}")
 
         resources = []
         for repo in repos:
