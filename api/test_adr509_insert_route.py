@@ -79,31 +79,37 @@ def main() -> int:
         and "openInsertMenu(at.x, at.y, verb)" in SURFACE,
     )
     _check(
-        "mount 2 — the right-click row opens the SAME menu at the click point",
-        "onInsert={() => openInsertMenu(ctxMenu.x, ctxMenu.y)}" in SURFACE,
+        "mount 2 — the right-click tiers land through the ONE insert landing (ADR-579 D6.a)",
+        "onInsertKind={ctxInsertKind}" in SURFACE
+        and "landInsertPick(resolveInsertTarget()" in SURFACE
+        and "landInsertPick(t, { x: t.x, y: t.y }" in SURFACE,
     )
     # Pin the RENDER, not just the condition. A first cut of this check asserted
     # only that the string `onInsert && isPaged` appeared — and a falsifier that
     # short-circuited the branch to `{false && onInsert && isPaged && (` PASSED,
     # because the substring survived. Locate the JSX block and assert the Row is
     # actually inside it, with nothing disabling the branch.
-    row = re.search(
-        r"\{([^}]*?)onInsert && isPaged && \([\s\S]{0,400}?New block…[\s\S]{0,120}?</Row>",
-        BLOCKMENU,
-    )
-    _check("the located Insert row is findable and renders a Row", bool(row))
-    if row:
+    # ADR-579 D6.a — the located door is the New ▸ / Add ▸ tiers, rendered from
+    # the ONE grouping module over the SERVED vocabulary. Slice from the branch
+    # guard to the fragment close rather than pinning a window length (the
+    # never-pin-a-LENGTH rule this file already records).
+    guard_at = BLOCKMENU.find("onInsertKind && isPaged && (")
+    _check("the located New/Add tier branch exists", guard_at != -1)
+    if guard_at != -1:
+        brace_at = BLOCKMENU.rfind("{", 0, guard_at)
+        tier_block = BLOCKMENU[guard_at : BLOCKMENU.find("\n      )}", guard_at)]
         _check(
-            "the located row's branch is not short-circuited (no `false &&`)",
-            "false" not in row.group(1),
+            "the tier branch is not short-circuited (no `false &&`)",
+            "false" not in BLOCKMENU[brace_at:guard_at],
         )
         _check(
-            "the located row is gated on BOTH the callback and paged",
-            "onInsert" in row.group(0) and "isPaged" in row.group(0),
+            "the tiers render the ONE grouping and land through onInsertKind",
+            "groupBlockRows(blocks ?? [])" in tier_block
+            and "run(() => onInsertKind(b.kind, b.label, b.fragment))" in tier_block,
         )
     _check(
         "a bare-canvas right-click on paged is no longer an empty menu",
-        "const hasInsert = !!onInsert && isPaged;" in BLOCKMENU
+        "const hasInsert = !!onInsertKind && isPaged;" in BLOCKMENU
         and "!hasBlock && !hasClipboard && !hasInsert" in BLOCKMENU,
     )
 
@@ -162,8 +168,8 @@ def main() -> int:
             "template === 'deck' ? 'slide' : 'section'" in body,
         )
     _check(
-        "the menu STATES the destination",
-        "Insert into {targetLabel}" in MENU,
+        "the menu STATES the destination — and speaks its VERB (ADR-579 D6.a)",
+        "— into {targetLabel}" in MENU,
     )
 
     print("\n-- D3: one list, three doors (no second mechanism) --")
@@ -208,9 +214,11 @@ def main() -> int:
         "picker-backed + chart kinds route the SAME way from both doors",
         "kindCites(kind)" in SURFACE and "onInsertMenuPick" in SURFACE,
     )
-    # The landing ops are the EXISTING ones — never a new write path (ADR-443 D2).
-    pick = re.search(r"const onInsertMenuPick = useCallback\([\s\S]{0,2200}?\n  \);", SURFACE)
-    _check("onInsertMenuPick is findable", bool(pick))
+    # The landing ops are the EXISTING ones — never a new write path (ADR-443
+    # D2). ADR-579 D6.a folded the body into landInsertPick, the ONE landing
+    # every located door (toolbar verb menus + right-click tiers) routes to.
+    pick = re.search(r"const landInsertPick = useCallback\([\s\S]{0,2600}?\n  \);", SURFACE)
+    _check("landInsertPick (the one landing) is findable", bool(pick))
     if pick:
         _check(
             # ADR-511 Phase 2: the slot-name branch dissolved — insertBlock

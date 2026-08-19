@@ -45,9 +45,12 @@ _check(
 )
 palette = (WEB / "components/authoring/StudioSlashPalette.tsx").read_text()
 insert_menu = (WEB / "components/authoring/StudioBlockInsertMenu.tsx").read_text()
+menu_src = (WEB / "components/authoring/StudioBlockMenu.tsx").read_text()
 _check(
-    "BOTH Studio mounts import the ONE grouping (the one-list rule, extended)",
-    "groupBlockRows" in palette and "groupBlockRows" in insert_menu,
+    "ALL THREE Studio mounts import the ONE grouping (the one-list rule, extended)",
+    "groupBlockRows" in palette
+    and "groupBlockRows" in insert_menu
+    and "groupBlockRows" in menu_src,
 )
 _check(
     "the palette reports the FLAT grouped order up (keyboard index = rendered order)",
@@ -109,9 +112,16 @@ _check(
     and menu.index("run(onAsk)") > ask_at,
 )
 _check(
-    "the creation row speaks the grammar (New block…), wired to onInsert",
-    re.search(r"onClick=\{\(\) => run\(onInsert\)\}>[\s\S]{0,40}New block…", menu)
-    is not None,
+    "the located New/Add tiers render the served vocabulary and land per-kind (D6.a)",
+    "groupBlockRows(blocks ?? [])" in menu
+    and "run(() => onInsertKind(b.kind, b.label, b.fragment))" in menu,
+)
+insert_menu_src = insert_menu
+_check(
+    "a verb door shows ONLY its own group, and New carries the page grain inside it",
+    ".filter((g) => !verb || g.key === verb)" in insert_menu_src
+    and "pageSection" in insert_menu_src
+    and "New {pageSection.noun}" in insert_menu_src,
 )
 
 print("── D9: the fossils are absent (with presence controls) ──")

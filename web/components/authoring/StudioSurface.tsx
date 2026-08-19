@@ -2674,11 +2674,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // (a container anchor appends INTO it, ADR-511 Phase 2). The picker-backed kinds
   // (figure/table/gallery) and chart route exactly as the palette routes them,
   // so a cited insert behaves identically whichever door opened it.
-  const onInsertMenuPick = useCallback(
-    (kind: string, label: string, fragment: string) => {
-      const t = insertMenu;
-      setInsertMenu(null);
-      if (!t) return;
+  //
+  // ADR-579 D6.a — ONE landing for every located pick: the toolbar verb menus
+  // AND the right-click New/Add tiers resolve a target and land here. One
+  // write path under every door, whichever chrome opened it.
+  const landInsertPick = useCallback(
+    (
+      t: { blockId: string | null; slideIndex: number | null; pageIndex: number | null },
+      anchor: { x: number; y: number },
+      kind: string,
+      label: string,
+      fragment: string,
+    ) => {
       // (ADR-538 D2 — the `chart` branch that seeded "author an SVG chart at
       // ./assets/…" is DELETED. A chart cites DATA now. ADR-539 D2 — a kind
       // is picker-backed iff its served row declares a citation; no list.)
@@ -2687,8 +2694,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         setCitePicker({
           kind,
           cites: menuCites,
-          left: t.x,
-          top: t.y,
+          left: anchor.x,
+          top: anchor.y,
           // An empty ctx blockId means "not a located caret pick" — the cite
           // terminal falls through to the same anchor rules used here.
           ctx: { blockId: t.blockId ?? '', beforeInner: null, afterInner: null, empty: false },
@@ -2707,7 +2714,28 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         `${app.label}: add ${label} block`,
       );
     },
-    [insertMenu, applyOp, seedComposer],
+    [applyOp, kindCites],
+  );
+  const onInsertMenuPick = useCallback(
+    (kind: string, label: string, fragment: string) => {
+      const t = insertMenu;
+      setInsertMenu(null);
+      if (!t) return;
+      landInsertPick(t, { x: t.x, y: t.y }, kind, label, fragment);
+    },
+    [insertMenu, landInsertPick],
+  );
+  // The right-click New/Add tiers (ADR-579 D6.a): the target resolves at PICK
+  // time through the same ladder the menu door uses, anchored at the
+  // right-click point (so a cited pick's picker opens where the member was
+  // already pointing).
+  const ctxInsertKind = useCallback(
+    (kind: string, label: string, fragment: string) => {
+      const m = ctxMenu;
+      if (!m) return;
+      landInsertPick(resolveInsertTarget(), { x: m.x, y: m.y }, kind, label, fragment);
+    },
+    [ctxMenu, landInsertPick, resolveInsertTarget],
   );
 
   const onSlashTaken = useCallback(
@@ -3781,11 +3809,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onAsk={askAboutSelection}
                   onCopyLink={menuCopyBlockLink}
                   onHistory={menuHistory}
-                  // The LOCATED half of the paged mouse insert route. Opens the
-                  // same menu the toolbar opens, at the right-click point — so
-                  // the block lands where the member was already pointing. The
-                  // menu itself renders this row on `paged` only.
-                  onInsert={() => openInsertMenu(ctxMenu.x, ctxMenu.y)}
+                  // The LOCATED half of the paged mouse insert route
+                  // (ADR-579 D6.a): the New/Add tiers render the served
+                  // vocabulary INLINE and land through the same ops as the
+                  // toolbar doors — no hop to a second menu, and never
+                  // another verb's rows under this verb's name.
+                  onInsertKind={ctxInsertKind}
                 />
               )}
               {/* The native block-insert menu — the MOUSE route on `paged`,
@@ -3802,6 +3831,22 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   targetLabel={insertMenu.label}
                   onPick={onInsertMenuPick}
                   onClose={() => setInsertMenu(null)}
+                  // ADR-579 D6.a — the New door carries the page grain too:
+                  // the New-‹noun› gallery renders inside the same menu, so
+                  // the toolbar's New is one door with two grains, not a
+                  // dropdown that hops to a second menu.
+                  pageSection={
+                    insertMenu.verb === 'new' && resolvedMode === 'paged'
+                      ? {
+                          noun: template === 'deck' ? 'slide' : 'section',
+                          arrangements: vocabulary?.arrangements?.[template] ?? [],
+                          onPick: (fragment, label) => {
+                            setInsertMenu(null);
+                            handleAddArrangement(fragment, label);
+                          },
+                        }
+                      : undefined
+                  }
                 />
               )}
             </div>

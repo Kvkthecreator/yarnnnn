@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
 import { isConvertible, turnIntoTargets } from './StudioDesignTab';
+import { groupBlockRows } from './blockRows';
 import { HEADING_RUNGS } from '../workspace/viewers/projection';
 
 export interface StudioBlockMenuProps {
@@ -43,10 +44,18 @@ export interface StudioBlockMenuProps {
    *  one gesture. The caller runs the same `convertBlock` op the Design tab
    *  runs — a second entrance, never a second write path (ADR-462 D1). */
   onTurnInto: (kind: string, label: string, fragment: string) => void;
-  /** The served block vocabulary — the submenu resolves each legal kind's label
-   *  and insertion fragment from it, so the menu never restates the registry.
-   *  ADR-539 D2: rows carry `convertible`; the menu reads it off the row. */
-  blocks?: Array<{ kind: string; label: string; fragment: string; convertible?: boolean }>;
+  /** The served block vocabulary — the submenus resolve each kind's label and
+   *  insertion fragment from it, so the menu never restates the registry.
+   *  ADR-539 D2: rows carry `convertible` + `cites`; the menu reads them off
+   *  the row (the New/Add tiers partition by `cites` via the ONE grouping
+   *  module — never a hand list). */
+  blocks?: Array<{
+    kind: string;
+    label: string;
+    fragment: string;
+    convertible?: boolean;
+    cites?: 'none' | 'source' | 'picture';
+  }>;
   /** ADR-539 D3 — the served rung set (falls back to the runtime's pinned copy). */
   headingRungs?: number[];
   /** ADR-541 D4 — how many blocks the right-clicked block stands in for: 0/1 =
@@ -77,10 +86,12 @@ export interface StudioBlockMenuProps {
    *  revision chain joins by that same id. */
   onCopyLink: () => void;
   onHistory: () => void;
-  /** Open the native block-insert menu at this right-click point — the LOCATED
-   *  half of the paged mouse insert route. Absent on flow (the caret answers
-   *  there), so the row simply does not render. */
-  onInsert?: () => void;
+  /** ADR-579 D6.a — the LOCATED half of the paged mouse insert route: the
+   *  New ▸ / Add ▸ tiers render the served vocabulary INLINE (label-only, the
+   *  fast path for a member who knows what they want) and land each pick
+   *  through the surface's one insert landing. Absent on flow (the caret
+   *  answers there), so the tiers simply do not render. */
+  onInsertKind?: (kind: string, label: string, fragment: string) => void;
   /** ADR-482 D5: the layout's composition mode. The menu was mode-BLIND — it
    *  offered Move up/down against a continuous prose surface where a block is
    *  an ANNOTATION, not an enclosure (ADR-480 D2), so reordering "blocks" asks
@@ -143,12 +154,14 @@ const ICO = 'h-3.5 w-3.5';
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete, setCount,
   onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
-  onCopyLink, onHistory, onInsert, mode, hasClipboard,
+  onCopyLink, onHistory, onInsertKind, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
   // ADR-579 D5 two-tier — the verb tiers (one open at a time).
   const [updateOpen, setUpdateOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
   // SANDBOXED IFRAME, so a click on the artifact fires in the frame's own
   // document and these parent listeners never hear it. The canvas's point
@@ -265,7 +278,7 @@ export function StudioBlockMenu({
   // right-click on an empty slide SHOULD serve — so suppressing here would
   // re-hide the route this pass exists to give the mouse back. On flow the row
   // is absent, so the original condition is what still decides.
-  const hasInsert = !!onInsert && isPaged;
+  const hasInsert = !!onInsertKind && isPaged;
   if (!hasBlock && !hasClipboard && !hasInsert) return null;
 
   return (
@@ -276,23 +289,56 @@ export function StudioBlockMenu({
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* INSERT leads on `paged`, and only on paged. This is the LOCATED half
-          of the mouse insert route that replaced '/' there: the toolbar button
-          is discoverable, this is fast and lands at the thing you right-clicked.
-          On `flow` the row is absent — the caret IS the insertion point and '/'
-          still answers there, so a row here would be a third door to the same
-          act on the one medium that never needed it.
-          First, because inserting CREATES and every row below acts on something
-          that already exists. */}
-      {onInsert && isPaged && (
+      {/* NEW ▸ and ADD ▸ lead on `paged`, and only on paged — the LOCATED
+          half of the mouse insert route that replaced '/' there. On `flow`
+          the tiers are absent: the caret IS the insertion point and '/' still
+          answers. First, because creating precedes every row that acts on
+          something existing. ADR-579 D6.a: each tier renders ONLY its verb's
+          rows (a door labeled New offering Add rows is the label lying), the
+          rows come from the ONE grouping module partitioning the SERVED
+          vocabulary by `cites` (never a hand list), and each pick lands
+          through the surface's one insert landing — no hop to a second menu.
+          Label-only rows: this is the fast path for a member who knows what
+          they want; the toolbar door keeps the teaching descriptions. */}
+      {onInsertKind && isPaged && (
         <>
-          {/* ADR-579 D5 — the member-facing label is the grammar's word for
-              creation (NEW); the internal `insert` vocabulary (props, ops,
-              ADR-509's language) is unchanged — it names PLACEMENT, which is
-              still what the code does. */}
-          <Row icon={<Plus className={ICO} />} onClick={() => run(onInsert)}>
-            New block…
-          </Row>
+          {groupBlockRows(blocks ?? []).map((g) => {
+            const opened = g.key === 'new' ? newOpen : addOpen;
+            const toggle = () => {
+              if (g.key === 'new') { setNewOpen((v) => !v); setAddOpen(false); }
+              else { setAddOpen((v) => !v); setNewOpen(false); }
+              setUpdateOpen(false); setAskOpen(false);
+            };
+            return (
+              <div key={g.key}>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                >
+                  <span className="text-muted-foreground"><Plus className={ICO} /></span>
+                  <span className="truncate">{g.key === 'new' ? 'New' : 'Add'}</span>
+                  <ChevronRight
+                    className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${opened ? 'rotate-90' : ''}`}
+                  />
+                </button>
+                {opened && (
+                  <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+                    {g.items.map((b) => (
+                      <button
+                        key={b.kind}
+                        type="button"
+                        onClick={() => run(() => onInsertKind(b.kind, b.label, b.fragment))}
+                        className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                      >
+                        <span className="truncate">{b.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {(hasBlock || hasClipboard) && SEP}
         </>
       )}
@@ -344,7 +390,7 @@ export function StudioBlockMenu({
               acts (ADR-462 D4); plumbing above stays unlabeled. */}
           <button
             type="button"
-            onClick={() => { setUpdateOpen((v) => !v); setAskOpen(false); }}
+            onClick={() => { setUpdateOpen((v) => !v); setAskOpen(false); setNewOpen(false); setAddOpen(false); }}
             className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
           >
             <span className="text-muted-foreground"><PenLine className={ICO} /></span>
@@ -431,7 +477,7 @@ export function StudioBlockMenu({
               ADR-579 D3. */}
           <button
             type="button"
-            onClick={() => { setAskOpen((v) => !v); setUpdateOpen(false); }}
+            onClick={() => { setAskOpen((v) => !v); setUpdateOpen(false); setNewOpen(false); setAddOpen(false); }}
             className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-amber-50 dark:hover:bg-amber-950/30"
           >
             <span className="text-amber-700 dark:text-amber-500"><MessageSquare className={ICO} /></span>

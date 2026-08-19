@@ -152,6 +152,25 @@ re-arrange find their appropriate home under new discipline)."*
   `Refining…` state unchanged (ADR-479, ADR-524 D4). Absent on flow (no page-grain
   update exists there; block-grain Update lives in the right-click menu, at the target).
 
+**D6.a — a verb door opens its verb's contents directly (operator click-pass correction,
+2026-08-19, implemented).** The first cut left three inconsistencies the click-pass
+surfaced: the right-click "New block…" hopped to a floating menu that showed **both**
+groups (a door labeled New offering Add rows — the label lying), Add was unreachable
+from right-click entirely, and the toolbar's New dropdown made `Block…` a two-hop
+detour. The correction, from first principles — *a verb door opens its verb's contents,
+never a hop, never another verb's rows*:
+
+- **Right-click**: the leaf row is replaced by **New ▸** and **Add ▸** inline tiers
+  (the Update/Ask pattern) — label-only rows partitioned from the SERVED vocabulary by
+  the one grouping module, each pick landing through the surface's one insert landing
+  (`landInsertPick`, target resolved at pick time). The fast path is terse; the toolbar
+  door keeps the teaching descriptions — the ribbon/context asymmetry.
+- **Toolbar New**: the dropdown is deleted; New is a direct door opening the verb menu
+  at the resolved target, and the **New-‹noun› gallery renders INSIDE that menu**
+  (`pageSection`) — one door, two grains, per D2.
+- **The verb menu** header speaks its verb ("New — into slide 1"), shows only its own
+  group, and suppresses the group header that would repeat the door's name.
+
 The verb rides `onInsert(at, verb?)` → `openInsertMenu(x, y, verb)` /
 `pendingSlashVerb` → the palettes filter to the verb's group. **One list, one write
 path** under every door (the ADR-506 D3 rule holds — the filter is a view of the one

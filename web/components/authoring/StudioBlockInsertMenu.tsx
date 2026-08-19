@@ -34,7 +34,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BlockRow, groupBlockRows, type BlockRowItem } from './blockRows';
-import type { StudioVocabulary } from './StudioToolbar';
+import { ArrangementThumb } from './ArrangementThumb';
+import type { StudioArrangement, StudioVocabulary } from './StudioToolbar';
 
 interface StudioBlockInsertMenuProps {
   vocabulary: StudioVocabulary | null;
@@ -48,6 +49,14 @@ interface StudioBlockInsertMenuProps {
   targetLabel: string;
   onPick: (kind: string, label: string, fragment: string) => void;
   onClose: () => void;
+  /** ADR-579 D6.a — the NEW door carries BOTH grains: when the surface passes
+   *  this, the menu renders the New-‹noun› arrangement gallery under the block
+   *  rows (page grain inside the verb's one door, never a sibling button). */
+  pageSection?: {
+    noun: string;
+    arrangements: StudioArrangement[];
+    onPick: (fragment: string, label: string) => void;
+  };
 }
 
 export function StudioBlockInsertMenu({
@@ -58,6 +67,7 @@ export function StudioBlockInsertMenu({
   targetLabel,
   onPick,
   onClose,
+  pageSection,
 }: StudioBlockInsertMenuProps) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [clamped, setClamped] = useState<{ left: number; top: number } | null>(null);
@@ -123,21 +133,28 @@ export function StudioBlockInsertMenu({
       onMouseDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* The target is NAMED. On a spatial surface "insert" without a stated
-          destination is the ambiguity that makes members undo and retry — the
-          same reason ADR-466 D5 forewarns an arrangement that would move
-          content to a new page. */}
+      {/* The target is NAMED, and so is the VERB (ADR-579 D6.a — this menu is
+          a verb's own door, so the header speaks the verb). On a spatial
+          surface "insert" without a stated destination is the ambiguity that
+          makes members undo and retry — the same reason ADR-466 D5 forewarns
+          an arrangement that would move content to a new page. */}
       <p className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-        Insert into {targetLabel}
+        {verb === 'add' ? 'Add' : verb === 'new' ? 'New' : 'Insert'} — into {targetLabel}
       </p>
       {/* ADR-579 D4 — the same provenance grouping the flow palette renders
-          (one grouping module, two mounts — the ADR-506 D3 one-list rule
-          extended to the grouping, so the doors cannot drift apart). */}
+          (one grouping module — the ADR-506 D3 one-list rule extended to the
+          grouping, so the doors cannot drift apart). A verb door shows ONLY
+          its own group: a door labeled New that offered Add rows would be the
+          label lying (the D6.a defect this recut removes). */}
       {groupBlockRows(items).filter((g) => !verb || g.key === verb).map((g) => (
         <div key={g.key}>
-          <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
-            {g.label}
-          </p>
+          {/* Under a verb door the group header would repeat the door's own
+              name — render it only on the (legacy) verb-less mount. */}
+          {!verb && (
+            <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+              {g.label}
+            </p>
+          )}
           {g.items.map((b) => (
             <BlockRow
               key={b.kind}
@@ -148,6 +165,29 @@ export function StudioBlockInsertMenu({
           ))}
         </div>
       ))}
+      {/* ADR-579 D6.a — the page grain, inside the New door. One verb, one
+          door, two grains (grain lives inside the door, ADR-579 D2). */}
+      {pageSection && pageSection.arrangements.length > 0 && (
+        <div>
+          <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+            New {pageSection.noun}
+          </p>
+          <div className="grid grid-cols-2 gap-1.5 p-1">
+            {pageSection.arrangements.map((a) => (
+              <button
+                key={a.slug}
+                type="button"
+                onClick={() => pageSection.onPick(a.fragment, a.label)}
+                title={a.description}
+                className="flex flex-col gap-1 rounded-md border border-transparent p-1.5 text-left hover:border-border hover:bg-muted/20"
+              >
+                <ArrangementThumb areas={a.areas} fragment={a.fragment} />
+                <span className="truncate text-[11px]">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

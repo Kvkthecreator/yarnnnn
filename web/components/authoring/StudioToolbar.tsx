@@ -273,7 +273,7 @@ export function StudioToolbar({
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
   const pageNoun = layout === 'deck' ? 'slide' : 'section';
-  const [open, setOpen] = useState<null | 'new' | 'layout'>(null);
+  const [open, setOpen] = useState<null | 'layout'>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   // The trigger cluster (buttons + their panels) — the click-away boundary.
   // Deliberately NOT rootRef, which spans the row's full flex-1 width.
@@ -383,44 +383,30 @@ export function StudioToolbar({
         {!compact && ' Add'}
       </button>
 
-      {/* NEW — it doesn't exist; create it. On paged the dropdown carries
-          BOTH grains: Block… (the palette's thin-air group at the resolved
-          target) and the New-‹noun› arrangement gallery (page grain). On
-          flow there is no page unit, so the button is the block door
-          directly — it types the '/' the member could have typed
-          (ADR-506 D1). */}
-      {isPaged && arrangements.length > 0 ? (
-        <button
-          type="button"
-          className={btn}
-          title={compact ? 'New' : `A new block, or a new ${pageNoun}`}
-          aria-label={compact ? 'New' : undefined}
-          onClick={() => setOpen(open === 'new' ? null : 'new')}
-        >
-          <LayoutGrid className="h-3 w-3" />
-          {!compact && (
-            <>
-              {' '}
-              New <Plus className="h-3 w-3" />
-            </>
-          )}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className={btn}
-          onClick={(e) => {
-            setOpen(null);
-            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            onInsert({ x: r.left, y: r.bottom + 4 }, 'new');
-          }}
-          title="New block — the same palette / opens at the caret"
-          aria-label={compact ? 'New' : undefined}
-        >
-          <Plus className="h-3 w-3" />
-          {!compact && ' New'}
-        </button>
-      )}
+      {/* NEW — it doesn't exist; create it. ONE direct door on every medium
+          (ADR-579 D6.a — a verb door opens its verb's contents, never a
+          dropdown that hops to a second menu): on paged it opens the New
+          menu at the resolved target — block kinds with the New-‹noun›
+          gallery inside the same menu (two grains, one door); on flow it
+          types the '/' the member could have typed (ADR-506 D1). */}
+      <button
+        type="button"
+        className={btn}
+        onClick={(e) => {
+          setOpen(null);
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          onInsert({ x: r.left, y: r.bottom + 4 }, 'new');
+        }}
+        title={
+          isPaged
+            ? `A new block — into the selected slot or this ${pageNoun} — or a new ${pageNoun}`
+            : 'New block — the same palette / opens at the caret'
+        }
+        aria-label={compact ? 'New' : undefined}
+      >
+        <LayoutGrid className="h-3 w-3" />
+        {!compact && ' New'}
+      </button>
 
       {/* UPDATE — it exists here; change it, at this door's grain: the page.
           Re-arrange re-homes under its verb; the judgment, the plan
@@ -468,50 +454,10 @@ export function StudioToolbar({
           anchors every op and scopes the Design tab. Only its third display
           is gone. */}
 
-      {/* The NEW panel (ADR-579 D6): block grain first — the commoner act —
-          then the New-‹slide|section› arrangement gallery (D7.1). Two grains,
-          one verb, one door. */}
-      {open === 'new' && (
-        <div className={panel}>
-          <button
-            type="button"
-            onClick={(e) => {
-              setOpen(null);
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              onInsert({ x: r.left, y: r.bottom + 4 }, 'new');
-            }}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] hover:bg-muted/30"
-          >
-            <Plus className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="truncate">
-              Block…{' '}
-              <span className="text-muted-foreground">
-                — into the selected slot, or this {pageNoun}
-              </span>
-            </span>
-          </button>
-          <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            New {pageNoun}
-          </p>
-          <div className="grid grid-cols-2 gap-1.5 p-1">
-            {arrangements.map((a) => (
-              <button
-                key={a.slug}
-                type="button"
-                onClick={() => {
-                  onAddArrangement(a.fragment, a.label);
-                  setOpen(null);
-                }}
-                title={a.description}
-                className="flex flex-col gap-1 rounded-md border border-transparent p-1.5 text-left hover:border-border hover:bg-muted/20"
-              >
-                <ArrangementThumb areas={a.areas} fragment={a.fragment} />
-                <span className="truncate text-[11px]">{a.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* The New-panel dropdown is DELETED (ADR-579 D6.a): the New-‹noun›
+          gallery now renders INSIDE the New menu (StudioBlockInsertMenu
+          pageSection), so New is one door with two grains — never a dropdown
+          hopping to a second menu. */}
 
       {/* The Layout gallery — re-lay the current page (ADR-466 D5). Slotless
           thumbs carry the amber note: applying one moves this page's content
