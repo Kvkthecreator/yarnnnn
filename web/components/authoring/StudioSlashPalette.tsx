@@ -76,7 +76,9 @@ export function StudioSlashPalette({
           (b) => b.label.toLowerCase().includes(q) || b.kind.toLowerCase().includes(q),
         )
       : all;
-    return groupBlockRows(matched).filter((g) => !verb || g.key === verb);
+    // The slash exists on FLOW only (ADR-509), so the medium is a constant
+    // here: prose leads (ADR-580 D3).
+    return groupBlockRows(matched, 'flow').filter((g) => !verb || g.key === verb);
   }, [vocabulary, filter, verb]);
   const items = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 

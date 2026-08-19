@@ -55,6 +55,7 @@ export interface StudioBlockMenuProps {
     fragment: string;
     convertible?: boolean;
     cites?: 'none' | 'source' | 'picture';
+    tier?: 'text' | 'object';
   }>;
   /** ADR-539 D3 — the served rung set (falls back to the runtime's pinned copy). */
   headingRungs?: number[];
@@ -302,7 +303,9 @@ export function StudioBlockMenu({
           they want; the toolbar door keeps the teaching descriptions. */}
       {onInsertKind && isPaged && (
         <>
-          {groupBlockRows(blocks ?? []).map((g) => {
+          {/* The tiers render on `paged` only, so the medium is a constant:
+              composed leads (ADR-580 D3 — the deck's native units first). */}
+          {groupBlockRows(blocks ?? [], 'paged').map((g) => {
             const opened = g.key === 'new' ? newOpen : addOpen;
             const toggle = () => {
               if (g.key === 'new') { setNewOpen((v) => !v); setAddOpen(false); }

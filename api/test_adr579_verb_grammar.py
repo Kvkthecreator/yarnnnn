@@ -113,7 +113,7 @@ _check(
 )
 _check(
     "the located New/Add tiers render the served vocabulary and land per-kind (D6.a)",
-    "groupBlockRows(blocks ?? [])" in menu
+    "groupBlockRows(blocks ?? [], 'paged')" in menu
     and "run(() => onInsertKind(b.kind, b.label, b.fragment))" in menu,
 )
 insert_menu_src = insert_menu

@@ -3826,6 +3826,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 <StudioBlockInsertMenu
                   vocabulary={vocabulary}
                   verb={insertMenu.verb}
+                  medium={resolvedMode ?? null}
                   x={insertMenu.x}
                   y={insertMenu.y}
                   targetLabel={insertMenu.label}

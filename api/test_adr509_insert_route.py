@@ -104,7 +104,7 @@ def main() -> int:
         )
         _check(
             "the tiers render the ONE grouping and land through onInsertKind",
-            "groupBlockRows(blocks ?? [])" in tier_block
+            "groupBlockRows(blocks ?? [], 'paged')" in tier_block
             and "run(() => onInsertKind(b.kind, b.label, b.fragment))" in tier_block,
         )
     _check(

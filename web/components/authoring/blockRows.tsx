@@ -61,6 +61,21 @@ export interface BlockRowItem {
   description?: string;
   /** ADR-539 D1 — what the kind cites, served on the vocabulary row. */
   cites?: 'none' | 'source' | 'picture';
+  /** ADR-539 D1 — the served interaction tier (ADR-525 D1's vocabulary). */
+  tier?: 'text' | 'object';
+}
+
+export type BlockFamily = 'prose' | 'composed' | 'cited';
+
+/**
+ * ADR-580 D2 — a kind's FAMILY derives from fields the registry already
+ * declares (the ADR-539 D1 discipline: a derivation cannot drift, a hand
+ * column can). cited = it cites the workspace; composed = a standalone object
+ * minted from thin air; prose = the caret's units.
+ */
+export function blockFamily(b: BlockRowItem): BlockFamily {
+  if ((b.cites ?? 'none') !== 'none') return 'cited';
+  return b.tier === 'object' ? 'composed' : 'prose';
 }
 
 export interface BlockRowGroup {
@@ -71,22 +86,33 @@ export interface BlockRowGroup {
 
 /**
  * ADR-579 D4 (taking ADR-506 §7's named-not-taken deferral): the ONE grouping
- * both mounts render — the `/` palette on flow and the native Insert menu on
- * paged. Grouped by PROVENANCE (ADR-466 D4), derived from the served row's
- * `cites` (ADR-539 D2) — never a hand-kept kind list, so the grouping cannot
- * drift from the registry.
+ * every door renders — the `/` palette on flow, the verb menus, and the
+ * right-click tiers. Grouped by PROVENANCE (ADR-466 D4), derived from the
+ * served row's `cites` (ADR-539 D2) — never a hand-kept kind list, so the
+ * grouping cannot drift from the registry.
  *
- * NEW leads (thin air — the caret's common case); ADD follows (from the
- * workspace — the picker-backed kinds). Order within each group is the served
- * order. The third provenance — with the colleague, "from inference" — arrives
- * with ADR-579 D7 and gets its slot here when it does. Labels name the VERB,
- * never the mechanism (ADR-579 D3).
+ * ADR-580 D3 — the MEDIUM orders the families inside NEW: on `paged` the
+ * deck's native units lead (composed → prose); on `flow` the caret's units
+ * lead (prose → composed). Ordering and labeling only, NEVER subsetting —
+ * ADR-506 D3's refusal stands: every kind stays reachable from every door on
+ * every medium. The third provenance — with the colleague, "from inference" —
+ * arrives with ADR-579 D7 and gets its slot here when it does. Labels name
+ * the VERB, never the mechanism (ADR-579 D3).
  */
-export function groupBlockRows(items: BlockRowItem[]): BlockRowGroup[] {
-  const isAdd = (b: BlockRowItem) => (b.cites ?? 'none') !== 'none';
+export function groupBlockRows(
+  items: BlockRowItem[],
+  medium?: 'paged' | 'flow' | null,
+): BlockRowGroup[] {
+  const prose = items.filter((b) => blockFamily(b) === 'prose');
+  const composed = items.filter((b) => blockFamily(b) === 'composed');
+  const cited = items.filter((b) => blockFamily(b) === 'cited');
+  // A stable partition: served order survives WITHIN each family; the medium
+  // decides which family leads. Both families are always present — this is
+  // an order, not a filter.
+  const newItems = medium === 'paged' ? [...composed, ...prose] : [...prose, ...composed];
   return [
-    { key: 'new' as const, label: 'New', items: items.filter((b) => !isAdd(b)) },
-    { key: 'add' as const, label: 'Add — from the workspace', items: items.filter(isAdd) },
+    { key: 'new' as const, label: 'New', items: newItems },
+    { key: 'add' as const, label: 'Add — from the workspace', items: cited },
   ].filter((g) => g.items.length > 0);
 }
 

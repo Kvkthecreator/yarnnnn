@@ -33,7 +33,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { BlockRow, groupBlockRows, type BlockRowItem } from './blockRows';
+import { BlockRow, blockFamily, groupBlockRows, type BlockRowItem } from './blockRows';
 import { ArrangementThumb } from './ArrangementThumb';
 import type { StudioArrangement, StudioVocabulary } from './StudioToolbar';
 
@@ -41,6 +41,9 @@ interface StudioBlockInsertMenuProps {
   vocabulary: StudioVocabulary | null;
   /** ADR-579 D6 — a toolbar verb door filters to its group; null = full list. */
   verb?: 'add' | 'new' | null;
+  /** ADR-580 D3 — the medium orders the families inside NEW (paged: composed
+   *  leads; flow: prose leads). Null = unresolved, treated as flow. */
+  medium?: 'paged' | 'flow' | null;
   /** Viewport point to anchor at (the toolbar button's rect, or the
    *  right-click point already mapped to the page by the canvas). */
   x: number;
@@ -62,6 +65,7 @@ interface StudioBlockInsertMenuProps {
 export function StudioBlockInsertMenu({
   vocabulary,
   verb = null,
+  medium = null,
   x,
   y,
   targetLabel,
@@ -146,7 +150,7 @@ export function StudioBlockInsertMenu({
           grouping, so the doors cannot drift apart). A verb door shows ONLY
           its own group: a door labeled New that offered Add rows would be the
           label lying (the D6.a defect this recut removes). */}
-      {groupBlockRows(items).filter((g) => !verb || g.key === verb).map((g) => (
+      {groupBlockRows(items, medium).filter((g) => !verb || g.key === verb).map((g) => (
         <div key={g.key}>
           {/* Under a verb door the group header would repeat the door's own
               name — render it only on the (legacy) verb-less mount. */}
@@ -155,13 +159,23 @@ export function StudioBlockInsertMenu({
               {g.label}
             </p>
           )}
-          {g.items.map((b) => (
-            <BlockRow
-              key={b.kind}
-              item={b}
-              active={false}
-              onPick={() => onPick(b.kind, b.label, b.fragment)}
-            />
+          {g.items.map((b, i) => (
+            <div key={b.kind}>
+              {/* ADR-580 D3 — the discovery door TEACHES: family subheaders
+                  inside NEW (Composed · Text), rendered where the family
+                  changes. The located doors stay terse. */}
+              {verb === 'new' && g.key === 'new'
+                && (i === 0 || blockFamily(g.items[i - 1]) !== blockFamily(b)) && (
+                  <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+                    {blockFamily(b) === 'composed' ? 'Composed' : 'Text'}
+                  </p>
+                )}
+              <BlockRow
+                item={b}
+                active={false}
+                onPick={() => onPick(b.kind, b.label, b.fragment)}
+              />
+            </div>
           ))}
         </div>
       ))}
