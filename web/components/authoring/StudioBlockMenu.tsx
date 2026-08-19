@@ -304,7 +304,7 @@ export function StudioBlockMenu({
       {onInsertKind && isPaged && (
         <>
           {/* The tiers render on `paged` only, so the medium is a constant:
-              composed leads (ADR-580 D3 — the deck's native units first). */}
+              composed leads (ADR-581 D3 — the deck's native units first). */}
           {groupBlockRows(blocks ?? [], 'paged').map((g) => {
             const opened = g.key === 'new' ? newOpen : addOpen;
             const toggle = () => {

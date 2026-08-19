@@ -68,7 +68,7 @@ export interface BlockRowItem {
 export type BlockFamily = 'prose' | 'composed' | 'cited';
 
 /**
- * ADR-580 D2 — a kind's FAMILY derives from fields the registry already
+ * ADR-581 D2 — a kind's FAMILY derives from fields the registry already
  * declares (the ADR-539 D1 discipline: a derivation cannot drift, a hand
  * column can). cited = it cites the workspace; composed = a standalone object
  * minted from thin air; prose = the caret's units.
@@ -91,7 +91,7 @@ export interface BlockRowGroup {
  * served row's `cites` (ADR-539 D2) — never a hand-kept kind list, so the
  * grouping cannot drift from the registry.
  *
- * ADR-580 D3 — the MEDIUM orders the families inside NEW: on `paged` the
+ * ADR-581 D3 — the MEDIUM orders the families inside NEW: on `paged` the
  * deck's native units lead (composed → prose); on `flow` the caret's units
  * lead (prose → composed). Ordering and labeling only, NEVER subsetting —
  * ADR-506 D3's refusal stands: every kind stays reachable from every door on

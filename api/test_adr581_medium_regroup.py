@@ -1,4 +1,4 @@
-"""ADR-580 — the medium regroup (deck-first vocabulary ordering).
+"""ADR-581 — the medium regroup (deck-first vocabulary ordering).
 
 Checks, script-style (NOT pytest):
   D2  family DERIVES from declared fields — executed against the LIVE registry,
@@ -8,7 +8,7 @@ Checks, script-style (NOT pytest):
   D3  the ONE grouping module orders by medium; the doors pass their medium;
       NOTHING is hidden (family partition parity — order, never a filter).
 
-Run:  cd api && python3 test_adr580_medium_regroup.py
+Run:  cd api && python3 test_adr581_medium_regroup.py
 """
 
 import pathlib
@@ -37,7 +37,7 @@ from services.authoring import STUDIO_BLOCKS  # noqa: E402
 
 
 def family(row) -> str:
-    # The ADR-580 D2 formula, verbatim.
+    # The ADR-581 D2 formula, verbatim.
     if row["cites"] != "none":
         return "cited"
     return "composed" if row["tier"] == "object" else "prose"
@@ -111,4 +111,4 @@ print()
 if failures:
     print(f"FAIL: {checks - len(failures)}/{checks} checks")
     sys.exit(1)
-print(f"ADR-580 gate GREEN — {checks}/{checks}")
+print(f"ADR-581 gate GREEN — {checks}/{checks}")

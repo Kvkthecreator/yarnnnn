@@ -41,7 +41,7 @@ interface StudioBlockInsertMenuProps {
   vocabulary: StudioVocabulary | null;
   /** ADR-579 D6 — a toolbar verb door filters to its group; null = full list. */
   verb?: 'add' | 'new' | null;
-  /** ADR-580 D3 — the medium orders the families inside NEW (paged: composed
+  /** ADR-581 D3 — the medium orders the families inside NEW (paged: composed
    *  leads; flow: prose leads). Null = unresolved, treated as flow. */
   medium?: 'paged' | 'flow' | null;
   /** Viewport point to anchor at (the toolbar button's rect, or the
@@ -161,7 +161,7 @@ export function StudioBlockInsertMenu({
           )}
           {g.items.map((b, i) => (
             <div key={b.kind}>
-              {/* ADR-580 D3 — the discovery door TEACHES: family subheaders
+              {/* ADR-581 D3 — the discovery door TEACHES: family subheaders
                   inside NEW (Composed · Text), rendered where the family
                   changes. The located doors stay terse. */}
               {verb === 'new' && g.key === 'new'

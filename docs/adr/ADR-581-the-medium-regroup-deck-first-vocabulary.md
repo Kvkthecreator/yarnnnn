@@ -1,4 +1,4 @@
-# ADR-580 — The medium regroup: Studio is the seed stack, and the vocabulary stops being a document
+# ADR-581 — The medium regroup: Studio is the seed stack, and the vocabulary stops being a document
 
 > **Status**: **Accepted** (2026-08-19); D2/D3 **Implemented** same day; D4/D5 phased.
 > Operator-directed: *"my intent is that this system actually becomes the seed and
@@ -112,7 +112,7 @@ this ADR needs undoing at that point — that is what D1 means by seed.
 
 ## 3. Gates
 
-`api/test_adr580_medium_regroup.py` (script-style): the derivation matrix executed
+`api/test_adr581_medium_regroup.py` (script-style): the derivation matrix executed
 against the live registry (component→composed, heading→prose, table→cited,
 divider→composed); the FE module orders by medium; the doors pass their medium; no
 kind hidden (count parity across media).
