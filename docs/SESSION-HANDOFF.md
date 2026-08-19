@@ -2,42 +2,61 @@
 
 ---
 
-# Part F — ADR-586: the one-door rebuild (2026-08-19; BUILT + ABSORBED)
+# Part F — ADR-586: the one-door rebuild (2026-08-19; BUILT + CLICK-PASSED)
 
-**The build this part specced is EXECUTED in the commit that rewrote this
-section** — all phases in one motion: toolbar [+ Add][Update]; the door as a
-category rail (Slide · Components · Text · Media · Data, derived + medium-
-ordered) beside schematic galleries (`BlockThumb`); right-click category tiers
-with re-measure-on-open; bottom-sheet housing under 640px (one list, class
-fork); contextual Update (a block selection mounts the ONE block-acts menu
-from the toolbar, Update tier pre-expanded via `initialOpen`); the library in
-the Components gallery, marked "shared", landing its citation directly.
-DELETED with the fork: `slashFromToolbar` + `yarnnn-slash-invoke` + the
-`slashInvoke` chain + the palette's verb filter (typed `/` untouched).
+**Built at `af92564`; DRIVEN at `d10c092`.** The whole door was click-passed on
+a real deck and a real flow doc — run record:
+`docs/evaluations/2026-08-19-adr586-one-door-click-pass-run1.md` (15 steps,
+both halves per step, scope + non-coverage declared).
+
+**PASS**: the category rail with medium ordering (deck leads Slide, flow leads
+Text and has no Slide at all) · schematic galleries · a Stat insert landing in
+the slide the header named, drawn by the kernel with the delta themed by the
+palette marks · right-click tiers expanding INLINE at the bottom edge with the
+box re-measuring upward (125→352px, top 647→421, never off-screen) · contextual
+Update pre-expanded with the meter badge as the only mechanical/metered seam ·
+the bottom sheet as one component + class fork · the FULL ADR-583 loop: lane
+composes a contract-clean `*.component.html` → it appears "shared" in the
+Components gallery → insert cites it directly (pin = head revision, attributed
+`member:… via …`) → editing the SOURCE moves the citing artifact (GROWTH/$79)
+while the pin stays the fallback, exactly as D4's "reference, never copy" says.
+
+**ONE defect found by driving and fixed in-run (`d10c092`)**: the named target
+did not COMPOSE — "ADD — INTO AFTER THE SELECTED BLOCK" on every block-selected
+open, both housings, both media. The header hard-coded "into" while the block
+branch of `resolveInsertTarget` already returned a prepositional phrase. Each
+branch now owns its preposition; the header states the label verbatim.
+`test_adr586_one_door.py` 27→31 (both new checks falsified against real breaks);
+`test_adr509_insert_route.py` re-anchored off the pinned spelling that read the
+correction as a violation.
 
 ## Verification (the standing set)
 
 ```
-cd api && python3 test_adr586_one_door.py            # 27/27
+cd api && python3 test_adr586_one_door.py            # 31/31
 cd api && python3 test_adr583_component_library.py   # 28/28
 cd api && python3 test_adr581_medium_regroup.py      # 13/13
 cd api && python3 test_adr579_verb_grammar.py        # 16/16
-cd api && python3 test_adr509_insert_route.py        # 37
-cd api && python3 test_studio_slash_anywhere.py      # 51/51 (2 pre-existing RESOLVED)
+cd api && python3 test_adr509_insert_route.py        # 37/37
+cd api && python3 test_studio_slash_anywhere.py      # 51/51
 cd api && python3 test_adr462_context_menu.py        # 49/54 — the 5 fails are PRE-EXISTING (another arc's)
-cd web && node_modules/.bin/next build               # 171/171; `pnpm` NOT on PATH
+cd web && node_modules/.bin/next build               # 172/172 (was 171 — a concurrent lane added a page)
 ```
+
+⚠️ `test_eval_suite_gate.py` (PYTEST, not script-run) has **2 pre-existing
+failures** in the `adr518-*` manifests — mutating steps with no `restore:`,
+last touched at `95922dd`. Owned by the ADR-518 arc, not the insert lane.
 
 ## Owed
 
-- **Operator click-pass, now the WHOLE door**: deck → [+ Add] rail leads
-  Slide→Components; pick a stat from the gallery; right-click → category
-  tiers expand with thumbs near the bottom edge (box repositions up); select
-  a block → toolbar [Update] opens the acts menu pre-expanded; narrow window
-  → the door is a bottom sheet; Components gallery shows a `*.component.html`
-  as "shared" and inserting it cites it.
-- ADR-581 D5 the app split · 579 D7/D8 (D8 = 583's front door) · the 583
-  compose→cite→edit-source loop.
+- **Logo-row height preset** — NOT RUN: the rig has 0 images, so the multi-pick
+  has nothing to pick (its empty state was driven and teaches correctly). Needs
+  an image in the workspace.
+- **The in-frame right-click gesture itself** — the parent half (positioning,
+  tiers, re-measure) is probed; the in-frame hit-test is inferred (opaque-origin
+  ceiling, playbook §2). Operator-packet lane if it needs probing.
+- ADR-581 D5 the app split · 579 D7 pane turns · **D8 "from sources…"** (583's
+  named front door) · flow medium at narrow width.
 
 ---
 
@@ -93,20 +112,20 @@ cd web && node_modules/.bin/next build              # 171/171; `pnpm` NOT on PAT
 
 ## Owed (the arc's remaining ledger)
 
+**The click-pass this section owed is RUN** (2026-08-19, run record
+`docs/evaluations/2026-08-19-adr586-one-door-click-pass-run1.md`): the D4 kinds
+were driven (a Stat inserted, drawn by the kernel, delta themed by the palette
+marks) and the 583 compose→cite→edit-source loop closed end to end. The
+toolbar topology it describes below is ADR-586's now, not the 579 triad's.
+
+Remaining:
+
 - **ADR-581 D5** the Deck/Articles app split (phased; the mechanism — `apps`
   column + `register_app` — already exists).
-- **ADR-579 D7** pane structured turns (seed → receipt; plan for coarse grain only)
-  · **D8** file-altitude ADD/NEW with "from sources…" (the multi-source derive).
-- **Operator click-pass**: deck → [+ Add][+ New][Update]; New menu = Composed-first
-  + NEW SLIDE gallery in ONE menu; right-click = New ▸/Add ▸/Update ▸/Ask ▸ tiers;
-  flow doc → Add/New only, prose-first; NEW in D4: insert a stat/comparison/
-  timeline/person on a slide (kernel draws them, tone/marks theme them), a logo
-  row via the multi-pick (height preset live); NEW in 583: ask the lane to
-  compose a component (screenshot → `*.component.html`), cite it via ADD →
-  Component, edit the source file, watch the citing artifact follow.
-
----
-
+- **ADR-579 D7** pane structured turns (seed → receipt; coarse grain only)
+  · **D8** file-altitude ADD/NEW with "from sources…" (the multi-source derive,
+  and ADR-583 D5's named front door).
+- **Logo-row height preset** — still unexercised: the rig has 0 images.
 
 # Part D — ADR-575: the document hears other principals before it collides
 
