@@ -230,6 +230,26 @@ answer to.
 **A bucket states its denominator.** Where a bar encodes spend share, its
 caption says so, and a run count is never presented as a spend percentage.
 
+### Follow-on defect (same day) — the response model is a filter
+
+The §11 fields shipped **computed but invisible**. `get_usage_detail` produced
+all four; `UsageDetailResponse` (routes/integrations.py) did not DECLARE them,
+so FastAPI serialized them away. The API returned the pre-change 3-key shape
+while running post-change code — no exception, no log line, no failing test.
+The FE read the missing key and crashed the whole Workspace Settings door.
+
+Two lessons, both gated:
+
+- **A Pydantic response model is a FILTER, not documentation.** When the
+  service dict grows a key, the model must grow it too.
+  Gate: `api/test_adr396_usage_payload_survives_serialization.py` — reads the
+  service's own `empty` literal, so a future key is caught without editing the
+  gate.
+- **A field added after a contract's original shape is read defensively in the
+  FE, forever** — the FE and API deploy separately, so the page can outrun the
+  API by an unbounded window.
+  Gate: `web/components/subscription/__tests__/usage-pane-survives-old-payload.test.mjs`.
+
 ### Implementation note
 
 `get_usage_detail` now returns `trend[{date, cost_usd, runs, failed}]` over the

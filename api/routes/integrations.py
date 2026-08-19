@@ -2080,16 +2080,25 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     )
 
 
+# ⭐ A field the service computes but the response model does not DECLARE is
+# silently DROPPED by FastAPI serialization — the surface then reads as a stale
+# API with no error anywhere. That is exactly how the ADR-396 §11 fields
+# (trend_days / by_model / spend_usd / pct_runs) reached production computed,
+# serialized away, and invisible. When the service's dict grows a key, these
+# models MUST grow it too.
 class UsageWorkItem(BaseModel):
     slug: str
     runs: int
     cost_usd: float
-    pct: int
+    pct: int          # share of SPEND
+    pct_runs: int = 0  # share of RUNS — a different denominator (ADR-396 §11)
 
 
 class UsageTrendPoint(BaseModel):
     date: str
     cost_usd: float
+    runs: int = 0
+    failed: int = 0
 
 
 class UsageActivity(BaseModel):
@@ -2097,6 +2106,15 @@ class UsageActivity(BaseModel):
     success_rate: Optional[int] = None
     avg_cost_usd: float
     failed: int
+    spend_usd: float = 0.0
+
+
+class UsageModelItem(BaseModel):
+    """Spend by engine (ADR-556/559: the engine is the cost driver)."""
+    model: str
+    runs: int
+    cost_usd: float
+    pct: int
 
 
 class UsageDetailResponse(BaseModel):
@@ -2107,12 +2125,14 @@ class UsageDetailResponse(BaseModel):
     """
     by_work: list[UsageWorkItem]
     trend: list[UsageTrendPoint]
+    trend_days: int = 0
+    by_model: list[UsageModelItem] = []
     activity: UsageActivity
 
 
 @router.get("/user/usage-detail")
 async def get_user_usage_detail(auth: UserClient) -> UsageDetailResponse:
-    """Spend-by-work-item + 14-day trend + activity summary.
+    """Spend-by-work-item + spend trend + activity summary.
 
     Read-only aggregation over execution_events (ADR-291 cost ledger).
     Powers the expanded Usage tab below the balance meter. Zero new logging.
