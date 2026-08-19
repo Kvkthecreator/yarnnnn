@@ -25,8 +25,21 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Loader2, Users } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
-import { deriveBalance } from "@/lib/subscription/usage";
+import { deriveBalance, formatUsd } from "@/lib/subscription/usage";
 import { useWorkspaceRoster, useWorkspaceMemberships } from "@/lib/workspace/viewer";
+
+/**
+ * Money for the usage figures. Defers to the shared `formatUsd` (the balance
+ * model) above a cent, but a per-run average and a quiet day are routinely
+ * sub-cent — and `formatUsd` floors those to "$0.00", which reads as free.
+ * Below a cent we widen precision rather than lie about the magnitude.
+ */
+function fmtUsd(n: number): string {
+  const v = Math.max(0, n);
+  if (v === 0) return "$0";
+  if (v < 0.01) return `$${v.toFixed(4)}`;
+  return formatUsd(v);
+}
 
 export function UsagePaneBody() {
   // ADR-416/429 §13 SAFETY GUARD: this pane sits under the ACCOUNT door but every
@@ -52,6 +65,8 @@ export function UsagePaneBody() {
   const [runwayDays, setRunwayDays] = useState<number | null>(null);
   // principal_id → humanized label (member email / LLM room / agent slug).
   const { labels: principalLabels } = useWorkspaceRoster();
+  // Hovered trend day (ISO date) — drives the caption readout under the bars.
+  const [hoverDay, setHoverDay] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,8 +249,8 @@ export function UsagePaneBody() {
         <div className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-medium">Where this workspace&rsquo;s usage went</h3>
-            <span className="text-xs text-muted-foreground">
-              {usageDetail.activity.runs} runs
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {fmtUsd(usageDetail.activity.spend_usd)} · {usageDetail.activity.runs} runs
             </span>
           </div>
           <div className="space-y-2.5">
@@ -243,8 +258,9 @@ export function UsagePaneBody() {
               <div key={item.slug} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="truncate pr-3">{humanizeSlug(item.slug)}</span>
-                  <span className="font-mono text-xs text-muted-foreground shrink-0">
-                    {item.runs} runs · {item.pct}%
+                  <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums">
+                    {fmtUsd(item.cost_usd)} · {item.runs}{" "}
+                    {item.runs === 1 ? "run" : "runs"}
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -256,46 +272,145 @@ export function UsagePaneBody() {
               </div>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground">
+            Bars are share of spend. A row can be many runs and little money, or
+            the reverse — the highest-spend row here is {usageDetail.by_work[0].pct}% of
+            spend from {usageDetail.by_work[0].pct_runs}% of runs.
+          </p>
         </div>
       )}
 
-      {/* Activity trend — last 14 days (ADR-396: relative activity, not $) */}
-      {usageDetail && usageDetail.trend.some((d) => d.cost_usd > 0) && (
+      {/* Spend trend — the anchor window (ADR-396 §11: the trend carries its
+          dollars). Bars are SPEND, labelled as such; each day also reports its
+          run count, so a day with work but no billable draw (a skipped radar
+          brief, a cache-only turn) reads as worked-but-free rather than empty.
+          Window follows `trend_days`, the same window the panel above sums. */}
+      {usageDetail && usageDetail.trend.length > 0 && usageDetail.activity.runs > 0 && (
         <div className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-medium flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
-              Activity trend
+              Spend trend
             </h3>
-            <span className="text-xs text-muted-foreground">last 14 days</span>
+            <span className="text-xs text-muted-foreground">
+              last {usageDetail.trend_days}{" "}
+              {usageDetail.trend_days === 1 ? "day" : "days"}
+            </span>
           </div>
           {(() => {
-            const max = Math.max(...usageDetail.trend.map((d) => d.cost_usd), 0.0001);
+            const trend = usageDetail.trend;
+            const max = Math.max(...trend.map((d) => d.cost_usd), 0.0001);
+            const peak = trend.reduce(
+              (best, d) => (d.cost_usd > best.cost_usd ? d : best),
+              trend[0],
+            );
+            const dayLabel = (iso: string) =>
+              new Date(iso + "T00:00:00").toLocaleDateString([], {
+                month: "short",
+                day: "numeric",
+              });
+            // Hovering a bar reads that day out in the caption line; with no
+            // hover the caption states the window total. One readout, so the
+            // figure has a stable home instead of a tooltip that vanishes.
+            const active = hoverDay
+              ? trend.find((d) => d.date === hoverDay) ?? null
+              : null;
             return (
-              <div className="flex items-end gap-1 h-20">
-                {usageDetail.trend.map((d) => (
-                  <div
-                    key={d.date}
-                    className="flex-1 bg-primary/15 rounded-t relative group"
-                    style={{ height: `${Math.max(2, (d.cost_usd / max) * 100)}%` }}
-                    title={new Date(d.date + "T00:00:00").toLocaleDateString([], {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  >
-                    <div className="absolute inset-0 bg-primary/70 rounded-t opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-lg font-medium tabular-nums">
+                    {fmtUsd(usageDetail.activity.spend_usd)}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    peak {fmtUsd(peak.cost_usd)} · {dayLabel(peak.date)}
+                  </span>
+                </div>
+                <div
+                  className="flex items-end gap-1 h-24"
+                  onMouseLeave={() => setHoverDay(null)}
+                >
+                  {trend.map((d) => {
+                    const isActive = hoverDay === d.date;
+                    // A worked-but-free day gets a visible floor in a muted
+                    // tone: real work happened, it just drew nothing.
+                    const worked = d.runs > 0;
+                    const pctH = (d.cost_usd / max) * 100;
+                    return (
+                      <div
+                        key={d.date}
+                        className="flex-1 h-full flex items-end"
+                        onMouseEnter={() => setHoverDay(d.date)}
+                      >
+                        <div
+                          className={
+                            "w-full rounded-t transition-colors " +
+                            (isActive
+                              ? "bg-primary/70"
+                              : d.cost_usd > 0
+                                ? "bg-primary/25"
+                                : worked
+                                  ? "bg-muted-foreground/25"
+                                  : "bg-muted")
+                          }
+                          style={{
+                            height: `${Math.max(worked || d.cost_usd > 0 ? 3 : 2, pctH)}%`,
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {active ? (
+                    <>
+                      {dayLabel(active.date)} — {fmtUsd(active.cost_usd)} ·{" "}
+                      {active.runs} {active.runs === 1 ? "run" : "runs"}
+                      {active.failed > 0 && ` · ${active.failed} failed`}
+                      {active.runs > 0 && active.cost_usd === 0 && " · no billable draw"}
+                    </>
+                  ) : (
+                    <>
+                      {usageDetail.activity.runs} runs ·{" "}
+                      {fmtUsd(usageDetail.activity.avg_cost_usd)} avg per run
+                      {usageDetail.activity.success_rate !== null &&
+                        ` · ${usageDetail.activity.success_rate}% success`}
+                      {usageDetail.activity.failed > 0 &&
+                        ` · ${usageDetail.activity.failed} failed`}
+                    </>
+                  )}
+                </p>
+              </>
             );
           })()}
-          {usageDetail.activity.success_rate !== null && (
-            <p className="text-xs text-muted-foreground">
-              {usageDetail.activity.success_rate}% success rate
-              {usageDetail.activity.failed > 0 &&
-                ` · ${usageDetail.activity.failed} failed`}
-            </p>
-          )}
+        </div>
+      )}
+
+      {/* By engine — spend by model (ADR-556/559: the engine is the cost
+          driver, and it is the one lever a member can actually pull). */}
+      {usageDetail && usageDetail.by_model.length > 0 && (
+        <div className="p-4 border border-border rounded-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">Where it went by engine</h3>
+            <span className="text-xs text-muted-foreground">this cycle</span>
+          </div>
+          <div className="space-y-2.5">
+            {usageDetail.by_model.map((m) => (
+              <div key={m.model} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="truncate pr-3 font-mono text-xs">{m.model}</span>
+                  <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums">
+                    {fmtUsd(m.cost_usd)} · {m.runs} {m.runs === 1 ? "run" : "runs"}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary/70"
+                    style={{ width: `${m.pct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

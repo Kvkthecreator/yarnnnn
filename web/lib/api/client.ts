@@ -2780,13 +2780,38 @@ export const api = {
     // Usage tab expansion — spend breakdown + trend + activity (ADR-172)
     getUsageDetail: () =>
       request<{
-        by_work: Array<{ slug: string; runs: number; cost_usd: number; pct: number }>;
-        trend: Array<{ date: string; cost_usd: number }>;
+        // `pct` is share of SPEND, `pct_runs` share of RUNS — two denominators,
+        // each named (they used to render fused as one row).
+        by_work: Array<{
+          slug: string;
+          runs: number;
+          cost_usd: number;
+          pct: number;
+          pct_runs: number;
+        }>;
+        // Covers the whole spend window (see trend_days), not a fixed 14 days —
+        // the same window by_work/activity sum, so the chart and the header
+        // can no longer disagree. Carries runs so a day with work but no
+        // billable spend does not read as an empty day.
+        trend: Array<{
+          date: string;
+          cost_usd: number;
+          runs: number;
+          failed: number;
+        }>;
+        trend_days: number;
+        by_model: Array<{
+          model: string;
+          runs: number;
+          cost_usd: number;
+          pct: number;
+        }>;
         activity: {
           runs: number;
           success_rate: number | null;
           avg_cost_usd: number;
           failed: number;
+          spend_usd: number;
         };
       }>("/api/user/usage-detail"),
 

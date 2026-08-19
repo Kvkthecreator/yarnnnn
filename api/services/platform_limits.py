@@ -553,7 +553,12 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
 # =============================================================================
 
 _USAGE_DETAIL_TOP_N = 6
-_USAGE_DETAIL_TREND_DAYS = 14
+# The trend follows the SPEND ANCHOR, not a fixed 14 days — `by_work` and
+# `activity` sum the whole anchor window, so a hardcoded 14-day chart silently
+# dropped every event older than that while the header kept counting them
+# (live: 249 runs claimed, 230 plotted). The cap only bounds an unbounded
+# never-subscribed workspace, whose anchor is `created_at`.
+_USAGE_DETAIL_TREND_MAX_DAYS = 60
 
 
 def get_usage_detail(client, user_id: str) -> dict:
@@ -564,18 +569,36 @@ def get_usage_detail(client, user_id: str) -> dict:
     the breakdown's total equals spend_usd. Zero new logging; pure read.
 
     Returns:
-        by_work: list of {slug, runs, cost_usd, pct} — top N work items by
-            cost, plus a synthetic {slug: "other"} bucket for the tail.
-        trend: list of {date, cost_usd} for the last 14 calendar days
-            (zero-filled), oldest→newest, for a spend sparkline/bars.
-        activity: {runs, success_rate, avg_cost_usd, failed} over the window.
+        by_work: list of {slug, runs, cost_usd, pct, pct_runs} — top N work
+            items by cost, plus a synthetic {slug: "other"} bucket for the tail.
+            `pct` is share of SPEND; `pct_runs` is share of RUNS — two different
+            denominators, so each is named (they used to render as one row, a
+            runs count beside a spend percentage).
+        trend: list of {date, cost_usd, runs, failed} covering the WHOLE spend
+            window (zero-filled), oldest→newest. Window = the balance anchor,
+            capped at _USAGE_DETAIL_TREND_MAX_DAYS — the same window `by_work`
+            and `activity` sum, so the panel's run count and the chart's bars
+            can no longer disagree.
+        trend_days: the number of days the trend actually covers, so the
+            surface can label its own window instead of hardcoding "14 days".
+        activity: {runs, success_rate, avg_cost_usd, failed, spend_usd} over
+            the window.
+        by_model: list of {model, runs, cost_usd, pct} — spend by engine.
     """
     from datetime import datetime as _dt, timedelta as _td
 
     empty = {
         "by_work": [],
         "trend": [],
-        "activity": {"runs": 0, "success_rate": None, "avg_cost_usd": 0.0, "failed": 0},
+        "trend_days": 0,
+        "by_model": [],
+        "activity": {
+            "runs": 0,
+            "success_rate": None,
+            "avg_cost_usd": 0.0,
+            "failed": 0,
+            "spend_usd": 0.0,
+        },
     }
     try:
         ws_id = _acting_workspace_id(user_id)
@@ -594,7 +617,7 @@ def get_usage_detail(client, user_id: str) -> dict:
 
         rows = (
             client.table("execution_events")
-            .select("slug, cost_usd, billed_usd, status, created_at")
+            .select("slug, cost_usd, billed_usd, status, created_at, model")
             .eq("workspace_id", ws_id)
             .gt("created_at", anchor)
             .execute()
@@ -614,6 +637,7 @@ def get_usage_detail(client, user_id: str) -> dict:
         bucket["cost_usd"] += cost
         total_cost += cost
 
+    total_runs = len(rows)
     ranked = sorted(per_slug.values(), key=lambda b: b["cost_usd"], reverse=True)
     top = ranked[:_USAGE_DETAIL_TOP_N]
     tail = ranked[_USAGE_DETAIL_TOP_N:]
@@ -623,30 +647,75 @@ def get_usage_detail(client, user_id: str) -> dict:
             "runs": b["runs"],
             "cost_usd": round(b["cost_usd"], 4),
             "pct": round(b["cost_usd"] / total_cost * 100) if total_cost > 0 else 0,
+            "pct_runs": round(b["runs"] / total_runs * 100) if total_runs > 0 else 0,
         }
         for b in top
     ]
     if tail:
         tail_cost = sum(b["cost_usd"] for b in tail)
+        tail_runs = sum(b["runs"] for b in tail)
         by_work.append({
             "slug": "other",
-            "runs": sum(b["runs"] for b in tail),
+            "runs": tail_runs,
             "cost_usd": round(tail_cost, 4),
             "pct": round(tail_cost / total_cost * 100) if total_cost > 0 else 0,
+            "pct_runs": round(tail_runs / total_runs * 100) if total_runs > 0 else 0,
         })
 
-    # ── 14-day spend trend (zero-filled) ──────────────────────────────
+    # ── Spend trend over the anchor window (zero-filled) ──────────────
+    # Carries runs + failed alongside cost so the surface can show a figure per
+    # day. A day with real work but no billable spend (a skipped radar brief,
+    # a cache-only turn) must not read as an empty day.
     today = _dt.utcnow().date()
-    days = [today - _td(days=i) for i in range(_USAGE_DETAIL_TREND_DAYS - 1, -1, -1)]
-    by_day: dict[str, float] = {d.isoformat(): 0.0 for d in days}
+    try:
+        anchor_day = _dt.fromisoformat(str(anchor)[:19]).date()
+    except Exception:
+        anchor_day = today - _td(days=13)
+    span = (today - anchor_day).days
+    span = max(0, min(span, _USAGE_DETAIL_TREND_MAX_DAYS - 1))
+    days = [today - _td(days=i) for i in range(span, -1, -1)]
+    by_day: dict[str, dict] = {
+        d.isoformat(): {"cost_usd": 0.0, "runs": 0, "failed": 0} for d in days
+    }
     for r in rows:
         created = r.get("created_at")
         if not created:
             continue
-        day = str(created)[:10]
-        if day in by_day:
-            by_day[day] += float(r.get("billed_usd") or r.get("cost_usd") or 0)
-    trend = [{"date": d, "cost_usd": round(by_day[d], 4)} for d in by_day]
+        bucket = by_day.get(str(created)[:10])
+        if bucket is None:
+            continue
+        bucket["cost_usd"] += float(r.get("billed_usd") or r.get("cost_usd") or 0)
+        bucket["runs"] += 1
+        if r.get("status") == "failed":
+            bucket["failed"] += 1
+    trend = [
+        {
+            "date": d,
+            "cost_usd": round(by_day[d]["cost_usd"], 4),
+            "runs": by_day[d]["runs"],
+            "failed": by_day[d]["failed"],
+        }
+        for d in by_day
+    ]
+
+    # ── Spend by engine (ADR-556/559: model is the cost driver) ────────
+    per_model: dict[str, dict] = {}
+    for r in rows:
+        name = r.get("model")
+        if not name:
+            continue  # machinery rows with no engine stamped
+        bucket = per_model.setdefault(name, {"model": name, "runs": 0, "cost_usd": 0.0})
+        bucket["runs"] += 1
+        bucket["cost_usd"] += float(r.get("billed_usd") or r.get("cost_usd") or 0)
+    by_model = [
+        {
+            "model": b["model"],
+            "runs": b["runs"],
+            "cost_usd": round(b["cost_usd"], 4),
+            "pct": round(b["cost_usd"] / total_cost * 100) if total_cost > 0 else 0,
+        }
+        for b in sorted(per_model.values(), key=lambda b: b["cost_usd"], reverse=True)
+    ]
 
     # ── Activity summary ──────────────────────────────────────────────
     runs = len(rows)
@@ -657,10 +726,13 @@ def get_usage_detail(client, user_id: str) -> dict:
     return {
         "by_work": by_work,
         "trend": trend,
+        "trend_days": len(trend),
+        "by_model": by_model,
         "activity": {
             "runs": runs,
             "success_rate": success_rate,
             "avg_cost_usd": avg_cost,
             "failed": failed,
+            "spend_usd": round(total_cost, 4),
         },
     }

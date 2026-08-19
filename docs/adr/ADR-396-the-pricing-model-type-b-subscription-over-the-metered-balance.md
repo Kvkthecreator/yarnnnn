@@ -154,7 +154,7 @@ the decision point, and it makes the hard-stop unpredictable.
 
 **What stays activity-shaped** (the §1 contract, intact):
 - Per-member attribution — a %-share of the pool, never per-member dollars.
-- The activity trend — relative bars, no $ axis.
+- The activity trend — relative bars, no $ axis. *(Superseded by §11.)*
 - The runway — days, not dollars-per-day.
 - No running cost ticker anywhere; no per-invocation price surfaced.
 
@@ -176,3 +176,69 @@ Also corrected in the same pass: `int(amount) * 100` in the top-up checkout
 truncated fractional dollars (a $12.99 request charged $12.00) — now rounds; and
 the "How it works" block offered *"Upgrade or top up to resume"* on an exhausted
 balance, which is false under ADR-490 where the paid plan buys **seats only**.
+
+## 11. Amendment (2026-08-19) — the consumption trend carries its dollars
+
+**Status**: Accepted (operator-ratified in discourse — the usage-pane audit).
+**Amends**: §10's carve-out list, narrowly. §1's ban on a *running cost ticker*
+and a *per-invocation price* stands; §2, §3 and §5 are untouched.
+
+### What went wrong
+
+§10 kept the trend activity-shaped on §1's reasoning: dollars are permitted at
+the moment of *purchase*, and a trend is consumption, not purchase. That reads
+correctly and was wrong in practice for the same reason §10 itself diagnosed —
+**the substitute quantity was never built.**
+
+The chart was labelled "Activity trend" but plotted `cost_usd`. So it was
+already a dollar chart; it simply refused to print the number. The operator got
+the shape of their spending with the magnitude withheld — the §10 failure mode
+exactly ("an information gap at the decision point"), one surface over.
+
+Three defects follow from the same root, all verified on live data
+(workspace `d5b9029b`, 2026-08-19):
+
+1. **The window disagreed with its own header.** `by_work` and `activity` sum
+   the anchor window; the trend was hardcoded to 14 days. The pane claimed
+   **249 runs** and plotted **230** — 19 events dropped silently, with no label
+   distinguishing the two windows.
+2. **Worked days rendered as empty.** Aug 15–16 each ran 4 radar sweeps at zero
+   billable draw. Plotting cost alone drew them flat, so days that did work read
+   as days with none. The render gate compounded it: `trend.some(cost > 0)`
+   removed the entire chart from any workspace with activity but no spend.
+3. **Two denominators fused into one row.** `{runs} runs · {pct}%` put a run
+   count beside a *spend* share — hence `lane` reading `175 runs · 97%` when it
+   is 97% of spend but 70% of runs.
+
+### The amendment
+
+**The consumption trend is denominated in dollars, and each of its buckets
+reports its own figure.** What §1 forbids is a *running* ticker — a live meter
+that prices each invocation as it happens, turning every action into a
+transaction. A retrospective, day-bucketed record of a pool the operator funds
+in dollars is the same class of figure as the balance itself: it answers "where
+did my money go", which is the question a prepaid pool creates and owes an
+answer to.
+
+**What stays activity-shaped** (§1, still intact):
+- Per-member attribution — a %-share of the pool, never per-member dollars.
+  *(A member's personal spend is a different disclosure; unchanged here.)*
+- The runway — days, not dollars-per-day.
+- No per-invocation price at the moment of acting; no live cost ticker on the
+  working surfaces. The dollar lives in the Usage pane, after the fact.
+
+**A bucket states its denominator.** Where a bar encodes spend share, its
+caption says so, and a run count is never presented as a spend percentage.
+
+### Implementation note
+
+`get_usage_detail` now returns `trend[{date, cost_usd, runs, failed}]` over the
+**anchor window** (`trend_days`, capped at 60), the same window `by_work` and
+`activity` sum — so the header's run count and the chart's bars are arithmetically
+forced to agree; both invariants are asserted against production rows. Added
+`by_model` (spend by engine — the cost driver of ADR-556/559, and the one lever
+a member can pull) and `activity.spend_usd`; `by_work` rows carry `pct_runs`
+beside `pct`. A zero-draw day that did work renders in a muted tone and reads
+"no billable draw" rather than vanishing. Display rounds sub-cent figures to
+four places instead of flooring them to `$0.00` — `formatUsd` remains the shared
+model for the balance, wrapped for the small figures it was not built for.
