@@ -2832,57 +2832,12 @@ const EDIT_SCRIPT = `
     parent.postMessage({ type: 'yarnnn-slash-close' }, '*');
   }
 
-  // ADR-506 D1 — the toolbar's Insert TYPES THE SLASH. The button is a DOOR to
-  // the one insert gesture, never a second mechanism (ADR-505 D4: "/ is
-  // deliberately universal and ungated"; ADR-466 D4: "insert is located with no
-  // exceptions"). So it does not post its own take: it lands a real '/' at a
-  // real caret and lets the keydown handler below run unmodified. Everything
-  // downstream — the anchor, the live filter, the run-splice on pick — is the
-  // gesture the member could have typed, because it IS that gesture.
-  //
-  // The one thing a click has that a keystroke does not is the ABSENCE of a
-  // caret: the member may never have focused the document. So this resolves an
-  // insertion point first (caret → last block → the host itself), focuses it,
-  // and only then synthesizes. insertText (not a manual text-node splice) is
-  // what makes the browser move the caret past the character for us, leaving
-  // exactly the post-input state the handler's setTimeout re-reads.
-  // (No backticks anywhere in here: this body lives INSIDE a template string.)
-  function slashFromToolbar() {
-    // FLOW ONLY, matching the typed gesture it is a door onto. The paged branch
-    // that used to live here (enter() the last block to manufacture an anchor)
-    // is DELETED rather than left unreachable: on paged the toolbar's Insert now
-    // opens the native menu in the parent and never asks the runtime to type a
-    // '/', so a surviving branch would be a second insert path waiting to be
-    // called — the exact thing ADR-506 D1's one-sender invariant existed to
-    // prevent, and a latent route is how the ADR-482 hole stayed invisible.
-    if (!FLOW_MODE) return;
-    var host = editHost();
-    if (!host) return;
-    if (host.focus) host.focus();
-    var sel = window.getSelection();
-    var inHost = false;
-    if (sel && sel.rangeCount) {
-      var anc = sel.getRangeAt(0).commonAncestorContainer;
-      var ancEl = anc && anc.nodeType === 1 ? anc : (anc ? anc.parentElement : null);
-      inHost = !!(ancEl && host.contains(ancEl));
-    }
-    if (!inHost || caretInIsland()) {
-      // No usable caret (or one parked inside a citation island, which owns its
-      // own text): put it at the END of the host's content — the place a member
-      // who clicked "Insert" without clicking into the prose means by "here".
-      var r = document.createRange();
-      r.selectNodeContents(host);
-      r.collapse(false);
-      if (!sel) return;
-      sel.removeAllRanges();
-      sel.addRange(r);
-    }
-    // Synthesize. beforeinput/input fire, so the keydown listener's own
-    // post-input setTimeout path is NOT what runs here — we call the opener
-    // directly with the caret we just guaranteed.
-    document.execCommand('insertText', false, '/');
-    openSlashAtCaret();
-  }
+  // slashFromToolbar is DELETED (ADR-586 D1): the toolbar's [+ Add] opens the
+  // category menu in the parent on EVERY medium now, so nothing asks the
+  // runtime to type a '/'. The typed gesture below is untouched — '/' remains
+  // flow's located insert. Deleted rather than left unreachable: a surviving
+  // body would be a second insert path waiting to be called (the ADR-506 D1
+  // one-sender reasoning that already removed its paged branch).
 
   // The opener, extracted (ADR-506 D1) so the typed '/' and the toolbar's
   // Insert share ONE body rather than two that drift. Call AFTER the '/' has
@@ -3476,7 +3431,6 @@ const EDIT_SCRIPT = `
       } catch (err) {}
     }
     // ADR-506 D1 — the toolbar's Insert, routed into the ONE gesture.
-    else if (d.type === 'yarnnn-slash-invoke') slashFromToolbar();
     else if (d.type === 'yarnnn-slash-take') {
       // A pick landed. Delete the '/'+filter run the member typed so the text
       // the block keeps never contains the gesture, then hand the parent BOTH

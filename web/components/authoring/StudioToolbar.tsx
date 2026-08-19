@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { LayoutGrid, LayoutTemplate, Plus } from 'lucide-react';
+import { LayoutTemplate, Plus } from 'lucide-react';
 import { ArrangementThumb } from './ArrangementThumb';
 
 /** An arrangement (ADR-447) — the composition shape of a page/slide.
@@ -204,17 +204,15 @@ interface StudioToolbarProps {
    *  then grew two buttons. This is ADR-482 D3 (chrome waits for the mode)
    *  applied one level out, to the toolbar that D3 never reached. */
   mode: 'flow' | 'paged' | undefined;
-  /** EXECUTE: open the block palette at the caret (ADR-506 D1). Universal and
-   *  ungated — the SAME palette `/` opens, in every type, with no per-type
-   *  subsetting (ADR-505 D4). Carries the button's own rect so the paged menu
-   *  can drop from it; the flow door ignores the point and types the '/' at
-   *  the caret.
-   *
-   *  ADR-579 D6 — the optional VERB names which door pressed it: 'add' filters
-   *  the palette to the from-the-workspace group, 'new' to the thin-air group;
-   *  absent = the full grouped list (the right-click door). One list, one
-   *  write path underneath either way. */
-  onInsert: (at: { x: number; y: number }, verb?: 'add' | 'new') => void;
+  /** EXECUTE: open THE insert door (ADR-586 D1 — one [+ Add] on every medium;
+   *  the ADR-579 verb split retired from the toolbar). Carries the button's
+   *  own rect so the door drops from it. One list, one write path. */
+  onInsert: (at: { x: number; y: number }) => void;
+  /** ADR-586 D6 — a BLOCK is selected, so Update's contents are the block's
+   *  acts. The surface opens the one block-acts menu (the same definition the
+   *  right-click renders) at this point, Update tier expanded. */
+  hasBlockSelection?: boolean;
+  onUpdateBlock?: (at: { x: number; y: number }) => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
   onAddArrangement: (fragment: string, label: string) => void;
   /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
@@ -255,6 +253,8 @@ export function StudioToolbar({
   layout,
   mode,
   onInsert,
+  hasBlockSelection = false,
+  onUpdateBlock,
   onAddArrangement,
   onApplyArrangement,
   planning,
@@ -349,33 +349,26 @@ export function StudioToolbar({
     // content occupies, because the content shrinks first.
     <div ref={rootRef} className="relative flex min-w-0 items-center gap-1 border-b border-border px-2 py-1.5">
       <div ref={menuRef} className="relative flex min-w-0 items-center gap-1">
-      {/* ── THE VERB TRIAD (ADR-579 D6, operator-ratified in full) ─────────
-          [+ Add] · [+ New] · [Update] replace New-‹noun› / Re-arrange /
-          Insert WHOLESALE: the page-grain acts re-home under their verbs
-          (New ‹noun› inside New; Re-arrange inside Update) instead of
-          standing beside them as siblings. The verbs are constant; the
-          GRAIN lives inside each door (ADR-579 D2), so the member never
-          has to choose a grain before choosing an intent.
-          "Media ▾" stays DELETED (ADR-466 D4); the one-list rule holds —
-          each verb door opens the SAME grouped palette filtered to its
-          group, never a second list. */}
-
-      {/* ADD — it exists elsewhere; bring it here. No dropdown: Add has no
-          page-grain member (you cannot Add a slide from the workspace), so
-          the button IS the door — the palette's from-the-workspace group at
-          the resolved target (paged) or the caret (flow). */}
+      {/* ── ONE INSERT DOOR (ADR-586 D1, operator-locked) ──────────────────
+          [+ Add] [Update] replace the ADR-579 triad: provenance stopped
+          being a door decision (it survives as pick behavior + the library's
+          "shared" marker). The door's top tier is intent CATEGORIES
+          (Slide · Components · Text · Media · Data), each a nested gallery —
+          the depth the operator pointed at (PowerPoint's SmartArt shape).
+          579's laws survive the re-house: one grouping module, one landing,
+          named target, the WHO/meter seam. */}
       <button
         type="button"
         className={btn}
         onClick={(e) => {
           setOpen(null);
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          onInsert({ x: r.left, y: r.bottom + 4 }, 'add');
+          onInsert({ x: r.left, y: r.bottom + 4 });
         }}
         title={
           isPaged
-            ? 'Add from the workspace — into the selected slot, or this page'
-            : 'Add from the workspace — an image, or a table from a CSV'
+            ? `Add — a ${pageNoun}, component, text, media, or data — into the selected spot or this ${pageNoun}`
+            : 'Add — a component, text, media, or data — after the selection, or at the end'
         }
         aria-label={compact ? 'Add' : undefined}
       >
@@ -383,49 +376,36 @@ export function StudioToolbar({
         {!compact && ' Add'}
       </button>
 
-      {/* NEW — it doesn't exist; create it. ONE direct door on every medium
-          (ADR-579 D6.a — a verb door opens its verb's contents, never a
-          dropdown that hops to a second menu): on paged it opens the New
-          menu at the resolved target — block kinds with the New-‹noun›
-          gallery inside the same menu (two grains, one door); on flow it
-          types the '/' the member could have typed (ADR-506 D1). */}
-      <button
-        type="button"
-        className={btn}
-        onClick={(e) => {
-          setOpen(null);
-          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          onInsert({ x: r.left, y: r.bottom + 4 }, 'new');
-        }}
-        title={
-          isPaged
-            ? `A new block — into the selected slot or this ${pageNoun} — or a new ${pageNoun}`
-            : 'New block — the same palette / opens at the caret'
-        }
-        aria-label={compact ? 'New' : undefined}
-      >
-        <LayoutGrid className="h-3 w-3" />
-        {!compact && ' New'}
-      </button>
-
-      {/* UPDATE — it exists here; change it, at this door's grain: the page.
-          Re-arrange re-homes under its verb; the judgment, the plan
-          validation, and the Refining… state are unchanged (ADR-479,
-          ADR-524 D4). Absent on flow: a flow document has no page-grain
-          update to offer, and block-grain Update lives in the right-click
-          menu, where the target is. Needs an anchored page. */}
-      {isPaged && arrangements.length > 0 && (
+      {/* UPDATE — it exists; change it — AT THE SELECTION'S GRAIN (ADR-586
+          D6): a selected BLOCK opens the one block-acts menu (the same
+          definition the right-click renders — one definition, two mounts),
+          Update tier expanded; otherwise the page-grain door (re-arrange —
+          the judgment, plan validation, and Refining… state unchanged,
+          ADR-479/524 D4). This is the door where mechanical change and
+          metered judgment FUSE; the meter badge inside is the only spelling
+          of that distinction (ADR-579 D3 surviving the re-house). */}
+      {(hasBlockSelection || (isPaged && arrangements.length > 0)) && (
         <button
           type="button"
           className={btn}
-          disabled={!hasPageAnchor || !!planning}
+          disabled={!!planning || (!hasBlockSelection && !hasPageAnchor)}
           title={
-            hasPageAnchor
-              ? `Update this ${pageNoun} — re-arrange its layout`
-              : `Select a ${pageNoun} first — click it on the canvas or in the strip`
+            hasBlockSelection
+              ? 'Update the selected block — move, turn into, rewrite'
+              : hasPageAnchor
+                ? `Update this ${pageNoun} — re-arrange its layout`
+                : `Select a block or a ${pageNoun} first — click it on the canvas or in the strip`
           }
           aria-label={compact ? 'Update' : undefined}
-          onClick={() => setOpen(open === 'layout' ? null : 'layout')}
+          onClick={(e) => {
+            if (hasBlockSelection && onUpdateBlock) {
+              setOpen(null);
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              onUpdateBlock({ x: r.left, y: r.bottom + 4 });
+              return;
+            }
+            setOpen(open === 'layout' ? null : 'layout');
+          }}
         >
           {/* ADR-524 D4: the page has ALREADY re-arranged mechanically by the
               time this shows — the judgment is refining that placement, not

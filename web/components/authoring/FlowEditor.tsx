@@ -101,7 +101,6 @@ interface FlowEditorProps {
   onSlashEnter?: () => void;
   onSlashTaken?: (blockId: string, beforeInner: string | null, afterInner: string | null) => void;
   slashTake?: { filterLen: number; nonce: number } | null;
-  slashInvoke?: { nonce: number } | null;
   fmtCmd?: { op: string; value: string | null; nonce: number } | null;
   scrollToBlock?: { blockId: string; nonce: number } | null;
   onScrollPos?: (pos: { y: number; slide: number | null }) => void;
@@ -127,7 +126,6 @@ export const FlowEditor = forwardRef<FlowEditorHandle, FlowEditorProps>(function
     onSlashEnter,
     onSlashTaken,
     slashTake,
-    slashInvoke,
     fmtCmd,
     scrollToBlock,
     onScrollPos,
@@ -459,20 +457,6 @@ export const FlowEditor = forwardRef<FlowEditorHandle, FlowEditorProps>(function
       half(hit.node.content.cut(rel)),
     );
   }, [slashTake, schema]);
-
-  const lastInvokeNonce = useRef(0);
-  useEffect(() => {
-    if (!slashInvoke || slashInvoke.nonce === lastInvokeNonce.current) return;
-    lastInvokeNonce.current = slashInvoke.nonce;
-    const view = viewRef.current;
-    if (!view) return;
-    view.focus();
-    // Type the '/' through the ordinary door — the same detection the typed
-    // gesture uses, so everything downstream is one mechanism (ADR-505 D4).
-    const { from } = view.state.selection;
-    openSlashAt(view, from);
-    view.dispatch(view.state.tr.insertText('/'));
-  }, [slashInvoke, openSlashAt]);
 
   const lastScrollNonce = useRef(0);
   useEffect(() => {

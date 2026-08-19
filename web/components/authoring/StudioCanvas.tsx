@@ -238,7 +238,6 @@ interface StudioCanvasProps {
    *  resolved caret — the button is a door to the one insert gesture, not a
    *  second mechanism (ADR-505 D4). The runtime answers with the ordinary
    *  onSlashOpen, so everything downstream is unchanged. Nonce for repeats. */
-  slashInvoke?: { nonce: number } | null;
   /** ADR-527 D4 — a RANGE format op driven from the pane. Nonce-carrying so
    *  the same button fires twice; the runtime restores the last live range
    *  before applying, because the pane's click destroyed the selection. */
@@ -320,7 +319,6 @@ export function StudioCanvas({
   onSlashTaken,
   scrollToSlide,
   slashTake,
-  slashInvoke,
   fmtCmd,
   scrollToBlock,
   patch,
@@ -527,15 +525,6 @@ export function StudioCanvas({
     win.postMessage({ type: 'yarnnn-slash-take', filterLen: slashTake.filterLen }, '*');
   }, [slashTake]);
 
-
-  // ADR-506 D1: the toolbar's Insert. The parent cannot place a caret inside an
-  // opaque-origin frame, so it ASKS — the runtime resolves the insertion point,
-  // types the '/', and opens the palette through the ordinary path.
-  useEffect(() => {
-    const win = iframeRef.current?.contentWindow;
-    if (!win || !slashInvoke) return;
-    win.postMessage({ type: 'yarnnn-slash-invoke' }, '*');
-  }, [slashInvoke]);
 
   // ADR-527 D4 — the pane's format op reaches the edit runtime.
   useEffect(() => {

@@ -120,20 +120,27 @@ _check(
 )
 menu = (WEB / "components/authoring/StudioBlockMenu.tsx").read_text()
 _check(
+    # ADR-586 D4 — the located tiers are the categories; the medium is still
+    # a constant there (the tiers render on paged only).
     "the right-click tiers declare their constant medium (paged)",
-    "groupBlockRows(blocks ?? [], 'paged')" in menu,
+    "categorizeBlockRows(blocks ?? [], 'paged')" in menu,
 )
 insert_menu = (WEB / "components/authoring/StudioBlockInsertMenu.tsx").read_text()
 surface = (WEB / "components/authoring/StudioSurface.tsx").read_text()
 _check(
-    "the verb menu takes the RESOLVED medium from the surface",
-    "groupBlockRows(items, medium)" in insert_menu
+    # ADR-586 D2 — the medium orders the CATEGORIES (581 D3 one level up),
+    # resolved by the surface and passed down.
+    "the one door takes the RESOLVED medium from the surface",
+    "categorizeBlockRows(items, medium)" in insert_menu
     and "medium={resolvedMode ?? null}" in surface,
 )
 _check(
-    "the discovery door teaches — family subheaders inside NEW only (Composed · Text)",
-    "verb === 'new' && g.key === 'new'" in insert_menu
-    and "blockFamily(b) === 'composed' ? 'Composed' : 'Text'" in insert_menu,
+    # ADR-586 D2/D3 — the door TEACHES through the category rail + galleries
+    # (the subheader mechanism it replaces taught inside one flat list).
+    "the discovery door teaches — the category rail over the one derivation",
+    "CATEGORY_LABELS" in (WEB / "components/authoring/blockRows.tsx").read_text()
+    and "rail.map((r) =>" in insert_menu
+    and "BlockThumb" in insert_menu,
 )
 
 print()

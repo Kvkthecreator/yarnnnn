@@ -732,6 +732,39 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // holds only the anchor + the grain. Every row dispatches an op that already
   // exists — a second entrance, never a second write path (D1).
   const [ctxMenu, setCtxMenu] = useState<StudioContextTarget | null>(null);
+  // ADR-586 D6 — which tier the mount opens expanded. Set ONLY by the
+  // toolbar's contextual [Update]; a right-click opens collapsed (null).
+  const [ctxInitialOpen, setCtxInitialOpen] = useState<'update' | null>(null);
+  // The toolbar's contextual Update: synthesize the menu's target from the
+  // live selection and mount the SAME menu the right-click renders — one
+  // definition of the block acts, two mounts (the blockRows discipline).
+  // Conservative DOM facts (positioned/framed false): the toolbar cannot see
+  // the projected DOM, so the geometry rows simply don't render from this
+  // mount; the right-click keeps the full answer.
+  const openUpdateForSelection = useCallback(
+    (at: { x: number; y: number }) => {
+      const sel = selection;
+      if (!sel?.blockId) return;
+      setCtxInitialOpen('update');
+      setCtxMenu({
+        x: at.x,
+        y: at.y,
+        tag: null,
+        text: sel.text ?? '',
+        dataRef: null,
+        blockId: sel.blockId,
+        blockKind: sel.blockKind,
+        slideIndex: sel.slideIndex,
+        pageIndex: sel.pageIndex,
+        slot: sel.slot,
+        arrange: sel.arrange,
+        framed: false,
+        positioned: false,
+        tier: sel.tier ?? null,
+      });
+    },
+    [selection],
+  );
   // Copy/paste is a BLOCK clipboard, not the OS text one: the unit is a block's
   // source HTML, so a paste can reconstruct it whole (kind + tokens + citations)
   // rather than smearing its text into another block. Session-scoped by design —
@@ -2367,9 +2400,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     top: number;
     filter: string;
     highlight: number;
-    /** ADR-579 D6 — a toolbar verb door on flow filters the palette to its
-     *  group; a typed '/' carries null and shows the full grouped list. */
-    verb: 'add' | 'new' | null;
   } | null>(null);
   // The LAST open run, mirrored into a ref. A pick must survive the close that
   // races it: the runtime's in-frame mousedown fires (capture phase) on the very
@@ -2416,11 +2446,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         top: Math.max(8, Math.min(rect.bottom + 6, maxTop)),
         filter: '',
         highlight: 0,
-        // ADR-579 D6 — consumed once: the verb rides only the open that the
-        // toolbar door invoked; the next typed '/' is unfiltered.
-        verb: pendingSlashVerb.current,
       });
-      pendingSlashVerb.current = null;
     },
     [],
   );
@@ -2455,21 +2481,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   } | null>(null);
   const [slashTake, setSlashTake] = useState<{ filterLen: number; nonce: number } | null>(null);
   const slashNonce = useRef(0);
-  // ADR-506 D1 — the toolbar's Insert. The parent cannot place a caret inside
-  // the opaque-origin canvas, so it ASKS the runtime to type the '/' itself;
-  // the palette then opens through the ordinary onSlashOpen path. A nonce
-  // (the slashTake pattern) so clicking Insert twice fires twice.
-  const [slashInvoke, setSlashInvoke] = useState<{ nonce: number } | null>(null);
-  const invokeNonce = useRef(0);
-  // ADR-579 D6 — the verb a toolbar door wants the NEXT slash-open to carry.
-  // A ref, not state: it is set and consumed inside one runtime round-trip.
-  const pendingSlashVerb = useRef<'add' | 'new' | null>(null);
-  const invokeSlash = useCallback(() => {
-    invokeNonce.current += 1;
-    setSlashInvoke({ nonce: invokeNonce.current });
-  }, []);
   // ADR-527 D4 — the pane's entrance to the runtime's `applyFmt`. Same nonce
-  // shape as slashInvoke, and for the same reason: pressing the same button
+  // shape as slashTake, and for the same reason: pressing the same button
   // twice must fire twice. The runtime restores the member's last live range
   // before applying (the pane steals focus, so the selection is gone by the
   // time this arrives) and does nothing when there was never a range.
@@ -2586,8 +2599,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     slideIndex: number | null;
     pageIndex: number | null;
     label: string;
-    /** ADR-579 D6 — the verb door that opened this menu (null = full list). */
-    verb: 'add' | 'new' | null;
   } | null>(null);
 
   // Resolve where a paged insert lands, most specific first:
@@ -2639,7 +2650,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   }, [selection, template, viewportPage]);
 
   const openInsertMenu = useCallback(
-    (x: number, y: number, verb?: 'add' | 'new') => {
+    (x: number, y: number) => {
       // A door that opens onto NOTHING is indistinguishable from a dead button.
       // The menu returns null on an empty roster (correctly — "a menu with no
       // acts is not a menu"), so when the roster is empty because the fetch
@@ -2648,32 +2659,22 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         setOpError('Insert is unavailable — the block list could not be loaded. Reload to retry.');
         return;
       }
-      setInsertMenu({ x, y, verb: verb ?? null, ...resolveInsertTarget() });
+      setInsertMenu({ x, y, ...resolveInsertTarget() });
     },
     [resolveInsertTarget, vocabularyError, vocabulary],
   );
 
-  // The ONE place the toolbar's Insert forks by medium — and the only place the
-  // fork exists at all. `flow` keeps ADR-506 D1's door (the button types the '/'
-  // so the palette that opens is the one the member could have opened); `paged`
-  // opens the native menu, because there is no longer a '/' on paged to be a
-  // door onto. An unresolved mode falls to the paged menu deliberately: it needs
-  // no caret and no runtime round-trip, so it cannot mis-fire while the registry
-  // is still answering (the ADR-482 D3 lesson — chrome must not depend on an
-  // async mode value to be CORRECT, only to be optimal).
+  // ADR-586 D1 — ONE door on every medium: the toolbar's [+ Add] opens the
+  // category menu on flow and on paged alike (the medium orders the
+  // categories inside it; the '/' remains flow's LOCATED gesture, untouched).
+  // The old flow fork — the button typing the '/' through a runtime
+  // round-trip — is DELETED with its slash-invoke plumbing: the door needs no
+  // caret, so it cannot mis-fire while the registry is still answering.
   const onInsertPressed = useCallback(
-    (at: { x: number; y: number }, verb?: 'add' | 'new') => {
-      if (resolvedMode === 'flow') {
-        // The verb rides the runtime round-trip: the button types the '/',
-        // and the palette that opens is filtered to the verb's group
-        // (ADR-579 D6). A typed '/' never sets this.
-        pendingSlashVerb.current = verb ?? null;
-        invokeSlash();
-        return;
-      }
-      openInsertMenu(at.x, at.y, verb);
+    (at: { x: number; y: number }) => {
+      openInsertMenu(at.x, at.y);
     },
-    [resolvedMode, invokeSlash, openInsertMenu],
+    [openInsertMenu],
   );
 
   // The pick lands through the EXISTING ops — insertBlock for every anchor
@@ -2730,6 +2731,29 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       landInsertPick(t, { x: t.x, y: t.y }, kind, label, fragment);
     },
     [insertMenu, landInsertPick],
+  );
+  // ADR-586 D7 — the library pick: the gallery item IS the cited file, so the
+  // fragment is built here (pin stamped) and lands through insertBlock at the
+  // menu's resolved target — never through the picker, and never a collapse
+  // to another kind (the ADR-538 D2 lesson).
+  const onInsertMenuLibrary = useCallback(
+    (path: string, pin: string | null) => {
+      const t = insertMenu;
+      setInsertMenu(null);
+      if (!t) return;
+      const fragment = citedFragment('component', path, pin);
+      if (!fragment) return;
+      void applyOp(
+        (html) =>
+          insertBlock(html, fragment, {
+            blockId: t.blockId,
+            slideIndex: t.slideIndex,
+            pageIndex: t.pageIndex,
+          }),
+        `${app.label}: add component ${relPath(path)}`,
+      );
+    },
+    [insertMenu, citedFragment, applyOp],
   );
   // The right-click New/Add tiers (ADR-579 D6.a): the target resolves at PICK
   // time through the same ladder the menu door uses, anchored at the
@@ -3521,6 +3545,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 layout={template}
                 mode={resolvedMode}
                 onInsert={onInsertPressed}
+                // ADR-586 D6 — Update at the SELECTION'S grain: a selected
+                // block opens the one block-acts menu (the same definition
+                // the right-click renders), Update tier expanded.
+                hasBlockSelection={!!selection?.blockId && !!selection?.blockKind}
+                onUpdateBlock={openUpdateForSelection}
                 onAddArrangement={handleAddArrangement}
                 onApplyArrangement={handleApplyArrangement}
                 planning={planning}
@@ -3659,7 +3688,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onSlashEnter={onSlashEnter}
                   onSlashTaken={onSlashTaken}
                   slashTake={slashTake}
-                  slashInvoke={slashInvoke}
                   fmtCmd={fmtCmd}
                   scrollToBlock={scrollToBlock}
                   onScrollPos={onScrollPos}
@@ -3689,7 +3717,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 // was built, moved and resized inside the iframe and then died
                 // at the React boundary, so pane and chrome saw one block.
                 onGroup={onGroup}
-                onContextMenu={setCtxMenu}
+                onContextMenu={(t) => {
+                  // A right-click opens COLLAPSED; only the toolbar's
+                  // contextual Update pre-expands its tier (ADR-586 D6).
+                  setCtxInitialOpen(null);
+                  setCtxMenu(t);
+                }}
                 onKeyVerb={handleKeyVerb}
                 onUndo={handleUndo}
                 onRedo={handleRedo}
@@ -3703,7 +3736,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onSlashEnter={onSlashEnter}
                 onSlashTaken={onSlashTaken}
                 slashTake={slashTake}
-                slashInvoke={slashInvoke}
                 fmtCmd={fmtCmd}
                 scrollToSlide={scrollToSlide}
                 scrollToBlock={scrollToBlock}
@@ -3745,7 +3777,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               {slash && (
                 <StudioSlashPalette
                   vocabulary={vocabulary}
-                  verb={slash.verb}
                   filter={slash.filter}
                   left={slash.left}
                   top={slash.top}
@@ -3784,7 +3815,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   // the render), so the ref's non-reactivity is not a problem —
                   // the clipboard cannot change while the menu is on screen.
                   hasClipboard={!!blockClip.current}
-                  onClose={() => setCtxMenu(null)}
+                  initialOpen={ctxInitialOpen ?? undefined}
+                  onClose={() => { setCtxMenu(null); setCtxInitialOpen(null); }}
                   onCopy={menuCopy}
                   onPaste={menuPaste}
                   onDuplicate={() => handleBlockVerb('duplicate')}
@@ -3841,19 +3873,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               {insertMenu && (
                 <StudioBlockInsertMenu
                   vocabulary={vocabulary}
-                  verb={insertMenu.verb}
                   medium={resolvedMode ?? null}
                   x={insertMenu.x}
                   y={insertMenu.y}
                   targetLabel={insertMenu.label}
                   onPick={onInsertMenuPick}
+                  // ADR-586 D7 — a library pick lands its citation DIRECTLY
+                  // (the gallery item IS the file; no picker hop), through
+                  // the same insertBlock landing every door uses.
+                  onPickLibrary={onInsertMenuLibrary}
                   onClose={() => setInsertMenu(null)}
-                  // ADR-579 D6.a — the New door carries the page grain too:
-                  // the New-‹noun› gallery renders inside the same menu, so
-                  // the toolbar's New is one door with two grains, not a
-                  // dropdown that hops to a second menu.
+                  // ADR-586 D2 — the Slide category (the page grain, inside
+                  // the one door; the ADR-579 D6.a shape kept).
                   pageSection={
-                    insertMenu.verb === 'new' && resolvedMode === 'paged'
+                    resolvedMode === 'paged'
                       ? {
                           noun: template === 'deck' ? 'slide' : 'section',
                           arrangements: vocabulary?.arrangements?.[template] ?? [],

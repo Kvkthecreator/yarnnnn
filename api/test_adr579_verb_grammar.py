@@ -47,10 +47,13 @@ palette = (WEB / "components/authoring/StudioSlashPalette.tsx").read_text()
 insert_menu = (WEB / "components/authoring/StudioBlockInsertMenu.tsx").read_text()
 menu_src = (WEB / "components/authoring/StudioBlockMenu.tsx").read_text()
 _check(
-    "ALL THREE Studio mounts import the ONE grouping (the one-list rule, extended)",
+    # ADR-586 re-house: the palette keeps the family grouping (the located
+    # fast path); both menus render the CATEGORY tier — all from the ONE
+    # module (blockRows), so the doors still cannot drift apart.
+    "ALL THREE Studio mounts import the ONE grouping module (the one-list rule, extended)",
     "groupBlockRows" in palette
-    and "groupBlockRows" in insert_menu
-    and "groupBlockRows" in menu_src,
+    and "categorizeBlockRows" in insert_menu
+    and "categorizeBlockRows" in menu_src,
 )
 _check(
     "the palette reports the FLAT grouped order up (keyboard index = rendered order)",
@@ -112,16 +115,21 @@ _check(
     and menu.index("run(onAsk)") > ask_at,
 )
 _check(
-    "the located New/Add tiers render the served vocabulary and land per-kind (D6.a)",
-    "groupBlockRows(blocks ?? [], 'paged')" in menu
+    # ADR-586 D4 — the located tiers are the CATEGORIES now; the landing law
+    # (per-kind, through the surface's one landing) is what this check pins.
+    "the located category tiers render the served vocabulary and land per-kind",
+    "categorizeBlockRows(blocks ?? [], 'paged')" in menu
     and "run(() => onInsertKind(b.kind, b.label, b.fragment))" in menu,
 )
 insert_menu_src = insert_menu
 _check(
-    "a verb door shows ONLY its own group, and New carries the page grain inside it",
-    ".filter((g) => !verb || g.key === verb)" in insert_menu_src
+    # ADR-586 D1 superseded the verb doors: ONE door, categories inside, and
+    # the page grain (the Slide gallery) rides INSIDE that one door — the
+    # D6.a law (a door opens its own contents) kept one level up.
+    "the ONE door carries the page grain inside it (no verb filter survives)",
+    "verb" not in insert_menu_src.split("interface StudioBlockInsertMenuProps")[1].split("}")[0]
     and "pageSection" in insert_menu_src
-    and "New {pageSection.noun}" in insert_menu_src,
+    and "ArrangementThumb" in insert_menu_src,
 )
 
 print("── D9: the fossils are absent (with presence controls) ──")

@@ -2,91 +2,42 @@
 
 ---
 
-# Part F — ADR-586: the one-door rebuild (2026-08-19; RATIFIED, BUILD OWED)
+# Part F — ADR-586: the one-door rebuild (2026-08-19; BUILT + ABSORBED)
 
-**Owner: the insert/verb-grammar lane. This is the NEXT session's task.**
-ADR-586 is Accepted and pushed (renumbered TWICE off collisions — 584 and 585 were both taken by the connector lane mid-session) — the operator locked the UX through a
-three-fork decision (one [+ Add] button · one marked Components gallery ·
-schematic SVG previews). Read the ADR first; this part carries the build
-facts the ADR doesn't.
+**The build this part specced is EXECUTED in the commit that rewrote this
+section** — all phases in one motion: toolbar [+ Add][Update]; the door as a
+category rail (Slide · Components · Text · Media · Data, derived + medium-
+ordered) beside schematic galleries (`BlockThumb`); right-click category tiers
+with re-measure-on-open; bottom-sheet housing under 640px (one list, class
+fork); contextual Update (a block selection mounts the ONE block-acts menu
+from the toolbar, Update tier pre-expanded via `initialOpen`); the library in
+the Components gallery, marked "shared", landing its citation directly.
+DELETED with the fork: `slashFromToolbar` + `yarnnn-slash-invoke` + the
+`slashInvoke` chain + the palette's verb filter (typed `/` untouched).
 
-## The build, in phase order (D1→D2→D3→D4→D6→D5→D7)
+## Verification (the standing set)
 
-1. **D1+D2 — door collapse + category tier.**
-   - `StudioToolbar.tsx` ~line 352: the triad block. Delete the [+ New]
-     button; [+ Add] becomes the one door (`onInsert(at, null)` — the verb
-     param can retire entirely once both callers stop passing it).
-   - `StudioBlockInsertMenu.tsx`: replace the verb-filter + flat
-     `groupBlockRows` render with the category tier. Derivations (never
-     hand-lists): Slide = the `pageSection` prop (already built, thumbnails
-     included) · Components = `blockFamily(b)==='composed'` ∪
-     `b.cites==='fragment'` · Text = family 'prose' · Media =
-     `cites==='picture'` · Data = `cites==='source'`. Medium orders the
-     categories (deck: Slide→Components→Text→Media→Data; flow: Text first,
-     no Slide). Categories NEST (click/hover opens the panel); every kind
-     stays reachable — ADR-506 D3.
-   - `StudioSurface.tsx`: `onInsertPressed` (~the `resolvedMode==='flow'`
-     fork) — on flow the + Add door should now open the MENU too (not the
-     bare `/` palette) so flow gets the same depth; the `/` gesture itself
-     is untouched. `pendingSlashVerb` and verb plumbing can retire.
-2. **D3 — `BlockThumb.tsx`** beside `ArrangementThumb.tsx`: one schematic
-   SVG per kernel kind (stat/comparison/timeline/person/metrics/button/
-   divider/callout/quote/toggle/list/numbered/checklist/heading/prose +
-   figure/gallery/logo-row/table/chart/component). Grid cells like the
-   `pageSection` gallery (thumb + 11px label).
-3. **D4 — right-click parity + flip.** `StudioBlockMenu.tsx`: the New ▸/
-   Add ▸ inline tiers (from `e6d2319`) become the same category tiers.
-   Positioning: the root already MEASURES and clamps (the `boxRef` +
-   `clamped` pattern, ~line 254) — extend it so an opened NESTED panel
-   re-measures and flips horizontally near the right edge / opens upward
-   near the bottom, instead of pushing down only.
-4. **D6 — contextual Update.** Toolbar [Update] stops being page-only:
-   contents keyed to selection grain (page/object/group/cited/text — the
-   ADR lists the acts per grain). The right-click Update ▸ tier and the
-   toolbar door must render ONE definition (the blockRows discipline —
-   an update-acts module both mounts read). Meter badge on every paid act.
-5. **D5 — the sheet.** Same menu component, second housing: under the
-   narrow breakpoint render fixed inset-x-0 bottom-0 max-h-[70vh] with the
-   category drill full-width. No second list.
-6. **D7 — the library in the gallery.** The Components gallery appends
-   `api.studio.citable().components` (fetch on open; the picker already
-   types it): each row = generic component glyph + basename + the marker
-   "shared — edits at source reach every use"; pick = `citedFragment(
-   'component', path, pin)` → the ONE landing (no picker hop). The
-   `StudioCitablePicker` component branch stays for the right-click/slash
-   route until this lands, then the component kind can stop opening it
-   from the gallery door.
+```
+cd api && python3 test_adr586_one_door.py            # 27/27
+cd api && python3 test_adr583_component_library.py   # 28/28
+cd api && python3 test_adr581_medium_regroup.py      # 13/13
+cd api && python3 test_adr579_verb_grammar.py        # 16/16
+cd api && python3 test_adr509_insert_route.py        # 37
+cd api && python3 test_studio_slash_anywhere.py      # 51/51 (2 pre-existing RESOLVED)
+cd api && python3 test_adr462_context_menu.py        # 49/54 — the 5 fails are PRE-EXISTING (another arc's)
+cd web && node_modules/.bin/next build               # 171/171; `pnpm` NOT on PATH
+```
 
-## Gate surgery (do this WITH each phase, not after)
+## Owed
 
-- `test_adr579_verb_grammar.py` (16 checks): the toolbar-triad and
-  verb-door checks re-anchor to the one door; the WHO-seam/meter checks
-  STAND as written. Never delete a check without reading what defect it
-  pinned (the falsifier-read-before-removal rule).
-- `test_adr509_insert_route.py` (37): the coverage claim must survive the
-  recut — re-anchor `onInsertPressed`/`landInsertPick` spellings; keep the
-  live-registry derivation (every kind reachable through some category).
-- `test_adr462_context_menu.py`: 49/54 at HEAD — the 5 fails are ANOTHER
-  arc's (verified in a clean worktree). The tier re-house will break more;
-  re-anchor only what D4 touches, and re-verify the 5 stay exactly 5.
-- `test_adr581_medium_regroup.py` (13): the door-passes-medium checks
-  re-anchor (medium now orders CATEGORIES); the derivation checks stand.
-- New `test_adr586_one_door.py`: one insert button · categories DERIVED
-  (executed against the live registry — no kind unreachable) · flip
-  positioning wired · sheet housing renders the same list · Update keyed
-  by grain. Falsify every check (break the real thing, watch red).
-
-## Traps (all live this week)
-
-- ⭐⭐⭐ **ADR numbers collide across lanes** — 580 AND 582 were both taken
-  mid-session by parallel lanes. `ls docs/adr | sort -V | tail` at COMMIT.
-- ⭐⭐ **Concurrent lanes commit into this tree** — stage with `git add
-  <exact paths>` then `git commit --only …` (`--only` FAILS on untracked
-  files; add them first). Verify with `git log -S"<your string>"`.
-- ⭐ **Gates pin spellings** — two 538 checks broke on a ternary reformat;
-  re-anchor as regexes over WIRED expressions, strip comments first.
-- ⭐ The insert menu closes on `yarnnn-scroll-pos` / canvas-press /
-  Escape via the runtime bridge — a nested panel must not re-trigger it.
+- **Operator click-pass, now the WHOLE door**: deck → [+ Add] rail leads
+  Slide→Components; pick a stat from the gallery; right-click → category
+  tiers expand with thumbs near the bottom edge (box repositions up); select
+  a block → toolbar [Update] opens the acts menu pre-expanded; narrow window
+  → the door is a bottom sheet; Components gallery shows a `*.component.html`
+  as "shared" and inserting it cites it.
+- ADR-581 D5 the app split · 579 D7/D8 (D8 = 583's front door) · the 583
+  compose→cite→edit-source loop.
 
 ---
 

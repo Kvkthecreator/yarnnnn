@@ -27,7 +27,8 @@ import {
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
 import { isConvertible, turnIntoTargets } from './StudioDesignTab';
-import { groupBlockRows } from './blockRows';
+import { categorizeBlockRows, type BlockCategory } from './blockRows';
+import { BlockThumb } from './BlockThumb';
 import { HEADING_RUNGS } from '../workspace/viewers/projection';
 
 export interface StudioBlockMenuProps {
@@ -108,6 +109,10 @@ export interface StudioBlockMenuProps {
    *  menu of one act that could not happen. A paste offer requires something
    *  to paste. */
   hasClipboard?: boolean;
+  /** ADR-586 D6 — the toolbar's contextual [Update] opens THIS menu with the
+   *  Update tier already expanded (a verb door opens its verb's contents —
+   *  ADR-579 D6.a's law, kept). One definition of the block acts, two mounts. */
+  initialOpen?: 'update';
 }
 
 function Row({
@@ -155,14 +160,16 @@ const ICO = 'h-3.5 w-3.5';
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete, setCount,
   onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
-  onCopyLink, onHistory, onInsertKind, mode, hasClipboard,
+  onCopyLink, onHistory, onInsertKind, mode, hasClipboard, initialOpen,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
-  // ADR-579 D5 two-tier — the verb tiers (one open at a time).
-  const [updateOpen, setUpdateOpen] = useState(false);
+  // ADR-579 D5 two-tier — the verb tiers (one open at a time). ADR-586 D6:
+  // the toolbar's contextual Update mounts this menu with its tier expanded.
+  const [updateOpen, setUpdateOpen] = useState(initialOpen === 'update');
   const [askOpen, setAskOpen] = useState(false);
-  const [newOpen, setNewOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
+  // ADR-586 D4 — the located insert tiers are the CATEGORIES (one open at a
+  // time), replacing the ADR-579 New ▸/Add ▸ provenance pair.
+  const [insertOpen, setInsertOpen] = useState<BlockCategory | null>(null);
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
   // SANDBOXED IFRAME, so a click on the artifact fires in the frame's own
   // document and these parent listeners never hear it. The canvas's point
@@ -262,7 +269,7 @@ export function StudioBlockMenu({
       left: Math.max(MARGIN, Math.min(target.x, window.innerWidth - width - MARGIN)),
       top: Math.max(MARGIN, Math.min(target.y, window.innerHeight - height - MARGIN)),
     });
-  }, [target.x, target.y, turnOpen, turnIntoKinds.length]);
+  }, [target.x, target.y, turnOpen, turnIntoKinds.length, insertOpen, updateOpen, askOpen]);
 
   // First paint uses the raw point (with the old conservative guard) so the menu
   // never flashes at 0,0; the layout effect corrects it before the browser
@@ -290,26 +297,23 @@ export function StudioBlockMenu({
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* NEW ▸ and ADD ▸ lead on `paged`, and only on paged — the LOCATED
+      {/* The CATEGORY tiers lead on `paged`, and only on paged — the LOCATED
           half of the mouse insert route that replaced '/' there. On `flow`
           the tiers are absent: the caret IS the insertion point and '/' still
-          answers. First, because creating precedes every row that acts on
-          something existing. ADR-579 D6.a: each tier renders ONLY its verb's
-          rows (a door labeled New offering Add rows is the label lying), the
-          rows come from the ONE grouping module partitioning the SERVED
-          vocabulary by `cites` (never a hand list), and each pick lands
-          through the surface's one insert landing — no hop to a second menu.
-          Label-only rows: this is the fast path for a member who knows what
-          they want; the toolbar door keeps the teaching descriptions. */}
+          answers. ADR-586 D4: the tiers are the SAME categories the toolbar
+          door renders (Components · Text · Media · Data — the one derivation,
+          never a hand list; Slide stays with the toolbar door, this menu's
+          grain is the located block). Each tier expands a compact thumbnail
+          grid and lands through the surface's one insert landing. The whole
+          box RE-MEASURES when a tier opens (the clamp's deps), so an
+          expansion near the bottom repositions upward — accommodative, not
+          pushed off-screen. */}
       {onInsertKind && isPaged && (
         <>
-          {/* The tiers render on `paged` only, so the medium is a constant:
-              composed leads (ADR-581 D3 — the deck's native units first). */}
-          {groupBlockRows(blocks ?? [], 'paged').map((g) => {
-            const opened = g.key === 'new' ? newOpen : addOpen;
+          {categorizeBlockRows(blocks ?? [], 'paged').map((g) => {
+            const opened = insertOpen === g.key;
             const toggle = () => {
-              if (g.key === 'new') { setNewOpen((v) => !v); setAddOpen(false); }
-              else { setAddOpen((v) => !v); setNewOpen(false); }
+              setInsertOpen((v) => (v === g.key ? null : g.key));
               setUpdateOpen(false); setAskOpen(false);
             };
             return (
@@ -320,21 +324,23 @@ export function StudioBlockMenu({
                   className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
                 >
                   <span className="text-muted-foreground"><Plus className={ICO} /></span>
-                  <span className="truncate">{g.key === 'new' ? 'New' : 'Add'}</span>
+                  <span className="truncate">{g.label}</span>
                   <ChevronRight
                     className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${opened ? 'rotate-90' : ''}`}
                   />
                 </button>
                 {opened && (
-                  <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+                  <div className="mt-0.5 grid grid-cols-3 gap-1 border-l-2 border-border/60 p-1 pl-2">
                     {g.items.map((b) => (
                       <button
                         key={b.kind}
                         type="button"
+                        title={b.description}
                         onClick={() => run(() => onInsertKind(b.kind, b.label, b.fragment))}
-                        className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                        className="flex flex-col gap-0.5 rounded border border-transparent p-1 text-left hover:border-border hover:bg-accent"
                       >
-                        <span className="truncate">{b.label}</span>
+                        <BlockThumb kind={b.kind} />
+                        <span className="truncate text-[10px]">{b.label}</span>
                       </button>
                     ))}
                   </div>
@@ -393,7 +399,7 @@ export function StudioBlockMenu({
               acts (ADR-462 D4); plumbing above stays unlabeled. */}
           <button
             type="button"
-            onClick={() => { setUpdateOpen((v) => !v); setAskOpen(false); setNewOpen(false); setAddOpen(false); }}
+            onClick={() => { setUpdateOpen((v) => !v); setAskOpen(false); setInsertOpen(null); }}
             className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
           >
             <span className="text-muted-foreground"><PenLine className={ICO} /></span>
@@ -480,7 +486,7 @@ export function StudioBlockMenu({
               ADR-579 D3. */}
           <button
             type="button"
-            onClick={() => { setAskOpen((v) => !v); setUpdateOpen(false); setNewOpen(false); setAddOpen(false); }}
+            onClick={() => { setAskOpen((v) => !v); setUpdateOpen(false); setInsertOpen(null); }}
             className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-amber-50 dark:hover:bg-amber-950/30"
           >
             <span className="text-amber-700 dark:text-amber-500"><MessageSquare className={ICO} /></span>

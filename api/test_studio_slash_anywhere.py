@@ -120,23 +120,23 @@ def run() -> bool:
     # insert path (the ADR-466 D4 / ADR-505 D4 refusal).
     print("\n-- the toolbar door (ADR-506 D1) --")
     _check(
-        "the button asks the runtime to TYPE the '/' (it cannot place a caret "
-        "in an opaque-origin frame itself)",
-        "yarnnn-slash-invoke" in proj
-        and "yarnnn-slash-invoke" in canvas
-        and "slashInvoke" in surface,
+        # ADR-586 D1 — the toolbar no longer types the '/'; the invoke chain
+        # is DELETED end to end (a surviving half would be a latent route).
+        "the slash-invoke chain is deleted end to end (runtime, canvas, surface)",
+        "yarnnn-slash-invoke" not in proj
+        and "yarnnn-slash-invoke" not in canvas
+        and "slashInvoke" not in surface,
     )
     _check(
         "the door routes into the ONE gesture — still a single slash-open sender",
         proj.count("type: 'yarnnn-slash-open'") == 1,
     )
     _check(
-        "the door reuses the shared opener rather than posting its own message",
-        bool(
-            re.search(
-                r"function slashFromToolbar\([\s\S]{0,2500}?openSlashAtCaret\(\)", proj
-            )
-        ),
+        # ADR-586 D1 — slashFromToolbar is deleted, not left unreachable; the
+        # TYPED gesture still routes through the one shared opener (hop1/hop2
+        # above prove that half).
+        "slashFromToolbar is deleted (the typed gesture keeps the one opener)",
+        "function slashFromToolbar" not in proj,
     )
     # The check used to pin `onClick={onInsert}` verbatim, which broke the moment
     # the handler grew a body (D4 gave it a `setOpen(null)` — see below). A
@@ -144,9 +144,12 @@ def run() -> bool:
     # Assert it by SHAPE: the button calls onInsert, and no mode/isPaged test
     # guards it.
     # The button's JSX, sliced from its label back to the enclosing tag — the
-    # region a mode guard would have to appear in to gate it.
-    _ins = toolbar.rfind("<button", 0, toolbar.find('/> Insert'))
-    _insert_btn = toolbar[_ins : toolbar.find('/> Insert')] if _ins > 0 else ""
+    # region a mode guard would have to appear in to gate it. Re-anchored
+    # TWICE (ADR-579 renamed Insert; ADR-586 collapsed the triad to [+ Add]):
+    # the ONE insert door's label is ' Add'.
+    _lbl = toolbar.find("{!compact && ' Add'}")
+    _ins = toolbar.rfind("<button", 0, _lbl)
+    _insert_btn = toolbar[_ins:_lbl] if _lbl > 0 and _ins > 0 else ""
     # RE-PINNED by ADR-509. The old check asserted that NO mode test touches the
     # button — true while '/' was universal and the button was purely its door.
     # ADR-509 made the slash flow's, so the button now forks by medium: on flow
@@ -165,11 +168,12 @@ def run() -> bool:
         and "disabled" not in _insert_btn,
     )
     _check(
-        "the medium fork lives in the SURFACE, not the toolbar (one fork, one place)",
+        # ADR-586 D1 — the fork itself is DELETED: one door, one destination,
+        # on every medium. The toolbar still must not route on the mode.
+        "no medium fork survives anywhere (one door, one destination)",
         "const onInsertPressed" in surface
-        and "if (resolvedMode === 'flow') { invokeSlash(); return; }" in surface
-        # the toolbar may READ the mode for its tooltip; it must not ROUTE on it
-        and "invokeSlash()" not in toolbar,
+        and "invokeSlash" not in surface
+        and "invokeSlash" not in toolbar,
     )
     # ADR-506 D4 — Insert sits LAST IN THE LEFT CLUSTER, not centred on the row.
     # It shipped absolutely-centred; rendered, that detached it from the controls
@@ -189,9 +193,10 @@ def run() -> bool:
         "setOpen(null);" in toolbar and "onInsert({ x:" in toolbar,
     )
     _check(
-        "the slash runtime still rides EDIT_SCRIPT (injected on opts.edit alone, "
-        "with no paged/flow branch) — so the door is ungated STRUCTURALLY",
-        "function slashFromToolbar" in _script_body(proj, "EDIT_SCRIPT"),
+        # ADR-586 — the TYPED gesture still rides EDIT_SCRIPT ungated (the
+        # keydown handler + shared opener live in the one injected script).
+        "the typed slash still rides EDIT_SCRIPT (the gesture is ungated)",
+        "openSlashAtCaret" in _script_body(proj, "EDIT_SCRIPT"),
     )
 
     # ── 2. dismissal is load-bearing ────────────────────────────────────────

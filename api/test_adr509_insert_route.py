@@ -52,18 +52,16 @@ def main() -> int:
             "the typed '/' is gated on FLOW_MODE",
             "if (!FLOW_MODE) return;" in typed.group(0),
         )
-    door = re.search(r"function slashFromToolbar\(\)[\s\S]{0,2000}?\n  \}", PROJ)
-    _check("slashFromToolbar is findable", bool(door))
-    if door:
-        _check(
-            "the toolbar door is gated on FLOW_MODE too",
-            "if (!FLOW_MODE) return;" in door.group(0),
-        )
-        # The deleted paged branch must not come back as a latent second route.
-        _check(
-            "the door's paged anchor ladder is DELETED (no enter()-the-last-block)",
-            "blocks[blocks.length - 1]" not in door.group(0),
-        )
+    # ADR-586 D1 — the toolbar no longer types the '/': slashFromToolbar and
+    # its yarnnn-slash-invoke chain are DELETED (one door on every medium),
+    # not left unreachable. Three pins so a latent second route cannot return.
+    _check("slashFromToolbar is DELETED (no runtime body)", "function slashFromToolbar()" not in PROJ)
+    _check("the slash-invoke message has no handler", "yarnnn-slash-invoke" not in PROJ)
+    _check(
+        "no canvas mount posts the invoke (the sender chain is gone too)",
+        "slashInvoke" not in (WEB / "components/authoring/StudioCanvas.tsx").read_text()
+        and "slashInvoke" not in (WEB / "components/authoring/FlowEditor.tsx").read_text(),
+    )
     _check(
         "still exactly ONE sender of yarnnn-slash-open (ADR-506 D1 survives)",
         PROJ.count("type: 'yarnnn-slash-open'") == 1,
@@ -72,11 +70,11 @@ def main() -> int:
     print("\n-- D2: paged has a mouse route, with TWO mounts --")
     _check("the native insert menu exists", (WEB / "components/authoring/StudioBlockInsertMenu.tsx").exists())
     _check(
-        "mount 1 — the toolbar door forks by medium in ONE place (verb rides it, ADR-579 D6)",
+        # ADR-586 D1 — ONE door on every medium: no flow fork, no verb rides.
+        "mount 1 — the toolbar door opens the ONE menu on every medium",
         "const onInsertPressed" in SURFACE
-        and "if (resolvedMode === 'flow') {" in SURFACE
-        and "pendingSlashVerb.current = verb ?? null;" in SURFACE
-        and "openInsertMenu(at.x, at.y, verb)" in SURFACE,
+        and "openInsertMenu(at.x, at.y)" in SURFACE
+        and "pendingSlashVerb" not in SURFACE,
     )
     _check(
         "mount 2 — the right-click tiers land through the ONE insert landing (ADR-579 D6.a)",
@@ -103,8 +101,9 @@ def main() -> int:
             "false" not in BLOCKMENU[brace_at:guard_at],
         )
         _check(
-            "the tiers render the ONE grouping and land through onInsertKind",
-            "groupBlockRows(blocks ?? [], 'paged')" in tier_block
+            # ADR-586 D4 — the tiers are the CATEGORIES from the one module.
+            "the tiers render the ONE categorization and land through onInsertKind",
+            "categorizeBlockRows(blocks ?? [], 'paged')" in tier_block
             and "run(() => onInsertKind(b.kind, b.label, b.fragment))" in tier_block,
         )
     _check(
@@ -233,8 +232,9 @@ def main() -> int:
 
     print("\n-- the toolbar tells the truth per medium --")
     _check(
-        "the Insert tooltip stops promising a caret palette on paged",
-        "isPaged" in TOOLBAR and "into the selected slot, or this page" in TOOLBAR,
+        # ADR-586 D1 — the one door's tooltip names the categories + target.
+        "the Add tooltip names the destination per medium",
+        "isPaged" in TOOLBAR and "into the selected spot or this ${pageNoun}" in TOOLBAR,
     )
     _check(
         "the button hands its own rect up (so the paged menu drops from it)",

@@ -1,8 +1,10 @@
 # ADR-586 — One insert door: categories with galleries, and Update goes contextual
 
-> **Status**: **Accepted** (2026-08-19) — the operator's UX lock, ratified through the
-> three-fork decision (one [+ Add] button · one marked Components gallery · schematic
-> SVG previews). Build **phased** (D1–D7 below); nothing implemented in this commit.
+> **Status**: **Accepted + Implemented** (2026-08-19) — the operator's UX lock,
+> ratified through the three-fork decision (one [+ Add] button · one marked
+> Components gallery · schematic SVG previews), built same day: D1–D7 all landed
+> (D3's schematics are drawn div/svg cells per the `ArrangementThumb` idiom; D6's
+> toolbar mount reuses the one block-acts menu with its Update tier pre-expanded).
 > Operator-directed: *"the existing center pane buttons are need another depth of
 > handling. ie., new slide -> than show details nested. much like the image screen
 > [PowerPoint's SmartArt gallery]. this same approach needs to follow for right click
@@ -145,16 +147,33 @@ convergence at the presentation layer** (D7). The skeleton-vs-generated oppositi
 dissolves there: the gallery does not care who drew a component or where its content
 lives — the pick behavior does, and the marker says so.
 
-## 4. Build order and gate surgery (the phases)
+## 4. Build and gate surgery (as landed)
 
-D1+D2 (door collapse + categories) → D3 (thumbnails) → D4 (right-click + flip
-positioning) → D6 (contextual Update) → D5 (mobile sheet) → D7 (library in the
-gallery). Each phase re-anchors the gates it touches: `test_adr579_verb_grammar.py`
-(the toolbar checks re-anchor from the triad to the one door; the WHO-seam checks
-stand), `test_adr509_insert_route.py` (coverage claim re-anchored to the category
-tier — the LIVE-registry derivation must still prove every kind reachable),
-`test_adr462_context_menu.py` (the tier re-house; 5 pre-existing fails are another
-arc's), `test_adr581_medium_regroup.py` (medium ordering moves one level up). A new
-`test_adr586_one_door.py` pins: one insert button; categories DERIVED from declared
-fields; no kind unreachable (executed against the live registry); the flip
-positioning; the sheet housing renders the same list; Update's grain keying.
+All phases landed in one motion — the plumbing underneath (one grouping module,
+one landing) is what made that affordable. Gate surgery, done WITH the build:
+`test_adr579_verb_grammar.py` 16/16 (toolbar checks re-anchored to the one door;
+the WHO-seam checks stand) · `test_adr509_insert_route.py` 37 (the slash-invoke
+chain's deletion pinned end to end — runtime, canvas, surface) ·
+`test_adr581_medium_regroup.py` 13/13 (the medium now orders categories) ·
+`test_studio_slash_anywhere.py` **51/51** (the toolbar-types-the-slash checks
+re-anchored to the deletion; two PRE-EXISTING fails resolved — both pinned the
+button's label from two renames ago) · `test_adr462_context_menu.py` 49/54
+(exactly the 5 pre-existing fails, another arc's — verified unchanged). New
+`test_adr586_one_door.py` 27/27, falsified live (a second toolbar press and a
+gutted re-measure dep each went red): one insert button; categories DERIVED and
+executed against the live registry (the partition IS the coverage claim — no
+kind unreachable); schematic galleries in both doors; the sheet housing as a
+class fork over one list; Update's grain keying + the pre-expanded tier; the
+library's direct landing.
+
+**Positioning note (D4, as built)**: the right-click tiers expand INLINE and the
+whole box re-measures and re-clamps on every tier open — accommodation without
+flyouts, strictly more robust than horizontal flipping (no detached panel exists
+to run off an edge). The toolbar door achieves the same by being one two-pane
+box (rail + gallery) under the existing measured clamp.
+
+**Deleted with the fork** (singular implementation, never left latent):
+`slashFromToolbar` + the `yarnnn-slash-invoke` message + the `slashInvoke`
+prop/effect chain through both canvas mounts, the palette's `verb` filter, and
+the surface's `pendingSlashVerb`. The typed `/` gesture is untouched — it
+remains flow's located insert.

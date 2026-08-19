@@ -100,6 +100,64 @@ export interface BlockRowGroup {
 }
 
 /**
+ * ADR-586 D2 — the insert door's CATEGORY, derived from fields the registry
+ * already declares (the ADR-539/581 discipline: a derivation cannot drift, a
+ * hand column can). Provenance stopped being a door decision (D1); what is
+ * being inserted is the tier the member navigates:
+ *   media      = it cites a picture (image · gallery · logo row)
+ *   data       = it cites a data source (table · chart)
+ *   components = a composed object — minted (tier=object) OR cited from the
+ *                library (cites=fragment); ONE gallery, per ADR-586 D7
+ *   text       = the caret's units (tier=text)
+ */
+export type BlockCategory = 'components' | 'text' | 'media' | 'data';
+
+export function blockCategory(b: BlockRowItem): BlockCategory {
+  const c = b.cites ?? 'none';
+  if (c === 'picture') return 'media';
+  if (c === 'source') return 'data';
+  if (c === 'fragment') return 'components';
+  return b.tier === 'object' ? 'components' : 'text';
+}
+
+export const CATEGORY_LABELS: Record<BlockCategory, string> = {
+  components: 'Components',
+  text: 'Text',
+  media: 'Media',
+  data: 'Data',
+};
+
+export interface BlockCategoryGroup {
+  key: BlockCategory;
+  label: string;
+  items: BlockRowItem[];
+}
+
+/**
+ * ADR-586 D2 — the ONE categorization every insert door renders (the toolbar
+ * door's rail, the right-click tiers, the sheet housing). The medium orders
+ * the categories (ADR-581 D3 one level up: on `paged` the deck's native units
+ * lead; on `flow` the caret's units lead) — ordering and nesting, NEVER
+ * subsetting (ADR-506 D3 stands: every kind reachable from every door).
+ */
+export function categorizeBlockRows(
+  items: BlockRowItem[],
+  medium?: 'paged' | 'flow' | null,
+): BlockCategoryGroup[] {
+  const order: BlockCategory[] =
+    medium === 'paged'
+      ? ['components', 'text', 'media', 'data']
+      : ['text', 'components', 'media', 'data'];
+  return order
+    .map((key) => ({
+      key,
+      label: CATEGORY_LABELS[key],
+      items: items.filter((b) => blockCategory(b) === key),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+/**
  * ADR-579 D4 (taking ADR-506 §7's named-not-taken deferral): the ONE grouping
  * every door renders — the `/` palette on flow, the verb menus, and the
  * right-click tiers. Grouped by PROVENANCE (ADR-466 D4), derived from the
