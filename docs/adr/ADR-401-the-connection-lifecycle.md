@@ -1,5 +1,7 @@
 # ADR-401 — The Connection Lifecycle: the peripheral as a first-class mechanical object
 
+> **⚠️ Mechanism re-cut by [ADR-582](ADR-582-the-connector-is-a-writer-not-a-pipeline.md) (2026-08-19)**: the ontology here HOLDS (peripheral not principal; `system:capture-{platform}` attribution; retention polarity; the amended D5 — derive never rides capture cadence), but the Phase-4 cadence dial now writes `settings.connector.cadence` (not `_captures.yaml`), the D3 teardown is implicit (selection + settings die WITH the connection row; `_watch.yaml` no longer survives disconnect), and the watch/seed machinery is deleted. Current contract: [connectors.md](../architecture/connectors.md).
+>
 > **Status**: **Accepted** (2026-07-02) — ratified by the operator with the D2 clarification that the lifecycle is a **descriptive map (indicative), not an enforced state machine** — representative, amendable, never a code artifact. Implementation lands in the §8 phase sequence. Decides the connection's ontology (peripheral, not principal), canonizes its full nine-stage lifecycle with an owner per stage, takes ownership of the two previously unowned stages (disconnect/teardown, health-state semantics), resolves the ADR-392/ADR-394 retention-polarity contradiction, and adopts the derive attention-routing fix. Implementation lands in the §8 phase sequence after sign-off.
 > **Date**: 2026-07-02
 > **Authors**: KVK (operator) + Claude (collaborator)

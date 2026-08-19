@@ -1,5 +1,7 @@
 # Design: The Connection Manager
 
+> **⚠️ Mechanism references superseded by [ADR-582](../adr/ADR-582-the-connector-is-a-writer-not-a-pipeline.md) (2026-08-19)**: `connector_watch`/`_watch.yaml`/`seed_connector_capture` are DELETED — selection lives on `landscape.selected_sources`, knobs on `settings["connector"]`, capture is a direct scheduler walk. The UI shape this document specifies (the 4-section Manage drill-in) survives; read implementation-state claims below as of 2026-07-02, and the current contract at [connectors.md](../architecture/connectors.md).
+>
 > **Scoped by [ADR-401 — The Connection Lifecycle](../adr/ADR-401-the-connection-lifecycle.md) (2026-07-02).** This document survives as the **Phase-1 UI spec** of that ADR: the 4-section Manage drill-in (ADR-401 D7), the connector-grain decision (§2), and the no-fabrication discipline (§5) are ratified as-is. The macro concerns this document deliberately did not carry — ontology (peripheral, not principal), disconnect teardown, retention polarity, derive attention-routing — are ADR-401 D1/D3/D4/D5. The build order in §7 maps onto ADR-401 §8 phases 1/2/4.
 
 **Status:** Draft for review (2026-07-02)

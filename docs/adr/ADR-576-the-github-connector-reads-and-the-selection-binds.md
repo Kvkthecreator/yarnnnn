@@ -1,5 +1,7 @@
 # ADR-576 — The GitHub Connector Reads, and the Selection Binds
 
+> **Note (ADR-582, 2026-08-19)**: D2's aperture binding HOLDS and is re-pointed to the ONE selection store (`landscape.selected_sources` via `services/connectors.py::selected_ids`); receipts below citing `connector_watch.py` describe the deleted mirror path. Gate `test_adr576_github_connector.py` re-pointed and green.
+
 **Status**: Proposed (2026-08-18)
 **Date**: 2026-08-18
 **Authors**: KVK (operator) + Claude (collaborator)
