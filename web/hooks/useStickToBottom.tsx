@@ -51,6 +51,12 @@ export function useStickToBottom() {
   // render.
   const pinnedRef = useRef(true);
   const [pinned, setPinned] = useState(true);
+  // A programmatic SMOOTH glide is in flight. While set, the scroll handler
+  // must not read intermediate positions as "the reader scrolled up" — that
+  // both flickered the chip during the glide and stopped the follow rule for
+  // growth landing mid-animation. Only USER input (wheel/touch/keys) breaks a
+  // glide's pin; arrival at the bottom retires the flag.
+  const glidingRef = useRef(false);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const el = containerRef.current;
@@ -58,6 +64,7 @@ export function useStickToBottom() {
     // Re-pin FIRST, so growth landing mid-scroll keeps following.
     pinnedRef.current = true;
     setPinned(true);
+    glidingRef.current = behavior === 'smooth';
     el.scrollTo({ top: el.scrollHeight, behavior });
   }, []);
 
@@ -67,10 +74,21 @@ export function useStickToBottom() {
     const onScroll = () => {
       const atBottom =
         el.scrollHeight - el.scrollTop - el.clientHeight <= PIN_THRESHOLD_PX;
+      if (glidingRef.current) {
+        if (atBottom) glidingRef.current = false; // glide arrived
+        return; // mid-glide positions are not the reader's choice
+      }
       pinnedRef.current = atBottom;
       setPinned(atBottom);
     };
+    // The reader's OWN gesture always wins: it cancels the browser's smooth
+    // animation anyway, so from that moment positions are theirs again.
+    const onUserInput = () => {
+      glidingRef.current = false;
+    };
     el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('wheel', onUserInput, { passive: true });
+    el.addEventListener('touchstart', onUserInput, { passive: true });
     const ro = new ResizeObserver(() => {
       // Instant, container-scoped follow. Never smooth: a smooth follow
       // restarts per growth event and fights the reader's own wheel.
@@ -82,6 +100,8 @@ export function useStickToBottom() {
     el.scrollTop = el.scrollHeight;
     return () => {
       el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('wheel', onUserInput);
+      el.removeEventListener('touchstart', onUserInput);
       ro.disconnect();
     };
   }, []);
