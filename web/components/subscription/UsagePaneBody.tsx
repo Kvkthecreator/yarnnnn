@@ -128,6 +128,16 @@ export function UsagePaneBody() {
       .filter((r) => r.pct > 0 || r.events > 0);
   }, [spendByPrincipal, principalLabels]);
 
+  // ⭐ The pane must survive an OLDER server payload. The FE and API deploy
+  // independently (separate Render services), so for a window after any FE
+  // ship the browser can hold new components while the API still answers the
+  // previous shape — which is exactly how `by_model.length` crashed the whole
+  // door in production. Every field added after the original contract is read
+  // defensively, never trusted.
+  const spendTotal =
+    usageDetail?.activity.spend_usd ??
+    (usageDetail?.trend ?? []).reduce((sum, d) => sum + (d.cost_usd ?? 0), 0);
+
   if (limitsLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
@@ -250,7 +260,7 @@ export function UsagePaneBody() {
           <div className="flex items-center justify-between">
             <h3 className="font-medium">Where this workspace&rsquo;s usage went</h3>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {fmtUsd(usageDetail.activity.spend_usd)} · {usageDetail.activity.runs} runs
+              {fmtUsd(spendTotal)} · {usageDetail.activity.runs} runs
             </span>
           </div>
           <div className="space-y-2.5">
@@ -272,11 +282,13 @@ export function UsagePaneBody() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Bars are share of spend. A row can be many runs and little money, or
-            the reverse — the highest-spend row here is {usageDetail.by_work[0].pct}% of
-            spend from {usageDetail.by_work[0].pct_runs}% of runs.
-          </p>
+          {usageDetail.by_work[0].pct_runs !== undefined && (
+            <p className="text-xs text-muted-foreground">
+              Bars are share of spend. A row can be many runs and little money, or
+              the reverse — the highest-spend row here is {usageDetail.by_work[0].pct}% of
+              spend from {usageDetail.by_work[0].pct_runs}% of runs.
+            </p>
+          )}
         </div>
       )}
 
@@ -293,8 +305,8 @@ export function UsagePaneBody() {
               Spend trend
             </h3>
             <span className="text-xs text-muted-foreground">
-              last {usageDetail.trend_days}{" "}
-              {usageDetail.trend_days === 1 ? "day" : "days"}
+              last {usageDetail.trend_days ?? usageDetail.trend.length}{" "}
+              {(usageDetail.trend_days ?? usageDetail.trend.length) === 1 ? "day" : "days"}
             </span>
           </div>
           {(() => {
@@ -319,7 +331,7 @@ export function UsagePaneBody() {
               <>
                 <div className="flex items-baseline justify-between">
                   <span className="text-lg font-medium tabular-nums">
-                    {fmtUsd(usageDetail.activity.spend_usd)}
+                    {fmtUsd(spendTotal)}
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     peak {fmtUsd(peak.cost_usd)} · {dayLabel(peak.date)}
@@ -333,7 +345,7 @@ export function UsagePaneBody() {
                     const isActive = hoverDay === d.date;
                     // A worked-but-free day gets a visible floor in a muted
                     // tone: real work happened, it just drew nothing.
-                    const worked = d.runs > 0;
+                    const worked = (d.runs ?? 0) > 0;
                     const pctH = (d.cost_usd / max) * 100;
                     return (
                       <div
@@ -363,10 +375,17 @@ export function UsagePaneBody() {
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {active ? (
                     <>
-                      {dayLabel(active.date)} — {fmtUsd(active.cost_usd)} ·{" "}
-                      {active.runs} {active.runs === 1 ? "run" : "runs"}
-                      {active.failed > 0 && ` · ${active.failed} failed`}
-                      {active.runs > 0 && active.cost_usd === 0 && " · no billable draw"}
+                      {dayLabel(active.date)} — {fmtUsd(active.cost_usd)}
+                      {active.runs !== undefined && (
+                        <>
+                          {" · "}
+                          {active.runs} {active.runs === 1 ? "run" : "runs"}
+                        </>
+                      )}
+                      {(active.failed ?? 0) > 0 && ` · ${active.failed} failed`}
+                      {(active.runs ?? 0) > 0 &&
+                        active.cost_usd === 0 &&
+                        " · no billable draw"}
                     </>
                   ) : (
                     <>
@@ -387,14 +406,14 @@ export function UsagePaneBody() {
 
       {/* By engine — spend by model (ADR-556/559: the engine is the cost
           driver, and it is the one lever a member can actually pull). */}
-      {usageDetail && usageDetail.by_model.length > 0 && (
+      {usageDetail && (usageDetail.by_model?.length ?? 0) > 0 && (
         <div className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-medium">Where it went by engine</h3>
             <span className="text-xs text-muted-foreground">this cycle</span>
           </div>
           <div className="space-y-2.5">
-            {usageDetail.by_model.map((m) => (
+            {(usageDetail.by_model ?? []).map((m) => (
               <div key={m.model} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="truncate pr-3 font-mono text-xs">{m.model}</span>

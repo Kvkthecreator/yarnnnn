@@ -2787,7 +2787,11 @@ export const api = {
           runs: number;
           cost_usd: number;
           pct: number;
-          pct_runs: number;
+          // Fields added after the original contract are OPTIONAL: the API is a
+          // separately-deployed service, so a newer FE can meet an older
+          // payload. Optional here makes TypeScript enforce the guard rather
+          // than leaving it to whoever edits the component next.
+          pct_runs?: number;
         }>;
         // Covers the whole spend window (see trend_days), not a fixed 14 days —
         // the same window by_work/activity sum, so the chart and the header
@@ -2796,11 +2800,11 @@ export const api = {
         trend: Array<{
           date: string;
           cost_usd: number;
-          runs: number;
-          failed: number;
+          runs?: number;
+          failed?: number;
         }>;
-        trend_days: number;
-        by_model: Array<{
+        trend_days?: number;
+        by_model?: Array<{
           model: string;
           runs: number;
           cost_usd: number;
@@ -2811,7 +2815,7 @@ export const api = {
           success_rate: number | null;
           avg_cost_usd: number;
           failed: number;
-          spend_usd: number;
+          spend_usd?: number;
         };
       }>("/api/user/usage-detail"),
 
