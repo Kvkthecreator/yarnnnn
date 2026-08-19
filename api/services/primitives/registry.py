@@ -82,7 +82,6 @@ from .revisions import (
 # via deterministic Python (no LLM). Dispatched by mechanical-mode recurrences
 # per ADR-263 D5 + ADR-264 D2 via the @primitive: ... convention.
 from .sync_platform_state import SYNC_PLATFORM_STATE_TOOL, handle_sync_platform_state
-from .capture_connector import CAPTURE_CONNECTOR_TOOL, handle_capture_connector  # ADR-394 — connector fan-out capture
 from .extract_text_from_blob import EXTRACT_TEXT_FROM_BLOB_TOOL, handle_extract_text_from_blob  # ADR-395 — derive text projection from a raw blob
 # ADR-281: derivative-compaction substrate primitive — mirrors per-signal
 # state files into a compact summary substrate file. Mechanical-only
@@ -354,9 +353,6 @@ HEADLESS_PRIMITIVES = [
     # mechanical-mode recurrences (ADR-263); also LLM-callable for the rare
     # case a specialist needs to refresh substrate before reasoning.
     SYNC_PLATFORM_STATE_TOOL,
-    # ADR-394: CaptureConnector — connector fan-out capture (loops a per-selector
-    # read tool over the operator's _watch.yaml selection into inbound/).
-    CAPTURE_CONNECTOR_TOOL,
     # ADR-395: ExtractTextFromBlob — derive a model-consumable text projection
     # from a retained raw blob (upload/…), citing the raw via derived_from (DP34).
     EXTRACT_TEXT_FROM_BLOB_TOOL,
@@ -518,11 +514,6 @@ FREDDIE_PRIMITIVES = [
     # Primary use is dispatched by mechanical-mode recurrences; LLM-callable
     # surface here is for the override case.
     SYNC_PLATFORM_STATE_TOOL,
-    # ADR-394: CaptureConnector — connector fan-out capture. Same class as
-    # SyncPlatformState (dispatcher-primary; LLM-callable surface here is the
-    # rare mid-loop override, e.g. the seat refreshing a connector's raw before
-    # deriving). Primary use is dispatched by a _captures.yaml declaration.
-    CAPTURE_CONNECTOR_TOOL,
     # ADR-395: ExtractTextFromBlob — derive a text projection from a raw blob.
     # Same class as the captures (dispatcher/inline-primary; LLM-callable surface
     # here is the rare mid-loop override, e.g. re-deriving a projection). Primary
@@ -568,11 +559,6 @@ HANDLERS: dict[str, Callable] = {
     # (mirrors external state into substrate; primary surface for use in
     # mechanical-mode recurrences per ADR-263).
     "SyncPlatformState": handle_sync_platform_state,
-    # ADR-394: CaptureConnector — connector fan-out capture (loops a per-selector
-    # read tool over the operator's _watch.yaml selection, mirrors each raw slice
-    # into inbound/{platform}/{selector}/). Sibling to SyncPlatformState; the
-    # fan-out-over-a-declaration job SyncPlatformState's one-result shape can't do.
-    "CaptureConnector": handle_capture_connector,
     # ADR-395: ExtractTextFromBlob — derive a model-consumable text projection
     # from a retained raw blob, citing the raw via derived_from (DP34). Runs
     # inline on upload arrival (zero-LLM); the derive-registry's first entry.

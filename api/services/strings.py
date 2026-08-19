@@ -20,9 +20,10 @@ declared by two files split on the ADR-564 D2 bright line:
                                                  # folder-relative, ONE segment
                         schedule: "0 13 * * *"   # UTC cron | @-semantic | list
                         paused: false
-                        sources:                 # v1: HTTP pull ONLY (D4);
-                          - id: main             # connector sources wait for
-                            url: https://…       # the ADR-404 re-light
+                        sources:                 # HTTP pull (D4), or a
+                          - id: main             # connector slice (ADR-582
+                            url: https://…       # D6): {connector, selector}
+                                                 # reading LANDED snapshots
                         shape:                   # structured formats only —
                           columns: [date, mrr]   # csv: required column set
                           # keys: [mrr, churn]   # json: required top-level keys
@@ -193,13 +194,27 @@ def _classify_target(target: str) -> Optional[str]:
     return None
 
 
+def _is_http_source(s: dict) -> bool:
+    return str(s.get("url", "")).startswith(("http://", "https://"))
+
+
+def _is_connector_source(s: dict) -> bool:
+    """A connector source (ADR-582 D6): {connector: slack, selector: C123} —
+    the app consumes LANDED snapshots at the connection's destination;
+    never a platform API, never a credential."""
+    return bool(str(s.get("connector", "")).strip()) and bool(
+        str(s.get("selector", "")).strip()
+    )
+
+
 def _classify_sources(sources: list[dict], fmt: Optional[str]) -> Optional[str]:
-    """v1 source rules (D4): HTTP pull only; structured formats map exactly
-    ONE endpoint to the leaf; prose folds up to the radar cap."""
+    """Source rules (D4, amended by ADR-582 D6): HTTP pull OR a connector
+    slice; structured formats map exactly ONE source to the leaf; prose folds
+    up to the radar cap."""
     clean = [
         s for s in sources
         if isinstance(s, dict) and s.get("id")
-        and str(s.get("url", "")).startswith(("http://", "https://"))
+        and (_is_http_source(s) or _is_connector_source(s))
     ]
     if len(clean) != len(sources) or not clean:
         return "sources_invalid"
@@ -549,6 +564,34 @@ async def _fetch_source(url: str) -> str:
         return resp.text
 
 
+async def _read_connector_source(
+    client, user_id: str, platform: str, selector: str,
+) -> tuple[Optional[str], Optional[str]]:
+    """Resolve a connector source (ADR-582 D6): the newest LANDED snapshot at
+    the connection's destination. Returns (content, /workspace-absolute path)
+    or (None, None) — an un-captured selector is the same honest empty as a
+    dead feed. Substrate reads only; the connection-level aperture (what is
+    captured at all) stays the operator's setting."""
+    from services.connectors import connection_row, connector_settings, read_landed_snapshots
+    from services.workspace import UserMemory
+
+    row = connection_row(client, user_id, platform)
+    settings = connector_settings(row) if row else {}
+    um = UserMemory(client, user_id)
+    snaps = await read_landed_snapshots(um, platform, selector, settings, limit=1)
+    if not snaps:
+        return None, None
+    rel = snaps[-1][0]
+    try:
+        body = await um.read(rel)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STRINGS] connector source read failed %s: %s", rel, e)
+        return None, None
+    if body is None:
+        return None, None
+    return body, f"/workspace/{rel.lstrip('/')}"
+
+
 def _retain_raw(client, user_id: str, *, source_id: str, url: str,
                 observed_at: str, stamp: str, body: str, fmt: str) -> str:
     """Retain one fetched body as an immutable raw observation — the
@@ -839,7 +882,10 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         return {"success": False, "slug": decl.slug,
                 "error_reason": decl.problem or "unsupported_format"}
 
-    # ── 1. fetch (mechanical, $0) — HTTP pull, raws retained ─────────────
+    # ── 1. fetch (mechanical, $0) — HTTP pull, raws retained; OR a connector
+    #       source (ADR-582 D6): read the LANDED snapshot at the connection's
+    #       destination and cite it — capture already retained it, so there is
+    #       no re-retain and no platform API call anywhere near this lane. ──
     observed_at = started.isoformat()
     stamp = started.strftime("%Y-%m-%dT%H-%M-%S")
     bodies: list[tuple[dict, str]] = []
@@ -847,6 +893,16 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
     errors: list[str] = []
     for s in decl.sources:
         try:
+            if _is_connector_source(s):
+                landed, landed_path = await _read_connector_source(
+                    client, user_id, str(s["connector"]), str(s["selector"]),
+                )
+                if landed is None:
+                    errors.append(f"{s.get('id')}: no landed snapshot")
+                    continue
+                bodies.append((s, landed[:_MAX_FETCH_CHARS]))
+                raw_paths.append(landed_path)
+                continue
             body = await _fetch_source(str(s["url"]))
             if len(body) > _MAX_FETCH_CHARS:
                 body = body[:_MAX_FETCH_CHARS]
@@ -902,8 +958,11 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         from services.derive_turn import run_bounded_derive_turn
 
         contract = _read_file(client, user_id, decl.contract_path)
+        def _source_label(s: dict) -> str:
+            return s.get("url") or "{}:{}".format(s.get("connector"), s.get("selector"))
+
         material = "\n\n".join(
-            f"SOURCE {s.get('id')} ({s.get('url')}):\n{body[:40_000]}"
+            f"SOURCE {s.get('id')} ({_source_label(s)}):\n{body[:40_000]}"
             for s, body in bodies
         )
         user_msg = (

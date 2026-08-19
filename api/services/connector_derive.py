@@ -1,13 +1,12 @@
-"""Connector derive — the intake pipeline's distil step for the connector
-lanes (ADR-580).
+"""Connector derive — the digest, an OPT-IN consumer of landed connector
+files (ADR-580, demoted by ADR-582 D5).
 
-The gap this closes, measured 2026-08-18 (`connector-reach-and-the-commons.md`
-§2): connector raw landed in ``inbound/{platform}/{selector}/`` and NOTHING
-promoted it — the only production reader was the retention GC. ADR-394 D3 had
-ratified derive "by reference" as the seat's engagement act with no new step,
-and in seven weeks that theory produced zero derived files. This module is the
-step that exists: the intake pipeline's stages 2–3 (distil → signal) for
-platform raw, the same shape radar and Strings already run for the web lane.
+Built by ADR-580 as the intake pipeline's mandatory distil stage; re-cut by
+ADR-582: the connector itself is a WRITER (`services/connectors.py`), and
+this module is one CONSUMER among several — it runs only for connections with
+``settings.connector.digest = true``, so "connect Slack" carries zero LLM
+spend on its critical path. The shape is unchanged: the same bounded turn
+radar and Strings run for the web lane.
 
 One derive = ONE bounded, tool-less judgment turn per watched
 ``(platform, selector)`` (the shared ``derive_turn`` — ADR-580 D6), reading
@@ -81,40 +80,30 @@ _RAW_CHARS_PER_SNAPSHOT = 40_000
 # ---------------------------------------------------------------------------
 
 
+#: The digests' home — beside the connectors' operating files (ADR-580 D3).
+DIGEST_ROOT = "operation/_connectors"
+
+
 def digest_path(platform: str, selector: str) -> str:
     """Where a selector's living digest lives — /workspace-absolute.
 
-    Beside the platform's watch declaration (`operation/_connectors/{platform}/
-    _watch.yaml`), one prose leaf per watched selector, slugified by the SAME
-    function that names the inbound sub-lane so digest ↔ raw correspond
-    byte-for-byte. NOT `_`-prefixed: the digest is operator/LLM prose
-    (ADR-254), never machine-parsed.
+    One prose leaf per watched selector under the connectors' operating home,
+    slugified by the SAME function that names the capture sub-lane so digest ↔
+    raw correspond byte-for-byte. NOT `_`-prefixed: the digest is operator/LLM
+    prose (ADR-254), never machine-parsed.
     """
-    from services.connector_watch import CONNECTOR_WATCH_ROOT
-    from services.primitives.sync_platform_state import _slugify_selector
+    from services.connectors import _slugify_selector
 
     plat = _slugify_selector(platform)
     sel = _slugify_selector(selector)
-    return f"/workspace/{CONNECTOR_WATCH_ROOT}/{plat}/{sel}.md"
+    return f"/workspace/{DIGEST_ROOT}/{plat}/{sel}.md"
 
 
 def parse_stamp(name: str) -> Optional[datetime]:
-    """The observed-at instant from a raw-lane filename, or None.
-
-    Tolerates both live stamp spellings — `2026-07-03T06:40:31Z` (the capture
-    lane) and compact `2026-08-17T210044Z` (the web lane). Pure.
-    """
-    stem = name.rsplit("/", 1)[-1]
-    stem = stem.rsplit(".", 1)[0]
-    m = re.match(r"^(\d{4}-\d{2}-\d{2})T(\d{2}):?(\d{2}):?(\d{2})Z$", stem)
-    if not m:
-        return None
-    try:
-        return datetime.fromisoformat(
-            f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}+00:00"
-        )
-    except ValueError:
-        return None
+    """Re-export — the one stamp parser lives in `services.connectors`
+    (ADR-582: one reader for landed snapshots, shared by every consumer)."""
+    from services.connectors import parse_stamp as _parse
+    return _parse(name)
 
 
 def is_due(
@@ -216,30 +205,17 @@ def _last_derive_at(client: Any, user_id: str, digest_abs: str) -> Optional[date
 
 async def _fresh_raw(
     um: Any, platform: str, selector: str, since: Optional[datetime],
+    settings: Optional[dict] = None,
 ) -> list[tuple[str, datetime]]:
-    """The sub-lane's stamped snapshots newer than `since`, oldest→newest,
-    capped at the newest ``_RAW_SNAPSHOTS_PER_TURN``. Paths are sub-lane
-    relative names paired with their stamps. Never raises."""
-    from services.primitives.sync_platform_state import _slugify_selector
+    """The slice's landed snapshots newer than `since` — THE shared reader
+    (`connectors.read_landed_snapshots`, ADR-582 D6): destination-aware,
+    oldest→newest, capped at the newest ``_RAW_SNAPSHOTS_PER_TURN``."""
+    from services.connectors import read_landed_snapshots
 
-    sub = f"inbound/{_slugify_selector(platform)}/{_slugify_selector(selector)}/"
-    try:
-        names = await um.list(sub)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[CONNECTOR_DERIVE] list %s failed: %s", sub, exc)
-        return []
-    stamped: list[tuple[str, datetime]] = []
-    for n in names or []:
-        if not n or n.endswith("/") or "/" in n:
-            continue
-        at = parse_stamp(n)
-        if at is None:
-            continue
-        if since is not None and at <= since:
-            continue
-        stamped.append((f"{sub}{n}", at))
-    stamped.sort(key=lambda p: p[1])
-    return stamped[-_RAW_SNAPSHOTS_PER_TURN:]
+    return await read_landed_snapshots(
+        um, platform, selector, settings or {},
+        since=since, limit=_RAW_SNAPSHOTS_PER_TURN,
+    )
 
 
 async def run_connector_derive(
@@ -249,6 +225,7 @@ async def run_connector_derive(
     selector: str,
     *,
     connected_by: Optional[str],
+    settings: Optional[dict] = None,
 ) -> dict:
     """One selector's derive: fresh raw + current digest → one bounded turn →
     the living digest, cited and attributed. Returns {success, platform,
@@ -266,7 +243,7 @@ async def run_connector_derive(
     digest_abs = digest_path(plat, selector)
 
     last_at = _last_derive_at(client, user_id, digest_abs)
-    raws = await _fresh_raw(um, plat, selector, last_at)
+    raws = await _fresh_raw(um, plat, selector, last_at, settings)
     if not raws:
         return {"success": True, "platform": plat, "selector": selector,
                 "no_change": True, "skipped": "no_new_raw"}
@@ -406,16 +383,21 @@ async def run_connector_derive(
 
 
 async def drain_due_connector_derives(client: Any) -> tuple[int, int, int]:
-    """Walk active content-platform connections, derive every due watched
-    selector. Returns (found, succeeded, failed). A workspace with no watch
-    declaration or no fresh raw costs nothing. Never raises."""
-    from services.connector_watch import CONNECTOR_CAPTURE_BINDINGS, read_selected_ids
+    """Walk active content-platform connections whose DIGEST IS OPTED IN
+    (ADR-582 D5: `settings.connector.digest = true` — derive is a consumer,
+    never the lane's obligation), derive every due watched selector.
+    Returns (found, succeeded, failed). Never raises."""
+    from services.connectors import (
+        CONNECTOR_CAPTURE_BINDINGS,
+        connector_settings,
+        selected_ids_from_row,
+    )
     from services.workspace import UserMemory
 
     try:
         conns = (
             client.table("platform_connections")
-            .select("user_id, platform, connected_by")
+            .select("user_id, platform, landscape, settings, connected_by")
             .eq("status", "active")
             .execute()
         ).data or []
@@ -433,19 +415,17 @@ async def drain_due_connector_derives(client: Any) -> tuple[int, int, int]:
         # intake lanes (ADR-376 §63 keeps ground-truth out of inbound/).
         if not user_id or plat not in CONNECTOR_CAPTURE_BINDINGS:
             continue
-        try:
-            selectors = await read_selected_ids(client, user_id, plat)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("[CONNECTOR_DERIVE] selection read failed %s/%s: %s",
-                           user_id[:8], plat, exc)
-            continue
+        settings = connector_settings(conn)
+        if not settings.get("digest"):
+            continue  # the D5 opt-in gate — no digest, no LLM spend
+        selectors = selected_ids_from_row(conn)
         if not selectors:
             continue
         um = UserMemory(client, user_id)
         for selector in selectors:
             digest_abs = digest_path(plat, selector)
             last_at = _last_derive_at(client, user_id, digest_abs)
-            fresh = await _fresh_raw(um, plat, selector, last_at)
+            fresh = await _fresh_raw(um, plat, selector, last_at, settings)
             newest_at = fresh[-1][1] if fresh else None
             if not is_due(newest_at, last_at, now):
                 continue
@@ -454,6 +434,7 @@ async def drain_due_connector_derives(client: Any) -> tuple[int, int, int]:
                 result = await run_connector_derive(
                     client, user_id, plat, selector,
                     connected_by=conn.get("connected_by") or user_id,
+                    settings=settings,
                 )
                 if result.get("success"):
                     succeeded += 1

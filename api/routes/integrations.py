@@ -675,31 +675,24 @@ async def update_connector_cadence(
     request: CadenceRequest,
     auth: UserClient,
 ) -> dict[str, Any]:
-    """Set the connector's read cadence (ADR-401 Phase 4 — the CADENCE dial).
+    """Set the connector's read cadence (ADR-582 D2 — a connection setting).
 
-    Edits the `capture-{platform}` entry's schedule in _captures.yaml via
-    `set_connector_capture_schedule` (bounded choices, floor 15min) and
-    rematerializes the capture index. 400 on an out-of-enum schedule; 404
-    when the connector has no capture entry yet (save a selection first).
-    No ADR-298 pace gate: the capture lane is mechanical; the judgment side
-    (the ADR-401 D5 derive proposal) is already funnel- and pace-bounded.
+    Writes `settings.connector.cadence` on the connection row (bounded
+    choices, floor 15min — the guardrail on API volume). 400 on an
+    out-of-enum schedule; 404 when the platform is not connected.
     """
-    from services.connector_watch import (
-        CONNECTOR_CADENCE_CHOICES,
-        set_connector_capture_schedule,
-    )
+    from services.connectors import CONNECTOR_CADENCE_CHOICES, update_connector_settings
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
     try:
-        touched = await set_connector_capture_schedule(
-            auth.client, auth.user_id, db_platform, request.schedule,
+        touched = update_connector_settings(
+            auth.client, auth.user_id, db_platform, {"cadence": request.schedule},
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if touched is None:
         raise HTTPException(
-            status_code=404,
-            detail=f"No capture entry for {provider} — save a channel selection first.",
+            status_code=404, detail=f"No {provider} connection found.",
         )
     return {
         "success": True,
@@ -862,14 +855,13 @@ async def disconnect_integration(
     auth: UserClient
 ) -> dict:
     """
-    Disconnect an integration (teardown contract per ADR-401 D3).
+    Disconnect an integration (teardown contract per ADR-401 D3 / ADR-582).
 
-    Deletes the connection row (credentials) and removes the connector's
-    capture entry from _captures.yaml (machine state; seed-at-select
-    recreates it on reconnect+select). Deliberately KEEPS the
-    operator-authored _watch.yaml declaration (reconnect restores perception
-    without re-declaring) and the inbound/ raw (it ages out mechanically
-    under the retention GC; cited raw stays as evidence).
+    Deletes the connection row — and with it the selection + connector
+    settings, which live ON the row (ADR-582 D2: credential gone means
+    aperture gone; a fresh connect is a fresh selection). The landed raw is
+    deliberately KEPT (it ages out mechanically under the retention GC;
+    cited raw stays as evidence).
     """
     user_id = auth.user_id
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
@@ -888,18 +880,9 @@ async def disconnect_integration(
         if not result_data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
 
-        # ADR-401 D3: tear down the capture entry (machine state) with the
-        # connection. Best-effort — a teardown failure never fails the
-        # disconnect (the capture would skip via the capability gate anyway).
-        try:
-            from services.connector_watch import remove_connector_capture
-            db_platform = providers_to_try[0]
-            await remove_connector_capture(auth.client, user_id, db_platform)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "[INTEGRATIONS] capture teardown failed for %s/%s: %s",
-                user_id[:8], provider, exc,
-            )
+        # ADR-582 D2: no capture-entry teardown needed — selection, settings,
+        # and cadence lived ON the deleted row; the capture walk simply stops
+        # finding the connection on the next tick.
 
         # ADR-207 P4a: Platform Bots dissolved. OAuth disconnect no longer
         # deletes a bot agent row — the row doesn't exist. The platform
@@ -2199,58 +2182,11 @@ async def update_selected_sources(
         "landscape": landscape,
     }).eq("id", integration.data[0]["id"]).execute()
 
-    # ADR-392 D7 (Phase 2 Select) — the landscape row is the UI-selection cache;
-    # the WATCH DECLARATION is the substrate the capture recurrence reads. Mirror
-    # the selection into operation/_connectors/{platform}/_watch.yaml so Phase 3
-    # (SyncPlatformState capture) has a consumer. This is what gives
-    # selected_sources a consumer (the gap ADR-392 D3 named). Every resource the
-    # operator could pick is recorded with its in/out state so a de-select is a
-    # `selected: false` entry, not an omission (the walker sees the full set).
-    try:
-        from services.connector_watch import write_selection
-        db_platform = providers_to_try[0]
-        selected_id_set = set(allowed_ids)
-        declaration_selections = [
-            {
-                "id": r.get("id"),
-                "name": r.get("name", r.get("id")),
-                "selected": r.get("id") in selected_id_set,
-            }
-            for r in resources
-            if r.get("id")
-        ]
-        await write_selection(
-            auth.client, user_id, db_platform, declaration_selections,
-            authored_by="operator",
-        )
-    except Exception as exc:  # noqa: BLE001 — declaration mirror is best-effort
-        logger.warning(
-            "[INTEGRATIONS] ADR-392: connector-watch declaration write failed for %s: %s",
-            provider, exc,
-        )
-
-    # ADR-394 D2 (Phase 3 Capture, seed-at-select) — the watch declaration alone
-    # captures nothing; a capture DECLARATION (_captures.yaml naming
-    # CaptureConnector) is what the capture lane runs. Connectors are
-    # kernel-universal (no bundle), and *whether* to capture a selected channel
-    # has no judgment in it, so the declaration is seeded here deterministically:
-    # ≥1 selected → an active capture-{platform} entry; 0 selected → paused.
-    # Best-effort: a seed failure never fails the selection save.
-    # ADR-404 D2: seed only while the capture lane is live — selection stays a
-    # pure scope declaration while the lane is dormant.
-    try:
-        from services.connector_capture_gating import is_connector_capture_enabled
-        if is_connector_capture_enabled():
-            from services.connector_watch import seed_connector_capture
-            await seed_connector_capture(
-                auth.client, user_id, providers_to_try[0],
-                selected_count=len(allowed_ids),
-            )
-    except Exception as exc:  # noqa: BLE001 — capture seed is best-effort
-        logger.warning(
-            "[INTEGRATIONS] ADR-394: connector capture seed failed for %s: %s",
-            provider, exc,
-        )
+    # ADR-582 D2: landscape.selected_sources (written above) IS the one
+    # selection store. The `_watch.yaml` substrate mirror and the
+    # `_captures.yaml` seed-at-select are DELETED — the capture walk
+    # (services/connectors.py) reads the landscape row directly on the
+    # scheduler tick.
 
     logger.info(f"[INTEGRATIONS] User {user_id} updated {provider} sources: {len(selected_sources)} selected")
 
@@ -2346,18 +2282,42 @@ async def get_capture_signal(
       }
     """
     from services.agent_gating import is_agent_enabled
-    from services.capture.declarations import read_capture_signal, walk_workspace_captures
+    from services.capture.declarations import read_capture_signal
     from services.connector_capture_gating import is_connector_capture_enabled
-    from services.connector_watch import CONNECTOR_CADENCE_CHOICES, read_selection
+    from services.connectors import CONNECTOR_CADENCE_CHOICES, connector_settings
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
-    # DECLARED — the watch declaration (full set, in- and out-of-scope).
+    # DECLARED — the selection, from the ONE store (ADR-582 D2:
+    # landscape.selected_sources; the _watch.yaml mirror is deleted). Shape
+    # preserved for the FE: [{id, name, selected}] — every selectable resource
+    # with its in/out state.
+    declared: list[dict[str, Any]] = []
+    conn_row: Optional[dict[str, Any]] = None
     try:
-        declared = await read_selection(auth.client, auth.user_id, db_platform)
+        rows = (
+            auth.client.table("platform_connections")
+            .select("landscape, settings, metadata, created_at, platform")
+            .eq(*account_scope_filter(auth.user_id))
+            .eq("platform", db_platform)
+            .limit(1)
+            .execute()
+        ).data or []
+        conn_row = rows[0] if rows else None
+        if conn_row:
+            landscape = conn_row.get("landscape") or {}
+            selected = {
+                str(s.get("id")) for s in (landscape.get("selected_sources") or [])
+                if isinstance(s, dict) and s.get("id")
+            }
+            declared = [
+                {"id": r.get("id"), "name": r.get("name", r.get("id")),
+                 "selected": str(r.get("id")) in selected}
+                for r in (landscape.get("resources") or [])
+                if r.get("id")
+            ]
     except Exception as exc:  # noqa: BLE001 — declaration read is best-effort
-        logger.warning("[INTEGRATIONS] capture-signal: watch read failed for %s: %s", provider, exc)
-        declared = []
+        logger.warning("[INTEGRATIONS] capture-signal: selection read failed for %s: %s", provider, exc)
 
     # OBSERVED — the capture health signal (workspace-wide; the FE matches
     # per-selector by convention or shows the workspace capture health).
@@ -2372,38 +2332,24 @@ async def get_capture_signal(
     # at OAuth exchange (Slack oauth.py:345, GitHub :436); Notion stores none.
     granted_scopes: list[str] = []
     connection: Optional[dict[str, Any]] = None
-    try:
-        row = (
-            auth.client.table("platform_connections")
-            .select("metadata, created_at")
-            .eq(*account_scope_filter(auth.user_id))
-            .eq("platform", db_platform)
-            .limit(1)
-            .execute()
-        )
-        if row.data:
-            md = row.data[0].get("metadata") or {}
-            scope_str = md.get("scope") or ""
-            granted_scopes = [s.strip() for s in scope_str.split(",") if s.strip()]
-            connection = {
-                "workspace_name": md.get("workspace_name"),
-                "connected_at": row.data[0].get("created_at"),
-            }
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[INTEGRATIONS] capture-signal: connection read failed for %s: %s", provider, exc)
+    if conn_row:
+        md = conn_row.get("metadata") or {}
+        scope_str = md.get("scope") or ""
+        granted_scopes = [s.strip() for s in scope_str.split(",") if s.strip()]
+        connection = {
+            "workspace_name": md.get("workspace_name"),
+            "connected_at": conn_row.get("created_at"),
+        }
 
-    # CADENCE — the connector's capture entry (seed-at-select, ADR-394 D2).
+    # CADENCE — the connection's setting (ADR-582 D2). "Paused" is simply an
+    # empty selection now — no seeded entry to pause.
     capture: Optional[dict[str, Any]] = None
-    try:
-        for decl in walk_workspace_captures(auth.client, auth.user_id):
-            if decl.slug == f"capture-{db_platform}":
-                sched = decl.schedule  # str | list[str] | None (recurrence-shape)
-                if isinstance(sched, list):
-                    sched = sched[0] if sched else None
-                capture = {"schedule": sched, "paused": decl.paused}
-                break
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[INTEGRATIONS] capture-signal: captures read failed for %s: %s", provider, exc)
+    if conn_row:
+        cs = connector_settings(conn_row)
+        capture = {
+            "schedule": cs["cadence"],
+            "paused": not any(d.get("selected") for d in declared),
+        }
 
     return {
         "provider": provider,

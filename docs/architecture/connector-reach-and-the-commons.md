@@ -7,6 +7,12 @@
 > the discourse record — §2's receipts are point-in-time and §5's named-seams
 > list remains load-bearing (those deletions are still deletions).
 >
+> **Re-framed by [ADR-582](../adr/ADR-582-the-connector-is-a-writer-not-a-pipeline.md)**
+> (2026-08-19): the connector is a WRITER; the digest is opt-in; landed files
+> are member-visible with zero LLM. Current contract:
+> [connectors.md](connectors.md). §5's named seams (incl. turn reach) survive
+> both re-cuts unchanged.
+>
 > **Last measured**: 2026-08-18 (ADR-576, ADR-577; re-measured the same day by
 > the ADR-580 session — one correction: the slack `'authored'` defect was in the
 > 48 DATA rows, not the live writer, which `f355d26` had already fixed).

@@ -27,11 +27,18 @@ a human's upload, a connected LLM — follows the same four stages:
 Stage 1 is **mandatory**. Stages 2–3 are **per-lane decisions with a stated
 reason** (§4). Stage 4 is a consequence, not a step.
 
-### The path grammar (binding)
+### The path grammar (binding as the default)
 
 ```
 inbound/{lane}/{selector}/{stamp}.{ext}
 ```
+
+> **ADR-582 D3 amendment**: for the CONNECTOR lanes this grammar is the
+> **default destination**, not a law — the operator may re-home a
+> connection's snapshots (`settings.connector.destination`), and raw-ness
+> keys on `revision_kind='observation'` (the ledger), not the address.
+> Filing within any destination stays deterministic. Other lanes are
+> unchanged.
 
 | Segment | Means | Examples |
 |---|---|---|
@@ -110,7 +117,7 @@ machinery, not a contributor). Live precedent:
 | Lane | `authored_by` | `revision_kind` |
 |---|---|---|
 | `web` | `system:track-web-sources` | `observation` |
-| `slack` | `system:sync-platform-state` | `observation` |
+| `slack`/`notion`/`github` | `system:capture-{platform}` (ADR-582; historical rows: `system:sync-platform-state`) | `observation` |
 | `uploads` | `operator` | `observation` |
 | `mcp` | `yarnnn:mcp:Claude` / `:chatgpt` | `observation` + `authored` |
 
@@ -171,7 +178,7 @@ Whether a lane distils is a decision, and the reason must be stated:
 | `web` | **yes** | RSS/Atom is machine-shaped; unusable until distilled |
 | `uploads` | **yes** | `system:extract` → `derivation` (text out of blobs) |
 | `mcp` | **no** | an MCP write is already meaningful authored prose — there is nothing to distil |
-| `slack` / `notion` / `github` | **yes** (ADR-580) | `services/connector_derive.py` — one bounded turn per watched selector maintains `operation/_connectors/{platform}/{selector}.md`, citing the raw; dormant with the capture lane (ADR-404 D2) |
+| `slack` / `notion` / `github` | **opt-in** (ADR-580, demoted by ADR-582 D5) | the digest (`connector_derive.py`) runs only for connections with `settings.connector.digest = true` — landed files are member-visible without it, so distil is a consumer, not the lane's obligation. Contract: [connectors.md](connectors.md) |
 
 **`mcp` not deriving is correct.** The connector gap this table once named is
 closed by [ADR-580](../adr/ADR-580-the-connector-derive-step.md); the brief

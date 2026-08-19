@@ -98,6 +98,13 @@ The **per-platform read-tool binding** (`read_tool` / `selector_arg`) is a kerne
 
 ### D3 — Derive is the seat's existing act, ratified by reference (no new step)
 
+> **⚠️ SUPERSEDED in mechanism by [ADR-582](ADR-582-the-connector-is-a-writer-not-a-pipeline.md)
+> (2026-08-19)**: `CaptureConnector`, the seed-at-select, and the
+> `_captures.yaml` connector entries are DELETED — connector capture is a
+> direct scheduler walk (`services/connectors.py`) reading the ONE selection
+> store. The D1 fan-out *insight* (per-selector reads over a declaration)
+> survives inside the walk. Earlier amendment below:
+>
 > **⚠️ AMENDED by [ADR-580](ADR-580-the-connector-derive-step.md) D2
 > (2026-08-18).** The seat's derive-and-cite act stands, but as the SOLE
 > derive path it was a documented property no path established: in seven

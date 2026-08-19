@@ -255,7 +255,7 @@ def test_adoption_boundary() -> None:
     # Mechanical appenders MUST NOT adopt the precondition.
     for rel in (
         "services/capture/lane.py",
-        "services/primitives/capture_connector.py",
+        "services/connectors.py",  # ADR-582: the connector capture walk
         "services/outcomes/ledger.py",
     ):
         p = _API_ROOT / rel

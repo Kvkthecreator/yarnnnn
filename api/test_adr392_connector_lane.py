@@ -152,68 +152,47 @@ def main():
 
 
 def _test_connector_watch():
-    """D7 — the connector-watch declaration substrate + selected-id consumer.
+    """D7, as re-cut by ADR-582 D2 — ONE selection store.
 
-    Exercises the store→read round-trip against an in-memory UserMemory fake, so
-    the declaration path, serialization, and the `selected: true` filter (the
-    Phase-3 capture consumer) are all proven without a DB.
+    The `_watch.yaml` mirror + `connector_watch.py` are DELETED: the selection
+    lives on `platform_connections.landscape.selected_sources` (the store the
+    UI always wrote), and every consumer — the capture walk, the digest, app
+    sources — reads it through `services.connectors`. These checks hold the
+    replacement store's contract AND the deletion itself.
     """
-    import asyncio
-    import services.workspace as ws
-    from services import connector_watch as cw
+    import pathlib
+
+    from services.connectors import selected_ids_from_row
 
     out = []
 
-    # 8 — declaration path is the kernel-universal machine-parsed convention
-    path = cw.watch_declaration_path("Slack")
+    # 8 — the mirror module stays deleted; nothing may quietly re-import it.
     out.append(_check(
-        "8 watch declaration path = operation/_connectors/{platform}/_watch.yaml",
-        path == "operation/_connectors/slack/_watch.yaml", f"got {path}"))
+        "8 connector_watch.py is deleted (one selection store, ADR-582 D2)",
+        not pathlib.Path("services/connector_watch.py").exists()))
+    offenders = []
+    for p in pathlib.Path("services").rglob("*.py"):
+        body = p.read_text()
+        if "connector_watch" in body and "ADR-582" not in body:
+            offenders.append(str(p))
+    out.append(_check(
+        "9 no service imports the deleted mirror module",
+        not offenders, f"offenders={offenders}"))
 
-    # In-memory UserMemory fake (files keyed by relative path).
-    store = {}
+    # 10 — the one store's consumer filter: ids from landscape.selected_sources.
+    row = {"landscape": {"selected_sources": [
+        {"id": "C001", "name": "#daily-work"},
+        {"id": "C003", "name": "#eng"},
+        {"id": "", "name": "junk"},  # dropped (no id)
+    ]}}
+    ids = selected_ids_from_row(row)
+    out.append(_check(
+        "10 selected_ids_from_row reads the ONE store (no-id row dropped)",
+        ids == ["C001", "C003"], f"ids={ids}"))
 
-    class _FakeUM:
-        def __init__(self, db, user_id):
-            pass
-
-        async def write(self, filename, content, **kw):
-            store[filename] = content
-            return True
-
-        async def read(self, filename):
-            return store.get(filename)
-
-    original = ws.UserMemory
-    ws.UserMemory = _FakeUM
-    try:
-        selections = [
-            {"id": "C001", "name": "#daily-work", "selected": True},
-            {"id": "C002", "name": "#random", "selected": False},
-            {"id": "C003", "name": "#eng", "selected": True},
-            {"id": "", "name": "junk", "selected": True},  # dropped (no id)
-        ]
-        asyncio.run(cw.write_selection(None, "u1", "slack", selections))
-
-        # 9 — round-trip: read_selection returns the full set minus the no-id row
-        read_back = asyncio.run(cw.read_selection(None, "u1", "slack"))
-        out.append(_check(
-            "9 write→read round-trip preserves selections (no-id row dropped)",
-            len(read_back) == 3 and {s["id"] for s in read_back} == {"C001", "C002", "C003"},
-            f"read_back={read_back}"))
-
-        # 10 — the Phase-3 consumer: only `selected: true` ids
-        ids = asyncio.run(cw.read_selected_ids(None, "u1", "slack"))
-        out.append(_check(
-            "10 read_selected_ids returns only selected:true (the capture consumer)",
-            set(ids) == {"C001", "C003"}, f"ids={ids}"))
-
-        # 11 — empty declaration reads as [] (never raises)
-        empty = asyncio.run(cw.read_selection(None, "u1", "notion"))
-        out.append(_check(
-            "11 unset declaration reads as [] (never raises)", empty == []))
-    finally:
-        ws.UserMemory = original
+    # 11 — an unconnected/unselected row reads as [] (never raises)
+    out.append(_check(
+        "11 empty landscape reads as []", selected_ids_from_row({}) == []))
 
     return out
 

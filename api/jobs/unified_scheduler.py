@@ -346,14 +346,33 @@ async def run_unified_scheduler():
                 logger.warning("[SCHED] capture lane raised: %s", exc)
 
         # ---------------------------------------------------------------------
-        # ADR-580: the connector derive lane — the intake pipeline's distil
-        # step for platform raw. Walks active content-platform connections and
-        # derives every watched selector with raw NEWER than the deriver's own
-        # last digest write, at most once per DERIVE_MIN_INTERVAL_HOURS — the
-        # ADR-401 D5 amendment holds: derive pace is decoupled from capture
-        # cadence, and a quiet world costs $0. Runs AFTER the capture drain so
-        # a derive can read the raw this tick just retained; gated with it
-        # (ADR-404 D2 — capture and derive are one lane, one flag).
+        # ADR-582: the connector capture walk — the connector is a WRITER.
+        # Walks active content-platform connections (selection read from the
+        # ONE store, landscape.selected_sources) and lands diff-aware
+        # attributed observation snapshots at each connection's destination on
+        # its cadence. Zero LLM. Replaces the seeded _captures.yaml entries +
+        # CaptureConnector primitive (deleted; production carried zero seeded
+        # rows). Gated by the same flag (ADR-404 D2).
+        # ---------------------------------------------------------------------
+        if capture_lane_on:
+            try:
+                from services.connectors import drain_due_connector_captures
+                cc_found, cc_ok, cc_failed = await drain_due_connector_captures(supabase)
+                if cc_found > 0:
+                    logger.info(
+                        f"[SCHED] connector captures: {cc_ok}/{cc_found} succeeded, "
+                        f"{cc_failed} failed"
+                    )
+            except Exception as exc:
+                logger.warning("[SCHED] connector capture walk raised: %s", exc)
+
+        # ---------------------------------------------------------------------
+        # ADR-580 (demoted to opt-in by ADR-582 D5): the connector digest —
+        # one bounded turn per watched selector, ONLY for connections with
+        # settings.connector.digest = true. Pace decoupled from capture
+        # cadence (new-raw gate + 6h floor); a quiet world costs $0. Runs
+        # AFTER the capture walk so a digest can read the raw this tick just
+        # retained; gated with it (ADR-404 D2 — one lane, one flag).
         # ---------------------------------------------------------------------
         if capture_lane_on:
             try:

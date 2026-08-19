@@ -127,7 +127,7 @@ def _test_raw_is_an_observation():
 
     # Capture writers must not hardcode 'authored'.
     offenders = []
-    for rel in ("services/primitives/capture_connector.py",
+    for rel in ("services/connectors.py",  # ADR-582: the connector capture walk
                 "services/primitives/sync_platform_state.py",
                 "services/primitives/track_web_sources.py"):
         f = API / rel

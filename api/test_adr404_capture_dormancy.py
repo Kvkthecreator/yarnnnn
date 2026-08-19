@@ -15,8 +15,10 @@ the dormant-state contract:
 4. Cut site #3 — the capture-signal endpoint surfaces
    `connector_capture_enabled` for the FE (source inspection).
 5. Hide-not-revert invariant — every capture module survives intact and
-   importable: `services.capture.*`, `capture_connector`, `connector_watch`,
-   `connector_retention`. Dormant, not deleted.
+   importable: `services.capture.*`, `connectors`, `connector_derive`,
+   `connector_retention`. Dormant, not deleted. (ADR-582 deleted
+   `capture_connector` + `connector_watch` outright — that deletion is a
+   re-cut, not a dormancy cut, and is gated by test_adr392/test_adr582.)
 
 Run: .venv/bin/python api/test_adr404_capture_dormancy.py
 """
@@ -95,10 +97,13 @@ def test_scheduler_cut_sites() -> None:
         "is_connector_capture_enabled" in src,
         "unified_scheduler imports the resolver",
     )
-    # The drain and the GC are both behind the same computed flag variable.
+    # Every connector-lane block is behind the same computed flag variable:
+    # the declaration-capture drain, the ADR-582 connector capture walk, the
+    # raw-lane GC, and the ADR-580 digest drain.
     _assert(
-        src.count("if capture_lane_on:") == 2,
-        "exactly two blocks (capture drain + raw-lane GC) gate on capture_lane_on",
+        src.count("if capture_lane_on:") == 4,
+        "exactly four blocks (capture drain + connector walk + GC + digest) "
+        "gate on capture_lane_on",
     )
     # Ordering: the flag is computed before the drain call.
     _assert(
@@ -109,22 +114,16 @@ def test_scheduler_cut_sites() -> None:
 
 
 def test_seed_and_signal_cut_sites() -> None:
-    print("\n[3] route cut sites — seed guarded, teardown not, signal surfaced")
+    print("\n[3] route cut sites — no seeding exists, signal surfaced")
     src = (_API_ROOT / "routes" / "integrations.py").read_text()
 
-    # Seed-at-select consults the resolver before seeding.
-    seed_idx = src.index("seed_connector_capture(")
-    guard_idx = src.rindex("is_connector_capture_enabled()", 0, seed_idx)
+    # ADR-582 D2: seed-at-select is DELETED, which is the strongest form of
+    # the dormancy cut — saving a selection touches nothing but the landscape
+    # row, flag on or off. Nothing may quietly reintroduce a seed.
     _assert(
-        seed_idx - guard_idx < 400,
-        "seed_connector_capture is guarded by the resolver (same block)",
-    )
-    # Disconnect teardown stays unguarded — cleanup must always work.
-    td_idx = src.index("remove_connector_capture(")
-    preceding = src[max(0, td_idx - 600):td_idx]
-    _assert(
-        "is_connector_capture_enabled" not in preceding,
-        "remove_connector_capture (disconnect teardown) is NOT guarded",
+        "seed_connector_capture" not in src
+        and "remove_connector_capture" not in src,
+        "no capture seeding/teardown exists in the routes (ADR-582 D2)",
     )
     # The capture-signal endpoint surfaces the flag for the FE.
     _assert(
@@ -147,8 +146,10 @@ def test_modules_survive() -> None:
         "services.capture.declarations",
         "services.capture.scheduling",
         "services.capture.drainer",
-        "services.primitives.capture_connector",
-        "services.connector_watch",
+        # ADR-582: capture_connector + connector_watch are DELETED (not
+        # hidden); the connector lane's live modules are these two.
+        "services.connectors",
+        "services.connector_derive",
         "services.connector_retention",
     ):
         try:

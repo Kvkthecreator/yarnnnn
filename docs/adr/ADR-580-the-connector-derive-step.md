@@ -5,6 +5,14 @@
 > flipping the flag remains a separate operator decision). Pending operator
 > ratification of the decisions below; the code is flag-inert until then.
 >
+> **⚠️ D2's stage framing DEMOTED by [ADR-582](ADR-582-the-connector-is-a-writer-not-a-pipeline.md) D5
+> (2026-08-19).** The derive machinery here survives exactly as built, but it
+> is an OPT-IN consumer (`settings.connector.digest = true`, default off) —
+> no longer the lane's mandatory stage 2. The connector itself is a WRITER
+> (`services/connectors.py`); landed files are member-visible without any
+> LLM turn. Attribution (D4), `connected_by` (D5), the shared turn (D6), the
+> engine row (D7), and the relabel (D8) all stand unamended.
+>
 > **Dimensional classification (Axiom 0)**: **Mechanism** (Axiom 5 — the distil
 > step the connector lanes lacked) + **Substrate** (where derived understanding
 > lands) + **Trigger** (the derive pace law).

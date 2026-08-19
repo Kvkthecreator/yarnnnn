@@ -2014,14 +2014,14 @@ async def _github_selected_repos(auth: Any) -> list[str]:
     monitoring cannot see. The aperture is a declared narrowing, not a
     security control — the OAuth scope is the security control.
     """
-    from services.connector_watch import read_selected_ids
+    from services.connectors import selected_ids
 
     client = getattr(auth, "client", None)
     user_id = getattr(auth, "user_id", None)
     if client is None or not user_id:
         return []
     try:
-        ids = await read_selected_ids(client, user_id, "github")
+        ids = await selected_ids(client, user_id, "github")
     except Exception as e:  # noqa: BLE001
         logger.warning(
             "[PLATFORM-TOOLS] github aperture read failed (%s) — treating as "

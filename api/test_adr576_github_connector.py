@@ -142,10 +142,10 @@ def _drive_github(monkey_selection, tool, tool_input, repos_returned=None):
     from services import platform_tools as pt
     from integrations.core import github_client as gc
     from integrations.core import tokens as tk
-    import services.connector_watch as cw
+    import services.connectors as cn  # ADR-582: the ONE selection store's reader
     import services.platform_credentials as pc
 
-    async def fake_read_selected_ids(client, user_id, platform):
+    async def fake_selected_ids(client, user_id, platform):
         return list(monkey_selection)
 
     class _FakeClient:
@@ -156,12 +156,12 @@ def _drive_github(monkey_selection, tool, tool_input, repos_returned=None):
             return {"full_name": repo, "reached": True}
 
     orig = {
-        "sel": cw.read_selected_ids,
+        "sel": cn.selected_ids,
         "cred": pc.resolve_platform_credential,
         "tok": tk.get_token_manager,
         "cli": gc.get_github_client,
     }
-    cw.read_selected_ids = fake_read_selected_ids
+    cn.selected_ids = fake_selected_ids
     pc.resolve_platform_credential = lambda auth, p: {"credentials_encrypted": "x"}
     tk.get_token_manager = lambda: type("_T", (), {"decrypt": lambda s, v: "tok"})()
     gc.get_github_client = lambda: _FakeClient()
@@ -170,7 +170,7 @@ def _drive_github(monkey_selection, tool, tool_input, repos_returned=None):
             pt._handle_github_tool(_FakeAuth(), tool, tool_input)
         )
     finally:
-        cw.read_selected_ids = orig["sel"]
+        cn.selected_ids = orig["sel"]
         pc.resolve_platform_credential = orig["cred"]
         tk.get_token_manager = orig["tok"]
         gc.get_github_client = orig["cli"]
