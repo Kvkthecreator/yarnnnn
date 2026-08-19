@@ -237,6 +237,12 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
     "services/capture/lane.py",         # capability gate: existence, not token
     # -- capability probe: a HUMAN's availability question (ADR-577 §1e) --
     "services/orchestration.py",
+    # -- ADR-582: the connector lane's scheduler walks (service-role; read
+    #    selection/settings/connected_by ONLY — held by the ENUMERATION_ONLY
+    #    check below, not by this comment; the tool call inside the capture
+    #    walk goes through handle_platform_tool → the chokepoint) --
+    "services/connectors.py",
+    "services/connector_derive.py",
     # -- service-role / scheduler paths with no acting principal --
     "services/risk_gate.py",
     "services/outcomes/commerce.py",
@@ -244,6 +250,26 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
     "services/outcomes/trading.py",
     "services/primitives/track_foreign.py",
     "services/primitives/track_regime.py",
+}
+
+#: Allowlisted readers whose justification is "enumeration only — never the
+#: token". Found 2026-08-19: the allowlist was EXISTENCE-based, so an
+#: allowlisted file could silently GROW a credential read (a falsifier adding
+#: `credentials_encrypted` to connectors.py stayed green). These entries now
+#: earn their comment mechanically. Files legitimately touching credentials
+#: (the chokepoint, routes/integrations OAuth management, validation probe,
+#: track_universe, outcomes providers) are deliberately NOT here.
+ENUMERATION_ONLY = {
+    "services/connectors.py",
+    "services/connector_derive.py",
+    "services/bundle_reader.py",
+    "services/freddie_envelope.py",
+    "services/primitives/registry.py",
+    "services/primitives/system_state.py",
+    "services/working_memory.py",
+    "services/capture/lane.py",
+    "routes/system.py",
+    "routes/workspace.py",
 }
 
 
@@ -281,6 +307,17 @@ def _test_chokepoint_breadth():
             stale.append(f"{rel} (no longer reads)")
     out.append(_check(
         "6b no stale allowlist entries", not stale, f"stale={stale}"))
+
+    # 6c — an "enumeration only" entry must STAY enumeration-only: the
+    # allowlist was existence-based, so an entry could silently grow a
+    # credential read behind its own justifying comment (found by falsifier
+    # 2026-08-19). Code-only, so a comment mentioning the column is fine.
+    grew = [rel for rel in sorted(ENUMERATION_ONLY)
+            if (API / rel).exists()
+            and "credentials_encrypted" in _code_only(API / rel)]
+    out.append(_check(
+        "6c enumeration-only readers never touch credentials_encrypted",
+        not grew, f"grew a credential read: {grew}"))
 
     return out
 
