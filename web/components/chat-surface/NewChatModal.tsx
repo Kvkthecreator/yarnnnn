@@ -204,6 +204,18 @@ export function NewChatModal({ engines, onPick, onClose }: NewChatModalProps) {
               Adding a colleague or a teammate happens IN the conversation
               (the cast), not at this door. */}
           <div className="mt-4 pt-3 border-t border-border space-y-1">
+            {/* The door asks "which engine?" but the roster answers only with
+                names — a member with no basis to choose had nowhere to go.
+                /engines is that basis (external benchmarks + their own usage);
+                it ranks nothing, so it never goes stale on a model release. */}
+            <a
+              href="/engines"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-xs text-muted-foreground hover:text-foreground"
+            >
+              Not sure which to pick? →
+            </a>
             <p className="text-xs text-muted-foreground">
               Add people or agents once the chat is open.
             </p>

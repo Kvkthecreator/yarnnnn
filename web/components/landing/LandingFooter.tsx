@@ -50,6 +50,11 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
                 </Link>
               </li>
               <li>
+                <Link href="/engines" className={`${hoverClass} transition-colors`}>
+                  Choosing an engine
+                </Link>
+              </li>
+              <li>
                 <Link href="/faq" className={`${hoverClass} transition-colors`}>
                   FAQ
                 </Link>

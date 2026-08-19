@@ -107,3 +107,67 @@ pre-migration rows); RPC coalesce shape; boundary math (2 humans free, 3rd
 billable); invite-gate copy names two people; allowance config zeroed.
 Sibling ADR-445 gates updated where they asserted the superseded boundary,
 solo-checkout copy, and price strings.
+
+## Amendment (2026-08-19) — a cost-to-intelligence reference is not a billboard
+
+**Status**: Accepted (operator-ratified in discourse — the engine-choice audit).
+**Amends**: §1②'s display posture, by clarifying its scope. The ruling itself
+stands: no surface advertises "cost + α", and the platform margin is not
+published.
+
+### What prompted it
+
+The chat door (`/api/lanes` → `models[]`) offers engines as `{id, label,
+vision, available}` — a name and whether it works. A member deciding between
+Claude Sonnet, GPT-5 and Gemini Flash had **no basis in the product to
+choose**, and the door's own heading asks "Which engine?". Engine choice is
+also the single largest lever on what a workspace spends, so the absence was
+costing members money they had no way to reason about.
+
+The question raised: does §1② forbid helping them? And separately — since
+`cost_usd` is truthful provider list cost and `billed_usd` is a flat multiple
+of it, the multiplier is arithmetically recoverable from any per-engine spend
+figure plus public list prices (verified on live rows: Sonnet-5 billed $8.0542
+against $6.1955 of list-priced tokens → exactly 1.3000). Is the "not a
+billboard" ruling therefore already moot?
+
+### The clarification
+
+**No, and the ruling is unchanged — because it was never a secrecy claim.**
+§1②'s stated reasoning is *identity*: advertising "cost + α" would make yarnnn
+the OpenRouter-shaped thing whose pitch is its margin and whose competitive
+axis is price-per-token. That is a positioning decision, and it holds
+regardless of what is derivable by someone who already has a workspace, our
+billed figures, and the provider rate cards.
+
+So: **the margin is not stated on any surface** (the operator's call,
+2026-08-19). It is not a headline, not a footnote, and not in the pricing copy.
+
+**What §1② does not forbid** is telling a member how to think about choosing an
+engine. A reference page that ranks nothing, prices nothing, and points at
+independent third parties is not "cost + α" positioning — it is the product
+answering a question it already asks the member at the door.
+
+### What shipped
+
+`/engines` (public, footer-linked, in the sitemap; linked from the chat
+chooser and from `/pricing`'s "What's usage?" card). Its content discipline is
+the load-bearing part:
+
+- **It names no model, quotes no price, and ranks nothing.** Every volatile
+  fact sits behind an outbound link to a source that maintains it
+  professionally (Artificial Analysis for the cost-versus-intelligence
+  frontier, LMArena for capability, the four providers' own rate cards).
+- **It carries only the non-expiring shape of the tradeoff** — that a weaker
+  engine can cost more when it needs three attempts, that conversation length
+  outweighs engine choice, that mechanical work rarely needs the top engine.
+- **It points inward at the member's own by-engine usage** (ADR-396 §11) as
+  the better benchmark, since a leaderboard cannot know what *their* work
+  costs.
+
+The rejected alternative was a maintained comparison table. It would be wrong
+within weeks of any release and would rot **invisibly** — a stale table is
+indistinguishable from a current one, and no gate can catch it. The provider
+list is enumerated by PROVIDER, not by model, so a model release never requires
+an edit; a new provider in `LANE_MODELS` does, and a gate asserts that
+(`web/tests/engines-page-providers.test.mjs`).

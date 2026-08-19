@@ -241,7 +241,15 @@ export default function PricingPage() {
                   <p className="text-white/50 text-sm leading-relaxed">
                     Usage is the model work your workspace runs — a judgment call, a piece of
                     research, a draft. It draws your balance as it happens, and you see every
-                    action on your Usage screen. Only what actually ran counts.
+                    action on your Usage screen. Only what actually ran counts. The engine you
+                    pick is the biggest lever on what it costs —{" "}
+                    <Link
+                      href="/engines"
+                      className="text-white/70 underline underline-offset-4 decoration-white/30 hover:decoration-white/70"
+                    >
+                      how to choose one
+                    </Link>
+                    .
                   </p>
                 </div>
               </SpotlightCard>
