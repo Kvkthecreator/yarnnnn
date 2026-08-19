@@ -295,9 +295,12 @@ export function StudioBlockInsertMenu({
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* The target is NAMED. On a spatial surface "insert" without a stated
-          destination is the ambiguity that makes members undo and retry. */}
+          destination is the ambiguity that makes members undo and retry.
+          The label carries its OWN preposition ("into slide 2" / "after the
+          stat") — a fixed "into" prefix here composed "into after the stat"
+          on every block-selected open (ADR-586 click-pass). */}
       <p className="shrink-0 border-b border-border/60 px-2.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-        Add — into {targetLabel}
+        Add — {targetLabel}
       </p>
       <div className={`flex min-h-0 flex-1 ${sheet ? 'flex-col' : ''}`}>
         {railEl}

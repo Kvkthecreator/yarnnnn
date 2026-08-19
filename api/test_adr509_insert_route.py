@@ -167,8 +167,13 @@ def main() -> int:
             "template === 'deck' ? 'slide' : 'section'" in body,
         )
     _check(
-        "the menu STATES the destination — and speaks its VERB (ADR-579 D6.a)",
-        "— into {targetLabel}" in MENU,
+        # Anchored on the WIRED interpolation, not the surrounding preposition:
+        # ADR-586's click-pass moved the preposition INTO the label (each branch
+        # owns "into …"/"after …", so the header stopped composing "into after
+        # the stat"). The claim here is that the destination is STATED — pinning
+        # the old spelling read that correction as a violation.
+        "the menu STATES the destination (ADR-579 D6.a; spelling owned by ADR-586)",
+        re.search(r"Add —\s*(into\s*)?\{targetLabel\}", MENU) is not None,
     )
 
     print("\n-- D3: one list, three doors (no second mechanism) --")

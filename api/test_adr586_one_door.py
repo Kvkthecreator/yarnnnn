@@ -160,6 +160,40 @@ t("a library pick lands DIRECTLY through insertBlock — no picker hop, no colla
 t("the door still teaches when the library is empty",
   "No shared components yet" in MENU)
 
+print("=== 7b. The named target COMPOSES (the click-pass defect) ===")
+
+# The header states the target verbatim; each resolver branch must therefore
+# carry its OWN preposition. A fixed "into" prefix in the header composed
+# "Add — into after the stat" on every block-selected open (both housings) —
+# found by driving, not by any gate, which is why this one exists.
+#
+# Assert the COMPOSITION, not either half alone: pair the header's shape with
+# every label branch, so restoring the prefix OR dropping a branch's
+# preposition goes red.
+HEADER_M = re.search(r"Add — \{?(\w*)\}?\{targetLabel\}", MENU_NC) or re.search(
+    r"Add —\s*(into\s*)?\{targetLabel\}", MENU_NC)
+t("the header does NOT prefix a preposition (the label owns it)",
+  HEADER_M is not None and not (HEADER_M.group(1) or "").strip())
+
+# Every `label:` inside resolveInsertTarget, by brace-bounded body (never a
+# fixed window — windows reach into the neighbour).
+_ri = SURFACE_NC.index("const resolveInsertTarget")
+_depth, _end = 0, _ri
+for _i in range(_ri, len(SURFACE_NC)):
+    if SURFACE_NC[_i] == "{":
+        _depth += 1
+    elif SURFACE_NC[_i] == "}":
+        _depth -= 1
+        if _depth == 0:
+            _end = _i
+            break
+RESOLVER = SURFACE_NC[_ri:_end]
+LABELS = re.findall(r"label:\s*([^,\n]+)", RESOLVER)
+t("resolveInsertTarget yields >1 label branch (the set is really walked)",
+  len(LABELS) >= 3)
+t("EVERY target label carries its own preposition (into… / after…)",
+  all(re.search(r"['\`](into|after)\s|\?\s*['\`](into|after)\s", L) for L in LABELS))
+
 print("=== 8. Falsifiers ===")
 
 # F1 — the coverage claim can fail: a kind whose declaration fit no category
@@ -174,6 +208,11 @@ t("F2 the one-door pin counts presses AND forbids verbs (not co-occurrence)",
 # F3 — comment stripping works (an absence assertion must not match prose).
 t("F3 strip_comments removes a token appearing only in a comment",
   "pendingSlashVerb" not in strip_comments("// pendingSlashVerb was here\nconst a = 1;"))
+# F4 — the composition check is falsifiable in BOTH directions: a label branch
+# that drops its preposition must fail the all() above.
+t("F4 a preposition-less label branch would be rejected",
+  not all(re.search(r"['\`](into|after)\s", L)
+          for L in ["`after the ${k}`", "`slide 2`"]))
 
 print(f"\n{PASS}/{PASS + FAIL} passed")
 sys.exit(0 if FAIL == 0 else 1)

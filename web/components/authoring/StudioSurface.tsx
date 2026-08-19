@@ -2630,11 +2630,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     if (sel?.blockId) {
       return {
         slot: null, blockId: sel.blockId, slideIndex, pageIndex,
+        // The label carries its OWN preposition. The header states the target
+        // verbatim, so a branch that reads "after the stat" must not be handed
+        // to a fixed "into" prefix — that composed "into after the stat", the
+        // ungrammatical header the ADR-586 click-pass found on every
+        // block-selected open (both the popover and the bottom sheet).
         label: sel.blockKind ? `after the ${sel.blockKind}` : 'after the selected block',
       };
     }
     if (sel?.slot) {
-      return { slot: sel.slot, blockId: null, slideIndex, pageIndex, label: sel.slot };
+      return { slot: sel.slot, blockId: null, slideIndex, pageIndex, label: `into ${sel.slot}` };
     }
     const nth = (slideIndex ?? pageIndex);
     // Same derivation the toolbar's New-‹noun› uses (deck speaks "slide",
@@ -2642,7 +2647,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const noun = template === 'deck' ? 'slide' : 'section';
     return {
       slot: null, blockId: null, slideIndex, pageIndex,
-      label: nth == null ? `this ${noun}` : `${noun} ${nth + 1}`,
+      label: nth == null ? `into this ${noun}` : `into ${noun} ${nth + 1}`,
     };
     // `viewportPage` is a DEPENDENCY, not a closed-over constant — the sibling
     // gate test_adr522_focus_is_threaded_not_closed_over.py exists because this
