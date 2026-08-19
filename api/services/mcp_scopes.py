@@ -56,6 +56,10 @@ SCOPE_LEGACY_FULL = "read"
 # in `test_adr563_mcp_scope_enforcement.py` asserts the two agree, so a new
 # read-only verb cannot land here demanding write.
 VERB_SCOPES: Dict[str, str] = {
+    # ADR-584: "where am I standing?" — the WEAKEST verb by construction. A
+    # token that may do anything at all may ask which workspace it is bound to
+    # and which verbs it holds; it reads no file content and mutates nothing.
+    "whoami": SCOPE_READ,
     # pure reads — enumeration and retrieval, write nothing
     "open": SCOPE_READ,
     "list": SCOPE_READ,
@@ -150,6 +154,20 @@ def describe_scopes(scopes: List[str]) -> List[str]:
         if satisfied_by(tier, scopes):
             out.append(_GRANT_SENTENCES[tier])
     return out
+
+
+def allowed_verbs(scopes: List[str]) -> List[str]:
+    """The verbs a set of held scopes actually authorizes (ADR-584 D1).
+
+    Derived from `VERB_SCOPES` through the SAME `satisfied_by` the gate calls —
+    so what `whoami` tells the model it may do cannot drift from what
+    `assert_scope` will let it do. A hand-listed roster here would rebuild the
+    pre-563 defect one layer up: a label free to disagree with the check.
+
+    Verb order follows `VERB_SCOPES` (reads, then writes, then share) rather than
+    sorting, so the most consequential capability reads last.
+    """
+    return [verb for verb, required in VERB_SCOPES.items() if satisfied_by(required, scopes)]
 
 
 def is_legacy_full(scopes: List[str]) -> bool:

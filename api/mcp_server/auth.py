@@ -80,6 +80,29 @@ def token_scopes() -> list[str]:
         return []
 
 
+def request_binding(user_id: str) -> str:
+    """How the CURRENT request's workspace was arrived at (ADR-584 D2).
+
+    Returns one of the BINDING_* values. Reads the token's stamped workspace the
+    same way `resolve_request_client` does, then re-runs the resolver's own
+    branch logic through `resolve_mcp_workspace_detail` — the reason travels with
+    the resolution rather than being inferred by a second, drifting copy.
+
+    Used only by `whoami`, which is called once per session; every file verb
+    stays on the plain `resolve_mcp_workspace` path with no extra work.
+    """
+    bound_workspace_id = None
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+
+        bound_workspace_id = getattr(get_access_token(), "workspace_id", None)
+    except Exception as exc:  # noqa: BLE001 — stdio / static-bearer carries no token
+        logger.debug("[ADR-584] no request token for binding (%s)", exc)
+
+    _workspace_id, binding = resolve_mcp_workspace_detail(user_id, bound_workspace_id)
+    return binding
+
+
 def assert_scope(verb: str) -> None:
     """Refuse `verb` unless the request's token authorizes it (ADR-563 D2).
 
@@ -207,6 +230,40 @@ def resolve_mcp_workspace(user_id: str, bound_workspace_id: str | None = None) -
     re-authorize mid-session, and a connector that silently stops working is
     worse than one that falls back to the substrate it can always reach. The
     reach loss is still enforced (the unreachable workspace is never returned).
+
+    ADR-584 D2: that degrade is correct and stays. What was NOT acceptable is
+    that it was unobservable — every read and write correct, attributed, landing
+    somewhere real, with no signal anywhere in the response that the operator's
+    chosen binding was not honoured. Callers that want to REPORT the reason use
+    ``resolve_mcp_workspace_detail``; this function keeps its exact signature and
+    return so its ~90 call sites are untouched.
+    """
+    workspace_id, _binding = resolve_mcp_workspace_detail(user_id, bound_workspace_id)
+    return workspace_id
+
+
+# How a request's workspace was arrived at (ADR-584 D2). Reported by `whoami`,
+# so a silent fallback becomes a stateable fact in the room where it matters.
+BINDING_CHOSEN = "chosen"      # the token's stamped workspace, honoured
+BINDING_DEFAULT = "default"    # no stamp on the token → the principal's default
+BINDING_FALLBACK = "fallback"  # a stamp existed and was UNREACHABLE → degraded
+BINDING_UNRESOLVED = "unresolved"  # resolution failed → effective_workspace_id's rungs
+
+
+def resolve_mcp_workspace_detail(
+    user_id: str, bound_workspace_id: str | None = None
+) -> tuple[str | None, str]:
+    """``resolve_mcp_workspace`` plus HOW the answer was reached (ADR-584 D2).
+
+    Returns ``(workspace_id, binding)``. The workspace half is byte-identical to
+    what ``resolve_mcp_workspace`` has always returned — this adds no policy, no
+    query, and no failure mode. Only the *reason* is new, and it exists because
+    ADR-584 found the fallback branch below to be an incorrect-success generator:
+    correct, attributed, invisible.
+
+    The four bindings map 1:1 to the branches, so a reader of `whoami` can tell
+    "you are in the workspace you chose" from "you are in a workspace you did not
+    choose, because the one you chose is out of reach."
     """
     try:
         from services.supabase import resolve_workspace_for_principal
@@ -214,18 +271,18 @@ def resolve_mcp_workspace(user_id: str, bound_workspace_id: str | None = None) -
         if bound_workspace_id:
             reached = resolve_workspace_for_principal(user_id, bound_workspace_id)
             if reached:
-                return reached
+                return reached, BINDING_CHOSEN
             logger.warning(
                 "[ADR-573] token-bound workspace %s is unreachable for %s — "
                 "falling back to the principal default",
                 str(bound_workspace_id)[:8], str(user_id)[:8],
             )
-            return resolve_workspace_for_principal(user_id)
+            return resolve_workspace_for_principal(user_id), BINDING_FALLBACK
 
-        return resolve_workspace_for_principal(user_id)
+        return resolve_workspace_for_principal(user_id), BINDING_DEFAULT
     except Exception as exc:  # noqa: BLE001 — never block a request on this
         logger.debug("[ADR-373 D6] workspace resolve failed for %s: %s", user_id, exc)
-        return None
+        return None, BINDING_UNRESOLVED
 
 
 def resolve_request_client(verb: str | None = None) -> AuthenticatedClient:

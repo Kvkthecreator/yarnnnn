@@ -341,6 +341,15 @@ _server_url = os.environ.get(
 # (or absent-but-announced), which is the drift this roster replaces.
 _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
     (
+        "whoami",
+        "name WHERE YOU ARE STANDING — which workspace this connection is bound "
+        "to, whether that is the one the operator chose, who your writes will be "
+        "signed as, and which of these verbs your token actually authorizes. "
+        "Call it once at the start of real work, and ALWAYS before writing "
+        "somewhere the user assumed: a shared workspace has more than one "
+        "commons, and the reference grammar cannot tell them apart.",
+    ),
+    (
         "open",
         "read an EXACT file when you have its reference (a yarnnn://workspace/… "
         "handle or a workspace-relative path, e.g. one the user pasted). Returns "
@@ -631,6 +640,67 @@ def file_header_widget() -> str:
 # Six verbs, each a binding of a kernel verb (ADR-512 D3). Each composes kernel
 # primitives SERVER-SIDE into a one-round result — the host LLM (claude.ai /
 # ChatGPT / Gemini) never has to chain.
+
+
+@mcp.tool(
+    # ADR-584 D1 — the tenth verb, and the only one whose subject is the
+    # CONNECTION rather than a file. Before it, a connected principal could not
+    # learn which workspace it was bound to: the workspace lived as a bare UUID
+    # on the auth, was used purely as a query filter, and was discarded before
+    # every response. Chosen over a `workspace` key on every envelope (which
+    # would tax all eight file verbs forever to answer a question asked once per
+    # session) and over a per-verb `workspace` argument (rejected in ADR-573 §2:
+    # the MODEL becomes the chooser, and a wrong guess writes to the wrong
+    # commons with full attribution).
+    name="whoami",
+    annotations=ToolAnnotations(
+        title="Who am I",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def whoami(ctx: Context) -> dict:
+    """Name WHERE THIS CONNECTION IS STANDING in the user's yarnnn workspace.
+
+    Call this at the start of real work, and ALWAYS before writing somewhere the
+    user assumed — a person can reach more than one workspace, and the
+    `yarnnn://workspace/…` grammar is the same in all of them, so no path or
+    handle can tell you which commons you are in.
+
+    Returns the workspace's name (the operator chose it at consent), whether that
+    is the workspace this connection was BOUND to or a fallback, the attribution
+    your writes will carry, and exactly which verbs your token authorizes.
+
+    Read `binding` before writing:
+      • "chosen"   — you are where the operator chose. Proceed.
+      • "default"  — no explicit choice on this connection; you are in their
+                     default workspace.
+      • "fallback" — the bound workspace is UNREACHABLE and this is NOT where the
+                     operator chose. Writes still succeed and are attributed —
+                     SAY SO before writing, rather than filing into the wrong
+                     commons silently.
+
+    An unnamed workspace returns `workspace: null` with `workspace_named: false`
+    — describe it by its address, and don't invent a name for it.
+    """
+    auth = resolve_request_client(verb="whoami")
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_whoami(
+        auth=auth,
+        client_name=client_name,
+        binding=mcp_auth.request_binding(auth.user_id),
+        scopes=mcp_auth.token_scopes(),
+    )
+    # No narrative entry: `whoami` reads no substrate and changes nothing —
+    # logging an orientation call as workspace activity would fill the operator's
+    # timeline with noise that carries no attribution story.
+    return _present("whoami", result, client_name=client_name)
 
 
 @mcp.tool(

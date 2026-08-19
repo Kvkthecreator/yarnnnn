@@ -184,6 +184,117 @@ def _short_excerpt(text: str, limit: int = 400) -> str:
 
 
 # =============================================================================
+# whoami — where am I standing? (ADR-584 D1)
+# =============================================================================
+
+
+async def compose_whoami(
+    auth: Any,
+    client_name: Optional[str] = None,
+    binding: str = "default",
+    scopes: Optional[list] = None,
+) -> dict:
+    """Answer "where am I, and what may I do here?" in one round (ADR-584 D1).
+
+    Until ADR-584 a connected principal could not learn which workspace it was
+    bound to: the workspace lived as a bare UUID on the auth, was used purely as
+    a query filter, and was discarded before every response. A model holding the
+    wrong commons wrote to it correctly, attributed, and invisibly.
+
+    THE NAME IS AN ADDRESS, NOT INTENT (ADR-584 D3). ADR-533 D6 refuses to port
+    the workspace MANDATE — what this workspace is FOR — into a third-party
+    context window. The workspace's NAME is the label distinguishing two commons
+    a principal can reach, already disclosed to this exact client on the ADR-563
+    consent screen the operator read before binding. D6's boundary is unchanged.
+
+    `binding` is the observability half (ADR-584 D2) — it reports whether the
+    operator's CHOSEN workspace was honoured, or whether an unreachable stamp
+    degraded to the default. That degrade is deliberate and stays; being unable
+    to SAY it had happened was the defect.
+    """
+    from services.supabase import display_workspace_name, get_service_client
+
+    workspace_id = getattr(auth, "workspace_id", None)
+
+    # The workspaces row is read HERE and nowhere else on the MCP path — one
+    # lookup, on a verb the model calls once per session, rather than a constant
+    # duplicated into every page of every listing (the envelope shape ADR-584 D1
+    # rejected).
+    raw_name = None
+    if workspace_id:
+        try:
+            res = (
+                get_service_client()
+                .table("workspaces")
+                .select("name")
+                .eq("id", workspace_id)
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                raw_name = res.data[0].get("name")
+        except Exception as exc:  # noqa: BLE001 — identity must never fail a session
+            logger.debug("[ADR-584] workspace name lookup failed: %s", exc)
+
+    # None while the row still wears the mint default: an unnamed workspace is
+    # described by its address, never by leaking "My Workspace" to a reader it
+    # isn't "my" to (the rule display_workspace_name already enforces on invite
+    # and share landings).
+    name = display_workspace_name(raw_name)
+
+    # What this token may actually DO (ADR-563 tiers). A model that knows it
+    # cannot `share` stops offering to.
+    from services.mcp_scopes import allowed_verbs, describe_scopes
+
+    held = list(scopes or [])
+    capabilities = allowed_verbs(held)
+
+    who = getattr(auth, "caller_identity", None) or "yarnnn:mcp"
+
+    where = f"the workspace named “{name}”" if name else "an unnamed workspace"
+    if binding == "fallback":
+        situation = (
+            f"You are in {where} — the PRINCIPAL'S DEFAULT. The workspace this "
+            "connection was bound to at consent is no longer reachable (the "
+            "grant may have been revoked), so it degraded rather than failing. "
+            "Writes here are correct and attributed, but they are NOT landing in "
+            "the workspace the operator chose — say so before writing."
+        )
+    elif binding == "chosen":
+        situation = f"You are in {where} — the workspace chosen for this connection at consent."
+    elif binding == "unresolved":
+        situation = (
+            f"You are in {where}, resolved by fallback — the binding could not be "
+            "resolved for this request. Treat the location as unconfirmed."
+        )
+    else:
+        situation = (
+            f"You are in {where} — this connection carries no explicit choice, so "
+            "it resolves the operator's default workspace."
+        )
+
+    return {
+        "success": True,
+        "workspace": name,
+        "workspace_id": workspace_id,
+        "workspace_named": bool(name),
+        "binding": binding,
+        "you": who,
+        "client": client_name,
+        "scopes": held,
+        "capabilities": capabilities,
+        "explanation": (
+            f"{situation} Your writes are signed as `{who}`. "
+            f"You may use: {', '.join(capabilities) or '(none)'}. "
+            # describe_scopes returns SENTENCES (a list), not a string — the
+            # same copy the operator approved at consent, so what the model is
+            # told matches what the human agreed to.
+            + " ".join(describe_scopes(held))
+        ),
+    }
+
+
+# =============================================================================
 # The honest-state vocabulary — search's 4-value `confidence` scale
 # =============================================================================
 # (2026-06-29, hardened after a live discrimination test surfaced two seams;

@@ -41,6 +41,7 @@ one round) per ADR-368 Correction 1's channel constraint.
 
 | Verb | User says | Nature | Composes (server-side) |
 |---|---|---|---|
+| `whoami` | "which workspace am I in?" | read · connection | resolve binding → workspace name + `binding` + attribution + authorized verbs (ADR-584) |
 | `open` | "look at this doc" | read · exact | resolve handle → exact read + head attribution + revision summary |
 | `list` | "what's in my workspace / that folder" | read · enumerate | workspace-scoped subtree listing with per-file attribution |
 | `search` | "find what I have on X" | read · fuzzy | `QueryKnowledge` → ranked paths + excerpts + `confidence` |
@@ -89,6 +90,40 @@ Keeping the guarantees distinct is the point of having separate verbs.
    synthesizer.
 
 ---
+
+## `whoami` — where am I standing? (ADR-584)
+
+```python
+whoami() -> dict
+```
+
+The only verb whose subject is the **connection** rather than a file. Returns
+`workspace` (the operator's chosen name, `null` while the row still wears the
+mint default — see `workspace_named`), `workspace_id`, `binding`, `you` (the
+attribution writes will carry), `client`, `scopes`, and `capabilities` (the
+verbs this token actually authorizes, derived through the same `satisfied_by`
+the gate calls, so the label cannot drift from the check).
+
+**`binding` is the observability half.** A person can reach more than one
+workspace and the `yarnnn://workspace/…` grammar is identical in all of them,
+so no path can disambiguate:
+
+| `binding` | Meaning |
+|---|---|
+| `chosen` | the workspace stamped at consent (ADR-573), honoured |
+| `default` | no explicit choice on this connection → the principal's default |
+| `fallback` | the stamped workspace is **unreachable** — writes land elsewhere, correctly and attributed. **Say so before writing.** |
+| `unresolved` | resolution failed; treat the location as unconfirmed |
+
+The `fallback` degrade is deliberate (`resolve_mcp_workspace`, ADR-573): the
+operator is absent, and a connector that silently stops working is worse than
+one that falls back to substrate it can always reach. What ADR-584 fixed is that
+it was **unobservable** — correct, attributed, and invisible.
+
+Scoped `files:read` — the weakest tier, by construction. Reads no file content,
+mutates nothing, writes no narrative entry (an orientation call is not workspace
+activity). Text-only by declaration: the answer orients the *model*, so its value
+is in the model's next sentence, not in an iframe the human looks at.
 
 ## `open` — the exact read
 

@@ -47,7 +47,7 @@ That's the entire MCP surface. No `list_agents`, no `run_task`, no separate "mem
 
 ### The singular framing
 
-> A storage connector returns whatever is stored — garbage in, garbage out, no opinion, no history. YARNNN is the system of record where human and AI work accrues: every change signed by whoever made it, every file's lineage walkable, nothing lost. The copyable half (nine thin verbs) sits downstream of the uncopyable half (an attributed, judged history). **YARNNN is the shared workspace every LLM works in — not a memory bolted onto one of them.**
+> A storage connector returns whatever is stored — garbage in, garbage out, no opinion, no history. YARNNN is the system of record where human and AI work accrues: every change signed by whoever made it, every file's lineage walkable, nothing lost. The copyable half (ten thin verbs) sits downstream of the uncopyable half (an attributed, judged history). **YARNNN is the shared workspace every LLM works in — not a memory bolted onto one of them.**
 
 ---
 

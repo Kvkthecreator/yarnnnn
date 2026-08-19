@@ -59,6 +59,17 @@ AFFORDANCES: dict[str, Affordance] = {
 #: always recorded, and "we never got to it" cannot masquerade as "text is right".
 #: Moving a verb from here to AFFORDANCES is the whole cost of adding a widget.
 TEXT_ONLY: dict[str, str] = {
+    # ADR-584 — the answer's whole job is to change what the MODEL says next
+    # (name the workspace before writing; state a `fallback` binding out loud).
+    # A widget renders for the human and is invisible to the reader who has to
+    # act on it, so the one verb whose audience is the model is the last one
+    # that should be put behind glass.
+    "whoami": (
+        "The result orients the MODEL, not the human — which workspace it is "
+        "standing in, and whether that is the one the operator chose. Its value "
+        "is in the model's next sentence, so it must be text the model reads, "
+        "never an iframe the user looks at."
+    ),
     "share": (
         "The result is a link plus a reach level — one line the host relays "
         "verbatim. A widget for a URL is ceremony: it adds an iframe the user "

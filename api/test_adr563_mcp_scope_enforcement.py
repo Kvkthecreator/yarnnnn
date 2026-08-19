@@ -103,9 +103,14 @@ def run() -> int:
     # Derived from the roster, so a NEW verb that lands without a scope fails
     # here rather than silently defaulting to reachable.
     roster = set(re.findall(r'^\s{4}\(\s*\n\s{8}"([a-z]+)",', server_src, re.M))
+    # The parse must find SOMETHING — a regex that silently matches nothing
+    # would make the set-equality below vacuously true against an empty roster.
+    # It deliberately does NOT pin a count: the roster grows (ADR-584 added a
+    # tenth verb), and a hand-maintained number is a duplicate of len() that
+    # fails on correct growth. The real assertion is the set equality that follows.
     ok &= _check(
         f"D2. roster parsed from _INTEROP_VERBS ({len(roster)} verbs)",
-        len(roster) == 9,
+        len(roster) >= 9,
     )
     ok &= _check(
         "D2. every bound verb carries a scope classification",
@@ -182,9 +187,19 @@ def run() -> int:
     # Every handler passes its verb — the enforcement is only real if reached.
     server_code = "\n".join(l.split("#", 1)[0] for l in server_src.splitlines())
     calls = re.findall(r"resolve_request_client\(verb=\"([a-z]+)\"\)", server_code)
+    # EVERY classified verb has a handler that passes it — set equality, not a
+    # count. Equality is the stronger claim in both directions: a new verb whose
+    # handler forgets `verb=` is missing from `calls`, and a stale `verb=` for a
+    # deleted verb is an extra. (The pinned `== 9` this replaces failed against
+    # ADR-584's correct tenth verb — a gate reading growth as a violation.)
+    _missing = sorted(set(a.VERB_SCOPES) - set(calls))
+    _extra = sorted(set(calls) - set(a.VERB_SCOPES))
     ok &= _check(
-        f"D3. all nine handlers pass a verb ({len(calls)} found)",
-        len(calls) == 9 and set(calls) == set(a.VERB_SCOPES),
+        f"D3. every classified verb's handler passes it ({len(calls)} found"
+        + (f", missing={_missing}" if _missing else "")
+        + (f", extra={_extra}" if _extra else "")
+        + ")",
+        set(calls) == set(a.VERB_SCOPES),
     )
     ok &= _check(
         "D3. no handler calls resolve_request_client() bare (would skip the check)",
