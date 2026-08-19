@@ -2,55 +2,27 @@
 
 ---
 
-# Part E — ADR-579/581: the verb-grammar arc state, and the D4 build spec (2026-08-19)
+# Part E — ADR-579/581: the verb-grammar arc (2026-08-19; D4 ABSORBED)
 
-**Owner: the insert/verb-grammar lane.** Read this part before touching inserts,
-menus, or the block vocabulary. Everything below is PUSHED and green.
-
-## Shipped (do not re-derive)
-
-| Commit | What |
-|---|---|
-| `9b901e4` | ADR-579 ratified (ADD·NEW·UPDATE·ASK; seam = WHO never "AI"-as-label) + fossils deleted (`RepurposeOutput` — was crashing after the paid LLM call; its route + syscall row; `context-brief` recipe). ADR-185 closed refused. |
-| `a73bdef` | D4/D5: provenance grouping in all palettes (ONE `groupBlockRows` module); right-click re-sectioned; "Write with AI" header deleted. |
-| `ea5aa52` | D5.a/D6: toolbar swapped WHOLESALE → [+ Add] [+ New] [Update]; right-click two-tier (Update ▸ / Ask ▸). |
-| `e6d2319` | D6.a: a verb door opens ITS OWN contents — right-click gains New ▸/Add ▸ inline tiers; toolbar New = direct door, New-‹noun› gallery INSIDE the menu (`pageSection`); ONE landing `landInsertPick`; verb menus speak their verb ("New — into slide 1"). |
-| `25e7d3f` + `8bceaec` | ADR-581 (renumbered from a 580 collision): family DERIVES (cited=`cites≠none` · composed=`object`+`none` · prose=`text`); the MEDIUM orders families inside NEW (paged: composed leads; flow: prose leads) — ordering NEVER subsetting (ADR-506 D3 stands); discovery door teaches (Composed·Text subheaders). |
-
-## The next session's task — ADR-581 D4: the composed family grows
-
-The regroup exposed the debt: **8 prose kinds vs 3 composed** (button · component ·
-metrics). A deck cannot be carried by three composed kinds. Build, per ADR-581 D4:
-
-1. **Registry rows** in `api/services/authoring.py` `STUDIO_BLOCKS`: `stat` (one big
-   number + label + delta) · `comparison` (two labelled columns) · `timeline`
-   (ordered milestones) · `person` (avatar/name/role card). All `tier: "object"`,
-   `cites: "none"` → they land in the composed family and every door BY CONSTRUCTION.
-   `logo-row` (strip of cited marks) is `cites: "picture"` → lands in ADD.
-2. **Semantic fragments** — roles and rungs only, NEVER a pixel or hex (ADR-487 §3);
-   design-system reaches them by cascade. ⚠️ **Write kernel CSS against v18**: ADR-485
-   D7 (`560ebf1`) moved slide padding onto the stage's CHILDREN (`.slide` carries
-   `padding: 0`; `.slide > [data-area], .slide > .cols` carry the inset) — a new
-   fragment must fit that geometry, and `STUDIO_KERNEL_CSS_VERSION` is now 18.
-3. **Turn-into legality** — decide `convertible` per new row (composed↔composed
-   conversions are the open design question; prose↔composed likely stays refused).
-4. **Icons** in `web/components/authoring/blockRows.tsx` `BLOCK_ICONS` (person/stat/
-   timeline/comparison have no glyph yet — unmapped kinds fall back, so this is
-   polish not blocker).
-5. **UPDATE revisit for composed** (the operator's "three core categories" ask):
-   what Update means for a composed object — variant switching? column count on
-   comparison? Decide small, ship behind the existing Update tier.
-6. **Gates**: registry gates (`test_adr528*`, `test_adr538_block_classification.py`,
-   `test_adr539_vocabulary_declares.py`) will exercise new rows automatically;
-   extend `test_adr581_medium_regroup.py` anchors; `test_adr509_insert_route.py`
-   asserts mouse-route coverage against the LIVE registry (new kinds ride free).
+**Owner: the insert/verb-grammar lane.** The D4 build spec this part carried is
+**EXECUTED** in the commit that rewrote this section — ADR-581 D4 shipped: five
+registry rows (stat · comparison · timeline · person composed; logo-row cited →
+ADD), kernel CSS v19 written against the v18 child-inset geometry, icons, the
+logo-row multi-pick (gallery machinery, kind kept at the terminal), and the
+D4.a decisions recorded in the ADR (turn-into refused for composed; UPDATE =
+existing tier + tone token; delta via palette marks; columns by auto-fit).
+Arc commits before it: `9b901e4` (579 ratified) · `a73bdef` (provenance
+grouping) · `ea5aa52` (toolbar verbs) · `e6d2319` (verb doors) · `25e7d3f` +
+`8bceaec` (581 D2/D3, renumbered from the 580 collision).
 
 ## Verification (the standing set)
 
 ```
-cd api && python3 test_adr581_medium_regroup.py     # 10/10
+cd api && python3 test_adr581_medium_regroup.py     # 13/13
 cd api && python3 test_adr579_verb_grammar.py       # 16/16
 cd api && python3 test_adr509_insert_route.py       # 37
+cd api && python3 test_adr538_block_classification.py  # 64/64
+cd api && python3 test_adr539_vocabulary_declares.py   # 41/41
 cd api && python3 test_adr462_context_menu.py       # 49/54 — the 5 fails are PRE-EXISTING at HEAD (verified in a clean worktree)
 cd web && node_modules/.bin/next build              # 171/171; `pnpm` NOT on PATH
 ```
@@ -68,14 +40,17 @@ cd web && node_modules/.bin/next build              # 171/171; `pnpm` NOT on PAT
   quoted in a comment; a label in the file docstring) — anchor on WIRED handlers
   (`run(onCheck)`), and never quote retired strings in comments.
 
-## Owed (the arc's full ledger)
+## Owed (the arc's remaining ledger)
 
-- **ADR-581 D4** (the build above) · **D5** the Deck/Articles app split (phased).
+- **ADR-581 D5** the Deck/Articles app split (phased; the mechanism — `apps`
+  column + `register_app` — already exists).
 - **ADR-579 D7** pane structured turns (seed → receipt; plan for coarse grain only)
   · **D8** file-altitude ADD/NEW with "from sources…" (the multi-source derive).
 - **Operator click-pass**: deck → [+ Add][+ New][Update]; New menu = Composed-first
-  block list + NEW SLIDE gallery in ONE menu; right-click = New ▸/Add ▸/Update ▸/
-  Ask ▸ tiers; flow doc → Add/New only, prose-first.
+  (now 8 composed kinds) + NEW SLIDE gallery in ONE menu; right-click = New ▸/
+  Add ▸/Update ▸/Ask ▸ tiers; flow doc → Add/New only, prose-first; NEW in D4:
+  insert a stat/comparison/timeline/person on a slide (kernel draws them, tone/
+  marks theme them), and a logo row via the multi-pick (height preset live).
 
 ---
 

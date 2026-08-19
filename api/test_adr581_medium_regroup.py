@@ -33,7 +33,7 @@ def _check(name: str, ok: bool, detail: str = ""):
 
 print("── D2: family derives from the live registry ──")
 
-from services.authoring import STUDIO_BLOCKS  # noqa: E402
+from services.authoring import STUDIO_BLOCKS, STUDIO_KERNEL_CSS  # noqa: E402
 
 
 def family(row) -> str:
@@ -60,8 +60,31 @@ _check(
     set(fams.values()) <= {"prose", "composed", "cited"} and len(fams) == len(STUDIO_BLOCKS),
 )
 _check(
-    "the composed family is still the minority — the D4 growth debt stands",
-    sum(1 for f in fams.values() if f == "composed") < sum(1 for f in fams.values() if f == "prose"),
+    "D4 shipped — the composed family is no longer the minority",
+    sum(1 for f in fams.values() if f == "composed") >= sum(1 for f in fams.values() if f == "prose"),
+)
+_check(
+    "the D4 growth set classifies by construction (stat/comparison/timeline/person composed · logo-row cited)",
+    fams.get("stat") == "composed"
+    and fams.get("comparison") == "composed"
+    and fams.get("timeline") == "composed"
+    and fams.get("person") == "composed"
+    and fams.get("logo-row") == "cited",
+    detail=str(fams),
+)
+_check(
+    "the growth set stays out of turn-into and promotion (composed structure has no content counterpart)",
+    all(
+        STUDIO_BLOCKS[k]["convertible"] is False and STUDIO_BLOCKS[k]["promote"] is False
+        for k in ("stat", "comparison", "timeline", "person", "logo-row")
+    ),
+)
+_check(
+    "the kernel draws every growth kind (registry row + kernel CSS land together, the ADR-536 rule)",
+    all(
+        f'[data-block="{k}"]' in STUDIO_KERNEL_CSS
+        for k in ("stat", "comparison", "timeline", "person", "logo-row")
+    ),
 )
 
 rows = (WEB / "components/authoring/blockRows.tsx").read_text()

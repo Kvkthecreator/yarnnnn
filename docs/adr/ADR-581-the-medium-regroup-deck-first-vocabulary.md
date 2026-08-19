@@ -1,6 +1,7 @@
 # ADR-581 — The medium regroup: Studio is the seed stack, and the vocabulary stops being a document
 
-> **Status**: **Accepted** (2026-08-19); D2/D3 **Implemented** same day; D4/D5 phased.
+> **Status**: **Accepted** (2026-08-19); D2/D3 **Implemented** same day; D4 **Implemented**
+> (same day, second session); D5 phased.
 > Operator-directed: *"my intent is that this system actually becomes the seed and
 > infrastructure stack that will evolve for a splitting of APPs for Deck and currently
 > articles… current NEW is geared towards many text orientations while almost nothing of
@@ -87,11 +88,11 @@ NEW menu (the discovery door) additionally renders the family subheaders (**Comp
 terse (the located fast path). All doors render the one grouping module's order, so
 they cannot disagree.
 
-### D4 — The composed family grows deck-native kinds (phase)
+### D4 — The composed family grows deck-native kinds — **Implemented**
 
 The regroup exposes the real gap: three composed kinds cannot carry a deck. The growth
-set, to be designed as registry rows + semantic fragments + kernel CSS (every property
-a role or a rung — ADR-487 §3; themed by cascade, never by insert-time styling):
+set, shipped as registry rows + semantic fragments + kernel CSS (every property a role
+or a rung — ADR-487 §3; themed by cascade, never by insert-time styling; kernel v19):
 
 - **stat** — one big number with label and delta (the single-fact slide unit).
 - **comparison** — two labelled columns of claims (the versus unit).
@@ -102,6 +103,34 @@ a role or a rung — ADR-487 §3; themed by cascade, never by insert-time stylin
 Each lands in the vocabulary once and appears in every door by construction. Shapes
 with free geometry stay refused (the ADR-487/538 line); the composed family is the
 Notion/Gamma bet, not the Figma bet — composed semantic objects, not drawn ones.
+
+**D4.a — the design questions the phase left open, answered small:**
+
+- **Turn-into stays refused for the whole growth set** (`convertible: False`, the
+  button/component/metrics precedent). Turn-into converts CONTENT between kinds that
+  share it — prose in, prose out. A composed object's structure has no counterpart:
+  a stat has no columns, a person no milestones, so composed↔composed conversion
+  would *invent* content, and prose↔composed stays refused with it. A real demand
+  earns the row, not the guess.
+- **UPDATE for a composed object is the surface that already exists**, not new
+  machinery: the Update tier's move/stacking + Rewrite (the seeded composer), and the
+  pane's `tone` token (scope block, grain any — every composed kind already wears
+  it). The two enumerable candidates dissolve structurally instead of earning
+  controls: the **stat delta's direction** colours through the existing palette marks
+  (`data-mark="fresh"/"danger"`, ADR-527 D2 — taught in the row's own markup), and
+  **comparison's column count** is by construction (the kernel lays `.side`s on an
+  auto-fit grid, so a third column authored into the markup simply joins the row).
+  Per-kind variant tokens follow the ADR-487 D2 rule: the selector arrives WITH the
+  member affordance that justifies it, never as speculative chrome.
+- **logo-row rides the gallery machinery** — same figure-per-image construction, so
+  the one prototype-cloning fragment builder and the picker's multi-select serve
+  both; the multi terminal keeps the picked kind (the ADR-538 D2 collapse lesson).
+  Because `MEDIA_BLOCK_KINDS` derives from `cites`, the media tokens (height/fit)
+  reach it — and the kind-scoped kernel base would beat the generic token rules on
+  specificity, rendering the offered controls inert (the ADR-461 B1 defect), so the
+  strip declares its own scale per height value and lets cover crop.
+- **timeline ships the vertical rail** — the one shape that needs no responsive
+  answer on flow. A horizontal deck variant is a later token if demand shows.
 
 ### D5 — What the split will take (phase, named so it is not re-derived)
 

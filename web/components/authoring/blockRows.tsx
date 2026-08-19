@@ -20,15 +20,20 @@ import {
   CheckSquare,
   ChevronRight,
   Code,
+  Columns,
   Heading1,
   Image as ImageIcon,
+  Images,
   List,
   type LucideIcon,
+  Milestone,
   Minus,
   MessageSquareQuote,
   Quote,
   Table as TableIcon,
+  TrendingUp,
   Type,
+  User,
 } from 'lucide-react';
 
 /** kind → glyph. The kernel vocabulary ships no icon field (and shouldn't — an
@@ -50,6 +55,12 @@ export const BLOCK_ICONS: Record<string, LucideIcon> = {
   figure: ImageIcon,
   gallery: ImageIcon,
   table: TableIcon,
+  // ADR-581 D4 — the composed growth set (+ the cited logo-row).
+  stat: TrendingUp,
+  comparison: Columns,
+  timeline: Milestone,
+  person: User,
+  'logo-row': Images,
 };
 
 export const FALLBACK_BLOCK_ICON: LucideIcon = AlignLeft;

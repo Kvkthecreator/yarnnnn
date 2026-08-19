@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.19.1] - The composed family grows (ADR-581 D4)
+
+### Changed
+- `services/authoring.py`: five `STUDIO_BLOCKS` rows added — `stat`,
+  `comparison`, `timeline`, `person` (composed: tier=object, cites=none) and
+  `logo-row` (cites=picture). The lane's `_blocks_grammar` roster grows five
+  lines per bound app (the posture derives from the registry; no posture text
+  edited). The stat's teaching markup shows the delta colouring through the
+  existing `data-mark` palette marks rather than a new mechanism.
+- Expected behavior: a Studio-bound lane can now author the deck-native
+  composed kinds directly (previously it improvised them as `component`/
+  `metrics` compositions or plain divs the kernel could not draw); a logo
+  strip is authored as CITED marks, never pasted images. Addresses the
+  observed failure ADR-581 §1 measured: NEW on a deck offered 8 prose kinds
+  against 3 composed, and decks were carried by text orientations.
+
 ## [2026.08.18.1] - RepurposeOutput deleted (ADR-579 D9)
 
 ### Changed

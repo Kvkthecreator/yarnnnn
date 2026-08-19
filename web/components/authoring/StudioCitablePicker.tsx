@@ -67,8 +67,9 @@ export function StudioCitablePicker({
 }: StudioCitablePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<CitableItem[] | null>(null);
-  // Gallery = multi-select: taps toggle, the commit button cites them as ONE
-  // block (ADR-456 W1).
+  // Multi-pick kinds (gallery, and the ADR-581 D4 logo-row): taps toggle, the
+  // commit button cites them as ONE block (ADR-456 W1).
+  const multi = kind === 'gallery' || kind === 'logo-row';
   const [picked, setPicked] = useState<string[]>([]);
 
   useEffect(() => {
@@ -124,7 +125,9 @@ export function StudioCitablePicker({
             ? 'Insert a table from a CSV'
             : kind === 'gallery'
               ? 'Pick images for the gallery'
-              : 'Insert an image from the workspace'}
+              : kind === 'logo-row'
+                ? 'Pick marks for the logo row'
+                : 'Insert an image from the workspace'}
       </p>
       {items == null && (
         <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
@@ -138,7 +141,7 @@ export function StudioCitablePicker({
             : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
         </p>
       )}
-      {kind === 'gallery' && items != null && items.length > 0 && (
+      {multi && items != null && items.length > 0 && (
         <div className="sticky top-0 z-10 border-b border-border bg-background px-2 py-1.5">
           <button
             type="button"
@@ -150,18 +153,18 @@ export function StudioCitablePicker({
             }}
             className={`${btn} w-full justify-center`}
           >
-            Insert gallery ({picked.length})
+            {kind === 'logo-row' ? 'Insert logo row' : 'Insert gallery'} ({picked.length})
           </button>
         </div>
       )}
       {items?.map((it) => {
-        const isPicked = kind === 'gallery' && picked.includes(it.path);
+        const isPicked = multi && picked.includes(it.path);
         return (
           <button
             key={it.path}
             type="button"
             onClick={() => {
-              if (kind === 'gallery') {
+              if (multi) {
                 setPicked((cur) =>
                   cur.includes(it.path) ? cur.filter((p) => p !== it.path) : [...cur, it.path],
                 );

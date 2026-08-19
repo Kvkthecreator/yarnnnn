@@ -83,7 +83,9 @@ print("\n=== 1. D1 — the classification rule holds for every row ===")
 # the MARKUP actually does. A row declaring cites="none" whose markup carries
 # a data-ref (or the reverse) is the new spelling of the old chart bug.
 CITES_SOURCE = {"table", "chart"}
-CITES_PICTURE = {"figure", "gallery"}
+# ADR-581 D4 — `logo-row` joins the picture-citing set (a strip of workspace
+# marks; the one growth kind that cites, so it lands in ADD).
+CITES_PICTURE = {"figure", "gallery", "logo-row"}
 
 for kind, row in st.STUDIO_BLOCKS.items():
     group = st.block_group(row)
@@ -120,7 +122,11 @@ t("chart declares data-ref-kind='chart'", 'data-ref-kind="chart"' in chart["mark
 t("chart carries a pin slot (data-ref-rev)", "data-ref-rev=" in chart["markup"])
 t("chart declares its visual kind (data-chart)", 'data-chart="' in chart["markup"])
 t("chart LEFT the media set", "chart" not in st.MEDIA_BLOCK_KINDS)
-t("figure + gallery remain the media set", st.MEDIA_BLOCK_KINDS == {"figure", "gallery"})
+# ADR-581 D4 — logo-row joined by declaring cites="picture"; the set stays a
+# DERIVATION (the check right below §1 proves it), so this pin is the roster,
+# not a second rule.
+t("figure + gallery + logo-row are the media set",
+  st.MEDIA_BLOCK_KINDS == {"figure", "gallery", "logo-row"})
 t(
     "the media `applies` phrase no longer names chart",
     "chart" not in st.GRAIN_PHRASES["media"],

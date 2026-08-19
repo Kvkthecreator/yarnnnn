@@ -1501,12 +1501,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [vocabulary],
   );
-  // ADR-456 W1: N cited images land as ONE gallery block, one revision. Pins
-  // are keyed by the RELATIVE path the fragment will carry, so the lookup
-  // inside galleryFragment matches what it stamps.
-  const citedGalleryFragment = useCallback(
-    (paths: string[], pins?: Record<string, string | null>): string | null => {
-      const base = vocabulary?.blocks.find((b) => b.kind === 'gallery')?.fragment;
+  // ADR-456 W1: N cited images land as ONE block, one revision. Pins are keyed
+  // by the RELATIVE path the fragment will carry, so the lookup inside
+  // galleryFragment matches what it stamps. ADR-581 D4 — two multi-pick kinds
+  // now (gallery + logo-row), same figure-per-image construction, so the one
+  // prototype-cloning builder serves both; the kind picks the base fragment.
+  const citedMultiFragment = useCallback(
+    (kind: 'gallery' | 'logo-row', paths: string[], pins?: Record<string, string | null>): string | null => {
+      const base = vocabulary?.blocks.find((b) => b.kind === kind)?.fragment;
       if (!base) return null;
       const relPins: Record<string, string | null> = {};
       for (const p of paths) relPins[relPath(p)] = pins?.[p] ?? null;
@@ -2813,11 +2815,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const cp = citePicker;
       setCitePicker(null);
       if (!cp) return;
-      const fragment = citedGalleryFragment(paths, pins);
+      // ADR-581 D4 — the multi terminal keeps the picked KIND (the ADR-538 D2
+      // lesson next door: a collapse would silently land a GALLERY wherever a
+      // member picked Logo row).
+      const kind: 'gallery' | 'logo-row' = cp.kind === 'logo-row' ? 'logo-row' : 'gallery';
+      const fragment = citedMultiFragment(kind, paths, pins);
       if (!fragment) return;
-      landAtLocatedPoint(fragment, `gallery (${paths.length} images)`, cp.ctx);
+      const noun = kind === 'logo-row' ? 'logo row' : 'gallery';
+      landAtLocatedPoint(fragment, `${noun} (${paths.length} images)`, cp.ctx);
     },
-    [citePicker, citedGalleryFragment, landAtLocatedPoint],
+    [citePicker, citedMultiFragment, landAtLocatedPoint],
   );
   // ADR-456 W3: the page background — a cited image on the page element.
   const handleSetPageBackground = useCallback(

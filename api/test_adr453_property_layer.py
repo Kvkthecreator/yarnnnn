@@ -101,8 +101,10 @@ def run() -> bool:
     # ADR-538 D2 — chart LEFT the media set. The media-grain tokens are about a
     # PICTURE (how it fills its box, how tall it stands); a chart is now a
     # projection of cited data, so `fit` has nothing to act on.
-    _check("media kinds = figure + gallery (chart left at ADR-538 D2)",
-           MEDIA_BLOCK_KINDS == {"figure", "gallery"})
+    # ADR-581 D4 — logo-row JOINED by declaring cites="picture" (the set is a
+    # derivation; this pin is the roster, not a second rule).
+    _check("media kinds = figure + gallery + logo-row (chart left at ADR-538 D2)",
+           MEDIA_BLOCK_KINDS == {"figure", "gallery", "logo-row"})
 
     # ── 2. The kernel CSS + the marked element (D2) ──────────────────────
     _check(

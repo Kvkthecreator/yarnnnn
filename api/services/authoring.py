@@ -279,6 +279,96 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "description": "A row of headline numbers with labels.",
         "markup": '<div data-block="metrics" data-block-id="b6"><div class="metric"><strong>42%</strong><span>label</span></div></div>',
     },
+    # ADR-581 D4 — the composed family grows deck-native kinds. The regroup
+    # measured 8 prose kinds against 3 genuinely composed ones (divider is
+    # furniture); a deck cannot be carried by three composed kinds. Same
+    # construction as `component` (ADR-538 D3): tier=object + cites=none, so
+    # each lands in the composed family and every door BY CONSTRUCTION —
+    # nothing else to wire. Registry rows, not mechanisms (the ADR-456 W1
+    # precedent). All convertible=False: turn-into converts CONTENT between
+    # kinds that share it (prose in, prose out), and a composed object's
+    # structure has no counterpart to convert into — a stat has no columns, a
+    # person no milestones — so composed↔composed conversion would invent
+    # content, and prose↔composed stays refused with it (ADR-581 D4's design
+    # question, answered small; a real demand earns the row, not the guess).
+    #
+    # The stat's delta colours through the EXISTING palette marks (ADR-527
+    # D2 — `data-mark="fresh"` in the teaching markup): direction is a
+    # semantic register the marks already carry, so no per-kind variant
+    # machinery ships with the row.
+    "stat": {
+        "label": "Stat",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("div",),
+        "promote": False,
+        "description": "One big number with a label and a delta — the single-fact slide unit.",
+        "markup": (
+            '<div data-block="stat" data-block-id="b17">'
+            "<strong>42%</strong><span>label</span>"
+            '<em class="delta"><span data-mark="fresh">▲ 8%</span> vs last quarter</em>'
+            "</div>"
+        ),
+    },
+    # Column count is BY CONSTRUCTION, not a control: the kernel lays the
+    # sides on an auto-fit grid, so a third `.side` authored into the markup
+    # simply joins the row — the "column count on comparison" question needs
+    # no token (the ADR-461 B1 rule: never a control whose states render one
+    # result; here, never a control for what content already decides).
+    "comparison": {
+        "label": "Comparison",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("div",),
+        "promote": False,
+        "description": "Side-by-side labelled columns of claims — the versus unit.",
+        "markup": (
+            '<div data-block="comparison" data-block-id="b18">'
+            '<div class="side"><header>Option A</header><ul><li>…</li><li>…</li></ul></div>'
+            '<div class="side"><header>Option B</header><ul><li>…</li><li>…</li></ul></div>'
+            "</div>"
+        ),
+    },
+    # `elements: ("ol",)` is informational (promote=False) — a bare pasted
+    # <ol> keeps promoting to `numbered` (the one promote=True claimant), and
+    # a timeline is only ever picked deliberately.
+    "timeline": {
+        "label": "Timeline",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("ol",),
+        "promote": False,
+        "description": "Ordered milestones on a line — the roadmap unit.",
+        "markup": (
+            '<ol data-block="timeline" data-block-id="b19">'
+            "<li><strong>Q1</strong><span>Milestone</span></li>"
+            "<li><strong>Q2</strong><span>Milestone</span></li>"
+            "</ol>"
+        ),
+    },
+    # The avatar is an INITIALS disc, not a cited image — a person card that
+    # cited a picture would be a `figure` wearing a name, and the composed
+    # family is exactly the kinds minted from thin air (cites=none). A team
+    # page wanting real headshots reaches for figure/gallery beside it.
+    "person": {
+        "label": "Person",
+        "tier": "object",
+        "cites": "none",
+        "convertible": False,
+        "elements": ("div",),
+        "promote": False,
+        "description": "A name/role card with an initials avatar — the team unit.",
+        "markup": (
+            '<div data-block="person" data-block-id="b20">'
+            '<span class="avatar" aria-hidden="true">AB</span>'
+            '<span class="who"><strong class="name">Full Name</strong>'
+            '<span class="role">Role</span></span>'
+            "</div>"
+        ),
+    },
     # ADR-538 D2 — the chart cites its DATA, not a picture of it. Before this
     # ADR the row was filed `data` while citing `./assets/chart.svg`, and sat
     # in MEDIA_BLOCK_KINDS beside figure/gallery — the registry's own
@@ -325,6 +415,22 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "promote": False,
         "description": "A grid of workspace images, each CITED by reference.",
         "markup": '<div data-block="gallery" data-block-id="b12"><figure><img data-ref="operation/…/img.png" data-ref-rev="<head-rev-id>" alt=""><figcaption></figcaption></figure></div>',
+    },
+    # ADR-581 D4 — the one growth kind that CITES: a strip of marks is made
+    # OF workspace images, so it is `cites=picture` and lands in ADD (the
+    # from-the-workspace verb), never in NEW. Gallery's construction one
+    # register down: same figure-per-image shape, so the multi-pick fragment
+    # builder (`galleryFragment`) serves it verbatim — the wrapper differs,
+    # the prototype clone does not.
+    "logo-row": {
+        "label": "Logo row",
+        "tier": "object",
+        "cites": "picture",
+        "convertible": False,
+        "elements": ("div",),
+        "promote": False,
+        "description": "A strip of workspace marks, each CITED by reference — the social-proof unit.",
+        "markup": '<div data-block="logo-row" data-block-id="b21"><figure><img data-ref="operation/…/logo.png" data-ref-rev="<head-rev-id>" alt=""></figure></div>',
     },
 }
 
@@ -1420,6 +1526,76 @@ div[data-block="component"] .row .pill { font-size: var(--text-xs, 0.72rem);
   background: var(--rule, rgba(26,26,26,0.06)); color: var(--muted); }
 div[data-block="component"] > footer { margin-top: 0.75rem;
   font-size: var(--text-xs, 0.72rem); color: var(--muted); }
+/* ADR-581 D4 — the composed family's deck-native kinds: stat · comparison ·
+   timeline · person, plus the cited logo-row strip. The `component` discipline
+   (ADR-538 D3) throughout: every property a role or a rung through the
+   design-system slots, never a raw colour; themed by cascade. Written against
+   the v18 stage geometry — a slide's inset rides its CHILDREN (ADR-485 D7),
+   so none of these carry stage-shaped padding of their own. */
+div[data-block="stat"] { margin: 1.5rem 0; }
+div[data-block="stat"] > strong { display: block; font-size: var(--text-5xl, 4rem);
+  line-height: 1.1; font-variant-numeric: tabular-nums; }
+div[data-block="stat"] > span { display: block; font-size: var(--text-sm, 0.9rem);
+  color: var(--muted, #6b6b6b); margin-top: 0.25rem; }
+/* The delta is NEUTRAL by default — direction is a semantic register the
+   palette marks already carry (data-mark="fresh"/"danger", ADR-527 D2), so
+   the kernel never guesses which way a number is good. */
+div[data-block="stat"] .delta { display: block; font-style: normal;
+  font-size: var(--text-sm, 0.85rem); color: var(--muted, #6b6b6b); margin-top: 0.5rem; }
+/* auto-fit, not a column token: a third .side authored into the markup joins
+   the row by construction (the registry row's own comment says why). */
+div[data-block="comparison"] { display: grid; gap: 1rem; margin: 1.5rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+div[data-block="comparison"] .side { border: 1px solid var(--rule, rgba(26,26,26,0.1));
+  border-radius: var(--radius-lg, var(--radius, 10px)); padding: 1rem 1.15rem; }
+div[data-block="comparison"] .side > header { font-size: var(--text-xs, 0.72rem);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted, #6b6b6b);
+  margin-bottom: 0.75rem; }
+/* The reset zeroes every ul; these are the comparison's own claim lists,
+   not `list` blocks, so they restyle here (the checklist precedent). */
+div[data-block="comparison"] .side ul { list-style: disc; margin: 0;
+  padding-inline-start: 1.1rem; font-size: var(--text-sm, 0.9rem); }
+div[data-block="comparison"] .side li { margin: 0.35rem 0; }
+/* A vertical rail with dots — legible on flow and on a stage alike. A
+   horizontal deck variant is a later token IF demand shows; the kernel ships
+   the one shape that needs no responsive answer. */
+ol[data-block="timeline"] { list-style: none; margin: 1.5rem 0; padding: 0; }
+ol[data-block="timeline"] li { position: relative; padding: 0 0 1.1rem 1.5rem; }
+ol[data-block="timeline"] li::before { content: ""; position: absolute; left: 0.28rem;
+  top: 0.9rem; bottom: -0.2rem; width: 2px; background: var(--rule, rgba(26,26,26,0.12)); }
+ol[data-block="timeline"] li:last-child::before { display: none; }
+ol[data-block="timeline"] li::after { content: ""; position: absolute; left: 0;
+  top: 0.3rem; width: 0.65rem; height: 0.65rem;
+  border-radius: var(--radius-pill, 999px); background: var(--accent, #b4540a); }
+ol[data-block="timeline"] li > strong { display: block; font-size: var(--text-xs, 0.75rem);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted, #6b6b6b); }
+div[data-block="person"] { display: flex; align-items: center; gap: 0.9rem;
+  margin: 1.5rem 0; }
+div[data-block="person"] .avatar { display: inline-flex; align-items: center;
+  justify-content: center; width: 3rem; height: 3rem; flex: 0 0 auto;
+  border-radius: var(--radius-pill, 999px); font-weight: 600;
+  font-size: var(--text-sm, 0.9rem); letter-spacing: 0.04em;
+  color: var(--accent, #b4540a);
+  background: color-mix(in srgb, var(--accent, #b4540a) 12%, transparent); }
+div[data-block="person"] .who { min-width: 0; }
+div[data-block="person"] .name { display: block; font-weight: 600; }
+div[data-block="person"] .role { display: block; font-size: var(--text-sm, 0.85rem);
+  color: var(--muted, #6b6b6b); }
+div[data-block="logo-row"] { display: flex; flex-wrap: wrap; align-items: center;
+  gap: 1.25rem 2.25rem; margin: 1.5rem 0; }
+div[data-block="logo-row"] figure { margin: 0; }
+div[data-block="logo-row"] img { height: 2.5rem; width: auto; max-width: 9rem;
+  object-fit: contain; }
+/* MEDIA_BLOCK_KINDS derives from `cites` (ADR-539 D2), so the media tokens
+   REACH the logo-row — and the generic [data-height]/[data-fit] rules lose to
+   the kind-scoped base above on specificity, which would make the offered
+   controls render NOTHING (two states, one result — the ADR-461 B1 defect).
+   The strip declares its own scale per height value, and cover crops the
+   marks into equal boxes. */
+div[data-block="logo-row"][data-height="s"] img { height: 1.75rem; }
+div[data-block="logo-row"][data-height="m"] img { height: 2.5rem; }
+div[data-block="logo-row"][data-height="l"] img { height: 3.75rem; }
+div[data-block="logo-row"][data-fit="cover"] img { width: 5.5rem; object-fit: cover; }
 /* ADR-538 D2 — the projected chart. The projection emits this markup from the
    cited CSV (`csvToChartHtml`); the kernel styles it, so a chart is themed by
    the design system like every other block and needs no inline geometry. */
@@ -1908,7 +2084,15 @@ STUDIO_KERNEL_CSS = STUDIO_KERNEL_CSS.replace("__RUNG_CSS__", _rung_css()).repla
 # population whose coordinate system is currently wrong. The
 # `[data-arrange="full-bleed"] { padding: 0 }` exception is DELETED — it is
 # now the general case.
-STUDIO_KERNEL_CSS_VERSION = 18
+# v19 (2026-08-19, ADR-581 D4): the composed family's deck-native kinds gain
+# kernel rules — stat · comparison · timeline · person · logo-row. Additive:
+# no existing rule changed or removed, so an artifact holding none of the new
+# kinds is byte-identical in behaviour after the retrofit. Written against the
+# v18 geometry (the slide inset rides its children); the logo-row's height/fit
+# overrides exist because MEDIA_BLOCK_KINDS derives from `cites` and the
+# generic token rules lose to the kind-scoped base on specificity — an offered
+# control must render, or it is the ADR-461 B1 defect wearing a new kind.
+STUDIO_KERNEL_CSS_VERSION = 19
 
 
 def compose_kernel_style_element() -> str:
