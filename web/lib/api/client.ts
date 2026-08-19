@@ -2833,6 +2833,8 @@ export const api = {
         does?: {
           reads: string;
           writes: string;
+          // ADR-585 — present once the API serves turn-reach facts.
+          chat?: string;
           agents: string;
         } | null;
         cadence_choices: string[];

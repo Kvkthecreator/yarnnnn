@@ -339,7 +339,24 @@ def _anthropic_to_openai_tool(tool: dict) -> dict:
     }
 
 
-def lane_tool_names() -> tuple:
+def turn_has_reach(app: Optional[str], artifact_path: Optional[str],
+                   derive_recipe: Optional[str]) -> bool:
+    """Whether THIS turn carries the member's turn-reach surface (ADR-585).
+
+    The principal-presence cut line, derived from the turn's own shape: only
+    the OPEN chat turn — no app binding, no bound artifact, no derive recipe —
+    is the member present, driving, wielding their own connections. App lanes
+    and derive turns are workspace-disciplined (landed files only), the same
+    as agents. Pure; both the tool assembly and the frame prose derive from
+    it with the same arguments, so they cannot disagree.
+    """
+    from services.turn_reach import is_turn_reach_enabled
+
+    return (is_turn_reach_enabled()
+            and not app and not artifact_path and not derive_recipe)
+
+
+def lane_tool_names(turn_reach: bool = False) -> tuple:
     """THE lane's tool-name set: the five file verbs + the uniform reads
     (ADR-467 D4). One set, every lane, every Agent.
 
@@ -349,13 +366,21 @@ def lane_tool_names() -> tuple:
     the model what it holds. When they were computed separately they disagreed
     and shipped a bug (Scout's declared-but-undispatchable tools, `5ba26e1`);
     when the set varied per Agent, the variance itself was the bug surface
-    (ADR-467 §1). This is the one computation all three read, and it no longer
-    takes an argument to disagree about.
+    (ADR-467 §1). This is the one computation all three read.
+
+    ADR-585: `turn_reach` (the `turn_has_reach` fact, derived per turn from
+    the turn's own shape — never per Agent) appends the member's read-only
+    platform reach surface. All three consumers derive it from the same
+    turn facts, so the D4 agreement holds with the flag on or off.
     """
+    if turn_reach:
+        from services.turn_reach import turn_reach_tool_names
+
+        return LANE_TOOL_NAMES + LANE_SURFACE_EXTRA + turn_reach_tool_names()
     return LANE_TOOL_NAMES + LANE_SURFACE_EXTRA
 
 
-def lane_tools_openai() -> list[dict]:
+def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
     """The lane tool surface in OpenAI format, derived from the registry's
     own definitions (no parallel schemas — Singular Implementation).
 
@@ -387,13 +412,21 @@ def lane_tools_openai() -> list[dict]:
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE,
                   LIST_INTEGRATIONS_TOOL, GENERATE_IMAGE_TOOL)
     }
-    missing = [n for n in lane_tool_names() if n not in by_name]
+    if turn_reach:
+        # ADR-585: the member's read-only reach surface, schemas from the
+        # provider rosters themselves (turn_reach_tool_defs errors on a
+        # missing schema — same fail-loud rule as below).
+        from services.turn_reach import turn_reach_tool_defs
+
+        by_name.update({t["name"]: t for t in turn_reach_tool_defs()})
+    names = lane_tool_names(turn_reach)
+    missing = [n for n in names if n not in by_name]
     if missing:
         raise ValueError(
             f"lane surface names {missing} have no tool schema — a surface "
             "addition must land its schema in the same edit (ADR-467 D4)"
         )
-    return [_anthropic_to_openai_tool(by_name[n]) for n in lane_tool_names()]
+    return [_anthropic_to_openai_tool(by_name[n]) for n in names]
 
 
 # ---------------------------------------------------------------------------
@@ -448,13 +481,7 @@ agents, or write out to external platforms; you read this member's commons
 (QueryKnowledge searches it by meaning) and the open web (WebSearch), and you
 write only to the commons.
 
-list_integrations tells you which platforms {member} has CONNECTED (Notion,
-Slack, GitHub) and whether each is active. Call it instead of guessing — never
-tell them a connector is absent without looking. But seeing a connection is not
-having it: you can name what they bound, and you CANNOT read through it. There
-is no tool here that opens a Notion page or a Slack channel. If they want that
-content, say so plainly and offer what you can do — they can paste it, or
-export and drop the files into the commons, where you read them normally.
+{connector_reach_section}
 
 ## Format discipline
 {format_discipline}
@@ -615,11 +642,42 @@ def build_lane_conventions(
     from services.agents_registry import find_member_agents
     _mine = find_member_agents(client, user_id) if agent else []
 
-    # The tool line names the lane surface — UNIFORM for every lane (ADR-467
-    # D4). Derived from the same `lane_tool_names` the payload + the loop's
+    # The tool line names the lane surface (ADR-467 D4). Derived from the same
+    # `lane_tool_names` + the same turn facts the payload and the loop's
     # allowlist read, so the prose can never claim a surface the model wasn't
-    # handed (the Scout bug's prose half).
-    tools_line = " · ".join(lane_tool_names())
+    # handed (the Scout bug's prose half). ADR-585: the reach fact re-derives
+    # here from the SAME arguments run_lane_turn passed.
+    _reach = turn_has_reach(app, artifact_path, derive_recipe)
+    tools_line = " · ".join(lane_tool_names(_reach))
+
+    # ADR-585 / ADR-535 D3 — the connector edge, stated affirmatively either
+    # way. Without reach the model must not infer it from the inventory; with
+    # reach it must know the bound (the MEMBER's own connections, read-only,
+    # transient) rather than guess at more.
+    if _reach:
+        connector_reach_section = (
+            f"list_integrations tells you which platforms {member} has "
+            "CONNECTED (Notion, Slack, GitHub) and whether each is active. "
+            "Call it instead of guessing. The platform_* tools read through "
+            f"{member}'s OWN connections — theirs only, granted by their "
+            "authorization on each platform, read-only. What you fetch lives "
+            "in this conversation and dies with it; if it is worth keeping, "
+            "save it to the commons with WriteFile so it is attributed and "
+            "citable. A platform they have not connected answers honestly "
+            "that it is not connected — offer Connect in Settings, or paste."
+        )
+    else:
+        connector_reach_section = (
+            f"list_integrations tells you which platforms {member} has "
+            "CONNECTED (Notion, Slack, GitHub) and whether each is active. "
+            "Call it instead of guessing — never tell them a connector is "
+            "absent without looking. But seeing a connection is not having "
+            "it: you can name what they bound, and you CANNOT read through "
+            "it. There is no tool here that opens a Notion page or a Slack "
+            "channel. If they want that content, say so plainly and offer "
+            "what you can do — they can paste it, or export and drop the "
+            "files into the commons, where you read them normally."
+        )
 
     mandate = _read_workspace_file(client, user_id, CONSTITUTION_MANDATE_PATH)
     mandate_head = "\n".join(mandate.strip().splitlines()[:40]).strip()
@@ -785,6 +843,7 @@ def build_lane_conventions(
         filesystem_model=PARTICIPANT_FILESYSTEM_MODEL,
         format_discipline=PARTICIPANT_FORMAT_DISCIPLINE,
         tools_line=tools_line,
+        connector_reach_section=connector_reach_section,
         mandate_section=mandate_section,
         posture_section=posture_section,
     )
@@ -873,8 +932,11 @@ async def run_lane_turn(
     # ADR-467 D4: ONE surface, every lane — payload and execution allowlist
     # from the same computation (Singular Implementation, lane_tool_names), so
     # the declared-but-undispatchable bug class is unrepresentable.
-    tools = lane_tools_openai()
-    _allowed = lane_tool_names()
+    # ADR-585: the reach fact derives from the turn's own shape; the frame
+    # prose re-derives it from the SAME arguments inside build_lane_conventions.
+    _reach = turn_has_reach(app, artifact_path, derive_recipe)
+    tools = lane_tools_openai(_reach)
+    _allowed = lane_tool_names(_reach)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
@@ -1084,8 +1146,11 @@ async def run_lane_turn_stream(
     # ADR-467 D4: ONE surface, every lane — payload and execution allowlist
     # from the same computation (Singular Implementation, lane_tool_names), so
     # the declared-but-undispatchable bug class is unrepresentable.
-    tools = lane_tools_openai()
-    _allowed = lane_tool_names()
+    # ADR-585: the reach fact derives from the turn's own shape; the frame
+    # prose re-derives it from the SAME arguments inside build_lane_conventions.
+    _reach = turn_has_reach(app, artifact_path, derive_recipe)
+    tools = lane_tools_openai(_reach)
+    _allowed = lane_tool_names(_reach)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,

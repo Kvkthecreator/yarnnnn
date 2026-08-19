@@ -1,7 +1,16 @@
 # ADR-585: Turn Reach — the Member's Own Connections, Inside Their Own Turn
 
-> **Status**: DRAFT — proposed 2026-08-19, awaiting operator ratification.
-> Nothing in this ADR is built; the lane allowlist stays closed until it is.
+> **Status**: Ratified + Implemented DORMANT 2026-08-19. The operator
+> confirmed the cut line in their own words the same day: *"a chat should
+> use the user settings, and the agents principals follow the existing
+> workspace settings discipline. thus, it's just following the same
+> discipline applied. and the same goes for dedicated APPs with agents."*
+> That framing makes this ADR the EXISTING scope taxonomy applied (ADR-407:
+> verbs are user-scoped; ADR-425: the credential is the member's account
+> object), not a new discipline. Built behind `TURN_REACH_ENABLED`
+> (default OFF — the ADR-404 D2 pattern: built whole, lit deliberately);
+> production behavior is unchanged until the flag flips.
+> Gate: `api/test_adr585_turn_reach.py`.
 >
 > **Disposition (declared first, per the intake-pipeline.md §5 rule)**: this
 > is **TURN REACH** — an LLM calling a platform live inside a conversation
@@ -98,14 +107,28 @@ flag's operator-facing dial lands) must say this in one sentence.
   (this ADR is the turn-reach half finally getting its decision).
 - MCP inbound: ADR-563 scopes and ADR-573 binding are orthogonal.
 
-## 4. Build sketch (for the implementing session)
+## 4. As built (same day, dormant)
 
-Platform tool schemas per connected platform (the read tools already exist
-in `platform_tools.py`); `lane_runner` allowlist amendment behind the
-transport-enforced flag; credential resolution through
-`resolve_platform_credential` with the turn principal; refusal copy for the
-not-connected case; the detail page's "Agents" capability fact gains a
-"Chat" row once live. Gates: drive a turn with the flag off (nothing
-reachable), with the flag on as a connected member (reach works), as a
-member without the connection (honest refusal), and as the steward (still
-nothing).
+- **`services/turn_reach.py`** — the flag + the surface, DERIVED from the
+  capability registry's read rosters (`read_slack` + `read_notion` +
+  `read_github` → 9 read-only tools) and the provider rosters' own schemas.
+  A write tool cannot drift in without editing the registry itself.
+- **`lane_runner.turn_has_reach(app, artifact_path, derive_recipe)`** — the
+  principal-presence fact, derived per turn from the turn's OWN shape: only
+  the open chat turn (no app binding, no bound artifact, no derive recipe)
+  carries reach. Both run variants and the frame prose derive it from the
+  same arguments, so payload, allowlist, and prose cannot disagree (the
+  ADR-467 D4 rule, held with the flag on or off).
+- **Dispatch needed nothing new**: `execute_primitive` already routes
+  platform reads to `handle_platform_tool`, whose ADR-577 chokepoint
+  (`resolve_platform_credential` + `is_agent_caller`) resolves by the turn's
+  member and refuses agent-shaped callers — the lane's `member:{user_id}`
+  embodiment is a human's hands by construction. The not-connected case is
+  the chokepoint's existing `credential_missing_error`.
+- **The frame's connector edge** (ADR-535 D3) is now stated affirmatively in
+  BOTH directions: without reach, "you CANNOT read through it"; with reach,
+  the bound (member's own · read-only · transient · save-to-keep).
+- **The detail page's capability facts** gain a `chat` row derived from the
+  flag ("chat cannot reach platforms on this deployment" until it flips).
+- Steward, app lanes, derive turns, wake paths: unchanged — no platform
+  tool on any of their surfaces.

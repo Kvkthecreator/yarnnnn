@@ -70,6 +70,7 @@ interface ConnectorSettings {
 interface ConnectorDoes {
   reads: string;
   writes: string;
+  chat?: string;
   agents: string;
 }
 
@@ -555,6 +556,12 @@ export function ManageConnectionSubsurface({
                     <dt className="w-14 shrink-0 font-medium">Writes</dt>
                     <dd className="text-muted-foreground">{does.writes}</dd>
                   </div>
+                  {does.chat && (
+                    <div className="flex gap-2">
+                      <dt className="w-14 shrink-0 font-medium">Chat</dt>
+                      <dd className="text-muted-foreground">{does.chat}</dd>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <dt className="w-14 shrink-0 font-medium">Agents</dt>
                     <dd className="text-muted-foreground">{does.agents}</dd>

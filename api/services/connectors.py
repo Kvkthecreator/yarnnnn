@@ -105,12 +105,26 @@ def connector_does(platform: str) -> Optional[dict]:
     except Exception:  # noqa: BLE001 — a registry hiccup must not claim a write path
         can_export = False
     name = _PLATFORM_DISPLAY.get(plat, plat)
+    try:
+        from services.turn_reach import is_turn_reach_enabled
+        reach_on = is_turn_reach_enabled()
+    except Exception:  # noqa: BLE001
+        reach_on = False
     return {
         "reads": binding["reads"],
         "writes": (
             f"only when you export a document to {name} — your action, never scheduled"
             if can_export
             else f"nothing — yarnnn never writes to {name}"
+        ),
+        # ADR-585: chat turn reach — the member's OWN connection, inside their
+        # own turn, read-only and transient. Derived from the deploy flag so
+        # the fact flips the day the capability does.
+        "chat": (
+            f"your chat can read {name} through your own connection — "
+            "read-only, in the turn, nothing saved unless you ask"
+            if reach_on
+            else "chat cannot reach platforms on this deployment"
         ),
         "agents": "no direct platform access — agents read the landed capture files only",
     }
