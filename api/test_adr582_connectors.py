@@ -413,6 +413,26 @@ check("7f PUT connector-settings exists (the three dials' one door)",
 check("7g the cadence-only route is DELETED (singular implementation)",
       "/integrations/{provider}/cadence" not in route_paths)
 
+# The pre-582 sync/coverage/import surface is DELETED (2026-08-19 sweep):
+# nothing wrote sync_registry.last_synced_at any more, the import routes were
+# {"deprecated": True} stubs, and every FE binding had zero callers. A route
+# reappearing here means a second implementation is growing back.
+_DEAD_ROUTES = {
+    "/integrations/{provider}/sync",
+    "/integrations/{provider}/sync-status",
+    "/integrations/{provider}/coverage/{resource_id}",
+    "/integrations/{provider}/destinations",
+    "/integrations/history",
+    "/integrations/import",
+    "/integrations/import/{job_id}",
+    "/integrations/slack/channels",
+    "/integrations/notion/pages",
+    "/integrations/notion/import",
+    "/integrations/notion/designated-page",
+}
+check("7g2 the dead pre-582 sync/coverage/import routes STAY deleted",
+      not (_DEAD_ROUTES & route_paths), str(sorted(_DEAD_ROUTES & route_paths)))
+
 # --- the reconnect crash: the callback writes only columns that EXIST --------
 # platform_connections has no `last_error` column (measured in production,
 # 2026-08-19 — PGRST204 refused the WHOLE update, so every re-connect
@@ -474,8 +494,31 @@ _ret_keys = {
 }
 check("7l capture-signal serves the settings object beside the existing shape "
       "(extend, not fork)",
-      {"settings", "capture", "declared", "observed",
+      {"settings", "does", "capture", "declared", "observed",
        "cadence_choices"} <= _ret_keys, str(sorted(_ret_keys)))
+
+# --- the capability facts are DERIVED, never a parallel copy ------------------
+from services.connectors import connector_does  # noqa: E402
+
+_slack_does = connector_does("slack") or {}
+_gh_does = connector_does("github") or {}
+check("7m does.reads comes from the binding row itself (one home)",
+      _slack_does.get("reads") == CONNECTOR_CAPTURE_BINDINGS["slack"]["reads"]
+      and all("reads" in b for b in CONNECTOR_CAPTURE_BINDINGS.values()))
+
+# Driven against the real exporter registry: slack HAS an exporter, github
+# does not — the writes fact must follow the registry, not a hand-kept list.
+from integrations.exporters import get_exporter_registry  # noqa: E402
+
+check("7n does.writes follows the exporter registry (slack exports, github "
+      "never writes)",
+      get_exporter_registry().get("slack") is not None
+      and get_exporter_registry().get("github") is None
+      and "export" in _slack_does.get("writes", "")
+      and "never writes" in _gh_does.get("writes", ""),
+      f"slack={_slack_does.get('writes')!r} github={_gh_does.get('writes')!r}")
+check("7o does is None for an unbound platform (no fabricated facts)",
+      connector_does("commerce") is None and connector_does("") is None)
 
 n = PASS + FAIL
 print(f"\n{PASS}/{n} ADR-582 assertions pass")

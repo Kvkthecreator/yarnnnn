@@ -31,7 +31,6 @@ from services.connector_registry import (
     is_offered,
 )
 from integrations.core.tokens import get_token_manager
-from integrations.core.slack_client import get_slack_client
 from integrations.core.oauth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -39,7 +38,6 @@ from integrations.core.oauth import (
     OAUTH_CONFIGS,
 )
 from integrations.core.types import (
-    IntegrationProvider,
     IntegrationStatus,
     ExportStatus,
 )
@@ -65,42 +63,6 @@ PROVIDER_ALIASES: dict[str, list[str]] = {
 # _process_import_job_background DELETED (ADR-153 + ADR-156)
 # Platform data flows through task execution (Monitor Slack, Monitor Notion),
 # not background import jobs. See ADR-153 for the explicit sunset decision.
-
-
-# =============================================================================
-# Notion Helper Functions
-# =============================================================================
-
-def _extract_notion_title(page: dict) -> str:
-    """Extract title from Notion page object."""
-    # Notion API returns title in properties.title or properties.Name
-    props = page.get("properties", {})
-
-    # Try common title property names
-    for key in ["title", "Title", "Name", "name"]:
-        if key in props:
-            title_prop = props[key]
-            if isinstance(title_prop, dict):
-                # Handle rich text array format
-                title_array = title_prop.get("title") or title_prop.get("rich_text", [])
-                if isinstance(title_array, list) and title_array:
-                    return title_array[0].get("plain_text", "Untitled")
-            elif isinstance(title_prop, str):
-                return title_prop
-
-    return "Untitled"
-
-
-def _extract_notion_parent_type(page: dict) -> str:
-    """Extract parent type from Notion page object."""
-    parent = page.get("parent", {})
-    if "workspace" in parent:
-        return "workspace"
-    elif "page_id" in parent:
-        return "page"
-    elif "database_id" in parent:
-        return "database"
-    return "unknown"
 
 
 router = APIRouter()
@@ -157,151 +119,6 @@ class ExportResponse(BaseModel):
     external_id: Optional[str] = None
     external_url: Optional[str] = None
     error_message: Optional[str] = None
-
-
-class DestinationResponse(BaseModel):
-    """Available export destination."""
-    id: str
-    name: str
-    type: str  # 'channel', 'page', 'database'
-    metadata: dict[str, Any] = {}
-
-
-class DestinationsListResponse(BaseModel):
-    """List of available destinations."""
-    destinations: list[DestinationResponse]
-
-
-class SlackChannelResponse(BaseModel):
-    """Slack channel info for resource discovery."""
-    id: str
-    name: str
-    is_private: bool
-    num_members: int
-    topic: Optional[str] = None
-    purpose: Optional[str] = None
-
-
-class SlackChannelsListResponse(BaseModel):
-    """List of Slack channels."""
-    channels: list[SlackChannelResponse]
-
-
-class NotionPageResponse(BaseModel):
-    """Notion page info for resource discovery."""
-    id: str
-    title: str
-    parent_type: str  # 'workspace', 'page', 'database'
-    last_edited: Optional[str] = None
-    url: Optional[str] = None
-
-
-class NotionPagesListResponse(BaseModel):
-    """List of Notion pages."""
-    pages: list[NotionPageResponse]
-
-
-# ADR-153: PlatformContentItem and PlatformContentResponse DELETED — platform_content sunset
-
-
-# =============================================================================
-# Legacy Import Compatibility Models
-# Retained only so deprecated endpoints and response shapes stay stable.
-# =============================================================================
-
-class ImportConfigRequest(BaseModel):
-    """Legacy configuration shape for deprecated import endpoints."""
-    learn_style: bool = False  # Extract communication style from content
-    style_user_id: Optional[str] = None  # For Slack: filter to specific user's messages
-
-
-class ImportScopeRequest(BaseModel):
-    """
-    ADR-030: Scope parameters for context extraction.
-    """
-    recency_days: int = 7  # How far back to go
-    max_items: int = 100  # Maximum items to fetch
-    include_threads: bool = True  # Slack: expand thread replies
-
-
-class StartImportRequest(BaseModel):
-    """Legacy request shape for deprecated context import endpoint."""
-    resource_id: str  # channel_id or page_id
-    resource_name: Optional[str] = None  # #channel-name or Page Title
-    project_id: Optional[str] = None  # Optional project to associate
-    instructions: Optional[str] = None  # User guidance for the agent
-    config: Optional[ImportConfigRequest] = None  # Style learning and other options
-    scope: Optional[ImportScopeRequest] = None  # ADR-030: Extraction scope
-
-
-class ImportJobResultResponse(BaseModel):
-    """Result details for a completed import job."""
-    blocks_extracted: int = 0  # ADR-038: renamed from blocks_created (no longer stored to memories)
-    content_stored: int = 0  # Legacy field — kept for API compat
-    items_processed: int = 0
-    items_filtered: int = 0
-    summary: Optional[str] = None
-    style_learned: bool = False
-    style_confidence: Optional[str] = None  # high, medium, low
-
-
-class ImportJobProgressDetails(BaseModel):
-    """ADR-030: Progress details for real-time tracking."""
-    phase: str  # fetching, processing, storing
-    items_total: int = 0
-    items_completed: int = 0
-    current_resource: Optional[str] = None
-    updated_at: Optional[str] = None
-
-
-def _parse_import_result(result_dict: Optional[dict]) -> Optional[ImportJobResultResponse]:
-    """Parse raw result dict from DB into typed response."""
-    if not result_dict:
-        return None
-    return ImportJobResultResponse(
-        # ADR-038: Support both old and new field names for backwards compatibility
-        blocks_extracted=result_dict.get("blocks_extracted", result_dict.get("blocks_created", 0)),
-        ephemeral_stored=result_dict.get("ephemeral_stored", 0),
-        items_processed=result_dict.get("items_processed", 0),
-        items_filtered=result_dict.get("items_filtered", 0),
-        summary=result_dict.get("summary"),
-        style_learned=result_dict.get("style_learned", False),
-        style_confidence=result_dict.get("style_confidence"),
-    )
-
-
-def _parse_progress_details(progress_dict: Optional[dict]) -> Optional[ImportJobProgressDetails]:
-    """Parse raw progress_details dict from DB into typed response."""
-    if not progress_dict:
-        return None
-    return ImportJobProgressDetails(
-        phase=progress_dict.get("phase", "processing"),
-        items_total=progress_dict.get("items_total", 0),
-        items_completed=progress_dict.get("items_completed", 0),
-        current_resource=progress_dict.get("current_resource"),
-        updated_at=progress_dict.get("updated_at"),
-    )
-
-
-class ImportJobResponse(BaseModel):
-    """Legacy status shape for deprecated import jobs."""
-    id: str
-    provider: str
-    resource_id: str
-    resource_name: Optional[str] = None
-    status: str  # pending, processing, completed, failed
-    progress: int = 0
-    progress_details: Optional[ImportJobProgressDetails] = None  # ADR-030
-    result: Optional[ImportJobResultResponse] = None
-    error_message: Optional[str] = None
-    created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-
-
-class ImportJobsListResponse(BaseModel):
-    """Legacy list shape for deprecated import jobs."""
-    jobs: list[ImportJobResponse]
 
 
 # =============================================================================
@@ -537,72 +354,6 @@ async def get_capture_lane_state(auth: UserClient) -> dict[str, Any]:
     from services.connector_capture_gating import is_connector_capture_enabled
 
     return {"connector_capture_enabled": is_connector_capture_enabled()}
-
-
-# =============================================================================
-# Import Jobs - List (must be before /{provider} to avoid route collision)
-# =============================================================================
-
-@router.get("/integrations/import")
-async def list_import_jobs(
-    auth: UserClient,
-    status: Optional[str] = Query(None, description="Filter by status"),
-    provider: Optional[str] = Query(None, description="Filter by provider"),
-    limit: int = Query(20, le=100)
-) -> dict:
-    """DEPRECATED (ADR-153/156): Import jobs sunset. Returns empty list."""
-    return {"jobs": [], "deprecated": True}
-
-
-@router.get("/integrations/import/{job_id}")
-async def get_import_job(job_id: str, auth: UserClient) -> dict:
-    """DEPRECATED (ADR-153/156): Import jobs sunset."""
-    return {"deprecated": True, "message": "Import jobs have been replaced by monitoring tasks."}
-
-
-# =============================================================================
-# Export History
-# NOTE: This must be before /integrations/{provider} to avoid path parameter matching
-# =============================================================================
-
-@router.get("/integrations/history")
-async def get_export_history(
-    auth: UserClient,
-    agent_id: Optional[str] = None,
-    limit: int = 20
-) -> dict:
-    """
-    Get export history for the user.
-    Optionally filter by agent.
-    """
-    user_id = auth.user_id
-
-    try:
-        query = auth.client.table("export_log").select(
-            "id, provider, status, external_url, created_at, "
-            "agent_run_id"
-        ).eq(*substrate_scope_filter(user_id)).order("created_at", desc=True).limit(limit)
-
-        if agent_id:
-            # Filter by agent (need to join through versions)
-            versions = auth.client.table("agent_runs").select(
-                "id"
-            ).eq("agent_id", agent_id).execute()
-
-            if versions.data:
-                version_ids = [v["id"] for v in versions.data]
-                query = query.in_("agent_run_id", version_ids)
-
-        result = query.execute()
-
-        return {
-            "exports": result.data or [],
-            "total": len(result.data or [])
-        }
-
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to get history for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get export history")
 
 
 # =============================================================================
@@ -1126,409 +877,6 @@ def _normalize_destination(provider: str, destination: dict[str, Any]) -> dict[s
 
 
 # =============================================================================
-# Resource Discovery - Slack Channels
-# =============================================================================
-
-@router.get("/integrations/slack/channels")
-async def list_slack_channels(
-    auth: UserClient
-) -> SlackChannelsListResponse:
-    """
-    List Slack channels the bot can access.
-
-    Used for:
-    - Export destination picker
-    - Context import source selection
-    """
-    user_id = auth.user_id
-
-    try:
-        # Get user's Slack integration
-        integration = auth.client.table("platform_connections").select(
-            "id, credentials_encrypted, status"
-        ).eq(*account_scope_filter(user_id)).eq("platform", "slack").limit(1).execute()
-
-        if not integration.data:
-            raise HTTPException(
-                status_code=404,
-                detail="No Slack integration found. Please connect first."
-            )
-
-        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Slack integration is {integration.data[0]['status']}. Please reconnect."
-            )
-
-        # Get integration metadata for team_id
-        integration_full = auth.client.table("platform_connections").select(
-            "metadata"
-        ).eq(*account_scope_filter(user_id)).eq("platform", "slack").limit(1).execute()
-
-        metadata = integration_full.data[0].get("metadata", {}) or {}
-        team_id = metadata.get("team_id")
-        if not team_id:
-            raise HTTPException(status_code=400, detail="Slack integration missing team_id")
-
-        # Decrypt access token
-        token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
-
-        # Fetch channels via Direct API
-        slack_client = get_slack_client()
-        raw_channels = await slack_client.list_channels(bot_token=access_token)
-
-        # Transform to response format
-        channels = [
-            SlackChannelResponse(
-                id=ch.get("id", ""),
-                name=ch.get("name", ""),
-                is_private=ch.get("is_private", False),
-                num_members=ch.get("num_members", 0),
-                topic=ch.get("topic", {}).get("value") if isinstance(ch.get("topic"), dict) else None,
-                purpose=ch.get("purpose", {}).get("value") if isinstance(ch.get("purpose"), dict) else None,
-            )
-            for ch in raw_channels
-        ]
-
-        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(channels)} Slack channels via MCP")
-
-        return SlackChannelsListResponse(channels=channels)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to list Slack channels for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list channels: {str(e)}")
-
-
-# =============================================================================
-# Resource Discovery - Notion Pages
-# =============================================================================
-
-@router.get("/integrations/notion/pages")
-async def list_notion_pages(
-    auth: UserClient,
-    query: Optional[str] = Query(None, description="Search query to filter pages")
-) -> NotionPagesListResponse:
-    """
-    List Notion pages the integration can access.
-
-    Used for:
-    - Export destination picker
-    - Context import source selection
-    """
-    user_id = auth.user_id
-
-    try:
-        # Get user's Notion integration
-        integration = auth.client.table("platform_connections").select(
-            "id, credentials_encrypted, status"
-        ).eq(*account_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
-
-        if not integration.data:
-            raise HTTPException(
-                status_code=404,
-                detail="No Notion integration found. Please connect first."
-            )
-
-        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Notion integration is {integration.data[0]['status']}. Please reconnect."
-            )
-
-        # Decrypt access token
-        token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
-
-        # ADR-076: Fetch pages via Direct API
-        from integrations.core.notion_client import get_notion_client
-
-        notion_client = get_notion_client()
-        raw_pages = await notion_client.search(
-            access_token=access_token,
-            query=query or "",
-        )
-        if not isinstance(raw_pages, list):
-            raw_pages = []
-
-        pages = [
-            NotionPageResponse(
-                id=page.get("id", ""),
-                title=_extract_notion_title(page),
-                parent_type=_extract_notion_parent_type(page),
-                last_edited=page.get("last_edited_time"),
-                url=page.get("url"),
-            )
-            for page in raw_pages
-            if page.get("object") == "page"  # Filter to pages only
-        ]
-
-        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(pages)} Notion pages")
-
-        return NotionPagesListResponse(pages=pages)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to list Notion pages for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list pages: {str(e)}")
-
-
-# =============================================================================
-# Notion Designated Page (ADR-050 Streamlined Pattern)
-# =============================================================================
-
-class DesignatedPageRequest(BaseModel):
-    """Request to set designated output page for Notion."""
-    page_id: str
-    page_name: Optional[str] = None
-
-
-class DesignatedPageResponse(BaseModel):
-    """Response after setting designated page."""
-    success: bool
-    designated_page_id: Optional[str] = None
-    designated_page_name: Optional[str] = None
-    message: str
-
-
-@router.get("/integrations/notion/designated-page")
-async def get_notion_designated_page(auth: UserClient) -> DesignatedPageResponse:
-    """
-    Get the user's designated output page for Notion.
-
-    ADR-050: Streamlined pattern - user designates a page as their
-    "YARNNN inbox" where TP can write outputs (like Slack DM to self).
-    """
-    user_id = auth.user_id
-
-    try:
-        integration = auth.client.table("platform_connections").select(
-            "id, metadata, status"
-        ).eq(*account_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
-
-        if not integration.data:
-            raise HTTPException(
-                status_code=404,
-                detail="No Notion integration found. Please connect first."
-            )
-
-        metadata = integration.data[0].get("metadata") or {}
-        designated_page_id = metadata.get("designated_page_id")
-        designated_page_name = metadata.get("designated_page_name")
-
-        if designated_page_id:
-            return DesignatedPageResponse(
-                success=True,
-                designated_page_id=designated_page_id,
-                designated_page_name=designated_page_name,
-                message="Designated page is set"
-            )
-        else:
-            return DesignatedPageResponse(
-                success=True,
-                designated_page_id=None,
-                designated_page_name=None,
-                message="No designated page set"
-            )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to get Notion designated page for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get designated page: {str(e)}")
-
-
-@router.put("/integrations/notion/designated-page")
-async def set_notion_designated_page(
-    request: DesignatedPageRequest,
-    auth: UserClient
-) -> DesignatedPageResponse:
-    """
-    Set the user's designated output page for Notion.
-
-    ADR-050: Streamlined pattern - TP will use this page as the default
-    parent for creating new pages or adding comments.
-    """
-    user_id = auth.user_id
-
-    try:
-        # Get current integration
-        integration = auth.client.table("platform_connections").select(
-            "id, metadata, status"
-        ).eq(*account_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
-
-        if not integration.data:
-            raise HTTPException(
-                status_code=404,
-                detail="No Notion integration found. Please connect first."
-            )
-
-        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Notion integration is {integration.data[0]['status']}. Please reconnect."
-            )
-
-        # Update metadata with designated page
-        metadata = integration.data[0].get("metadata") or {}
-        metadata["designated_page_id"] = request.page_id
-        if request.page_name:
-            metadata["designated_page_name"] = request.page_name
-
-        auth.client.table("platform_connections").update({
-            "metadata": metadata
-        }).eq("id", integration.data[0]["id"]).execute()
-
-        logger.info(f"[INTEGRATIONS] User {user_id} set Notion designated page: {request.page_id}")
-
-        return DesignatedPageResponse(
-            success=True,
-            designated_page_id=request.page_id,
-            designated_page_name=request.page_name,
-            message="Designated page updated"
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to set Notion designated page for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to set designated page: {str(e)}")
-
-
-@router.delete("/integrations/notion/designated-page")
-async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageResponse:
-    """
-    Clear the user's designated output page for Notion.
-    """
-    user_id = auth.user_id
-
-    try:
-        integration = auth.client.table("platform_connections").select(
-            "id, metadata"
-        ).eq(*account_scope_filter(user_id)).eq("platform", "notion").limit(1).execute()
-
-        if not integration.data:
-            raise HTTPException(
-                status_code=404,
-                detail="No Notion integration found."
-            )
-
-        # Remove designated page from metadata
-        metadata = integration.data[0].get("metadata") or {}
-        metadata.pop("designated_page_id", None)
-        metadata.pop("designated_page_name", None)
-
-        auth.client.table("platform_connections").update({
-            "metadata": metadata
-        }).eq("id", integration.data[0]["id"]).execute()
-
-        logger.info(f"[INTEGRATIONS] User {user_id} cleared Notion designated page")
-
-        return DesignatedPageResponse(
-            success=True,
-            designated_page_id=None,
-            designated_page_name=None,
-            message="Designated page cleared"
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to clear Notion designated page for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to clear designated page: {str(e)}")
-
-
-    # ADR-131: Google designated settings routes removed (Gmail/Calendar sunset)
-
-
-
-# ADR-131: Google designated-settings, calendar, events, and Gmail import routes removed
-
-@router.post("/integrations/notion/import")
-async def start_notion_import(
-    request: StartImportRequest,
-    auth: UserClient,
-    background_tasks: BackgroundTasks
-) -> dict:
-    """
-    DEPRECATED (ADR-153 + ADR-156): Platform data flows through task execution.
-    Use Monitor Notion task type instead of import jobs.
-
-    Retained as endpoint to prevent frontend 404s. Returns deprecation message.
-    """
-    # ADR-153 + ADR-156: Import jobs sunset.
-    # Platform data flows through task execution (Monitor Notion task type).
-    return {
-        "deprecated": True,
-        "message": "Import jobs have been replaced by platform-awareness tasks. Ask YARNNN to author a tracker task with `**Required Capabilities:** read_notion, summarize` that writes to the notion context domain.",
-    }
-
-
-# =============================================================================
-# List Destinations (Legacy/Generic)
-# =============================================================================
-
-@router.get("/integrations/{provider}/destinations")
-async def list_destinations(
-    provider: str,
-    auth: UserClient
-) -> DestinationsListResponse:
-    """
-    List available export destinations for a provider.
-
-    DEPRECATED: Use provider-specific endpoints instead:
-    - GET /integrations/slack/channels
-    - GET /integrations/notion/pages
-    """
-    user_id = auth.user_id
-
-    # Redirect to provider-specific endpoints
-    if provider == "slack":
-        result = await list_slack_channels(auth)
-        return DestinationsListResponse(
-            destinations=[
-                DestinationResponse(
-                    id=ch.id,
-                    name=f"#{ch.name}",
-                    type="channel",
-                    metadata={"is_private": ch.is_private, "num_members": ch.num_members}
-                )
-                for ch in result.channels
-            ]
-        )
-    elif provider == "notion":
-        result = await list_notion_pages(auth)
-        return DestinationsListResponse(
-            destinations=[
-                DestinationResponse(
-                    id=p.id,
-                    name=p.title,
-                    type="page",
-                    metadata={"parent_type": p.parent_type, "url": p.url}
-                )
-                for p in result.pages
-            ]
-        )
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
-
-
-# =============================================================================
-# Platform Digest Task Scaffolding — DELETED (ADR-207 P4a, 2026-04-22)
-# =============================================================================
-# Previously auto-scaffolded slack-digest / notion-digest / github-digest /
-# trading-digest TASK.md on OAuth connect. Those TASK_TYPES entries no longer
-# exist (they referenced bot roles), and per ADR-206, platform connection
-# does not imply a specific task. YARNNN proposes tasks in conversation based
-# on the operator's declared Mandate + connected platforms. The operator
-# approves, YARNNN calls ManageTask(create) with a specialist + platform
-# capability declaration.
-
-
-# =============================================================================
 # OAuth Flow - Initiate
 # =============================================================================
 
@@ -1764,34 +1112,26 @@ async def oauth_callback(
 
 
 # =============================================================================
-# ADR-030: Landscape Discovery & Coverage
+# ADR-030: Landscape Discovery
+# (The coverage half died with the sync lane — 2026-08-19 sweep: nothing wrote
+# sync_registry.last_synced_at any more, so coverage_state was permanently
+# "uncovered" and no FE component read it.)
 # =============================================================================
 
 class LandscapeResourceResponse(BaseModel):
     """A resource in the platform landscape."""
     id: str
     name: str
-    resource_type: str  # 'label', 'channel', 'page', 'database'
-    coverage_state: str = "uncovered"  # uncovered, partial, covered, stale, excluded
-    last_extracted_at: Optional[datetime] = None
-    items_extracted: int = 0
+    resource_type: str  # 'channel', 'page', 'database', 'repository'
     metadata: dict[str, Any] = {}
-    last_error: Optional[str] = None
-    last_error_at: Optional[datetime] = None
     recommended: bool = False
 
 
 class LandscapeResponse(BaseModel):
-    """Platform landscape with coverage summary."""
+    """Platform landscape."""
     provider: str
     discovered_at: Optional[datetime] = None
     resources: list[LandscapeResourceResponse]
-    coverage_summary: dict[str, Any] = {}
-
-
-class CoverageUpdateRequest(BaseModel):
-    """Request to update coverage state for a resource."""
-    coverage_state: str  # 'excluded' to mark as not relevant, 'uncovered' to reset
 
 
 @router.get("/integrations/{provider}/landscape")
@@ -1885,43 +1225,15 @@ async def get_landscape(
         landscape_data = integration.data[0].get("landscape", {})
         discovered_at = integration.data[0].get("landscape_discovered_at")
 
-    # Get sync records for this provider (ADR-058)
-    sync_result = auth.client.table("sync_registry").select(
-        "resource_id, resource_name, last_synced_at, item_count, last_error, last_error_at"
-    ).eq(*account_scope_filter(user_id)).eq("platform", resolved_provider).execute()
-
-    sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
-
-    def _sync_variants(resource_id: Optional[str]) -> list[str]:
-        """Return ID variants to tolerate legacy/normalized sync IDs."""
-        if not resource_id:
-            return []
-        return [resource_id]
-
-    # Build resource list with sync status
-    resources = []
-    for resource in landscape_data.get("resources", []):
-        resource_id = resource.get("id")
-        sync_data = {}
-        for candidate_id in _sync_variants(resource_id):
-            if candidate_id in sync_by_id:
-                sync_data = sync_by_id[candidate_id]
-                break
-
-        # Determine coverage state from sync data
-        coverage_state = "covered" if sync_data.get("last_synced_at") else "uncovered"
-
-        resources.append(LandscapeResourceResponse(
-            id=resource_id,
+    resources = [
+        LandscapeResourceResponse(
+            id=resource.get("id"),
             name=resource.get("name", "Unknown"),
             resource_type=resource.get("type", "unknown"),
-            coverage_state=coverage_state,
-            last_extracted_at=sync_data.get("last_synced_at"),
-            items_extracted=sync_data.get("item_count", 0),
             metadata=resource.get("metadata", {}),
-            last_error=sync_data.get("last_error"),
-            last_error_at=sync_data.get("last_error_at"),
-        ))
+        )
+        for resource in landscape_data.get("resources", [])
+    ]
 
     # Compute recommended IDs (ADR-079 smart defaults) for UI grouping — no tier limit
     from services.landscape import compute_smart_defaults
@@ -1937,19 +1249,10 @@ async def get_landscape(
     for r in resources:
         r.recommended = r.id in recommended_ids
 
-    # Get coverage summary
-    summary_result = auth.client.rpc("get_coverage_summary", {
-        "p_user_id": user_id,
-        "p_provider": provider
-    }).execute()
-
-    coverage_summary = summary_result.data[0] if summary_result.data else {}
-
     return LandscapeResponse(
         provider=provider,
         discovered_at=discovered_at,
         resources=resources,
-        coverage_summary=coverage_summary
     )
 
 
@@ -1959,51 +1262,6 @@ async def get_landscape(
 
 # ADR-153: /integrations/{provider}/context endpoint DELETED — platform_content sunset.
 # Platform data flows through tasks into workspace context domains.
-
-
-@router.patch("/integrations/{provider}/coverage/{resource_id}")
-async def update_coverage(
-    provider: str,
-    resource_id: str,
-    request: CoverageUpdateRequest,
-    auth: UserClient = None
-) -> dict[str, Any]:
-    """
-    Update sync state for a resource.
-
-    ADR-058: Allows users to mark resources as excluded (not relevant)
-    or reset them to uncovered. Uses sync_registry.sync_metadata.
-    """
-    if request.coverage_state not in ["excluded", "uncovered"]:
-        raise HTTPException(
-            status_code=400,
-            detail="coverage_state must be 'excluded' or 'uncovered'"
-        )
-
-    user_id = auth.user_id
-
-    # Check if sync record exists
-    existing = auth.client.table("sync_registry").select("id, sync_metadata").eq(
-        "user_id", user_id
-    ).eq("platform", provider).eq("resource_id", resource_id).execute()
-
-    if existing.data:
-        # Update existing record's metadata
-        metadata = existing.data[0].get("sync_metadata", {}) or {}
-        metadata["excluded"] = request.coverage_state == "excluded"
-        auth.client.table("sync_registry").update({
-            "sync_metadata": metadata,
-        }).eq("id", existing.data[0]["id"]).execute()
-    else:
-        # Insert new record with exclusion state
-        auth.client.table("sync_registry").insert({
-            "user_id": user_id,
-            "platform": provider,
-            "resource_id": resource_id,
-            "sync_metadata": {"excluded": request.coverage_state == "excluded"}
-        }).execute()
-
-    return {"success": True, "resource_id": resource_id, "coverage_state": request.coverage_state}
 
 
 # =============================================================================
@@ -2308,6 +1566,8 @@ async def get_capture_signal(
         there is no seeded entry any more).
       - `settings` — the three ADR-582 dials {cadence, destination, digest},
         defaults applied; null when unconnected.
+      - `does` — the capability facts {reads, writes, agents}, derived from
+        the capture binding + exporter registry + the ADR-577 refusal.
       - `agent_enabled` — the deploy-level gate (ADR-375 D4): when False,
         captures never run regardless of cadence; the FE must say so rather
         than imply reads are happening.
@@ -2322,13 +1582,18 @@ async def get_capture_signal(
         "connection": {workspace_name, connected_at} | None,
         "capture": {schedule, paused} | None,
         "settings": {cadence, destination, digest} | None,
+        "does": {reads, writes, agents} | None,
         "agent_enabled": bool,
       }
     """
     from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal
     from services.connector_capture_gating import is_connector_capture_enabled
-    from services.connectors import CONNECTOR_CADENCE_CHOICES, connector_settings
+    from services.connectors import (
+        CONNECTOR_CADENCE_CHOICES,
+        connector_does,
+        connector_settings,
+    )
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
@@ -2413,111 +1678,15 @@ async def get_capture_signal(
         "connection": connection,
         "capture": capture,
         "settings": settings_obj,
+        # The capability facts (reads / writes / agents) — derived server-side
+        # from the machinery that enacts them (binding · exporter registry ·
+        # the ADR-577 refusal), so the display can never drift from the code.
+        "does": connector_does(db_platform),
         "cadence_choices": list(CONNECTOR_CADENCE_CHOICES),
         "agent_enabled": is_agent_enabled(),
         # ADR-404 D2: the FE hides CADENCE + YIELD + the retention dial while
         # the capture lane is dormant (ACCESS + SCOPE stay unconditional).
         "connector_capture_enabled": is_connector_capture_enabled(),
-    }
-
-
-@router.post("/integrations/{provider}/sync")
-async def trigger_platform_sync(
-    provider: str,
-    auth: UserClient,
-    background_tasks: BackgroundTasks
-) -> dict[str, Any]:
-    """
-    ADR-153: Platform sync sunset. This endpoint is deprecated.
-    Platform data flows through tracking tasks into context domains.
-    """
-    return {
-        "success": False,
-        "error": "deprecated",
-        "message": "Platform sync is deprecated (ADR-153). Create a monitoring task and trigger it instead.",
-    }
-
-
-@router.get("/integrations/{provider}/sync-status")
-async def get_platform_sync_status(
-    provider: str,
-    auth: UserClient,
-) -> dict[str, Any]:
-    """
-    Get resource coverage / freshness status for a platform.
-
-    Returns timestamp/error information for each tracked resource.
-    """
-    from datetime import timezone
-
-    user_id = auth.user_id
-    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
-
-    # Verify integration exists (try all alias candidates)
-    integration = None
-    for p in providers_to_try:
-        result = auth.client.table("platform_connections").select(
-            "id, status"
-        ).eq(*account_scope_filter(user_id)).eq("platform", p).limit(1).execute()
-        if result.data:
-            integration = result
-            break
-
-    if not integration or not integration.data:
-        raise HTTPException(status_code=404, detail=f"No {provider} integration found")
-
-    # Get sync registry entries for this platform (ADR-086: include error fields)
-    sync_result = auth.client.table("sync_registry").select(
-        "resource_id, resource_name, last_synced_at, item_count, source_latest_at, last_error, last_error_at"
-    ).eq(*account_scope_filter(user_id)).eq("platform", provider).execute()
-
-    now = datetime.now(timezone.utc)
-    synced_resources = []
-    stale_count = 0
-    error_count = 0
-
-    for entry in (sync_result.data or []):
-        last_synced = entry.get("last_synced_at")
-        freshness_status = "unknown"
-
-        if last_synced:
-            if isinstance(last_synced, str):
-                last_synced_dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
-            else:
-                last_synced_dt = last_synced
-
-            hours_since = (now - last_synced_dt).total_seconds() / 3600
-
-            if hours_since < 1:
-                freshness_status = "fresh"
-            elif hours_since < 24:
-                freshness_status = "recent"
-            else:
-                freshness_status = "stale"
-                stale_count += 1
-        else:
-            freshness_status = "unknown"
-            stale_count += 1
-
-        last_error = entry.get("last_error")
-        if last_error:
-            error_count += 1
-
-        synced_resources.append({
-            "resource_id": entry.get("resource_id"),
-            "resource_name": entry.get("resource_name"),
-            "last_synced": last_synced,
-            "freshness_status": freshness_status,
-            "items_synced": entry.get("item_count", 0),
-            "last_error": last_error,
-            "last_error_at": entry.get("last_error_at"),
-        })
-
-    return {
-        "platform": provider,
-        "synced_resources": synced_resources,
-        "stale_count": stale_count,
-        "error_count": error_count,
     }
 
 

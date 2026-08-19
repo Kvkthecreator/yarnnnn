@@ -77,7 +77,29 @@ never a credential. The connection-level aperture (what is captured at all)
 stays the operator's consent setting; app opt-in selects within it. An app
 naming an un-captured selector gets the same honest empty as a dead feed.
 
-## 5. What this is not
+## 5. The operator surface
+
+The per-connection detail page (`web/components/settings/
+ManageConnectionSubsurface.tsx`, the drill-in from Settings → Connectors)
+presents the lifecycle in consent order:
+
+| Block | What it states | Where the truth lives |
+|---|---|---|
+| **What this connection does** | reads / writes / agents — capability FACTS | derived server-side: the capture binding's `reads` · the exporter registry · the ADR-577 refusal (`connector_does()`) |
+| **Access** | granted OAuth scopes + the validate probe | `metadata.scope`; the probe is the only liveness signal (ADR-401 D6) |
+| **Scope** | the selection checklist — the aperture for BOTH dispositions | `landscape.selected_sources` |
+| **Capture** | the three dials | `settings["connector"]` via `PUT /integrations/{provider}/connector-settings` → `update_connector_settings` (the validation chokepoint) |
+| **Yield** | freshness + landed-files link (flag-gated) | `_capture_signal.yaml` |
+
+Facts, not controls: there is no per-tool enforcement point on the outbound
+side to bind permission dials to — the OAuth scope is the platform's control
+and agent exclusion is species-level (ADR-577) — so the page states
+capabilities and never renders a per-tool grid. (The per-verb grain exists
+only on the INBOUND side, where ADR-563 scope tiers are enforced per call.)
+Discovery failures RAISE and render scoped inside Scope; an empty landscape
+is only ever the honest success case.
+
+## 6. What this is not
 
 **Turn reach** — an LLM calling a platform live inside a conversation turn
 (the conventional-MCP shape) — is a different disposition
@@ -85,7 +107,7 @@ naming an un-captured selector gets the same honest empty as a dead feed.
 (`connector-reach-and-the-commons.md` §5). Any proposal touching platform
 reach declares its disposition in its first paragraph.
 
-## 6. Gates
+## 7. Gates
 
 `test_adr582_connectors.py` (the writer's contract, driven) ·
 `test_adr580_connector_derive.py` (the digest) ·

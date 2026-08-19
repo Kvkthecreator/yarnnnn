@@ -52,6 +52,9 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         # 15 min balances chat freshness against per-channel API volume.
         "cadence": "@every 15min",
         "display_name": "Slack Channel Capture",
+        # The operator-facing statement of what the read tool above actually
+        # does — lives ON the binding so the display cannot drift from it.
+        "reads": "channel history (latest 50 messages) from each selected channel",
     },
     "notion": {
         # Landscape selection ids are page UUIDs (landscape.py) — exactly
@@ -60,6 +63,7 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         "selector_arg": "page_id",
         "cadence": "@every 1h",
         "display_name": "Notion Page Capture",
+        "reads": "page content from each selected page",
     },
     "github": {
         # Landscape selection ids are owner/repo full names (landscape.py) —
@@ -70,8 +74,46 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         "tool_args": {"state": "all", "limit": 50},
         "cadence": "@every 1h",
         "display_name": "GitHub Repo Capture",
+        "reads": "issue and pull-request activity (latest 50, all states) from each selected repo",
     },
 }
+
+_PLATFORM_DISPLAY = {"slack": "Slack", "notion": "Notion", "github": "GitHub"}
+
+
+def connector_does(platform: str) -> Optional[dict]:
+    """The three capability facts the detail page states — DERIVED from the
+    machinery that enacts them, never a parallel copy that can drift:
+
+      reads  — the capture binding's own statement of its read tool
+      writes — whether an exporter is registered for the platform (the only
+               write path; operator-initiated, never scheduled)
+      agents — the ADR-577 refusal: agents hold no platform credential and
+               the lane allowlists exclude platform tools; consumers read
+               LANDED files only (ADR-582 D6)
+
+    Facts, not controls — there is no per-tool enforcement point on the
+    outbound side to bind dials to (the OAuth scope is the platform's
+    control; ours is species-level). None for an unbound platform."""
+    plat = (platform or "").strip().lower()
+    binding = CONNECTOR_CAPTURE_BINDINGS.get(plat)
+    if binding is None:
+        return None
+    try:
+        from integrations.exporters import get_exporter_registry
+        can_export = get_exporter_registry().get(plat) is not None
+    except Exception:  # noqa: BLE001 — a registry hiccup must not claim a write path
+        can_export = False
+    name = _PLATFORM_DISPLAY.get(plat, plat)
+    return {
+        "reads": binding["reads"],
+        "writes": (
+            f"only when you export a document to {name} — your action, never scheduled"
+            if can_export
+            else f"nothing — yarnnn never writes to {name}"
+        ),
+        "agents": "no direct platform access — agents read the landed capture files only",
+    }
 
 #: Bounded cadence choices (floor 15min) — the guardrail on API volume.
 CONNECTOR_CADENCE_CHOICES: tuple = (
@@ -534,6 +576,7 @@ __all__ = [
     "CONNECTOR_CADENCE_CHOICES",
     "CONNECTOR_CAPTURE_BINDINGS",
     "capture_destination",
+    "connector_does",
     "connector_settings",
     "drain_due_connector_captures",
     "parse_stamp",

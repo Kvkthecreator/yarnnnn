@@ -750,19 +750,6 @@ export interface IntegrationData {
   };
 }
 
-export interface LandscapeResource {
-  id: string;
-  name: string;
-  resource_type: string;
-  coverage_state: 'uncovered' | 'partial' | 'covered' | 'stale' | 'excluded';
-  last_extracted_at: string | null;
-  items_extracted: number;
-  metadata: Record<string, unknown>;
-  last_error: string | null;
-  last_error_at: string | null;
-  recommended: boolean;
-}
-
 export interface SelectedSource {
   id: string;
   type: string;

@@ -66,6 +66,12 @@ interface ConnectorSettings {
   digest: boolean;
 }
 
+interface ConnectorDoes {
+  reads: string;
+  writes: string;
+  agents: string;
+}
+
 interface ConnectionFacts {
   workspace_name: string | null;
   connected_at: string | null;
@@ -141,6 +147,7 @@ export function ManageConnectionSubsurface({
   const [grantedScopes, setGrantedScopes] = useState<string[]>([]);
   const [connection, setConnection] = useState<ConnectionFacts | null>(null);
   const [settings, setSettings] = useState<ConnectorSettings | null>(null);
+  const [does, setDoes] = useState<ConnectorDoes | null>(null);
   const [nothingSelected, setNothingSelected] = useState(false);
   const [cadenceChoices, setCadenceChoices] = useState<string[]>([]);
   const [agentEnabled, setAgentEnabled] = useState(true);
@@ -196,9 +203,10 @@ export function ManageConnectionSubsurface({
       setConnectorFreshness(block as Observed | null);
       setGrantedScopes(signal?.granted_scopes ?? []);
       setConnection(signal?.connection ?? null);
-      // `settings` is a post-ADR-582 payload field — absent on an older API,
-      // in which case the CAPTURE dials simply don't render.
+      // `settings`/`does` are post-ADR-582 payload fields — absent on an
+      // older API, in which case their sections simply don't render.
       setSettings(signal?.settings ?? null);
+      setDoes(signal?.does ?? null);
       setDestinationDraft(signal?.settings?.destination ?? "");
       setNothingSelected(signal?.capture?.paused ?? false);
       setCadenceChoices(signal?.cadence_choices ?? []);
@@ -525,6 +533,33 @@ export function ManageConnectionSubsurface({
                 )}
               </div>
             </SectionShell>
+
+            {/* WHAT THIS CONNECTION DOES — the capability facts, served by the
+                API from the machinery that enacts them (capture binding ·
+                exporter registry · the ADR-577 refusal). Facts, not controls:
+                there is no per-tool enforcement point on the outbound side to
+                bind dials to — the OAuth scope is the platform's control. */}
+            {does && (
+              <SectionShell title="What this connection does">
+                <dl className="space-y-1.5 text-xs">
+                  <div className="flex gap-2">
+                    <dt className="w-14 shrink-0 font-medium">Reads</dt>
+                    <dd className="text-muted-foreground">
+                      {does.reads}
+                      {!captureEnabled && " (background reading paused)"}
+                    </dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="w-14 shrink-0 font-medium">Writes</dt>
+                    <dd className="text-muted-foreground">{does.writes}</dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="w-14 shrink-0 font-medium">Agents</dt>
+                    <dd className="text-muted-foreground">{does.agents}</dd>
+                  </div>
+                </dl>
+              </SectionShell>
+            )}
 
             {/* SCOPE — the aperture, both dispositions. */}
             <SectionShell title="Scope">

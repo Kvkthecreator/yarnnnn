@@ -2645,66 +2645,9 @@ export const api = {
         `/api/integrations/${provider}/authorize${redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''}`
       ),
 
-    // Export to provider
-    export: (
-      provider: string,
-      data: { agent_run_id: string; destination: Record<string, unknown> }
-    ) =>
-      request<{
-        status: string;
-        external_id: string | null;
-        external_url: string | null;
-        error_message: string | null;
-      }>(`/api/integrations/${provider}/export`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // Get export history
-    getHistory: (agentId?: string) =>
-      request<{
-        exports: Array<{
-          id: string;
-          provider: string;
-          status: string;
-          external_url: string | null;
-          created_at: string;
-        }>;
-        total: number;
-      }>(
-        `/api/integrations/history${agentId ? `?agent_id=${agentId}` : ""}`
-      ),
-
-    // ADR-027: Context Import
-    // List available resources (channels/pages)
-    listSlackChannels: () =>
-      request<{
-        channels: Array<{
-          id: string;
-          name: string;
-          is_private: boolean;
-          num_members: number;
-          topic: string | null;
-          purpose: string | null;
-        }>;
-      }>("/api/integrations/slack/channels"),
-
-    listNotionPages: (query?: string) =>
-      request<{
-        pages: Array<{
-          id: string;
-          title: string;
-          parent_type: string;
-          last_edited: string | null;
-          url: string | null;
-        }>;
-      }>(`/api/integrations/notion/pages${query ? `?query=${encodeURIComponent(query)}` : ""}`),
-
-    // Import jobs DELETED (ADR-153/156: platform data flows through task execution)
-    // startImport, getImportJob, listImportJobs removed
-
-    // ADR-030: Landscape and Coverage
-    // Get platform landscape with coverage state
+    // ADR-030: Landscape discovery. (The coverage half died with the sync
+    // lane — 2026-08-19 sweep: nothing wrote sync_registry any more, so
+    // coverage_state was permanently "uncovered" and nothing read it.)
     getLandscape: (provider: "slack" | "notion" | "github", refresh?: boolean) =>
       request<{
         provider: string;
@@ -2713,37 +2656,10 @@ export const api = {
           id: string;
           name: string;
           resource_type: string;
-          coverage_state: "uncovered" | "partial" | "covered" | "stale" | "excluded";
-          last_extracted_at: string | null;
-          items_extracted: number;
           metadata: Record<string, unknown>;
+          recommended?: boolean;
         }>;
-        coverage_summary: {
-          total_resources: number;
-          covered_count: number;
-          partial_count: number;
-          stale_count: number;
-          uncovered_count: number;
-          excluded_count: number;
-          coverage_percentage: number;
-        };
       }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
-
-    // ADR-153: getPlatformContext DELETED — platform_content sunset
-
-    // Update coverage state (mark as excluded or reset)
-    updateCoverage: (
-      provider: "slack" | "notion" | "github",
-      resourceId: string,
-      coverageState: "excluded" | "uncovered"
-    ) =>
-      request<{ success: boolean; resource_id: string; coverage_state: string }>(
-        `/api/integrations/${provider}/coverage/${encodeURIComponent(resourceId)}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ coverage_state: coverageState }),
-        }
-      ),
 
     // ADR-033: Get integrations summary for Dashboard platform cards
     getSummary: () =>
@@ -2866,33 +2782,6 @@ export const api = {
         body: JSON.stringify({ source_ids: sourceIds }),
       }),
 
-    // Trigger on-demand sync for a platform
-    triggerSync: (provider: "slack" | "notion" | "github") =>
-      request<{
-        success: boolean;
-        message: string;
-        sync_started_at?: string;
-      }>(`/api/integrations/${provider}/sync`, {
-        method: "POST",
-      }),
-
-    // ADR-049: Get sync status for a platform (freshness info)
-    getSyncStatus: (provider: string) =>
-      request<{
-        platform: string;
-        synced_resources: Array<{
-          resource_id: string;
-          resource_name: string | null;
-          last_synced: string | null;
-          freshness_status: "fresh" | "recent" | "stale" | "unknown";
-          items_synced: number;
-          last_error?: string | null;
-          last_error_at?: string | null;
-        }>;
-        stale_count: number;
-        error_count: number;
-      }>(`/api/integrations/${provider}/sync-status`),
-
     // ADR-404 D2 (2026-07-04 amendment): the deploy-level capture-lane flag,
     // workspace-level (no provider needed). The Channels surface derives
     // whether the Connections + Sources panes render from this — hide-not-
@@ -2938,6 +2827,13 @@ export const api = {
           cadence: string;
           destination: string | null;
           digest: boolean;
+        } | null;
+        // The capability facts (reads / writes / agents), derived server-side
+        // from the machinery that enacts them. OPTIONAL for the same reason.
+        does?: {
+          reads: string;
+          writes: string;
+          agents: string;
         } | null;
         cadence_choices: string[];
         agent_enabled: boolean;
@@ -3002,45 +2898,12 @@ export const api = {
         { method: "PUT", body: JSON.stringify({ retention_days: retentionDays }) },
       ),
 
-    // ADR-049: Trigger platform sync (alias for triggerSync with broader typing)
-    syncPlatform: (provider: string) =>
-      request<{
-        success: boolean;
-        message: string;
-        sources_count?: number;
-      }>(`/api/integrations/${provider}/sync`, {
-        method: "POST",
-      }),
-
-    // ADR-050: Notion designated page (streamlined output pattern)
-    getNotionDesignatedPage: () =>
-      request<{
-        success: boolean;
-        designated_page_id: string | null;
-        designated_page_name: string | null;
-        message: string;
-      }>("/api/integrations/notion/designated-page"),
-
-    setNotionDesignatedPage: (pageId: string, pageName?: string) =>
-      request<{
-        success: boolean;
-        designated_page_id: string | null;
-        designated_page_name: string | null;
-        message: string;
-      }>("/api/integrations/notion/designated-page", {
-        method: "PUT",
-        body: JSON.stringify({ page_id: pageId, page_name: pageName }),
-      }),
-
-    clearNotionDesignatedPage: () =>
-      request<{
-        success: boolean;
-        designated_page_id: null;
-        designated_page_name: null;
-        message: string;
-      }>("/api/integrations/notion/designated-page", {
-        method: "DELETE",
-      }),
+    // Dead pre-582 surface DELETED (2026-08-19 sweep): syncPlatform/triggerSync
+    // (the API route was a deprecated stub), getSyncStatus, updateCoverage,
+    // listSlackChannels/listNotionPages (sole caller was the unmounted
+    // SourcePicker), export/getHistory (zero callers), and the Notion
+    // designated-page trio (zero callers; agents still READ the stored
+    // metadata key — only the setter surface is gone).
 
     // ADR-183: Commerce connection (API key auth, not OAuth)
     connectCommerce: (apiKey: string) =>

@@ -19,12 +19,8 @@
  * connected OAuth+selection connectors render as a `ConnectedConnectorRow` that
  * drills into that subsurface, NOT as this card (Singular Implementation: the
  * inline ConnectorSelectionPanel is deleted).
- *
- * Freshness (ADR-377) is parent-owned (it reads sync-status) and injected via
- * `renderFreshness`, rendered only for connected OAuth connectors.
  */
 
-import type { ReactNode } from "react";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
 import type { ConnectorMeta } from "@/lib/connectors/registry";
 
@@ -38,8 +34,6 @@ interface ConnectorCardProps {
   disconnecting: boolean;
   onConnect: (provider: string) => void;
   onDisconnect: (provider: string) => void;
-  /** ADR-377 freshness strip (parent-owned, OAuth-only). */
-  renderFreshness?: (provider: string) => ReactNode;
 }
 
 export function ConnectorCard({
@@ -50,7 +44,6 @@ export function ConnectorCard({
   disconnecting,
   onConnect,
   onDisconnect,
-  renderFreshness,
 }: ConnectorCardProps) {
   const isOauth = meta.authKind === "oauth";
 
@@ -121,8 +114,6 @@ export function ConnectorCard({
               </button>
             ) : null}
           </div>
-
-          {connected && isOauth && renderFreshness?.(meta.provider)}
         </div>
       </div>
     </div>

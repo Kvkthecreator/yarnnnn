@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  ArrowRight,
   AlertTriangle,
   Check,
   ChevronRight,
@@ -67,15 +66,11 @@ interface ConnectedIntegrationsSectionProps {
   children?: React.ReactNode;
   /** Frontend path to return to after OAuth (e.g. "/system"). Defaults to /dashboard. */
   redirectTo?: string;
-  /** ADR-377: when true, render a per-platform freshness strip (coverage +
-   *  last-synced + errors) inside each connected card, and a "View flow →"
-   *  link. The Context Connections pane sets this; Workspace-Settings (when
-   *  it still mounted this) left it false — byte-identical legacy behavior. */
+  /** ADR-377: when true, fetch the per-connector capture-signal freshness for
+   *  the connected drill-in rows. (The card-level strip and the "View flow →"
+   *  link died in the 2026-08-19 sweep — no mount ever passed onViewFlow, and
+   *  no reachable ConnectorCard rendered the strip.) */
   showFreshness?: boolean;
-  /** ADR-377: invoked by the per-platform "View flow →" link (the Context
-   *  Connections pane wires it to switch to the Flow pane). Omitted → no
-   *  flow link rendered. */
-  onViewFlow?: (provider: string) => void;
   /** ADR-392 Phase B — the drill-in target: which connected connector's DEEP
    *  Manage subsurface is open (routed by `channels.connector=<provider>`).
    *  Null → the connections list. */
@@ -131,7 +126,6 @@ export function ConnectedIntegrationsSection({
   children,
   redirectTo,
   showFreshness = false,
-  onViewFlow,
   activeConnector = null,
   onManageConnection,
   onBackFromManage,
@@ -254,53 +248,6 @@ export function ConnectedIntegrationsSection({
     }
   };
 
-  // ADR-401 D6: the per-platform freshness strip + "View flow →" link,
-  // rendered inside each connected freshness-capable card when showFreshness
-  // is set. Connector-grain, from the capture signal — one honest line per
-  // connector. Returns null in the legacy (Workspace-Settings) mode so
-  // behavior is unchanged there.
-  const renderFreshness = (provider: string) => {
-    if (!showFreshness || !captureEnabled) return null;
-    const f = freshness[provider];
-    return (
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground">
-        {f?.observedAt ? (
-          <>
-            <span className="inline-flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Last read {relativeTime(f.observedAt)}
-            </span>
-            {typeof f.items === "number" && (
-              <span>
-                {f.items} {f.items === 1 ? "source" : "sources"} read
-              </span>
-            )}
-            {f.status && f.status !== "ok" && (
-              <span className="inline-flex items-center gap-1 text-destructive">
-                <AlertTriangle className="h-3 w-3" />
-                {f.lastError || f.status}
-              </span>
-            )}
-          </>
-        ) : (
-          // ADR-392 D5 — honest empty-state: available, not yet reading.
-          <span>Not reading yet — select channels to pull content in</span>
-        )}
-        {onViewFlow && (
-          <button
-            type="button"
-            onClick={() => onViewFlow(provider)}
-            className="ml-auto inline-flex items-center gap-1 text-primary hover:underline"
-          >
-            View flow
-            <ArrowRight className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-    );
-  };
-
-
   // ADR-392 Phase B — the drill-in: when a connector is the active target and it
   // is connected + selection-capable, render its DEEP Manage subsurface instead
   // of the list. Guard on connected+canSelect so a stale/invalid `connector`
@@ -416,7 +363,6 @@ export function ConnectedIntegrationsSection({
                       freshness={captureEnabled ? freshness[meta.provider] : undefined}
                       captureEnabled={captureEnabled}
                       onManage={() => onManageConnection?.(meta.provider)}
-                      onViewFlow={onViewFlow ? () => onViewFlow(meta.provider) : undefined}
                     />
                   );
                 }
@@ -432,7 +378,6 @@ export function ConnectedIntegrationsSection({
                     disconnecting={disconnectingProvider === meta.provider}
                     onConnect={handleConnectIntegration}
                     onDisconnect={handleDisconnectIntegration}
-                    renderFreshness={renderFreshness}
                   />
                 );
               })}
@@ -486,7 +431,6 @@ export function ConnectedIntegrationsSection({
                     disconnecting={disconnectingProvider === meta.provider}
                     onConnect={handleConnectIntegration}
                     onDisconnect={handleDisconnectIntegration}
-                    renderFreshness={renderFreshness}
                   />
                 );
               })}
@@ -502,9 +446,9 @@ export function ConnectedIntegrationsSection({
 
 // ---------------------------------------------------------------------------
 // ConnectedConnectorRow — a compact drill-in row for a connected, selection-
-// capable connector. Clicking the row (or "Manage") opens the deep Manage
-// subsurface (ADR-392 Phase B). The footer carries the connector-grain
-// capture-signal freshness (ADR-401 D6) + "View flow →".
+// capable connector. Clicking the row opens the deep Manage subsurface
+// (ADR-392 Phase B), with the connector-grain capture-signal freshness
+// (ADR-401 D6) as its second line.
 // ---------------------------------------------------------------------------
 
 function ConnectedConnectorRow({
@@ -512,14 +456,12 @@ function ConnectedConnectorRow({
   freshness,
   captureEnabled,
   onManage,
-  onViewFlow,
 }: {
   meta: ConnectorMeta;
   freshness?: PlatformFreshness;
   /** ADR-494 D4 — whether the capture lane is RUNNING (ADR-404 D2). */
   captureEnabled: boolean;
   onManage: () => void;
-  onViewFlow?: () => void;
 }) {
   return (
     <div className="rounded-lg border border-border">
@@ -576,18 +518,6 @@ function ConnectedConnectorRow({
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </button>
-      {onViewFlow && (
-        <div className="border-t border-border/60 px-4 py-2 text-right">
-          <button
-            type="button"
-            onClick={onViewFlow}
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            View flow
-            <ArrowRight className="h-3 w-3" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
