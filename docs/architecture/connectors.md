@@ -19,6 +19,13 @@ destination on a cadence. That is the whole feature — zero LLM, zero
 judgment, $0 on the critical path. "Connect Slack" produces files a member
 can open immediately.
 
+**A selection is consent, never a default** (2026-08-19; deletes ADR-079/113
+auto-selection): the selection is the capture writer's mandate and, for
+github, a reach bound (ADR-576) — so nothing machine-fills it. It starts
+empty; only the operator checks a box; the smart-default scoring survives
+solely as the `recommended` badge. The walk already skips honestly on empty
+(`nothing_selected`). Gate: `test_adr582_connectors.py` §7p.
+
 | Fact | Where it lives |
 |---|---|
 | Credential | `platform_connections` — the human's ACCOUNT object (ADR-425), never readable by an agent (ADR-577) |
@@ -81,15 +88,15 @@ naming an un-captured selector gets the same honest empty as a dead feed.
 
 The per-connection detail page (`web/components/settings/
 ManageConnectionSubsurface.tsx`, the drill-in from Settings → Connectors)
-presents the lifecycle in consent order:
+has **two strata** (2026-08-19 recut): CONNECTION-level facts, then the
+capture writer's configuration as one consumer block.
 
-| Block | What it states | Where the truth lives |
-|---|---|---|
-| **What this connection does** | reads / writes / agents — capability FACTS | derived server-side: the capture binding's `reads` · the exporter registry · the ADR-577 refusal (`connector_does()`) |
-| **Access** | granted OAuth scopes + the validate probe | `metadata.scope`; the probe is the only liveness signal (ADR-401 D6) |
-| **Scope** | the selection checklist — the aperture for BOTH dispositions | `landscape.selected_sources` |
-| **Capture** | the three dials | `settings["connector"]` via `PUT /integrations/{provider}/connector-settings` → `update_connector_settings` (the validation chokepoint) |
-| **Yield** | freshness + landed-files link (flag-gated) | `_capture_signal.yaml` |
+| Stratum | Block | What it states | Where the truth lives |
+|---|---|---|---|
+| CONNECTION | **Access** | granted OAuth scopes + the validate probe | `metadata.scope`; the probe is the only liveness signal (ADR-401 D6) |
+| CONNECTION | **What this connection does** | reads / writes / agents — capability FACTS | derived server-side: the capture binding's `reads` · the exporter registry · the ADR-577 refusal (`connector_does()`) |
+| CAPTURE | **Capture** | the writer's config as ONE block: the selection (consent — never auto-filled; `Suggested` badge only) + cadence + destination + digest; collapsed to one honest line while dormant | selection: `landscape.selected_sources`; dials: `settings["connector"]` via `PUT /integrations/{provider}/connector-settings` → `update_connector_settings` (the validation chokepoint) |
+| CAPTURE | **Yield** | freshness + landed-files link (flag-gated) | `_capture_signal.yaml` |
 
 Facts, not controls: there is no per-tool enforcement point on the outbound
 side to bind permission dials to — the OAuth scope is the platform's control
@@ -103,9 +110,12 @@ is only ever the honest success case.
 
 **Turn reach** — an LLM calling a platform live inside a conversation turn
 (the conventional-MCP shape) — is a different disposition
-(intake-pipeline.md §5), still not built, still a named seam
-(`connector-reach-and-the-commons.md` §5). Any proposal touching platform
-reach declares its disposition in its first paragraph.
+(intake-pipeline.md §5), still not built. It now has a PROPOSED decision:
+[ADR-585](../adr/ADR-585-turn-reach-the-members-own-connections.md) (draft,
+awaiting ratification) — the member's OWN connections inside their OWN turn,
+on the principal-presence cut line; agents/apps stay landed-files-only. Any
+proposal touching platform reach declares its disposition in its first
+paragraph.
 
 ## 7. Gates
 

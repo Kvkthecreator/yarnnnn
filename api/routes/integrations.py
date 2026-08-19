@@ -1033,8 +1033,14 @@ async def oauth_callback(
         except Exception:
             pass  # Non-fatal
 
-        # ADR-113: Auto-discover landscape + auto-select sources + kick off sync
-        # This eliminates the manual source-selection prerequisite.
+        # Auto-discover the landscape so the detail page opens populated.
+        # ⚠️ Discovery only — NEVER auto-select. ADR-113's smart auto-selection
+        # is DELETED (2026-08-19): a selection is CONSENT — the capture writer's
+        # mandate and (per ADR-576) a reach bound — and a heuristic pre-checking
+        # 50 sources fabricated that consent at a moment nothing consumed it,
+        # to be enacted whenever the capture flag flips. Selection starts empty;
+        # only the operator fills it. Smart defaults survive as the
+        # `recommended` BADGE on the landscape response, never as a pre-check.
         try:
             user_id_for_auto = token_data["user_id"]
 
@@ -1046,41 +1052,20 @@ async def oauth_callback(
             if auto_result.data:
                 integration_row = auto_result.data[0]
 
-                from services.landscape import discover_landscape, compute_smart_defaults
-                from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
+                from services.landscape import discover_landscape
 
                 landscape_data = await discover_landscape(provider, user_id_for_auto, integration_row)
-
-                if landscape_data.get("resources"):
-                    # ADR-172: No source limits — max_sources is a UX heuristic only
-                    max_sources = 50
-
-                    smart_selected = compute_smart_defaults(
-                        provider, landscape_data["resources"], max_sources
-                    )
-                    landscape_data["selected_sources"] = smart_selected
-
-                    # Store landscape + selected sources
-                    service_client.table("platform_connections").update({
-                        "landscape": landscape_data,
-                        "landscape_discovered_at": datetime.utcnow().isoformat(),
-                    }).eq("id", integration_row["id"]).execute()
-
-                    logger.info(
-                        f"[INTEGRATIONS] ADR-113: Auto-selected {len(smart_selected)} sources "
-                        f"for {provider} user {user_id_for_auto[:8]}"
-                    )
-
-                    # ADR-207 P4a: auto digest-task scaffold DELETED. YARNNN
-                    # proposes tasks based on Mandate + connected platforms.
-                else:
-                    logger.info(
-                        f"[INTEGRATIONS] ADR-113: No resources discovered for {provider} "
-                        f"user {user_id_for_auto[:8]}, skipping auto-selection"
-                    )
+                service_client.table("platform_connections").update({
+                    "landscape": landscape_data,
+                    "landscape_discovered_at": datetime.utcnow().isoformat(),
+                }).eq("id", integration_row["id"]).execute()
+                logger.info(
+                    f"[INTEGRATIONS] Discovered {len(landscape_data.get('resources', []))} "
+                    f"resources for {provider} user {user_id_for_auto[:8]} (no auto-selection)"
+                )
         except Exception as e:
-            # Non-fatal: auto-selection is best-effort. User can still select manually.
-            logger.warning(f"[INTEGRATIONS] ADR-113: Auto-selection failed for {provider}: {e}")
+            # Non-fatal: discovery is best-effort here; the detail page re-runs it.
+            logger.warning(f"[INTEGRATIONS] Post-connect discovery failed for {provider}: {e}")
 
         # Redirect to frontend with success
         return RedirectResponse(
@@ -1189,8 +1174,11 @@ async def get_landscape(
                        "This may indicate expired OAuth tokens. Try reconnecting the integration."
             )
 
-        # Preserve existing selected_sources through refresh
-        # selected_sources can be dicts ({"id": ..., "name": ...}) or plain strings
+        # Preserve existing selected_sources through refresh (drop only ids the
+        # re-discovered landscape no longer offers). An EMPTY selection stays
+        # empty: ADR-079/113 smart auto-selection is DELETED (2026-08-19) — a
+        # selection is operator consent, never a heuristic's pre-check. Smart
+        # defaults survive only as the `recommended` badge below.
         existing_selected = (landscape or {}).get("selected_sources", [])
         if existing_selected:
             new_resource_ids = {r["id"] for r in landscape_data.get("resources", [])}
@@ -1198,21 +1186,6 @@ async def get_landscape(
                 s for s in existing_selected
                 if (s.get("id") if isinstance(s, dict) else s) in new_resource_ids
             ]
-        else:
-            # ADR-079: Smart auto-selection — no tier limit (ADR-172)
-            from services.landscape import compute_smart_defaults
-            max_sources = 50  # UX heuristic only, not enforcement
-
-            smart_selected = compute_smart_defaults(
-                resolved_provider,
-                landscape_data.get("resources", []),
-                max_sources,
-            )
-            landscape_data["selected_sources"] = smart_selected
-            logger.info(
-                f"[LANDSCAPE] Auto-selected {len(smart_selected)} sources for "
-                f"{resolved_provider} user {user_id[:8]}"
-            )
 
         # Store landscape snapshot
         auth.client.table("platform_connections").update({

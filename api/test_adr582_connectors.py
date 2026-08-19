@@ -520,6 +520,26 @@ check("7n does.writes follows the exporter registry (slack exports, github "
 check("7o does is None for an unbound platform (no fabricated facts)",
       connector_does("commerce") is None and connector_does("") is None)
 
+# --- a selection is CONSENT: nothing machine-fills selected_sources ----------
+# ADR-079/113 auto-selection deleted 2026-08-19: a heuristic pre-checking 50
+# sources fabricated the capture writer's mandate (and the ADR-576 reach
+# bound) at a moment nothing consumed it — to be enacted whenever the flag
+# flips. Smart defaults survive ONLY as the `recommended` badge.
+_sel_writers = []
+for n in ast.walk(_ri_tree):
+    if isinstance(n, ast.Assign):
+        tgt_has_sel = any(isinstance(c, ast.Constant) and c.value == "selected_sources"
+                          for t in n.targets for c in ast.walk(t))
+        if tgt_has_sel:
+            _sel_writers.append(n)
+check("7p selected_sources is never assigned from smart defaults (consent, "
+      "not heuristic)",
+      _sel_writers and all(
+          "compute_smart_defaults" not in ast.unparse(w.value)
+          and "smart_selected" not in ast.unparse(w.value)
+          for w in _sel_writers),
+      f"{len(_sel_writers)} writers")
+
 n = PASS + FAIL
 print(f"\n{PASS}/{n} ADR-582 assertions pass")
 sys.exit(0 if FAIL == 0 else 1)

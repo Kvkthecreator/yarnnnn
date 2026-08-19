@@ -6,8 +6,10 @@ Used by:
 - GET /integrations/{provider}/landscape (on-demand from context page)
 - Platform worker (after content sync to keep landscape fresh)
 
-ADR-079: Smart auto-selection — when landscape is first discovered and no
-sources are selected, auto-selects the most valuable sources up to tier limit.
+ADR-079's smart scoring survives ONLY as the `recommended` badge on the
+landscape response. Auto-SELECTION is DELETED (2026-08-19): a selection is
+operator consent — the capture writer's mandate and (ADR-576) a reach bound —
+never a heuristic's pre-check.
 
 ADR-131: Gmail and Calendar sunset — only Slack and Notion remain.
 
@@ -169,11 +171,11 @@ def compute_smart_defaults(
     max_sources: int,
 ) -> list[dict]:
     """
-    ADR-079 + ADR-113: Auto-select the most valuable sources up to tier limit.
-
-    Called when landscape is first discovered and no sources are selected,
-    or when backfilling existing users. Returns a list of selected source
-    objects ({"id": ..., "name": ..., "type": ..., "platform": ...}).
+    ADR-079 scoring: rank sources by likely relevance. Since the 2026-08-19
+    auto-selection deletion this feeds ONLY the `recommended` badge on the
+    landscape response — the result is never written into selected_sources.
+    Returns a list of source objects ({"id": ..., "name": ..., "type": ...,
+    "platform": ...}).
 
     Uses only metadata already available from landscape discovery (zero extra
     API calls). The agent decides what's important within synced content —

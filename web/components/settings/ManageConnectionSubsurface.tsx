@@ -4,29 +4,27 @@
  * ManageConnectionSubsurface — the per-connection detail page (ADR-582 model;
  * drill-in routed by `settings.connector=<provider>` from the Connections pane).
  *
- * A connector is a WRITER: connect (OAuth) → select slices → attributed
- * observation files land at the destination on a cadence (ADR-582 D1). The
- * page presents that lifecycle in consent-line order:
+ * TWO STRATA, deliberately:
  *
- *   - Header — the connection fact (workspace · since) + Refresh + the ⋮ menu
- *     (Reconnect / Disconnect — the lifecycle verbs, one honest place).
- *   - ACCESS — the consent fact: granted OAuth scopes (metadata.scope) and the
- *     on-demand validate probe (the ONLY honest liveness signal — the stored
- *     status column is a connect-time fact, ADR-401 D6).
- *   - SCOPE — the aperture: the selection checklist, saved to the ONE store
- *     (landscape.selected_sources, ADR-582 D2). It bounds BOTH dispositions:
- *     what capture lands, and what agents may reach (ADR-576 D2). Discovery
- *     failures render HERE (scoped), so a dead token never hides the recovery
- *     affordances above it.
- *   - CAPTURE — the three ADR-582 dials on settings["connector"]: cadence
- *     (D2), destination (D3), digest (D5, opt-in). Rendered only when the API
- *     serves the `settings` object (FE and API deploy separately).
- *   - YIELD — the read-back: connector-level freshness + a deep-link into the
- *     landed files. Hidden while the capture lane is dormant (ADR-404 D2).
+ *   CONNECTION — the connection-level facts: header (workspace · since),
+ *   Refresh + the ⋮ lifecycle menu (Reconnect / Disconnect), ACCESS (granted
+ *   OAuth scopes + the validate probe — the ONLY honest liveness signal,
+ *   ADR-401 D6), and WHAT THIS CONNECTION DOES (reads/writes/agents facts,
+ *   served by the API from the machinery that enacts them — facts, not
+ *   controls: no per-tool enforcement point exists on the outbound side).
  *
- * Semantics vs the Claude.ai connector page this borrows legibility from:
- * ours is a capture-aperture + settings surface, not per-tool permissions —
- * the selection list is what gets WRITTEN, not what may be CALLED.
+ *   CAPTURE — the background writer's configuration, ONE consumer block:
+ *   which slices it reads (the selection — CONSENT, never auto-filled;
+ *   ADR-079/113 smart defaults died 2026-08-19 and survive only as the
+ *   `Suggested` badge), how often (cadence), where snapshots land
+ *   (destination), and the opt-in digest. Collapsed to one honest line while
+ *   the capture lane is dormant (ADR-404 D2). For GitHub the selection also
+ *   bounds platform-tool reach (ADR-576 D2; empty = unrestricted).
+ *
+ *   YIELD — the writer's read-back (freshness + landed files), flag-gated.
+ *
+ * Discovery failures render scoped inside CAPTURE so a dead token never
+ * hides the recovery affordances (Test / Reconnect) above it.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -34,6 +32,8 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Check,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Loader2,
   MoreHorizontal,
@@ -51,6 +51,7 @@ type SelectableProvider = "slack" | "notion" | "github";
 interface Resource {
   id: string;
   name: string;
+  recommended?: boolean;
 }
 
 interface Observed {
@@ -148,19 +149,17 @@ export function ManageConnectionSubsurface({
   const [connection, setConnection] = useState<ConnectionFacts | null>(null);
   const [settings, setSettings] = useState<ConnectorSettings | null>(null);
   const [does, setDoes] = useState<ConnectorDoes | null>(null);
-  const [nothingSelected, setNothingSelected] = useState(false);
   const [cadenceChoices, setCadenceChoices] = useState<string[]>([]);
   const [agentEnabled, setAgentEnabled] = useState(true);
   // ADR-404 D2: the capture lane is dormant for the commons-first launch —
-  // YIELD renders only when the deployment runs the lane; the CAPTURE dials
-  // stay visible (they bind now, take effect on re-light) with an honest note.
+  // the CAPTURE block collapses to one honest line and YIELD hides entirely.
   const [captureEnabled, setCaptureEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // The landscape (SCOPE's resource list) loads SEPARATELY so a discovery
-  // failure — a revoked token, a platform outage — renders inside SCOPE and
-  // never hides ACCESS, where Test connection and Reconnect live.
+  // The landscape (the capture block's resource list) loads SEPARATELY so a
+  // discovery failure — a revoked token, a platform outage — renders inside
+  // CAPTURE and never hides ACCESS, where Test connection and Reconnect live.
   const [resources, setResources] = useState<Resource[]>([]);
   const [scopeLoading, setScopeLoading] = useState(true);
   const [scopeError, setScopeError] = useState<string | null>(null);
@@ -172,6 +171,8 @@ export function ManageConnectionSubsurface({
   const [dialSaving, setDialSaving] = useState(false);
   const [dialError, setDialError] = useState<string | null>(null);
   const [destinationDraft, setDestinationDraft] = useState("");
+  // Operator-opened while dormant; forced open when the lane runs.
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -208,7 +209,6 @@ export function ManageConnectionSubsurface({
       setSettings(signal?.settings ?? null);
       setDoes(signal?.does ?? null);
       setDestinationDraft(signal?.settings?.destination ?? "");
-      setNothingSelected(signal?.capture?.paused ?? false);
       setCadenceChoices(signal?.cadence_choices ?? []);
       setAgentEnabled(signal?.agent_enabled ?? true);
       setCaptureEnabled(signal?.connector_capture_enabled ?? false);
@@ -228,7 +228,11 @@ export function ManageConnectionSubsurface({
       try {
         const landscape = await api.integrations.getLandscape(provider, refresh);
         setResources(
-          (landscape.resources || []).map((r) => ({ id: r.id, name: r.name })),
+          (landscape.resources || []).map((r) => ({
+            id: r.id,
+            name: r.name,
+            recommended: r.recommended,
+          })),
         );
       } catch (e) {
         setScopeError(
@@ -267,9 +271,6 @@ export function ManageConnectionSubsurface({
     try {
       await api.integrations.updateSources(provider, Array.from(selected));
       setSavedAt(Date.now());
-      // "Paused" is simply an empty selection now (ADR-582 — no seeded entry);
-      // reflect it without a full reload.
-      setNothingSelected(selected.size === 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save selection.");
     } finally {
@@ -322,7 +323,7 @@ export function ManageConnectionSubsurface({
       setDestinationDraft(res.settings.destination ?? "");
     } catch (e) {
       setDialError(
-        e instanceof Error ? e.message : "Could not save the connector settings.",
+        e instanceof Error ? e.message : "Could not save the capture settings.",
       );
     } finally {
       setDialSaving(false);
@@ -361,6 +362,7 @@ export function ManageConnectionSubsurface({
   const filesPath = settings?.destination
     ? `/workspace/${settings.destination}`
     : `/workspace/${defaultLane}`;
+  const captureExpanded = captureEnabled || captureOpen;
 
   const scopeEmptyState = () =>
     provider === "notion" ? (
@@ -486,6 +488,8 @@ export function ManageConnectionSubsurface({
           <>
             {error && <p className="py-1 text-sm text-destructive">{error}</p>}
 
+            {/* ═══ CONNECTION stratum ═══ */}
+
             {/* ACCESS — the consent fact. */}
             <SectionShell title="Access">
               {grantedScopes.length > 0 ? (
@@ -534,11 +538,9 @@ export function ManageConnectionSubsurface({
               </div>
             </SectionShell>
 
-            {/* WHAT THIS CONNECTION DOES — the capability facts, served by the
-                API from the machinery that enacts them (capture binding ·
-                exporter registry · the ADR-577 refusal). Facts, not controls:
-                there is no per-tool enforcement point on the outbound side to
-                bind dials to — the OAuth scope is the platform's control. */}
+            {/* WHAT THIS CONNECTION DOES — capability facts, served by the API
+                from the machinery that enacts them (capture binding · exporter
+                registry · the ADR-577 refusal). Facts, not controls. */}
             {does && (
               <SectionShell title="What this connection does">
                 <dl className="space-y-1.5 text-xs">
@@ -561,218 +563,243 @@ export function ManageConnectionSubsurface({
               </SectionShell>
             )}
 
-            {/* SCOPE — the aperture, both dispositions. */}
-            <SectionShell title="Scope">
-              <p className="mb-2 text-xs text-muted-foreground">
-                Selected {resourceNoun} are this connection&apos;s aperture:
-                what gets captured into your workspace, and what agents may
-                reach through platform tools.
-              </p>
+            {/* ═══ CAPTURE stratum — the background writer's configuration,
+                one consumer block: selection + cadence + destination + digest.
+                Collapsed to one honest line while the lane is dormant. ═══ */}
+            <SectionShell title="Capture">
               {!captureEnabled && (
-                <p className="mb-2 text-xs text-muted-foreground">
-                  Background reading is paused, so nothing is being captured on a
-                  schedule. Your selection still bounds what agents may reach.
-                </p>
-              )}
-              {scopeLoading ? (
-                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Discovering {resourceNoun}…
-                </div>
-              ) : scopeError ? (
-                // Discovery failed — scoped here so ACCESS (Test/Reconnect)
-                // stays usable. A 502 from the landscape route usually means
-                // the token no longer authenticates.
-                <div className="py-2">
-                  <p className="text-sm text-destructive">
-                    Couldn&apos;t list {resourceNoun}: {scopeError}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    This usually means the connection&apos;s authorization has
-                    expired — Reconnect to refresh it, then Refresh here.
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Background reading is paused — nothing is captured on a
+                    schedule.
+                    {selected.size > 0 &&
+                      ` ${selected.size} ${resourceNoun} selected for when it resumes.`}
                   </p>
                   <button
                     type="button"
-                    onClick={() => void reconnect()}
-                    className="mt-2 inline-flex items-center gap-1 rounded-md border border-border/60 px-2.5 py-1 text-xs hover:bg-muted"
+                    onClick={() => setCaptureOpen((o) => !o)}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                   >
-                    Reconnect
-                    <ArrowUpRight className="h-3 w-3" />
+                    {captureExpanded ? (
+                      <>
+                        Hide configuration <ChevronDown className="h-3 w-3" />
+                      </>
+                    ) : (
+                      <>
+                        Configure <ChevronRight className="h-3 w-3" />
+                      </>
+                    )}
                   </button>
                 </div>
-              ) : resources.length === 0 ? (
-                scopeEmptyState()
-              ) : (
-                <div className="space-y-1 rounded-md border border-border/60 p-1">
-                  {resources.map((r) => {
-                    const on = selected.has(r.id);
-                    return (
+              )}
+
+              {captureExpanded && (
+                <div className={captureEnabled ? "" : "mt-3"}>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    The background writer reads only the {resourceNoun} you
+                    select here — snapshots land in your workspace as attributed
+                    observation files. Nothing is ever selected for you.
+                    {provider === "github" &&
+                      " For GitHub this selection also bounds which repos platform tools may answer about (empty = unrestricted)."}
+                  </p>
+
+                  {scopeLoading ? (
+                    <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Discovering {resourceNoun}…
+                    </div>
+                  ) : scopeError ? (
+                    // Discovery failed — scoped here so ACCESS (Test/Reconnect)
+                    // stays usable. A 502 from the landscape route usually
+                    // means the token no longer authenticates.
+                    <div className="py-2">
+                      <p className="text-sm text-destructive">
+                        Couldn&apos;t list {resourceNoun}: {scopeError}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        This usually means the connection&apos;s authorization
+                        has expired — Reconnect to refresh it, then Refresh
+                        here.
+                      </p>
                       <button
-                        key={r.id}
                         type="button"
-                        onClick={() => toggle(r.id)}
-                        className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors hover:bg-muted ${
-                          on ? "text-foreground" : "text-muted-foreground"
-                        }`}
+                        onClick={() => void reconnect()}
+                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-border/60 px-2.5 py-1 text-xs hover:bg-muted"
                       >
-                        <span
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                            on
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border"
-                          }`}
-                        >
-                          {on && <Check className="h-3 w-3" />}
-                        </span>
-                        <span className="truncate">{r.name}</span>
+                        Reconnect
+                        <ArrowUpRight className="h-3 w-3" />
                       </button>
-                    );
-                  })}
-                </div>
-              )}
-              {resources.length > 0 && !scopeError && (
-                <div className="mt-3 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void save()}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Save selection
-                  </button>
-                  <span className="text-xs text-muted-foreground">
-                    {selected.size} in scope{savedAt ? " · saved" : ""}
-                  </span>
+                    </div>
+                  ) : resources.length === 0 ? (
+                    scopeEmptyState()
+                  ) : (
+                    <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border border-border/60 p-1">
+                      {resources.map((r) => {
+                        const on = selected.has(r.id);
+                        return (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => toggle(r.id)}
+                            className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors hover:bg-muted ${
+                              on ? "text-foreground" : "text-muted-foreground"
+                            }`}
+                          >
+                            <span
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                                on
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border"
+                              }`}
+                            >
+                              {on && <Check className="h-3 w-3" />}
+                            </span>
+                            <span className="truncate">{r.name}</span>
+                            {/* ADR-079 scoring survives as a HINT only — never
+                                a pre-check (auto-selection died 2026-08-19). */}
+                            {r.recommended && !on && (
+                              <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                Suggested
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {resources.length > 0 && !scopeError && (
+                    <div className="mt-3 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void save()}
+                        disabled={saving}
+                        className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        Save selection
+                      </button>
+                      <span className="text-xs text-muted-foreground">
+                        {selected.size === 0
+                          ? `nothing selected — the writer captures nothing`
+                          : `${selected.size} selected${savedAt ? " · saved" : ""}`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* The dials (ADR-582 D2/D3/D5) — rendered only when the API
+                      serves `settings` (FE and API deploy separately). */}
+                  {settings && (
+                    <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
+                      {!agentEnabled && (
+                        <p className="text-xs text-muted-foreground">
+                          Reads are off — the agent layer is disabled on this
+                          deployment.
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          htmlFor="connector-cadence"
+                          className="w-24 shrink-0 text-xs font-medium"
+                        >
+                          Cadence
+                        </label>
+                        <select
+                          id="connector-cadence"
+                          value={
+                            cadenceChoices.includes(settings.cadence)
+                              ? settings.cadence
+                              : ""
+                          }
+                          disabled={dialSaving}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              void patchSettings({ cadence: e.target.value });
+                            }
+                          }}
+                          className="rounded-md border border-border/60 bg-background px-2 py-1 text-xs disabled:opacity-60"
+                        >
+                          {!cadenceChoices.includes(settings.cadence) && (
+                            <option value="" disabled>
+                              {settings.cadence}
+                            </option>
+                          )}
+                          {cadenceChoices.map((c) => (
+                            <option key={c} value={c}>
+                              {CADENCE_LABELS[c] ?? c}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-xs text-muted-foreground">
+                          How often selected {resourceNoun} are read.
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label
+                          htmlFor="connector-destination"
+                          className="w-24 shrink-0 text-xs font-medium"
+                        >
+                          Destination
+                        </label>
+                        <input
+                          id="connector-destination"
+                          type="text"
+                          value={destinationDraft}
+                          placeholder={defaultLane}
+                          disabled={dialSaving}
+                          onChange={(e) => setDestinationDraft(e.target.value)}
+                          onBlur={commitDestination}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-56 rounded-md border border-border/60 bg-background px-2 py-1 font-mono text-xs disabled:opacity-60"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Workspace folder where snapshots land. Empty = the
+                        default <span className="font-mono">{defaultLane}</span>{" "}
+                        lane, which is cleaned up on the retention window; a
+                        folder you name keeps its files like any other workspace
+                        files.
+                      </p>
+
+                      <label className="flex cursor-pointer items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={settings.digest}
+                          disabled={dialSaving}
+                          onChange={(e) =>
+                            void patchSettings({ digest: e.target.checked })
+                          }
+                          className="mt-0.5 h-3.5 w-3.5 accent-primary"
+                        />
+                        <span className="text-xs">
+                          <span className="font-medium">Digest</span>{" "}
+                          <span className="text-muted-foreground">
+                            — maintain a living summary of each selected{" "}
+                            {resourceNounSingular}, citing the raw snapshots.
+                            Uses AI credits; off = snapshots only.
+                          </span>
+                        </span>
+                      </label>
+
+                      {dialSaving && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                      )}
+                      {dialError && (
+                        <p className="text-xs text-destructive">{dialError}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </SectionShell>
 
-            {/* CAPTURE — the three ADR-582 dials. Rendered only when the API
-                serves `settings` (a post-582 payload field — the FE and API
-                deploy separately, so absence means an older API, not a bug). */}
-            {settings && (
-              <SectionShell title="Capture">
-                {!agentEnabled ? (
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Reads are off — the agent layer is disabled on this
-                    deployment.
-                  </p>
-                ) : !captureEnabled ? (
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Background reading is paused on this deployment. These
-                    settings bind now and take effect when reading resumes.
-                  </p>
-                ) : nothingSelected ? (
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Nothing selected — captures skip this connector until you
-                    select at least one {resourceNounSingular}.
-                  </p>
-                ) : null}
-
-                <div className="space-y-3">
-                  {/* Cadence (ADR-582 D2) — bounded enum, floor 15min. */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label
-                      htmlFor="connector-cadence"
-                      className="w-24 shrink-0 text-xs font-medium"
-                    >
-                      Cadence
-                    </label>
-                    <select
-                      id="connector-cadence"
-                      value={
-                        cadenceChoices.includes(settings.cadence)
-                          ? settings.cadence
-                          : ""
-                      }
-                      disabled={dialSaving}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          void patchSettings({ cadence: e.target.value });
-                        }
-                      }}
-                      className="rounded-md border border-border/60 bg-background px-2 py-1 text-xs disabled:opacity-60"
-                    >
-                      {!cadenceChoices.includes(settings.cadence) && (
-                        <option value="" disabled>
-                          {settings.cadence}
-                        </option>
-                      )}
-                      {cadenceChoices.map((c) => (
-                        <option key={c} value={c}>
-                          {CADENCE_LABELS[c] ?? c}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-xs text-muted-foreground">
-                      How often selected {resourceNoun} are read.
-                    </span>
-                  </div>
-
-                  {/* Destination (ADR-582 D3) — where snapshots land. */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label
-                      htmlFor="connector-destination"
-                      className="w-24 shrink-0 text-xs font-medium"
-                    >
-                      Destination
-                    </label>
-                    <input
-                      id="connector-destination"
-                      type="text"
-                      value={destinationDraft}
-                      placeholder={defaultLane}
-                      disabled={dialSaving}
-                      onChange={(e) => setDestinationDraft(e.target.value)}
-                      onBlur={commitDestination}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                      className="w-56 rounded-md border border-border/60 bg-background px-2 py-1 font-mono text-xs disabled:opacity-60"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Workspace folder where snapshots land. Empty = the default{" "}
-                    <span className="font-mono">{defaultLane}</span> lane, which
-                    is cleaned up on the retention window; a folder you name
-                    keeps its files like any other workspace files.
-                  </p>
-
-                  {/* Digest (ADR-582 D5) — the opt-in derive consumer. */}
-                  <label className="flex cursor-pointer items-start gap-2">
-                    <input
-                      type="checkbox"
-                      checked={settings.digest}
-                      disabled={dialSaving}
-                      onChange={(e) =>
-                        void patchSettings({ digest: e.target.checked })
-                      }
-                      className="mt-0.5 h-3.5 w-3.5 accent-primary"
-                    />
-                    <span className="text-xs">
-                      <span className="font-medium">Digest</span>{" "}
-                      <span className="text-muted-foreground">
-                        — maintain a living summary of each selected{" "}
-                        {resourceNounSingular}, citing the raw snapshots. Uses
-                        AI credits; off = snapshots only.
-                      </span>
-                    </span>
-                  </label>
-
-                  {dialSaving && (
-                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                  )}
-                  {dialError && (
-                    <p className="text-xs text-destructive">{dialError}</p>
-                  )}
-                </div>
-              </SectionShell>
-            )}
-
-            {/* YIELD — the read-back (connector grain).
+            {/* YIELD — the writer's read-back (connector grain).
                 ADR-404 D2: hidden while the capture lane is dormant. */}
             {captureEnabled && (
               <SectionShell title="Yield">
