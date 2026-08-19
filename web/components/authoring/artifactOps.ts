@@ -895,6 +895,44 @@ const CONTAINER_LAYOUT_VALUES: Record<string, Set<string>> = {
   // pair at the container grain. `Fixed` stays refused: continuous.
   width: new Set(['fit-content', '100%']),
 };
+/** ADR-485 D7 — move a stage's inline `padding` onto its direct children.
+ *
+ *  The stage must stay unpadded so `x`/`y` (padding box) and `w`/`h` (content
+ *  box) resolve against ONE rectangle. The member's Padding preset is still
+ *  honored — it simply lands where the kernel's own default lands. Vertical
+ *  inset goes on first/last child so two stacked siblings do not pay it twice
+ *  (`[data-area]` and `.cols` are siblings under a centering flex column).
+ *
+ *  Idempotent: re-running strips the previous re-home before writing. */
+function rehomeStagePadding(stage: Element): void {
+  const decls = (stage.getAttribute('style') || '')
+    .split(';').map((d) => d.trim()).filter(Boolean);
+  const pad = decls.find((d) => /^padding\s*:/.test(d));
+  const kept = decls.filter((d) => !/^padding\s*:/.test(d));
+  if (kept.length) stage.setAttribute('style', kept.join('; '));
+  else stage.removeAttribute('style');
+
+  const kids = Array.from(stage.children).filter(
+    (c) => c.matches('[data-area], .cols'),
+  );
+  if (!kids.length) return;
+
+  // No padding declared = clear any prior re-home and fall back to the kernel.
+  const parts = pad ? (pad.split(':')[1] ?? '').trim().split(/\s+/) : [];
+  const [block, inline] = parts.length === 1 ? [parts[0], parts[0]] : parts;
+
+  kids.forEach((kid, i) => {
+    const d = (kid.getAttribute('style') || '')
+      .split(';').map((x) => x.trim())
+      .filter((x) => x && !/^padding(-left|-right|-top|-bottom)?\s*:/.test(x));
+    if (inline) { d.push(`padding-left: ${inline}`); d.push(`padding-right: ${inline}`); }
+    if (block && i === 0) d.push(`padding-top: ${block}`);
+    if (block && i === kids.length - 1) d.push(`padding-bottom: ${block}`);
+    if (d.length) kid.setAttribute('style', d.join('; '));
+    else kid.removeAttribute('style');
+  });
+}
+
 export function setContainerLayout(
   html: string,
   /** id-addressed for containers; null + anchor for a PAGE (ADR-516 D1 — the
@@ -946,6 +984,14 @@ export function setContainerLayout(
   }
   if (decls.length) el.setAttribute('style', decls.join('; '));
   else el.removeAttribute('style');
+  // ADR-485 D7 — PADDING ON A STAGE IS RE-HOMED TO ITS CHILDREN. A slide is a
+  // coordinate system: inline padding on it makes `x` (padding box) and `w`
+  // (content box) percents of different rectangles, which is the split D7
+  // closed in the kernel. This is the member-operable path to the same state,
+  // so it must land the same way — otherwise one click on `Padding: L`
+  // silently re-opens it and the green frame stops being the stage again.
+  // The inset rides the direct children exactly as the kernel's default does.
+  if (el.matches('section.slide')) rehomeStagePadding(el);
   // ADR-516 D2 — convergence-by-use: a layout write single-sources THIS
   // element. The legacy layout tokens (inert names per ADR-511 D8 — kernel CSS
   // still honors them on untouched artifacts) leave the element the member is

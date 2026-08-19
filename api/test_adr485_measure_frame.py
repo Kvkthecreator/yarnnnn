@@ -164,6 +164,45 @@ _check("no continuous value reaches a reflowing layout",
        ".slide [data-w]" in studio_py
        and not re.search(r'\[data-template="(document|article|page)"\][^\n]*data-w', studio_py))
 
+print("\n-- 8. D7: the stage carries no padding; ONE rectangle --")
+# The load-bearing assertion is that the two stages AGREE. ADR-472 D2 calls
+# deck-slide and IMAGES-stage one shared object layer; they disagreed on the
+# single property that defines the coordinate system, and nothing noticed
+# because each was internally consistent. Read the COMPOSED kernel, not the
+# source text, so a rule that moves file stays caught.
+sys.path.insert(0, str(ROOT / "api"))
+from services.authoring import (  # noqa: E402
+    STUDIO_KERNEL_CSS,
+    STUDIO_KERNEL_CSS_VERSION,
+)
+
+_stage_pad = re.search(r"^\.slide\s*\{([^}]*)\}", STUDIO_KERNEL_CSS, re.M)
+_check("the kernel pins the stage to padding: 0 (not the skin — a skin is "
+       "baked once and cannot retrofit the decks that already exist)",
+       _stage_pad is not None and re.search(r"padding:\s*0\b", _stage_pad.group(1)) is not None)
+_check("the inset rides the stage's DIRECT CHILDREN",
+       ".slide > [data-area], .slide > .cols" in STUDIO_KERNEL_CSS
+       and ".slide > :first-child" in STUDIO_KERNEL_CSS
+       and ".slide > :last-child" in STUDIO_KERNEL_CSS)
+_check("no rule re-pads the STAGE itself (that re-opens the x-vs-w split)",
+       re.search(r"^\.slide\[data-pad=\"[sl]\"\]\s*\{[^}]*padding:", STUDIO_KERNEL_CSS, re.M) is None)
+_check("the full-bleed padding EXCEPTION is deleted, not deprecated "
+       "(it is now the general case)",
+       'full-bleed"] { padding' not in STUDIO_KERNEL_CSS)
+_check("the kernel version was bumped (the bump IS the retrofit)",
+       STUDIO_KERNEL_CSS_VERSION >= 18)
+
+_img_stage = (ROOT / "api/services/apps/images/stage.py").read_text()
+_check("ADR-472 D2's shared object layer AGREES: both stages carry zero "
+       "stage padding",
+       re.search(r"\.slide\s*\{[^}]*padding:\s*0\b", _img_stage, re.S) is not None)
+
+_ops = (WEB / "components/authoring/artifactOps.ts").read_text()
+_check("the MEMBER-operable path re-homes too — a Padding preset on a slide "
+       "must not silently re-pad the stage",
+       "rehomeStagePadding" in _ops
+       and re.search(r"el\.matches\(['\"]section\.slide['\"]\)", _ops) is not None)
+
 print("\n-- 7. The EXECUTING gate (the half a grep cannot do) --")
 mjs = WEB / "scripts/gates/adr485_measure_frame.mjs"
 _check("the executing gate ships", mjs.exists())

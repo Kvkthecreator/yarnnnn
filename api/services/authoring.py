@@ -498,8 +498,13 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
        that already exist. This skin owns the slide's LOOK; the kernel owns the
        frame. What used to sit here was `width: min(100%, 62rem)`, which read
        the container and made a deck's geometry depend on the screen. */
+    /* The slide's PADDING is not declared here — like its BOX, it is
+       kernel-owned (ADR-485 D7). The stage carries none and the inset rides
+       the direct children; declaring it in a baked-once skin would reach only
+       new decks, and every deck already built is the population that needs
+       it. This skin owns the slide's LOOK; the kernel owns the frame. */
     .slide { margin: 1.5rem auto;
-             padding: 3.5rem 4rem; display: flex; flex-direction: column;
+             display: flex; flex-direction: column;
              justify-content: center; background: var(--paper);
              box-shadow: 0 1px 6px rgba(0,0,0,0.08); overflow: hidden;
              page-break-after: always; }
@@ -1479,6 +1484,33 @@ div[data-block="component"] .row:hover { border-color: var(--rule, rgba(26,26,26
 /* The deck's own gap is wider (a slide breathes) — restored here so retiring
    the carve-out doesn't quietly re-space every existing slide. */
 .slide .cols { gap: 2.5rem; }
+/* ADR-485 D7 — THE STAGE CARRIES NO PADDING, and this must be KERNEL.
+   A layout skin is baked once at creation, so the skin's copy of this reaches
+   only NEW decks; the kernel is the layer that retrofits (re-stamped on
+   version bump), and every deck already built is exactly the population whose
+   coordinate system is currently wrong.
+
+   Why at all: padding on `.slide` made `x` (padding box) and `w` (content
+   box) percents of DIFFERENT rectangles — a block at x=0%,w=100% left 128px
+   of a 992px stage unreachable, and full-bleed was unrepresentable at any
+   value. Padding is a text container's property, not a coordinate system's.
+
+   The inset moves onto the direct children every arrangement already opens
+   with. Per-child rather than one wrapper because a slide's children are
+   SIBLINGS (`[data-area]` beside `.cols`) under a centering flex column;
+   first/last-child carries the vertical inset so two stacked children do not
+   pay it twice. `full-bleed` needed a `padding: 0` exception before this and
+   now needs none — it IS the general case (the exception is deleted, not
+   deprecated: one rule, one rectangle, no exception list).
+
+   This is also what makes ADR-472 D2's shared object layer actually shared —
+   `services/apps/images/stage.py` has carried `padding: 0` for this exact
+   reason, and the two stages disagreed on the one property that defines the
+   coordinate system. */
+.slide { padding: 0; }
+.slide > [data-area], .slide > .cols { padding-left: 4rem; padding-right: 4rem; }
+.slide > :first-child { padding-top: 3.5rem; }
+.slide > :last-child { padding-bottom: 3.5rem; }
 /* The cited page background (ADR-456 W3) — the SOURCE carries only the
    citation (data-ref + data-ref-kind="background") and tokens; the projection
    materializes background-image; these rules do the rest. */
@@ -1497,7 +1529,6 @@ div[data-block="component"] .row:hover { border-color: var(--rule, rgba(26,26,26
 [data-arrange="testimonial"] blockquote[data-block="quote"] { border-left: 0;
   font-style: italic; font-size: var(--text-xl, 1.3rem); }
 [data-arrange="footer"] { font-size: 0.85rem; color: var(--muted, #6b6b6b); }
-.slide[data-arrange="full-bleed"] { padding: 0; }
 .slide[data-arrange="full-bleed"] [data-area-role="media"] { flex: 1; display: flex; min-height: 0; }
 .slide[data-arrange="full-bleed"] figure { flex: 1; margin: 0; min-width: 0; }
 .slide[data-arrange="full-bleed"] img { width: 100%; height: 100%;
@@ -1628,8 +1659,19 @@ aside[data-block="callout"][data-variant="warning"] { border-color: var(--warn, 
    honoring them. Nothing writes them; a layout write strips them per-element. */
 .slide[data-valign="start"] { justify-content: flex-start; }
 .slide[data-valign="end"] { justify-content: flex-end; }
-.slide[data-pad="s"] { padding: 2rem 2.5rem; }
-.slide[data-pad="l"] { padding: 4.5rem 5.5rem; }
+/* ADR-485 D7: re-homed like the default inset. These are inert legacy names,
+   but an artifact still carrying one would re-pad the STAGE and re-open the
+   two-rectangle split this ADR closed — a coordinate system that depends on
+   whether a pre-cut token happens to be present is the state-dependent
+   difference ADR-461 v6 already refused. The override rides the children. */
+.slide[data-pad="s"] > [data-area], .slide[data-pad="s"] > .cols {
+  padding-left: 2.5rem; padding-right: 2.5rem; }
+.slide[data-pad="s"] > :first-child { padding-top: 2rem; }
+.slide[data-pad="s"] > :last-child { padding-bottom: 2rem; }
+.slide[data-pad="l"] > [data-area], .slide[data-pad="l"] > .cols {
+  padding-left: 5.5rem; padding-right: 5.5rem; }
+.slide[data-pad="l"] > :first-child { padding-top: 4.5rem; }
+.slide[data-pad="l"] > :last-child { padding-bottom: 4.5rem; }
 [data-arrange][data-pad="s"]:not(.slide) { padding-block: 0.25rem; }
 [data-arrange][data-pad="l"]:not(.slide) { padding-block: 2.5rem; }
 /* Document-grain tokens (ADR-455) — on the artifact root. */
@@ -1858,7 +1900,15 @@ STUDIO_KERNEL_CSS = STUDIO_KERNEL_CSS.replace("__RUNG_CSS__", _rung_css()).repla
 # same-or-newer version and returns byte-identical — every already-authored deck
 # would keep the stale rule forever and its full-bleed media would not flex.
 # A kernel CSS edit without a version bump is a change that never mounts.
-STUDIO_KERNEL_CSS_VERSION = 17
+# v18 (2026-08-19, ADR-485 D7): the stage carries no padding. `.slide
+# { padding: 0 }` with the inset re-homed onto the direct children, so `x`
+# (padding box) and `w` (content box) become percents of the SAME rectangle
+# and full-bleed is expressible. The bump is the whole point: a baked-once
+# skin reaches only new decks, and every deck already built is exactly the
+# population whose coordinate system is currently wrong. The
+# `[data-arrange="full-bleed"] { padding: 0 }` exception is DELETED — it is
+# now the general case.
+STUDIO_KERNEL_CSS_VERSION = 18
 
 
 def compose_kernel_style_element() -> str:

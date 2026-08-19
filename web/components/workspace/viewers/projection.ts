@@ -3831,7 +3831,14 @@ const OBJECT_SCRIPT = `
    *  getComputedStyle padding is layout px, so it is scaled by zf() to match
    *  the rect it is being subtracted from. One helper, four callers (resize
    *  preview + commit, move preview + commit): the preview and the commit can
-   *  no longer disagree, which is what made the gesture unconvergeable. */
+   *  no longer disagree, which is what made the gesture unconvergeable.
+   *
+   *  ADR-485 D7 — on a deck slide the two boxes are now the SAME rectangle:
+   *  the stage carries no padding (the inset rides its children), so x and w
+   *  are percents of one thing and the green frame IS the slide. The helper
+   *  keeps both accessors deliberately: a column or slot frame can still be
+   *  padded, and reading a computed style is what makes this self-correcting
+   *  rather than a second place that hardcodes a number. */
   function frameRects(frame) {
     var r = frame.getBoundingClientRect();
     var cs = getComputedStyle(frame);

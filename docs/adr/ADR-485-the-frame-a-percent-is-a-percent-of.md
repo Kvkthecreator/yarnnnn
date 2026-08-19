@@ -1,9 +1,9 @@
 # ADR-485 — The frame a percent is a percent of
 
-- **Status**: Accepted + **Implemented** (2026-07-23). Gates: `api/test_adr485_measure_frame.py` (static shape) + `web/scripts/gates/adr485_measure_frame.mjs` (EXECUTING, with falsifiers).
+- **Status**: Accepted + **Implemented** (2026-07-23; **D6** 2026-08-17; **D7** 2026-08-19). Gates: `api/test_adr485_measure_frame.py` (static shape) + `web/scripts/gates/adr485_measure_frame.mjs` (EXECUTING, with falsifiers).
 - **Dimension**: Substrate (primary — the value's meaning) + Channel (the gesture that authors it)
 - **Supersedes**: nothing
-- **Amends**: ADR-461 D3/D4 (the bound is unchanged; what the bound is a bound *of* becomes explicit) · ADR-466 D2 (`returnToFlow`'s clear-grain is widened to match `setGeometry`'s write-grain)
+- **Amends**: ADR-472 D2 (the shared object layer is made actually shared — deck stage and IMAGES stage now agree on stage padding) · ADR-461 D3/D4 (the bound is unchanged; what the bound is a bound *of* becomes explicit) · ADR-466 D2 (`returnToFlow`'s clear-grain is widened to match `setGeometry`'s write-grain)
 - **Preserves**: ADR-461 D4's aperture (deck + media only; `article`/`page`/`document` keep enumerated tokens) · ADR-443 R1 (the DOM is the model) · ADR-440 D7 (a gesture composes an existing op) · ADR-209 (every mutation attributed) · the enumerated-token invariant
 - **Derivation**: the studio round-trip audit, 2026-07-23 (headless-Chrome receipts + a 16-artifact live corpus)
 
@@ -94,6 +94,41 @@ The west branch was already frame-relative (D1 rewrote it); the east/south branc
 
 **The legacy duplicate, deleted.** `projection.ts` declared its own `DECK_STAGE_W = 992` and pinned `.slide` to it with `!important` in `pointer` mode — a VIEWER-baked width overriding the DOCUMENT's own `--stage-w`. `stageGeometry.ts`'s docstring already claimed this triple-copy was removed; the canvas copy was still live, so a deck authored at any other stage size (IMAGES seeds its own W×H per ADR-472 D3) rendered at 992 in the editor while `readStageSize` read the true value for the fit math — **the two disagreed by construction**, which is the exact split `stageGeometry.ts` exists to end. It now reads the same `var(--stage-w, …)` chain `PagedNavigator` converged on, with the shared fallback constant imported rather than restated. Third reader of one constant, not third copy of one number.
 
+### D7 — The stage carries no padding; the container does (amendment, 2026-08-19)
+
+**The operator, looking at the green frame D6 had just made honest:** *"is there a reason the slide selection in green is not the full slide? … think in terms of a simple PowerPoint or Google Slide. Is that content box needed?"*
+
+**No. It was never needed, and keeping it left D1's central promise unkept.**
+
+D1 named the rectangle once *per axis-class* — content box for `w`/`h`, padding box for `x`/`y` — and called `x`/`y` "already correct." Both halves are true in isolation, and together they mean **a deck slide has two frames**. On the 992×558 stage:
+
+| measure | resolves against | rectangle |
+|---|---|---|
+| `x` / `y` (`position:absolute; left:%`) | padding box | **992 × 558** |
+| `w` / `h` (`width:%`) | content box | **864 × 446** |
+
+A block at `x=0%, w=100%` spans 0→864px, leaving **128px of slide unreachable on the right**. `x=100%` is the slide's true right edge, fully off-stage. The green overlay can draw only one rectangle, so after D6 it is honest for `w`/`h` and wrong for `x`/`y` — **the same defect D6 was written to end, one axis-class over.** D6's own closing sentence ("the rectangle the member aims at must be the rectangle the math uses") cannot be satisfied while there are two.
+
+**The fix is not more geometry. It is deleting the cause.** `padding: 3.5rem 4rem` sat on `.slide` — a *stage*. Padding is a property of a text container; it is not a property of a coordinate system. Applied to the stage it silently amputated 13% of width and 20% of height from the space `x`/`y`/`w`/`h` address, and no value at any percent could name the missing band.
+
+**The codebase had already voted, twice, and disagreed with itself:**
+
+- `.slide[data-arrange="full-bleed"] { padding: 0 }` — a one-off cancellation, because full-bleed is *unrepresentable* while the stage is padded.
+- `services/apps/images/stage.py` — `padding: 0`, carrying the comment *"Padding 0 so a positioned block's percent-of-frame is a percent of the visible stage."* The IMAGES stage, built later and against the same shared object layer, independently reached this decision and wrote down this exact reasoning.
+
+ADR-472 D2 declares deck-slide and IMAGES-stage **one shared object layer**. They disagreed on the single property that defines the coordinate system. That — not the overlay's size — is the defect this amendment closes.
+
+**The padding moves one level in, to the container that always existed.** Every deck arrangement opens with a `data-area` wrapper; the inset relocates onto it. Consequences:
+
+- **One rectangle.** content box == padding box == border box == the stage. `x`, `y`, `w`, `h` resolve against the same thing. `frameRects` keeps both accessors and they now return identical numbers — the helper stays honest, its distinction simply stops being load-bearing.
+- **The green frame is the slide.** What the member expected when they asked.
+- **`w=100%` means full-bleed** — a background band, an edge-to-edge photo — previously unrepresentable at any value.
+- **Nothing stored changes.** No document is rewritten. A block laid out in flow is inset by its container exactly as before; the only blocks that move are ones carrying `x`/`y`, and they move *because their frame became the whole stage*, which is the correction.
+
+**Why this does not make decks uglier.** The margin is not removed, it is re-homed — the default authored deck renders identically. Typographic measure was never the stage's job and is unaffected: `.slide h1 { max-width: 34rem }` and `.slide p { max-width: 36rem }` still cap text width independently of the frame, which is the correct mechanism (measure belongs to type, not to the coordinate system). PowerPoint, Keynote, Google Slides and Figma all pad the *placeholder* and never the slide, for this reason.
+
+**Deleted, not deprecated** (no future ambiguity): the `full-bleed` padding override becomes the general case and is removed; `DECK_STAGE_CSS`'s padding-dependent commentary goes with it. One rule, one rectangle, no exception list.
+
 ### D5 — What this does NOT do
 
 - **Does not widen ADR-461 D4.** No continuous value reaches `article`/`page`/`document`. The three re-opening conditions in ADR-461 §D4 are untouched and none is claimed.
@@ -122,9 +157,15 @@ Four suspected defects did not survive execution. Recording them so they are not
 7. **(D6)** A block **inset** from its frame's content-left reaches `100%` on an east drag. Restoring the block-relative origin caps it at `100 − inset%` and makes the executing gate red — verified by editing the shipped source, not only by arithmetic (the gate ships the arithmetic falsifier; the source edit was run once by hand and the check failed as predicted).
 8. **(D6)** The green frame outline and the addressable area are the same rectangle: `showFrame` reads `frameRects`, and no raw `frame.getBoundingClientRect()` survives in it.
 9. **(D6)** No `DECK_STAGE_W` literal survives in `projection.ts`; the deck stage rule reads `var(--stage-w, …)`.
+10. **(D7)** The deck stage and the IMAGES stage carry the SAME stage padding (zero). A non-zero `padding` on `.slide` in the deck skin makes the gate red.
+11. **(D7)** `frameRects` returns `contentW === padW` and `contentH === padH` on a deck slide: one rectangle, so `x` and `w` are percents of the same thing.
+12. **(D7)** A block at `x=0%, w=100%` covers the stage edge to edge — full-bleed is expressible.
+13. **(D7)** No `data-arrange`-scoped padding override survives in the kernel; the general case needs no exception.
 
 ## 7. The one-line statement
 
 **A percent is meaningless until you say what it is a percent of. The gesture measured the border box, CSS resolved the content box, and the carry never re-asked — three answers to a question nobody had written down. Name the rectangle once, clamp from the served bound, and report what landed.**
+
+**And there must be only ONE rectangle (D7).** Naming it per axis-class still left two, so half the coordinate system was unreachable at every percent. The cause was padding on a *stage* — a text container's property applied to a coordinate system. Move it to the container and the distinction dissolves: the affordance, the constraint and the math become the same rectangle, and full-bleed becomes sayable.
 
 **And a rectangle is a size AND an origin (D6).** Naming only the size left the origin to four call sites, so the drag that could not reach the edge survived the ADR written to fix the drag that could not reach the edge. **The rectangle the member aims at must be the rectangle the math uses** — when the affordance and the constraint disagree, the member is right and the code is wrong.
