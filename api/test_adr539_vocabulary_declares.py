@@ -57,7 +57,8 @@ for kind, row in st.STUDIO_BLOCKS.items():
     t(
         f"`{kind}` declares tier/elements/promote/convertible/cites",
         row.get("tier") in ("text", "object")
-        and row.get("cites") in ("none", "source", "picture")
+        # "fragment" — ADR-583: a component cites a library file.
+        and row.get("cites") in ("none", "source", "picture", "fragment")
         and isinstance(row.get("convertible"), bool)
         and isinstance(row.get("promote"), bool)
         and isinstance(row.get("elements"), tuple)
@@ -74,10 +75,11 @@ for kind, row in st.STUDIO_BLOCKS.items():
             promoted[el] = kind
 t("promote=True tags are unique across rows (the map is unambiguous)", collision is None)
 
-t("group derives from cites (none→content, source→data, picture→media)",
+t("group derives from cites (none→content, source→data, picture→media, fragment→component)",
   st.block_group({"cites": "none"}) == "content"
   and st.block_group({"cites": "source"}) == "data"
-  and st.block_group({"cites": "picture"}) == "media")
+  and st.block_group({"cites": "picture"}) == "media"
+  and st.block_group({"cites": "fragment"}) == "component")
 t("MEDIA_BLOCK_KINDS is the picture-citing set, derived",
   st.MEDIA_BLOCK_KINDS == {k for k, r in st.STUDIO_BLOCKS.items() if r["cites"] == "picture"})
 

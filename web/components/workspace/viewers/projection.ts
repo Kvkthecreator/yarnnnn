@@ -246,6 +246,17 @@ async function resolveStyleUrls(el: HTMLStyleElement): Promise<void> {
   );
 }
 
+/** ADR-583 — a cited component fragment, made safe to inline: the same
+ *  executable strip the full pass applies (script/iframe/object/embed, on*
+ *  handlers, javascript: URLs), run over a detached carrier so the fragment's
+ *  own <style> survives while nothing runnable does. */
+function sanitizeFragmentHtml(html: string): string {
+  const carrier = document.implementation.createHTMLDocument('');
+  carrier.body.innerHTML = html;
+  stripExecutable(carrier);
+  return carrier.body.innerHTML;
+}
+
 async function resolveOne(el: Element, artifactPath: string): Promise<void> {
   // The MARKED style elements (data-skin / data-kernel, ADR-449/453) carry
   // data-ref as an EDGE citation (trace/dependents) — their CSS is already
@@ -300,6 +311,19 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
       }
       return;
     }
+    // ADR-583 — a cited COMPONENT: a workspace library fragment
+    // (`*.component.html`), inlined whole. Reference, never copy — editing
+    // the file updates every citing artifact. Executables are stripped before
+    // the innerHTML (defense in depth: the canvas sandbox never runs script,
+    // and the projection must not be the door either).
+    if (kind === 'component') {
+      if (file.content != null) {
+        el.innerHTML = sanitizeFragmentHtml(file.content);
+        return;
+      }
+      markBroken(el, ref);
+      return;
+    }
     // ADR-538 D2 — a chart cites its DATA. Checked BEFORE the table branch:
     // both read a .csv, and the chart declares itself by ref-kind, so a bare
     // `.csv` still falls through to a table (the unchanged default).
@@ -342,6 +366,10 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
               rev.content,
               el.closest('[data-chart]')?.getAttribute('data-chart') || 'bar',
             );
+          } else if (kind === 'component') {
+            // ADR-583 — the pinned fallback inlines the component too (the
+            // same lesson: a dangling citation must not dump raw source).
+            el.innerHTML = sanitizeFragmentHtml(rev.content);
           } else if (kind === 'table' || path.toLowerCase().endsWith('.csv')) {
             el.innerHTML = csvToTableHtml(rev.content);
           } else {

@@ -15,9 +15,21 @@ Arc commits before it: `9b901e4` (579 ratified) · `a73bdef` (provenance
 grouping) · `ea5aa52` (toolbar verbs) · `e6d2319` (verb doors) · `25e7d3f` +
 `8bceaec` (581 D2/D3, renumbered from the 580 collision).
 
+**ADR-583 landed same day (operator-ruled after the D4 discourse): a component
+is a workspace FILE** (`*.component.html`, cited like a CSV/image — the
+library). The colour law recut (never a raw colour/face/radius; geometry free,
+homed in component files); the `component` kind re-cut to `cites="fragment"`
+(fourth citation value → lands in ADD by construction); projection inlines
+through the shared executable strip (live + pinned); picker lists the library;
+the compose/reverse-engineer act is a posture-taught JOB on the designer (no
+new app). **The catalog is CAPPED** — a new registry row needs a click-door
+gap, never a component need. ⚠️ ADR-582 was TAKEN by the connector lane
+mid-session — 583 verified at commit time; 584+ can collide the same way.
+
 ## Verification (the standing set)
 
 ```
+cd api && python3 test_adr583_component_library.py  # 28/28
 cd api && python3 test_adr581_medium_regroup.py     # 13/13
 cd api && python3 test_adr579_verb_grammar.py       # 16/16
 cd api && python3 test_adr509_insert_route.py       # 37
@@ -47,10 +59,12 @@ cd web && node_modules/.bin/next build              # 171/171; `pnpm` NOT on PAT
 - **ADR-579 D7** pane structured turns (seed → receipt; plan for coarse grain only)
   · **D8** file-altitude ADD/NEW with "from sources…" (the multi-source derive).
 - **Operator click-pass**: deck → [+ Add][+ New][Update]; New menu = Composed-first
-  (now 8 composed kinds) + NEW SLIDE gallery in ONE menu; right-click = New ▸/
-  Add ▸/Update ▸/Ask ▸ tiers; flow doc → Add/New only, prose-first; NEW in D4:
-  insert a stat/comparison/timeline/person on a slide (kernel draws them, tone/
-  marks theme them), and a logo row via the multi-pick (height preset live).
+  + NEW SLIDE gallery in ONE menu; right-click = New ▸/Add ▸/Update ▸/Ask ▸ tiers;
+  flow doc → Add/New only, prose-first; NEW in D4: insert a stat/comparison/
+  timeline/person on a slide (kernel draws them, tone/marks theme them), a logo
+  row via the multi-pick (height preset live); NEW in 583: ask the lane to
+  compose a component (screenshot → `*.component.html`), cite it via ADD →
+  Component, edit the source file, watch the citing artifact follow.
 
 ---
 

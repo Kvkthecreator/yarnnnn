@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Code,
   Columns,
+  Component,
   Heading1,
   Image as ImageIcon,
   Images,
@@ -61,6 +62,8 @@ export const BLOCK_ICONS: Record<string, LucideIcon> = {
   timeline: Milestone,
   person: User,
   'logo-row': Images,
+  // ADR-583 — the cited library component.
+  component: Component,
 };
 
 export const FALLBACK_BLOCK_ICON: LucideIcon = AlignLeft;
@@ -70,8 +73,9 @@ export interface BlockRowItem {
   label: string;
   fragment: string;
   description?: string;
-  /** ADR-539 D1 — what the kind cites, served on the vocabulary row. */
-  cites?: 'none' | 'source' | 'picture';
+  /** ADR-539 D1 — what the kind cites, served on the vocabulary row
+   *  ('fragment' = the ADR-583 component library). */
+  cites?: 'none' | 'source' | 'picture' | 'fragment';
   /** ADR-539 D1 — the served interaction tier (ADR-525 D1's vocabulary). */
   tier?: 'text' | 'object';
 }

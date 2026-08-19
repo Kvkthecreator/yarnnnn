@@ -54,7 +54,7 @@ export interface StudioBlockMenuProps {
     label: string;
     fragment: string;
     convertible?: boolean;
-    cites?: 'none' | 'source' | 'picture';
+    cites?: 'none' | 'source' | 'picture' | 'fragment';
     tier?: 'text' | 'object';
   }>;
   /** ADR-539 D3 — the served rung set (falls back to the runtime's pinned copy). */

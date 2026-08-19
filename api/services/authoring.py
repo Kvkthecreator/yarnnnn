@@ -74,9 +74,11 @@ STUDIO_ARTIFACT_REGION = "/workspace/operation/"
 #                 `checklist` is the argued False (ADR-536: promotion is a
 #                 guess from a TAG, and the checkbox list is the marked case).
 #   convertible — does the member's Turn-into offer it?
-#   cites       — "none" | "source" | "picture" (ADR-538 D1's rule as a FIELD).
-#                 `group` is DERIVED from this (see GROUP_BY_CITES below), so
-#                 a kind's group and its citation structurally cannot disagree.
+#   cites       — "none" | "source" | "picture" | "fragment" (ADR-538 D1's
+#                 rule as a FIELD; "fragment" added by ADR-583 — a component
+#                 cites a `*.component.html` library file). `group` is DERIVED
+#                 from this (see GROUP_BY_CITES below), so a kind's group and
+#                 its citation structurally cannot disagree.
 # ---------------------------------------------------------------------------
 
 STUDIO_BLOCKS: dict[str, dict[str, str]] = {
@@ -215,38 +217,32 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "description": "A call-to-action link, styled by the palette.",
         "markup": '<p data-block="button" data-block-id="b11"><a href="https://…">Call to action</a></p>',
     },
-    # ADR-538 D3 — the composite component. The landing-page-style card the
-    # operator pointed at (a labelled container holding icon/name/phrase/pill
-    # rows) is STYLED HTML: it cites nothing, so by D1 it is `content`, and the
-    # kernel draws it. No new machinery — this is the `metrics` shape one
-    # composition deeper, and it is why the answer to "can we scope these kinds
-    # of components in" is a registry row rather than an engine.
+    # ADR-583 — the component is RE-CUT from an inline card to a CITED library
+    # object, superseding ADR-538 D3's pre-drafted skeleton while keeping its
+    # rule (a block IS what it cites — the chart precedent, applied to the row
+    # beside it). A component is a workspace FILE: `*.component.html`, a
+    # scoped fragment themed through the design-system slots (the D1 law
+    # recut: never a raw colour/face; geometry free), authored once and cited
+    # by reference exactly like a CSV or an image — pinned at insert, current
+    # when the source changes, edited at the SOURCE so every instance follows.
     #
-    # `apps: ("studio",)` for the ADR-528 D5 reason that governs callout and
-    # toggle: a composed card is an authored object on a deck or a landing
-    # page, and Docs is the flow/caret medium where it has no equivalent.
+    # `cites: "fragment"` is the FOURTH citation value; the ADR-581 family
+    # derivation lands the kind in ADD (from the workspace) by construction —
+    # the library verb. Old inline-card markup in members' artifacts keeps
+    # rendering (ADR-511 D8 — the kernel card CSS below stays for it); what
+    # changed is what the door OFFERS: picking Component opens the library.
     #
-    # Motion is NOT in the markup — it is kernel CSS (D4), under a
-    # prefers-reduced-motion guard. A component is legible with motion disabled
-    # by construction, which is what makes the guard safe to honour.
+    # `apps: ("studio",)` unchanged (the ADR-528 D5 scoping).
     "component": {
         "label": "Component",
         "tier": "object",
-        "cites": "none",
+        "cites": "fragment",
         "convertible": False,
         "elements": ("div",),
         "promote": False,
         "apps": ("studio",),
-        "description": "A composed card — a labelled container of icon/name/value rows.",
-        "markup": (
-            '<div data-block="component" data-block-id="b16">'
-            "<header><span>Label</span></header>"
-            '<div class="row"><span class="name">Name</span>'
-            '<span class="value">Value</span>'
-            '<span class="pill">tag</span></div>'
-            "<footer>Footnote</footer>"
-            "</div>"
-        ),
+        "description": "A composed component CITED from the workspace library (a *.component.html fragment).",
+        "markup": '<div data-block="component" data-block-id="b16" data-ref="operation/components/card.component.html" data-ref-kind="component" data-ref-rev="<head-rev-id>"></div>',
     },
     "table": {
         "label": "Table",
@@ -438,7 +434,13 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
 # found `chart` and `metrics` mis-filed because group and citation could
 # disagree; deriving makes the disagreement unrepresentable. The wire shape is
 # unchanged: the vocabulary route still serves `group`, computed here.
-GROUP_BY_CITES = {"none": "content", "source": "data", "picture": "media"}
+GROUP_BY_CITES = {
+    "none": "content",
+    "source": "data",
+    "picture": "media",
+    # ADR-583 — a component cites a workspace fragment (the library).
+    "fragment": "component",
+}
 
 
 def block_group(row: dict) -> str:
@@ -2763,8 +2765,14 @@ The artifact root, blocks, and pages may carry property TOKENS — data-*
 attributes with small named value sets, styled by the marked
 <style data-kernel="true"> element and themed by the design system's custom
 properties. Absence is the default: set a token by adding the attribute, clear
-it by removing the attribute. Never use inline style="" or raw colors for
-placement/emphasis — the token IS the edit. Document-grain tokens (font,
+it by removing the attribute. On a block, never use inline style="" for
+placement/emphasis — the token IS the edit. The colour law is absolute
+everywhere (ADR-583 D1): NEVER a raw colour, font stack, or radius — every
+themable property goes through the design-system slots (var(--accent…),
+var(--font-…), var(--radius-…), var(--text-…)) with fallbacks; bespoke
+GEOMETRY (flex/grid/padding/shape) is legitimate, and it lives in a component
+FILE's scoped CSS (see Components below), never sprayed on blocks as inline
+style. Document-grain tokens (font,
 measure, pagenum) live on the <html> root element (ADR-455/456). The member also sets
 tokens from the Design tab; preserve tokens you didn't touch, and set them
 yourself when asked in plain words ("center that", "make it serif", "make the
@@ -2816,6 +2824,25 @@ the act that returns a positioned block to flow, never a content edit.
   changes — an authored SVG chart goes stale the moment a number moves.
 - Motion is CSS only, never <script>: a script does not run in the viewer or
   in a shared link, so a component that needs one is invisible to readers.
+
+## Components (the workspace library — ADR-583)
+A COMPONENT is a workspace file, not copied markup: `<name>.component.html`,
+managed exactly like the CSVs and images beside it. To use one, CITE it —
+`<div data-block="component" data-ref="operation/components/card.component.html"
+data-ref-kind="component" data-ref-rev="<head-rev-id>"></div>` — pinned like
+every citation; the projection inlines it, so editing the FILE updates every
+artifact that cites it. Never paste a component's markup into an artifact, and
+never edit its content inside one — edit the source file.
+To CREATE one (asked directly, or when the member shows you a screenshot or a
+source component to reproduce — reverse-engineer what you see): author the
+file with WriteFile under the contract, then cite it.
+The contract: a fragment with ONE root element; its own <style> allowed but
+every selector SCOPED under the root (a class or attribute on the root — no
+bare tag selectors that leak into the citing artifact); colours/faces/radii/
+type sizes through the design-system slots with fallbacks (the colour law
+above) so a skin themes every instance; geometry free; no <script>; no
+data-block-id inside (identity belongs to the citing block). Place it by
+meaning — `operation/components/` is the convention.
 
 ## Style
 Match the artifact's existing voice and CSS. If the workspace carries design

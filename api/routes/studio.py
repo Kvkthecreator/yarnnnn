@@ -997,6 +997,10 @@ async def list_citable(auth: UserClient) -> dict:
         .execute()
     ).data or []
     tables = (_q().ilike("path", "%.csv").execute()).data or []
+    # ADR-583 — the component library: fragments by suffix (the `.csv`
+    # precedent — self-describing, listable, never confusable with a full
+    # artifact document).
+    components = (_q().ilike("path", "%.component.html").execute()).data or []
 
     def _row(r: dict) -> dict:
         return {
@@ -1011,6 +1015,7 @@ async def list_citable(auth: UserClient) -> dict:
     return {
         "images": [_row(r) for r in images],
         "tables": [_row(r) for r in tables],
+        "components": [_row(r) for r in components],
     }
 
 

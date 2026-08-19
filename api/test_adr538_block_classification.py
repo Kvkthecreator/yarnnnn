@@ -86,6 +86,11 @@ CITES_SOURCE = {"table", "chart"}
 # ADR-581 D4 — `logo-row` joins the picture-citing set (a strip of workspace
 # marks; the one growth kind that cites, so it lands in ADD).
 CITES_PICTURE = {"figure", "gallery", "logo-row"}
+# ADR-583 — `component` re-cut from content to FRAGMENT-citing (a workspace
+# `*.component.html` library file). This supersedes this file's own §3 as
+# originally written; the D1 rule it defends is unchanged — a block IS what
+# it cites, and the component now declares what it always was.
+CITES_FRAGMENT = {"component"}
 
 for kind, row in st.STUDIO_BLOCKS.items():
     group = st.block_group(row)
@@ -97,6 +102,9 @@ for kind, row in st.STUDIO_BLOCKS.items():
     elif kind in CITES_PICTURE:
         t(f"`{kind}` declares picture, derives media, and its markup cites",
           row["cites"] == "picture" and group == "media" and cites_in_markup)
+    elif kind in CITES_FRAGMENT:
+        t(f"`{kind}` declares fragment, derives component, and its markup cites",
+          row["cites"] == "fragment" and group == "component" and cites_in_markup)
     else:
         t(f"`{kind}` declares none, derives content, and its markup cites nothing",
           row["cites"] == "none" and group == "content" and not cites_in_markup)
@@ -155,13 +163,21 @@ t(
 
 print("\n=== 3. D3 — the composite component ===")
 
+# ADR-583 SUPERSEDES this section's original assertions: D3's inline card
+# (content, composite markup the kernel draws) became a CITED library object —
+# `cites="fragment"`, markup a citation like table/chart/figure. The D1 rule
+# this file defends is what made the re-cut possible: a block IS what it cites.
 comp = st.STUDIO_BLOCKS.get("component", {})
 t("`component` row exists", bool(comp))
-t("component is content (it cites nothing)",
-  comp.get("cites") == "none" and st.block_group(comp) == "content")
+t("component cites a fragment (ADR-583 — the library re-cut)",
+  comp.get("cites") == "fragment" and st.block_group(comp) == "component")
 t("component is studio-scoped", comp.get("apps") == ("studio",))
-t("component is composite (header + row + footer)", all(x in comp.get("markup", "") for x in ("<header>", 'class="row"', "<footer>")))
-t("the kernel draws it", 'div[data-block="component"]' in KERNEL_NC)
+t("component's markup is a CITATION of a *.component.html file",
+  "data-ref=" in comp.get("markup", "")
+  and 'data-ref-kind="component"' in comp.get("markup", "")
+  and ".component.html" in comp.get("markup", ""))
+t("the kernel still draws the LEGACY inline card (ADR-511 D8 — old markup renders)",
+  'div[data-block="component"]' in KERNEL_NC)
 t("Docs is not offered the component", "component" not in st.blocks_for_app("docs"))
 t("Studio IS offered the component", "component" in st.blocks_for_app("studio"))
 
@@ -208,8 +224,11 @@ print("\n=== 6. The insert door is a picker, not a chat seed (ADR-536 lesson) ==
 t("chart is picker-backed (declares a source citation)",
   st.STUDIO_BLOCKS["chart"]["cites"] == "source")
 t(
+    # Regex, not a pinned spelling (the recorded lesson): ADR-583 grew the
+    # ternary a fragment arm, and the claim is only that source→tables while
+    # the fallthrough is images.
     "the picker lists CSVs for a source-citing kind (not images)",
-    "cites === 'source'" in PICKER and "c.tables : c.images" in PICKER,
+    re.search(r"cites === 'source' \? c\.tables :[\s\S]{0,120}?c\.images", PICKER) is not None,
 )
 t(
     "the SVG-seeding branch is GONE from the surface",
@@ -220,8 +239,9 @@ t(
     "Create an SVG chart" not in SURFACE,
 )
 t(
+    # Regex across whitespace — ADR-583 reformatted the ladder multiline.
     "a chart pick lands a CHART (not collapsed to table/figure)",
-    "cp.kind === 'chart' ? 'chart'" in SURFACE,
+    re.search(r"cp\.kind === 'chart'\s*\?\s*'chart'", SURFACE) is not None,
 )
 
 print("\n=== 7. FALSIFIERS — each claim can fail ===")

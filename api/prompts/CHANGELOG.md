@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.19.2] - The component library + the colour-law recut (ADR-583)
+
+### Changed
+- `services/authoring.py` `_POSTURE_FRAME`: (1) the token-law paragraph is
+  RECUT — the absolute invariant is "never a raw colour/face/radius; every
+  themable property through the design-system slots", and bespoke GEOMETRY is
+  freed, homed in component files (the blanket reading of "never inline
+  style" was forbidding the composition the operator asked for). (2) New
+  "## Components (the workspace library)" section: a component is a
+  `*.component.html` workspace file cited like a CSV/image (pinned; edit the
+  SOURCE), with the authoring contract (one root, scoped style, slots,
+  no script, no inner block ids) and the reverse-engineer act (a screenshot
+  or source component shown to the lane becomes a library file).
+- `services/authoring.py` `STUDIO_BLOCKS["component"]`: markup/description
+  re-cut from the inline card to a citation — the taught grammar now teaches
+  citing the library, never pasting card markup.
+- Expected behavior: asked for a component (or shown one to reproduce), the
+  lane authors a library FILE and cites it, instead of improvising inline
+  card markup per artifact. Addresses the observed failure from the operator's
+  discourse: component requests were answered with pre-drafted skeletons; the
+  grounded/reverse-engineered path had no taught act.
+
 ## [2026.08.19.1] - The composed family grows (ADR-581 D4)
 
 ### Changed

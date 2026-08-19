@@ -836,6 +836,12 @@ export const api = {
       request<{
         images: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
         tables: Array<{ path: string; updated_at: string | null; head_version_id: string | null }>;
+        // ADR-583 — the component library (`*.component.html` fragments).
+        components: Array<{
+          path: string;
+          updated_at: string | null;
+          head_version_id: string | null;
+        }>;
       }>("/api/studio/citable"),
     // ADR-479 D1: the re-arrangement's PLACEMENT decision, as judgment. Sends
     // the page's blocks + the target arrangement's declared slots; gets back a

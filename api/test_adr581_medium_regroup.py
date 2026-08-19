@@ -45,8 +45,10 @@ def family(row) -> str:
 
 fams = {k: family(r) for k, r in STUDIO_BLOCKS.items()}
 _check(
-    "the anchors classify as ratified (component/metrics/divider composed · heading/toggle prose · table/figure cited)",
-    fams.get("component") == "composed"
+    # ADR-583 moved `component` composed → cited (it cites a library fragment
+    # now) — the DERIVATION is unchanged, the row's declaration changed.
+    "the anchors classify as ratified (metrics/divider composed · heading/toggle prose · table/figure/component cited)",
+    fams.get("component") == "cited"
     and fams.get("metrics") == "composed"
     and fams.get("divider") == "composed"
     and fams.get("heading") == "prose"
@@ -60,8 +62,12 @@ _check(
     set(fams.values()) <= {"prose", "composed", "cited"} and len(fams) == len(STUDIO_BLOCKS),
 )
 _check(
-    "D4 shipped — the composed family is no longer the minority",
-    sum(1 for f in fams.values() if f == "composed") >= sum(1 for f in fams.values() if f == "prose"),
+    # A FLOOR, not a parity: ADR-583 re-cut `component` out of the composed
+    # family (it is cited now), so the honest claim is that D4's growth landed
+    # and holds — 7 composed kinds (button·metrics·divider·stat·comparison·
+    # timeline·person) against the pre-D4 three.
+    "D4 shipped — the composed family holds its growth (>= 7 kinds)",
+    sum(1 for f in fams.values() if f == "composed") >= 7,
 )
 _check(
     "the D4 growth set classifies by construction (stat/comparison/timeline/person composed · logo-row cited)",

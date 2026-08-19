@@ -46,8 +46,9 @@ function baseName(p: string): string {
 interface StudioCitablePickerProps {
   kind: string;
   /** ADR-539 D2 — what the kind CITES, read off its served row by the caller:
-   *  'source' lists the workspace's CSVs; 'picture' lists its images. */
-  cites: 'source' | 'picture';
+   *  'source' lists the workspace's CSVs; 'picture' lists its images;
+   *  'fragment' lists the component library (ADR-583). */
+  cites: 'source' | 'picture' | 'fragment';
   /** Anchor within the canvas wrapper (the palette's own position). */
   left: number;
   top: number;
@@ -77,7 +78,10 @@ export function StudioCitablePicker({
     api.studio
       .citable()
       .then((c) => {
-        if (live) setItems(cites === 'source' ? c.tables : c.images);
+        if (live)
+          setItems(
+            cites === 'source' ? c.tables : cites === 'fragment' ? (c.components ?? []) : c.images,
+          );
       })
       .catch(() => {
         if (live) setItems([]);
@@ -127,7 +131,9 @@ export function StudioCitablePicker({
               ? 'Pick images for the gallery'
               : kind === 'logo-row'
                 ? 'Pick marks for the logo row'
-                : 'Insert an image from the workspace'}
+                : kind === 'component'
+                  ? 'Insert a component from the workspace'
+                  : 'Insert an image from the workspace'}
       </p>
       {items == null && (
         <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
@@ -138,7 +144,9 @@ export function StudioCitablePicker({
         <p className="p-3 text-xs text-muted-foreground">
           {cites === 'source'
             ? 'No CSV files in the workspace yet.'
-            : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
+            : cites === 'fragment'
+              ? 'No components yet — ask the chat to compose one from a screenshot or a source.'
+              : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
         </p>
       )}
       {multi && items != null && items.length > 0 && (

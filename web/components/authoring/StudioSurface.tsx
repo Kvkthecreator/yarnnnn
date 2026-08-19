@@ -1491,7 +1491,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // leave it empty") and so was never done: 0 populated pins across the live
   // workspace. A mechanical insert knows the rev; it stamps it.
   const citedFragment = useCallback(
-    (kind: 'figure' | 'table' | 'chart', path: string, pin?: string | null): string | null => {
+    (
+      kind: 'figure' | 'table' | 'chart' | 'component',
+      path: string,
+      pin?: string | null,
+    ): string | null => {
       const base = vocabulary?.blocks.find((b) => b.kind === kind)?.fragment;
       if (!base) return null;
       const rel = relPath(path);
@@ -2518,7 +2522,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     // per the audit) are deleted: a kind opens this picker iff its row
     // declares a citation, and the citable list follows the citation's kind.
     kind: string;
-    cites: 'source' | 'picture';
+    cites: 'source' | 'picture' | 'fragment';
     left: number;
     top: number;
     ctx: { blockId: string; beforeInner: string | null; afterInner: string | null; empty: boolean };
@@ -2526,7 +2530,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 
   /** ADR-539 D1 — what this kind CITES, read off the served row. */
   const kindCites = useCallback(
-    (kind: string): 'none' | 'source' | 'picture' =>
+    (kind: string): 'none' | 'source' | 'picture' | 'fragment' =>
       vocabulary?.blocks.find((b) => b.kind === kind)?.cites ?? 'none',
     [vocabulary],
   );
@@ -2797,12 +2801,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const cp = citePicker;
       setCitePicker(null);
       if (!cp) return;
-      // ADR-538 D2 — three cited single-file kinds now, not two. A chart keeps
-      // its own kind (it cites the same CSV a table does, but projects it as a
-      // chart), so the collapse to table-or-figure would have silently landed
-      // a TABLE wherever a member picked Chart.
-      const kind: 'figure' | 'table' | 'chart' =
-        cp.kind === 'table' ? 'table' : cp.kind === 'chart' ? 'chart' : 'figure';
+      // ADR-538 D2 — the cited single-file kinds each keep their OWN kind
+      // (the collapse to table-or-figure would silently land the wrong block
+      // wherever a member picked). ADR-583 adds `component` to the ladder.
+      const kind: 'figure' | 'table' | 'chart' | 'component' =
+        cp.kind === 'table'
+          ? 'table'
+          : cp.kind === 'chart'
+            ? 'chart'
+            : cp.kind === 'component'
+              ? 'component'
+              : 'figure';
       const fragment = citedFragment(kind, path, pin);
       if (!fragment) return;
       const noun = kind === 'figure' ? 'image' : kind;

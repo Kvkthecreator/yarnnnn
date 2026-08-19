@@ -91,7 +91,7 @@ export interface StudioVocabulary {
      *  spellings of the picker set and two kind lists doing this job). */
     tier: 'text' | 'object';
     convertible: boolean;
-    cites: 'none' | 'source' | 'picture';
+    cites: 'none' | 'source' | 'picture' | 'fragment';
   }>;
   /** ADR-539 D3 — the heading rung set, declared once in the kernel. The
    *  outline walk, the Typography ramp, and the turn-into levels all read
