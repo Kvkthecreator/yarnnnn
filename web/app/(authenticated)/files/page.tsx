@@ -75,7 +75,8 @@ import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
-import { toWorkspacePath } from '@/lib/interop/fileHandle';
+import { toWorkspacePath, relPath } from '@/lib/interop/fileHandle';
+import { CopyField } from '@/components/workspace/CopyField';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { RecentRevisions } from '@/components/workspace/RecentRevisions';
 import { TrashView } from '@/components/workspace/TrashView';
@@ -324,6 +325,30 @@ function getNodeMetadata(node: TreeNode): string {
   }
 
   return parts.join(' · ');
+}
+
+/**
+ * The header's metadata strip — ADR-587 D8.
+ *
+ * The FOURTH face of the D7 rule, and the one the operator is standing IN.
+ * The children of a folder showed their paths (D7's grid tile + list row)
+ * while the folder itself said only "Folder · 3 items · Updated…" — and the
+ * breadcrumb above it reads "Files › _connectors", which DROPS the
+ * `operation/` prefix. So the one object whose identity the screen is
+ * devoted to was the one object the screen would not name.
+ *
+ * Inline variant, not boxed: this is a metadata strip under an h1, and a
+ * bordered input here would out-weigh the title it describes. Same component,
+ * same clipboard fallback — presentation differs, mechanism does not.
+ */
+function nodeMetadataNode(node: TreeNode): React.ReactNode {
+  return (
+    <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      <span>{getNodeMetadata(node)}</span>
+      <span aria-hidden="true" className="text-muted-foreground/50">·</span>
+      <CopyField variant="inline" value={relPath(node.path)} label="path" />
+    </span>
+  );
 }
 
 function formatNodeTimestamp(value: string): string {
@@ -1262,7 +1287,7 @@ export default function ContextPage() {
     <div className="flex-1 overflow-auto bg-background flex flex-col min-h-0">
       <SurfaceIdentityHeader
         title={selectedNode.name}
-        metadata={getNodeMetadata(selectedNode)}
+        metadata={nodeMetadataNode(selectedNode)}
         actions={
           <div className="flex items-center gap-2">
             {/* ADR-388 D4: the ONE shared Files view toggle (folder listings honor

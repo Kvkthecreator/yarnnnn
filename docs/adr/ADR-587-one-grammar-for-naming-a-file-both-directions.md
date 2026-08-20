@@ -247,6 +247,34 @@ its own dedicated slot (the AUTHOR column) rather than borrowing the identity
 line. The gate checks this as a MATRIX, not as three spot-checks, so a new face
 that skips it fails rather than quietly disagreeing.
 
+### D8 — The header names the object you are standing in (amended 2026-08-21)
+
+Operator-observed immediately after D7 deployed, and it is the matrix earning
+its keep: *"maybe we expose similar, same path link handling on the display of
+the center pane as well."*
+
+D7 gave the CHILDREN of a folder their paths. The folder itself still read
+`Folder · 3 items · Updated Aug 18, 2026` — and the breadcrumb above it reads
+`Files › _connectors`, which **drops the `operation/` prefix**. So on a screen
+devoted to one object, that object was the only thing the screen would not name,
+while every child on it named itself. D7 called this a fourth face and did not
+build it; D8 does.
+
+**`CopyField` gains an `inline` variant** — monospace text with a hover copy
+glyph — because a metadata strip under an `h1` cannot carry a bordered input
+without out-weighing the title it describes. The variant is **presentation
+only**: one clipboard call, one denial fallback, shared by both branches. The
+inline branch still mounts a (visually hidden) input purely so that fallback has
+something to `select()`; without it the inline variant would silently no-op
+exactly where the boxed one hands over a selection — two variants disagreeing
+about the one behaviour that matters most. The gate asserts all three of those
+properties, and each was falsified.
+
+**Not extended to the Properties modal header.** It already renders a dedicated
+Path row directly beneath its identity line; a second would be duplication, not
+consistency. The rule is *the object is named once, on every face* — not *the
+path appears as often as possible.*
+
 ---
 
 ## 4. The rejected alternative, recorded — merging the handle into the share flow
@@ -319,9 +347,10 @@ copy.
 
 ## 6. What is owed
 
-- **The click-pass.** The Files surface **list-view** copy affordance is operator-confirmed
-  working (2026-08-21). Still undriven: the grid tile and folder Properties (D7), the share
-  sheet's path field on Studio and Text (D6), and pasting a handle into the Launcher.
+- **The click-pass.** Operator-confirmed working: the Files list-view copy affordance, and the
+  D7 grid tile (folder tiles now read `operation/_connectors/github` where they showed an empty
+  attribution dot). Still undriven: folder Properties (D7), the header's inline copy (D8), the
+  share sheet's path field on Studio and Text (D6), and pasting a handle into the Launcher.
 - **Not mine, observed in passing**: `files_arrival_door.mjs` A7 reports 8/9 ("found 3" arrival
   handlers) at baseline — introduced by concurrent work on `files/page.tsx`, red before this
   arc's D6/D7 changes and unaffected by them.

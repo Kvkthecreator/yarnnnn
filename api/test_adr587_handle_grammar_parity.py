@@ -40,12 +40,19 @@ D6-share-sheet — the share sheet shows the PATH, not just the leaf. One
      asserts the sheet does NOT emit the `yarnnn://` handle — a grant surface
      and an address must not blur (ADR-512 D6 / ADR-587 §4).
 
-D7-every-face — the RULE, not three spot-checks: wherever the Files surface
-     shows an object, the identifying line under its name is the path — list
-     row, grid tile, and Properties, for BOTH files and folders. The three
-     faces had drifted to three different answers (path / attribution / silence
-     for folders), which is what made this a rule question rather than a patch.
-     Checked as a matrix so a FOURTH face cannot be added silently.
+D7-every-face — the RULE, not spot-checks: wherever the Files surface shows an
+     object, the identifying line under its name is the path — list row, grid
+     tile, Properties, and the surface identity HEADER, for BOTH files and
+     folders. The faces had drifted to different answers (path / attribution /
+     silence for folders), which is what made this a rule question rather than
+     a patch. Checked as a matrix so a new face cannot be added silently — the
+     header is the face that matrix CAUGHT (D8): the children of a folder named
+     themselves while the folder the operator was standing IN did not.
+
+D8-one-copy-mechanism — the inline and boxed CopyField variants differ in
+     PRESENTATION only. Both must keep the clipboard-denial fallback; a variant
+     that silently no-ops where the other hands over a selection is the
+     incorrect-success this component exists to prevent.
 
 Every check here was falsified — broken deliberately, observed to fail, restored.
 """
@@ -384,6 +391,7 @@ check(
 print()
 print("D7-every-face — the identifying line is the path, on every face, both kinds")
 content_viewer_raw = (WEB / "components" / "workspace" / "ContentViewer.tsx").read_text()
+files_page_raw = (WEB / "app" / "(authenticated)" / "files" / "page.tsx").read_text()
 details_panel = (WEB / "components" / "workspace" / "NodeDetailsPanel.tsx").read_text()
 
 
@@ -441,6 +449,38 @@ for rel in ("components/workspace/ContentViewer.tsx",
         "@/lib/interop/fileHandle" in src,
         "strips /workspace/ by hand instead of using the one grammar",
     )
+
+# The HEADER — the fourth face, and the one the operator is standing in.
+files_page = strip_comments(files_page_raw)
+check(
+    "the surface header names the path",
+    re.search(r"metadata=\{nodeMetadataNode\(", files_page)
+    and re.search(r"CopyField[^>]*value=\{relPath\(\s*node\.path\s*\)\}", files_page, re.S),
+    "the header's metadata strip does not carry the object's path",
+)
+
+print()
+print("D8-one-copy-mechanism — the variants differ in presentation, not behaviour")
+copyfield = (WEB / "components" / "workspace" / "CopyField.tsx").read_text()
+# One clipboard call, one fallback — shared by both variants, not duplicated
+# per branch (a second copy is a second place to forget the fallback).
+check(
+    "there is exactly ONE clipboard write in CopyField",
+    copyfield.count("navigator.clipboard.writeText") == 1,
+    f"found {copyfield.count('navigator.clipboard.writeText')} — the variants have diverged",
+)
+check(
+    "the denial fallback selects the text",
+    copyfield.count("inputRef.current?.select()") == 1,
+    "no shared clipboard-denial fallback",
+)
+# The inline variant must still mount an input for that fallback to reach.
+inline_branch = copyfield[copyfield.index("if (variant === 'inline')") : copyfield.rindex("return (")]
+check(
+    "the inline variant mounts the input its fallback needs",
+    "ref={inputRef}" in inline_branch,
+    "inline renders no input — its clipboard-denial fallback would be a no-op",
+)
 
 print()
 if failures:
