@@ -1,6 +1,6 @@
 # ADR-589 — Update is a door over the selection matrix
 
-**Status**: Proposed (2026-08-20)
+**Status**: Implemented (2026-08-20, `d4f2645`)
 **Supersedes**: nothing. **Completes** [ADR-586](ADR-586-one-insert-door-categories-galleries-contextual-update.md) D6, which decided the contents follow the selection grain and shipped two of the five grains it named.
 **Related**: [ADR-519](ADR-519-the-object-hierarchy-and-the-pane-grammar.md) D4.1 (the set is STATE, not a scope — inherited whole, see D4) · [ADR-541](ADR-541-the-selection-algebra-a-ranges-subjects-are-its-covered-blocks.md) (`scopeOf`/`arityOf` — the ladder this reads) · [ADR-506](ADR-506-the-insert-door.md) D3 (ordering never subsetting) · [ADR-462](ADR-462-the-block-context-menu-and-the-metered-badge.md) D1 (a door is a second entrance, never a second write path) · [ADR-367](ADR-367-home-as-operating-cockpit.md) D3 (fast path vs dwell)
 
@@ -120,7 +120,29 @@ over the five working scopes, and the cited rung shows its acts when they exist.
 
 ## 5. Verification
 
-`api/test_adr589_update_matrix.py`: the rail is derived (never a hand list);
-`document` is always present and always reachable; unavailable rungs are greyed
-WITH a reason rather than filtered; arity modifies the pane and adds no rung;
-every act in the door resolves to an op the pane also calls; falsifiers for each.
+`api/test_adr589_update_matrix.py` — **26/26** at `d4f2645`. Defends: the rail is
+DERIVED (`updateLadder.ts`, pure — no DOM, no React, so it is assertable); the
+`document` rung is pushed UNCONDITIONALLY (asserted by position, before any
+branch in the brace-bounded builder); unreachable rungs carry a reason and the
+rail maps the ladder WHOLE; no rung is built from the set; every act routes to
+an op the pane also calls; and the moved gallery has exactly one render home.
+
+Five checks falsified one at a time against real breaks: a conditional document
+rung · a filtered rail · a re-copied toolbar gallery · the restored
+disabled-gating · the object rung ceasing to route.
+
+**As-built note.** The container rung derives from the SLOT the runtime already
+reports (ADR-511 D3's region), not from a second DOM walk: the surface holds no
+parsed document, and `climbChain` already answers ancestry in the pane. One
+container rung today; a deeper chain needs the runtime to report one, not a
+second derivation here.
+
+**Deleted with the fork** (singular implementation, never left latent): the
+toolbar's layout panel + its `open` state; its click-away/Escape effect (it
+existed to dismiss a panel this component no longer owns — both doors carry
+their own dismissal, including the iframe `yarnnn-canvas-press` bridge); the
+orphaned `ArrangementThumb` import and the `currentArrange` / `carriedCount` /
+`groupCount` / `onApplyArrangement` / `onAddArrangement` props with their
+call-site arguments. `arrangementCarryNote` stays exported for its one consumer.
+
+**Owed**: the cited cell (D6) · an operator click-pass of the door.
