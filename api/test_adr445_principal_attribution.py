@@ -37,7 +37,7 @@ FAILED = 0
 # Sites that record NO cost. Each may stay unattributed; the reason is declared so
 # the deferral is a decision, not an oversight. A costed site may never be listed.
 ZERO_COST_ALLOWLIST: dict[str, str] = {
-    "services/capture/lane.py": "capture lane — mechanical, zero tokens, and DORMANT behind CONNECTOR_CAPTURE_ENABLED (ADR-404)",
+    "services/capture/lane.py": "capture lane — mechanical, zero tokens, and DORMANT behind CAPTURE_LANE_ENABLED (ADR-404/591)",
     "services/foreign_read.py": "foreign READ — mode='mechanical', zero tokens; a read draws nothing from the pool (ADR-396 free-reads carve)",
     "services/primitives/embed.py": "embed — mechanical; the embedding COGS is absorbed by base, not metered (ADR-396)",
     "services/wake.py": "wake.py's non-cost rows (failure/skip/stand-down paths) record no tokens; its one COSTED site is asserted explicitly below",

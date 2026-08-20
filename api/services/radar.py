@@ -45,7 +45,7 @@ Scheduling rides the thin ``tasks`` index with ``kind='radar'`` (the ADR-393
 precedent — one index, one CAS-claim mechanism, one market-context resolver;
 kind-disjoint from 'judgment' recurrences + 'capture' rows). The drainer runs
 in the scheduler tick inside AGENT_ENABLED but NOT behind
-CONNECTOR_CAPTURE_ENABLED — radar hubs run on web watches + the commons; the
+the connector capture flag (deleted by ADR-591) — radar hubs run on web watches + the commons; the
 capture lane's dormancy is a connector decision, not a standing-sweep one
 (ADR-486 §5, ADR-404 explicitly not reversed).
 

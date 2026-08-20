@@ -15,9 +15,15 @@ The axiomatic core, in two sentences:
 ## 1. The base feature
 
 Connect (OAuth) → select slices → attributed observation files land at the
-destination on a cadence. That is the whole feature — zero LLM, zero
+destination **when a consumer asks**. That is the whole feature — zero LLM, zero
 judgment, $0 on the critical path. "Connect Slack" produces files a member
 can open immediately.
+
+**A capture happens because something asked, never because time passed**
+(ADR-591, superseding ADR-582 D4): there is no cadence, no scheduler walk,
+and no capture flag. `run_connector_capture` is the writer; what invokes it
+is a named, deliberately unbuilt seam. The cost is stated plainly — nothing
+lands before someone asks, so there is no automatic back-history.
 
 **A selection is consent, never a default** (2026-08-19; deletes ADR-079/113
 auto-selection): the selection is the capture writer's mandate and, for
@@ -30,10 +36,10 @@ solely as the `recommended` badge. The walk already skips honestly on empty
 |---|---|
 | Credential | `platform_connections` — the human's ACCOUNT object (ADR-425), never readable by an agent (ADR-577) |
 | Selection (which slices) | `platform_connections.landscape.selected_sources` — the ONE store |
-| Settings (cadence · destination · digest) | `platform_connections.settings["connector"]` |
+| Settings (destination) | `platform_connections.settings["connector"]` — ADR-591 retired cadence + digest with the walker |
 | Owner record | `platform_connections.connected_by` (ADR-580 D5) |
 | Per-platform specifics | one row in `services/connectors.py::CONNECTOR_CAPTURE_BINDINGS` |
-| The walk | `services/connectors.py::drain_due_connector_captures` — scheduler tick, behind `CONNECTOR_CAPTURE_ENABLED` (ADR-404 D2) |
+| The writer | `services/connectors.py::run_connector_capture` — invoked by a consumer, never by a clock (ADR-591). There is no scheduler job and no capture flag. |
 
 Disconnect deletes the row — and with it selection and settings. Credential
 gone means aperture gone; a fresh connect is a fresh selection.
@@ -96,7 +102,7 @@ capture writer's configuration as one consumer block.
 | CONNECTION | **Access** | granted OAuth scopes + the validate probe | `metadata.scope`; the probe is the only liveness signal (ADR-401 D6) |
 | CONNECTION | **What this connection does** | reads / writes / agents — capability FACTS | derived server-side: the capture binding's `reads` · the exporter registry · the ADR-577 refusal (`connector_does()`) |
 | CONNECTION | **What this connection does** → the `chat` row | whether a chat turn may read through this connection, and — when it may — that what it reads goes to the member-chosen engine (ADR-585 D5, the engine disclosure) | derived from `TURN_REACH_ENABLED` in `connector_does()`; the disclosure rides the same flag as the capability |
-| CAPTURE | **Capture** | the writer's config as ONE block: the selection (consent — never auto-filled; `Suggested` badge only) + cadence + destination + digest; collapsed to one honest line while dormant | selection: `landscape.selected_sources`; dials: `settings["connector"]` via `PUT /integrations/{provider}/connector-settings` → `update_connector_settings` (the validation chokepoint) |
+| CAPTURE | **Capture** | the writer's config as ONE block: the selection (consent — never auto-filled; `Suggested` badge only) + destination. No cadence: captures happen when a consumer asks (ADR-591) | selection: `landscape.selected_sources`; destination: `settings["connector"]` via `PUT /integrations/{provider}/connector-settings` → `update_connector_settings` (the validation chokepoint) |
 | CAPTURE | **Yield** | freshness + landed-files link (flag-gated) | `_capture_signal.yaml` |
 
 Facts, not controls: there is no per-tool enforcement point on the outbound

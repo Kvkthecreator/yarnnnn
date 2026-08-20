@@ -1,10 +1,13 @@
 """Connectors — a connector is a WRITER, not a pipeline (ADR-582).
 
 The whole feature: connect (OAuth) → select slices → attributed observation
-files land at the destination on a cadence. Zero LLM, zero judgment, zero
-derive obligation on this path. Everything downstream — the digest
-(`connector_derive`, opt-in via settings), radar/Strings sources, future
-turn-reach — is a CONSUMER, wired separately.
+files land at the destination WHEN A CONSUMER ASKS. Zero LLM, zero judgment,
+zero derive obligation on this path. Everything downstream — radar/Strings
+sources, turn reach (ADR-585) — is a CONSUMER, wired separately.
+
+ADR-591 retired the clock: there is no cadence, no scheduler walk, and no
+`CONNECTOR_CAPTURE_ENABLED`. `run_connector_capture` is the writer and it is
+invocation-shaped; what calls it is a named, unbuilt seam (ADR-591 D3).
 
 One selection store: ``platform_connections.landscape.selected_sources`` —
 the store the selection UI always wrote. The `_watch.yaml` mirror, the
@@ -12,7 +15,7 @@ the store the selection UI always wrote. The `_watch.yaml` mirror, the
 DELETED (ADR-582 D2); per-connection knobs live in
 ``platform_connections.settings["connector"]``:
 
-    {cadence, destination, digest, last_capture_at}
+    {destination, last_capture_at}
 
 Destination (D3): unset → the intake grammar
 ``inbound/{platform}/{selector}/{stamp}.{ext}`` (the DEFAULT, not a law).
@@ -49,8 +52,6 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         "read_tool": "platform_slack_get_channel_history",
         "selector_arg": "channel_id",
         "tool_args": {"limit": 50},
-        # 15 min balances chat freshness against per-channel API volume.
-        "cadence": "@every 15min",
         "display_name": "Slack Channel Capture",
         # The operator-facing statement of what the read tool above actually
         # does — lives ON the binding so the display cannot drift from it.
@@ -61,7 +62,6 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         # platform_notion_get_page's selector.
         "read_tool": "platform_notion_get_page",
         "selector_arg": "page_id",
-        "cadence": "@every 1h",
         "display_name": "Notion Page Capture",
         "reads": "page content from each selected page",
     },
@@ -72,7 +72,6 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         "read_tool": "platform_github_get_issues",
         "selector_arg": "repo",
         "tool_args": {"state": "all", "limit": 50},
-        "cadence": "@every 1h",
         "display_name": "GitHub Repo Capture",
         "reads": "issue and pull-request activity (latest 50, all states) from each selected repo",
     },
@@ -140,21 +139,6 @@ def connector_does(platform: str) -> Optional[dict]:
         ),
         "agents": "no direct platform access — agents read the landed capture files only",
     }
-
-#: Bounded cadence choices (floor 15min) — the guardrail on API volume.
-CONNECTOR_CADENCE_CHOICES: tuple = (
-    "@every 15min",
-    "@every 1h",
-    "@every 6h",
-    "@every 24h",
-)
-
-_CADENCE_SECONDS = {
-    "@every 15min": 15 * 60,
-    "@every 1h": 3600,
-    "@every 6h": 6 * 3600,
-    "@every 24h": 24 * 3600,
-}
 
 _DEFAULT_SELECTOR = "inbox"
 
@@ -227,22 +211,17 @@ async def selected_ids(client: Any, user_id: str, platform: str) -> list[str]:
 def connector_settings(row: dict) -> dict:
     """The connection's connector-settings object, defaults applied. Pure.
 
-    {cadence, destination, digest, last_capture_at} — cadence defaults to the
-    platform binding's; destination None = the intake-grammar default lane;
-    digest defaults False (the ADR-582 D5 demotion: derive is opt-in).
+    {destination, last_capture_at} — destination None = the intake-grammar
+    default lane. ADR-591 retired `cadence` (there is no clock to compare it
+    against) and `digest` (its walker is deleted; whether a digest caller is
+    opt-in is that caller's decision to make). `last_capture_at` is an
+    OBSERVATION — when this connection was last captured — never a schedule.
     """
-    plat = (row.get("platform") or "").strip().lower()
-    binding = CONNECTOR_CAPTURE_BINDINGS.get(plat, {})
     raw = ((row.get("settings") or {}).get("connector")) or {}
-    cadence = raw.get("cadence")
-    if cadence not in CONNECTOR_CADENCE_CHOICES:
-        cadence = binding.get("cadence", "@every 1h")
     dest = raw.get("destination")
     dest = dest.strip().strip("/") if isinstance(dest, str) and dest.strip() else None
     return {
-        "cadence": cadence,
         "destination": dest,
-        "digest": bool(raw.get("digest", False)),
         "last_capture_at": raw.get("last_capture_at"),
     }
 
@@ -272,21 +251,14 @@ def update_connector_settings(
 ) -> Optional[dict]:
     """Merge a patch into settings["connector"] on the connection row.
 
-    THE validation chokepoint for the three ADR-582 dials — every caller
-    (route, scheduler stamp) goes through here, so a knob cannot be stored in
-    a shape the walk would misread. Validates cadence against
-    CONNECTOR_CADENCE_CHOICES, destination via _validate_destination (both
-    ValueError on bad input); coerces digest to bool. Returns the stored
-    connector object, or None when the platform is not connected."""
-    if "cadence" in patch and patch["cadence"] not in CONNECTOR_CADENCE_CHOICES:
-        raise ValueError(
-            f"invalid cadence {patch['cadence']!r}; "
-            f"choices: {', '.join(CONNECTOR_CADENCE_CHOICES)}"
-        )
+    THE validation chokepoint for connector settings — every caller goes
+    through here, so a value cannot be stored in a shape a consumer would
+    misread. Validates destination via _validate_destination (ValueError on a
+    shape that could escape the workspace). ADR-591 removed the cadence and
+    digest validators with the dials themselves. Returns the stored connector
+    object, or None when the platform is not connected."""
     if "destination" in patch:
         patch = {**patch, "destination": _validate_destination(patch["destination"])}
-    if "digest" in patch:
-        patch = {**patch, "digest": bool(patch["digest"])}
     plat = (platform or "").strip().lower()
     rows = (
         client.table("platform_connections")
@@ -386,21 +358,8 @@ async def read_landed_snapshots(
 
 
 # ---------------------------------------------------------------------------
-# The capture walk — the scheduler-tick entry point (ADR-582 D4)
+# The capture writer — invoked by a consumer, never by a clock (ADR-591 D3)
 # ---------------------------------------------------------------------------
-
-
-def _cadence_due(settings: dict, now: datetime) -> bool:
-    """Whether the connection's capture is due. Pure — the whole cadence law."""
-    last = settings.get("last_capture_at")
-    if not last:
-        return True
-    try:
-        last_at = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
-    except ValueError:
-        return True
-    interval = _CADENCE_SECONDS.get(settings.get("cadence"), 3600)
-    return (now - last_at) >= timedelta(seconds=interval)
 
 
 class _CaptureAuth:
@@ -516,95 +475,13 @@ async def run_connector_capture(
     }
 
 
-async def drain_due_connector_captures(client: Any) -> tuple[int, int, int]:
-    """Walk active content-platform connections; capture every one whose
-    cadence is due. Returns (found, succeeded, failed). Runs inside the
-    scheduler's CONNECTOR_CAPTURE_ENABLED block (ADR-404 D2). Never raises."""
-    from services.telemetry import record_execution_event
-
-    try:
-        conns = (
-            client.table("platform_connections")
-            .select("id, user_id, platform, landscape, settings, connected_by")
-            .eq("status", "active")
-            .execute()
-        ).data or []
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[CONNECTORS] connections query failed: %s", exc)
-        return 0, 0, 0
-
-    now = datetime.now(timezone.utc)
-    observed_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-    found = succeeded = failed = 0
-
-    for row in conns:
-        plat = (row.get("platform") or "").strip().lower()
-        user_id = row.get("user_id")
-        if not user_id or plat not in CONNECTOR_CAPTURE_BINDINGS:
-            continue
-        if not selected_ids_from_row(row):
-            continue
-        settings = connector_settings(row)
-        if not _cadence_due(settings, now):
-            continue
-        found += 1
-        try:
-            result = await run_connector_capture(client, user_id, row,
-                                                 observed_at=observed_at)
-        except Exception as exc:  # noqa: BLE001
-            failed += 1
-            logger.exception("[CONNECTORS] capture raised %s/%s: %s",
-                             user_id[:8], plat, exc)
-            continue
-
-        ok = bool(result.get("success"))
-        succeeded += 1 if ok else 0
-        failed += 0 if ok else 1
-
-        # Stamp the cadence clock (even on failure — a dead peripheral must
-        # not be hammered at tick frequency; the health signal says why).
-        try:
-            update_connector_settings(client, user_id, plat,
-                                      {"last_capture_at": observed_at})
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("[CONNECTORS] cadence stamp failed %s/%s: %s",
-                           user_id[:8], plat, exc)
-
-        # Health signal — the steward envelope's reader is unchanged.
-        try:
-            from services.capture.declarations import write_capture_signal
-            await write_capture_signal(
-                client, user_id, slug=f"capture-{plat}",
-                status="ok" if ok else "error",
-                observed_at=observed_at,
-                items=result.get("items"),
-                target=(result.get("paths_written") or [None])[0],
-                last_error=(str(result.get("error"))[:500]
-                            if result.get("error") else None),
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("[CONNECTORS] signal write failed %s/%s: %s",
-                           user_id[:8], plat, exc)
-
-        record_execution_event(
-            client, user_id=user_id, slug=f"capture-{plat}",
-            mode="mechanical", trigger_type="capture",
-            status="success" if ok else "failed",
-            error_reason=None if ok else (result.get("error") or "capture_failed"),
-            funnel_decision="capture",
-            principal_id=row.get("connected_by") or user_id,
-        )
-
-    return found, succeeded, failed
 
 
 __all__ = [
-    "CONNECTOR_CADENCE_CHOICES",
     "CONNECTOR_CAPTURE_BINDINGS",
     "capture_destination",
     "connector_does",
     "connector_settings",
-    "drain_due_connector_captures",
     "parse_stamp",
     "read_landed_snapshots",
     "run_connector_capture",

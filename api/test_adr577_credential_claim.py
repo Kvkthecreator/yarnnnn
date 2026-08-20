@@ -237,12 +237,12 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
     "services/capture/lane.py",         # capability gate: existence, not token
     # -- capability probe: a HUMAN's availability question (ADR-577 §1e) --
     "services/orchestration.py",
-    # -- ADR-582: the connector lane's scheduler walks (service-role; read
-    #    selection/settings/connected_by ONLY — held by the ENUMERATION_ONLY
-    #    check below, not by this comment; the tool call inside the capture
-    #    walk goes through handle_platform_tool → the chokepoint) --
+    # -- ADR-582: the connector lane (service-role; reads selection/settings/
+    #    connected_by ONLY — held by the ENUMERATION_ONLY check below, not by
+    #    this comment; a capture's tool call goes through handle_platform_tool
+    #    → the chokepoint). ADR-591 deleted the walkers: connector_derive.py
+    #    no longer reads the connection row at all, so its entry is gone --
     "services/connectors.py",
-    "services/connector_derive.py",
     # -- service-role / scheduler paths with no acting principal --
     "services/risk_gate.py",
     "services/outcomes/commerce.py",
@@ -261,7 +261,6 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
 #: track_universe, outcomes providers) are deliberately NOT here.
 ENUMERATION_ONLY = {
     "services/connectors.py",
-    "services/connector_derive.py",
     "services/bundle_reader.py",
     "services/freddie_envelope.py",
     "services/primitives/registry.py",

@@ -1,26 +1,25 @@
-"""ADR-404 D2 — connector-capture dormancy regression gate.
+"""ADR-404 D2 / ADR-591 — capture-lane dormancy regression gate.
 
-The commons-first launch (ADR-404) puts the connector capture lane DORMANT
-behind `CONNECTOR_CAPTURE_ENABLED` (default OFF — dormancy is the ratified
-decision, inverting the AGENT_ENABLED default-ON rationale). This gate locks
-the dormant-state contract:
+ADR-404 D2 put a capture lane DORMANT for the commons-first launch. ADR-591
+then split what that flag actually gated: the CONNECTOR walk, its digest
+walker, and the raw-lane GC are DELETED outright (capture is consumer-
+invoked, D2/D3), while the ADR-393 DECLARATION lane — a different lane with
+different tenants (ground-truth mirrors, perception watches) — keeps its own
+dormancy under `CAPTURE_LANE_ENABLED`.
 
-1. The `is_connector_capture_enabled()` resolver — default OFF when unset,
-   ON only on an explicit true token; unrecognized values fail safe to OFF.
-2. Cut site #1 — the scheduler consults the resolver for BOTH the capture
-   drain and the connector raw-lane GC (source inspection).
-3. Cut site #2 — the seed-at-select route consults the resolver; disconnect
-   teardown (`remove_connector_capture`) stays UNGUARDED (cleanup always
-   works).
-4. Cut site #3 — the capture-signal endpoint surfaces
-   `connector_capture_enabled` for the FE (source inspection).
-5. Hide-not-revert invariant — every capture module survives intact and
-   importable: `services.capture.*`, `connectors`, `connector_derive`,
-   `connector_retention`. Dormant, not deleted. (ADR-582 deleted
-   `capture_connector` + `connector_watch` outright — that deletion is a
-   re-cut, not a dormancy cut, and is gated by test_adr392/test_adr582.)
+This gate locks what survives:
 
-Run: .venv/bin/python api/test_adr404_capture_dormancy.py
+1. The `is_capture_lane_enabled()` resolver — default OFF when unset, ON only
+   on an explicit true token; unrecognized values fail safe to OFF.
+2. The scheduler holds exactly ONE gated capture block (the ADR-393 drain)
+   and NO connector job of any kind.
+3. No seeding exists in the routes (ADR-582 D2 deleted it outright — the
+   strongest form of the cut).
+4. Hide-not-revert, for what is hidden rather than deleted: the capture lane
+   modules and the connector WRITER modules stay importable. The walkers are
+   gone by decision (ADR-591), which is a re-cut, not a dormancy cut.
+
+Run: python3 api/test_adr404_capture_dormancy.py
 """
 
 from __future__ import annotations
@@ -49,9 +48,9 @@ def _assert(cond: bool, msg: str) -> None:
 
 def _set_flag(value: str | None) -> None:
     if value is None:
-        os.environ.pop("CONNECTOR_CAPTURE_ENABLED", None)
+        os.environ.pop("CAPTURE_LANE_ENABLED", None)
     else:
-        os.environ["CONNECTOR_CAPTURE_ENABLED"] = value
+        os.environ["CAPTURE_LANE_ENABLED"] = value
 
 
 # =============================================================================
@@ -60,8 +59,8 @@ def _set_flag(value: str | None) -> None:
 
 
 def test_resolver() -> None:
-    print("\n[1] is_connector_capture_enabled() resolver — default OFF (ADR-404 D2)")
-    from services.connector_capture_gating import is_connector_capture_enabled
+    print("\n[1] is_capture_lane_enabled() resolver — default OFF (ADR-404 D2)")
+    from services.capture_lane_gating import is_capture_lane_enabled as is_connector_capture_enabled
 
     _set_flag(None)
     _assert(is_connector_capture_enabled() is False, "unset → OFF (dormancy is the decision)")
@@ -90,27 +89,23 @@ def test_resolver() -> None:
 
 
 def test_scheduler_cut_sites() -> None:
-    print("\n[2] scheduler cut sites — drain + GC gated as a unit")
+    print("\n[2] scheduler — one gated lane, and NO connector job (ADR-591)")
     src = (_API_ROOT / "jobs" / "unified_scheduler.py").read_text()
 
     _assert(
-        "is_connector_capture_enabled" in src,
-        "unified_scheduler imports the resolver",
+        "is_capture_lane_enabled" in src,
+        "unified_scheduler imports the ADR-393 lane resolver",
     )
-    # Every connector-lane block is behind the same computed flag variable:
-    # the declaration-capture drain, the ADR-582 connector capture walk, the
-    # raw-lane GC, and the ADR-580 digest drain.
     _assert(
-        src.count("if capture_lane_on:") == 4,
-        "exactly four blocks (capture drain + connector walk + GC + digest) "
-        "gate on capture_lane_on",
+        "if is_capture_lane_enabled():" in src,
+        "the declaration-capture drain is gated on it",
     )
-    # Ordering: the flag is computed before the drain call.
-    _assert(
-        src.index("capture_lane_on = is_connector_capture_enabled()")
-        < src.index("drain_due_captures"),
-        "flag computed before the drain call",
-    )
+    # ADR-591: the connector has NO scheduled job. Each of these names would
+    # be a clock reintroducing itself.
+    for dead in ("drain_due_connector_captures", "drain_due_connector_derives",
+                 "prune_raw_lane", "gather_cited_raw_paths",
+                 "CONNECTOR_CAPTURE_ENABLED", "connector_capture_gating"):
+        _assert(dead not in src, f"no {dead} in the scheduler (ADR-591)")
 
 
 def test_seed_and_signal_cut_sites() -> None:
@@ -125,10 +120,11 @@ def test_seed_and_signal_cut_sites() -> None:
         and "remove_connector_capture" not in src,
         "no capture seeding/teardown exists in the routes (ADR-582 D2)",
     )
-    # The capture-signal endpoint surfaces the flag for the FE.
+    # ADR-591 D5: there is no capture flag to surface. The field is pinned
+    # False for not-yet-deployed clients; nothing may resurrect a resolver.
     _assert(
-        '"connector_capture_enabled": is_connector_capture_enabled()' in src,
-        "capture-signal response carries connector_capture_enabled",
+        "is_connector_capture_enabled" not in src,
+        "the routes consult NO capture resolver (ADR-591 D5)",
     )
 
 
@@ -146,11 +142,13 @@ def test_modules_survive() -> None:
         "services.capture.declarations",
         "services.capture.scheduling",
         "services.capture.drainer",
-        # ADR-582: capture_connector + connector_watch are DELETED (not
-        # hidden); the connector lane's live modules are these two.
+        # ADR-582 deleted capture_connector + connector_watch; ADR-591
+        # deleted the walkers inside these. The modules themselves survive —
+        # they hold the WRITERS a consumer invokes (D3).
         "services.connectors",
         "services.connector_derive",
         "services.connector_retention",
+        "services.capture_lane_gating",
     ):
         try:
             importlib.import_module(mod)

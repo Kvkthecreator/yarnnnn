@@ -2849,13 +2849,12 @@ export const api = {
           connected_at: string | null;
         } | null;
         capture: { schedule: string | null; paused: boolean } | null;
-        // ADR-582 — the three per-connection dials, defaults applied.
+        // ADR-582/591 — the per-connection settings, defaults applied.
         // OPTIONAL: the API deploys separately; an older payload has no
-        // `settings` and the dials section simply doesn't render.
+        // `settings` and the section simply doesn't render. `cadence` and
+        // `digest` were retired with the walker (ADR-591 D1/D3.a).
         settings?: {
-          cadence: string;
           destination: string | null;
-          digest: boolean;
         } | null;
         // The capability facts (reads / writes / agents), derived server-side
         // from the machinery that enacts them. OPTIONAL for the same reason.
@@ -2866,34 +2865,28 @@ export const api = {
           chat?: string;
           agents: string;
         } | null;
-        cadence_choices: string[];
         agent_enabled: boolean;
-        // ADR-404 D2: false while the capture lane is dormant — the FE hides
-        // CADENCE + YIELD + the retention dial.
+        // ADR-591: permanently false — there is no capture schedule. Kept
+        // while older clients still read it; nothing gates on it here.
         connector_capture_enabled?: boolean;
       }>(`/api/integrations/${provider}/capture-signal`),
 
-    // ADR-582 D2/D3/D5: the three per-connection dials — cadence (bounded
-    // enum, floor 15min), destination (null → the default inbound lane),
-    // digest (the opt-in derive consumer). Partial: send only what changed;
+    // ADR-582 D3, narrowed by ADR-591 to one setting: destination (null →
+    // the default inbound lane). Partial: send only what changed;
     // destination:null is a real instruction (reset to the default lane).
+    // The API forbids extra fields — a stale `cadence`/`digest` 422s.
     updateConnectorSettings: (
       provider: "slack" | "notion" | "github",
       patch: {
-        cadence?: string;
         destination?: string | null;
-        digest?: boolean;
       },
     ) =>
       request<{
         success: boolean;
         provider: string;
         settings: {
-          cadence: string;
           destination: string | null;
-          digest: boolean;
         };
-        choices: string[];
       }>(`/api/integrations/${provider}/connector-settings`, {
         method: "PUT",
         body: JSON.stringify(patch),

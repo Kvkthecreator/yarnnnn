@@ -103,7 +103,7 @@ class TierSpec(TypedDict):
 #                 name-at-render). The `starter` KEY is kept (no data migration).
 #   • `pro`     — DORMANT (`hidden: True`). Returns as a 2nd seat-priced plan with
 #                 richer connector gates when the capture lane ships
-#                 (CONNECTOR_CAPTURE_ENABLED). Config survives (one-flag un-hide);
+#                 (the capture flag, deleted by ADR-591). Config survives;
 #                 not offered, not on the pricing page, not an upgrade target.
 # The enum values are KEPT in the CHECK constraint — this is a PRODUCT decision
 # (which tiers are offered + what the price MEANS), not a schema change.

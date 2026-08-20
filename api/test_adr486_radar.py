@@ -319,7 +319,7 @@ gate_pos = sched_src.find("if is_agent_enabled():")
 radar_pos = sched_src.find("drain_due_radar_sweeps")
 check("radar drain inside the AGENT_ENABLED gate", 0 < gate_pos < radar_pos)
 capture_flag_block = sched_src[sched_src.find("capture_lane_on = "):radar_pos]
-check("radar NOT gated on CONNECTOR_CAPTURE_ENABLED (ADR-404 stands)",
+check("radar NOT gated on the capture lane flag (ADR-404 stands; ADR-591 deleted the connector flag entirely)",
       "drain_due_radar_sweeps" not in capture_flag_block)
 
 # The resident binding (operator-ratified 2026-07-28): the sweep's engine +

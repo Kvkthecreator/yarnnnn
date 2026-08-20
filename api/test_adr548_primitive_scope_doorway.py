@@ -99,7 +99,6 @@ _OWNER_RESOLVED_MODULES = {
     "services/budget.py",
     "services/review_policy.py",
     "services/freddie_audit.py",
-    "services/connector_retention.py",
     "services/context_inference.py",
     "services/substrate_snapshot.py",
     "services/ask_builder.py",

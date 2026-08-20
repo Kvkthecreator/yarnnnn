@@ -16,8 +16,8 @@
  *   CAPTURE — the background writer's configuration, ONE consumer block:
  *   which slices it reads (the selection — CONSENT, never auto-filled;
  *   ADR-079/113 smart defaults died 2026-08-19 and survive only as the
- *   `Suggested` badge), how often (cadence), where snapshots land
- *   (destination), and the opt-in digest. Collapsed to one honest line while
+ *   `Suggested` badge) and where snapshots land (destination).
+ *   Collapsed to one honest line while
  *   the capture lane is dormant (ADR-404 D2). For GitHub the selection also
  *   bounds platform-tool reach (ADR-576 D2; empty = unrestricted).
  *
@@ -62,9 +62,7 @@ interface Observed {
 }
 
 interface ConnectorSettings {
-  cadence: string;
   destination: string | null;
-  digest: boolean;
 }
 
 interface ConnectorDoes {
@@ -108,14 +106,6 @@ function sinceLabel(iso: string | null | undefined): string | null {
   return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
-/** Friendly labels for the bounded cadence enum (ADR-582 D2, floor 15min). */
-const CADENCE_LABELS: Record<string, string> = {
-  "@every 15min": "Every 15 minutes",
-  "@every 1h": "Hourly",
-  "@every 6h": "Every 6 hours",
-  "@every 24h": "Daily",
-};
-
 function SectionShell({
   title,
   children,
@@ -150,7 +140,6 @@ export function ManageConnectionSubsurface({
   const [connection, setConnection] = useState<ConnectionFacts | null>(null);
   const [settings, setSettings] = useState<ConnectorSettings | null>(null);
   const [does, setDoes] = useState<ConnectorDoes | null>(null);
-  const [cadenceChoices, setCadenceChoices] = useState<string[]>([]);
   const [agentEnabled, setAgentEnabled] = useState(true);
   // ADR-404 D2: the capture lane is dormant for the commons-first launch —
   // the CAPTURE block collapses to one honest line and YIELD hides entirely.
@@ -210,7 +199,6 @@ export function ManageConnectionSubsurface({
       setSettings(signal?.settings ?? null);
       setDoes(signal?.does ?? null);
       setDestinationDraft(signal?.settings?.destination ?? "");
-      setCadenceChoices(signal?.cadence_choices ?? []);
       setAgentEnabled(signal?.agent_enabled ?? true);
       setCaptureEnabled(signal?.connector_capture_enabled ?? false);
     } catch (e) {
@@ -312,9 +300,7 @@ export function ManageConnectionSubsurface({
 
   // One dial write path — partial patch, echo the normalized store back.
   const patchSettings = async (patch: {
-    cadence?: string;
     destination?: string | null;
-    digest?: boolean;
   }) => {
     setDialSaving(true);
     setDialError(null);
@@ -571,7 +557,7 @@ export function ManageConnectionSubsurface({
             )}
 
             {/* ═══ CAPTURE stratum — the background writer's configuration,
-                one consumer block: selection + cadence + destination + digest.
+                one consumer block: selection + destination.
                 Collapsed to one honest line while the lane is dormant. ═══ */}
             <SectionShell title="Capture">
               {!captureEnabled && (
@@ -707,44 +693,6 @@ export function ManageConnectionSubsurface({
 
                       <div className="flex flex-wrap items-center gap-3">
                         <label
-                          htmlFor="connector-cadence"
-                          className="w-24 shrink-0 text-xs font-medium"
-                        >
-                          Cadence
-                        </label>
-                        <select
-                          id="connector-cadence"
-                          value={
-                            cadenceChoices.includes(settings.cadence)
-                              ? settings.cadence
-                              : ""
-                          }
-                          disabled={dialSaving}
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              void patchSettings({ cadence: e.target.value });
-                            }
-                          }}
-                          className="rounded-md border border-border/60 bg-background px-2 py-1 text-xs disabled:opacity-60"
-                        >
-                          {!cadenceChoices.includes(settings.cadence) && (
-                            <option value="" disabled>
-                              {settings.cadence}
-                            </option>
-                          )}
-                          {cadenceChoices.map((c) => (
-                            <option key={c} value={c}>
-                              {CADENCE_LABELS[c] ?? c}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-xs text-muted-foreground">
-                          How often selected {resourceNoun} are read.
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3">
-                        <label
                           htmlFor="connector-destination"
                           className="w-24 shrink-0 text-xs font-medium"
                         >
@@ -773,26 +721,6 @@ export function ManageConnectionSubsurface({
                         folder you name keeps its files like any other workspace
                         files.
                       </p>
-
-                      <label className="flex cursor-pointer items-start gap-2">
-                        <input
-                          type="checkbox"
-                          checked={settings.digest}
-                          disabled={dialSaving}
-                          onChange={(e) =>
-                            void patchSettings({ digest: e.target.checked })
-                          }
-                          className="mt-0.5 h-3.5 w-3.5 accent-primary"
-                        />
-                        <span className="text-xs">
-                          <span className="font-medium">Digest</span>{" "}
-                          <span className="text-muted-foreground">
-                            — maintain a living summary of each selected{" "}
-                            {resourceNounSingular}, citing the raw snapshots.
-                            Uses AI credits; off = snapshots only.
-                          </span>
-                        </span>
-                      </label>
 
                       {dialSaving && (
                         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />

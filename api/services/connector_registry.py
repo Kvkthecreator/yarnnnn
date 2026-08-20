@@ -27,7 +27,7 @@ reaching an operator.
                 ADR-425).
 
 Dormancy is deliberately NOT a status here: it is a property of the capture
-LANE (`CONNECTOR_CAPTURE_ENABLED`, ADR-404 D2), read once from
+LANE (the capture flag, deleted by ADR-591 — capture is consumer-invoked), read once from
 `services.connector_capture_gating`, never encoded per-connector.
 """
 

@@ -205,7 +205,7 @@ and "conventional MCP connectors" on other platforms:
 | Who drives | the scheduler; no human in the loop | a member, conversationally |
 | Cost bound | the pace law (new-raw gate + floor) | per-turn; unbounded unless designed |
 | Credentials | deterministic capture machinery only — no LLM turn ever holds one | needs its own ADR-577-compatible answer |
-| Status | **live** (dormant behind `CONNECTOR_CAPTURE_ENABLED`) | a **named seam** (`connector-reach-and-the-commons.md` §5) — deleted as unreachable, deliberately not rebuilt |
+| Status | **live**, consumer-invoked (ADR-591 deleted the scheduler walk and its flag; the caller is a named seam) | **built** — ADR-585 turn reach, behind `TURN_REACH_ENABLED` |
 
 Conventional MCP connectors elsewhere are **turn reach** — that is the
 industry norm, and YARNNN's divergence from it is deliberate: an autonomous

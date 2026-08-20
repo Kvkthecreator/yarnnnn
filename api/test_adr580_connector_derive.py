@@ -89,6 +89,8 @@ print("§2 the pace law — pure, driven over its truth table (the D5 lesson)")
 NOW = datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc)
 h = lambda n: NOW - timedelta(hours=n)  # noqa: E731
 
+import services.connector_derive as _cd_mod  # noqa: E402
+
 check("2a no raw → never due", not is_due(None, h(48), NOW))
 check("2b raw + no prior derive → due (first derive)", is_due(h(1), None, NOW))
 check("2c raw OLDER than the last derive → not due (quiet world costs $0)",
@@ -288,27 +290,22 @@ def _calls_in(node) -> set:
     return names
 
 
-sched_tree = ast.parse((API / "jobs" / "unified_scheduler.py").read_text())
-wired = gated = False
-for n in ast.walk(sched_tree):
-    if isinstance(n, ast.If):
-        test_names = {x.id for x in ast.walk(n.test) if isinstance(x, ast.Name)}
-        if "capture_lane_on" in test_names and "drain_due_connector_derives" in _calls_in(n):
-            wired = gated = True
-if not wired:
-    # wired anywhere at all? (distinguishes "missing" from "un-gated")
-    wired = "drain_due_connector_derives" in _calls_in(sched_tree)
-check("4a the scheduler CALLS drain_due_connector_derives", wired)
-check("4b the call sits INSIDE the capture_lane_on branch "
-      "(ADR-404 D2 — one lane, one flag)", gated)
+sched_src = (API / "jobs" / "unified_scheduler.py").read_text()
 
-drain_src = _code_only(API / "services" / "connector_derive.py")
-drain_tree = ast.parse(drain_src)
-drain_fn = next(n for n in ast.walk(drain_tree)
-                if isinstance(n, ast.AsyncFunctionDef)
-                and n.name == "drain_due_connector_derives")
-check("4c the drain gates every turn on the pure pace law (is_due at the call site)",
-      "is_due" in _calls_in(drain_fn))
+# ADR-591 D3.a: the digest's WALKER is deleted. It was a clock (6h floor +
+# new-raw gate) standing in for a consumer that wants a digest — the same
+# shape as the capture walker, refused on the same logic. The writer survives
+# and is invocable; what calls it is the named, unbuilt D3 seam.
+check("4a the scheduler holds NO connector digest job (the clock is gone)",
+      "drain_due_connector_derives" not in sched_src)
+check("4b the walker is gone from the service module too, not merely unwired",
+      not hasattr(_cd_mod, "drain_due_connector_derives"))
+check("4c the derive WRITER survives and stays invocable (only its clock died)",
+      callable(getattr(_cd_mod, "run_connector_derive", None)))
+check("4c2 the pace law survives as a SPEND GUARD — a consumer-invoked derive "
+      "needs it more than a cron did (a caller in a loop is exactly the "
+      "ADR-401 D5 failure)",
+      callable(getattr(_cd_mod, "is_due", None)))
 
 lane_code = _code_only(API / "services" / "capture" / "lane.py")
 check("4d the capture lane never invokes derive — cadence decoupling holds "

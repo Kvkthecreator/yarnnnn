@@ -76,7 +76,7 @@ def model_router_enabled() -> bool:
     """Is multi-provider TRANSPORT available? (ADR-557 D2 — the infra fact.)
 
     Read at call time (no import-time freeze — same pattern as
-    model_selection.py env overrides and CONNECTOR_CAPTURE_ENABLED).
+    model_selection.py env overrides).
 
     ⚠️ This answers "can we route at all", NOT "are member lanes GA". Those were
     the same question only while lanes were the router's only caller; four

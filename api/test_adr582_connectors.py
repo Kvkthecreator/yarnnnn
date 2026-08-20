@@ -84,10 +84,10 @@ check("1c selection reads from landscape.selected_sources (no-id dropped)",
       selected_ids_from_row(row) == ["C001", "C003"])
 
 s = connector_settings(row)
-check("1d settings default: platform-binding cadence · default destination · "
-      "digest OFF",
-      s["cadence"] == CONNECTOR_CAPTURE_BINDINGS["slack"]["cadence"]
-      and s["destination"] is None and s["digest"] is False, str(s))
+check("1d settings default: the default destination lane (ADR-591 retired "
+      "cadence + digest with the walker)",
+      s["destination"] is None and "cadence" not in s and "digest" not in s,
+      str(s))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -182,15 +182,18 @@ conn_code = _code_only(API / "services" / "connectors.py")
 check("3g the writer never embeds (raw is keyed, not ranked — wherever it lands)",
       "embed" not in conn_code.lower())
 
-from services.connectors import _cadence_due  # noqa: E402
-NOW = datetime(2026, 8, 19, 12, 0, tzinfo=timezone.utc)
-check("3h cadence: never captured → due", _cadence_due({}, NOW))
-check("3i cadence: inside the interval → not due",
-      not _cadence_due({"cadence": "@every 1h",
-                        "last_capture_at": (NOW - timedelta(minutes=10)).isoformat()}, NOW))
-check("3j cadence: past the interval → due",
-      _cadence_due({"cadence": "@every 1h",
-                    "last_capture_at": (NOW - timedelta(hours=2)).isoformat()}, NOW))
+# ADR-591: cadence is retired. The clock, its law, and the walker that read
+# it are all deleted — a connector has no "how often".
+import services.connectors as _conn_mod  # noqa: E402
+
+check("3h the cadence law is DELETED (no clock to compare against)",
+      not hasattr(_conn_mod, "_cadence_due"))
+check("3i the cadence enum + seconds map are DELETED",
+      not hasattr(_conn_mod, "CONNECTOR_CADENCE_CHOICES")
+      and not hasattr(_conn_mod, "_CADENCE_SECONDS"))
+check("3j no per-platform binding carries a cadence (the walker's defaults)",
+      all("cadence" not in b for b in CONNECTOR_CAPTURE_BINDINGS.values()),
+      str({k: sorted(v) for k, v in CONNECTOR_CAPTURE_BINDINGS.items()}))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -202,56 +205,23 @@ print("§4 the digest is OPT-IN — no LLM on the connect path")
 # connection each way and count the derives attempted.
 
 
-def _drive_digest_drain(digest_on: bool) -> int:
-    import services.connector_derive as cd
+# ADR-582 D5's opt-in was a per-connection dial on a WALKER. ADR-591 deleted
+# the walker, so the guarantee is now structural rather than conditional:
+# nothing on a tick can invoke the deriver, so connecting cannot cost a
+# member anything. Driven where a drive is still possible; asserted on the
+# module surface where the thing that could have driven it is gone.
+import services.connector_derive as cd  # noqa: E402
 
-    class _Q:
-        def __init__(self, data):
-            self._d = data
-
-        def __getattr__(self, name):
-            return lambda *a, **k: self
-
-        def execute(self):
-            from types import SimpleNamespace
-            return SimpleNamespace(data=self._d)
-
-    class _C:
-        def table(self, name):
-            return _Q([{
-                "user_id": "u1", "platform": "slack", "connected_by": "u1",
-                "landscape": {"selected_sources": [{"id": "C001"}]},
-                "settings": {"connector": {"digest": digest_on}},
-            }])
-
-    attempts = []
-
-    async def _fake_run(*a, **k):
-        attempts.append(1)
-        return {"success": True}
-
-    async def _fake_fresh(*a, **k):
-        return [("inbound/slack/c001/2026-08-19T01:00:00Z.md",
-                 datetime(2026, 8, 19, 1, 0, tzinfo=timezone.utc))]
-
-    import services.workspace as ws
-    orig = (cd.run_connector_derive, cd._fresh_raw, cd._last_derive_at, ws.UserMemory)
-    cd.run_connector_derive = _fake_run
-    cd._fresh_raw = _fake_fresh
-    cd._last_derive_at = lambda *a, **k: None
-    ws.UserMemory = lambda c, u: object()
-    try:
-        asyncio.get_event_loop().run_until_complete(
-            cd.drain_due_connector_derives(_C()))
-    finally:
-        cd.run_connector_derive, cd._fresh_raw, cd._last_derive_at, ws.UserMemory = orig
-    return len(attempts)
-
-
-check("4a digest OFF → the drain derives NOTHING (the D5 opt-in, driven)",
-      _drive_digest_drain(False) == 0)
-check("4a2 digest ON → the drain derives (the gate is a gate, not a wall)",
-      _drive_digest_drain(True) == 1)
+check("4a no clock can invoke the deriver — the walker is DELETED "
+      "(connecting costs $0 by construction, not by a dial)",
+      not hasattr(cd, "drain_due_connector_derives"))
+check("4a2 the derive WRITER survives and stays invocable (D3.a — a "
+      "consumer calls it; only its clock died)",
+      callable(getattr(cd, "run_connector_derive", None)))
+check("4a3 the spend guard survives the walker (a caller in a loop is "
+      "exactly what is_due exists to refuse — ADR-401 D5)",
+      callable(getattr(cd, "is_due", None))
+      and cd.is_due(None, None, datetime(2026, 8, 19, 12, 0, tzinfo=timezone.utc)) is False)
 check("4b the capture walk never calls the derive (decoupled consumers)",
       "run_connector_derive" not in _calls_in(ast.parse(conn_code))
       and "drain_due_connector_derives" not in conn_code)
@@ -262,22 +232,18 @@ print("§5 wiring — inside the flag, walk before digest")
 # ═════════════════════════════════════════════════════════════════════════════
 
 sched_src = (API / "jobs" / "unified_scheduler.py").read_text()
-sched_tree = ast.parse(sched_src)
-walk_gated = digest_gated = False
-for n in ast.walk(sched_tree):
-    if isinstance(n, ast.If):
-        test_names = {x.id for x in ast.walk(n.test) if isinstance(x, ast.Name)}
-        if "capture_lane_on" in test_names:
-            calls = _calls_in(n)
-            if "drain_due_connector_captures" in calls:
-                walk_gated = True
-            if "drain_due_connector_derives" in calls:
-                digest_gated = True
-check("5a the capture walk runs inside the dormancy flag", walk_gated)
-check("5b the digest drain stays inside the flag too", digest_gated)
-check("5c the walk runs BEFORE the digest (a digest can read this tick's raw)",
-      sched_src.index("drain_due_connector_captures")
-      < sched_src.index("drain_due_connector_derives"))
+# ADR-591 D2/D3.a: the scheduler holds NO connector job. Both walkers and
+# the raw-lane GC that only existed to age out what a clock accumulated are
+# deleted — capture is consumer-invoked, and a dormant walker would be a
+# second way to do it (Singular Implementation).
+check("5a the connector capture walk is GONE from the scheduler",
+      "drain_due_connector_captures" not in sched_src)
+check("5b the connector digest walk is GONE from the scheduler",
+      "drain_due_connector_derives" not in sched_src)
+check("5c the connector raw-lane GC is GONE from the scheduler",
+      "prune_raw_lane" not in sched_src)
+check("5c2 no connector walker survives in the service modules either",
+      not hasattr(_conn_mod, "drain_due_connector_captures"))
 check("5d no seeding exists anywhere in the routes",
       "seed_connector_capture" not in (API / "routes" / "integrations.py").read_text())
 
@@ -387,21 +353,28 @@ class _SettingsC:
 
 _store: dict = {"settings": {}}
 stored = update_connector_settings(_SettingsC(_store), "u1", "slack",
-                                   {"digest": "yes", "destination": " Projects/Acme/ "})
-check("7c digest is COERCED to bool at the chokepoint (never a truthy string "
-      "the walk would store verbatim)",
-      stored is not None and stored.get("digest") is True
-      and _store["updated"]["settings"]["connector"]["digest"] is True,
+                                   {"destination": " Projects/Acme/ "})
+check("7c the retired dials are not reintroduced at the chokepoint "
+      "(ADR-591: no cadence, no digest — a connector has one setting)",
+      stored is not None and "cadence" not in stored and "digest" not in stored,
       str(stored))
 check("7d destination is normalized at the chokepoint",
       stored is not None and stored.get("destination") == "Projects/Acme")
 
-try:
-    update_connector_settings(_SettingsC({"settings": {}}), "u1", "slack",
-                              {"cadence": "@every 1min"})
-    check("7e an out-of-enum cadence raises", False)
-except ValueError:
-    check("7e an out-of-enum cadence raises", True)
+# The request model forbids extras, so a stale client's `cadence`/`digest`
+# 422s at the door rather than being silently dropped (ADR-591 D1) — a dial
+# that controls nothing must fail loudly.
+from routes.integrations import ConnectorSettingsRequest  # noqa: E402
+import pydantic  # noqa: E402
+
+_refused = []
+for _dead in ("cadence", "digest"):
+    try:
+        ConnectorSettingsRequest(**{_dead: "x"})
+    except pydantic.ValidationError:
+        _refused.append(_dead)
+check("7e a retired dial is REFUSED at the door, never silently dropped",
+      _refused == ["cadence", "digest"], str(_refused))
 
 # --- the route roster: one settings door, the cadence-only door is gone ------
 import routes.integrations as ri  # noqa: E402
@@ -494,8 +467,10 @@ _ret_keys = {
 }
 check("7l capture-signal serves the settings object beside the existing shape "
       "(extend, not fork)",
-      {"settings", "does", "capture", "declared", "observed",
-       "cadence_choices"} <= _ret_keys, str(sorted(_ret_keys)))
+      {"settings", "does", "capture", "declared", "observed"} <= _ret_keys,
+      str(sorted(_ret_keys)))
+check("7l2 the retired cadence enum is GONE from the payload (ADR-591)",
+      "cadence_choices" not in _ret_keys, str(sorted(_ret_keys)))
 
 # --- the capability facts are DERIVED, never a parallel copy ------------------
 from services.connectors import connector_does  # noqa: E402

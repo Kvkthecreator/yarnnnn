@@ -344,16 +344,14 @@ async def get_capture_lane_state(auth: UserClient) -> dict[str, Any]:
     """
     Workspace-level capture-lane state — ADR-404 D2 (2026-07-04 amendment).
 
-    The deploy-level `CONNECTOR_CAPTURE_ENABLED` flag, surfaced without
-    requiring a connected provider. The per-provider mount on
-    `/integrations/{provider}/capture-signal` needs a connection to be useful;
-    the Channels surface needs the flag BEFORE any connection exists, because
-    it derives whether the Connections + Sources panes render at all while the
-    capture lane is dormant. Zero-DB — a pure env read.
+    ADR-591 deleted the connector walk and its flag, so there is no longer a
+    deploy-level switch that decides whether a connector is configurable:
+    configuring a connector is not running one (D4). The field is kept and
+    pinned False so a not-yet-deployed client reading it still resolves to
+    "no background schedule is running", which is TRUE and always will be —
+    captures happen when a consumer asks (D3). Zero-DB.
     """
-    from services.connector_capture_gating import is_connector_capture_enabled
-
-    return {"connector_capture_enabled": is_connector_capture_enabled()}
+    return {"connector_capture_enabled": False}
 
 
 # =============================================================================
@@ -417,15 +415,18 @@ async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[
 
 
 class ConnectorSettingsRequest(BaseModel):
-    """The three ADR-582 dials. Partial: only the fields present are written.
-    extra="forbid" so a stale FE field is refused loudly, never silently
-    dropped (the ADR-562 lesson)."""
+    """The connector's per-connection settings. Partial: only the fields
+    present are written. extra="forbid" so a stale FE field is refused
+    loudly, never silently dropped (the ADR-562 lesson).
+
+    ADR-591 retired `cadence` (no clock to compare it against) and `digest`
+    (its walker is deleted). Under extra="forbid" a stale caller sending
+    either now gets a 422 — deliberately: a dial that no longer controls
+    anything must fail loudly, not appear to work."""
 
     model_config = {"extra": "forbid"}
 
-    cadence: Optional[str] = None
     destination: Optional[str] = None
-    digest: Optional[bool] = None
 
 
 @router.put("/integrations/{provider}/connector-settings")
@@ -434,26 +435,17 @@ async def update_connector_settings_route(
     request: ConnectorSettingsRequest,
     auth: UserClient,
 ) -> dict[str, Any]:
-    """Set the connector's per-connection knobs (ADR-582 D2/D3/D5 — the three
-    dials on `settings["connector"]`): cadence (bounded choices, floor 15min —
-    the guardrail on API volume), destination (where snapshots land; empty →
-    the intake-grammar default lane), digest (the opt-in ADR-580 consumer,
-    default off). Replaces the cadence-only PUT (its one FE caller rendered
-    only behind the dormant capture flag — zero live callers at the rename).
+    """Set the connector's per-connection settings (ADR-582 D3, narrowed by
+    ADR-591 to one): destination — where snapshots land; empty → the
+    intake-grammar default lane.
 
-    400 on an out-of-enum cadence or an invalid destination; 404 when the
-    platform is not connected.
+    400 on an invalid destination; 404 when the platform is not connected.
     """
-    from services.connectors import (
-        CONNECTOR_CADENCE_CHOICES,
-        connector_settings,
-        update_connector_settings,
-    )
+    from services.connectors import connector_settings, update_connector_settings
 
     patch = request.model_dump(exclude_unset=True)
-    # destination=null is a real instruction (reset to the default lane);
-    # cadence/digest nulls are not — drop them so a partial write can't
-    # accidentally clear a knob it didn't mean to touch.
+    # destination=null is a real instruction (reset to the default lane), so
+    # it survives the None filter that guards partial writes.
     patch = {
         k: v for k, v in patch.items()
         if v is not None or k == "destination"
@@ -472,19 +464,14 @@ async def update_connector_settings_route(
         raise HTTPException(
             status_code=404, detail=f"No {provider} connection found.",
         )
-    # Echo the normalized, defaults-applied view (what the walk will read),
+    # Echo the normalized, defaults-applied view (what a consumer will read),
     # not the raw patch.
     stored = connector_settings({"platform": db_platform,
                                  "settings": {"connector": touched}})
     return {
         "success": True,
         "provider": provider,
-        "settings": {
-            "cadence": stored["cadence"],
-            "destination": stored["destination"],
-            "digest": stored["digest"],
-        },
-        "choices": list(CONNECTOR_CADENCE_CHOICES),
+        "settings": {"destination": stored["destination"]},
     }
 
 
@@ -1554,19 +1541,14 @@ async def get_capture_signal(
         "granted_scopes": [str],
         "connection": {workspace_name, connected_at} | None,
         "capture": {schedule, paused} | None,
-        "settings": {cadence, destination, digest} | None,
+        "settings": {destination, last_capture_at} | None,
         "does": {reads, writes, agents} | None,
         "agent_enabled": bool,
       }
     """
     from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal
-    from services.connector_capture_gating import is_connector_capture_enabled
-    from services.connectors import (
-        CONNECTOR_CADENCE_CHOICES,
-        connector_does,
-        connector_settings,
-    )
+    from services.connectors import connector_does, connector_settings
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
@@ -1655,11 +1637,11 @@ async def get_capture_signal(
         # from the machinery that enacts them (binding · exporter registry ·
         # the ADR-577 refusal), so the display can never drift from the code.
         "does": connector_does(db_platform),
-        "cadence_choices": list(CONNECTOR_CADENCE_CHOICES),
         "agent_enabled": is_agent_enabled(),
-        # ADR-404 D2: the FE hides CADENCE + YIELD + the retention dial while
-        # the capture lane is dormant (ACCESS + SCOPE stay unconditional).
-        "connector_capture_enabled": is_connector_capture_enabled(),
+        # ADR-591: there is no capture flag. Pinned False — kept only so a
+        # not-yet-deployed client still reads "nothing runs on a schedule",
+        # which is permanently true. Remove once no client reads it.
+        "connector_capture_enabled": False,
     }
 
 

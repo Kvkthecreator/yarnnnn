@@ -40,7 +40,10 @@ capture cadence. A selector derives at most once per ``DERIVE_MIN_INTERVAL_HOURS
 and only when raw NEWER than the deriver's own last write exists — a quiet
 world costs $0, and capture chatter can never multiply judgment spend.
 
-Dormancy: the drain runs inside the scheduler's ``CONNECTOR_CAPTURE_ENABLED``
+Trigger (ADR-591): there is NO drain. This module's writer is invoked by a
+consumer; the walker that ran it on a tick is deleted. The pace law
+(``is_due``) survives as a SPEND GUARD for whatever calls it. Historic note:
+the drain used to run inside the scheduler's ``CONNECTOR_CAPTURE_ENABLED``
 block (ADR-404 D2) — capture and derive are one lane, and flipping the flag
 remains one operator decision.
 
@@ -120,6 +123,12 @@ def is_due(
     chatter can never multiply judgment spend — the ADR-401 D5 lesson).
     A member's edit of the digest neither hastens nor delays the clock: the
     clock is the DERIVER's last write, not the file's.
+
+    ADR-591 deleted the WALKER that called this on a tick; the law itself is
+    KEPT deliberately. It was never a schedule — it is a SPEND GUARD, and a
+    consumer-invoked derive (D3) needs it more than a cron did: a caller in a
+    loop is exactly the shape "capture chatter multiplies judgment spend"
+    describes. Whatever calls `run_connector_derive` gates on this first.
     """
     if newest_raw_at is None:
         return False
@@ -377,74 +386,6 @@ async def run_connector_derive(
             "digest_path": digest_abs, "revision_id": revision_id}
 
 
-# ---------------------------------------------------------------------------
-# Drain — the scheduler-tick entry point (inside the ADR-404 D2 flag block)
-# ---------------------------------------------------------------------------
-
-
-async def drain_due_connector_derives(client: Any) -> tuple[int, int, int]:
-    """Walk active content-platform connections whose DIGEST IS OPTED IN
-    (ADR-582 D5: `settings.connector.digest = true` — derive is a consumer,
-    never the lane's obligation), derive every due watched selector.
-    Returns (found, succeeded, failed). Never raises."""
-    from services.connectors import (
-        CONNECTOR_CAPTURE_BINDINGS,
-        connector_settings,
-        selected_ids_from_row,
-    )
-    from services.workspace import UserMemory
-
-    try:
-        conns = (
-            client.table("platform_connections")
-            .select("user_id, platform, landscape, settings, connected_by")
-            .eq("status", "active")
-            .execute()
-        ).data or []
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[CONNECTOR_DERIVE] connections query failed: %s", exc)
-        return 0, 0, 0
-
-    now = datetime.now(timezone.utc)
-    found = succeeded = failed = 0
-    for conn in conns:
-        plat = (conn.get("platform") or "").strip().lower()
-        user_id = conn.get("user_id")
-        # Content platforms only — the lanes with a capture binding. Email/
-        # commerce/trading are state-mirror or outbound connections, not
-        # intake lanes (ADR-376 §63 keeps ground-truth out of inbound/).
-        if not user_id or plat not in CONNECTOR_CAPTURE_BINDINGS:
-            continue
-        settings = connector_settings(conn)
-        if not settings.get("digest"):
-            continue  # the D5 opt-in gate — no digest, no LLM spend
-        selectors = selected_ids_from_row(conn)
-        if not selectors:
-            continue
-        um = UserMemory(client, user_id)
-        for selector in selectors:
-            digest_abs = digest_path(plat, selector)
-            last_at = _last_derive_at(client, user_id, digest_abs)
-            fresh = await _fresh_raw(um, plat, selector, last_at, settings)
-            newest_at = fresh[-1][1] if fresh else None
-            if not is_due(newest_at, last_at, now):
-                continue
-            found += 1
-            try:
-                result = await run_connector_derive(
-                    client, user_id, plat, selector,
-                    connected_by=conn.get("connected_by") or user_id,
-                    settings=settings,
-                )
-                if result.get("success"):
-                    succeeded += 1
-                else:
-                    failed += 1
-            except Exception as exc:  # noqa: BLE001
-                failed += 1
-                logger.exception("[CONNECTOR_DERIVE] derive raised %s/%s/%s: %s",
-                                 user_id[:8], plat, selector, exc)
-    return found, succeeded, failed
 
 
 __all__ = [
@@ -453,7 +394,6 @@ __all__ = [
     "NO_CHANGE_SENTINEL",
     "build_connector_derive_posture",
     "digest_path",
-    "drain_due_connector_derives",
     "is_due",
     "parse_stamp",
     "run_connector_derive",

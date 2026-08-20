@@ -207,11 +207,28 @@ def main():
         and "LEMONSQUEEZY_TOPUP_25_VARIANT_ID" not in sub,
     ))
 
-    # ── 7. Retention gate clamps to tier ceiling ───────────────────────────────
-    cr = open(os.path.join(_HERE, "services", "connector_retention.py")).read()
+    # ── 7. Retention resolution clamps to tier ceiling ─────────────────────────
+    # ADR-591 deleted the GC that used to be this clamp's caller; the PRICING
+    # SEAM itself is what matters and it lives in resolve_retention_days —
+    # pinned by behavior, not by a call site that can move.
+    from services.connector_retention import resolve_retention_days  # noqa
+    import asyncio as _asyncio, services.workspace as _ws
+    _orig_um = _ws.UserMemory
+
+    class _FakeUM:
+        def __init__(self, *a, **k): pass
+        async def read(self, path):
+            return "retention_days: 90\n"
+
+    _ws.UserMemory = _FakeUM
+    try:
+        _clamped = _asyncio.new_event_loop().run_until_complete(
+            resolve_retention_days(None, "u1", tier_max_days=30))
+    finally:
+        _ws.UserMemory = _orig_um
     results.append(_check(
-        "GC clamps declared window to the tier ceiling",
-        "retention_max_days_for_user(" in cr and "tier_max_days=tier_max" in cr,
+        "retention resolution clamps a declared window to the tier ceiling",
+        _clamped == 30,
     ))
 
     # ── 8. Grant idempotency (multi-event webhook storm) ───────────────────────
