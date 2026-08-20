@@ -886,7 +886,7 @@ export default function ContextPage() {
   // create INSIDE it (the folder-node menu verb, and the canvas menu when a
   // folder's contents are on screen — the Finder folder-window-background
   // grammar). The modal collects a name and states the destination; this seeds
-  // the folder's first file. The parent travels VERBATIM in its own field —
+  // a folder marker (ADR-588 D1). The parent travels VERBATIM in its own field —
   // the backend sanitizes only the new leaf, so an existing parent segment
   // (`_adr427-probe`) is never rewritten en route.
   const [newFolderOpen, setNewFolderOpen] = useState(false);
@@ -917,11 +917,13 @@ export default function ContextPage() {
       });
       closeNewFolder();
       await loadExplorer();
-      // Jump to the seeded README so the new folder is visible + selected —
-      // through THE ONE DOOR (openPath). The seed is markdown today (falls
-      // through to inline), but routing keeps the invariant: no open-a-path
-      // site outside the funnel.
-      if (r?.seeded) openPath(r.seeded);
+      // ADR-588 D1: STAY HERE. The folder is revealed + selected in the tree,
+      // Finder/Explorer grammar — no OS opens an editor on `mkdir`. The route
+      // used to return a seeded README and this line opened it, which since
+      // ADR-571 routes .md to the Text app meant creating a folder EJECTED the
+      // operator out of Files into an editor. Both the seed and the redirect
+      // are gone; `path` is the folder itself.
+      if (r?.path) setSelectedPath(r.path);
     } catch { /* error toast already surfaced; keep the modal open to retry */ }
   }, [runAction, loadExplorer, openPath, newFolderParent, closeNewFolder]);
 

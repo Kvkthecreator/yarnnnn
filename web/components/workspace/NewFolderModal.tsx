@@ -5,8 +5,9 @@
  *
  * Pure-OS: the operator names a folder for their work at the top level (a peer
  * of Documents/Downloads) — you don't ask permission to `mkdir ~/projects`.
- * Folders are implicit in the substrate, so creating one seeds the folder's
- * first file (a starter README.md) via POST /documents/folder.
+ * ADR-588 D1: creating a folder writes a FOLDER MARKER row (an
+ * `inode/directory` row at the folder's own path) via POST /documents/folder —
+ * it does NOT seed a document. An empty folder is a real, expressible folder.
  *
  * Mirrors RenameModal's single-field pattern (ADR-400 polish) — one modal
  * design language, no second toast/dialog system. Outcome feedback (creating…/

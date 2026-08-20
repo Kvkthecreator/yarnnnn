@@ -1215,10 +1215,12 @@ export const api = {
 
     // ADR-424 D2: create a folder — a top-level PEER (no parent) or INSIDE an
     // existing folder (parent = its workspace-relative path, sent verbatim so
-    // the backend never re-sanitizes existing segments). Folders are implicit,
-    // so this seeds the folder's first file (README.md).
+    // the backend never re-sanitizes existing segments).
+    // ADR-588 D1: the backend writes a FOLDER MARKER row, not a seeded file, so
+    // there is nothing to open afterwards — `path` is the folder itself. The
+    // `seeded` field is GONE; the caller stays where it is and selects `path`.
     createFolder: (path: string, parent?: string | null) =>
-      request<{ success: boolean; path: string; seeded: string }>(
+      request<{ success: boolean; path: string }>(
         "/api/documents/folder",
         { method: "POST", body: JSON.stringify(parent ? { path, parent } : { path }) }
       ),
