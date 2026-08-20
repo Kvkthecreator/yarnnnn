@@ -130,5 +130,13 @@ flag's operator-facing dial lands) must say this in one sentence.
   the bound (member's own · read-only · transient · save-to-keep).
 - **The detail page's capability facts** gain a `chat` row derived from the
   flag ("chat cannot reach platforms on this deployment" until it flips).
+- **D5, the engine disclosure (2026-08-20)**: the second sentence of that
+  same `chat` row — "What it reads goes to the engine you picked for that
+  chat, the same as pasting it in." It lives on the connector page rather
+  than the chat surface because the row is ALREADY flag-derived (a
+  hand-kept sentence at the new-chat door could disagree with the
+  capability it describes), and because a standing exposure fact belongs
+  where the connection is granted, not repeated at every conversation
+  until it stops being read. Gate §6, falsified against the pre-D5 string.
 - Steward, app lanes, derive turns, wake paths: unchanged — no platform
   tool on any of their surfaces.

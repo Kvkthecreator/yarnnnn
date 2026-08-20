@@ -186,6 +186,47 @@ check("5c the frame template carries the slot (no orphaned prose)",
       and "There is no tool here that opens" not in
       _lr_src.split("_CONVENTIONS_FRAME = ")[1].split('"""')[1])
 
+# ═════════════════════════════════════════════════════════════════════════════
+print("§6 D5 — the engine disclosure, on the consent surface")
+# ═════════════════════════════════════════════════════════════════════════════
+
+# D5: turn reach sends connection content into a member-chosen engine, so the
+# consent surface must SAY so. The row is flag-derived, so the disclosure must
+# appear exactly when the capability does — and never while it is dormant.
+import importlib  # noqa: E402
+
+import services.connectors as _conn  # noqa: E402
+
+
+def _chat_row(flag: bool) -> str:
+    if flag:
+        os.environ["TURN_REACH_ENABLED"] = "1"
+    else:
+        os.environ.pop("TURN_REACH_ENABLED", None)
+    import services.turn_reach as _tr
+    importlib.reload(_tr)
+    importlib.reload(_conn)
+    return (_conn.connector_does("notion") or {}).get("chat", "")
+
+
+_off = _chat_row(False)
+_on = _chat_row(True)
+os.environ.pop("TURN_REACH_ENABLED", None)
+importlib.reload(_conn)
+
+# The disclosure is a CLAIM about where content goes, so anchor on the claim's
+# two load-bearing halves (destination + the pasting comparison that makes the
+# exposure legible), never on the full sentence's spelling.
+check("6a reach ON: the row names the engine as the destination",
+      "engine" in _on.lower() and "you picked" in _on.lower(), _on)
+check("6b reach ON: the exposure is stated in the member's terms (pasting)",
+      "pasting" in _on.lower(), _on)
+check("6c reach OFF: no disclosure — nothing to disclose while dormant",
+      "engine" not in _off.lower() and "cannot reach" in _off.lower(), _off)
+check("6d the disclosure rides the SAME flag as the capability "
+      "(one derivation, never a hand-kept copy)",
+      _on != _off and bool(_on) and bool(_off))
+
 n = PASS + FAIL
 print(f"\n{PASS}/{n} ADR-585 assertions pass")
 sys.exit(0 if FAIL == 0 else 1)

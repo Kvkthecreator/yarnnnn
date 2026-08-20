@@ -95,6 +95,7 @@ capture writer's configuration as one consumer block.
 |---|---|---|---|
 | CONNECTION | **Access** | granted OAuth scopes + the validate probe | `metadata.scope`; the probe is the only liveness signal (ADR-401 D6) |
 | CONNECTION | **What this connection does** | reads / writes / agents — capability FACTS | derived server-side: the capture binding's `reads` · the exporter registry · the ADR-577 refusal (`connector_does()`) |
+| CONNECTION | **What this connection does** → the `chat` row | whether a chat turn may read through this connection, and — when it may — that what it reads goes to the member-chosen engine (ADR-585 D5, the engine disclosure) | derived from `TURN_REACH_ENABLED` in `connector_does()`; the disclosure rides the same flag as the capability |
 | CAPTURE | **Capture** | the writer's config as ONE block: the selection (consent — never auto-filled; `Suggested` badge only) + cadence + destination + digest; collapsed to one honest line while dormant | selection: `landscape.selected_sources`; dials: `settings["connector"]` via `PUT /integrations/{provider}/connector-settings` → `update_connector_settings` (the validation chokepoint) |
 | CAPTURE | **Yield** | freshness + landed-files link (flag-gated) | `_capture_signal.yaml` |
 

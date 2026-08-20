@@ -120,9 +120,21 @@ def connector_does(platform: str) -> Optional[dict]:
         # ADR-585: chat turn reach — the member's OWN connection, inside their
         # own turn, read-only and transient. Derived from the deploy flag so
         # the fact flips the day the capability does.
+        #
+        # D5 (the engine disclosure) is the SECOND sentence, and it lives here
+        # rather than on the chat surface for two reasons: this row is already
+        # flag-derived (a hand-kept copy at the new-chat door could disagree
+        # with the capability it describes), and a standing exposure fact
+        # belongs where the connection is GRANTED, not repeated at every
+        # conversation until it stops being read. A lane's engine is
+        # member-chosen and may be any provider (ADR-558/559), so reaching a
+        # connection sends its content there — the same exposure as pasting,
+        # which is the comparison that makes it legible.
         "chat": (
             f"your chat can read {name} through your own connection — "
-            "read-only, in the turn, nothing saved unless you ask"
+            "read-only, in the turn, nothing saved unless you ask. "
+            "What it reads goes to the engine you picked for that chat, "
+            "the same as pasting it in"
             if reach_on
             else "chat cannot reach platforms on this deployment"
         ),
