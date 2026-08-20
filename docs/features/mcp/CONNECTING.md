@@ -102,15 +102,26 @@ already taken, so if your host is showing an old surface:
 **Verify it actually landed — don't trust the toast.** The settings panel is the receipt.
 Check a field that only exists in the build you're expecting:
 
+- `whoami` should be listed at all — it is the newest verb (ADR-584, 2026-08-19),
+  so it is the single fastest tell that a manifest is current.
 - `save` should list **five** inputs — `reference · content · base_revision · message · derived_from`.
 - `search`'s description should mention **`confidence`**.
 
 A refresh that bumps the version but leaves those unchanged did not pull the new manifest.
 
 **How to tell whether it worked:** ask your host to list the yarnnn tools it has.
-The current surface is the file-native roster (ADR-543 + ADR-545) — `open · list · search · save · edit · delete · move · history · share`. The pre-543 memory verbs (`remember`/`recall`/`trace`) are gone WITHOUT aliases: a host on a stale manifest gets tool-not-found on them until it reconnects.
-Fewer than six means the cache is still stale. (Ask it to *call* `open` too: a host can
-hold a tool it did not list.)
+The current surface is the file-native roster (ADR-543 + ADR-545) plus `whoami`
+(ADR-584) — `whoami · open · list · search · save · edit · delete · move · history · share`.
+The pre-543 memory verbs (`remember`/`recall`/`trace`) are gone WITHOUT aliases: a host on a stale manifest gets tool-not-found on them until it reconnects.
+A roster missing `whoami`, or shorter than the list above, means the cache is
+still stale. (Ask it to *call* `whoami` too: a host can hold a tool it did not
+list — and `whoami` is the cheapest one to call, since it reads no substrate and
+writes nothing.)
+
+**The fastest end-to-end check** is to ask the host *"which workspace am I
+connected to?"* — a current manifest answers by calling `whoami` and naming the
+workspace; a stale one answers by listing files, which names no workspace at all
+(measured on ChatGPT, 2026-08-20).
 
 > A host's own account of its tools is a self-report, not proof. If it insists a verb
 > is missing, have it attempt the call — the error it returns distinguishes "not in my

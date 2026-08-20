@@ -174,6 +174,41 @@ def run() -> int:
         "resolve_workspace_for_principal" in api_code,
     )
 
+    # ── 5. The operator-facing roster must not outlive the build either ──────
+    # Same defect class, third instance in one audit. CONNECTING.md teaches an
+    # operator how to tell a STALE manifest from a current one — by comparing
+    # what their host lists against a roster written by hand in prose. That
+    # roster went stale itself: it listed nine verbs and "fewer than six means
+    # stale" while the server served ten, so the doc for detecting staleness
+    # could not detect the newest verb's absence.
+    #
+    # Derived from the REAL roster, never a pinned count
+    # (`[[feedback_pinned_count_reads_growth_as_violation]]`): a new verb must
+    # appear in the operator's checklist, and a count is not maintained here.
+    try:
+        import re as _re
+        roster_src = open("mcp_server/server.py").read()
+        m = _re.search(
+            r"_INTEROP_VERBS.*?=\s*\((.*?)\n\)\n", roster_src, _re.S
+        )
+        verbs = set(_re.findall(r'^\s*"(\w+)",', m.group(1), _re.M)) if m else set()
+        doc = open("../docs/features/mcp/CONNECTING.md").read()
+        missing = sorted(v for v in verbs if v not in doc)
+        _check(
+            "5. CONNECTING.md's staleness checklist names every served verb",
+            bool(verbs) and not missing,
+        )
+        if missing:
+            print(f"      → verbs served but absent from the operator doc: {missing}")
+        # A hand-kept threshold drifts the moment the roster grows; the doc must
+        # tell the operator to compare against the LIST, not a number.
+        _check(
+            "5.a the doc does not pin a hand-kept verb COUNT as the staleness test",
+            "Fewer than six" not in doc,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _check(f"5. roster/doc cross-check ran (error: {exc})", False)
+
     total = len(FAILURES)
     print(f"\nStale-deferral-claim gate: {_RUN - total}/{_RUN} passed, {total} failed")
     for f in FAILURES:
@@ -181,7 +216,7 @@ def run() -> int:
     return 1 if FAILURES else 0
 
 
-_RUN = 4
+_RUN = 6
 
 if __name__ == "__main__":
     sys.exit(run())
