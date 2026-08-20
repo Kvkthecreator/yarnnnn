@@ -23,7 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, FolderOpen, Loader2, MoreHorizontal, Plus, ScrollText } from 'lucide-react';
+import { FileText, FolderOpen, Loader2, MoreHorizontal, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
@@ -186,7 +186,7 @@ function TextLanding({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
-              <ScrollText className="h-5 w-5 text-muted-foreground" />
+              <FileText className="h-5 w-5 text-muted-foreground" />
               <h1 className="text-lg font-semibold">Text</h1>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
@@ -275,7 +275,7 @@ function TextLanding({
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-border p-8 text-center">
-            <ScrollText className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
+            <FileText className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
             <p className="text-sm font-medium text-foreground/80">No documents yet</p>
             <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
               New starts one. Anything written as <span className="font-mono">.md</span> —

@@ -419,7 +419,13 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Text",
         "archetype": "document",
         "substrate_paths": [],  # prose is meaning-placed; the app owns no namespace
-        "icon_key": "scroll-text",
+        # 2026-08-20 — the Text app wears the SAME text-document glyph as Docs
+        # (`file-text`), operator-directed. The two writing apps are one family
+        # and should read as one object class; `scroll-text` had been borrowed
+        # from the Feed/Activity ledger, which still owns it (notifications
+        # page + workspace_paths' constitution row), so this is a swap of THIS
+        # app's glyph, not a re-home of the key.
+        "icon_key": "file-text",
         "default_pinned": True,  # ships in the Dock beside Docs
         "route": "/text",
         "summary": "Plain-text prose — transcripts, notes, briefs, every .md in the workspace. Open with a cursor, refine with Editor beside you, and every save lands as a signed revision your connectors read back.",

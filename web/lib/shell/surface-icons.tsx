@@ -36,7 +36,6 @@ import {
   Rocket,
   Rss,
   Scale,
-  ScrollText,
   ShieldCheck,
   Target,
   User,
@@ -139,10 +138,14 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // ADR-338 D4.1: rss glyph for the /sources standing-watch surface.
   rss: Rss,
   scale: Scale,
-  // ADR-297 D18.2 (2026-05-22): scroll-text registered for the Feed
-  // surface, disambiguating it from the universal ChatDrawer FAB
-  // (which is hardcoded MessageCircle in Desktop.tsx).
-  'scroll-text': ScrollText,
+  // 2026-08-20: the `scroll-text` mapping is DELETED. ADR-297 D18.2 registered
+  // it for the Feed surface (dissolved by ADR-415); ADR-571's Text app was its
+  // last declarer and now wears `file-text`, the Docs glyph — the two writing
+  // apps read as one object class. ZERO kernel_surfaces rows declare it, and a
+  // mapping no surface declares is an orphan (CLAUDE.md §2, the same rule the
+  // `settings` + `users-round` notes apply). It returns when a surface declares
+  // it. NOTE: the constitution root's `scroll-text` is a DIFFERENT registry
+  // (`lib/workspace/root-icons.tsx`) and is untouched.
   'shield-check': ShieldCheck,
   // 2026-07-20: the `agents` roster glyph — a pair of ROUNDED people = the
   // colleagues you've hired and named. Object-like, so it sits in the family
