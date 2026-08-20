@@ -186,6 +186,31 @@ The arrival door was fully built and reachable only by hand-writing a query stri
 surface search, so ordinary launching is untouched. When a path is present it wins on Enter: an
 operator who pasted a file name meant that file, not whichever surface fuzzy-matched it.
 
+### D6 — The share sheet names the file, not its leaf (amended 2026-08-21)
+
+Operator-confirmed after the Files surface click-passed: *"maybe similar, same
+mechanism for front end should be repeated for the share modal for both studio,
+txt apps."*
+
+The sheet's subtitle rendered `target.name` — in the operator's screenshot,
+`deck.html`. A leaf is the one string that does NOT identify a file; a workspace
+holds many `deck.html`. And the dialog **already held the path**: `path` drives
+`createShare` and the active-link filter. It was simply never shown.
+
+`ShareDialog` is ONE component mounted by Files, Studio and Text, so the fix is
+made once and all three surfaces gain it — which is why the request "repeat it
+for studio and txt" resolves to a single edit rather than three. The gate
+asserts all three still mount the shared dialog, because a surface that grew its
+own sheet would silently stop inheriting this.
+
+**The handle is deliberately NOT offered here.** This sheet is where a GRANT is
+minted; the handle is an ADDRESS carrying no authorization. Putting both
+spellings in the one surface whose job is capability is exactly the
+reach-vs-egress blur §4 refuses. The handle stays on Export ("Copy AI
+reference"). The gate enforces the refusal **against comment-stripped source** —
+its first cut went red against correct code by matching the comment that
+explains the refusal.
+
 ---
 
 ## 4. The rejected alternative, recorded — merging the handle into the share flow
@@ -258,9 +283,9 @@ copy.
 
 ## 6. What is owed
 
-- **The click-pass.** Every mechanism here is gated and the FE builds, but the browser path is
-  not driven: paste a handle into the Launcher and land on the file; copy a path from Properties
-  and paste it back; confirm the row subtitle reads as a path on a real workspace.
+- **The click-pass.** The Files surface copy affordance is **operator-confirmed working**
+  (2026-08-21). Still undriven: paste a handle into the Launcher and land on the file; the share
+  sheet's path field on Studio and Text.
 - **The round-trip through a real host.** Copy an AI reference from Studio, paste it into
   ChatGPT/Claude.ai, confirm `open` resolves it, then bring the path back through quick-open.
   That is the loop this ADR exists to close, and it has been proven in parts, not end to end.

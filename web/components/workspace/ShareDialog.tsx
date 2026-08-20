@@ -51,6 +51,8 @@ import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
 
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { CopyField } from '@/components/workspace/CopyField';
+import { relPath } from '@/lib/interop/fileHandle';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
 type ShareRole = 'member' | 'viewer';
@@ -324,9 +326,36 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
           aria-label={`Share ${target.name}`}
         >
           <h3 className="text-base font-semibold text-card-foreground">Share</h3>
-          <p className="mt-1 truncate text-xs text-muted-foreground" title={target.name}>
+          {/* ADR-587 D2, extended to the share sheet: the subtitle named the
+              LEAF ("deck.html"), which is the one thing that does not identify
+              a file — a workspace holds many. The path is what the operator
+              pastes back (quick-open, chat, a connector's `open`), and this
+              dialog already HELD it: `path` drives createShare and the link
+              filter, it was simply never shown. One component, so the three
+              surfaces that mount it (Files · Studio · Text) gain this together.
+
+              Deliberately NOT the `yarnnn://` handle here. This sheet is where
+              a GRANT is minted, and the handle is an ADDRESS carrying no
+              authorization (ADR-512 D6) — putting the two spellings side by
+              side in the one surface whose job is capability is exactly the
+              reach-vs-egress blur ADR-587 §4 refused. The handle stays on
+              Export ("Copy AI reference"). */}
+          <p className="mt-1 truncate text-xs text-muted-foreground" title={relPath(target.path)}>
             {target.name}
           </p>
+          {/* No `path &&` guard: `target.path` is a REQUIRED string in all
+              three callers' state, and the component already returned null on
+              a null target above — so path is non-null here by construction.
+              A guard would read as "a workspace-scope share reaches this
+              dialog", which it does not (the People tab covers the workspace,
+              and it carries no artifact path). */}
+          <div className="mt-2">
+            <CopyField
+              value={relPath(target.path)}
+              label="Workspace path"
+              hint="Where this file lives — paste it back here or to an AI on your workspace."
+            />
+          </div>
 
           {/* ── The two tabs: this file · the workspace ── */}
           <div className="mt-4 flex gap-1 border-b border-border/60" role="tablist">

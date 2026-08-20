@@ -33,6 +33,13 @@ D5-one-sentence — the AI-reference sentence is built in ONE place and names a
      verb that EXISTS. The two hand-written copies had already drifted: Studio
      said `trace`, which is not on the roster.
 
+D6-share-sheet — the share sheet shows the PATH, not just the leaf. One
+     `ShareDialog` serves Files, Studio and Text, so this is asserted once; the
+     dialog already HELD `path` (it drives createShare) and displayed only
+     `name`, which is the one string that does not identify a file. Also
+     asserts the sheet does NOT emit the `yarnnn://` handle — a grant surface
+     and an address must not blur (ADR-512 D6 / ADR-587 §4).
+
 Every check here was falsified — broken deliberately, observed to fail, restored.
 """
 
@@ -296,6 +303,61 @@ check(
     "no surface interpolates the handle by hand",
     not handrolled,
     ", ".join(handrolled),
+)
+
+print()
+print("D6-share-sheet — the sheet names the path, and mints grants only")
+share_dialog = (WEB / "components" / "workspace" / "ShareDialog.tsx").read_text()
+# Assert the COMPOSITION, not the coexistence of two strings. The first cut
+# tested `"CopyField" in src and "relPath(target.path)" in src`, which PASSED
+# against a deliberately broken version: the falsifier repointed the field at
+# `target.name`, and the substring survived in an unrelated `title=` attribute.
+# Two strings being present in one file says nothing about one feeding the other.
+copyfield_block = re.search(
+    r"<CopyField\b(.*?)/>", share_dialog, re.S
+)
+check(
+    "the share sheet renders the path through the shared field",
+    bool(copyfield_block)
+    and re.search(r"value=\{relPath\(\s*target\.path\s*\)\}", copyfield_block.group(1)),
+    "CopyField does not receive the file's path as its value",
+)
+check(
+    "it uses the shared grammar, not a local prefix strip",
+    "@/lib/interop/fileHandle" in share_dialog,
+    "ShareDialog strips /workspace/ by hand",
+)
+# The refusal, enforced: a grant surface must not also hand out an address.
+#
+# Comment lines are STRIPPED before the test. The first cut of this check ran
+# over the raw source and went red against CORRECT code — matching the comment
+# that EXPLAINS the refusal ("Deliberately NOT the `yarnnn://` handle here").
+# An assertion a comment can satisfy — or, as here, break — is not an assertion
+# about behavior. Strip first, then assert on what executes.
+share_code = re.sub(r"\{/\*.*?\*/\}", "", share_dialog, flags=re.S)   # JSX comment blocks
+share_code = re.sub(r"/\*.*?\*/", "", share_code, flags=re.S)          # block comments
+share_code = "\n".join(
+    line for line in share_code.splitlines() if not line.strip().startswith("//")
+)
+check(
+    "the share sheet does NOT emit the yarnnn:// handle",
+    "yarnnn://" not in share_code,
+    "the grant sheet emits an address — the reach-vs-egress blur ADR-587 §4 refused",
+)
+# One component, so every mounting surface inherits it — assert they all mount
+# the shared dialog rather than rolling their own header.
+mounts = []
+for rel in (
+    "app/(authenticated)/files/page.tsx",
+    "components/authoring/StudioSurface.tsx",
+    "components/text/TextEditor.tsx",
+):
+    if "<ShareDialog" in (WEB / rel).read_text():
+        mounts.append(rel)
+check(
+    "Files, Studio and Text all mount the ONE ShareDialog",
+    len(mounts) == 3,
+    f"only {mounts} mount it — a surface with its own sheet would not inherit the path",
 )
 
 print()
