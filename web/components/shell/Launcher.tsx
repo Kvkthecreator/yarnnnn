@@ -48,11 +48,12 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { FileText, Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { Z_LAUNCHER_OVERLAY } from '@/lib/shell/z-tiers';
 import { isKernelSurfaceSlug } from '@/types/desk';
+import { parseFileReference, toWorkspacePath } from '@/lib/interop/fileHandle';
 
 interface LauncherProps {
   open: boolean;
@@ -62,7 +63,7 @@ interface LauncherProps {
    *  action; the pre-D19.2 setSurface URL-write side-effect was
    *  deleted because URL is informational add-on, not a tracker of
    *  the foregrounded window (D19.2). */
-  onForeground: (slug: string) => void;
+  onForeground: (slug: string, deliverParams?: Record<string, string>) => void;
   bundleTitleBySlug: Record<string, string>;
 }
 
@@ -205,6 +206,28 @@ export function Launcher({
     return map;
   }, [surfaces]);
 
+  // ADR-587 — quick-open by path. The Launcher already plays Spotlight for
+  // surfaces; this is the same motion for a FILE, and it exists because the
+  // interop loop had no return leg: an operator holding
+  // `marketing/gtm-strategy.md` (or a `yarnnn://…` handle) from an external AI
+  // had no way to reach that file short of hand-writing a query string.
+  //
+  // Detection is the grammar itself, not a heuristic: if it parses as a file
+  // reference AND looks like a path rather than a word (it has a separator or
+  // an extension), we offer to open it. A bare word like "files" stays a
+  // surface search — `parseFileReference('files')` succeeds, so the extra
+  // shape test is what keeps ordinary searching intact.
+  const quickOpen = useMemo(() => {
+    const raw = query.trim();
+    if (!raw) return null;
+    const rel = parseFileReference(raw);
+    if (!rel) return null;
+    const looksLikePath = rel.includes('/') || /\.[a-z0-9]{1,8}$/i.test(rel);
+    if (!looksLikePath) return null;
+    const abs = toWorkspacePath(raw);
+    return abs ? { rel, abs } : null;
+  }, [query]);
+
   const filtered = useMemo(() => {
     if (!query.trim()) return navigableSurfaces;
     const q = query.toLowerCase();
@@ -242,8 +265,17 @@ export function Launcher({
     onClose();
   };
 
+  // The path wins on Enter when one is present: an operator who pasted a file
+  // name meant that file, not whichever surface happened to fuzzy-match it.
+  const openQuickPath = () => {
+    if (!quickOpen) return;
+    onForeground('files', { path: quickOpen.abs });
+    onClose();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (quickOpen) { openQuickPath(); return; }
     const first = filtered[0];
     if (first) navigate(first);
   };
@@ -271,7 +303,7 @@ export function Launcher({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search surfaces…"
+            placeholder="Search surfaces, or paste a file path…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <button
@@ -287,10 +319,34 @@ export function Launcher({
         {/* Surface list — flat when searching (Spotlight role), act-tier
             groups at rest (Dock/Launchpad role). ADR-340 P3. */}
         <div className="max-h-[60vh] overflow-y-auto">
+          {/* ADR-587: the pasted path, offered first. It is a DIFFERENT kind of
+              answer from a surface match — that is why it sits above the list
+              with its own separator rather than competing for rank inside it. */}
+          {quickOpen && (
+            <div className="border-b border-border py-2">
+              <button
+                type="button"
+                onClick={openQuickPath}
+                className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-foreground">
+                    Open <span className="font-mono">{quickOpen.rel}</span>
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Go to this file in Files
+                  </span>
+                </span>
+              </button>
+            </div>
+          )}
           {isSearching ? (
             filtered.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No surfaces match &ldquo;{query}&rdquo;
+                {quickOpen
+                  ? `No surfaces match “${query}” — but it names a file, above.`
+                  : `No surfaces match “${query}”`}
               </div>
             ) : (
               <div className="py-2">

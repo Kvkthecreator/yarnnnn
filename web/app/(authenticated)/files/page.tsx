@@ -35,7 +35,7 @@
  * navigateToSurface('files', {path})). One handler consumes them — the arrival
  * effect — which opens the path and then DRAINS the param; see "THE ONE ARRIVAL
  * DOOR". They are inbound transport only: in-surface file/folder clicks DO NOT
- * write the URL, because selection is component state. Writing `/files?path=…`
+ * write the URL, because selection is component state. Writing `/files?files.path=…`
  * on every click flipped pathname away from /desktop and disrupted the
  * launcher/topbar (operator-observed KVK 2026-06-12).
  */
@@ -75,6 +75,7 @@ import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
+import { toWorkspacePath } from '@/lib/interop/fileHandle';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { RecentRevisions } from '@/components/workspace/RecentRevisions';
 import { TrashView } from '@/components/workspace/TrashView';
@@ -599,7 +600,18 @@ export default function ContextPage() {
     // need not be in the virtual tree: syntheticNodeForPath resolves the
     // viewer for entity subfolders and `_`-prefixed files.
     if (pathParam) {
-      openPathRef.current(pathParam);
+      // ADR-587: the arrival door is where a name from OUTSIDE enters, so it
+      // is where the ADR-512 D5 grammar is applied. A deep-link may carry any
+      // of the three honest spellings — the canonical `yarnnn://workspace/…`
+      // handle an external AI was given, the ledger's absolute form, or a bare
+      // relative path — and before this, only the absolute form resolved:
+      // `openPath` matches `workspace_files.path` verbatim, so a handle or a
+      // bare path fell through to an empty selection. The app emitted a name
+      // it could not read back.
+      //
+      // A refusal (another scheme, `..`) opens nothing rather than guessing.
+      const arrival = toWorkspacePath(pathParam);
+      if (arrival) openPathRef.current(arrival);
     } else if (domainParam) {
       // ADR-388 D1: domains nest under the literal operation/ root.
       openPathRef.current(`/workspace/operation/${domainParam}`);
@@ -613,7 +625,7 @@ export default function ContextPage() {
 
   // ADR-297 D19.2: in-surface selection is component state, NOT a URL write.
   // The Files surface runs as a window on the Desktop (pathname `/desktop`);
-  // writing `/files?path=…` on every click flipped pathname → /files, which
+  // writing `/files?files.path=…` on every click flipped pathname → /files, which
   // tripped AuthenticatedLayout's pathname→foreground effect + SurfaceViewport's
   // pathnameSlug resolution, disrupting the launcher/topbar (operator-observed
   // KVK 2026-06-12). `?path=` survives only as an inbound ARRIVAL param

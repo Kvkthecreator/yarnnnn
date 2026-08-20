@@ -75,8 +75,10 @@ function TaskCompleteCard({ data }: { data: TaskCompleteData }) {
   // ADR-231 D2 natural-home: reports live at /workspace/operation/reports/{slug}/.
   const outputPath = data.output_path
     || (data.task_slug ? `/workspace/operation/reports/${data.task_slug}` : null);
+  // ADR-587: `files.path`, not `path` — surface params are slug-namespaced and
+  // a bare one is never read, so this link opened Files with no selection.
   const href = outputPath
-    ? `/files?path=${encodeURIComponent(outputPath)}`
+    ? `/files?files.path=${encodeURIComponent(outputPath)}`
     : '/files';
 
   return (

@@ -38,6 +38,7 @@ import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { describeViewerApplication } from '@/lib/file-types';
 import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
+import { relPath as workspaceRelPath } from '@/lib/interop/fileHandle';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
@@ -299,8 +300,18 @@ function DirectoryView({
         // Finder-parity (2026-07-09): the SHARED <FileListRow> details list —
         // same header + column model + row height as the Recents list view
         // (Name · Where · Author · When). A folder's rows all live in the same
-        // folder, so the Where column stays empty; the file summary shows as the
-        // name subtitle instead.
+        // folder, so the Where column stays empty; the subtitle slot carries
+        // the per-row detail instead.
+        //
+        // ADR-587: that subtitle is the file's PATH, not its `summary`. The
+        // stored summary is a machine string — `f"Workspace write: {path}"`
+        // (services/primitives/workspace.py) — which the API already treats as
+        // a leak and strips on the Home slot (`_artifact_title`, "leaks paths
+        // to the operator"), but not on the tree endpoint. So the path was
+        // already on screen, in the wrong register, wrapped in machinery, and
+        // inconsistently ("Workspace write:" vs "Workspace edit:" vs nothing).
+        // Rendering the path plainly REPLACES that string — no new row, no new
+        // column, one fewer machine leak.
         <div className="overflow-hidden rounded-lg border border-border/60 mx-2 my-2">
           <FileListHeader />
           <div className="divide-y divide-border/40">
@@ -310,7 +321,7 @@ function DirectoryView({
                 name={child.name}
                 kind={child.type === 'folder' ? 'folder' : 'file'}
                 dnd={dnd ? { path: child.path, ...tileDnd(dnd, child) } : undefined}
-                subtitle={child.summary || undefined}
+                subtitle={workspaceRelPath(child.path)}
                 when={formatTimestamp(child.updated_at)}
                 author={
                   <span className="inline-flex items-center gap-1.5">

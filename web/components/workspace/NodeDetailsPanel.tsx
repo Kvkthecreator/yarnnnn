@@ -42,6 +42,8 @@ import {
 import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
 import { resolveHandlers } from '@/lib/file-types/handlers';
+import { CopyField } from '@/components/workspace/CopyField';
+import { relPath } from '@/lib/interop/fileHandle';
 import { ensureKindApps, extractTemplate, knownKind, rememberKind } from '@/lib/file-types';
 import type { WorkspaceTreeNode } from '@/types';
 
@@ -151,8 +153,11 @@ function FolderDetails({
 function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3 py-1">
-      <span className="w-24 shrink-0 text-[11px] text-muted-foreground">{label}</span>
-      <span className="min-w-0 flex-1 text-[12px] text-foreground">{children}</span>
+      <span className="w-24 shrink-0 pt-0.5 text-[11px] text-muted-foreground">{label}</span>
+      {/* ADR-587: a div, not a span — the value slot now carries block content
+          (the copyable path field), and a div inside a span is invalid HTML
+          that React will render but the parser may reflow. */}
+      <div className="min-w-0 flex-1 text-[12px] text-foreground">{children}</div>
     </div>
   );
 }
@@ -193,7 +198,13 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
 
   const canOrganize = operatorCanOrganize(node.path);
   const kind = describeKind(node.path);
-  const location = node.path.replace(/\/[^/]*$/, '') || '/';
+  // ADR-587: the file's NAME, not the folder it sits in. This row previously
+  // stripped the filename (`replace(/\/[^/]*$/, '')`) and rendered the parent
+  // directory — styled like a path field, muted, uncopyable, and not actually
+  // the path. The workspace-relative form is the one the operator pastes back
+  // (quick-open, chat, `open` on a connector); the `/workspace/` root is
+  // implied by being here at all.
+  const reference = relPath(node.path);
 
   // ADR-422 D4: the plain-language "why" for a not-freely-editable file. For
   // agent-authored, name the most-recent contributor (the head author).
@@ -213,8 +224,16 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
         <p className="mb-2 text-[11px] leading-snug text-muted-foreground">{stateDescriptor}</p>
       )}
       <PropRow label="Kind">{kind}</PropRow>
-      <PropRow label="Location">
-        <span className="break-all font-mono text-[11px] text-muted-foreground">{location}</span>
+      {/* ADR-587: the path is an AFFORDANCE, not metadata. It is the file's
+          name everywhere outside this surface — in a connector's `open`, in a
+          chat message, in the quick-open box. The operator can no longer be
+          expected to retype it from a tooltip. */}
+      <PropRow label="Path">
+        <CopyField
+          value={reference}
+          label="Workspace path"
+          hint="Paste it anywhere — here, or to an AI on your workspace."
+        />
       </PropRow>
       {/* ADR-400 Amendment 1: what the operator can DO here (organize). Content
           editing routes through chat for every file (that boundary holds); this

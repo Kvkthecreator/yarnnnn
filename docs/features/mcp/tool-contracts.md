@@ -290,10 +290,25 @@ sends nothing outbound — ADR-404). Gate parity with the cockpit origin
 
 ## Shared conventions
 
-- **The reference grammar** (ADR-512 D5): `yarnnn://workspace/{path}` (the
-  canonical handle; Studio's "Copy AI reference" emits it), `/workspace/{path}`
-  (the ledger's absolute form), or a bare workspace-relative path. One parser
-  (`parse_file_reference`) owns it.
+- **The reference grammar** (ADR-512 D5, completed by ADR-587):
+  `yarnnn://workspace/{path}` (the canonical handle), `/workspace/{path}` (the
+  ledger's absolute form), or a bare workspace-relative path — three honest
+  spellings of one name.
+
+  **One implementation per runtime, and both directions.** Python:
+  `parse_file_reference` / `format_file_reference` (`services/mcp_composition.py`).
+  Browser: `parseFileReference` / `formatFileReference` / `formatAiReference`
+  (`web/lib/interop/fileHandle.ts`). The two are held in lockstep by
+  `api/test_adr587_handle_grammar_parity.py`, which DRIVES both over one table
+  — refusals included — rather than comparing their source; a grammar that
+  differs on `..` between the two halves is a security question, not a style
+  one, and that is precisely what the falsification run caught.
+
+  Before ADR-587 the browser only EMITTED the handle (Studio, Text) and could
+  not parse one, so a name the app handed to an external AI could not be
+  brought back. Every door now speaks the grammar in both directions: the app
+  emits it (Studio/Text "Copy AI reference", the Files path field), and accepts
+  it (the Files arrival door, Launcher quick-open).
 - **Attribution**: every revision names its author. `history` returns
   `authored_by` per revision; `list` returns the head author per file. This is
   the mechanism that makes cross-LLM contribution visible — the host can say

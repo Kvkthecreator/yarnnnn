@@ -24,9 +24,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Download, Link2, Printer, Share2, Upload } from 'lucide-react';
 import { printProse } from '@/components/text/printProse';
 import { cn } from '@/lib/utils';
-
-const WORKSPACE_PREFIX = '/workspace/';
-const relPath = (p: string) => (p.startsWith(WORKSPACE_PREFIX) ? p.slice(WORKSPACE_PREFIX.length) : p);
+import { formatAiReference } from '@/lib/interop/fileHandle';
 
 export function TextExport({
   share,
@@ -75,11 +73,7 @@ export function TextExport({
   };
 
   const copyReference = async () => {
-    await navigator.clipboard.writeText(
-      `"${name}" — yarnnn://workspace/${relPath(path)} ` +
-        `(with the yarnnn connector, \`open\` this reference to read the exact ` +
-        `current version; \`history\` shows who changed it and when).`,
-    );
+    await navigator.clipboard.writeText(formatAiReference(path, name));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };

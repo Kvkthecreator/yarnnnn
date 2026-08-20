@@ -52,7 +52,7 @@
 //   /overview      → /recurrence                       (ADR-205 F2; ADR-297 dissolved /work → Cadence; renamed → Recurrence 2026-06-03)
 //   /cadence       → /recurrence                       (2026-06-03 — surface rename; substrate already spoke "recurrence")
 //   /workfloor     → /notifications?notifications.pane=understand (ADR-163 → narrative home)
-//   /memory        → /files?path=...IDENTITY.md        (ADR-215 R3)
+//   /memory        → /files?files.path=...IDENTITY.md   (ADR-215 R3; ADR-587 — the param is slug-namespaced)
 //   (/context is NO LONGER a stub — ADR-370 reclaimed it as the boundary composition surface; the prior /context → /files stub is deleted.)
 //   /system        → /settings                         (system tab removed 2026-05-02)
 //   /operation     → /mandate                          (ADR-297 — atomic surface; routes.ts doc corrected 2026-05-30)

@@ -31,6 +31,7 @@ import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
+import { formatAiReference, relPath as relPathShared } from '@/lib/interop/fileHandle';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useDeclareFocus, type SurfaceFocus } from '@/lib/shell/useSurfaceFocus';
 import { LearnFromFlowModal } from './LearnFromFlowModal';
@@ -191,10 +192,8 @@ interface TemplateInfo {
   description: string;
 }
 
-/** Strip the /workspace/ prefix for display + comparison. */
-function relPath(p: string): string {
-  return p.replace(/^\/workspace\//, '');
-}
+/** Strip the /workspace/ prefix for display + comparison (ADR-587: one grammar). */
+const relPath = relPathShared;
 
 function baseName(p: string): string {
   const parts = p.split('/');
@@ -3264,14 +3263,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // host guidance.
   const copyAiReference = useCallback(async () => {
     if (!artifactPath) throw new Error('No artifact open');
-    const rel = relPath(artifactPath);
-    const name = artifactDisplayName;
     await navigator.clipboard.writeText(
-      `"${name}" — yarnnn://workspace/${rel} ` +
-        `(with the yarnnn connector, \`open\` this reference to read the exact ` +
-        `current version; \`trace\` shows who changed it and when).`,
+      formatAiReference(artifactPath, artifactDisplayName),
     );
-  }, [artifactPath]);
+  }, [artifactPath, artifactDisplayName]);
   // Duplicate — read the open artifact, write it at a -copy sibling through
   // the one mechanical door (never overwrite an existing copy), open the copy.
   // ADR-514 D1: the kernel owns duplicate. The pre-514 body lived here — a

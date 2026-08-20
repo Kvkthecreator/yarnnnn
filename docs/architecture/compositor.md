@@ -144,6 +144,23 @@ URL). Staleness is handled by the drain plus an honest ephemeral classification,
 never by a guard that can outvote the live signal. Gate:
 `web/scripts/gates/files_arrival_door.mjs`.
 
+**An arrival door NORMALIZES before it opens** (ADR-587). The door is where a
+name from OUTSIDE the app enters — a link someone was sent, a path pasted back
+from an external AI — so it is where the ADR-512 D5 reference grammar is
+applied, via `toWorkspacePath` (`web/lib/interop/fileHandle.ts`). Files
+previously matched `workspace_files.path` verbatim, so of the honest spellings
+of one name only the absolute `/workspace/…` form resolved; a
+`yarnnn://workspace/…` handle or a bare relative path fell through to an empty
+selection, and the surface then rendered its Recents — which looks like a
+working page. A refusal (another scheme, `..`) opens nothing rather than
+guessing.
+
+**A surface param is slug-namespaced** (`scopeParamKey`: `files.path`, not
+`path`). The reconciler only adopts params matching the foreground slug and
+leaves the rest untouched, so a bare param is not a fallback — it is never read
+at all. ADR-587 found three emitters that had been dead links for this reason.
+Gate: `api/test_adr587_handle_grammar_parity.py` (D3).
+
 **Agent-composed Applications** — the orchestration layer authoring a new
 Application by writing an application-manifest *file* in the substrate
 (everything-is-a-file extends to app definitions; the compositor reads
