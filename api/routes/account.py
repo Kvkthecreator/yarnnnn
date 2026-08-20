@@ -48,6 +48,7 @@ from services.supabase import UserClient, get_service_client
 from services.workspace_purge import (
     _purge_scope,
     resolve_purge_workspace,
+    WorkspaceResolutionError,
     _collect_blob_shas,
     _delete_rows,
     _delete_workspace_files,
@@ -133,6 +134,21 @@ def _count_workspace_paths(
         return result.count or 0
     except Exception:
         return 0
+
+
+def _resolve_or_deny(user_id: str) -> Optional[str]:
+    """Resolve the workspace for a DESTRUCTIVE act, or refuse the act.
+
+    `None` legitimately means "this user has no workspace" (N=1) and stays
+    allowed. A resolution FAILURE is not that — it used to collapse into the
+    same None, which let the authority gate wave the act through while the
+    delete scope silently narrowed to `user_id`. Refuse instead: an act that
+    destroys every member's work may not be authorized by an error.
+    """
+    try:
+        return resolve_purge_workspace(user_id)
+    except WorkspaceResolutionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def _require_workspace_clear_authority(user_id: str, workspace_id: Optional[str]) -> None:
@@ -331,7 +347,13 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         # purges (ADR-476) will actually delete — workspace content counts by
         # workspace, with user_id as the N=1 fallback (_purge_scope). Account
         # objects (platform_connections, ADR-425) stay user-keyed.
-        ws = resolve_purge_workspace(user_id)
+        # Read-only preview: a resolution failure degrades to user_id scoping
+        # rather than 500ing the pane. Only the DESTRUCTIVE paths below treat a
+        # failure as a denial.
+        try:
+            ws = resolve_purge_workspace(user_id)
+        except WorkspaceResolutionError:
+            ws = None
 
         def _count_ws(table: str, *, optional: bool = False) -> int:
             try:
@@ -434,7 +456,7 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     # ADR-476 D1/D2: work history is WORKSPACE content — clearing it destroys
     # every member's run records and outputs, so it is an owner-grade act and
     # is scoped to the workspace rather than to the caller's own rows.
-    ws = resolve_purge_workspace(user_id)
+    ws = _resolve_or_deny(user_id)
     _require_workspace_clear_authority(user_id, ws)
 
     try:
@@ -538,7 +560,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     # ADR-476 D2: L2 destroys every member's work in a shared workspace, so it
     # is owner-grade. The scoping itself (D1) lives in the purge service, which
     # resolves the workspace once for the whole sequence.
-    _require_workspace_clear_authority(user_id, resolve_purge_workspace(user_id))
+    _require_workspace_clear_authority(user_id, _resolve_or_deny(user_id))
 
     try:
         client = get_service_client()
@@ -618,7 +640,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
         # ADR-209: delete revisions under these paths first (FK order).
         # ADR-501: workspace-scoped (ADR-476 D1) — platform context is
         # workspace content; the chain and files go by workspace, not caller.
-        ws = resolve_purge_workspace(user_id)
+        ws = _resolve_or_deny(user_id)
         context_files_deleted = 0
         revision_files_deleted = 0
         for platform_dir in ("/workspace/context/slack/", "/workspace/context/notion/", "/workspace/context/github/"):

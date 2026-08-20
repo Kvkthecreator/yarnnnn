@@ -278,8 +278,13 @@ def test_purge_preview_and_l3_workspace_scoped():
     # The residual helpers thread workspace_id.
     assert "def _count_workspace_paths(\n    client, user_id: str, path_prefix: str, workspace_id" in src
     assert "def _delete_workspace_file_versions_by_path(\n    client, user_id: str, path_prefix: str, workspace_id" in src
+    # The L3 sweep must be WORKSPACE-scoped. Match the resolution either way it
+    # is spelled — directly, or via `_resolve_or_deny` (the destructive-path
+    # wrapper that turns a resolution FAILURE into a refusal instead of into
+    # "N=1, allow"). Pinning one spelling reads the hardening as a regression.
     l3 = src.index("async def clear_integrations")
-    assert "resolve_purge_workspace" in src[l3: l3 + 3000]
+    l3_window = src[l3: l3 + 3000]
+    assert "resolve_purge_workspace" in l3_window or "_resolve_or_deny" in l3_window
 
 
 def test_principal_roster_binding_aware():

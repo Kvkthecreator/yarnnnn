@@ -801,7 +801,14 @@ def _require_permadelete_authority(user_id: str) -> Optional[str]:
     from services.workspace_purge import resolve_purge_workspace
     from services.principal_grants import has_workspace_clear_authority
 
-    ws = resolve_purge_workspace(user_id)
+    # A resolution FAILURE must not read as "N=1, allow" — that is the
+    # fail-open shape ADR-476's gate had. Genuine absence (None) stays allowed.
+    from services.workspace_purge import WorkspaceResolutionError
+
+    try:
+        ws = resolve_purge_workspace(user_id)
+    except WorkspaceResolutionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if ws and not has_workspace_clear_authority(user_id, ws):
         raise HTTPException(
             status_code=403,

@@ -193,7 +193,11 @@ def purge_workspace(client: Any, user_id: str, workspace_id: str) -> dict:
     try:
         from services.workspace_purge import purge_l2_workspace
 
-        deleted.update(purge_l2_workspace(client, user_id))
+        # ADR-578: pass the workspace BEING purged. Without it the content
+        # phase re-resolved the caller's home workspace while phases 2 and 3
+        # used this argument — so purging any non-home workspace wiped the
+        # wrong one's files.
+        deleted.update(purge_l2_workspace(client, user_id, workspace_id))
     except Exception as exc:  # noqa: BLE001 — continue to the blocking sweep
         logger.warning("[ADR-578] content purge partial for %s: %s", workspace_id, exc)
 

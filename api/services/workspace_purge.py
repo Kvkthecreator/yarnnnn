@@ -60,20 +60,36 @@ def _purge_scope(query: Any, user_id: str, workspace_id: Optional[str]) -> Any:
     return query.eq("user_id", user_id)
 
 
+class WorkspaceResolutionError(Exception):
+    """Resolution FAILED — distinct from "this user has no workspace".
+
+    Both used to collapse into ``None``, and ``None`` means two incompatible
+    things to the callers: the authority gate reads it as "N=1, allow" and the
+    delete scope reads it as "fall back to user_id". So a transient resolution
+    failure simultaneously granted owner-grade authority and silently narrowed a
+    workspace-wide wipe — fail-open on permission, fail-quiet on blast radius.
+    A genuine absence still returns None (the real N=1 case); a failure raises.
+    """
+
+
 def resolve_purge_workspace(user_id: str) -> Optional[str]:
     """The workspace a purge for this user acts on.
 
-    Uses the same resolution spine as every read path (ADR-373). Best-effort:
-    None falls the callers back to `user_id` scoping, which is today's behavior
-    and correct at N=1 — a purge must never be blocked by a resolution failure.
+    Uses the same resolution spine as every read path (ADR-373). Returns None
+    only when the user genuinely has no workspace — the N=1 case the callers
+    handle by scoping to `user_id`. Raises WorkspaceResolutionError when
+    resolution itself fails, so a destructive act is never authorized by an
+    error it could not see.
     """
     try:
         from services.workspace_context import effective_workspace_id
 
         return effective_workspace_id(user_id, None)
-    except Exception as exc:  # noqa: BLE001 — best-effort by design
+    except Exception as exc:  # noqa: BLE001 — re-raised as a typed failure
         logger.warning(f"[PURGE] workspace resolve failed for {user_id}: {exc}")
-        return None
+        raise WorkspaceResolutionError(
+            "Could not determine which workspace this action would clear."
+        ) from exc
 
 
 # =============================================================================
@@ -296,7 +312,9 @@ async def capture_active_program_slug(client: Any, user_id: str) -> Optional[str
 # L2 purge sequence + the composed clear-workspace entry point
 # =============================================================================
 
-def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
+def purge_l2_workspace(
+    client: Any, user_id: str, workspace_id: Optional[str] = None
+) -> dict[str, int]:
     """The L2 ("clear workspace") purge sequence — workspace-scoped wipe.
 
     Verbatim port of `routes/account.py::clear_workspace` Phase 1, preserving
@@ -317,7 +335,14 @@ def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
     # delete to it. Without this, a purge in a multi-member workspace deletes
     # only the rows the purging user happened to author — the workspace reports
     # "cleared" and every other member's files survive.
-    ws = resolve_purge_workspace(user_id)
+    #
+    # ADR-578: a caller that already KNOWS the workspace (the lifecycle purge,
+    # which takes it as a path parameter) passes it. Re-resolving there read the
+    # CALLER's home workspace instead of the one being purged, so purging any
+    # non-home workspace — or purging as a `workspace:clear` grantee — wiped
+    # content from the wrong one while phases 2 and 3 correctly used the
+    # argument. Latent until deliberate genesis made multiple workspaces normal.
+    ws = workspace_id or resolve_purge_workspace(user_id)
     logger.info(f"[PURGE] L2 for user {user_id} scoped to workspace {ws or '(N=1 fallback)'}")
 
     # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
@@ -352,8 +377,12 @@ def purge_l2_workspace(client: Any, user_id: str) -> dict[str, int]:
     deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True, workspace_id=ws)
     deleted["agents"] = _delete_rows(client, "agents", user_id, workspace_id=ws)
     # ADR-194 Reviewer proposal queue — prior proposals must not survive reset
+    # `optional=True` mirrors the STATS side (`_count_ws("action_proposals",
+    # optional=True)`): the count swallowed a missing/erroring table and showed
+    # "0 pending proposals", while the delete raised — so the UI promised a
+    # no-op and the clear 500'd. Count and delete must tolerate the same things.
     deleted["action_proposals"] = _delete_rows(
-        client, "action_proposals", user_id, workspace_id=ws
+        client, "action_proposals", user_id, optional=True, workspace_id=ws
     )
     deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id, workspace_id=ws)
     deleted["activity_log"] = _delete_rows(client, "activity_log", user_id, workspace_id=ws)
