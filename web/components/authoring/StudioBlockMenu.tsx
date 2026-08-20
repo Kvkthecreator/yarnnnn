@@ -192,7 +192,12 @@ function Flyout({
   useLayoutEffect(() => {
     if (!open || inline) { setPos(null); return; }
     const el = panelRef.current;
-    const row = el?.parentElement;
+    // Anchor on the ROW BUTTON, not the wrapper. The wrapper's rect happens to
+    // equal the button's only because this panel is `fixed` and so contributes
+    // no height — an invariant held by a CSS property declared elsewhere, which
+    // is exactly the kind of coupling that breaks silently later. Ask for the
+    // element we actually mean.
+    const row = el?.parentElement?.querySelector(':scope > button');
     if (!el || !row) return;
     const r = row.getBoundingClientRect();
     const { width, height } = el.getBoundingClientRect();
