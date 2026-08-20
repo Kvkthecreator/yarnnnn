@@ -68,6 +68,7 @@ import {
   type WindowState,
   type WindowStateMap,
 } from './surface-preferences';
+import { resolveForegroundPathname } from './route-sync';
 import { WINDOW_Z_MAX } from './z-tiers';
 
 // ---------------------------------------------------------------------------
@@ -132,15 +133,20 @@ export interface SurfacePreferences {
    * manager) owns navigation; the browser router is transport, not
    * control (ADR-222: compositor IS the window manager).
    *
-   * Behaviour:
-   *   - bare slug: foregroundSurface(slug). URL stays as-is per D19.2
-   *     (the Dock indicator dot is the canonical "what's foregrounded"
-   *     signal, not the URL).
-   *   - with params: foregroundSurface(slug) AND write the URL
-   *     (`/{route}?k=v`). Required because atomic surfaces read their
-   *     deep-link state from `useSearchParams()` (cadence reads
-   *     `?task=`, agents reads `?agent=`), NOT from window-manager
-   *     state — so the param only reaches the target window via the URL.
+   * Behaviour (both cases route through foregroundSurface →
+   * reconcileUrl, which owns the whole address bar — pathname AND query):
+   *   - bare slug: the pathname flips to the target surface's route and
+   *     the target's REMEMBERED params are re-applied. D19.2 previously
+   *     held the pathname still here ("the Dock indicator dot is the
+   *     canonical what's-foregrounded signal, not the URL"); that is
+   *     WITHDRAWN as of 2026-08-20 — it left a stale pathname that the
+   *     cold-load sync then trusted as intent, so every refresh landed on
+   *     the last param-bearing navigate's surface. See reconcileUrl.
+   *   - with params: same, plus the delivered params are written. Required
+   *     because atomic surfaces read their deep-link state from
+   *     `useSearchParams()` (cadence reads `?task=`, agents reads
+   *     `?agent=`), NOT from window-manager state — so the param only
+   *     reaches the target window via the URL.
    *
    * Returns foregroundSurface's boolean (always true when a userId is
    * present — the open soft-cap recedes the LRU window rather than
@@ -494,9 +500,12 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // WindowState.params, lossless across backgrounding) merged with any just-
   // delivered params (a pane selection / a navigate). The merged set is also
   // persisted back into WindowState[foregroundSlug].params so the next
-  // foreground restores it. Pathname is preserved (the `/desktop` baseline,
-  // ADR-358 D5). Singular Implementation — the three prior scattered
-  // replaceState param-write sites all route through here.
+  // foreground restores it. Singular Implementation — the three prior
+  // scattered replaceState param-write sites all route through here.
+  //
+  // 2026-08-20 — this ALSO owns the pathname (it did not, pre-fix; see the
+  // block above the replaceState call for the operator-observed bug and the
+  // D19.2 withdrawal). Address-bar honesty is one property, not two.
   const reconcileUrl = useCallback(
     (foregroundSlug: string, deliverParams?: Record<string, string>) => {
       if (typeof window === 'undefined' || !userId) return;
@@ -558,7 +567,36 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         if (v != null && v !== '') url.searchParams.set(scopeParamKey(foregroundSlug, k), v);
       }
 
-      window.history.replaceState(null, '', url.pathname + (url.search || '') + url.hash);
+      // 2026-08-20 — the pathname is part of the honest address bar, not just
+      // the query. Pre-fix reconcileUrl preserved `url.pathname` verbatim, so
+      // a bare foreground (dock click, launcher, body-click raise) flipped the
+      // window while the address bar kept naming the PREVIOUS surface. That
+      // was D19.2 as written ("the Dock indicator dot is the canonical
+      // what's-foregrounded signal, not the URL") — but it contradicts the
+      // cold-load sync in AuthenticatedLayout, which treats the pathname as
+      // EXPLICIT INTENT and foregrounds whatever it names (deliberately
+      // outranking the remembered posture, 2026-08-05). Both cannot hold: a
+      // stale pathname that the reload trusts is a trap. Operator-observed
+      // (KVK 2026-08-20): every refresh landed on Settings — the last surface
+      // reached by a param-bearing navigate — regardless of what was actually
+      // on screen.
+      //
+      // The repair makes the pathname follow the foreground, so a refresh
+      // reloads what you were looking at and the URL is genuinely shareable.
+      // The decision (incl. the route-less and already-under-route guards) is
+      // extracted pure into route-sync.resolveForegroundPathname so a gate can
+      // EXECUTE it rather than grep for it — same discipline as its sibling
+      // resolveRouteSurface. replaceState (not push): a foreground is not a
+      // Back-button stop, and Next 14.2 patches replaceState so the router
+      // stays in sync without firing a navigation event (the same transport
+      // setSurfaceParams uses).
+      const nextPathname = resolveForegroundPathname(
+        url.pathname,
+        foregroundSlug,
+        surfaces,
+      );
+
+      window.history.replaceState(null, '', nextPathname + (url.search || '') + url.hash);
 
       // Persist the merged params so backgrounding doesn't lose them (incl. an
       // adopted cold-load deep-link). Skip the write when there's nothing to
@@ -747,12 +785,13 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   const navigateToSurface = useCallback(
     (slug: string, params?: Record<string, string>): boolean => {
       // Thin pass-through: params flow into foregroundSurface, which reconciles
-      // the URL to show ONLY the foregrounded surface's params (honest address
-      // bar — 2026-06-25) and persists them into WindowState. Pathname is
-      // preserved (the `/desktop` baseline, ADR-358 D5). Bare navigation (no
-      // params) still restores the target's REMEMBERED params via reconcile,
-      // so the URL is correct even without a delivered param (the prior bug:
-      // bare nav left the URL untouched, so a stale param lingered).
+      // the whole address bar — pathname flipped to the target surface's route
+      // (2026-08-20) plus ONLY the foregrounded surface's params (honest
+      // address bar — 2026-06-25) — and persists them into WindowState. Bare
+      // navigation (no params) still restores the target's REMEMBERED params
+      // via reconcile, so the URL is correct even without a delivered param
+      // (the prior bug: bare nav left the URL untouched, so a stale param
+      // lingered).
       return foregroundSurface(slug, params);
     },
     [foregroundSurface]

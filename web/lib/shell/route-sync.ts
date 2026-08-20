@@ -46,3 +46,43 @@ export function resolveRouteSurface(
   });
   return match?.slug ?? null;
 }
+
+/**
+ * Resolve the pathname the address bar should carry when `foregroundSlug`
+ * becomes the foreground (2026-08-20). Extracted pure — same reason
+ * `resolveRouteSurface` above is: this is a decision a gate must be able to
+ * EXECUTE, not read.
+ *
+ * THE BUG THIS CLOSES (operator-observed, KVK 2026-08-20): `reconcileUrl`
+ * rewrote only the query string and preserved `url.pathname` verbatim, per
+ * ADR-297 D19.2 ("the Dock indicator dot is the canonical what's-foregrounded
+ * signal, not the URL"). So a bare foreground — dock click, launcher, raising
+ * a window by clicking its body — flipped the window while the address bar
+ * kept naming the surface you left. That was survivable until the cold-load
+ * sync (AuthenticatedLayout, 2026-08-05) made the pathname EXPLICIT INTENT
+ * that outranks the remembered posture: refresh then re-foregrounded whatever
+ * the stale pathname named. Every refresh landed on Settings — the last
+ * surface reached by a param-bearing navigate. D19.2 is withdrawn: the two
+ * rules cannot both hold, and a URL the reload trusts must be kept true.
+ *
+ * Two cases keep the current pathname:
+ *   - the target has no usable route (a route-less roster row — the seeded
+ *     chrome-only composition, or a program row that omitted its route). We
+ *     never write an empty path.
+ *   - the pathname is ALREADY under the target route (exact, or a deeper
+ *     sub-path like `/files/sub`). The deeper path is more specific than the
+ *     bare route; rewriting would discard it.
+ */
+export function resolveForegroundPathname(
+  currentPathname: string,
+  foregroundSlug: string,
+  surfaces: RouteSurfaceEntry[],
+): string {
+  const target = routeOf(
+    surfaces.find((s) => s.slug === foregroundSlug) ?? { slug: '', route: '' },
+  );
+  if (!target) return currentPathname;
+  if (currentPathname === target) return currentPathname;
+  if (currentPathname.startsWith(target + '/')) return currentPathname;
+  return target;
+}
