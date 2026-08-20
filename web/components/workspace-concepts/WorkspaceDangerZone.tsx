@@ -39,6 +39,9 @@ import { api } from "@/lib/api/client";
 import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
 import { WorkspaceDeleteCard } from "./WorkspaceDeleteCard";
 import { WorkspaceExportCard } from "./WorkspaceExportCard";
+// Cross-door links go through the window manager, not a hard navigation
+// (2026-08-20) — see SurfaceLink's docblock for the two-step this avoids.
+import { SurfaceLink } from "@/components/shell/SurfaceLink";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -238,13 +241,13 @@ export function WorkspaceDangerZone() {
           that isn't there. */}
       <p className="text-xs text-muted-foreground pt-2 border-t border-border">
         Looking for account-level actions? Your own platform connections live in{" "}
-        <a href="/settings?settings.pane=connectors" className="underline">
+        <SurfaceLink to="settings" params={{ pane: "connectors" }} className="underline">
           User Settings → Connectors
-        </a>
+        </SurfaceLink>
         ; resetting or deactivating your account lives in{" "}
-        <a href="/settings?settings.pane=account" className="underline">
+        <SurfaceLink to="settings" params={{ pane: "account" }} className="underline">
           User Settings → Account
-        </a>
+        </SurfaceLink>
         .
       </p>
     </div>

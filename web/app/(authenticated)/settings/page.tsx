@@ -26,6 +26,11 @@ import { useNarrative } from "@/contexts/NarrativeContext";
 // ADR-416, superseding ADR-347's account-door placement). The shared
 // SettingsPaneShell renders the sidebar + pane switch (ADR-341 D5).
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
+// The sanctioned cross-surface link (2026-06-25). These two point at the
+// OTHER Settings door; as raw <a href> they hard-navigated, which remounted
+// the SPA and painted THIS surface before the pathname sync foregrounded the
+// target — the operator-visible two-step. See SurfaceLink's docblock.
+import { SurfaceLink } from "@/components/shell/SurfaceLink";
 // ADR-425 — the Connectors pane (a human's platform credentials) lives in the
 // account door now. The section is location-agnostic; it was formerly mounted
 // under Workspace Settings → Perception.
@@ -377,13 +382,14 @@ export default function SettingsPage() {
                 scope="mine"
                 readOnly
                 footer={
-                  <a
-                    href="/workspace-settings?workspace-settings.pane=members"
+                  <SurfaceLink
+                    to="workspace-settings"
+                    params={{ pane: "members" }}
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                   >
                     Manage access for everyone in the workspace
                     <ArrowRight className="h-3 w-3" />
-                  </a>
+                  </SurfaceLink>
                 }
               />
             </div>
@@ -452,12 +458,13 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground mb-6">
                 Clearing work history or the whole workspace affects every
                 member&apos;s work, so it lives in{" "}
-                <a
-                  href="/workspace-settings?workspace-settings.pane=danger"
+                <SurfaceLink
+                  to="workspace-settings"
+                  params={{ pane: "danger" }}
                   className="underline"
                 >
                   Workspace Settings → Danger Zone
-                </a>
+                </SurfaceLink>
                 .
               </p>
 

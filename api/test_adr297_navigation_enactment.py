@@ -469,6 +469,55 @@ def test_fe_be_slug_sync() -> None:
     )
 
 
+def test_no_raw_anchor_to_a_surface() -> None:
+    """A cross-surface link must go through the window manager.
+
+    2026-08-20, operator-observed: clicking "Workspace Settings -> Danger Zone"
+    from User Settings produced a visible TWO-STEP — User Settings painted
+    first, THEN the Danger Zone pane appeared. Cause: a raw
+    `<a href="/workspace-settings?...">`. A plain anchor is a document load:
+    the SPA unmounts, remounts, restores the REMEMBERED foreground (the door
+    you left), paints it, and only then does the cold-load pathname sync
+    foreground the target. Four such anchors existed, all between the two
+    Settings doors.
+
+    `SurfaceLink` exists for exactly this and its docblock names the symptom:
+    "that's the 'inconsistent redirect' operators felt: some launches
+    foregrounded a window cleanly, others hard-navigated". It renders a real
+    <a> (middle-click / cmd-click / a11y intact) and intercepts only the plain
+    left-click.
+
+    Banned: a literal `href="/{kernel-surface}"` in live component code.
+    Allowed: SurfaceLink's OWN computed href, redirect stubs (server
+    transport), and marketing/public pages (outside the OS shell).
+    """
+    print("\n[5] no raw <a href> to a kernel surface (use SurfaceLink)")
+
+    slug_alt = "|".join(KERNEL_SLUGS)
+    hits = _grep(
+        rf"""href=[`'\"]/(?:{slug_alt})[`'\"?]""",
+        "app", "components", "lib", "hooks", "contexts",
+    )
+
+    offenders = []
+    for h in hits:
+        path = h.split(":", 1)[0]
+        # SurfaceLink builds its own native href — that IS the sanctioned path.
+        if path.endswith("SurfaceLink.tsx"):
+            continue
+        # Public/marketing pages live outside the authenticated shell: a real
+        # navigation is correct there (no window manager to route through).
+        if "/app/blog/" in path or "/app/(marketing)/" in path:
+            continue
+        offenders.append(h)
+
+    _assert(
+        not offenders,
+        "cross-surface links route through SurfaceLink, not a raw anchor. "
+        f"RAW ANCHORS: {offenders or 'none'}",
+    )
+
+
 # =============================================================================
 # Run
 # =============================================================================
@@ -479,7 +528,9 @@ if __name__ == "__main__":
     test_no_bare_cross_surface_router_push()
     test_no_dead_nav_targets()
     test_fe_be_slug_sync()
-    test_no_dead_nav_targets()
+    # 2026-08-20 — `test_no_dead_nav_targets()` was listed TWICE here, so its
+    # findings were reported (and counted) twice. One call.
+    test_no_raw_anchor_to_a_surface()
 
     print(f"\n{'='*60}")
     print(
