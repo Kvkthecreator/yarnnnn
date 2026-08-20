@@ -20,7 +20,6 @@ import {
 } from "@/lib/connectors/registry";
 import { ConnectorCard } from "./ConnectorCard";
 import { ManageConnectionSubsurface } from "./ManageConnectionSubsurface";
-import { RetentionDial } from "./RetentionDial";
 
 interface Integration {
   id: string;
@@ -344,9 +343,15 @@ export function ConnectedIntegrationsSection({
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Retention dial — workspace-level (ADR-392 D8). One window for all
-              connectors' raw lanes. Rendered on the freshness-bearing pane only. */}
-          {showFreshness && captureEnabled && <RetentionDial />}
+          {/* The RetentionDial was REMOVED here (2026-08-20). It was gated on
+              `captureEnabled`, which ADR-591 pinned permanently False, so it
+              could never render. Worse, its copy promised content is "pruned"
+              on a window — `prune_raw_lane` is deleted and NOTHING sweeps the
+              lane, which is also what the privacy policy states ("Nothing
+              expires on a schedule"). A dial for a timer that does not run is
+              a promise the system cannot keep. The backend routes + the tier
+              ceiling survive untouched, pending an ADR-392 decision on whether
+              retention returns as a real mechanism. */}
 
           {/* Connected connectors. OAuth+selection ones are drill-in ROWS (click
               → the deep Manage subsurface); api-key ones (no selection) keep the

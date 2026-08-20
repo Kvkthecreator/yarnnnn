@@ -288,8 +288,7 @@ async function request<T>(
       // required so every fetched surface rebinds to the new workspace" —
       // `UserMenu.tsx`), and both invite-accept flows obey it. This path was
       // the one rebind that didn't, and ~10 mount-only consumers are written
-      // against the reload invariant: GrantGate write affordances (which fail
-      // OPEN on a stale roster), WorkspaceDangerZone's owner-only destructive
+      // against the reload invariant: WorkspaceDangerZone's owner-only destructive
       // verbs, WorkspaceMembersCard's revoke menus, the shell window state and
       // attention cursor — the last two WRITE the old workspace's values into
       // the new workspace's server-side member_state key, so the corruption
@@ -2719,7 +2718,10 @@ export const api = {
         raw_balance_usd: number | null;
         allowance_usd: number | null;
         topup_balance_usd: number | null;
-        tier: "free" | "starter" | "pro";
+        // `enterprise` is a real TIER_CONFIG key that `normalize_tier` can
+        // return, so the union must admit it — a value the type says is
+        // impossible still arrives at runtime, it just stops being checked.
+        tier: "free" | "starter" | "pro" | "enterprise";
         is_subscriber: boolean;
         subscription_plan: string | null;
         next_refill: string | null;
@@ -2911,6 +2913,12 @@ export const api = {
 
     // ADR-392 D8: the workspace-level raw-capture retention window
     // (governance/_retention.yaml). One window for all connectors.
+    // NO FE CONSUMER since 2026-08-20 — the RetentionDial was removed
+    // (unreachable behind ADR-591's pinned flag, and its "pruned on a window"
+    // copy described a GC that no longer exists). Kept deliberately: the
+    // backend routes and the tier ceiling are live, so these are the ready
+    // wiring if ADR-392 restores retention as a real mechanism. Delete them
+    // if that decision goes the other way.
     getRetention: () =>
       request<{
         retention_days: number;

@@ -191,10 +191,18 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   // there, where the invite is actually authored.
   const onManageSeats = () => setPanel((p) => (p === "seats" ? null : "seats"));
 
+  // A tier NOT in the ladder (today: `enterprise`, which `normalize_tier` can
+  // return because it is a real TIER_CONFIG key) gives indexOf === -1, and
+  // `slice(0)` then offered Starter as an "upgrade" to an enterprise
+  // workspace. An unknown tier has no upgrade path by definition — offer none
+  // rather than the bottom of the ladder.
   const currentIndex = TIER_ORDER.indexOf(tier);
-  const upgradeTargets = TIER_ORDER.slice(currentIndex + 1).filter(
-    (t): t is "starter" | "pro" => t === "starter" || t === "pro",
-  );
+  const upgradeTargets =
+    currentIndex === -1
+      ? []
+      : TIER_ORDER.slice(currentIndex + 1).filter(
+          (t): t is "starter" | "pro" => t === "starter" || t === "pro",
+        );
 
   // ADR-491 D2 — a member without billing authority sees a calm pointer, not a
   // broken card. Rendered before anything else so no verb ever appears.
