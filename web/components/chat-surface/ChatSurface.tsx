@@ -520,27 +520,16 @@ export function ChatSurface() {
   useWindowCrumb(
     'chat',
     activeLane
-      ? showDetail
-        ? [
-            // Two levels deep: the lane, then its details. Clicking the lane
-            // crumb closes the drill-in (not the lane) — the crumb path IS the
-            // navigation, so each level must return to exactly its own level.
-            {
-              label: activeLane.name,
-              onClick: () => setParam({ detail: null }),
-            },
-            { label: 'Details' },
-          ]
-        : [
-            {
-              label: activeLane.name,
-              // Leaving the lane clears the drill-in too — otherwise `detail`
-              // survives in the URL and the NEXT lane opens straight into its
-              // participants list. A launch restores postures, never drill-ins
-              // (the shell lesson: remembered state with no clearing path).
-              onClick: () => setParam({ lane: null, detail: null }),
-            },
-          ]
+      ? [
+          {
+            label: activeLane.name,
+            // Leaving the lane clears the drill-in too — otherwise `detail`
+            // survives in the URL and the NEXT lane opens straight into its
+            // participants list. A launch restores postures, never drill-ins
+            // (the shell lesson: remembered state with no clearing path).
+            onClick: () => setParam({ lane: null, detail: null }),
+          },
+        ]
       : [],
   );
   // 2026-07-14 (operator ruling): Chat renders its OWN locator in-body — the
@@ -557,12 +546,21 @@ export function ChatSurface() {
   // list IS the navigator) suppresses; drilled-in mobile yields to the OS
   // strip's `‹ {lane}` back chip. Same conditional shape Studio already uses.
   //
-  // 2026-07-30: the participants drill-in is a THIRD level, and it hides the
-  // in-body conversation header that would otherwise say where you are. It
-  // renders its own back chip, but the OS strip carries the full crumb path
-  // (Chat › ‹lane› › Details), so yield to it whenever the drill-in is open —
-  // on any width, since the drill-in owns the whole pane at every size.
-  useSelfLocatedSurface('chat', !((isNarrow && activeLane) || showDetail));
+  // 2026-08-20 (operator ruling): the drill-in does NOT yield to the OS strip.
+  // The 2026-07-30 exception above traded one problem for a worse one: the
+  // strip is a shell-level sibling ABOVE the whole content row
+  // (ShellCompositor), so un-suppressing it on the Details screen alone
+  // inserted a full-width band that pushed the lane list down — the chrome
+  // moved when only the right pane had changed. A locator that reflows the
+  // layout it describes is a discontinuity, not a locator.
+  //
+  // It was also redundant three ways over: ConversationDetail renders its own
+  // back arrow (`onBack` → `detail: null`, the exact act the 'Details' crumb
+  // performed), names itself in its own header, and the lane list stays
+  // visible on desktop with the active lane highlighted. Suppression is
+  // therefore viewport-conditional ONLY — the mobile branch still yields,
+  // because there the drilled-in lane genuinely hides the list.
+  useSelfLocatedSurface('chat', !(isNarrow && activeLane));
 
   // ADR-558 D1 — ONE create path, and it sends an ENGINE. The two paths this
   // replaces (`createLane(agentSlug)` and `createConversationWithPerson`) were
