@@ -2305,7 +2305,37 @@ act(() => createRoot(host2).render(React.createElement(ProseCanvas, {
 })));
 const emptyBullets = host2.querySelectorAll('.cm-mdBullet').length;
 
+// ── ADR-575 D8.c — the divider as a GRABBABLE OBJECT ────────────────────
+// Driven on its own canvas so the selection dispatched below cannot disturb
+// the shared fixture the checks above read.
+const { EditorView: _EV } = require(WEB + '/node_modules/@codemirror/view');
+const RULE_DOC = 'Above\n\n---\n\nBelow\n';
+const host3 = dom.window.document.createElement('div');
+dom.window.document.body.appendChild(host3);
+let v3 = RULE_DOC;
+act(() => createRoot(host3).render(React.createElement(ProseCanvas, {
+  value: v3, onChange: (v) => { v3 = v; },
+})));
+const view3 = _EV.findFromDOM(host3.querySelector('.cm-editor'));
+const rule3 = () => host3.querySelector('.cm-mdRule');
+const ruleAt = RULE_DOC.indexOf('---');
+// An EMPTY inline-block has a 0px content box: its whole hit target is the
+// 1px border. A real inline content node is what makes it clickable.
+const ruleHasContentNode = !!(rule3() && rule3().firstChild);
+act(() => view3.dispatch({ selection: { anchor: ruleAt, head: ruleAt + 3 } }));
+const ruleSelectedOnCover = !!(rule3() && rule3().className.includes('cm-mdObjSelected'));
+act(() => view3.dispatch({ selection: { anchor: ruleAt + 1, head: ruleAt + 2 } }));
+const rulePartialNotSelected = !!(rule3() && !rule3().className.includes('cm-mdObjSelected'));
+act(() => view3.dispatch({ selection: { anchor: 0, head: 0 } }));
+const ruleDeselects = !!(rule3() && !rule3().className.includes('cm-mdObjSelected'));
+const ruleDocIdentical = v3 === RULE_DOC;
+
 console.log(JSON.stringify({
+  rule_has_content_node: ruleHasContentNode,
+  rule_selected_on_cover: ruleSelectedOnCover,
+  rule_partial_not_selected: rulePartialNotSelected,
+  rule_deselects: ruleDeselects,
+  rule_doc_identical: ruleDocIdentical,
   // No literal source markers survive in the rendered text.
   no_literal_dash: !/^- /m.test(txt),
   no_literal_ordered: !/^\d+\. /m.test(txt),
@@ -2382,6 +2412,51 @@ check("20g ⭐ the rule uses BORDER LONGHANDS, not the `borderTop` shorthand. "
       and "borderTopStyle" in _rule_block.group(1)
       and "borderTop:" not in _rule_block.group(1),
       f"rule block: {_rule_block.group(1).strip()[:160] if _rule_block else 'absent'!r}")
+
+# ── ADR-575 D8.c — the divider must be GRABBABLE, not merely visible ──────
+# Operator: "objects like divider aren't grabbable, or selectable via mouse
+# clicks." 20d/20g only ever asked whether the rule was DRAWN, and it was — so
+# 249 checks stayed green over a widget the mouse could not reach. Drawing an
+# object and being able to touch it are two different claims, and only the
+# first one was ever made.
+check("20p ⭐⭐⭐ THE DIVIDER HAS A HIT TARGET. The widget was a bare empty "
+      "<span> styled only with a top border, so its content box was 0px tall "
+      "and its ENTIRE clickable area was the 1px border — it rendered "
+      "perfectly and could not be clicked, dragged across, or selected. Every "
+      "OTHER widget here (bullet, task box, table) ships real content and was "
+      "hittable for free, which is exactly why this defect survived the gate: "
+      "20d asked 'is it drawn?', never 'can it be touched?'",
+      _d20.get("rule_has_content_node") is True, str(_d20)[:300])
+check("20q ⭐ …and it also needs HEIGHT, or the content node has nothing to "
+      "sit in. The band the rule visually occupies belongs to the rule, with "
+      "negative margins keeping the drawn line exactly where 20g put it — a "
+      "hit target that moves the pixels is a different bug, not a fix.",
+      _rule_block is not None
+      and "height" in _rule_block.group(1)
+      and "marginTop" in _rule_block.group(1),
+      f"rule block: {_rule_block.group(1).strip()[:200] if _rule_block else 'absent'!r}")
+check("20r ⭐ a divider inside a selection READS as selected. CodeMirror's "
+      "selection tint is drawn for TEXT, so a widget in a dragged-over range "
+      "stayed visually untouched while every character around it highlighted "
+      "— the selection appeared to skip the object.",
+      _d20.get("rule_selected_on_cover") is True, str(_d20)[:300])
+check("20s …and a selection that only PARTLY overlaps the rule does not "
+      "claim it, nor does a collapsed caret — an object is selected when it "
+      "is COVERED, which is the test the member's eye applies",
+      _d20.get("rule_partial_not_selected") is True
+      and _d20.get("rule_deselects") is True, str(_d20)[:300])
+check("20t the selection repaint keeps the document BYTE-IDENTICAL — the "
+      "selected state is decoration like everything else here, so ADR-456 D1 "
+      "holds with an object highlighted on screen",
+      _d20.get("rule_doc_identical") is True, str(_d20)[:300])
+check("20u ⭐ the preview plugin rebuilds on `selectionSet`. It listened only "
+      "for `docChanged || viewportChanged`, and a selection change moves "
+      "neither — so without this the selected state computed above could "
+      "never repaint, and 20r would be true in principle and invisible in "
+      "practice.",
+      re.search(r"u\.docChanged \|\| u\.viewportChanged \|\| u\.selectionSet",
+                _canvas_nc) is not None,
+      "the live-preview plugin ignores selection changes")
 
 _D20B_PROBE = r"""
 const fs = require('fs');

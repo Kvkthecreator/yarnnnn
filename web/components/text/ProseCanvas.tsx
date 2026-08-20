@@ -185,13 +185,37 @@ const PROSE_THEME = EditorView.theme({
   // gap where a divider should be, which is worse than the literal `---` it
   // replaced. CodeMirror's theme compiler did not carry the shorthand through;
   // `.cm-cursor` in this same theme already uses longhands for exactly this.
+  // ⭐ ADR-575 D8.c — the rule needs a BODY, not just a border. Driven after
+  // D8.a: an EMPTY inline-block with only `borderTopWidth` has a content box
+  // of height 0, so the element's entire hit target is the 1px border itself.
+  // It rendered correctly and could not be clicked, dragged over, or
+  // rubber-band selected — the operator's "objects like divider aren't
+  // grabbable, or selectable via mouse clicks". A line-height's worth of
+  // height makes the rule occupy the band it visually sits in, and the border
+  // is centred inside it so the drawn line does not move a pixel.
   '.cm-mdRule': {
     display: 'inline-block',
     width: '100%',
+    height: '0.75em',
+    // The border is drawn at the BOX's vertical middle rather than at its top
+    // edge, so growing the hit target leaves the visible line where D8.a put
+    // it. `verticalAlign` then re-centres the taller box on the text baseline.
+    marginTop: '-0.375em',
+    marginBottom: '-0.375em',
     verticalAlign: 'middle',
     borderTopStyle: 'solid',
     borderTopWidth: '1px',
     borderTopColor: 'var(--border, rgba(128,128,128,0.35))',
+    // The band above/below the line belongs to the rule, not to the text
+    // around it: a click anywhere in it selects the divider.
+    boxSizing: 'content-box',
+  },
+  // A selected block object reads as SELECTED — the tint CodeMirror gives
+  // selected text does not reach a widget, so without this a divider inside a
+  // selection was the one thing on the line that looked untouched.
+  '.cm-mdRule.cm-mdObjSelected': {
+    borderTopColor: 'var(--foreground, #111)',
+    backgroundColor: 'var(--muted, rgba(128,128,128,0.18))',
   },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   // ⭐ ADR-575 D9 — a blockquote reads as SET ASIDE. The `>` is hidden, so
@@ -353,11 +377,32 @@ class BulletWidget extends WidgetType {
   ignoreEvent() { return false; }
 }
 
+/**
+ * ⭐ ADR-575 D8.c — a divider is an OBJECT, and an object must be hittable.
+ *
+ * The first cut returned a bare `<span class="cm-mdRule">` with no content and
+ * no height, styled only with a top border. It rendered — and it was the one
+ * widget on the canvas that could not be clicked, dragged across, or selected,
+ * because an empty inline-block's content box is 0px tall and the border is
+ * the only pixel the mouse can land on. Every OTHER widget here (bullet, task
+ * box, table) ships real content and was hittable for free, which is why this
+ * one defect survived a 249-check gate.
+ *
+ * `selected` paints the object's own selected state: CodeMirror's selection
+ * tint is drawn for TEXT, so a widget inside a selection otherwise stays
+ * visually untouched while everything around it highlights.
+ */
 class RuleWidget extends WidgetType {
-  eq() { return true; }
-  toDOM() {
-    const s = document.createElement('span');
-    s.className = 'cm-mdRule';
+  constructor(readonly selected: boolean) { super(); }
+  eq(other: RuleWidget) { return other.selected === this.selected; }
+  toDOM(view: EditorView) {
+    const doc = view.dom.ownerDocument;
+    const s = doc.createElement('span');
+    s.className = 'cm-mdRule' + (this.selected ? ' cm-mdObjSelected' : '');
+    // A widget with no content is unreachable by the mouse. A zero-width space
+    // gives the box a real inline content node to hit-test against, while
+    // adding nothing visible and nothing to the document.
+    s.textContent = '​';
     return s;
   }
   ignoreEvent() { return false; }
@@ -382,7 +427,11 @@ const livePreview = ViewPlugin.fromClass(
       this.decorations = buildPreviewDecorations(view);
     }
     update(u: ViewUpdate) {
-      if (u.docChanged || u.viewportChanged) {
+      // `selectionSet` is in the list for D8.c: the rule widget paints its own
+      // selected state, and a selection change alone moves no doc and no
+      // viewport — so without it, dragging across a divider highlighted every
+      // character around it and left the divider itself unchanged.
+      if (u.docChanged || u.viewportChanged || u.selectionSet) {
         this.decorations = buildPreviewDecorations(u.view);
       }
     }
@@ -438,7 +487,15 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
         // A thematic break becomes a RULE. Replacing it with nothing would
         // leave a blank line that reads as an accident.
         if (node.name === 'HorizontalRule') {
-          marks.push([node.from, node.to, Decoration.replace({ widget: new RuleWidget() })]);
+          // Selected when the selection COVERS the rule's range — the same
+          // test a member's eye applies when they drag across it (D8.c).
+          const sel = state.selection.main;
+          const covered = sel.from <= node.from && sel.to >= node.to && !sel.empty;
+          marks.push([
+            node.from,
+            node.to,
+            Decoration.replace({ widget: new RuleWidget(covered) }),
+          ]);
           return false;
         }
         // A list marker becomes a GLYPH. `ListMark` covers `-`/`*`/`+` and
