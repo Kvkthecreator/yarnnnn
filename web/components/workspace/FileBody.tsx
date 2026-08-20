@@ -24,9 +24,7 @@
  * heights), not a fork.
  */
 
-import { Download, ExternalLink } from 'lucide-react';
 import { resolveApp } from '@/lib/file-types/apps';
-import { useSignedBlobUrl } from '@/components/workspace/viewers/blob';
 import { cn } from '@/lib/utils';
 import type { WorkspaceFile } from '@/types';
 
@@ -59,46 +57,28 @@ export function FileBody({ file, compact = false, className }: FileBodyProps) {
 }
 
 // ---------------------------------------------------------------------------
-// FileActions — "open with your computer" (the degenerate Open With, ADR-329)
+// FileActions is DELETED (2026-08-20).
 // ---------------------------------------------------------------------------
-
-export function FileActions({ contentUrl, path }: { contentUrl: string; path: string }) {
-  const { url, loading } = useSignedBlobUrl(contentUrl);
-  const disabled = loading || !url;
-  // The download must carry the file's OWN name. A bare `download` attribute
-  // defers to the server's filename, and the signed URL points at the CAS
-  // bucket, which is keyed by CONTENT ADDRESS — so the browser saved the blob
-  // as its 64-char SHA with no extension ("Kind: Document", generic icon, no
-  // preview). The content address is the substrate's business; the member gets
-  // back the name they know the file by.
-  const filename = path.split('/').pop() || path;
-  return (
-    <div className="flex items-center gap-2 shrink-0">
-      <a
-        href={disabled ? undefined : url}
-        target="_blank"
-        rel="noreferrer"
-        aria-disabled={disabled}
-        className={cn(
-          'inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-          disabled && 'pointer-events-none opacity-50'
-        )}
-      >
-        <ExternalLink className="w-3.5 h-3.5" />
-        Open
-      </a>
-      <a
-        href={disabled ? undefined : url}
-        download={filename}
-        aria-disabled={disabled}
-        className={cn(
-          'inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-          disabled && 'pointer-events-none opacity-50'
-        )}
-      >
-        <Download className="w-3.5 h-3.5" />
-        Download
-      </a>
-    </div>
-  );
-}
+//
+// It rendered two buttons — Open and Download — bolted into the preview
+// header of three different mounts. Both are gone, for two different reasons:
+//
+//   DOWNLOAD became a RIGHT-CLICK VERB (`FileVerbs.downloadFor`), following the
+//   cloud-provider convention every operator already has in their hands
+//   (Dropbox · Drive · OneDrive all put Download in the context menu). It is
+//   now reachable from every surface the verb bundle is threaded to, instead of
+//   only from the two headers that happened to mount this component. The
+//   `download={filename}` fix from 1069fe3 travelled with it and is gated —
+//   the href is a signed `workspace-cas` URL and the CAS is keyed by CONTENT
+//   ADDRESS, so a bare `download` saves the blob as a 64-char SHA.
+//
+//   OPEN was deleted outright rather than rehomed. It opened the blob in a new
+//   browser tab — answering "what does this file look like?" with a second
+//   copy of the answer the pane DIRECTLY BESIDE IT was already rendering. A
+//   verb whose result is already on screen is not a verb. (`Open With ▸` in the
+//   context menu is a different act: it routes the file to a yarnnn APP —
+//   Studio, Docs, Text — and it stays.)
+//
+// The chat surface's FileOpenModal, which mounted this and has no context menu
+// of its own, keeps its "Open in Files" link — one door, to where the verbs
+// live, instead of a second smaller copy of them.

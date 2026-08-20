@@ -32,7 +32,7 @@ import { FileListHeader, FileListRow } from '@/components/workspace/FileListView
 // ArtifactCard mounts the same body inside a bounded card. Singular
 // Implementation — a new file type is a rule in `lib/file-types` plus a branch
 // in FileBody, never a branch in a mount.
-import { FileBody, FileActions } from '@/components/workspace/FileBody';
+import { FileBody } from '@/components/workspace/FileBody';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 // ADR-236 Files page rework (2026-04-30): SubstrateEditor deleted. Direct
 // inline editing of substrate files is removed per the original assessment
@@ -71,6 +71,12 @@ interface ContentViewerProps {
   onPublishOrder?: (paths: string[]) => void;
   /** A click on the listing's empty ground drops the selection. */
   onClearSelection?: () => void;
+  /**
+   * Replace the selection with exactly this path. Called when a right-click
+   * lands on a row OUTSIDE the current selection — the OS rule, and the half
+   * that keeps the menu's named target and a set-taking verb from disagreeing.
+   */
+  onSelectRow?: (path: string) => void;
   showHeader?: boolean;
   /**
    * ADR-215 R1 + ADR-236 Files page rework (2026-04-30): seed the chat
@@ -141,6 +147,7 @@ export function ContentViewer({
   selection,
   onPublishOrder,
   onClearSelection,
+  onSelectRow,
   showHeader = true,
   onOpenChatDraft,
   onDeleted,
@@ -165,6 +172,7 @@ export function ContentViewer({
         selection={selection}
         onPublishOrder={onPublishOrder}
         onClearSelection={onClearSelection}
+        onSelectRow={onSelectRow}
         showHeader={showHeader}
         onOpenChatDraft={onOpenChatDraft}
         viewMode={viewMode}
@@ -192,6 +200,7 @@ function DirectoryView({
   selection,
   onPublishOrder,
   onClearSelection,
+  onSelectRow,
   showHeader,
   onOpenChatDraft,
   viewMode = 'list',
@@ -204,6 +213,7 @@ function DirectoryView({
   selection?: readonly string[];
   onPublishOrder?: (paths: string[]) => void;
   onClearSelection?: () => void;
+  onSelectRow?: (path: string) => void;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
   viewMode?: 'icon' | 'list';
@@ -216,6 +226,15 @@ function DirectoryView({
   const { openMenu, menu, Kebab } = useFileContextMenu(verbs);
   const rowContext = (child: WorkspaceTreeNode) => (e: React.MouseEvent) => {
     if (verbs) {
+      // THE VERBS LIVE HERE NOW (2026-08-20). The floating Move…/Open/Clear
+      // chip is deleted; this menu is where a selection's verbs are reached,
+      // which is where every OS puts them.
+      //
+      // The OS rule about scope: right-clicking INSIDE a multi-selection acts
+      // on the whole set and leaves it intact; right-clicking OUTSIDE it
+      // REPLACES the selection with the row you hit. Without the second half
+      // the menu would name one file while the set-taking verb moved nine.
+      if (!selectedSet.has(child.path)) onSelectRow?.(child.path);
       openMenu({ path: child.path, name: child.name, isFile: child.type === 'file' }, e);
     } else if (onGetInfo) {
       e.preventDefault();
@@ -583,9 +602,6 @@ function FileView({
                   onOpenChatDraft={onOpenChatDraft}
                 />
               )}
-              {file.content_url && (
-                <FileActions contentUrl={file.content_url} path={file.path} />
-              )}
               {/* ADR-329: 'delete' is an operator verb, uploads-only
                   (ADR-320 topology). Trash-semantics — the file is archived
                   (ADR-209-retained, recoverable), not erased. */}
@@ -606,10 +622,6 @@ function FileView({
               )}
             </div>
           </div>
-        </div>
-      ) : file.content_url ? (
-        <div className="flex justify-end px-4 pt-4">
-          <FileActions contentUrl={file.content_url} path={file.path} />
         </div>
       ) : null}
 

@@ -4,7 +4,50 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-20 (later) — FILES: the centre pane becomes a real file browser (no ADR — operator-approved after two rounds)
+## 2026-08-20 (latest) — FILES: the tree is a NAVIGATOR, the centre pane is the BROWSER (no ADR — operator-approved after a production click-pass)
+
+**Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → TWO PANES, TWO GRAMMARS](WORKSPACE.md). No new ADR; the click-grammar section is **rewritten again**, and the entry below (landed earlier the same day) is **superseded**.
+
+**THE ERROR: one grammar applied to two different things.** The morning's split — `viewPath` vs `selection`, single click selects, double click opens — is **correct and stays**. What was wrong is that it was applied to **both panes**. They are not two renderers of the same thing:
+
+| Pane | What it is | Grammar |
+|---|---|---|
+| **Left tree** (`WorkspaceTree`) | a **NAVIGATOR** — a folder hierarchy you move *through* | **FOLDERS ONLY.** Single click navigates *and* unfolds. No selection, no multi-select, no open. |
+| **Centre pane** (`ContentViewer` listing) | a **FILE BROWSER** — the contents of the current folder | single click selects · ⌘/shift multi-select · **double click opens** |
+
+**Windows Explorer and macOS Finder both show folders only in the left tree.** Files never appear there, so *"does clicking a file in the tree open it?"* never arises — it was a question only this surface had to keep answering, and it answered it by bleeding the selection model into a pane with nothing to select. **Operator-observed on production**: clicking a **file in the tree** raised a floating Move…/Open/Clear chip next to Properties.
+
+**The tell in the code, in hindsight**: `handleFileClick(node, e, source: 'tree' | 'listing')`. A handler that has to be told which pane called it is two handlers wearing one name. That parameter is deleted.
+
+**What was built.**
+- **The tree renders FOLDERS ONLY, at every depth** (`foldersOnly`, recursive). Applied at **render**, inside `WorkspaceTree` — *not* by its caller: the same `treeNodes` array feeds the Move picker and resolves what the centre pane shows, and pruning at the source would starve both.
+- **The tree navigates on one click** and toggles the branch in the same gesture — one gesture, one meaning. It routes through `openPath` (THE ONE DOOR), so a folder open still clears the selection.
+- **The tree takes no `selection` prop and forwards no modifiers.** There is nothing to modify. Its one highlight follows `viewPath` — a position, not a pick.
+- **Consequence, deliberate and correct: the tree can no longer open a file at all.** The centre pane is the only route to a document.
+- **The floating Move…/Open/Clear chip is DELETED.** A selection should *look* selected; it does not need a toolbar announcing itself.
+- **Its verbs moved to the right-click menu**, where every OS puts them and where `FileContextMenu` already carried Open · Open With ▸ · Properties · Share… · Rename… · Move to… · Duplicate · Move to Trash. The strip was a second, smaller, worse copy of a menu the surface already had. **Move takes the SET** when the right-clicked row is part of a multi-selection; right-clicking **outside** the selection re-scopes it to that row first, or the menu names one file while the verb moves nine.
+- **Download became a context-menu verb**, following the cloud-provider convention (Dropbox · Drive · OneDrive). It resolves **asynchronously** — a blob's signed URL must be minted, so the menu holds a `{href, filename}` pair resolved on open and simply does not render the entry for a folder or a file with no blob.
+- **`download={filename}` is preserved** (the 1069fe3 fix): the href points at the `workspace-cas` bucket, keyed by **content address**, so a bare `download` saved the blob as its 64-char SHA with no extension. The pair travels together *because* the href alone is never enough. Gated on the attribute, not on the word "download".
+- **`FileActions` is DELETED** from all three mounts (ContentViewer ×2, FileOpenModal). Its Download moved; **its Open was deleted outright, judged rather than rehomed**: it opened the blob in a new browser tab — answering *"what does this file look like?"* with a second copy of the answer the pane directly beside it was already rendering. **A verb whose result is already on screen is not a verb.** (`Open With ▸` is a different act — it routes the file to a yarnnn app — and stays.) `FileOpenModal`, which has no context menu, keeps its "Open in Files" link: one door to where the verbs live, not a smaller copy of them.
+
+**Withdrawal is still part of the feature — the visible exit MOVED rather than vanished.** ADR-519 shipped an inescapable multi-selection once, and the deleted chip carried the only *visible* Clear. Escape (any size) and a background click were already there; a visible **Deselect**, naming the count, is now in the background canvas menu — which is where Finder puts "Deselect All". Gated at both ends (wired *and* rendered), so it cannot become a control that exists but is never drawn.
+
+**Deleted, not kept beside**: the selection chip (Move…/Open/Clear) · `FileActions` · the tree's `selection` prop, `selectedSet`, selection ring, file rows, `FileIcon` branch, `deEmphasized`/`fileLegibilityState` handling, ADR-422 D1 lock+archive glyphs, `draggable` half of its DnD, `FileClickIntent` import, `additive` modifier computation · the `source: 'tree' | 'listing'` discriminator · `handleTreeClick` · `baseName` (orphaned with the chip). `getFileIcon` → `folderIcon` — the old name described nothing the pane still renders.
+
+**Gates — three touched, all re-anchored to the two-pane grammar.**
+- `api/test_files_selection_model.py` **29/0** (was 20). Claims 1–9 stand. **10** = the tree is a folder navigator (folders-only *recursively*, asserted on the filter — an absence cannot prove a branch is gone, only that one spelling of it is; the filter is at render and the page still hands the whole tree; no selection in props or at the mount; no click-intent; no pane discriminator). **11** = the toolbar is gone and its verbs are in the menu (Move still takes the set · right-click re-scopes · Download carries the filename · `FileActions` deleted from every mount). **4c re-anchored**: it pinned the *tree's* hand-built intent object; the modifier now reaches the grammar from the listing's two view modes, counted.
+- `web/scripts/gates/adr553_multi_select.mjs` **20/0**. The tree's modifier-forwarding and its "a selection click must not also toggle disclosure" carve are **replaced** — both existed only because the tree carried a selection, and the second gated a conflict that no longer has two parties. Replaced by: the tree renders folders only, and neither reads nor writes the selection. **EXIT 2 follows the visible exit to the canvas menu.** The "count is rendered" check follows the visibility to where it actually lives — **every member RINGS in both view modes** (a stronger statement than a count: the count named a number, the rings name *which files*), with the count still spoken where a count is the unit (bulk picker · Deselect).
+- `web/scripts/gates/files_arrival_door.mjs` **12/0** (was 9). **A10–A12 added**, because removing files from the tree is exactly the kind of change that silently breaks an arrival door and "should be unaffected" is the claim that stops being true quietly: the open funnel resolves a path **without consulting the tree**; the arrival handler routes to the funnel and not to the tree's folder gesture; and an opened FILE still resolves through the synthetic-node fallback — which, after the recut, is **every** file.
+
+**Falsification — 16 mutations, each confirmed RED then restored GREEN**, covering all 14 new/re-anchored assertions plus two re-checks. Backup-copy + restore throughout; **never `git checkout`** (another session holds work in this tree). Restore fidelity was verified by diffing all six touched components back to their backups before committing.
+
+**Build**: `cd web && node_modules/.bin/next build` — exit 0, compiled successfully. `tsc --noEmit` clean.
+
+---
+
+## 2026-08-20 (later) — FILES: the centre pane becomes a real file browser (no ADR — operator-approved after two rounds) — **SUPERSEDED the same day**
+
+> **Superseded by the entry above.** The state split it describes (`viewPath` vs `selection`) and the centre pane's gestures are **correct and still ship**. What it got wrong is that it applied that one grammar to **both panes**: the left tree is a NAVIGATOR (folders only — Explorer and Finder both), not a second file browser, so the selection model bled into a pane with nothing to select and raised the Move…/Open/Clear chip from a **tree** click. The chip is deleted, the tree renders folders only, and the verbs live in the right-click menu. Kept for the gate-craft record — the four "duplicated string satisfies a bare substring test" findings below are unchanged and still the reason those assertions are counts.
 
 **Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → The centre pane is a FILE BROWSER](WORKSPACE.md). No new ADR; the surface contract's click-grammar section is **rewritten**, and the entry below it (the partial split landed earlier the same day) is **superseded**.
 

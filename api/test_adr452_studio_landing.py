@@ -188,45 +188,64 @@ def run() -> int:
         "isDoubleClick" in cond_txt,
         f"open condition={cond_txt!r}",
     )
-    # A TREE folder still browses on one click (disclosure). A LISTING folder
-    # does NOT — it is a peer in a grid a member draws a selection across. So
-    # the open condition's folder disjunct must be SOURCE-QUALIFIED, not a bare
-    # `node.type === 'folder'` that would re-open every listing folder on click
-    # one and take the grid's selection away again.
+    # RE-ANCHORED 2026-08-20 (the TWO-PANE recut). This asserted that the open
+    # condition carried a SOURCE-QUALIFIED folder disjunct (`treeFolder`) — a
+    # tree folder opens on click one, a listing folder does not.
+    #
+    # That disjunct is DELETED, and its deletion is the fix. The left tree is a
+    # NAVIGATOR (folders only, one click navigates); the centre pane is the file
+    # browser. A click handler that had to be told which pane called it was two
+    # handlers wearing one name, and the shared half bled a selection into a
+    # pane with nothing to select — the operator met it as a floating chip
+    # raised by clicking a FILE IN THE TREE.
+    #
+    # The claim this gate actually owns is unchanged: THE LISTING's folders must
+    # not open on click one, or the grid loses its selection. Asserted directly
+    # now (no folder term in the open condition at all) rather than through a
+    # discriminator that no longer exists.
     passed &= _check(
-        "select/open split: only the TREE's folder opens on a single click",
-        "treeFolder" in cond_txt
-        and re.search(
-            r"const treeFolder = source === 'tree' && node\.type === 'folder';",
-            body_code,
-        )
-        is not None,
-        f"open condition={cond_txt!r} — the folder disjunct must be tree-scoped",
+        "select/open split: NO folder disjunct — a listing folder never opens on click one",
+        "folder" not in cond_txt and "treeFolder" not in body_code,
+        f"open condition={cond_txt!r} — must be pointer + click-counter only",
     )
     # The keyboard equivalent double-click does not have — the a11y answer.
     passed &= _check(
         "select/open split: Enter opens the current selection",
         "e.key !== 'Enter'" in code and "openPathRef.current(" in code,
     )
-    # The tree forwards the browser's click counter + the range modifier, or the
-    # surface can never see a double-click or a range at all.
+    # RE-ANCHORED 2026-08-20 (the TWO-PANE recut). Two assertions stood here —
+    # "the tree forwards the click counter + modifiers" and "the tree still
+    # toggles folder disclosure on a single click". Both described a tree that
+    # participated in the selection grammar. It does not: it renders FOLDERS
+    # ONLY and its single click means exactly one thing (navigate + unfold), so
+    # there are no modifiers to forward and no set-gesture to keep out of the
+    # disclosure's way.
+    #
+    # The claim that replaces them is the one the whole recut rests on, scoped
+    # to what THIS gate owns (the open funnel): the tree's gesture routes
+    # through THE ONE DOOR like every other open, rather than reaching into the
+    # surface's state itself. The folders-only rendering and the absent
+    # selection are gated in test_files_selection_model.py (claim 10).
     tree_code = _strip_comments(_read("components/workspace/WorkspaceTree.tsx"))
     passed &= _check(
-        "the tree forwards the click counter + modifiers to the surface",
-        "detail: e.detail" in tree_code and "shiftKey: e.shiftKey" in tree_code,
-    )
-    # ...and the tree's own FOLDER branch still toggles disclosure on click one.
-    passed &= _check(
-        "the tree still toggles folder disclosure on a single click",
-        re.search(r"if \(isFolder && !additive\) \{\s*setExpanded\(!expanded\);", tree_code)
+        "the tree's navigate routes through the ONE DOOR (openPath), not into state",
+        re.search(
+            r"const navigateToFolder = useCallback\(\(node: TreeNode\) => \{ openPath\(node\.path\); \}",
+            code,
+        )
         is not None,
+    )
+    passed &= _check(
+        "the tree carries no click-intent and no selection (it is a navigator)",
+        "FileClickIntent" not in tree_code and "selection" not in tree_code,
     )
 
     # (c) the tree + folder-listing are wired to that verb.
     passed &= _check(
-        "the tree + folder-listing are wired to the click grammar",
-        "onSelect={handleTreeClick}" in files_page
-        and "onNavigate={handleListingClick}" in files_page,
+        "the tree + folder-listing are wired to their OWN grammars",
+        "onNavigate={navigateToFolder}" in files_page
+        and "onNavigate={handleListingClick}" in files_page
+        and "handleTreeClick" not in files_page,
     )
 
     # (d) the deep-link doors (cold-load seed + post-mount `?files.path=` jump)

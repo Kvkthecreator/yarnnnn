@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Info, ExternalLink, Pencil, FolderInput, FolderPlus, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, FolderPlus, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 
@@ -43,6 +43,28 @@ export interface FileVerbs {
   onRename?: (t: { path: string; name: string }) => void;
   onMove?: (t: { path: string; name: string }) => void;
   onDelete?: (t: { path: string; name: string }) => void;
+  /**
+   * Save the file to the operator's computer (2026-08-20). Follows the
+   * cloud-provider convention (Dropbox / Drive / OneDrive): downloading is a
+   * RIGHT-CLICK verb, not a button bolted into the preview header — which is
+   * where it used to live, and where the operator did not think to look.
+   *
+   * ASYNC, because a blob's href does not exist until it is minted: the file's
+   * `content_url` is a relative, AUTHENTICATED reference, and the directly
+   * fetchable URL is a signed Supabase URL the surface must ask for. So this
+   * resolves the target to a `{ href, filename }` — or null when there is
+   * nothing to save (a folder, a text file with no blob), in which case the
+   * entry does not render at all. An entry that does nothing when clicked
+   * would be the same defect at a different address.
+   *
+   * The FILENAME is load-bearing, not cosmetic. The href points at the
+   * `workspace-cas` bucket, which is keyed by CONTENT ADDRESS — a bare
+   * `download` attribute defers to the server's name and saved the blob as its
+   * 64-char SHA with no extension ("Kind: Document", generic icon, no
+   * preview). Fixed in 1069fe3; it must survive every move of this verb, which
+   * is why the pair travels together and the href alone is never enough.
+   */
+  downloadFor?: (t: FileMenuTarget) => Promise<{ href: string; filename: string } | null>;
   /**
    * OPEN the share dialog for this artifact (ADR-529 D1). It does not mint and
    * it does not copy: the surface raises the one `ShareDialog`, where the two
@@ -120,6 +142,9 @@ export interface FileContextMenuProps {
   onMove?: (t: FileMenuTarget) => void;
   /** Move to Trash (files only). */
   onDelete?: (t: FileMenuTarget) => void;
+  /** The resolved download for the target, or null when there is nothing to
+   *  save. `filename` carries the file's OWN name (the CAS href does not). */
+  download?: { href: string; filename: string } | null;
   /** Share a link to the target (ADR-437 D4). */
   onShare?: (t: FileMenuTarget) => void;
   /** Duplicate the target as an attributed derivation (ADR-514 D1, files only). */
@@ -136,7 +161,7 @@ export interface FileContextMenuProps {
 
 export function FileContextMenu({
   target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
-  onDuplicate, onOpenWith, handlers, onNewFolder, extraItems,
+  onDuplicate, onOpenWith, handlers, onNewFolder, extraItems, download,
 }: FileContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
@@ -176,6 +201,21 @@ export function FileContextMenu({
           handlers={handlers}
           onPick={(id) => { onOpenWith(target, id); onClose(); }}
         />
+      )}
+      {/* Download — an ANCHOR, not a button: the browser's own save path, so
+          the signed CAS URL is fetched by the navigation rather than by us.
+          `download={filename}` is the fix from 1069fe3 and the whole reason
+          this entry carries a resolved pair instead of a bare href. */}
+      {download && (
+        <a
+          href={download.href}
+          download={download.filename}
+          onClick={() => onClose()}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent/60"
+        >
+          <Download className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="flex-1">Download</span>
+        </a>
       )}
       {onProperties && (
         <MenuItem icon={<Info className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onProperties)}>
@@ -323,6 +363,11 @@ export function useFileContextMenu(
   extraItemsFor?: (target: FileMenuTarget) => FileMenuExtraItem[],
 ) {
   const [state, setState] = useState<{ target: FileMenuTarget; x: number; y: number } | null>(null);
+  // The resolved download for the OPEN menu's target. Minted per open (a signed
+  // URL is short-lived; caching one across opens would hand the operator an
+  // expired link), cleared on close, and dropped if the menu moved on before
+  // the mint landed.
+  const [download, setDownload] = useState<{ href: string; filename: string } | null>(null);
   // Touch parity (2026-07-12): on a coarse pointer there is no right-click, so
   // the surfaces render a tappable kebab that opens this same menu. `coarse`
   // tells a surface whether to show the kebab; the menu + verbs are identical.
@@ -334,11 +379,23 @@ export function useFileContextMenu(
   // on surfaces that wire only that verb.
   const hasVerbs = !!(verbs && Object.values(verbs).some(Boolean));
 
+  const resolveDownload = useCallback((target: FileMenuTarget) => {
+    setDownload(null);
+    if (!verbs?.downloadFor) return;
+    void verbs.downloadFor(target)
+      .then((d) => {
+        // Only apply it if this is still the target on screen.
+        setState((cur) => { if (cur && cur.target.path === target.path) setDownload(d); return cur; });
+      })
+      .catch(() => setDownload(null));
+  }, [verbs]);
+
   const openMenu = useCallback((target: FileMenuTarget, e: React.MouseEvent) => {
     if (!hasVerbs) return;
     e.preventDefault();
     setState({ target, x: e.clientX, y: e.clientY });
-  }, [hasVerbs]);
+    resolveDownload(target);
+  }, [hasVerbs, resolveDownload]);
 
   // Kebab trigger: open the same menu anchored at the tapped button's box, so
   // touch reaches every verb the right-click menu offers. Stops propagation so
@@ -350,7 +407,8 @@ export function useFileContextMenu(
     e.stopPropagation();
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setState({ target, x: r.left, y: r.bottom + 4 });
-  }, [hasVerbs]);
+    resolveDownload(target);
+  }, [hasVerbs, resolveDownload]);
 
   /** The tappable ⋯ kebab a surface renders per row on coarse pointers. */
   const Kebab = useCallback(({ target, className }: { target: FileMenuTarget; className?: string }) => {
@@ -375,7 +433,7 @@ export function useFileContextMenu(
       target={state.target}
       x={state.x}
       y={state.y}
-      onClose={() => setState(null)}
+      onClose={() => { setState(null); setDownload(null); }}
       onOpen={verbs.onOpen ? () => verbs.onOpen!(state.target) : undefined}
       onProperties={verbs.onProperties ? () => verbs.onProperties!(state.target) : undefined}
       onRename={verbs.onRename ? () => verbs.onRename!(state.target) : undefined}
@@ -387,6 +445,7 @@ export function useFileContextMenu(
       handlers={verbs.handlersFor?.(state.target)}
       onNewFolder={verbs.onNewFolder ? () => verbs.onNewFolder!(state.target) : undefined}
       extraItems={(extraItemsFor ?? verbs.extraItemsFor)?.(state.target)}
+      download={download}
     />
   ) : null;
 

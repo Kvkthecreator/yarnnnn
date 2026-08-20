@@ -32,6 +32,29 @@
 //    computed-never-mounted failure) and the bulk picker must name the SET
 //    rather than borrowing a member's name.
 //
+// ── RECUT 2026-08-20, SECOND CUT (two panes, two grammars) ────────────────
+//
+// The morning's recut applied ONE grammar to BOTH panes. That was the error:
+// the LEFT TREE is a NAVIGATOR (folders only, one click navigates — Explorer
+// and Finder both), and the CENTRE PANE is the FILE BROWSER. The selection
+// model bled into the navigator, which is how the operator met the floating
+// Move…/Open/Clear chip: beside Properties, raised by clicking a FILE IN THE
+// TREE.
+//
+// Two more assertions follow the code rather than freezing withdrawn behaviour:
+//
+//  · The tree's modifier-forwarding and its "a selection click must not also
+//    toggle disclosure" carve are GONE. Both existed only because the tree
+//    carried a selection. It carries none, so there are no modifiers to forward
+//    and no fight over one click. They are REPLACED by the claim that actually
+//    holds now: the tree renders no file nodes and takes no selection.
+//
+//  · EXIT 2's "visible Clear" MOVED rather than vanished. The chip is deleted,
+//    but ADR-519's lesson is that withdrawal is part of the feature — so the
+//    visible exit is now "Deselect" in the background canvas menu, which is
+//    where Finder puts it. This gate follows it there, and would go red if it
+//    were simply dropped.
+//
 // D2's mover (sequential, honest about partial failure) and D3's exits stand
 // unchanged and are the bulk of what remains. The full grammar is gated in
 // api/test_files_selection_model.py; this file keeps the ADR's own claims.
@@ -52,6 +75,7 @@ const strip = (s) =>
 const page = strip(readFileSync('web/app/(authenticated)/files/page.tsx', 'utf8'));
 const hook = strip(readFileSync('web/hooks/useFileOrganizeVerbs.tsx', 'utf8'));
 const tree = strip(readFileSync('web/components/workspace/WorkspaceTree.tsx', 'utf8'));
+const viewer = strip(readFileSync('web/components/workspace/ContentViewer.tsx', 'utf8'));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // D1 (RECUT) — the set is FIRST-CLASS state, and the modifier still reaches it.
@@ -64,23 +88,34 @@ t(
   /const \[selection, setSelection\] = useState<string\[\]>\(\[\]\)/.test(page) &&
     !/alsoSelected|selectionSet/.test(page),
 );
-// FALSIFIER NOTE: a bare `/shiftKey/.test(tree)` did NOT catch deleting the
-// forward, because `shiftKey` also appears in the tree's own `additive`
-// computation two lines above. Assert on the FORWARD ITSELF — the object handed
-// to onSelect — not on the token appearing anywhere in the file.
-const forwarded = tree.match(/onSelect\(\s*node,[\s\S]*?\n    \);/);
-t(
-  'D1: the tree forwards the modifiers rather than swallowing them',
-  !!forwarded &&
-    /metaKey: e\.metaKey/.test(forwarded[0]) &&
-    /ctrlKey: e\.ctrlKey/.test(forwarded[0]) &&
-    /shiftKey: e\.shiftKey/.test(forwarded[0]) &&
-    /detail: e\.detail/.test(forwarded[0]),
+// SECOND RECUT: the two tree assertions that stood here are replaced.
+//
+// They were "the tree forwards the modifiers rather than swallowing them" and
+// "a SELECTION click does NOT also toggle folder disclosure". Both were about a
+// tree that carried a selection. It does not — so keeping them would gate
+// behaviour the system deliberately withdrew, and the second would gate a
+// conflict (set-gesture vs browse-gesture over one click) that no longer has
+// two parties to it.
+//
+// What replaces them is the claim the withdrawal rests on: NOTHING IN THE TREE
+// IS SELECTABLE, because nothing in it is a file. Asserted on the recursive
+// filter — the construct that makes it true — because an absence cannot prove
+// a branch is gone, only that one spelling of it is.
+const foldersOnly = tree.match(
+  /function foldersOnly\(nodes: WorkspaceTreeNode\[\] \| undefined\): WorkspaceTreeNode\[\] \{[\s\S]*?\n\}/,
 );
 t(
-  'D1 [FALSIFIER]: a SELECTION click does NOT also toggle folder disclosure',
-  /isFolder\s*&&\s*!additive/.test(tree) &&
-    /const additive = [^;]*shiftKey/.test(tree),
+  'D1 [FALSIFIER]: the tree renders FOLDERS ONLY, at every depth',
+  !!foldersOnly &&
+    /n\.type === 'folder'/.test(foldersOnly[0]) &&
+    /children: foldersOnly\(n\.children\)/.test(foldersOnly[0]) &&
+    /foldersOnly\(nodes\)/.test(tree),
+);
+t(
+  'D1 [FALSIFIER]: the tree neither reads nor writes the selection',
+  !/selection/.test(tree) &&
+    !/selectedSet/.test(tree) &&
+    !/FileClickIntent/.test(tree),
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,11 +141,24 @@ t(
   !!escHandler && escHandler[1].trim() === '=== 0' && escHandler[2] === 'clearSelection',
 );
 
-// Exit 2 — a visible, clickable Clear. A keyboard-only exit is not an exit for
+// Exit 2 — a visible, clickable exit. A keyboard-only exit is not an exit for
 // someone who never learns the key.
+//
+// RE-ANCHORED: it used to be the chip's `onClick={clearSelection}`. The chip is
+// deleted (a selection should look selected, not announce itself in a toolbar),
+// so the visible exit moved to "Deselect" in the background canvas menu — the
+// Finder home for it. Asserted at BOTH ends, the mount and the render, because
+// either half alone leaves a control that is wired but never drawn (the
+// ADR-541 D4 computed-never-mounted shape) or drawn but inert.
+const canvas = strip(
+  readFileSync('web/components/workspace/CanvasContextMenu.tsx', 'utf8'),
+);
 t(
-  'D3 [FALSIFIER]: EXIT 2 — a visible Clear control is wired to it',
-  /onClick=\{clearSelection\}/.test(page),
+  'D3 [FALSIFIER]: EXIT 2 — a visible Deselect is rendered and wired to the clearer',
+  /onDeselect=\{clearSelection\}/.test(page) &&
+    /selectionCount=\{selection\.length\}/.test(page) &&
+    /onDeselect && selectionCount > 0/.test(canvas) &&
+    /run\(onDeselect\)/.test(canvas),
 );
 
 // Exit 3 — a plain click REPLACES the whole selection (the set does not
@@ -132,9 +180,6 @@ t(
 
 // Exit 5 (NEW with the selection model) — a click on the listing's empty ground
 // clears. Escape serves the keyboard; this serves the hand already on the mouse.
-const viewer = strip(
-  readFileSync('web/components/workspace/ContentViewer.tsx', 'utf8'),
-);
 t(
   'D3 [FALSIFIER]: EXIT 5 — a background click on the listing clears',
   /const onGroundClick/.test(viewer) &&
@@ -206,14 +251,27 @@ t(
   (page.match(/const paths = selection;/g) || []).length >= 2,
 );
 
-// The count must be MOUNTED — a set with no visible count is a set the member
-// cannot see they are in (the ADR-541 D4 computed-never-mounted shape). It must
-// mount from size ONE, because a plain click now produces a selection of one and
-// an unacknowledged one reads as a click that did nothing.
-const bar = page.match(/\{selection\.length ([^&]*?)&& \(/);
+// The set must be VISIBLE — a set the member cannot see they are in is the
+// ADR-541 D4 computed-never-mounted shape.
+//
+// RE-ANCHORED with the chip's deletion. The chip rendered a `N selected` count
+// beside Properties; the selection now says itself the way every file browser
+// says it — THE ROWS RING. That is a stronger statement, not a weaker one: the
+// count named a number, the rings name WHICH FILES.
+//
+// So the assertion follows the visibility to where it actually lives: every
+// member of the set rings, in BOTH view modes (a set visible in the icon grid
+// and invisible in the details list would be half a feature), and the COUNT is
+// still spoken where a count is the honest unit — the bulk Move picker's target
+// and the canvas menu's Deselect.
 t(
-  '[FALSIFIER]: the count is rendered, from size ONE, not merely computed',
-  !!bar && bar[1].trim() === '> 0' && /\$\{selection\.length\} selected/.test(page),
+  '[FALSIFIER]: every member of the set RINGS, in both view modes',
+  (viewer.match(/selected=\{selectedSet\.has\(child\.path\)\}/g) || []).length >= 2,
+);
+t(
+  '[FALSIFIER]: the count is SPOKEN where a count is the unit (bulk picker + Deselect)',
+  /\$\{selection\.length\} files/.test(page) &&
+    /Deselect \$\{selectionCount\} items/.test(canvas),
 );
 
 console.log(`\n${pass} passed, ${fail} failed`);

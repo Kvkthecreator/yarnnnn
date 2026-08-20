@@ -15,7 +15,7 @@
  */
 
 import { useEffect } from 'react';
-import { FolderPlus, Upload } from 'lucide-react';
+import { FolderPlus, Upload, XSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface CanvasContextMenuProps {
@@ -24,9 +24,25 @@ export interface CanvasContextMenuProps {
   onClose: () => void;
   onNewFolder: () => void;
   onAddFiles: () => void;
+  /**
+   * Drop the current selection — rendered ONLY while something is picked
+   * (`selectionCount > 0`), and it names the count so the operator can see
+   * what they are leaving.
+   *
+   * This is the VISIBLE exit (2026-08-20). The floating Move…/Open/Clear chip
+   * that used to carry one is deleted: a selection should look selected, not
+   * announce itself in a toolbar. But ADR-519 shipped an inescapable
+   * multi-selection to production once, and withdrawal is part of the feature —
+   * so the exit moved rather than vanished. Escape serves the keyboard, a
+   * background click serves the hand already on the mouse, and this serves the
+   * operator who learned neither. The background menu is where Finder puts
+   * "Deselect All" too.
+   */
+  onDeselect?: () => void;
+  selectionCount?: number;
 }
 
-export function CanvasContextMenu({ x, y, onClose, onNewFolder, onAddFiles }: CanvasContextMenuProps) {
+export function CanvasContextMenu({ x, y, onClose, onNewFolder, onAddFiles, onDeselect, selectionCount = 0 }: CanvasContextMenuProps) {
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -57,6 +73,14 @@ export function CanvasContextMenu({ x, y, onClose, onNewFolder, onAddFiles }: Ca
       <Item icon={<Upload className="h-3.5 w-3.5 text-muted-foreground" />} onClick={() => run(onAddFiles)}>
         Add Files…
       </Item>
+      {onDeselect && selectionCount > 0 && (
+        <>
+          <div className="my-1 h-px bg-border/60" />
+          <Item icon={<XSquare className="h-3.5 w-3.5 text-muted-foreground" />} onClick={() => run(onDeselect)}>
+            {selectionCount === 1 ? 'Deselect' : `Deselect ${selectionCount} items`}
+          </Item>
+        </>
+      )}
     </div>
   );
 }

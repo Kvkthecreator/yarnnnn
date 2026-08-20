@@ -128,25 +128,41 @@ Per-surface contracts below carry the seven fixed sections where they apply: **A
   - **System** — YARNNN working memory (`system/`): `awareness.md` · `notes.md` · `style.md` · `conversation.md` + machine state. **Was the dead `/workspace/memory` fetch.**
   - **Agents** — per-domain-agent substrate (`agents/{slug}/`: AGENT.md, memory, style).
   - **Uploads** — operator-contributed documents (`uploads/`).
-  - **System files are visible, not hidden** (ADR-320 correction): `_`-prefixed machine-config files (`_principles.yaml`, `_autonomy.yaml`, `_account.yaml`, `_tracker.md`…) render **de-emphasized** with a `sys` tag rather than vanishing — the prior hide-rule made the tree unable to "follow" a deep-link or Get-Info into the very files Home/cockpit link to. Only `operation/signals` (high-churn temporal log) stays hidden. Empty groups (Persona/System/Reports/Agents/Uploads) omit-if-empty.
+  - **The tree lists FOLDERS ONLY** (2026-08-20 two-pane recut, see "TWO PANES, TWO GRAMMARS" below). The groups above name the *branches* the tree renders; their **files** appear in the **centre pane** when you navigate into them, never in the left rail. Only `operation/signals` (high-churn temporal log) stays hidden entirely. Empty groups (Persona/System/Reports/Agents/Uploads) omit-if-empty.
+  - **System files are visible, not hidden** (ADR-320 correction): `_`-prefixed machine-config files (`_principles.yaml`, `_autonomy.yaml`, `_account.yaml`, `_tracker.md`…) are reachable rather than vanishing — the prior hide-rule made the surface unable to "follow" a deep-link or Get-Info into the very files Home/cockpit link to. **Since the two-pane recut this plays out in the centre pane, not the tree**: the ADR-422 D1 lock / archive glyphs and the de-emphasis went with the tree's file rows, and the same statement reaches the operator on the listing row and in Get-Info. The kernel roots themselves stay folded under the collapsed "System files" branch.
 - **Detail mode** (`?path=/workspace/...`):
   - Rendered file content (markdown, HTML, or binary via `content_url`)
   - Inference-meta caption (ADR-162 sub-phase D) when present
   - Head-revision author glance ("Last edited by …") on the file header (ADR-329 D1)
   - **Node Details ("Get Info")** — per-node provenance property (ADR-329 Amendment 1), opened via header ⓘ toggle or tree right-click. File → revision chain (`authored_by` trail, diff, restore per ADR-209 P4); folder → subtree recent-changes. Replaced the deleted standing "Recently authored" left-rail feed.
   - Substrate-native edit affordance when `authored_by=operator` is appropriate (IDENTITY, BRAND, CONVENTIONS, principles, MANDATE, uploaded documents)
-- **The centre pane is a FILE BROWSER — the selection model** (2026-08-20, rewritten; the partial split landed earlier the same day is superseded by this section).
+- **TWO PANES, TWO GRAMMARS** (2026-08-20, second cut — supersedes the one-grammar section landed earlier the same day).
 
-  **The defect this replaces, stated exactly.** One piece of state (`selectedPath`) meant BOTH *"the highlighted item"* and *"the document the centre pane renders"*. Naming a file rendered its whole body — measured on production: a single click with `detail: 1` on a tree file rendered a 19,462-character file body inline. So a plain click could not be inert. **A click that always goes somewhere is not a selection**, and with no selection there is no multi-select, no shift-range, no bulk verb, no drag-a-group — *the entire vocabulary of file operations was unreachable through the surface.* That is why the inert click is load-bearing rather than a nicety.
+  **The two defects, in order.**
+
+  1. **The fused state.** One piece of state (`selectedPath`) meant BOTH *"the highlighted item"* and *"the document the centre pane renders"*. Naming a file rendered its whole body — measured on production: a single click with `detail: 1` on a tree file rendered a 19,462-character file body inline. So a plain click could not be inert. **A click that always goes somewhere is not a selection**, and with no selection there is no multi-select, no shift-range, no bulk verb, no drag-a-group — *the entire vocabulary of file operations was unreachable through the surface.*
+
+  2. **One grammar over two panes.** The fix for (1) applied the file-browser selection model to *both* panes. They are not two renderers of the same thing. Windows Explorer and macOS Finder both show **folders only** in the left tree, so *"does clicking a file there open it?"* never arises — it was a question only this surface had to keep answering, and it answered it by bleeding a selection into a pane with nothing to select. Operator-observed on production: clicking a **file in the tree** raised a floating Move…/Open/Clear chip beside Properties.
+
+  **The two panes.**
+
+  | Pane | What it is | Grammar |
+  |---|---|---|
+  | **Left tree** (`WorkspaceTree`) | a **NAVIGATOR** — the folder hierarchy you move *through* | **FOLDERS ONLY, at every depth.** A single click navigates the centre pane to that folder *and* unfolds its branch — one gesture, one meaning. No selection, no multi-select, no open. |
+  | **Centre pane** (`ContentViewer` folder listing) | a **FILE BROWSER** — the contents of the folder you are standing in | single click selects · ⌘/Ctrl toggles · shift ranges · **double click opens** |
+
+  **The tree consequence is deliberate: it can no longer open a file at all.** The centre pane is the only route to a document. The tree draws exactly one highlight — the folder `viewPath` is showing ("you are here"), which is a position, not a pick.
+
+  The folders-only filter is applied **at render**, inside `WorkspaceTree`, not by its caller: the same `treeNodes` array feeds the Move picker and resolves what the centre pane shows, and pruning at the source would starve both.
 
   **TWO STATES, never one.**
 
   | State | Means | Moved by |
   |---|---|---|
-  | `viewPath` | what the centre pane RENDERS — a folder's listing, an opened file's body, or the Recents view | **only an OPEN** (`openPath`, the ADR-452 funnel) |
-  | `selection` | what is PICKED — an ordered SET, in the listing's visual order | selection gestures; it renders as a **highlight and nothing else** |
+  | `viewPath` | what the centre pane RENDERS — a folder's listing, an opened file's body, or the Recents view | **only an OPEN** (`openPath`, the ADR-452 funnel) — including a tree click, which is a folder open |
+  | `selection` | what is PICKED — an ordered SET, in the listing's visual order | **centre-pane** gestures only; it renders as a **highlight and nothing else** |
 
-  **The gestures.**
+  **The centre pane's gestures.**
 
   | Gesture | Means |
   |---|---|
@@ -157,19 +173,24 @@ Per-surface contracts below carry the seven fixed sections where they apply: **A
   | Enter | OPEN the selection (double-click's keyboard peer) |
   | Escape · background click | **CLEAR** the selection |
   | single tap (coarse pointer) | **OPEN** — touch is unchanged |
+  | right-click | **THE VERBS** — the shared `FileContextMenu` |
 
+  - **THE VERBS LIVE IN THE RIGHT-CLICK MENU.** There is no selection toolbar. A selection should *look* selected; it does not need a chip announcing itself. `FileContextMenu` already carried Open · Open With ▸ · Properties · Share… · Rename… · Move to… · Duplicate · Move to Trash — the strip was a second, smaller, worse copy of a menu the surface already had, and it appeared from a *tree* click.
+  - **Menu scope follows the OS rule.** Right-clicking **inside** a multi-selection acts on the whole set and leaves it intact (Move takes the set); right-clicking **outside** it **replaces** the selection with the row you hit — otherwise the menu names one file while a set-taking verb moves nine.
+  - **Download is a context-menu verb** (2026-08-20), following the cloud-provider convention (Dropbox · Drive · OneDrive). It **carries the file's own name**: the href is a signed `workspace-cas` URL and the CAS is keyed by **content address**, so a bare `download` attribute saved the blob as its 64-char SHA with no extension. It resolves asynchronously (a blob's signed URL must be minted) and simply does not render for a folder or a file with no blob.
+  - **`FileActions` (the preview-header Open + Download buttons) is DELETED** from all three mounts. Download moved to the menu; **Open was deleted outright** — it opened the blob in a new tab, answering *"what does this look like?"* with a second copy of what the pane directly beside it was already rendering. (`Open With ▸` is a different act — it routes the file to a yarnnn app — and stays.) The chat surface's `FileOpenModal` keeps its "Open in Files" link: one door to where the verbs live.
   - **Where content is read: Files is purely a BROWSER.** Opening a `.md` goes to Text, a `.html` to Studio (ADR-451/473); unclaimed formats fall to the inline viewer. **Quick Look (a bounded in-pane preview) is deliberately NOT built** — half of one would be worse than none.
   - **What the pane shows while you select: the folder listing, unchanged.** The item highlights and the view does not move. A picked file's metadata lives in **Properties**, which the selection SCOPES rather than replaces.
-  - **The branch is on INPUT CAPABILITY, never viewport width.** `useCoarsePointer()` (`(pointer: coarse)`) is the signal; `useViewport().isMobile` (a 640px WIDTH threshold) is *not* interchangeable with it — a narrow desktop window still has a mouse; a large tablet does not. Same rule the hook's three prior consumers follow.
+  - **The branch is on INPUT CAPABILITY, never viewport width.** `useCoarsePointer()` (`(pointer: coarse)`) is the signal; `useViewport().isMobile` (a 640px WIDTH threshold) is *not* interchangeable with it — a narrow desktop window still has a mouse; a large tablet does not.
   - **Touch is single-tap, not double-tap.** Double-tap is not a touch idiom: it fires unreliably, competes with double-tap-to-zoom, and is undiscoverable. Every touch OS opens on one tap. **Touch gets no selection grammar and no new action model** — the same shape the ADR-400 kebab parity took.
-  - **Folders differ by PANE, and each takes its native idiom.** In the **tree** a folder is single-click (disclosure — a tree that demands a double-click to expand a branch reads as broken, and disclosure launches nothing). In the **listing** a folder takes the **double-click, exactly like a file**: the listing is a grid of peers, and a member drawing a selection across it must be able to include a folder without being navigated away mid-gesture.
+  - **A folder in the LISTING takes the double-click, exactly like a file**: the listing is a grid of peers, and a member drawing a selection across it must be able to include a folder without being navigated away mid-gesture. (In the *tree* it is single-click — see above. A tree that demanded a double-click to expand a branch reads as broken.)
   - **A range is over the LISTING's own published visual order** (sorted, folders-first), not any underlying tree order — otherwise the highlight and the rectangle the gesture drew can disagree, which is worse than having no range.
-  - **The verbs act on the SELECTION.** That is what makes selection worth having. The set-Move takes it (sequential, partial results said honestly — ADR-553 D2), and **dragging a row that is part of a multi-selection drags the whole GROUP**; a dragged row outside the selection moves alone.
-  - **Arriving at a path is an OPEN, not a select.** A deep link (`?files.path=`, `?files.domain=`) is someone handing you a document, so it goes through the one door and lands rendered. The select/open split governs in-surface GESTURES only.
-  - **The way OUT is part of the feature, not a follow-up.** ADR-519 shipped an inescapable multi-selection to production once. **Escape clears at ANY size** (a selection of one is as much a state to get out of as a selection of nine), a **background click** on the listing's empty ground clears, the selection bar carries a visible **Clear**, and any single-target verb ends the set before it acts.
-  - **THE ONE DOOR still holds**: every branch that OPENS calls `openPath` (ADR-452). The distinguishing mechanism is the drill-in (`activateBodyRef`), which only an open performs.
+  - **The verbs act on the SELECTION.** That is what makes selection worth having. The set-Move takes it (sequential, partial results said honestly — ADR-553 D2), and **dragging a row that is part of a multi-selection drags the whole GROUP**; a dragged row outside the selection moves alone. The tree is a drop **destination** only — nothing in it is draggable, because nothing in it is a file.
+  - **Arriving at a path is an OPEN, not a select.** A deep link (`?files.path=`, `?files.domain=`) is someone handing you a document, so it goes through the one door and lands rendered — **including a link to a FILE**, which no longer travels through the tree at all. Gated (`files_arrival_door.mjs` A10–A12), because "should be unaffected" is exactly the claim that silently stops being true.
+  - **The way OUT is part of the feature, not a follow-up.** ADR-519 shipped an inescapable multi-selection to production once. **Escape clears at ANY size** (a selection of one is as much a state to get out of as a selection of nine), a **background click** on the listing's empty ground clears, the background canvas menu carries a visible **Deselect** naming the count (the Finder home for it, and where the deleted chip's visible exit went), and any single-target verb ends the set before it acts.
+  - **THE ONE DOOR still holds**: every branch that OPENS calls `openPath` (ADR-452) — the tree's navigate included. The funnel resolves a path **without consulting the tree**, which is what keeps it correct now that the tree holds no files.
   - **ADR-553 D1 is SUPERSEDED here.** That decision made ⌘-click the *only* way into a multi-selection, on accident-prevention grounds. **That reasoning only held because a plain click was destructive** — it navigated the surface into an app. Now that a plain click is inert, plain-click-to-select is safe, expected, and the way every file browser works. ADR-553 D2 (the set-Move, its sequential loop, its honest partial reporting) and D3 (the ways out) stand and are extended. The ADR itself is unamended — canon records what was decided then.
-  - **Gated** in `api/test_files_selection_model.py` (the selection model, 20 checks) and `api/test_adr452_studio_landing.py` (the open funnel + the pointer branch). Both script-style: `python3 <file>` from `api/`.
+  - **Gated** in `api/test_files_selection_model.py` (the two-pane grammar, 29 checks), `web/scripts/gates/adr553_multi_select.mjs` (the ways out, 20 checks), `web/scripts/gates/files_arrival_door.mjs` (the arrival door, 12 checks) and `api/test_adr452_studio_landing.py` (the open funnel + the pointer branch). The Python gates are script-style: `python3 <file>` from `api/`; the FE gates run from the repo root.
 
 - **`+` menu:** UploadFileModal (operator uploads a document into `/workspace/uploads/`). No other modals. No chat seeders.
 - **Deep-links out:** every file path is a stable URL (`/files?path=...`) linked from Recurrence detail (`/workspace/operation/reports/{slug}/_spec.yaml` · `_feedback.md` · `{date}/output.md` per ADR-231 D2 + ADR-320), Agents detail (`/workspace/agents/{slug}/AGENT.md` · `memory/` · `style.md`), Feed artifacts, and Home's recent-artifacts slot.

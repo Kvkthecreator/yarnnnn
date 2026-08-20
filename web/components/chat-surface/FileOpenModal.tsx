@@ -27,7 +27,7 @@
 
 import { useEffect } from 'react';
 import { ExternalLink, FileQuestion, Loader2, X } from 'lucide-react';
-import { FileBody, FileActions } from '@/components/workspace/FileBody';
+import { FileBody } from '@/components/workspace/FileBody';
 import { FileMeta } from '@/components/workspace/FileMeta';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
@@ -73,7 +73,9 @@ export function FileOpenModal({ path, onClose }: FileOpenModalProps) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {file?.content_url && <FileActions contentUrl={file.content_url} path={file.path} />}
+            {/* FileActions (Open + Download) is DELETED — Download is a
+                right-click verb on the Files surface now, and this modal's
+                "Open in Files" is the one door to where the verbs live. */}
             <SurfaceLink
               to="files"
               params={{ path }}

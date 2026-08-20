@@ -193,5 +193,54 @@ t(
   !/openPathRef\.current\(/.test(loader) && !/fp\.set\(/.test(loader),
 );
 
+// ── C3: a deep link to a FILE still OPENS the file ─────────────────────────
+//
+// Added 2026-08-20, with the two-pane recut. The LEFT TREE became a folder
+// NAVIGATOR — it renders no file nodes at all, so it can no longer open a file
+// by any gesture. `?files.path=/…/report.md` does not travel through the tree,
+// so it should be unaffected. "Should be unaffected" is exactly the claim that
+// silently stops being true, and an arrival door that quietly stopped opening
+// files would look like a stale link rather than a regression — so it is
+// gated rather than reasoned about.
+//
+// The assertion is that the arrival handoff goes to THE ONE DOOR (`openPath`,
+// via its late-bound ref), which resolves a path to its app or to the inline
+// viewer WITHOUT consulting the tree. Two independent halves:
+
+// A10 — the funnel does not read the tree. If it ever resolved the path
+// against `treeNodes` (or the folders-only view of them), a deep link to a
+// file would resolve to nothing the moment files left the tree.
+const openStart = code.indexOf('const openPath = useCallback');
+const openEnd = code.indexOf('}, [navigateToSurface, clearSelection]);', openStart);
+if (openStart < 0 || openEnd < 0) throw new Error('gate could not bound openPath');
+const funnel = code.slice(openStart, openEnd);
+t(
+  'A10 the open funnel resolves a path without consulting the tree',
+  !/treeNodes/.test(funnel) &&
+    !/foldersOnly/.test(funnel) &&
+    !/resolveNodeByPath/.test(funnel) &&
+    /setViewPath\(path\)/.test(funnel),
+);
+
+// A11 — and the arrival handler hands the path to that funnel, not to the
+// tree's navigate gesture. `navigateToFolder` is the tree's one act and it is
+// folder-shaped; routing an arrival through it would work for a folder link
+// and silently mis-handle a file link.
+t(
+  'A11 the arrival handler routes to the open funnel, not to the tree gesture',
+  !!arrivalEffect && !/navigateToFolder/.test(arrivalEffect[0]),
+);
+
+// A12 — the centre pane is now the ONLY route to a document, so it must still
+// render an opened FILE. `viewNode` is resolved from `viewPath` with a
+// synthetic-node fallback for paths the tree does not hold — which, after the
+// recut, is EVERY file. Losing the fallback would strand every deep link to a
+// file on an empty pane.
+t(
+  'A12 an opened file resolves even though the tree holds no files',
+  /resolveNodeByPath\(virtualRoot, viewPath\) \?\? syntheticNodeForPath\(viewPath\)/.test(code) &&
+    /hasExtension \? 'file' : 'folder'/.test(code),
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

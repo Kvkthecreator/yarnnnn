@@ -1,29 +1,36 @@
 """
-The Files centre pane is a FILE BROWSER — the selection model gate.
+The Files surface is TWO PANES with TWO GRAMMARS — the navigator/browser gate.
 
 Run directly: `python3 test_files_selection_model.py` from `api/`.
 (Script-style, like test_adr452_studio_landing.py. Running it under pytest
 collects nothing and reports a silent green — check how a gate runs before
 trusting its colour.)
 
-WHAT THIS DEFENDS, and why it is load-bearing rather than cosmetic:
+WHAT THIS DEFENDS, and why it is load-bearing rather than cosmetic.
 
-In every conventional OS a file browser's grid has a selection model — a single
-click SELECTS and nothing else happens; the selection is a SET; the selection is
-the NOUN the verbs then act on; a double click OPENS. Until 2026-08-20 this
-surface had none of that: ONE piece of state (`selectedPath`) meant both "the
-highlighted item" and "the document the centre pane renders", so naming a file
-rendered its whole body. A click that always goes somewhere is not a selection,
-and with no selection there is no multi-select, no shift-range, no bulk verb and
-no drag-a-group — the entire vocabulary of file operations was unreachable
-through the surface. That is the defect these assertions hold closed.
+TWO defects, one after the other, in the same day.
 
-The nine claims:
+  FIRST: ONE piece of state (`selectedPath`) meant both "the highlighted item"
+  and "the document the centre pane renders", so naming a file rendered its
+  whole body. A click that always goes somewhere is not a selection, and with
+  no selection there is no multi-select, no shift-range, no bulk verb and no
+  drag-a-group — the entire vocabulary of file operations was unreachable.
+
+  SECOND (this gate's recut): the fix applied ONE grammar to BOTH panes. They
+  are not two renderers of the same thing. The LEFT TREE is a NAVIGATOR — a
+  folder hierarchy you move through, and in Explorer and Finder alike it shows
+  FOLDERS ONLY, which is why "does clicking a file there open it?" never
+  arises. The CENTRE PANE is the FILE BROWSER. Applying the browser's selection
+  model to the navigator put a floating Move…/Open/Clear chip beside Properties
+  when the operator clicked a FILE IN THE TREE (operator-observed on
+  production).
+
+The claims:
   1. TWO STATES exist and are distinct — `viewPath` (shown) vs `selection`
      (picked) — and the fused `selectedPath` / `alsoSelected` / `selectionSet`
      shape is DELETED, not kept beside them.
-  2. A plain single click on a FILE reaches a select-only branch that moves
-     NOTHING the centre pane renders.
+  2. A plain single click on a centre-pane FILE reaches a select-only branch
+     that moves NOTHING the centre pane renders.
   3. ⌘/Ctrl-click TOGGLES membership.
   4. Shift-click takes a RANGE, over the listing's own published visual order.
   5. Double-click OPENS, through the one funnel.
@@ -31,6 +38,10 @@ The nine claims:
   7. Escape clears at ANY selection size, and a background click clears too.
   8. Enter opens the selection (double-click's keyboard peer).
   9. The verbs act on the SELECTION — the set-Move and drag-a-group both take it.
+ 10. THE TREE IS A FOLDER NAVIGATOR: it renders no file nodes at any depth, it
+     neither reads nor writes the selection, and one click means navigate.
+ 11. THE SELECTION TOOLBAR IS GONE, and the verbs it carried live in the shared
+     right-click menu — including Download, which carries the file's OWN name.
 
 Assertions run over COMMENT-STRIPPED source. A gate that reads its own
 explanatory prose is testing its documentation, not its code.
@@ -198,12 +209,24 @@ def run() -> int:
         "onPublishOrder?.(children.map((c) => c.path))" in viewer
         and "onPublishOrder={publishOrder}" in page,
     )
-    # The modifier must reach the surface from BOTH renderers, or the range
-    # works in one pane and silently not the other — the drift class the shared
-    # FileClickIntent declaration exists to prevent.
+    # The modifier must reach the surface from BOTH of the listing's view
+    # modes — the icon grid and the details list — or the range works in one and
+    # silently not the other. The listing hands the RAW mouse event straight
+    # through (it is structurally a FileClickIntent), so the assertion counts
+    # the forwarding call sites: two, one per view mode.
+    #
+    # RE-ANCHORED with the two-pane recut. This used to read
+    # `"shiftKey: e.shiftKey" in tree` — the TREE's hand-built intent object.
+    # The tree forwards no modifiers now, because it has no selection to modify
+    # (claim 10), so that assertion would gate a behaviour the system
+    # deliberately withdrew. The claim it was really making — "the modifier
+    # reaches the grammar from every renderer that can select" — is unchanged,
+    # and the renderers that can select are the listing's two.
+    forwards = len(re.findall(r"onClick=\{\(e\) => onNavigate\(child, e\)\}", viewer))
     passed &= _check(
-        "4c. shiftKey is declared on the intent and forwarded by the tree",
-        "shiftKey?: boolean;" in types and "shiftKey: e.shiftKey" in tree,
+        "4c. shiftKey is declared on the intent, and BOTH listing view modes forward the event",
+        "shiftKey?: boolean;" in types and forwards >= 2,
+        f"forwarding sites in the listing={forwards} (icon grid + details list)",
     )
 
     # ── 5. double-click OPENS, through the ONE funnel ─────────────────────
@@ -312,14 +335,130 @@ def run() -> int:
         "9c. the listing rings every member of the selection (both view modes)",
         viewer.count("selected={selectedSet.has(child.path)}") >= 2,
     )
-    # And the tree shows the two states DIFFERENTLY — picked vs shown. One
-    # treatment for both is the conflation the split removed, re-entering
-    # through the renderer.
+    # ── 10. THE TREE IS A FOLDER NAVIGATOR ────────────────────────────────
+    #
+    # The second defect, stated as assertions. Each half is checked
+    # independently because either one alone re-opens the door: a tree that
+    # still rendered files but took no selection would still have to answer
+    # "what does clicking this file do", and a tree that rendered folders only
+    # but still carried the selection would still raise the chip.
+
+    # 10a. NO FILE NODES, at any depth. Asserted on the FILTER — the one
+    # construct that makes it true — rather than on the absence of a string,
+    # because "the file branch is gone" is not something an absence can prove
+    # (the branch could return under another name). The filter is recursive:
+    # a depth-1-only prune would leave every nested file rendering.
+    fo = re.search(
+        r"function foldersOnly\(nodes: WorkspaceTreeNode\[\] \| undefined\): WorkspaceTreeNode\[\] \{(.*?)\n\}",
+        tree,
+        re.DOTALL,
+    )
+    fobody = fo.group(1) if fo else ""
     passed &= _check(
-        "9d. the tree distinguishes picked from shown",
-        "const isSelected = selectedSet.has(node.path);" in tree
-        and "const isShown = viewPath === node.path;" in tree
-        and "isShown && !isSelected" in tree,
+        "10a. the tree renders FOLDERS ONLY, recursively",
+        fo is not None
+        and "n.type === 'folder'" in fobody
+        and "children: foldersOnly(n.children)" in fobody
+        and "foldersOnly(nodes)" in tree,
+    )
+    # ...and the filter is applied to the RENDER, not handed in by the caller —
+    # `treeNodes` also feeds the Move picker and resolves what the centre pane
+    # shows, and pruning at the source would starve both.
+    passed &= _check(
+        "10b. the filter is applied at render, and the page still hands the WHOLE tree",
+        "nodes={treeNodes}" in page and "moveRoots: treeNodes" in page,
+    )
+    # 10c. The tree neither READS nor WRITES the selection. Its props are the
+    # statement: no `selection` prop in, and the page mounts it without one.
+    tree_props = re.search(r"interface WorkspaceTreeProps \{(.*?)\n\}", tree, re.DOTALL)
+    tp = tree_props.group(1) if tree_props else ""
+    tree_mount = re.search(r"<WorkspaceTree(.*?)/>", page, re.DOTALL)
+    tm = tree_mount.group(1) if tree_mount else ""
+    passed &= _check(
+        "10c. the tree takes no selection — neither in its props nor at its mount",
+        tree_props is not None
+        and tree_mount is not None
+        and "selection" not in tp
+        and "selection" not in tm
+        and "selectedSet" not in tree,
+        f"props mention selection={'selection' in tp} mount={'selection' in tm}",
+    )
+    # 10d. ONE gesture, ONE meaning: a tree click navigates. It must not carry a
+    # click INTENT at all — an intent is the vocabulary of a pane that has more
+    # than one thing a click could mean.
+    passed &= _check(
+        "10d. a tree click navigates, and carries no click-intent",
+        "onNavigate: (node: WorkspaceTreeNode) => void;" in tp
+        and "FileClickIntent" not in tree
+        and re.search(r"const navigateToFolder = useCallback\(\(node: TreeNode\) => \{ openPath\(node\.path\); \}", page)
+        is not None
+        and "onNavigate={navigateToFolder}" in page,
+    )
+    # 10e. And the pane-discriminating parameter is GONE from the listing's
+    # grammar. A handler that has to be told which pane called it is two
+    # handlers wearing one name — the shape the whole recut removes.
+    passed &= _check(
+        "10e. the listing's click grammar has no pane discriminator",
+        "source === 'tree'" not in page and "'tree' | 'listing'" not in page,
+    )
+
+    # ── 11. THE SELECTION TOOLBAR IS GONE; the verbs live in the MENU ─────
+    #
+    # A selection should LOOK selected. It does not need a chip announcing
+    # itself — and the chip appeared beside Properties from a TREE click, which
+    # is how the operator met it. Asserted as: the strip's own controls are
+    # gone from the surface, while the exits it also carried survive elsewhere
+    # (7a/7b already gate those, so losing the chip cannot lose the way out).
+    passed &= _check(
+        "11a. the floating selection strip is DELETED",
+        "Move…" not in page
+        and "Clear selection (Esc)" not in page
+        and "title=\"Open (Enter, or double-click)\"" not in page,
+    )
+    # Its Move lives in the shared menu, and it still takes the SET when the
+    # right-clicked row is part of one. A menu Move that silently narrowed to
+    # one file would make the selection decorative again, one address over.
+    move_verb = re.search(
+        r"onMove: \(t: \{ path: string; name: string \}\) => \{(.*?)\n    \},", page, re.DOTALL
+    )
+    mv = move_verb.group(1) if move_verb else ""
+    passed &= _check(
+        "11b. Move is a MENU verb and still takes the whole set",
+        move_verb is not None
+        and "selection.length > 1 && selection.includes(t.path)" in mv
+        and "setMoveSetOpen(true)" in mv
+        and "openMove(t)" in mv,
+    )
+    # Right-clicking OUTSIDE the selection replaces it, or the menu names one
+    # file while the set-taking verb moves nine.
+    passed &= _check(
+        "11c. a right-click outside the selection re-scopes it to the row",
+        "if (!selectedSet.has(child.path)) onSelectRow?.(child.path);" in viewer
+        and "onSelectRow={selectOne}" in page,
+    )
+    # 11d. DOWNLOAD is a menu verb, and it CARRIES THE FILENAME. The href is a
+    # signed `workspace-cas` URL and the CAS is keyed by CONTENT ADDRESS, so a
+    # bare `download` saved the blob as its 64-char SHA with no extension
+    # (fixed in 1069fe3). Assert the ATTRIBUTE takes the resolved name — not
+    # merely that the word "download" appears.
+    menu = _strip_comments(_read("components/workspace/FileContextMenu.tsx"))
+    passed &= _check(
+        "11d. Download is in the shared menu and carries the file's own name",
+        "download={download.filename}" in menu
+        and "href={download.href}" in menu
+        and "downloadFor" in menu
+        and "downloadFor: async" in page,
+    )
+    # 11e. ...and the two buttons it replaced are DELETED, not left beside it.
+    # A verb reachable from two places that disagree is the dual-implementation
+    # failure; `FileActions` is gone from every mount.
+    body = _strip_comments(_read("components/workspace/FileBody.tsx"))
+    modal = _strip_comments(_read("components/chat-surface/FileOpenModal.tsx"))
+    passed &= _check(
+        "11e. the preview-header FileActions buttons are DELETED from every mount",
+        "FileActions" not in body
+        and "FileActions" not in viewer
+        and "FileActions" not in modal,
     )
 
     return 0 if passed else 1

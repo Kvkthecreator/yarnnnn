@@ -372,11 +372,6 @@ function nodeMetadataNode(node: TreeNode): React.ReactNode {
   );
 }
 
-/** The leaf of a workspace path — what a single selected item is CALLED. */
-function baseName(path: string): string {
-  return path.split('/').filter(Boolean).pop() ?? path;
-}
-
 function formatNodeTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -931,10 +926,26 @@ export default function ContextPage() {
   // deep-links through this exact funnel (see openPathRef declaration).
   openPathRef.current = openPath;
 
-  // ── SELECT ≠ OPEN — the file-browser grammar ───────────────────────────
+  // ── TWO PANES, TWO GRAMMARS ────────────────────────────────────────────
   //
-  // The center pane is a FILE BROWSER, and in every conventional OS a file
-  // browser's grid has a selection model:
+  //   LEFT TREE (WorkspaceTree)  a NAVIGATOR — the folder hierarchy you move
+  //                              THROUGH. FOLDERS ONLY. One click navigates the
+  //                              centre pane there and unfolds the branch. No
+  //                              selection, no multi-select, no open. It cannot
+  //                              open a file at all, because it holds none.
+  //
+  //   CENTRE PANE (ContentViewer) a FILE BROWSER — the contents of the folder
+  //                              you are standing in. The grammar below.
+  //
+  // Explorer and Finder both show folders only in the left tree, so "does
+  // clicking a file there open it?" never arises. The first cut of the split
+  // (2026-08-20, morning) applied ONE grammar to both panes and the selection
+  // model bled into the navigator: clicking a FILE in the tree raised the
+  // floating Move…/Open/Clear chip beside Properties (operator-observed).
+  //
+  // ── SELECT ≠ OPEN — the CENTRE PANE's file-browser grammar ─────────────
+  //
+  // In every conventional OS a file browser's grid has a selection model:
   //
   //   single click            SELECT — highlight it. Nothing else happens.
   //                           A single click must be able to lead NOWHERE.
@@ -966,13 +977,15 @@ export default function ContextPage() {
   // gets no selection grammar and no new action model — the same shape the
   // kebab (⋯) parity took.
   //
-  // FOLDERS. In the TREE a folder is single-click (disclosure — WorkspaceTree's
-  // own branch toggles it, and a tree that demands a double-click to expand
-  // reads as broken). In the LISTING a folder takes the DOUBLE-CLICK, exactly
-  // like a file: the listing is a grid of peers, and a member drawing a
-  // selection across it must be able to include a folder in the rectangle
-  // without being navigated away mid-gesture. Two panes, two idioms, each the
-  // native one for its shape.
+  // FOLDERS IN THE LISTING take the DOUBLE-CLICK, exactly like a file: the
+  // listing is a grid of peers, and a member drawing a selection across it must
+  // be able to include a folder in the rectangle without being navigated away
+  // mid-gesture. (In the TREE a folder is single-click — see navigateToFolder.
+  // A tree that demanded a double-click to expand a branch reads as broken.)
+  //
+  // THE VERBS LIVE IN THE RIGHT-CLICK MENU, not in a toolbar the selection
+  // raises. That is where every OS puts them, and the shared FileContextMenu
+  // already carried the whole bundle.
   //
   // THE ONE DOOR is intact: every branch below that OPENS calls `openPath`.
 
@@ -1014,11 +1027,16 @@ export default function ContextPage() {
     setSelection(order.slice(lo, hi + 1));
   }, [anchorPath, selectOne]);
 
-  // The tree + folder-listing hand a TreeNode plus what the click MEANT.
-  // `source` says which pane it came from, because the two panes differ on one
-  // point only: a tree folder browses on click one, a listing folder does not.
+  // THE CENTRE PANE's click grammar. It belongs to the LISTING alone — the
+  // tree is a navigator and has its own single-meaning gesture below.
+  //
+  // The first cut of the split routed both panes through this one function with
+  // a `source: 'tree' | 'listing'` discriminator. That parameter was the error
+  // made concrete: a function that has to be told which pane called it is two
+  // functions wearing one name, and the shared half (the selection) then bled
+  // into the pane that has nothing to select.
   const handleFileClick = useCallback(
-    (node: TreeNode, e?: FileClickIntent, source: 'tree' | 'listing' = 'listing') => {
+    (node: TreeNode, e?: FileClickIntent) => {
       if (e?.shiftKey) {
         selectRange(node.path);
         return;
@@ -1032,8 +1050,7 @@ export default function ContextPage() {
       // browser scored as two singles just selects twice, and a micro-drag
       // between the presses never becomes a spurious open.
       const isDoubleClick = (e?.detail ?? 0) >= 2;
-      const treeFolder = source === 'tree' && node.type === 'folder';
-      if (coarse || isDoubleClick || treeFolder) {
+      if (coarse || isDoubleClick) {
         openPath(node.path);
         return;
       }
@@ -1041,16 +1058,16 @@ export default function ContextPage() {
     },
     [openPath, coarse, selectOne, selectRange, toggleSelected],
   );
+  const handleListingClick = handleFileClick;
 
-  // The two panes' bound handlers — the only difference is which pane said it.
-  const handleTreeClick = useCallback(
-    (node: TreeNode, e?: FileClickIntent) => handleFileClick(node, e, 'tree'),
-    [handleFileClick],
-  );
-  const handleListingClick = useCallback(
-    (node: TreeNode, e?: FileClickIntent) => handleFileClick(node, e, 'listing'),
-    [handleFileClick],
-  );
+  // THE TREE's gesture — one click, one meaning: show me this folder.
+  //
+  // It routes through `openPath` like every other way into a folder (THE ONE
+  // DOOR), which also clears the selection: you have arrived somewhere new and
+  // nothing in the new listing is picked yet. There is no file branch, because
+  // there are no files in the tree — the centre pane is the only route to a
+  // document, and that is the point of the two-pane split.
+  const navigateToFolder = useCallback((node: TreeNode) => { openPath(node.path); }, [openPath]);
 
   // Enter opens the selection — the keyboard equivalent double-click does not
   // have, and therefore the accessibility answer to the split above. With a
@@ -1243,9 +1260,46 @@ export default function ContextPage() {
       setDetailsOpen(true);
     },
     onRename: openRename,
-    onMove: openMove,
+    // MOVE — the verb the deleted selection chip used to carry.
+    //
+    // It takes the SET when the right-clicked file is part of a multi-selection,
+    // and the single file otherwise. That is the OS rule (right-clicking inside
+    // a selection acts on the selection; right-clicking outside it acts on the
+    // row) and it is the whole reason a selection is worth having: verbs that
+    // ignore the set make the highlight decorative.
+    //
+    // Right-clicking a row that is NOT in the selection first REPLACES the
+    // selection with it — otherwise the menu would name one file and the verb
+    // would move nine.
+    onMove: (t: { path: string; name: string }) => {
+      if (selection.length > 1 && selection.includes(t.path)) {
+        setMoveSetOpen(true);
+        return;
+      }
+      openMove(t);
+    },
     onDelete: handleTreeDelete,
     onShare: handleShare,
+    // DOWNLOAD — save to the operator's computer (2026-08-20). It left the
+    // preview header (`FileActions`) for the right-click menu, the
+    // cloud-provider convention (Dropbox / Drive / OneDrive) and where the
+    // operator actually looks for it.
+    //
+    // Only a blob-backed file resolves: a folder and a text file (whose bytes
+    // ARE its content, read through the API) return null and the entry does not
+    // render. The filename comes from the PATH, never from the CAS href —
+    // 1069fe3's fix, carried through the move.
+    downloadFor: async (t: { path: string; name: string; isFile: boolean }) => {
+      if (!t.isFile) return null;
+      try {
+        const file = await api.workspace.getFile(t.path);
+        if (!file.content_url) return null;
+        const r = await api.documents.blobUrl(file.content_url);
+        return { href: r.url, filename: t.path.split('/').pop() || t.name };
+      } catch {
+        return null;
+      }
+    },
     // ADR-514 D1: derive a sibling copy — the kernel names it and records the
     // derived_from edge, so trace on the copy walks back to this file.
     onDuplicate: organizeVerbs.onDuplicate,
@@ -1276,7 +1330,7 @@ export default function ContextPage() {
       }];
     },
   }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs,
-       handlersFor, openWith, openNewFolder, navigateToSurface]);
+       handlersFor, openWith, openNewFolder, navigateToSurface, selection]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
@@ -1448,14 +1502,19 @@ export default function ContextPage() {
               <Trash2 className="w-4 h-4 shrink-0" />
               <span>Trash</span>
             </button>
+            {/* The NAVIGATOR. Folders only, and it takes no selection: the
+                tree moves what the centre pane is SHOWING, and the centre pane
+                owns picking. See WorkspaceTree's header for the two-pane
+                grammar. */}
             <WorkspaceTree
               nodes={treeNodes}
-              selection={selection}
               viewPath={viewPath || undefined}
-              onSelect={handleTreeClick}
+              onNavigate={navigateToFolder}
               // ADR-514 D2.6: the WHOLE bundle — the same verbs the grid and the
               // folder listing get. The tree previously took a hand-listed
               // subset, which is how Duplicate (and Share…) went missing here.
+              // Every target here is a folder, so the file-only entries
+              // self-suppress.
               verbs={fileVerbs}
               onMoveByDrag={commitMove}
               // ADR-555 D3 — an OS file dropped on a folder row imports THERE.
@@ -1489,54 +1548,25 @@ export default function ContextPage() {
             {viewNode.type === 'folder' && (
               <FilesViewToggle mode={viewMode} onChange={setViewMode} />
             )}
-            {/* The SELECTION BAR — the selection says itself, names its verbs,
-                and shows its exit.
+            {/* NO SELECTION TOOLBAR. A selection should LOOK selected; it
+                does not need a chip announcing itself beside Properties.
 
-                It appears at size ONE, not only past one. A selection of one is
-                the state a plain click now produces, and it is the state the
-                whole grammar rests on: if the surface only acknowledged a
-                selection once it had two members, an inert single click would
-                read as a click that did nothing.
+                The floating Move…/Open/Clear strip that stood here is DELETED
+                (2026-08-20, second cut). Its verbs moved to the RIGHT-CLICK
+                CONTEXT MENU on centre-pane items, which is where every OS puts
+                them — and where the shared FileContextMenu already carried
+                Open / Open With / Rename / Move / Duplicate / Share / Delete /
+                Properties, so the strip was a second, smaller, worse copy of a
+                menu the surface already had.
 
-                ADR-519 shipped an inescapable multi-selection once; a visible
-                count with a visible Clear is the difference between a state a
-                member chose and a state they are stuck in. The count names the
-                SET (ADR-519 D4.1: "the Identity heading names the count, never
-                a stale label") — and Move… is here because the verbs acting on
-                the selection is the entire reason selection is worth having. */}
-            {selection.length > 0 && (
-              <div className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs">
-                <span className="font-medium text-foreground">
-                  {selection.length === 1
-                    ? baseName(selection[0])
-                    : `${selection.length} selected`}
-                </span>
-                <button
-                  onClick={() => setMoveSetOpen(true)}
-                  className="rounded px-1.5 py-0.5 text-primary transition-colors hover:bg-primary/15"
-                >
-                  Move…
-                </button>
-                <button
-                  onClick={() =>
-                    openPathRef.current(
-                      anchorPath && selection.includes(anchorPath) ? anchorPath : selection[0],
-                    )
-                  }
-                  title="Open (Enter, or double-click)"
-                  className="rounded px-1.5 py-0.5 text-primary transition-colors hover:bg-primary/15"
-                >
-                  Open
-                </button>
-                <button
-                  onClick={clearSelection}
-                  title="Clear selection (Esc)"
-                  className="rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                >
-                  Clear
-                </button>
-              </div>
-            )}
+                The chip also appeared for a TREE click, which is how the
+                operator met it: right beside Properties, from a pane that
+                should never have had a selection at all.
+
+                Withdrawal is unaffected (the ADR-519 prod-trap lesson — a
+                selection you cannot leave is the actual defect). Escape clears
+                at any size, and a click on the listing's empty ground clears;
+                both are gated. What is gone is the ANNOUNCEMENT, not the exit. */}
             {/* ADR-388 D5 / ADR-400: Properties → modal. Also reachable by
                 right-click on any tree/row node. */}
             <button
@@ -1564,6 +1594,7 @@ export default function ContextPage() {
             onPublishOrder={publishOrder}
             onNavigate={handleListingClick}
             onClearSelection={clearSelection}
+            onSelectRow={selectOne}
             showHeader={false}
             viewMode={viewMode}
             onGetInfo={handleGetInfo}
@@ -1663,6 +1694,11 @@ export default function ContextPage() {
             )
           }
           onAddFiles={() => openUpload()}
+          // The VISIBLE way out of a selection, now that the chip is gone. The
+          // Finder background menu is where "Deselect All" lives; Escape and a
+          // background click are the other two exits, and all three are gated.
+          onDeselect={clearSelection}
+          selectionCount={selection.length}
         />
       )}
 

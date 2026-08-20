@@ -2,49 +2,71 @@
 
 
 /**
- * WorkspaceTree — Left panel file explorer
+ * WorkspaceTree — the left pane's FOLDER NAVIGATOR.
  *
- * Recursive tree component that mirrors workspace_files paths.
+ * TWO PANES, TWO GRAMMARS (2026-08-20, second cut). The first cut of the
+ * select/open split applied ONE grammar to both panes, and that was the error:
+ * they are not two renderers of the same thing.
  *
- * SELECT ≠ OPEN (2026-08-20). The tree reports what a click MEANT and decides
- * nothing: it forwards the modifiers + the browser's click counter, and the
- * surface applies the grammar. The one act the tree still owns is a FOLDER's
- * disclosure — a tree that demanded a double-click to expand a branch would
- * read as broken, and disclosure launches nothing.
+ *   left tree    a NAVIGATOR — the folder hierarchy you move THROUGH.
+ *                FOLDERS ONLY. A single click navigates the centre pane to that
+ *                folder and toggles its disclosure. One gesture, one meaning.
+ *                No selection, no multi-select, no open.
  *
- * It renders TWO different highlights, because the surface now has two states
- * to show: `selection` (what is picked — the noun the verbs act on) and
- * `viewPath` (what the center pane is showing). Before the split one prop meant
- * both, which is exactly the conflation the split exists to end.
+ *   centre pane  a FILE BROWSER — the contents of the folder you are standing
+ *                in. Single click selects · ⌘/shift multi-select · double click
+ *                opens. That grammar lives in the Files surface + ContentViewer.
+ *
+ * Windows Explorer and macOS Finder both show FOLDERS ONLY in the left tree.
+ * Files never appear there, so "does clicking a file in the tree open it?"
+ * never arises — the question the first cut had to keep answering, and answered
+ * by bleeding the selection model into a pane that has nothing to select.
+ * (Operator-observed: clicking a FILE in the tree raised a floating
+ * Move…/Open/Clear chip next to Properties.)
+ *
+ * The consequence is deliberate and correct: THE TREE CAN NO LONGER OPEN A
+ * FILE AT ALL. The centre pane is the only route to a document.
+ *
+ * The one highlight this pane draws follows `viewPath` — whichever folder the
+ * centre pane is currently showing. It is a "you are here", not a selection;
+ * nothing here is pickable, so there is nothing for a second treatment to say.
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Lock, Archive } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { WorkspaceTreeNode, FileClickIntent } from '@/types';
-import { FileIcon } from '@/components/workspace/FileIcon';
+import type { WorkspaceTreeNode } from '@/types';
 import { TILE_DRAG_MIME } from '@/components/workspace/FileTile';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
-import { fileLegibilityState, type FileLegibilityState } from '@/lib/workspace/legibility';
 import { resolveRootIcon } from '@/lib/workspace/root-icons';
 
 interface WorkspaceTreeProps {
+  /**
+   * The workspace tree AS LOADED — files included. This component filters them
+   * out itself (`foldersOnly` below) rather than asking its caller to hand over
+   * a pre-pruned tree, because the SAME `treeNodes` array feeds the Move
+   * picker and resolves what the centre pane shows. Pruning at the source
+   * would take folders' file children away from those consumers too.
+   */
   nodes: WorkspaceTreeNode[];
-  /** The picked set — every member rings. */
-  selection?: readonly string[];
-  /** What the center pane is SHOWING — rendered as the "you are here" row. */
+  /** What the centre pane is SHOWING — rendered as the "you are here" row. */
   viewPath?: string;
-  onSelect: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
+  /**
+   * Navigate the centre pane to this folder. No event, no modifiers: a tree
+   * click has exactly one meaning, so there is no intent for the surface to
+   * disambiguate.
+   */
+  onNavigate: (node: WorkspaceTreeNode) => void;
   /**
    * ADR-514 D2.6 — the verb bundle, WHOLE. This prop replaced a hand-listed
    * subset (`onGetInfo`/`onRename`/`onMove`/`onDelete`/`onDuplicate`), which was
    * a standing defect generator: every new verb had to be threaded through the
-   * wall by hand, and one that wasn't simply vanished from this mount. That is
-   * exactly how Duplicate shipped absent from the Explorer while the grid — same
-   * FileContextMenu — offered it (found live 2026-08-03), and why Share… was
-   * missing here too. Taking `FileVerbs` whole means a verb wired once reaches
-   * every mount, and Open With (a variable-length submenu, not a single
-   * callback) becomes expressible at all.
+   * wall by hand, and one that wasn't simply vanished from this mount.
+   *
+   * Every target here is a FOLDER, so the file-only entries in the shared menu
+   * (Rename… / Move to… / Duplicate / Move to Trash / Download / Open With)
+   * self-suppress on `isFile: false` — the tree offers Open · Properties ·
+   * Share… · New Folder, which is exactly the Explorer folder-row menu.
    *
    * The menu stays OPTIMISTIC (ADR-400 Amendment 1): it offers the verb; the
    * parent's handler + the backend decide and surface an honest error on the
@@ -52,10 +74,10 @@ interface WorkspaceTreeProps {
    */
   verbs?: FileVerbs;
   /**
-   * ADR-400 Wave B (2026-07-03) — drag-and-drop move. A file dragged onto a
-   * folder calls this with (fromPath, destFolderPath). The native muscle-memory
-   * gesture; the menu "Move to…" folder-picker is the deliberate/accessible
-   * path. Enabled only when both this + `canOrganize` are provided.
+   * ADR-400 Wave B (2026-07-03) — drag-and-drop move. A file dragged from the
+   * CENTRE PANE onto a folder row here calls this with (fromPath,
+   * destFolderPath). The tree is a drop DESTINATION only: with no files in it,
+   * nothing here is draggable, and the drag SOURCE is the listing.
    */
   onMoveByDrag?: (fromPath: string, destFolder: string) => void | Promise<void>;
   /**
@@ -63,32 +85,49 @@ interface WorkspaceTreeProps {
    * Absent, a folder row ignores file drops and only accepts internal moves.
    */
   onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
-  /** True iff the operator may organize `path` — gates draggable + droppable. */
+  /** True iff the operator may organize `path` — gates droppable. */
   canOrganize?: (path: string) => boolean;
 }
 
-export function WorkspaceTree({ nodes, selection, viewPath, onSelect, verbs, onMoveByDrag, onDropFiles, canOrganize }: WorkspaceTreeProps) {
-  const selectedSet = useMemo(() => new Set(selection ?? []), [selection]);
+/**
+ * FOLDERS ONLY, at every depth — the whole point of this pane.
+ *
+ * Applied to the RENDER, not to the data: `nodes` is shared with the Move
+ * picker and with the centre pane's node resolution, and both of those need
+ * the files.
+ *
+ * One subtlety worth stating, because it is the case that looks like a bug: a
+ * folder whose children are ALL files (a report folder, a domain leaf) keeps
+ * its row and simply has no branch to unfold. That is correct — it is still a
+ * place you navigate to, and its contents show in the centre pane, which is
+ * where files live now.
+ */
+function foldersOnly(nodes: WorkspaceTreeNode[] | undefined): WorkspaceTreeNode[] {
+  return (nodes ?? [])
+    .filter((n) => n.type === 'folder')
+    .map((n) => ({ ...n, children: foldersOnly(n.children) }));
+}
+
+export function WorkspaceTree({ nodes, viewPath, onNavigate, verbs, onMoveByDrag, onDropFiles, canOrganize }: WorkspaceTreeProps) {
+  const folderNodes = useMemo(() => foldersOnly(nodes), [nodes]);
   // ADR-400 Wave B: which folder path is the current drag-over drop target
   // (for the highlight). Lifted here so only one row highlights at a time.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-  // The menu's Open falls back to the tree's own select, so a click and the
-  // menu's Open are the same act even when the caller wired no onOpen.
+  // The menu's Open falls back to the tree's own navigate, so a click and the
+  // menu's Open are the same act even when the caller wired no onOpen. Both
+  // mean "show me this folder" — there is no other thing Open could mean on a
+  // pane that holds only folders.
   const menuVerbs = useMemo<FileVerbs | undefined>(() => {
     if (!verbs || verbs.onOpen) return verbs;
     return {
       ...verbs,
-      // The menu's Open must OPEN. A bare `onSelect(node)` carries no intent,
-      // which under the select/open split means SELECT — so the menu's Open
-      // would have quietly become a highlight. Synthesize the double-click
-      // the surface reads as an open.
       onOpen: (t) => {
-        const node = findNodeByPath(nodes, t.path);
-        if (node) onSelect(node, { detail: 2 });
+        const node = findNodeByPath(folderNodes, t.path);
+        if (node) onNavigate(node);
       },
     };
-  }, [verbs, nodes, onSelect]);
+  }, [verbs, folderNodes, onNavigate]);
 
   // The SHARED open-state machine (useFileContextMenu) — the same one the
   // folder listing, RecentsView grid and Studio recents mount. The tree
@@ -102,13 +141,17 @@ export function WorkspaceTree({ nodes, selection, viewPath, onSelect, verbs, onM
   const { openMenu, menu, hasVerbs } = useFileContextMenu(menuVerbs);
   const onNodeContextMenu = hasVerbs
     ? (node: WorkspaceTreeNode, e: React.MouseEvent) => {
-        openMenu({ path: node.path, name: node.name, isFile: node.type === 'file' }, e);
+        // `isFile: false` always — this pane renders nothing else.
+        openMenu({ path: node.path, name: node.name, isFile: false }, e);
       }
     : undefined;
 
   // Drag-and-drop is enabled only when both the callback + the ownership
-  // predicate are wired. A file is draggable iff the operator can organize it;
-  // a folder is a drop target iff the operator can organize into it.
+  // predicate are wired. A folder is a drop target iff the operator can
+  // organize into it. Nothing in this pane is a drag SOURCE any more (the
+  // sources were the file rows, which are gone) — the centre-pane listing and
+  // the Recents grid carry the same MIME, so a drag started there still lands
+  // here.
   const dnd = onMoveByDrag && canOrganize
     ? {
         canOrganize,
@@ -128,14 +171,13 @@ export function WorkspaceTree({ nodes, selection, viewPath, onSelect, verbs, onM
 
   return (
     <div className="text-sm">
-      {nodes.map((node) => (
+      {folderNodes.map((node) => (
         <TreeItem
           key={node.path}
           node={node}
           depth={0}
-          selectedSet={selectedSet}
           viewPath={viewPath}
-          onSelect={onSelect}
+          onNavigate={onNavigate}
           onContextMenu={onNodeContextMenu}
           dnd={dnd}
         />
@@ -158,9 +200,8 @@ interface DndBundle {
 interface TreeItemProps {
   node: WorkspaceTreeNode;
   depth: number;
-  selectedSet: ReadonlySet<string>;
   viewPath?: string;
-  onSelect: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
+  onNavigate: (node: WorkspaceTreeNode) => void;
   onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
   dnd?: DndBundle;
 }
@@ -171,19 +212,6 @@ interface TreeItemProps {
 // rename silently make them refuse each other's drags.
 const DRAG_MIME = TILE_DRAG_MIME;
 
-// ADR-422 D1: a file's legibility state (machine-config / raw-intake /
-// agent-authored / operator) drives its tree affordance. This REPLACES the old
-// coarse `_`-prefix `isSystemFile` heuristic, which mislabeled prose files like
-// `_notes.md` as "system". machine-config + raw-intake render de-emphasized with
-// a distinct glyph (lock / archive); agent-authored + operator render normally.
-// Derived from path + authored_by already on the node — no new backend data.
-
-// A file is de-emphasized (dimmer) iff it's system-managed config or an
-// immutable record — not the operator's freely-editable prose.
-function isDeEmphasized(state: FileLegibilityState): boolean {
-  return state === 'machine-config' || state === 'raw-intake';
-}
-
 // ADR-423 follow-on: the collapsed "System files" disclosure (the OS
 // "Show system files" model) — kernel residue folded out of the operator's way.
 // It must start COLLAPSED even though it's a depth-0 node, so it doesn't spill
@@ -191,41 +219,25 @@ function isDeEmphasized(state: FileLegibilityState): boolean {
 // Files page (a virtual /explorer/ handle).
 const SYSTEM_FILES_NODE_PATH = '/explorer/system-files';
 
-function TreeItem({ node, depth, selectedSet, viewPath, onSelect, onContextMenu, dnd }: TreeItemProps) {
+function TreeItem({ node, depth, viewPath, onNavigate, onContextMenu, dnd }: TreeItemProps) {
   // Auto-expand the first level — EXCEPT the "System files" fold, which stays
   // collapsed (it's the hidden residue; the operator opens it deliberately).
   const [expanded, setExpanded] = useState(
     depth < 1 && node.path !== SYSTEM_FILES_NODE_PATH,
   );
-  const isFolder = node.type === 'folder';
-  const isSelected = selectedSet.has(node.path);
+  // The ONE state this pane draws: is the centre pane standing in this folder.
   const isShown = viewPath === node.path;
-  // ADR-422 D1: the file's legibility state → its affordance (folders are always
-  // 'operator' — no not-editable treatment).
-  const legibility = fileLegibilityState(node);
-  const deEmphasized = isDeEmphasized(legibility);
+  // A folder with only file children has no branch to unfold — draw no
+  // disclosure chevron for it, so the affordance never promises a fold that
+  // isn't there.
+  const hasBranch = (node.children?.length ?? 0) > 0;
 
-  // ADR-400 Wave B drag-and-drop.
-  // A FILE is draggable iff the operator can organize it (system/ + machine-
-  // config are not draggable). A FOLDER is a drop target iff the operator can
-  // organize into it — probed with a synthetic child path.
-  const draggable = !!dnd && !isFolder && dnd.canOrganize(node.path);
-  const isDropTarget = !!dnd && isFolder && dnd.canOrganize(`${node.path}/x`);
+  // ADR-400 Wave B drop target. A FOLDER accepts a drop iff the operator can
+  // organize into it — probed with a synthetic child path. There is no
+  // `draggable` half any more: the tree holds no files, so it is a
+  // destination only.
+  const isDropTarget = !!dnd && dnd.canOrganize(`${node.path}/x`);
   const isDropHover = !!dnd && dnd.dropTarget === node.path;
-
-  const dragProps = draggable
-    ? {
-        draggable: true as const,
-        onDragStart: (e: React.DragEvent) => {
-          e.dataTransfer.setData(DRAG_MIME, node.path);
-          e.dataTransfer.effectAllowed = 'move';
-        },
-        // dragend fires on the SOURCE when the drag ends however it ends
-        // (dropped, or aborted via Esc / released over a non-target). Clear the
-        // highlight so an aborted drag never leaves a folder stuck highlighted.
-        onDragEnd: () => dnd?.setDropTarget(null),
-      }
-    : {};
 
   const dropProps = isDropTarget && dnd
     ? {
@@ -265,105 +277,66 @@ function TreeItem({ node, depth, selectedSet, viewPath, onSelect, onContextMenu,
     : {};
 
   // Reveal the branch that holds what the pane is showing — a deep-link, an
-  // upload landing, a just-created folder. Keyed on `viewPath` (what the
-  // surface NAVIGATED to), not on the selection: a member ⌘-picking rows across
-  // collapsed branches must not have the tree unfold under their cursor.
+  // upload landing, a just-created folder. Keyed on `viewPath`: the tree
+  // follows the centre pane, which is the whole relationship between the two.
   useEffect(() => {
-    if (isFolder && viewPath && nodeContainsPath(node, viewPath)) {
+    if (viewPath && nodeContainsPath(node, viewPath)) {
       setExpanded(true);
     }
-  }, [isFolder, node, viewPath]);
+  }, [node, viewPath]);
 
-  const handleClick = (e?: React.MouseEvent) => {
-    // A ⌘/Ctrl-click (add one) or a shift-click (take a range) is a SELECTION
-    // gesture — it must not also toggle the folder's disclosure, or the set
-    // gesture and the browse gesture fight over one click.
-    const additive = !!(e && (e.metaKey || e.ctrlKey || e.shiftKey));
-    if (isFolder && !additive) {
-      // A TREE FOLDER STAYS SINGLE-CLICK (2026-08-20). The select/open split
-      // that made FILES open on double-click deliberately does not reach here:
-      // in every Finder-shaped tree a folder's single click toggles its
-      // disclosure triangle, and demanding a double-click to expand a branch
-      // reads as a broken tree, not as a stricter grammar. Disclosure is not
-      // "opening" — nothing launches, nothing navigates; the branch just shows
-      // its children. Only FILES carry the open/select distinction here; in the
-      // LISTING (a grid of peers) a folder takes the double-click like a file.
-      setExpanded(!expanded);
-    }
-    // The tree DECIDES NOTHING. It reports what the click meant — the
-    // modifiers, plus `detail` (the browser's own click counter, so a
-    // double-click is the browser's judgment and not a timer of ours) — and the
-    // surface applies the grammar.
-    onSelect(
-      node,
-      e
-        ? { metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, detail: e.detail }
-        : undefined,
-    );
+  // ONE GESTURE, ONE MEANING. A single click on a folder row NAVIGATES the
+  // centre pane to that folder AND unfolds its branch. Both, always, from the
+  // same click — because in a navigator they are the same act said two ways:
+  // "show me what is in here". The first cut split them behind modifiers, which
+  // is a selection grammar, and this pane has nothing to select.
+  const handleClick = () => {
+    if (hasBranch) setExpanded((v) => !v);
+    onNavigate(node);
   };
-
-  // Icon based on path/type
-  const icon = isFolder ? (
-    expanded ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-  ) : null;
-
-  const fileIcon = getFileIcon(node);
 
   return (
     <div>
       <button
         onClick={handleClick}
         onContextMenu={onContextMenu ? (e) => onContextMenu(node, e) : undefined}
-        {...dragProps}
         {...dropProps}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 px-2 rounded-sm text-left hover:bg-accent/50 transition-colors",
-          // TWO STATES, TWO TREATMENTS. Picked = the selection ring (a state
-          // the member put the row into, and can act on). Shown = the filled
-          // "you are here" row. A row can be both, and then it reads as both.
-          isSelected && "bg-primary/10 text-primary font-medium ring-1 ring-inset ring-primary/40",
-          isShown && !isSelected && "bg-accent text-foreground font-medium",
-          // ADR-422 D1: machine-config + raw-intake render de-emphasized (dimmer
-          // text) rather than hidden — present but visibly secondary (supersedes
-          // the ADR-320 `_`-prefix de-emphasis, which mislabeled prose).
-          deEmphasized && !isSelected && "text-muted-foreground/55",
+          // ONE state, ONE treatment: the folder the centre pane is showing.
+          // The selection ring is gone with the files it used to ring.
+          isShown && "bg-accent text-foreground font-medium",
           // ADR-400 Wave B: drop-target highlight while a file drags over.
           isDropHover && "ring-2 ring-inset ring-primary/60 bg-primary/5",
-          draggable && "cursor-grab active:cursor-grabbing",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
-        {isFolder && icon}
-        {!isFolder && <span className="w-3.5" />}
-        {fileIcon}
+        {hasBranch
+          ? (expanded
+              ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />)
+          : <span className="w-3.5" />}
+        {folderIcon(node)}
         <span className="truncate flex-1">{node.name}</span>
-        {/* ADR-422 D1: the not-editable-state affordance — a plain glyph, not the
-            developer `sys` word (ADR-410 D4). A lock = system-managed config the
-            operator tunes in Settings; an archive = an immutable record of what
-            came in. agent-authored + operator files carry no tree glyph (their
-            authorship lives in the header + Get-Info, ADR-388 D3). The glyph is a
-            quiet trailing hint; the full "why" is stated in Get-Info (D4). */}
-        {legibility === 'machine-config' && (
-          <Lock className="shrink-0 w-3 h-3 text-muted-foreground/40 ml-1" aria-label="Managed by the system" />
-        )}
-        {legibility === 'raw-intake' && (
-          <Archive className="shrink-0 w-3 h-3 text-muted-foreground/40 ml-1" aria-label="A record of what came in" />
-        )}
         {/* ADR-388 follow-up: author dots removed from the tree. An unlabeled
             color dot is a riddle — "who wrote it" now lives where it's a full
             legible label (the file header + the Get-Info modal), not a color
-            the operator must decode. The tree is for navigation. */}
+            the operator must decode. The tree is for navigation.
+
+            The ADR-422 D1 lock / archive glyphs went with the file rows they
+            annotated: they said "this FILE is machine-config / a raw record",
+            and there are no file rows here. The same statement still reaches
+            the operator on the centre-pane row and in Get-Info. */}
       </button>
-      {isFolder && expanded && node.children && (
+      {expanded && hasBranch && (
         <div>
-          {node.children.map((child) => (
+          {node.children!.map((child) => (
             <TreeItem
               key={child.path}
               node={child}
               depth={depth + 1}
-              selectedSet={selectedSet}
               viewPath={viewPath}
-              onSelect={onSelect}
+              onNavigate={onNavigate}
               onContextMenu={onContextMenu}
               dnd={dnd}
             />
@@ -391,33 +364,34 @@ function nodeContainsPath(node: WorkspaceTreeNode, targetPath: string): boolean 
   return false;
 }
 
-function getFileIcon(node: WorkspaceTreeNode) {
+/**
+ * The folder glyph. (Was `getFileIcon`, a name that no longer describes
+ * anything this pane renders — its FileIcon branch is deleted with the file
+ * rows.)
+ */
+function folderIcon(node: WorkspaceTreeNode) {
   const path = node.path.toLowerCase();
 
-  if (node.type === 'folder') {
-    // ADR-422 D3: a ROOT node carries the kernel-named glyph (WORKSPACE_ROOTS
-    // in workspace_paths.py) — prefer it over the path-string guesses below, so
-    // constitution/governance/contract/inbound get their real glyph (before,
-    // they all fell to the generic folder). An unmapped root → generic folder
-    // (forward-compat with re-founding roots, ADR-388 §6).
-    if (node.icon_name) {
-      const RootIcon = resolveRootIcon(node.icon_name);
-      return <RootIcon className="w-3.5 h-3.5 text-muted-foreground" />;
-    }
-    // Virtual /explorer/* group nodes (no backend root behind them).
-    if (path === '/explorer/settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
-    if (path === '/explorer/context') return <Boxes className="w-3.5 h-3.5 text-sky-600" />;
-    if (path === '/explorer/outputs') return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
-    if (path === '/explorer/uploads' || path === '/workspace/uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
-    if (path === '/workspace/persona') return <Bot className="w-3.5 h-3.5 text-rose-500" />;
-    if (path === '/workspace/system') return <Settings className="w-3.5 h-3.5 text-zinc-500" />;
-    if (path === '/workspace/agents') return <Bot className="w-3.5 h-3.5 text-purple-500" />;
-    // Substrate folder children (ADR-320 topology).
-    if (path.includes('/agents/')) return <Bot className="w-3.5 h-3.5 text-purple-500" />;
-    if (path.includes('/operation/reports/')) return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
-    if (path.startsWith('/workspace/operation/')) return <Folder className="w-3.5 h-3.5 text-blue-500" />;
-    return <Folder className="w-3.5 h-3.5 text-muted-foreground" />;
+  // ADR-422 D3: a ROOT node carries the kernel-named glyph (WORKSPACE_ROOTS
+  // in workspace_paths.py) — prefer it over the path-string guesses below, so
+  // constitution/governance/contract/inbound get their real glyph (before,
+  // they all fell to the generic folder). An unmapped root → generic folder
+  // (forward-compat with re-founding roots, ADR-388 §6).
+  if (node.icon_name) {
+    const RootIcon = resolveRootIcon(node.icon_name);
+    return <RootIcon className="w-3.5 h-3.5 text-muted-foreground" />;
   }
-
-  return <FileIcon filename={node.name} size="sm" />;
+  // Virtual /explorer/* group nodes (no backend root behind them).
+  if (path === '/explorer/settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
+  if (path === '/explorer/context') return <Boxes className="w-3.5 h-3.5 text-sky-600" />;
+  if (path === '/explorer/outputs') return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
+  if (path === '/explorer/uploads' || path === '/workspace/uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
+  if (path === '/workspace/persona') return <Bot className="w-3.5 h-3.5 text-rose-500" />;
+  if (path === '/workspace/system') return <Settings className="w-3.5 h-3.5 text-zinc-500" />;
+  if (path === '/workspace/agents') return <Bot className="w-3.5 h-3.5 text-purple-500" />;
+  // Substrate folder children (ADR-320 topology).
+  if (path.includes('/agents/')) return <Bot className="w-3.5 h-3.5 text-purple-500" />;
+  if (path.includes('/operation/reports/')) return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
+  if (path.startsWith('/workspace/operation/')) return <Folder className="w-3.5 h-3.5 text-blue-500" />;
+  return <Folder className="w-3.5 h-3.5 text-muted-foreground" />;
 }
