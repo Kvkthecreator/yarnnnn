@@ -22,8 +22,9 @@
  * Two variants, ONE mechanism (ADR-587 D8):
  *   - `boxed` (default) — the bordered input + Copy button. For a properties
  *     block or a dialog, where the value is a row of its own.
- *   - `inline` — monospace text with a copy glyph that appears on hover. For a
- *     metadata strip, where a bordered box would out-weigh the title above it.
+ *   - `inline` — monospace text with a small, ALWAYS-VISIBLE copy control. For
+ *     a metadata strip, where a full bordered input would out-weigh the title
+ *     above it.
  * The variant is PRESENTATION only: same clipboard call, same denial fallback,
  * same selection behavior. A second component would have been a second place
  * for the fallback to be forgotten.
@@ -67,7 +68,7 @@ export function CopyField({
 
   if (variant === 'inline') {
     return (
-      <span className={cn('group relative inline-flex max-w-full items-center gap-1.5 align-middle', className)}>
+      <span className={cn('relative inline-flex max-w-full items-center gap-1.5 align-middle', className)}>
         {/* The same hidden input the boxed variant focuses on a clipboard
             denial. Without it the inline variant would have NO fallback — it
             would silently do nothing where the boxed one hands over a
@@ -89,11 +90,11 @@ export function CopyField({
           onClick={() => void copy()}
           aria-label={`Copy ${label}`}
           title={`Copy ${label}`}
-          className="shrink-0 rounded p-0.5 text-muted-foreground/60 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+          className="inline-flex shrink-0 items-center gap-1 rounded border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copied ? 'Copied' : 'Copy'}
         </button>
-        {copied && <span className="shrink-0 text-[10px] text-muted-foreground">Copied</span>}
       </span>
     );
   }

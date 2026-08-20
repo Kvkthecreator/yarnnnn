@@ -306,6 +306,29 @@ undifferentiated fact-list — the opposite of what a copy affordance is for.
 A folder keeps its item count: the one fact its identity line carries that
 nothing else on the screen states.
 
+### D10 — The copy control is visible, not hover-revealed (amended 2026-08-21)
+
+Operator, closing the polish pass: *"anyway we can show the copy feature more
+apparently? or just remove the onhover for the button."*
+
+D8's inline variant hid its copy glyph behind `group-hover` to keep the metadata
+strip light. That was wrong on two counts, and neither is taste:
+
+- **It does not exist on touch.** There is no hover on a tablet, so the control
+  was simply absent for those users — not subtle, *missing*.
+- **It is undiscoverable everywhere else.** An affordance you must already know
+  about in order to find is not an affordance.
+
+The constraint that motivated hiding it is also gone: D9 split the strip into
+two clean lines, so there is room for a small labelled control. It now reads
+`⧉ Copy` in a quiet bordered chip, always present, changing to `✓ Copied`.
+
+**Also decided in this pass, and kept**: the `Updated …` line stays. Everything
+D9 deleted was stated elsewhere ON SCREEN; "when did this last change" is stated
+only in Properties, a click away — and it is the surface expression of the
+attributed ledger this product is built on. A six-week-old file reading `Updated
+Jul 9` on Aug 21 is a fact that changes what the operator does next.
+
 ---
 
 ## 4. The rejected alternative, recorded — merging the handle into the share flow
@@ -380,8 +403,10 @@ copy.
 
 - **The click-pass.** Operator-confirmed working: the Files list-view copy affordance, and the
   D7 grid tile (folder tiles now read `operation/_connectors/github` where they showed an empty
-  attribution dot). Still undriven: folder Properties (D7), the header's inline copy (D8), the
-  share sheet's path field on Studio and Text (D6), and pasting a handle into the Launcher.
+  attribution dot), and the D8/D9/D10 header strip on a real file. Still undriven: folder
+  Properties (D7), the share sheet's path field on Studio and Text (D6), and pasting a handle
+  into the Launcher (D4) — the last of which is the round-trip's return leg and the most
+  valuable remaining check.
 - **Not mine, observed in passing**: `files_arrival_door.mjs` A7 reports 8/9 ("found 3" arrival
   handlers) at baseline — introduced by concurrent work on `files/page.tsx`, red before this
   arc's D6/D7 changes and unaffected by them.

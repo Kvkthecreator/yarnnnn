@@ -54,6 +54,10 @@ D8-one-copy-mechanism — the inline and boxed CopyField variants differ in
      that silently no-ops where the other hands over a selection is the
      incorrect-success this component exists to prevent.
 
+D10-visible-affordance — the inline copy control is always visible and
+     labelled. Hover-reveal is not a style choice: it does not exist on touch,
+     and it is undiscoverable everywhere else.
+
 D9-strip-is-two-questions — the header strip states IDENTITY (the path) and
      HISTORY (when/who) as separate lines, and states nothing a neighbouring
      element already says. The kind word and the stored `summary` are gone:
@@ -488,6 +492,22 @@ check(
     "the inline variant mounts the input its fallback needs",
     "ref={inputRef}" in inline_branch,
     "inline renders no input — its clipboard-denial fallback would be a no-op",
+)
+# ADR-587 D10 — the control is VISIBLE, not hover-revealed. A hover-only
+# affordance does not exist on touch (no hover on a tablet), and it is
+# undiscoverable everywhere else: you must already know it is there to find it.
+# The first cut of the inline variant hid the glyph behind `group-hover`, which
+# traded the affordance for tidiness on a strip that no longer needs the room.
+check(
+    "the inline copy control is always visible",
+    "group-hover:opacity-100" not in inline_branch
+    and not re.search(r"<button[^>]*\bopacity-0\b", inline_branch, re.S),
+    "the inline copy control is hover-revealed — invisible on touch, undiscoverable elsewhere",
+)
+check(
+    "the inline control is labelled, not a bare glyph",
+    "'Copied' : 'Copy'" in inline_branch,
+    "the control shows only an icon — the word is what makes it read as an affordance",
 )
 
 print()
