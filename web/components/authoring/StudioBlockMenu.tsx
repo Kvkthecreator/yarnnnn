@@ -154,6 +154,84 @@ function Row({
   );
 }
 
+/** ADR-586 D4 as DECIDED — a tier is a FLYOUT, not an inline expansion.
+ *
+ *  D4 specified "nested panels measure themselves and FLIP (left of the anchor
+ *  near the right edge, above near the bottom)". The first build substituted
+ *  inline tiers and recorded a positioning note arguing they were strictly more
+ *  robust (no detached panel can run off an edge). That is true of the EDGE and
+ *  false of the MENU: an inline tier changes the parent's height, so the whole
+ *  box re-clamps and JUMPS out from under the pointer — the 2026-08-19
+ *  click-pass measured it moving 125→352px tall and 647→421 top on one open.
+ *  A flyout leaves the parent where the member right-clicked, which is what
+ *  every reference menu (Figma, Finder, PowerPoint) does.
+ *
+ *  The flip is MEASURED, never guessed: render at the anchor, read the real
+ *  rect, then flip left / shift up only when the panel would leave the viewport.
+ *  Clamping stays as the backstop for a panel taller than the viewport itself.
+ *
+ *  NARROW SCREENS KEEP THE INLINE TIER. A flyout needs a pointer and room
+ *  beside the parent; a phone has neither, and the sheet housing (D5) is a
+ *  drill, not a hover surface. Under the breakpoint this renders exactly what
+ *  it rendered before — deliberately lower scope, one component, no second
+ *  mechanism for callers to pick between.
+ */
+const FLYOUT_MIN_WIDTH = 168;
+
+function Flyout({
+  open, children, inline,
+}: {
+  open: boolean;
+  children: React.ReactNode;
+  /** True under the narrow breakpoint: render as the old inline tier. */
+  inline: boolean;
+}) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || inline) { setPos(null); return; }
+    const el = panelRef.current;
+    const row = el?.parentElement;
+    if (!el || !row) return;
+    const r = row.getBoundingClientRect();
+    const { width, height } = el.getBoundingClientRect();
+    const MARGIN = 8;
+    // Horizontal: open to the RIGHT of the parent row; flip LEFT when the panel
+    // would cross the right edge. Flipping is preferred over clamping so the
+    // panel never overlaps the menu it came from.
+    const right = r.right - 2;
+    const left = right + width + MARGIN > window.innerWidth ? r.left - width + 2 : right;
+    // Vertical: top-align with the row, then shift UP by the overflow so the
+    // whole panel fits. Clamp at MARGIN for a panel taller than the viewport
+    // (it scrolls internally via max-height).
+    const over = r.top + height + MARGIN - window.innerHeight;
+    const top = over > 0 ? Math.max(MARGIN, r.top - over) : r.top;
+    setPos({ left: Math.max(MARGIN, left), top });
+  }, [open, inline]);
+
+  if (!open) return null;
+  if (inline) {
+    return <div className="mt-0.5 border-l-2 border-border/60 pl-1">{children}</div>;
+  }
+  return (
+    <div
+      ref={panelRef}
+      className="fixed z-[60] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md"
+      style={{
+        left: pos?.left ?? -9999,
+        top: pos?.top ?? -9999,
+        minWidth: FLYOUT_MIN_WIDTH,
+        // Pre-measure paint is off-screen rather than at the anchor: a panel
+        // that paints at the wrong edge and corrects is a visible jump.
+        visibility: pos ? 'visible' : 'hidden',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 const SEP = <div className="my-1 h-px bg-border" />;
 const ICO = 'h-3.5 w-3.5';
 
@@ -170,6 +248,13 @@ export function StudioBlockMenu({
   // ADR-586 D4 — the located insert tiers are the CATEGORIES (one open at a
   // time), replacing the ADR-579 New ▸/Add ▸ provenance pair.
   const [insertOpen, setInsertOpen] = useState<BlockCategory | null>(null);
+  // ADR-586 D4/D5 — the tier housing. Flyouts need a pointer and room BESIDE
+  // the parent; under the narrow breakpoint neither exists, so tiers stay
+  // inline there (the same lower-scope call D5 makes for the sheet). Measured
+  // once per open: the menu closes on resize, so it cannot go stale.
+  const [inlineTiers] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.innerWidth < 640,
+  );
   // Dismissal. NOTE the parent-window blind spot: the Studio canvas is a
   // SANDBOXED IFRAME, so a click on the artifact fires in the frame's own
   // document and these parent listeners never hear it. The canvas's point
@@ -260,6 +345,12 @@ export function StudioBlockMenu({
   // screen at whatever height it actually is.
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [clamped, setClamped] = useState<{ left: number; top: number } | null>(null);
+  // The tier state as ONE scalar dep — and only where a tier can change the
+  // box's height (the inline housing). On a pointer screen it is a constant,
+  // so opening a flyout never re-clamps the parent.
+  const tierDeps = inlineTiers
+    ? `${turnOpen}|${insertOpen}|${updateOpen}|${askOpen}`
+    : '';
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!el) return;
@@ -269,7 +360,15 @@ export function StudioBlockMenu({
       left: Math.max(MARGIN, Math.min(target.x, window.innerWidth - width - MARGIN)),
       top: Math.max(MARGIN, Math.min(target.y, window.innerHeight - height - MARGIN)),
     });
-  }, [target.x, target.y, turnOpen, turnIntoKinds.length, insertOpen, updateOpen, askOpen]);
+    // ADR-586 D4 (flyout recut): on a pointer screen the tier state must NOT
+    // re-clamp the parent — a flyout does not change the parent's height, and
+    // re-clamping on open is exactly what MOVED the menu out from under the
+    // pointer (measured 647→421 top on one open, 2026-08-19). The INLINE
+    // housing DOES still grow the box, so there the tier state must re-clamp.
+    // One dep list of FIXED LENGTH (a conditional array is a React violation):
+    // `tierDeps` collapses to a constant where a tier cannot change the height.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tierDeps is the guarded projection
+  }, [target.x, target.y, turnIntoKinds.length, tierDeps]);
 
   // First paint uses the raw point (with the old conservative guard) so the menu
   // never flashes at 0,0; the layout effect corrects it before the browser
@@ -317,20 +416,30 @@ export function StudioBlockMenu({
               setUpdateOpen(false); setAskOpen(false);
             };
             return (
-              <div key={g.key}>
+              <div
+                key={g.key}
+                className="relative"
+                // Hover opens the tier on a pointer screen — the reference
+                // behaviour (Figma/Finder). Click still works and is the only
+                // route when tiers are inline. Hover never CLOSES: leaving
+                // toward the panel would dismiss what you are reaching for.
+                onMouseEnter={inlineTiers ? undefined : () => {
+                  setInsertOpen(g.key); setUpdateOpen(false); setAskOpen(false);
+                }}
+              >
                 <button
                   type="button"
                   onClick={toggle}
-                  className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                  className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${opened && !inlineTiers ? 'bg-accent' : ''}`}
                 >
                   <span className="text-muted-foreground"><Plus className={ICO} /></span>
                   <span className="truncate">{g.label}</span>
                   <ChevronRight
-                    className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${opened ? 'rotate-90' : ''}`}
+                    className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${opened && inlineTiers ? 'rotate-90' : ''}`}
                   />
                 </button>
-                {opened && (
-                  <div className="mt-0.5 grid grid-cols-3 gap-1 border-l-2 border-border/60 p-1 pl-2">
+                <Flyout open={opened} inline={inlineTiers}>
+                  <div className={`grid grid-cols-3 gap-1 ${inlineTiers ? 'mt-0.5 p-1 pl-2' : 'w-[228px] p-1'}`}>
                     {g.items.map((b) => (
                       <button
                         key={b.kind}
@@ -344,7 +453,7 @@ export function StudioBlockMenu({
                       </button>
                     ))}
                   </div>
-                )}
+                </Flyout>
               </div>
             );
           })}
@@ -397,37 +506,46 @@ export function StudioBlockMenu({
               tier is chrome, never a second write path (ADR-462 D1). The seam
               inside each verb is WHO — the badge marks the colleague's paid
               acts (ADR-462 D4); plumbing above stays unlabeled. */}
+          <div
+            className="relative"
+            onMouseEnter={inlineTiers ? undefined : () => {
+              setUpdateOpen(true); setAskOpen(false); setInsertOpen(null);
+            }}
+          >
           <button
             type="button"
             onClick={() => { setUpdateOpen((v) => !v); setAskOpen(false); setInsertOpen(null); }}
-            className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+            className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${updateOpen && !inlineTiers ? 'bg-accent' : ''}`}
           >
             <span className="text-muted-foreground"><PenLine className={ICO} /></span>
             <span className="truncate">Update</span>
             <ChevronRight
-              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${updateOpen ? 'rotate-90' : ''}`}
+              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${updateOpen && inlineTiers ? 'rotate-90' : ''}`}
             />
           </button>
-          {updateOpen && (
-            <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+          <Flyout open={updateOpen} inline={inlineTiers}>
+            <div className={inlineTiers ? '' : 'min-w-[196px]'}>
               {/* ADR-479 D5 — Turn into, in one gesture. Shown only when the
                   conversion is LEGAL: a text kind, and never a citation (a
                   figure or table wears data-ref on its own root, and
                   flattening it would bake a live reference into prose — the
                   op refuses, so the menu must not offer). */}
               {turnIntoKinds.length > 0 && (
-                <div className="relative">
+                <div
+                  className="relative"
+                  onMouseEnter={inlineTiers ? undefined : () => setTurnOpen(true)}
+                >
                   <button
                     type="button"
                     onClick={() => setTurnOpen((v) => !v)}
-                    className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                    className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${turnOpen && !inlineTiers ? 'bg-accent' : ''}`}
                   >
                     <span className="text-muted-foreground"><Type className={ICO} /></span>
                     <span className="truncate">Turn into</span>
                     <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
                   </button>
-                  {turnOpen && (
-                    <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+                  <Flyout open={turnOpen} inline={inlineTiers}>
+                    <div className={inlineTiers ? '' : 'min-w-[160px]'}>
                       {turnIntoKinds.map((b) => (
                         <button
                           key={b.key}
@@ -439,7 +557,7 @@ export function StudioBlockMenu({
                         </button>
                       ))}
                     </div>
-                  )}
+                  </Flyout>
                 </div>
               )}
               {/* Move up/down is DOCUMENT order; Bring forward/backward is
@@ -479,24 +597,31 @@ export function StudioBlockMenu({
                 Rewrite…
               </Row>
             </div>
-          )}
+          </Flyout>
+          </div>
           {/* ASK — neither row lands a revision; both produce an ANSWER in
               the pane (the badge means METERED, not MUTATING — ADR-462 D4,
               now structural). The old mechanism-named header is retired per
               ADR-579 D3. */}
+          <div
+            className="relative"
+            onMouseEnter={inlineTiers ? undefined : () => {
+              setAskOpen(true); setUpdateOpen(false); setInsertOpen(null);
+            }}
+          >
           <button
             type="button"
             onClick={() => { setAskOpen((v) => !v); setUpdateOpen(false); setInsertOpen(null); }}
-            className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-amber-50 dark:hover:bg-amber-950/30"
+            className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-amber-50 dark:hover:bg-amber-950/30 ${askOpen && !inlineTiers ? 'bg-amber-50 dark:bg-amber-950/30' : ''}`}
           >
             <span className="text-amber-700 dark:text-amber-500"><MessageSquare className={ICO} /></span>
             <span className="truncate">Ask</span>
             <ChevronRight
-              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${askOpen ? 'rotate-90' : ''}`}
+              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${askOpen && inlineTiers ? 'rotate-90' : ''}`}
             />
           </button>
-          {askOpen && (
-            <div className="mt-0.5 border-l-2 border-border/60 pl-1">
+          <Flyout open={askOpen} inline={inlineTiers}>
+            <div className={inlineTiers ? '' : 'min-w-[176px]'}>
               <Row icon={<SearchCheck className={ICO} />} onClick={() => run(onCheck)} meter>
                 Check this…
               </Row>
@@ -506,7 +631,8 @@ export function StudioBlockMenu({
                 Ask about this…
               </Row>
             </div>
-          )}
+          </Flyout>
+          </div>
           {SEP}
           <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
             This block

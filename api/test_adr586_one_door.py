@@ -115,13 +115,36 @@ t("the right-click tiers render thumb grids", "BlockThumb" in BLOCKMENU_NC)
 t("an unknown kind falls back to a drawn cell, not a hole",
   "default:" in THUMB)
 
-print("=== 4. D4 — right-click parity + accommodative re-measure ===")
+print("=== 4. D4 — right-click parity + the FLYOUT tier ===")
 
 t("the tiers are the categories (one module, second mount)",
   "categorizeBlockRows(blocks ?? [], 'paged')" in BLOCKMENU_NC)
-t("the clamp RE-MEASURES when a tier opens (insertOpen/updateOpen/askOpen in deps)",
-  re.search(r"\}, \[target\.x, target\.y[^\]]*insertOpen[^\]]*updateOpen[^\]]*askOpen[^\]]*\]\);", BLOCKMENU_NC)
+
+# D4 as DECIDED: "nested panels measure themselves and FLIP". The first build
+# substituted INLINE tiers; the 2026-08-19 click-pass measured the cost — the
+# parent re-clamped and jumped out from under the pointer (top 647→421 on one
+# open). The claim is now the flyout's: the PANEL accommodates, the PARENT
+# holds still.
+t("ONE flyout mechanism serves every tier (no per-tier housing)",
+  BLOCKMENU_NC.count("function Flyout(") == 1
+  and BLOCKMENU_NC.count("<Flyout open={") == 4)
+t("the flyout FLIPS horizontally off its own measured width",
+  re.search(r"width \+ MARGIN > window\.innerWidth \?[^:]*r\.left - width", BLOCKMENU_NC)
   is not None)
+t("the flyout SHIFTS UP by its own overflow (the bottom-edge case)",
+  re.search(r"const over = r\.top \+ height \+ MARGIN - window\.innerHeight", BLOCKMENU_NC)
+  is not None
+  and re.search(r"over > 0 \? Math\.max\(MARGIN, r\.top - over\)", BLOCKMENU_NC) is not None)
+t("the parent does NOT re-clamp on tier open (that jump WAS the defect)",
+  re.search(r"\}, \[target\.x, target\.y[^\]]*\]\);", BLOCKMENU_NC) is not None
+  and not re.search(r"\}, \[target\.x, target\.y[^\]]*(insertOpen|updateOpen|askOpen)[^\]]*\]\);",
+                    BLOCKMENU_NC))
+t("...but the INLINE housing still re-clamps (it really does grow the box)",
+  re.search(r"inlineTiers\s*\?\s*`\$\{turnOpen\}\|\$\{insertOpen\}\|\$\{updateOpen\}\|\$\{askOpen\}`",
+            BLOCKMENU_NC) is not None)
+t("narrow screens keep the INLINE tier (a flyout needs a pointer)",
+  "window.innerWidth < 640" in BLOCKMENU_NC
+  and re.search(r"inline=\{inlineTiers\}", BLOCKMENU_NC) is not None)
 
 print("=== 5. D5 — the sheet housing ===")
 

@@ -104,7 +104,10 @@ _check(
 # Structural order: Rewrite (Update's colleague row) must come BEFORE the Ask
 # tier opens; Check/Ask must come AFTER it — Check writes nothing and may not
 # sit in a write tier.
-ask_at = menu.index("{askOpen && (")
+# ADR-586 D4 (flyout recut) moved the tier housing from `{askOpen && (` to a
+# <Flyout open={askOpen}> panel. The ORDER claim below is unchanged; only the
+# landmark moved, so anchor on the wired open-state, not the old JSX spelling.
+ask_at = menu.index("open={askOpen}")
 # Anchor on the WIRED handlers, not the labels — a label also appears in the
 # file's own doc comments, and an assertion matching a comment is the recorded
 # failure class this suite exists to avoid.
