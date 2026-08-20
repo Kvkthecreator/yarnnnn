@@ -106,3 +106,39 @@ never touched — every query and every gesture was scoped to `bf5b25a9…`.
 `next build` reports **172/172** pages against a 171/171 baseline. Not mine —
 this run touched no routes; a concurrent lane added a page. Named rather than
 silently absorbed.
+
+---
+
+## Addendum — run 2 (2026-08-20): the FLYOUT recut, probed live
+
+The operator refused the inline-tier feel and supplied the reference shape
+(Figma's `Move to page ▸`). D4 had ALREADY specified flyouts; the build had
+substituted inline tiers behind a positioning note, now withdrawn in the ADR.
+Shipped `671f6da` (+ `cd18845` anchor hardening) and **probed on production**
+after the deploy landed — the probe was the running page reading its OWN loaded
+chunk for the flyout class, not a guess at timing (two earlier watchers measured
+nothing: one polled for a bot-challenge string, one grepped a URL that 308s).
+
+| # | Step | Measured | Verdict |
+|---|---|---|---|
+| 16 | Bottom-right right-click, open a tier | parent HELD at top=647/left=1029/h=125 (was 647→421, h 125→352). Flyout at left=802–1032 — **flipped left**; top=551–772 — **shifted up**; all four overflow flags false | **PASS** — the jump is gone |
+| 17 | Gallery contents in the flyout | all 8 component kinds + 8 thumbs (`BlockThumb` draws DIV schematics, so an SVG count of 0 is correct — the first probe looked for the wrong element and was withdrawn) | **PASS** |
+| 18 | Two-level nesting (menu → Update → Turn into) | Update panel left=724–922; Turn-into left=919–1087, cascading right; both fully on-screen; `• AI` badge intact on Rewrite | **PASS** |
+| 19 | Narrow (560px) keeps INLINE tiers | 0 flyout panels; box grew 125→340px and re-clamped 647→437 — the pre-existing behaviour, deliberately preserved | **PASS** |
+
+**Geometry harness** (`/tmp/flyout_geom.mjs`, asserts the four math lines are
+present in source, then exercises them): centre · right edge · bottom ·
+bottom-right (flips AND shifts) · panel taller than the viewport (clamps, scrolls
+internally) — all five fit the viewport.
+
+**Gates**: 586 31→36, all five new checks falsified one at a time against real
+breaks — including restoring the old dep list, which reproduces the exact jump.
+579 re-anchored (its Rewrite-before-Ask ORDER claim is unchanged; only the
+landmark `{askOpen && (` moved) — the pinned-spelling trap, 4th firing this week.
+
+**Still owed**: the hover-open behaviour is unjudged by the operator — hover
+never CLOSES a tier (leaving toward the panel would dismiss what you are
+reaching for), so moving down the menu opens each tier passed over. Figma
+behaves this way; if it reads busy the fix is an open-delay, not structure.
+`cd18845` (button anchor) was not yet in the deploy probed here — same geometry,
+so the verdicts above stand for both.
