@@ -2223,6 +2223,33 @@ export const api = {
         { method: "POST", body: JSON.stringify({ name }) },
       ),
 
+    // ADR-328 D4 / ADR-510 — download the workspace as a git repo in a zip
+    // (working tree + the full attributed history, plus a manifest declaring
+    // every omission). A streamed attachment, so it takes the blob path here
+    // rather than `request` (which assumes JSON).
+    exportWorkspace: async () => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/workspace/export`, {
+        credentials: "include",
+        headers,
+      });
+      if (!response.ok) {
+        throw new APIError(response.status, response.statusText);
+      }
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/);
+      const filename = filenameMatch ? filenameMatch[1] : "yarnnn-export.zip";
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+
     // ADR-578 — the delete LIFECYCLE (delete → restore → purge). Namespaced
     // under /lifecycle/ because a bare /workspace/{id} route is a catch-all
     // that shadows every literal /workspace/* sibling (DELETE /workspace/byok

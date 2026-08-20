@@ -239,6 +239,11 @@ export default function DataPage() {
                 on a machine we have nothing to do with. Conversations aren&apos;t
                 included yet.
               </p>
+              <p className="mt-4 leading-7 text-[#1a1a1a]/70">
+                It&apos;s in Workspace Settings, under Danger Zone — available any day,
+                not just on the way out. The download names anything it couldn&apos;t
+                include, so you always know what you have.
+              </p>
             </div>
 
             <div className="rounded-xl border border-[#1a1a1a]/[0.1] bg-white/70 p-6">

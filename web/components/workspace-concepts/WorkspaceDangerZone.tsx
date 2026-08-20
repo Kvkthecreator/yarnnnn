@@ -34,6 +34,7 @@ import {
 import { api } from "@/lib/api/client";
 import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
 import { WorkspaceDeleteCard } from "./WorkspaceDeleteCard";
+import { WorkspaceExportCard } from "./WorkspaceExportCard";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -171,6 +172,10 @@ export function WorkspaceDangerZone() {
           </span>
         </div>
       )}
+
+      {/* ADR-328 D4 — the copy comes out BEFORE anything empties or ends the
+          workspace. Not destructive, so it is not gated on clear-authority. */}
+      <WorkspaceExportCard />
 
       {/* L1 — clear work history */}
       <ActionCard

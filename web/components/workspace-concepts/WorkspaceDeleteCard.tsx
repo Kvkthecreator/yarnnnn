@@ -207,6 +207,12 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                     <span className="text-sm text-destructive inline-flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5" />
                       Destroys every file and its history. Cannot be undone.
+                      {/* ADR-405: the system does not destroy work unwitnessed.
+                          Naming the loss without naming the remedy is only half
+                          the witness — the copy is available right up to here. */}
+                      <span className="text-muted-foreground">
+                        Download it first if you want to keep a copy.
+                      </span>
                     </span>
                     <button
                       type="button"
