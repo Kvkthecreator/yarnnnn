@@ -1036,6 +1036,54 @@ console.log(JSON.stringify({
   multiline_on_keeps_gap: M.toggleList('a\n\nb', 0, 4, false).text === '- a\n\n- b',
   // A non-empty line is unchanged by the fix.
   nonempty: M.toggleList('Hello', 0, 5, false).text === '- Hello',
+
+  // ⭐ ADR-575 D8.d — the marker must SURVIVE the next keystroke.
+  //
+  // 11i4 above asks only where the selection ENDS, and a span ending past the
+  // marker satisfies that exactly as well as a caret does. So all four toggles
+  // returned the CONVERT branch's span on an empty line: the `- ` was written
+  // and handed back SELECTED, and the member's first character replaced it.
+  // The text assertions above were all green over it — the row appeared and
+  // was destroyed one keystroke later, which is the slash palette's EVERY pick
+  // (a slash run is by definition a collapsed caret on an otherwise-bare line).
+  //
+  // Stated as the property that failed: type a character and the marker is
+  // still there. Computed the way CodeMirror applies a selection, so this
+  // cannot pass on a span.
+  marker_survives_typing: (() => {
+    const cases = [
+      ['- ',      M.toggleList(D, 4, 4, false)],
+      ['1. ',     M.toggleList(D, 4, 4, true)],
+      ['- [ ] ',  M.toggleChecklist(D, 4, 4)],
+      ['> ',      M.toggleQuote(D, 4, 4)],
+      ['## ',     M.toggleHeading(D, 4, 4, 2)],
+    ];
+    return cases.every(([marker, e]) => {
+      const typed = e.text.slice(0, e.selectionStart) + 'x' + e.text.slice(e.selectionEnd);
+      return typed === 'Hi\n\n' + marker + 'x';
+    });
+  })(),
+  // The same claim on the caret itself, so a failure names WHICH property broke.
+  marker_caret_collapsed: [
+    M.toggleList(D, 4, 4, false), M.toggleList(D, 4, 4, true),
+    M.toggleChecklist(D, 4, 4), M.toggleQuote(D, 4, 4), M.toggleHeading(D, 4, 4, 2),
+  ].every((e) => e.selectionStart === e.selectionEnd),
+  // REGRESSION — CONVERT is a different claim and keeps its span: the member
+  // pointed at existing text and changed what it is, and seeing what moved is
+  // right. Collapsing this one too would be the naive over-fix.
+  convert_keeps_span: (() => {
+    const c = M.toggleList('Hello\nworld', 7, 7, false);
+    const h = M.toggleHeading('Hello\nworld', 7, 7, 2);
+    const q = M.toggleQuote('one\ntwo', 0, 7);
+    return c.text === 'Hello\n- world' && c.selectionStart === 6 && c.selectionEnd === 13
+      && h.selectionStart === 6 && h.selectionEnd === 14
+      && q.selectionStart === 0 && q.selectionEnd === 11;
+  })(),
+  // ...and so does toggling OFF.
+  toggle_off_keeps_span: (() => {
+    const o = M.toggleList('- a\n- b', 0, 7, false);
+    return o.text === 'a\nb' && o.selectionStart === 0 && o.selectionEnd === 3;
+  })(),
 }));
 """
 
@@ -1063,6 +1111,21 @@ check("11i4 the caret lands PAST the inserted marker, ready to type",
       _e.get("caret_usable") is True, str(_e)[:260])
 check("11i5 heading + table on an empty line still work (they always did)",
       _e.get("heading_ok") is True and _e.get("table_ok") is True, str(_e)[:260])
+check("11i6 the inserted marker SURVIVES the next keystroke — every toggle "
+      "returned the CONVERT branch's span on an empty line, so the `- ` came "
+      "back SELECTED and the member's first character replaced it. 11i4 asks "
+      "only where the selection ENDS, which a span satisfies as well as a "
+      "caret does; the row was created and destroyed one keystroke later, on "
+      "the slash palette's EVERY pick",
+      _e.get("marker_survives_typing") is True, str(_e)[:260])
+check("11i7 ...and the caret is COLLAPSED, naming which half of 11i6 broke",
+      _e.get("marker_caret_collapsed") is True, str(_e)[:260])
+check("11i8 REGRESSION — CONVERT keeps its span (the member pointed at existing "
+      "text and changed what it is; showing what moved is right). Collapsing "
+      "this too is the naive over-fix",
+      _e.get("convert_keeps_span") is True, str(_e)[:260])
+check("11i9 REGRESSION — toggling a marker OFF keeps its span for the same reason",
+      _e.get("toggle_off_keeps_span") is True, str(_e)[:260])
 check("11j REGRESSION — a blank line INSIDE a multi-line selection still does "
       "not veto toggling off; that is what the permissive clause was for, and "
       "the naive fix breaks exactly here",

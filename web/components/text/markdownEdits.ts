@@ -138,6 +138,43 @@ export function toggleWrap(text: string, start: number, end: number, marker: str
 }
 
 /**
+ * The Edit a line-marker toggle returns — with the caret placed by WHICH claim
+ * the toggle just made (ADR-575 D8.d).
+ *
+ * Two callers reach the same return and want different carets:
+ *
+ *   - CONVERT (`- world` from `world`) — the member pointed at existing text
+ *     and changed what it is. Selecting the converted span is right: it shows
+ *     what moved, and it is what every toolbar in this app does.
+ *   - MARK AN EMPTY LINE (`- ` on a blank line) — the member is asking to
+ *     START something. The marker is not content they chose; it is scaffolding
+ *     they are about to type INTO.
+ *
+ * The empty-line branch inherited the convert branch's span, so the marker came
+ * back SELECTED and the member's very next keystroke replaced it: pick
+ * "Bulleted list", type, and the `- ` you just asked for is gone. That is the
+ * slash palette's every pick, because a slash run is by definition a collapsed
+ * caret on a line holding nothing but the run.
+ *
+ * So: a span that wrote onto blank lines collapses to the caret at its end;
+ * anything else keeps the span.
+ */
+function markerEdit(
+  text: string,
+  from: number,
+  to: number,
+  next: string,
+  wasBlank: boolean,
+): Edit {
+  const end = from + next.length;
+  return {
+    text: text.slice(0, from) + next + text.slice(to),
+    selectionStart: wasBlank ? end : from,
+    selectionEnd: end,
+  };
+}
+
+/**
  * Set (or clear) the ATX heading level on every line the selection touches.
  * Re-applying the same level clears it — the Docs "turn into" reflex, spelled
  * in characters.
@@ -149,6 +186,7 @@ export function toggleHeading(text: string, start: number, end: number, level: n
   }
   const [from, to] = lineSpan(text, start, end);
   const lines = text.slice(from, to).split('\n');
+  const blankSpan = lines.every((l) => !l.trim());
   const allAtLevel = lines.every((l) => new RegExp(`^ {0,3}#{${level}} `).test(l));
   const next = lines
     .map((l) => {
@@ -156,11 +194,7 @@ export function toggleHeading(text: string, start: number, end: number, level: n
       return allAtLevel ? bare : prefix + bare;
     })
     .join('\n');
-  return {
-    text: text.slice(0, from) + next + text.slice(to),
-    selectionStart: from,
-    selectionEnd: from + next.length,
-  };
+  return markerEdit(text, from, to, next, blankSpan);
 }
 
 /**
@@ -190,11 +224,7 @@ export function toggleList(text: string, start: number, end: number, ordered: bo
       return ordered ? `${n}. ${bare}` : `- ${bare}`;
     })
     .join('\n');
-  return {
-    text: text.slice(0, from) + next + text.slice(to),
-    selectionStart: from,
-    selectionEnd: from + next.length,
-  };
+  return markerEdit(text, from, to, next, blankSpan);
 }
 
 /**
@@ -227,11 +257,7 @@ export function toggleChecklist(text: string, start: number, end: number): Edit 
       return `- [ ] ${bare}`;
     })
     .join('\n');
-  return {
-    text: text.slice(0, from) + next + text.slice(to),
-    selectionStart: from,
-    selectionEnd: from + next.length,
-  };
+  return markerEdit(text, from, to, next, blankSpan);
 }
 
 /** Toggle a `> ` blockquote over the selected lines. */
@@ -248,11 +274,7 @@ export function toggleQuote(text: string, start: number, end: number): Edit {
       quoted ? l.replace(/^ {0,3}> ?/, '') : l.trim() || blankSpan ? `> ${l}` : l,
     )
     .join('\n');
-  return {
-    text: text.slice(0, from) + next + text.slice(to),
-    selectionStart: from,
-    selectionEnd: from + next.length,
-  };
+  return markerEdit(text, from, to, next, blankSpan);
 }
 
 /**
