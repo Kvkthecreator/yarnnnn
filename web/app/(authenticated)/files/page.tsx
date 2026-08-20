@@ -298,18 +298,31 @@ function buildRootNodes(input: {
 
 // Map ADR-209 authored_by taxonomy to operator-readable labels.
 // Same mapping as ContentViewer's formatHeadAuthor (shipped Cluster B).
+//
+// ADR-587 D9 — the HISTORY half of the strip: when it last changed and who
+// changed it. Two facts, one clause. What this deliberately no longer says:
+//
+//   · "File" / "Folder" — the kind is already the glyph beside the title, the
+//     extension in the name, and the `Kind` row in Properties. A word that
+//     labels something three other things already say is noise.
+//   · `node.summary` — the stored summary is a WRITER'S MARKER, not a
+//     description. `_plain_summary` (routes/workspace.py) drops the obvious
+//     machine shapes, but tags with no slash and no extension slip through
+//     it — the operator hit `connector-watch:github` on a `_watch.yaml`,
+//     which is a legacy tag from machinery ADR-582 has since deleted. A field
+//     the operator never wrote, describing a mechanism that no longer exists,
+//     is not identity.
+//
+// A folder keeps its item count: that is the one fact a folder's identity
+// line carries that nothing else on the screen states.
 function getNodeMetadata(node: TreeNode): string {
-  const parts: string[] = [node.type === 'folder' ? 'Folder' : 'File'];
+  const parts: string[] = [];
 
   if (node.type === 'folder') {
     const childCount = node.children?.length;
     if (typeof childCount === 'number') {
       parts.push(`${childCount} ${childCount === 1 ? 'item' : 'items'}`);
-    } else if (node.summary) {
-      parts.push(node.summary);
     }
-  } else if (node.summary) {
-    parts.push(node.summary);
   }
 
   if (node.updated_at) {
@@ -342,11 +355,18 @@ function getNodeMetadata(node: TreeNode): string {
  * same clipboard fallback — presentation differs, mechanism does not.
  */
 function nodeMetadataNode(node: TreeNode): React.ReactNode {
+  const history = getNodeMetadata(node);
   return (
-    <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5">
-      <span>{getNodeMetadata(node)}</span>
-      <span aria-hidden="true" className="text-muted-foreground/50">·</span>
+    // ADR-587 D9: two lines, because they answer two questions. WHERE this
+    // object is (its path — the identity D7/D8 established, and the one part
+    // of this strip the operator takes AWAY with them) sits above WHEN it
+    // last changed and WHO changed it. Run together on one dot-separated run
+    // they read as one undifferentiated fact-list, and the copyable half is
+    // the hardest to pick out of it — which is the opposite of what a copy
+    // affordance is for.
+    <span className="flex min-w-0 flex-col gap-0.5">
       <CopyField variant="inline" value={relPath(node.path)} label="path" />
+      {history && <span className="truncate">{history}</span>}
     </span>
   );
 }

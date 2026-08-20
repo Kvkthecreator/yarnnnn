@@ -275,6 +275,37 @@ Path row directly beneath its identity line; a second would be duplication, not
 consistency. The rule is *the object is named once, on every face* — not *the
 path appears as often as possible.*
 
+### D9 — The strip answers two questions, and repeats none (amended 2026-08-21)
+
+Operator, on seeing D8 land: *"if we have the path do we need the file,
+connector (first part at all?) if not, let's delete. and maybe thus, separate
+the path and remaining updated and last edited."*
+
+The strip had accreted four facts into one dot-separated run:
+
+> `File · connector-watch:github · Updated Aug 18, 2026 · Last edited by You · operation/_connectors/github/_watch.yaml`
+
+**Both leading facts are deleted:**
+
+- **"File" / "Folder"** — said three times already: the glyph beside the title,
+  the extension in the name, and Properties' `Kind` row. A word that labels what
+  three neighbours already state is noise.
+- **`node.summary`** — a WRITER'S MARKER, not a description. `_plain_summary`
+  (D2) drops the obvious machine shapes, but a tag with no slash and no
+  extension slips through: the operator met `connector-watch:github` on a
+  `_watch.yaml` — a legacy tag from machinery **ADR-582 has since deleted**. A
+  field the operator never wrote, naming a mechanism that no longer exists, is
+  not identity. It now has **zero readers** on the Files surface.
+
+**And the remainder splits into two lines**, because it answers two questions:
+*where is this* (the path — the identity D7/D8 established, and the one part
+the operator takes AWAY) above *when did it change and who changed it*. Run
+together, the copyable half is the hardest thing to pick out of an
+undifferentiated fact-list — the opposite of what a copy affordance is for.
+
+A folder keeps its item count: the one fact its identity line carries that
+nothing else on the screen states.
+
 ---
 
 ## 4. The rejected alternative, recorded — merging the handle into the share flow

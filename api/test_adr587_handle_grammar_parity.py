@@ -54,6 +54,14 @@ D8-one-copy-mechanism — the inline and boxed CopyField variants differ in
      that silently no-ops where the other hands over a selection is the
      incorrect-success this component exists to prevent.
 
+D9-strip-is-two-questions — the header strip states IDENTITY (the path) and
+     HISTORY (when/who) as separate lines, and states nothing a neighbouring
+     element already says. The kind word and the stored `summary` are gone:
+     the kind is the glyph + the extension + Properties' `Kind` row, and the
+     summary is a writer's marker (the operator met `connector-watch:github`,
+     a tag from machinery ADR-582 deleted). Asserted so a later hand cannot
+     quietly re-add either to the identity line.
+
 Every check here was falsified — broken deliberately, observed to fail, restored.
 """
 
@@ -480,6 +488,31 @@ check(
     "the inline variant mounts the input its fallback needs",
     "ref={inputRef}" in inline_branch,
     "inline renders no input — its clipboard-denial fallback would be a no-op",
+)
+
+print()
+print("D9-strip-is-two-questions — identity and history are separate, and nothing repeats")
+meta_fn = files_page[files_page.index("function getNodeMetadata(") : files_page.index("function nodeMetadataNode(")]
+check(
+    "the strip no longer labels the kind",
+    "'Folder' : 'File'" not in meta_fn and '"Folder" : "File"' not in meta_fn,
+    "the identity line still says File/Folder — already the glyph, the extension, and Properties' Kind row",
+)
+check(
+    "the strip no longer prints the stored summary",
+    "node.summary" not in meta_fn,
+    "a writer's marker is being shown as identity",
+)
+node_fn = files_page[files_page.index("function nodeMetadataNode(") : files_page.index("function formatNodeTimestamp(")]
+check(
+    "path and history are separate lines, not one dot-run",
+    "flex-col" in node_fn,
+    "identity and history share one run — the copyable half is hardest to pick out of it",
+)
+check(
+    "the path still leads the strip",
+    node_fn.index("CopyField") < node_fn.index("{history}"),
+    "history precedes identity",
 )
 
 print()

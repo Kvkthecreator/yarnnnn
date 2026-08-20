@@ -50,7 +50,7 @@ export interface FileListRowProps {
   kind: 'file' | 'folder';
   /** The "Where" column (Recents). Omit for folder listings (stays empty). */
   where?: string;
-  /** A subtitle under the name (folder listing summary). */
+  /** A subtitle under the name — the object's path (ADR-587 D7). */
   subtitle?: string;
   /** Author cell — a label + accent dot node built by the caller. */
   author?: ReactNode;
