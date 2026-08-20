@@ -275,7 +275,17 @@ function DirectoryView({
           — the same roomy tile + preview zone + radius the Recents grid uses, so
           a folder's files look identical whether reached via Recents or by
           browsing in. Tree nodes carry no blob, so file tiles show the format
-          glyph (no thumbnail material here) with attribution as the subtext. */}
+          glyph (no thumbnail material here).
+
+          ADR-587 D7: the subtext is the PATH, matching the list view's subtitle
+          — one object, one identifying line, whichever view you are in. It
+          previously carried attribution, which (a) duplicated the list view's
+          dedicated AUTHOR column at a different altitude, and (b) rendered
+          EMPTY for folders: a folder is derived from path segments and has no
+          `authored_by` row, so `formatAuthorLabel` returned null and the tile
+          showed a bare accent dot with no text beside it (operator-observed,
+          2026-08-21 — three folder tiles, three empty dots). The path is the
+          one line that is always true for both kinds. */}
       {viewMode === 'icon' ? (
         <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-5">
           {children.map((child) => (
@@ -287,12 +297,7 @@ function DirectoryView({
               onClick={(e) => onNavigate(child, e)}
               onContextMenu={rowContext(child)}
               actions={rowKebab(child)}
-              subtext={
-                <span className="inline-flex items-center gap-1">
-                  <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent((child as any).authored_by))} />
-                  {formatAuthorLabel((child as any).authored_by)}
-                </span>
-              }
+              subtext={workspaceRelPath(child.path)}
             />
           ))}
         </div>

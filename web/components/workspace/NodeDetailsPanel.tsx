@@ -94,7 +94,25 @@ function FolderDetails({
   }, [node.path]);
 
   return (
-    <div className="border border-border rounded-lg bg-background">
+    <div className="space-y-3">
+      {/* ADR-587 D7: a folder is as addressable as a file — it is what `list`
+          takes, what a move targets, and what an operator pastes to a
+          colleague. Folder Properties opened straight into "Recent changes in
+          this folder" and never named the folder at all, so the ONE surface
+          that exists to say "what is this" was silent about its identity for
+          half the objects it describes. Same row, same shared field, same
+          grammar as the file block below it. */}
+      <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
+        <PropRow label="Path">
+          <CopyField
+            value={relPath(node.path)}
+            label="Folder path"
+            hint="Paste it anywhere — here, or to an AI on your workspace."
+          />
+        </PropRow>
+      </div>
+
+      <div className="border border-border rounded-lg bg-background">
       <div className="px-3 py-2 border-b border-border text-sm font-medium">
         Recent changes in this folder
       </div>
@@ -144,6 +162,7 @@ function FolderDetails({
           })}
         </ul>
       )}
+      </div>
     </div>
   );
 }

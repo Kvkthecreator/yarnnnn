@@ -211,6 +211,42 @@ reference"). The gate enforces the refusal **against comment-stripped source** �
 its first cut went red against correct code by matching the comment that
 explains the refusal.
 
+### D7 — The identifying line is the path, on every face, for both kinds (amended 2026-08-21)
+
+Operator-directed, and the framing is the decision: *"treat my request as to infer
+the consistent and streamline implementation instead of just a one-off approach."*
+
+D2 fixed the Files **list** row and **file** Properties. Audited as a matrix, the
+surface was answering the same question three different ways:
+
+| Face | File | Folder |
+|---|---|---|
+| List row subtitle | path (D2) | path (D2) |
+| **Grid tile subtext** | **attribution** | **attribution → renders EMPTY** |
+| **Properties** | Path row (D2) | **nothing** |
+
+Two defects fall out of that table, and neither is cosmetic:
+
+**The grid tile spent its one line on attribution.** The list view already has a
+dedicated AUTHOR column, so the grid was duplicating it at a different altitude
+— and for a FOLDER it rendered nothing at all: folders are derived from path
+segments and carry no `authored_by`, so `formatAuthorLabel` returned null and the
+tile showed a bare accent dot with no text (operator-observed: three folder
+tiles, three empty dots). The path is the one line that is true for both kinds.
+
+**Folder Properties never named the folder.** It opened straight into "Recent
+changes in this folder", so the one surface that exists to answer *what is this*
+was silent about identity for half the objects it describes. A folder is as
+addressable as a file — it is what `list` takes, what a move targets, what an
+operator pastes to a colleague.
+
+**The rule, stated so a fourth face inherits it**: *wherever the Files surface
+shows an object, the identifying line under its name is its path — every face,
+both kinds, through the one `CopyField` and the one grammar.* Attribution keeps
+its own dedicated slot (the AUTHOR column) rather than borrowing the identity
+line. The gate checks this as a MATRIX, not as three spot-checks, so a new face
+that skips it fails rather than quietly disagreeing.
+
 ---
 
 ## 4. The rejected alternative, recorded — merging the handle into the share flow
@@ -283,9 +319,12 @@ copy.
 
 ## 6. What is owed
 
-- **The click-pass.** The Files surface copy affordance is **operator-confirmed working**
-  (2026-08-21). Still undriven: paste a handle into the Launcher and land on the file; the share
-  sheet's path field on Studio and Text.
+- **The click-pass.** The Files surface **list-view** copy affordance is operator-confirmed
+  working (2026-08-21). Still undriven: the grid tile and folder Properties (D7), the share
+  sheet's path field on Studio and Text (D6), and pasting a handle into the Launcher.
+- **Not mine, observed in passing**: `files_arrival_door.mjs` A7 reports 8/9 ("found 3" arrival
+  handlers) at baseline — introduced by concurrent work on `files/page.tsx`, red before this
+  arc's D6/D7 changes and unaffected by them.
 - **The round-trip through a real host.** Copy an AI reference from Studio, paste it into
   ChatGPT/Claude.ai, confirm `open` resolves it, then bring the path back through quick-open.
   That is the loop this ADR exists to close, and it has been proven in parts, not end to end.

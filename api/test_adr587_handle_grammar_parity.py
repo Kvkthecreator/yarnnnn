@@ -40,6 +40,13 @@ D6-share-sheet — the share sheet shows the PATH, not just the leaf. One
      asserts the sheet does NOT emit the `yarnnn://` handle — a grant surface
      and an address must not blur (ADR-512 D6 / ADR-587 §4).
 
+D7-every-face — the RULE, not three spot-checks: wherever the Files surface
+     shows an object, the identifying line under its name is the path — list
+     row, grid tile, and Properties, for BOTH files and folders. The three
+     faces had drifted to three different answers (path / attribution / silence
+     for folders), which is what made this a rule question rather than a patch.
+     Checked as a matrix so a FOURTH face cannot be added silently.
+
 Every check here was falsified — broken deliberately, observed to fail, restored.
 """
 
@@ -71,6 +78,24 @@ def check(label: str, ok: bool, detail: str = "") -> None:
     else:
         failures.append(f"{label}: {detail}")
         print(f"  FAIL {label} — {detail}")
+
+
+def strip_comments(src: str) -> str:
+    """Executable source only.
+
+    Twice now a check in this file has read a COMMENT as if it were code: the
+    D6 handle-refusal matched the prose explaining the refusal, and D7's first
+    cut matched `<FileTile>` inside a doc comment — so the element regex
+    captured a comment span instead of the real call and reported the opposite
+    of the truth. Prose that DESCRIBES the mechanism lives next to it by design;
+    assertions must not read it.
+    """
+    src = re.sub(r"\{/\*.*?\*/\}", "", src, flags=re.S)   # JSX comment blocks
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)        # block comments
+    return "\n".join(
+        line for line in src.splitlines() if not line.strip().startswith("//")
+    )
+
 
 
 # ---------------------------------------------------------------------------
@@ -334,11 +359,7 @@ check(
 # that EXPLAINS the refusal ("Deliberately NOT the `yarnnn://` handle here").
 # An assertion a comment can satisfy — or, as here, break — is not an assertion
 # about behavior. Strip first, then assert on what executes.
-share_code = re.sub(r"\{/\*.*?\*/\}", "", share_dialog, flags=re.S)   # JSX comment blocks
-share_code = re.sub(r"/\*.*?\*/", "", share_code, flags=re.S)          # block comments
-share_code = "\n".join(
-    line for line in share_code.splitlines() if not line.strip().startswith("//")
-)
+share_code = strip_comments(share_dialog)
 check(
     "the share sheet does NOT emit the yarnnn:// handle",
     "yarnnn://" not in share_code,
@@ -359,6 +380,67 @@ check(
     len(mounts) == 3,
     f"only {mounts} mount it — a surface with its own sheet would not inherit the path",
 )
+
+print()
+print("D7-every-face — the identifying line is the path, on every face, both kinds")
+content_viewer_raw = (WEB / "components" / "workspace" / "ContentViewer.tsx").read_text()
+details_panel = (WEB / "components" / "workspace" / "NodeDetailsPanel.tsx").read_text()
+
+
+content_viewer = strip_comments(content_viewer_raw)
+
+# The GRID tile: subtext must be the path, not attribution. Assert the
+# composition (what the prop receives), never mere co-presence of two strings —
+# the D6 lesson.
+tile_call = re.search(r"<FileTile\b(.*?)/>", content_viewer, re.S)
+check(
+    "the grid tile's subtext is the path",
+    bool(tile_call)
+    and re.search(r"subtext=\{workspaceRelPath\(\s*child\.path\s*\)\}", tile_call.group(1)),
+    "the icon view's subtext is not the file's path",
+)
+check(
+    "the grid tile no longer spends its one line on attribution",
+    bool(tile_call) and "formatAuthorLabel" not in tile_call.group(1),
+    "the tile subtext still carries attribution — which renders EMPTY for folders",
+)
+
+# The LIST row: same answer, different face.
+row_call = re.search(r"<FileListRow\b(.*?)/>", content_viewer, re.S)
+check(
+    "the list row's subtitle is the path",
+    bool(row_call)
+    and re.search(r"subtitle=\{workspaceRelPath\(\s*child\.path\s*\)\}", row_call.group(1)),
+    "the details list's subtitle is not the file's path",
+)
+
+# PROPERTIES, both kinds. A folder is as addressable as a file; the panel that
+# exists to say "what is this" must name it for both.
+def _fn_body(src: str, name: str) -> str:
+    start = src.index(f"function {name}(")
+    nxt = src.find("\nfunction ", start + 1)
+    return src[start : nxt if nxt != -1 else len(src)]
+
+for fn, kind in (("FileProperties", "file"), ("FolderDetails", "folder")):
+    body = _fn_body(details_panel, fn)
+    check(
+        f"Properties names the path for a {kind}",
+        'PropRow label="Path"' in body and "CopyField" in body
+        and re.search(r"value=\{(relPath\(node\.path\)|reference)\}", body),
+        f"{fn} does not render a copyable Path row",
+    )
+
+# Every path face goes through the ONE field + the ONE grammar. A surface that
+# hand-rolls either is how the three faces drifted apart in the first place.
+for rel in ("components/workspace/ContentViewer.tsx",
+            "components/workspace/NodeDetailsPanel.tsx",
+            "components/workspace/ShareDialog.tsx"):
+    src = (WEB / rel).read_text()
+    check(
+        f"{rel.split('/')[-1]} uses the shared grammar",
+        "@/lib/interop/fileHandle" in src,
+        "strips /workspace/ by hand instead of using the one grammar",
+    )
 
 print()
 if failures:
