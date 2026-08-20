@@ -528,7 +528,7 @@ function FileView({
                 />
               )}
               {file.content_url && (
-                <FileActions contentUrl={file.content_url} />
+                <FileActions contentUrl={file.content_url} path={file.path} />
               )}
               {/* ADR-329: 'delete' is an operator verb, uploads-only
                   (ADR-320 topology). Trash-semantics — the file is archived
@@ -553,7 +553,7 @@ function FileView({
         </div>
       ) : file.content_url ? (
         <div className="flex justify-end px-4 pt-4">
-          <FileActions contentUrl={file.content_url} />
+          <FileActions contentUrl={file.content_url} path={file.path} />
         </div>
       ) : null}
 

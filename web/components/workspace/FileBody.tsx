@@ -62,9 +62,16 @@ export function FileBody({ file, compact = false, className }: FileBodyProps) {
 // FileActions — "open with your computer" (the degenerate Open With, ADR-329)
 // ---------------------------------------------------------------------------
 
-export function FileActions({ contentUrl }: { contentUrl: string }) {
+export function FileActions({ contentUrl, path }: { contentUrl: string; path: string }) {
   const { url, loading } = useSignedBlobUrl(contentUrl);
   const disabled = loading || !url;
+  // The download must carry the file's OWN name. A bare `download` attribute
+  // defers to the server's filename, and the signed URL points at the CAS
+  // bucket, which is keyed by CONTENT ADDRESS — so the browser saved the blob
+  // as its 64-char SHA with no extension ("Kind: Document", generic icon, no
+  // preview). The content address is the substrate's business; the member gets
+  // back the name they know the file by.
+  const filename = path.split('/').pop() || path;
   return (
     <div className="flex items-center gap-2 shrink-0">
       <a
@@ -82,7 +89,7 @@ export function FileActions({ contentUrl }: { contentUrl: string }) {
       </a>
       <a
         href={disabled ? undefined : url}
-        download
+        download={filename}
         aria-disabled={disabled}
         className={cn(
           'inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground',

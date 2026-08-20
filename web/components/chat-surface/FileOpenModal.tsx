@@ -73,7 +73,7 @@ export function FileOpenModal({ path, onClose }: FileOpenModalProps) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {file?.content_url && <FileActions contentUrl={file.content_url} />}
+            {file?.content_url && <FileActions contentUrl={file.content_url} path={file.path} />}
             <SurfaceLink
               to="files"
               params={{ path }}
