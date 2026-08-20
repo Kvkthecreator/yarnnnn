@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ThemeShaderBackground } from "@/components/landing/ThemeShaderBackground";
@@ -236,7 +237,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
 
             {/* Post content */}
             <div className="prose prose-neutral dark:prose-invert prose-lg max-w-none">
-              <ReactMarkdown>{post.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content}</ReactMarkdown>
             </div>
 
             {seriesPosts.length > 1 && (
