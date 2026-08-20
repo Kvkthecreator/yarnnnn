@@ -461,6 +461,199 @@ def run() -> int:
         and "FileActions" not in modal,
     )
 
+    # ── 12. RECENTS IS A FILE BROWSER TOO ─────────────────────────────────
+    #
+    # The THIRD defect of the same day, and the one this claim exists for.
+    # Recents is a grid/list of FILES in the same centre pane, gathered by
+    # recency instead of by folder — the only difference, and not one the
+    # member's hands can feel. It was never brought into the model: the Files
+    # mount handed it `onSelectPath={openPath}`, so a SINGLE CLICK on a Recents
+    # tile went straight through the one door and OPENED the file. Exactly the
+    # behaviour the split had just removed from the folder listing, surviving
+    # one renderer over (operator-observed on production).
+    #
+    # Asserted as: (a) the open funnel is not handed in as a click handler,
+    # (b) the surface routes Recents through the ONE grammar function, and
+    # (c) Recents' rows report the raw event rather than deciding.
+    recents = _strip_comments(_read("components/workspace/RecentsView.tsx"))
+    wrapper_src = _strip_comments(_read("components/workspace/RecentRevisions.tsx"))
+
+    # 12a. THE DEFECT ITSELF, asserted where it lived. The Recents MOUNT must
+    # not hand the open funnel in as a click handler under ANY prop name — the
+    # mount's own props are read, so `onSelectPath={openPath}` (the shipped
+    # defect) and `onNavigate={openPath}` (the same defect wearing the new name)
+    # both trip it. And the `onSelectPath` prop itself is gone from the two
+    # Recents modules, so the old shape cannot be re-wired.
+    #
+    # DELIBERATELY NOT a page-wide `"onSelectPath" not in page` ban: the name is
+    # also PropertiesModal's, where a path handed back genuinely IS an open, and
+    # banning the spelling rather than the wiring failed against correct source
+    # while writing this (the trap this file's 9a note already names once).
+    mount = re.search(r"<RecentRevisions(.*?)/>", page, re.DOTALL)
+    mount_props = mount.group(1) if mount else ""
+    hands_the_door = re.search(r"=\{openPath\}", mount_props) is not None
+    passed &= _check(
+        "12a. the Recents mount does not hand the OPEN funnel in as a click handler",
+        mount is not None
+        and not hands_the_door
+        and "onSelectPath" not in recents
+        and "onSelectPath" not in wrapper_src,
+        f"mount found={mount is not None} hands openPath={hands_the_door}",
+    )
+
+    # 12b. It routes through the SAME grammar function the folder listing does.
+    # A second selection model for Recents is the dual implementation this
+    # surface has already been burned by twice; the adapter must reach
+    # `handleFileClick` and nothing else.
+    adapter = re.search(
+        r"const handleRecentsClick = useCallback\(\s*\((.*?)\n  \);", page, re.DOTALL
+    )
+    abody = adapter.group(1) if adapter else ""
+    passed &= _check(
+        "12b. Recents routes through the ONE click grammar (no second model)",
+        adapter is not None
+        and "handleFileClick(" in abody
+        and "openPath(" not in abody
+        and "setViewPath" not in abody
+        and "setSelection" not in abody
+        and "onNavigate={handleRecentsClick}" in page,
+        f"adapter found={adapter is not None}",
+    )
+
+    # 12c. Its rows REPORT the event; they decide nothing. Counted per view
+    # mode — a grammar that reached the icon grid and not the details list
+    # would be a modifier that works until the member hits the toggle. Two
+    # sites, one per mode; a floor, not a ceiling.
+    recents_forwards = len(
+        re.findall(r"onClick=\{\(e\) => onNavigate\(rev\.path, e\)\}", recents)
+    )
+    passed &= _check(
+        "12c. BOTH Recents view modes forward the raw event to the grammar",
+        recents_forwards >= 2,
+        f"forwarding sites in Recents={recents_forwards} (icon grid + details list)",
+    )
+
+    # 12d. Recents RENDERS the set, publishes its OWN visual order, and offers
+    # the ground exit — the three things that make a highlight a selection
+    # rather than decoration. Its order is RECENCY, not the listing's
+    # folders-first alphabetical, so a shift-range taken here must run over
+    # what Recents drew; publishing is how the two browsers stay honest about
+    # which sequence is on screen.
+    passed &= _check(
+        "12d. Recents rings the set, publishes its own order, and clears on ground",
+        recents.count("selected={selectedSet.has(rev.path)}") >= 2
+        and "onPublishOrder?.(orderedPaths)" in recents
+        and "const onGroundClick" in recents
+        and "onClearSelection?.()" in recents
+        and recents.count("onClick={onGroundClick}") >= 2
+        and "onPublishOrder={publishOrder}" in page,
+    )
+
+    # 12e. And the right-click re-scope rule holds here too, or the menu names
+    # one file while a set-taking verb moves nine — the same half-rule the
+    # folder listing needed (11c).
+    passed &= _check(
+        "12e. a right-click outside the selection re-scopes it, in Recents too",
+        "if (!selectedSet.has(path)) onSelectRow?.(path);" in recents
+        and "onSelectRow={selectOne}" in page,
+    )
+
+    # 12f. The DEAD deep-link branch is DELETED, not left beside the grammar.
+    # `linkTo` served a Home mount that ADR-435 removed, so its ternary had been
+    # permanently parked in the `undefined` arm — a branch no caller can reach
+    # is not a second mode, it is dead code claiming to be one. Asserted across
+    # the two shared renderers AND their consumers, so re-adding it anywhere
+    # re-opens the "does a click here navigate or select?" question the whole
+    # recut exists to close.
+    tile = _strip_comments(_read("components/workspace/FileTile.tsx"))
+    listrow = _strip_comments(_read("components/workspace/FileListView.tsx"))
+    lingering = [
+        n for n, s in (
+            ("FileTile", tile), ("FileListView", listrow),
+            ("RecentsView", recents), ("RecentRevisions", wrapper_src),
+        ) if "linkTo" in s
+    ]
+    passed &= _check(
+        "12f. the unreachable deep-link branch is DELETED from the file renderers",
+        not lingering,
+        f"linkTo still present in: {lingering}" if lingering else "",
+    )
+
+    # ── 13. THE SELECTED GROUND IS PAINTED ONCE ───────────────────────────
+    #
+    # Operator-observed: "the select highlight background shouldn't be so dark,
+    # closer just to image screen." The cause was not the colour value — it was
+    # that a selected tile stacked THREE treatments over the same pixels: the
+    # shell's fill, the PREVIEW ZONE's own fill painted on top of it, and a ring
+    # over both. Two washes at /10 do not read as one wash at /10.
+    #
+    # So the assertion is on the CONSTRUCT, not the colour: the preview zone
+    # must not branch its ground on `selected` at all. A future palette change
+    # is free to move every value; re-adding a second selected fill is not.
+    # Anchored on the preview zone's own className block so the shell's single
+    # (correct) selected fill does not satisfy it.
+    preview_zone = re.search(
+        r"'flex h-24 w-full items-center justify-center overflow-hidden transition-colors',(.*?)\)\s*\}",
+        tile,
+        re.DOTALL,
+    )
+    pz = preview_zone.group(1) if preview_zone else ""
+    passed &= _check(
+        "13a. the tile's preview zone does not paint a second selected ground",
+        preview_zone is not None
+        and "TILE_PREVIEW_GROUND" in pz
+        and not re.search(r"selected\s*\?", pz),
+        ""
+        if preview_zone
+        else "preview zone not found",
+    )
+    # ...and exactly ONE element in the whole tile paints a ground for the
+    # SELECTED state. A COUNT, because the failure mode here is ADDITION: a
+    # third fill added later would satisfy any "the shell has one" check while
+    # reading darker again — which is precisely how this defect shipped.
+    #
+    # Counted over `selected ? '…' : '…'` TERNARY TRUE-ARMS only, so the
+    # drop-target's own `bg-primary/10` (a different state, correctly its own
+    # treatment) is not miscounted as a second selected wash.
+    def _selected_arms(src: str):
+        return re.findall(r"selected\s*\n?\s*\?\s*'([^']*)'", src)
+
+    tile_arms = _selected_arms(tile)
+    tile_selected_fills = sum(len(re.findall(r"bg-primary/\d+", a)) for a in tile_arms)
+    passed &= _check(
+        "13b. exactly one element carries the tile's selected ground",
+        tile_selected_fills == 1,
+        f"selected-state bg-primary fills in the tile={tile_selected_fills} (must be 1)",
+    )
+    # 13c. And the two VIEW MODES agree. A selection must look like the same
+    # thing whichever toggle the member last hit; the details row carrying a
+    # heavier fill than the tile would make one state read as two. Compared on
+    # the OPACITY STEP rather than the full class string — the row is inset and
+    # borderless, so the strings legitimately differ, but the wash must not.
+    def _wash_step(arms):
+        for a in arms:
+            m = re.search(r"(?<!hover:)bg-primary/(\d+)", a)
+            if m:
+                return m.group(1)
+        return None
+
+    row_arms = _selected_arms(listrow)
+    tile_step, row_step = _wash_step(tile_arms), _wash_step(row_arms)
+    passed &= _check(
+        "13c. icon view and list view carry the SAME selected wash",
+        tile_step is not None and tile_step == row_step,
+        f"tile=/{tile_step} row=/{row_step}",
+    )
+    # 13d. ...and both keep a RING. A wash light enough to read as "gentle" is
+    # not, on its own, an unmistakable selected affordance — the ring is what
+    # carries selection in Finder, and lightening the fill without it would
+    # trade one defect for a quieter one.
+    passed &= _check(
+        "13d. both views keep a ring as the selected affordance",
+        any("ring-primary/" in a for a in tile_arms)
+        and any("ring-primary/" in a for a in row_arms),
+    )
+
     return 0 if passed else 1
 
 

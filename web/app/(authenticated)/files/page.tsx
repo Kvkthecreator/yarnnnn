@@ -1060,6 +1060,23 @@ export default function ContextPage() {
   );
   const handleListingClick = handleFileClick;
 
+  // THE SAME GRAMMAR, reached by path. Recents is a file browser too — a grid of
+  // FILES in this same centre pane, gathered by recency instead of by folder —
+  // and it was the THIRD file surface the select/open split never reached: it
+  // took an `onSelectPath` callback that WAS `openPath`, so a single click on a
+  // Recents tile opened the file (operator-observed on production).
+  //
+  // Its rows are revisions, not tree nodes, so they have a path and nothing
+  // else. Rather than give Recents a grammar of its own, the path is lifted into
+  // the shape `handleFileClick` already reads — it consults `node.path` and
+  // nothing more — so BOTH centre-pane browsers land in ONE function. A second
+  // selection model for Recents is exactly the dual implementation this surface
+  // has already been burned by twice today.
+  const handleRecentsClick = useCallback(
+    (path: string, e?: FileClickIntent) => handleFileClick({ path } as TreeNode, e),
+    [handleFileClick],
+  );
+
   // THE TREE's gesture — one click, one meaning: show me this folder.
   //
   // It routes through `openPath` like every other way into a folder (THE ONE
@@ -1625,10 +1642,23 @@ export default function ContextPage() {
     </div>
   ) : (
     // ADR-329 Amendment 2: the center pane's empty state IS the Finder
-    // "Recents" view — a columnar glance of recent authored changes across the
-    // workspace. Selecting a row swaps to the node view.
+    // "Recents" view — a glance of recent authored changes across the workspace.
+    //
+    // It is a FILE BROWSER (2026-08-20), so it gets the folder listing's props
+    // verbatim: the same click grammar, the same ring, the same ground exit,
+    // the same right-click scope rule. It publishes its OWN visual order
+    // (recency), which is why the order is a published ref rather than derived
+    // from the tree — the two browsers draw different sequences of the same
+    // files, and a shift-range must run over the one on screen.
     <div className="flex-1 min-h-0">
-      <RecentRevisions onSelectPath={openPath} verbs={fileVerbs} />
+      <RecentRevisions
+        onNavigate={handleRecentsClick}
+        selection={selection}
+        onPublishOrder={publishOrder}
+        onClearSelection={clearSelection}
+        onSelectRow={selectOne}
+        verbs={fileVerbs}
+      />
     </div>
   );
 

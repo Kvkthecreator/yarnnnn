@@ -4,7 +4,58 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-20 (latest) — FILES: the tree is a NAVIGATOR, the centre pane is the BROWSER (no ADR — operator-approved after a production click-pass)
+## 2026-08-20 (latest) — FILES: Recents is a file browser too, and "selected" is a ring (no ADR — operator-approved after a production click-pass)
+
+**Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → TWO PANES, TWO GRAMMARS](WORKSPACE.md). No new ADR; the click-grammar section is **rewritten a third time**, and the entry below it is **superseded** — its two panes are correct and stand, but it named only *one* browser inside the centre pane, and the pane holds more than one.
+
+### Defect 1 — Recents was a THIRD file surface the model never reached
+
+The morning's split was written for *"the folder listing"* and wired to the folder listing. But **Recents is the same grid of the same tiles in the same pane** — the identical `FileTile` / `FileListRow`, gathered by **recency** instead of by **folder** — and the Files mount still handed it `<RecentRevisions onSelectPath={openPath} …>`. So a **single click on a Recents tile called `openPath` directly and OPENED the file**: exactly the behaviour the split had just removed from the listing, surviving one renderer over. Operator-observed on production.
+
+**The lesson is a SCOPING one, and it is why the contract was restated rather than patched.** A grammar belongs to a **kind of pane**, not to the renderer that first implemented it. The contract now reads over *every centre-pane view*, and states the test for a fourth one: **any centre-pane view that renders a grid or list of LIVE FILES is a file browser and takes the grammar in full**; a view that renders *acts* is not one.
+
+**Trash was checked and does NOT have the defect.** `TrashView` is a **verb list**, not a browser: each row is a deleted file with Restore and Delete Permanently as buttons, the row itself is not clickable, and there is nothing to select and nowhere to open (the file is not in the workspace). It is named in the contract table as the not-a-browser case, so the next reader does not have to re-derive that it was considered.
+
+**What was built.**
+- **Recents takes the folder listing's props verbatim** — `onNavigate` · `selection` · `onPublishOrder` · `onClearSelection` · `onSelectRow` · `verbs`. Single click selects (inert) · ⌘/Ctrl toggles · shift ranges · double click opens · Escape and a background click clear · coarse pointer opens on one tap · right-click gives the verbs, re-scoping the selection when the click lands outside it.
+- **ONE grammar function, not two.** Recents routes to the **same** `handleFileClick` through a one-line adapter (`handleRecentsClick`) that lifts a path into the shape that function already reads — it consults `node.path` and nothing more. **A second selection model for Recents was the obvious shortcut and is exactly the dual implementation this surface has been burned by twice today**; the gate asserts the adapter reaches `handleFileClick` and touches neither `openPath` nor the state setters.
+- **Recents publishes its OWN visual order** (recency), **de-duplicated**: the revision feed can carry one path twice (a file edited twice is two revisions) while the selection is a set of *paths*, so an un-deduplicated order would make `indexOf` find the first tile when the member clicked the second, and the shift-range would run to the wrong end. Whichever browser view is mounted is the one that published, so a range always runs over what is drawn.
+
+**Deleted, not kept beside: the `linkTo` deep-link branch** — from `RecentsView`, `FileTile`, and `FileListRow`, along with both `SurfaceLink` imports. **The brief for this work said to preserve a Home mount; there is no Home mount.** `RecentsView` has exactly ONE JSX mount in the app (`RecentRevisions`, on Files), because **Home was deleted by ADR-435** — so the ternary that chose the deep-link (`onSelectPath ? undefined : rev.path`) had been permanently parked in the `undefined` arm. A branch no caller can reach is not a second mode; it is dead code claiming to be one, and here it was the code that made *"does a click in this grid navigate or select?"* look like a live question when it had been settled.
+
+### Defect 2 — the selected highlight was too dark
+
+Operator: *"the select highlight background shouldn't be so dark, closer just to image screen."*
+
+**The cause was not the colour value.** A selected tile **stacked three treatments over the same pixels**: the shell painted `bg-primary/10`, the **preview zone painted its OWN `bg-primary/10` on top of it**, and a ring sat over both. **Two washes at `/10` do not read as one wash at `/10`** — they read as roughly `/20` with a ring around it. That is why the tile went heavy while the code said "ten percent".
+
+**The fix is structural, not a nudged number**: stop double-painting.
+- **Exactly one element carries the selected ground** — the shell, at `bg-primary/5`, a wash barely off the neutral.
+- **The preview zone keeps `TILE_PREVIEW_GROUND` (`bg-muted/40`) unchanged when selected**, so a selected tile's image sits on the same neutral it always sits on — the exact comparison the operator drew.
+- **The affordance is the border + ring**, which is what carries "selected" in Finder; the fill only groups a multi-selection at a glance. `border-primary/40` + `ring-1 ring-primary/30`.
+- **Both view modes agree.** `FileListRow` moved from `bg-primary/10 hover:bg-primary/15` to the same `/5` wash plus an **inset** ring (the row has no preview zone). A selection must look like **one** state, not two depending on which toggle the member last hit.
+- **Theme-checked.** `--primary` inverts between themes (`240 5.9% 10%` light, `0 0% 98%` dark) and the treatment is token-based and identical in construct, so the change is uniformly lighter in both; dark mode is live and user-togglable (`UserMenu` → `setTheme('dark')`, `darkMode: "class"`).
+
+### Gates — `api/test_files_selection_model.py` 29 → **39**
+
+**Claim 12 (Recents follows the grammar).** 12a the Recents **mount** does not hand the open funnel in as a click handler *under any prop name* — the mount's own props are read, so `onSelectPath={openPath}` (the shipped defect) and `onNavigate={openPath}` (the same defect wearing the new name) both trip it · 12b it routes through the ONE grammar function, with no second model · 12c **both** view modes forward the raw event, **counted** · 12d it rings the set, publishes its own order, and offers the ground exit · 12e right-click re-scope holds here too · 12f the dead `linkTo` branch is deleted from all four modules.
+
+> **A gate that pinned a NAME failed against correct source.** 12a's first cut banned `onSelectPath` page-wide. That name is **also `PropertiesModal`'s**, where a path handed back genuinely *is* an open — so the assertion went red against a correct file. Rewritten to read the **mount's own props** (the wiring) instead of the spelling. Same trap this file's 9a note already records once; it is now recorded twice, in the gate.
+
+**Claim 13 (the selected ground is painted once).** 13a the preview zone does not branch its ground on `selected` **at all** — anchored on the preview zone's own className block, so the shell's single correct fill cannot satisfy it · 13b **exactly one** element paints a ground for the selected state, **counted over `selected ? … : …` ternary true-arms only**, so the drop-target's own (legitimately different) `bg-primary/10` is not miscounted as a second wash · 13c both views carry the **same** wash, compared on the **opacity step** rather than the class string (the row is inset and borderless, so the strings legitimately differ but the wash must not) · 13d both keep a **ring** — lightening the fill without one would trade a loud defect for a quiet one.
+
+**Anchored on the CONSTRUCT and the COUNT, never a colour spelling.** A future palette change must be free to move every value; a re-added second fill must not pass. The failure mode here is **addition**, which is why 13b is a count rather than a "the shell has one" check.
+
+**Falsification — 9 mutations, each confirmed RED then restored GREEN.** 12a ×2 (mount hands `openPath`; the old prop resurrected) · 12b (a *plausible* second selection model, not a deletion) · 12c (the list view drops the event — the classic half-wired modifier) · 12d ×2 (order publish removed; ground exit removed) · 12e · 12f · **13a/13b against the EXACT pre-fix double-paint construct** (13b correctly counted 2) · 13c (the two views drift apart) · 13d (fill-only "selected"). Backup-copy + restore throughout; **never `git checkout`** (another session holds work in this tree). All five touched components diffed **byte-identical** to their snapshots before committing.
+
+**Build**: `cd web && node_modules/.bin/next build` — **exit 0**. `tsc --noEmit` clean. Other gates green and unchanged: `adr553_multi_select.mjs` 20/0 · `files_arrival_door.mjs` 12/0 · `test_adr452_studio_landing.py` 0.
+
+---
+
+## 2026-08-20 (earlier) — FILES: the tree is a NAVIGATOR, the centre pane is the BROWSER (no ADR — operator-approved after a production click-pass) — **SUPERSEDED the same day**
+
+> **Superseded by the entry above.** Its two panes are correct and stand. What it missed is that the centre pane holds **more than one file browser**: it wrote the grammar for *"the folder listing"* and wired it there, leaving **Recents** — the same tiles in the same pane, gathered by recency — still opening on a single click. The grammar is now stated over every centre-pane view, with the test for a fourth one.
+
 
 **Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → TWO PANES, TWO GRAMMARS](WORKSPACE.md). No new ADR; the click-grammar section is **rewritten again**, and the entry below (landed earlier the same day) is **superseded**.
 

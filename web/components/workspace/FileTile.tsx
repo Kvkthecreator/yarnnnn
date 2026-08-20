@@ -28,7 +28,6 @@ import { Folder } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcon';
-import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
 // ── Shared preview tokens — the single radius + ground for every file preview,
 // tile OR detail. Import these anywhere a file is framed; don't hand-write the
@@ -125,14 +124,17 @@ export interface FileTileProps {
   /** De-emphasize machine-config `_*` files (kept, not hidden — ADR-320). */
   dim?: boolean;
   /**
-   * Click dispatch, mirroring the two Recents mounts:
-   *   onClick   → the Files/folder mount owns selection (component state).
-   *   linkTo    → the Home mount has no selection; the tile deep-links to the
-   *               Files surface (SurfaceLink). Provide one or the other.
+   * THE CLICK, reported as an event — never as a decision. Every tile in this
+   * app now lives inside the Files centre pane's file-browser grammar (the
+   * folder listing AND Recents), and the SURFACE reads the modifiers.
+   *
+   * The `linkTo` deep-link alternative is DELETED (2026-08-20). It served a Home
+   * mount removed by ADR-435, so its ternary had been permanently parked in the
+   * `undefined` arm; the last caller of it was Recents, which is a file browser
+   * and now selects.
    */
   /** ADR-553: the event is passed so a ⌘/Ctrl-click can be an ADDITIVE pick. */
   onClick?: (e: React.MouseEvent) => void;
-  linkTo?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   title?: string;
   /** Trailing actions overlay (the touch kebab — ADR-400 touch parity). Rendered
@@ -170,7 +172,7 @@ export const TILE_DRAG_MIME = 'application/x-yarnnn-path';
 
 export function FileTile({
   path, kind, subtext, thumb, selected = false, dim = false,
-  onClick, linkTo, onContextMenu, title, actions, dnd,
+  onClick, onContextMenu, title, actions, dnd,
 }: FileTileProps) {
   const name = fileName(path);
 
@@ -219,10 +221,26 @@ export function FileTile({
         },
       }
     : {};
+  // SELECTED READS AS A RING, NOT A FILL (2026-08-20, operator-observed:
+  // "the select highlight background shouldn't be so dark, closer just to
+  // image screen").
+  //
+  // The tile stacked THREE treatments that COMPOUNDED: the shell painted
+  // `bg-primary/10`, the preview zone painted its OWN `bg-primary/10` on top of
+  // it, and a ring sat over both. Two primary washes over the same pixels do not
+  // read as one wash at /10 — they read as roughly /20 with a ring around it,
+  // which is why the tile went heavy instead of tinted.
+  //
+  // ONE ELEMENT CARRIES THE SELECTED GROUND — the shell, at /5, a wash barely
+  // off the neutral. What actually says "selected" is the BORDER + RING, which
+  // is what carries it in Finder too; the fill is only there to group a
+  // multi-selection at a glance. The preview zone keeps TILE_PREVIEW_GROUND
+  // unchanged, so a selected tile's image sits on the same neutral it always
+  // sits on — which is exactly the comparison the operator drew.
   const shellClass = cn(
     'group relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center transition-colors',
     selected
-      ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
+      ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/30'
       : 'border-transparent hover:border-border/70 hover:bg-muted/40',
     dim && !selected && 'opacity-70',
     dnd?.draggable && 'cursor-grab active:cursor-grabbing',
@@ -236,12 +254,16 @@ export function FileTile({
 
   const inner = (
     <>
-      {/* Preview zone — the dominant mass, Finder-style. One radius, one ground. */}
+      {/* Preview zone — the dominant mass, Finder-style. One radius, one ground.
+          The ground does NOT change on selection: the shell above carries the
+          selected wash, and painting a second one here is what made a selected
+          tile read twice as dark as the /10 it was written as. */}
       <span
         className={cn(
           'flex h-24 w-full items-center justify-center overflow-hidden transition-colors',
           TILE_PREVIEW_RADIUS,
-          selected ? 'bg-primary/10' : cn(TILE_PREVIEW_GROUND, 'group-hover:bg-muted/60'),
+          TILE_PREVIEW_GROUND,
+          !selected && 'group-hover:bg-muted/60',
         )}
       >
         {kind === 'folder'
@@ -262,15 +284,6 @@ export function FileTile({
     </>
   );
 
-  // Home mount → a deep-link into Files; Files/folder mount → a button.
-  if (linkTo && !onClick) {
-    return (
-      <SurfaceLink to="files" params={{ path: linkTo }} className={shellClass} title={title ?? path} onContextMenu={onContextMenu} {...dragProps} {...dropProps}>
-        {actionsOverlay}
-        {inner}
-      </SurfaceLink>
-    );
-  }
   return (
     <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? path} className={shellClass} {...dragProps} {...dropProps}>
       {actionsOverlay}

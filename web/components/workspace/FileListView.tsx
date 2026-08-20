@@ -16,10 +16,12 @@
  * passes a per-row subtitle instead, shown under the name; the WHERE column
  * simply stays empty for those rows, so the grid geometry never changes.
  *
- * One <FileListRow>, one header, one set of column widths, one row height. The
- * click/right-click dispatch is the caller's (each row is a button-shaped cell),
- * kept generic so Recents (selection state), the folder listing (navigate), and
- * the Home deep-link all reuse it.
+ * One <FileListRow>, one header, one set of column widths, one row height. Both
+ * callers are centre-pane FILE BROWSERS — the folder listing and Recents — and
+ * since 2026-08-20 they speak one click grammar too: the row is a button-shaped
+ * cell that reports the raw event, and the Files surface reads the modifiers.
+ * (The third shape this row once served, a Home deep-link, went with the Home
+ * surface itself — ADR-435.)
  */
 
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
@@ -27,7 +29,6 @@ import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcon';
 import { TILE_DRAG_MIME } from './FileTile';
 import { Folder } from 'lucide-react';
-import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
 // The single column grid — Name (flex) · Where (fixed) · Author (fixed) · When
 // (fixed). `md:` drops the Where column on narrow widths (Finder collapses
@@ -60,13 +61,15 @@ export interface FileListRowProps {
   /** De-emphasize machine-config `_*` files (kept, not hidden — ADR-320). */
   dim?: boolean;
   /**
-   * Click dispatch, mirroring <FileTile>: onClick (Files/folder mount owns
-   * selection) OR linkTo (Home mount deep-links to the Files surface). Provide
-   * one or the other.
+   * THE CLICK, reported as an event — never as a decision, mirroring <FileTile>.
+   * Both of this row's callers (the folder listing and Recents) are centre-pane
+   * file browsers, and the SURFACE reads the modifiers.
+   *
+   * The `linkTo` deep-link alternative is DELETED (2026-08-20) — it served a
+   * Home mount removed by ADR-435 and had no reachable caller left.
    */
   /** ADR-553: the event is passed so a ⌘/Ctrl-click can be an ADDITIVE pick. */
   onClick?: (e: ReactMouseEvent) => void;
-  linkTo?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   title?: string;
   /** Trailing actions overlay (the touch kebab — ADR-400 touch parity). Absent
@@ -96,7 +99,7 @@ export interface RowDnd {
 
 export function FileListRow({
   name, kind, where, subtitle, author, when,
-  selected = false, dim = false, onClick, linkTo, onContextMenu, title, actions, dnd,
+  selected = false, dim = false, onClick, onContextMenu, title, actions, dnd,
 }: FileListRowProps) {
   // ADR-552 — the details list drags exactly as the icon grid does.
   const dragProps = dnd?.draggable
@@ -140,10 +143,17 @@ export function FileListRow({
       }
     : {};
 
+  // SELECTION LOOKS THE SAME IN BOTH VIEWS (2026-08-20). The icon view stopped
+  // double-painting its selected ground and lightened to a /5 wash carried by a
+  // border + ring; a details row that stayed at /10 would make one selection
+  // read as two different states depending on which toggle the member last hit.
+  // Same wash, same ring — the row has no preview zone, so the ring is inset.
   const rowClass = cn(
     GRID,
     'relative w-full items-center px-4 py-2 text-left text-sm transition-colors',
-    selected ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-muted/40',
+    selected
+      ? 'bg-primary/5 ring-1 ring-inset ring-primary/30 hover:bg-primary/10'
+      : 'hover:bg-muted/40',
     dim && !selected && 'opacity-70',
     dnd?.draggable && 'cursor-grab active:cursor-grabbing',
     dnd?.isDropTarget && 'bg-primary/15 ring-2 ring-inset ring-primary/50',
@@ -173,14 +183,6 @@ export function FileListRow({
     </>
   );
 
-  if (linkTo && !onClick) {
-    return (
-      <SurfaceLink to="files" params={{ path: linkTo }} className={rowClass} title={title ?? name} onContextMenu={onContextMenu} {...dragProps} {...dropProps}>
-        {inner}
-        {actionsOverlay}
-      </SurfaceLink>
-    );
-  }
   return (
     <button type="button" onClick={onClick} onContextMenu={onContextMenu} title={title ?? name} className={rowClass} {...dragProps} {...dropProps}>
       {inner}

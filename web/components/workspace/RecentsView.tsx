@@ -7,7 +7,7 @@
  * table (RecentRevisions) and the Home front-page cards (HomeRecents), each
  * with its own copy of the author-label / accent / path helpers. The operator
  * asked for a consistent Finder/Explorer view across both. This is that one
- * component — mounted in both surfaces — with two view modes:
+ * component — with two view modes:
  *
  *   - 'icon' (DEFAULT) — a Finder-style grid of file-type icon tiles.
  *   - 'list'           — the macOS list / Windows-Explorer-details table
@@ -22,12 +22,31 @@
  * helpers (author label/accent, filename, where) live here, deduped from the
  * two prior copies. File-type glyphs come from the shared <FileIcon>.
  *
- * Each row/tile deep-links into the file it changed. The Files mount passes its
- * own `onSelectPath` (selection is component state there); the Home mount omits
- * it, so RecentsView navigates to the Files surface via SurfaceLink.
+ * ── RECENTS IS A FILE BROWSER (2026-08-20, third cut) ────────────────────────
+ *
+ * It is a grid/list of FILES in the centre pane, gathered by RECENCY instead of
+ * by folder. That is the only difference from the folder listing, and it is not
+ * a difference the member's HANDS can feel — so it takes the identical grammar:
+ *
+ *   single click  SELECT (inert) · ⌘/Ctrl toggle · shift RANGE over the view's
+ *   own visual order · double click OPEN · Escape / background click CLEAR ·
+ *   coarse pointer opens on a single tap · right-click gives the verbs.
+ *
+ * Operator-observed on production (the third defect of the same day): a single
+ * click on a Recents tile OPENED the file. Recents was a THIRD file surface the
+ * select/open split never reached — it took an `onSelectPath` callback that WAS
+ * `openPath`, so every tap went straight through the one door. That prop is
+ * DELETED. Recents now speaks the same `(path, FileClickIntent)` contract the
+ * folder listing speaks, and the SURFACE applies the grammar — one place the
+ * grammar lives, per pane-kind, not per renderer.
+ *
+ * The deep-link (`linkTo`) branch is DELETED with it. It served a Home mount
+ * that no longer exists (Home was deleted by ADR-435); the ternary that chose
+ * it had been permanently parked in the `undefined` arm. A branch no caller can
+ * reach is not a second mode, it is dead code claiming to be one.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { History, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -38,6 +57,7 @@ import { FileListHeader, FileListRow } from './FileListView';
 import { FilesViewToggle } from './FilesViewToggle';
 import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { useFileContextMenu, type FileVerbs, type FileMenuTarget } from './FileContextMenu';
+import type { FileClickIntent } from '@/types';
 
 interface Revision {
   path: string;
@@ -84,44 +104,58 @@ function isSystemFile(path: string): boolean {
 // ---------------------------------------------------------------------------
 
 interface RecentsViewProps {
-  /** Max rows/tiles to fetch. Files explorer shows 30; Home glance shows ~12. */
+  /** Max rows/tiles to fetch. The Files centre pane shows 30. */
   limit?: number;
   /**
-   * Files mount: selection is component state, so the page owns the click.
-   * Home mount: omit → RecentsView deep-links to the Files surface itself.
+   * THE CLICK, reported as an INTENT — never as a decision. Identical in shape
+   * to the folder listing's `onNavigate`: the renderer says what the click was,
+   * the surface says what it means. Recents decides nothing.
    */
-  onSelectPath?: (path: string) => void;
+  onNavigate: (path: string, e?: FileClickIntent) => void;
+  /** The picked SET — every member rings. Recents renders it; it never edits it. */
+  selection?: readonly string[];
   /**
-   * The currently-open file path (Files mount) — its tile/row gets a
-   * Windows-Explorer selection highlight. Omitted on the Home mount (nothing is
-   * "selected" there; every row is a deep-link).
+   * PUBLISH THE VISUAL ORDER. A shift-range is over what the member SEES, and
+   * what they see here is recency order — not the folder listing's
+   * folders-first alphabetical. Without this the range would run over whichever
+   * listing published last.
    */
-  selectedPath?: string | null;
+  onPublishOrder?: (paths: string[]) => void;
+  /** A click on the grid's empty GROUND drops the selection. */
+  onClearSelection?: () => void;
+  /**
+   * Replace the selection with exactly this path. Called when a right-click
+   * lands OUTSIDE the current selection — the OS rule, so the menu can never
+   * name one file while a set-taking verb moves nine.
+   */
+  onSelectRow?: (path: string) => void;
   /** Hide the header (caller renders its own title chrome). */
   hideHeader?: boolean;
   /** Header label (default "Recents"). */
   title?: string;
   /**
-   * Self-hide instead of showing the cold-start empty state. The Home
-   * front-page slot uses this (a kernel slot self-hides when empty — ADR-312);
-   * the Files center pane shows the empty state (it's the pane's whole job).
+   * Self-hide instead of showing the cold-start empty state. A kernel slot
+   * self-hides when empty (ADR-312); the Files centre pane shows the empty
+   * state (it's the pane's whole job).
    */
   hideWhenEmpty?: boolean;
-  /** Header description shown after the title (Home: "recent changes…"). */
+  /** Header description shown after the title. */
   subtitle?: string;
   /**
    * ADR-400 Amendment 1: the operator's file verbs (Properties/Rename/Move/
-   * Trash). When wired (Files mount), right-clicking a tile/row opens the shared
-   * context menu — the main-panel right-click the macOS/Explorer reference has.
-   * Omitted on the Home mount (glance-only, no organize verbs).
+   * Trash). Right-clicking a tile/row opens the shared context menu — the
+   * main-panel right-click the macOS/Explorer reference has.
    */
   verbs?: FileVerbs;
 }
 
 export function RecentsView({
   limit = 30,
-  onSelectPath,
-  selectedPath = null,
+  onNavigate,
+  selection,
+  onPublishOrder,
+  onClearSelection,
+  onSelectRow,
   hideHeader = false,
   title = 'Recents',
   hideWhenEmpty = false,
@@ -155,8 +189,48 @@ export function RecentsView({
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
   }, [load]);
 
+  const selectedSet = useMemo(() => new Set(selection ?? []), [selection]);
+
+  // The feed can carry the same path more than once (a file edited twice is two
+  // revisions). The SELECTION is a set of paths, so the visual order it ranges
+  // over must be de-duplicated the same way — otherwise `indexOf` finds the
+  // first tile while the member clicked the second, and the range runs to the
+  // wrong end.
+  const orderedPaths = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const r of revisions) {
+      if (seen.has(r.path)) continue;
+      seen.add(r.path);
+      out.push(r.path);
+    }
+    return out;
+  }, [revisions]);
+
+  // PUBLISH THE VISUAL ORDER — recency, exactly as drawn. From an effect (not
+  // during render) because it writes to the surface's ref.
+  useEffect(() => {
+    onPublishOrder?.(orderedPaths);
+  }, [orderedPaths, onPublishOrder]);
+
+  // A click on the grid's empty GROUND drops the selection — the same exit the
+  // folder listing offers, and the half of ADR-519's trap-withdrawal that
+  // Escape alone does not cover (a member who reaches for the mouse, not a key).
+  const onGroundClick = (e: React.MouseEvent) => {
+    if (e.currentTarget !== e.target) return;
+    onClearSelection?.();
+  };
+
+  // Right-click scope, the OS rule: INSIDE a multi-selection the menu acts on
+  // the whole set and leaves it intact; OUTSIDE it, the selection is REPLACED
+  // by the row you hit first.
+  const rowContext = (path: string) => (e: React.MouseEvent) => {
+    if (!selectedSet.has(path)) onSelectRow?.(path);
+    openMenu({ path, name: fileName(path), isFile: true }, e);
+  };
+
   if (loading && revisions.length === 0) {
-    // Self-hiding slot (Home): stay silent until the first batch resolves.
+    // Self-hiding slot: stay silent until the first batch resolves.
     if (hideWhenEmpty) return null;
     return (
       <div className="flex items-center gap-2 px-1 py-3 text-sm text-muted-foreground">
@@ -201,9 +275,23 @@ export function RecentsView({
       )}
 
       {mode === 'icon' ? (
-        <IconGrid revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} Kebab={Kebab} />
+        <IconGrid
+          revisions={revisions}
+          onNavigate={onNavigate}
+          selectedSet={selectedSet}
+          onGroundClick={onGroundClick}
+          rowContext={rowContext}
+          Kebab={Kebab}
+        />
       ) : (
-        <ListTable revisions={revisions} onSelectPath={onSelectPath} selectedPath={selectedPath} onContextMenu={openMenu} Kebab={Kebab} />
+        <ListTable
+          revisions={revisions}
+          onNavigate={onNavigate}
+          selectedSet={selectedSet}
+          onGroundClick={onGroundClick}
+          rowContext={rowContext}
+          Kebab={Kebab}
+        />
       )}
       {menu}
     </div>
@@ -211,32 +299,30 @@ export function RecentsView({
 }
 
 // ---------------------------------------------------------------------------
-// A single row's click target — Files-mount uses onSelectPath, Home-mount
-// deep-links to the Files surface. One <RowShell> keeps the dispatch in one
-// place so icon + list modes share it.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Icon view — the shared <FileTile> grid (Singular Implementation, 2026-07-09).
 // The tile geometry, preview zone, radius, and thumbnail logic all live in
 // FileTile now; the Recents grid just maps rows onto it. The folder-listing icon
-// view (ContentViewer) renders the SAME tile — one look across the surface.
+// view (ContentViewer) renders the SAME tile — one look across the surface, and
+// (since 2026-08-20) one click grammar behind it.
 // ---------------------------------------------------------------------------
 
 function IconGrid({
-  revisions, onSelectPath, selectedPath, onContextMenu, Kebab,
+  revisions, onNavigate, selectedSet, onGroundClick, rowContext, Kebab,
 }: {
   revisions: Revision[];
-  onSelectPath?: (path: string) => void;
-  selectedPath?: string | null;
-  onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
-  Kebab?: (props: { target: FileMenuTarget; className?: string }) => React.ReactNode;
+  onNavigate: (path: string, e?: FileClickIntent) => void;
+  selectedSet: Set<string>;
+  onGroundClick: (e: React.MouseEvent) => void;
+  rowContext: (path: string) => (e: React.MouseEvent) => void;
+  Kebab: (props: { target: FileMenuTarget; className?: string }) => React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+      onClick={onGroundClick}
+    >
       {revisions.map((rev, i) => {
         const sys = isSystemFile(rev.path);
-        const selected = !!selectedPath && rev.path === selectedPath;
         // Every Recents row is a FILE (the feed is workspace_file_versions).
         const menuTarget: FileMenuTarget = {
           path: rev.path, name: fileName(rev.path), isFile: true,
@@ -246,7 +332,7 @@ function IconGrid({
             key={`${rev.path}-${rev.created_at}-${i}`}
             path={rev.path}
             kind="file"
-            selected={selected}
+            selected={selectedSet.has(rev.path)}
             dim={sys}
             thumb={{
               content_url: rev.content_url,
@@ -255,11 +341,9 @@ function IconGrid({
               svgText: rev.svg_text,
             }}
             subtext={rev.created_at ? formatRelativeTime(rev.created_at) : ''}
-            // Files mount owns selection (onSelectPath); Home mount deep-links.
-            onClick={onSelectPath ? () => onSelectPath(rev.path) : undefined}
-            linkTo={onSelectPath ? undefined : rev.path}
-            onContextMenu={onContextMenu ? (e) => onContextMenu(menuTarget, e) : undefined}
-            actions={Kebab ? <Kebab target={menuTarget} /> : undefined}
+            onClick={(e) => onNavigate(rev.path, e)}
+            onContextMenu={rowContext(rev.path)}
+            actions={<Kebab target={menuTarget} />}
           />
         );
       })}
@@ -275,21 +359,21 @@ function IconGrid({
 // ---------------------------------------------------------------------------
 
 function ListTable({
-  revisions, onSelectPath, selectedPath, onContextMenu, Kebab,
+  revisions, onNavigate, selectedSet, onGroundClick, rowContext, Kebab,
 }: {
   revisions: Revision[];
-  onSelectPath?: (path: string) => void;
-  selectedPath?: string | null;
-  onContextMenu?: (target: FileMenuTarget, e: React.MouseEvent) => void;
-  Kebab?: (props: { target: FileMenuTarget; className?: string }) => React.ReactNode;
+  onNavigate: (path: string, e?: FileClickIntent) => void;
+  selectedSet: Set<string>;
+  onGroundClick: (e: React.MouseEvent) => void;
+  rowContext: (path: string) => (e: React.MouseEvent) => void;
+  Kebab: (props: { target: FileMenuTarget; className?: string }) => React.ReactNode;
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border/60">
       <FileListHeader />
-      <div className="divide-y divide-border/40">
+      <div className="divide-y divide-border/40" onClick={onGroundClick}>
         {revisions.map((rev, i) => {
           const sys = isSystemFile(rev.path);
-          const selected = !!selectedPath && rev.path === selectedPath;
           const menuTarget: FileMenuTarget = { path: rev.path, name: fileName(rev.path), isFile: true };
           return (
             <FileListRow
@@ -298,7 +382,7 @@ function ListTable({
               kind="file"
               where={whereLabel(rev.path)}
               when={rev.created_at ? formatRelativeTime(rev.created_at) : ''}
-              selected={selected}
+              selected={selectedSet.has(rev.path)}
               dim={sys}
               author={
                 <span className="inline-flex items-center gap-1.5">
@@ -307,11 +391,9 @@ function ListTable({
                 </span>
               }
               title={rev.path}
-              // Files mount owns selection; Home mount deep-links to Files.
-              onClick={onSelectPath ? () => onSelectPath(rev.path) : undefined}
-              linkTo={onSelectPath ? undefined : rev.path}
-              onContextMenu={onContextMenu ? (e) => onContextMenu(menuTarget, e) : undefined}
-              actions={Kebab ? <Kebab target={menuTarget} /> : undefined}
+              onClick={(e) => onNavigate(rev.path, e)}
+              onContextMenu={rowContext(rev.path)}
+              actions={<Kebab target={menuTarget} />}
             />
           );
         })}
