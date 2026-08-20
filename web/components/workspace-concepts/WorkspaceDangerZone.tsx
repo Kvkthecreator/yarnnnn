@@ -6,19 +6,23 @@
  * L1 (clear work history) and L2 (clear workspace) destroy shared content:
  * in a multi-member workspace they remove EVERY member's work, not the
  * caller's own rows. Under ADR-407's three-scope taxonomy that makes them
- * workspace-scope, not account-scope — so they live here rather than in
- * User Settings → Data & Privacy (which keeps L3/L4/L5: a member's own platform
- * connections, their account reset, their deactivation). The door was renamed
- * from "System Settings" so its menu label matches its window title; the pane
- * KEY is still `account`, which is why the href below is unchanged.
+ * workspace-scope, not account-scope — so they live here rather than in User
+ * Settings (which keeps L3/L4/L5: a member's own platform connections, their
+ * account reset, their deactivation). Those are split across TWO panes there:
+ * connections on `connectors` (ADR-425), reset + deactivate on `account`.
  *
  * The backend gates both on owner-grade authority (ADR-476 D2 —
  * `workspaces.owner_id` or a grant carrying `workspace:clear`), so a
  * non-owner member gets a 403. This component surfaces that up-front rather
  * than letting the operator discover it at confirm time.
  *
- * Singular Implementation: the purge CARDS live only here. User Settings
- * mounts nothing of L1/L2 — it links across.
+ * Singular Implementation: the purge cards live only here — and as of
+ * 2026-08-20 that is TRUE rather than merely asserted. The cards moved with
+ * ADR-476 D3 but their plumbing did not: User Settings kept a `DangerAction`
+ * type carrying "work-history"/"workspace", live handler branches calling
+ * clearWorkHistory()/clearWorkspace(), confirm copy for both, and a
+ * workspace-scoped stats grid. All unreachable (nothing set those values), all
+ * now deleted. A comment claiming singularity is not singularity.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -227,11 +231,19 @@ export function WorkspaceDangerZone() {
         </p>
       )}
 
+      {/* Two doors, two scopes. Connections moved to the Connectors pane
+          (ADR-425 — a human's credential is an account object), so they need
+          their own link: the Account pane no longer carries them. Name each
+          pane as its sidebar labels it, or the reader hunts for a menu item
+          that isn't there. */}
       <p className="text-xs text-muted-foreground pt-2 border-t border-border">
-        Looking for account-level actions? Disconnecting your own platform
-        connections, resetting your account, and deactivating live in{" "}
+        Looking for account-level actions? Your own platform connections live in{" "}
+        <a href="/settings?settings.pane=connectors" className="underline">
+          User Settings → Connectors
+        </a>
+        ; resetting or deactivating your account lives in{" "}
         <a href="/settings?settings.pane=account" className="underline">
-          User Settings → Data &amp; Privacy
+          User Settings → Account
         </a>
         .
       </p>

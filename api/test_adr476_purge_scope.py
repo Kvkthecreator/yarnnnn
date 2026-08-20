@@ -221,9 +221,13 @@ def run() -> None:
         and 'initiateDangerAction("workspace")' not in acct_page,
         "the cards live only in WorkspaceDangerZone",
     )
+    # The pin was "?pane=danger" — a spelling the code has never used (the app
+    # namespaces it "?workspace-settings.pane=danger"), so this check was red
+    # from the day it was written and asserted nothing. Match the ROUTE and the
+    # pane VALUE, not one hand-typed query-string form.
     record(
         "D3. Account settings links across to the workspace door",
-        "/workspace-settings?pane=danger" in acct_page,
+        "/workspace-settings?" in acct_page and "pane=danger" in acct_page,
         "",
     )
 

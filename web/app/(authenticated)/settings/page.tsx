@@ -8,15 +8,12 @@ import {
   Loader2,
   Check,
   User,
-  FileText,
   RefreshCw,
   LogOut,
   Bell,
   Mail,
   Link2,
   Shield,
-  FolderKanban,
-  Database,
   History,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
@@ -109,8 +106,6 @@ const PANE_GROUPS: PaneGroup[] = [
 
 const ALL_PANES: SettingsTab[] = PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key as SettingsTab));
 type DangerAction =
-  | "work-history"
-  | "workspace"
   | "integrations"
   | "reset"
   | "deactivate"
@@ -253,31 +248,6 @@ export default function SettingsPage() {
     try {
       let result;
       switch (dangerAction) {
-        case "work-history":
-          result = await api.account.clearWorkHistory();
-          setPurgeSuccess(result.message);
-          // No reinit needed (L1 invariants don't include anything purged here).
-          // No route change — the user stays on Settings to see the success
-          // banner. Their tasks are still active and their next scheduled run
-          // will populate fresh outputs.
-          break;
-        case "workspace":
-          result = await api.account.clearWorkspace();
-          setPurgeSuccess(result.message);
-          clearMessages();
-          // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
-          // This call is a harmless safety net; it returns the already-restored state.
-          await api.workspace.getState().catch(() => null);
-          // Route to /chat so TP greets the user and triggers the onboarding
-          // modal (identity is empty/sparse after purge). Previously routed to
-          // /work which skipped onboarding entirely.
-          // ADR-297 D19.4 — foreground a surface (window-open), not
-          // router.push (which erases the Desktop). ADR-435 (2026-07-10): land
-          // on Chat — the steward's voice + activation surface (Home was
-          // deleted; identity sparse after purge, so the steward greets + the
-          // onboarding modal triggers). Was 'home', before that 'channels'.
-          setTimeout(() => navigateToSurface('chat'), 1500);
-          break;
         case "integrations":
           result = await api.account.clearIntegrations();
           setPurgeSuccess(result.message);
@@ -427,7 +397,7 @@ export default function SettingsPage() {
           <PaneHeader
             icon={Shield}
             title="Data & Privacy"
-            subtitle="Manage your data and privacy settings. All deletions are permanent."
+            subtitle="Your own connections, account reset, and deactivation. Workspace content lives in Workspace Settings."
             bordered={false}
             action={
               <button
@@ -447,60 +417,12 @@ export default function SettingsPage() {
             </div>
           ) : dangerStats ? (
             <>
-              {/* Data Summary Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="p-4 border border-border rounded-lg text-center">
-                  <FolderKanban className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.tasks}</div>
-                  <div className="text-xs text-muted-foreground">Scheduled work</div>
-                </div>
-                <div className="p-4 border border-border rounded-lg text-center">
-                  <Database className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.agents}</div>
-                  <div className="text-xs text-muted-foreground">Agents</div>
-                </div>
-                <div className="p-4 border border-border rounded-lg text-center">
-                  <FileText className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.workspace_files}</div>
-                  <div className="text-xs text-muted-foreground">Workspace files</div>
-                </div>
-                <div className="p-4 border border-border rounded-lg text-center">
-                  <Link2 className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.platform_connections}</div>
-                  <div className="text-xs text-muted-foreground">Platforms</div>
-                </div>
-              </div>
-
-              {/* Purge Actions — graduated severity L1→L3 */}
+              {/* ADR-476 D3 — workspace-scoped destruction (clear history, clear
+                  workspace) lives ONLY in Workspace Settings → Danger Zone, and
+                  so do its counts. This door keeps what is genuinely the
+                  member's own: their connections, their reset, their
+                  deactivation. */}
               <div className="border-t border-border pt-6 space-y-3 mb-6">
-                {/* ADR-476 D3 — L1 (Clear Work History) and L2 (Clear Workspace)
-                    MOVED to Workspace Settings → Danger Zone. They destroy every
-                    member's shared content, which makes them workspace-scope under
-                    ADR-407, not account-scope. Singular Implementation: the cards
-                    live in WorkspaceDangerZone only; this door links across. What
-                    remains here is genuinely the member's own (L3 connections,
-                    L4 reset, L5 deactivate). */}
-                <div className="p-4 border border-border rounded-lg">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        <Database className="w-4 h-4 text-muted-foreground" />
-                        Clear workspace content
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Clearing work history or the whole workspace affects every
-                        member&apos;s work, so it lives with the workspace.
-                      </div>
-                    </div>
-                    <a
-                      href="/workspace-settings?workspace-settings.pane=danger"
-                      className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted shrink-0"
-                    >
-                      Open
-                    </a>
-                  </div>
-                </div>
-
                 {/* L3: Disconnect Platforms — pauses bots, clears platform context dirs */}
                 <div className="p-4 border border-orange-200 dark:border-orange-900/50 rounded-lg">
                   <div className="flex items-center justify-between">
@@ -523,6 +445,21 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* ADR-476 D3 — one line, not a card. A member who comes here
+                  looking for the clears must be pointed across; duplicating the
+                  cards (or their counts) is what made the two doors disagree. */}
+              <p className="text-xs text-muted-foreground mb-6">
+                Clearing work history or the whole workspace affects every
+                member&apos;s work, so it lives in{" "}
+                <a
+                  href="/workspace-settings?workspace-settings.pane=danger"
+                  className="underline"
+                >
+                  Workspace Settings → Danger Zone
+                </a>
+                .
+              </p>
 
               {/* Danger Zone */}
               <div className="border-t border-destructive/30 pt-6 mb-6">
@@ -693,45 +630,11 @@ export default function SettingsPage() {
               <h3 className="text-lg font-semibold">
                 {dangerAction === "deactivate" ? "Delete Account Permanently?" :
                  dangerAction === "reset" ? "Full Account Reset?" :
-                 dangerAction === "work-history" ? "Clear Work History?" :
                  "Confirm Deletion"}
               </h3>
             </div>
 
             <div className="text-muted-foreground mb-6">
-              {dangerAction === "work-history" && (
-                <>
-                  <p className="mb-2">
-                    Are you sure you want to <strong>clear your work history</strong>? This will delete:
-                  </p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.agent_runs} past invocation records</li>
-                    <li>All dated output folders under <code>/workspace/operation/reports/&lt;slug&gt;/</code> (every past deliverable)</li>
-                    <li>The run log for each scheduled item (re-created on the next run)</li>
-                  </ul>
-                  <p className="mt-2 text-sm">
-                    <strong>Preserved:</strong> all your scheduled work, all agents, your identity, brand, and mandate, accumulated context, chat history, platform connections, and your saved feedback and intent. The next scheduled run will produce fresh outputs.
-                  </p>
-                </>
-              )}
-              {dangerAction === "workspace" && (
-                <>
-                  <p className="mb-2">
-                    Are you sure you want to <strong>clear your workspace</strong>? This will delete:
-                  </p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.agents} agents and all their runs</li>
-                    <li>{dangerStats?.workspace_files} workspace files (memory, context, outputs, scheduled work)</li>
-                    <li>All scheduled work, activity history, and budget records</li>
-                  </ul>
-                  <p className="mt-2 text-sm">
-                    Your workspace will be reset to a fresh state: the default agents,
-                    your identity and brand templates, and the behind-the-scenes setup.
-                    Scheduled work and context start empty — you set them up in chat.
-                    Platform connections stay intact.
-                  </p>
-                </>
-              )}
               {dangerAction === "integrations" && (
                 <>
                   <p className="mb-2">
