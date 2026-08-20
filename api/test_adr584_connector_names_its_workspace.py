@@ -87,6 +87,20 @@ def run() -> bool:
         "whoami" in instructions,
     )
 
+    # ...and ANNOUNCING it is not enough. Probed 2026-08-20: asked "what
+    # workspace am I connected to", a live ChatGPT connection answered from a
+    # `list` — the verb table named whoami, but the proactive-trigger paragraph
+    # (which is what tells a host WHEN to reach for a verb) never mentioned it,
+    # so the one question whoami exists to answer was answered by enumerating
+    # files. A listing shows what is IN a workspace, never WHICH one it is.
+    # Anchored on the trigger paragraph specifically, not on the whole string,
+    # because the derived verb table already satisfies the check above.
+    trigger_para = instructions.split("Use these proactively")[-1]
+    ok &= _check(
+        "D1.a the PROACTIVE-TRIGGER paragraph routes a 'which workspace' question to whoami",
+        "whoami" in trigger_para,
+    )
+
     # Registered as a real tool, not merely described. Parsed from the AST so a
     # `name="whoami"` inside a docstring or comment cannot satisfy it.
     tree = ast.parse(SERVER_SRC)

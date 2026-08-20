@@ -66,9 +66,15 @@ class MCPConsentInfo(BaseModel):
     # WHERE — the workspace this connection will reach. `None` while the
     # workspace still wears the mint default name (`display_workspace_name`), so
     # the FE can say "your workspace" rather than leak "My Workspace".
-    # A connector cannot NAME a workspace (ADR-373 D6, still deferred): it takes
-    # the principal's default. This shows WHICH one that resolves to, computed
-    # through the SAME resolver the connector itself will use.
+    # This is the DEFAULT the binding resolves to when the operator does not
+    # choose, computed through the SAME resolver the connector itself will use —
+    # so the screen cannot promise one workspace while the token reaches another.
+    # The operator CAN override it: ADR-573 (built 2026-08-17, `ec58956`) put a
+    # picker on the consent screen and a validated `workspace_id` on the bind.
+    # Do not re-describe that as deferred. This comment previously asserted the
+    # opposite for three days after the picker shipped, and a 2026-08-20
+    # connector audit read it as the live contract and concluded the picker was
+    # missing. Gate: `test_adr573_no_stale_deferral_claims.py`.
     workspace_name: Optional[str]
     workspace_id: Optional[str]
     # WHAT — one operator-facing sentence per capability, from the token's real

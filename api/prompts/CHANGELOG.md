@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.20.1] - whoami gets a trigger, not just a listing (ADR-584)
+
+### Changed
+- `mcp_server/server.py` `_build_interop_instructions()`: the proactive-trigger
+  paragraph now routes a "which workspace am I connected to" question to
+  `whoami`, and says why a listing cannot answer it (a listing shows what is IN
+  a workspace, never WHICH one it is; the reference grammar is identical in all
+  of them). One sentence, inside the existing paragraph — no new section.
+- Expected behavior: a connected host asked where it is standing calls `whoami`
+  instead of enumerating files.
+
+### Why (the observed failure, not a speculative one)
+Probed 2026-08-20 on a live ChatGPT connection. Asked "what workspace am I
+connected to", it answered from a `list` — reporting a bare
+`yarnnn://workspace/` root and a file count, which names no workspace at all.
+`whoami` shipped at `17c8d21` and was deployed, but the word appeared **zero
+times** in the instructions builder body: it reached the host only through the
+verb table derived from `_INTEROP_VERBS`. The table says a verb EXISTS; the
+trigger paragraph is what says WHEN to reach for one, and it covered `open`,
+`search`, and `save` only. The one question `whoami` was built to answer was
+the one question nothing routed to it.
+
+Gate: `test_adr584_connector_names_its_workspace.py` D1.a — anchored on the
+trigger paragraph specifically, because the pre-existing D1 check ("whoami" in
+instructions) passed on the derived table the whole time this was broken.
+Falsified against the exact shipped shape.
+
+---
+
 ## [2026.08.19.2] - The component library + the colour-law recut (ADR-583)
 
 ### Changed
