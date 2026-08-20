@@ -256,6 +256,32 @@ def run() -> int:
             f"omitted: {narrowed['omitted_unreadable_paths']}",
         )
 
+        # ── the commit DATE survives every timestamp shape Postgres emits ──
+        # Regression: py3.9's `fromisoformat` accepts ONLY 3 or 6 fractional
+        # digits, while Postgres trims trailing zeros ("…39.40728+00") and
+        # writes a 2-digit offset. Both raised, fell to epoch 0, and dated 168
+        # of 1,613 real commits 1970-01-01 — a silent wrong answer that passed
+        # every gate because nothing read the dates back.
+        from services.export.git_export import _epoch
+
+        shapes = {
+            "2026-07-03 05:37:39.40728+00": 1783057059,   # 5-digit frac, short offset
+            "2026-07-03T05:37:39.4+00:00": 1783057059,    # 1-digit frac
+            "2026-08-12T00:45:24.554085+00:00": 1786495524,  # 6-digit (always worked)
+            "2026-08-19T21:00:29+00:00": 1787173229,      # no frac
+            "2026-08-19T21:00:29Z": 1787173229,           # Z form
+        }
+        bad = {k: _epoch(k) for k, v in shapes.items() if _epoch(k) != v}
+        passed &= _check(
+            "every timestamp shape Postgres emits dates its commit correctly",
+            not bad,
+            f"wrong: {bad}",
+        )
+        passed &= _check(
+            "a malformed date still falls back to epoch 0 rather than sinking the export",
+            _epoch("garbage") == 0 and _epoch("") == 0,
+        )
+
         # ── the real git, when present (the strongest verifier) ──────────
         git = shutil.which("git")
         if git:

@@ -174,9 +174,23 @@ def _repo_rel(path: str) -> Optional[str]:
     return rel
 
 
+#: Postgres renders `timestamptz` with trailing fractional zeros trimmed
+#: ("…39.40728+00"), but Python 3.9's `fromisoformat` accepts ONLY 3 or 6
+#: fractional digits. The API runs 3.9, so ~10% of real revisions raised here
+#: and fell to epoch 0 — dating those commits 1970-01-01 in the export while
+#: the ledger held the true time. Silent, and invisible until you read `git
+#: log`. Normalize the fraction to 6 digits before parsing.
+_FRACTION = re.compile(r"\.(\d{1,6})(?=[+-]|$)")
+#: …and Postgres writes a 2-digit offset ("+00"), which 3.9 also rejects.
+_SHORT_OFFSET = re.compile(r"([+-]\d{2})$")
+
+
 def _epoch(created_at: str) -> int:
+    raw = (created_at or "").strip().replace("Z", "+00:00").replace(" ", "T")
+    raw = _FRACTION.sub(lambda m: "." + m.group(1).ljust(6, "0"), raw)
+    raw = _SHORT_OFFSET.sub(lambda m: m.group(1) + ":00", raw)
     try:
-        ts = datetime.fromisoformat((created_at or "").replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(raw)
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
         return int(ts.timestamp())
