@@ -770,7 +770,9 @@ The collision: clicking around inside a legacy-shaped surface window feels like 
 
 5. **Cross-surface navigation is window-opening, not route-replacing.** Every `router.push('/{atomic-surface-slug}')` call from inside an atomic surface is converted to `foregroundSurface('{slug}')`. The result: clicking "See this agent's work" from inside Agents opens a new Cadence window alongside the Agents window (macOS multi-app gesture), instead of replacing the Agents content with Cadence content (browser-page gesture). Operator can ⌘W close either independently; the Dock shows both.
 
-6. **`/desktop` is the canonical workspace URL.** Atomic-surface URLs (`/feed`, `/cadence`, etc.) remain as deep-link transports — pasting one opens that surface in a window on the Desktop. They are NOT first-class destinations. The Desktop is the destination; surfaces are windowed apps.
+6. **`/desktop` is the canonical workspace URL.** Atomic-surface URLs (`/feed`, `/cadence`, etc.) remain as deep-link transports — pasting one opens that surface in a window on the Desktop. ~~They are NOT first-class destinations.~~ The Desktop is the destination; surfaces are windowed apps.
+
+   > **Amended 2026-08-20 (D19.8).** `/desktop` remains the *boot* route and the empty-desktop address. But a surface route is no longer merely inbound transport: while a surface is foregrounded, its route **is** the address bar, because the cold-load sync treats the pathname as intent and a stale one sends every refresh to the wrong surface. "Not first-class destinations" is withdrawn; "the Desktop is where you land" stands.
 
 7. **Settings-class pages stay as pages** (Option α per discourse — committed). `/settings`, `/connectors`, `/auth/callback`, `/docs/[id]` etc. are not atomic surfaces. They render outside the Desktop layer via the existing `isLegacyNonAtomicRoute` branch in `SurfaceViewport`. This is the honest boundary: settings ARE pages, surfaces ARE windows, the SurfaceViewport's branch is the structural delimiter. Two paradigms total in the authenticated app — Desktop+windows for everything operational, pages for configuration. macOS-faithful (Preferences in macOS is technically a window but feels like settings; the YARNNN equivalent is a real page route, which is the same cognitive boundary). Option β (everything-is-a-surface, including Settings) was discussed and rejected as more aggressive than the operator-felt pain warranted.
 
@@ -828,7 +830,7 @@ D19.7 had argued Settings is a legitimate page-shaped thing (long-form preferenc
 6. **`isLegacyNonAtomicRoute` branch tightens** in `SurfaceViewport`. Pre-D19.4 it caught `/settings`, `/connectors`, `/docs/[id]`, plus marketing/auth. Post-D19.4 it catches only `/auth/*`, `/docs/[id]`, and marketing/static routes (`/`, `/pricing`, `/faq`, `/how-it-works`, `/invest`, `/privacy`, `/terms`, `/sitemap.xml`, `/robots.txt`, `/llms.txt`, `/blog/*`). The branch survives at the authentication boundary, not inside it.
    > **ADR-308 (2026-06-01) finishes this invariant.** D19.4 *declared* the branch auth-boundary-only but the ~12 authenticated-interior **redirect stubs** (`/chat`, `/context`, `/backend`, `/memory`, …) were still `'use client'` pages that painted one orphaned frame inside `SurfaceViewport` before redirecting — so the invariant was true in prose, false in code (operator re-observed the "looks fine, breaks" seam on `/context` 2026-06-01). ADR-308 converts every interior stub to a server `redirect()` (fires before any layout mounts, never enters the shell), making D19.4's invariant true in code. See [ADR-308](ADR-308-redirect-stubs-as-pure-transport.md).
 
-7. **Per the D19.5 cross-surface navigation rule**: any code calling `router.push('/settings')` or `router.push('/connectors')` from inside the authenticated workspace converts to `foregroundSurface('settings')` / `foregroundSurface('connectors')`. Grep + audit covers `WorkspaceSection.tsx`, `UserMenu.tsx`, and any other call sites. Marketing pages can still link to `/settings` — first-paint cold-load via Effect A opens the Settings window on the Desktop, just like `/cadence` or `/agents` per D19.2.
+7. **Per the D19.5 cross-surface navigation rule**: any code calling `router.push('/settings')` or `router.push('/connectors')` from inside the authenticated workspace converts to `foregroundSurface('settings')` / `foregroundSurface('connectors')`. Grep + audit covers `WorkspaceSection.tsx`, `UserMenu.tsx`, and any other call sites. Marketing pages can still link to `/settings` — first-paint cold-load via Effect A opens the Settings window on the Desktop, just like `/cadence` or `/agents`. ~~per D19.2~~ (D19.8 amends the URL half of that rule: the pathname now follows the foreground.)
 
 **What D19.4 enacts (mechanical)**:
 - `api/services/kernel_surfaces.py`: add two entries — `settings` (icon `settings`, archetype `dashboard`, route `/settings`) + `connectors` (icon `link-2`, archetype `dashboard`, route `/connectors`).
@@ -837,7 +839,7 @@ D19.7 had argued Settings is a legitimate page-shaped thing (long-form preferenc
 - `web/components/shell/SurfaceRegistry.tsx`: import + register both pages.
 - `web/app/(authenticated)/settings/page.tsx`: refactor to window-shape (drop outer chrome if any — likely already mostly content-only; the `<div>` wrappers + page paddings get the window treatment).
 - `web/app/(authenticated)/connectors/page.tsx`: same window-shape refactor.
-- `web/components/shell/UserMenu.tsx`: shrink to email + balance + theme + Settings + Sign out. Mandate / Activity / Connectors entries deleted; Billing entry deleted (operators reach it via Settings tab nav). The "Settings" entry uses `foregroundSurface('settings')` per D19.2 (no URL rewrite).
+- `web/components/shell/UserMenu.tsx`: shrink to email + balance + theme + Settings + Sign out. Mandate / Activity / Connectors entries deleted; Billing entry deleted (operators reach it via Settings tab nav). The "Settings" entry uses `foregroundSurface('settings')`. ~~per D19.2 (no URL rewrite)~~ — **amended 2026-08-20 (D19.8):** the verb is unchanged, but it now rewrites the pathname to `/settings`; the address bar follows the foreground.
 - `web/components/settings/WorkspaceSection.tsx`: the `router.push('/feed')` call sites that operate from inside the Settings page (e.g. on first-paint redirect) convert to `foregroundSurface('feed')`.
 - `api/test_adr297_phase1.py`: increment expected surface count from 16 (13 content + 3 D12 chrome) to 18 (15 content + 3 D12 chrome); add `settings` + `connectors` to expected slug set; assert their declared archetype.
 
@@ -886,9 +888,14 @@ setSurfaceParams(params: Record<string, string | null>): void
 
 | Verb | Case | pathname | URL params |
 |---|---|---|---|
-| `foregroundSurface(slug)` | bare cross-surface (Dock/Launcher) | as-is (D19.2) | as-is |
+| `foregroundSurface(slug)` | bare cross-surface (Dock/Launcher) | ~~as-is (D19.2)~~ **flips** to `/{slug}` (D19.8) | replaced with this slug's |
 | `navigateToSurface(slug, params?)` | cross-surface with deep-link | **flips** to `/{slug}` | written |
 | `setSurfaceParams(params)` | **intra-surface deep-link update** | **preserved** | replaced in place |
+
+> **Amended 2026-08-20 (D19.8).** The first row's `as-is` is WITHDRAWN. Both
+> cross-surface verbs now flip the pathname; only the intra-surface verb
+> preserves it. The distinction that survives is **cross-surface vs
+> intra-surface**, not *bare vs with-params*. See D19.8 below.
 
 **What stays cross-surface (unchanged).** External `href`/`navigateToSurface` deep-links *into* these surfaces (`/recurrence?task=` from Home, `/agents?agent=` from Reviewer panels, `/activity?slug=` from RecurrenceList) are genuine cross-surface navigation — the pathname flip is correct there, and the param reads on cold-load. Only the surface's *own* intra-surface param updates use `setSurfaceParams`.
 
@@ -1010,6 +1017,58 @@ This is the Singular Implementation principle (D8) applied to the icon layer. Th
 **Why this is an amendment paragraph and not a new D-number**: the discipline is the *natural* reading of D20 §6 ("complete the macOS-faithful three-region top-bar") + D8 (Singular Implementation). The amendment makes the implicit explicit after the operator caught the drift; no new architectural concept lands. Same ADR, recorded amendment for trace continuity.
 
 ---
+
+---
+
+### D19.8 — The pathname FOLLOWS the foreground; D19.2's pathname clause is withdrawn (2026-08-20, Implemented)
+
+> **Numbering note.** This is **D19.8**, not D19.7. "D19.7" is already taken: it is
+> D19 §7 ("settings stays a page"), reversed by D19.4, and still cited by name in
+> `web/types/desk.ts`, `web/components/shell/SurfaceRegistry.tsx`,
+> `api/services/kernel_surfaces.py` and `api/test_adr297_phase1.py`. Reusing the number
+> would have silently re-pointed four live code comments at an unrelated decision.
+
+**Trigger** (operator-observed, KVK 2026-08-20): *"whenever i do browser refresh, the page refresh takes me to user settings account pane."* Every refresh landed on User Settings, whatever surface was actually on screen. The URL at the time read `/settings?provider=notion&status=connected&workspace-settings.pane=danger` — a pathname from an earlier navigate, carrying a param namespaced to a *different* surface.
+
+**Root cause — two rules that cannot both hold.**
+
+1. **D19.2** said a bare foreground leaves the URL as-is: *"the Dock indicator dot is the canonical what's-foregrounded signal, not the URL."* So `reconcileUrl` rewrote only the query string and preserved `url.pathname` verbatim. A dock click, a launcher pick, or clicking a window body flipped the window while the address bar kept naming the surface you left.
+
+2. **The cold-load sync** (`AuthenticatedLayout`'s pathname→foreground effect, hardened 2026-08-05) treats the pathname as **explicit intent** and foregrounds whatever it names — deliberately outranking the remembered posture, because a deep link must beat a stored default.
+
+Rule 1 leaves a stale pathname; rule 2 makes the reload trust it. Settings won every refresh because it is reached by a param-bearing navigate (the UserMenu) — the one path that *did* write a route. Every other surface was reached bare, so it never got the chance.
+
+**Decision.** D19.2's pathname clause is **WITHDRAWN**. The pathname follows the foreground:
+
+- `reconcileUrl` owns the **whole** address bar — pathname *and* query — not just the query. Address-bar honesty is one property, not two.
+- The decision is extracted pure as `resolveForegroundPathname(currentPathname, foregroundSlug, surfaces)` in `web/lib/shell/route-sync.ts`, beside its inverse `resolveRouteSurface`. It is the round-trip partner of the cold-load sync: **what reconcileUrl writes, the sync must read back as the same surface.** A gate executes that round-trip.
+- Two guards keep the pathname unchanged: a **route-less roster row** (the seeded chrome-only composition, or a program row that omitted its route — never write an empty path), and a pathname **already under the target route** (`/files/nested` is more specific than `/files`; rewriting would discard it).
+- `setSurfaceParams` is untouched. **D19.6 stands in full** — intra-surface entity switching must not flip the pathname.
+
+**What survives of D19.2.** Its *spirit* — the Dock dot remains a first-class foreground signal, and the shell is still a window manager rather than a page router. What is withdrawn is only the claim that the URL may lag behind it. A URL the reload trusts must be kept true; a stale pathname is not a neutral omission, it is a trap.
+
+**Why the OS metaphor still holds.** Figma (the D19 reference) does not leave its URL naming a document you closed. Deep-link transports are only honest if they describe the current state — otherwise "paste the URL to share where you are" quietly becomes "share where you were."
+
+**Enacted (`feda19d`):**
+- `web/lib/shell/route-sync.ts`: `resolveForegroundPathname` (pure, gated).
+- `web/lib/shell/useSurfacePreferences.tsx`: `reconcileUrl` rewrites the pathname; three docblocks asserting *"Pathname is preserved"* / *"URL stays as-is per D19.2"* corrected. (One of them already contradicted the code it sat above — the `navigateToSurface` docstring claimed a pathname flip the verb never performed.)
+- Gate: `api/test_adr297_pathname_follows_foreground.py` (23 checks). It **executes** the decision in node against the real TypeScript source rather than grepping for it, and was falsified against the pre-fix shape (12 failures, the round-trip group reproducing the exact symptom: every surface → `settings`).
+
+**Two follow-on defects surfaced by the same operator report** (same symptom, independent causes — recorded here because a future reader chasing "the redirect glitch" will find all three in one place):
+
+- **`5f0a817` — eight surfaces had no server-side auth gate.** `/images /radar /strings /text /notifications /queue /billing /usage` served a full 200 to logged-out visitors (probed against production). No data leaked — `onAuthStateChange` caught it client-side — but that listener is documented as *"live invalidation, NOT an auth gate"* and fires only after the ~45KB shell paints, so the operator saw a flash-then-bounce. Cause: `PROTECTED_PREFIXES` was hand-kept beside a roster that kept growing. It now **derives** from `KERNEL_SURFACE_SLUGS`, so a surface is gated because it *is* a surface. Gate: `api/test_auth_gate_covers_every_surface.py`.
+- **`a911147` — four cross-door links hard-navigated.** Raw `<a href="/workspace-settings?…">` between the two Settings doors caused a visible two-step: the browser document-loads, the SPA remounts, the *remembered* foreground paints, and only then does the pathname sync foreground the target. `SurfaceLink` (2026-06-25) exists for exactly this and its docblock already named the symptom. All four converted; the nav-enactment gate now bans a literal `href` to a kernel-surface route in live component code.
+
+**The rule to carry forward.** Three verbs, one question each — *am I moving between surfaces, or moving within one?*
+
+| You are… | Use | Pathname |
+|---|---|---|
+| moving to another surface (any trigger: dock, launcher, button, **link**) | `navigateToSurface` / `foregroundSurface`, or `<SurfaceLink>` for text links | **follows the target** |
+| changing what the current surface shows | `setSurfaceParams` (via `useSurfaceParam(slug)`) | **unchanged** |
+| sending the browser somewhere outside the shell | `router.push` / server `redirect()` | n/a |
+
+A raw `<a href>` to a surface route is **never** correct inside the authenticated shell — it is a document load, and it produces the two-step above.
+
 
 ## Implementation path for D11 — Uniform Compositor
 

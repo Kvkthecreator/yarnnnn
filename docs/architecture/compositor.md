@@ -100,9 +100,9 @@ chat component, one window manager; the window-manager core is mode-agnostic,
 and the `Viewing: X` ↔ `surfaceOverride` ↔ prompt-profile binding is identical
 in every mode.
 
-**Window-namespaced deep-link params (ADR-358 D6).** Because navigation stays
-on the one `/desktop` baseline (D5), multiple windows share one query string —
-so each window's intra-surface params are namespaced by its slug: `?{slug}.{key}`
+**Window-namespaced deep-link params (ADR-358 D6).** Several windows are open at
+once but there is only ever **one** query string, so each window's intra-surface
+params are namespaced by its slug: `?{slug}.{key}`
 (`workspace-settings.pane=autonomy`, `settings.pane=billing`,
 `recurrence.pane=activity`, `agents.agent=reviewer`). A window reads only its own
 namespace, so open windows never collide and each persists its own deep-link
@@ -110,6 +110,14 @@ state. Singular Implementation: `scopeParamKey(slug, key)` forms the one prefix;
 `navigateToSurface(slug, params)` scopes by the target slug; surfaces use the
 `useSurfaceParam(slug)` hook (read/write their own params); `SettingsPaneShell`
 takes a `windowSlug` prop. Callers never hand-build the prefix.
+
+> **Premise corrected 2026-08-20 (ADR-297 D19.8).** D6 originally justified this by
+> D5's `/desktop` baseline — "every window sits on one pathname, therefore one query
+> string." D5's pathname-preservation is now withdrawn (the pathname follows the
+> foreground), but **the namespacing is unchanged and still required**: a backgrounded
+> window's params are remembered and re-applied when it returns, so two windows'
+> vocabularies would still collide on a flat `?pane=`. The rule outlived its original
+> reason — keep it.
 
 **What a param is FOR, and how long it lives.** Two registries in
 `lib/shell/surface-preferences.ts` answer two different questions, and a surface
@@ -399,6 +407,46 @@ The existing pattern is the spec. Don't invent a new shape.
 
 ---
 
+---
+
+## Navigating between surfaces (the singular path)
+
+> **The one rule.** Inside the authenticated shell, ask one question: *am I moving
+> **between** surfaces, or **within** one?* Everything follows from the answer.
+
+| You are… | Use | Pathname | URL params |
+|---|---|---|---|
+| moving to another surface — any trigger: dock, launcher, button, **text link** | `navigateToSurface(slug, params?)`; `<SurfaceLink to=… params=…>` when the trigger is a link | **follows the target** (`/{slug}`) | replaced with the target's |
+| changing what the current surface shows (which agent, which file, which pane) | `useSurfaceParam(slug)` → `setSurfaceParams` | **unchanged** | replaced in place |
+| leaving the shell entirely (auth, marketing, a stub) | `router.push` / server `redirect()` | n/a | n/a |
+
+**Three things that are never correct inside the shell:**
+
+1. **A raw `<a href="/{surface}">`.** It is a document load: the SPA unmounts, remounts,
+   paints the *remembered* foreground, and only then does the pathname sync foreground
+   the target — a visible two-step. Use `SurfaceLink`, which renders a real `<a>` (so
+   middle-click, cmd-click and screen readers still work) and intercepts only the plain
+   left-click. Gated by `api/test_adr297_navigation_enactment.py`.
+2. **`router.push('/{surface}')` for cross-surface navigation.** The compositor owns
+   navigation; the browser router is transport, not control (ADR-222). Same gate.
+3. **Hand-adding a route to `PROTECTED_PREFIXES`.** It **derives** from
+   `KERNEL_SURFACE_SLUGS` — a surface is auth-gated because it *is* a surface. Older
+   surface ADRs (e.g. ADR-243, ADR-331) list "added `/x` to `PROTECTED_PREFIXES`" as a
+   step; that step is obsolete, and forgetting it is exactly how eight live surfaces went
+   ungated until 2026-08-20. Gated by `api/test_auth_gate_covers_every_surface.py`.
+
+**The address bar is honest.** `reconcileUrl` owns pathname *and* query together: the URL
+always names the foregrounded surface and carries only that surface's params, namespaced
+`{slug}.{key}`. This is a round-trip contract — what `reconcileUrl` writes, the cold-load
+sync (`resolveRouteSurface`) must read back as the same surface, so a refresh reloads what
+you were looking at. Both halves are pure functions in `web/lib/shell/route-sync.ts` and a
+gate executes the round trip (`api/test_adr297_pathname_follows_foreground.py`).
+
+Canon: [ADR-297](../adr/ADR-297-surfaces-as-substrate-mirror.md) **D19.5** (the verb),
+**D19.6** (intra-surface), **D19.8** (the pathname follows the foreground — withdraws
+D19.2's pathname clause and supersedes [ADR-358](../adr/ADR-358-layout-mode-canvas-vs-desktop.md) D5's
+`/desktop`-baseline half).
+
 ## Related
 
 - [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md) — names compositor as a load-bearing OS layer (Principle 16)
@@ -407,4 +455,5 @@ The existing pattern is the spec. Don't invent a new shape.
 - [ADR-225](../adr/ADR-225-compositor-layer.md) — compositor decision record + amendment trail
 - [ADR-198](../adr/ADR-198-surface-archetypes.md) — five archetypes (Document / Dashboard / Queue / Briefing / Stream)
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern, kind-aware detail
+- [ADR-297](../adr/ADR-297-surfaces-as-substrate-mirror.md) D19.5–D19.8 — the navigation verbs + the pathname contract (see "Navigating between surfaces" above)
 - [docs/design/WORKSPACE.md](../design/WORKSPACE.md) — per-tab cockpit contracts (consumes this doc as the seam reference)

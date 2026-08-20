@@ -30,7 +30,16 @@ This is a Hat-A (System Editor) frontend-coherence finding.
 ## The canonical model (what code *should* do)
 
 Defined in `web/lib/shell/useSurfacePreferences.tsx` (ADR-297 D19.5/D19.6 +
-ADR-358 D5/D6). Two verbs, one rule: **navigation never leaves `/desktop`; the
+ADR-358 D5/D6). > **⚠️ HISTORICAL (2026-06-25). The "never leaves `/desktop`" half is no longer live canon.**
+> ADR-297 **D19.8** (2026-08-20) withdrew it: the pathname now FOLLOWS the foreground, so
+> a refresh reloads the surface you were on. This audit's *findings* stand in full — raw
+> `<Link>`/`<a>` cross-surface links are still a defect, and `SurfaceLink` is still the
+> fix. Only the stated reason changes: the harm is not "the pathname flips off
+> `/desktop`" but that a document load remounts the SPA and paints the remembered
+> foreground before the target (the visible two-step, re-found 2026-08-20 in four
+> Settings cross-door links).
+
+Two verbs, one rule: **navigation never leaves `/desktop`; the
 compositor (window manager) owns it; params are window-namespaced.**
 
 | Intent | Verb | Effect |

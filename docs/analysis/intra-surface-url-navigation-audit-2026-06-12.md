@@ -14,6 +14,12 @@ window-internal deep-link WITHOUT flipping the window-manager pathname baseline 
 
 ---
 
+> **⚠️ HISTORICAL (2026-06-12). Its D19.2 summary below is no longer live canon.**
+> ADR-297 **D19.8** (2026-08-20) withdrew D19.2's pathname clause: the pathname now
+> FOLLOWS the foreground. This audit's *conclusion* — that intra-surface param updates
+> need their own verb (`setSurfaceParams`, D19.6) — stands unchanged and is still live.
+> Only the framing sentence "bare cross-surface navigation leaves the URL as-is" is dead.
+
 ## 1. The canonical frame (ADR-297)
 
 - **D19.2** — the URL is an *informational add-on*; the Dock dot is the canonical

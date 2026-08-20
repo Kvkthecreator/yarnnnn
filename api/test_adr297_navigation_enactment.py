@@ -164,28 +164,44 @@ def test_navigation_primitive_exists() -> None:
         re.search(r"navigateToSurface\s*:\s*\(", hook) is not None,
         "navigateToSurface is on the SurfacePreferences interface",
     )
-    # ADR-358 (2026-06-23): in-app surface navigation must PRESERVE the
-    # /desktop pathname (deliver pane/params via history.replaceState), never
-    # flip the pathname to a surface's own page route. A pathname flip is a
-    # real Next.js navigation that leaves the SPA, unmounts the shell, and
-    # resets the chat rail — breaking the Canvas two-pane continuity.
-    # Guard against the regression: the pane-resolution branch in
-    # foregroundSurface + the param branch in navigateToSurface must NOT
-    # router.push a `?pane=`/param route; they use history.replaceState.
+    # ADR-358 D5 (2026-06-23), premise corrected by ADR-297 D19.8 (2026-08-20).
+    # The MECHANISM this guards is unchanged and still load-bearing: the verbs
+    # write the URL with `history.replaceState`, never `router.push`. No
+    # navigation event fires, so the SPA never unmounts and the chat rail keeps
+    # its posture (the Canvas two-pane continuity).
+    #
+    # What CHANGED is the reason, and the old assertion text said the wrong
+    # thing: D5 justified replaceState as "preserving the /desktop pathname".
+    # D19.8 withdrew pathname-preservation — `reconcileUrl` now writes the
+    # FOREGROUNDED surface's route, because a stale pathname is trusted as
+    # intent by the cold-load sync and sent every refresh to the wrong surface.
+    # replaceState is how we move the pathname WITHOUT a remount; it is not a
+    # way of holding it still. A gate whose message states a withdrawn rule
+    # teaches the next reader the wrong thing even while passing.
     _assert(
         "router.push(`${parentRoute}?pane=" not in hook,
         "foregroundSurface does NOT router.push a parent-route pane flip "
-        "(must preserve pathname via history.replaceState — ADR-358)",
+        "(the URL moves via history.replaceState — no remount)",
     )
     _assert(
         "router.push(qs ? `${route}?${qs}`" not in hook,
         "navigateToSurface does NOT router.push a param route flip "
-        "(must preserve pathname via history.replaceState — ADR-358)",
+        "(the URL moves via history.replaceState — no remount)",
     )
+    # Count CALL sites, not mentions: the interface docblock describes the
+    # mechanism in prose, and a substring count reads that comment as a third
+    # writer (the gate matching its own explanatory text). Exactly two call
+    # sites: reconcileUrl (which every foreground verb routes through) and
+    # setSurfaceParams.
+    _hook_code = [
+        ln for ln in hook.splitlines()
+        if not ln.lstrip().startswith(("*", "//", "/*"))
+    ]
+    _replace_calls = sum(ln.count("window.history.replaceState") for ln in _hook_code)
     _assert(
-        hook.count("window.history.replaceState") >= 3,
-        "foregroundSurface + navigateToSurface + setSurfaceParams all "
-        "deliver params via history.replaceState (pathname preserved)",
+        _replace_calls == 2,
+        "exactly TWO replaceState CALL sites — reconcileUrl (the one URL writer "
+        f"for every foreground verb) + setSurfaceParams (found {_replace_calls})",
     )
     # ADR-358 D6 (2026-06-23): intra-surface params are window-NAMESPACED
     # (`{slug}.{key}`) so multiple open windows never collide on the shared

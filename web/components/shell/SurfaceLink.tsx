@@ -7,18 +7,30 @@
  * `<a>` (so middle-click / cmd-click / "open in new tab" and screen readers
  * all work) but intercepts the plain left-click and routes it through
  * `navigateToSurface(slug, params)` — the compositor's window manager —
- * instead of letting the browser hard-navigate. That keeps the OS shell on
- * its `/desktop` baseline (ADR-358 D5): the target surface foregrounds as a
- * window, the docked chat persists, and params land window-namespaced
+ * instead of letting the browser hard-navigate. The target surface foregrounds
+ * as a window, the docked chat persists, and params land window-namespaced
  * (`{slug}.{key}`) with no collision (ADR-358 D6).
  *
  * WHY THIS EXISTS: the pre-OS-shell pattern was `<Link href="/recurrence?…">`.
- * Next treats that as a route navigation → the pathname flips off `/desktop`
- * → the SPA unmounts and remounts, resetting chat and re-running the shell's
- * pathname→foreground effects. That's the "inconsistent redirect" operators
- * felt: some launches foregrounded a window cleanly (navigateToSurface),
- * others hard-navigated (<Link>). SurfaceLink makes every cross-surface jump
- * take the window-manager path while preserving native link affordances.
+ * Next treats that as a route navigation → the SPA unmounts and remounts,
+ * resetting chat and re-running the shell's pathname→foreground effects. On
+ * remount the shell paints the REMEMBERED foreground (the surface you left)
+ * and only then foregrounds the target — the operator-visible TWO-STEP. That's
+ * the "inconsistent redirect" operators felt: some launches foregrounded a
+ * window cleanly (navigateToSurface), others hard-navigated (<Link>).
+ * SurfaceLink makes every cross-surface jump take the window-manager path
+ * while preserving native link affordances.
+ *
+ * ⚠️ The two-step recurred 2026-08-20 in four Settings cross-door links that
+ * never adopted this component. `api/test_adr297_navigation_enactment.py` now
+ * bans a literal href to a kernel-surface route in live component code.
+ *
+ * NOTE (2026-08-20, ADR-297 D19.8): this used to say the point was keeping the
+ * shell on its `/desktop` baseline (ADR-358 D5). That half is WITHDRAWN — the
+ * pathname now FOLLOWS the foreground, so navigateToSurface writes `/{slug}`.
+ * It does so via `replaceState` (no navigation event, no remount), which is why
+ * chat still persists. The reason to use SurfaceLink is unchanged; only the
+ * stated mechanism is corrected.
  *
  * Use `navigateToSurface(...)` directly for button-shaped triggers; use
  * SurfaceLink when the trigger is semantically a link (text/inline).
