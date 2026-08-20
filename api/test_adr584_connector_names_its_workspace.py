@@ -101,6 +101,41 @@ def run() -> bool:
         "whoami" in trigger_para,
     )
 
+    # D1.b — whoami declares an outputSchema, and its `binding` enum carries
+    # EVERY reachable BINDING_* value.
+    #
+    # whoami was the only verb of ten with no schema; ChatGPT's connector panel
+    # shows that verbatim as "OUTPUT SCHEMA RECOMMENDED" (observed 2026-08-20).
+    # The enum half is the one that can actually break a call: `unresolved` is
+    # reachable (resolve_mcp_workspace_detail's except branch) and was missing
+    # from the docstring, so a schema listing only the three documented values
+    # would make a host reject a legitimate response — in precisely the failure
+    # state where the model most needs to say what went wrong. Derived from the
+    # constants, never hand-listed.
+    schema = getattr(srv.mcp._tool_manager.get_tool("whoami"), "output_schema", None)
+    ok &= _check("D1.b whoami declares an outputSchema", bool(schema))
+    if schema:
+        declared_enum = set(schema["properties"]["binding"]["enum"])
+        constants = set(re.findall(r'BINDING_\w+\s*=\s*"(\w+)"', AUTH_SRC))
+        ok &= _check(
+            "D1.b the binding enum carries every reachable BINDING_* constant",
+            declared_enum == constants,
+        )
+        if declared_enum != constants:
+            print(f"      → constants {sorted(constants)} vs enum {sorted(declared_enum)}")
+        # A required key the payload never carries would fail every call.
+        # Read from compose_whoami's own return block, so the check tracks the
+        # function rather than a second hand-kept copy of its shape.
+        _body = COMPOSITION_SRC.split("async def compose_whoami", 1)[-1]
+        _returned = set(re.findall(r'^\s+"(\w+)":', _body.split("\n    }", 1)[0], re.M))
+        missing_req = set(schema.get("required", [])) - _returned
+        ok &= _check(
+            "D1.b every required key is one compose_whoami actually returns",
+            not missing_req,
+        )
+        if missing_req:
+            print(f"      → required but never returned: {sorted(missing_req)}")
+
     # Registered as a real tool, not merely described. Parsed from the AST so a
     # `name="whoami"` inside a docstring or comment cannot satisfy it.
     tree = ast.parse(SERVER_SRC)

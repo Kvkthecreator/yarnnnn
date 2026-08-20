@@ -128,6 +128,13 @@ function MCPAuthorizeHandler() {
   };
 
   const clientLabel = info?.client_name?.trim() || "An application";
+  // The picked workspace's own label, for the destination sentence under the
+  // select. Falls back to the server-resolved name so the sentence still names
+  // a real place if memberships loaded but the ids don't line up.
+  const chosenLabel =
+    workspaces.find((w) => w.workspace_id === chosen)?.label ||
+    info?.workspace_name ||
+    null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -140,15 +147,21 @@ function MCPAuthorizeHandler() {
           <p className="text-gray-600">Loading the connection request…</p>
         ) : phase === "consent" && info ? (
           <div className="text-left">
+            {/* The lead names WHO is asking. WHERE it lands is the picker
+                card's job below — stating the workspace twice made the
+                sentence the thing people read and the control the thing they
+                skipped. When no picker renders (memberships failed, or a fresh
+                account) the sentence still carries the destination, since
+                nothing else would. */}
             <p className="text-gray-800 mb-4">
-              <span className="font-semibold">{clientLabel}</span> is requesting access to{" "}
-              {workspaces.length > 1 ? (
-                "one of your yarnnn workspaces"
-              ) : info.workspace_name ? (
-                <span className="font-semibold">{info.workspace_name}</span>
-              ) : (
-                "your yarnnn workspace"
-              )}
+              <span className="font-semibold">{clientLabel}</span> is requesting access
+              to your yarnnn workspace
+              {workspaces.length === 0 && info.workspace_name ? (
+                <>
+                  {" "}
+                  <span className="font-semibold">{info.workspace_name}</span>
+                </>
+              ) : null}
               .
             </p>
 
@@ -171,18 +184,28 @@ function MCPAuthorizeHandler() {
                 took the principal's default, so a member of a shared commons
                 could not point their assistant at the commons at all. */}
             {workspaces.length > 0 && (
-              <div className="mb-4">
+              /* Emphasis is deliberate (2026-08-20). The picker decides WHERE
+                 every write from this connection lands, and it was styled
+                 exactly like the body copy around it — a `text-sm` label above
+                 a gray-bordered select, wedged between two paragraphs — so the
+                 most consequential control on the screen read as the least.
+                 Operators approved without registering that a choice existed;
+                 a connector then wrote, correctly and attributed, into a
+                 workspace nobody had picked. Given a card, a bolder label, and
+                 an explicit destination line, the choice is legible BEFORE the
+                 Approve click rather than discoverable after it. */
+              <div className="mb-5 rounded-lg border border-gray-300 bg-white p-4 shadow-sm">
                 <label
                   htmlFor="mcp-workspace"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  className="mb-2 block text-base font-semibold text-gray-900"
                 >
-                  Workspace
+                  Which workspace?
                 </label>
                 <select
                   id="mcp-workspace"
                   value={chosen ?? ""}
                   onChange={(e) => setChosen(e.target.value || null)}
-                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                  className="w-full rounded-md border border-gray-400 bg-white px-3 py-2.5 text-sm font-medium text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
                 >
                   {workspaces.map((w) => (
                     <option key={w.workspace_id} value={w.workspace_id}>
@@ -192,9 +215,30 @@ function MCPAuthorizeHandler() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  This connection reaches only the workspace you choose.
+                {/* Name the DESTINATION back, in the operator's own words. A
+                    select shows the chosen row, but a sentence restating it is
+                    what a person actually reads before clicking Approve — and
+                    it is the same fact `whoami` reports to the model as
+                    `binding: "chosen"` (ADR-584), so the human and the model
+                    are told the same thing at the same moment. */}
+                <p className="mt-2 text-sm text-gray-700">
+                  {chosenLabel ? (
+                    <>
+                      <span className="font-semibold">{clientLabel}</span> will read and
+                      write in{" "}
+                      <span className="font-semibold text-gray-900">{chosenLabel}</span> —
+                      and nowhere else.
+                    </>
+                  ) : (
+                    "This connection reaches only the workspace you choose."
+                  )}
                 </p>
+                {workspaces.length > 1 && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    You can reach {workspaces.length} workspaces. This connection
+                    binds to one.
+                  </p>
+                )}
               </div>
             )}
 

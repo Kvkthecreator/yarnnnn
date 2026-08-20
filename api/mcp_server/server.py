@@ -685,6 +685,9 @@ async def whoami(ctx: Context) -> dict:
                      operator chose. Writes still succeed and are attributed —
                      SAY SO before writing, rather than filing into the wrong
                      commons silently.
+      • "unresolved" — resolution FAILED and `workspace_id` is null. Do not
+                     write: say the connection could not name its workspace and
+                     ask the user to re-check it.
 
     An unnamed workspace returns `workspace: null` with `workspace_named: false`
     — describe it by its address, and don't invent a name for it.
@@ -1402,6 +1405,38 @@ _REVISION_SCHEMA = {
 }
 
 _OUTPUT_SCHEMAS = {
+    # ADR-584 — the one verb whose subject is the CONNECTION. It was the only
+    # verb of ten with no declared schema, which ChatGPT's connector panel
+    # surfaces verbatim as "OUTPUT SCHEMA RECOMMENDED" (observed 2026-08-20).
+    # It matters MORE here than on the file verbs, not less: whoami's entire
+    # audience is the model, and `binding` is a three-value field the model is
+    # asked to branch on before writing. A described enum is how that branch
+    # becomes legible rather than guessed.
+    "whoami": {
+        "type": "object",
+        "properties": {
+            "workspace": {"type": ["string", "null"], "description": "the workspace's name, or null when it still wears the mint default (describe it by address; do not invent a name)"},
+            "workspace_id": {"type": ["string", "null"], "description": "the workspace's stable id — the receipt to quote when the operator asks WHICH commons this is"},
+            "workspace_named": {"type": "boolean", "description": "false when the workspace has no operator-chosen name yet"},
+            # The enum carries ALL FOUR BINDING_* constants, including
+            # `unresolved`. It is reachable (resolve_mcp_workspace_detail's
+            # except branch) and was missing from the tool docstring — an enum
+            # that omitted it would make a host reject a legitimate response,
+            # in exactly the failure state where the model most needs to be
+            # able to say what happened.
+            "binding": {
+                "type": "string",
+                "enum": ["chosen", "default", "fallback", "unresolved"],
+                "description": "how this connection arrived at that workspace. 'chosen' = the operator picked it at consent. 'default' = no explicit choice on this connection. 'fallback' = the bound workspace is UNREACHABLE and this is NOT where the operator chose — writes still succeed and are attributed, so SAY SO before writing rather than filing into the wrong commons silently. 'unresolved' = workspace resolution FAILED; workspace_id is null and no write should be attempted until the user re-checks the connection.",
+            },
+            "you": {"type": "string", "description": "the attribution every write from this connection will carry (yarnnn:mcp:<client>)"},
+            "client": {"type": ["string", "null"], "description": "the connecting host as yarnnn resolved it (chatgpt | claude.ai | …)"},
+            "scopes": {"type": "array", "items": {"type": "string"}, "description": "the ADR-563 scope tiers this token holds; 'read' is the legacy full-access grant"},
+            "capabilities": {"type": "array", "items": {"type": "string"}, "description": "exactly which verbs this token authorizes — derived from the same check that enforces them, so it cannot overstate what a call will be allowed to do"},
+            "explanation": {"type": "string"},
+        },
+        "required": ["workspace_id", "binding", "you", "capabilities"],
+    },
     "save": {
         "type": "object",
         "properties": {
