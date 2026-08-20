@@ -800,3 +800,68 @@ def reserved_top_level_folder_reason(name: str) -> Optional[str]:
             )
     return None
 
+
+# =============================================================================
+# HOME ALIASES — the told-name is an accepted address (ADR-588 D2)
+# =============================================================================
+# PARTICIPANT_FILESYSTEM_MODEL (above) tells EVERY LLM participant, verbatim:
+#
+#     Two homes are provided: **Documents** (where authored work lives when it
+#     has no more specific home) and **Downloads** (what arrived from outside…)
+#
+# Those are DISPLAY names. The kernel paths are `operation/` and `inbound/`, and
+# before ADR-588 nothing translated between them at any door. A participant that
+# used the vocabulary we handed it therefore wrote to a path that did not mean
+# what it was told it meant. Production ledger, before the fix:
+#
+#     yarnnn:mcp:claude.ai | save via interop: Documents/adr572-clickpass-brief.md
+#     yarnnn:mcp:claude.ai | save via interop: Documents/adr373-d6-roundtrip.md
+#
+# The write returned 200. It was attributed. And it created a REAL top-level
+# root `/workspace/Documents/`, which `root_metadata()` title-cases back into
+# the display name "Documents" — an exact visual twin of `operation/`'s. That is
+# the ADR-373 D6 INCORRECT-SUCCESS class: success, attribution, wrong place, no
+# signal. `Downloads` → `inbound/` had the identical hole; it just had not been
+# hit yet.
+#
+# THE DECISION IS TO RESOLVE, NOT REFUSE. Refusing would break live connectors
+# mid-flight, and it would be the wrong answer besides: the participant used the
+# exact vocabulary this codebase handed it, so honoring that name is correct.
+# The resolution is not silent — the write lands at the real path, and the real
+# path is what the response, the ledger, and the tree all show.
+#
+# SCOPE: the FIRST path segment only. A nested `operation/Documents/notes.md` is
+# an ordinary folder someone named, exactly as ~/Projects/Documents is on any
+# real machine — aliasing it would be the same category of silent misroute this
+# exists to close.
+#
+# This map's keys must stay in sync with what PARTICIPANT_FILESYSTEM_MODEL
+# actually says; `test_adr588_folder_markers_and_home_aliases.py` asserts each
+# key appears in that prose, so renaming a home in the model without updating
+# this map fails the gate rather than silently re-opening the hole.
+HOME_ALIASES: dict[str, str] = {
+    "Documents": OPERATION_ROOT.rstrip("/"),   # → "operation"
+    "Downloads": INBOUND_ROOT.rstrip("/"),     # → "inbound"
+}
+
+_HOME_ALIAS_LOOKUP = {k.lower(): v for k, v in HOME_ALIASES.items()}
+
+
+def resolve_home_alias(rel_path: str) -> str:
+    """Resolve a told-name home in the FIRST segment to its kernel path.
+
+    ADR-588 D2. `Documents/q3.md` → `operation/q3.md`; `Downloads/x` →
+    `inbound/x`; case-insensitive. Any other path is returned byte-identical,
+    so every existing caller is unchanged.
+
+    Takes and returns a WORKSPACE-RELATIVE path (no leading slash, no
+    `/workspace/` prefix) — the form the write door already normalizes to.
+    """
+    rel = rel_path or ""
+    if not rel or rel.startswith("/"):
+        return rel
+    head, sep, tail = rel.partition("/")
+    real = _HOME_ALIAS_LOOKUP.get(head.lower())
+    if real is None:
+        return rel
+    return f"{real}{sep}{tail}" if sep else real

@@ -43,6 +43,8 @@ def run() -> int:
         is_folder_marker,
         reserved_top_level_folder_reason,
         WORKSPACE_ROOTS,
+        resolve_home_alias,
+        HOME_ALIASES,
     )
 
     # ── D1: the marker's shape ───────────────────────────────────────────────
@@ -154,6 +156,44 @@ def run() -> int:
                  "is_folder_marker" in inspect.getsource(rw._is_authored_substrate_path))
     ok &= _check("D1 roots counts markers as EXISTENCE, not as files",
                  "marker_segs" in inspect.getsource(rw.get_workspace_roots))
+
+    # ── D2: the told-name is an accepted address ─────────────────────────────
+    # PARTICIPANT_FILESYSTEM_MODEL hands the participant these names, so the
+    # write door must honor them. This is the ADR-373 D6 incorrect-success
+    # class: pre-588 a write to `Documents/x.md` returned 200, was attributed,
+    # and went somewhere the participant did not mean.
+    from services.workspace_paths import PARTICIPANT_FILESYSTEM_MODEL as M
+    for told, real in HOME_ALIASES.items():
+        ok &= _check(f"D2 the alias '{told}' is a name the model actually TELLS them",
+                     told.lower() in M.lower())
+        ok &= _check(f"D2 '{told}' resolves to the real kernel home '{real}'",
+                     resolve_home_alias(f"{told}/adr572-brief.md") == f"{real}/adr572-brief.md")
+
+    ok &= _check("D2 resolution is case-insensitive (the participant types freely)",
+                 resolve_home_alias("documents/x.md") == "operation/x.md"
+                 and resolve_home_alias("DOWNLOADS/y.md") == "inbound/y.md")
+    ok &= _check("D2 only the FIRST segment aliases (a nested name is a real folder)",
+                 resolve_home_alias("operation/Documents/x.md")
+                 == "operation/Documents/x.md")
+    ok &= _check("D2 a bare alias with no leaf still resolves",
+                 resolve_home_alias("Documents") == "operation")
+    ok &= _check("D2 a non-alias path is returned byte-identical",
+                 resolve_home_alias("deals/acme.md") == "deals/acme.md"
+                 and resolve_home_alias("") == "")
+    # RESOLVE, never refuse: the participant used the vocabulary we handed it.
+    ok &= _check("D2 the aliases cover BOTH told homes",
+                 {k.lower() for k in HOME_ALIASES} == {"documents", "downloads"})
+
+    # D2 is applied at the MCP chokepoint — the ONE place, not per call site.
+    pfr_src = inspect.getsource(mcpc.parse_file_reference)
+    ok &= _check("D2 applied at parse_file_reference (the singular MCP chokepoint)",
+                 "resolve_home_alias" in pfr_src)
+    # It must serve READS too — a participant that wrote Documents/x.md has to
+    # be able to `open` it back by the same name it used.
+    ok &= _check("D2 the chokepoint serves reads and writes alike",
+                 mcpc.parse_file_reference("Documents/x.md") == "operation/x.md"
+                 and mcpc.parse_file_reference("yarnnn://workspace/Downloads/y.md")
+                 == "inbound/y.md")
 
     # ── D3: a top-level folder may not wear a home's display name ────────────
     ok &= _check("D3 'Documents' is refused at the top level",

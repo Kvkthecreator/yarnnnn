@@ -704,6 +704,17 @@ def parse_file_reference(reference: Optional[str]) -> Optional[str]:
 
     Returns the workspace-relative path (no leading slash), or None when the
     reference is empty, another scheme, or escapes the workspace (`..`).
+
+    ADR-588 D2 — THE TOLD-NAME IS AN ACCEPTED ADDRESS. This is the one
+    chokepoint every interop verb resolves a path through (read and write
+    alike), so the home-alias resolution belongs HERE and nowhere else — the
+    same guard-at-the-chokepoint discipline as ADR-563's `resolve_request_client`.
+    `PARTICIPANT_FILESYSTEM_MODEL` tells the participant its homes are called
+    "Documents" and "Downloads"; those names now land in `operation/` and
+    `inbound/` instead of minting a top-level twin of the real home. Applying it
+    here (rather than at the save door only) is what makes the round-trip hold:
+    a participant that wrote `Documents/x.md` can `open`, `edit`, `move` and
+    `history` it back by the same name it used.
     """
     ref = (reference or "").strip().strip("\"'")
     if not ref:
@@ -718,7 +729,11 @@ def parse_file_reference(reference: Optional[str]) -> Optional[str]:
     ref = ref.lstrip("/").strip()
     if not ref or ".." in ref.split("/"):
         return None
-    return ref
+    # ADR-588 D2: resolve the told-name home to the real kernel home. Applied
+    # last, after normalization, so every accepted spelling of the reference
+    # (bare / absolute / yarnnn:// handle) resolves identically.
+    from services.workspace_paths import resolve_home_alias
+    return resolve_home_alias(ref)
 
 
 def format_file_reference(path: str) -> str:
