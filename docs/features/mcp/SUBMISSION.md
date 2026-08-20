@@ -2,7 +2,10 @@
 
 > **Status**: Pre-submission prep. The app is live in **developer mode** (connector `https://mcp.yarnnn.com`, OAuth). This doc is the path from dev-mode → submitted → listed: the positioning, the exact metadata to fill, the privacy/compliance checklist, the readiness gaps, and how to drive the submission via Claude Cowork (Chrome).
 > **Updated**: 2026-06-26
-> **Governing**: ADR-372 (the rendered interop face) + ADR-368 (the three verbs) + ADR-371 (auth boundary).
+> **Governing**: ADR-372 (the rendered interop face) + ADR-371 (auth boundary) +
+> **ADR-543/545** (the file-native verb surface — this doc's original "ADR-368,
+> the three verbs" is two generations stale; the roster is now the ten verbs in
+> [tool-contracts.md](tool-contracts.md), never re-listed here by hand).
 > **Source of truth for the flow**: OpenAI Apps SDK docs — [submission](https://developers.openai.com/apps-sdk/deploy/submission), [submission guidelines](https://developers.openai.com/apps-sdk/app-submission-guidelines), [connect from ChatGPT](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt). Re-read these before submitting — OpenAI is still scaling the process and fields change.
 
 ---
@@ -97,6 +100,18 @@ For a ChatGPT-rendered widget, ALL of these are load-bearing (we proved it by el
 5. **The tool returns a `CallToolResult`** with the full result in BOTH `structuredContent` and `content` (the lowlevel MCP handler drops `_meta` from a bare-dict return).
 
 > **THE GOTCHA (cost ~a day of debugging):** ChatGPT pins a **version snapshot** of a dev-mode connector. New deploys do NOT reach it until you click **Settings → Connectors → [your connector] → `Refresh`** (the snapshot version note bumps `dev-1`→`dev-2`). Reconnecting (remove + re-add) does NOT do this. Before testing ANY tool/widget change in ChatGPT: **click Refresh, then verify the descriptions/flags in the settings panel changed** — that panel IS the confirmation the new code loaded. Several "the widget is broken" rounds were actually "ChatGPT is serving the stale snapshot."
+>
+> **This is not only a widget problem — it hides whole VERBS.** Measured
+> 2026-08-07 (ADR-533 §13): on one deploy, claude.ai held a ~4-day-old manifest
+> and ChatGPT a ~5-day-old **three-verb** one. Neither host misbehaved — we were
+> advertising `listChanged: false`, so caching forever was correct. That is
+> fixed going forward, but it cannot reach a snapshot already pinned.
+> Measured again 2026-08-20: asked "what workspace am I connected to", a live
+> ChatGPT connection answered by listing files — which names no workspace at all.
+> **The fastest tell is `whoami`** (ADR-584, the newest verb): if the host does
+> not list it, or answers that question with a file listing, the snapshot is
+> stale regardless of what the version note says. Full procedure:
+> [CONNECTING.md §"The surface changed"](CONNECTING.md).
 
 ---
 

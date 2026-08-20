@@ -33,6 +33,7 @@ What crosses the boundary is **the kernel's own verb contract** (ADR-512 D3), se
 
 | Intent | Verb | What it does |
 |---|---|---|
+| **"Which workspace am I in?"** | `whoami` | The only verb whose subject is the *connection*, not a file: which workspace this token is bound to, whether that is the one the operator chose, how writes will be attributed, and which verbs the token authorizes (ADR-584). |
 | **"Look at this doc."** | `open` | The exact-version read: content + who last changed it + recent attributed revisions. |
 | **"What's in my workspace?"** | `list` | Enumerate a folder (or the whole tree) — every file with who last touched it and when. |
 | **"Find what I have on ___."** | `search` | Ranked paths + excerpts + an honest `confidence` signal. YARNNN returns; the host explains. |

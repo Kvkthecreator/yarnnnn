@@ -34,8 +34,23 @@ gate that flagged every "TODO" would be noise nobody reads, and the ADR-586
 lesson (`[[feedback_gate_pinned_spelling_reads_narrowing_as_violation]]`) is
 that pinning prose reads a correction as a violation.
 
+Checks 5/5.a/5.b extend the same rule to operator-facing DOCS, which drifted the
+same way: CONNECTING.md — the doc that teaches an operator to detect a stale
+host manifest — had itself gone stale (no `whoami`, and a hand-kept "fewer than
+six" threshold that reads roster GROWTH as health), and README.md's verb table
+claimed to be "the entire MCP surface" while missing the newest verb.
+
+5.b is anchored on the COMPLETENESS CLAIM, not on verb density. Its first cut
+fired wherever a doc mentioned three-plus verbs and flagged presentation.md and
+honest-state-contract.md, both of which discuss a deliberate subset. Those docs
+were right and the check was wrong: demanding every verb in every doc that
+mentions any verb is the count-pinning mistake wearing a different hat.
+
 Falsified against the real break: restoring the original comment fails check 3,
-and deleting the FE picker fails check 1.
+deleting the FE picker fails check 1, dropping the reach check fails 2, renaming
+the shared resolver fails 4, removing `whoami` from CONNECTING.md fails 5,
+restoring "fewer than six" fails 5.a, and removing README's `whoami` row fails
+5.b. The check total is COUNTED, never pinned — 5.b runs once per claiming doc.
 
 Run with `python3 test_adr573_no_stale_deferral_claims.py` from `api/`.
 NOT pytest — check() gates print ✗ but a pytest run reports PASS (see MEMORY.md).
@@ -49,7 +64,12 @@ import logging
 FAILURES: list = []
 
 
+_RAN = 0
+
+
 def _check(label, cond):
+    global _RAN
+    _RAN += 1
     if cond:
         logging.info("✓ %s", label)
     else:
@@ -206,17 +226,51 @@ def run() -> int:
             "5.a the doc does not pin a hand-kept verb COUNT as the staleness test",
             "Fewer than six" not in doc,
         )
+
+        # 5.b — a doc that CLAIMS completeness must be complete.
+        #
+        # Anchored on the claim, not on verb density. The first cut of this
+        # check fired wherever a doc mentioned three-plus file verbs, and it
+        # flagged presentation.md (which discusses only the widget-bearing
+        # verbs, by design) and honest-state-contract.md (a principle doc whose
+        # subject is the ONE fuzzy verb). Both were correct as written; the
+        # check was wrong. Demanding every verb in every doc that mentions any
+        # verb is the count-pinning mistake wearing a different hat — it reads
+        # deliberate scoping as staleness and trains people to ignore the gate.
+        #
+        # A doc that says "that's the entire MCP surface" has made a promise a
+        # reader will rely on. That promise, and only that promise, is gated.
+        import os as _os
+        docdir = "../docs/features/mcp"
+        claims = (
+            "entire MCP surface",
+            "the current surface is",
+            "complete roster",
+        )
+        for fname in sorted(_os.listdir(docdir)):
+            if not fname.endswith(".md"):
+                continue
+            text = open(_os.path.join(docdir, fname)).read()
+            if not any(c.lower() in text.lower() for c in claims):
+                continue
+            absent = sorted(v for v in verbs if f"`{v}`" not in text)
+            _check(
+                f"5.b {fname} claims to name the whole surface, so it names every verb",
+                not absent,
+            )
+            if absent:
+                print(f"      → claimed complete but unnamed in {fname}: {absent}")
     except Exception as exc:  # noqa: BLE001
         _check(f"5. roster/doc cross-check ran (error: {exc})", False)
 
     total = len(FAILURES)
-    print(f"\nStale-deferral-claim gate: {_RUN - total}/{_RUN} passed, {total} failed")
+    # Counted, never pinned — 5.b runs once per enumerating doc, so a hand-kept
+    # total here would be the same defect this gate exists to police.
+    print(f"\nStale-deferral-claim gate: {_RAN - total}/{_RAN} passed, {total} failed")
     for f in FAILURES:
         print(f"  ✗ {f}")
     return 1 if FAILURES else 0
 
-
-_RUN = 6
 
 if __name__ == "__main__":
     sys.exit(run())

@@ -39,6 +39,10 @@ AFFORDANCES: dict[str, Affordance] = {
 
 TEXT_ONLY: dict[str, str] = {          # ADR-533 D4 — a DECLARED decision, not a gap
     "share": "the result is a link + a reach level — one line the host relays verbatim",
+    # ADR-584 — the one verb whose audience is the MODEL, not the human.
+    "whoami": "the result orients the model (which workspace, whether it was "
+              "the chosen one); its value is in the model's next sentence, so "
+              "it must be text the model reads, never an iframe the user looks at",
 }
 ```
 

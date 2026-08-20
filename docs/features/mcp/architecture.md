@@ -76,7 +76,7 @@ ordered by containment:
 
 | Scope | Reaches |
 |---|---|
-| `files:read` | `open` · `list` · `search` · `history` |
+| `files:read` | `whoami` · `open` · `list` · `search` · `history` |
 | `files:write` | + `save` · `edit` · `delete` · `move` |
 | `files:share` | + `share` |
 | `read` *(legacy)* | everything — every pre-ADR-563 token carries this |
@@ -84,6 +84,13 @@ ordered by containment:
 `files:read` is the **default** for a new registration. `share` is its own tier
 because granting *reach* differs from changing *content*: a token that may write
 need not be one that may hand the workspace to a stranger via a member grant.
+
+`whoami` (ADR-584) sits in the lowest tier by construction: it reads no file
+content and mutates nothing, so a token that may do anything at all may ask
+which workspace it is bound to and which verbs it holds. What it reports is
+*derived* from `VERB_SCOPES` through the same `satisfied_by` the gate calls —
+so what it tells the model it may do cannot drift from what `assert_scope`
+actually permits.
 
 The check is `auth.assert_scope(verb)`, reached from
 **`resolve_request_client(verb=…)`** — the same single door that resolves

@@ -12,6 +12,36 @@ receipts, the host explains in its own voice.
 
 ---
 
+## Case 0 — Standing: "which workspace am I even in?"
+
+**User (ChatGPT):** "What workspace am I connected to?"
+
+The host calls `whoami()` — no arguments, reads no substrate, writes nothing:
+
+```json
+{
+  "workspace": "yarnnn workspace",
+  "workspace_id": "d5b9029b-…",
+  "binding": "chosen",
+  "you": "yarnnn:mcp:chatgpt",
+  "capabilities": ["whoami", "open", "list", "search", "history", "save", …]
+}
+```
+
+**A listing cannot answer this question.** Every path is rooted at a generic
+`/workspace/…` and every handle is `yarnnn://workspace/{path}` — the grammar is
+identical in every workspace (ADR-512 D5), so a file tree names what is *in* a
+commons and never *which* commons it is. Measured 2026-08-20: a live ChatGPT
+connection asked exactly this answered from `list()` and reported a bare root
+plus a file count, naming no workspace at all.
+
+Read `binding` before writing somewhere the user assumed: `chosen` (the operator
+picked it), `default` (no explicit choice), or `fallback` — the bound workspace
+is unreachable, so writes still succeed and are attributed but are **not** landing
+where the operator chose. That degrade is deliberate (a connector that silently
+stops working is worse than one that falls back); being unable to *say* it had
+happened was the ADR-584 defect.
+
 ## Case 1 — Orientation: "what do I have?"
 
 **User (Claude.ai):** "What's in my yarnnn workspace for the acquisition work?"
@@ -109,7 +139,10 @@ models come IN).
 1. **Exact when you hold a reference, fuzzy only when you don't.**
    `open`/`history` never guess; `search` says how sure it is; `list` shows
    what exists. The host is taught the escalation: reference → `open`; topic →
-   `search`; orientation → `list`.
+   `search`; *what is in here* → `list`; *which "here" is this* → `whoami`.
+   The last two are different questions and the difference is load-bearing: a
+   listing enumerates a commons but cannot name it, because the reference
+   grammar is identical in all of them.
 2. **Every write is a signed revision.** No anonymous contributions, no silent
    overwrites, and `derived_from` records what content was made from.
 3. **YARNNN never synthesizes.** Every narration above is the host's own — the
