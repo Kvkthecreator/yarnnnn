@@ -74,6 +74,13 @@ def is_embed_eligible(path: str, content: str | None = None) -> tuple[bool, str]
     config/structured-state extension, is not under an ineligible root, and (when
     content is given) is long enough to be a meaningful search target.
     """
+    # ADR-588 D1: a folder marker has no body to embed. The _EMBED_MIN_CHARS
+    # floor happens to exclude it today, but that is incidental — state it, so
+    # the exclusion survives a marker that ever carries a stub body.
+    from services.workspace_paths import is_folder_marker
+    if is_folder_marker(path):
+        return False, "folder_marker: a directory, not a document"
+
     rel = _normalize_rel(path)
     lower = rel.lower()
 
@@ -111,6 +118,15 @@ def is_searchable_root(path: str) -> bool:
     BM25 carries the widened surface for free. Reach is still the grant's
     (the powerbox read gate at the DB) — this widens relevance, not permission.
     """
+    # ADR-588 D1: a folder MARKER is a directory row, not a document. It is
+    # never a search target in any surface — checked here because this function
+    # declares itself the singular source of truth for "what is a search
+    # target", and the no-query `list` branch of QueryKnowledge orders by
+    # updated_at, which would otherwise make a freshly-created empty folder the
+    # top result of an unscoped sweep.
+    from services.workspace_paths import is_folder_marker
+    if is_folder_marker(path):
+        return False
     rel = _normalize_rel(path)
     return not any(rel.startswith(r) for r in _EMBED_INELIGIBLE_ROOTS)
 

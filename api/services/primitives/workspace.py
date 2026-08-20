@@ -1859,6 +1859,12 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     if prefix is None:
         rows = [r for r in rows if is_searchable_root(r.get("path", ""))][:limit]
 
+    # ADR-588 D1: a folder marker is a directory, never a recall result. Applied
+    # to EVERY branch (RPC + list, scoped + unscoped) — the RPC rows carry no
+    # content_type, so the path shape is what answers here.
+    from services.workspace_paths import is_folder_marker
+    rows = [r for r in rows if not is_folder_marker(r.get("path", ""))]
+
     result_items = []
     for r in rows:
         path = r.get("path", "")
@@ -1942,6 +1948,10 @@ def _list_tree(
     except Exception as e:
         logger.warning(f"[LIST_FILES] tree query failed: {e}")
         rows = []
+
+    # ADR-588 D1: ListFiles enumerates FILES — a folder marker is a directory.
+    from services.workspace_paths import is_folder_marker
+    rows = [r for r in rows if not is_folder_marker(r.get("path") or "")]
 
     truncated = len(rows) > _LIST_FILES_MAX
     since_dt = _parse_iso_ts(since) if since else None

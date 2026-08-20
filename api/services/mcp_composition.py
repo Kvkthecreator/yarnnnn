@@ -758,7 +758,7 @@ async def compose_open(
     try:
         rows = (
             auth.client.table("workspace_files")
-            .select("path, content, updated_at")
+            .select("path, content, updated_at, content_type")
             .eq(*_substrate_scope(auth))
             .eq("path", abs_path)
             .limit(1)
@@ -776,6 +776,20 @@ async def compose_open(
                 f"No file exists at `{rel}` in this workspace. `open` is exact — "
                 "if you're not sure of the path, use `search` to find it by "
                 "meaning or `list` to enumerate a folder."
+            ),
+        }
+
+    # ADR-588 D1: `open` reads a FILE. A folder marker has no body, so returning
+    # `found: true` with empty content would be an incorrect success — the
+    # ADR-373 D6 class. Name what it is and route to the verb that answers it.
+    from services.workspace_paths import is_folder_marker
+    if is_folder_marker(rows[0].get("path") or abs_path, rows[0].get("content_type")):
+        return {
+            "success": True, "found": False,
+            "reference": format_file_reference(rel), "path": abs_path,
+            "explanation": (
+                f"`{rel.rstrip('/')}` is a folder, not a file — it has no content to "
+                "open. Use `list` to enumerate what's inside it."
             ),
         }
 
@@ -887,7 +901,7 @@ async def compose_list(
         q = (
             auth.client.table("workspace_files")
             .select(
-                "path, content_bytes, updated_at, "
+                "path, content_bytes, updated_at, content_type, "
                 "workspace_file_versions!head_version_id(authored_by, author_identity_uuid, created_at)"
             )
             .eq(*_substrate_scope(auth))
@@ -905,6 +919,13 @@ async def compose_list(
         logger.warning("[MCP] list read failed for %s: %s", abs_prefix, exc)
         return {"success": False, "error": "list_failed", "message": str(exc),
                 "reference": reference}
+
+    # ADR-588 D1: folder markers are directories, not documents — `list`
+    # enumerates FILES, so a marker never appears here. (An empty folder is
+    # simply an empty listing to a participant, which is the honest answer;
+    # the operator's tree is where directories are the subject.)
+    from services.workspace_paths import is_folder_marker
+    rows = [r for r in rows if not is_folder_marker(r.get("path") or "", r.get("content_type"))]
 
     truncated = len(rows) > page
     kept = rows[:page]

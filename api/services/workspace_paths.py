@@ -61,6 +61,8 @@ prefixes; genesis writes none of them. governance/ dials (autonomy/budget) are t
 only seeded files. operation/ empty is legal — the bare-workspace state.
 """
 
+from typing import Optional
+
 # =============================================================================
 # Root prefixes (ADR-320 + the grant/contract split) — semantic-class roots
 # =============================================================================
@@ -682,3 +684,119 @@ def is_prose_document(path: str) -> bool:
     if leaf.startswith("_"):
         return False
     return leaf.lower().endswith(_PROSE_DOCUMENT_EXTS)
+
+
+# =============================================================================
+# FOLDER MARKERS — an empty folder is expressible (ADR-588 D1)
+# =============================================================================
+# Folders do not exist in the substrate: a folder exists iff a file exists under
+# its path prefix, and the tree is DERIVED from paths (`_build_tree`). That made
+# an EMPTY folder inexpressible, and the pre-ADR-588 `create_folder` worked
+# around it by seeding a `README.md` attributed to "operator" — a signed revision
+# the operator never authored, in the one ledger whose whole value is that its
+# attribution is true.
+#
+# The marker replaces the seed. It is a real `workspace_files` row at the
+# FOLDER's own path, carrying the filesystem's own directory MIME type:
+#
+#     path         = "/workspace/deals/acme/"     ← TRAILING SLASH, always
+#     content_type = "inode/directory"
+#     content      = ""                            (a directory has no body)
+#
+# THE TRAILING SLASH IS LOAD-BEARING, not cosmetic. It is what makes the marker
+# unambiguously not-a-file at every path-shaped consumer, including ones that
+# never learn the content_type:
+#   · `git_export._repo_rel` already returns None for `rel.endswith("/")` — the
+#     export excludes markers for free, and can never write a zero-byte blob
+#     that collides with a real directory of the same name.
+#   · `UserMemory.list` (non-recursive) already yields "acme/" for such a row —
+#     it reads as a directory, which is exactly what it is.
+#   · A file and its folder can never collide on the unique (workspace_id, path)
+#     index: "…/acme" and "…/acme/" are distinct keys.
+# Consumers that DO see the row filter on `is_folder_marker`, below — one
+# predicate, the ADR-424/ADR-395 `is_upload_projection` precedent.
+#
+# A marker is a CONVENIENCE, not a requirement: a folder holding files still
+# exists through those files with no marker row, exactly as before. The marker
+# only carries the empty case. Deleting the last file in a marked folder leaves
+# the folder — which is Finder/Explorer grammar, and the point.
+FOLDER_MARKER_CONTENT_TYPE = "inode/directory"
+
+
+def folder_marker_path(folder_path: str) -> str:
+    """The marker row's path for a folder — absolute, trailing-slash (ADR-588).
+
+    Accepts any spelling of the folder ("deals/acme", "/workspace/deals/acme",
+    "workspace/deals/acme/") and returns the single canonical marker key
+    "/workspace/deals/acme/".
+    """
+    rel = (folder_path or "").strip().lstrip("/")
+    if rel.startswith("workspace/"):
+        rel = rel[len("workspace/"):]
+    rel = rel.strip("/")
+    return f"/workspace/{rel}/" if rel else "/workspace/"
+
+
+def is_folder_marker(path: str, content_type: Optional[str] = None) -> bool:
+    """True iff this row is a folder marker, not a document (ADR-588 D1).
+
+    The SINGULAR predicate every listing / search / export / embed consumer
+    filters on, so a marker never renders as a file to an operator, an LLM
+    participant, or an export. Follows the `is_upload_projection` precedent
+    (services/documents.py): hide at PRESENTATION, never at authorization.
+
+    Path-shape alone is sufficient and is the primary test — a trailing slash
+    is not a legal file path anywhere in the substrate (`write_revision` writes
+    leaf paths; `_repo_rel` already rejects it). `content_type` is accepted as a
+    corroborating signal for the callers that already select the column, so a
+    consumer holding only one of the two facts can still answer correctly.
+    """
+    if content_type == FOLDER_MARKER_CONTENT_TYPE:
+        return True
+    return (path or "").rstrip().endswith("/")
+
+
+# =============================================================================
+# Reserved top-level folder names (ADR-588 D3)
+# =============================================================================
+# PARTICIPANT_FILESYSTEM_MODEL *tells* every participant that two homes are
+# provided, by their DISPLAY names: "Documents" and "Downloads". Those names are
+# addresses the participant was handed. A second TOP-LEVEL root literally named
+# `Documents/` is an exact visual twin of the real home (`root_metadata` title-
+# cases an unknown root, so `/workspace/Documents/` renders as "Documents" beside
+# `operation/`'s "Documents"), and an operator cannot tell which one their work
+# landed in. Refuse it at the create door with the honest reason.
+#
+# Only DEPTH 1 collides. A nested `Projects/Documents/` is an ordinary folder
+# and is allowed — the same way ~/Projects/Documents collides with nothing.
+#
+# Derived from WORKSPACE_ROOTS, never hand-listed: a new home added there is
+# reserved automatically. Both the display label ("Documents") and the kernel
+# root name ("operation") are reserved — creating `operation/` by hand would
+# merge a new folder into the real home invisibly.
+
+
+def _folder_name_key(name: str) -> str:
+    """Fold a folder name to its comparison key (case/space/dash-insensitive)."""
+    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
+
+
+def reserved_top_level_folder_reason(name: str) -> Optional[str]:
+    """The operator-facing refusal for a reserved TOP-LEVEL folder name, or None.
+
+    ADR-588 D3. Returns a sentence naming what already holds the name and what
+    it is for — never a bare "invalid name", which would leave the operator
+    guessing why a perfectly ordinary word was refused.
+    """
+    key = _folder_name_key(name)
+    if not key:
+        return None
+    for root_name, meta in WORKSPACE_ROOTS.items():
+        display = meta.get("display_name") or root_name
+        if key in (_folder_name_key(root_name), _folder_name_key(display)):
+            return (
+                f"{display} already exists — {meta.get('description') or 'it is one of your workspace homes.'} "
+                f"Pick another name, or put this folder inside {display}."
+            )
+    return None
+

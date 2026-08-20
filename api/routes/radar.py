@@ -546,8 +546,12 @@ async def get_hub(topic: str, auth: UserClient) -> HubView:
         .limit(50)
         .execute()
     ).data or []
+    # ADR-588 D1: a folder marker is a directory, never a brief (it would render
+    # as an untitled shelf row).
+    from services.workspace_paths import is_folder_marker
     briefs = [BriefEntry(path=b["path"], title=_title_of(b.get("content", "")),
-                         date=_date_prefix(b["path"])) for b in briefs_rows]
+                         date=_date_prefix(b["path"])) for b in briefs_rows
+              if not is_folder_marker(b.get("path") or "")]
 
     # Sweep health — the ledger is the source (falsifiers 3+4 read the same rows).
     events = (

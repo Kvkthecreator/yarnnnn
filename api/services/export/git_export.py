@@ -165,7 +165,14 @@ class GitRepo:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _repo_rel(path: str) -> Optional[str]:
-    """`/workspace/a/b.md` → `a/b.md`. None for a path the repo cannot hold."""
+    """`/workspace/a/b.md` → `a/b.md`. None for a path the repo cannot hold.
+
+    ADR-588 D1: the trailing-slash rejection also excludes every FOLDER MARKER
+    from the export, and must stay. A marker is a directory row; git has no
+    entry for an empty directory, and writing one as a zero-byte blob named
+    `acme` would COLLIDE with the real tree entry `acme/` whenever the folder
+    also holds files. Do not "fix" this by stripping the slash.
+    """
     rel = (path or "").lstrip("/")
     if rel.startswith("workspace/"):
         rel = rel[len("workspace/"):]

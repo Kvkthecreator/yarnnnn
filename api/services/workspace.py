@@ -293,6 +293,14 @@ class AgentWorkspace:
                 q = q.in_("lifecycle", ["active", "delivered"])
             result = q.order("path").execute()
             paths = [r["path"] for r in (result.data or [])]
+            # ADR-588 D1: a folder MARKER row is a directory, not a file. The
+            # non-recursive branch already reports directories (it appends "/"
+            # to a segment it inferred from a nested path), so a marker adds no
+            # information there and would be a phantom entry in the recursive
+            # branch. `ensure_seeded` also branches on `if not files` — a lone
+            # marker must not make an unseeded agent workspace look seeded.
+            from services.workspace_paths import is_folder_marker
+            paths = [p for p in paths if not is_folder_marker(p)]
 
             if not recursive:
                 # Only direct children: filter out nested paths
@@ -885,9 +893,21 @@ class UserMemory:
                 .order("path")
                 .execute()
             )
+            # ADR-588 D1: a folder MARKER is a directory row. Its remainder is
+            # either "acme/" (already the correct dir-name spelling this method
+            # emits, so it converges) or "" for a marker on the prefix itself.
+            # Filtering it keeps the contract exact: this method reports
+            # children, and a marker is the folder, not a child of it.
+            from services.workspace_paths import is_folder_marker
             direct: set[str] = set()
             for r in result.data or []:
-                remainder = r["path"][len(prefix):]
+                path = r["path"]
+                remainder = path[len(prefix):]
+                if is_folder_marker(path):
+                    seg = remainder.strip("/").split("/")[0]
+                    if seg:
+                        direct.add(seg + "/")
+                    continue
                 if "/" in remainder:
                     direct.add(remainder.split("/")[0] + "/")
                 elif remainder:

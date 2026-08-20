@@ -808,8 +808,14 @@ def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
     # non-domain folders (reports/, specs/) and loose files (BRAND.md, …).
     from collections import defaultdict
     groups: dict[str, list[str]] = defaultdict(list)  # segment → [updated_at, ...]
+    from services.workspace_paths import is_folder_marker
     for row in rows:
         path = row.get("path", "")
+        # ADR-588 D1: a folder marker is a directory row, not a context file —
+        # counting it would report a phantom document in the domain index the
+        # LLM reads.
+        if is_folder_marker(path):
+            continue
         # /workspace/operation/{segment}/...
         remainder = path[len("/workspace/operation/"):]
         if not remainder or "/" not in remainder:

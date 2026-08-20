@@ -675,7 +675,7 @@ async def get_workspace_tree(
         result = (
             auth.client.table("workspace_files")
             .select(
-                "path, updated_at, summary, "
+                "path, updated_at, summary, content_type, "
                 "workspace_file_versions!head_version_id(authored_by, created_at)"
             )
             .eq(*_substrate_scope_filter(auth))
@@ -770,7 +770,7 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
         # excluding archived files (mirror the tree query's lifecycle filter).
         result = (
             auth.client.table("workspace_files")
-            .select("path")
+            .select("path, content_type")
             .eq(*_substrate_scope_filter(auth))
             .like("path", "/workspace/%")
             .or_("lifecycle.is.null,lifecycle.neq.archived")
@@ -782,9 +782,23 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
         # Count files per top-level segment. A depth-1 file (e.g.
         # /workspace/_workspace_guide.md) has no segment dir — skip it (it's a
         # file, not a root); it surfaces under the root listing, not as a root.
+        #
+        # ADR-588 D1: a FOLDER MARKER makes its root EXIST but is not counted as
+        # a file — `file_count` is operator-facing ("3 files"), and a marker is a
+        # directory, not a document. So markers are tracked in a separate set and
+        # unioned into `names` below: an empty top-level folder appears in the
+        # roots list with file_count 0, which is the honest reading of it.
+        from services.workspace_paths import is_folder_marker
         counts: dict[str, int] = {}
+        marker_segs: set[str] = set()
         for row in rows:
-            rel = (row.get("path") or "")[len("/workspace/"):]
+            path = row.get("path") or ""
+            rel = path[len("/workspace/"):]
+            if is_folder_marker(path, row.get("content_type")):
+                seg = rel.strip("/").split("/", 1)[0]
+                if seg:
+                    marker_segs.add(seg)
+                continue
             if "/" not in rel:
                 continue  # depth-1 file, not a root directory
             seg = rel.split("/", 1)[0]
@@ -800,7 +814,8 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
         # Intake (the operator-observed duplicate-upload-root). It now shows only
         # when it actually holds pre-ADR-395 legacy files (count > 0).
         always_show = {"agents"}
-        names = set(counts) | (always_show & set(WORKSPACE_ROOTS))
+        # ADR-588: a root that holds ONLY an empty marked folder still exists.
+        names = set(counts) | marker_segs | (always_show & set(WORKSPACE_ROOTS))
 
         out: list[dict] = []
         for name in names:
@@ -818,7 +833,9 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
                     "description": meta["description"],
                     "icon": meta["icon"],
                     "file_count": count,
-                    "exists": count > 0,
+                    # ADR-588: a marker alone is enough to exist (an empty
+                    # folder is a real folder), even at file_count 0.
+                    "exists": count > 0 or name in marker_segs,
                     "_order": meta["order"],
                 }
             )
@@ -2381,7 +2398,15 @@ def _is_authored_substrate_path(path: str) -> bool:
 
     Mirrors the Files explorer hide rule (files/page.tsx isHidden):
     drop `_`-prefixed machine-config files and temporal signal logs.
+
+    ADR-588 D1: also drops a folder MARKER. Creating a folder writes a real
+    attributed revision (it is a real act, correctly on the ledger), but Recents
+    shows recently-authored DOCUMENTS — a directory has no content to preview,
+    so a marker tile would render blank.
     """
+    from services.workspace_paths import is_folder_marker
+    if is_folder_marker(path):
+        return False
     filename = path.rsplit("/", 1)[-1]
     if filename.startswith("_"):
         return False
@@ -2991,7 +3016,18 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
     """Build a folder/file tree from flat workspace_files paths.
 
     Returns list of tree nodes: {name, path, type, updated_at, children}
+
+    ADR-588 D1: two row kinds arrive here. A DOCUMENT row becomes a file node,
+    and the folders above it are synthesized from its path segments (the
+    pre-588 behaviour, unchanged — a folder holding files still exists through
+    those files). A FOLDER MARKER row (trailing-slash path,
+    content_type='inode/directory') becomes a FOLDER node with no children and
+    is NEVER emitted as a file. That is what makes an EMPTY folder expressible:
+    before ADR-588 the tree could not represent one, which is why create_folder
+    seeded a README nobody wrote.
     """
+    from services.workspace_paths import is_folder_marker
+
     # Collect all unique folder paths + file entries
     folders: dict[str, dict] = {}  # path → {name, children, updated_at}
     files: list[dict] = []
@@ -3003,8 +3039,38 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
         if not full_path.startswith(root_prefix):
             continue
 
+        # ADR-588: a folder marker registers its OWN folder node (so an empty
+        # folder shows) and then falls through to the intermediate-folder
+        # registration below for its ancestors — but never reaches the file
+        # append. `parts` is computed off the slash-stripped path so the marker
+        # and a document under it agree on every ancestor segment.
+        marker = is_folder_marker(full_path, row.get("content_type"))
         relative = full_path[len(root_prefix):]
+        if marker:
+            relative = relative.rstrip("/")
+            if not relative:
+                continue  # a marker ON the root itself — no node to make
         parts = relative.split("/")
+
+        if marker:
+            folder_path = root_prefix + relative
+            node = folders.get(folder_path)
+            if node is None:
+                folders[folder_path] = {
+                    "name": parts[-1],
+                    "path": folder_path,
+                    "type": "folder",
+                    "updated_at": row.get("updated_at"),
+                    "children": [],
+                }
+            else:
+                # A document already synthesized this folder — keep the node,
+                # the marker adds nothing. (Both spellings of "this folder
+                # exists" are legal and converge on one node.)
+                existing_ts = node.get("updated_at") or ""
+                new_ts = row.get("updated_at") or ""
+                if new_ts > existing_ts:
+                    node["updated_at"] = new_ts
 
         # Register all intermediate folders
         for i in range(len(parts) - 1):
@@ -3024,10 +3090,12 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
                 if new_ts > existing_ts:
                     folders[folder_path]["updated_at"] = new_ts
 
-        # Register the file itself.
+        # Register the file itself — a marker is NOT a file (ADR-588 D1).
         # authored_by + revision_at are set by the tree endpoint when it
         # reads the head_version_id FK embed (ADR-209). They may be None
         # for pre-ADR-209 files or files whose head_version_id is NULL.
+        if marker:
+            continue
         files.append({
             "name": parts[-1],
             "path": full_path,

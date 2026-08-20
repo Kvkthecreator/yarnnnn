@@ -272,7 +272,14 @@ async def _handle_remove(auth: Any, input: dict) -> dict:
         "path", f"/workspace/{domain_path}/{slug}/%"
     ).limit(1).execute()
 
-    if not (entity_files.data or []):
+    # ADR-588 D1: a folder marker alone does not make an entity exist — an
+    # entity is its files. A marked-but-empty folder must still read as absent.
+    from services.workspace_paths import is_folder_marker
+    _entity_rows = [
+        r for r in (entity_files.data or [])
+        if not is_folder_marker(r.get("path") or "")
+    ]
+    if not _entity_rows:
         return {"success": False, "error": "not_found", "message": f"Entity {slug} not found in {domain_key}"}
 
     # Add deprecation marker to the entity's primary file
@@ -351,9 +358,14 @@ async def _scan_domain_entities(um, domain_path: str, domain_key: str) -> list[d
     except Exception:
         return []
 
+    from services.workspace_paths import is_folder_marker
     entities: dict[str, dict] = {}
     for row in (all_files.data or []):
         path = row["path"]
+        # ADR-588 D1: a folder marker is a directory, not an entity file — its
+        # path splits to ['slug', ''] and would register a phantom entity.
+        if is_folder_marker(path):
+            continue
         parts = path.replace(f"/workspace/{domain_path}/", "").split("/")
         if len(parts) < 2:
             continue

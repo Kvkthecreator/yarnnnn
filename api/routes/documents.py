@@ -596,7 +596,13 @@ async def download_document(auth: UserClient, document_path: str):
 # `uploads/`-only scope was a misread of ADR-320's foreign-principal lock as an
 # operator lock (Amendment 1 corrects it). Content EDIT still routes through chat
 # (that boundary holds); this is ORGANIZE, which is the operator's.
-from services.workspace_paths import operator_can_organize
+from services.workspace_paths import (
+    operator_can_organize,
+    folder_marker_path,
+    is_folder_marker,
+    reserved_top_level_folder_reason,
+    FOLDER_MARKER_CONTENT_TYPE,
+)
 
 
 def _content_form_for_head(auth: UserClient, row: dict) -> dict:
@@ -721,6 +727,8 @@ async def list_trash(auth: UserClient):
         path = row["path"]
         if not operator_can_organize(path):
             continue  # only files the operator could have trashed
+        if is_folder_marker(path):
+            continue  # ADR-588 D1: a directory, not a trashable document
         embed = row.get("workspace_file_versions") or {}
         leaf = path.rsplit("/", 1)[-1]
         filename = leaf.removesuffix(".md") if path.endswith(".md") else leaf
@@ -1105,17 +1113,28 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
     homes (ADR-424 D2: pure-OS — you don't ask permission to name a folder for
     your work; the operator + AI both may).
 
-    Folders are implicit in the substrate (a folder exists iff a file exists
-    under its prefix — the tree is derived from paths). So "create a folder"
-    seeds the folder's first file: a starter ``README.md`` (a real, useful
-    file — the folder's note — not clutter). Written through the WriteFile
-    primitive → the ADR-209 write path, operator-attributed.
+    ADR-588 D1: this writes a FOLDER MARKER — a `workspace_files` row at the
+    folder's own trailing-slash path carrying `content_type='inode/directory'`
+    — through `write_revision`, the ADR-209 single write path. It does NOT seed
+    a document.
+
+    The pre-ADR-588 route seeded a starter `README.md` purely so the new folder
+    would survive a tree read, attributed to "operator". That was a signed
+    revision the operator never authored — a lie in the one ledger whose entire
+    value is that its attribution is true. The marker makes an empty folder
+    expressible directly, so the workaround has no premise left.
 
     Guarded by ``operator_can_organize``: the operator may create a folder
     anywhere they may organize — i.e. everywhere except system/, inbound/ (the
     immutable arrival lane), and a machine-config leaf. A peer meaning-folder
     (unknown top-level root) is permitted (the gate lists LOCKED prefixes; an
     unknown root falls through — ADR-424).
+
+    ADR-588 D3: a TOP-LEVEL folder may not take a name the kernel already
+    serves as a home's display label ("Documents" → operation/, "Downloads" →
+    inbound/). Those names are addresses the participant is TOLD; a second
+    top-level root wearing the same label is an exact visual twin of the real
+    home. Nested is fine (~/Projects/Documents collides with nothing).
     """
     # Normalize + sanitize each segment; reject empties / traversal.
     raw = (body.path or "").strip().lstrip("/")
@@ -1140,42 +1159,64 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
         if not parent_segments or any(s == ".." or s == "." for s in parent_segments):
             raise HTTPException(status_code=400, detail="That destination folder isn't valid.")
         rel_folder = "/".join(parent_segments) + "/" + rel_folder
-    readme_path = f"{rel_folder}/README.md"
     abs_folder = f"/workspace/{rel_folder}"
-    abs_readme = f"/workspace/{readme_path}"
+    marker_path = folder_marker_path(rel_folder)
+
+    # ADR-588 D3 — a TOP-LEVEL folder may not wear a kernel home's display name.
+    # `reserved_top_level_folder_reason` is the singular check; it is scoped to
+    # depth 1 because only a top-level twin is confusable with the real home.
+    if len(segments) == 1 and not body.parent:
+        reason = reserved_top_level_folder_reason(segments[0])
+        if reason:
+            raise HTTPException(status_code=409, detail=reason)
 
     # The operator's organize reach is the create reach (ADR-424 D2). A folder
     # under system/ / inbound/ / a machine-config leaf is refused honestly.
-    if not operator_can_organize(abs_readme):
+    # Checked on the marker path — the row this route actually writes.
+    if not operator_can_organize(marker_path):
         raise HTTPException(
             status_code=403,
             detail="You can't create a folder here — that location is managed by the system.",
         )
 
-    # If the folder already has files, don't reseed (idempotent-ish create).
+    # Already a folder here? Either it holds files (it exists through them) or
+    # it already carries a marker. Both are "already exists" — never re-create.
     existing = auth.client.table("workspace_files") \
         .select("path") \
         .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))) \
-        .like("path", f"{abs_folder}/%") \
+        .or_(f"path.eq.{marker_path},path.like.{abs_folder}/%") \
         .or_("lifecycle.is.null,lifecycle.neq.archived") \
         .limit(1) \
         .execute()
     if existing.data:
         raise HTTPException(status_code=409, detail="A folder with that name already exists.")
 
-    from services.primitives.registry import execute_primitive
-    leaf = segments[-1]
-    result = await execute_primitive(auth, "WriteFile", {
-        "scope": "workspace",
-        "path": readme_path,
-        "content": f"# {leaf}\n\n_This folder was created to hold work about {leaf}._\n",
-        "message": f"Create folder: {rel_folder}",
-        "authored_by": "operator",
-    })
-    if not (isinstance(result, dict) and result.get("success")):
-        detail = (result or {}).get("message", "Could not create the folder.")
-        raise HTTPException(status_code=400, detail=detail)
-    return {"success": True, "path": abs_folder, "seeded": abs_readme}
+    # ADR-588 D1: the marker goes through write_revision — the ADR-209 single
+    # write path — NOT the WriteFile primitive, whose empty-content guard
+    # correctly refuses a 0-byte write (a directory has no body, so the marker
+    # is precisely the write that guard exists to block for documents).
+    # Attributed to the operator because the operator really did perform this
+    # act: naming a folder. That is the difference from the deleted README seed,
+    # which attributed a DOCUMENT they never wrote.
+    from services.authored_substrate import write_revision
+    from services.workspace_context import effective_workspace_id
+
+    try:
+        write_revision(
+            db_client=get_service_client(),
+            user_id=auth.user_id,
+            workspace_id=effective_workspace_id(auth.user_id),
+            path=marker_path,
+            content="",
+            content_type=FOLDER_MARKER_CONTENT_TYPE,
+            authored_by="operator",
+            message=f"Create folder: {rel_folder}",
+        )
+    except Exception as exc:  # noqa: BLE001 — surfaced honestly to the operator
+        logger.error("[DOCUMENTS] folder marker write failed for %s: %s", marker_path, exc)
+        raise HTTPException(status_code=400, detail="Could not create the folder.")
+
+    return {"success": True, "path": abs_folder}
 
 
 # `POST /api/share` (ADR-127 user_shared/ staging) DELETED — ADR-517 D7,

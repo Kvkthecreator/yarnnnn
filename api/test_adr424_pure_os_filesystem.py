@@ -103,11 +103,39 @@ def run() -> int:
                  and _sanitize_folder_segment("../etc") == "etc")
     cf_src = inspect.getsource(create_folder)
     # The route must guard on operator_can_organize (so system/ + inbound/ refuse)
-    # and seed via the WriteFile primitive (the ADR-209 write path), not a raw insert.
+    # and write through the ADR-209 write path, not a raw insert.
     ok &= _check("create-folder guards on operator_can_organize",
                  "operator_can_organize" in cf_src)
-    ok &= _check("create-folder seeds via WriteFile (the write path), README.md",
-                 "WriteFile" in cf_src and "README.md" in cf_src)
+    # ── ADR-588 D1: the README SEED IS DELETED, replaced by a folder marker ──
+    # This assertion previously pinned the seed ("WriteFile" in cf_src and
+    # "README.md" in cf_src), encoding the workaround as canon. The seed wrote a
+    # document attributed to "operator" that the operator never authored — a
+    # false signature in the attribution ledger. It is re-anchored here, not
+    # routed around.
+    # NOTE ON THIS GATE'S SHAPE: the assertions below pin MECHANISM (what the
+    # route calls, what it returns), never a SPELLING. The prose above the code
+    # names "README" and "seeded" precisely because it explains the deletion —
+    # a naive `"README" not in cf_src` would go red against correct code by
+    # matching its own comment. Strip comments/docstrings before any text test.
+    cf_code = "\n".join(
+        line for line in cf_src.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    _body = cf_code.split('"""')
+    cf_code = "".join(_body[0:1] + _body[2:])  # drop the docstring
+
+    ok &= _check("create-folder does NOT seed a README document (ADR-588 D1)",
+                 "README" not in cf_code)
+    ok &= _check("create-folder writes a folder MARKER via write_revision",
+                 "write_revision" in cf_code
+                 and "FOLDER_MARKER_CONTENT_TYPE" in cf_code
+                 and "folder_marker_path" in cf_code)
+    ok &= _check("create-folder response carries no 'seeded' key",
+                 "seeded" not in cf_code)
+    # It must NOT route the marker through the WriteFile primitive — that
+    # primitive's empty-content guard correctly refuses a 0-byte write.
+    ok &= _check("create-folder does not call the WriteFile primitive",
+                 "WriteFile" not in cf_code)
 
     # ── folder-node New Folder (2026-08-04): parent is ADDRESSING, not naming ──
     # The parent names an EXISTING folder, so it must NOT pass through the
