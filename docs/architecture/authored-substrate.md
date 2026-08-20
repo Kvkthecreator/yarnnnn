@@ -73,6 +73,70 @@ For YARNNN's alpha-operator ICP, coordination is not required. There is one auth
 
 The singular-implementation principle (FOUNDATIONS Derived Principle 7) says: *if YARNNN composes, there is no separate Composer.* Applied here: *if the substrate carries authored history, there is no separate git backend.* Adopt the properties; reject the bundled infrastructure.
 
+### Why the cut is right: knowledge work has no compiler
+
+The 3/5 split is usually justified by scale ("alpha operators don't need
+coordination"). That justification is weak — it invites the reply *"and when they
+do?"* The durable argument is about the domain, not the headcount.
+
+**A codebase has a mechanical oracle. A workspace does not.**
+
+Code builds or it doesn't; tests pass or they don't. That oracle is precisely what
+makes branching cheap: you can let a thousand agents fork, because the build tells
+you which forks were real. **Divergence is safe exactly when convergence is
+verifiable.** Under those conditions attribution is genuinely secondary — the
+artifact certifies itself, and the author field is a convenience.
+
+Knowledge work has no build. Nothing mechanically adjudicates whether a strategy
+memo, a deal analysis, or a research synthesis is correct. So the question *"can I
+trust this?"* cannot be answered by the artifact, and must be answered by its
+provenance: who wrote it, under whose authority, from which sources, and what it
+looked like before. That single asymmetry reorganizes the whole design:
+
+| | Codebase | Knowledge commons |
+|---|---|---|
+| Truth oracle | the build — mechanical, external | **none** — trust is reconstructed from provenance |
+| So attribution is | convenience metadata | **the load-bearing invariant** |
+| Divergence is | cheap; the build reconverges it | **expensive; nothing reconverges it** |
+| Therefore branching | essential | **correctly refused** (§7) |
+
+The inversion is the point. For a code host, a fork *contains* risk — the agent
+speculates in its own universe and only what builds comes back. Here, **the fork
+IS the risk**: an agent working in a private universe produces knowledge nobody
+witnessed, and there is no build to certify it on return. So the opposite move is
+correct — the agent gets a *grant* into the shared space, and every act lands
+attributed where a human can see it.
+
+**The cost, stated rather than hidden.** Refusing branches means there is no cheap
+way to be wrong: every act is immediately in the shared record, and exploration
+cannot be free. The mitigations are real but not free either — revert is itself a
+revision (Axiom 7), and alternatives are compared as two revisions of one file.
+This is a price, and it is worth paying, because in knowledge work a speculation
+nobody witnessed has negative value: it cannot be learned from, cited, or
+audited. Making exploration visible is the intent, not a tax on it.
+
+**External corroboration (2026-08-20).** Cursor's *Git at any scale* describes
+Continuity, their Git backend: pushes are linearized into a write-ahead log in S3,
+the on-disk repo is demoted to a "warm cache," and consensus is replaced by atomic
+compare-and-swap on a single object. Two things are worth carrying across.
+
+*The convergent theorem.* Their conclusion — *"because the system is always
+consistent, building infrastructure on top of it is trivial"* — is this document's
+opening claim ("Authored Substrate is the property, not the feature") derived from
+storage physics instead of semantics. Two independent derivations of one theorem
+is decent evidence it is real.
+
+*The confirmed cost.* Every hard part of their system — the WAL, the CAS, gossip
+replication, rendezvous hashing, replica catch-up, tail-at-scale — is the price of
+the two capabilities §7 excludes. The article is, read one way, a detailed invoice
+for distributed replication, written by people who had no choice but to pay it.
+
+And the silence is the finding: an article premised on agents having *"fundamentally
+changed the way we work with software"* contains no discussion of attribution,
+blame, provenance-of-agent-authorship, or review. It solves the **scale** of agent
+authorship and not the **accountability** of it — which is the correct priority for
+a domain with a compiler, and the wrong one for a domain without.
+
 ### The exclusion is structural, not a "not yet"
 
 Branches and distributed replication are **explicitly out of scope** for the Authored Substrate — not items sitting on a backlog. See §7 for the full statement. The short version: YARNNN hosts one authoritative copy of each file, operators supervise through the cockpit (ADR-198), foreign LLMs consult through MCP (ADR-169). The cockpit + MCP surfaces are what replace the coordination affordances in the git toolkit, not deferred placeholders for them.
@@ -167,6 +231,42 @@ in meaning. Before ADR-474, `workspace_purge` could not reach blobs at all
 (there was no column to scope on), so a member's deletion left their content in
 place permanently. Deletion now reaches content because content has an owner.
 
+### The head is a cache, and that is a measured property (2026-08-20)
+
+`workspace_files.content` is a **denormalized copy of the head revision's blob**,
+retained deliberately because the FTS and embedding indexes require inline text.
+That makes it the one place in the substrate where the same bytes exist twice —
+and a second copy is only safe if it is genuinely *derived*, never authoritative.
+
+State the property so it can be falsified rather than assumed:
+
+> **Replaying the ledger reproduces the live view.** For every live file, the
+> content of the blob its `head_version_id` points at is byte-identical to
+> `workspace_files.content`. The namespace layer holds no content that the
+> ledger + content layers cannot regenerate.
+
+**Measured on production 2026-08-20** — 391 live files, 1,928 revisions, 1,647
+blobs, 6 workspaces:
+
+| Check | Result |
+|---|---|
+| Live files with no `head_version_id` | 0 |
+| Live files with zero revisions (content only in the denorm) | 0 |
+| **Head blob content == live denorm** | **391 / 391 exact** |
+| Dangling `parent_version_id` | 0 |
+| Forked chains (a parent with >1 child) | 0 — the mig-197 guard holds |
+| Heads that are not chain tips | 0 |
+| Revisions missing `authored_by` or `message` | 0 / 0 |
+
+Why this is worth stating rather than assuming: the guard that exists today is
+**source-shaped** — the Phase 2 grep gate asserts that call sites route through
+`write_revision()`. That catches a new direct write; it cannot catch a head that
+drifted from its ledger for any other reason, and a drifted head fails
+*silently* — history renders, diffs render, revert runs, and all three describe
+a past that never existed. This is the incorrect-success class: a 200 with the
+wrong body. The behavioural check above is one query and belongs in CI beside
+the ADR-474 ownership invariant, for the same reason.
+
 ### Sharing is a grant, never a byte coincidence (ADR-474 D3)
 
 Content-addressing is a **storage** optimization and must never become an
@@ -246,16 +346,61 @@ def read_revision(workspace_id, path, offset=-1, revision_id=None) -> str:
 
 The `authored_by` column is a structured string. The taxonomy maps to FOUNDATIONS Axiom 2 (Identity) cognitive layers plus a `system:*` space for deterministic actors:
 
+> **Authoritative roster: `VALID_AUTHOR_PREFIXES` in `api/services/authored_substrate.py`.**
+> The table below is the explanatory gloss and has drifted before (it carried
+> `reviewer:` for months after ADR-381 renamed it `freddie:`). Read the constant
+> before relying on a row here.
+
 | Prefix | Meaning | Example |
 |---|---|---|
 | `operator` | The workspace's human operator | `operator` |
+| `operator-proxy:<caller>:acting-as-<who>` | A non-human caller materializing the operator's voice (ADR-294 D2) | `operator-proxy:claude-sonnet-4-7:acting-as-alpha-trader-2` |
 | `yarnnn:<model>` | YARNNN (meta-cognitive layer) | `yarnnn:claude-sonnet-4-7` |
 | `agent:<slug>` | A user-created domain agent | `agent:alpha-research` |
 | `specialist:<role>` | A specialist's style distillation | `specialist:writer` |
-| `reviewer:<identity>` | The Reviewer seat (human, AI, impersonation) | `reviewer:human`, `reviewer:ai-sonnet-v1` |
-| `system:<actor>` | Deterministic system actors (reconciler, cleanup, backfill) | `system:outcome-reconciliation`, `system:backfill-158` |
+| `freddie:<identity>` | The system agent occupying the seat (ADR-381; was `reviewer:`) | `freddie:human`, `freddie:ai-sonnet-v1` |
+| `dispatcher:<slot>` | Dispatcher-synthesized substrate filling a posture-cell contract (ADR-303 D2/D6) | `dispatcher:standing-intent` |
+| `member:<user_id> via <model>` | An Altitude-2 helper acting as the member's hands under their grant (ADR-411 D4) | `member:…  via GPT-4o mini` |
+| `system:<actor>` | Deterministic system actors (reconciler, cleanup, capture, backfill) | `system:capture-slack`, `system:backfill-158` |
 
 The prefix is mandatory; the suffix is actor-specific. Primitive handlers set the prefix based on the invoking context; the suffix is resolved from model configuration or slug.
+
+**What the prefix buys that git's `Author:` line cannot.** Three of these rows
+encode *acting-on-behalf-of* — `operator-proxy:…:acting-as-…`, `member:… via …`,
+and the intake pipeline's `system:derive-{lane} on behalf of {owner}`. A single
+author string has no grammar for "who acted, under whose authority, through what
+transport." That is the sentence an attributed commons has to be able to say, and
+it is why the taxonomy is a validated prefix space rather than free text.
+
+### The door is closed; the residue is dated (2026-08-20)
+
+`write_revision()` rejects any `authored_by` outside the taxonomy via
+`is_valid_author()` — malformed attribution is refused at the door, not retained
+and repaired later. That check post-dates the ledger, and the production census
+shows exactly what got through before it:
+
+| `authored_by` | Revisions | Window |
+|---|---|---|
+| `kvkthecreator@gmail.com via Claude Sonnet` | 6 | 2026-07-07 → 07-11 |
+| `probe via Claude Sonnet` | 2 | 2026-07-16 |
+
+Eight revisions, in a free-text form the display layer cannot parse into a
+signature. Nothing after 2026-07-16. **These rows stay.** The ledger is immutable
+by axiom, and rewriting history to make the census tidy would trade the actual
+invariant for the appearance of it — the record is honest about its own scars or
+it is not a record.
+
+The lesson is about *detection*, not repair: the drift ran for nine days in a
+system where every gate was green, because every gate asked whether the code was
+shaped correctly, not whether the data was. The census query — one `GROUP BY` over
+`authored_by` — is the check that would have caught it on day one.
+
+**The live census (2026-08-20, 1,928 revisions):** `operator` 986 · `system` 769 ·
+`member` 67 · `yarnnn` 56 · `freddie` 31 · `operator-proxy` 6 · `agent` 5.
+By `revision_kind`: `authored` 1,645 · `observation` 183 · `derivation` 100.
+Machinery already authors ~40% of all revisions and touches more distinct paths
+(201) than the operator does (141) — the commons is majority non-human by volume,
+which is the condition the taxonomy exists to keep legible.
 
 ---
 
@@ -394,6 +539,7 @@ YARNNN's substrate is the filesystem (Axiom 1). Every mutation to that filesyste
 
 | Date | Change |
 |------|--------|
+| 2026-08-20 | v1.3 — **The head is a measured cache; the taxonomy is re-synced.** §3 gains the replay invariant — *replaying the ledger reproduces the live view* — stated so it can be falsified, with the production census behind it (391/391 heads byte-identical to their blob; 0 dangling parents, 0 forked chains, 0 unattributed revisions). The existing Phase-2 grep gate is source-shaped and cannot catch a head that drifted for any other reason; a drifted head fails *silently*, rendering a past that never existed. §3's `authored_by` table corrected against `VALID_AUTHOR_PREFIXES` — it still carried `reviewer:` months after ADR-381 renamed it `freddie:`, and omitted `operator-proxy:`, `dispatcher:`, `member:` — plus a pointer naming the constant as authoritative. Adds the dated attribution residue (8 free-text revisions, 2026-07-07→07-16, pre-`is_valid_author`) with the ruling that they **stay**: rewriting history to tidy the census would trade the invariant for its appearance. §2 gains the durable argument for the 3/5 cut — **knowledge work has no compiler**: divergence is safe only when convergence is verifiable, so branching is correct for code and structurally wrong here, with the cost (no cheap way to be wrong) stated rather than hidden. Corroborated against Cursor's *Git at any scale*: their consistency theorem is this doc's opening claim derived from storage physics, and their engineering bill is the invoice for exactly the two capabilities §7 excludes. No shipped code changed. |
 | 2026-04-23 | v1 — Initial canonical doc. Ratified by FOUNDATIONS v6.1 Axiom 1 second clause + ADR-209. Captures the git-inspiration framing (3 of 5 capabilities), the CAS + revision-chain model, the `authored_by` taxonomy, the deprecation manifest (`/history/` pattern and filename-versioning retired), and the deferred-extension gating for branches + git portability. Supersedes ADR-208 v1 (withdrawn) and ADR-119 Phase 3. |
 | 2026-07-21 | v1.2 — **Content inherits the file's scope (ADR-474).** `workspace_blobs` gains `workspace_id`; the identity becomes `(workspace_id, sha256)` and the ledger's FK becomes composite, making a cross-workspace content reference structurally impossible. Adds §3's three-layer lifetime table (namespace curates / ledger immutable / content owned + reference-bounded) — the content layer previously had *no* stated rule, which is why `workspace_purge` could not reach it and a member's deletion left their bytes in place permanently. Adds the sharing-is-a-grant-never-a-byte-coincidence rule: content-addressing is a storage optimization, never an authorization fact; dedup becomes optional and invisible beneath the ownership layer. The storage seam gains `delete_blob` (row + bucket object, last-owner-only). |
 | 2026-04-23 | v1.1 — Branches + distributed replication **reframed as explicitly out of scope, not deferred-future-work.** §7 rewritten from "Future extensions (gated on real operator signal)" to "Out of scope: branches and distributed replication." §2 table bullets changed from "❌ Deferred" to "❌ **Explicitly out of scope**". The "What 'deferred' means concretely" subsection replaced with "The exclusion is structural, not a 'not yet'." Rationale: the v1 phrasing read as a roadmap; the intent was always exclusion. The cockpit (ADR-198) + MCP surface (ADR-169) are what replace git's coordination affordances, not placeholders for them. Corrects drift without altering any shipped code or the three-of-five capability commitment. |
