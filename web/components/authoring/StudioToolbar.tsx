@@ -25,7 +25,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { LayoutTemplate, Plus } from 'lucide-react';
-import { ArrangementThumb } from './ArrangementThumb';
 
 /** An arrangement (ADR-447) — the composition shape of a page/slide.
  *
@@ -214,22 +213,17 @@ interface StudioToolbarProps {
   hasBlockSelection?: boolean;
   onUpdateBlock?: (at: { x: number; y: number }) => void;
   /** EXECUTE: add a new page (slide/section) from the gallery. */
-  onAddArrangement: (fragment: string, label: string) => void;
   /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
    *  beside New slide; same gallery as the Properties page scope, two mounts). */
-  onApplyArrangement: (a: StudioArrangement) => void;
   /** ADR-479 D1: a re-arrangement asks a judgment where each block belongs
    *  before it applies, so the button says it is thinking (~2-4s). */
   planning?: boolean;
   /** Blocks the anchored page would carry through an arrangement change —
    *  drives the carry note on slotless thumbs. */
-  carriedCount: number | null;
   /** ADR-519 D2.1 — authored groups the anchored page holds. A re-arrange
    *  DISSOLVES them (`page.replaceWith`), so the gallery says so BEFORE the
    *  gesture, beside the carry note and for the same reason. */
-  groupCount?: number | null;
   /** The anchored page's current arrangement slug (highlighted in Layout). */
-  currentArrange: string | null;
   /** Whether a page can be resolved from the selection — Layout disables
    *  (with a teaching title) when nothing anchors it. */
   hasPageAnchor: boolean;
@@ -255,12 +249,7 @@ export function StudioToolbar({
   onInsert,
   hasBlockSelection = false,
   onUpdateBlock,
-  onAddArrangement,
-  onApplyArrangement,
   planning,
-  carriedCount,
-  groupCount,
-  currentArrange,
   hasPageAnchor,
   compact = false,
   coarsePointer = false,
@@ -273,46 +262,17 @@ export function StudioToolbar({
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
   const pageNoun = layout === 'deck' ? 'slide' : 'section';
-  const [open, setOpen] = useState<null | 'layout'>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   // The trigger cluster (buttons + their panels) — the click-away boundary.
   // Deliberately NOT rootRef, which spans the row's full flex-1 width.
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Click-away + Escape. Two things this must get right, both learned the hard
-  // way (2026-07-15):
-  //
-  // 1. The listener anchors on `menuRef` (the trigger + its panel), NOT on the
-  //    whole toolbar row. `rootRef` is `flex-1`, so it spans the wide empty
-  //    stretch between the crumb and the zoom — clicking that apparently-blank
-  //    toolbar counted as "inside" and the panel never closed.
-  // 2. The canvas is an IFRAME: a mousedown on the document never reaches this
-  //    listener (the same boundary StudioSlashPalette documents). The canvas
-  //    bridges its in-frame presses out as `yarnnn-canvas-press`, so clicking
-  //    the artifact — the most natural "click outside" — closes the panel too.
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(null);
-    const onDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) close();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    const onFrame = (e: MessageEvent) => {
-      if ((e.data as { type?: string } | null)?.type === 'yarnnn-canvas-press') close();
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    window.addEventListener('message', onFrame);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('message', onFrame);
-    };
-  }, [open]);
+  // The toolbar's own click-away/Escape effect is DELETED with the layout
+  // panel (ADR-589 D3): this component no longer owns a panel to dismiss.
+  // Both doors it opens carry their own dismissal, including the iframe
+  // bridge (`yarnnn-canvas-press`) this effect existed to handle —
+  // StudioBlockInsertMenu and StudioUpdateMenu each listen for it.
 
-  const arrangements = vocabulary?.arrangements?.[layout] ?? [];
 
   // shrink-0 + whitespace-nowrap: a flex child is shrinkable BY DEFAULT, so
   // when the row ran out of width (the chat panel open on a narrow viewport)
@@ -361,7 +321,6 @@ export function StudioToolbar({
         type="button"
         className={btn}
         onClick={(e) => {
-          setOpen(null);
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
           onInsert({ x: r.left, y: r.bottom + 4 });
         }}
@@ -376,35 +335,33 @@ export function StudioToolbar({
         {!compact && ' Add'}
       </button>
 
-      {/* UPDATE — it exists; change it — AT THE SELECTION'S GRAIN (ADR-586
-          D6): a selected BLOCK opens the one block-acts menu (the same
-          definition the right-click renders — one definition, two mounts),
-          Update tier expanded; otherwise the page-grain door (re-arrange —
-          the judgment, plan validation, and Refining… state unchanged,
-          ADR-479/524 D4). This is the door where mechanical change and
-          metered judgment FUSE; the meter badge inside is the only spelling
-          of that distinction (ADR-579 D3 surviving the re-house). */}
-      {(hasBlockSelection || (isPaged && arrangements.length > 0)) && (
+      {/* UPDATE — it exists; change it. ADR-589: ONE DOOR over the selection
+          matrix, never a fork. It is ALWAYS present and never disabled,
+          because the ladder's top rung is the ARTIFACT and an artifact is
+          always there to shape — the old gating hid the button (or disabled
+          it) exactly when nothing was selected, which is when `document`
+          scope is the whole point.
+
+          This is still the door where mechanical change and metered judgment
+          FUSE; the meter badge inside is the only spelling of that
+          distinction (ADR-579 D3), and Refining… still rides the button
+          (ADR-479/524 D4). */}
+      {onUpdateBlock && (
         <button
           type="button"
           className={btn}
-          disabled={!!planning || (!hasBlockSelection && !hasPageAnchor)}
+          disabled={!!planning}
           title={
             hasBlockSelection
-              ? 'Update the selected block — move, turn into, rewrite'
+              ? 'Update the selected block — or step out to the page or artifact'
               : hasPageAnchor
-                ? `Update this ${pageNoun} — re-arrange its layout`
-                : `Select a block or a ${pageNoun} first — click it on the canvas or in the strip`
+                ? `Update this ${pageNoun} — or step out to the artifact`
+                : 'Update this artifact — typography, palette, design system'
           }
           aria-label={compact ? 'Update' : undefined}
           onClick={(e) => {
-            if (hasBlockSelection && onUpdateBlock) {
-              setOpen(null);
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              onUpdateBlock({ x: r.left, y: r.bottom + 4 });
-              return;
-            }
-            setOpen(open === 'layout' ? null : 'layout');
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            onUpdateBlock({ x: r.left, y: r.bottom + 4 });
           }}
         >
           {/* ADR-524 D4: the page has ALREADY re-arranged mechanically by the
@@ -439,48 +396,17 @@ export function StudioToolbar({
           pageSection), so New is one door with two grains — never a dropdown
           hopping to a second menu. */}
 
-      {/* The Layout gallery — re-lay the current page (ADR-466 D5). Slotless
-          thumbs carry the amber note: applying one moves this page's content
-          to a new content page (the handler's resolution), never a dead-end. */}
-      {open === 'layout' && (
-        <div className={panel}>
-          <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Change this {pageNoun} to
-          </p>
-          <div className="grid grid-cols-2 gap-1.5 p-1">
-            {arrangements.map((a) => {
-              const note = arrangementCarryNote(a, carriedCount, pageNoun, groupCount);
-              const current = currentArrange === a.slug;
-              return (
-                <button
-                  key={a.slug}
-                  type="button"
-                  title={
-                    note
-                      ? `${a.description} — this ${pageNoun}'s content moves to a new content ${pageNoun} after it.`
-                      : a.description
-                  }
-                  onClick={() => {
-                    onApplyArrangement(a);
-                    setOpen(null);
-                  }}
-                  className={`flex flex-col gap-1 rounded-md border p-1.5 text-left hover:bg-muted/20 ${
-                    current ? 'border-indigo-400' : 'border-transparent hover:border-border'
-                  }`}
-                >
-                  <ArrangementThumb areas={a.areas} fragment={a.fragment} />
-                  <span className="truncate text-[11px]">{a.label}</span>
-                  {note && (
-                    <span className="truncate text-[9px] leading-tight text-amber-600 dark:text-amber-500">
-                      {note}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* The Layout gallery is DELETED from the toolbar (ADR-589 D3). It was
+          the no-selection branch of the old Update fork, and it made ONE grain
+          — the page — stand in for all five: with nothing selected the door
+          showed slide arrangements, so the artifact's own typography, palette
+          and design system had no entrance at all. Re-arrange now lives on the
+          door's PAGE rung, reached by selecting a page or picking that rung,
+          and `document` is the ladder's always-present top. The gallery
+          itself (ArrangementThumb + arrangementCarryNote) moved, not copied:
+          StudioUpdateMenu renders it, and `arrangementCarryNote` is still
+          exported from here for that one consumer. */}
+
 
       {/* The standalone Insert button is DELETED (ADR-579 D6): its two
           halves re-homed under the verb doors above — the from-the-workspace

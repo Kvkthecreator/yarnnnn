@@ -77,7 +77,9 @@ import {
 // pinned copy), so a parent-side reach and the pane consult one declaration.
 import { StudioDesignTab, kindTier, type StructVerb } from './StudioDesignTab';
 // ADR-541 D2 — the one selection algebra (the pane reads the same two).
-import { arityOf, spanShapeOf, unify, type SpanShape } from './selection';
+import { arityOf, scopeOf, spanShapeOf, unify, type PaneScope, type SpanShape } from './selection';
+import { StudioUpdateMenu } from './StudioUpdateMenu';
+import type { LadderRung } from './updateLadder';
 import { StudioShareExport } from './StudioShareExport';
 import { PagedNavigator } from './PagedNavigator';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
@@ -740,7 +742,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // Conservative DOM facts (positioned/framed false): the toolbar cannot see
   // the projected DOM, so the geometry rows simply don't render from this
   // mount; the right-click keeps the full answer.
-  const openUpdateForSelection = useCallback(
+  // ADR-589 — the Update DOOR replaces the old selection FORK (block →
+  // block-acts menu, otherwise → a slide-arrangement gallery). That fork's
+  // no-selection branch silently assumed the target was the page, which left
+  // `document` scope — the artifact's own typography, palette and design
+  // system — with no entrance anywhere in the door named Update.
+  const [updateMenu, setUpdateMenu] = useState<{ x: number; y: number } | null>(null);
+  const openUpdateDoor = useCallback((at: { x: number; y: number }) => {
+    setUpdateMenu({ x: at.x, y: at.y });
+  }, []);
+
+  /** The object rung routes to the ONE block-acts menu (ADR-586 D6 — one
+   *  definition, two mounts). Restating those rows inside the door would be
+   *  the second write path ADR-462 D1 forbids. */
+  const openBlockActs = useCallback(
     (at: { x: number; y: number }) => {
       const sel = selection;
       if (!sel?.blockId) return;
@@ -764,6 +779,30 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [selection],
   );
+
+  /** ADR-589 D1 — picking a rung RE-TARGETS. Setting selection IS the
+   *  mechanism: StudioCanvas re-commands the runtime with
+   *  `yarnnn-select-block` whenever `selectedBlockId` changes, so the canvas
+   *  box follows without a second message. A document rung clears the
+   *  selection, which is exactly what that scope means. */
+  const retargetToRung = useCallback((rung: LadderRung) => {
+    setEditingBlockId(null);
+    if (rung.scope === 'document') {
+      setSelection(null);
+      return;
+    }
+    setSelection((prev) => ({
+      blockId: rung.blockId,
+      blockKind: rung.blockId && rung.blockId === prev?.blockId ? (prev?.blockKind ?? null) : null,
+      slideIndex: prev?.slideIndex ?? null,
+      pageIndex: prev?.pageIndex ?? null,
+      slot: rung.blockId && rung.blockId === prev?.blockId ? (prev?.slot ?? null) : null,
+      arrange: prev?.arrange ?? null,
+      text: '',
+      label: rung.label,
+      tier: rung.scope === 'container' ? 'structure' : (prev?.tier ?? null),
+    }));
+  }, []);
   // Copy/paste is a BLOCK clipboard, not the OS text one: the unit is a block's
   // source HTML, so a paste can reconstruct it whole (kind + tokens + citations)
   // rather than smearing its text into another block. Session-scoped by design —
@@ -3549,13 +3588,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 // block opens the one block-acts menu (the same definition
                 // the right-click renders), Update tier expanded.
                 hasBlockSelection={!!selection?.blockId && !!selection?.blockKind}
-                onUpdateBlock={openUpdateForSelection}
-                onAddArrangement={handleAddArrangement}
-                onApplyArrangement={handleApplyArrangement}
+                onUpdateBlock={openUpdateDoor}
                 planning={planning}
-                carriedCount={carriedCount}
-                groupCount={groupCount}
-                currentArrange={selection?.arrange ?? null}
                 hasPageAnchor={
                   !!selection &&
                   (selection.blockId != null ||
@@ -3804,6 +3838,44 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               {/* ADR-462: the canvas right-click menu. Fixed-positioned at the
                   page-mapped anchor, so it renders beside the canvas rather
                   than inside the iframe (chrome never enters the artifact). */}
+              {/* ADR-589 — the Update door. Rail = the selection ladder, pane =
+                  that rung's acts. `document` is always the top rung, so the
+                  artifact's typography/palette/design-system have an entrance
+                  for the first time. */}
+              {updateMenu && (
+                <StudioUpdateMenu
+                  x={updateMenu.x}
+                  y={updateMenu.y}
+                  selection={selection}
+                  scope={scopeOf(
+                    unify(selection, rangeBlockIds, groupIds),
+                    resolvedMode === 'paged' ? 'paged' : 'flow',
+                    selection?.tier ?? null,
+                  )}
+                  // The container rung comes from the SLOT the runtime already
+                  // reports (ADR-511 D3's region). The surface holds no parsed
+                  // DOM, and deriving a second chain here would be a second
+                  // answer to what `climbChain` already answers in the pane.
+                  ancestors={
+                    selection?.slot && selection?.blockId
+                      ? [{ blockId: selection.blockId, label: selection.slot }]
+                      : []
+                  }
+                  mode={resolvedMode === 'paged' ? 'paged' : 'flow'}
+                  pageNoun={template === 'deck' ? 'slide' : 'section'}
+                  artifactLabel={artifactDisplayName}
+                  setCount={unify(selection, rangeBlockIds, groupIds).set.length}
+                  arrangements={vocabulary?.arrangements?.[template] ?? []}
+                  currentArrange={selection?.arrange ?? null}
+                  carriedCount={carriedCount}
+                  groupCount={groupCount}
+                  onApplyArrangement={handleApplyArrangement}
+                  onRetarget={retargetToRung}
+                  onBlockActs={openBlockActs}
+                  onOpenPane={(sc: PaneScope) => { void sc; setRightTab('design'); }}
+                  onClose={() => setUpdateMenu(null)}
+                />
+              )}
               {ctxMenu && (
                 <StudioBlockMenu
                   target={ctxMenu}

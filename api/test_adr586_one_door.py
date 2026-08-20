@@ -156,12 +156,17 @@ t("the sheet is a HOUSING, not a second list (one rail/gallery pair, class fork 
 
 print("=== 6. D6 — Update goes contextual ===")
 
-t("the toolbar Update forks on the selection's grain (block → the one menu)",
-  "hasBlockSelection && onUpdateBlock" in TOOLBAR_NC
-  and "onUpdateBlock({ x: r.left, y: r.bottom + 4 })" in TOOLBAR_NC)
-t("the surface synthesizes the target from the LIVE selection",
-  "const openUpdateForSelection = useCallback" in SURFACE_NC
-  and "blockId: sel.blockId" in SURFACE_NC.split("openUpdateForSelection")[1][:900])
+# ADR-589 SUPERSEDES the fork these two checks pinned. D6's claim — Update's
+# contents follow the selection GRAIN — survives and is fulfilled more fully:
+# the toolbar opens ONE door whose rail is the selection ladder, and the door
+# routes the object rung to this same block-acts menu. Pinning the fork's
+# mechanism would read that completion as a violation.
+t("the toolbar Update opens ONE door, ungated by selection (ADR-589 D1/D3)",
+  "onUpdateBlock({ x: r.left, y: r.bottom + 4 })" in TOOLBAR_NC
+  and "hasBlockSelection && onUpdateBlock" not in TOOLBAR_NC)
+t("the surface still synthesizes the block target from the LIVE selection",
+  "const openBlockActs = useCallback" in SURFACE_NC
+  and "blockId: sel.blockId" in SURFACE_NC.split("openBlockActs")[1][:900])
 t("the one menu opens with its Update tier expanded (a door opens its verb's contents)",
   "useState(initialOpen === 'update')" in BLOCKMENU_NC
   and "initialOpen={ctxInitialOpen ?? undefined}" in SURFACE_NC)
