@@ -55,6 +55,13 @@ export const HEADING_SCALE = {
 export const FACE = {
   serif: 'var(--font-serif)',
   mono: 'var(--font-mono)',
+  /**
+   * The UI face — for CHROME the canvas draws over the document (ADR-590 D3's
+   * diagram edit control, a code fence's language label). Never for content:
+   * a document is set in `serif`, and anything wearing `ui` is by construction
+   * an affordance rather than part of the file.
+   */
+  ui: 'var(--font-sans)',
   /** Body measure and rhythm, shared by canvas and reader. */
   measure: '46rem',
   lineHeight: '1.75',

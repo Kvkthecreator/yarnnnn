@@ -32,6 +32,13 @@
      resolve to the SAME stack by construction rather than by coincidence. */
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* The UI face, added by ADR-590 D3 for the CHROME the Text canvas draws over
+     a document (a diagram's edit control, a code fence's language label).
+     Declared here for the same reason the two above are: `FACE.ui` would
+     otherwise read a var that resolves nowhere, and the inline fallback would
+     win silently — the exact defect this block records. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;

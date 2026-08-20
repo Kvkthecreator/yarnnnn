@@ -19,6 +19,9 @@ const config: Config = {
         // (the canvas vs. the print sheet and the landing thumbnail).
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        // ADR-590 D3 — mapped for the same reason as the two above: one stack,
+        // whether reached as `font-sans` or as `var(--font-sans)`.
+        sans: ["var(--font-sans)"],
       },
       colors: {
         background: "hsl(var(--background))",

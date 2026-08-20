@@ -658,12 +658,28 @@ different rows share no column box, so with a proportional face "Verse 1" and
 worked — the third attempt had to change the mechanism, not the CSS.
 
 The table range is now replaced by a real `<table>` built from the parsed rows,
-so alignment comes from the browser's own table layout. Putting the caret inside
-reveals the source rows for editing; leaving renders it again.
+so alignment comes from the browser's own table layout. ~~Putting the caret
+inside reveals the source rows for editing; leaving renders it again.~~
+
+> **⚠️ REVERSED by [ADR-590](ADR-590-the-rendered-face-is-the-editing-surface.md) D1**
+> (2026-08-20). The caret entering a table no longer reveals anything. D14.a had
+> already settled this for every mark — *"i don't want the hashtags visible"* —
+> and D15 shipped five decisions later without carrying the ruling into the one
+> construct it added, so **D13's reversed reveal rule survived in the one place
+> D14.a never reached**. It was not a considered exception; it was inherited
+> from the line-based attempt this decision replaced. The operator drove it:
+> *"the rendering is right, but when clicked on its the raw style and i want to
+> edit on the render style."* Cells are now editable in place (ADR-590 D2), so
+> there is nothing the source reveal was needed for.
 
 **A `WidgetType` is not a block model.** It is built FROM the source each
-update, holds no id, is never serialized, and nothing maps a cell back to a
-source position for writing. Delete the class and the file is unchanged — the
+update, holds no id, is never serialized, and ~~nothing maps a cell back to a
+source position for writing~~ — **that last clause is withdrawn by ADR-590 §2**:
+it was true of the code as written, but stated as though ADR-456 D1 required it.
+D1 constrains the document MODEL, not where keystrokes land, and reading it as a
+ban on writing back has now been caught three times in this app (D8, D13, and
+here). The test that actually separates a view from a block model is the one
+below, and an editable widget passes it unchanged. Delete the class and the file is unchanged — the
 same test every other decoration here passes, and the document is asserted
 byte-identical with a widget on screen (§16c).
 

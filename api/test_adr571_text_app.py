@@ -1695,6 +1695,7 @@ const { createRoot } = require(WEB + '/node_modules/react-dom/client');
 const { act } = React;
 const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
 const E = require(WEB + '/components/text/markdownEdits.ts');
+const CANVAS_SRC = fs.readFileSync(WEB + '/components/text/ProseCanvas.tsx', 'utf8');
 
 const DOC = '## Structure\n\n| Section | Idea |\n| --- | --- |\n'
   + '| Verse 1 | lists everything |\n| Final chorus | half the volume |\n\nafter\n';
@@ -1708,6 +1709,9 @@ const headers = [...host.querySelectorAll('.cm-mdTable th')].map((e) => e.textCo
 const body = [...host.querySelectorAll('.cm-mdTable tbody tr')].map((tr) =>
   [...tr.cells].map((c) => c.textContent));
 const resting = { table: q('table.cm-mdTable'), src: q('.cm-tableSource') };
+// ⭐ ADR-590 D1 REVERSES D15.b here. The caret entering a table used to swap
+// the grid for four `.cm-tableSource` lines; it now does NOTHING. Kept as a
+// reversed assertion rather than deleted, the convention D15.b itself set.
 const off = DOC.indexOf('| Verse 1') + 3;
 act(() => handle.reveal(off, off));
 const editing = { table: q('table.cm-mdTable'), src: q('.cm-tableSource') };
@@ -1728,9 +1732,24 @@ console.log(JSON.stringify({
   body_grid: body.length === 2 && body[0].length === 2
     && body[1][0] === 'Final chorus',
   delimiter_absent: !body.some((r) => r.join('').includes('---')),
-  // Caret in → source; caret out → rendered again.
-  editing_shows_source: editing.table === 0 && editing.src === 4,
+  // ⭐ ADR-590 D1 — REVERSED. Was `editing.table === 0 && editing.src === 4`
+  // ("caret in → source"). The rendered face does not break for the caret.
+  caret_does_not_reveal: editing.table === 1 && editing.src === 0,
   leaving_re_renders: back === 1,
+  // ⭐ ADR-590 D1 — the second rendering path is GONE from the app, not merely
+  // unreached: a class nothing emits is a class the next widget's author will
+  // wire back up.
+  // Anchored on the WIRED path, never a name: mount a canvas, put the caret
+  // inside the table, and require that NO line decoration replaced the grid.
+  // (A spelling check here matched its own explanatory comment — the trap this
+  // gate has paid for repeatedly.)
+  table_source_path_gone: editing.table === 1
+    && host.querySelectorAll('.cm-line[class*="ableSource"]').length === 0,
+  // ⭐ ADR-590 D2 — the cell IS the text field.
+  cells_editable: [...host.querySelectorAll('.cm-mdTable th, .cm-mdTable td')]
+    .every((c) => c.getAttribute('contenteditable') === 'plaintext-only'),
+  cells_addressed: [...host.querySelectorAll('.cm-mdTable td')]
+    .every((c) => c.dataset.row !== undefined && c.dataset.col !== undefined),
   doc_byte_identical: value === DOC,
   // The pick produces the same markdown a toolbar press would.
   pick_applies: picked.text === 'Hello\n\n> ',
@@ -1761,12 +1780,27 @@ check("16a2 its body is a real grid of <td> — this is what makes the columns "
       _d15.get("body_grid") is True, str(_d15)[:300])
 check("16a3 the `| --- |` delimiter row is not a body row",
       _d15.get("delimiter_absent") is True, str(_d15)[:300])
-check("16b putting the caret INSIDE a table reveals its source, so the rows "
-      "stay editable — a widget that stayed put while you typed behind it "
-      "would be a lie about the file",
-      _d15.get("editing_shows_source") is True, str(_d15)[:300])
-check("16b1 leaving the table renders it again",
+check("16b ⭐ ADR-590 D1 REVERSES D15.b — the caret entering a table does NOT "
+      "reveal its source. D14.a settled this for every mark ('i don\'t want "
+      "the hashtags visible'); D15 shipped the table five decisions later and "
+      "did not carry the ruling into it, so D13's reversed reveal rule "
+      "survived in the one place D14.a never reached. Was: `editing.table === "
+      "0 && editing.src === 4`",
+      _d15.get("caret_does_not_reveal") is True, str(_d15)[:300])
+check("16b1 leaving the table renders it again (unchanged — it never stopped)",
       _d15.get("leaving_re_renders") is True, str(_d15)[:300])
+check("16b2 ⭐ ADR-590 D1 — the source-revealing path is GONE, driven rather "
+      "than grepped: with the caret inside the table the grid still stands and "
+      "no line decoration replaced it. A second rendering path for one "
+      "construct is what the next widget's author wires back up",
+      _d15.get("table_source_path_gone") is True, str(_d15)[:300])
+check("16b3 ⭐ ADR-590 D2 — every rendered cell IS a text field "
+      "(contenteditable), which is the whole Notion property: you type into "
+      "the rendered thing because the rendered thing is the document",
+      _d15.get("cells_editable") is True, str(_d15)[:300])
+check("16b4 ⭐ ADR-590 D2 — each cell carries its row/col, so an edit knows "
+      "which source row to rewrite",
+      _d15.get("cells_addressed") is True, str(_d15)[:300])
 check("16c the document is BYTE-IDENTICAL with a widget on screen — the "
       "widget is built FROM the source each update and never written back, so "
       "ADR-456 D1 holds (delete the class and the file is unchanged)",

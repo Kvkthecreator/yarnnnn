@@ -56,7 +56,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { EditorState, RangeSetBuilder, StateField, type Extension } from '@codemirror/state';
+import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -283,12 +283,83 @@ const PROSE_THEME = EditorView.theme({
     fontWeight: TABLE.headerWeight,
     backgroundColor: 'var(--table-head, rgba(128,128,128,0.06))',
   },
-  // While the caret is inside a table its SOURCE is shown, so the rows read as
-  // what they are — the same "editing reveals the source" rule the marks obey.
-  '.cm-line.cm-tableSource': {
+  // ⭐ ADR-590 D2 — a cell is a text field, and it must LOOK like one when it
+  // has focus. Without this the member cannot tell which cell they are typing
+  // into, since the browser's default outline is suppressed inside the editor.
+  '.cm-mdTable th:focus, .cm-mdTable td:focus': {
+    outline: '2px solid var(--ring, rgba(80,120,255,0.55))',
+    outlineOffset: '-2px',
+    borderRadius: '2px',
+  },
+  // ── ADR-590 D3: the fences ──────────────────────────────────────────────
+  '.cm-mdDiagram': {
+    position: 'relative',
+    margin: '1em 0',
+    padding: '0.75em',
+    borderRadius: '6px',
+    border: '1px solid var(--border, rgba(128,128,128,0.25))',
+    backgroundColor: 'var(--table-tint, rgba(128,128,128,0.03))',
+    overflowX: 'auto',
+  },
+  '.cm-mdDiagramBody svg': { maxWidth: '100%', height: 'auto' },
+  '.cm-mdDiagramRaw': {
+    fontFamily: FACE.mono,
+    fontSize: FACE.codeSize,
+    whiteSpace: 'pre-wrap',
+    margin: '0',
+  },
+  // The edit affordance — the DECLARED gesture that reaches a diagram's
+  // source. Quiet until the diagram is hovered, so it does not compete with
+  // the picture it sits on.
+  '.cm-mdDiagramEdit': {
+    position: 'absolute',
+    top: '6px',
+    right: '6px',
+    padding: '2px 8px',
+    fontFamily: FACE.ui,
+    fontSize: '11px',
+    lineHeight: '1.6',
+    color: 'var(--muted-foreground, #666)',
+    backgroundColor: 'var(--background, #fff)',
+    border: '1px solid var(--border, rgba(128,128,128,0.3))',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    opacity: '0',
+    transition: 'opacity 120ms',
+  },
+  '.cm-mdDiagram:hover .cm-mdDiagramEdit, .cm-mdDiagramEdit:focus': { opacity: '1' },
+  // A mermaid fence the member OPENED reads as source, deliberately — this is
+  // the one place source is meant to be visible, and it should look like it.
+  '.cm-line.cm-mdFenceOpen': {
     fontFamily: FACE.mono,
     fontSize: FACE.codeSize,
     backgroundColor: 'var(--table-tint, rgba(128,128,128,0.045))',
+  },
+  // A code fence: one block, mono, with the language as a small label where
+  // the ```lang line used to read.
+  '.cm-line.cm-mdCode': {
+    fontFamily: FACE.mono,
+    fontSize: FACE.codeSize,
+    backgroundColor: 'var(--table-tint, rgba(128,128,128,0.045))',
+    paddingLeft: '0.75em',
+    paddingRight: '0.75em',
+  },
+  '.cm-line.cm-mdCodeFirst': {
+    borderTopLeftRadius: '6px',
+    borderTopRightRadius: '6px',
+    paddingTop: '0.4em',
+  },
+  '.cm-line.cm-mdCodeLast': {
+    borderBottomLeftRadius: '6px',
+    borderBottomRightRadius: '6px',
+    paddingBottom: '0.4em',
+  },
+  '.cm-mdCodeLang': {
+    fontFamily: FACE.ui,
+    fontSize: '10px',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: 'var(--muted-foreground, #888)',
   },
 });
 /**
@@ -462,6 +533,12 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
         // rendering; this plugin stays out of them.
         if (node.name === 'Table') return false;
 
+        // Same reason for a fenced block (ADR-590 D3): a mermaid fence is
+        // REPLACED wholesale by the diagram widget, and a code fence has its
+        // own line treatment — an inline mark inside either has nothing to
+        // attach to. Fences own their own rendering; this plugin stays out.
+        if (node.name === 'FencedCode') return false;
+
         // ⭐ ADR-575 D9 — a blockquote is a SET-ASIDE, not italics.
         //
         // The `>` is hidden (it is in HIDDEN_MARKS), and the only remaining
@@ -605,9 +682,11 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
 const tableField = StateField.define<DecorationSet>({
   create: (state) => buildTableDecorations(state),
   update(deco, tr) {
-    // The caret moving in or out of a table swaps the widget for its source,
-    // so a pure selection change must recompute too.
-    if (!tr.docChanged && !tr.selection) return deco.map(tr.changes);
+    // ⭐ ADR-590 D1 — the table no longer depends on the SELECTION at all: it
+    // renders whether or not the caret is in it, so only a document change can
+    // change the decorations. (Before D1 a bare selection change had to
+    // recompute, because it swapped the grid for raw source.)
+    if (!tr.docChanged) return deco.map(tr.changes);
     return buildTableDecorations(tr.state);
   },
   provide: (f) => EditorView.decorations.from(f),
@@ -643,18 +722,103 @@ const tableField = StateField.define<DecorationSet>({
  * this class and the file is unchanged, which is the same test every other
  * decoration here passes.
  */
+/** One source row of a GFM table: its line number, and its cells. */
+interface TableRow {
+  /** 1-based line number in the document — the row an edit rewrites. */
+  line: number;
+  cells: string[];
+}
+
+/**
+ * Escape a cell's text for a GFM table cell (ADR-590 D2).
+ *
+ * A cell is one line by construction, so a pasted newline becomes a space
+ * rather than silently breaking the table into prose. A literal `|` must be
+ * escaped or it reads as a column boundary on the way back in — the round-trip
+ * property `splitRow` already honours in the other direction.
+ */
+function escapeCell(text: string): string {
+  return text.replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim();
+}
+
+/**
+ * Re-emit a whole GFM table from its rows (ADR-590 D2).
+ *
+ * The WHOLE table is rewritten on every cell commit, never a per-cell splice:
+ * a table's rows are interdependent (the delimiter row must match the column
+ * count), so a character-grained diff would have to reason about machinery the
+ * member never edits. Re-emitting is one obviously-correct operation.
+ */
+function serializeTable(rows: TableRow[]): string {
+  const [head, ...body] = rows;
+  if (!head) return '';
+  const width = head.cells.length;
+  const line = (cells: string[]) => {
+    const padded = Array.from({ length: width }, (_, i) => cells[i] ?? '');
+    return `| ${padded.join(' | ')} |`;
+  };
+  return [
+    line(head.cells),
+    `| ${Array.from({ length: width }, () => '---').join(' | ')} |`,
+    ...body.map((r) => line(r.cells)),
+  ].join('\n');
+}
+
+/**
+ * A real `<table>` painted over the source rows, whose cells are the text
+ * fields (ADR-572 D15.b + ADR-590 D2).
+ *
+ * ## Why an editable widget is still not a block model
+ *
+ * The docstring this replaces said *"nothing maps a cell back to a source
+ * position for writing"* — true of that code, but written as though ADR-456 D1
+ * required it. **It does not**, and ADR-590 §2 records this as the THIRD time
+ * that misreading has been caught in this app (ADR-572 D8 and D13 are the
+ * other two). D1 constrains the document MODEL — a persisted tree of
+ * identified blocks — and says nothing about where keystrokes land.
+ *
+ * The test that separates a view from a block model is unchanged, and this
+ * passes it: the widget is built FROM the source each update, holds no id, is
+ * never serialized, and the document stays the plain `.md`. An edit is not
+ * stored here and flushed later — it is dispatched immediately and comes back
+ * as a fresh render, so there is no second copy of the table at any instant.
+ * Delete this class and the file is unchanged.
+ */
 class TableWidget extends WidgetType {
   constructor(
-    private readonly rows: string[][],
+    private readonly rows: TableRow[],
     private readonly src: string,
+    /** Document offsets of the table's source range — an edit's write target. */
+    private readonly from: number,
+    private readonly to: number,
   ) {
     super();
   }
 
   // CodeMirror reuses a widget when `eq` says the content is unchanged, so
-  // comparing the SOURCE keeps the DOM stable while the member types elsewhere.
+  // comparing the SOURCE keeps the DOM — and the caret inside a cell being
+  // typed into — stable while the member works elsewhere in the document.
   eq(other: TableWidget) {
-    return other.src === this.src;
+    return other.src === this.src && other.from === this.from;
+  }
+
+  /**
+   * Commit one cell: re-emit the table with that cell replaced, and dispatch
+   * the change over the table's own range.
+   *
+   * Returns false when nothing changed, so an ordinary blur (tabbing through,
+   * clicking away) does not push an empty transaction onto the undo stack.
+   */
+  private commit(view: EditorView, row: number, col: number, text: string): boolean {
+    const next = escapeCell(text);
+    if (this.rows[row]?.cells[col] === next) return false;
+    const rows = this.rows.map((r, i) =>
+      i === row ? { ...r, cells: r.cells.map((c, j) => (j === col ? next : c)) } : r,
+    );
+    view.dispatch({
+      changes: { from: this.from, to: this.to, insert: serializeTable(rows) },
+    });
+    return true;
   }
 
   toDOM(view: EditorView) {
@@ -666,33 +830,100 @@ class TableWidget extends WidgetType {
     wrap.className = 'cm-mdTableWrap';
     const table = document.createElement('table');
     table.className = 'cm-mdTable';
+
+    /** Every cell in visual order, so Tab can walk them. */
+    const cells: HTMLElement[] = [];
+
+    const mkCell = (el: HTMLElement, row: number, col: number, text: string) => {
+      el.textContent = text;
+      // ⭐ ADR-590 D2 — the cell IS the text field. `plaintext-only` keeps a
+      // paste from carrying markup into a construct that can only hold text.
+      //
+      // `setAttribute`, not the `contentEditable` PROPERTY: the property
+      // setter is a no-op in jsdom (it does not reflect to the attribute and
+      // `isContentEditable` reads `undefined`), so the gate that mounts this
+      // canvas could never observe the one thing D2 is about. The attribute is
+      // what the browser reads either way — this is the portable spelling, not
+      // a concession to the test.
+      el.setAttribute('contenteditable', 'plaintext-only');
+      el.spellcheck = true;
+      el.dataset.row = String(row);
+      el.dataset.col = String(col);
+      cells.push(el);
+
+      el.addEventListener('blur', () => {
+        this.commit(view, row, col, el.textContent ?? '');
+      });
+
+      el.addEventListener('keydown', (e: KeyboardEvent) => {
+        // These keys belong to the table while a cell has focus. CodeMirror's
+        // own keymap does not reach inside a widget's DOM, so the widget owns
+        // them or nothing does.
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          el.textContent = this.rows[row]?.cells[col] ?? '';
+          el.blur();
+          view.focus();
+          return;
+        }
+        if (e.key === 'Tab' || e.key === 'Enter') {
+          e.preventDefault();
+          const i = cells.indexOf(el);
+          // Enter moves DOWN a row (the spreadsheet reflex); Tab moves across.
+          const width = this.rows[0]?.cells.length ?? 1;
+          const step = e.key === 'Enter' ? width : 1;
+          const target = cells[e.shiftKey ? i - step : i + step];
+          // Commit FIRST: the dispatch re-renders the widget, so the node we
+          // hand focus to must be located after that by its row/col address,
+          // never by a reference into the DOM the render replaced.
+          const changed = this.commit(view, row, col, el.textContent ?? '');
+          if (!target) return;
+          if (!changed) {
+            target.focus();
+            return;
+          }
+          const r = target.dataset.row;
+          const c = target.dataset.col;
+          requestAnimationFrame(() => {
+            view.dom
+              .querySelector<HTMLElement>(`.cm-mdTable [data-row="${r}"][data-col="${c}"]`)
+              ?.focus();
+          });
+        }
+      });
+    };
+
     const [head, ...body] = this.rows;
     if (head) {
       const thead = table.createTHead();
       const tr = thead.insertRow();
-      for (const cell of head) {
+      head.cells.forEach((cell, col) => {
         const th = document.createElement('th');
-        th.textContent = cell;
+        mkCell(th, 0, col, cell);
         tr.appendChild(th);
-      }
+      });
     }
     const tbody = table.createTBody();
-    for (const row of body) {
+    body.forEach((row, i) => {
       const tr = tbody.insertRow();
-      for (const cell of row) {
-        const td = tr.insertCell();
-        td.textContent = cell;
-      }
-    }
+      row.cells.forEach((cell, col) => {
+        mkCell(tr.insertCell(), i + 1, col, cell);
+      });
+    });
     wrap.appendChild(table);
     return wrap;
   }
 
-  // The member must be able to click INTO the table to edit its source, so the
-  // widget does not swallow events — CodeMirror maps the click to a position
-  // and the cursor lands in the row, which un-hides it via `editing` below.
+  /**
+   * The widget handles its OWN events (ADR-590 D2).
+   *
+   * Returning true keeps CodeMirror from mapping a click inside a cell to a
+   * document position — which would move the caret into the source behind the
+   * table and, before D1, swapped the whole grid for raw pipes. The cells are
+   * `contenteditable`, so the browser gives them a caret directly.
+   */
   ignoreEvent() {
-    return false;
+    return true;
   }
 }
 
@@ -717,7 +948,6 @@ const DELIMITER_RE = /^\s*\|?[\s:|-]*\|[\s:|-]*$/;
 function buildTableDecorations(state: EditorState): DecorationSet {
   const doc = state.doc;
   const out: Array<{ from: number; to: number; deco: Decoration }> = [];
-  const caret = state.selection.main;
 
   {
     // A StateField has no viewport, so the whole tree is walked. Tables are
@@ -729,37 +959,35 @@ function buildTableDecorations(state: EditorState): DecorationSet {
         const start = doc.lineAt(node.from);
         const end = doc.lineAt(node.to);
 
-        // EDITING: the caret (or a selection) is inside this table, so the
-        // member is working on its source — show the raw rows. A widget that
-        // stayed put while you typed behind it would be a lie about the file.
-        const editing = caret.from <= end.to && caret.to >= start.from;
-        if (editing) {
-          for (let n = start.number; n <= end.number; n++) {
-            const line = doc.line(n);
-            out.push({
-              from: line.from,
-              to: line.from,
-              deco: Decoration.line({ class: 'cm-tableSource' }),
-            });
-          }
-          return;
-        }
-
-        // RESTING: replace the whole range with a real <table>. One element
-        // spanning every row is the only way columns can align — which is what
-        // the two line-based attempts could never do.
-        const rows: string[][] = [];
+        // ⭐ ADR-590 D1 — there is no editing branch. A table renders, and the
+        // caret arriving does NOT hand back raw pipes. The source-revealing
+        // path that used to live here is DELETED, not conditioned: a second
+        // rendering of one construct, reachable by an ordinary click, is the
+        // dual-approach shape, and it was D13's reversed reveal rule surviving
+        // in the one place D14.a never reached.
+        //
+        // Replace the whole range with a real <table>. One element spanning
+        // every row is the only way columns can align — what the two
+        // line-based attempts could never do (D15.b).
+        //
+        // `rows` carries each cell's SOURCE LINE NUMBER so an edit knows which
+        // row to rewrite; the delimiter row is dropped from the grid, because
+        // rewriting the table re-emits it from the column count.
+        const rows: TableRow[] = [];
         for (let n = start.number; n <= end.number; n++) {
           const text = doc.line(n).text;
           if (DELIMITER_RE.test(text) && text.includes('-')) continue;
-          rows.push(splitRow(text));
+          rows.push({ line: n, cells: splitRow(text) });
         }
         if (rows.length === 0) return;
         const src = doc.sliceString(start.from, end.to);
         out.push({
           from: start.from,
           to: end.to,
-          deco: Decoration.replace({ widget: new TableWidget(rows, src), block: true }),
+          deco: Decoration.replace({
+            widget: new TableWidget(rows, src, start.from, end.to),
+            block: true,
+          }),
         });
       },
     });
@@ -770,6 +998,245 @@ function buildTableDecorations(state: EditorState): DecorationSet {
   for (const r of out) b.add(r.from, r.to, r.deco);
   return b.finish();
 }
+
+/**
+ * ⭐ ADR-590 D3 — the fences render as themselves.
+ *
+ * Before this, the canvas rendered NO fence at all: a ```mermaid block was
+ * three backticks, the word "mermaid", and a graph definition, all set in the
+ * reading face's serif body copy. The operator's screenshot shows exactly that
+ * — a diagram reading as broken prose, because nothing claimed it.
+ *
+ * ## The two fences are different, and only one is an exception to D1
+ *
+ * A CODE fence's content IS its source: editing the code and editing the
+ * markdown are the same act. So it renders as a highlighted block that is
+ * still ordinary editable text underneath — no reveal is needed, and D1 holds
+ * with nothing special done.
+ *
+ * A MERMAID fence's source is a DIFFERENT LANGUAGE from its picture, and no
+ * in-place gesture edits a rendered graph. It is the one genuine exception in
+ * ADR-590 — and it is an exception to HOW the source is reached, never to
+ * whether the caret reaches it. The diagram carries an explicit edit
+ * affordance; caret entry still does nothing. D1 bans the INCIDENTAL gesture
+ * (clicking where you meant to read), not a control the member pressed.
+ */
+const revealFence = StateEffect.define<number>();
+const collapseFence = StateEffect.define<number>();
+
+/** Line numbers of mermaid fences the member has opened for editing (D3). */
+const revealedFences = StateField.define<Set<number>>({
+  create: () => new Set(),
+  update(set, tr) {
+    let next = set;
+    for (const e of tr.effects) {
+      if (e.is(revealFence)) {
+        next = new Set(next);
+        next.add(e.value);
+      } else if (e.is(collapseFence)) {
+        next = new Set(next);
+        next.delete(e.value);
+      }
+    }
+    // A revealed fence is keyed by the line its ``` opens on. A document edit
+    // can move that line, so the set is remapped rather than silently pointing
+    // at whatever now occupies the old number.
+    if (tr.docChanged && next.size) {
+      const moved = new Set<number>();
+      // `forEach` rather than `for…of`: the build target predates downlevel
+      // Set iteration, and this is the codebase's idiom for it.
+      next.forEach((line) => {
+        const oldDoc = tr.startState.doc;
+        if (line < 1 || line > oldDoc.lines) return;
+        const pos = tr.changes.mapPos(oldDoc.line(line).from, 1);
+        moved.add(tr.state.doc.lineAt(pos).number);
+      });
+      next = moved;
+    }
+    return next;
+  },
+});
+
+/**
+ * A rendered mermaid diagram (D3).
+ *
+ * The SVG is produced by the same `mermaid` module the workspace's one
+ * `MarkdownRenderer` uses — dynamically imported, so a document with no
+ * diagram never pays for the bundle. Rendering is async and the widget's DOM
+ * is returned synchronously, so the node is filled in when the promise
+ * settles; a failed parse shows the source rather than an empty box, because a
+ * blank space where a diagram should be reads as a bug in the document.
+ */
+class MermaidWidget extends WidgetType {
+  constructor(
+    private readonly code: string,
+    /** Line the fence opens on — the key an edit affordance reveals. */
+    private readonly line: number,
+  ) {
+    super();
+  }
+
+  eq(other: MermaidWidget) {
+    return other.code === this.code && other.line === this.line;
+  }
+
+  toDOM(view: EditorView) {
+    const document = view.dom.ownerDocument;
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-mdDiagram';
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'cm-mdDiagramEdit';
+    edit.textContent = 'Edit diagram';
+    // ⭐ D3 — the DECLARED gesture. Caret entry does nothing; this does.
+    edit.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      view.dispatch({ effects: revealFence.of(this.line) });
+    });
+    wrap.appendChild(edit);
+
+    const host = document.createElement('div');
+    host.className = 'cm-mdDiagramBody';
+    wrap.appendChild(host);
+
+    void (async () => {
+      try {
+        const mermaid = (await import('mermaid')).default;
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
+        const id = `cm-mermaid-${Math.random().toString(36).slice(2, 9)}`;
+        const { svg } = await mermaid.render(id, this.code);
+        host.innerHTML = svg;
+      } catch {
+        // A diagram that will not parse shows its SOURCE. The member is
+        // mid-edit on a graph definition far more often than they are looking
+        // at a broken one, and an empty box tells them nothing.
+        const pre = document.createElement('pre');
+        pre.className = 'cm-mdDiagramRaw';
+        pre.textContent = this.code;
+        host.appendChild(pre);
+      }
+    })();
+
+    return wrap;
+  }
+
+  ignoreEvent() {
+    // The edit button is the widget's own; a click anywhere else must not map
+    // to a document position behind the diagram.
+    return true;
+  }
+}
+
+function buildFenceDecorations(state: EditorState): DecorationSet {
+  const doc = state.doc;
+  const revealed = state.field(revealedFences);
+  const out: Array<{ from: number; to: number; deco: Decoration }> = [];
+
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.name !== 'FencedCode') return;
+      const openLine = doc.lineAt(node.from).number;
+      const endLine = doc.lineAt(node.to).number;
+
+      let info = '';
+      let body: { from: number; to: number } | null = null;
+      const cur = node.node.cursor();
+      if (cur.firstChild()) {
+        do {
+          if (cur.name === 'CodeInfo') info = doc.sliceString(cur.from, cur.to).trim();
+          else if (cur.name === 'CodeText') body = { from: cur.from, to: cur.to };
+        } while (cur.nextSibling());
+      }
+
+      // ── A MERMAID fence: the diagram, unless the member opened it. ──
+      if (info.toLowerCase() === 'mermaid') {
+        if (revealed.has(openLine)) {
+          // Opened for editing: the raw fence, marked so the theme can set it
+          // in mono and show it is open.
+          for (let n = openLine; n <= endLine; n++) {
+            const l = doc.line(n);
+            out.push({ from: l.from, to: l.from, deco: Decoration.line({ class: 'cm-mdFenceOpen' }) });
+          }
+          return false;
+        }
+        const code = body ? doc.sliceString(body.from, body.to) : '';
+        if (!code.trim()) return false; // an empty fence is still being typed
+        out.push({
+          from: node.from,
+          to: node.to,
+          deco: Decoration.replace({ widget: new MermaidWidget(code, openLine), block: true }),
+        });
+        return false;
+      }
+
+      // ── A CODE fence: a styled block whose text stays editable. ──
+      // No widget and no replace: the content IS the source (D3), so the
+      // lines are simply given a face. The ``` marks and the language are
+      // hidden the way every other mark is, leaving the code and its label.
+      for (let n = openLine; n <= endLine; n++) {
+        const l = doc.line(n);
+        const first = n === openLine;
+        const last = n === endLine;
+        out.push({
+          from: l.from,
+          to: l.from,
+          deco: Decoration.line({
+            class:
+              'cm-mdCode' +
+              (first ? ' cm-mdCodeFirst' : '') +
+              (last ? ' cm-mdCodeLast' : ''),
+          }),
+        });
+      }
+      // The fence lines themselves carry no content the member should read.
+      const openL = doc.line(openLine);
+      const closeL = doc.line(endLine);
+      if (info) {
+        // Keep the language visible as a small label rather than as ```lang.
+        out.push({
+          from: openL.from,
+          to: openL.to,
+          deco: Decoration.replace({ widget: new CodeLabelWidget(info) }),
+        });
+      } else if (openL.to > openL.from) {
+        out.push({ from: openL.from, to: openL.to, deco: Decoration.replace({}) });
+      }
+      if (endLine !== openLine && closeL.to > closeL.from) {
+        out.push({ from: closeL.from, to: closeL.to, deco: Decoration.replace({}) });
+      }
+      return false;
+    },
+  });
+
+  out.sort((a, b2) => a.from - b2.from || a.to - b2.to);
+  const b = new RangeSetBuilder<Decoration>();
+  for (const r of out) b.add(r.from, r.to, r.deco);
+  return b.finish();
+}
+
+/** The language label drawn where ```lang used to read (D3). */
+class CodeLabelWidget extends WidgetType {
+  constructor(private readonly lang: string) { super(); }
+  eq(other: CodeLabelWidget) { return other.lang === this.lang; }
+  toDOM(view: EditorView) {
+    const s = view.dom.ownerDocument.createElement('span');
+    s.className = 'cm-mdCodeLang';
+    s.textContent = this.lang;
+    return s;
+  }
+  ignoreEvent() { return false; }
+}
+
+const fenceField = StateField.define<DecorationSet>({
+  create: (state) => buildFenceDecorations(state),
+  update(deco, tr) {
+    const toggled = tr.effects.some((e) => e.is(revealFence) || e.is(collapseFence));
+    if (!tr.docChanged && !toggled) return deco.map(tr.changes);
+    return buildFenceDecorations(tr.state);
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
 
 export interface ProseCanvasHandle {
   /** [from, to) of the current selection, in source offsets. */
@@ -884,6 +1351,11 @@ export function ProseCanvas({
       // Renders tables as real <table> elements (D15) — a StateField, because
       // CodeMirror forbids block decorations from a plugin.
       tableField,
+      // ⭐ ADR-590 D3 — the fences render as themselves: a mermaid diagram, a
+      // code block with its language. Also a StateField, for the same reason
+      // the table is one (block decorations may not come from a plugin).
+      revealedFences,
+      fenceField,
       PROSE_THEME,
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
