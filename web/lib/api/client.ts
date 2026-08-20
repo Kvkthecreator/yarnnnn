@@ -2581,7 +2581,6 @@ export const api = {
         tasks: number;
         chat_sessions: number;
         platform_connections: number;
-        platform_context_files: number;
         agent_runs: number;
         // ADR-194 Reviewer queue — pending proposals surfaced for L2/L4 confirmation copy
         action_proposals: number;
@@ -2602,11 +2601,9 @@ export const api = {
         { method: "DELETE" }
       ),
 
-    clearIntegrations: () =>
-      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/integrations",
-        { method: "DELETE" }
-      ),
+    // ADR-425 §2 (2026-08-20) — `clearIntegrations` is DELETED with the bulk
+    // /api/account/integrations endpoint. Disconnecting is per-connector
+    // (api.integrations.disconnect), the path that owns its own teardown.
 
     resetAccount: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(

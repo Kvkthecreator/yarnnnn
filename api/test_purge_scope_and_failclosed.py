@@ -114,10 +114,31 @@ def run() -> int:
         n for n in _ast.walk(_ast.parse(acct))
         if isinstance(n, _ast.Call) and getattr(n.func, "id", None) == "_resolve_or_deny"
     ]
+    # Anchored to the ROUTES, not to a count. `>= 3` was the size of the roster
+    # the day this was written; deleting clear_integrations (ADR-425 §2) made a
+    # correct change read as a regression. What matters is that EVERY
+    # destructive route resolves through the fail-closed wrapper — so name them
+    # and check each, and let an unlisted new one be caught by the sibling gate
+    # (test_adr548_purge_honors_binding, which asserts its own list is current).
+    _tree = _ast.parse(acct)
+    _destructive = ("clear_work_history", "clear_workspace")
+    _covered = []
+    for _fn in _ast.walk(_tree):
+        if not isinstance(_fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            continue
+        if _fn.name not in _destructive:
+            continue
+        if any(
+            getattr(n.func, "id", None) == "_resolve_or_deny"
+            for n in _ast.walk(_fn) if isinstance(n, _ast.Call)
+        ):
+            _covered.append(_fn.name)
     record(
         "the destructive paths route through the fail-closed resolver",
-        "def _resolve_or_deny(" in acct and len(_calls) >= 3,
-        f"_resolve_or_deny call sites: {len(_calls)}",
+        "def _resolve_or_deny(" in acct
+        and sorted(_covered) == sorted(_destructive),
+        f"covered: {sorted(_covered)} of {sorted(_destructive)} "
+        f"(total _resolve_or_deny call sites: {len(_calls)})",
     )
     stats_i = acct.index("def get_danger_zone_stats")
     record(

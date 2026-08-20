@@ -281,16 +281,35 @@ def test_purge_preview_and_l3_workspace_scoped():
     # Assert the CALL, not one spelling of its arguments.
     assert "resolve_purge_workspace(" in window
     assert "_purge_scope(" in window
-    # The residual helpers thread workspace_id.
-    assert "def _count_workspace_paths(\n    client, user_id: str, path_prefix: str, workspace_id" in src
-    assert "def _delete_workspace_file_versions_by_path(\n    client, user_id: str, path_prefix: str, workspace_id" in src
-    # The L3 sweep must be WORKSPACE-scoped. Match the resolution either way it
-    # is spelled — directly, or via `_resolve_or_deny` (the destructive-path
-    # wrapper that turns a resolution FAILURE into a refusal instead of into
-    # "N=1, allow"). Pinning one spelling reads the hardening as a regression.
-    l3 = src.index("async def clear_integrations")
-    l3_window = src[l3: l3 + 3000]
-    assert "resolve_purge_workspace" in l3_window or "_resolve_or_deny" in l3_window
+
+    # Re-anchored 2026-08-20 (ADR-425 §2): the L3 half of this test is GONE
+    # with the thing it tested. `clear_integrations` and its two path helpers
+    # (`_count_workspace_paths`, `_delete_workspace_file_versions_by_path`)
+    # were deleted — they counted and wiped
+    # /workspace/context/{slack,notion,github}/, a path with ZERO writers and 0
+    # rows in prod, under the ADR-158 teardown model that ADR-582 D2 replaced.
+    # Disconnect is per-connector now. Asserting their signatures would pin
+    # machinery whose absence is the correct state.
+    #
+    # What survives is the PROPERTY: every destructive route still resolves its
+    # scope through the fail-closed resolver, and passes its request binding.
+    # That is asserted directly (and falsifiably) in
+    # test_adr548_purge_honors_binding.py, which also fails loudly if this list
+    # of routes goes stale.
+    # Check CODE, not comments — account.py documents WHY these were removed,
+    # and a bare substring search matches that explanation, failing on the
+    # correct state. Compare the parsed definitions instead.
+    import ast as _ast
+    _defined = {
+        n.name for n in _ast.walk(_ast.parse(src))
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+    }
+    assert "clear_integrations" not in _defined, (
+        "clear_integrations was deleted (ADR-425 §2); if it is back, the "
+        "bulk-disconnect duplicate needs its scoping re-argued, not restored"
+    )
+    for helper in ("_count_workspace_paths", "_delete_workspace_file_versions_by_path"):
+        assert helper not in _defined, f"{helper} served only the deleted L3 path"
 
 
 def test_principal_roster_binding_aware():

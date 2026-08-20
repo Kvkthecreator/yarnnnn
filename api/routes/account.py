@@ -74,10 +74,6 @@ class DangerZoneStats(BaseModel):
     tasks: int
     chat_sessions: int
     platform_connections: int
-    # Count of workspace_files under /workspace/context/{slack,notion,github}/
-    # (ADR-158: platform-bot owned context). Replaces the old platform_content
-    # field which was a dropped table (ADR-153).
-    platform_context_files: int
     # ADR-166 / Phase 3: count of past task runs (work history). Sum of
     # `agent_runs` rows. Drives the L1 "Clear Work History" card stats.
     agent_runs: int
@@ -112,28 +108,6 @@ def _count_rows(client, table: str, user_id: str, *, user_column: str = "user_id
         if optional:
             return 0
         raise
-
-
-def _count_workspace_paths(
-    client, user_id: str, path_prefix: str, workspace_id: Optional[str] = None
-) -> int:
-    """Count workspace_files rows matching a path prefix.
-
-    ADR-501: workspace-scoped (ADR-476 D1) — the preview must count what the
-    workspace-scoped purge will delete, not only the caller's own rows."""
-    try:
-        result = (
-            _purge_scope(
-                client.table("workspace_files").select("*", count="exact"),
-                user_id,
-                workspace_id,
-            )
-            .like("path", f"{path_prefix}%")
-            .execute()
-        )
-        return result.count or 0
-    except Exception:
-        return 0
 
 
 def _resolve_or_deny(user_id: str, workspace_id: Optional[str] = None) -> Optional[str]:
@@ -209,48 +183,6 @@ def _count_workspace_pattern(
 # above). Still used by L4/L5 via that import.
 
 
-def _delete_workspace_file_versions_by_path(
-    client, user_id: str, path_prefix: str, workspace_id: Optional[str] = None
-) -> int:
-    """Delete workspace_file_versions rows under a path prefix. The revision
-    chain is workspace-keyed (ADR-373; `(user_id, path)` is the N=1 fallback)
-    — path-based scoping within the workspace is the delete criterion. Used by
-    L3 (platform disconnect) so that disconnecting a platform also wipes the
-    Authored Substrate revision chain under the platform-owned context
-    directory.
-
-    ADR-501: workspace-scoped via _purge_scope — a member's revisions under
-    the platform directory are part of the workspace's chain and must go with
-    it, and the count must match the delete."""
-    try:
-        count_result = (
-            _purge_scope(
-                client.table("workspace_file_versions").select("*", count="exact"),
-                user_id,
-                workspace_id,
-            )
-            .like("path", f"{path_prefix}%")
-            .execute()
-        )
-        count = count_result.count or 0
-        if count > 0:
-            (
-                _purge_scope(
-                    client.table("workspace_file_versions").delete(),
-                    user_id,
-                    workspace_id,
-                )
-                .like("path", f"{path_prefix}%")
-                .execute()
-            )
-        return count
-    except Exception as e:
-        logger.warning(
-            f"[ACCOUNT] workspace_file_versions delete failed (prefix={path_prefix}): {e}"
-        )
-        return 0
-
-
 def _delete_workspace_pattern(
     client, user_id: str, like_pattern: str, workspace_id: Optional[str] = None
 ) -> int:
@@ -291,6 +223,14 @@ def _user_agent_ids(client, user_id: str, workspace_id: Optional[str] = None) ->
         return [r["id"] for r in (result.data or [])]
     except Exception:
         return []
+
+
+# ADR-425 §2 (2026-08-20) — `_count_workspace_paths` and
+# `_delete_workspace_file_versions_by_path` are DELETED with the L3 platform
+# disconnect that was their only caller. Both existed to count/wipe
+# /workspace/context/{slack,notion,github}/, a path with zero writers (0 rows
+# in prod). Connector raw lands in inbound/ and is deliberately KEPT on
+# disconnect (ADR-582 D2), so nothing replaces them.
 
 
 def _count_user_agent_runs(client, user_id: str, workspace_id: Optional[str] = None) -> int:
@@ -380,16 +320,6 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         chat_sessions = _count_ws("chat_sessions")
         platform_connections = _count_rows(client, "platform_connections", user_id)
 
-        # ADR-158: count files across all three platform-owned context dirs.
-        platform_context_files = sum(
-            _count_workspace_paths(client, user_id, prefix, ws)
-            for prefix in (
-                "/workspace/context/slack/",
-                "/workspace/context/notion/",
-                "/workspace/context/github/",
-            )
-        )
-
         # Phase 3: count of past task runs (drives the L1 "Clear Work History" card).
         agent_runs = _count_user_agent_runs(client, user_id, ws)
 
@@ -402,7 +332,6 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             tasks=tasks,
             chat_sessions=chat_sessions,
             platform_connections=platform_connections,
-            platform_context_files=platform_context_files,
             agent_runs=agent_runs,
             action_proposals=action_proposals,
         )
@@ -597,81 +526,25 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         raise HTTPException(status_code=500, detail="Failed to clear workspace")
 
 
-@router.delete("/account/integrations")
-async def clear_integrations(auth: UserClient) -> OperationResult:
-    """
-    Disconnect all platforms and clear platform-owned context.
-
-    Per ADR-158 (platform bot ownership), each platform bot owns one temporal
-    context directory (`/workspace/context/{slack,notion,github}/`). This
-    endpoint deletes those directories (and their per-source subfolders),
-    tears down sync state, and **deletes** the platform-bot agent rows
-    (ADR-205: Platform Bots are connection-bound — their agent row lifecycle
-    follows platform_connections). Reconnecting a platform lazy-creates a
-    fresh bot row via ensure_infrastructure_agent.
-
-    Does NOT delete:
-      - YARNNN (thinking_partner row, scaffolded at signup, platform-agnostic)
-      - User-authored Agents (origin='user_configured' and similar)
-      - Specialist rows that have been lazy-created (they're role-scoped,
-        not platform-scoped — they survive platform disconnects)
-      - Back-office recurrences (ADR-164) materialized on trigger —
-        they are platform-agnostic
-      - Canonical context domains under `/workspace/context/` owned by
-        Specialists — unchanged by platform disconnect
-      - _shared/ context (IDENTITY.md / BRAND.md / AUTONOMY.md / MANDATE.md per ADR-206; CONVENTIONS.md is program-scoped)
-
-    ADR-207 P4a: Platform Bots are NOT agent rows — they're capability bundles
-    bound to active platform_connections. Disconnect = delete connection row,
-    no bot to pause. Migration 157 dropped stale bot rows once.
-
-    ADR-209: workspace_file_versions rows under platform-owned paths must
-    wipe alongside the files (no cascade on that FK).
-    """
-    user_id = auth.user_id
-    deleted: dict[str, int] = {}
-
-    try:
-        client = get_service_client()
-
-        # --- Sync state ---
-        deleted["export_log"] = _delete_rows(client, "export_log", user_id)
-        deleted["sync_registry"] = _delete_rows(client, "sync_registry", user_id)
-        deleted["integration_sync_config"] = _delete_rows(client, "integration_sync_config", user_id)
-
-        # --- Platform-owned context directories (ADR-158) ---
-        # Each platform bot (as capability bundle per ADR-207) owns exactly one
-        # temporal directory. Deleting here removes all per-source subfolders
-        # (channels, pages, repos) and their _tracker.md files in one shot.
-        # ADR-209: delete revisions under these paths first (FK order).
-        # ADR-501: workspace-scoped (ADR-476 D1) — platform context is
-        # workspace content; the chain and files go by workspace, not caller.
-        ws = _resolve_or_deny(user_id, getattr(auth, "workspace_id", None))
-        context_files_deleted = 0
-        revision_files_deleted = 0
-        for platform_dir in ("/workspace/context/slack/", "/workspace/context/notion/", "/workspace/context/github/"):
-            revision_files_deleted += _delete_workspace_file_versions_by_path(client, user_id, platform_dir, ws)
-            context_files_deleted += _delete_workspace_files(client, user_id, platform_dir, ws)
-        deleted["workspace_file_versions_platform"] = revision_files_deleted
-        deleted["platform_context_files"] = context_files_deleted
-
-        # --- Platform connections last (other tables may reference them) ---
-        deleted["platform_connections"] = _delete_rows(client, "platform_connections", user_id)
-
-        logger.info(f"[ACCOUNT] User {user_id} cleared integrations: {deleted}")
-
-        return OperationResult(
-            success=True,
-            message=(
-                f"Disconnected {deleted['platform_connections']} platforms, "
-                f"cleared {context_files_deleted} context files"
-            ),
-            deleted=deleted,
-        )
-    except Exception as e:
-        logger.error(f"[ACCOUNT] Failed to clear integrations for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to clear integrations")
-
+# ADR-425 §2 + ADR-582 D2 (2026-08-20) — the bulk `DELETE /account/integrations`
+# is DELETED, along with its Disconnect Platforms card.
+#
+#   - ADR-425 §2: "There is no shared 'workspace connections' concept for
+#     humans." A credential is an ACCOUNT object, and each connector feature
+#     owns its own teardown — a second bulk path was always a duplicate.
+#   - ADR-582 D2 SUPERSEDED its teardown model: disconnect deletes the
+#     connection row and deliberately KEEPS the landed raw ("cited raw stays
+#     as evidence"). This endpoint implemented the ADR-158 wipe-the-context
+#     model that D2 replaced.
+#   - Its file half targeted /workspace/context/{slack,notion,github}/ — ZERO
+#     writers in the API, 0 rows in prod. Connector raw lands in inbound/.
+#   - Its UI promised "Pause platform-bot agents"; this handler's own
+#     docstring said "no bot to pause".
+#
+# The singular path is DELETE /integrations/{provider} (routes/integrations.py).
+# sync_registry / export_log / integration_sync_config were all 0 rows in prod
+# and the OAuth path already cleans sync_registry per platform, so the removal
+# orphans nothing.
 
 @router.delete("/account/reset")
 async def full_account_reset(auth: UserClient) -> OperationResult:

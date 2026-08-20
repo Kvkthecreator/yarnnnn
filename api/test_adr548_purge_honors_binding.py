@@ -114,13 +114,29 @@ if len(params) >= 2:
 src = open(os.path.join(REPO, "routes/account.py")).read()
 tree = ast.parse(src)
 
+# The routes that resolve a purge scope. `clear_integrations` was REMOVED
+# 2026-08-20 (ADR-425 §2 — disconnect is per-connector). Membership is
+# ASSERTED below, not merely iterated: when this file listed a function that
+# no longer existed, the loop simply skipped it and the gate reported a
+# smaller green (13 -> 11) instead of failing. A hand-kept list beside a
+# changing roster must announce its own drift.
 DESTRUCTIVE = {
     "clear_work_history",
     "clear_workspace",
-    "clear_integrations",
     "get_danger_zone_stats",   # the PREVIEW must count what the act deletes
 }
 RESOLVERS = {"_resolve_or_deny", "resolve_purge_workspace"}
+
+_defined = {
+    n.name for n in ast.walk(tree)
+    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+}
+record(
+    "every route this gate claims to cover still exists",
+    DESTRUCTIVE <= _defined,
+    f"missing from routes/account.py: {sorted(DESTRUCTIVE - _defined)} — "
+    "the loop below would SKIP them and report a smaller green",
+)
 
 for fn in ast.walk(tree):
     if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):

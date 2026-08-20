@@ -49,7 +49,6 @@ interface DangerZoneStats {
   tasks: number;
   chat_sessions: number;
   platform_connections: number;
-  platform_context_files: number;
   agent_runs: number;
   action_proposals: number;
 }

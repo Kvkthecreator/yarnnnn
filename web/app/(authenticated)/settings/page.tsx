@@ -53,8 +53,6 @@ interface DangerZoneStats {
   tasks: number;
   chat_sessions: number;
   platform_connections: number;
-  // ADR-158: files under /workspace/context/{slack,notion,github}/
-  platform_context_files: number;
   // Phase 3 (L1): count of past task runs — drives the "Clear Work History" card.
   agent_runs: number;
   // ADR-194 Reviewer queue — pending proposals; surfaced so L2/L4 confirmation
@@ -110,8 +108,9 @@ const PANE_GROUPS: PaneGroup[] = [
 ];
 
 const ALL_PANES: SettingsTab[] = PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key as SettingsTab));
+// ADR-425 §2 — "integrations" is GONE with its card and endpoint. Leaving a
+// dead member here is what let the ADR-476 D3 move keep live plumbing behind.
 type DangerAction =
-  | "integrations"
   | "reset"
   | "deactivate"
   | null;
@@ -253,10 +252,6 @@ export default function SettingsPage() {
     try {
       let result;
       switch (dangerAction) {
-        case "integrations":
-          result = await api.account.clearIntegrations();
-          setPurgeSuccess(result.message);
-          break;
         case "reset":
           result = await api.account.resetAccount();
           setPurgeSuccess(result.message);
@@ -428,30 +423,11 @@ export default function SettingsPage() {
                   so do its counts. This door keeps what is genuinely the
                   member's own: their connections, their reset, their
                   deactivation. */}
-              <div className="border-t border-border pt-6 space-y-3 mb-6">
-                {/* L3: Disconnect Platforms — pauses bots, clears platform context dirs */}
-                <div className="p-4 border border-orange-200 dark:border-orange-900/50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        <Link2 className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                        Disconnect Platforms
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Disconnect {dangerStats.platform_connections} platforms and clear {dangerStats.platform_context_files} synced context files
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => initiateDangerAction("integrations")}
-                      disabled={dangerStats.platform_connections === 0 && dangerStats.platform_context_files === 0}
-                      className="px-4 py-2 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-md text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-950/40 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                </div>
-              </div>
-
+              {/* ADR-425 §2 + ADR-582 D2 (2026-08-20) — the "Disconnect
+                  Platforms" card is DELETED. Disconnecting is a per-connector
+                  act on the Connectors pane, which owns its own teardown; a
+                  bulk duplicate here cleared a path with zero writers and
+                  promised to pause bots that do not exist. */}
               {/* ADR-476 D3 — one line, not a card. A member who comes here
                   looking for the clears must be pointed across; duplicating the
                   cards (or their counts) is what made the two doors disagree. */}
@@ -642,19 +618,6 @@ export default function SettingsPage() {
             </div>
 
             <div className="text-muted-foreground mb-6">
-              {dangerAction === "integrations" && (
-                <>
-                  <p className="mb-2">
-                    Are you sure you want to <strong>disconnect all platforms</strong>? This will:
-                  </p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>Disconnect {dangerStats?.platform_connections} connected platforms</li>
-                    <li>Delete OAuth tokens (you&apos;ll need to reconnect)</li>
-                    <li>Clear {dangerStats?.platform_context_files} synced context files (Slack / Notion / GitHub)</li>
-                    <li>Pause platform-bot agents (reconnecting will reactivate them)</li>
-                  </ul>
-                </>
-              )}
               {dangerAction === "reset" && (
                 <>
                   <p className="mb-2">
