@@ -715,11 +715,15 @@ export function ManageConnectionSubsurface({
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
+                        {/* ADR-591 deleted the retention GC (`prune_raw_lane`
+                            is gone; nothing sweeps the default lane). The
+                            previous sentence promised automatic cleanup no
+                            code performs — the retention DIAL survives as a
+                            stated ceiling, but no runner enforces it. */}
                         Workspace folder where snapshots land. Empty = the
                         default <span className="font-mono">{defaultLane}</span>{" "}
-                        lane, which is cleaned up on the retention window; a
-                        folder you name keeps its files like any other workspace
-                        files.
+                        lane. Either way the files stay until something removes
+                        them — snapshots are kept, not swept.
                       </p>
 
                       {dialSaving && (

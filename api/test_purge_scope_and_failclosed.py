@@ -104,11 +104,20 @@ def run() -> int:
         wc.effective_workspace_id = real
 
     acct = _src("routes/account.py")
+    # Re-anchored 2026-08-20: this counted the literal `_resolve_or_deny(user_id)`,
+    # a SPELLING that ADR-548 D8 correctly changed — the destructive paths must
+    # now pass their request binding as a second argument. Counting the call by
+    # AST asserts the PROPERTY (they route through the fail-closed resolver)
+    # instead of pinning one argument list. Falsified by deleting a call site.
+    import ast as _ast
+    _calls = [
+        n for n in _ast.walk(_ast.parse(acct))
+        if isinstance(n, _ast.Call) and getattr(n.func, "id", None) == "_resolve_or_deny"
+    ]
     record(
         "the destructive paths route through the fail-closed resolver",
-        "def _resolve_or_deny(" in acct
-        and acct.count("_resolve_or_deny(user_id)") >= 3,
-        f"_resolve_or_deny call sites: {acct.count('_resolve_or_deny(user_id)')}",
+        "def _resolve_or_deny(" in acct and len(_calls) >= 3,
+        f"_resolve_or_deny call sites: {len(_calls)}",
     )
     stats_i = acct.index("def get_danger_zone_stats")
     record(

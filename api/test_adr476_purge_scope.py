@@ -227,8 +227,15 @@ def run() -> None:
     # pane VALUE, not one hand-typed query-string form.
     record(
         "D3. Account settings links across to the workspace door",
-        "/workspace-settings?" in acct_page and "pane=danger" in acct_page,
-        "",
+        # Re-anchored 2026-08-20: this pinned a RAW `<a href="/workspace-settings?…">`
+        # spelling the app deliberately STOPPED using. Cross-door links now go
+        # through `SurfaceLink to="workspace-settings"` — a hard navigation
+        # remounted the SPA and painted the wrong surface first (the two-step).
+        # So the gate went RED on the fix. Assert the LINK (it points at the
+        # workspace door, at the danger pane), not one way of spelling it.
+        ('to="workspace-settings"' in acct_page or "/workspace-settings" in acct_page)
+        and 'pane: "danger"' in acct_page,
+        "no cross-door link to the workspace danger pane",
     )
 
     dz = open(

@@ -72,7 +72,9 @@ class WorkspaceResolutionError(Exception):
     """
 
 
-def resolve_purge_workspace(user_id: str) -> Optional[str]:
+def resolve_purge_workspace(
+    user_id: str, workspace_id: Optional[str] = None
+) -> Optional[str]:
     """The workspace a purge for this user acts on.
 
     Uses the same resolution spine as every read path (ADR-373). Returns None
@@ -80,11 +82,26 @@ def resolve_purge_workspace(user_id: str) -> Optional[str]:
     handle by scoping to `user_id`. Raises WorkspaceResolutionError when
     resolution itself fails, so a destructive act is never authorized by an
     error it could not see.
+
+    ⚠️ **`workspace_id` is the request BINDING and a route MUST pass it**
+    (ADR-548 D8). `effective_workspace_id`'s rung 2 — the contextvar — does
+    NOT survive into an async route handler: `get_user_client` is a sync
+    generator, so FastAPI runs it in a threadpool and the handler reads a
+    different context. Passing None here silently fell to rung 3 (the
+    caller's OWN workspace), so an owner pinned into workspace B via
+    `X-Workspace-Id` was authorized against B — `can_clear` and the pane
+    header both read `auth.workspace_id` — and then WIPED A. A real
+    workspace, a 200, a plausible message: the ADR-561 incorrect-success
+    class on the two most destructive endpoints in the product.
+
+    Service-key callers (scheduler, soak/eval harness) legitimately have no
+    binding and keep the default — they set the contextvar in their own
+    async context, where rung 2 does work.
     """
     try:
         from services.workspace_context import effective_workspace_id
 
-        return effective_workspace_id(user_id, None)
+        return effective_workspace_id(user_id, workspace_id)
     except Exception as exc:  # noqa: BLE001 — re-raised as a typed failure
         logger.warning(f"[PURGE] workspace resolve failed for {user_id}: {exc}")
         raise WorkspaceResolutionError(

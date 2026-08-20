@@ -1605,23 +1605,18 @@ async def get_capture_signal(
             "connected_at": conn_row.get("created_at"),
         }
 
-    # CADENCE — the connection's setting (ADR-582 D2). "Paused" is simply an
-    # empty selection now — no seeded entry to pause.
-    capture: Optional[dict[str, Any]] = None
+    # SETTINGS — the connection's own dials (ADR-582 D3, narrowed by ADR-591).
+    # `connector_settings` returns {destination, last_capture_at} and nothing
+    # else: ADR-591 deleted the clock, so `cadence` and `digest` have no source
+    # to read. Reading them here raised KeyError for every CONNECTED provider
+    # (an unconnected one returns early), 500ing a call both callers swallow.
+    # The retired `capture` block went with them — it carried `schedule` off
+    # the same deleted cadence, and no caller ever read it.
     settings_obj: Optional[dict[str, Any]] = None
     if conn_row:
         cs = connector_settings(conn_row)
-        capture = {
-            "schedule": cs["cadence"],
-            "paused": not any(d.get("selected") for d in declared),
-        }
-        # The three ADR-582 dials, defaults applied — the owed FE settings
-        # surface reads this one object (extend-not-fork: same round-trip the
-        # Manage drill-in already makes).
         settings_obj = {
-            "cadence": cs["cadence"],
             "destination": cs["destination"],
-            "digest": cs["digest"],
         }
 
     return {
@@ -1631,7 +1626,6 @@ async def get_capture_signal(
         "workspace_capture_count": len(observed),
         "granted_scopes": granted_scopes,
         "connection": connection,
-        "capture": capture,
         "settings": settings_obj,
         # The capability facts (reads / writes / agents) — derived server-side
         # from the machinery that enacts them (binding · exporter registry ·

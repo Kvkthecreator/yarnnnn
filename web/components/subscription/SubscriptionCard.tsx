@@ -524,7 +524,13 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   re-homed from the dissolved Budget pane). */}
               {(balance.spentUsd > 0 || runwayDays !== null) && (
                 <p className="text-sm text-muted-foreground">
-                  {balance.spentUsd > 0 && <>{formatUsd(balance.spentUsd)} used since your last top-up</>}
+                  {/* NOT "since your last top-up" (2026-08-20 audit): a top-up
+                      does NOT move the spend anchor. `get_lifetime_spend_usd`
+                      counts from the ALLOWANCE anchor — allowance_granted_at →
+                      subscription_refill_at → created_at — which moves on the
+                      billing cycle only (platform_limits.py). Naming a window
+                      the number does not use is a money-visible lie. */}
+                  {balance.spentUsd > 0 && <>{formatUsd(balance.spentUsd)} used this billing cycle</>}
                   {balance.spentUsd > 0 && runwayDays !== null && " · "}
                   {runwayDays !== null && <>about {runwayDays} {runwayDays === 1 ? "day" : "days"} left at this pace</>}
                 </p>

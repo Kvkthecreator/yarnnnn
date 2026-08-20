@@ -98,7 +98,27 @@ def other_principals(client: Any, workspace_id: str, owner_id: str) -> list:
         .eq("status", "active")
         .execute()
     ).data or []
-    return [r for r in rows if str(r.get("principal_id")) != str(owner_id)]
+    others = [r for r in rows if str(r.get("principal_id")) != str(owner_id)]
+
+    # Name them. The docstring above is the reason: this list is "the only fact
+    # that makes the act heavy", and a raw UUID hides that fact as effectively
+    # as omitting the list would — the card rendered `a3f9c1e2-… (member)`.
+    # Best-effort by contract: an unresolved id simply keeps its raw value, and
+    # a lookup failure never breaks the delete preview.
+    try:
+        from services.principal_display import resolve_member_names
+
+        names = resolve_member_names(
+            client, [str(r.get("principal_id")) for r in others]
+        )
+        for r in others:
+            label = names.get(str(r.get("principal_id")))
+            if label:
+                r["label"] = label
+    except Exception as exc:  # noqa: BLE001 — humanization is best-effort
+        logger.debug("[WORKSPACE_DELETE] principal naming failed: %s", exc)
+
+    return others
 
 
 def soft_delete_workspace(client: Any, user_id: str, workspace_id: str) -> dict:

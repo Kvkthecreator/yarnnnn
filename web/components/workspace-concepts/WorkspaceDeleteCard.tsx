@@ -31,7 +31,9 @@ interface Preview {
   workspace_id: string;
   name: string;
   is_last_owned: boolean;
-  other_principals: Array<{ principal_id: string; role: string }>;
+  // `label` — the resolved display name (ADR-578 D4). Optional: server-side
+  // resolution is best-effort, so an unresolved principal keeps only its id.
+  other_principals: Array<{ principal_id: string; role: string; label?: string }>;
   deleted_at: string | null;
 }
 
@@ -49,8 +51,23 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
       setPreview(await api.workspace.deletePreview(workspaceId));
       setForbidden(false);
     } catch (e) {
-      // A 403 is a FACT about the caller (not the owner), not a broken surface.
-      setForbidden(true);
+      // A 403 is a FACT about the caller (not the owner), not a broken surface
+      // — hide the card. ANYTHING ELSE is a broken surface, and hiding it there
+      // silently erased "Delete Workspace" on a 404 / 503 / transport blip with
+      // no message at all (2026-08-20 audit). Key on the STATUS, like the
+      // sibling roster read does (WorkspaceMembersCard) — the comment named 403
+      // while the code caught everything.
+      const status =
+        e && typeof e === "object" && "status" in e
+          ? (e as { status?: number }).status
+          : undefined;
+      if (status === 403) {
+        setForbidden(true);
+      } else {
+        setError(
+          e instanceof Error ? e.message : "Couldn't load this workspace's details."
+        );
+      }
     } finally {
       setLoaded(true);
     }
@@ -61,7 +78,25 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
   }, [load]);
 
   if (!workspaceId || !loaded) return null;
-  if (forbidden || !preview) return null;
+  // A 403 is a fact about the caller — this card is not theirs to see.
+  if (forbidden) return null;
+  // Anything else that stopped the preview loading is a BROKEN SURFACE, not a
+  // refusal. Returning null here erased the card silently (2026-08-20 audit);
+  // the whole point of naming the failure is that "Delete Workspace" vanishing
+  // without a word is indistinguishable from not being offered it at all.
+  if (!preview) {
+    return error ? (
+      <div className="rounded-lg border border-destructive/40 p-4">
+        <p className="text-sm text-destructive" role="alert">{error}</p>
+        <button
+          onClick={() => void load()}
+          className="mt-2 text-xs text-muted-foreground underline hover:text-foreground"
+        >
+          Try again
+        </button>
+      </div>
+    ) : null;
+  }
 
   const others = preview.other_principals ?? [];
   const isDeleted = !!preview.deleted_at;
@@ -127,7 +162,11 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
               <ul className="mt-1 text-xs text-muted-foreground">
                 {others.slice(0, 5).map((p) => (
                   <li key={p.principal_id}>
-                    {p.principal_id} ({p.role})
+                    {/* ADR-578 D4: this list is the fact that makes the act
+                        heavy, so it must be READABLE. The server names each
+                        principal best-effort; an unresolved id keeps its raw
+                        value rather than rendering blank. */}
+                    {p.label ?? p.principal_id} ({p.role})
                   </li>
                 ))}
                 {others.length > 5 && <li>…and {others.length - 5} more</li>}

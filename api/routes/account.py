@@ -136,7 +136,7 @@ def _count_workspace_paths(
         return 0
 
 
-def _resolve_or_deny(user_id: str) -> Optional[str]:
+def _resolve_or_deny(user_id: str, workspace_id: Optional[str] = None) -> Optional[str]:
     """Resolve the workspace for a DESTRUCTIVE act, or refuse the act.
 
     `None` legitimately means "this user has no workspace" (N=1) and stays
@@ -146,7 +146,10 @@ def _resolve_or_deny(user_id: str) -> Optional[str]:
     destroys every member's work may not be authorized by an error.
     """
     try:
-        return resolve_purge_workspace(user_id)
+        # ADR-548 D8: pass the REQUEST BINDING. The contextvar does not reach
+        # an async handler, so omitting it silently targets the caller's own
+        # workspace while the authority gate + pane header name the pinned one.
+        return resolve_purge_workspace(user_id, workspace_id)
     except WorkspaceResolutionError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -351,7 +354,10 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         # rather than 500ing the pane. Only the DESTRUCTIVE paths below treat a
         # failure as a denial.
         try:
-            ws = resolve_purge_workspace(user_id)
+            # ADR-548 D8 — the preview must count the workspace the purge will
+            # actually act on, binding included, or the numbers describe a
+            # different workspace than the one the button clears.
+            ws = resolve_purge_workspace(user_id, getattr(auth, "workspace_id", None))
         except WorkspaceResolutionError:
             ws = None
 
@@ -456,7 +462,7 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     # ADR-476 D1/D2: work history is WORKSPACE content — clearing it destroys
     # every member's run records and outputs, so it is an owner-grade act and
     # is scoped to the workspace rather than to the caller's own rows.
-    ws = _resolve_or_deny(user_id)
+    ws = _resolve_or_deny(user_id, getattr(auth, "workspace_id", None))
     _require_workspace_clear_authority(user_id, ws)
 
     try:
@@ -560,7 +566,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     # ADR-476 D2: L2 destroys every member's work in a shared workspace, so it
     # is owner-grade. The scoping itself (D1) lives in the purge service, which
     # resolves the workspace once for the whole sequence.
-    _require_workspace_clear_authority(user_id, _resolve_or_deny(user_id))
+    _require_workspace_clear_authority(user_id, _resolve_or_deny(user_id, getattr(auth, "workspace_id", None)))
 
     try:
         client = get_service_client()
@@ -640,7 +646,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
         # ADR-209: delete revisions under these paths first (FK order).
         # ADR-501: workspace-scoped (ADR-476 D1) — platform context is
         # workspace content; the chain and files go by workspace, not caller.
-        ws = _resolve_or_deny(user_id)
+        ws = _resolve_or_deny(user_id, getattr(auth, "workspace_id", None))
         context_files_deleted = 0
         revision_files_deleted = 0
         for platform_dir in ("/workspace/context/slack/", "/workspace/context/notion/", "/workspace/context/github/"):

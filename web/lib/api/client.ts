@@ -2261,7 +2261,10 @@ export const api = {
         workspace_id: string;
         name: string;
         is_last_owned: boolean;
-        other_principals: Array<{ principal_id: string; role: string }>;
+        // `label` is the resolved display name (ADR-578 D4 — the confirmation
+        // must be readable). OPTIONAL: resolution is best-effort server-side,
+        // so an unresolved principal keeps only its id and the card falls back.
+        other_principals: Array<{ principal_id: string; role: string; label?: string }>;
         deleted_at: string | null;
       }>(`/api/workspace/lifecycle/${id}/preview`),
     softDelete: (id: string) =>
@@ -2848,7 +2851,9 @@ export const api = {
           workspace_name: string | null;
           connected_at: string | null;
         } | null;
-        capture: { schedule: string | null; paused: boolean } | null;
+        // ADR-591 — the `capture` field is GONE. It carried `schedule` off the
+        // cadence this ADR deleted, and no caller ever read it; the server
+        // emitter raised KeyError for every connected provider.
         // ADR-582/591 — the per-connection settings, defaults applied.
         // OPTIONAL: the API deploys separately; an older payload has no
         // `settings` and the section simply doesn't render. `cadence` and

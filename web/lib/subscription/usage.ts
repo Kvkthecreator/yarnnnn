@@ -126,7 +126,18 @@ export function deriveBalance(limits: UsageLimits | null | undefined): BalanceRe
   const remaining = Math.round(netted * 100) / 100;
 
   const isExhausted = remaining <= 0;
-  const isLow = !isExhausted && remaining < TOPUP_MIN_USD;
+  // Prefer the SERVER's verdict, exactly as `remaining` above prefers the
+  // server's netted balance — one number, one threshold, one story.
+  // This used to read `remaining < TOPUP_MIN_USD`, borrowing the MINIMUM
+  // TOP-UP AMOUNT ($5) as a low-balance threshold — two unrelated concepts
+  // sharing one constant. The server warns at <= $1 (`balance_low`), so at $3
+  // an OWNER saw a red "running low" while a MEMBER on the same workspace, at
+  // the same moment, saw the calm state (UserMenu renders those in mutually
+  // exclusive role branches). Fall back to the old shape only for a payload
+  // that predates the field.
+  const isLow =
+    !isExhausted &&
+    (limits.balance_low ?? remaining < TOPUP_MIN_USD);
 
   return {
     remainingUsd: remaining,

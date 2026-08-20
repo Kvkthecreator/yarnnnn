@@ -273,7 +273,13 @@ def test_purge_preview_and_l3_workspace_scoped():
     src = _src("routes/account.py")
     stats = src.index("def get_danger_zone_stats")
     window = src[stats: stats + 2600]
-    assert "resolve_purge_workspace(user_id)" in window
+    # Re-anchored 2026-08-20 (ADR-548 D8): this pinned the ARGUMENT LIST
+    # `resolve_purge_workspace(user_id)`. The preview must now also pass the
+    # request binding — omitting it counted the caller's OWN workspace while
+    # the purge button cleared a different one. The sibling L3 assertion below
+    # already carries this lesson in its comment; the preview line did not.
+    # Assert the CALL, not one spelling of its arguments.
+    assert "resolve_purge_workspace(" in window
     assert "_purge_scope(" in window
     # The residual helpers thread workspace_id.
     assert "def _count_workspace_paths(\n    client, user_id: str, path_prefix: str, workspace_id" in src
