@@ -4,7 +4,50 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-20 — FILES: select and open become two acts (no ADR — operator-approved after audit)
+## 2026-08-20 (later) — FILES: the centre pane becomes a real file browser (no ADR — operator-approved after two rounds)
+
+**Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → The centre pane is a FILE BROWSER](WORKSPACE.md). No new ADR; the surface contract's click-grammar section is **rewritten**, and the entry below it (the partial split landed earlier the same day) is **superseded**.
+
+**THE ROOT DEFECT: one piece of state meant two things.** `selectedPath` meant BOTH *"the highlighted item"* and *"what the centre pane renders"*. That inversion is the whole bug. Measured on production: a real single click with `detail: 1` on a tree file rendered the entire **19,462-character file body** while staying on `/files`; a double-click navigated to `/text?text.file=…`. So the surface's two gestures were *"read the whole file inline"* and *"read it in an editor"* — **neither of them was "select."**
+
+**Why the inert click is load-bearing rather than a nicety.** In every conventional OS a file browser's grid has a selection model: single click SELECTS and nothing else happens; the selection is a SET; the selection is the NOUN the verbs act on; double click OPENS. **If every single click goes somewhere, there is no selection — and without selection there is no multi-select, no shift-range, no bulk verb, no drag-a-group. The entire set of file operations is unreachable through the surface.** The earlier same-day entry treated the missing "picked but not opened" state as a scoping convenience; it is the precondition for the verbs.
+
+**What was built.**
+- **TWO STATES, replacing one.** `viewPath` (what the pane renders — moved *only* by an open) and `selection` (an ordered SET — renders as a highlight and nothing else).
+- **Selection is first-class, not primary-plus-extras.** ADR-553's `selectedPath` + `alsoSelected` + `selectionSet` shape — *"a SET carried BESIDE the selection, never replacing it"* — is **DELETED**. There is no primary any more, so there is nothing to carry a set beside.
+- **Plain click selects; ⌘/Ctrl toggles; shift takes a range** over the listing's own **published visual order** (the listing publishes it, so the highlight and the rectangle the gesture drew can never disagree). Double click opens, through the one `openPath` funnel. Enter opens. Escape and a background click clear.
+- **The verbs act on the selection.** The set-Move takes it, and **dragging a row that belongs to a multi-selection now drags the whole GROUP** — a drag that moved one row while nine were highlighted would make the selection read as decorative.
+- **Files becomes purely a BROWSER.** Opening a `.md` goes to Text, a `.html` to Studio. **Quick Look is deliberately NOT built** and nothing half-built was left behind.
+
+**ADR-553 D1 is superseded, with its reasoning named.** D1 made ⌘-click the *only* way into a multi-selection so nobody could enter one by accident. **That reasoning only held because a plain click was destructive** — it navigated the surface into an app. A plain click is now inert, so plain-click-to-select is safe and expected. D2 (the sequential set-Move with honest partial reporting) and D3 (the ways out) stand and are extended. The ADR itself is unamended: canon records what was decided then.
+
+**Withdrawal is part of the feature.** ADR-519 shipped an inescapable multi-selection to production once. Four exits, and one of them was *tightened*: **Escape now clears at ANY selection size** — the earlier shape only armed it past size 1, and a selection of one is as much a state a member needs out of as a selection of nine.
+
+**Deleted, not kept beside**: `selectedPath` · `alsoSelected` · `clearSet` · `selectionSet` · `selectOnly` · `handleExplorerSelect` · the exported `SelectionSet` type (orphaned by the recut) · `describeNodeKind` (dead before this work, unreferenced). `ContentViewer`'s `selectedNode` prop is renamed `node` — the old name asserted the conflation in the component API.
+
+**Gates — four touched.**
+- **New** `api/test_files_selection_model.py` — 20 checks over the nine claims (two states · inert click · toggle · range over visual order · double-click opens · touch single-tap by capability · Escape+ground exits · Enter · the verbs take the set).
+- `api/test_adr452_studio_landing.py` re-anchored again to the new grammar; its drill-in ceiling and "the funnel is the one door" invariants are unchanged in mechanism. Its folder assertion is now **source-qualified** (`treeFolder`), so a listing folder re-opening on click one — which would take the grid's selection away again — reddens it.
+- `web/scripts/gates/adr553_multi_select.mjs` **recut in place**, 19/0. Its purpose (*"the escape hatches, not the selection"*) is untouched and gained a fifth exit; the assertions that pinned the withdrawn primary-plus-extras shape are replaced by what they always defended — **the set must never decide what is rendered**, which is now structural rather than conventional.
+- `web/scripts/gates/files_arrival_door.mjs` **A7 re-anchored** — it counted EVERY `openPathRef.current(` in the file and demanded exactly 2, a hand-kept whole-file count that reads growth as a violation. It had **already been RED at HEAD** for that reason (Enter-opens-the-selection was a legitimate third caller). Scoped to the arrival effect itself, where the claim actually lives. **Pre-existing red, fixed: 9/0.**
+
+**Falsification — 43 mutations across the three gates, each confirmed RED then restored GREEN.** Backup-copy + restore throughout; never `git checkout` (another session held uncommitted work in this tree all day). A7 was additionally falsified in the *negative* direction — an extra `openPathRef` caller OUTSIDE the arrival effect must stay GREEN, or the re-anchor would have replaced one hand-kept count with another.
+
+**FOUR of the 43 initially DID NOT CATCH — every one the same class, and worth naming as a class: _a duplicated string satisfies a bare substring test._** All fixed:
+- *Escape armed only past size 1* passed. The check anchored on `useEffect(() => { if (selection.length === 0) return; … }, [selection.length, clearSelection]);` with DOTALL — and the **Enter effect above it opens with the identical line**, so `.*?` simply spanned from Enter's guard to Escape's deps and matched anyway. Re-anchored to find the Escape *handler* and read the guard immediately preceding it.
+- *Set-Move narrowed to one file* passed. `"const paths = selection;" in page` was satisfied by the **drag-a-group** path, which declares the same line — one surviving occurrence satisfies a substring test. Replaced with a COUNT (a floor, not a ceiling, so a third set-taking verb is not read as a violation).
+- *Tree stops forwarding `shiftKey`* passed the ADR-553 gate. `/shiftKey/.test(tree)` matched the tree's own `additive` computation two lines above the forward. Re-anchored to assert on the **object handed to `onSelect`**, not on the token appearing anywhere in the file.
+- *The honest partial-move report removed from the modal Move* passed, because the drag-a-group path declares the same message. Replaced with a count over both set-taking sites.
+
+**And the gate's own comment-stripper was itself a trap.** A `\{\s*/\*.*?\*/\s*\}` pattern for JSX comments matches **any** brace, so under DOTALL it swallowed everything from the first `interface X {` to the next `*/}` — ~300 lines of real code, silently — and the gate then failed against *correct* source. Strip the comment, never the braces around it; the reasoning is recorded in the stripper's docstring.
+
+**Build**: `cd web && node_modules/.bin/next build` — exit 0, compiled successfully, at HEAD-plus-my-files (this time the tree built cleanly; the other session's in-progress work is backend-side).
+
+---
+
+## 2026-08-20 — FILES: select and open become two acts (no ADR — operator-approved after audit) — **SUPERSEDED the same day**
+
+> **Superseded by the entry above.** This was a partial step: it split the *gesture* (single vs double click) but left `selectedPath` meaning both "highlighted" and "what the pane renders", so a plain click still rendered the whole file body inline and the selection was still ADR-553's primary-plus-extras shape. Kept for the gate-craft record; the grammar it describes is no longer what ships.
 
 **Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → Click grammar](WORKSPACE.md). No new ADR; the existing surface contract gains the grammar it never documented.
 

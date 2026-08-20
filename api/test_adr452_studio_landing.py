@@ -109,23 +109,17 @@ def run() -> int:
         "const openPath = useCallback((path: string) =>" in files_page,
     )
 
-    # (b) the tree's node-select wrapper DELEGATES to openPath — a re-added inline
-    # open body is the original regression.
+    # (b) the click wrapper DELEGATES to openPath — a re-added inline open body
+    # is the original regression.
     #
-    # RE-ANCHORED 2026-08-20 (select/open split). This assertion twice pinned a
-    # SPELLING and twice went stale silently: it matched the parameter list
-    # `(node: TreeNode) =>`, which stopped existing when ADR-553 added a second
-    # param, so the check had been dead — passing on `bool(None)` is False, so it
-    # read as a real failure nobody had caused. It also pinned the literal
-    # argument `openPath(node.path)`.
-    #
-    # The MECHANISM this defends: whatever `handleExplorerSelect`'s signature is,
-    # its body must reach the funnel by CALLING openPath, and must not inline the
-    # funnel's own terminal (setSelectedPath + activateBodyRef) to open a file
-    # behind its back. So: find the callback by NAME, take its body, and assert
-    # on what the body DOES.
+    # RE-ANCHORED 2026-08-20 (the selection model). This assertion has twice
+    # pinned a SPELLING and twice gone stale silently — it matched the parameter
+    # list `(node: TreeNode) =>`, then the name `handleExplorerSelect`, both of
+    # which stopped existing. Find the callback by NAME (it is now
+    # `handleFileClick`, one grammar for both panes) and assert on what its body
+    # DOES, not how it is spelled.
     wrapper = re.search(
-        r"const handleExplorerSelect = useCallback\((.*?)\n  \);",
+        r"const handleFileClick = useCallback\((.*?)\n  \);",
         files_page,
         re.DOTALL,
     )
@@ -134,25 +128,32 @@ def run() -> int:
     calls_funnel = "openPath(" in body
     # ...and must NOT hand-roll the funnel's terminal inline. `activateBodyRef`
     # is the drill-in that only an OPEN performs; a select-only branch sets the
-    # path without it. An inline pairing here is the funnel being bypassed.
+    # selection without it. An inline pairing here is the funnel being bypassed.
     inlines_open = "activateBodyRef" in body
     delegates = bool(wrapper) and calls_funnel and not inlines_open
     passed &= _check(
-        "tree select delegates to the funnel (openPath), not an inline open",
+        "the click wrapper delegates to the funnel (openPath), not an inline open",
         delegates,
         ""
         if delegates
         else (
-            "handleExplorerSelect not found"
+            "handleFileClick not found"
             if not wrapper
             else f"calls openPath={calls_funnel} inlines activateBodyRef={inlines_open}"
         ),
     )
 
     # (b2) THE SPLIT (2026-08-20): select and open are distinct acts on a fine
-    # pointer. Asserted on mechanism, over COMMENT-STRIPPED source — the funnel
-    # branches on the pointer CAPABILITY and on the browser's click counter,
-    # never on a viewport width.
+    # pointer. The FULL selection grammar (single/⌘/shift/Enter/Escape, and the
+    # fact that a plain click renders nothing new) is gated on its own in
+    # test_files_selection_model.py; what THIS gate defends is the part that
+    # touches the open funnel — that an open still goes through one door and
+    # that the pointer branch is on CAPABILITY, never width.
+    #
+    # Asserted over COMMENT-STRIPPED source: a gate can otherwise match its own
+    # explanatory prose (the words "coarse" and "detail" survive in comments
+    # describing them), which is how the first cut of these assertions passed
+    # against reverted code.
     code = _strip_comments(files_page)
     body_code = _strip_comments(body)
 
@@ -167,12 +168,11 @@ def run() -> int:
     # Both outcomes must be reachable: an open branch AND a select-only branch.
     passed &= _check(
         "select/open split: both outcomes exist (openPath AND a select-only path)",
-        "openPath(node.path)" in body_code and "selectOnly(node)" in body_code,
+        "openPath(node.path)" in body_code and "selectOne(node.path)" in body_code,
     )
     # The open CONDITION itself is the thing under test — capture it once and
-    # assert on its three disjuncts, so a dropped term cannot hide behind the
-    # same token appearing elsewhere in the callback (the additive branch also
-    # mentions folders; matching the file at large proved nothing).
+    # assert on its disjuncts, so a dropped term cannot hide behind the same
+    # token appearing elsewhere in the callback.
     cond = re.search(r"if \((coarse [^)]*?)\) \{\s*openPath\(node\.path\);", body_code)
     cond_txt = cond.group(1) if cond else ""
     passed &= _check(
@@ -188,25 +188,32 @@ def run() -> int:
         "isDoubleClick" in cond_txt,
         f"open condition={cond_txt!r}",
     )
-    # Folders browse on ONE click (tree disclosure + listing navigation); only
-    # files carry the double-click. A folder forced to double-click reads as a
-    # broken tree — so `folder` must be a disjunct of the OPEN condition itself.
+    # A TREE folder still browses on one click (disclosure). A LISTING folder
+    # does NOT — it is a peer in a grid a member draws a selection across. So
+    # the open condition's folder disjunct must be SOURCE-QUALIFIED, not a bare
+    # `node.type === 'folder'` that would re-open every listing folder on click
+    # one and take the grid's selection away again.
     passed &= _check(
-        "select/open split: folders still open on a single click",
-        "folder" in cond_txt,
-        f"open condition={cond_txt!r} — a folder must open without a double-click",
+        "select/open split: only the TREE's folder opens on a single click",
+        "treeFolder" in cond_txt
+        and re.search(
+            r"const treeFolder = source === 'tree' && node\.type === 'folder';",
+            body_code,
+        )
+        is not None,
+        f"open condition={cond_txt!r} — the folder disjunct must be tree-scoped",
     )
     # The keyboard equivalent double-click does not have — the a11y answer.
     passed &= _check(
         "select/open split: Enter opens the current selection",
-        "e.key !== 'Enter'" in code and "openPathRef.current(selectedPath)" in code,
+        "e.key !== 'Enter'" in code and "openPathRef.current(" in code,
     )
-    # The tree forwards the browser's click counter, or the surface can never
-    # see a double-click at all.
+    # The tree forwards the browser's click counter + the range modifier, or the
+    # surface can never see a double-click or a range at all.
     tree_code = _strip_comments(_read("components/workspace/WorkspaceTree.tsx"))
     passed &= _check(
-        "the tree forwards the click counter to the surface",
-        "detail: e.detail" in tree_code,
+        "the tree forwards the click counter + modifiers to the surface",
+        "detail: e.detail" in tree_code and "shiftKey: e.shiftKey" in tree_code,
     )
     # ...and the tree's own FOLDER branch still toggles disclosure on click one.
     passed &= _check(
@@ -217,9 +224,9 @@ def run() -> int:
 
     # (c) the tree + folder-listing are wired to that verb.
     passed &= _check(
-        "the tree + folder-listing are wired to the open verb",
-        "onSelect={handleExplorerSelect}" in files_page
-        and "onNavigate={handleExplorerSelect}" in files_page,
+        "the tree + folder-listing are wired to the click grammar",
+        "onSelect={handleTreeClick}" in files_page
+        and "onNavigate={handleListingClick}" in files_page,
     )
 
     # (d) the deep-link doors (cold-load seed + post-mount `?files.path=` jump)
@@ -232,50 +239,43 @@ def run() -> int:
         and files_page.count("openPathRef.current(") >= 2,
     )
 
-    # (e) the closing invariant, RE-ANCHORED 2026-08-20.
+    # (e) the closing invariant, RE-ANCHORED 2026-08-20 (the selection model).
     #
-    # The old shape allowlisted setSelectedPath by the SPELLING of its argument
-    # ({"path", "node.path", "t.path"}), which is not a property of the code —
-    # it is a property of local variable names. ADR-588 D1 added a legitimate
-    # SELECT (`setSelectedPath(r.path)`: reveal a just-created folder without
-    # opening it, deliberately, because no OS opens an editor on mkdir) and the
-    # gate reported it as an open-door regression. It was policing naming, not
-    # behavior — and after the select/open split, select-only setSelectedPath
-    # calls are the whole point, so a name allowlist can only get more wrong.
+    # An earlier shape allowlisted the open-setter by the SPELLING of its
+    # argument, which is not a property of the code — it is a property of local
+    # variable names, and it started reporting legitimate SELECTS as open-door
+    # regressions the moment selects became the point.
     #
     # What actually distinguishes an OPEN from a SELECT in this surface is the
     # DRILL-IN: `activateBodyRef.current()` — the narrow-viewport act of entering
-    # the file's body. selectInline (the funnel's terminal) pairs the two;
-    # a select-to-scope (Get Info, Properties, the new-folder reveal, the new
-    # selectOnly) sets the path and never drills.
+    # the shown object. `showInline` (the funnel's terminal) pairs it with
+    # `setViewPath`; a SELECT touches neither.
     #
     # So the invariant is: every drill-in belongs to the funnel or to an
-    # explicitly-reasoned non-file site. Any NEW pairing of setSelectedPath with
-    # activateBodyRef outside the funnel is a second open door, and trips this.
+    # explicitly-reasoned non-file site. Any NEW pairing outside the funnel is a
+    # second open door, and trips this.
     #
     # Sanctioned drill-in sites (counted, not name-matched) — 5:
-    #   openPath/selectInline  — the funnel terminal (the ONE door)
+    #   openPath/showInline    — the funnel terminal (the ONE door)
     #   openWith               — the ADR-514 D2.2 "Open With ▸" non-default handler
     #   handleUploaded         — post-upload reveal; itself calls openPath, the
     #                            drill only finishes the narrow-viewport move
-    #   the two rail buttons   — setSelectedPath(NULL) + drill: leaving a file for
+    #   the two rail buttons   — setViewPath(NULL) + drill: leaving a file for
     #                            the root/Trash listing, which opens no file
     #
     # A ceiling, not an equality: a REMOVED door should not fail the gate, only
-    # an ADDED one. (Deliberately not pinned to == 5 — the roster of sanctioned
-    # sites shrinks legitimately, and a hand-kept count reads a deletion as a
-    # violation.)
+    # an ADDED one.
     drill_sites = files_page.count("activateBodyRef.current()")
     passed &= _check(
         "no new drill-in (open) door outside the funnel",
         drill_sites <= 5,
         f"activateBodyRef drill-in sites={drill_sites} (expected <= 5: funnel, openWith, upload reveal, 2 rail clears)",
     )
-    # And the funnel's terminal is still the one that pairs them for a FILE.
+    # And the funnel's terminal is still the one that moves what is SHOWN.
     passed &= _check(
-        "the funnel's terminal still pairs select + drill",
+        "the funnel's terminal still pairs the view move + drill",
         re.search(
-            r"const selectInline = \(\) => \{.*?setSelectedPath\(path\);.*?activateBodyRef\.current\(\)",
+            r"const showInline = \(isFolder: boolean\) => \{.*?setViewPath\(path\);.*?activateBodyRef\.current\(\)",
             files_page,
             re.DOTALL,
         )

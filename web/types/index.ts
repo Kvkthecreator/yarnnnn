@@ -686,21 +686,28 @@ export interface WorkspaceTreeNode {
 
 /**
  * What a click on a file row/tile/tree-node MEANT — the subset of the mouse
- * event the Files surface reads to tell SELECT from OPEN from ADDITIVE-PICK.
+ * event the Files surface reads to tell SELECT from OPEN from ADDITIVE-PICK
+ * from RANGE.
  *
  * One declaration, threaded to every file-listing renderer (WorkspaceTree,
  * ContentViewer's tiles + rows), so a new field cannot reach some call sites
- * and not others — the drift that let the ADR-553 modifier land unevenly.
+ * and not others — the drift that let the multi-select modifier land unevenly.
  *
- * · metaKey / ctrlKey → the additive pick (ADR-553 D1)
+ * · metaKey / ctrlKey → toggle one member in or out of the selection
+ * · shiftKey          → take the RANGE from the anchor to here, in the
+ *                       listing's current visual order
  * · detail            → the browser's own click counter; >= 2 is a double-click
  *                       (the OPEN gesture on a fine pointer). We read the
  *                       browser's counter rather than timing clicks ourselves,
  *                       so drag-then-click never scores as an open.
+ *
+ * The renderers DECIDE NOTHING — they report the intent and the surface applies
+ * the grammar, so there is one place the grammar lives.
  */
 export interface FileClickIntent {
   metaKey?: boolean;
   ctrlKey?: boolean;
+  shiftKey?: boolean;
   detail?: number;
 }
 

@@ -1,10 +1,21 @@
 'use client';
 
 /**
- * ContentViewer — Main panel explorer view
+ * ContentViewer — the Files surface's center pane.
  *
- * Renders folder contents in a details-style listing and previews files using
- * type-aware viewers (markdown, HTML, image, PDF, data, text).
+ * Renders the FOLDER LISTING (the file browser) or, when a file was OPENED into
+ * an unclaimed-format inline view, that file's body.
+ *
+ * SELECT ≠ OPEN (2026-08-20). The listing is a file browser, so it has a real
+ * selection model: it RINGS every member of `selection`, PUBLISHES its current
+ * visual order so the surface can compute a shift-range over what the member
+ * actually sees, and CLEARS the selection on a background click. It decides
+ * nothing itself — every row reports what the click meant (`FileClickIntent`)
+ * and the surface applies the grammar.
+ *
+ * The file BODY here is reached only through an OPEN. A mere selection never
+ * renders one — that conflation (selecting a file rendered its whole body while
+ * the member was only trying to pick it) is the defect the split removed.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -46,8 +57,20 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import type { WorkspaceTreeNode, WorkspaceFile, FileClickIntent } from '@/types';
 
 interface ContentViewerProps {
-  selectedNode: WorkspaceTreeNode | null;
+  /** What the pane is SHOWING — a folder to browse, or a file that was OPENED. */
+  node: WorkspaceTreeNode | null;
   onNavigate: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
+  /** The picked set (ADR-553, recut) — every member of it rings in the listing. */
+  selection?: readonly string[];
+  /**
+   * The listing publishes its CURRENT VISUAL ORDER (sorted, folders-first) so
+   * the surface can take a shift-range over what the member sees rather than
+   * over some underlying tree order. Without this the range and the highlight
+   * could disagree, which is worse than having no range at all.
+   */
+  onPublishOrder?: (paths: string[]) => void;
+  /** A click on the listing's empty ground drops the selection. */
+  onClearSelection?: () => void;
   showHeader?: boolean;
   /**
    * ADR-215 R1 + ADR-236 Files page rework (2026-04-30): seed the chat
@@ -88,10 +111,6 @@ interface ContentViewerProps {
  * `TileDnd` is derived from it by `tileDnd` below, so the caller wires ONE
  * object rather than a closure per row.
  */
-/** Paths in the multi-selection (ADR-553) — the primary PLUS the additional
- *  members, so the listing rings every member rather than only the subject. */
-export type SelectionSet = readonly string[];
-
 export interface ListingDnd {
   canOrganize: (path: string) => boolean;
   dropTarget: string | null;
@@ -117,8 +136,11 @@ function tileDnd(dnd: ListingDnd, child: { path: string; type?: string }) {
 }
 
 export function ContentViewer({
-  selectedNode,
+  node,
   onNavigate,
+  selection,
+  onPublishOrder,
+  onClearSelection,
   showHeader = true,
   onOpenChatDraft,
   onDeleted,
@@ -127,7 +149,7 @@ export function ContentViewer({
   verbs,
   dnd,
 }: ContentViewerProps) {
-  if (!selectedNode) {
+  if (!node) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         Select a file or folder from the explorer
@@ -135,11 +157,14 @@ export function ContentViewer({
     );
   }
 
-  if (selectedNode.type === 'folder') {
+  if (node.type === 'folder') {
     return (
       <DirectoryView
-        node={selectedNode}
+        node={node}
         onNavigate={onNavigate}
+        selection={selection}
+        onPublishOrder={onPublishOrder}
+        onClearSelection={onClearSelection}
         showHeader={showHeader}
         onOpenChatDraft={onOpenChatDraft}
         viewMode={viewMode}
@@ -152,7 +177,7 @@ export function ContentViewer({
 
   return (
     <FileView
-      path={selectedNode.path}
+      path={node.path}
       showHeader={showHeader}
       onOpenChatDraft={onOpenChatDraft}
       onDeleted={onDeleted}
@@ -164,6 +189,9 @@ export function ContentViewer({
 function DirectoryView({
   node,
   onNavigate,
+  selection,
+  onPublishOrder,
+  onClearSelection,
   showHeader,
   onOpenChatDraft,
   viewMode = 'list',
@@ -173,6 +201,9 @@ function DirectoryView({
 }: {
   node: WorkspaceTreeNode;
   onNavigate: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
+  selection?: readonly string[];
+  onPublishOrder?: (paths: string[]) => void;
+  onClearSelection?: () => void;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
   viewMode?: 'icon' | 'list';
@@ -223,6 +254,26 @@ function DirectoryView({
       }),
     [node.children, fetchedChildren, hasPreloadedChildren]
   );
+
+  // PUBLISH THE VISUAL ORDER. A shift-range is over what the member SEES —
+  // this exact sorted, folders-first sequence — so the highlight and the
+  // rectangle the gesture drew can never disagree. Published from an effect
+  // (not during render) because it writes to the surface's ref.
+  useEffect(() => {
+    onPublishOrder?.(children.map((c) => c.path));
+  }, [children, onPublishOrder]);
+
+  const selectedSet = useMemo(() => new Set(selection ?? []), [selection]);
+
+  // A click on the listing's empty GROUND drops the selection — the universal
+  // file-browser way out, and the half of ADR-519's trap-withdrawal that
+  // Escape alone does not cover (a member who reaches for the mouse, not a
+  // key). Rows stop propagation implicitly by being the click target; this
+  // fires only when the ground itself was hit.
+  const onGroundClick = (e: React.MouseEvent) => {
+    if (e.currentTarget !== e.target) return;
+    onClearSelection?.();
+  };
 
   if (fetchLoading) {
     return (
@@ -287,12 +338,16 @@ function DirectoryView({
           2026-08-21 — three folder tiles, three empty dots). The path is the
           one line that is always true for both kinds. */}
       {viewMode === 'icon' ? (
-        <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div
+          className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-5"
+          onClick={onGroundClick}
+        >
           {children.map((child) => (
             <FileTile
               key={child.path}
               path={child.path}
               kind={child.type === 'folder' ? 'folder' : 'file'}
+              selected={selectedSet.has(child.path)}
               dnd={dnd ? tileDnd(dnd, child) : undefined}
               onClick={(e) => onNavigate(child, e)}
               onContextMenu={rowContext(child)}
@@ -319,12 +374,13 @@ function DirectoryView({
         // column, one fewer machine leak.
         <div className="overflow-hidden rounded-lg border border-border/60 mx-2 my-2">
           <FileListHeader />
-          <div className="divide-y divide-border/40">
+          <div className="divide-y divide-border/40" onClick={onGroundClick}>
             {children.map((child) => (
               <FileListRow
                 key={child.path}
                 name={child.name}
                 kind={child.type === 'folder' ? 'folder' : 'file'}
+                selected={selectedSet.has(child.path)}
                 dnd={dnd ? { path: child.path, ...tileDnd(dnd, child) } : undefined}
                 subtitle={workspaceRelPath(child.path)}
                 when={formatTimestamp(child.updated_at)}
@@ -571,13 +627,5 @@ function FileView({
       {menu}
     </div>
   );
-}
-
-function describeNodeKind(node: WorkspaceTreeNode): string {
-  if (node.type === 'folder') {
-    return 'Folder';
-  }
-  // ADR-309: dispatch through the shared type→application association.
-  return describeViewerApplication(node.path);
 }
 

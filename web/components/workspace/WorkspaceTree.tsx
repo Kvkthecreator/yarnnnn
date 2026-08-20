@@ -5,7 +5,17 @@
  * WorkspaceTree — Left panel file explorer
  *
  * Recursive tree component that mirrors workspace_files paths.
- * Click folder → expand/collapse. Click file → notify parent to open in main panel.
+ *
+ * SELECT ≠ OPEN (2026-08-20). The tree reports what a click MEANT and decides
+ * nothing: it forwards the modifiers + the browser's click counter, and the
+ * surface applies the grammar. The one act the tree still owns is a FOLDER's
+ * disclosure — a tree that demanded a double-click to expand a branch would
+ * read as broken, and disclosure launches nothing.
+ *
+ * It renders TWO different highlights, because the surface now has two states
+ * to show: `selection` (what is picked — the noun the verbs act on) and
+ * `viewPath` (what the center pane is showing). Before the split one prop meant
+ * both, which is exactly the conflation the split exists to end.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -20,7 +30,10 @@ import { resolveRootIcon } from '@/lib/workspace/root-icons';
 
 interface WorkspaceTreeProps {
   nodes: WorkspaceTreeNode[];
-  selectedPath?: string;
+  /** The picked set — every member rings. */
+  selection?: readonly string[];
+  /** What the center pane is SHOWING — rendered as the "you are here" row. */
+  viewPath?: string;
   onSelect: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
   /**
    * ADR-514 D2.6 — the verb bundle, WHOLE. This prop replaced a hand-listed
@@ -54,7 +67,8 @@ interface WorkspaceTreeProps {
   canOrganize?: (path: string) => boolean;
 }
 
-export function WorkspaceTree({ nodes, selectedPath, onSelect, verbs, onMoveByDrag, onDropFiles, canOrganize }: WorkspaceTreeProps) {
+export function WorkspaceTree({ nodes, selection, viewPath, onSelect, verbs, onMoveByDrag, onDropFiles, canOrganize }: WorkspaceTreeProps) {
+  const selectedSet = useMemo(() => new Set(selection ?? []), [selection]);
   // ADR-400 Wave B: which folder path is the current drag-over drop target
   // (for the highlight). Lifted here so only one row highlights at a time.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -65,9 +79,13 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, verbs, onMoveByDr
     if (!verbs || verbs.onOpen) return verbs;
     return {
       ...verbs,
+      // The menu's Open must OPEN. A bare `onSelect(node)` carries no intent,
+      // which under the select/open split means SELECT — so the menu's Open
+      // would have quietly become a highlight. Synthesize the double-click
+      // the surface reads as an open.
       onOpen: (t) => {
         const node = findNodeByPath(nodes, t.path);
-        if (node) onSelect(node);
+        if (node) onSelect(node, { detail: 2 });
       },
     };
   }, [verbs, nodes, onSelect]);
@@ -115,7 +133,8 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect, verbs, onMoveByDr
           key={node.path}
           node={node}
           depth={0}
-          selectedPath={selectedPath}
+          selectedSet={selectedSet}
+          viewPath={viewPath}
           onSelect={onSelect}
           onContextMenu={onNodeContextMenu}
           dnd={dnd}
@@ -139,7 +158,8 @@ interface DndBundle {
 interface TreeItemProps {
   node: WorkspaceTreeNode;
   depth: number;
-  selectedPath?: string;
+  selectedSet: ReadonlySet<string>;
+  viewPath?: string;
   onSelect: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
   onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
   dnd?: DndBundle;
@@ -171,14 +191,15 @@ function isDeEmphasized(state: FileLegibilityState): boolean {
 // Files page (a virtual /explorer/ handle).
 const SYSTEM_FILES_NODE_PATH = '/explorer/system-files';
 
-function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: TreeItemProps) {
+function TreeItem({ node, depth, selectedSet, viewPath, onSelect, onContextMenu, dnd }: TreeItemProps) {
   // Auto-expand the first level — EXCEPT the "System files" fold, which stays
   // collapsed (it's the hidden residue; the operator opens it deliberately).
   const [expanded, setExpanded] = useState(
     depth < 1 && node.path !== SYSTEM_FILES_NODE_PATH,
   );
   const isFolder = node.type === 'folder';
-  const isSelected = selectedPath === node.path;
+  const isSelected = selectedSet.has(node.path);
+  const isShown = viewPath === node.path;
   // ADR-422 D1: the file's legibility state → its affordance (folders are always
   // 'operator' — no not-editable treatment).
   const legibility = fileLegibilityState(node);
@@ -243,17 +264,21 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
       }
     : {};
 
+  // Reveal the branch that holds what the pane is showing — a deep-link, an
+  // upload landing, a just-created folder. Keyed on `viewPath` (what the
+  // surface NAVIGATED to), not on the selection: a member ⌘-picking rows across
+  // collapsed branches must not have the tree unfold under their cursor.
   useEffect(() => {
-    if (isFolder && selectedPath && nodeContainsPath(node, selectedPath)) {
+    if (isFolder && viewPath && nodeContainsPath(node, viewPath)) {
       setExpanded(true);
     }
-  }, [isFolder, node, selectedPath]);
+  }, [isFolder, node, viewPath]);
 
   const handleClick = (e?: React.MouseEvent) => {
-    // ADR-553 D1: a ⌘/Ctrl-click is an ADDITIVE pick — it must not also toggle
-    // the folder's disclosure, or the set gesture and the navigate gesture
-    // fight over one click.
-    const additive = !!(e && (e.metaKey || e.ctrlKey));
+    // A ⌘/Ctrl-click (add one) or a shift-click (take a range) is a SELECTION
+    // gesture — it must not also toggle the folder's disclosure, or the set
+    // gesture and the browse gesture fight over one click.
+    const additive = !!(e && (e.metaKey || e.ctrlKey || e.shiftKey));
     if (isFolder && !additive) {
       // A TREE FOLDER STAYS SINGLE-CLICK (2026-08-20). The select/open split
       // that made FILES open on double-click deliberately does not reach here:
@@ -261,13 +286,20 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
       // disclosure triangle, and demanding a double-click to expand a branch
       // reads as a broken tree, not as a stricter grammar. Disclosure is not
       // "opening" — nothing launches, nothing navigates; the branch just shows
-      // its children. Only FILES carry the open/select distinction.
+      // its children. Only FILES carry the open/select distinction here; in the
+      // LISTING (a grid of peers) a folder takes the double-click like a file.
       setExpanded(!expanded);
     }
-    // `detail` is the browser's click counter, forwarded so the surface can
-    // tell a double-click (OPEN) from a single one (SELECT). A folder sends it
-    // too — harmless, since the surface only consults it for files.
-    onSelect(node, e ? { metaKey: e.metaKey, ctrlKey: e.ctrlKey, detail: e.detail } : undefined);
+    // The tree DECIDES NOTHING. It reports what the click meant — the
+    // modifiers, plus `detail` (the browser's own click counter, so a
+    // double-click is the browser's judgment and not a timer of ours) — and the
+    // surface applies the grammar.
+    onSelect(
+      node,
+      e
+        ? { metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, detail: e.detail }
+        : undefined,
+    );
   };
 
   // Icon based on path/type
@@ -286,7 +318,11 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
         {...dropProps}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 px-2 rounded-sm text-left hover:bg-accent/50 transition-colors",
-          isSelected && "bg-primary/10 text-primary font-medium",
+          // TWO STATES, TWO TREATMENTS. Picked = the selection ring (a state
+          // the member put the row into, and can act on). Shown = the filled
+          // "you are here" row. A row can be both, and then it reads as both.
+          isSelected && "bg-primary/10 text-primary font-medium ring-1 ring-inset ring-primary/40",
+          isShown && !isSelected && "bg-accent text-foreground font-medium",
           // ADR-422 D1: machine-config + raw-intake render de-emphasized (dimmer
           // text) rather than hidden — present but visibly secondary (supersedes
           // the ADR-320 `_`-prefix de-emphasis, which mislabeled prose).
@@ -325,7 +361,8 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
               key={child.path}
               node={child}
               depth={depth + 1}
-              selectedPath={selectedPath}
+              selectedSet={selectedSet}
+              viewPath={viewPath}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
               dnd={dnd}

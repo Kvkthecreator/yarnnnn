@@ -146,10 +146,29 @@ t(
 );
 
 // A7 — exactly ONE site consumes the arrival param by opening it. Two handlers
-// for one job is the shape that produced the bug; this counts the handoffs
-// rather than pinning where they live.
-const opens = (code.match(/openPathRef\.current\(/g) || []).length;
-t(`A7 exactly one arrival handler opens the deep-link (found ${opens})`, opens === 2);
+// for one job is the shape that produced the bug.
+//
+// RE-ANCHORED 2026-08-20. This counted EVERY `openPathRef.current(` in the file
+// and required exactly 2 — a hand-kept whole-file count that reads GROWTH as a
+// violation. `openPathRef` is the surface's late-bound handle on the funnel and
+// is legitimately reached from several places that have nothing to do with a
+// deep link (Enter-opens-the-selection, the selection bar's Open). The gate had
+// already gone RED at HEAD for exactly that reason — a real failure nobody
+// caused — and each new legitimate caller made it redder.
+//
+// Scope the count to what the check actually claims: the ARRIVAL EFFECT. Inside
+// that one handler there must be exactly two handoffs (the `?files.path=` leg
+// and the `?files.domain=` leg) and no third; outside it, callers are free.
+const arrivalEffect = code.match(
+  /if \(!pathParam && !domainParam\) return;[\s\S]*?fp\.set\(/,
+);
+const opens = arrivalEffect
+  ? (arrivalEffect[0].match(/openPathRef\.current\(/g) || []).length
+  : -1;
+t(
+  `A7 exactly one arrival handler opens the deep-link (handoffs inside it: ${opens})`,
+  opens === 2,
+);
 
 // A8 — the param is DRAINED once honoured. Without the drain a stale path
 // re-applies on later refetches, which is what the deleted seed defended

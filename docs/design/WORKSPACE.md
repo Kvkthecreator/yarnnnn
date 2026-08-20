@@ -135,19 +135,41 @@ Per-surface contracts below carry the seven fixed sections where they apply: **A
   - Head-revision author glance ("Last edited by …") on the file header (ADR-329 D1)
   - **Node Details ("Get Info")** — per-node provenance property (ADR-329 Amendment 1), opened via header ⓘ toggle or tree right-click. File → revision chain (`authored_by` trail, diff, restore per ADR-209 P4); folder → subtree recent-changes. Replaced the deleted standing "Recently authored" left-rail feed.
   - Substrate-native edit affordance when `authored_by=operator` is appropriate (IDENTITY, BRAND, CONVENTIONS, principles, MANDATE, uploaded documents)
-- **Click grammar — SELECT and OPEN are two acts** (2026-08-20). Finder's grammar, and the reason a "picked but not opened" state exists at all: scoping the Properties/Get-Info panel to a file, or lining up a rename/move/share target, must not require launching it. Before this split a plain click cleared the set and opened in one motion, so selecting a `.html` artifact navigated the whole surface into Studio.
+- **The centre pane is a FILE BROWSER — the selection model** (2026-08-20, rewritten; the partial split landed earlier the same day is superseded by this section).
 
-  | Input | Select | Open |
+  **The defect this replaces, stated exactly.** One piece of state (`selectedPath`) meant BOTH *"the highlighted item"* and *"the document the centre pane renders"*. Naming a file rendered its whole body — measured on production: a single click with `detail: 1` on a tree file rendered a 19,462-character file body inline. So a plain click could not be inert. **A click that always goes somewhere is not a selection**, and with no selection there is no multi-select, no shift-range, no bulk verb, no drag-a-group — *the entire vocabulary of file operations was unreachable through the surface.* That is why the inert click is load-bearing rather than a nicety.
+
+  **TWO STATES, never one.**
+
+  | State | Means | Moved by |
   |---|---|---|
-  | **Fine pointer** (mouse/trackpad) | single click | **double click** |
-  | **Coarse pointer** (touch) | — | **single tap** |
+  | `viewPath` | what the centre pane RENDERS — a folder's listing, an opened file's body, or the Recents view | **only an OPEN** (`openPath`, the ADR-452 funnel) |
+  | `selection` | what is PICKED — an ordered SET, in the listing's visual order | selection gestures; it renders as a **highlight and nothing else** |
 
-  - **The branch is on INPUT CAPABILITY, never viewport width.** `useCoarsePointer()` (`(pointer: coarse)`) is the signal; `useViewport().isMobile` (a 640px WIDTH threshold) is *not* interchangeable with it. A narrow desktop window still has a mouse; a large tablet does not. This is the same rule the hook's three prior consumers follow (the Files canvas verbs, `FileContextMenu`'s kebab, `StudioSurface`) — desktop keeps the clean Finder affordance, coarse pointer gets a reachable equivalent, no new action model.
-  - **Touch is single-tap, not double-tap.** Double-tap is not a touch idiom: it fires unreliably, competes with double-tap-to-zoom, and is undiscoverable. Every touch OS opens on one tap. Touch behavior is UNCHANGED by this split.
-  - **FOLDERS act on a single click; only FILES require the double.** A folder click *browses* — the tree toggles its disclosure triangle, the listing shows its contents; nothing launches, no app is entered, and the act is undone by clicking the parent. Files are where the double-click earns its keep, because opening one navigates the surface into an owning app (ADR-451/473). A tree folder demanding a double-click to expand reads as a broken tree, not a stricter grammar.
-  - **Escape hatches** (double-click has no keyboard equivalent, so these are the accessibility answer): **Enter** opens the current selection; the right-click context menu's **Open** stays a single-click path for anyone who never discovers the double-click; **Open With ▸** likewise.
-  - **⌘/Ctrl-click remains the additive multi-select** (ADR-553 D1), untouched.
-  - **THE ONE DOOR still holds**: every branch that OPENS calls `openPath` (ADR-452). The select-only branch calls `setSelectedPath` deliberately — a select-to-scope, the same class as Get Info / Properties / the ADR-588 new-folder reveal, none of which open. The distinguishing mechanism is the drill-in (`activateBodyRef`), which only an open performs. Gated in `api/test_adr452_studio_landing.py`.
+  **The gestures.**
+
+  | Gesture | Means |
+  |---|---|
+  | single click (fine pointer) | **SELECT** — highlight it. Nothing else happens. A single click must be able to lead **nowhere**. |
+  | ⌘ / Ctrl-click | **TOGGLE** one member in or out of the set |
+  | shift-click | take the **RANGE** from the anchor to here, over the listing's current visual order |
+  | double click | **OPEN** — the one gesture that leads somewhere |
+  | Enter | OPEN the selection (double-click's keyboard peer) |
+  | Escape · background click | **CLEAR** the selection |
+  | single tap (coarse pointer) | **OPEN** — touch is unchanged |
+
+  - **Where content is read: Files is purely a BROWSER.** Opening a `.md` goes to Text, a `.html` to Studio (ADR-451/473); unclaimed formats fall to the inline viewer. **Quick Look (a bounded in-pane preview) is deliberately NOT built** — half of one would be worse than none.
+  - **What the pane shows while you select: the folder listing, unchanged.** The item highlights and the view does not move. A picked file's metadata lives in **Properties**, which the selection SCOPES rather than replaces.
+  - **The branch is on INPUT CAPABILITY, never viewport width.** `useCoarsePointer()` (`(pointer: coarse)`) is the signal; `useViewport().isMobile` (a 640px WIDTH threshold) is *not* interchangeable with it — a narrow desktop window still has a mouse; a large tablet does not. Same rule the hook's three prior consumers follow.
+  - **Touch is single-tap, not double-tap.** Double-tap is not a touch idiom: it fires unreliably, competes with double-tap-to-zoom, and is undiscoverable. Every touch OS opens on one tap. **Touch gets no selection grammar and no new action model** — the same shape the ADR-400 kebab parity took.
+  - **Folders differ by PANE, and each takes its native idiom.** In the **tree** a folder is single-click (disclosure — a tree that demands a double-click to expand a branch reads as broken, and disclosure launches nothing). In the **listing** a folder takes the **double-click, exactly like a file**: the listing is a grid of peers, and a member drawing a selection across it must be able to include a folder without being navigated away mid-gesture.
+  - **A range is over the LISTING's own published visual order** (sorted, folders-first), not any underlying tree order — otherwise the highlight and the rectangle the gesture drew can disagree, which is worse than having no range.
+  - **The verbs act on the SELECTION.** That is what makes selection worth having. The set-Move takes it (sequential, partial results said honestly — ADR-553 D2), and **dragging a row that is part of a multi-selection drags the whole GROUP**; a dragged row outside the selection moves alone.
+  - **Arriving at a path is an OPEN, not a select.** A deep link (`?files.path=`, `?files.domain=`) is someone handing you a document, so it goes through the one door and lands rendered. The select/open split governs in-surface GESTURES only.
+  - **The way OUT is part of the feature, not a follow-up.** ADR-519 shipped an inescapable multi-selection to production once. **Escape clears at ANY size** (a selection of one is as much a state to get out of as a selection of nine), a **background click** on the listing's empty ground clears, the selection bar carries a visible **Clear**, and any single-target verb ends the set before it acts.
+  - **THE ONE DOOR still holds**: every branch that OPENS calls `openPath` (ADR-452). The distinguishing mechanism is the drill-in (`activateBodyRef`), which only an open performs.
+  - **ADR-553 D1 is SUPERSEDED here.** That decision made ⌘-click the *only* way into a multi-selection, on accident-prevention grounds. **That reasoning only held because a plain click was destructive** — it navigated the surface into an app. Now that a plain click is inert, plain-click-to-select is safe, expected, and the way every file browser works. ADR-553 D2 (the set-Move, its sequential loop, its honest partial reporting) and D3 (the ways out) stand and are extended. The ADR itself is unamended — canon records what was decided then.
+  - **Gated** in `api/test_files_selection_model.py` (the selection model, 20 checks) and `api/test_adr452_studio_landing.py` (the open funnel + the pointer branch). Both script-style: `python3 <file>` from `api/`.
 
 - **`+` menu:** UploadFileModal (operator uploads a document into `/workspace/uploads/`). No other modals. No chat seeders.
 - **Deep-links out:** every file path is a stable URL (`/files?path=...`) linked from Recurrence detail (`/workspace/operation/reports/{slug}/_spec.yaml` · `_feedback.md` · `{date}/output.md` per ADR-231 D2 + ADR-320), Agents detail (`/workspace/agents/{slug}/AGENT.md` · `memory/` · `style.md`), Feed artifacts, and Home's recent-artifacts slot.

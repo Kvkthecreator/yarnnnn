@@ -90,6 +90,7 @@ import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader'
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
+type FileClickIntent = import('@/types').FileClickIntent;
 
 const EXPLORER_ROOT_PATH = '/explorer';
 
@@ -371,6 +372,11 @@ function nodeMetadataNode(node: TreeNode): React.ReactNode {
   );
 }
 
+/** The leaf of a workspace path — what a single selected item is CALLED. */
+function baseName(path: string): string {
+  return path.split('/').filter(Boolean).pop() ?? path;
+}
+
 function formatNodeTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -402,7 +408,7 @@ export default function ContextPage() {
   // the `files.` namespace (`?files.domain=`, `?files.path=`) so they never
   // collide with another open window on the shared /desktop URL. These are
   // ARRIVAL transports (a shared link / cross-surface jump); the surface drives
-  // its live selection through internal `selectedPath` state and deliberately
+  // its live view through internal `viewPath` state and deliberately
   // does NOT write back to the URL (see the click handlers).
   const fp = useSurfaceParam('files');
   // ADR-451: the Finder routes surface-owned formats to their app.
@@ -411,7 +417,47 @@ export default function ContextPage() {
   const pathParam = fp.get('path');
 
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+
+  // ── THE TWO STATES: what you are LOOKING AT vs what you have PICKED ────
+  //
+  // 2026-08-20. Until this commit ONE piece of state (`selectedPath`) meant
+  // both "the highlighted item" and "the document the center pane renders".
+  // That inversion was the whole defect: because naming a file rendered its
+  // body, a plain click could not be inert — and a click that always goes
+  // somewhere is not a selection at all. Without selection there is no
+  // multi-select, no shift-range, no bulk verb, no drag-a-group; the entire
+  // file-operation vocabulary was unreachable through the surface.
+  //
+  //   viewPath   — WHAT THE CENTER PANE RENDERS. A folder (its listing), a
+  //                file whose body was OPENED, or null (the Recents view).
+  //                Only an OPEN (openPath) moves this. A selection never does.
+  //   selection  — WHAT IS PICKED. A SET, first-class, in the listing's visual
+  //                order. Clicking replaces it; ⌘/Ctrl-click toggles a member;
+  //                shift-click takes the range from the anchor. The verbs act
+  //                on it. It renders as a highlight and NOTHING ELSE.
+  //
+  // This DELETES the prior `selectedPath` + `alsoSelected` + `selectionSet`
+  // shape (ADR-553's "a SET carried BESIDE the selection, never replacing it").
+  // There is no primary any more, so there is nothing to carry a set beside.
+  // ADR-553 D1 further carved ⌘-click as the ONLY way into a multi-selection,
+  // reasoning that a member must not enter one by accident — but that reasoning
+  // only held because a plain click was DESTRUCTIVE (it navigated the surface
+  // into an app). A plain click is now inert, so plain-click-to-select is safe,
+  // expected, and the way every file browser works. That carve is withdrawn.
+  const [viewPath, setViewPath] = useState<string | null>(null);
+  const [selection, setSelection] = useState<string[]>([]);
+  // The shift-range anchor — the last item picked by a plain or ⌘ click. A
+  // range is taken FROM it, and taking one does not move it (so successive
+  // shift-clicks re-range from the same origin, the Finder/Explorer rule).
+  const [anchorPath, setAnchorPath] = useState<string | null>(null);
+  // The listing's current visual order, published by whichever pane rendered
+  // it. A range is over WHAT THE MEMBER SEES — sorted, filtered, folders-first
+  // — not over any underlying tree order, so the highlight always matches the
+  // rectangle the gesture drew.
+  const orderRef = useRef<string[]>([]);
+  const publishOrder = useCallback((paths: string[]) => { orderRef.current = paths; }, []);
+  const clearSelection = useCallback(() => { setSelection([]); setAnchorPath(null); }, []);
+
   // ADR-400 D4: the Trash nav item toggles the center pane to the Trash view.
   const [showTrash, setShowTrash] = useState(false);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
@@ -422,6 +468,12 @@ export default function ContextPage() {
   // standing left-rail feed. Tied to the current selection; collapses to a
   // header section above the content.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // WHICH node Properties describes. Its own state, because the selection is a
+  // SET and the shown object is a FOLDER: neither one alone answers "get info
+  // on this". Null = fall back to the single selected item, else the shown
+  // object — so the header's Properties button still describes what you are
+  // standing in when nothing is picked.
+  const [propertiesPath, setPropertiesPath] = useState<string | null>(null);
 
   // ADR-388 D4: the Files-surface-wide view mode (icon grid / details list),
   // shared across Recents + folder listings (was Recents-only).
@@ -440,25 +492,12 @@ export default function ContextPage() {
   // from the tree's so the two panes never fight over one highlight.
   const [listingDropTarget, setListingDropTarget] = useState<string | null>(null);
 
-  // ── The multi-selection (ADR-553) ──────────────────────────────────────
-  // A SET carried BESIDE the selection, never replacing it — ADR-519 D4.1's
-  // rule, inherited: `selectedPath` stays the primary (every existing reader
-  // still gets exactly one path), and this is the additional members. Only the
-  // gestures that genuinely take N consult it.
+  // The set-taking Move (ADR-553 D2) — now fed by `selection` directly.
   //
-  // ADR-519 also shipped a PROD TRAP here once — a multi-select with no way
-  // out. Withdrawal is therefore part of the feature, not a follow-up: Escape
-  // clears, a background click clears, and any single-target verb clears
-  // before it acts (D3).
-  const [alsoSelected, setAlsoSelected] = useState<string[]>([]);
-  const clearSet = useCallback(() => setAlsoSelected([]), []);
+  // ADR-519 shipped a PROD TRAP here once — a multi-selection with no way out.
+  // Withdrawal is part of the feature, not a follow-up: Escape clears, a
+  // background click clears, and any single-target verb clears before it acts.
   const [moveSetOpen, setMoveSetOpen] = useState(false);
-  // The full set the next N-taking verb acts on — the primary FIRST, so a
-  // reader that takes `[0]` gets the same file `selectedPath` names.
-  const selectionSet = useMemo(
-    () => (selectedPath ? [selectedPath, ...alsoSelected.filter((p) => p !== selectedPath)] : []),
-    [selectedPath, alsoSelected],
-  );
   const [droppedFiles, setDroppedFiles] = useState<File[] | null>(null);
   const [canvasDragOver, setCanvasDragOver] = useState(false);
 
@@ -554,8 +593,12 @@ export default function ContextPage() {
       // param, keyed on its VALUE, so the tree load and the open are
       // independent. See "THE ONE ARRIVAL DOOR".
 
-      // Preserve current selection if still valid
-      setSelectedPath((prev) => {
+      // Preserve what's on screen if it still exists. The SELECTION is left
+      // alone deliberately: a listing row is not always a tree node (a synthetic
+      // entity subfolder, a lazily-unloaded branch), so pruning against the tree
+      // on every 30s refetch would silently drop a legitimate pick out from
+      // under a member who is lining up a bulk verb.
+      setViewPath((prev) => {
         if (prev && resolveNodeByPath(root, prev)) return prev;
         return null;
       });
@@ -570,11 +613,21 @@ export default function ContextPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // selectedNode: prefer tree-resolved node (has children populated), fall back to
-  // synthetic node for direct workspace paths that aren't in the virtual tree
-  // (e.g. entity subfolders navigated from TrackingEntityGrid).
-  const selectedNode = selectedPath
-    ? (resolveNodeByPath(virtualRoot, selectedPath) ?? syntheticNodeForPath(selectedPath))
+  // viewNode — the object the center pane is SHOWING (not the one that is
+  // picked). Prefer the tree-resolved node (its children are populated), fall
+  // back to a synthetic node for direct workspace paths that aren't in the
+  // virtual tree (e.g. entity subfolders navigated from TrackingEntityGrid).
+  const viewNode = viewPath
+    ? (resolveNodeByPath(virtualRoot, viewPath) ?? syntheticNodeForPath(viewPath))
+    : null;
+
+  // The node Properties describes: the explicit Get-Info target, else the one
+  // selected item, else what is on screen. Three fallbacks, one direction —
+  // most specific first.
+  const propertiesTarget =
+    propertiesPath ?? (selection.length === 1 ? selection[0] : null) ?? viewPath;
+  const propertiesNode = propertiesTarget
+    ? (resolveNodeByPath(virtualRoot, propertiesTarget) ?? syntheticNodeForPath(propertiesTarget))
     : null;
 
   // D19 (2026-05-22): workspace-wide setBreadcrumb removed. The full
@@ -587,11 +640,11 @@ export default function ContextPage() {
   // List mode (nothing selected) registers [] — flat "Files" title.
   useWindowCrumb(
     'files',
-    selectedNode
+    viewNode
       ? [{
-          label: selectedNode.name,
+          label: viewNode.name,
           kind: 'context',
-          onClick: () => { setSelectedPath(null); drillOutRef.current(); },
+          onClick: () => { setViewPath(null); clearSelection(); drillOutRef.current(); },
         }]
       : []
   );
@@ -600,8 +653,16 @@ export default function ContextPage() {
   // surface's own identity (Files), not the deleted DeskContext. When a
   // node is selected, overlay the explorer path so the agent knows what
   // the operator is looking at.
-  const effectiveSurface: DeskSurface = selectedNode
-    ? { type: 'workspace-explorer', path: selectedNode.path, navigation_type: selectedNode.type }
+  // A single PICKED file is the sharpest statement of "what the operator is
+  // looking at" — sharper than the folder they are standing in. So one
+  // selected item scopes the chat draft; otherwise the shown object does
+  // (and with nothing shown, the bare surface).
+  const focusNode =
+    selection.length === 1
+      ? (resolveNodeByPath(virtualRoot, selection[0]) ?? syntheticNodeForPath(selection[0]))
+      : viewNode;
+  const effectiveSurface: DeskSurface = focusNode
+    ? { type: 'workspace-explorer', path: focusNode.path, navigation_type: focusNode.type }
     : { type: 'atomic', slug: 'files' };
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
@@ -630,7 +691,7 @@ export default function ContextPage() {
   // not re-rendered useSearchParams yet), while this effect bailed on
   // `!seedConsumedRef.current` — a ref that only flips after loadExplorer's
   // network round-trip. Keyed on values that never changed again, it never
-  // re-fired: param stranded in the URL, `selectedPath` null, Recents.
+  // re-fired: param stranded in the URL, `viewPath` null, Recents.
   //
   // The staleness the seed was defending against (a dead `?files.path=`
   // re-applying on every 30s refetch) is now handled by the two things that
@@ -661,8 +722,12 @@ export default function ContextPage() {
       // ADR-388 D1: domains nest under the literal operation/ root.
       openPathRef.current(`/workspace/operation/${domainParam}`);
     }
-    // Drain — the param has done its one job. `selectedPath` is the live
-    // selection from here on; the URL is not the source of truth once open.
+    // Drain — the param has done its one job. `viewPath` is what the surface
+    // shows from here on; the URL is not the source of truth once open.
+    //
+    // ARRIVING AT A PATH IS AN OPEN, NOT A SELECT. A deep-link is someone
+    // handing you a document, so it goes through the ONE open door and lands
+    // rendered — the select/open split below governs in-surface GESTURES only.
     fp.set({ path: null, domain: null });
     // fp.set stable; keyed on the param values so a new jump re-fires but a
     // tree refetch does not. eslint-disable-next-line react-hooks/exhaustive-deps
@@ -675,21 +740,21 @@ export default function ContextPage() {
   // pathnameSlug resolution, disrupting the launcher/topbar (operator-observed
   // KVK 2026-06-12). `?path=` survives only as an inbound ARRIVAL param
   // (opened + drained above) — it is never written from intra-surface clicks.
-  // Path-based select — a path string, not a TreeNode. The file may not be in
+  // Path-based open — a path string, not a TreeNode. The file may not be in
   // the visible tree (e.g. a folder-Details revision row deep-links into a
   // `_`-prefixed file hidden from the explorer); syntheticNodeForPath resolves
-  // the viewer. Selecting via a folder-Details row also drops Details back to
-  // the (newly-selected) node's own scope.
+  // the viewer.
   //
   // ── openPath — THE ONE DOOR that opens a workspace path ────────────────
   //
   // 2026-07-24 (Option A cleanup). Every way a member opens a file in the Files
-  // surface routes through here — the tree click, the folder-listing click, the
+  // surface routes through here — the tree double-click, the folder-listing
+  // double-click, the single tap on a touch device, Enter on the selection, the
   // right-click Open verb, a Recents click, a cold-load / post-mount deep-link
   // (`?files.path=`), and a just-uploaded file. There is deliberately no second
-  // path that calls `setSelectedPath` for a FILE: a new door consults the app
-  // layer by calling this, and physically cannot bypass it (a bare
-  // setSelectedPath for an artifact is the regression the gate forbids).
+  // path that calls `setViewPath` for a FILE: a new door consults the app layer
+  // by calling this, and physically cannot bypass it (a bare setViewPath for an
+  // artifact is the regression the gate forbids).
   //
   // Why a funnel and not per-call-site resolution: the pre-cleanup shape
   // consulted the resolver at each open site, so every entry point had to
@@ -706,19 +771,30 @@ export default function ContextPage() {
   // file being opened (the tree carries no kind); a read failure falls back to
   // the default app (pre-ADR-473 behavior).
   //
-  // `selectInline` is the terminal for an unclaimed path — the ONLY sanctioned
-  // setSelectedPath-for-a-file site for an OPEN (nested so it can't be called
-  // from outside). The one deliberate carve: Get Info / Properties
-  // (handleGetInfo, fileVerbs.onProperties) also setSelectedPath a file path,
-  // but their intent is to SCOPE THE DETAILS PANEL to that file's metadata, not
-  // to open its body — routing those through openPath would wrongly launch the
-  // app when the operator asked to inspect. Those are select-to-inspect, not
-  // open; the gate's ban is on open-a-file setSelectedPath outside the funnel,
-  // and it allowlists the two Details sites by name.
+  // `showInline` is the terminal for an unclaimed path — the ONLY sanctioned
+  // setViewPath-for-a-file site (nested so it can't be called from outside).
+  //
+  // Since the select/open split there is no longer any "select-to-inspect"
+  // carve to allowlist: Get Info / Properties SELECT (they scope the details
+  // modal) and no longer touch what the center pane renders at all. The two
+  // states are now genuinely separate, so the funnel owns `setViewPath` for a
+  // file outright.
   const openPath = useCallback((path: string) => {
-    const selectInline = () => {
+    const showInline = (isFolder: boolean) => {
       setShowTrash(false);
-      setSelectedPath(path);
+      setViewPath(path);
+      // Opening a FILE also PICKS it — the OS rule: whatever you just launched
+      // is the highlighted item. Opening a FOLDER is NAVIGATION, so it clears:
+      // you have arrived somewhere new and nothing in the new listing is
+      // picked yet. Carrying the parent folder's own path into the child view
+      // as "selected" would make the very first bulk verb act on the wrong
+      // object.
+      if (isFolder) {
+        clearSelection();
+      } else {
+        setSelection([path]);
+        setAnchorPath(path);
+      }
       activateBodyRef.current(); // narrow: drill into the viewer
     };
     // ADR-486: a hub DECLARATION (operation/{topic}/_radar.yaml) is claimed by
@@ -736,7 +812,9 @@ export default function ContextPage() {
     // ADR-571 it admits PROSE too (the Text app claims .md by extension), so
     // a document reaches the surface claim below without a content read.
     if (!isArtifactCandidate(path)) {
-      selectInline();
+      // `isArtifactCandidate` is path-only, so a folder (no extension) is
+      // exactly the non-candidate case; ask the resolver rather than re-deriving.
+      showInline(!/\.[a-z0-9]+$/i.test(path.split('/').filter(Boolean).pop() ?? ''));
       return;
     }
     void (async () => {
@@ -770,9 +848,9 @@ export default function ContextPage() {
         navigateToSurface(chosen.open.surface, { [chosen.open.param]: path });
         return;
       }
-      selectInline();
+      showInline(false);
     })();
-  }, [navigateToSurface]);
+  }, [navigateToSurface, clearSelection]);
   // ADR-514 D2.2 — the handler set for a menu target. `Open` above fires the
   // default; this is what makes the ALTERNATIVES visible. The set is derived
   // from the same two registries openPath consults, merged into one ordered
@@ -839,8 +917,11 @@ export default function ContextPage() {
         navigateToSurface(handler.open.surface, { [handler.open.param]: t.path });
         return;
       }
+      // An inline-handler Open With — the same act openPath's terminal performs.
       setShowTrash(false);
-      setSelectedPath(t.path);
+      setViewPath(t.path);
+      setSelection([t.path]);
+      setAnchorPath(t.path);
       activateBodyRef.current();
     },
     [navigateToSurface],
@@ -850,123 +931,173 @@ export default function ContextPage() {
   // deep-links through this exact funnel (see openPathRef declaration).
   openPathRef.current = openPath;
 
-  // ── Select ≠ Open (2026-08-20, Finder parity on a fine pointer) ────────
+  // ── SELECT ≠ OPEN — the file-browser grammar ───────────────────────────
   //
-  // Before this, a plain click CLEARED the set and OPENED in one act, so the
-  // surface had no "picked but not opened" state: a member could not scope the
-  // Properties panel to a file, or line up a rename/move/share target, without
-  // first launching it (a .html artifact navigated the whole surface to Studio).
-  // Selection existed in the code and was unreachable in the grammar.
+  // The center pane is a FILE BROWSER, and in every conventional OS a file
+  // browser's grid has a selection model:
   //
-  // The split, and what decides it:
+  //   single click            SELECT — highlight it. Nothing else happens.
+  //                           A single click must be able to lead NOWHERE.
+  //   ⌘/Ctrl-click            toggle one member in or out of the set
+  //   shift-click             take the RANGE from the anchor, in the listing's
+  //                           current visual order
+  //   double click            OPEN — the one gesture that leads somewhere
+  //   Enter                   OPEN the selection (double-click's keyboard peer)
+  //   Escape / background     clear the selection
   //
-  //   fine pointer (mouse/trackpad)  single click → SELECT     double → OPEN
-  //   coarse pointer (touch)         single tap   → OPEN       (unchanged)
+  // Why the inert click is load-bearing and not a nicety: if every single click
+  // goes somewhere, there is no selection state at all — and with no selection
+  // there is no multi-select, no shift-range, no bulk verb, no drag-a-group.
+  // The whole vocabulary of file operations is unreachable through the surface.
+  // Selection is the NOUN the verbs act on; it has to exist before they can.
   //
-  // The branch is on INPUT CAPABILITY (`useCoarsePointer`, `(pointer: coarse)`),
-  // NOT viewport width — the rule that hook's own docstring states and that the
-  // three existing consumers already follow: a narrow desktop window still has a
-  // mouse; a large tablet does not. A width branch would hand a mouse user the
-  // touch grammar the moment they narrowed their window.
+  // What the pane shows while you select: THE FOLDER LISTING, unchanged. The
+  // item highlights and the view does not move. Metadata for a picked file
+  // lives in Properties (which the selection SCOPES rather than replaces), and
+  // reading content is what OPEN is for — Files is a browser, and a .md opens
+  // in Text, a .html in Studio. A bounded in-pane preview (Quick Look) is
+  // deliberately NOT built here; half of one would be worse than none.
   //
-  // Why touch is NOT double-tap: double-tap is not a touch idiom. It fires
-  // unreliably, competes with double-tap-to-zoom, and is undiscoverable —
-  // every touch OS opens on a single tap. Touch keeps its single-tap open and
-  // gets no new action model, exactly the shape the kebab (⋯) parity took.
+  // COARSE POINTER (touch) KEEPS ITS SINGLE-TAP OPEN. The branch is on input
+  // CAPABILITY (`useCoarsePointer`, `(pointer: coarse)`), never viewport width —
+  // a narrow desktop window still has a mouse; a large tablet does not. Double-
+  // tap is not a touch idiom: it fires unreliably, competes with double-tap-to-
+  // zoom, and is undiscoverable. Every touch OS opens on a single tap, so touch
+  // gets no selection grammar and no new action model — the same shape the
+  // kebab (⋯) parity took.
   //
-  // Escape hatches, because double-click has no keyboard equivalent:
-  //   · Enter opens the current selection (keyboard parity + the a11y answer)
-  //   · the context menu's Open (fileVerbs.onOpen) stays a single-click path
-  //   · ⌘/Ctrl-click remains the additive pick, untouched (ADR-553 D1)
+  // FOLDERS. In the TREE a folder is single-click (disclosure — WorkspaceTree's
+  // own branch toggles it, and a tree that demands a double-click to expand
+  // reads as broken). In the LISTING a folder takes the DOUBLE-CLICK, exactly
+  // like a file: the listing is a grid of peers, and a member drawing a
+  // selection across it must be able to include a folder in the rectangle
+  // without being navigated away mid-gesture. Two panes, two idioms, each the
+  // native one for its shape.
   //
   // THE ONE DOOR is intact: every branch below that OPENS calls `openPath`.
-  // The new select-only branch calls `setSelectedPath` — deliberately, it is a
-  // select-to-scope like Get Info / Properties, not an open.
-  const selectOnly = useCallback((node: TreeNode) => {
-    setShowTrash(false);
-    setSelectedPath(node.path);
+
+  // Replace the selection with exactly this path (a plain click, and the pick
+  // that rides along with an open).
+  const selectOne = useCallback((path: string) => {
+    setSelection([path]);
+    setAnchorPath(path);
   }, []);
 
-  // The tree + folder-listing hand a TreeNode; every other door hands a path.
-  // Opening is the SAME verb everywhere (openPath) — the node wrapper unwraps.
-  const handleExplorerSelect = useCallback(
-    (node: TreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean; detail?: number }) => {
-      // ADR-553 D1 — ⌘/Ctrl-click TOGGLES membership in the set; a plain click
-      // replaces the whole selection. Finder's grammar, and the reason the
-      // modifier is the ONLY way in: a member cannot enter a multi-selection by
-      // accident, which is half of why ADR-519's trap was a trap.
-      const additive = !!(e?.metaKey || e?.ctrlKey);
-      if (!additive) {
-        clearSet();
-        // A double-click arrives as a second click event with detail >= 2 (the
-        // browser's own counter — no timer of ours, so a slow double-click that
-        // the browser scored as two singles just selects twice, and a micro-drag
-        // between the two presses never becomes a spurious open).
-        const isDoubleClick = (e?.detail ?? 0) >= 2;
-        // FOLDERS STAY SINGLE-CLICK, files require the double. A folder click
-        // BROWSES — it reveals children in place (the tree expands its branch,
-        // the listing shows its contents); nothing launches, no app is entered,
-        // and the act is trivially undone by clicking the parent. Files are
-        // where the double-click earns its keep: opening one navigates the whole
-        // surface into an owning app (a .html into Studio, a .md into Text), and
-        // that is the act a member must be able to line up without triggering.
-        // The tree agrees with this by construction (WorkspaceTree's own folder
-        // branch toggles disclosure on the first click).
-        if (coarse || isDoubleClick || node.type === 'folder') {
-          openPath(node.path);
-        } else {
-          selectOnly(node);
-        }
+  // ⌘/Ctrl-click — toggle one member. Removing the anchor moves it to whatever
+  // is still picked, so a following shift-click ranges from something real.
+  //
+  // Computed from the CURRENT selection rather than inside a setState updater:
+  // an updater must be pure (React may invoke it twice), and this one has to
+  // move the anchor as well as the set.
+  const toggleSelected = useCallback((path: string) => {
+    const next = selection.includes(path)
+      ? selection.filter((p) => p !== path)
+      : [...selection, path];
+    setSelection(next);
+    setAnchorPath(next.includes(path) ? path : (next[next.length - 1] ?? null));
+  }, [selection]);
+
+  // Shift-click — the RANGE, over the listing's published visual order. With no
+  // anchor (or a row the current listing doesn't contain — a tree node, a stale
+  // pick) it degrades to a plain single select rather than doing nothing.
+  const selectRange = useCallback((path: string) => {
+    const order = orderRef.current;
+    const to = order.indexOf(path);
+    const from = anchorPath ? order.indexOf(anchorPath) : -1;
+    if (to === -1 || from === -1) {
+      selectOne(path);
+      return;
+    }
+    const [lo, hi] = from <= to ? [from, to] : [to, from];
+    // The anchor deliberately does NOT move: successive shift-clicks re-range
+    // from the same origin, which is what makes a range correctable.
+    setSelection(order.slice(lo, hi + 1));
+  }, [anchorPath, selectOne]);
+
+  // The tree + folder-listing hand a TreeNode plus what the click MEANT.
+  // `source` says which pane it came from, because the two panes differ on one
+  // point only: a tree folder browses on click one, a listing folder does not.
+  const handleFileClick = useCallback(
+    (node: TreeNode, e?: FileClickIntent, source: 'tree' | 'listing' = 'listing') => {
+      if (e?.shiftKey) {
+        selectRange(node.path);
         return;
       }
-      if (node.type === 'folder') return; // the set is files — folders have no bulk verb
-      if (!selectedPath) {
-        selectOnly(node);
+      if (e?.metaKey || e?.ctrlKey) {
+        toggleSelected(node.path);
         return;
       }
-      if (node.path === selectedPath) return; // never let the primary leave the set
-      setAlsoSelected((prev) =>
-        prev.includes(node.path) ? prev.filter((p) => p !== node.path) : [...prev, node.path],
-      );
+      // A double-click arrives as a second click event with detail >= 2 — the
+      // browser's own counter. No timer of ours, so a slow double-click the
+      // browser scored as two singles just selects twice, and a micro-drag
+      // between the presses never becomes a spurious open.
+      const isDoubleClick = (e?.detail ?? 0) >= 2;
+      const treeFolder = source === 'tree' && node.type === 'folder';
+      if (coarse || isDoubleClick || treeFolder) {
+        openPath(node.path);
+        return;
+      }
+      selectOne(node.path);
     },
-    [openPath, clearSet, selectedPath, coarse, selectOnly],
+    [openPath, coarse, selectOne, selectRange, toggleSelected],
   );
 
-  // Enter opens the current selection — the keyboard equivalent double-click
-  // does not have, and therefore the accessibility answer to the split above.
-  // Scoped like the Escape hatch below: a bare key, ignored while the member is
-  // typing into a field or a contentEditable (rename inline, chat composer).
+  // The two panes' bound handlers — the only difference is which pane said it.
+  const handleTreeClick = useCallback(
+    (node: TreeNode, e?: FileClickIntent) => handleFileClick(node, e, 'tree'),
+    [handleFileClick],
+  );
+  const handleListingClick = useCallback(
+    (node: TreeNode, e?: FileClickIntent) => handleFileClick(node, e, 'listing'),
+    [handleFileClick],
+  );
+
+  // Enter opens the selection — the keyboard equivalent double-click does not
+  // have, and therefore the accessibility answer to the split above. With a
+  // multi-selection it opens the anchor (the last thing actually pointed at),
+  // because "open 12 files" is not an act this surface offers.
+  // A bare key, ignored while the member is typing into a field or a
+  // contentEditable (inline rename, the chat composer).
   useEffect(() => {
-    if (!selectedPath) return;
+    if (selection.length === 0) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       e.preventDefault();
-      openPathRef.current(selectedPath);
+      openPathRef.current(
+        anchorPath && selection.includes(anchorPath) ? anchorPath : selection[0],
+      );
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedPath]);
+  }, [selection, anchorPath]);
 
-  // ── The way OUT (ADR-553 D3) ───────────────────────────────────────────
+  // ── The way OUT ────────────────────────────────────────────────────────
   // ADR-519 shipped an inescapable multi-selection once; withdrawal is part of
-  // this feature, not a follow-up. Escape is the universal exit.
+  // this feature, not a follow-up. Escape is the universal exit, at ANY size —
+  // a selection of one is just as much a state a member needs out of as a
+  // selection of nine (the earlier shape only armed Escape past size 1).
   useEffect(() => {
-    if (alsoSelected.length === 0) return;
+    if (selection.length === 0) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') clearSet();
+      if (e.key === 'Escape') clearSelection();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [alsoSelected.length, clearSet]);
+  }, [selection.length, clearSelection]);
 
   // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
   // Details scopes to it) and open the Details panel.
+  // A pure SELECT-to-inspect: it scopes the details modal to this node and
+  // moves nothing else. It deliberately does NOT touch `viewPath` — inspecting
+  // a file's properties is not reading its body, and before the select/open
+  // split it did both at once.
   const handleGetInfo = useCallback((node: TreeNode) => {
-    setSelectedPath(node.path);
+    selectOne(node.path);
+    setPropertiesPath(node.path);
     setDetailsOpen(true);
-  }, []);
+  }, [selectOne]);
 
   // ADR-400 Amendment 1 operator verbs — the human reorganizes their whole
   // workspace (all of it except system/ + machine-config). Rename / Move to… /
@@ -983,15 +1114,18 @@ export default function ContextPage() {
     moveRoots: treeNodes,
     onAfterMutate: (newPath, oldPath) => {
       void loadExplorer();
-      // ADR-553 D3 — a single-target verb ENDS the set. Otherwise a set built
-      // before a rename/move/trash outlives it and points at paths that no
-      // longer exist: the stale-state half of ADR-519's trap, arriving by a
-      // different door than the one the Escape hatch guards.
-      clearSet();
-      // Rename/Move → re-select the new path; Trash (newPath null) → clear the
-      // selection only if the trashed file WAS the selected one (the original
-      // `prev === t.path` behavior).
-      setSelectedPath((prev) => (newPath === null ? (prev === oldPath ? null : prev) : newPath));
+      // A single-target verb ENDS the set. Otherwise a set built before a
+      // rename/move/trash outlives it and points at paths that no longer
+      // exist: the stale-state half of ADR-519's trap, arriving by a different
+      // door than the one the Escape hatch guards.
+      //
+      // Rename/Move → the moved file becomes the selection at its NEW path, so
+      // the member can see where it went. Trash (newPath null) → nothing is
+      // picked.
+      if (newPath === null) clearSelection(); else selectOne(newPath);
+      // What is being SHOWN only moves if the mutated file was the thing on
+      // screen. Renaming a file you merely picked must not yank the listing.
+      setViewPath((prev) => (prev !== oldPath ? prev : newPath));
     },
   });
   const openRename = organizeVerbs.onRename;
@@ -1040,13 +1174,42 @@ export default function ContextPage() {
       // ADR-571 routes .md to the Text app meant creating a folder EJECTED the
       // operator out of Files into an editor. Both the seed and the redirect
       // are gone; `path` is the folder itself.
-      if (r?.path) setSelectedPath(r.path);
+      if (r?.path) selectOne(r.path);
     } catch { /* error toast already surfaced; keep the modal open to retry */ }
-  }, [runAction, loadExplorer, openPath, newFolderParent, closeNewFolder]);
+  }, [runAction, loadExplorer, selectOne, newFolderParent, closeNewFolder]);
 
   // Move (deliberate, modal) + drag-move (gesture) both route through the shared
   // hook — `openMove` opens the picker, `commitMove` is the drag fast-path.
-  const commitMove = organizeVerbs.commitMove;
+  //
+  // DRAG THE GROUP. Selection is only worth having if the verbs take it, and
+  // dragging is the most direct verb on this surface. When the row a member
+  // picked up is part of a multi-selection, the drop moves the WHOLE set —
+  // otherwise a member who selected nine files and dragged one would watch the
+  // other eight stay put, which reads as the selection being decorative. A
+  // dragged row that is NOT in the selection moves alone (the OS rule: dragging
+  // outside the selection is its own act).
+  const commitMove = useCallback(
+    async (fromPath: string, destFolder: string) => {
+      if (selection.length > 1 && selection.includes(fromPath)) {
+        const paths = selection;
+        const { moved, failed } = await organizeVerbs.commitMoveMany(paths, destFolder);
+        clearSelection();
+        if (failed.length) {
+          toast({
+            kind: 'error',
+            message: moved.length
+              ? `Moved ${moved.length} of ${paths.length}. ${failed.length} could not be moved.`
+              : `Could not move ${failed.length} file${failed.length === 1 ? '' : 's'}.`,
+          });
+        } else {
+          toast({ kind: 'success', message: `Moved ${moved.length} files.` });
+        }
+        return;
+      }
+      await organizeVerbs.commitMove(fromPath, destFolder);
+    },
+    [selection, organizeVerbs, clearSelection, toast],
+  );
 
   // ADR-529 D1: share OPENS THE DIALOG — it no longer mints on click.
   //
@@ -1069,7 +1232,16 @@ export default function ContextPage() {
   // — ADR-452 D5: a creation act, not a file operation.)
   const fileVerbs = useMemo(() => ({
     onOpen: (t: { path: string }) => openPath(t.path),
-    onProperties: (t: { path: string }) => { setShowTrash(false); setSelectedPath(t.path); setDetailsOpen(true); },
+    // SELECT-to-inspect, like handleGetInfo — it scopes the modal, it does not
+    // open the file. When the target is already in a multi-selection the set is
+    // left intact; Properties reads one node either way.
+    onProperties: (t: { path: string }) => {
+      setShowTrash(false);
+      setSelection((prev) => (prev.includes(t.path) ? prev : [t.path]));
+      setAnchorPath(t.path);
+      setPropertiesPath(t.path);
+      setDetailsOpen(true);
+    },
     onRename: openRename,
     onMove: openMove,
     onDelete: handleTreeDelete,
@@ -1115,7 +1287,7 @@ export default function ContextPage() {
   // looking tree. reload → then select so the fresh node exists when it resolves.
   const handleUploaded = useCallback(async (workspacePath: string) => {
     await loadExplorer();
-    // Route through THE ONE DOOR (openPath) rather than a raw setSelectedPath.
+    // Route through THE ONE DOOR (openPath) rather than a raw setViewPath.
     // An uploaded file lands in the Intake raw lane (inbound/uploads/…), which
     // isArtifactCandidate excludes — so an uploaded .html falls through to inline
     // preview here, correctly. If upload destinations ever change, the resolver
@@ -1148,15 +1320,15 @@ export default function ContextPage() {
     (folder?: { path: string; name: string } | null) => {
       const node =
         folder ??
-        (selectedNode?.type === 'folder' && selectedNode.path.startsWith('/workspace/')
-          ? { path: selectedNode.path, name: selectedNode.name }
+        (viewNode?.type === 'folder' && viewNode.path.startsWith('/workspace/')
+          ? { path: viewNode.path, name: viewNode.name }
           : null);
       if (!node) return null;
       const rel = node.path.replace(/^\/workspace\//, '').replace(/\/+$/, '');
       if (!rel) return null;
       return { path: rel, label: node.name };
     },
-    [selectedNode],
+    [viewNode],
   );
 
   const openUpload = useCallback(
@@ -1248,11 +1420,11 @@ export default function ContextPage() {
         ) : treeNodes.length > 0 ? (
           <div className="p-2">
             <button
-              onClick={() => { setShowTrash(false); setSelectedPath(null); activateBodyRef.current(); }}
-              aria-current={selectedPath === null && !showTrash ? 'page' : undefined}
+              onClick={() => { setShowTrash(false); setViewPath(null); clearSelection(); activateBodyRef.current(); }}
+              aria-current={viewPath === null && !showTrash ? 'page' : undefined}
               className={cn(
                 'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
-                selectedPath === null && !showTrash
+                viewPath === null && !showTrash
                   ? 'bg-primary/10 text-foreground font-medium'
                   : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
               )}
@@ -1263,7 +1435,7 @@ export default function ContextPage() {
             </button>
             {/* ADR-400 D4: Trash — the reversible home of the delete verb. */}
             <button
-              onClick={() => { setShowTrash(true); setSelectedPath(null); activateBodyRef.current(); }}
+              onClick={() => { setShowTrash(true); setViewPath(null); clearSelection(); activateBodyRef.current(); }}
               aria-current={showTrash ? 'page' : undefined}
               className={cn(
                 'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
@@ -1278,8 +1450,9 @@ export default function ContextPage() {
             </button>
             <WorkspaceTree
               nodes={treeNodes}
-              selectedPath={selectedPath || undefined}
-              onSelect={handleExplorerSelect}
+              selection={selection}
+              viewPath={viewPath || undefined}
+              onSelect={handleTreeClick}
               // ADR-514 D2.6: the WHOLE bundle — the same verbs the grid and the
               // folder listing get. The tree previously took a hand-listed
               // subset, which is how Duplicate (and Share…) went missing here.
@@ -1303,29 +1476,40 @@ export default function ContextPage() {
     <div className="flex-1 min-h-0">
       <TrashView />
     </div>
-  ) : selectedNode ? (
+  ) : viewNode ? (
     <div className="flex-1 overflow-auto bg-background flex flex-col min-h-0">
       <SurfaceIdentityHeader
-        title={selectedNode.name}
-        metadata={nodeMetadataNode(selectedNode)}
+        title={viewNode.name}
+        metadata={nodeMetadataNode(viewNode)}
         actions={
           <div className="flex items-center gap-2">
             {/* ADR-388 D4: the ONE shared Files view toggle (folder listings honor
                 it; same control + memory as the Recents toggle — Finder-parity
                 2026-07-09). */}
-            {selectedNode.type === 'folder' && (
+            {viewNode.type === 'folder' && (
               <FilesViewToggle mode={viewMode} onChange={setViewMode} />
             )}
-            {/* ADR-553 D3 — the set SAYS ITSELF and shows its exit.
+            {/* The SELECTION BAR — the selection says itself, names its verbs,
+                and shows its exit.
+
+                It appears at size ONE, not only past one. A selection of one is
+                the state a plain click now produces, and it is the state the
+                whole grammar rests on: if the surface only acknowledged a
+                selection once it had two members, an inert single click would
+                read as a click that did nothing.
+
                 ADR-519 shipped an inescapable multi-selection once; a visible
                 count with a visible Clear is the difference between a state a
                 member chose and a state they are stuck in. The count names the
                 SET (ADR-519 D4.1: "the Identity heading names the count, never
-                a stale label"). */}
-            {selectionSet.length > 1 && (
+                a stale label") — and Move… is here because the verbs acting on
+                the selection is the entire reason selection is worth having. */}
+            {selection.length > 0 && (
               <div className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs">
                 <span className="font-medium text-foreground">
-                  {selectionSet.length} selected
+                  {selection.length === 1
+                    ? baseName(selection[0])
+                    : `${selection.length} selected`}
                 </span>
                 <button
                   onClick={() => setMoveSetOpen(true)}
@@ -1334,7 +1518,18 @@ export default function ContextPage() {
                   Move…
                 </button>
                 <button
-                  onClick={clearSet}
+                  onClick={() =>
+                    openPathRef.current(
+                      anchorPath && selection.includes(anchorPath) ? anchorPath : selection[0],
+                    )
+                  }
+                  title="Open (Enter, or double-click)"
+                  className="rounded px-1.5 py-0.5 text-primary transition-colors hover:bg-primary/15"
+                >
+                  Open
+                </button>
+                <button
+                  onClick={clearSelection}
                   title="Clear selection (Esc)"
                   className="rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                 >
@@ -1345,7 +1540,7 @@ export default function ContextPage() {
             {/* ADR-388 D5 / ADR-400: Properties → modal. Also reachable by
                 right-click on any tree/row node. */}
             <button
-              onClick={() => setDetailsOpen(true)}
+              onClick={() => { setPropertiesPath(null); setDetailsOpen(true); }}
               title="Properties"
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
             >
@@ -1358,14 +1553,17 @@ export default function ContextPage() {
       <div className="flex-1 overflow-auto">
         {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
             (ADR-180 + ADR-231 D2). Path shape: /workspace/operation/reports/{slug}. */}
-        {/^\/workspace\/reports\/[^/]+\/?$/.test(selectedNode.path) ? (() => {
+        {/^\/workspace\/reports\/[^/]+\/?$/.test(viewNode.path) ? (() => {
           // path = /workspace/operation/reports/{slug}  →  slug at index 3
-          const taskSlug = selectedNode.path.split('/')[3];
+          const taskSlug = viewNode.path.split('/')[3];
           return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
         })() : (
           <ContentViewer
-            selectedNode={selectedNode}
-            onNavigate={handleExplorerSelect}
+            node={viewNode}
+            selection={selection}
+            onPublishOrder={publishOrder}
+            onNavigate={handleListingClick}
+            onClearSelection={clearSelection}
             showHeader={false}
             viewMode={viewMode}
             onGetInfo={handleGetInfo}
@@ -1386,7 +1584,8 @@ export default function ContextPage() {
               // ADR-329: file archived — clear selection + refresh the
               // tree (the archived file self-filters out server-side).
               // D19.2: selection is component state, never a URL write.
-              setSelectedPath(null);
+              setViewPath(null);
+              clearSelection();
               loadExplorer();
             }}
           />
@@ -1458,8 +1657,8 @@ export default function ContextPage() {
           // "here" to create into).
           onNewFolder={() =>
             openNewFolder(
-              selectedNode?.type === 'folder' && selectedNode.path.startsWith('/workspace/')
-                ? { path: selectedNode.path, name: selectedNode.name }
+              viewNode?.type === 'folder' && viewNode.path.startsWith('/workspace/')
+                ? { path: viewNode.path, name: viewNode.name }
                 : null,
             )
           }
@@ -1483,8 +1682,8 @@ export default function ContextPage() {
           Contributors block + the ADR-209 revision history. Opened by the header
           button or a right-click on any tree/folder-listing node. */}
       <PropertiesModal
-        node={detailsOpen ? selectedNode : null}
-        onClose={() => setDetailsOpen(false)}
+        node={detailsOpen ? propertiesNode : null}
+        onClose={() => { setDetailsOpen(false); setPropertiesPath(null); }}
         onSelectPath={openPath}
         onRevert={loadExplorer}
       />
@@ -1501,15 +1700,15 @@ export default function ContextPage() {
           borrowing one member's name, which would be the stale-label failure
           ADR-519 D4.1 names. */}
       <MoveToFolderModal
-        target={moveSetOpen ? { path: selectionSet[0] ?? '', name: `${selectionSet.length} files` } : null}
+        target={moveSetOpen ? { path: selection[0] ?? '', name: `${selection.length} files` } : null}
         roots={treeNodes}
         canOrganize={operatorCanOrganize}
         onClose={() => setMoveSetOpen(false)}
         onMove={async (destFolder) => {
-          const paths = selectionSet;
+          const paths = selection;
           setMoveSetOpen(false);
           const { moved, failed } = await organizeVerbs.commitMoveMany(paths, destFolder);
-          clearSet();
+          clearSelection();
           // Non-transactional by construction — say which half landed rather
           // than reporting a flat success over a partial move.
           if (failed.length) {
