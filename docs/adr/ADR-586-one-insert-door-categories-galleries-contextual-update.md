@@ -166,11 +166,28 @@ kind unreachable); schematic galleries in both doors; the sheet housing as a
 class fork over one list; Update's grain keying + the pre-expanded tier; the
 library's direct landing.
 
-**Positioning note (D4, as built)**: the right-click tiers expand INLINE and the
-whole box re-measures and re-clamps on every tier open — accommodation without
-flyouts, strictly more robust than horizontal flipping (no detached panel exists
-to run off an edge). The toolbar door achieves the same by being one two-pane
-box (rail + gallery) under the existing measured clamp.
+**Positioning note (D4) — WITHDRAWN 2026-08-20, D4 built as originally decided.**
+The first build substituted INLINE tiers for D4's flyouts and argued they were
+"strictly more robust than horizontal flipping (no detached panel exists to run
+off an edge)". That reasoning holds for the EDGE and fails for the MENU: an
+inline tier changes the parent's height, so the whole box re-clamps and jumps
+out from under the pointer — the 2026-08-19 click-pass measured 125→352px tall
+and top 647→421 on one tier open, and the operator refused the resulting feel.
+
+As built now: ONE `<Flyout>` serves all four tiers (categories · Update · Ask ·
+the nested Turn-into). It measures itself, flips LEFT near the right edge,
+shifts UP by exactly its overflow near the bottom, and clamps at the margin as
+the backstop (a panel taller than the viewport scrolls internally). The parent
+holds still — its clamp deliberately does NOT depend on tier state, because
+that dependency was the defect. Hover opens on a pointer screen; click also
+works.
+
+**Narrow screens keep the inline tier** (`inline` prop on the same component):
+a flyout needs a pointer and room beside the parent, and D5's sheet is a drill
+rather than a hover surface. Deliberately lower scope on small screens, one
+component, no second mechanism. The toolbar door is unchanged — it is one
+two-pane box (rail + gallery) under the existing measured clamp, which never
+had this problem.
 
 **Deleted with the fork** (singular implementation, never left latent):
 `slashFromToolbar` + the `yarnnn-slash-invoke` message + the `slashInvoke`
