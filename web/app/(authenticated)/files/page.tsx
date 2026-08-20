@@ -805,10 +805,47 @@ export default function ContextPage() {
   // deep-links through this exact funnel (see openPathRef declaration).
   openPathRef.current = openPath;
 
+  // ── Select ≠ Open (2026-08-20, Finder parity on a fine pointer) ────────
+  //
+  // Before this, a plain click CLEARED the set and OPENED in one act, so the
+  // surface had no "picked but not opened" state: a member could not scope the
+  // Properties panel to a file, or line up a rename/move/share target, without
+  // first launching it (a .html artifact navigated the whole surface to Studio).
+  // Selection existed in the code and was unreachable in the grammar.
+  //
+  // The split, and what decides it:
+  //
+  //   fine pointer (mouse/trackpad)  single click → SELECT     double → OPEN
+  //   coarse pointer (touch)         single tap   → OPEN       (unchanged)
+  //
+  // The branch is on INPUT CAPABILITY (`useCoarsePointer`, `(pointer: coarse)`),
+  // NOT viewport width — the rule that hook's own docstring states and that the
+  // three existing consumers already follow: a narrow desktop window still has a
+  // mouse; a large tablet does not. A width branch would hand a mouse user the
+  // touch grammar the moment they narrowed their window.
+  //
+  // Why touch is NOT double-tap: double-tap is not a touch idiom. It fires
+  // unreliably, competes with double-tap-to-zoom, and is undiscoverable —
+  // every touch OS opens on a single tap. Touch keeps its single-tap open and
+  // gets no new action model, exactly the shape the kebab (⋯) parity took.
+  //
+  // Escape hatches, because double-click has no keyboard equivalent:
+  //   · Enter opens the current selection (keyboard parity + the a11y answer)
+  //   · the context menu's Open (fileVerbs.onOpen) stays a single-click path
+  //   · ⌘/Ctrl-click remains the additive pick, untouched (ADR-553 D1)
+  //
+  // THE ONE DOOR is intact: every branch below that OPENS calls `openPath`.
+  // The new select-only branch calls `setSelectedPath` — deliberately, it is a
+  // select-to-scope like Get Info / Properties, not an open.
+  const selectOnly = useCallback((node: TreeNode) => {
+    setShowTrash(false);
+    setSelectedPath(node.path);
+  }, []);
+
   // The tree + folder-listing hand a TreeNode; every other door hands a path.
-  // Both are the SAME open verb (openPath) — the node wrapper only unwraps.
+  // Opening is the SAME verb everywhere (openPath) — the node wrapper unwraps.
   const handleExplorerSelect = useCallback(
-    (node: TreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => {
+    (node: TreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean; detail?: number }) => {
       // ADR-553 D1 — ⌘/Ctrl-click TOGGLES membership in the set; a plain click
       // replaces the whole selection. Finder's grammar, and the reason the
       // modifier is the ONLY way in: a member cannot enter a multi-selection by
@@ -816,12 +853,30 @@ export default function ContextPage() {
       const additive = !!(e?.metaKey || e?.ctrlKey);
       if (!additive) {
         clearSet();
-        openPath(node.path);
+        // A double-click arrives as a second click event with detail >= 2 (the
+        // browser's own counter — no timer of ours, so a slow double-click that
+        // the browser scored as two singles just selects twice, and a micro-drag
+        // between the two presses never becomes a spurious open).
+        const isDoubleClick = (e?.detail ?? 0) >= 2;
+        // FOLDERS STAY SINGLE-CLICK, files require the double. A folder click
+        // BROWSES — it reveals children in place (the tree expands its branch,
+        // the listing shows its contents); nothing launches, no app is entered,
+        // and the act is trivially undone by clicking the parent. Files are
+        // where the double-click earns its keep: opening one navigates the whole
+        // surface into an owning app (a .html into Studio, a .md into Text), and
+        // that is the act a member must be able to line up without triggering.
+        // The tree agrees with this by construction (WorkspaceTree's own folder
+        // branch toggles disclosure on the first click).
+        if (coarse || isDoubleClick || node.type === 'folder') {
+          openPath(node.path);
+        } else {
+          selectOnly(node);
+        }
         return;
       }
       if (node.type === 'folder') return; // the set is files — folders have no bulk verb
       if (!selectedPath) {
-        openPath(node.path);
+        selectOnly(node);
         return;
       }
       if (node.path === selectedPath) return; // never let the primary leave the set
@@ -829,8 +884,25 @@ export default function ContextPage() {
         prev.includes(node.path) ? prev.filter((p) => p !== node.path) : [...prev, node.path],
       );
     },
-    [openPath, clearSet, selectedPath],
+    [openPath, clearSet, selectedPath, coarse, selectOnly],
   );
+
+  // Enter opens the current selection — the keyboard equivalent double-click
+  // does not have, and therefore the accessibility answer to the split above.
+  // Scoped like the Escape hatch below: a bare key, ignored while the member is
+  // typing into a field or a contentEditable (rename inline, chat composer).
+  useEffect(() => {
+    if (!selectedPath) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      openPathRef.current(selectedPath);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedPath]);
 
   // ── The way OUT (ADR-553 D3) ───────────────────────────────────────────
   // ADR-519 shipped an inescapable multi-selection once; withdrawal is part of

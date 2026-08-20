@@ -43,11 +43,11 @@ import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { useFeedback } from '@/contexts/FeedbackContext';
-import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
+import type { WorkspaceTreeNode, WorkspaceFile, FileClickIntent } from '@/types';
 
 interface ContentViewerProps {
   selectedNode: WorkspaceTreeNode | null;
-  onNavigate: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
+  onNavigate: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
   showHeader?: boolean;
   /**
    * ADR-215 R1 + ADR-236 Files page rework (2026-04-30): seed the chat
@@ -172,7 +172,7 @@ function DirectoryView({
   dnd,
 }: {
   node: WorkspaceTreeNode;
-  onNavigate: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
+  onNavigate: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
   viewMode?: 'icon' | 'list';

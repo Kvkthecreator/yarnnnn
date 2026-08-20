@@ -135,6 +135,20 @@ Per-surface contracts below carry the seven fixed sections where they apply: **A
   - Head-revision author glance ("Last edited by …") on the file header (ADR-329 D1)
   - **Node Details ("Get Info")** — per-node provenance property (ADR-329 Amendment 1), opened via header ⓘ toggle or tree right-click. File → revision chain (`authored_by` trail, diff, restore per ADR-209 P4); folder → subtree recent-changes. Replaced the deleted standing "Recently authored" left-rail feed.
   - Substrate-native edit affordance when `authored_by=operator` is appropriate (IDENTITY, BRAND, CONVENTIONS, principles, MANDATE, uploaded documents)
+- **Click grammar — SELECT and OPEN are two acts** (2026-08-20). Finder's grammar, and the reason a "picked but not opened" state exists at all: scoping the Properties/Get-Info panel to a file, or lining up a rename/move/share target, must not require launching it. Before this split a plain click cleared the set and opened in one motion, so selecting a `.html` artifact navigated the whole surface into Studio.
+
+  | Input | Select | Open |
+  |---|---|---|
+  | **Fine pointer** (mouse/trackpad) | single click | **double click** |
+  | **Coarse pointer** (touch) | — | **single tap** |
+
+  - **The branch is on INPUT CAPABILITY, never viewport width.** `useCoarsePointer()` (`(pointer: coarse)`) is the signal; `useViewport().isMobile` (a 640px WIDTH threshold) is *not* interchangeable with it. A narrow desktop window still has a mouse; a large tablet does not. This is the same rule the hook's three prior consumers follow (the Files canvas verbs, `FileContextMenu`'s kebab, `StudioSurface`) — desktop keeps the clean Finder affordance, coarse pointer gets a reachable equivalent, no new action model.
+  - **Touch is single-tap, not double-tap.** Double-tap is not a touch idiom: it fires unreliably, competes with double-tap-to-zoom, and is undiscoverable. Every touch OS opens on one tap. Touch behavior is UNCHANGED by this split.
+  - **FOLDERS act on a single click; only FILES require the double.** A folder click *browses* — the tree toggles its disclosure triangle, the listing shows its contents; nothing launches, no app is entered, and the act is undone by clicking the parent. Files are where the double-click earns its keep, because opening one navigates the surface into an owning app (ADR-451/473). A tree folder demanding a double-click to expand reads as a broken tree, not a stricter grammar.
+  - **Escape hatches** (double-click has no keyboard equivalent, so these are the accessibility answer): **Enter** opens the current selection; the right-click context menu's **Open** stays a single-click path for anyone who never discovers the double-click; **Open With ▸** likewise.
+  - **⌘/Ctrl-click remains the additive multi-select** (ADR-553 D1), untouched.
+  - **THE ONE DOOR still holds**: every branch that OPENS calls `openPath` (ADR-452). The select-only branch calls `setSelectedPath` deliberately — a select-to-scope, the same class as Get Info / Properties / the ADR-588 new-folder reveal, none of which open. The distinguishing mechanism is the drill-in (`activateBodyRef`), which only an open performs. Gated in `api/test_adr452_studio_landing.py`.
+
 - **`+` menu:** UploadFileModal (operator uploads a document into `/workspace/uploads/`). No other modals. No chat seeders.
 - **Deep-links out:** every file path is a stable URL (`/files?path=...`) linked from Recurrence detail (`/workspace/operation/reports/{slug}/_spec.yaml` · `_feedback.md` · `{date}/output.md` per ADR-231 D2 + ADR-320), Agents detail (`/workspace/agents/{slug}/AGENT.md` · `memory/` · `style.md`), Feed artifacts, and Home's recent-artifacts slot.
 - **Refuses:**

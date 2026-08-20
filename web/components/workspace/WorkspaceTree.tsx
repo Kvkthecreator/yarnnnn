@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Lock, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { WorkspaceTreeNode } from '@/types';
+import type { WorkspaceTreeNode, FileClickIntent } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
 import { TILE_DRAG_MIME } from '@/components/workspace/FileTile';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
@@ -21,7 +21,7 @@ import { resolveRootIcon } from '@/lib/workspace/root-icons';
 interface WorkspaceTreeProps {
   nodes: WorkspaceTreeNode[];
   selectedPath?: string;
-  onSelect: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
+  onSelect: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
   /**
    * ADR-514 D2.6 — the verb bundle, WHOLE. This prop replaced a hand-listed
    * subset (`onGetInfo`/`onRename`/`onMove`/`onDelete`/`onDuplicate`), which was
@@ -140,7 +140,7 @@ interface TreeItemProps {
   node: WorkspaceTreeNode;
   depth: number;
   selectedPath?: string;
-  onSelect: (node: WorkspaceTreeNode, e?: { metaKey?: boolean; ctrlKey?: boolean }) => void;
+  onSelect: (node: WorkspaceTreeNode, e?: FileClickIntent) => void;
   onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
   dnd?: DndBundle;
 }
@@ -255,9 +255,19 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu, dnd }: T
     // fight over one click.
     const additive = !!(e && (e.metaKey || e.ctrlKey));
     if (isFolder && !additive) {
+      // A TREE FOLDER STAYS SINGLE-CLICK (2026-08-20). The select/open split
+      // that made FILES open on double-click deliberately does not reach here:
+      // in every Finder-shaped tree a folder's single click toggles its
+      // disclosure triangle, and demanding a double-click to expand a branch
+      // reads as a broken tree, not as a stricter grammar. Disclosure is not
+      // "opening" — nothing launches, nothing navigates; the branch just shows
+      // its children. Only FILES carry the open/select distinction.
       setExpanded(!expanded);
     }
-    onSelect(node, e ? { metaKey: e.metaKey, ctrlKey: e.ctrlKey } : undefined);
+    // `detail` is the browser's click counter, forwarded so the surface can
+    // tell a double-click (OPEN) from a single one (SELECT). A folder sends it
+    // too — harmless, since the surface only consults it for files.
+    onSelect(node, e ? { metaKey: e.metaKey, ctrlKey: e.ctrlKey, detail: e.detail } : undefined);
   };
 
   // Icon based on path/type

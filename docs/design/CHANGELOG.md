@@ -4,6 +4,32 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-08-20 — FILES: select and open become two acts (no ADR — operator-approved after audit)
+
+**Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → Click grammar](WORKSPACE.md). No new ADR; the existing surface contract gains the grammar it never documented.
+
+**The defect was a missing state, not a broken one.** The Files surface had exactly one door (`openPath`, the ADR-452 funnel) and one funnel into it (`handleExplorerSelect`), and a plain click *cleared the selection set and immediately opened*. Select and open were the same act, so there was no "picked but not opened" state for a file: scoping the Properties/Get-Info panel to a file, or lining up a rename/move/share target, meant launching it first — and opening a `.html` artifact navigates the whole surface into Studio (ADR-451/473). Selection existed in the code (`selectedPath` already drove the details pane) and was unreachable in the grammar.
+
+**The split**: on a **fine pointer**, single click SELECTS and double click OPENS; on a **coarse pointer**, single tap OPENS (unchanged). Folders act on a single click in both — a folder click *browses* (disclosure toggles, listing navigates), nothing launches, and a tree that demands a double-click to expand a branch reads as broken rather than as stricter.
+
+**The rule that decided it: capability, not width.** The branch is `useCoarsePointer()` — `(pointer: coarse)` — never `useViewport().isMobile` (a 640px WIDTH threshold). That distinction is stated in the hook's own docstring and already load-bearing in its three prior consumers: *a narrow desktop window still has a mouse; a large tablet does not.* A width branch would hand a mouse user the touch grammar the moment they narrowed their window. **Touch deliberately does NOT get double-tap** — it is not a touch idiom (fires unreliably, competes with double-tap-to-zoom, undiscoverable); every touch OS opens on one tap. Same shape as the ADR-400 kebab parity: desktop keeps the clean Finder affordance, coarse pointer gets a reachable equivalent, no new action model.
+
+**Escape hatches**, because double-click has no keyboard equivalent and is undiscoverable: **Enter** opens the current selection (the a11y answer), and the context menu's **Open** / **Open With ▸** remain single-click paths. ⌘/Ctrl-click additive multi-select (ADR-553 D1) is untouched. Drag-vs-double-click is resolved by reading the browser's own `MouseEvent.detail` counter rather than timing clicks ourselves — a micro-drag between two presses can never score as a spurious open, and a slow double-click the browser scored as two singles merely selects twice.
+
+**THE ONE DOOR (ADR-452) is intact and better defended.** Every branch that opens still calls `openPath`; the new select-only branch calls `setSelectedPath`, deliberately, as a select-to-scope of the same class as Get Info / Properties / the ADR-588 new-folder reveal.
+
+**Gate re-anchoring — the interesting part.** `api/test_adr452_studio_landing.py` was **already RED at HEAD before this work** (2 failures, both stale), for the reason CLAUDE.md warns about: it pinned SPELLINGS, not mechanism.
+- Its `handleExplorerSelect` regex matched the parameter list `(node: TreeNode) =>`, which stopped existing when ADR-553 added a second param. The check had been **dead**, reading as a real failure nobody caused.
+- Its stray-setter check allowlisted `setSelectedPath` by the *name of its argument* (`{"path","node.path","t.path"}`) — a property of local variable names, not of behavior. ADR-588 D1's legitimate `setSelectedPath(r.path)` reveal tripped it as an "open door regression."
+
+Both re-anchored to mechanism: find the callback **by name**, assert on what its body **does**, and distinguish open from select by the **drill-in** (`activateBodyRef`) that only an open performs — counted as a ceiling (`<= 5`), never an equality, so removing a door cannot fail the gate.
+
+**Falsification — the gate's own first cut was itself a false green.** Reverting the fix left the gate PASSING, because the assertions matched their own explanatory COMMENTS (the words "coarse" and "detail" survived in the prose describing them). Fixed by stripping `//` and `/* */` before every text assertion (`_strip_comments`), and by capturing the open CONDITION and asserting on its disjuncts rather than searching the file at large — a second false green was caught the same way, where `node.type === 'folder'` still matched from the *additive* branch after the folder carve-out was deleted. **Six falsifiers, each confirmed RED then GREEN**: hardcoded `isDoubleClick` · folder carve-out removed · Enter handler removed · tree drops `detail` forwarding · tree folders forced to double-click · an inline open door reintroduced (RED on both re-anchored ADR-452 assertions). Final: 33/33 PASS.
+
+**Build**: `next build` exit 0, compiled successfully — verified on an isolated snapshot of HEAD + only these 4 files, because another session held uncommitted in-progress work in `StudioSurface.tsx` / `ProseCanvas.tsx` that fails the build on its own (not caused by, and not touched by, this change).
+
+---
+
 ## 2026-07-23 — STUDIO: the cue that boxed prose, and leaked into the substrate (ADR-484)
 
 **Governing ADR**: [ADR-484](../adr/ADR-484-the-cue-that-boxed-prose-and-leaked-into-substrate.md). Operator-reported: *"i thought the document is now one big flow, i still see outlined block selections for this newly created document."*
