@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
+import { KERNEL_SURFACE_SLUGS } from "@/types/desk";
 
 // ADR-205 F1 + ADR-214 + ADR-259 cockpit nav + ADR-297 D17 boot model:
 //   HOME_ROUTE = /desktop (ADR-297 D17, 2026-05-22). Pre-D17 was /feed.
@@ -26,7 +27,30 @@ import { HOME_ROUTE } from "@/lib/routes";
 // (ADR-412 D5).
 // /schedule is now a redirect stub → /work (ADR-243 folded into Work tabs).
 // /connectors is a user-menu shortcut (same pattern as /workspace).
-const PROTECTED_PREFIXES = [
+// 2026-08-20 — EIGHT live authenticated surfaces were missing from the
+// hand-kept list below and served a full 200 to logged-out visitors:
+// /images /radar /strings /text /notifications /queue /billing /usage.
+// (Probed against production, not inferred.) No data leaked — the client
+// caught it — but the catch is `onAuthStateChange` in AuthenticatedLayout,
+// a listener whose own docblock calls it "live invalidation, NOT an auth
+// gate", firing AFTER the 45KB shell has mounted and painted. So the
+// operator saw the surface flash and then bounce to login: a visible
+// glitch on exactly the routes the server should have redirected before
+// first paint. The `(authenticated)/layout.tsx` docblock states
+// "middleware.ts (updateSession) is the SOLE gate" — true by intent, false
+// for these eight, because the gate was a list somebody had to remember to
+// append to. Every surface added since the last person remembered was
+// ungated.
+//
+// The repair: DERIVE the protected set from the surface roster
+// (KERNEL_SURFACE_SLUGS — the same list the compositor, dock and launcher
+// read), so adding a surface protects it by construction. A hand-kept list
+// beside a generated truth drifts the moment someone adds a row; that is
+// what happened here. The literals below are now ONLY the routes with no
+// slug of their own: redirect stubs and retired paths.
+const SURFACE_PREFIXES = KERNEL_SURFACE_SLUGS.map((slug) => `/${slug}`);
+
+const LEGACY_AND_STUB_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
   "/setup", // ADR-437 — redirect stub → /chat (the guided first-boot wizard was deleted)
   "/feed", // redirect stub → /notifications?notifications.pane=understand (the narrative's home; 2026-07-02 ACTIVITY re-scope)
@@ -63,6 +87,12 @@ const PROTECTED_PREFIXES = [
   "/workfloor",
   "/orchestrator",
 ];
+
+// The gate reads this. Derived ∪ hand-kept, deduped — a surface is protected
+// because it is a surface, not because someone remembered to list it.
+const PROTECTED_PREFIXES = Array.from(
+  new Set([...SURFACE_PREFIXES, ...LEGACY_AND_STUB_PREFIXES]),
+);
 
 function redirectToLogin(request: NextRequest) {
   const url = request.nextUrl.clone();
