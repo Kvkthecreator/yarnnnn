@@ -465,10 +465,17 @@ _ret_keys = {
     and isinstance(n.value, ast.Dict)
     for k in n.value.keys if isinstance(k, ast.Constant)
 }
+# Re-anchored 2026-08-21: `capture` was REMOVED from this set. It carried
+# `schedule` off the cadence ADR-591 deleted, its emitter raised KeyError for
+# every connected provider, and no caller ever read it. The very next check
+# already enforces the same ablation for `cadence_choices` — `capture` was
+# simply missed when the clock went. Pinning it kept a deleted field alive.
 check("7l capture-signal serves the settings object beside the existing shape "
       "(extend, not fork)",
-      {"settings", "does", "capture", "declared", "observed"} <= _ret_keys,
+      {"settings", "does", "declared", "observed"} <= _ret_keys,
       str(sorted(_ret_keys)))
+check("7l1 the retired `capture` block is GONE from the payload (ADR-591)",
+      "capture" not in _ret_keys, str(sorted(_ret_keys)))
 check("7l2 the retired cadence enum is GONE from the payload (ADR-591)",
       "cadence_choices" not in _ret_keys, str(sorted(_ret_keys)))
 

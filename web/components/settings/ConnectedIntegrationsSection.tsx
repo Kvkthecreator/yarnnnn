@@ -26,6 +26,9 @@ interface Integration {
   provider: string;
   status: string;
   workspace_name: string | null;
+  /** WHERE this connection points (the Slack/Notion workspace, the GitHub
+   *  account), resolved server-side across the per-provider metadata shapes. */
+  target?: string | null;
   last_used_at: string | null;
   created_at: string;
 }
@@ -365,6 +368,9 @@ export function ConnectedIntegrationsSection({
                     <ConnectedConnectorRow
                       key={meta.provider}
                       meta={meta}
+                      target={
+                        integrations.find((i) => i.provider === meta.provider)?.target
+                      }
                       freshness={captureEnabled ? freshness[meta.provider] : undefined}
                       captureEnabled={captureEnabled}
                       onManage={() => onManageConnection?.(meta.provider)}
@@ -458,11 +464,16 @@ export function ConnectedIntegrationsSection({
 
 function ConnectedConnectorRow({
   meta,
+  target,
   freshness,
   captureEnabled,
   onManage,
 }: {
   meta: ConnectorMeta;
+  /** WHERE it points. Shown on the ROW so the operator can tell which Slack a
+   *  connection is without drilling in. Omitted when unresolvable — an empty
+   *  label reads as a broken connection. */
+  target?: string | null;
   freshness?: PlatformFreshness;
   /** ADR-494 D4 — whether the capture lane is RUNNING (ADR-404 D2). */
   captureEnabled: boolean;
@@ -483,6 +494,12 @@ function ConnectedConnectorRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-medium">{meta.displayName}</span>
+            {/* WHERE it points, next to WHAT it is — the two facts that
+                identify a connection. Without it, three "Connected" rows are
+                indistinguishable until you drill into each. */}
+            {target && (
+              <span className="truncate text-sm text-muted-foreground">{target}</span>
+            )}
             <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
               <Check className="h-3 w-3" />
               Connected

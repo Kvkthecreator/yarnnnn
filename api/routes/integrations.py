@@ -98,6 +98,12 @@ class IntegrationResponse(BaseModel):
     provider: str
     status: str
     workspace_name: Optional[str] = None
+    # WHERE this connection points, resolved server-side across the
+    # per-provider metadata shapes (Slack/Notion write `workspace_name`,
+    # GitHub writes `login` — it has accounts, not workspaces). The list row
+    # shows this so the operator can tell WHICH Slack a connection is, before
+    # drilling in. Display-only; never an authorization fact.
+    target: Optional[str] = None
     last_used_at: Optional[datetime] = None
     created_at: datetime
 
@@ -131,6 +137,8 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
     List all of user's connected integrations.
     Returns only active integrations with sanitized data (no tokens).
     """
+    from services.connectors import connection_target
+
     user_id = auth.user_id
 
     try:
@@ -158,6 +166,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                 provider=platform,  # ADR-058: DB column is 'platform'
                 status=row["status"],
                 workspace_name=metadata.get("workspace_name"),
+                target=connection_target(platform, metadata),
                 last_used_at=max_synced.get(platform),
                 created_at=row["created_at"]
             ))
@@ -297,6 +306,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 provider=provider,
                 status=integration["status"],
                 workspace_name=metadata.get("workspace_name"),
+                target=connection_target(platform, metadata),
                 connected_at=integration["created_at"],
                 resource_count=_resource_count_for(provider, integration),
                 resource_type=resource_type,
@@ -1548,7 +1558,7 @@ async def get_capture_signal(
     """
     from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal
-    from services.connectors import connector_does, connector_settings
+    from services.connectors import connection_target, connector_does, connector_settings
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
@@ -1602,6 +1612,9 @@ async def get_capture_signal(
         granted_scopes = [s.strip() for s in scope_str.split(",") if s.strip()]
         connection = {
             "workspace_name": md.get("workspace_name"),
+            # Same resolver the LIST row uses, so the two faces of one
+            # connection cannot name their target differently.
+            "target": connection_target(db_platform, md),
             "connected_at": conn_row.get("created_at"),
         }
 

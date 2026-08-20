@@ -808,9 +808,29 @@ export function WorkspaceMembersCard({
 
       {(ais.length > 0 || scope === 'mine') && (
         <section className="space-y-2">
+          {/* The heading must say WHOSE roster this is, and it renders on BOTH
+              doors from one component (ADR-496 D1: `mine` on the account door,
+              `workspace` here). Audited against the grant table 2026-08-21:
+              a connection is BOTH — workspace-scoped in its REACH
+              (principal_grants is keyed workspace_id; prod carries the same
+              person's claude.ai as two separate grants in two workspaces, so a
+              connection here grants nothing there) and member-owned in its
+              AUTHORIZATION (ADR-431, "the connecting member owns the MCP
+              grant" — `connected_by`, torn down on that member's eviction).
+              Naming only one half is what made the section ambiguous: on the
+              workspace door "AI connections" read as if it might be listing a
+              person's connections generally. */}
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            AI connections
+            {scope === 'mine'
+              ? 'AI connections'
+              : 'AI connections to this workspace'}
           </h3>
+          {scope === 'workspace' && ais.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Each reaches only this workspace, under the grant of the member
+              who connected it — and goes away when they do.
+            </p>
+          )}
           {ais.length > 0
             ? renderMemberList(ais)
             : renderEmptyState(

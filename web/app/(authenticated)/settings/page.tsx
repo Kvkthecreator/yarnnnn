@@ -93,17 +93,22 @@ const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
 // placement.
 type SettingsTab = "account" | "connectors";
 
+// Connections LEADS (2026-08-21, operator ruling). This door is opened to
+// manage a connection far more often than to reset an account, and Account's
+// contents are destructive verbs — a danger zone is a poor landing pane. The
+// nav order and the default pane move together; a sidebar whose first item is
+// not what loads reads as a bug.
 const PANE_GROUPS: PaneGroup[] = [
-  {
-    label: "Account",
-    panes: [{ key: "account", label: "Account", icon: User }],
-  },
   // ADR-425 — a human's platform connections are their own credentials, in
   // their account. (The workspace does not present "its connectors"; it
   // presents who has a grant + what they authored.)
   {
     label: "Connections",
     panes: [{ key: "connectors", label: "Connectors", icon: Link2 }],
+  },
+  {
+    label: "Account",
+    panes: [{ key: "account", label: "Account", icon: User }],
   },
 ];
 
@@ -135,9 +140,12 @@ export default function SettingsPage() {
   // URL sync. The page derives `activeTab` from the same search param to
   // drive its data-loading effects (usage/account) — single source (the
   // URL), no duplicate selection state.
+  // Must match SettingsPaneShell's `defaultPane` below — the page derives its
+  // data-loading effects from this value, so a disagreement loads one pane's
+  // data while rendering another's.
   const activeTab: SettingsTab = ALL_PANES.includes(requestedPane as SettingsTab)
     ? (requestedPane as SettingsTab)
-    : "account";
+    : "connectors";
 
   // ADR-531 — the OAuth outcome params. The callback has always encoded these
   // (`provider`, `status`, and on failure `error` + `error_reason`); until now
@@ -367,10 +375,10 @@ export default function SettingsPage() {
             <div className="mt-8 border-t border-border pt-8">
               <h3 className="mb-1 text-sm font-medium">Your AI connections</h3>
               <p className="mb-3 text-xs text-muted-foreground">
-                External AI assistants you&apos;ve connected to this workspace
-                over MCP. Each reaches in as itself and writes under your
-                authorization — so a connection is yours, not the
-                workspace&apos;s, and it goes away when you do.
+                External AI assistants you&apos;ve connected over MCP. Each
+                reaches in as itself and writes under your authorization, so a
+                connection goes away when you do — and each one reaches ONE
+                workspace, so connecting here grants nothing in another.
               </p>
               <WorkspaceMembersCard
                 variant="compact"
@@ -592,7 +600,7 @@ export default function SettingsPage() {
       <SettingsPaneShell
         windowSlug="settings"
         paneGroups={PANE_GROUPS}
-        defaultPane="account"
+        defaultPane="connectors"
         renderPane={renderPane}
       />
 

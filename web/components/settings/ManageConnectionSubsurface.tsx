@@ -74,6 +74,9 @@ interface ConnectorDoes {
 
 interface ConnectionFacts {
   workspace_name: string | null;
+  /** WHERE this connection points, resolved server-side across the
+   *  per-provider metadata shapes (GitHub names an account, not a workspace). */
+  target?: string | null;
   connected_at: string | null;
 }
 
@@ -401,10 +404,22 @@ export function ManageConnectionSubsurface({
         </div>
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">{meta.displayName}</h2>
-          <p className="text-sm text-muted-foreground">
-            Connected
-            {connection?.workspace_name ? ` · ${connection.workspace_name}` : ""}
-            {since ? ` · since ${since}` : ""}
+          {/* WHERE this connection points gets its OWN line, in the
+              foreground. It used to sit mid-sentence between a status word
+              and a date ("Connected · yarnnn · since Jul 2026"), which read
+              as metadata about the connection rather than as the thing the
+              connection IS — and it is the one fact that distinguishes this
+              connection from another of the same provider. `target` resolves
+              across the per-provider shapes (GitHub names an ACCOUNT), so the
+              label is generic; `workspace_name` remains the fallback for a
+              payload that predates it. */}
+          {(connection?.target ?? connection?.workspace_name) && (
+            <p className="truncate text-sm font-medium text-foreground">
+              {connection.target ?? connection.workspace_name}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Connected{since ? ` · since ${since}` : ""}
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">

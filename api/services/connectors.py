@@ -208,6 +208,28 @@ async def selected_ids(client: Any, user_id: str, platform: str) -> list[str]:
     return selected_ids_from_row(rows[0]) if rows else []
 
 
+def connection_target(platform: str, metadata: Optional[dict]) -> Optional[str]:
+    """WHERE this connection points — the Slack workspace, the Notion
+    workspace, the GitHub account. Display-only; never an authorization fact.
+
+    Each provider names its target differently and the FE must not have to
+    know that: Slack and Notion write `workspace_name`, GitHub writes
+    `login`/`name` (it has ACCOUNTS, not workspaces). Reading one key would
+    render a blank label for GitHub — which looks like a broken connection
+    rather than a different noun. Resolved server-side, once, so the list row
+    and the detail header cannot disagree.
+
+    Returns None when nothing identifies the target; callers omit the label
+    rather than printing an empty one.
+    """
+    md = metadata or {}
+    for key in ("workspace_name", "team_name", "login", "name", "account_label"):
+        value = md.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def connector_settings(row: dict) -> dict:
     """The connection's connector-settings object, defaults applied. Pure.
 
@@ -478,6 +500,7 @@ async def run_connector_capture(
 
 
 __all__ = [
+    "connection_target",
     "CONNECTOR_CAPTURE_BINDINGS",
     "capture_destination",
     "connector_does",

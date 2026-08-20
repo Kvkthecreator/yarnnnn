@@ -2643,6 +2643,11 @@ export const api = {
           provider: string;
           status: string;
           workspace_name: string | null;
+          // WHERE the connection points, resolved server-side across the
+          // per-provider metadata shapes (GitHub has an ACCOUNT, not a
+          // workspace). Null when nothing identifies the target — render
+          // nothing rather than an empty label.
+          target?: string | null;
           last_used_at: string | null;
           created_at: string;
         }>;
@@ -2848,6 +2853,9 @@ export const api = {
         granted_scopes: string[];
         connection: {
           workspace_name: string | null;
+          // Same server-side resolver the list row uses, so both faces of one
+          // connection name their target identically.
+          target?: string | null;
           connected_at: string | null;
         } | null;
         // ADR-591 — the `capture` field is GONE. It carried `schedule` off the
