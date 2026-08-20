@@ -72,6 +72,39 @@ def _substrate_scope_filter(auth) -> tuple:
     return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
 
+#: Machine prefixes the substrate stamps onto `workspace_files.summary`
+#: (services/primitives/workspace.py writes "Workspace write: {path}" /
+#: "Workspace edit: {path}"). ONE list, read by both readers below — the
+#: shapes are the same, so a new prefix must not have to be remembered twice.
+_MACHINE_SUMMARY_PREFIXES = ("Workspace write:", "Workspace edit:", "Write:", "Output:")
+
+
+def _strip_machine_prefix(summary: Optional[str]) -> str:
+    """Drop a leading machine prefix from a stored summary. Returns the rest."""
+    s = (summary or "").strip()
+    for prefix in _MACHINE_SUMMARY_PREFIXES:
+        if s.lower().startswith(prefix.lower()):
+            return s[len(prefix):].strip()
+    return s
+
+
+def _plain_summary(summary: Optional[str]) -> Optional[str]:
+    """The summary as an OPERATOR should read it, or None (ADR-587).
+
+    A machine write-log line ("Workspace write: marketing/gtm.md") is not a
+    description of the file; it is a record of the act that made it. Returning
+    None lets the surface fall back to what it actually knows — the file's name
+    and its path — instead of showing the operator a fragment of the writer.
+
+    A real summary (operator- or agent-authored prose) passes through.
+    """
+    s = _strip_machine_prefix(summary)
+    # Nothing left, or what remains is just a path: there was no prose here.
+    if not s or "/" in s or s.endswith((".md", ".html", ".yaml", ".json")):
+        return None
+    return s
+
+
 class RecentArtifact(BaseModel):
     """One delivered output across the workspace (ADR-312 kernel slot #5)."""
     slug: str            # recurrence slug the output belongs to
@@ -676,6 +709,20 @@ async def get_workspace_tree(
         # Normalize: lift authored_by + revision created_at from nested embed.
         # PostgREST returns the embed as a dict (single FK row) or None.
         for row in rows:
+            # ADR-587: drop the machine summary. `summary` is written as
+            # f"Workspace write: {path}" / f"Workspace edit: {path}"
+            # (services/primitives/workspace.py) — a write-log line, not a
+            # description. `_artifact_title` below already calls this shape a
+            # leak ("leaks paths to the operator") and strips it, but only on
+            # the Home slot; the tree served it raw, so it reached the Files
+            # row subtitle and the surface identity header verbatim.
+            #
+            # DROPPED, not re-titled: the Home slot substitutes a titleized
+            # slug because an artifact card needs SOME title. A tree node
+            # already has its name and (since ADR-587) its path, so the honest
+            # move is to serve nothing rather than invent prose. An operator- or
+            # agent-authored summary still passes through untouched.
+            row["summary"] = _plain_summary(row.get("summary"))
             embed = row.pop("workspace_file_versions", None) or {}
             row["authored_by"] = embed.get("authored_by")
             # Use revision created_at as the authoritative "last edited" time
@@ -935,11 +982,9 @@ def _artifact_title(summary: Optional[str], slug: str) -> str:
     which leaks paths to the operator. Strip those shapes and fall back to
     the titleized slug so the Home reads like a Mac, not a workbench.
     """
-    s = (summary or "").strip()
-    # Drop a leading "Workspace write:" / "Write:" machine prefix.
-    for prefix in ("Workspace write:", "Write:", "Output:"):
-        if s.lower().startswith(prefix.lower()):
-            s = s[len(prefix):].strip()
+    # ADR-587: the prefix list is shared with _plain_summary — one place to
+    # add a prefix, two readers. (This one previously missed "Workspace edit:".)
+    s = _strip_machine_prefix(summary)
     # If what's left looks like a path or is empty, titleize the slug.
     if not s or "/" in s or s.endswith(".md") or s.endswith(".html"):
         return slug.replace("-", " ").replace("_", " ").title() if slug else "Output"
