@@ -56,7 +56,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
+import { EditorSelection, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -1254,6 +1254,11 @@ export interface ProseCanvasHandle {
   /** Replace the whole document and place the selection — the toolbar path. */
   apply: (text: string, from: number, to: number) => void;
   /** Reveal a source range (outline jump, find). */
+  /**
+   * Move to a source position and scroll it into view — a NAVIGATION, so the
+   * caret lands COLLAPSED (ADR-572 D20). See the implementation for why this
+   * does not select the range it was pointed at.
+   */
   reveal: (from: number, to: number) => void;
   focus: () => void;
   /** Delete a source range (the slash run, once a pick lands). */
@@ -1440,9 +1445,37 @@ export function ProseCanvas({
         view.focus();
       },
       reveal: (from, to) => {
+        // ⭐ ADR-572 D20 — GOING somewhere is not SELECTING something.
+        //
+        // This used to dispatch `{anchor: from, head: to}`, leaving a live
+        // range in a focused editor. Two things were wrong with that, and the
+        // second is the serious one:
+        //
+        //   - the range was MIS-MEASURED. Its only caller sized it by the
+        //     outline's stripped LABEL (`plain()` drops `#`, `**`, link
+        //     targets) against an offset into the RAW line, so it always fell
+        //     short by the markup — visibly ending mid-word, and further off
+        //     the more markup a heading carried.
+        //   - a focused range is a PENDING DELETE. The next keystroke replaces
+        //     it. Clicking the outline armed a destructive state, so a member
+        //     who navigated and then typed lost the heading.
+        //
+        // Fixing only the arithmetic would have kept the second defect and
+        // made it harder to see, since a correctly-sized selection looks
+        // deliberate. So the gesture is answered instead: navigation puts the
+        // caret at the destination and scrolls, which is what Studio's own
+        // outline does (`FlowEditor` → `TextSelection.near`, never a range).
+        //
+        // `to` stays in the signature: it is where the destination ENDS, which
+        // is what `scrollIntoView` needs to keep a long heading fully on
+        // screen rather than parking its first line at the centre.
+        const at = Math.min(from, view.state.doc.length);
         view.dispatch({
-          selection: { anchor: from, head: to },
-          effects: EditorView.scrollIntoView(from, { y: 'center' }),
+          selection: { anchor: at, head: at },
+          effects: EditorView.scrollIntoView(
+            EditorSelection.range(at, Math.min(Math.max(to, from), view.state.doc.length)),
+            { y: 'center' },
+          ),
         });
         view.focus();
       },

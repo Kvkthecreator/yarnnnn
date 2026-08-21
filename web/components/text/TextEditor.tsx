@@ -469,7 +469,12 @@ export function TextEditor({
     return () => clearTimeout(t);
   }, [csvError]);
 
-  /** Select a source range and scroll it into view (the outline jump). */
+  /**
+   * Go to a source range and scroll it into view — the outline jump.
+   *
+   * The canvas lands the caret COLLAPSED at the start (ADR-572 D20); the end
+   * is passed so a heading taller than one line is scrolled fully into view.
+   */
   const reveal = useCallback((span: [number, number]) => {
     canvasRef.current?.reveal(span[0], span[1]);
   }, []);
@@ -1064,8 +1069,13 @@ export function TextEditor({
                         <button
                           type="button"
                           onClick={() => {
+                            // Address the whole heading LINE, never the
+                            // outline's label: `plain()` strips `#`, `**` and
+                            // link targets, so a label-derived length is short
+                            // by exactly the markup (ADR-572 D20).
                             const off = offsetOfLine(text, h.line);
-                            reveal([off, off + h.text.length]);
+                            const nl = text.indexOf('\n', off);
+                            reveal([off, nl === -1 ? text.length : nl]);
                           }}
                           title={h.text}
                           style={{ paddingLeft: `${(h.level - 1) * 10}px` }}

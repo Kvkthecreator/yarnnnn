@@ -2797,6 +2797,128 @@ check("21e pressing an insert twice does not accumulate blank lines — the "
 
 
 
+# ── 22. the outline JUMPS, it does not select (D20) ──────────────────────
+# Operator: "when i click the outline section, is there a reason it highlights
+# only a part of the respective contents on the center render? or maybe we
+# don't highlight or select it and just move them there?"
+#
+# Both halves of that were right. The jump dispatched a RANGE sized by the
+# outline's stripped LABEL (`plain()` drops `#`, `**`, link targets) against an
+# offset into the RAW line — so it fell short by exactly the markup, visibly
+# ending mid-word on a plain `# ` heading and by 30+ chars on a link-heavy one.
+#
+# And fixing only the arithmetic would have preserved the worse defect: a
+# focused range is a PENDING DELETE. Navigating the outline armed a state where
+# the next keystroke replaced the heading. Going somewhere is not selecting
+# something — which is what Studio's own outline already does
+# (`FlowEditor` → `TextSelection.near`, never a range).
+_JUMP_PROBE = r"""
+const fs = require('fs'), path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f, 'utf8'),
+    { transforms: ['typescript', 'jsx', 'imports'], jsxRuntime: 'automatic', production: true }).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) {
+    const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts', '/index.tsx', '/index.ts']) {
+      try { return orig.call(this, b + e, ...a); } catch (x) { /* next */ }
+    }
+  }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<div id="h"></div>', { pretendToBeVisual: true });
+const def = (k, v) => { global[k] = v; };
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+def('IS_REACT_ACT_ENVIRONMENT', true);
+const React = require(WEB + '/node_modules/react');
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+const { act } = React;
+const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
+const O = require(WEB + '/components/text/outline.ts');
+const E = require(WEB + '/components/text/markdownEdits.ts');
+const EDITOR_SRC = fs.readFileSync(WEB + '/components/text/TextEditor.tsx', 'utf8');
+
+// The operator's own heading, plus the markup shapes that widen the old error.
+const DOCS = [
+  "# DeepMind Releases New Forecasting Model; OpenAI's Hugging Face Incident Timeline Detailed\nbody.\n",
+  '## See [the paper](https://x.com/a/b) and **this**\nbody.\n',
+  'intro\n\n### Run `npm install` first\nbody.\n',
+];
+
+const out = { collapsed: true, at_start: true, doc_same: true, label_gap: false };
+for (const DOC of DOCS) {
+  let value = DOC, handle = null;
+  const host = dom.window.document.createElement('div');
+  dom.window.document.body.appendChild(host);
+  act(() => createRoot(host).render(React.createElement(ProseCanvas, {
+    value, onChange: (v) => { value = v; }, handleRef: (h) => { if (h) handle = h; },
+  })));
+  const h = O.parseOutline(DOC)[0];
+  const off = E.offsetOfLine(DOC, h.line);
+  const nl = DOC.indexOf('\n', off);
+  act(() => handle.reveal(off, nl === -1 ? DOC.length : nl));
+  const sel = handle.selection();
+  if (sel[0] !== sel[1]) out.collapsed = false;      // a jump leaves NO range
+  if (sel[0] !== off) out.at_start = false;          // …at the heading
+  if (handle.text() !== DOC) out.doc_same = false;   // navigation writes nothing
+  // The label really IS shorter than the line — i.e. the old arithmetic was
+  // wrong, not merely different. Proves the defect was real for these inputs.
+  if (h.text.length < DOC.slice(off, nl === -1 ? undefined : nl).length) out.label_gap = true;
+}
+
+// The call site must address the LINE, never the label's length. Comments
+// stripped first: a check that can match its own explanation proves nothing.
+const nc = EDITOR_SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+out.no_label_length = !/reveal\(\[\s*off\s*,\s*off\s*\+\s*h\.text\.length/.test(nc);
+out.addresses_line = /indexOf\('\\n',\s*off\)/.test(nc);
+
+console.log(JSON.stringify(out));
+"""
+
+try:
+    _jump = json.loads(
+        subprocess.run(
+            ["node", "-e", _JUMP_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=120, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+    _jump = {"error": str(exc)}
+
+check("22a ⭐⭐⭐ THE OUTLINE JUMPS, IT DOES NOT SELECT. A focused range is a "
+      "PENDING DELETE — the jump left `{anchor: from, head: to}` live in a "
+      "focused editor, so the next keystroke replaced the heading the member "
+      "had just navigated to. Going somewhere is not selecting something. "
+      "Driven on the mounted canvas: the caret comes back COLLAPSED.",
+      _jump.get("collapsed") is True, str(_jump)[:300])
+check("22b …at the heading it was pointed at, and navigation WRITES NOTHING — "
+      "the document is byte-identical after a jump",
+      _jump.get("at_start") is True and _jump.get("doc_same") is True,
+      str(_jump)[:300])
+check("22c ⭐ the jump addresses the heading LINE, never the outline's LABEL. "
+      "`plain()` strips `#`, `**` and link targets, so `off + h.text.length` "
+      "fell short by exactly the markup — the operator's screenshot shows it "
+      "ending mid-word at 'Detail|ed' (2 short, for `# `), and a link-heavy "
+      "heading is off by 30+. Both the old spelling's ABSENCE and the line "
+      "lookup's PRESENCE are asserted, over comment-stripped source.",
+      _jump.get("no_label_length") is True and _jump.get("addresses_line") is True,
+      str(_jump)[:300])
+check("22d …and the gap it corrected was REAL for these inputs — the stripped "
+      "label is measurably shorter than the source line, so 22c is guarding a "
+      "defect rather than restating a preference",
+      _jump.get("label_gap") is True, str(_jump)[:300])
+
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:

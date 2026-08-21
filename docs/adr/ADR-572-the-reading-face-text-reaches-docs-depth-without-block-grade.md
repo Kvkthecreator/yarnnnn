@@ -909,6 +909,61 @@ the defect.
 
 Gate 261 → **266**.
 
+### D20 — The outline JUMPS; going somewhere is not selecting something
+
+**Operator, 2026-08-21** (Text, Properties → Outline): *"when i click the
+outline section, is there a reason it highlights only a part of the respective
+contents on the center render? or maybe we don't highlight or select it and
+just move them there?"*
+
+Both halves of that were right, and the second is the fix.
+
+**The visible defect — a mis-measured range.** The jump dispatched
+`reveal([off, off + h.text.length])`. `off` is an offset into the **raw source
+line**; `h.text` is the outline's **stripped label**, which `plain()` builds by
+removing the `#` markers, `**`/`_`/`` ` `` marks and link targets. The two do
+not correspond, so the selection always fell short by exactly the markup:
+
+| heading source | short by |
+|---|---|
+| `# DeepMind Releases…Detailed` | 2 — ends at `Detail‸ed` (the screenshot) |
+| `## The **WeatherNext** result` | 10 |
+| `## See [the paper](https://x.com/a/b) now` | 34 |
+
+It was also misaligned at the *start*: the span opened on the `#` characters,
+which the reading face hides.
+
+**The defect worth finding — a jump left a pending delete.** `reveal` ends with
+`view.focus()`, so the range was live in a focused editor. **The next keystroke
+replaces a selection.** Clicking an outline row therefore armed a destructive
+state: navigate, type, and the heading is gone. Driven on the mounted canvas —
+typing `x` after a jump turned the operator's heading into `xel`.
+
+**Fixing only the arithmetic would have preserved the worse defect and made it
+harder to see**, because a correctly-sized selection reads as deliberate. So
+the operator's second question is the answer: navigation places the caret at
+the destination and scrolls. That is what Studio's own outline already does —
+`FlowEditor` uses `TextSelection.near(...)`, never a range — so this also ends
+a divergence between the two surfaces rather than inventing a rule for Text.
+
+`to` stays in the signature and is now used for what a destination's END is
+actually good for: `scrollIntoView` over the range, so a heading that wraps to
+three lines lands fully on screen instead of centring its first line.
+
+The call site addresses the **line** (`indexOf('\n', off)`), never the label's
+length — the label is a display string and was never a coordinate.
+
+**Why it was invisible.** Nothing here is a type error; the jump scrolled to
+the right place and looked approximately right. §7's outline checks asserted
+that `parseOutline` finds the right headings at the right lines — the *address*
+was correct throughout. Nothing asserted what the surface then DID with it.
+Section **22** mounts the canvas, performs the jump, and reads the selection
+back: falsified against the pre-fix files, 22a and 22c go red. 22b and 22d stay
+green by design — the old code also wrote nothing, and 22d pins that the label
+gap is real for these inputs, so 22c guards a defect rather than a preference.
+
+Gate 266 → **270**.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.
