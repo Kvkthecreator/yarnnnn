@@ -746,14 +746,24 @@ export function TextEditor({
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="hidden shrink-0 text-muted-foreground hover:text-foreground lg:inline"
-          >
-            Text
-          </button>
-          <span className="hidden text-muted-foreground/60 lg:inline">/</span>
+          {/* The "Text /" ancestry withdraws before the NAME does — the name is
+              the document's identity, the crumb is a convenience, and the back
+              arrow beside it already carries the same act. Gated on the measured
+              RUNG, not a `lg:` class: this surface's own width ladder is what
+              decides, and a viewport breakpoint would disagree with it inside a
+              narrow window (PANES.md §11). */}
+          {fullLabels && (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                Text
+              </button>
+              <span className="text-muted-foreground/60">/</span>
+            </>
+          )}
           <button
             type="button"
             onClick={() => organizeVerbs.onRename?.({ path, name: leafOf(path) })}

@@ -34,7 +34,6 @@ import {
   Workflow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FACE } from '@/components/text/readingFace';
 
 export type ToolbarAction =
   | { kind: 'wrap'; marker: string }

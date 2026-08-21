@@ -4,7 +4,41 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-21 (latest) — CHAT: the composer floats, and the header strip joins the column (no ADR — [PANES.md](PANES.md) §10)
+## 2026-08-21 (latest) — TEXT: two rows become one (no ADR — [PANES.md](PANES.md) §9 amendment)
+
+Operator's read of the centred header, and the right one: if the identity is going to be centred anyway, the second row is paying a full band of vertical space for twelve glyphs. **Combine them.**
+
+One row, three zones: **identity (left) · Insert verbs (centre, on the canvas column) · zoom + export + pane door (right)**.
+
+### What this fixes that the last commit only half-solved
+
+The centring shipped two commits ago was applied to the *file name*, which is not what it was for. A crumb says **where you came from** — a left-edge fact in every file surface we have, and the back arrow beside it already carries the same act. What genuinely wants the canvas column is the **verbs**, so they sit over the page they act on. The identity goes back to the left where it reads correctly, and the centre zone now holds the thing the column was always about.
+
+Net: a whole band of vertical chrome returns to the document.
+
+### The flanks stop being greedy
+
+They were `flex-1` and equal — correct when the centre held a short crumb, wrong now. With a centre zone `FACE.column` wide, equal greedy flanks fight it for room and **the toolbar yields width before the acts do**, which is the canvas's own rule violated one level up. All three zones now `shrink` from their content; the toolbar scrolls if squeezed, which happens only below ~450px of centre (a 380px pane).
+
+### The toolbar owns no chrome
+
+Border, ground and measure all removed — the header zone *is* the column, so keeping any of them would draw a second box inside the row. `MarkdownToolbar` is now purely the verbs.
+
+### The crumb's ancestry withdraws on the RUNG, not a breakpoint
+
+"Text /" hides before the name does (the name is identity; the crumb is convenience). Gated on the measured `fullLabels` rung rather than the `lg:` class I first wrote — this surface has its own width ladder, and a viewport breakpoint would disagree with it inside a narrow window. Three pre-existing `lg:` classes remain in the file and are untouched; the new code does not add a fourth.
+
+### Gate
+
+`pane_layout.mjs` 98 → **99**, with three assertions **re-anchored rather than deleted** — they described a structure that no longer exists, and both went correctly red before being rewritten: the header centres a zone on the column · the verbs live *in* that zone · they mount **exactly once** (collapsing rows must remove the old mount, never leave two toolbars) · the toolbar owns no border/ground/measure.
+
+Falsified and restored: the verbs removed from the centre zone · a second mount reintroduced above the canvas · the toolbar regrowing a `border-b`.
+
+Also verified unchanged: `adr546_rung_law` 47/47 · `pane_spine_cross_app` 19/19 · `adr518_paged_navigator` 9/9. (`adr560_flow_roundtrip` cannot resolve `flow/sanitize` and fails identically at HEAD — pre-existing, unrelated.)
+
+---
+
+## 2026-08-21 — CHAT: the composer floats, and the header strip joins the column (no ADR — [PANES.md](PANES.md) §10)
 
 Two asks from the click-pass: make the composer look floating (reference: Claude's own), and bring the chat-specific strip's width in line with the messages.
 

@@ -539,18 +539,23 @@ ok('the canvas composes its gutter from FACE, not a literal',
   /padding: `0 \$\{FACE\.gutter\}`/.test(read('web/components/text/ProseCanvas.tsx')),
   'a second spelling of the gutter is how the chrome and the page drift apart');
 
-// Both chrome rows must centre on that column.
-ok("Text's identity row centres on the canvas column",
+// ONE header row, three zones — identity · verbs · acts. It was two rows, and
+// the second spent a full band of vertical space on twelve glyphs.
+ok("Text's header centres a zone on the canvas column",
   /flexBasis: FACE\.column, maxWidth: FACE\.column/.test(textEditor),
   'a fixed width would claim the column on a pane too narrow for it');
-ok("Text's Insert row centres on the canvas column",
-  /maxWidth: FACE\.column/.test(toolbar) && /justify-center/.test(toolbar));
-
-// The flanks must be EQUAL, or the centre is not centred — it merely sits
-// between two unequal acts and moves as either side grows.
-const flanks = (textEditor.match(/flex min-w-0 flex-1 items-center/g) || []).length;
-ok("Text's identity row has two equal flanks", flanks >= 2,
-  `found ${flanks}; the centre zone is only centred between equal siblings`);
+ok("the Insert verbs live in that centre zone",
+  /style=\{\{ flexBasis: FACE\.column, maxWidth: FACE\.column \}\}\s*>\s*<MarkdownToolbar/.test(textEditor),
+  'the verbs belong over the page they act on, not in a band of their own');
+// Exactly ONE mount. Collapsing the rows must REMOVE the old one, never leave a
+// second toolbar rendering above the canvas.
+const mounts = (textEditor.match(/<MarkdownToolbar/g) || []).length;
+ok('the Insert verbs mount exactly once', mounts === 1, `found ${mounts}`);
+// The toolbar owns no chrome of its own: the header zone is already the column,
+// so a border/ground/measure here would draw a second box inside the row.
+ok('the Insert row owns no border, ground or measure of its own',
+  !/border-b|bg-background|FACE\.column/.test(toolbar),
+  'the header zone is already the column — a second box inside it is drift');
 
 // A WRAPPING toolbar changes the canvas's vertical origin as the pane narrows,
 // so the document visibly jumps. It scrolls instead.

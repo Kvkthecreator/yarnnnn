@@ -212,6 +212,25 @@ room on a wide pane; the flat gutter keeps a narrow one honest.
 
 ## 9. Chrome centres on the canvas column, not on the pane
 
+> **Amended 2026-08-21 — the two rows are ONE row.** Text had a crumb row over an
+> Insert row, and the second spent a full band of vertical space on twelve glyphs.
+> They now share one row of three zones: **identity (left) · verbs (centre, on the
+> canvas column) · view + boundary acts (right)**.
+>
+> The identity returns to the **left**, beside the back arrow it belongs with — a
+> crumb says where you came *from*, which is a left-edge fact in every file surface
+> we have. The centre zone keeps the column, so the verbs sit over the page they act
+> on. This is what the centring was actually for: it was never about the file name.
+>
+> **The flanks are no longer `flex-1`.** With a centre zone this wide, equal greedy
+> flanks fight it for room and the toolbar yields width before the acts do — the
+> canvas's own rule one level up. All three zones `shrink` from their content
+> instead, and the toolbar scrolls if it is ever squeezed (below ~450px of centre,
+> which happens only in a 380px pane).
+>
+> **The toolbar owns no chrome.** Its border, ground and measure are gone: the header
+> zone *is* the column, so keeping any of them would draw a second box inside the row.
+
 §8 gives the canvas a measure. The rows *above* it — an app's identity row and its
 verb row — then have a choice: sit flush against the pane's edge, or centre on the
 column the canvas actually occupies. **They centre on the column.**
