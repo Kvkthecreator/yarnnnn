@@ -311,12 +311,11 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 > Three narrowings are deliberate and stated here:
 > - **`DuplicateFile` (ADR-514 D1) is NOT on the lane or MCP surfaces** — it is
 >   a convenience over `ReadFile` + `WriteFile` (which both surfaces hold), so
->   its absence costs no capability. ⚠️ It is also, as of 2026-08-21, a full
->   stack with **no UI caller**: primitive + `/api/documents/duplicate` route +
->   `api.workspace.duplicate` client method, and nothing in `web/app` or
->   `web/components` calls it. That is the ADR-514 owed item, unresolved — a
->   capability shipped without a caller. Wire it or delete it; do not widen it
->   onto more surfaces first.
+>   its absence costs no capability. On the surfaces that DO carry it the stack
+>   is complete and reachable: primitive → `/api/documents/duplicate` →
+>   `api.documents.duplicate` → `useFileOrganizeVerbs.onDuplicate` → the Files
+>   context menu (`FileContextMenu.tsx`, file targets only) and the Studio
+>   artifact menu. Verified 2026-08-21.
 > - **`DeleteFile` is not in `LANE_ARTIFACT_VERBS`** — an artifact card is a
 >   deep link to a file to open, and after a delete there is nothing there.
 >   The call still shows as a labelled tool row; the chain stays walkable.
