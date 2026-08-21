@@ -6,6 +6,50 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.21.4] - the folder verbs complete the working-tree set
+
+### Added
+- `services/primitives/folder.py`: `DeleteFolder` + `MoveFolder`, bound to
+  `services/folder_organize.py` — the SAME fan-out the Files surface calls.
+  Registered in CHAT / HEADLESS / FREDDIE rosters, the lane surface, and the
+  ADR-307 gate (path-addressed; `MoveFolder` dual-path like `MoveFile`).
+- `services/mcp_composition.py`: the interop `delete` / `move` verbs now pick
+  the GRAIN. One verb, two grains — a foreign caller addresses a name and the
+  kernel knows whether that name is a file or a folder, so it never has to
+  learn our taxonomy. The roster stays 10 verbs.
+- Expected behavior: **a lane can now delete or move a whole folder.** The
+  frame's `{tools_line}` derives from `lane_tool_names()`, so the prose names
+  the new verbs automatically.
+
+  Previously a member asked their lane to delete a folder and was told the
+  primitives "only operate file-by-file rather than recursively wiping whole
+  directory trees", and was advised to run `rm -rf` in a terminal. Both halves
+  were wrong: the fan-out had shipped (`360ea4c`) and was reachable from the
+  Files surface, and `rm -rf` on the repo would not have touched the files at
+  all — the substrate is Postgres, not disk. ADR-337 predicted exactly this in
+  the passage ruling out a `Bash` primitive: *"it is also why missing verbs
+  hurt so much here — there is no shell escape hatch — which argues for
+  completing the verb set, not adding the hatch."*
+
+  **No extra gate in front of them, deliberately.** `trash_folder` writes one
+  attributed archive revision per file — nothing removed, the group restorable
+  as ONE unit, locked children refused and REPORTED. That is safer than the
+  `rm -rf` the model reached for, and safer than `WriteFile`, which can
+  truncate content and flows freely.
+
+  Neither folder verb is an artifact verb: `DeleteFolder` leaves nothing to
+  open, and `MoveFolder`'s result names a folder, which the viewer cannot
+  render. Both show as labelled tool rows ("deleted a folder"), and their
+  results carry the honest partial for the lane to report.
+
+### Gate
+- `api/test_verb_families_are_one_set.py` — generalized from the file-verb
+  gate: declares the FAMILIES and asserts each is whole on every
+  principal-facing surface, with deliberate narrowings named in code AND
+  required to be explained in primitives-matrix.md. Falsified three ways.
+
+---
+
 ## [2026.08.21.3] - the file-verb set is one set, whoever holds it
 
 ### Changed
@@ -40,7 +84,9 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   labelled tool row instead.
 
 ### Gate
-- `api/test_file_verbs_are_one_set.py` — derives both sides and asserts no
+- `api/test_verb_families_are_one_set.py` (renamed from
+  `test_file_verbs_are_one_set.py` when the folder family landed) — derives
+  both sides and asserts no
   surface is narrower than MCP. Falsified against the original defect.
 
 ---

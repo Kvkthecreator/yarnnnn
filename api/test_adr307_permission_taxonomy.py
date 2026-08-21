@@ -305,6 +305,10 @@ def test_path_addressed_queueables_are_a_subset_that_resolves_a_path():
         "DuplicateFile": {"path": "operation/n.md"},
         "MoveFile": {"path": "operation/a.md", "new_path": "operation/b.md"},
         "GenerateImage": {"folder": "operation", "filename": "n"},
+        # ADR-337 D8 — the folder grain. MoveFolder is dual-path like MoveFile:
+        # a fan INTO locked territory is as much a breach as one OUT of it.
+        "DeleteFolder": {"path": "operation/topic"},
+        "MoveFolder": {"path": "operation/a", "new_path": "operation/b"},
     }
     for name in _PATH_ADDRESSED_QUEUEABLE:
         assert name in probes, (

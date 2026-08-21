@@ -10,7 +10,7 @@
  * settled footer.
  *
  * The roster mirrors `api/services/lane_runner.py::lane_tool_names()` — the
- * seven file verbs + LANE_SURFACE_EXTRA. An unknown name (a future roster
+ * file + folder verbs + LANE_SURFACE_EXTRA. An unknown name (a future roster
  * addition) degrades to a humanized spelling rather than leaking camelCase, so
  * this map can lag the roster without re-shipping the defect.
  */
@@ -24,6 +24,11 @@ const TOOL_LABELS: Record<string, { doing: string; did: string }> = {
   // verb a member most needs to read accurately in a streaming transcript.
   DeleteFile: { doing: 'deleting a file', did: 'deleted a file' },
   MoveFile: { doing: 'moving a file', did: 'moved a file' },
+  // 2026-08-21 — the FOLDER grain. Named "folder", never "files": a fan-out's
+  // blast radius must read in the transcript as what it was. The count itself
+  // rides in the verb's own result message ("19 moved to Trash · 2 stayed").
+  DeleteFolder: { doing: 'deleting a folder', did: 'deleted a folder' },
+  MoveFolder: { doing: 'moving a folder', did: 'moved a folder' },
   SearchFiles: { doing: 'searching files', did: 'searched files' },
   ListFiles: { doing: 'listing files', did: 'listed files' },
   QueryKnowledge: { doing: 'searching knowledge', did: 'searched knowledge' },

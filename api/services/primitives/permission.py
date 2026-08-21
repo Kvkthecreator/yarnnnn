@@ -139,6 +139,11 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     "EditFile",
     "DeleteFile",
     "MoveFile",
+    # ADR-337 amended (2026-08-21) — the FOLDER verbs. Same gate semantics as
+    # their file counterparts: a fan-out is many attributed revisions, so the
+    # ROOT is lock-checked here and each file re-checked inside the fan.
+    "DeleteFolder",
+    "MoveFolder",
     "Schedule",
     "ManageHook",
     "ManageAgent",
@@ -163,6 +168,8 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
 _PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({
     "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
     "GenerateImage",
+    # ADR-337 amended — MoveFolder is dual-path-addressed like MoveFile.
+    "DeleteFolder", "MoveFolder",
 })
 
 

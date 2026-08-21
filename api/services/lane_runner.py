@@ -10,7 +10,7 @@ attribution.
 This module owns:
 - ``LANE_MODELS`` — the creation-time model whitelist (ADR-411 D5: a model
   enters only WITH a ``_BILLING_RATES`` row; no silent default pricing).
-- The lane tool surface (ADR-411 D3): the seven file verbs, converted
+- The lane tool surface (ADR-411 D3): the file + folder verbs, converted
   mechanically from the registry's Anthropic-format definitions to the
   OpenAI format LiteLLM translates per provider. Executed through
   ``execute_primitive`` under the member's auth with the member-embodiment
@@ -156,7 +156,7 @@ def _studio_max_tokens() -> int:
     return STUDIO_LANE_MAX_TOKENS
 
 # ---------------------------------------------------------------------------
-# Tool surface (ADR-411 D3) — seven file verbs, registry definitions converted
+# Tool surface (ADR-411 D3) — the file + folder verbs, registry definitions converted
 # ---------------------------------------------------------------------------
 
 #: The lane tool allowlist — the SEVEN file verbs. A helper is hands on the
@@ -180,11 +180,30 @@ def _studio_max_tokens() -> int:
 #: refuse. FREDDIE_PRIMITIVES says it plainly: *hygiene without delete/move is
 #: a duty without hands*. That is as true of a member's lane as of the steward.
 #:
+#: ⭐ THE FOLDER GRAIN (2026-08-21, same day, one level up).
+#: `DeleteFolder` + `MoveFolder` followed for the identical reason: the fan-out
+#: EXISTED (`services/folder_organize.py`, shipped `360ea4c`) and only the Files
+#: surface could reach it. A member asked their lane to delete a folder, was
+#: told the primitives "only operate file-by-file", and was advised to run
+#: `rm -rf` in a terminal — which would not have touched the files at all, since
+#: the substrate is Postgres, not disk. ADR-337 named this failure in advance,
+#: in the passage ruling out a `Bash` primitive: *"it is also why missing verbs
+#: hurt so much here — there is no shell escape hatch — which argues for
+#: COMPLETING THE VERB SET, not adding the hatch."*
+#:
+#: No extra ceremony in front of them, deliberately. `trash_folder` writes one
+#: attributed archive revision PER FILE — nothing is removed, the group restores
+#: as ONE unit, locked children are refused and REPORTED. That makes it safer
+#: than the `rm -rf` the model reached for, and safer than `WriteFile`, which
+#: can truncate content and flows freely. Gating the safest destructive verb
+#: while the lossy one runs unimpeded would be incoherence, not caution.
+#:
 #: Uniform, never per-Agent — ADR-467 D4 holds exactly as written: capability
 #: is not a character trait, and a per-row `tools` field was a bug factory with
 #: no safety payoff. This is a uniform addition to the one set every lane reads.
 LANE_TOOL_NAMES = (
     "ReadFile", "WriteFile", "EditFile", "DeleteFile", "MoveFile",
+    "DeleteFolder", "MoveFolder",
     "SearchFiles", "ListFiles",
 )
 
@@ -234,6 +253,11 @@ LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations", "Gener
 #: The delete still shows: `toolLabels` prints "deleted a file", and the
 #: revision chain remains walkable via history. The rule this set encodes is
 #: "the member should SEE what their lane MADE"; a deletion is not a thing made.
+#: `MoveFolder` is NOT here despite landing revisions: its result names a
+#: FOLDER, and an artifact card deep-links a FILE to open. Carding the folder
+#: root would hand the member a link to something the viewer cannot render.
+#: `DeleteFolder` is absent for the stronger form of the same reason
+#: (`DeleteFile`'s): after the fan there is nothing at that path at all.
 LANE_ARTIFACT_VERBS = (
     "WriteFile", "EditFile", "MoveFile", "GenerateImage",
 )
@@ -419,7 +443,7 @@ def turn_has_reach(app: Optional[str], artifact_path: Optional[str],
 
 
 def lane_tool_names(turn_reach: bool = False) -> tuple:
-    """THE lane's tool-name set: the seven file verbs + the uniform reads
+    """THE lane's tool-name set: the file + folder verbs + the uniform reads
     (ADR-467 D4). One set, every lane, every Agent.
 
     ⚠️ SINGULAR SOURCE. Three things must agree about which tools a turn has:
@@ -458,6 +482,10 @@ def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
     from services.primitives.generate_image import GENERATE_IMAGE_TOOL
     from services.primitives.registry import LIST_INTEGRATIONS_TOOL
     from services.primitives.web_search import WEB_SEARCH_PRIMITIVE
+    from services.primitives.folder import (
+        DELETE_FOLDER_TOOL,
+        MOVE_FOLDER_TOOL,
+    )
     from services.primitives.workspace import (
         DELETE_FILE_TOOL,
         EDIT_FILE_TOOL,
@@ -473,6 +501,7 @@ def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
         t["name"]: t
         for t in (READ_FILE_TOOL, WRITE_FILE_TOOL, EDIT_FILE_TOOL,
                   DELETE_FILE_TOOL, MOVE_FILE_TOOL,
+                  DELETE_FOLDER_TOOL, MOVE_FOLDER_TOOL,
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE,
                   LIST_INTEGRATIONS_TOOL, GENERATE_IMAGE_TOOL)

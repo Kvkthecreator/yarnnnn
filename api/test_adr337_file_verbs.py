@@ -160,10 +160,14 @@ check(
     # caller-supplied (folder+filename), so the governance lock must resolve it
     # exactly as it does a WriteFile path. This tripwire worked as designed —
     # the registration could not land silently.
-    "path-addressed set is exactly the six write verbs",
+    # ADR-337 D8 (2026-08-21) added the FOLDER grain: DeleteFolder + MoveFolder
+    # gate exactly like their file counterparts. The tripwire is KEPT as an
+    # exact set deliberately — a verb that mutates substrate by path must not
+    # join this set silently, and the failure is how we learn it tried.
+    "path-addressed set is exactly the eight write verbs",
     _PATH_ADDRESSED_QUEUEABLE == frozenset({
         "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
-        "GenerateImage",
+        "GenerateImage", "DeleteFolder", "MoveFolder",
     }),
 )
 check(

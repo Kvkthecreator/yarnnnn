@@ -737,9 +737,9 @@ def _default_file_scope(auth: Any) -> str:
 def _resolve_gate_paths(name: str, input: dict) -> list[str]:
     """ADR-337: every workspace-relative path a path-addressed verb targets.
 
-    WriteFile / EditFile / DeleteFile address one path; MoveFile addresses
-    two (source + destination) — a move into or out of a governance-locked
-    subtree must DENY just like a write would.
+    WriteFile / EditFile / DeleteFile / DeleteFolder address one path;
+    MoveFile / MoveFolder address two (source + destination) — a move into or
+    out of a governance-locked subtree must DENY just like a write would.
 
     DuplicateFile (ADR-514 D1) addresses one INPUT path, but writes a sibling
     the caller never names. The destination is a sibling by construction, so it
@@ -758,7 +758,11 @@ def _resolve_gate_paths(name: str, input: dict) -> list[str]:
         composed = _resolve_path(input.get("folder"), input.get("filename"))
         return [composed[len("/workspace/"):]]
 
-    keys = ("path", "new_path") if name == "MoveFile" else ("path",)
+    # ADR-337 amended (2026-08-21): the FOLDER verbs gate exactly like their
+    # file counterparts — MoveFolder is dual-path (a fan INTO locked territory
+    # is as much a breach as a fan OUT of it), DeleteFolder single-path. The
+    # per-file locks still apply inside the fan; this is the ROOT check above it.
+    keys = ("path", "new_path") if name in ("MoveFile", "MoveFolder") else ("path",)
     paths: list[str] = []
     for key in keys:
         candidate = _resolve_workspace_path_for_gate({**input, "path": input.get(key, "")})

@@ -128,11 +128,13 @@ def run() -> bool:
     # lane-vs-MCP asymmetry) read as an ADR-535 violation. Assert the
     # INVARIANT instead: the file half is file verbs only, no connector reach
     # smuggled in among them.
+    # ADR-337 D8 (2026-08-21) added the folder grain to the same half.
     _check(
-        "the file-verb half carries only file verbs (no reach among them)",
+        "the file+folder half carries only substrate verbs (no reach among them)",
         all(
             t in {"ReadFile", "WriteFile", "EditFile", "DeleteFile",
-                  "MoveFile", "SearchFiles", "ListFiles"}
+                  "MoveFile", "DeleteFolder", "MoveFolder",
+                  "SearchFiles", "ListFiles"}
             for t in LANE_TOOL_NAMES
         ),
     )

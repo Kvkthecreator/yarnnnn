@@ -1,6 +1,6 @@
 # ADR-337 — File-Layer Verb Completion: the Working-Tree Half of the Repo Analogy
 
-> **Status**: Implemented (2026-06-11)
+> **Status**: Implemented (2026-06-11) · **Amended 2026-08-21** (D8 — the folder grain; D6's MCP bullet superseded)
 > **Date**: 2026-06-11
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Mechanism** (Axiom 5 — the primitive vocabulary) + **Substrate** (Axiom 1 — what the verbs mutate) + **Identity** (Axiom 2 — who maintains the working tree)
@@ -170,11 +170,84 @@ Reviewer placement (chat + headless keep the verbs regardless).
 
 - **`cp`** — no demonstrated need; demand-pull discipline (ADR-225 lesson).
 - **`Bash`** — capability, not verb; deliberate divergence (see naming section).
-- **MCP exposure** — foreign LLM callers (`yarnnn:mcp`) do NOT get
-  `EditFile`/`DeleteFile`/`MoveFile`; the interop surface stays read + `WriteFile`
-  per ADR-311. A foreign caller that needs restructuring asks the operator.
+- **MCP exposure** — ⚠️ **SUPERSEDED by ADR-545** (2026-08). The interop surface
+  binds `edit` / `delete` / `move` over these very verbs; a foreign caller does
+  restructure, under the same ADR-307 gate and governance locks as anyone else.
+  The original reasoning (foreign callers ask the operator) did not survive the
+  file-native recut — the gate, not the roster, is the boundary.
 - **A `Glob` tool** — `ListFiles` + `SearchFiles(match="exact")` cover the territory.
 - **Branching / replication** — remain out of scope per ADR-209 D10.
+
+### D8 — The folder grain (amendment, 2026-08-21)
+
+`DeleteFolder` and `MoveFolder` join the set. **This ADR's own project,
+completed** — not a new decision so much as the discovery that it had been left
+half-finished, and that the half-finish cost exactly what this ADR predicted it
+would.
+
+**What happened.** A member asked their lane to delete a folder. The lane
+answered that the workspace primitives *"only operate file-by-file rather than
+recursively wiping whole directory trees"* and advised running **`rm -rf` in a
+terminal**. Both halves were wrong. The fan-out existed —
+`services/folder_organize.py`, shipped that week, and the Files surface had
+carried Rename / Move / Move-to-Trash on folders since. And `rm -rf` on the repo
+would not have touched the files at all: the substrate is Postgres, not disk.
+
+This ADR named the failure mode in advance, in the passage ruling out `Bash`:
+
+> *"It is also why missing verbs hurt so much here — there is no shell escape
+> hatch — which argues for COMPLETING THE VERB SET, not adding the hatch."*
+
+A missing verb does not degrade gracefully in a system with no shell. It becomes
+a confident refusal plus a workaround that corrupts the operator's model of
+where their own substrate lives.
+
+**The verbs bind the existing fan-out**, never a second implementation:
+`DeleteFolder` → `folder_organize.trash_folder`, `MoveFolder` →
+`folder_organize.move_folder` (which itself fans out over the `MoveFile`
+primitive, so an upload's `.extracted.md` projection travels with its raw per
+ADR-554 D1). The operator's click and the lane's tool call are one act.
+
+**No extra gate in front of them — and the reasoning matters more than the
+outcome.** The first design instinct was to make a lane's folder-delete queue
+for approval, or cap its fan below the operator's. Both were rejected on this
+ADR's own first principles. The naming section rules that *the descriptive names
+ARE the safety model*; here the safety is structural rather than procedural.
+`trash_folder` writes one attributed `lifecycle='archived'` revision **per
+file** — nothing is removed, the group restores as ONE unit, locked children are
+refused and reported. That makes it **safer than the `rm -rf` the model reached
+for**, and safer than `WriteFile`, which can truncate a file's content and flows
+freely. Gating the safest destructive verb in the system while the lossy one
+runs unimpeded is incoherence, not caution.
+
+The Claude Code comparison holds for a reason worth stating: Claude Code handles
+bulk deletion comfortably because **git** carries the safety, not a confirmation
+prompt. YARNNN has that substrate and a stronger version of it — there is no
+uncommitted state to lose, and group restore is one act rather than a path
+argument.
+
+**Distinct verbs, not a folder-aware `DeleteFile`.** Blast radius must be
+legible in the verb the model CHOOSES and in the narration the operator later
+READS — primitive names leak into feed narration, revision messages and the
+proposals queue (Derived Principle 12). `DeleteFile` on a folder path would make
+the transcript lie about what happened.
+
+**Names ours, contracts borrowed** — the decision rule above, held verbatim.
+`DeleteFolder` / `MoveFolder` continue ADR-168's family naming; never `rm -r` /
+`mv -r`, which would import POSIX priors (flags, globs, `-f`) that do not exist
+here. The schemas mirror the file verbs the model already knows.
+
+**The interop roster does NOT grow.** MCP keeps one `delete` and one `move`;
+`_names_a_folder` picks the grain. A foreign caller addresses a name, and the
+kernel knows whether that name is a file or a folder — it should not have to
+learn our taxonomy to say "delete this".
+
+**Standing discipline.** The gate generalizes from file-verb-shaped to
+family-shaped: `api/test_verb_families_are_one_set.py` declares the families and
+asserts each is whole on every principal-facing surface, with deliberate
+narrowings named in code AND required to be explained in
+`docs/architecture/primitives-matrix.md`. Both sides of every comparison are
+derived; a hand-kept list would reproduce the failure it guards.
 
 ### D7 — Stewardship posture (the duty the verbs serve)
 

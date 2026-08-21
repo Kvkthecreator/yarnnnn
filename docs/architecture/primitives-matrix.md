@@ -121,6 +121,8 @@ Verbs: `ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile` (ADR-337 wo
 | `Edit` | `EditFile` | identical contract (`old_string`/`new_string`/`replace_all`); may not empty a file |
 | `rm` | `DeleteFile` | view-only removal — tombstone revision; chain retained; restore = revert-as-write |
 | `mv` | `MoveFile` | one attributed operation; refuses destination overwrite; both paths lock-checked |
+| `rm -r` | `DeleteFolder` | **a FAN-OUT, not one act** — one archive revision per file; group restores as ONE unit; locked children refused + reported; capped at 500 (`MAX_FAN_OUT`) |
+| `mv` (dir) | `MoveFolder` | the same fan over `MoveFile`; rename is a sibling move; both roots lock-checked |
 | `grep -F` | `SearchFiles(match='exact')` | case-insensitive literal substring over content + path |
 | `git log` / `show` / `diff` | `ListRevisions` / `ReadRevision` / `DiffRevisions` | — |
 | `git revert` | `ReadRevision` + `WriteFile` | ADR-209 D7 revert-as-write (no pointer-flip) |
@@ -255,6 +257,8 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `WriteFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Write a file to the workspace through the Authored Substrate (ADR-209 attribution + revision chain). Two scopes (**ADR-321** — address-space selector; the path's top-level root IS the address): `scope='workspace'` (chat default — the five-root operator-shared filesystem; accumulated domain context is path-native at `operation/{domain}/`); `scope='agent'` (calling agent's workspace). **`scope='context'` + `domain` param DELETED by ADR-321** — domains re-rooted from `context/` to `operation/`; embedding is no longer a write side-effect (the explicit `Embed` primitive, ADR-325). **ADR-235 D1.b**: writes to recognized canonical paths emit activity-log events automatically (`system/notes.md` → `memory_written`, `agents/{slug}/memory/feedback.md` → `agent_feedback`). |
 | `EditFile` | file | ● | ● | ○ | file-layer, consequential | [workspace.py](../../api/services/primitives/workspace.py) | **ADR-337 D1.** Surgical string replacement (`old_string`/`new_string`/`replace_all` — the Claude Code `Edit` contract, borrowed model prior). One attributed revision; may not empty a file (`empty_content_blocked` — removal is `DeleteFile`, by intent). Path-addressed gate-queueable (governance locks DENY). Preferred over `WriteFile` for any change to an existing file — kills the whole-file-rewrite truncation exposure. |
 | `DeleteFile` | file | ● | ● | ○ | file-layer, consequential | [workspace.py](../../api/services/primitives/workspace.py) | **ADR-337 D2.** Remove a file from the live view: attributed tombstone revision (current blob, `DeleteFile:` message) + `workspace_files` row removal. The revision chain is retained — deletion is a view change, not information loss; restore = `ReadRevision` + `WriteFile` (ADR-209 D7). Path-addressed gate-queueable; governance-locked paths cannot be deleted. |
+| `DeleteFolder` | folder | ● | ● | ○ | folder-layer, consequential | [folder.py](../../api/services/primitives/folder.py) | **ADR-337 amended (2026-08-21).** Move a whole folder to Trash by fanning out `folder_organize.trash_folder` — one attributed `lifecycle='archived'` revision per file, the group stamped with its deleted ROOT so Trash restores it as one unit. Locked children REFUSED and named in `locked`, never silently skipped. Refuses past `MAX_FAN_OUT` (500) rather than half-performing. Path-addressed gate-queueable. **Not an artifact verb** — after the fan there is nothing at the path to open. |
+| `MoveFolder` | folder | ● | ● | ○ | folder-layer, consequential | [folder.py](../../api/services/primitives/folder.py) | **ADR-337 amended (2026-08-21).** Move or RENAME a folder — one act, addressed differently. Fans out over `MoveFile` (the ONE mover, so an upload's `.extracted.md` projection travels with its raw per ADR-554 D1); nested empty folders travel as markers. **Dual-path-addressed**: a fan INTO locked territory is as much a breach as one OUT of it. Reports `{moved, failed, locked}` — a half-landed fan is reported, not hidden. |
 | `MoveFile` | file | ● | ● | ○ | file-layer, consequential | [workspace.py](../../api/services/primitives/workspace.py) | **ADR-337 D3.** Move/rename as one attributed operation: revision at `new_path` + tombstone/removal at `path`, cross-referencing messages. Refuses to overwrite an existing destination (`destination_exists` — explicit `DeleteFile` first). **Dual-path-addressed**: the gate lock-checks BOTH source and destination. |
 | `SearchFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Search across workspace files. Two match modes (**ADR-337 D4**): `match='semantic'` (default, BM25 ranked) or `match='exact'` (case-insensitive literal substring over content + path — the grep shape; **ADR-339 D2**: ONE literal substring — multi-word queries match only as exact phrases, and zero-yield results say so explicitly). Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default — entire operator workspace) or `scope='agent'`. |
 | `ListFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Recursive tree listing with metadata (**ADR-339 D1**): one call returns the full subtree under `path` — per-file `path` / `bytes` / `updated_at` / head `authored_by` (the `git status`-shaped view; 0-byte litter visible without a read). Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default) or `scope='agent'`. ADR-209 Phase 3 filters (`authored_by` / `since` / `until`) apply to the head revision. |
@@ -281,28 +285,50 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 - **Chat mode:** **29 static primitives** (ADR-417 removed `RuntimeDispatch`; ADR-579 removed `RepurposeOutput`) — `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `Embed` (ADR-325), `ManageDomains`, `ManageAgent` (lifecycle-only per ADR-235 D2), `Schedule` (ADR-235 D1.c), **`ManageHook` (ADR-296 v2 D2 — substrate-event hook lifecycle)**, `Compose` (ADR-262 D4), `DispatchSpecialist` (ADR-261 D7), `Clarify`, `FireInvocation` (ADR-231 D5; chat-only per ADR-296 v2 D3), `ProposeAction` / `ExecuteProposal` / `RejectProposal` (ADR-193), `ListRevisions` / `ReadRevision` / `DiffRevisions` (ADR-209 Phase 3), and the **file family**: `ReadFile`, `WriteFile`, `EditFile` / `DeleteFile` / `MoveFile` (**ADR-337 working-tree verbs**), `SearchFiles`, `ListFiles` (with **ADR-235 Option A** `scope='workspace'`). `QueryKnowledge` + `ReadAgentFile` stay headless-only.
 - **Headless mode:** **29 static primitives + `platform_*` dynamic** (ADR-417 removed `RuntimeDispatch`) — `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `SyncPlatformState` (ADR-264 — substrate mirror, also dispatched by `mechanical`-mode recurrences via `@primitive: ...` parser), `ReadFile`, `WriteFile`, `EditFile` / `DeleteFile` / `MoveFile` (**ADR-337**), `SearchFiles`, `QueryKnowledge`, `ListFiles`, `Embed` (ADR-325), `DiscoverAgents`, `ReadAgentFile`, `ManageAgent` (lifecycle-only), `Schedule` (ADR-235 D1.c — agents may pause/resume their own declarations on outcome signals), **`ManageHook` (ADR-296 v2 D2)**, `ManageDomains`, `FireInvocation` (ADR-231 D5), `Compose`, `DispatchSpecialist`, `ProposeAction` (ADR-193), `ListRevisions` / `ReadRevision` / `DiffRevisions` (ADR-209 Phase 3). `ManageTask` removed by ADR-231 Phase 3.7. `UpdateContext` removed by ADR-235.
 - **REVIEWER_PRIMITIVES (curated subset for the Reviewer's chat-mode invocations):** **24 tools** — all reads (`ReadFile`/`ListFiles`/`SearchFiles`/`ListRevisions`/`ReadRevision`/`DiffRevisions`/`GetSystemState`/`SearchEntities`/`LookupEntity`/`ListEntities`/`list_integrations`/`WebSearch`/`QueryKnowledge`) + `WriteFile` (lock-gated) + `EditFile` / `DeleteFile` / `MoveFile` (**ADR-337 D5 — the working-tree verbs whose primary customer is the Reviewer's ADR-275 housekeeping cadence**; same-family file verbs, not novel-surface tools — the standing soak watches post-deploy output volume against the 2026-05-25 tool-count canary fingerprint) + `ProposeAction` + `Schedule` + **`ManageHook` (ADR-296 v2 D3 — Reviewer's standing-intent-authoring authority extends to substrate-event hooks)** + `Compose` + `DispatchSpecialist` + `SyncPlatformState` + `Clarify`. **`FireInvocation` removed per ADR-296 v2 D3** — Reviewer does not self-invoke; cadence (`Schedule`) + substrate-event interest (`ManageHook`) + standing intent (`WriteFile` to `/workspace/review/standing_intent.md`) are its trigger-authoring authority.
-- **LANE mode (ADR-411 D3 + ADR-467 D4) — the surface a MEMBER actually uses:** the **seven file verbs** (`ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile`, `SearchFiles`, `ListFiles`) + the uniform extras `QueryKnowledge` / `WebSearch` / `list_integrations` (ADR-535 D2) / `GenerateImage` (ADR-568 D3). Declared in `api/services/lane_runner.py::LANE_TOOL_NAMES` + `LANE_SURFACE_EXTRA`, composed by `lane_tools_openai()`. **Uniform for every lane and every Agent** — capability is not a character trait (ADR-467 D4: a per-Agent `tools` field was a bug factory with no safety payoff). No entity verbs, no `Schedule`, no `DispatchSpecialist`, no `platform_*` reach. ⭐ **`DeleteFile` + `MoveFile` added 2026-08-21**: their absence was the anomaly — they already shipped in Chat, in Reviewer, and as `delete`/`move` on MCP, so a foreign LLM over MCP could delete a member's file while the member's own lane could not, and said so out loud. Gate: [test_file_verbs_are_one_set.py](../../api/test_file_verbs_are_one_set.py).
+- **LANE mode (ADR-411 D3 + ADR-467 D4) — the surface a MEMBER actually uses:** the **file verbs** (`ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile`, `SearchFiles`, `ListFiles`) + the **folder verbs** (`DeleteFolder`, `MoveFolder`) + the uniform extras `QueryKnowledge` / `WebSearch` / `list_integrations` (ADR-535 D2) / `GenerateImage` (ADR-568 D3). Declared in `api/services/lane_runner.py::LANE_TOOL_NAMES` + `LANE_SURFACE_EXTRA`, composed by `lane_tools_openai()`. **Uniform for every lane and every Agent** — capability is not a character trait (ADR-467 D4: a per-Agent `tools` field was a bug factory with no safety payoff). No entity verbs, no `Schedule`, no `DispatchSpecialist`, no `platform_*` reach. ⭐ **`DeleteFile` + `MoveFile` added 2026-08-21**: their absence was the anomaly — they already shipped in Chat, in Reviewer, and as `delete`/`move` on MCP, so a foreign LLM over MCP could delete a member's file while the member's own lane could not, and said so out loud. ⭐ **`DeleteFolder` + `MoveFolder` added the same day**, one grain up and for the identical reason: the fan-out already existed (`services/folder_organize.py`) and only the Files surface could reach it. Gate: [test_verb_families_are_one_set.py](../../api/test_verb_families_are_one_set.py).
 - **MCP mode (ADR-543 + ADR-545 over ADR-512):** the tool surface is file-native — `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `share` — composed server-side in `api/services/mcp_composition.py` over these kernel primitives: `WriteFile` (save — CAS via `expected_parent_version_id`, gate-checked against `CALLER_WRITE_POLICY["mcp"]`), `EditFile` / `DeleteFile` / `MoveFile` (the ADR-337 working-tree verbs, bound by ADR-545), `QueryKnowledge` (search's ranked read), `ListRevisions` / `DiffRevisions` (history's chain + inline diffs), and direct workspace-scoped reads (open/list, with list's `since` change feed). MCP is the foreign-LLM surface — a caller of `execute_primitive()` per ADR-164. **The ADR-209-era "revision reads deliberately NOT exposed on MCP" rule is REVERSED** (first by ADR-368's `trace`, ratified at contract altitude by ADR-512): the attributed revision chain is the surface's distinguishing capability, not an archaeology to hide. `InferContext` no longer exists (deleted per ADR-324); its row above is retained history in this table's deleted-primitives ledger sense only.
 
-> ### ⭐ Standing discipline — the file-verb set is ONE SET, whoever holds it
+> ### ⭐ Standing discipline — a verb FAMILY is ONE SET, whoever holds it
 >
-> The file family (`ReadFile` · `WriteFile` · `EditFile` · `DeleteFile` ·
-> `MoveFile` · `SearchFiles` · `ListFiles`) is **one set**. Any surface that
-> reaches the workspace filesystem on a principal's behalf holds the WHOLE
-> family — or the narrowing is a deliberate decision **with its reason recorded
-> in this document**, never an accident of which roster someone remembered to
-> edit.
+> Two families today: **file** (`ReadFile` · `WriteFile` · `EditFile` ·
+> `DeleteFile` · `MoveFile` · `SearchFiles` · `ListFiles`) and **folder**
+> (`DeleteFolder` · `MoveFolder`). Each is **one set**. Any surface that reaches
+> the workspace on a principal's behalf holds the WHOLE family — or the
+> narrowing is a deliberate decision **with its reason recorded in this
+> document**, never an accident of which roster someone remembered to edit.
 >
-> **Why it is a rule and not a preference (2026-08-21).** A member asked their
-> lane to delete two config files and was told *"my available file tools do not
-> include a file deletion primitive"* — true of that surface, false of the
-> system. `DeleteFile`/`MoveFile` had shipped in ADR-337 and were live in three
-> other rosters. Nothing caught it because **no gate compared the rosters**:
-> each was internally consistent, and the divergence was the defect. A
-> divergence has no home unless something asserts *across* surfaces.
+> **Why it is a rule and not a preference (2026-08-21).** The same defect landed
+> twice in one day. First: a member asked their lane to delete two config files
+> and was told *"my available file tools do not include a file deletion
+> primitive"* — true of that surface, false of the system. Then, one grain up:
+> asked to delete the FOLDER, the lane said the primitives *"only operate
+> file-by-file"* and advised running **`rm -rf` in a terminal** — which would not
+> have touched the files at all, the substrate being Postgres rather than disk.
+> The fan-out had shipped that week; only the Files surface could reach it.
+>
+> Nothing caught either because **no gate compared the rosters**: each was
+> internally consistent, and the divergence was the defect. A divergence has no
+> home unless something asserts *across* surfaces.
+>
+> ADR-337 named this failure in advance, ruling out a `Bash` primitive: *"it is
+> also why missing verbs hurt so much here — there is no shell escape hatch —
+> which argues for COMPLETING THE VERB SET, not adding the hatch."* A missing
+> verb does not degrade gracefully; it becomes a confident refusal plus a
+> workaround that corrupts the operator's model of where their substrate lives.
+>
+> **No extra ceremony in front of a folder verb, deliberately.** The first
+> instinct was to make a lane's folder-delete queue for approval, or cap its fan
+> below the operator's. Both were rejected on ADR-337's own first principles:
+> the descriptive names ARE the safety model, and the safety here is structural.
+> `trash_folder` writes one attributed archive revision PER FILE — nothing is
+> removed, the group restores as ONE unit, locked children are refused and
+> reported. That is safer than the `rm -rf` the model reached for, and safer
+> than `WriteFile`, which can truncate content and flows freely. Gating the
+> safest destructive verb while the lossy one runs unimpeded is incoherence,
+> not caution.
 >
 > The comparison is now gated by
-> [test_file_verbs_are_one_set.py](../../api/test_file_verbs_are_one_set.py),
+> [test_verb_families_are_one_set.py](../../api/test_verb_families_are_one_set.py),
 > which derives **both** sides (never a hand-kept expected list, which would
 > reproduce the failure it guards) and asserts the load-bearing one directly:
 > *a foreign LLM must not be able to do to a member's files what the member's
@@ -321,6 +347,11 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 >   The call still shows as a labelled tool row; the chain stays walkable.
 > - **`MoveFile` cards its DESTINATION** — its result carries both paths and
 >   `path` is the source, which no longer exists once the move succeeds.
+> - **Neither folder verb is carded** — `DeleteFolder` for `DeleteFile`'s reason
+>   (nothing remains at the path); `MoveFolder` because its result names a
+>   FOLDER, and an artifact card deep-links a FILE to open. Both still show as
+>   labelled tool rows, and their results carry the honest partial
+>   (`{archived|moved, locked, failed}`) for the lane to report.
 
 **Hard boundaries (enforced by [api/test_recent_commits.py](../../api/test_recent_commits.py)):**
 

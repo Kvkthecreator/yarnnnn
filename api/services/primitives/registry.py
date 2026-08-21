@@ -70,6 +70,14 @@ from .workspace import (
     DISCOVER_AGENTS_TOOL, handle_discover_agents,
     READ_AGENT_FILE_TOOL, handle_read_agent_file,
 )
+# ADR-337 amended (2026-08-21) — the FOLDER verbs: the fan-out half of the
+# working-tree analogy. Declared in their own module because they bind a
+# SERVICE (`services/folder_organize.py`, the same fan-out the Files surface
+# calls) rather than a single `workspace_files` row.
+from .folder import (
+    DELETE_FOLDER_TOOL, handle_delete_folder,
+    MOVE_FOLDER_TOOL, handle_move_folder,
+)
 # ADR-209 Phase 3: revision-aware read primitives (Authored Substrate).
 from .revisions import (
     LIST_REVISIONS_TOOL, handle_list_revisions,
@@ -292,6 +300,10 @@ CHAT_PRIMITIVES = [
     MOVE_FILE_TOOL,
     # ADR-514 D1: DuplicateFile — derive a sibling copy (derived_from edge).
     DUPLICATE_FILE_TOOL,
+    # ADR-337 amended (2026-08-21) — the FOLDER grain. Same fan-out the Files
+    # surface calls; blast radius is legible in the verb, not hidden in a path.
+    DELETE_FOLDER_TOOL,
+    MOVE_FOLDER_TOOL,
     SEARCH_FILES_TOOL,
     LIST_FILES_TOOL,
     # ADR-325: Embed — explicit make-AI-ready (consequential, autonomy-gated).
@@ -362,6 +374,8 @@ HEADLESS_PRIMITIVES = [
     EDIT_FILE_TOOL,
     DELETE_FILE_TOOL,
     MOVE_FILE_TOOL,
+    DELETE_FOLDER_TOOL,
+    MOVE_FOLDER_TOOL,
     SEARCH_FILES_TOOL,
     QUERY_KNOWLEDGE_TOOL,
     LIST_FILES_TOOL,
@@ -464,6 +478,10 @@ FREDDIE_PRIMITIVES = [
     EDIT_FILE_TOOL,
     DELETE_FILE_TOOL,
     MOVE_FILE_TOOL,
+    # ADR-337 amended (2026-08-21) — folder-grain hygiene. The housekeeping
+    # cadence is this verb pair's primary customer, same as the file pair's.
+    DELETE_FOLDER_TOOL,
+    MOVE_FOLDER_TOOL,
     # ADR-296 v2 D3: FireInvocation REMOVED. Reviewer does not self-invoke.
     # Direction primitive (Reviewer says, System Agent executes)
     PROPOSE_ACTION_TOOL,
@@ -603,6 +621,8 @@ HANDLERS: dict[str, Callable] = {
     "EditFile": handle_edit_file,
     "DeleteFile": handle_delete_file,
     "MoveFile": handle_move_file,
+    "DeleteFolder": handle_delete_folder,
+    "MoveFolder": handle_move_folder,
     "DuplicateFile": handle_duplicate_file,
     "SearchFiles": handle_search_files,
     "QueryKnowledge": handle_query_knowledge,

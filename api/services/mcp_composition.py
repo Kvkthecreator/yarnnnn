@@ -1064,6 +1064,38 @@ async def compose_edit(
     }
 
 
+def _names_a_folder(auth: Any, rel: str) -> bool:
+    """Whether this reference addresses a FOLDER rather than a file.
+
+    ADR-588: a folder exists iff a marker row or a prefixed file exists, so the
+    check is "is there a marker at this path, or anything beneath it". Used by
+    `delete` and `move` to pick the grain — the interop roster keeps ONE delete
+    and ONE move (a foreign caller should not have to know our two grains), and
+    the verb resolves which fan-out answers.
+    """
+    from services.workspace_context import substrate_scope_filter
+    from services.workspace_paths import folder_marker_path
+
+    abs_folder = ("/" + rel.strip("/")) if not rel.startswith("/") else rel.rstrip("/")
+    if abs_folder in ("", "/"):
+        return False
+    marker = folder_marker_path(abs_folder)
+    client = auth.client
+    workspace_id = getattr(auth, "workspace_id", None)
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("path")
+            .eq(*substrate_scope_filter(auth.user_id, workspace_id))
+            .or_(f"path.eq.{marker},path.like.{abs_folder}/%")
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception:
+        return False
+    return bool(rows)
+
+
 async def compose_delete(
     auth: Any,
     reference: str,
@@ -1087,6 +1119,18 @@ async def compose_delete(
                 "or a yarnnn://workspace/… handle."
             ),
         }
+    # ADR-337 amended (2026-08-21) — ONE delete verb, two grains. A foreign
+    # caller addresses a name; the kernel knows whether that name is a file or
+    # a folder, so it picks the fan-out rather than making the caller learn our
+    # taxonomy. A folder delete is the same attributed archive-per-file the
+    # operator's click performs — restorable as one unit.
+    if _names_a_folder(auth, rel):
+        folder_result = await execute_primitive(auth, "DeleteFolder", {
+            "path": rel,
+            "message": message or f"delete via interop: {rel}",
+        })
+        folder_result.setdefault("reference", format_file_reference(rel))
+        return folder_result
     result = await execute_primitive(auth, "DeleteFile", {
         "scope": "workspace",
         "path": rel,
@@ -1129,6 +1173,16 @@ async def compose_move(
                 "workspace-relative path or a yarnnn://workspace/… handle."
             ),
         }
+    # ADR-337 amended (2026-08-21) — ONE move verb, two grains (see `delete`).
+    # Rename is the same act with a new leaf, at either grain.
+    if _names_a_folder(auth, rel):
+        folder_result = await execute_primitive(auth, "MoveFolder", {
+            "path": rel,
+            "new_path": new_rel,
+            "message": message or f"move via interop: {rel} → {new_rel}",
+        })
+        folder_result.setdefault("reference", format_file_reference(new_rel))
+        return folder_result
     result = await execute_primitive(auth, "MoveFile", {
         "scope": "workspace",
         "path": rel,
