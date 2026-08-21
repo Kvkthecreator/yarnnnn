@@ -17,7 +17,8 @@ falsified by construction — remove the mechanism and the check goes red:
      conforming one, and the route's repair composer turns the ledger's
      refusal into the desk's repair state (cleared by a later success).
   4. POSTURE SELECTION (D6, the ADR-567 D4 mechanism) — build_lane_conventions
-     executed three ways: app='strings' → KEEPER'S DESK; app='radar' →
+     executed two ways: app='strings' → KEEPER'S DESK; (app='radar' was
+     deleted with the app, ADR-592);
      THE RESEARCHER'S DESK; app-less bound → studio. Extends test_adr567's
      pins, never breaks them.
   5. THE RESIDENT (ADR-562) — strings registers keeper; keeper resolves as a
@@ -238,8 +239,11 @@ rdesk = build_lane_conventions(
     FakeClient({}), "u1", model=model,
     artifact_path="/workspace/operation/t/report.md", app="radar",
 )
-check("a radar-bound lane still gets THE RESEARCHER'S DESK (567 pin holds)",
-      "THE RESEARCHER'S DESK" in rdesk and "KEEPER'S DESK" not in rdesk)
+# ADR-592 — the radar app is DELETED, so its desk branch is gone. A lane still
+# naming `app="radar"` (a stale lane_meta row) must fall through to NO job
+# overlay rather than resolving one — the branch is absent, not re-pointed.
+check("a stale radar-bound lane resolves NO desk (the app is deleted, ADR-592)",
+      "THE RESEARCHER'S DESK" not in rdesk and "KEEPER'S DESK" not in rdesk)
 
 studio = build_lane_conventions(
     FakeClient({}), "u1", model=model,

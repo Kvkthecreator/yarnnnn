@@ -346,26 +346,20 @@ async def run_unified_scheduler():
                 logger.warning("[SCHED] capture lane raised: %s", exc)
 
         # ---------------------------------------------------------------------
-        # ADR-486 R0: the radar lane — standing sweeps over declared topic hubs
-        # (operation/{topic}/_radar.yaml). Sibling maintenance phase to the
-        # capture drain, but NOT behind the capture lane's flag: radar runs
-        # on web watches + the commons (ADR-486 §5 — the capture lane's
-        # dormancy is a connector decision, not a standing-sweep one). Inside
-        # AGENT_ENABLED because a sweep's derive is metered judgment spend.
-        # Zero hubs declared → one LIKE scan → no-op (the empty-world cost).
         # ---------------------------------------------------------------------
-        try:
-            from services.radar import drain_due_radar_sweeps
-            r_found, r_succeeded, r_failed = await drain_due_radar_sweeps(supabase)
-            if r_found > 0:
-                logger.info(
-                    f"[SCHED] radar: {r_succeeded}/{r_found} sweep(s) succeeded, "
-                    f"{r_failed} failed"
-                )
-        except Exception as exc:
-            logger.warning("[SCHED] radar lane raised: %s", exc)
+        # ADR-592 (2026-08-21): the RADAR LANE IS DELETED, with the app.
+        #
+        # It drained every tick and each sweep was metered judgment spend
+        # ("a sweep's derive is metered judgment spend" — the ADR-486 comment
+        # this replaces). That is why Radar was deleted outright rather than
+        # hidden behind `stage: internal`: an app nobody can reach must not
+        # keep spending an operator's balance, and a dormant spend lane is
+        # precisely the ambiguity a future session would have to re-derive.
+        #
+        # The kind='radar' rows in the `tasks` index are inert once this stops
+        # claiming them; scheduling.py's radar special-cases went with it.
+        # ---------------------------------------------------------------------
 
-        # ---------------------------------------------------------------------
         # ADR-569: the strings lane — maintained files under contract
         # ({folder}/_string.yaml → the designated leaf, kept current by
         # Keeper). Sibling to the radar lane, same posture: NOT behind the

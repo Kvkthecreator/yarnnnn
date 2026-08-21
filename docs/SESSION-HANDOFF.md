@@ -737,3 +737,67 @@ runner's exit code is **not** verification — read the live object back.
   `api/services/derive_recipes.py`, targets markdown, resident `scout`, **zero FE
   consumers**. Text is its natural home; it needs its own decision about where a
   derived brief lands.
+
+---
+
+# Part H — ADR-592: an app declares how far along it is (2026-08-21)
+
+## What shipped
+
+`stage` — one field per kernel surface row (`internal | search-only | beta |
+primary`, `services/app_stage.py`), from which `launcher_tier` +
+`default_pinned` are DERIVED. Enforced at `kernel_surface_entries()`, the same
+chokepoint ADR-375 §6 #4 uses for the steward.
+
+- **Radar DELETED** — service, router, surface, registry row, app registration,
+  API namespace, scheduler lane, its gate. Deleted rather than staged because
+  its sweep was **metered spend on a clock**.
+- **Docs `stage: internal`** — implementation intact (Studio parameterized),
+  exposure gone. `/docs` → `/text`, `/radar` → `/files`, both stubs.
+
+## The finding this came from
+
+ADR-574 D2 declared Docs paused on 2026-08-17. Four days later it was still
+fully reachable. Two mechanisms:
+- `maybeReseedDock` only fires on **byte-equality** with the previous default,
+  so any curated Dock keeps the icon permanently.
+- `search-only` hides a tile at rest and nothing else — the route rendered,
+  flat search matched `summary`, and a `document` double-click opened it.
+
+Hence: `internal` removes the row from the **served roster** (nav is
+backend-driven), which is the only spelling that reaches a curated Dock.
+
+## ⚠️ The obligation `internal` carries
+
+`middleware.ts` derives `SURFACE_PREFIXES` from the roster, so **a slug that
+leaves the roster leaves the auth gate with it**. An internal app's route must
+be a redirect stub AND hand-listed in the middleware. I nearly shipped this
+wrong: a stash cycle silently reverted the middleware edit and the gate passed
+green against an unprotected `/docs` until a falsifier caught it.
+
+## Measured
+
+- Gates: `test_adr592_app_stage.py` 35/35, falsified 3 ways (un-hide docs;
+  unprotect the route; flatten the stage default — the last reproduces a real
+  bug I hit, which promoted 27 surfaces to the Dock).
+- 574 → 18/18, 518 → 36/36, 562/569/571/472/558 green, FE build green.
+- **Pre-existing red, NOT introduced** (measured at `b0d03a6`):
+  `test_adr297_phase1` 186/1 and `test_adr338_surface_registry_parity` 12/3 —
+  every failure names `autonomy`.
+- ADR-574 D3's recorded trap does NOT fire: `resolvedMode` comes from the
+  LAYOUT vocabulary, not the app, and `document` still declares `mode: flow`.
+
+## OWED
+
+- **Operator (KVK)**: the Radar substrate. Workspace
+  `d5b9029b-bd4e-4757-9fcb-e2b139fd4913` — 21 briefs under
+  `operation/ai-frontier/briefs/` + `_radar.yaml`/`_watch_signal.yaml` there and
+  under `operation/fundraising/deck-new-test/`. Workspace
+  `bf5b25a9-477f-462e-b7f3-65812f489411` — `operation/desk-e2e/` declarations.
+  Deleting the topic folder takes the briefs; delete only the `_*.yaml` to keep
+  them. (The code change already stops the spend.)
+- **Click-pass**: `/docs` + `/radar` redirect while logged in; logged-out both
+  bounce to login (the auth pairing); no Docs/Radar icon on a CURATED Dock.
+- **Staging envs** — discussed, not started. Separate ADR; needs a call on
+  Supabase branching vs. a second project.
+- `kind='radar'` rows in `tasks` are inert; harmless, could be swept later.

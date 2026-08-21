@@ -62,15 +62,11 @@ from services.apps import images as images  # noqa: F401,E402  (registration sid
 # overlay and already imports `services.authoring` for the registration.
 from services.apps import text as text  # noqa: F401,E402  (registration side-effect)
 
-# radar (ADR-486) is an app with a resident too — a sweep on a clock rather than
-# a canvas, which changes what it DOES, not what kind of fact its colleague is.
-# Its declaration lives HERE rather than in `services/radar.py` because that
-# module deliberately carries no module-level `services.*` imports (every
-# service reference in it is function-local, to stay cycle-free). Declaring it
-# here keeps that property AND keeps every app's residency in one readable list.
-from services.authoring import register_app as _register_app  # noqa: E402
+# ADR-592 — the radar row is DELETED with the app. Its resident (scout /
+# Researcher) stays in KERNEL_AGENTS: an agent is not an app, and `system:radar`
+# attribution on the briefs it already authored must keep rendering a name.
 
-_register_app("radar", resident="scout")
+from services.authoring import register_app as _register_app  # noqa: E402
 
 # strings (ADR-569) — the maintained file, kept by Keeper. Declared here for
 # the same reason as radar's row: `services/strings.py` deliberately carries

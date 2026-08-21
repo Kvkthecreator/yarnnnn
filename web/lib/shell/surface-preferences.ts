@@ -78,7 +78,8 @@ export const DEFAULT_KEPT_SURFACES: string[] = [
   // Hidden, not unplugged — /docs still routes and a document still opens
   // there. Reopening is ADR-574 §5, and only as a Publish surface (D4).
   'studio',
-  'radar', // ADR-486 unveil (2026-07-28) — the standing app joins the Dock
+  // 'radar' — DELETED 2026-08-21 (ADR-592): the app is gone, not paused. A
+  // persisted pin is dropped via DOCK_RETIRED_SLUGS so it renders no ghost icon.
   'strings', // ADR-569 unveil (2026-08-14, operator decision) — the maintained file
   'files',
   'agents',
@@ -221,7 +222,14 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
 // `budget` (ADR-491 D3, 2026-07-28): the Budget pane dissolved into Usage and
 // its registry row is deleted — same ghost-icon protection for any persisted
 // kept/open entry from its search-only era.
-const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget']);
+// `radar` (ADR-592, 2026-08-21): the app is DELETED. `docs` (ADR-592): the app
+// is `stage: internal` and no longer served. Neither slug reaches the roster,
+// so a persisted kept/open entry naming one would render a dead icon — the
+// ADR-385 ghost-icon lesson. Dropping them here is what makes the hide hold for
+// an operator whose Dock was CURATED and therefore never reseeded (the reseed
+// only fires on byte-equality with the previous default — the reason ADR-574's
+// Docs pause never took effect on a real desk).
+const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget', 'radar', 'docs']);
 
 function normalizeSlug(slug: string): string {
   return LEGACY_SLUG_ALIASES[slug] ?? slug;
@@ -328,6 +336,14 @@ const DOCK_RESEED_GENERATIONS: Array<{ keyPrefix: string; previous: string[] }> 
     keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-17-docs-paused:',
     previous: ['chat', 'docs', 'text', 'studio', 'radar', 'strings', 'files', 'agents'],
   },
+  // ADR-592 (2026-08-21) — NO generation for the Docs hide + Radar deletion,
+  // deliberately. A reseed only fires on byte-equality with `previous`, which
+  // is exactly why the 2026-08-17 generation above did NOT take effect on a
+  // curated Dock: the operator still had a Docs icon four days later. Both
+  // slugs are in DOCK_RETIRED_SLUGS instead, which drops them from EVERY
+  // persisted Dock — curated or not — because neither reaches the served
+  // roster any more. Retiring the slug is the durable spelling; a reseed
+  // generation is the one that only works on an untouched desk.
 ];
 
 function maybeReseedDock(userId: string, stored: string[]): string[] {
@@ -626,13 +642,10 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // re-route delivered `{platform}` here, which Files has never read, and the
   // unconstrained default accepted and persisted it forever.
   files: ['path', 'domain'],
-  // The Researcher's desk (ADR-567). `topic` names the watched folder under
-  // management — load-bearing identity: an attach-in-flight IS a topic param
-  // with no declaration yet, so a refresh must not lose it. `file` is the
-  // delivered Files-association deep-link, consumed at mount into `topic`.
-  // Registered 2026-08-13 — radar sat in NEITHER registry, and the
-  // unconstrained miss-case reads as permission (the 3f44a8f lesson).
-  radar: ['topic', 'file'],
+  // ADR-592 — the Researcher's desk (radar) is DELETED; its param row went
+  // with it. The 2026-08-13 lesson it carried still stands for every surface
+  // below: an unregistered slug takes the unconstrained miss-case, which reads
+  // as permission (the 3f44a8f lesson).
   // Keeper's desk (ADR-569). `topic` names the string's folder; `target`
   // carries a designation-in-flight's leaf (the picked file before Keeper's
   // declaration parses — a refresh must not lose it, or the unconfigured
@@ -725,7 +738,6 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // The desk's `topic` is deliberately RESTORED (like `chat.lane` — the desk
   // is a place you live in, and the folder roster sits right beside it); only
   // the delivered Files-association deep-link is an open act, not a posture.
-  radar: ['file'],
   // Same rule for Keeper's desk (ADR-569): `topic` + `target` restore (the
   // designation-in-flight is a real place — losing `target` on refresh
   // strands the unconfigured desk without its lane); the delivered `file`

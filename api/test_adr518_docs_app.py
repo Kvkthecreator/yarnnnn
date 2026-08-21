@@ -146,23 +146,41 @@ def run() -> bool:
         "routes/studio.py registers Docs at boot (the load-bearing import)",
         "import services.apps.docs" in (root / "api/routes/studio.py").read_text(),
     )
-    page = (root / "web/app/(authenticated)/docs/page.tsx").read_text()
+    # ADR-592 — the Docs app is `stage: internal`. Its IMPLEMENTATION is what
+    # this gate protects (the shared surface, the layouts, the resident); its
+    # EXPOSURE is gone, so /docs is a redirect stub and the registry drops the
+    # row. Comments are stripped first: the stub's docstring names
+    # `StudioSurface` to say what it replaced, and matching a comment would
+    # read the correct file as broken.
+    import re as _re
+
+    def _code_only(text: str) -> str:
+        text = _re.sub(r"/\*.*?\*/", "", text, flags=_re.DOTALL)
+        return _re.sub(r"^\s*//.*$", "", text, flags=_re.MULTILINE)
+
+    page = _code_only((root / "web/app/(authenticated)/docs/page.tsx").read_text())
     _check(
-        "/docs mounts the shared surface parameterized by DOCS_APP",
-        "StudioSurface app={DOCS_APP}" in page and "redirect(" not in page,
+        "/docs is a redirect stub — the app is hidden, not mounted (ADR-592)",
+        "redirect(" in page and "StudioSurface" not in page,
+    )
+    _check(
+        "the shared surface still ACCEPTS the Docs app (implementation intact)",
+        "DOCS_APP" in (root / "web/components/authoring/StudioSurface.tsx").read_text(),
     )
     _check(
         "the ADR-249 upload-detail page is DELETED",
         not (root / "web/app/(authenticated)/docs/[id]").exists(),
     )
     _check(
-        "SurfaceRegistry carries the docs row",
-        "docs: DocsPage" in (root / "web/components/shell/SurfaceRegistry.tsx").read_text(),
+        "SurfaceRegistry does NOT carry a docs row (nothing may mount it, ADR-592)",
+        "docs: DocsPage"
+        not in _code_only((root / "web/components/shell/SurfaceRegistry.tsx").read_text()),
     )
     ft = (root / "web/lib/file-types/index.ts").read_text()
     _check(
-        "APP_SURFACES carries docs → surface docs, param file",
-        "docs: { surface: 'docs', param: 'file'" in ft,
+        "APP_SURFACES does NOT carry docs — a document falls back to Studio "
+        "(ADR-592; mode comes from the LAYOUT, so flow still renders flow)",
+        "docs: { surface: 'docs', param: 'file'" not in ft,
     )
     prefs = (root / "web/lib/shell/surface-preferences.ts").read_text()
     _check(

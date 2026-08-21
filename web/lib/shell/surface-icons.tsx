@@ -32,7 +32,6 @@ import {
   MessageCircle,
   Package,
   Palette,
-  Radar,
   Rocket,
   Rss,
   Scale,
@@ -112,7 +111,6 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // ADR-486: the RADAR app glyph — the standing sweep. Registered with the
   // surface (search-only tier until R3) so the Launcher's summon-by-name row
   // and the eventual Dock tile wear the same object from day one.
-  radar: Radar,
   // ADR-569: the STRINGS app glyph — the file with a string attached to the
   // world. Registered at birth (search-only tier) — the Images lesson: an
   // icon_key with no registry entry falls through to the generic Box.

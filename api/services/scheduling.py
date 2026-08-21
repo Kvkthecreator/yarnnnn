@@ -323,8 +323,8 @@ def preserve_due_commitment(
     recurrence that has NEVER run (and declares no ``fire_on_activation``)
     every re-materialization recomputes from *now* — rolling an already-due
     firing time forward past the due scan. Where the materializer runs at the
-    top of the same tick whose due scan would claim the row (the radar
-    drainer), that is not a skipped occurrence but a standing loop that can
+    top of the same tick whose due scan would claim the row (a standing
+    drainer, e.g. Strings), that is not a skipped occurrence but a loop that can
     never start: observed live 2026-08-13, a conversationally-created watched
     folder (ADR-567 D3 writes no fire_on_activation) armed for 09:00 was
     re-materialized to the next day at the 09:04 tick, permanently.
@@ -466,10 +466,11 @@ async def materialize_scheduling_index(
     by_slug: dict[str, Recurrence] = {r.slug: r for r in recurrences}
 
     try:
-        # Kind-scoped (ADR-393 disjointness invariant, closed with ADR-486):
-        # this materializer owns ONLY kind='judgment' rows. Without the filter
-        # it would delete capture/radar index rows as "stale" — their slugs
-        # never appear in _recurrences.yaml. Migration 193 backfilled every
+        # Kind-scoped (ADR-393 disjointness invariant): this materializer owns
+        # ONLY kind='judgment' rows. Without the filter it would delete
+        # capture/string index rows as "stale" — their slugs never appear in
+        # _recurrences.yaml. (kind='radar' rows are inert since ADR-592
+        # deleted that lane; nothing claims them.) Migration 193 backfilled every
         # pre-existing row to 'judgment', so the filter loses nothing.
         existing = (
             client.table("tasks")
@@ -518,8 +519,8 @@ async def materialize_scheduling_index(
             next_run = None
 
         # A stored due-but-unfired next_run_at survives re-materialization
-        # (a Schedule edit, a fork re-sync) — the same commitment rule the
-        # radar drainer needs every tick; see preserve_due_commitment.
+        # (a Schedule edit, a fork re-sync) — the same commitment rule a
+        # standing drainer needs every tick; see preserve_due_commitment.
         next_run = preserve_due_commitment(
             _parse_iso(existing_row.get("next_run_at") if existing_row else None),
             next_run, now=now, paused=rec.paused,

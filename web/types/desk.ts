@@ -34,10 +34,13 @@ export type KernelSurfaceSlug =
   // ADR-297 parity gate parses the union up to the first semicolon and reads
   // quoted names.)
   | 'chat'  // ADR-412 D3 — the lanes surface; ADR-435 — the dock anchor (Home deleted)
+  // ADR-592 — `docs` is `stage: internal`: the app's code is intact (Studio
+  // parameterized) and the slug still names it in app-scoped config, but it is
+  // NOT in KERNEL_SURFACE_SLUGS below — nothing serves it, so it is not a
+  // navigable surface. Reopening = flip the stage and restore it there.
   | 'docs'  // ADR-518 — the writing app (document · flow), carved from Studio
   | 'studio'  // ADR-440 — the layout app (deck · web; re-cut by ADR-518)
   | 'images'  // ADR-472 — the second authoring app (stages, rendered rasters)
-  | 'radar'   // ADR-486 — the standing app (topic hubs, sweeps, cited briefs)
   | 'strings' // ADR-569 — the maintained file, kept by Keeper (search-only tier)
   | 'text'    // ADR-571 — the prose app (md · txt), Editor beside the canvas
   | 'recurrence'
@@ -125,7 +128,7 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // ADR-491 D3: `budget` LEFT (pane dissolved into Usage; slug retired).
   // ADR-491 D1: `billing` + `usage` join (pane-grade on the workspace door).
   // ADR-518: `docs` joins — the writing app, carved from Studio.
-  'chat', 'docs', 'text', 'studio', 'images', 'radar', 'strings', 'recurrence', 'billing', 'usage', 'autonomy',
+  'chat', 'text', 'studio', 'images', 'strings', 'recurrence', 'billing', 'usage', 'autonomy',
   'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).

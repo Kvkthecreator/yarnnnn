@@ -116,11 +116,27 @@ def run() -> bool:
         resident_for_app("docs") == "designer"
         and resolve_app("docs").get("name") == "Writer",
     )
+    # ADR-592 SUPERSEDES D2's "hidden, not unplugged": the pause became a HIDE
+    # because it never took effect (a curated Dock kept the icon, /docs still
+    # rendered, flat search still matched). The surface must now NOT mount —
+    # the registry row is gone and the route is a redirect stub → /text.
+    # Comments are STRIPPED before matching: this stub's docstring names
+    # `StudioSurface` to say what it replaced, and an assertion that matched
+    # its own explanatory comment would read the correct file as broken (the
+    # recorded comment-vs-code gate defect).
+    import re as _re
+
+    def _code_only(text: str) -> str:
+        text = _re.sub(r"/\*.*?\*/", "", text, flags=_re.DOTALL)
+        return _re.sub(r"^\s*//.*$", "", text, flags=_re.MULTILINE)
+
+    _reg = _code_only((root / "web/components/shell/SurfaceRegistry.tsx").read_text())
+    _route = _code_only((root / "web/app/(authenticated)/docs/page.tsx").read_text())
     _check(
-        "the surface still mounts — SurfaceRegistry + route file intact",
-        "docs: DocsPage"
-        in (root / "web/components/shell/SurfaceRegistry.tsx").read_text()
-        and (root / "web/app/(authenticated)/docs/page.tsx").exists(),
+        "the surface no longer mounts — no registry row, route is a stub (ADR-592)",
+        "docs: DocsPage" not in _reg
+        and "redirect(" in _route
+        and "StudioSurface" not in _route,
     )
     _check(
         "the flow editor is MOTHBALLED, not deleted (Docs is its sole consumer)",
@@ -133,9 +149,15 @@ def run() -> bool:
     # app "docs" makes resolveSurfaceApplication fall through to
     # DEFAULT_ARTIFACT_APP ('studio') and render a FLOW document as PAGED
     # slides — silently. The two may only ever be removed together.
+    # ADR-592 — the pair MOVED TOGETHER, which is what D3 demanded. The trap
+    # D3 recorded (a flow document rendering as PAGED slides) does not fire:
+    # `resolvedMode` is read from the LAYOUT vocabulary
+    # (`layouts.find(l => l.slug === template)?.mode`), not from the app, and
+    # the `document` layout still declares mode='flow'. So the fallback to
+    # Studio renders flow — the app changed, the mode did not.
     _check(
-        "APP_SURFACES still carries docs — the pair that must move together",
-        "docs: { surface: 'docs', param: 'file'" in ft,
+        "APP_SURFACES no longer carries docs (moved WITH the surface, ADR-592)",
+        "docs: { surface: 'docs', param: 'file'" not in ft,
     )
     _check(
         "the fallback that makes the trap real is still the one described",

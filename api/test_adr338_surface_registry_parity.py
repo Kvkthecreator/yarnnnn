@@ -62,16 +62,24 @@ def _backend_navigable_slugs() -> set[str]:
     """Authoritative source: import the constant, don't regex it."""
     from services.kernel_surfaces import KERNEL_SURFACES
 
-    # Navigable = has a non-empty route AND is not `hidden`. Chrome surfaces
-    # (top-bar, launcher, chat-drawer) carry route="" and are not Launcher
-    # navigation targets. ADR-425 D2 (2026-07-09): `hidden` surfaces (sources)
-    # keep a bookmark-safe redirect-stub route but present NO operator door — so
-    # they are not a real navigation target and must not require a window
-    # component or an allowlist entry.
+    # Navigable = has a non-empty route AND is not `hidden` AND is EXPOSED.
+    # Chrome surfaces (top-bar, launcher, chat-drawer) carry route="" and are
+    # not Launcher navigation targets. ADR-425 D2 (2026-07-09): `hidden`
+    # surfaces (sources) keep a bookmark-safe redirect-stub route but present NO
+    # operator door — so they are not a real navigation target and must not
+    # require a window component or an allowlist entry.
+    #
+    # ADR-592: `stage: internal` is the same shape one field wider — the app
+    # keeps a bookmark-safe redirect stub (which is also what keeps the path
+    # authenticated) but reaches no roster, so it is not a navigation target
+    # either. An internal app must therefore be ABSENT from the FE union and
+    # carry NO window component; this gate is what enforces that pairing.
+    from services.app_stage import is_exposed
+
     return {
         e["slug"]
         for e in KERNEL_SURFACES
-        if e.get("route") and not e.get("hidden")
+        if e.get("route") and not e.get("hidden") and is_exposed(e)
     }
 
 

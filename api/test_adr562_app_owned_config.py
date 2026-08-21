@@ -52,8 +52,14 @@ from services.derive_recipes import DERIVE_RECIPES, resident_for_recipe  # noqa:
 print("\n── 1. one declaration per app ──")
 
 APPS = all_apps()
-check("every known app is registered (studio · docs · images · radar)",
-      {"studio", "docs", "images", "radar"} <= set(APPS),
+# ADR-592 — `radar` is DELETED (the app, not merely hidden), so it must NOT be
+# registered. `docs` stays registered: it is `stage: internal`, which hides the
+# app's DOOR, not its implementation — the layouts it owns still resolve.
+check("every live app is registered (studio · docs · images · strings)",
+      {"studio", "docs", "images", "strings"} <= set(APPS),
+      f"registered={sorted(APPS)}")
+check("the deleted radar app is NOT registered (ADR-592)",
+      "radar" not in set(APPS),
       f"registered={sorted(APPS)}")
 
 check("a registration carries IDENTITY only — slug · resident · name",
@@ -92,7 +98,7 @@ _apps_init = (ROOT / "api" / "services" / "apps" / "__init__.py").read_text()
 check("the apps package registers every app at import (no router dependency)",
       "from services.apps import docs" in _apps_init
       and "from services.apps import images" in _apps_init
-      and '_register_app("radar"' in _apps_init)
+      and '_register_app("strings"' in _apps_init)
 
 print("\n── 3. every declared resident is real ──")
 

@@ -20,7 +20,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Folder, Loader2, Trash2, FileQuestion } from 'lucide-react';
-import { WatchedFolderBadge } from '@/components/radar/WatchedFolderBadge';
 import { api, APIError } from '@/lib/api/client';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { FileIcon } from '@/components/workspace/FileIcon';
@@ -314,7 +313,6 @@ function DirectoryView({
   if (children.length === 0) {
     return (
       <>
-        <WatchedFolderBadge path={node.path} />
         <div className="p-8 text-center text-muted-foreground text-sm">
           <Folder className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="font-medium">Empty folder</p>
@@ -327,7 +325,6 @@ function DirectoryView({
   return (
     <>
     <div className="h-full overflow-auto">
-      <WatchedFolderBadge path={node.path} />
       {showHeader && (
         <div className="border-b border-border bg-muted/20 px-4 py-3">
           <div className="flex items-center justify-between gap-4">

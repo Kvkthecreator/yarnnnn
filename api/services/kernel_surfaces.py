@@ -95,6 +95,23 @@ ARCHETYPES = (
 # operator's dock. Per ADR-297 D5: Feed only. Every other surface is
 # summon-only until the operator pins it.
 #
+# `stage` field (ADR-592, 2026-08-21) — an APP's exposure rung, and the single
+# place "how visible is this app" is spelled. One of
+# `internal | search-only | beta | primary` (services/app_stage.py). It DERIVES
+# `launcher_tier` and `default_pinned` for app rows, so the pair can no longer
+# drift apart — before this, hiding an app meant editing six lists in two
+# languages, and both attempts to do so (ADR-488 Images, ADR-574 Docs)
+# half-worked. Absent → the stage the row's existing fields already imply, so
+# every row that predates the field behaves exactly as it did.
+#
+# ⚠️ `internal` REMOVES the row from the served roster (kernel_surface_entries).
+# That is the point: a slug nothing serves cannot render a Dock icon, match a
+# flat search, or foreground a window — including for an operator whose Dock was
+# curated and therefore never reseeded. The obligation it carries: the route
+# must become a redirect stub in the SAME change, because middleware.ts derives
+# its protected set from the roster, and an unserved route that still rendered
+# would serve 200 to logged-out visitors (the defect repaired 2026-08-20).
+#
 # `route` is the URL the launcher navigates to when the operator selects
 # the surface. Phase 1: routes either already exist (created in prior
 # ADRs) or are placeholders for Phase 2 to create. Routes for surfaces
@@ -276,8 +293,17 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         #
         # ⚠️ tier and pin move TOGETHER — test_adr297_phase1.py gates
         # `default_pinned == the primary tier` as a set; a half-flip fails.
+        # ADR-592 (2026-08-21) — the pause becomes a HIDE. ADR-574 D2 declared
+        # this app paused on 2026-08-17 and it stayed reachable: /docs rendered,
+        # flat search matched it, a curated Dock kept its icon (the reseed fires
+        # only on byte-equality with the previous default), and double-clicking
+        # any `document` artifact opened it. `stage: internal` is that decision
+        # actually taking effect. Prose leads (ADR-574 D1), so .md/.txt opens in
+        # Text; a `document` artifact falls back to Studio, which shares the
+        # authoring machinery one implementation deep.
         "slug": "docs",
-        "launcher_tier": "search-only",  # ADR-574 D2 — paused (was primary, ADR-518 D5)
+        "stage": "internal",  # ADR-592 — hidden in full (was search-only, ADR-574 D2)
+        "launcher_tier": "search-only",  # derived from stage when served
         "register": "application",
         "title": "Docs",
         "archetype": "document",
@@ -344,33 +370,25 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/images",
         "summary": "Compose visuals on a sized stage — layered objects, positioned and stacked. The composition is the source and the rendered image is a derivation of it, so every export stays traceable to the stage, the citations, and the revision that produced it.",
     },
-    {
-        # ADR-486 — AI Radar, the STANDING app (the third verb: perceive made
-        # felt). Topic hubs (operation/{topic}/_radar.yaml) sweep on schedule
-        # with nobody present: declared sources → retained observations → a
-        # derived cited brief. This surface is the app's window: hub roster +
-        # the composed hub view (briefs shelf · sweep health · sources),
-        # projected at read time from substrate + ledger (D5, derived-never-
-        # stored). Built as its OWN app from the start — the Images lesson
-        # (ADR-472): growing an app inside an existing surface forces a carve
-        # later.
-        #
-        # UNVEILED 2026-07-28 (operator decision: "handled exactly like
-        # Studio") — D7's R3 gate taken early. Shipped one tier-flip after
-        # the app landed, primary + default-pinned like the other apps; the
-        # D8 falsifiers stay armed as MEASURES of the standing loop, no
-        # longer as the unveil's gate.
-        "slug": "radar",
-        "launcher_tier": "primary",  # ADR-486 unveil 2026-07-28 (was search-only per D7)
-        "register": "application",
-        "title": "Radar",
-        "archetype": "dashboard",
-        "substrate_paths": [],  # hubs are meaning-placed under operation/{topic}/
-        "icon_key": "radar",
-        "default_pinned": True,  # ships in the Dock with the other apps
-        "route": "/radar",
-        "summary": "Standing topic hubs that sweep while you're away — declared sources fetched on schedule, what changed distilled into a cited brief. Watch → observe → derive → compose; every brief traces to the observations it was made from.",
-    },
+    # ADR-592 (2026-08-21) — the RADAR row is DELETED, with the app.
+    #
+    # Radar (ADR-486) was unveiled 2026-07-28 and withdrawn 2026-08-21 by
+    # operator decision. It is NOT paused behind `stage: internal`: the app,
+    # its router, its surface, its service and its scheduler lane are gone
+    # (services/radar.py, routes/radar.py, web/components/radar/). Full
+    # deletion rather than a stage flip because a standing sweep SPENDS on a
+    # clock — an app nobody can see must not keep metering judgment against an
+    # operator's balance, and dormant spend machinery is exactly the ambiguity
+    # a future session would have to re-derive.
+    #
+    # The briefs it authored REMAIN, as ordinary attributed files under
+    # operation/{topic}/briefs/ — deleting real substrate to tidy an author
+    # census trades the attribution invariant for its appearance (the ruling
+    # already made for the 8 free-text authors, 2026-08-20). So `system:radar`
+    # KEEPS its display name in principal_display.py and attribution.ts:
+    # history has to keep rendering a name, not a raw string.
+    #
+    # Reopening is a new decision recorded against ADR-592, not a tier flip.
     {
         # ADR-569 — Strings, the maintained file kept by Keeper. The second
         # member-facing manifestation of the ADR-564 frame (radar is its
@@ -1095,24 +1113,59 @@ def kernel_surface_entries() -> list[dict[str, Any]]:
     with zero frontend change. The default is ON (ADR-375 D4), so the
     full registry is returned unless a deploy explicitly sets
     `AGENT_ENABLED=false`.
+
+    ADR-592 — the SAME chokepoint, one field wider. An `internal` app is
+    dropped from the roster entirely, and every served app has its
+    `launcher_tier` + `default_pinned` DERIVED from its stage rather than read
+    from a hand-kept pair. Because the nav is backend-driven, this is the whole
+    of "hide an app" on the client: no Dock icon, no launcher tile, no
+    flat-search hit — and unlike removing a slug from `DEFAULT_KEPT_SURFACES`,
+    it holds for an operator whose Dock was curated and so never reseeded.
     """
     from copy import deepcopy
+    from services.app_stage import (
+        is_default_pinned,
+        is_exposed,
+        launcher_tier_for,
+        resolve_stage,
+    )
     from services.agent_gating import is_agent_enabled
 
     agent_on = is_agent_enabled()
 
-    return [
-        {**deepcopy(entry), "tier": "kernel"}
-        for entry in KERNEL_SURFACES
-        if agent_on or entry["slug"] not in STEWARD_SURFACE_SLUGS
-    ]
+    served: list[dict[str, Any]] = []
+    for entry in KERNEL_SURFACES:
+        if not agent_on and entry["slug"] in STEWARD_SURFACE_SLUGS:
+            continue
+        if not is_exposed(entry):
+            continue  # ADR-592 — internal: not a product, not served
+        row = {**deepcopy(entry), "tier": "kernel", "stage": resolve_stage(entry)}
+        # Chrome + dormant rows carry no tier by design (no route, nothing to
+        # promote); deriving one would invent a launcher tile for a surface with
+        # nowhere to go. Only rows that already declare a tier get a derived one.
+        if entry.get("launcher_tier") is not None:
+            derived = launcher_tier_for(entry)
+            if derived is not None:
+                row["launcher_tier"] = derived
+        if "default_pinned" in entry:
+            row["default_pinned"] = is_default_pinned(entry)
+        served.append(row)
+    return served
 
 
 def kernel_surface_slugs() -> set[str]:
-    """Set of all kernel surface slugs. Useful for test gates and
-    validation — every kernel surface must be present in every
-    workspace's `surfaces[]` output."""
-    return {entry["slug"] for entry in KERNEL_SURFACES}
+    """Set of the SERVED kernel surface slugs — every one of which must be
+    present in every workspace's `surfaces[]` output.
+
+    ADR-592: this is the EXPOSED set, not the declared one. An `internal` app
+    keeps its registry row (that row is where its stage, and the reasoning
+    behind it, live) but reaches no roster, so asserting it into `surfaces[]`
+    would assert the opposite of what the stage means. Callers wanting the
+    declared rows read ``KERNEL_SURFACES`` directly.
+    """
+    from services.app_stage import is_exposed
+
+    return {entry["slug"] for entry in KERNEL_SURFACES if is_exposed(entry)}
 
 
 def kernel_pane_slugs() -> set[str]:

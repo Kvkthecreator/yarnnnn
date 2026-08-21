@@ -835,7 +835,7 @@ export default function ContextPage() {
       }
       activateBodyRef.current(); // narrow: drill into the viewer
     };
-    // ADR-486: a hub DECLARATION (operation/{topic}/_radar.yaml) is claimed by
+    // ADR-569: a DECLARATION ({folder}/_string.yaml) is claimed by
     // the Radar app — a path-only check ahead of the artifact layer, still
     // inside the one openPath funnel (no content read; the app derives the
     // topic from the handed path).

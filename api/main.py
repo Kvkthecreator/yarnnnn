@@ -73,7 +73,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import images, memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, radar, strings
+from routes import images, memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings
 
 app = FastAPI(
     title="YARNNN API",
@@ -224,7 +224,6 @@ app.include_router(proposals.router, prefix="/api", tags=["proposals"])
 # ADR-407 Phase 3: member-experience home (shell state, read cursor, prefs)
 app.include_router(member_state.router, prefix="/api", tags=["member-state"])
 app.include_router(lanes.router, prefix="/api", tags=["lanes"])  # ADR-411 chat lanes
-app.include_router(radar.router, prefix="/api", tags=["radar"])  # ADR-486 radar hubs
 app.include_router(strings.router, prefix="/api", tags=["strings"])  # ADR-569 maintained files
 app.include_router(studio.router, prefix="/api", tags=["studio"])  # ADR-440 the Studio
 app.include_router(images.router, prefix="/api", tags=["images"])  # ADR-474 IMAGES compose

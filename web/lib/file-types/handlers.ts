@@ -7,7 +7,7 @@
  * ONE app, and the set was split across two tables —
  *
  *   - `apps.tsx::resolveApps`            in-frame RENDERERS (text, markdown, web…)
- *   - `index.ts::resolveSurfaceApplication`  SURFACE-owning apps (Studio, Images, Radar)
+ *   - `index.ts::resolveSurfaceApplication`  SURFACE-owning apps (Studio, Images, Text)
  *
  * LaunchServices does not distinguish "opens in a pane" from "opens in a
  * window"; how a handler presents itself is the handler's business, not the
@@ -151,7 +151,7 @@ export function resolveHandlers(subject: HandlerSubject): Handler[] {
   const path = paths[0] ?? '';
   const handlers: Handler[] = [];
 
-  // Declaration claims outrank format claims (ADR-486: `_radar.yaml` → Radar).
+  // Declaration claims outrank format claims (ADR-569: `_string.yaml` → Strings).
   const declared = resolveDeclarationApplication(path);
   if (declared) handlers.push(surfaceHandler(declared));
 

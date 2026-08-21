@@ -76,7 +76,14 @@ const LEGACY_AND_STUB_PREFIXES = [
   // principal (accept) stays auth-gated at the API + in-page (the Accept
   // action bounces to login with ?next). NB /settings /sources /setup
   // /schedule /system* are separately listed — removing "/s" uncovers nothing.
-  "/docs", // ADR-518 — the Docs authoring surface (the writing app; was the ADR-249 upload pages)
+  // ADR-592 — /docs and /radar are REDIRECT STUBS whose slugs no longer reach
+  // the served roster (docs is `stage: internal`; radar is deleted). They must
+  // be listed HERE by hand: SURFACE_PREFIXES is derived from the roster, so a
+  // slug that leaves the roster leaves the gate with it, and an unprotected
+  // stub serves 200 to logged-out visitors — the exact defect repaired
+  // 2026-08-20. A stub is still an authenticated destination.
+  "/docs", // ADR-592 — redirect stub → /text (was the ADR-518 Docs app)
+  "/radar", // ADR-592 — redirect stub → /files (the ADR-486 app is deleted)
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
   "/studio", // ADR-440 — the Studio authoring surface (bound lane + live canvas)
   // Legacy routes still protected for redirect stubs

@@ -404,7 +404,6 @@ async function streamLaneTurn(
   }
 }
 
-// ADR-486 — radar hub shapes (mirror api/routes/radar.py).
 /** ADR-495 D1 — a participant in a Conversation. Humans and Agents are one
  *  list: `member_kind` routes the identifier to the right field and pre-selects
  *  a default window; it never decides access (ADR-405 — no rule keys on
@@ -416,50 +415,6 @@ export interface Participant {
   visible_from_sequence: number;
   invited_by?: string;
   created_at?: string;
-}
-
-export interface RadarSource {
-  id: string;
-  url: string;
-  max_entries?: number;
-  /** ADR-564 D5 — the earn-their-keep reading, derived at read time on the
-   *  composed view only (absent on the list projection): sweeps in the
-   *  trailing window that fetched this source / report derivations citing it. */
-  fed_count?: number | null;
-  cited_count?: number | null;
-}
-
-export interface RadarHubSummary {
-  topic: string;
-  declaration_path: string;
-  schedule?: string | string[] | null;
-  paused: boolean;
-  /** ADR-564 D2 — what matters here (CRITERION.md); replaces the retired
-   *  `prompt` steer. */
-  criterion?: string | null;
-  sources: RadarSource[];
-  last_run_at?: string | null;
-  next_run_at?: string | null;
-  /** ADR-565 D1 — the living report head, when a sweep has landed one. */
-  report_path?: string | null;
-  report_title?: string | null;
-  // The pre-ADR-565 shelf — legacy reads only; new sweeps never add to it.
-  brief_count: number;
-}
-
-export interface RadarHubView extends RadarHubSummary {
-  /** The living report head content (ADR-565 D1). */
-  report?: string | null;
-  briefs: Array<{ path: string; title: string; date?: string | null }>;
-  recent_sweeps: Array<{
-    slug: string;
-    status: string;
-    created_at?: string | null;
-    error_reason?: string | null;
-  }>;
-  /** ADR-564 D5 — denominators behind each source's fed/cited counts. */
-  window_sweeps?: number | null;
-  window_changes?: number | null;
 }
 
 // ADR-569 — string shapes (mirror api/routes/strings.py). A STRING is the
@@ -506,7 +461,7 @@ export interface StringView extends StringSummary {
   consumers: string[];
 }
 
-/** A radar topic is a meaning-folder path (ADR-565 D3) — encode each segment,
+/** A string topic is a meaning-folder path (ADR-565 D3) — encode each segment,
  *  keep the '/' separators so the server's `{topic:path}` param reads it. */
 const encodeTopic = (topic: string) =>
   topic.split("/").map(encodeURIComponent).join("/");
@@ -729,49 +684,6 @@ export const api = {
         { method: "DELETE" },
       );
     },
-  },
-
-  // ADR-486 (re-cut ADR-564/565) — radar, the standing app. Hubs are
-  // declarations ({folder}/_radar.yaml + CRITERION.md, any depth under
-  // operation/, written through the one door server-side); the hub view is
-  // the D5 lazy projection over substrate + ledger, now carrying the living
-  // report head. A topic may contain '/', so it is encoded per-segment —
-  // never whole (an encoded %2F would still route, but plain segments are
-  // the honest URL).
-  radar: {
-    list: () => request<RadarHubSummary[]>("/api/radar/hubs"),
-    get: (topic: string) =>
-      request<RadarHubView>(`/api/radar/hubs/${encodeTopic(topic)}`),
-    create: (data: {
-      topic: string;
-      sources: Array<{ id: string; url: string; max_entries?: number }>;
-      schedule?: string;
-      criterion?: string;
-      fire_on_activation?: boolean;
-    }) =>
-      request<RadarHubSummary>("/api/radar/hubs", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    update: (
-      topic: string,
-      data: {
-        paused?: boolean;
-        schedule?: string;
-        criterion?: string;
-        sources?: Array<{ id: string; url: string; max_entries?: number }>;
-      },
-    ) =>
-      request<RadarHubSummary>(`/api/radar/hubs/${encodeTopic(topic)}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
-    /** Sweep now — the manual fire (the ADR-569 D7 direct-switch slot). */
-    run: (topic: string) =>
-      request<{ success: boolean; no_change?: boolean; error_reason?: string }>(
-        `/api/radar/hubs/${encodeTopic(topic)}/run`,
-        { method: "POST" },
-      ),
   },
 
   // ADR-569 — strings, the maintained file kept by Keeper. Declarations are

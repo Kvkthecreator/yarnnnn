@@ -1,30 +1,25 @@
-'use client';
-
 /**
- * /docs — the DOCS surface route (ADR-518).
+ * /docs → /text redirect stub (ADR-592).
  *
- * The WRITING app. Carved from Studio along the mode seam ({document} vs
- * {deck, web}): the flow medium's caret-first editor gets its own door,
- * recents, and default handler, while Studio keeps the layout media.
+ * The Docs app is HIDDEN IN FULL (`stage: internal`, ADR-592). ADR-574 D2
+ * declared it paused on 2026-08-17 and it stayed reachable — this is that
+ * decision taking effect. The app's implementation is INTACT (it is Studio
+ * parameterized, `StudioSurface app={DOCS_APP}`); only its exposure is gone,
+ * so reopening is a stage flip plus restoring this route + its registry mount.
  *
- * It mounts the same authoring machinery as Studio and IMAGES — one
- * implementation, three consumers (ADR-472 D2 via ADR-518 D2) — parameterized
- * by `DOCS_APP`: its own surface slug (so `docs.file` is its param namespace,
- * never `studio.file`) and its own template set (the `document` type, owned
- * via the served `app` declaration on the layout row, ADR-473 D2).
+ * Text is the destination per ADR-574 D1's prose premise: prose leads, and a
+ * .md/.txt already opens there.
  *
- * What makes it a different APP rather than a filter: the act is different.
- * Docs ↔ write a document (capture, revised forever, caret-first); Studio ↔
- * lay out an artifact (staged frames and bands, mouse-first). ADR-440 D2's
- * one-surface-one-act test, re-cut per medium.
+ * This stub also keeps /docs AUTHENTICATED. Middleware derives its protected
+ * set from the served roster, and `internal` removes the slug from it — a
+ * route left rendering would serve 200 to logged-out visitors.
  *
- * Route history: this path was the ADR-308 redirect stub → /files (the old
- * ADR-249 upload index having dissolved into Files), and /docs/[id] was the
- * ADR-249 upload-detail page — both deleted here; Files carries that job.
+ * Pure server transport per ADR-308 — `redirect()`, never a client-side
+ * useEffect redirect (which would paint an orphaned frame inside the shell).
  */
 
-import { StudioSurface, DOCS_APP } from '@/components/authoring/StudioSurface';
+import { redirect } from 'next/navigation';
 
-export default function DocsPage() {
-  return <StudioSurface app={DOCS_APP} />;
+export default function DocsRedirect() {
+  redirect('/text');
 }

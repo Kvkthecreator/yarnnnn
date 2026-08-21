@@ -38,14 +38,11 @@ import ChatPage from '@/app/(authenticated)/chat/page';
 // lane (left) + the live artifact canvas (right).
 import StudioPage from '@/app/(authenticated)/studio/page';
 import ImagesPage from '@/app/(authenticated)/images/page';
-// ADR-518 — Docs: the WRITING app, carved from Studio along the mode seam.
-// Same shared authoring machinery, parameterized (one implementation, three
-// consumers); owns the `document` type via the served app declaration.
-import DocsPage from '@/app/(authenticated)/docs/page';
-// ADR-486 — AI Radar: the STANDING app (topic hubs, scheduled sweeps, cited
-// briefs). Dedicated app from day one (the Images lesson); search-only tier
-// until the R3 unveil.
-import RadarPage from '@/app/(authenticated)/radar/page';
+// ADR-592 — Docs is HIDDEN IN FULL (`stage: internal`). Its implementation is
+// intact (Studio parameterized), but nothing may mount it: /docs is an ADR-308
+// redirect stub → /text. Reopening = flip the stage + restore this import.
+// ADR-592 — Radar is DELETED (the app, its router, its sweep lane). /radar is
+// an ADR-308 redirect stub → /files, where the briefs it authored remain.
 // ADR-569 — Strings: the maintained file, kept by Keeper (the second desk on
 // the shared DeskHousing). Unveiled 2026-08-14 by operator decision (the
 // Radar precedent); shipped search-only for hours, primary since.
@@ -103,11 +100,9 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // slug is removed from the union; persisted dock state is normalized → the
   // default, and the old URLs are next.config redirects.
   chat: ChatPage,  // ADR-412 D3 — the lanes workbench; ADR-435 — the dock anchor (Home deleted)
-  docs: DocsPage,      // ADR-518 — the writing app (document · flow · caret-first)
   text: TextPage,      // ADR-571 — the prose app (md · txt), Editor beside the canvas
   studio: StudioPage,  // ADR-440 — the layout app (deck · web, re-cut by ADR-518)
   images: ImagesPage,  // ADR-472 — the second authoring app (stages → rendered rasters)
-  radar: RadarPage,    // ADR-486 — the standing app (hubs → sweeps → cited briefs)
   strings: StringsPage,  // ADR-569 — the maintained file, kept by Keeper
   recurrence: RecurrencePage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone

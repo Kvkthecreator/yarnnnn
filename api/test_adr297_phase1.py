@@ -275,9 +275,16 @@ def test_kernel_surface_entries_shape() -> None:
 
     entries = kernel_surface_entries()
 
+    # ADR-592 — one entry per EXPOSED surface. An `internal` app keeps its
+    # registry row but reaches no roster, so the served count is the declared
+    # count minus the internal ones. Derived, never pinned to a literal: a
+    # hand-kept count reads the next hidden app as a violation.
+    from services.app_stage import is_exposed
+
+    _exposed = [e for e in KERNEL_SURFACES if is_exposed(e)]
     _assert(
-        len(entries) == len(KERNEL_SURFACES),
-        f"Returns one entry per declared surface ({len(entries)} == {len(KERNEL_SURFACES)})",
+        len(entries) == len(_exposed),
+        f"Returns one entry per exposed surface ({len(entries)} == {len(_exposed)})",
     )
 
     # All entries carry tier="kernel"
@@ -456,7 +463,12 @@ def test_resolver_program_surfaces_emit() -> None:
     )
 
     # Kernel order preserved at the head of the list
-    expected_kernel_slug_order = [s["slug"] for s in KERNEL_SURFACES]
+    # ADR-592 — order over the EXPOSED rows (internal apps are not served).
+    from services.app_stage import is_exposed as _is_exposed
+
+    expected_kernel_slug_order = [
+        s["slug"] for s in KERNEL_SURFACES if _is_exposed(s)
+    ]
     actual_kernel_prefix = slugs[: len(expected_kernel_slug_order)]
     _assert(
         actual_kernel_prefix == expected_kernel_slug_order,

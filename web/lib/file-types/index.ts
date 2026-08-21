@@ -170,7 +170,11 @@ const KIND_TO_APP = new Map<string, string>();
 
 /** The surfaces that can own an artifact type, by app slug (ADR-473 D2). */
 const APP_SURFACES: Record<string, SurfaceApplication> = {
-  docs: { surface: 'docs', param: 'file', label: 'Docs' }, // ADR-518 — the writing app
+  // ADR-592 — `docs` is REMOVED from the association: the app is
+  // `stage: internal`, so a `document` artifact must not open into a surface
+  // nothing serves. It falls back to DEFAULT_ARTIFACT_APP (Studio), which
+  // shares the authoring machinery one implementation deep. Restoring the app
+  // = restore this row.
   studio: { surface: 'studio', param: 'file', label: 'Studio' },
   images: { surface: 'images', param: 'file', label: 'Images' },
   text: { surface: 'text', param: 'file', label: 'Text' }, // ADR-571 — the prose app
@@ -269,21 +273,21 @@ export function extractTemplate(content: string): string | null {
 }
 
 /**
- * ADR-486 — the DECLARATION claim, ahead of the artifact (html) layer.
+ * ADR-569 — the DECLARATION claim, ahead of the artifact (html) layer.
  *
- * A hub declaration (`operation/{topic}/_radar.yaml`) is not an authoring
- * artifact — it is the standing app's unit, and opening it from the Finder
- * launches the Radar app on that hub (param `radar.file` carries the path;
- * the app derives the topic). Path-only and cheap, so `openPath` consults it
- * BEFORE the isArtifactCandidate content-read gate. Every other yaml stays
- * with the inline raw view (Quick Look) — the claim is exactly one leaf name
- * in exactly one namespace, never "yaml opens Radar".
+ * A declaration file is not an authoring artifact — it is a standing app's
+ * unit, and opening it from the Finder launches that app on its folder.
+ * Path-only and cheap, so `openPath` consults it BEFORE the
+ * isArtifactCandidate content-read gate. Every other yaml stays with the
+ * inline raw view (Quick Look) — the claim is exactly one leaf name in
+ * exactly one namespace, never "yaml opens an app".
+ *
+ * ADR-592 — the `_radar.yaml` claim is GONE with the Radar app. A leftover
+ * hub declaration now falls through to the raw view, which is correct: it is
+ * inert config for an app that no longer exists.
  */
 export function resolveDeclarationApplication(path: string): SurfaceApplication | null {
   const rel = (path || '').toLowerCase().replace(/^\/workspace\//, '').replace(/^\//, '');
-  if (/^operation\/[^/]+\/_radar\.yaml$/.test(rel)) {
-    return { surface: 'radar', param: 'file', label: 'Radar' };
-  }
   // ADR-569 — a string declaration ({folder}/_string.yaml, any meaning-folder)
   // opens Keeper's desk on that folder. Same one-leaf-one-namespace rule:
   // never "yaml opens Strings".

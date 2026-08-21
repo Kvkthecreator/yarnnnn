@@ -753,23 +753,14 @@ def build_lane_conventions(
             _app = app_for_layout(extract_template(artifact))
             _as_name = (resolve_app(_app) or {}).get("name") or ""
         posture_section += build_agent_posture(agent, _mine, _skills, as_name=_as_name)
-    if artifact_path and app == "radar":
-        # ADR-567 D4 — the DESK posture: a radar lane is bound to the watched
-        # folder's report.md, and its JOB is folder management (author/revise
-        # CRITERION.md + _radar.yaml, tend the report), not Studio authoring.
-        # The binding app is a LANE fact here: the artifact is plain markdown,
-        # so the document-derived app resolution (data-template) has nothing
-        # to read, and the agent slug cannot name the app (Docs and Studio
-        # share designer). Selects the JOB overlay only — never the resident.
-        from services.radar import build_desk_posture
-        posture_section += "\n" + build_desk_posture(client, user_id, artifact_path) + "\n"
-    elif artifact_path and app == "strings":
+    if artifact_path and app == "strings":
         # ADR-569 D6 (the ADR-567 D4 mechanism, one more branch) — a strings
         # lane is bound to the maintained file's target leaf, and its JOB is
         # the string's lifecycle (author/revise CONTRACT.md + _string.yaml,
-        # tend the designated file), not Studio authoring. Same reasoning as
-        # radar's branch: the target is plain md/csv/json/txt (no
-        # data-template to read) and the agent slug cannot name the app.
+        # tend the designated file), not Studio authoring. The binding app is
+        # a LANE fact here: the target is plain md/csv/json/txt (no
+        # data-template to read) and the agent slug cannot name the app
+        # (Docs and Studio share designer).
         # Selects the JOB overlay only — never the resident.
         from services.strings import build_keeper_desk_posture
         posture_section += "\n" + build_keeper_desk_posture(client, user_id, artifact_path) + "\n"
@@ -910,7 +901,8 @@ async def run_lane_turn(
     # rooms, session_id is the conversation id.
     ledger_slug: str = "lane",
     # ADR-567 D4 — the lane's binding app (lane_meta["app"]), selecting the
-    # JOB overlay only (radar → the desk posture). None → byte-identical.
+    # JOB overlay only (strings → the keeper desk posture). None →
+    # byte-identical.
     app: Optional[str] = None,
 ) -> dict:
     """Run one lane turn: bounded tool loop over the router.
