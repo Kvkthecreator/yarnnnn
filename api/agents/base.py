@@ -1,7 +1,8 @@
 """
 Base agent interface and shared types
 
-Shared data classes used by YarnnnAgent (ADR-189) and integration agents.
+Shared data classes. NOTE: YarnnnAgent and the integration agents are both
+DELETED; BaseAgent below has no remaining implementors.
 ADR-090: WorkOutput, SUBMIT_OUTPUT_TOOL, factory, and AgentAgent removed.
 """
 
@@ -105,13 +106,21 @@ class BaseAgent(ABC):
     Base class for agents.
 
     Subclasses must implement execute() method.
-    Currently used by YarnnnAgent (ADR-189).
+
+    ⚠️ NO SUBCLASSES EXIST. `YarnnnAgent`, named here until 2026-08-21 as the
+    consumer, was DELETED (see agents/__init__.py) — this class has had zero
+    implementors since. It is kept only because it is re-exported; nothing in
+    `api/` instantiates it.
+
+    `model` was `= "claude-sonnet-4-6"` — a RETIRED engine as the default on an
+    uninstantiated class. Now required, so the dead default cannot be
+    resurrected by a future subclass that simply forgets to name an engine.
     """
 
     AGENT_TYPE: str = "base"
     SYSTEM_PROMPT: str = ""
 
-    def __init__(self, model: str = "claude-sonnet-4-6"):
+    def __init__(self, model: str):
         self.model = model
         self.tools = []
 

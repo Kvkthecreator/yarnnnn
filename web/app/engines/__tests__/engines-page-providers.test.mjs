@@ -97,8 +97,18 @@ check('the page names no specific model', () => {
 
 // ---- 3. The outbound links are the whole mechanism -------------------------
 check('the page links out to maintained sources', () => {
-  for (const host of ['artificialanalysis.ai', 'lmarena.ai']) {
+  // ONE maintained benchmark (LMArena removed 2026-08-21 — a leaderboard we
+  // neither run nor audit is a claim we cannot stand behind). The page's whole
+  // mechanism is linking OUT, so losing the last benchmark source must fail
+  // here rather than leave a section headed "where the current numbers live"
+  // that names nowhere.
+  for (const host of ['artificialanalysis.ai']) {
     if (!pageCode.includes(host)) throw new Error(`missing outbound source: ${host}`);
+  }
+  // The removal must STAY removed: re-adding it should be a deliberate edit to
+  // this gate, not a silent revert.
+  if (pageCode.includes('lmarena.ai')) {
+    throw new Error('lmarena.ai is back on the page — removed deliberately; re-add here first if that is intended');
   }
   // Count HREFS, not `target="_blank"` literals — both link lists render via
   // .map(), so the literal appears once per list while the page carries many
@@ -106,7 +116,7 @@ check('the page links out to maintained sources', () => {
   // if someone replaced the lists with two hardcoded anchors.
   const hrefs = pageCode.match(/href:\s*"https?:\/\//g) ?? [];
   if (hrefs.length < 5) {
-    throw new Error(`expected >=5 outbound sources (2 benchmarks + providers); found ${hrefs.length}`);
+    throw new Error(`expected >=5 outbound sources (1 benchmark + providers); found ${hrefs.length}`);
   }
   // Every outbound list that renders must still open in a new tab.
   const blanks = pageCode.match(/target="_blank"/g) ?? [];

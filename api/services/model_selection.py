@@ -64,7 +64,7 @@ Env overrides (read at resolve time, per deployment):
 - ``YARNNN_MODEL_{SHAPE}``  — model id override for that shape.
 - ``YARNNN_ROUNDS_{SHAPE}`` — round-ceiling override (positive int).
 
-e.g. ``YARNNN_MODEL_ADDRESSED=claude-sonnet-4-6`` routes operator chat to
+e.g. ``YARNNN_MODEL_ADDRESSED=claude-sonnet-5`` routes operator chat to
 Sonnet without touching code.
 
 The occupant's static self-identity (`FREDDIE_MODEL_IDENTITY`, ADR-315) is NOT
@@ -142,7 +142,7 @@ DEFAULT_ROUTES: dict[str, ModelRoute] = {
 #: NOT a shim to remove later: a vendor SDK naming its own models without a
 #: prefix is correct on its side of the seam.
 def strip_provider(model: str) -> str:
-    """`anthropic/claude-sonnet-4-6` → `claude-sonnet-4-6`; bare names pass
+    """`anthropic/claude-sonnet-5` → `claude-sonnet-5`; bare names pass
     through. The seam between the table's honest name and a provider SDK that
     wants its own bare id. Pure."""
     return model.split("/", 1)[1] if "/" in model else model

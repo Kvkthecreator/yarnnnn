@@ -148,6 +148,7 @@ def test_streaming_returns_identical_chatresponse_shape(patched_client):
         messages=[{"role": "user", "content": "hi"}],
         system="sys",
         tools=[{"name": "ReadFile"}],
+        model=_MODEL,
     ))
 
     assert isinstance(resp, ChatResponse)
@@ -187,6 +188,7 @@ def test_on_text_delta_fires_per_chunk_in_order(patched_client):
         messages=[{"role": "user", "content": "hi"}],
         system="sys",
         tools=[{"name": "ReadFile"}],
+        model=_MODEL,
         on_text_delta=cb,
     ))
     assert seen == chunks
@@ -207,6 +209,7 @@ def test_flaky_callback_does_not_break_cycle(patched_client):
         messages=[{"role": "user", "content": "hi"}],
         system="sys",
         tools=[{"name": "ReadFile"}],
+        model=_MODEL,
         on_text_delta=boom,
     ))
     assert resp.text == "Let me check the signals."
@@ -223,6 +226,7 @@ def test_drains_with_no_subscriber(patched_client):
         messages=[{"role": "user", "content": "hi"}],
         system="sys",
         tools=[{"name": "ReadFile"}],
+        model=_MODEL,
         on_text_delta=None,
     ))
     # final message still assembled even though nobody listened
@@ -278,6 +282,10 @@ def test_feed_forwards_text_delta_event():
 # --------------------------------------------------------------------------
 
 import os
+
+# `model` is REQUIRED on the transport wrappers (2026-08-21) — the retired
+# `claude-sonnet-4-6` defaults were removed, so these drives name one.
+_MODEL = "claude-sonnet-5"
 
 _WEB = os.path.join(os.path.dirname(__file__), "..", "web")
 

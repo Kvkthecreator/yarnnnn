@@ -158,8 +158,6 @@ def validate_plan(
 async def plan_arrangement(
     blocks: list[dict],
     areas: list[dict],
-    *,
-    model: Optional[str] = None,
 ) -> tuple[Optional[list[dict]], Optional[object]]:
     """Plan a placement per block, or None to fall back to the mechanism.
 
@@ -187,7 +185,13 @@ async def plan_arrangement(
             logger.info("[STUDIO] router off — mechanical arrangement")
             return None, None
 
-        engine = model or KERNEL_AGENTS["designer"]["model"]
+        # Studio's resident is Designer (ADR-562: an app's engine follows its
+        # RESIDENT, resolved server-side). The `model` PARAMETER is removed
+        # (2026-08-21): no caller passed it, and it was the same
+        # caller-supplied-engine door `routes/images.py` closed on
+        # `ComposeRequest.model` — reaching `route_completion` without the
+        # LANE_MODELS membership check or the ADR-439 §4 billing gate.
+        engine = KERNEL_AGENTS["designer"]["model"]
         completion = await route_completion(
             engine,
             [{"role": "user", "content": build_plan_request(blocks, areas)}],

@@ -34,9 +34,19 @@ from services.system_calls import system_call_model
 
 logger = logging.getLogger(__name__)
 
-# Sonnet for specialist work — focused-prompt sub-calls warrant the model
-# strength for genuine production work. Operators can override via the
-# `model` option if cost discipline is paramount.
+# The engine is the DECLARED one — `SYSTEM_CALLS["specialist_dispatch"]`, with
+# its `YARNNN_SYSCALL_SPECIALIST_DISPATCH` deployment dial.
+#
+# ⚠️ THE `model` TOOL ARGUMENT IS REMOVED (2026-08-21). It let the LLM name any
+# engine straight into `chat_completion_with_tools` with neither the
+# `LANE_MODELS` membership check nor the ADR-439 §4 billing gate every other
+# routed path enforces — so an unpriced model would have priced silently at the
+# Sonnet default. Its schema description also still instructed the model to
+# pass `claude-haiku-4-5-20251001`, an engine retired since ADR-559.
+#
+# This is the same removal `routes/images.py` made for `ComposeRequest.model`,
+# for the same reason: an engine follows its DECLARED home, never a
+# caller-supplied id. Cost discipline is the env dial, not a tool argument.
 _SPECIALIST_MAX_TOKENS = 4096
 _SPECIALIST_MAX_ROUNDS = 5  # specialist sub-calls are bounded; ADR-260 D8 round discipline
 
@@ -87,14 +97,6 @@ Test and is re-registered.""",
                     "specialist needs to know."
                 ),
             },
-            "model": {
-                "type": "string",
-                "description": (
-                    "Optional model override (defaults to Sonnet). Use "
-                    "'claude-haiku-4-5-20251001' for cost-discipline on "
-                    "format-shaped work."
-                ),
-            },
             "required_capabilities": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -141,7 +143,6 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
     input = input or {}
     role = input.get("role") or ""
     brief = input.get("brief") or ""
-    model = input.get("model")
     # ADR-269: capability flow — Reviewer passes (or extends) the
     # recurrence's declared required_capabilities here. Empty/missing →
     # specialist gets only the role's universal capabilities.
@@ -275,7 +276,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
             max_rounds_raw, _SPECIALIST_MAX_ROUNDS,
         )
         max_rounds = _SPECIALIST_MAX_ROUNDS
-    chosen_model = model or system_call_model("specialist_dispatch")
+    chosen_model = system_call_model("specialist_dispatch")
     messages: list[dict] = [{"role": "user", "content": brief}]
     tools_called: list[str] = []
     total_in = 0

@@ -249,23 +249,28 @@ with mock.patch("anthropic.AsyncAnthropic", _FakeAnthClient):
     import services.anthropic as _A
     importlib.reload(_A)
 
+    # `model` is REQUIRED on every wrapper (2026-08-21) — the six defaults that
+    # used to spell the retired `claude-sonnet-4-6` are gone, so these drives
+    # name a model explicitly like every production caller does.
+    _M = "claude-sonnet-5"
+
     async def _drive_anthropic():
-        await _A.chat_completion([{"role": "user", "content": "hi"}], "sys")
-        await _A.chat_completion_with_usage([{"role": "user", "content": "hi"}], "sys")
-        await _A.chat_completion_with_tools([{"role": "user", "content": "hi"}], "sys", [])
-        await _A.chat_completion_with_tools([{"role": "user", "content": "hi"}], "sys", [], context_management={"edits": []})
-        await _A.chat_completion_with_tools_stream([{"role": "user", "content": "hi"}], "sys", [])
-        async for _ in _A.chat_completion_stream([{"role": "user", "content": "hi"}], "sys"):
+        await _A.chat_completion([{"role": "user", "content": "hi"}], "sys", _M)
+        await _A.chat_completion_with_usage([{"role": "user", "content": "hi"}], "sys", _M)
+        await _A.chat_completion_with_tools([{"role": "user", "content": "hi"}], "sys", [], _M)
+        await _A.chat_completion_with_tools([{"role": "user", "content": "hi"}], "sys", [], _M, context_management={"edits": []})
+        await _A.chat_completion_with_tools_stream([{"role": "user", "content": "hi"}], "sys", [], _M)
+        async for _ in _A.chat_completion_stream([{"role": "user", "content": "hi"}], "sys", _M):
             pass
         # Disconnect mid-stream (the runaway amplifier — must still close).
-        _gen = _A.chat_completion_stream([{"role": "user", "content": "hi"}], "sys")
+        _gen = _A.chat_completion_stream([{"role": "user", "content": "hi"}], "sys", _M)
         await _gen.__anext__()
         await _gen.aclose()
 
         async def _noop(n, i): return {"success": True}
-        async for _ in _A.chat_completion_stream_with_tools([{"role": "user", "content": "hi"}], "sys", [], _noop):
+        async for _ in _A.chat_completion_stream_with_tools([{"role": "user", "content": "hi"}], "sys", [], _noop, _M):
             pass
-        _gen2 = _A.chat_completion_stream_with_tools([{"role": "user", "content": "hi"}], "sys", [], _noop)
+        _gen2 = _A.chat_completion_stream_with_tools([{"role": "user", "content": "hi"}], "sys", [], _noop, _M)
         await _gen2.__anext__()
         await _gen2.aclose()
 

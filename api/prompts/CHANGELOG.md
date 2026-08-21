@@ -6,6 +6,48 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.21.1] - the engine label carries its version; a tool argument stops naming a retired engine
+
+### Changed
+- `services/lane_runner.py` `LANE_MODELS`: every label now carries its version
+  (`Claude Sonnet` → `Claude Sonnet 5`, `Gemini Flash` → `Gemini 3.5 Flash Lite`,
+  `DeepSeek` → `DeepSeek V4 Flash`, `Grok` → `Grok 4.6`, …). The retired dated
+  Haiku is `Claude Haiku 4.5 (dated)` and retired `gemini-2.5-flash` is
+  `Gemini 2.5 Flash`.
+- Expected behavior: the lane conventions frame opens `"You are Claude Sonnet 5"`
+  rather than `"You are Claude Sonnet"` — the model is told which model it is.
+  Attribution strings become `Kevin via Claude Sonnet 5`.
+- `services/primitives/dispatch_specialist.py`: the `model` argument is REMOVED
+  from the `DispatchSpecialist` tool schema, and from the handler.
+- Expected behavior: the steward can no longer name a sub-call engine. The
+  engine is `SYSTEM_CALLS["specialist_dispatch"]`, dialled by
+  `YARNNN_SYSCALL_SPECIALIST_DISPATCH`. (The tool is dormant — `VALID_SPECIALIST_ROLES`
+  is empty — so no live behaviour changes today.)
+
+### Why (the observed defects, not speculative ones)
+**The label.** `LANE_MODELS.label` is not picker chrome. It is written into every
+revision's attribution string (`principal_display.model_display`) and it is what
+the model is told it is (`_CONVENTIONS_FRAME`: `"You are {model_label}"`). Two
+rows displayed **the same string**: retired `anthropic/claude-sonnet-4-6` and
+live `anthropic/claude-sonnet-5` were both "Claude Sonnet". A member reading
+their own history could not tell which engine authored a revision — an
+incorrect-success in the ledger, on a product whose stated invariant is that
+every change is signed by whoever made it. The FE mirror had also silently
+drifted: `claude-haiku-4-5-20251001` read "Claude Haiku" there and
+"Claude Haiku (4.5)" on the server, so one id rendered two names depending on
+which path drew it. `web/lib/workspace/__tests__/lane-model-labels.test.mjs`
+now gates cover / verbatim-match / label-uniqueness / version-present, and each
+assertion was falsified against the real pre-fix state.
+
+**The tool argument.** Its schema description instructed the model to pass
+`'claude-haiku-4-5-20251001'` — retired since ADR-559 — and the value flowed
+straight to `chat_completion_with_tools(model=…)` with neither the `LANE_MODELS`
+membership check nor the ADR-439 §4 billing gate that every other routed path
+enforces, so an unpriced engine would have priced silently at the Sonnet
+default. This is the identical door `routes/images.py` closed on
+`ComposeRequest.model`, closed the same way: an engine follows its declared
+home, never a caller-supplied id.
+
 ## [2026.08.20.1] - whoami gets a trigger, not just a listing (ADR-584)
 
 ### Changed

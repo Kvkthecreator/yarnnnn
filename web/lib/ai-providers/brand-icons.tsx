@@ -104,10 +104,14 @@ const ENGINE_PROVIDER_MARKS: Record<string, ReactNode> = {
   anthropic: AnthropicMark,
   openai: OpenAIMark,
   gemini: GeminiMark,
-  // deepseek: no official monochrome glyph vendored yet → generic Cpu.
+  // deepseek + xai: no official monochrome glyph vendored yet → generic Cpu.
+  // Keep this list in step with LANE_MODELS' provider set: a provider with no
+  // mark is a VISIBLE gap in the picker (two generic chips among branded ones),
+  // not a silent one, so it is safe to leave — but do not let the comment name
+  // a subset of what is actually missing, which it did until 2026-08-21.
 };
 
-/** `anthropic/claude-sonnet-4-6` → `anthropic`. Bare names return themselves. */
+/** `anthropic/claude-sonnet-5` → `anthropic`. Bare names return themselves. */
 export function engineProvider(model: string | null | undefined): string {
   if (!model) return '';
   const i = model.indexOf('/');

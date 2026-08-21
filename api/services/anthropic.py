@@ -195,10 +195,29 @@ def _prepare_system(system: str | list[dict]) -> list[dict]:
     return system
 
 
+# ---------------------------------------------------------------------------
+# ⭐ `model` IS REQUIRED ON EVERY WRAPPER BELOW — no default (2026-08-21).
+#
+# All six of these used to default to `model="claude-sonnet-4-6"`. That engine
+# is RETIRED (`lane_runner.LANE_MODELS`), so the transport that every machinery
+# and steward call flows through carried a superseded model as its silent
+# fallback. No live caller relied on it — every one passes `model=` explicitly,
+# via `system_call_model(...)` or `resolve_route(...)` — so this is not a
+# behaviour change today. It closes the trap: a future caller that forgets the
+# kwarg would have run a retired engine with no LANE_MODELS membership check
+# and no billing gate, and nothing would have failed.
+#
+# This module is TRANSPORT. It does not decide which model runs; that is the
+# four determinants' job (system_calls · app residents · LANE_MODELS ·
+# model_selection). A transport with an opinion about the model is a fifth
+# determinant nobody declared.
+# ---------------------------------------------------------------------------
+
+
 async def chat_completion(
     messages: list[dict],
     system: str | list[dict],
-    model: str = "claude-sonnet-4-6",
+    model: str,
     max_tokens: int = 4096,
 ) -> str:
     """
@@ -228,7 +247,7 @@ async def chat_completion(
 async def chat_completion_with_usage(
     messages: list[dict],
     system: str | list[dict],
-    model: str = "claude-sonnet-4-6",
+    model: str,
     max_tokens: int = 4096,
 ) -> tuple[str, dict]:
     """Non-streaming chat completion returning (text, usage).
@@ -276,7 +295,7 @@ async def chat_completion_with_tools(
     messages: list[dict],
     system: str | list[dict],
     tools: list[dict],
-    model: str = "claude-sonnet-4-6",
+    model: str,
     max_tokens: int = 4096,
     tool_choice: Optional[dict] = None,
     context_management: Optional[dict] = None,
@@ -327,7 +346,7 @@ async def chat_completion_with_tools_stream(
     messages: list[dict],
     system: str | list[dict],
     tools: list[dict],
-    model: str = "claude-sonnet-4-6",
+    model: str,
     max_tokens: int = 4096,
     tool_choice: Optional[dict] = None,
     on_text_delta: Optional["TextDeltaCallback"] = None,
@@ -411,7 +430,7 @@ async def chat_completion_with_tools_stream(
 async def chat_completion_stream(
     messages: list[dict],
     system: str | list[dict],
-    model: str = "claude-sonnet-4-6",
+    model: str,
     max_tokens: int = 4096,
 ) -> AsyncGenerator[str, None]:
     """
@@ -486,7 +505,7 @@ async def chat_completion_stream_with_tools(
     system: str | list[dict],
     tools: list[dict],
     tool_executor: Any,  # Callable[[str, dict], Awaitable[dict]]
-    model: str = "claude-sonnet-4-6",
+    model: str,
     max_tokens: int = 4096,
     max_tool_rounds: int = 15,  # Safety net only; model should decide when done
     tool_choice: Optional[dict] = None,

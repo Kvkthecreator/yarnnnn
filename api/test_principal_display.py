@@ -82,7 +82,7 @@ def main():
         # human direct — identity rides the separate column (ADR-410)
         ("operator", KVK): "Kevin",
         # human via their agent — the member's hands (ADR-411/460)
-        (f"member:{KVK} via anthropic/claude-sonnet-4-6", None): "Kevin via Claude Sonnet",
+        (f"member:{KVK} via anthropic/claude-sonnet-4-6", None): "Kevin via Claude Sonnet 4.6",
         # external LLM principal — a separate principal
         ("yarnnn:mcp:chatgpt", None): "ChatGPT (via MCP)",
         # ...and when the revision carries the CONNECTING member (ADR-431,
@@ -102,7 +102,7 @@ def main():
         ("operator", None): "a workspace member",
         # legacy pre-ADR-411 free-text — the email NEVER crosses
         ("kvkthecreator@gmail.com via anthropic/claude-sonnet-4-6", None):
-            "a workspace member via Claude Sonnet",
+            "a workspace member via Claude Sonnet 4.6",
         # unknown model slug degrades readably (provider stripped)
         (f"member:{KVK} via anthropic/claude-opus-9", None): "Kevin via claude-opus-9",
     }
@@ -173,7 +173,7 @@ def main():
     authors = [h["authored_by"] for h in out["history"]]
     results.append(_check(
         "6 the three species are distinguishable from the strings alone",
-        authors == ["Kevin via Claude Sonnet", "Kevin", "Kevin's Claude (via MCP)", "system:radar"],
+        authors == ["Kevin via Claude Sonnet 4.6", "Kevin", "Kevin's Claude (via MCP)", "system:radar"],
         f"got {authors}"))
 
     classes = [h["author_class"] for h in out["history"]]

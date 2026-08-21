@@ -27,16 +27,27 @@ from services.admin_auth import AdminAuth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ADR-291: Use _BILLING_RATES from services.telemetry as single source of truth.
-# Admin dashboard uses Anthropic cost (not user-facing markup) for internal analytics.
-# Anthropic rates = user-facing rates / 2 (2x markup constant).
-from services.telemetry import _BILLING_RATES
-
-_ANTHROPIC_RATES = {
-    model: {"input": r["input_per_mtok"] / 2 / 1000, "output": r["output_per_mtok"] / 2 / 1000}
-    for model, r in _BILLING_RATES.items()
-}
-_DEFAULT_ANTHROPIC_RATE = _ANTHROPIC_RATES.get("claude-sonnet-4-6", {"input": 0.003, "output": 0.015})
+# ADR-291: `compute_cost_usd_inclusive` is THE cost function — this module used
+# to carry its own copy, and the copy went wrong in two ways at once.
+#
+# ⚠️ WHAT WAS HERE, AND WHY IT WAS WRONG (fixed 2026-08-21):
+#
+#   1. It halved every rate — `r["input_per_mtok"] / 2` — under the comment
+#      "Anthropic rates = user-facing rates / 2 (2x markup constant)". That 2x
+#      multiplier was RETIRED by the 2026-07-06 operator ruling (see the
+#      docstring on `compute_cost_usd_inclusive`): `_BILLING_RATES` has recorded
+#      ACTUAL PROVIDER COST ever since, so halving it made this dashboard read
+#      ~50% under true cost. Margin now lives in `billed_usd` at exactly one
+#      write site (ADR-490 §2, `USAGE_BILLING_MULTIPLIER = 1.30`) and is never
+#      applied to the rate table.
+#   2. It re-implemented the cache-multiplier arithmetic with Anthropic's
+#      10%/125% hardcoded, so every OpenAI / Gemini / DeepSeek row (which carry
+#      their own `cache_read_mult` / `cache_create_mult`) was mispriced.
+#
+# Both classes of error are invisible: a wrong cost number looks exactly like a
+# right one. Delegating removes the second implementation rather than repairing
+# it — there is one cost function, and this is now a caller of it.
+from services.telemetry import compute_cost_usd_inclusive
 
 
 # =============================================================================
@@ -272,23 +283,27 @@ def _estimate_cost(
     cache_read_tokens: int = 0,
     cache_creation_tokens: int = 0,
 ) -> float:
-    """Estimate Anthropic cost (not user-facing rate) from token counts and model.
+    """Provider cost for a bag of token counts — a thin call through to the one
+    cost function (`telemetry.compute_cost_usd_inclusive`).
 
-    Cache pricing (Anthropic rates as of 2026-04):
-      cache_read:     10% of input rate
-      cache_creation: 125% of input rate
-    This gives an accurate cost figure rather than treating all input as full-price.
+    Kept as a named wrapper only because this module's legacy aggregation calls
+    it in three places with positional args; it holds NO pricing knowledge of
+    its own. Per-model cache multipliers, the unknown-model fallback rate, and
+    the no-margin rule all live in telemetry. Do not reintroduce arithmetic
+    here — the copy that used to live in this function priced every non-
+    Anthropic engine wrong and halved every rate.
+
+    `model` here is a BARE id (`claude-sonnet-5`) as stamped into the legacy
+    `agent_runs` / `session_messages` metadata, which is the key space
+    `_BILLING_RATES` uses.
     """
-    pricing = _ANTHROPIC_RATES.get(model, _DEFAULT_ANTHROPIC_RATE)
-    input_rate = pricing["input"]
-    output_rate = pricing["output"]
-    cost = (
-        (billed_input_tokens / 1000 * input_rate)
-        + (cache_read_tokens / 1000 * input_rate * 0.10)
-        + (cache_creation_tokens / 1000 * input_rate * 1.25)
-        + (output_tokens / 1000 * output_rate)
+    return compute_cost_usd_inclusive(
+        model=model,
+        input_tokens=billed_input_tokens,
+        output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_create_tokens=cache_creation_tokens,
     )
-    return cost
 
 
 # =============================================================================
@@ -403,7 +418,7 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
             output_t = meta.get("output_tokens", 0) or 0
             cache_read = meta.get("cache_read_input_tokens", 0) or 0
             cache_create = meta.get("cache_creation_input_tokens", 0) or 0
-            model = meta.get("model", "claude-sonnet-4-6")
+            model = meta.get("model") or ""
 
             date_str = run["created_at"][:10]
             caller = "task_pipeline"
@@ -431,7 +446,7 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
             output_t = meta.get("output_tokens", 0) or 0
             cache_read = meta.get("cache_read_input_tokens", 0) or 0
             cache_create = meta.get("cache_creation_input_tokens", 0) or 0
-            model = meta.get("model", "claude-sonnet-4-6")
+            model = meta.get("model") or ""
 
             if not input_t and not output_t:
                 continue
@@ -459,7 +474,7 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
         by_day = []
         for date_str in sorted(daily.keys()):
             for caller, bucket in daily[date_str].items():
-                model = bucket["model"] or "claude-sonnet-4-6"
+                model = bucket["model"] or ""
                 cost = _estimate_cost(
                     model,
                     bucket["billed_input_tokens"],

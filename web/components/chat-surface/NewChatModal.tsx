@@ -21,9 +21,12 @@
  * Chat is the raw-LLM surface; a member who never thinks about engines never
  * has to, because the sticky default answers for them.
  *
- * STICKY LAST-USED: the door pre-selects the engine you last started with, per
- * member, with every engine one click away. Convenience without a workspace
- * setting — a preference is per-person, and view-state, not substrate.
+ * STICKY LAST-USED: the door MARKS the engine you last started with (a "last
+ * used" badge), per member. It does NOT pre-select, reorder, or auto-scroll —
+ * every engine is one click, including the remembered one. This comment claimed
+ * "pre-selects" until 2026-08-21, which no code ever did; the badge is the whole
+ * mechanism. Convenience without a workspace setting — a preference is
+ * per-person, and view-state, not substrate.
  *
  * Errors are SHOWN, never swallowed (the live 409 the old `catch {}` ate).
  */

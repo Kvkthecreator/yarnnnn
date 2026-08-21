@@ -60,29 +60,45 @@ logger = logging.getLogger(__name__)
 #:
 #: `retired`: absent/False = offered at the door. True = still routable for
 #: lanes already pinned to it, never offered for a NEW conversation.
+#:
+#: ⭐ `label` CARRIES THE VERSION, ALWAYS (2026-08-21). The label is not just
+#: picker chrome — it is written into EVERY revision's attribution string
+#: (`principal_display.model_display` → "Kevin via Claude Sonnet 5") and it is
+#: what the model is TOLD IT IS (`_CONVENTIONS_FRAME`: "You are {model_label}").
+#: A family name alone breaks both. Before this, `claude-sonnet-4-6` (retired)
+#: and `claude-sonnet-5` (live) BOTH displayed "Claude Sonnet", so a member
+#: reading their own history could not tell which engine authored a revision —
+#: an incorrect-success in the ledger, on a product whose invariant is that
+#: every change is signed by whoever made it. Two rows must never share a
+#: label; the gate asserts uniqueness.
 LANE_MODELS: dict[str, dict[str, Any]] = {
     # ── Anthropic ────────────────────────────────────────────────────────
     # ADR-559 D1: the Anthropic lane was two generations stale — Sonnet 4.6
     # with no Opus tier at all, so a member wanting Anthropic's frontier model
     # could not pick one. Sonnet 5 supersedes 4.6 at the SAME list price
     # ($3/$15); Opus 5 adds the frontier tier the roster never had.
-    "anthropic/claude-opus-5": {"label": "Claude Opus", "vision": True},
-    "anthropic/claude-sonnet-5": {"label": "Claude Sonnet", "vision": True},
-    "anthropic/claude-haiku-4-5": {"label": "Claude Haiku", "vision": True},
+    "anthropic/claude-opus-5": {"label": "Claude Opus 5", "vision": True},
+    "anthropic/claude-sonnet-5": {"label": "Claude Sonnet 5", "vision": True},
+    "anthropic/claude-haiku-4-5": {"label": "Claude Haiku 4.5", "vision": True},
     # ── OpenAI ───────────────────────────────────────────────────────────
     "openai/gpt-5": {"label": "GPT-5", "vision": True},                        # frontier OpenAI
     "openai/gpt-4o-mini": {"label": "GPT-4o mini", "vision": True},            # cheap OpenAI
     # ── Google ───────────────────────────────────────────────────────────
-    "gemini/gemini-2.5-pro": {"label": "Gemini Pro", "vision": True},          # frontier Google reasoning
-    "gemini/gemini-3.5-flash-lite": {"label": "Gemini Flash", "vision": True}, # the Google lane (fast/cheap)
+    "gemini/gemini-2.5-pro": {"label": "Gemini 2.5 Pro", "vision": True},  # frontier Google reasoning
+    "gemini/gemini-3.5-flash-lite": {"label": "Gemini 3.5 Flash Lite", "vision": True},  # the Google lane (fast/cheap)
     # ── DeepSeek ─────────────────────────────────────────────────────────
-    "deepseek/deepseek-chat": {"label": "DeepSeek", "vision": False},          # cost-floor / sovereign lane
+    # `deepseek-chat` is an ALIAS that points at DeepSeek's current chat model
+    # (V4 Flash as of 2026-08-21 — see the `_BILLING_RATES` note). The version
+    # is real, it is just not in the id, so the label carries what the alias
+    # resolves to today. When DeepSeek repoints the alias, update this label:
+    # it is the only place the member learns which model actually ran.
+    "deepseek/deepseek-chat": {"label": "DeepSeek V4 Flash", "vision": False},
     # ── xAI ──────────────────────────────────────────────────────────────
     # A genuinely new price/context point, not a duplicate: $2/$6 sits between
     # Haiku and Sonnet, with a 500k window. ⚠️ xAI prices by PROMPT LENGTH
     # (≥200k doubles to $4/$12) and `_BILLING_RATES` is flat — the rate row
     # carries the ≥200k tier deliberately. See the note there.
-    "xai/grok-4.6": {"label": "Grok", "vision": True},
+    "xai/grok-4.6": {"label": "Grok 4.6", "vision": True},
     # ── RETIRED (honored, not offered) ───────────────────────────────────
     # Superseded engines. They keep every lane already pinned to them running
     # — a lane's engine is what ACTUALLY ran and must not be rewritten — but
@@ -97,14 +113,14 @@ LANE_MODELS: dict[str, dict[str, Any]] = {
     # distinct engine), so the old spelling is retired rather than deleted:
     # SYSTEM_CALLS and any pre-refresh lane may still name it.
     "anthropic/claude-haiku-4-5-20251001": {
-        "label": "Claude Haiku (4.5)", "vision": True, "retired": True,
+        "label": "Claude Haiku 4.5 (dated)", "vision": True, "retired": True,
     },
     # Superseded by gemini-3.5-flash-lite (same list price, higher intelligence
     # and throughput — Google's own upgrade notice, 2026-08-13). RETIRED rather
     # than deleted: this row is the TURN-TIME whitelist for every lane already
     # pinned to it, and a lane's engine is what ACTUALLY ran (ADR-559 D2).
     "gemini/gemini-2.5-flash": {
-        "label": "Gemini Flash (2.5)", "vision": True, "retired": True,
+        "label": "Gemini 2.5 Flash", "vision": True, "retired": True,
     },
 }
 

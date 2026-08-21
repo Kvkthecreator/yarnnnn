@@ -170,7 +170,7 @@ class RoutedCompletion:
 def ledger_model_name(model: str) -> str:
     """Strip the LiteLLM provider prefix for the ledger's model column.
 
-    ``anthropic/claude-haiku-4-5-20251001`` → ``claude-haiku-4-5-20251001``
+    ``anthropic/claude-haiku-4-5`` → ``claude-haiku-4-5``
     (hits the existing _BILLING_RATES row); bare names pass through.
 
     ONE splitter (ADR-463 D1.a): the implementation lives in
@@ -241,7 +241,7 @@ async def route_completion(
 
     Args:
         model:       LiteLLM model string, ``provider/model`` preferred
-                     (e.g. ``anthropic/claude-haiku-4-5-20251001``,
+                     (e.g. ``anthropic/claude-haiku-4-5``,
                      ``openai/gpt-4o-mini``). Bare names rely on LiteLLM's
                      inference map — pass the prefix.
         messages:    OpenAI-shape message dicts (role/content; role="tool"

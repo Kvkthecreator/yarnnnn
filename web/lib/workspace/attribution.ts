@@ -80,19 +80,22 @@ export function mcpHostId(authored_by: string | null | undefined): string | null
 // Retired engines stay listed: old revisions are attributed to what actually
 // ran, and that attribution must keep rendering a name (ADR-559 D2).
 const LANE_MODEL_NAMES: Record<string, string> = {
-  'anthropic/claude-opus-5': 'Claude Opus',
-  'anthropic/claude-sonnet-5': 'Claude Sonnet',
-  'anthropic/claude-haiku-4-5': 'Claude Haiku',
+  'anthropic/claude-opus-5': 'Claude Opus 5',
+  'anthropic/claude-sonnet-5': 'Claude Sonnet 5',
+  'anthropic/claude-haiku-4-5': 'Claude Haiku 4.5',
   'openai/gpt-5': 'GPT-5',
   'openai/gpt-4o-mini': 'GPT-4o mini',
-  'gemini/gemini-2.5-pro': 'Gemini Pro',
-  'gemini/gemini-3.5-flash-lite': 'Gemini Flash',
-  'deepseek/deepseek-chat': 'DeepSeek',
-  'xai/grok-4.6': 'Grok',
+  'gemini/gemini-2.5-pro': 'Gemini 2.5 Pro',
+  'gemini/gemini-3.5-flash-lite': 'Gemini 3.5 Flash Lite',
+  'deepseek/deepseek-chat': 'DeepSeek V4 Flash',
+  'xai/grok-4.6': 'Grok 4.6',
   // Retired — still the honest name on every revision they authored.
   'anthropic/claude-sonnet-4-6': 'Claude Sonnet 4.6',
-  'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',
-  'gemini/gemini-2.5-flash': 'Gemini Flash (2.5)',
+  // Was 'Claude Haiku' here while the server said 'Claude Haiku (4.5)' — the
+  // same id rendering two different names depending on which path drew it.
+  // Both now match lane_runner.py verbatim.
+  'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (dated)',
+  'gemini/gemini-2.5-flash': 'Gemini 2.5 Flash',
 };
 
 function laneModelName(raw: string): string {

@@ -69,9 +69,14 @@ const AXES = [
   },
 ];
 
-// Third-party sources that MAINTAIN these numbers. We link rather than
-// paraphrase: a paraphrase is a snapshot that rots silently, and these are
+// Third-party source that MAINTAINS these numbers. We link rather than
+// paraphrase: a paraphrase is a snapshot that rots silently, and this is
 // maintained by people whose job it is.
+//
+// Deliberately ONE benchmark, not a shortlist. A leaderboard we neither run
+// nor audit is a claim we cannot stand behind; naming several implies we
+// vetted the set. One source that plots capability against price answers the
+// member's actual question, and the provider rate cards below are primary.
 const SOURCES = [
   {
     name: "Artificial Analysis",
@@ -79,16 +84,13 @@ const SOURCES = [
     detail:
       "Independent benchmarks plotting intelligence against price and speed, across providers. The closest thing to a direct cost-to-intelligence chart.",
   },
-  {
-    name: "LMArena",
-    href: "https://lmarena.ai/",
-    detail:
-      "Human preference rankings from blind head-to-head comparisons. Useful for capability, silent on cost.",
-  },
 ];
 
-// Providers whose engines yarnnn offers — the four in LANE_MODELS. Providers,
-// not models: a model release must never require an edit here.
+// Providers whose engines yarnnn offers — the set in LANE_MODELS. Providers,
+// not models: a model release must never require an edit here, but a new
+// PROVIDER must (gate-enforced in engines-page-providers.test.mjs). Never
+// hand-count them in this comment — a written tally goes stale the next time
+// the roster grows and reads as correct while it lies.
 const PROVIDERS = [
   { name: "Anthropic", href: "https://www.anthropic.com/pricing#api" },
   { name: "OpenAI", href: "https://openai.com/api/pricing/" },
@@ -201,7 +203,7 @@ export default function EnginesPage() {
                 Where the current numbers live
               </h2>
               <p className="mb-5 leading-7 text-[#1a1a1a]/70">
-                These are independent of us. We don&apos;t reproduce their figures, because
+                This is independent of us. We don&apos;t reproduce their figures, because
                 a copy is a snapshot and theirs are maintained.
               </p>
               <div className="space-y-3">

@@ -345,7 +345,7 @@ def record_execution_event(
             cost_usd = cost_override_usd
         elif input_tokens is not None and output_tokens is not None:
             cost_usd = compute_cost_usd_inclusive(
-                model=model or "claude-sonnet-4-6",
+                model=model or "",
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cache_read_tokens=cache_read_tokens or 0,
@@ -457,7 +457,7 @@ def record_execution_event(
                 lost = cost_override_usd
             elif input_tokens is not None and output_tokens is not None:
                 lost = compute_cost_usd_inclusive(
-                    model=model or "claude-sonnet-4-6",
+                    model=model or "",
                     input_tokens=input_tokens, output_tokens=output_tokens,
                     cache_read_tokens=cache_read_tokens or 0,
                     cache_create_tokens=cache_create_tokens or 0,
