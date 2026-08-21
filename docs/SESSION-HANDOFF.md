@@ -33,23 +33,45 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
   operator (141).
 - 160 revision chains have no live file (the L1 orphan condition, below).
 
-## OWED — needs a DECISION, not a patch
+## RESOLVED 2026-08-21 — the "unattributed destruction" item is WITHDRAWN
 
-**1. Destructive paths bypass `delete_live_file` (unattributed destruction).**
-The obvious fix is wrong: L2 deletes `workspace_file_versions` AND
-`activity_log` in the same act, so any in-workspace record of the destruction is
-destroyed by it. Needs a durable **out-of-workspace audit sink** first. For a
-product whose invariant is "every change is signed by whoever made it", the one
-unsigned path being the most destructive one is worth an ADR.
+The three items previously listed here as "needs a DECISION" were re-examined
+with the operator on 2026-08-21. **Item 1 was over-framed and is withdrawn;
+items 2 and 3 dissolve with it.** Recorded so a future session does not
+re-inherit the framing as an open gap.
 
-**2. L1 orphans revision chains.** `workspace_file_versions` has no FK to
-`workspace_files` (keyed `(user_id, path)`), so L1's file deletes cascade
-nothing — 160 chains already live. Arguably correct for a light L1, but
-undocumented and the copy implies otherwise.
+**1. "Destructive paths are unattributed." WITHDRAWN.** The attribution axiom
+("every change is signed by whoever made it") is about the COMMONS AND ITS
+CONTENTS — so collaborators can trust what they read and can walk its history.
+Purge is the operator ENDING the thing; the axiom does not extend to "the act
+of ending the record is itself a record". A delete is supposed to leave
+nothing — that is what makes it a real delete rather than a soft one.
 
-**3. `execution_events` (cost ledger) is destroyed by purge** — forced by a
-`NO ACTION` FK, but in tension with ADR-291's "financial history preserved,
-L4 only". Decision, not a patch.
+The proposed fix was arguably worse than the gap: a durable out-of-workspace
+destruction log is RETAINED DATA ABOUT A WORKSPACE AFTER THE OPERATOR ASKED
+FOR IT TO BE GONE — in tension with our own privacy page ("Nothing expires on
+a schedule…") and something a GDPR-style erasure request would make us
+justify rather than celebrate.
+
+The practical need it was really serving — "can support tell whether the
+operator cleared it, or whether we lost it?" — is ALREADY MET server-side:
+`workspace_delete.py:162,177` log actor + workspace on soft-delete/restore,
+and `workspace_purge.py` logs the L2 scope. No table, no retention, no UI.
+
+**2. L1 orphans revision chains** (160 live). Correct-as-designed for a light
+L1 and not worth a schema change; if the copy overpromises, that is a copy
+fix, not an architecture one.
+
+**3. `execution_events` destroyed by purge.** Precisely: L2 (clear workspace)
+PRESERVES it — only the ADR-578 FULL PURGE destroys it, forced by a `NO
+ACTION` FK, and that path ENDS the workspace. A cost ledger for a workspace
+that no longer exists has no consumer, so this is not in tension with ADR-291.
+(An earlier note conflated the L2 and purge paths.)
+
+**Current verified state:** purge/clear owner-gated (`workspaces.owner_id` or
+an explicit `workspace:clear` scope; prod: 0 grants carry it) + typed
+confirmation on the irreversible acts; delete reversible with restore; billing
+history survives L2. A normal, complete SaaS deletion story. Nothing to build.
 
 ## OWED — click-passes (mechanism verified, browser path not)
 
