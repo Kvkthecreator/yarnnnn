@@ -77,6 +77,9 @@ from .workspace import (
 from .folder import (
     DELETE_FOLDER_TOOL, handle_delete_folder,
     MOVE_FOLDER_TOOL, handle_move_folder,
+    # Restore — the inverse of the two deletes. Trash-not-erase is only half a
+    # contract without it: we shipped `rm` with no Put Back.
+    RESTORE_TOOL, handle_restore,
 )
 # ADR-209 Phase 3: revision-aware read primitives (Authored Substrate).
 from .revisions import (
@@ -304,6 +307,7 @@ CHAT_PRIMITIVES = [
     # surface calls; blast radius is legible in the verb, not hidden in a path.
     DELETE_FOLDER_TOOL,
     MOVE_FOLDER_TOOL,
+    RESTORE_TOOL,
     SEARCH_FILES_TOOL,
     LIST_FILES_TOOL,
     # ADR-325: Embed — explicit make-AI-ready (consequential, autonomy-gated).
@@ -376,6 +380,7 @@ HEADLESS_PRIMITIVES = [
     MOVE_FILE_TOOL,
     DELETE_FOLDER_TOOL,
     MOVE_FOLDER_TOOL,
+    RESTORE_TOOL,
     SEARCH_FILES_TOOL,
     QUERY_KNOWLEDGE_TOOL,
     LIST_FILES_TOOL,
@@ -482,6 +487,7 @@ FREDDIE_PRIMITIVES = [
     # cadence is this verb pair's primary customer, same as the file pair's.
     DELETE_FOLDER_TOOL,
     MOVE_FOLDER_TOOL,
+    RESTORE_TOOL,
     # ADR-296 v2 D3: FireInvocation REMOVED. Reviewer does not self-invoke.
     # Direction primitive (Reviewer says, System Agent executes)
     PROPOSE_ACTION_TOOL,
@@ -623,6 +629,7 @@ HANDLERS: dict[str, Callable] = {
     "MoveFile": handle_move_file,
     "DeleteFolder": handle_delete_folder,
     "MoveFolder": handle_move_folder,
+    "Restore": handle_restore,
     "DuplicateFile": handle_duplicate_file,
     "SearchFiles": handle_search_files,
     "QueryKnowledge": handle_query_knowledge,

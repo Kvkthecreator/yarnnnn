@@ -56,7 +56,11 @@ def _substrate_scope(auth) -> tuple:
     caller's own row set. Closes the audit's 'reads still user-scoped'
     remainder — a foreign LLM or member reading under a grant sees the shared rows.
     """
-    from services.workspace_context import substrate_scope_filter
+    from services.workspace_context import (
+    describe_if_trashed,
+    live_files_filter,
+    substrate_scope_filter,
+)
     return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
 logger = logging.getLogger(__name__)
@@ -772,8 +776,10 @@ async def compose_open(
     abs_path = "/workspace/" + rel
     try:
         rows = (
-            auth.client.table("workspace_files")
-            .select("path, content, updated_at, content_type")
+            live_files_filter(
+                auth.client.table("workspace_files")
+                .select("path, content, updated_at, content_type")
+            )
             .eq(*_substrate_scope(auth))
             .eq("path", abs_path)
             .limit(1)
@@ -784,6 +790,25 @@ async def compose_open(
         return {"success": False, "error": "read_failed", "message": str(exc), "reference": reference}
 
     if not rows:
+        # TRASHED is not ABSENT (2026-08-21). The filter above stops a deleted
+        # file leaking its content to a foreign caller; without this branch it
+        # would also make the caller tell the operator the file never existed,
+        # while it sits in Trash intact and restorable. Name the state — the
+        # ADR-588 D1 shape used for folders, one row down.
+        trashed = describe_if_trashed(
+            auth.client,
+            user_id=auth.user_id,
+            workspace_id=getattr(auth, "workspace_id", None),
+            abs_path=abs_path,
+        )
+        if trashed:
+            return {
+                "success": True, "found": False, "trashed": True,
+                "reference": format_file_reference(rel), "path": abs_path,
+                "trashed_at": trashed["trashed_at"],
+                "trashed_with": trashed["trashed_with"],
+                "explanation": trashed["message"],
+            }
         return {
             "success": True, "found": False,
             "reference": format_file_reference(rel), "path": abs_path,

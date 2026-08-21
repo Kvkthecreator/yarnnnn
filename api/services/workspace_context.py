@@ -229,6 +229,73 @@ def live_files_filter(query):
     return query.or_(LIVE_FILES_OR_CLAUSE)
 
 
+def describe_if_trashed(client, *, user_id: str, workspace_id, abs_path: str):
+    """If this path is in Trash, describe it. Otherwise None.
+
+    THE POINT (2026-08-21): a trashed file must not answer "not found".
+
+    In an operating system, trashed is a PLACE — the file sits in a folder you
+    can open, with a Put Back command beside it. The reversibility is VISIBLE,
+    which is what makes it trustworthy. We modelled it as a lifecycle FLAG that
+    every read has to remember to filter, and a hidden flag has exactly two
+    failure modes, both of which we shipped:
+
+      - a reader that FORGETS it serves deleted content as live (20 briefs kept
+        reading back after the operator trashed them);
+      - a reader that RESPECTS it reports "File not found" — so the model told
+        the operator the file had never existed, when it was sitting in Trash,
+        intact and restorable.
+
+    Both are the same error: the state is invisible, so every consumer either
+    ignores it or over-reads it as absence. This resolver makes it legible, the
+    ADR-588 D1 way — name what the thing IS and route to the verb that answers
+    it, rather than returning a bare negative.
+
+    Metadata only, deliberately. The content is NOT returned: "deleted but still
+    readable in one call" is precisely the ambiguity the filter removed, and an
+    OS does not hand you a trashed file's contents without a Put Back either.
+    `ReadRevision` remains the explicit second step for the bytes.
+
+    Returns ``{path, trashed: True, trashed_at, trashed_with, message}`` or
+    ``None`` when the path is live or absent — so a caller reads it as a
+    truthy-or-not branch and cannot confuse "live" with "gone".
+    """
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("path, lifecycle, updated_at, metadata")
+            .eq(*substrate_scope_filter(user_id, workspace_id))
+            .eq("path", abs_path)
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception:
+        return None  # a read that cannot answer must not invent a state
+    if not rows or (rows[0].get("lifecycle") != "archived"):
+        return None
+
+    row = rows[0]
+    group = (row.get("metadata") or {}).get("trashed_with")
+    when = (row.get("updated_at") or "")[:10]
+    msg = f"`{abs_path}` is in Trash"
+    if when:
+        msg += f" (moved {when})"
+    if group:
+        msg += f", as part of the folder `{group}`"
+    msg += (
+        ". It was deleted, not lost — the revision chain is intact and it can be "
+        "restored. Tell the operator it is in Trash rather than saying the file "
+        "does not exist; use ListRevisions/ReadRevision to read its content."
+    )
+    return {
+        "path": abs_path,
+        "trashed": True,
+        "trashed_at": row.get("updated_at"),
+        "trashed_with": group,
+        "message": msg,
+    }
+
+
 __all__ = [
     "set_request_workspace",
     "reset_request_workspace",
@@ -238,4 +305,5 @@ __all__ = [
     "acting_workspace_owner",
     "LIVE_FILES_OR_CLAUSE",
     "live_files_filter",
+    "describe_if_trashed",
 ]

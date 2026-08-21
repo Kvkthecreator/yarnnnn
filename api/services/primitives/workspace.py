@@ -241,12 +241,12 @@ Contract:
 
 DELETE_FILE_TOOL = {
     "name": "DeleteFile",
-    "description": """Remove a file from the live workspace view; the revision chain retains everything (ADR-337 D2).
+    "description": """Move a file to TRASH; the revision chain retains everything (ADR-337 D2).
 
-Deletion is a VIEW change, not information loss: an attributed tombstone
-revision records who deleted, when, and the content at deletion; ListRevisions /
-ReadRevision still work on the path afterward, and restore is ReadRevision +
-WriteFile (ADR-209 D7 revert-as-write).
+Deletion is a VIEW change, not information loss: the file leaves the active
+workspace and appears in Trash, an attributed revision records who deleted it
+and when, and Restore puts it back in one act. ListRevisions / ReadRevision
+still work on the path afterward.
 
 Use for substrate hygiene: superseded scratch files, dead duplicates after a
 move, stale artifacts that mislead future reads. Governance-locked paths
@@ -668,6 +668,32 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
         um = UserMemory(auth.client, auth.user_id)
         content = await um.read(path)
         if content is None:
+            # A trashed file must NOT answer "not found" (2026-08-21). The read
+            # filter that stops deleted content leaking also turns a deletion
+            # into an absence, and the model then tells the operator the file
+            # never existed — while it sits in Trash, intact and restorable.
+            # Name the state instead (the ADR-588 D1 shape: say what it IS and
+            # route to the verb that answers). Metadata only; the bytes stay
+            # behind ReadRevision.
+            from services.workspace_context import describe_if_trashed
+
+            trashed = describe_if_trashed(
+                auth.client,
+                user_id=auth.user_id,
+                workspace_id=getattr(auth, "workspace_id", None),
+                abs_path=f"/workspace/{path}",
+            )
+            if trashed:
+                return {
+                    "success": True,
+                    "found": False,
+                    "trashed": True,
+                    "scope": "workspace",
+                    "path": path,
+                    "trashed_at": trashed["trashed_at"],
+                    "trashed_with": trashed["trashed_with"],
+                    "message": trashed["message"],
+                }
             return {
                 "success": True,
                 "found": False,
@@ -1332,13 +1358,23 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
 
 
 async def handle_delete_file(auth: Any, input: dict) -> dict:
-    """Handle DeleteFile primitive (ADR-337 D2) — remove from the live view.
+    """Handle DeleteFile primitive (ADR-337 D2, amended) — move to TRASH.
 
-    Attributed tombstone revision + live-row removal via
-    authored_substrate.delete_live_file. The revision chain (including the
-    tombstone) is retained; restore is ReadRevision + WriteFile (ADR-209 D7).
+    ONE DELETE, ONE MEANING (2026-08-21). This used to call `delete_live_file`,
+    which REMOVED the live row: attributed and retained in the chain, but absent
+    from Trash and restorable only by hand. The operator's own click archived
+    instead. So "delete" meant two different things depending on who asked —
+    the operator's delete was undoable from a Trash view, an agent's was not.
+
+    Now it archives, exactly as the Files surface does: the row stays with
+    `lifecycle='archived'`, the file appears in Trash, and `Restore` puts it
+    back in one act. Same act, same recoverability, whoever pulls the lever.
+
+    `delete_live_file` is NOT deleted — it remains correct for MOVE, where the
+    source row must genuinely go (the file lives at its destination; archiving
+    the source would put a moved file in Trash as well).
     """
-    from services.authored_substrate import delete_live_file
+    from services.authored_substrate import archive_live_file
     from services.workspace import get_agent_slug
 
     path = input.get("path", "")
@@ -1362,19 +1398,24 @@ async def handle_delete_file(auth: Any, input: dict) -> dict:
     if not resolved_message.startswith("DeleteFile"):
         resolved_message = f"DeleteFile: {resolved_message}"
 
-    tombstone_id = delete_live_file(
+    tombstone_id = archive_live_file(
         auth.client,
         user_id=auth.user_id,
         path=abs_path,
         authored_by=resolved_author,
+        author_identity_uuid=getattr(auth, "user_id", None),
         message=resolved_message,
+        workspace_id=getattr(auth, "workspace_id", None),
     )
     if tombstone_id is None:
         return {"success": False, "error": "file_not_found",
                 "message": f"No live file at {abs_path}."}
     return {"success": True, "scope": scope, "path": abs_path,
+            "archived": True,
             "tombstone_revision_id": tombstone_id,
-            "note": "Revision chain retained — restore via ReadRevision + WriteFile."}
+            "message": f"Moved to Trash: {abs_path}",
+            "note": "In Trash — restorable in one act with Restore. The revision "
+                    "chain is retained."}
 
 
 #: ADR-514 D1: how many `-copy-N` suffixes to try before giving up. The kernel

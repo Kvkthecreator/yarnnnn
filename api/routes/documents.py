@@ -662,21 +662,24 @@ async def delete_document(auth: UserClient, document_path: str):
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Archive = new revision, lifecycle='archived', operator-attributed.
-    # ADR-427 Phase 2: re-reference the head's BLOB (content_ref) instead of
-    # re-writing the text denorm — a binary file's denorm is '' and re-writing
-    # it would put an empty TEXT revision at the head of a binary chain.
-    # Text files behave byte-identically through content_ref.
-    service = get_service_client()
-    write_revision(
-        db_client=service,
+    # ONE DELETE (2026-08-21): the same `archive_live_file` the DeleteFile
+    # primitive calls. Previously this route and the primitive each implemented
+    # "delete" — and implemented it DIFFERENTLY (archive here, live-row removal
+    # there), so the operator's click and an agent's tool call produced two
+    # populations of deleted file with different recoverability. One act now,
+    # whoever pulls the lever. (ADR-427 Phase 2's blob-by-ref rule lives inside
+    # the helper — a binary file's denorm is '', and re-writing it would put an
+    # empty TEXT revision at the head of a binary chain.)
+    from services.authored_substrate import archive_live_file
+
+    archive_live_file(
+        get_service_client(),
         user_id=auth.user_id,
         path=document_path,
-        **_content_form_for_head(auth, result.data[0]),
         authored_by="operator",
         author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
         message="Archived by operator (removed from active workspace)",
-        lifecycle="archived",
+        workspace_id=getattr(auth, "workspace_id", None),
     )
 
     return {"success": True, "message": "Moved to trash", "archived": True}

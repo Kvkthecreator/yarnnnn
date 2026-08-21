@@ -133,7 +133,7 @@ def run() -> bool:
         "the file+folder half carries only substrate verbs (no reach among them)",
         all(
             t in {"ReadFile", "WriteFile", "EditFile", "DeleteFile",
-                  "MoveFile", "DeleteFolder", "MoveFolder",
+                  "MoveFile", "DeleteFolder", "MoveFolder", "Restore",
                   "SearchFiles", "ListFiles"}
             for t in LANE_TOOL_NAMES
         ),

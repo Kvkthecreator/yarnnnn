@@ -203,7 +203,7 @@ def _studio_max_tokens() -> int:
 #: no safety payoff. This is a uniform addition to the one set every lane reads.
 LANE_TOOL_NAMES = (
     "ReadFile", "WriteFile", "EditFile", "DeleteFile", "MoveFile",
-    "DeleteFolder", "MoveFolder",
+    "DeleteFolder", "MoveFolder", "Restore",
     "SearchFiles", "ListFiles",
 )
 
@@ -485,6 +485,7 @@ def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
     from services.primitives.folder import (
         DELETE_FOLDER_TOOL,
         MOVE_FOLDER_TOOL,
+        RESTORE_TOOL,
     )
     from services.primitives.workspace import (
         DELETE_FILE_TOOL,
@@ -501,7 +502,7 @@ def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
         t["name"]: t
         for t in (READ_FILE_TOOL, WRITE_FILE_TOOL, EDIT_FILE_TOOL,
                   DELETE_FILE_TOOL, MOVE_FILE_TOOL,
-                  DELETE_FOLDER_TOOL, MOVE_FOLDER_TOOL,
+                  DELETE_FOLDER_TOOL, MOVE_FOLDER_TOOL, RESTORE_TOOL,
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE,
                   LIST_INTEGRATIONS_TOOL, GENERATE_IMAGE_TOOL)

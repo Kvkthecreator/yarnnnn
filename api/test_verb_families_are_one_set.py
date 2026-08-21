@@ -83,6 +83,14 @@ FAMILIES: dict[str, dict[str, set[str]]] = {
         "all": {"DeleteFolder", "MoveFolder"},
         "mutating": {"DeleteFolder", "MoveFolder"},
     },
+    # Trash is a PLACE, not a flag (2026-08-21) — so the verb that puts a file
+    # back is part of the vocabulary, not an operator-only affordance. Delete
+    # without Restore is `rm` with no Put Back: an agent could trash a member's
+    # work on their behalf and not undo it.
+    "trash": {
+        "all": {"Restore"},
+        "mutating": {"Restore"},
+    },
 }
 
 #: Narrowings that are DELIBERATE. A verb listed here is exempt on that surface,

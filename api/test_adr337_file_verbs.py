@@ -164,10 +164,14 @@ check(
     # gate exactly like their file counterparts. The tripwire is KEPT as an
     # exact set deliberately — a verb that mutates substrate by path must not
     # join this set silently, and the failure is how we learn it tried.
-    "path-addressed set is exactly the eight write verbs",
+    # `Restore` (2026-08-21) is revert-as-write (ADR-209 D7): it lands a new
+    # `lifecycle='active'` revision, so it gates exactly like the deletes it
+    # undoes. The tripwire stays an EXACT set on purpose — a verb that mutates
+    # substrate by path must not join silently.
+    "path-addressed set is exactly the nine write verbs",
     _PATH_ADDRESSED_QUEUEABLE == frozenset({
         "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
-        "GenerateImage", "DeleteFolder", "MoveFolder",
+        "GenerateImage", "DeleteFolder", "MoveFolder", "Restore",
     }),
 )
 check(

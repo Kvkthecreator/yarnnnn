@@ -29,6 +29,9 @@ const TOOL_LABELS: Record<string, { doing: string; did: string }> = {
   // rides in the verb's own result message ("19 moved to Trash · 2 stayed").
   DeleteFolder: { doing: 'deleting a folder', did: 'deleted a folder' },
   MoveFolder: { doing: 'moving a folder', did: 'moved a folder' },
+  // The inverse of the two deletes. "restoring" rather than "undeleting":
+  // Trash is a place, and this is the Put Back beside it.
+  Restore: { doing: 'restoring from Trash', did: 'restored from Trash' },
   SearchFiles: { doing: 'searching files', did: 'searched files' },
   ListFiles: { doing: 'listing files', did: 'listed files' },
   QueryKnowledge: { doing: 'searching knowledge', did: 'searched knowledge' },

@@ -144,6 +144,9 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     # ROOT is lock-checked here and each file re-checked inside the fan.
     "DeleteFolder",
     "MoveFolder",
+    # Restore is revert-as-write (ADR-209 D7): it lands a new `lifecycle=active`
+    # revision, so it gates exactly like the deletes it undoes.
+    "Restore",
     "Schedule",
     "ManageHook",
     "ManageAgent",
@@ -169,7 +172,7 @@ _PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({
     "WriteFile", "EditFile", "DeleteFile", "MoveFile", "DuplicateFile",
     "GenerateImage",
     # ADR-337 amended — MoveFolder is dual-path-addressed like MoveFile.
-    "DeleteFolder", "MoveFolder",
+    "DeleteFolder", "MoveFolder", "Restore",
 })
 
 

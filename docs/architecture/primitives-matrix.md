@@ -121,6 +121,7 @@ Verbs: `ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile` (ADR-337 wo
 | `Edit` | `EditFile` | identical contract (`old_string`/`new_string`/`replace_all`); may not empty a file |
 | `rm` | `DeleteFile` | view-only removal — tombstone revision; chain retained; restore = revert-as-write |
 | `mv` | `MoveFile` | one attributed operation; refuses destination overwrite; both paths lock-checked |
+| Put Back | `Restore` | one verb, both grains — a single trashed file, or a folder trashed as a unit (resolved from `trashed_with`, never from the caller) |
 | `rm -r` | `DeleteFolder` | **a FAN-OUT, not one act** — one archive revision per file; group restores as ONE unit; locked children refused + reported; capped at 500 (`MAX_FAN_OUT`) |
 | `mv` (dir) | `MoveFolder` | the same fan over `MoveFile`; rename is a sibling move; both roots lock-checked |
 | `grep -F` | `SearchFiles(match='exact')` | case-insensitive literal substring over content + path |
@@ -287,6 +288,42 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 - **REVIEWER_PRIMITIVES (curated subset for the Reviewer's chat-mode invocations):** **24 tools** — all reads (`ReadFile`/`ListFiles`/`SearchFiles`/`ListRevisions`/`ReadRevision`/`DiffRevisions`/`GetSystemState`/`SearchEntities`/`LookupEntity`/`ListEntities`/`list_integrations`/`WebSearch`/`QueryKnowledge`) + `WriteFile` (lock-gated) + `EditFile` / `DeleteFile` / `MoveFile` (**ADR-337 D5 — the working-tree verbs whose primary customer is the Reviewer's ADR-275 housekeeping cadence**; same-family file verbs, not novel-surface tools — the standing soak watches post-deploy output volume against the 2026-05-25 tool-count canary fingerprint) + `ProposeAction` + `Schedule` + **`ManageHook` (ADR-296 v2 D3 — Reviewer's standing-intent-authoring authority extends to substrate-event hooks)** + `Compose` + `DispatchSpecialist` + `SyncPlatformState` + `Clarify`. **`FireInvocation` removed per ADR-296 v2 D3** — Reviewer does not self-invoke; cadence (`Schedule`) + substrate-event interest (`ManageHook`) + standing intent (`WriteFile` to `/workspace/review/standing_intent.md`) are its trigger-authoring authority.
 - **LANE mode (ADR-411 D3 + ADR-467 D4) — the surface a MEMBER actually uses:** the **file verbs** (`ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile`, `SearchFiles`, `ListFiles`) + the **folder verbs** (`DeleteFolder`, `MoveFolder`) + the uniform extras `QueryKnowledge` / `WebSearch` / `list_integrations` (ADR-535 D2) / `GenerateImage` (ADR-568 D3). Declared in `api/services/lane_runner.py::LANE_TOOL_NAMES` + `LANE_SURFACE_EXTRA`, composed by `lane_tools_openai()`. **Uniform for every lane and every Agent** — capability is not a character trait (ADR-467 D4: a per-Agent `tools` field was a bug factory with no safety payoff). No entity verbs, no `Schedule`, no `DispatchSpecialist`, no `platform_*` reach. ⭐ **`DeleteFile` + `MoveFile` added 2026-08-21**: their absence was the anomaly — they already shipped in Chat, in Reviewer, and as `delete`/`move` on MCP, so a foreign LLM over MCP could delete a member's file while the member's own lane could not, and said so out loud. ⭐ **`DeleteFolder` + `MoveFolder` added the same day**, one grain up and for the identical reason: the fan-out already existed (`services/folder_organize.py`) and only the Files surface could reach it. Gate: [test_verb_families_are_one_set.py](../../api/test_verb_families_are_one_set.py).
 - **MCP mode (ADR-543 + ADR-545 over ADR-512):** the tool surface is file-native — `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `share` — composed server-side in `api/services/mcp_composition.py` over these kernel primitives: `WriteFile` (save — CAS via `expected_parent_version_id`, gate-checked against `CALLER_WRITE_POLICY["mcp"]`), `EditFile` / `DeleteFile` / `MoveFile` (the ADR-337 working-tree verbs, bound by ADR-545), `QueryKnowledge` (search's ranked read), `ListRevisions` / `DiffRevisions` (history's chain + inline diffs), and direct workspace-scoped reads (open/list, with list's `since` change feed). MCP is the foreign-LLM surface — a caller of `execute_primitive()` per ADR-164. **The ADR-209-era "revision reads deliberately NOT exposed on MCP" rule is REVERSED** (first by ADR-368's `trace`, ratified at contract altitude by ADR-512): the attributed revision chain is the surface's distinguishing capability, not an archaeology to hide. `InferContext` no longer exists (deleted per ADR-324); its row above is retained history in this table's deleted-primitives ledger sense only.
+
+> ### ⭐ Standing discipline — ONE delete, ONE meaning
+>
+> **Delete = move to Trash, whoever pulls the lever.** `archive_live_file`
+> (`services/authored_substrate.py`) is the single act: the row stays with
+> `lifecycle='archived'`, the file appears in Trash, and **`Restore`** puts it
+> back — one verb, both grains, bound to the same `restore_group` the Trash
+> view calls.
+>
+> **Why it is a rule (2026-08-21).** Delete used to mean two different things.
+> The Files surface archived; the `DeleteFile` primitive REMOVED the live row.
+> Both honoured "attributed and retained" — the chain kept everything either
+> way — so both looked correct in isolation. But they meant different things TO
+> THE OPERATOR: their own click put a file in Trash, an agent's `DeleteFile`
+> made it vanish from Trash too, restorable only by hand. Measured before the
+> fix: **27 archived rows vs 13 row-removal tombstones** — two populations of
+> "deleted" with different recoverability and nothing telling them apart.
+>
+> ⚠️ **`delete_live_file` REMAINS, and is still correct for MOVE.** A move's
+> source row must genuinely go: the file lives at its destination, and
+> archiving the source would put a moved file in Trash as well. The two acts
+> are not redundant — they answer different questions.
+>
+> **Trashed is a STATE, not an absence.** A read of a trashed path answers
+> *"`{path}` is in Trash (moved {date}), as part of the folder `{root}`…"* via
+> `describe_if_trashed`, never "File not found". The filter that stops deleted
+> content leaking would otherwise turn a deletion into an absence — and the
+> model then tells the operator the file never existed while it sits in Trash,
+> intact. Metadata only: the bytes stay behind `ReadRevision`, because "deleted
+> but still readable in one call" is the ambiguity the filter removed.
+>
+> The OS lesson this encodes: in a desktop, trashed is a **place you can open**,
+> with Put Back beside it — the reversibility is VISIBLE, which is what makes it
+> trustworthy. A hidden lifecycle flag has two failure modes and we shipped
+> both: readers that forget it serve deleted content; readers that respect it
+> report absence.
 
 > ### ⭐ Standing discipline — a trashed file does not read back
 >

@@ -140,10 +140,22 @@ a partially-landed move is reported in `failed` rather than hidden.
 
 
 def _abs(path: str) -> str:
-    p = (path or "").strip()
-    if not p:
-        return ""
-    return p if p.startswith("/") else "/" + p
+    """Any spelling of a workspace path → the ONE canonical `/workspace/…` key.
+
+    Accepts "operation/x", "/operation/x", "workspace/operation/x" and
+    "/workspace/operation/x" — the four spellings a model actually emits.
+
+    A naive `"/" + path` was wrong and silently so: it produced
+    `/operation/…`, which matches NO row (the ledger keys are `/workspace/…`),
+    so a restore of a real trashed file reported "nothing to restore". The
+    normalization is shared with `folder_marker_path`, which is where this
+    grammar is already defined — never re-derived per call site.
+    """
+    rel = (path or "").strip().lstrip("/")
+    if rel.startswith("workspace/"):
+        rel = rel[len("workspace/"):]
+    rel = rel.strip("/")
+    return f"/workspace/{rel}" if rel else ""
 
 
 def _partial_report(performed: int, locked: list, verb: str) -> str:
@@ -275,9 +287,140 @@ async def handle_move_folder(auth: Any, input: dict) -> dict:
     return out
 
 
+RESTORE_TOOL = {
+    "name": "Restore",
+    "description": """Put a file or folder BACK from Trash (the inverse of DeleteFile / DeleteFolder).
+
+Delete here is trash-not-erase: an archived file keeps its revision chain, so
+restoring is an ordinary attributed write, not a recovery procedure. One verb
+for both grains — pass the path of a single trashed file, or of a folder that
+was trashed as a unit, and the whole group comes back together exactly as it
+went.
+
+Use it the moment a delete turns out to be wrong. If a read told you a path is
+in Trash, this is the verb that answers.
+
+  Restore(path='operation/ai-frontier')""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": (
+                    "The trashed file, or the folder that was trashed as a unit "
+                    "(same addressing as DeleteFile / DeleteFolder)."
+                ),
+            },
+        },
+        "required": ["path"],
+    },
+}
+
+
+async def handle_restore(auth: Any, input: dict) -> dict:
+    """Put a file or folder back from Trash.
+
+    ONE verb, two grains — resolved from the substrate, never from the caller.
+    A folder trashed as a unit stamped every archived row with its root
+    (`trashed_with`), so "restore the folder" is addressable as that group; a
+    single trashed file is its own row. Asking the caller to know which they
+    hold would be handing them our bookkeeping.
+
+    Binds the same `folder_organize.restore_group` and the same revert-as-write
+    the operator's Trash view calls (ADR-400 D8 / ADR-209 D7). No second
+    implementation: a bespoke restore would drift on binary content (the head
+    blob must be preserved by REF — re-writing the text denorm puts an empty
+    revision at the head of every binary chain).
+    """
+    from services.folder_organize import _content_form_for_head, restore_group
+    from services.workspace_paths import operator_can_organize
+
+    abs_path = _abs(input.get("path", ""))
+    if not abs_path:
+        return {"success": False, "error": "missing_path", "message": "path is required"}
+    if not operator_can_organize(abs_path):
+        return {
+            "success": False,
+            "error": "locked_path",
+            "message": f"{abs_path} is managed by the system and can't be restored from here.",
+        }
+
+    client = auth.client
+    workspace_id = getattr(auth, "workspace_id", None)
+    uid = auth.user_id
+
+    # GROUP first: a folder trashed as a unit is the common case, and restoring
+    # its root must bring back exactly the rows that act stamped — never a
+    # prefix match, which would sweep in a file trashed separately afterwards.
+    try:
+        group = restore_group(
+            client, user_id=uid, workspace_id=workspace_id,
+            root=abs_path.rstrip("/"), author_identity_uuid=uid,
+        )
+    except Exception as exc:  # pragma: no cover — surfaced, never swallowed
+        logger.warning("[Restore] group restore failed for %s: %s", abs_path, exc)
+        group = None
+
+    restored = list((group or {}).get("restored") or [])
+    if restored:
+        return {
+            "success": True,
+            "path": abs_path,
+            "restored": restored,
+            "message": f"{len(restored)} restored from Trash",
+        }
+
+    # Otherwise a single archived file.
+    from services.authored_substrate import write_revision
+    from services.workspace_context import substrate_scope_filter
+
+    rows = (
+        client.table("workspace_files")
+        .select("content, lifecycle, head_version_id")
+        .eq(*substrate_scope_filter(uid, workspace_id))
+        .eq("path", abs_path)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not rows:
+        return {
+            "success": False, "error": "not_found",
+            "message": f"Nothing at {abs_path} to restore.",
+        }
+    if rows[0].get("lifecycle") != "archived":
+        return {
+            "success": False, "error": "not_trashed",
+            "message": f"{abs_path} is not in Trash — nothing to restore.",
+        }
+
+    try:
+        write_revision(
+            db_client=client,
+            user_id=uid,
+            path=abs_path,
+            **_content_form_for_head(client, uid, workspace_id, rows[0]),
+            authored_by="operator",
+            author_identity_uuid=uid,
+            message="Restored from trash",
+            lifecycle="active",
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.warning("[Restore] %s failed: %s", abs_path, exc)
+        return {"success": False, "error": "restore_failed", "message": str(exc)}
+
+    return {
+        "success": True,
+        "path": abs_path,
+        "restored": [abs_path],
+        "message": "Restored from Trash",
+    }
+
+
 __all__ = [
     "DELETE_FOLDER_TOOL",
     "MOVE_FOLDER_TOOL",
+    "RESTORE_TOOL",
     "handle_delete_folder",
     "handle_move_folder",
+    "handle_restore",
 ]

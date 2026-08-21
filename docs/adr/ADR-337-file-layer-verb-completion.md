@@ -1,6 +1,6 @@
 # ADR-337 — File-Layer Verb Completion: the Working-Tree Half of the Repo Analogy
 
-> **Status**: Implemented (2026-06-11) · **Amended 2026-08-21** (D8 — the folder grain; D6's MCP bullet superseded)
+> **Status**: Implemented (2026-06-11) · **Amended 2026-08-21** (D8 — the folder grain; **D9 — one delete, one meaning: D2's live-row removal becomes ARCHIVE**; D6's MCP bullet superseded)
 > **Date**: 2026-06-11
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Mechanism** (Axiom 5 — the primitive vocabulary) + **Substrate** (Axiom 1 — what the verbs mutate) + **Identity** (Axiom 2 — who maintains the working tree)
@@ -110,20 +110,27 @@ This verb retires the largest residual exposure of the 0-byte class: appending o
 entry to `judgment_log.md` or fixing one threshold in `principles.md` no longer
 regenerates the whole file through the output-token ceiling.
 
-### D2 — `DeleteFile`: remove from the live view; the chain retains everything
+### D2 — `DeleteFile`: move to Trash; the chain retains everything
+
+> ⚠️ **AMENDED 2026-08-21 (see D9).** As originally written this decision
+> specified **live-row removal**. It now ARCHIVES (`lifecycle='archived'`), the
+> same act the Files surface performs — because two deletes with different
+> recoverability was one delete too many. The original text is preserved below
+> for the reasoning it carries; the second step is what changed.
 
 `DeleteFile(path, scope, authored_by?, message?)`. Two-step, both attributed:
 
-1. **Tombstone revision** — a `workspace_file_versions` row is inserted with the
+1. **Archive revision** — a `workspace_file_versions` row is inserted with the
    file's *current* blob (no new blob), `message` prefixed `DeleteFile:`. The chain
    records who deleted, when, why, and what the content was at deletion.
-2. **Live-row removal** — the `workspace_files` row is deleted (the operation
-   ADR-209's code comments already sanction for system callers; this ADR exposes it
-   as an attributed primitive).
+2. ~~**Live-row removal**~~ → **the row is kept, marked `lifecycle='archived'`**
+   (D9). The file leaves the active workspace, appears in **Trash**, and is
+   restorable in one act. Row removal survives for MOVE, where the source must
+   genuinely go.
 
-Restore is the already-canonical ADR-209 D7 revert-as-write: `ReadRevision` →
-`WriteFile` (revision primitives query the chain, not the live row — they survive
-deletion). Deleting a file is a **view change, not information loss**.
+Restore is **`Restore`** (D9) — one verb, both grains — over the same
+revert-as-write ADR-209 D7 defines. Deleting a file is a **view change, not
+information loss**.
 
 Errors: `file_not_found`. Permission: consequential, path-addressed (governance locks
 DENY — the Reviewer cannot delete `governance/`, `constitution/` etc. under the same
@@ -177,6 +184,61 @@ Reviewer placement (chat + headless keep the verbs regardless).
   file-native recut — the gate, not the roster, is the boundary.
 - **A `Glob` tool** — `ListFiles` + `SearchFiles(match="exact")` cover the territory.
 - **Branching / replication** — remain out of scope per ADR-209 D10.
+
+### D9 — One delete, one meaning (amendment, 2026-08-21)
+
+D2 shipped `DeleteFile` as live-row removal. The Files surface (ADR-400) shipped
+delete as ARCHIVE. Both honour ADR-209 — the chain retains everything either way
+— so both looked correct in isolation, and nothing compared them.
+
+They are not the same act **to the operator**. Their own click puts a file in
+Trash, where it is visible and restorable in one gesture. An agent's `DeleteFile`
+made the file vanish from Trash as well, recoverable only by hand via
+`ReadRevision` + `WriteFile`. Measured immediately before this amendment: **27
+archived rows and 13 row-removal tombstones** — two populations of "deleted",
+different recoverability, nothing distinguishing them.
+
+The failure surfaced the way these always do. A member asked where a file had
+gone; the model answered *"the file is still live — I read it directly"*, then
+*"it wasn't deleted, it's sitting right there"*. It could not say the file was in
+Trash because nothing in the system says so: the state was a lifecycle flag that
+reads either as content (if a reader forgets it) or as **absence** (if a reader
+respects it). Neither is the truth.
+
+**D9.a — `DeleteFile` archives.** `archive_live_file` in
+`services/authored_substrate.py` is the single act, called by the primitive AND
+the Files route. One implementation, not two that agree.
+
+**D9.b — `delete_live_file` stays, for MOVE.** A move's source row must genuinely
+go: the file lives at its destination, and archiving the source would put a moved
+file in Trash. The two acts answer different questions and both are correct.
+
+**D9.c — `Restore` is a verb.** Trash without Put Back is `rm` with extra steps.
+One verb, both grains: a single trashed file, or a folder trashed as a unit
+(resolved from its `trashed_with` stamp, never from the caller — asking a caller
+to know which grain they hold is handing them our bookkeeping). Bound to the same
+`restore_group` the Trash view calls.
+
+**D9.d — Trashed is a STATE, not an absence.** A read of a trashed path answers
+*"is in Trash (moved {date}), as part of the folder {root}"* via
+`describe_if_trashed` — the ADR-588 D1 shape: name what the thing IS and route to
+the verb that answers it. Metadata only; the bytes stay behind `ReadRevision`,
+because "deleted but still readable in one call" is exactly the ambiguity the
+read filter removed.
+
+**Why this is the axiomatic form rather than a bigger design.** The OS lesson is
+not "add retention policies and quotas" — it is that in a desktop, **trashed is a
+place you can open**, with Put Back beside it. The reversibility is VISIBLE, and
+that visibility is what makes it trustworthy. We had modelled it as a hidden
+flag, which has exactly two failure modes and we shipped both. Making the state
+legible and the inverse verb present is the whole fix. Retention, auto-empty and
+Trash sizing are deliberately NOT decided here (ADR-400 Q3 stands: archived is
+permanent-but-hidden; ADR-478 supplies the terminal step when the operator wants
+one).
+
+Gates: `test_trashed_file_does_not_read_back.py` (the unification + the four read
+paths), `test_verb_families_are_one_set.py` (the `trash` family is whole on every
+surface).
 
 ### D8 — The folder grain (amendment, 2026-08-21)
 

@@ -1006,6 +1006,103 @@ def delete_live_file(
     return tombstone_id
 
 
+def archive_live_file(
+    db_client: Any,
+    *,
+    user_id: str,
+    path: str,
+    authored_by: str,
+    message: str,
+    author_identity_uuid: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+) -> Optional[str]:
+    """Move a file to TRASH: an attributed `lifecycle='archived'` revision.
+
+    THE ONE DELETE (2026-08-21). Delete used to mean two different things
+    depending on who asked:
+
+      - the Files surface archived (row kept, `lifecycle='archived'`) → the
+        file appears in Trash and restores in one act;
+      - the `DeleteFile` primitive REMOVED the live row (`delete_live_file`) →
+        attributed and retained in the chain, but absent from Trash and
+        restorable only by hand via ReadRevision + WriteFile.
+
+    Both honoured "attributed and retained", so both looked correct in
+    isolation. But they meant different things TO THE OPERATOR: their own click
+    put a file in Trash, while an agent's DeleteFile made it vanish from Trash
+    too. Measured live before the unification: 27 archived rows vs 13
+    row-removal tombstones — two populations of "deleted" with different
+    recoverability, and nothing telling them apart.
+
+    This is that act, once. `handle_delete_file` calls it; so does the Files
+    route. `delete_live_file` REMAINS and is still correct for MOVE, where the
+    source row must genuinely go (the file lives at its destination — archiving
+    the source would put a moved file in Trash as well).
+
+    ADR-427 Phase 2: the archive revision re-references the head's BLOB rather
+    than re-writing the text denorm — a binary file's denorm is `''`, and
+    re-writing it would put an empty TEXT revision at the head of a binary
+    chain. Text and binary both round-trip through `content_ref`.
+
+    Returns the archive revision id, or None when the path has no live row.
+    """
+    if workspace_id is None:
+        try:
+            workspace_id = _effective_ws(user_id, None)
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger.debug(
+                "[AUTHORED_SUBSTRATE] workspace_id resolve failed for %s: %s",
+                user_id, exc,
+            )
+
+    live = (
+        _substrate_scope(
+            db_client.table("workspace_files").select(
+                "id, content, lifecycle, head_version_id"
+            ),
+            user_id,
+            workspace_id,
+        )
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not live:
+        return None
+    row = live[0]
+    if row.get("lifecycle") == "archived":
+        return None  # already in Trash — not an error, but not a second act
+
+    # The head blob by REF (see docstring); the denorm is the legacy fallback.
+    content_form: dict = {"content": row.get("content", "") or ""}
+    head_id = row.get("head_version_id")
+    if head_id:
+        try:
+            head = (
+                db_client.table("workspace_file_versions")
+                .select("blob_sha")
+                .eq("id", head_id)
+                .limit(1)
+                .execute()
+            ).data or []
+            if head and head[0].get("blob_sha"):
+                content_form = {"content_ref": head[0]["blob_sha"]}
+        except Exception as exc:  # noqa: BLE001 — fall back to the denorm
+            logger.warning("[AUTHORED_SUBSTRATE] head blob lookup failed: %s", exc)
+
+    return write_revision(
+        db_client=db_client,
+        user_id=user_id,
+        path=path,
+        **content_form,
+        authored_by=authored_by,
+        author_identity_uuid=author_identity_uuid,
+        message=message,
+        lifecycle="archived",
+        workspace_id=workspace_id,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Read helpers (primitive-facing versions land in Phase 3)
 # ---------------------------------------------------------------------------

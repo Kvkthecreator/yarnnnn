@@ -71,6 +71,7 @@ def code_only(text: str) -> str:
 
 print("\n[1] there is ONE spelling of not-in-Trash, and it is null-safe")
 
+from services.primitives.registry import HANDLERS  # noqa: E402
 from services.workspace_context import (  # noqa: E402
     LIVE_FILES_OR_CLAUSE,
     live_files_filter,
@@ -172,6 +173,42 @@ check("no NEW site adopts the null-excluding dialect without a decision",
       not _offenders,
       f"{_offenders} — use live_files_filter, or add to the reviewed list here")
 
+
+
+print("\n[6] ONE delete, ONE meaning — and it is reversible")
+
+_as_src = code_only((_API / "services" / "authored_substrate.py").read_text())
+_prim_src2 = code_only((_API / "services" / "primitives" / "workspace.py").read_text())
+_route_src2 = code_only((_API / "routes" / "documents.py").read_text())
+
+check("there is an archiving act in the ONE write path",
+      "def archive_live_file(" in _as_src)
+
+# THE UNIFICATION. `DeleteFile` used to call `delete_live_file`, which REMOVED
+# the row: attributed and retained in the chain, but absent from Trash and not
+# restorable in one act. The operator's own click archived instead — so delete
+# meant two different things depending on who asked (measured before the fix:
+# 27 archived rows vs 13 row-removal tombstones).
+i = _prim_src2.find("async def handle_delete_file(")
+_del = _prim_src2[i:i + 2500] if i != -1 else ""
+check("DeleteFile ARCHIVES (goes to Trash), never removes the live row",
+      "archive_live_file" in _del and "delete_live_file" not in _del,
+      "a delete that removes the row cannot appear in Trash or be Restored")
+
+check("the Files route calls the SAME act (one implementation, not two that agree)",
+      "archive_live_file" in _route_src2)
+
+# `delete_live_file` STAYS — it is correct for MOVE, where the source row must
+# genuinely go (the file lives at its destination; archiving the source would
+# put a moved file in Trash as well).
+i2 = _prim_src2.find("async def handle_move_file(")
+_mv = _prim_src2[i2:i2 + 3000] if i2 != -1 else ""
+check("MoveFile still REMOVES its source row (a move is not a deletion)",
+      "delete_live_file" in _mv,
+      "archiving a move's source would put a moved file in Trash")
+
+check("Restore exists as a verb (delete without it is `rm` with no Put Back)",
+      "Restore" in set(HANDLERS))
 
 print()
 if FAILED:

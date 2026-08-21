@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.21.6] - one delete, one meaning — and Trash gets a Put Back
+
+### Changed
+- `services/authored_substrate.py`: `archive_live_file()` — THE delete act.
+  `DeleteFile` and the Files route both call it, so the operator's click and an
+  agent's tool call are one act with one recoverability.
+- `services/primitives/workspace.py` `handle_delete_file`: ARCHIVES (row kept,
+  `lifecycle='archived'`) instead of removing the live row. `delete_live_file`
+  stays — still correct for MOVE, whose source row must genuinely go.
+- `ReadFile` + MCP `open`: a trashed path answers **"is in Trash (moved
+  {date}), as part of the folder {root}"** via `describe_if_trashed`, never
+  "File not found". MCP `open` was ALSO still serving trashed content to
+  foreign callers — fixed in the same edit.
+- `services/primitives/folder.py`: **`Restore`** — one verb, both grains, on
+  every surface (lane · chat · steward). Bound to `restore_group` /
+  revert-as-write, gated like the deletes it undoes.
+- `_abs()` now shares `folder_marker_path`'s grammar. It produced
+  `/operation/…` where the ledger keys are `/workspace/…`, so a folder verb on
+  a relative path silently matched nothing.
+
+### Expected behavior
+An LLM that deletes a file puts it in **Trash**, says so, and can put it back.
+Asked where a deleted file went, it now reads a state instead of an absence —
+previously it answered *"the file is still live — I read it directly"*, because
+delete meant two different things depending on who asked (measured: 27 archived
+rows vs 13 row-removal tombstones) and a trashed path reported "not found".
+
+### Gate
+- `test_trashed_file_does_not_read_back.py` 15/15 (extended with §6 — the
+  unification), `test_verb_families_are_one_set.py` 32/32 (the `trash` family).
+  Falsified; round-trip verified on live substrate, text AND binary.
+
+---
+
 ## [2026.08.21.5] - a trashed file does not read back
 
 ### Fixed
