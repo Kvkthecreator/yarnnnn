@@ -309,7 +309,16 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 > ⚠️ **`delete_live_file` REMAINS, and is still correct for MOVE.** A move's
 > source row must genuinely go: the file lives at its destination, and
 > archiving the source would put a moved file in Trash as well. The two acts
-> are not redundant — they answer different questions.
+> are not redundant — they answer different questions. **At BOTH grains**: a
+> moved folder's source marker tombstones-and-removes too (it used to archive,
+> leaving an empty ghost folder in Trash that `Restore` would resurrect at the
+> old path).
+>
+> **One act each, one head-blob form.** `archive_live_file` /
+> `restore_live_file` in `services/authored_substrate.py` are called by the
+> single-file route, the folder fan-out AND the `Restore` primitive. Each used
+> to carry its own write plus its own copy of the ADR-427 head-blob form; they
+> agreed, which is not the same as being singular.
 >
 > **Trashed is a STATE, not an absence.** A read of a trashed path answers
 > *"`{path}` is in Trash (moved {date}), as part of the folder `{root}`…"* via

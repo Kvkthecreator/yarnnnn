@@ -715,45 +715,45 @@ export function TextEditor({
 
   return (
     <div ref={setWorkbenchNode} className="flex h-full min-h-0 flex-col">
-      {/* ── The crumb row + view controls + boundary acts ───────────────── */}
-      {/* THREE ZONES, and the middle one is the document's own.
-          The identity (crumb + name) and the Insert row below it centre on the
-          CANVAS COLUMN (`FACE.column`), so they sit over the page rather than
-          over the pane. Flush-left in a full-width row, the name drifted every
-          time the right pane opened or closed and the surface had no stable
-          spine — Docs' reference behaviour is that the title and toolbar are
-          centred over the page and the page does not move when a side panel
-          appears. The flanks are `flex-1` and equal, so the centre zone is
-          truly centred no matter how wide either side's acts get. */}
+      {/* ── ONE row: identity · verbs · view controls + boundary acts ─────
+          THREE ZONES, and the middle one is the CANVAS COLUMN.
+
+          It was two rows — a crumb row over an Insert row — and the second cost
+          a full band of vertical space to hold twelve glyphs. Collapsed: the
+          identity returns to the LEFT, beside the back arrow it belongs with
+          (a crumb is where you came FROM, which is a left-edge fact in every
+          file surface we have), and the Insert row takes the centre, where it
+          sits over the page it acts on.
+
+          The zone that matters is the middle one: it is `FACE.column` wide, the
+          same column the canvas occupies, so the verbs line up with the text
+          they edit and nothing moves when the right pane opens or closes.
+          Flush-left in a full-width row, the name drifted on every toggle and
+          the surface had no stable spine.
+
+          The flanks are NOT `flex-1` here. With a centre zone this wide, equal
+          greedy flanks would fight it for room and the toolbar would give up
+          width before the acts did — the canvas's own rule, one level up. They
+          size to their content and the centre keeps the column. */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 shrink items-center gap-1.5 text-sm">
           <button
             type="button"
             onClick={onClose}
             title="Back to documents"
             aria-label="Back to documents"
-            className="inline-flex shrink-0 items-center rounded px-1.5 py-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            className="inline-flex shrink-0 items-center rounded px-1 py-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-        </div>
-
-        {/* `maxWidth`, and `basis` rather than a fixed `width`: the zone wants
-            to BE the column where the pane can afford it and to shrink below
-            that where it cannot. A fixed width would claim 784px on a 500px
-            pane and squeeze the flanking acts before shrinking itself. */}
-        <div
-          className="flex min-w-0 shrink items-center justify-center gap-1.5 text-sm"
-          style={{ flexBasis: FACE.column, maxWidth: FACE.column }}
-        >
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className="hidden shrink-0 text-muted-foreground hover:text-foreground lg:inline"
           >
             Text
           </button>
-          <span className="text-muted-foreground/60">/</span>
+          <span className="hidden text-muted-foreground/60 lg:inline">/</span>
           <button
             type="button"
             onClick={() => organizeVerbs.onRename?.({ path, name: leafOf(path) })}
@@ -765,7 +765,19 @@ export function TextEditor({
           </button>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+        {/* The verbs, on the canvas column. `maxWidth` + `basis` rather than a
+            fixed `width`: the zone wants to BE the column where the pane can
+            afford it and to shrink below that where it cannot. A fixed width
+            would claim 784px inside a 500px pane and squeeze the acts beside
+            it before yielding any of its own. */}
+        <div
+          className="flex min-w-0 shrink justify-center"
+          style={{ flexBasis: FACE.column, maxWidth: FACE.column }}
+        >
+          <MarkdownToolbar onAction={runAction} />
+        </div>
+
+        <div className="flex min-w-0 shrink items-center justify-end gap-2">
 
         {/* Zoom — a VIEW control (doesn't touch the file), Docs' own clamp. */}
         <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
@@ -976,11 +988,12 @@ export function TextEditor({
             </div>
           ) : (
             // ── ONE canvas: always editable, always styled (ADR-572 D8).
-            //    The toolbar is a permanent row above it, not a mode-gated
-            //    one — nothing here is hidden behind a state the surface
-            //    doesn't open in, which is what the Read/Write split did.
+            //    The Insert verbs are a permanent part of the header row, not a
+            //    mode-gated band — nothing here is hidden behind a state the
+            //    surface doesn't open in, which is what the Read/Write split
+            //    did. They moved INTO the header (one row, three zones) rather
+            //    than sitting in a band of their own above this canvas.
             <>
-              <MarkdownToolbar onAction={runAction} />
               <ProseCanvas
                 value={text}
                 onChange={setText}

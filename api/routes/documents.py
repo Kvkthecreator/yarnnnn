@@ -605,28 +605,6 @@ from services.workspace_paths import (
 )
 
 
-def _content_form_for_head(auth: UserClient, row: dict) -> dict:
-    """The write_revision content form that preserves a file's head blob
-    verbatim (ADR-427 Phase 2): {'content_ref': <head blob sha>} when the
-    chain exists (text and binary both round-trip), falling back to the text
-    denorm re-write for chainless legacy rows."""
-    head_id = row.get("head_version_id")
-    if head_id:
-        try:
-            head = (
-                auth.client.table("workspace_file_versions")
-                .select("blob_sha")
-                .eq("id", head_id)
-                .limit(1)
-                .execute()
-            ).data
-            if head and head[0].get("blob_sha"):
-                return {"content_ref": head[0]["blob_sha"]}
-        except Exception as exc:  # noqa: BLE001 — fall back to the denorm
-            logger.warning("[DOCUMENTS] head blob lookup failed: %s", exc)
-    return {"content": row.get("content", "") or ""}
-
-
 @router.delete("/documents/{document_path:path}")
 async def delete_document(auth: UserClient, document_path: str):
     """Move a workspace file to Trash (the operator-facing 'Delete' verb).
@@ -866,18 +844,18 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
     if row.get("lifecycle") != "archived":
         raise HTTPException(status_code=409, detail="File is not in the trash")
 
-    service = get_service_client()
-    # ADR-427 Phase 2: content_ref preserves the head blob (text OR binary)
-    # verbatim — see delete_document.
-    write_revision(
-        db_client=service,
+    # ADR-337 D9 — the SAME `restore_live_file` the Restore verb calls (the
+    # blob-by-ref rule lives inside it; see delete_document for the peer).
+    from services.authored_substrate import restore_live_file
+
+    restore_live_file(
+        get_service_client(),
         user_id=auth.user_id,
         path=path,
-        **_content_form_for_head(auth, row),
         authored_by="operator",
         author_identity_uuid=auth.user_id,  # ADR-410/412 viewer pass — which human
         message="Restored from trash",
-        lifecycle="active",
+        workspace_id=getattr(auth, "workspace_id", None),
     )
     return {"success": True, "message": "Restored", "path": path}
 

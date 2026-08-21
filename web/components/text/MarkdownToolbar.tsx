@@ -115,28 +115,24 @@ export function MarkdownToolbar({
   className?: string;
 }) {
   return (
+    /* The verbs live in the HEADER's centre zone (TextEditor), which is already
+       the canvas column — so this component owns no border, no ground and no
+       measure of its own. It owned all three when it was a band of its own above
+       the canvas; keeping any of them here would draw a second box inside the
+       header row.
+
+       `overflow-x-auto` rather than `flex-wrap`: a wrapping toolbar would grow
+       the header row and push the canvas down as the pane narrows, so the
+       document visibly jumps. Docs scrolls for the same reason. The scrollbar is
+       hidden — chrome on chrome, on a row one line tall. */
     <div
+      role="toolbar"
+      aria-label="Markdown formatting"
       className={cn(
-        'flex shrink-0 justify-center border-b border-border px-3 py-1.5',
+        'flex w-full items-center gap-0.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]',
         className,
       )}
     >
-      {/* CENTRED ON THE CANVAS COLUMN, like the crumb row above it — the verbs
-          sit over the page they act on rather than over the pane, and neither
-          row moves when the right pane opens or closes.
-
-          `w-full` up to the column, so on a narrow pane the row is simply the
-          pane and nothing changes; `overflow-x-auto` rather than `flex-wrap`,
-          because a wrapping toolbar changes the CANVAS's vertical origin as the
-          pane narrows — the document would visibly jump. Docs scrolls its
-          toolbar for the same reason. The scrollbar is hidden: it is chrome on
-          chrome, and the row is one line tall. */}
-      <div
-        role="toolbar"
-        aria-label="Markdown formatting"
-        className="flex w-full items-center gap-0.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
-        style={{ maxWidth: FACE.column }}
-      >
       {GROUPS.map((group, gi) => (
         <div key={gi} className="flex shrink-0 items-center gap-0.5">
           {gi > 0 && <span className="mx-1.5 h-5 w-px bg-border/60" aria-hidden />}
@@ -164,7 +160,6 @@ export function MarkdownToolbar({
           ))}
         </div>
       ))}
-      </div>
     </div>
   );
 }

@@ -213,6 +213,21 @@ the Files route. One implementation, not two that agree.
 go: the file lives at its destination, and archiving the source would put a moved
 file in Trash. The two acts answer different questions and both are correct.
 
+This held for moved FILES and was violated for moved FOLDERS: `move_folder`
+archived the source MARKER, leaving an empty ghost folder in Trash the operator
+never deleted — and one `Restore` would have brought back at the old path. The
+marker now tombstones-and-removes like the files it contained. **A move is not a
+deletion at either grain.**
+
+**D9.b′ — one act each, at both grains.** The folder fan-out, the single-file
+route and the `Restore` primitive each carried their own archive/restore write
+with its own copy of the ADR-427 head-blob form — three near-identical peers that
+AGREED. Agreement is not singularity: the next change to what archiving means
+would have had to be made three times, and the third is the one that gets
+forgotten. All three now call `archive_live_file` / `restore_live_file`, and the
+head-blob form lives once in `authored_substrate` — it is a property of the
+LEDGER, not of whichever caller needs it.
+
 **D9.c — `Restore` is a verb.** Trash without Put Back is `rm` with extra steps.
 One verb, both grains: a single trashed file, or a folder trashed as a unit
 (resolved from its `trashed_with` stamp, never from the caller — asking a caller

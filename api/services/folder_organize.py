@@ -244,7 +244,7 @@ def trash_folder(
 
     Returns `{root, archived: [...], locked: [...]}` — the honest partial.
     """
-    from services.authored_substrate import write_revision
+    from services.authored_substrate import archive_live_file
 
     subtree = enumerate_subtree(
         client, user_id=user_id, workspace_id=workspace_id, folder_path=folder_path
@@ -264,36 +264,29 @@ def trash_folder(
     targets = list(subtree["files"]) + list(subtree["markers"])
 
     for path in targets:
-        row = (
-            _scope(
-                client.table("workspace_files").select(
-                    "content, head_version_id, content_type"
-                ),
-                user_id,
-                workspace_id,
-            )
-            .eq("path", path)
-            .limit(1)
-            .execute()
-        ).data
-        if not row:
-            continue
+        # ADR-337 D9 — the SAME `archive_live_file` a single-file delete calls.
+        # This loop used to carry its own archive write (plus its own
+        # its own head-blob form), so a folder-trash and a file-trash were two
+        # implementations of one act. They agreed, but agreement is not
+        # singularity: the next change to what archiving means would have had to
+        # be made twice, and the second one is the one that gets forgotten.
+        # `content_type` is preserved by omission — write_revision only writes
+        # the column when a value is passed, so the row keeps its own.
         try:
-            write_revision(
-                db_client=client,
+            revision_id = archive_live_file(
+                client,
                 user_id=user_id,
-                workspace_id=workspace_id,
                 path=path,
-                **_content_form_for_head(client, user_id, workspace_id, row[0]),
                 authored_by="operator",
                 author_identity_uuid=author_identity_uuid,
                 message=f"Archived by operator (folder moved to trash: {root})",
-                lifecycle="archived",
-                content_type=row[0].get("content_type"),
+                workspace_id=workspace_id,
             )
         except Exception as exc:  # noqa: BLE001 — reported, never swallowed
             logger.error("[FOLDER_ORGANIZE] archive failed for %s: %s", path, exc)
             continue
+        if revision_id is None:
+            continue  # no live row (already archived, or gone mid-fan)
         _merge_metadata_trashed_with(
             client,
             user_id=user_id,
@@ -309,34 +302,6 @@ def trash_folder(
         "markers_archived": markers_archived,
         "locked": subtree["locked"],
     }
-
-
-def _content_form_for_head(
-    client: Any, user_id: str, workspace_id: Optional[str], row: dict
-) -> dict:
-    """The content form that preserves a file's head blob verbatim (ADR-427 §4c).
-
-    A byte-for-byte peer of `routes/documents.py::_content_form_for_head`, but
-    reading through the service client + workspace scope this module already
-    holds. Re-writing the TEXT denorm instead would put an EMPTY text revision
-    at the head of every binary chain the fan touches — a folder of images would
-    come back from Restore as a folder of empty files.
-    """
-    head_id = row.get("head_version_id")
-    if head_id:
-        try:
-            head = (
-                client.table("workspace_file_versions")
-                .select("blob_sha")
-                .eq("id", head_id)
-                .limit(1)
-                .execute()
-            ).data
-            if head and head[0].get("blob_sha"):
-                return {"content_ref": head[0]["blob_sha"]}
-        except Exception as exc:  # noqa: BLE001 — fall back to the denorm
-            logger.warning("[FOLDER_ORGANIZE] head blob lookup failed: %s", exc)
-    return {"content": row.get("content", "") or ""}
 
 
 def restore_group(
@@ -356,7 +321,7 @@ def restore_group(
     group, and leaving the stamp would make a second, unrelated trash of one of
     those files reappear inside a folder group it has nothing to do with.
     """
-    from services.authored_substrate import write_revision
+    from services.authored_substrate import restore_live_file
 
     rows = (
         _scope(
@@ -377,19 +342,19 @@ def restore_group(
         path = row.get("path") or ""
         if not path:
             continue
+        # ADR-337 D9 — the SAME `restore_live_file` a single-file restore calls
+        # (see the archive loop above for why this is not three implementations).
         try:
-            write_revision(
-                db_client=client,
+            if restore_live_file(
+                client,
                 user_id=user_id,
-                workspace_id=workspace_id,
                 path=path,
-                **_content_form_for_head(client, user_id, workspace_id, row),
                 authored_by="operator",
                 author_identity_uuid=author_identity_uuid,
                 message=f"Restored from trash (folder: {root})",
-                lifecycle="active",
-                content_type=row.get("content_type"),
-            )
+                workspace_id=workspace_id,
+            ) is None:
+                continue
         except Exception as exc:  # noqa: BLE001
             logger.error("[FOLDER_ORGANIZE] restore failed for %s: %s", path, exc)
             continue
@@ -462,7 +427,7 @@ async def move_folder(
     # inherits are written for documents. Re-minting the marker at the
     # destination and archiving the source keeps the operator's empty
     # sub-folders — which a files-only fan would silently discard.
-    from services.authored_substrate import write_revision
+    from services.authored_substrate import delete_live_file, write_revision
     from services.workspace_paths import FOLDER_MARKER_CONTENT_TYPE
 
     client = auth.client
@@ -486,17 +451,20 @@ async def move_folder(
                 author_identity_uuid=auth.user_id,
                 message=f"Folder moved: {src_root} -> {dst_root}",
             )
-            write_revision(
-                db_client=client,
+            # The source marker is REMOVED, not archived (2026-08-21). It used
+            # to take a `lifecycle='archived'` revision — which put an empty
+            # ghost folder in Trash that the operator never deleted, and which
+            # `Restore` would then bring back at the OLD path. A move is not a
+            # deletion at either grain: the moved FILES tombstone-and-remove
+            # (`delete_live_file`, via MoveFile), and the marker now does the
+            # same, so Trash holds only what the operator actually deleted.
+            delete_live_file(
+                client,
                 user_id=auth.user_id,
-                workspace_id=workspace_id,
                 path=marker,
-                content="",
-                content_type=FOLDER_MARKER_CONTENT_TYPE,
                 authored_by="operator",
-                author_identity_uuid=auth.user_id,
                 message=f"Folder moved away: {src_root} -> {dst_root}",
-                lifecycle="archived",
+                workspace_id=workspace_id,
             )
             markers_moved.append(new_marker)
         except Exception as exc:  # noqa: BLE001 — reported, never swallowed

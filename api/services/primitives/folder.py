@@ -332,7 +332,7 @@ async def handle_restore(auth: Any, input: dict) -> dict:
     blob must be preserved by REF — re-writing the text denorm puts an empty
     revision at the head of every binary chain).
     """
-    from services.folder_organize import _content_form_for_head, restore_group
+    from services.folder_organize import restore_group
     from services.workspace_paths import operator_can_organize
 
     abs_path = _abs(input.get("path", ""))
@@ -370,43 +370,37 @@ async def handle_restore(auth: Any, input: dict) -> dict:
             "message": f"{len(restored)} restored from Trash",
         }
 
-    # Otherwise a single archived file.
-    from services.authored_substrate import write_revision
-    from services.workspace_context import substrate_scope_filter
-
-    rows = (
-        client.table("workspace_files")
-        .select("content, lifecycle, head_version_id")
-        .eq(*substrate_scope_filter(uid, workspace_id))
-        .eq("path", abs_path)
-        .limit(1)
-        .execute()
-    ).data or []
-    if not rows:
-        return {
-            "success": False, "error": "not_found",
-            "message": f"Nothing at {abs_path} to restore.",
-        }
-    if rows[0].get("lifecycle") != "archived":
-        return {
-            "success": False, "error": "not_trashed",
-            "message": f"{abs_path} is not in Trash — nothing to restore.",
-        }
+    # Otherwise a single archived file — the SAME act the Trash view calls.
+    from services.authored_substrate import restore_live_file
 
     try:
-        write_revision(
-            db_client=client,
+        revision_id = restore_live_file(
+            client,
             user_id=uid,
             path=abs_path,
-            **_content_form_for_head(client, uid, workspace_id, rows[0]),
             authored_by="operator",
             author_identity_uuid=uid,
             message="Restored from trash",
-            lifecycle="active",
+            workspace_id=workspace_id,
         )
     except Exception as exc:  # pragma: no cover
         logger.warning("[Restore] %s failed: %s", abs_path, exc)
         return {"success": False, "error": "restore_failed", "message": str(exc)}
+    if revision_id is None:
+        # `restore_live_file` returns None for BOTH "no row" and "already live".
+        # Distinguish them here, because they are different things to tell a
+        # member: one is a typo, the other is a no-op.
+        from services.workspace_context import describe_if_trashed
+
+        exists = (
+            client.table("workspace_files").select("path")
+            .eq("path", abs_path).limit(1).execute()
+        ).data or []
+        if not exists:
+            return {"success": False, "error": "not_found",
+                    "message": f"Nothing at {abs_path} to restore."}
+        return {"success": False, "error": "not_trashed",
+                "message": f"{abs_path} is not in Trash — nothing to restore."}
 
     return {
         "success": True,

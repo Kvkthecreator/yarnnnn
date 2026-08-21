@@ -1006,6 +1006,36 @@ def delete_live_file(
     return tombstone_id
 
 
+def _head_content_form(db_client: Any, row: dict) -> dict:
+    """The `write_revision` content form that preserves a file's head blob.
+
+    ADR-427 Phase 2: re-reference the head's BLOB (`content_ref`) rather than
+    re-writing the text denorm — a binary file's denorm is `''`, and re-writing
+    it would put an empty TEXT revision at the head of a binary chain. Text and
+    binary both round-trip through `content_ref`; the denorm is the legacy
+    fallback for a row that predates the chain.
+
+    ONE copy. Three near-identical peers of this existed (the documents route,
+    the folder fan, the Restore primitive) — the shape a lifecycle act needs is
+    a property of the LEDGER, not of whichever caller happens to need it.
+    """
+    head_id = row.get("head_version_id")
+    if head_id:
+        try:
+            head = (
+                db_client.table("workspace_file_versions")
+                .select("blob_sha")
+                .eq("id", head_id)
+                .limit(1)
+                .execute()
+            ).data or []
+            if head and head[0].get("blob_sha"):
+                return {"content_ref": head[0]["blob_sha"]}
+        except Exception as exc:  # noqa: BLE001 — fall back to the denorm
+            logger.warning("[AUTHORED_SUBSTRATE] head blob lookup failed: %s", exc)
+    return {"content": row.get("content", "") or ""}
+
+
 def archive_live_file(
     db_client: Any,
     *,
@@ -1073,32 +1103,79 @@ def archive_live_file(
     if row.get("lifecycle") == "archived":
         return None  # already in Trash — not an error, but not a second act
 
-    # The head blob by REF (see docstring); the denorm is the legacy fallback.
-    content_form: dict = {"content": row.get("content", "") or ""}
-    head_id = row.get("head_version_id")
-    if head_id:
+    return write_revision(
+        db_client=db_client,
+        user_id=user_id,
+        path=path,
+        **_head_content_form(db_client, row),
+        authored_by=authored_by,
+        author_identity_uuid=author_identity_uuid,
+        message=message,
+        lifecycle="archived",
+        workspace_id=workspace_id,
+    )
+
+
+def restore_live_file(
+    db_client: Any,
+    *,
+    user_id: str,
+    path: str,
+    authored_by: str,
+    message: str,
+    author_identity_uuid: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+) -> Optional[str]:
+    """Put a file BACK from Trash: an attributed `lifecycle='active'` revision.
+
+    The inverse of :func:`archive_live_file`, and its exact peer — revert-as-write
+    (ADR-209 D7), not a special recovery path. Same blob-by-ref rule: the head's
+    blob is re-referenced rather than the text denorm re-written, so a binary
+    file does not come back with an empty TEXT revision at the head of its chain.
+
+    ONE restore, for the same reason there is one delete (ADR-337 D9). Three
+    implementations of this existed — the single-file route, the folder fan, and
+    the Restore primitive — each with its own copy of the head-blob form. They
+    agreed, but agreement is not singularity: the next change to what restoring
+    means would have had to be made three times, and the third is the one that
+    gets forgotten.
+
+    Returns the revision id, or None when the path has no row or is not archived
+    (already live is not an error — it is simply not a second act).
+    """
+    if workspace_id is None:
         try:
-            head = (
-                db_client.table("workspace_file_versions")
-                .select("blob_sha")
-                .eq("id", head_id)
-                .limit(1)
-                .execute()
-            ).data or []
-            if head and head[0].get("blob_sha"):
-                content_form = {"content_ref": head[0]["blob_sha"]}
-        except Exception as exc:  # noqa: BLE001 — fall back to the denorm
-            logger.warning("[AUTHORED_SUBSTRATE] head blob lookup failed: %s", exc)
+            workspace_id = _effective_ws(user_id, None)
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger.debug(
+                "[AUTHORED_SUBSTRATE] workspace_id resolve failed for %s: %s",
+                user_id, exc,
+            )
+
+    rows = (
+        _substrate_scope(
+            db_client.table("workspace_files").select(
+                "id, content, lifecycle, head_version_id"
+            ),
+            user_id,
+            workspace_id,
+        )
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not rows or rows[0].get("lifecycle") != "archived":
+        return None
 
     return write_revision(
         db_client=db_client,
         user_id=user_id,
         path=path,
-        **content_form,
+        **_head_content_form(db_client, rows[0]),
         authored_by=authored_by,
         author_identity_uuid=author_identity_uuid,
         message=message,
-        lifecycle="archived",
+        lifecycle="active",
         workspace_id=workspace_id,
     )
 

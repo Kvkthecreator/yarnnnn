@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.21.7] - the same act, at both grains
+
+### Changed
+- `services/folder_organize.py`: `trash_folder` / `restore_group` now call
+  `archive_live_file` / `restore_live_file` — the same acts a single-file
+  delete/restore uses. Each previously carried its own write.
+- `services/authored_substrate.py`: `restore_live_file()` (the peer of
+  `archive_live_file`) + `_head_content_form()` — the ADR-427 head-blob rule,
+  once. Three near-identical private copies deleted (`routes/documents.py`,
+  `services/folder_organize.py`, `services/primitives/folder.py`).
+- **Fixed: a moved folder left a ghost in Trash.** `move_folder` archived the
+  source MARKER, so moving a folder put an empty folder the operator never
+  deleted into Trash — and `Restore` would have brought it back at the OLD
+  path. The marker now tombstones-and-removes, like the files it contained.
+  A move is not a deletion at EITHER grain.
+
+### Expected behavior
+Delete/restore mean one thing whoever calls them and whatever the grain. Trash
+holds only what the operator actually deleted.
+
+### Gate
+- `test_trashed_file_does_not_read_back.py` 21/21 (extended: one act each, no
+  private head-blob copies, a move never archives). Falsified both ways.
+  Round-trip verified live at folder grain: create → DeleteFolder → in Trash →
+  Restore → active; and MoveFolder leaves its source EMPTY, not archived.
+
+---
+
 ## [2026.08.21.6] - one delete, one meaning — and Trash gets a Put Back
 
 ### Changed

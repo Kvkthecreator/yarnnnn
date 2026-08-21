@@ -210,6 +210,40 @@ check("MoveFile still REMOVES its source row (a move is not a deletion)",
 check("Restore exists as a verb (delete without it is `rm` with no Put Back)",
       "Restore" in set(HANDLERS))
 
+# ONE act each, at BOTH grains. The folder fan-out, the single-file route and
+# the Restore primitive each used to carry their own archive/restore write with
+# their own copy of the head-blob form. They AGREED — which is not the same as
+# being singular: the next change to what archiving means would have had to be
+# made three times, and the third is the one that gets forgotten.
+_fo_src = code_only((_API / "services" / "folder_organize.py").read_text())
+_folder_prim_src = code_only((_API / "services" / "primitives" / "folder.py").read_text())
+
+check("the folder fan-out archives through the SAME act (no second write)",
+      "archive_live_file" in _fo_src and 'lifecycle="archived"' not in _fo_src)
+check("the folder fan-out restores through the SAME act",
+      "restore_live_file" in _fo_src and 'lifecycle="active"' not in _fo_src)
+check("the Restore primitive uses the shared act, not its own write",
+      "restore_live_file" in _folder_prim_src
+      and "write_revision" not in _folder_prim_src)
+check("the documents route restores through the shared act",
+      "restore_live_file" in _route_src2)
+
+# The head-blob form (ADR-427 Phase 2) is a property of the LEDGER, so it lives
+# with the ledger — three near-identical private copies are gone.
+_dupes = []
+for rel in ("routes/documents.py", "services/folder_organize.py",
+            "services/primitives/folder.py"):
+    if "def _content_form_for_head(" in code_only((_API / rel).read_text()):
+        _dupes.append(rel)
+check("no module keeps a private copy of the head-blob form",
+      not _dupes, f"{_dupes} — use authored_substrate._head_content_form")
+
+# ⚠️ And the distinction that must NOT collapse: a move is not a deletion.
+check("MoveFolder still REMOVES its source rows (never archives them)",
+      "delete_live_file" in code_only(
+          (_API / "services" / "primitives" / "workspace.py").read_text()),
+      "archiving a move's source would put a moved file in Trash")
+
 print()
 if FAILED:
     print(f"trashed-read gate RED — {PASSED} passed, {len(FAILED)} failed")
