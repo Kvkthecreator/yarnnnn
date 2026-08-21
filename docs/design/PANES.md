@@ -176,7 +176,41 @@ caller already passed `speakerLabel`; the placeholder was simply reaching past i
 true of none. `LanePanel` is the single composer behind Chat, Studio, Text and every
 desk, so one wrong guess there is wrong four times over.
 
-## 8. Standing refusals
+## 8. The canvas has a MEASURE, and the gutter does not grow
+
+A pane's **width** is settled by §4; what is set *inside* it is a separate question. A
+transcript is prose, and prose has a comfortable line length **regardless of how much room
+the window has**. Edge-to-edge, a maximised chat set a line of assistant text at ~1800px —
+roughly three times the measure typography has converged on, and the eye loses its place
+returning to the next line.
+
+`TRANSCRIPT_MEASURE_PX = 820`, centred, shared by the transcript **and the composer** (a
+full-width input under a centred conversation reads as two different documents, and the
+reply lands where the eye was not). Deliberately wider than the document measure
+(`FACE.measure`, 46rem ≈ 736px): a document is serif at a reading size, a transcript is
+sans at UI size with bubbles, a gutter and an avatar rail, so the same character count
+needs more room.
+
+**It is a MAX, not a width — which is the entire small-screen story.** Below 820px the
+column *is* the pane and the layout is byte-identical to before. Measured across the real
+mounts:
+
+| mount | width | column |
+|---|---|---|
+| Text rail · Studio side pane | 320–380 | unchanged |
+| phone chat · chat drawer | 390–400 | unchanged |
+| tablet chat | 768 | unchanged |
+| side pane at its new 50% ceiling (1600px surface) | 800 | unchanged |
+| laptop → maximised chat | 1100–1800 | **capped at 820, centred** |
+
+**The gutter stays a flat `px-3` and does NOT grow at a breakpoint.** `LanePanel` is ONE
+component mounted at four independently-sized widths, so a `sm:px-6` there asks the
+**window** a question only the **container** can answer — it would spend 24px of gutter
+inside a 380px side pane on a large monitor. That is §9's refusal, and it shipped in the
+first cut of this change before being caught. The centred measure supplies the breathing
+room on a wide pane; the flat gutter keeps a narrow one honest.
+
+## 9. Standing refusals
 
 - **No second threshold.** A surface declaring its own "how wide is wide" is the drift
   this contract ends. Chat's hand-rolled 600px was the fourth spelling; it is deleted.
@@ -198,7 +232,7 @@ layout mode it is a `position: fixed` overlay consuming zero flex space. Folding
 surface-slot contract would be a false unity. Recorded here so the exemption is a decision
 rather than an oversight.
 
-## 9. Owed
+## 10. Owed
 
 - **`SettingsPaneShell` still derives NARROW from `useViewport().isMobile`** — the window,
   not its own box. That is the fifth spelling of "how wide is wide" and the one place the

@@ -130,6 +130,39 @@ function dayKey(ts?: string): string {
 }
 
 /** A file this turn wrote or revised — the pointer the lane contract promises. */
+/**
+ * The transcript's reading MEASURE — the column the conversation is set in,
+ * centred, however wide the pane gets.
+ *
+ * ## Small screens need nothing added
+ *
+ * This is a MAX, so it self-degrades: below 820px the column IS the pane and the
+ * layout is byte-identical to before. Which is the whole reason the gutter stays
+ * a flat `px-3` instead of growing at a breakpoint — `LanePanel` is ONE component
+ * mounted in four places whose widths move independently of the viewport (the
+ * chat canvas, a 380px Studio side pane, a Text rail, a desk lane), so a `sm:`
+ * class here asks the WINDOW a question only the container can answer and would
+ * spend 24px of gutter inside a 380px pane on a large monitor. That is the
+ * refusal in PANES.md §8, and I had written exactly that breakpoint before
+ * catching it. The centred measure supplies the breathing room on a wide pane;
+ * the flat gutter keeps a narrow one honest.
+ *
+ * A transcript is prose, and prose has a comfortable line length regardless of
+ * how much room the window has. Without this the conversation ran edge-to-edge:
+ * on a maximised window a line of assistant text crossed ~1800px — roughly three
+ * times the measure typography has converged on — and the eye loses its place
+ * returning to the next line. Every conventional chat client centres a column
+ * for this reason: the pane gets wider, the column does not.
+ *
+ * Set WIDER than the document measure (`FACE.measure`, 46rem ≈ 736px) on
+ * purpose. A document is serif at a reading size; a transcript is sans at UI
+ * size with bubbles, a gutter and an avatar rail, so the same character count
+ * needs more room. It is a MAX, not a width — below it the column is simply the
+ * pane, so nothing changes on a narrow surface, inside the drawer, or in a
+ * bound app's side pane.
+ */
+const TRANSCRIPT_MEASURE_PX = 820;
+
 interface LaneArtifact {
   path: string;
   verb?: string;
@@ -903,7 +936,11 @@ export function LanePanel({
           their load, diagrams rendering) is what the follow rule watches. */}
       <div className="relative flex-1 min-h-0">
         <div ref={containerRef} className="h-full overflow-y-auto px-3 py-3">
-          <div ref={contentRef} className="space-y-3">
+          <div
+            ref={contentRef}
+            className="mx-auto w-full space-y-3"
+            style={{ maxWidth: TRANSCRIPT_MEASURE_PX }}
+          >
         {loading && (
           <div className="text-xs text-muted-foreground py-6 text-center">
             Loading {laneName}…
@@ -1211,9 +1248,13 @@ export function LanePanel({
           it. `env(safe-area-inset-bottom)` is the one honest signal for that
           (a fixed px guess is wrong on every other device). */}
       <div
-        className="border-t border-border p-2 shrink-0"
+        className="border-t border-border px-3 pt-2 shrink-0"
         style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
       >
+        {/* The composer rides the SAME centred column as the transcript. A
+            full-width input under a centred conversation reads as two different
+            documents, and the reply lands somewhere the eye was not. */}
+        <div className="mx-auto w-full" style={{ maxWidth: TRANSCRIPT_MEASURE_PX }}>
         {/* Phase-A edit-and-resend: the banner names the mode; Esc cancels.
             Sending replaces the tail from the edited message (transcript
             only — the ledger keeps what already landed). */}
@@ -1445,6 +1486,7 @@ export function LanePanel({
               <ArrowUp className="w-4 h-4" />
             </button>
           )}
+        </div>
         </div>
       </div>
     </div>

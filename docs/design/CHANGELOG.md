@@ -4,7 +4,27 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-21 (latest) — PANES follow-on: the side ceiling is per-slot, and the composer stopped addressing a file (no ADR — both are amendments to [PANES.md](PANES.md), shipped the same day)
+## 2026-08-21 (latest) — PANES: the transcript gets a measure (no ADR — an amendment to [PANES.md](PANES.md) §8)
+
+Reported from the click-pass: the chat pane full-screen "goes almost to the edges."
+
+**The pane's width was settled; what is set inside it was not.** A transcript is prose, and prose has a comfortable line length **regardless of how much room the window has**. `LanePanel` had no measure at all — `max-w-none` on the prose and `max-w-[85%]` on the bubble, both of which *scale with the container*, so wider pane = longer lines. On a maximised window a line of assistant text crossed ~1800px, about three times the measure typography has converged on.
+
+`TRANSCRIPT_MEASURE_PX = 820`, centred, shared by the transcript **and the composer** — a full-width input under a centred conversation reads as two different documents, and the reply lands where the eye was not. Wider than the document measure (`FACE.measure`, 46rem ≈ 736px) on purpose: a document is serif at a reading size, a transcript is sans at UI size with bubbles, a gutter and an avatar rail.
+
+### Small screens need nothing added, and that is by construction
+
+**It is a MAX, not a width.** Below 820px the column *is* the pane and the layout is byte-identical to before — Text rail (320) · Studio side pane (380) · phone chat (390) · drawer (400) · tablet (768) · a side pane at its new 50% ceiling on a 1600px surface (800) are all unchanged. Only the wide chat canvas (1100→1800) is capped and centred.
+
+**The gutter stays a flat `px-3` and does not grow at a breakpoint** — and the first cut of this change got that wrong. I wrote `px-4 sm:px-6`, which were the only two raw breakpoints in the file and a direct violation of PANES.md's own refusal. `LanePanel` is ONE component mounted at four independently-sized widths (the chat canvas, a 380px Studio side pane, a Text rail, a desk lane), so a `sm:` class there asks the **window** a question only the **container** can answer: it would have spent 24px of gutter inside a 380px side pane on a large monitor. Caught before commit, and now asserted so it cannot return. (Container queries would be the correct tool; the plugin is not installed, and threading the rung through four callers for padding alone is not worth it when a flat gutter is right at every width the component actually gets.)
+
+### Gate
+
+`pane_layout.mjs` 82 → **87** (§9): the measure is declared, is a readable column rather than a viewport, is applied as a **MAX** on a **centred** column at **both** mounts, and the shared composer carries **no viewport breakpoint**. Falsified and restored: `maxWidth` → `width` · a reintroduced `sm:px-6` · the measure widened to 1900.
+
+---
+
+## 2026-08-21 — PANES follow-on: the side ceiling is per-slot, and the composer stopped addressing a file (no ADR — both are amendments to [PANES.md](PANES.md), shipped the same day)
 
 Two unrelated findings from the operator's click-pass of `b58ea08`.
 

@@ -460,6 +460,32 @@ ok('the composer falls back to a GENERIC prompt, not a guessed name',
   /Write a message/.test(placeholderBlock[1]),
   'with no speaker resolved, a generic sentence is true where a name would not be');
 
+// ── 9. THE TRANSCRIPT HAS A MEASURE ───────────────────────────────────────
+// A transcript is prose, and prose has a comfortable line length regardless of
+// how much room the window has. Edge-to-edge, a maximised chat set a line at
+// ~1800px — about 3x the measure typography converged on.
+const MEASURE = /const TRANSCRIPT_MEASURE_PX = (\d+);/.exec(composer);
+ok('the transcript declares a reading measure', !!MEASURE);
+const measurePx = Number(MEASURE[1]);
+ok('the measure is a readable column, not a viewport',
+  measurePx >= 640 && measurePx <= 1000, `${measurePx}px`);
+// A MAX, applied to a CENTRED column — so below it the column is simply the
+// pane and every narrow mount is unchanged. `width:` here would be the defect.
+ok('the measure is applied as a MAX on a centred column',
+  /maxWidth: TRANSCRIPT_MEASURE_PX/.test(composer) &&
+    (composer.match(/maxWidth: TRANSCRIPT_MEASURE_PX/g) || []).length >= 2,
+  'both the transcript and the composer must ride the same column');
+ok('the column is centred', /mx-auto w-full/.test(composer));
+// LanePanel is ONE component mounted at four independently-sized widths (the
+// chat canvas, a 380px Studio side pane, a Text rail, a desk lane), so a
+// viewport breakpoint here asks the WINDOW a question only the container can
+// answer — PANES.md §8's refusal. It shipped in the first cut of this change
+// and was caught before commit; asserted so it cannot come back.
+const paneBp = [...composer.matchAll(/\b(?:max-)?(?:sm|md|lg|xl|2xl):[a-z]/g)].map((m) => m[0]);
+ok('the shared composer carries no viewport breakpoint',
+  paneBp.length === 0,
+  paneBp.length ? `found: ${[...new Set(paneBp)].join(', ')}` : '');
+
 // ── report ────────────────────────────────────────────────────────────────
 if (failures.length) {
   console.error(`\n✗ pane_layout — ${pass} passed, ${failures.length} FAILED\n`);
