@@ -493,6 +493,12 @@ export const api = {
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */
           available?: boolean; unavailable_reason?: string | null }>;
+        /** id → label for EVERY engine, retired included — the NAMING table.
+         *  `models` above is the CHOOSER (offered rows only), so a lane pinned
+         *  to a retired engine has no row there and used to render its RAW ID.
+         *  Two audiences, two fields (ADR-559 D2). Optional: an older envelope
+         *  must degrade to the previous behaviour, not crash. */
+        model_names?: Record<string, string>;
         /** ADR-450 D5 — the Learn-from chooser payload (kernel recipes). */
         recipes: Array<{ slug: string; label: string; description: string; accepts: string[] }>;
         lanes: Array<{

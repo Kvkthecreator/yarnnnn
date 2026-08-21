@@ -380,6 +380,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // ── Lane environment (models + existing lanes) ─────────────────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
   const [models, setModels] = useState<Array<{ id: string; label: string }>>([]);
+  // The NAMING table (every engine, retired included). `models` is the CHOOSER
+  // and drops retired rows, so a bound lane pinned to one would name itself by
+  // its RAW ID (ADR-559 D2 — one dict, two audiences).
+  const [modelNames, setModelNames] = useState<Record<string, string>>({});
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   /** ADR-562 D6 — the served app registry (slug → its name for its resident). */
   const [apps, setApps] = useState<Array<{ slug: string; resident: string; name: string }>>([]);
@@ -392,6 +396,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       const res = await api.lanes.list(true);
       setLanesEnabled(res.enabled);
       setModels(res.models);
+      setModelNames(res.model_names ?? {});
       // ADR-562 D5 — keep the roster. Dropping it here is what made the panel
       // say "Claude Sonnet is working…" in a lane whose resident is Designer.
       setAgents((res.agents ?? []) as AgentInfo[]);
@@ -811,8 +816,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 
   const template = useMemo(() => extractTemplate(file?.content ?? ''), [file]);
   const modelLabel = useMemo(
-    () => models.find((m) => m.id === boundLane?.model)?.label ?? boundLane?.model ?? '',
-    [models, boundLane],
+    () =>
+      (boundLane?.model ? modelNames[boundLane.model] : undefined) ??
+      models.find((m) => m.id === boundLane?.model)?.label ??
+      boundLane?.model ??
+      '',
+    [models, modelNames, boundLane],
   );
 
   // ADR-562 D5 — WHO this lane is, for the member to read. The resident's name

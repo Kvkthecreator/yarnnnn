@@ -333,7 +333,11 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
     definition — the FE must never see two payload shapes for one endpoint)."""
     from services.agents_registry import find_member_agents, list_agents
     from services.derive_recipes import list_recipes
-    from services.lane_runner import lane_model_availability, offered_lane_models
+    from services.lane_runner import (
+        LANE_MODELS,
+        lane_model_availability,
+        offered_lane_models,
+    )
 
     return {
         "enabled": enabled,
@@ -359,6 +363,23 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
             }
             for mid, meta in offered_lane_models().items()
         ],
+        # ⭐ THE SECOND AUDIENCE — the NAMING table (2026-08-21).
+        #
+        # `models` above is the CHOOSER, and it is correctly the OFFERED roster.
+        # But the FE also used it to NAME an engine (`modelLabel`, the lane
+        # header, the filter facet), and those are different questions: a lane's
+        # engine is persisted at creation and is a HISTORICAL FACT (ADR-460 D4),
+        # so a lane pinned to a RETIRED engine had no row here and fell through
+        # to rendering its RAW ID — `anthropic/claude-sonnet-4-6` as a filter
+        # chip, provider prefix and all. Not hypothetical: at the ADR-559
+        # refresh every live lane was pinned to that engine.
+        #
+        # `model_names` is the FULL `LANE_MODELS`, id → label, for naming only.
+        # This is the same "one dict, two audiences" split `offered_lane_models`
+        # already makes (ADR-559 D2) — it was just never carried to the
+        # envelope. Deliberately NOT merged into `models`: putting retired rows
+        # there would leak them back into the chooser, which D2 forbids.
+        "model_names": {mid: meta["label"] for mid, meta in LANE_MODELS.items()},
         # `agents` STAYS, but as the CAST's roster, not the creation chooser:
         # who a member may ADD to a conversation (ADR-495 — a colleague is
         # joined, never chosen at the door). Personas are configured in

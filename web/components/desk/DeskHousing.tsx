@@ -130,6 +130,10 @@ export function DeskHousing({
   const [agents, setAgents] = useState<LanesEnv['agents']>([]);
   const [apps, setApps] = useState<NonNullable<LanesEnv['apps']>>([]);
   const [models, setModels] = useState<LanesEnv['models']>([]);
+  // The NAMING table (every engine, retired included). `models` is the CHOOSER
+  // and drops retired rows, so a bound lane pinned to one would name itself by
+  // its RAW ID (ADR-559 D2 — one dict, two audiences).
+  const [modelNames, setModelNames] = useState<Record<string, string>>({});
 
   const refreshLanes = useCallback(async () => {
     try {
@@ -139,6 +143,7 @@ export function DeskHousing({
       setAgents(res.agents ?? []);
       setApps(res.apps ?? []);
       setModels(res.models ?? []);
+      setModelNames(res.model_names ?? {});
     } catch {
       setLanesEnabled(false);
     }
@@ -178,8 +183,12 @@ export function DeskHousing({
 
   const modelLabel = useMemo(() => {
     if (!boundLane) return '';
-    return models.find((m) => m.id === boundLane.model)?.label ?? boundLane.model;
-  }, [boundLane, models]);
+    return (
+      modelNames[boundLane.model] ??
+      models.find((m) => m.id === boundLane.model)?.label ??
+      boundLane.model
+    );
+  }, [boundLane, models, modelNames]);
 
   // ADR-562 D5 — WHO the member reads: the app's name for its resident
   // (served from the app's own registration), else the colleague's own name,

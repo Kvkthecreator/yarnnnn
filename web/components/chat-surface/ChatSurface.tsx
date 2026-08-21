@@ -94,13 +94,17 @@ interface LaneData {
     /** kernel = a built-in capability; false = one the member hired + named. */
     kernel?: boolean;
   }>;
-  /** Still served: every model stays routable (Studio/derive bind one
-   *  directly, and the lane filter facet reads it). The registry changes what
-   *  the CHOOSER asks, not what the system can run. */
+  /** The CHOOSER — the OFFERED roster only (retired engines leave the door,
+   *  ADR-559 D2). ⚠️ This comment used to claim "every model stays routable"
+   *  is served here; it is not, and reading it that way is what let a lane on a
+   *  retired engine render its raw id. For NAMING an engine use `model_names`. */
   models: Array<{ id: string; label: string; vision?: boolean;
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */
           available?: boolean; unavailable_reason?: string | null }>;
+  /** id → label for EVERY engine, retired included. The NAMING table (see
+   *  `modelLabel`). Optional so an older envelope degrades, never crashes. */
+  model_names?: Record<string, string>;
   /** ADR-450 D5 — kernel recipes (the Learn-from chooser payload). */
   recipes?: Array<{ slug: string; label: string; description: string }>;
   lanes: LaneInfo[];
@@ -209,8 +213,18 @@ export function ChatSurface() {
     };
   }, []);
 
+  // NAMING, not choosing. `model_names` covers EVERY engine including retired
+  // ones; `models` is the chooser and carries only the offered roster. A lane's
+  // engine is persisted at creation and is a historical fact (ADR-460 D4), so a
+  // lane on a retired engine has no `models` row — before 2026-08-21 it fell
+  // through to the RAW ID and rendered `anthropic/claude-sonnet-4-6` as a filter
+  // chip. `models` stays in the chain so an older envelope still names offered
+  // engines; the raw id remains the last resort for a genuinely unknown one.
   const modelLabel = useCallback(
-    (modelId: string) => data?.models.find((m) => m.id === modelId)?.label ?? modelId,
+    (modelId: string) =>
+      data?.model_names?.[modelId] ??
+      data?.models.find((m) => m.id === modelId)?.label ??
+      modelId,
     [data],
   );
 
