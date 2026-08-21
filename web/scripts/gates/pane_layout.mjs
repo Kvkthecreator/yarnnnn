@@ -464,18 +464,48 @@ ok('the composer falls back to a GENERIC prompt, not a guessed name',
 // A transcript is prose, and prose has a comfortable line length regardless of
 // how much room the window has. Edge-to-edge, a maximised chat set a line at
 // ~1800px — about 3x the measure typography converged on.
-const MEASURE = /const TRANSCRIPT_MEASURE_PX = (\d+);/.exec(composer);
-ok('the transcript declares a reading measure', !!MEASURE);
+// The column has ONE home, and it is not inside the composer: three siblings in
+// two files compose it (the header strip, the transcript, the composer). It
+// began private to `LanePanel`, which is exactly why the header spanned the full
+// pane while the conversation under it was centred — the strip could not see the
+// number.
+const columnMod = read('web/components/chat-surface/conversationColumn.ts');
+const MEASURE = /export const CONVERSATION_COLUMN_PX = (\d+);/.exec(columnMod);
+ok('the conversation column has one declared home', !!MEASURE);
 const measurePx = Number(MEASURE[1]);
 ok('the measure is a readable column, not a viewport',
   measurePx >= 640 && measurePx <= 1000, `${measurePx}px`);
+ok('the composer declares no column of its own',
+  !/const CONVERSATION_COLUMN_PX|const TRANSCRIPT_MEASURE_PX/.test(composer),
+  'a private copy is how the header and the transcript came to disagree');
 // A MAX, applied to a CENTRED column — so below it the column is simply the
 // pane and every narrow mount is unchanged. `width:` here would be the defect.
 ok('the measure is applied as a MAX on a centred column',
-  /maxWidth: TRANSCRIPT_MEASURE_PX/.test(composer) &&
-    (composer.match(/maxWidth: TRANSCRIPT_MEASURE_PX/g) || []).length >= 2,
+  /maxWidth: CONVERSATION_COLUMN_PX/.test(composer) &&
+    (composer.match(/maxWidth: CONVERSATION_COLUMN_PX/g) || []).length >= 2,
   'both the transcript and the composer must ride the same column');
 ok('the column is centred', /mx-auto w-full/.test(composer));
+// The strip is the third sibling. Its RULE spans the pane (a hairline stopping
+// short reads as a broken border) but its CONTENTS ride the column.
+const header = read('web/components/chat-surface/ConversationHeader.tsx');
+ok('the header strip rides the conversation column',
+  /maxWidth: CONVERSATION_COLUMN_PX/.test(header) && /mx-auto flex w-full/.test(header),
+  'full-width contents over a centred transcript put the room name away from its messages');
+ok("the header's rule still spans the pane",
+  /border-b border-border shrink-0/.test(header),
+  'a hairline that stops short of the pane edge reads as a broken border');
+// The composer FLOATS: a card, not a bar welded to the pane's bottom edge. The
+// full-width top rule is what made it read as a separate region.
+const composerStripped = composer
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+ok('the composer is a floating card, not a bottom bar',
+  /rounded-2xl border border-border bg-background/.test(composerStripped) &&
+    !/border-t border-border px-3/.test(composerStripped),
+  'a full-width top rule draws a hard line across the surface');
+ok('the composer input has no box of its own',
+  !/rounded-md border border-input/.test(composerStripped),
+  'two nested boxes read as a form control dropped into the surface');
 // LanePanel is ONE component mounted at four independently-sized widths (the
 // chat canvas, a 380px Studio side pane, a Text rail, a desk lane), so a
 // viewport breakpoint here asks the WINDOW a question only the container can

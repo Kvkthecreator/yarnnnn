@@ -238,7 +238,33 @@ width claims 784px inside a 500px pane and squeezes the flanking acts before it 
 origin as the pane narrows, so the document visibly jumps. Docs scrolls for the same
 reason. The scrollbar is hidden — chrome on chrome, on a row one line tall.
 
-## 10. Standing refusals
+## 10. Chat composes one column, and its composer floats
+
+§9 states the rule for an authoring app; chat is the same rule with three
+participants instead of two. The header strip, the transcript and the composer all
+compose `CONVERSATION_COLUMN_PX` (820).
+
+**The column has ONE home** — `components/chat-surface/conversationColumn.ts` — and
+that is the point. It began as a private constant inside `LanePanel`, which is
+*exactly* why the header kept spanning the full pane while the conversation beneath it
+was centred: the strip could not see the number. Three siblings across two files
+compose it, so it belongs to neither.
+
+**A strip's RULE spans the pane; its CONTENTS ride the column.** The `border-b`
+hairline goes edge to edge — a rule stopping short reads as a broken border, not as a
+design — while the room's name and its acts sit over the messages they belong to.
+
+**The composer floats.** It was a full-width bar with a `border-t`, which drew a hard
+line across the surface and made the input read as a separate region: the shape a form
+has, not the shape a conversation has. It is now a rounded card on the same column, and
+the textarea loses its own border — **two nested boxes** read as a form control dropped
+into a surface rather than as the surface's own input.
+
+> The card is a flex **sibling** of the transcript, not an overlay. It reduces the
+> scroll area rather than covering it, so the last message is never hidden underneath
+> and no bottom-padding compensation is needed.
+
+## 11. Standing refusals
 
 - **No second threshold.** A surface declaring its own "how wide is wide" is the drift
   this contract ends. Chat's hand-rolled 600px was the fourth spelling; it is deleted.
@@ -260,7 +286,7 @@ layout mode it is a `position: fixed` overlay consuming zero flex space. Folding
 surface-slot contract would be a false unity. Recorded here so the exemption is a decision
 rather than an oversight.
 
-## 11. Owed
+## 12. Owed
 
 - **`SettingsPaneShell` still derives NARROW from `useViewport().isMobile`** — the window,
   not its own box. That is the fifth spelling of "how wide is wide" and the one place the

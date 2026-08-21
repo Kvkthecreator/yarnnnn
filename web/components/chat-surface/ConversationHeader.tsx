@@ -48,6 +48,7 @@ import { AgentFace } from '@/components/agents/AgentFace';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { cn } from '@/lib/utils';
+import { CONVERSATION_COLUMN_PX } from '@/components/chat-surface/conversationColumn';
 
 export interface HeaderFace {
   /** Display name — also the initial fallback when there is no picture. */
@@ -146,7 +147,16 @@ export function ConversationHeader({
   );
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+    /* The strip spans the pane — its rule IS the pane's edge, and a hairline
+       stopping short would read as a broken border — but its CONTENTS ride the
+       same column as the conversation beneath. Full-width contents over a
+       centred transcript put the room's name and its acts nowhere near the
+       messages they belong to (PANES.md §9, one surface over). */
+    <div className="border-b border-border shrink-0">
+    <div
+      className="mx-auto flex w-full items-center gap-2 px-3 py-2"
+      style={{ maxWidth: CONVERSATION_COLUMN_PX }}
+    >
       {/* The pane's own leading control (the rail door). A control for a panel
           belongs on that panel's side, not in the middle of the row — the same
           placement rule the Studio toolbar follows. It sits OUTSIDE the identity
@@ -214,6 +224,7 @@ export function ConversationHeader({
           <MoreHorizontal className="w-4 h-4" />
         </button>
       </div>
+    </div>
     </div>
   );
 }

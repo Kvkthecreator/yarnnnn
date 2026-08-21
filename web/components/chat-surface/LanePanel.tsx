@@ -74,6 +74,7 @@ import { api } from '@/lib/api/client';
 import { useCurrentFocus, focusToWire } from '@/lib/shell/useSurfaceFocus';
 import { formatDaySeparator, formatAbsolute } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
+import { CONVERSATION_COLUMN_PX } from '@/components/chat-surface/conversationColumn';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { MentionMenu, type MentionCandidate } from './MentionMenu';
@@ -130,39 +131,6 @@ function dayKey(ts?: string): string {
 }
 
 /** A file this turn wrote or revised — the pointer the lane contract promises. */
-/**
- * The transcript's reading MEASURE — the column the conversation is set in,
- * centred, however wide the pane gets.
- *
- * ## Small screens need nothing added
- *
- * This is a MAX, so it self-degrades: below 820px the column IS the pane and the
- * layout is byte-identical to before. Which is the whole reason the gutter stays
- * a flat `px-3` instead of growing at a breakpoint — `LanePanel` is ONE component
- * mounted in four places whose widths move independently of the viewport (the
- * chat canvas, a 380px Studio side pane, a Text rail, a desk lane), so a `sm:`
- * class here asks the WINDOW a question only the container can answer and would
- * spend 24px of gutter inside a 380px pane on a large monitor. That is the
- * refusal in PANES.md §8, and I had written exactly that breakpoint before
- * catching it. The centred measure supplies the breathing room on a wide pane;
- * the flat gutter keeps a narrow one honest.
- *
- * A transcript is prose, and prose has a comfortable line length regardless of
- * how much room the window has. Without this the conversation ran edge-to-edge:
- * on a maximised window a line of assistant text crossed ~1800px — roughly three
- * times the measure typography has converged on — and the eye loses its place
- * returning to the next line. Every conventional chat client centres a column
- * for this reason: the pane gets wider, the column does not.
- *
- * Set WIDER than the document measure (`FACE.measure`, 46rem ≈ 736px) on
- * purpose. A document is serif at a reading size; a transcript is sans at UI
- * size with bubbles, a gutter and an avatar rail, so the same character count
- * needs more room. It is a MAX, not a width — below it the column is simply the
- * pane, so nothing changes on a narrow surface, inside the drawer, or in a
- * bound app's side pane.
- */
-const TRANSCRIPT_MEASURE_PX = 820;
-
 interface LaneArtifact {
   path: string;
   verb?: string;
@@ -939,7 +907,7 @@ export function LanePanel({
           <div
             ref={contentRef}
             className="mx-auto w-full space-y-3"
-            style={{ maxWidth: TRANSCRIPT_MEASURE_PX }}
+            style={{ maxWidth: CONVERSATION_COLUMN_PX }}
           >
         {loading && (
           <div className="text-xs text-muted-foreground py-6 text-center">
@@ -1243,18 +1211,36 @@ export function LanePanel({
         {!pinned && <JumpToLatest onClick={() => scrollToBottom('smooth')} />}
       </div>
 
-      {/* The composer sits on the bottom edge, so on a phone it must clear the
-          home indicator / gesture bar — otherwise the send button sits under
-          it. `env(safe-area-inset-bottom)` is the one honest signal for that
-          (a fixed px guess is wrong on every other device). */}
+      {/* The composer FLOATS: a card sitting over the transcript rather than a
+          bar welded to the pane's bottom edge.
+
+          The full-width rule it used to carry drew a hard line across the
+          surface and made the input read as a separate region — the shape a
+          form has, not the shape a conversation has. Lifting it into a card
+          says the same thing the transcript says: this is one column of work,
+          and the thing you type into belongs to it. It is also what every
+          current chat client converged on, for the same reason.
+
+          The card is a flex SIBLING of the transcript, not an overlay — it
+          reduces the scroll area rather than covering it, so the last message
+          is never hidden underneath and no bottom-padding compensation is
+          needed. `bg-background` is still explicit so the card reads as a
+          raised surface against the pane rather than as a hole in it.
+
+          On a phone it must clear the home indicator / gesture bar, or the send
+          button sits under it. `env(safe-area-inset-bottom)` is the one honest
+          signal for that — a fixed px guess is wrong on every other device. */}
       <div
-        className="border-t border-border px-3 pt-2 shrink-0"
-        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+        className="shrink-0 px-3 pt-1"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
         {/* The composer rides the SAME centred column as the transcript. A
             full-width input under a centred conversation reads as two different
             documents, and the reply lands somewhere the eye was not. */}
-        <div className="mx-auto w-full" style={{ maxWidth: TRANSCRIPT_MEASURE_PX }}>
+        <div
+          className="mx-auto w-full rounded-2xl border border-border bg-background px-2 py-1.5 shadow-sm transition-shadow focus-within:shadow-md"
+          style={{ maxWidth: CONVERSATION_COLUMN_PX }}
+        >
         {/* Phase-A edit-and-resend: the banner names the mode; Esc cancels.
             Sending replaces the tail from the edited message (transcript
             only — the ledger keeps what already landed). */}
@@ -1465,7 +1451,10 @@ export function LanePanel({
             }
             rows={1}
             style={{ maxHeight: COMPOSER_MAX_PX }}
-            className="flex-1 resize-none overflow-y-auto rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[38px]"
+            // No border, no ring, no ground of its own: the CARD is the box.
+            // Two nested boxes is what made the old bar read as a form control
+            // dropped into a surface rather than as the surface's own input.
+            className="min-h-[36px] flex-1 resize-none overflow-y-auto bg-transparent px-2 py-1.5 text-sm focus:outline-none"
           />
           {sending ? (
             <button

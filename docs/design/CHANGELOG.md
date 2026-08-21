@@ -4,7 +4,39 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-21 (latest) — TEXT: the chrome centres on the page, and the Insert row is sized like a toolbar (no ADR — [PANES.md](PANES.md) §9)
+## 2026-08-21 (latest) — CHAT: the composer floats, and the header strip joins the column (no ADR — [PANES.md](PANES.md) §10)
+
+Two asks from the click-pass: make the composer look floating (reference: Claude's own), and bring the chat-specific strip's width in line with the messages.
+
+### The header could not see the column, and that was the bug
+
+The measure shipped two commits ago as a **private constant inside `LanePanel`** — which is precisely why the header strip kept spanning the full pane while the conversation beneath it was centred. `ConversationHeader` is a **sibling in another file**; it had no way to read the number. Three parts compose this column across two files, so it now has one home: `components/chat-surface/conversationColumn.ts`.
+
+That is the same drift class as `WORKBENCH_*_PX` at the start of this arc — a shared value living inside one consumer — and it produced a visible misalignment within two commits of being introduced. The gate now refuses a private copy.
+
+**A strip's RULE spans the pane; its CONTENTS ride the column.** The `border-b` hairline stays edge-to-edge (a rule stopping short reads as a broken border, not as a design) while the room's name, the member count and the acts sit over the messages they belong to.
+
+### The composer floats
+
+It was a full-width bar with a `border-t` — a hard line across the surface that made the input read as a **separate region**: the shape a form has, not the shape a conversation has. It is now a rounded card (`rounded-2xl`, `shadow-sm` → `shadow-md` on focus-within) on the same column, and **the textarea loses its own border**: two nested boxes read as a form control dropped into a surface rather than as the surface's own input.
+
+The card is a flex **sibling** of the transcript, not an overlay — it reduces the scroll area rather than covering it, so the last message is never hidden and no bottom-padding compensation is needed. (I had written the opposite in a comment — "the card overlaps the transcript, `bg-background` is load-bearing" — and corrected it after checking the flex column rather than leaving a plausible-sounding false rationale in the file.)
+
+Bottom padding goes `0.5rem` → `0.75rem` so the card sits *off* the edge rather than against it, still `max()`-guarded against `env(safe-area-inset-bottom)`.
+
+### Small screens
+
+Unchanged, by the same construction as §8: the column is a MAX, so at 380 (Studio side pane) · 390 (phone) · 400 (drawer) · 768 (tablet) all three rows simply fill the pane. Only 1100+ centres.
+
+### Gate
+
+`pane_layout.mjs` 93 → **98**: the column has one declared home · the composer declares no private copy · the header rides the column · the header's rule still spans the pane · the composer is a card and not a bottom bar · the input has no box of its own.
+
+Falsified and restored: the header's `mx-auto` removed · the composer back to a `border-t` bar · a private `CONVERSATION_COLUMN_PX` reintroduced in `LanePanel` · the textarea's `border-input` box returned. Each mutation targeted a **unique, code-only** anchor after the previous commit's falsifier silently matched a comment.
+
+---
+
+## 2026-08-21 — TEXT: the chrome centres on the page, and the Insert row is sized like a toolbar (no ADR — [PANES.md](PANES.md) §9)
 
 Requested from the click-pass: centre Text's file name and Insert row, "regardless of right pane show hide", plus sizing polish against the Google Docs reference.
 
