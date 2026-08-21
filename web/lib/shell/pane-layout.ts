@@ -170,20 +170,31 @@ export function usePaneLadder(): [(node: HTMLElement | null) => void, PaneLadder
 // Slot width — one band, one store, one drag
 // ----------------------------------------------------------------------------
 
-/** The band every resizable slot lives in.
+/** The floor every resizable slot shares.
  *
- *  MIN is the width below which a slot is a sliver that cannot show its own
- *  content — hiding it is the honest gesture, and that is what the toggle is
- *  for. MAX is a backstop; the real ceiling is the container clamp below, which
- *  is what actually protects the canvas. */
+ *  Below this a slot is a sliver that cannot show its own content — hiding it
+ *  is the honest gesture, and that is what the toggle is for. */
 export const PANE_MIN_PX = 180;
-export const PANE_MAX_PX = 560;
 
-/** A slot may never take more than this share of the container, whatever the
- *  member persisted. This — not MAX — is the rule that keeps the canvas
- *  legible: a 520px rail chosen on a 27" monitor must not carry into an 800px
- *  window and re-create the crush through member state. */
-export const PANE_MAX_SHARE = 1 / 3;
+/** The ceiling, PER SLOT — an absolute px backstop and a share of the measured
+ *  container, whichever binds first.
+ *
+ *  **The two slots are not the same kind of thing, so one number was wrong for
+ *  both.** A `rail` is an INDEX: a list of names and timestamps. Past ~a third
+ *  of the surface it is showing the same rows with more whitespace while the
+ *  canvas pays for it, so a third is a real ceiling and not a guess.
+ *
+ *  A `side` pane is a WORKING SURFACE — Properties, and a conversation the
+ *  member is reading and typing into. There the canvas and the pane are closer
+ *  to peers, and the member is entitled to say so: **half**. The old shared
+ *  third capped a 1600px workbench's side pane at 533px, which read as the drag
+ *  "hitting something" well before anywhere reasonable.
+ *
+ *  Note both halves have to move together. `PANE_MAX_PX` was 560 for every
+ *  slot, so it — not the share — was what actually bound on any monitor wider
+ *  than ~1680px: raising the share alone would have changed nothing. */
+export const PANE_MAX_PX: Record<PaneSlot, number> = { rail: 560, side: 900 };
+export const PANE_MAX_SHARE: Record<PaneSlot, number> = { rail: 1 / 3, side: 1 / 2 };
 
 /** Resting widths, per slot. A rail lists subjects (names, timestamps); a side
  *  pane holds controls and a conversation, and wants a little more. */
@@ -201,14 +212,19 @@ function paneKey(prefix: string, surface: string, slot: PaneSlot, userId: string
   return `${prefix}${surface}:${slot}:${shellStateSuffix(userId)}`;
 }
 
-/** Clamp a width to the band AND to the container's share ceiling. The single
- *  clamp — callers never re-spell it. */
-export function clampPaneWidth(width: number, measuredWidth: number | null): number {
+/** Clamp a width to the slot's band AND to its share of the container. The
+ *  single clamp — callers never re-spell it. */
+export function clampPaneWidth(
+  width: number,
+  measuredWidth: number | null,
+  slot: PaneSlot = 'rail',
+): number {
+  const maxPx = PANE_MAX_PX[slot];
   const ceiling = measuredWidth == null
-    ? PANE_MAX_PX
-    : Math.min(PANE_MAX_PX, Math.floor(measuredWidth * PANE_MAX_SHARE));
-  // A container narrower than 3×MIN cannot honour MIN and the share ceiling at
-  // once. MIN wins: a slot at its floor is usable, a slot below it is a sliver.
+    ? maxPx
+    : Math.min(maxPx, Math.floor(measuredWidth * PANE_MAX_SHARE[slot]));
+  // A container too narrow to honour both MIN and the share ceiling: MIN wins.
+  // A slot at its floor is usable; a slot below it is a sliver.
   return Math.max(PANE_MIN_PX, Math.min(Math.max(ceiling, PANE_MIN_PX), Math.round(width)));
 }
 
@@ -316,7 +332,7 @@ export function usePaneSlot(
 
       const onMove = (ev: PointerEvent) => {
         const delta = edge === 'start' ? ev.clientX - startX : startX - ev.clientX;
-        setWidth(clampPaneWidth(startW + delta, ladder.measuredWidth));
+        setWidth(clampPaneWidth(startW + delta, ladder.measuredWidth, slot));
       };
       const onUp = () => {
         el.releasePointerCapture?.(e.pointerId);
@@ -352,7 +368,7 @@ export function usePaneSlot(
     // Clamp on every render, not only on drag: the container can change width
     // under a persisted value (window resize, drawer open) and the stored number
     // must never win over the room actually available.
-    width: clampPaneWidth(width, ladder.measuredWidth),
+    width: clampPaneWidth(width, ladder.measuredWidth, slot),
     startResize,
     resizing,
   };

@@ -333,26 +333,62 @@ const constNum = (k) => {
   // eslint-disable-next-line no-new-func
   return Number(new Function(`return (${m[1]});`)());
 };
+/** Read a `Record<PaneSlot, number>` constant out of the source. The ceilings
+ *  are PER SLOT — a rail is an index and a side pane is a working surface, so
+ *  one number was wrong for both — and this gate must read whatever shape the
+ *  source actually declares, never a copy. */
+const constRecord = (k) => {
+  const m = new RegExp(`export const ${k}: Record<PaneSlot, number> = (\\{[^}]*\\});`).exec(paneLayout);
+  if (!m) throw new Error(`gate cannot read ${k}`);
+  // eslint-disable-next-line no-new-func
+  return new Function(`return (${m[1]});`)();
+};
 const MIN = constNum('PANE_MIN_PX');
-const MAXW = constNum('PANE_MAX_PX');
-const SHARE = constNum('PANE_MAX_SHARE');
-ok('a slot may never take more than a third of its container', SHARE <= 1 / 3,
-  `PANE_MAX_SHARE=${SHARE}; above a third the canvas stops being the subject`);
-ok('the band is ordered and usable', MIN >= 120 && MIN < MAXW, `${MIN}/${MAXW}`);
+const MAXW = constRecord('PANE_MAX_PX');
+const SHARE = constRecord('PANE_MAX_SHARE');
+
+// The canvas is the SUBJECT: no slot may take more than half, and a rail —
+// an index of names, not a working surface — is held to a third.
+ok('a side pane may never take more than half its container', SHARE.side <= 1 / 2,
+  `PANE_MAX_SHARE.side=${SHARE.side}; past half the canvas stops being the subject`);
+ok('a rail may never take more than a third', SHARE.rail <= 1 / 3,
+  `PANE_MAX_SHARE.rail=${SHARE.rail}; a rail is an index, not a working surface`);
+ok('a side pane is allowed at least as much room as a rail',
+  SHARE.side >= SHARE.rail && MAXW.side >= MAXW.rail);
+for (const slot of ['rail', 'side']) {
+  ok(`${slot}: the band is ordered and usable`, MIN >= 120 && MIN < MAXW[slot],
+    `${MIN}/${MAXW[slot]}`);
+}
 
 const clamp = new Function(
   'PANE_MIN_PX', 'PANE_MAX_PX', 'PANE_MAX_SHARE',
-  `${clampSrc[0].replace(/export /, '').replace(/: number \| null|: number/g, '')}
+  `${clampSrc[0].replace(/export /, '').replace(/: number \| null|: PaneSlot = 'rail'|: number/g, '')}
    return clampPaneWidth;`,
 )(MIN, MAXW, SHARE);
-ok('a slot wider than its share is cut down to the container',
-  clamp(MAXW, 800) === Math.floor(800 * SHARE), `got ${clamp(MAXW, 800)}`);
-ok('the same width is honoured where it fits',
-  clamp(MAXW, 4000) === MAXW, `got ${clamp(MAXW, 4000)}`);
-ok('the floor wins over the share ceiling in a very narrow container',
-  clamp(MIN + 20, 400) === MIN, `got ${clamp(MIN + 20, 400)}`);
-ok('an unmeasured container falls back to the band, never to Infinity',
-  clamp(9999, null) === MAXW, `got ${clamp(9999, null)}`);
+for (const slot of ['rail', 'side']) {
+  ok(`${slot}: a slot wider than its share is cut down to the container`,
+    clamp(MAXW[slot], 800, slot) === Math.floor(800 * SHARE[slot]),
+    `got ${clamp(MAXW[slot], 800, slot)}`);
+  ok(`${slot}: the same width is honoured where it fits`,
+    clamp(MAXW[slot], 4000, slot) === MAXW[slot], `got ${clamp(MAXW[slot], 4000, slot)}`);
+  // The floor wins only where the share ceiling actually falls BELOW it — which
+  // depends on the slot's own share, so the container has to be chosen per slot
+  // rather than pinned at one width. (Pinned at 400px this asserted the wrong
+  // thing for `side`: half of 400 is 200, which is above the floor, so 200 was
+  // the correct answer and the gate was red against correct code.)
+  const tooNarrow = Math.floor((MIN - 1) / SHARE[slot]);
+  ok(`${slot}: the floor wins where the share ceiling falls below it`,
+    clamp(MIN + 20, tooNarrow, slot) === MIN,
+    `at ${tooNarrow}px the ${slot} share is ${Math.floor(tooNarrow * SHARE[slot])}, under the ${MIN} floor; got ${clamp(MIN + 20, tooNarrow, slot)}`);
+  ok(`${slot}: an unmeasured container falls back to the band, never to Infinity`,
+    clamp(9999, null, slot) === MAXW[slot], `got ${clamp(9999, null, slot)}`);
+}
+// The reported symptom: on a 1600px workbench the side pane stopped at 533px
+// (the shared third) and the drag read as "hitting something". Asserted as the
+// BEHAVIOUR the member sees, at a real width, so a future re-tightening of
+// either half of the ceiling shows up here as the regression it would be.
+ok('a 1600px workbench lets its side pane reach 800px',
+  clamp(9999, 1600, 'side') === 800, `got ${clamp(9999, 1600, 'side')}`);
 
 // 7f. A HIDDEN SLOT HAS A DOOR. The rule the old code broke in both directions:
 // Studio/Text gated their door on `sideIsOverlay` (so the COLUMN rung — ordinary
@@ -401,6 +437,28 @@ for (const [f] of DOORS) {
     !/\{sideIsOverlay && \(\s*<button/.test(src),
     'the overlay rung already dismisses itself; the COLUMN rung is the one that needs a door');
 }
+
+// ── 8. THE COMPOSER NAMES A SPEAKER, NEVER A SUBJECT ──────────────────────
+// `laneName` is the lane's SUBJECT, and on every bound app that subject is a
+// FILE — so the composer read "Message Learn: embed-application-2026-08-10.md…",
+// addressing a document as if it could reply. `speakerLabel` (ADR-562 D5) is the
+// prop that answers "who is working, for the member to read", and every caller
+// already passes it. The fallback is GENERIC: a sentence true of every surface
+// beats a name true of none.
+const composer = read('web/components/chat-surface/LanePanel.tsx')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+const placeholderBlock = /placeholder=\{([\s\S]*?)\n\s*\}/.exec(composer);
+ok('the composer composes a placeholder', !!placeholderBlock);
+ok('the composer never addresses the lane SUBJECT',
+  !/\$\{laneName\}/.test(placeholderBlock[1]),
+  'a lane is named for its subject — on a bound app that is a FILE, not a speaker');
+ok('the composer names the SPEAKER',
+  /\$\{speakerLabel\}/.test(placeholderBlock[1]),
+  'speakerLabel resolves to the app resident, the colleague, or the engine');
+ok('the composer falls back to a GENERIC prompt, not a guessed name',
+  /Write a message/.test(placeholderBlock[1]),
+  'with no speaker resolved, a generic sentence is true where a name would not be');
 
 // ── report ────────────────────────────────────────────────────────────────
 if (failures.length) {

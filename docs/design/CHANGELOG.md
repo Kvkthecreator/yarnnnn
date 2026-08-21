@@ -4,7 +4,41 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-21 (latest) — PANES: one housing contract, and the toggle that was inverted (no ADR — see "why no ADR" below)
+## 2026-08-21 (latest) — PANES follow-on: the side ceiling is per-slot, and the composer stopped addressing a file (no ADR — both are amendments to [PANES.md](PANES.md), shipped the same day)
+
+Two unrelated findings from the operator's click-pass of `b58ea08`.
+
+### 1. The side pane could not reach half — and raising the share alone would not have fixed it
+
+`PANE_MAX_SHARE` was **one number for both slots** (a third), so a side pane on a 1600px workbench stopped at 533px and the drag read as *"hitting something"*.
+
+**The two slots are not the same kind of thing.** A `rail` is an **index** — names and timestamps; past about a third it is the same rows with more whitespace while the canvas pays. A `side` pane is a **working surface** — Properties, and a conversation the member reads and types into — where canvas and pane are closer to peers. Now `rail: 1/3` · `side: 1/2`.
+
+**Both halves of the ceiling had to move.** `PANE_MAX_PX` was 560 for every slot, so on any monitor wider than ~1680px the **px backstop, not the share, was what actually bound** — raising the share alone would have changed nothing visible. Now `rail: 560` · `side: 900`, and the gate asserts the member-visible behaviour at the reported width (a 1600px workbench reaches 800px) rather than only the constants.
+
+`clampPaneWidth(width, measured, slot)` takes the slot; both call sites in `usePaneSlot` pass it.
+
+### 2. The composer addressed a FILE
+
+The placeholder read **"Message Learn: embed-application-2026-08-10.md…"**. It composed from `laneName` — but a lane is named for its **subject**, and on every bound app that subject is a file. So the composer invited the member to write to a document.
+
+`speakerLabel` (ADR-562 D5) is the prop that already answers *"who is working, for the member to read"* — the app's name for its resident (**Designer**, **Writer**), else the colleague's own name, else the engine label — and **every one of the four callers already passed it**. The placeholder was simply reaching past it. Order is now: the Agent holding the floor → `speakerLabel` → the generic **"Write a message…"**.
+
+**The fallback is generic on purpose**, which is the operator's ask: a sentence true of every surface beats a name true of none. `LanePanel` is the single composer behind Chat, Studio, Text and every desk, so one wrong guess there is wrong four times over. (The chat *drawer*'s `Ask {persona}…` is unchanged — it names a persona, never a file.)
+
+### Gate
+
+`pane_layout.mjs` 70 → **82**. The per-slot ceilings are read as `Record<PaneSlot, number>` out of the source (never a copy — the lesson from the first cut), the clamp is executed per slot, and §8 asserts the composer names a speaker, never a subject, with a generic fallback.
+
+Two assertions were **wrong when written** and caught by falsification, again:
+- the floor-vs-ceiling case pinned one 400px container for both slots — but half of 400 is 200, above the 180 floor, so 200 was the *correct* answer and the gate was red against correct code. Now derives a too-narrow width **from each slot's own share**.
+- the constant reader assumed scalars and threw `gate cannot read PANE_MAX_PX` when they became records — which is the designed behaviour (**fail loudly, never degrade to a structure-only pass**), and is why the reshape could not ship silently unverified.
+
+Falsified and restored: `side` share to ¾ · `side` backstop below the rail's · `rail` share to ½ · the placeholder back to `laneName`.
+
+---
+
+## 2026-08-21 — PANES: one housing contract, and the toggle that was inverted (no ADR — see "why no ADR" below)
 
 **Contract home**: **[`docs/design/PANES.md`](PANES.md)** — new. `AUTHORING.md` rule 15 is amended to point at it and keeps only what is genuinely authoring's (toolbar fold order, touch parity, the Docs/Studio one-component construction).
 

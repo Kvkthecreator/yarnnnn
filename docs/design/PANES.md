@@ -100,17 +100,34 @@ flips is enough. **The number of controls is not the property**; reachability is
 **px, clamped to a band, and clamped again against the measured container.**
 
 ```
-PANE_MIN_PX     180   below this a slot is a sliver — hiding it is the honest gesture
-PANE_MAX_PX     560   a backstop; the share ceiling is the real limit
-PANE_MAX_SHARE  1/3   a slot may never take more than a third of its container
+PANE_MIN_PX     180        below this a slot is a sliver — hiding it is the honest gesture
+PANE_MAX_PX     rail 560   an absolute backstop, per slot
+                side 900
+PANE_MAX_SHARE  rail 1/3   the share of the measured container, per slot
+                side 1/2
 ```
 
-**Why not %.** A percentage stays proportional through a window resize, which sounds right
-and is wrong at the small end: 30% of a 1400px monitor is a comfortable 420px rail; 30% of
-a 900px window is a 270px rail beside a 630px canvas — the crush the ladder exists to
-prevent, arriving through the member's own setting. A px width clamped to `container / 3`
-cannot do that: the choice is honoured wherever it fits and quietly bounded where it does
-not.
+**The ceiling is per slot, because the two slots are not the same kind of thing.**
+A `rail` is an **index** — a list of names and timestamps. Past about a third of the
+surface it shows the same rows with more whitespace while the canvas pays for it, so a
+third is a real ceiling rather than a guess. A `side` pane is a **working surface** —
+Properties, and a conversation the member reads and types into. There the canvas and the
+pane are closer to peers and the member is entitled to say so: **half**.
+
+> Both halves of the ceiling have to move together. `PANE_MAX_PX` was 560 for every slot,
+> so on any monitor wider than ~1680px the **px backstop**, not the share, was what
+> actually bound — raising the share alone would have changed nothing visible. (Reported
+> symptom: a 1600px workbench capped its side pane at 533px and the drag read as "hitting
+> something". Now asserted as behaviour at that exact width.)
+
+**Why the stored width is px, and the share is only a ceiling.** A percentage *as the
+stored value* stays proportional through a window resize, which sounds right and is wrong
+at the small end: a rail stored as 30% is a comfortable 420px on a 1400px monitor and a
+270px sliver beside a 630px canvas in a 900px window — the crush the ladder exists to
+prevent, arriving through the member's own setting. Storing px and clamping it cannot do
+that: the member's choice is honoured wherever it fits, bounded by the share where it does
+not, and never *shrinks itself* on a surface that got smaller. The share is a **ceiling on
+the canvas's behalf**, not the unit the width is kept in.
 
 **The clamp runs on every render, not only on drag.** The container changes width under a
 persisted value (a window resize, the chat drawer opening), and the stored number must
@@ -143,7 +160,23 @@ choice for the **session** only; their next visit forgot it.
 | **Strings** (via `DeskHousing`) | roster of subjects | the lifecycle pane | the bound lane |
 | **Files** (via `SettingsPaneShell`) | explorer tree | the viewer | — |
 
-## 7. Standing refusals
+## 7. The composer names a SPEAKER, never a subject
+
+A pane's composer placeholder addresses **who answers**, resolved in this order: the
+Agent holding the floor (when two or more could answer) → `speakerLabel` (ADR-562 D5 —
+the app's name for its resident, else the colleague's own name, else the engine label) →
+the generic **"Write a message…"**.
+
+**Never the lane's name.** A lane is named for its **subject**, and on every bound app
+that subject is a **file** — so the composer read *"Message Learn:
+embed-application-2026-08-10.md…"*, addressing a document as if it could reply. Every
+caller already passed `speakerLabel`; the placeholder was simply reaching past it.
+
+**The fallback is generic on purpose.** A sentence true of every surface beats a name
+true of none. `LanePanel` is the single composer behind Chat, Studio, Text and every
+desk, so one wrong guess there is wrong four times over.
+
+## 8. Standing refusals
 
 - **No second threshold.** A surface declaring its own "how wide is wide" is the drift
   this contract ends. Chat's hand-rolled 600px was the fourth spelling; it is deleted.
@@ -165,7 +198,7 @@ layout mode it is a `position: fixed` overlay consuming zero flex space. Folding
 surface-slot contract would be a false unity. Recorded here so the exemption is a decision
 rather than an oversight.
 
-## 8. Owed
+## 9. Owed
 
 - **`SettingsPaneShell` still derives NARROW from `useViewport().isMobile`** — the window,
   not its own box. That is the fifth spelling of "how wide is wide" and the one place the

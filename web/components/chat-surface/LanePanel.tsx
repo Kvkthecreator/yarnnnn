@@ -1401,13 +1401,26 @@ export function LanePanel({
             // interesting in passing. The rule should be QUIET: a conventional
             // chat names the recipient in the placeholder and says nothing more.
             // Two Agents make the room's name ambiguous, so name the one who
-            // will actually answer; below that, the room's name is right.
+            // will actually answer; below that, the SPEAKER's name is right.
+            //
+            // NEVER `laneName`. A lane is named for its SUBJECT, and on every
+            // bound app that subject is a FILE — so the composer read
+            // "Message Learn: embed-application-2026-08-10.md…", addressing a
+            // document as if it could reply. `speakerLabel` is the prop that
+            // already answers "who is working, for the member to read"
+            // (ADR-562 D5) and every caller passes it: the app's name for its
+            // resident ("Designer", "Writer"), else the colleague's own name,
+            // else the engine label. The fallback is GENERIC rather than a
+            // guessed name — "Write a message…" is true of every surface,
+            // where a wrong name is true of none.
             placeholder={
               editing
                 ? 'Edit your message…'
                 : floorName
                   ? `Message ${floorName}…`
-                  : `Message ${laneName}…`
+                  : speakerLabel
+                    ? `Message ${speakerLabel}…`
+                    : 'Write a message…'
             }
             rows={1}
             style={{ maxHeight: COMPOSER_MAX_PX }}
