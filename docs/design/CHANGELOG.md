@@ -4,7 +4,35 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-21 (latest) — TEXT: two rows become one (no ADR — [PANES.md](PANES.md) §9 amendment)
+## 2026-08-21 (latest) — TEXT: the centring, actually centred (no ADR — [PANES.md](PANES.md) §9)
+
+Operator, on the row-collapse that shipped an hour earlier: **"the alignment looks off."** It was.
+
+### The mistake
+
+Collapsing the two header rows, I removed `flex-1` from the flanks — reasoning that equal greedy flanks would starve a centre zone as wide as the canvas column, and that the toolbar would yield width before the acts did.
+
+**The starvation worry was real. The fix was wrong, and it broke the thing the change was for.** The canvas centres itself with `margin: 0 auto`. The chrome above it agrees with that *only* when the free space is split equally on both sides. Three content-sized zones sit left-to-right, so the centre landed wherever the left zone happened to end — off by exactly the difference between the two flanks' content widths. Visibly off, immediately.
+
+Correct composition: **flanks `flex-1 basis-0`** (equal free space → the zone is genuinely centred) and **centre `shrink-0`** (it never yields, which is what the starvation worry actually needed).
+
+### And it can't be centred at every width
+
+The column (784) plus room for the identity (~200) and the acts (~260) needs **~1270px**. Below that, pinning the centre crushes the flanks. That lands almost exactly on the existing `full` rung (**1280**), so column-centring is gated there rather than on a new threshold. Under the rung it degrades to an ordinary flow row — verbs beside the identity, nothing hidden, and the canvas near enough full-width that there is no column to miss.
+
+The verb zone is also inset by `FACE.gutter`, so the first verb sits over the first **character** rather than the page's outer edge (the canvas pads `.cm-content` by the same gutter inside the same column).
+
+### The gate was green while the layout was visibly broken
+
+That is the part worth recording. The assertion was *"a `flexBasis: FACE.column` exists"* — a **part**, not the **composition**. Centring is three facts that must hold together (the centre has the column · both flanks are equally greedy · the centre does not yield), and asserting one of them passes happily while another is wrong.
+
+Rewritten to assert the composition, 99 → **103**, and the falsifier that matters reproduces *this exact bug*: replacing both `flex-1 basis-0` flanks with content-sized ones now goes red with "content-sized flanks land it wherever the left one ends."
+
+A second gate defect surfaced in the same pass: `the verb zone does not yield` matched a bare `/shrink-0/` anywhere in the header — and the back button carries one, so it stayed green with the zone broken. Re-anchored to the zone's own `className`, then falsified.
+
+---
+
+## 2026-08-21 — TEXT: two rows become one (no ADR — [PANES.md](PANES.md) §9 amendment)
 
 Operator's read of the centred header, and the right one: if the identity is going to be centred anyway, the second row is paying a full band of vertical space for twelve glyphs. **Combine them.**
 

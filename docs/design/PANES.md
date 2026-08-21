@@ -222,11 +222,26 @@ room on a wide pane; the flat gutter keeps a narrow one honest.
 > we have. The centre zone keeps the column, so the verbs sit over the page they act
 > on. This is what the centring was actually for: it was never about the file name.
 >
-> **The flanks are no longer `flex-1`.** With a centre zone this wide, equal greedy
-> flanks fight it for room and the toolbar yields width before the acts do — the
-> canvas's own rule one level up. All three zones `shrink` from their content
-> instead, and the toolbar scrolls if it is ever squeezed (below ~450px of centre,
-> which happens only in a 380px pane).
+> **The flanks MUST be `flex-1 basis-0`, and the centre `shrink-0`.** A first cut
+> made all three zones content-sized, reasoning that greedy flanks would starve a
+> wide centre. That broke the centring outright: the canvas centres itself with
+> `margin: 0 auto`, so the chrome agrees with it only when the free space is split
+> **equally** on both sides. Content-sized flanks land the centre wherever the left
+> zone happens to end — off by exactly the difference between the two flanks' widths,
+> which is what "the alignment looks off" was. The starvation worry was real; the fix
+> was wrong. `flex-1 basis-0` flanks centre the zone, and `shrink-0` on the centre is
+> what stops it yielding.
+>
+> **Column-centring is gated on the `full` rung (1280px).** The column (784) plus room
+> for the identity (~200) and the acts (~260) needs ~1270px — so below that the
+> arithmetic cannot honour all three zones and pinning the centre would crush the
+> flanks. Under the rung it degrades to an ordinary flow row: the verbs sit beside the
+> identity, nothing is hidden, and the canvas is near enough full-width that there is
+> no column to miss.
+>
+> **The verb zone is inset by `FACE.gutter`**, so the first verb sits over the first
+> *character* rather than over the page's outer edge — the canvas pads `.cm-content`
+> by the same gutter inside the same column.
 >
 > **The toolbar owns no chrome.** Its border, ground and measure are gone: the header
 > zone *is* the column, so keeping any of them would draw a second box inside the row.

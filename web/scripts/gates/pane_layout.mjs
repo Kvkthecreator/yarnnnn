@@ -541,12 +541,43 @@ ok('the canvas composes its gutter from FACE, not a literal',
 
 // ONE header row, three zones — identity · verbs · acts. It was two rows, and
 // the second spent a full band of vertical space on twelve glyphs.
-ok("Text's header centres a zone on the canvas column",
-  /flexBasis: FACE\.column, maxWidth: FACE\.column/.test(textEditor),
-  'a fixed width would claim the column on a pane too narrow for it');
-ok("the Insert verbs live in that centre zone",
-  /style=\{\{ flexBasis: FACE\.column, maxWidth: FACE\.column \}\}\s*>\s*<MarkdownToolbar/.test(textEditor),
+//
+// THE CENTRING IS A COMPOSITION, and asserting only that a width exists is what
+// let a visibly-broken layout ship green. The canvas centres itself with
+// `margin: 0 auto`, so the chrome agrees with it ONLY when the free space is
+// split equally — which requires BOTH flanks to be `flex-1 basis-0`. Sizing the
+// flanks to their content instead (which shipped) lands the centre wherever the
+// left zone happens to end: off by exactly the difference between the two
+// flanks' content widths. Assert the three parts TOGETHER.
+const textHeader = textEditor.slice(
+  textEditor.indexOf('border-b border-border px-3 py-1.5'),
+  textEditor.indexOf('{/* ── Canvas + rail'),
+);
+ok("Text's header sizes its verb zone to the canvas column",
+  /width: FACE\.column/.test(textHeader),
+  'the verbs must occupy the column the canvas occupies');
+ok("the Insert verbs live in that zone",
+  /style=\{[\s\S]{0,200}?width: FACE\.column[\s\S]{0,240}?<MarkdownToolbar/.test(textHeader),
   'the verbs belong over the page they act on, not in a band of their own');
+const flankCount = (textHeader.match(/'flex-1 basis-0'/g) || []).length;
+ok("both flanks are flex-1 basis-0, or the centre is not centred",
+  flankCount === 2,
+  `found ${flankCount}; equal greedy flanks are what put the zone in the MIDDLE ` +
+    '— content-sized flanks land it wherever the left one ends');
+// Anchored to the VERB ZONE's own className, not to any `shrink-0` in the row —
+// the back button carries one too, so a bare match stayed green with the zone
+// broken (caught by falsifying it).
+ok('the verb zone does not yield to its flanks',
+  /cn\('flex min-w-0', fullLabels \? 'shrink-0' : 'shrink'\)/.test(textHeader),
+  'the toolbar must keep the column while the flanks absorb the rest');
+ok('the verb zone is inset by the canvas gutter',
+  /paddingLeft: FACE\.gutter/.test(textHeader),
+  'the first verb sits over the first CHARACTER, not the page edge');
+// Column-centring needs the column PLUS room for both flanks (~1270px), so it
+// is gated on the full rung rather than attempted at every width.
+ok('column-centring is gated on the measured rung',
+  /fullLabels\s*\?\s*\{\s*width: FACE\.column/.test(textHeader),
+  'below the full rung the arithmetic cannot honour all three zones');
 // Exactly ONE mount. Collapsing the rows must REMOVE the old one, never leave a
 // second toolbar rendering above the canvas.
 const mounts = (textEditor.match(/<MarkdownToolbar/g) || []).length;

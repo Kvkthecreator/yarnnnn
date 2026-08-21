@@ -725,18 +725,33 @@ export function TextEditor({
           file surface we have), and the Insert row takes the centre, where it
           sits over the page it acts on.
 
-          The zone that matters is the middle one: it is `FACE.column` wide, the
-          same column the canvas occupies, so the verbs line up with the text
-          they edit and nothing moves when the right pane opens or closes.
-          Flush-left in a full-width row, the name drifted on every toggle and
-          the surface had no stable spine.
+          The zone that matters is the middle one: at the FULL rung it is
+          `FACE.column` wide and centred, matching the column the canvas
+          occupies, so the verbs line up with the text they edit and nothing
+          moves when the right pane opens or closes.
 
-          The flanks are NOT `flex-1` here. With a centre zone this wide, equal
-          greedy flanks would fight it for room and the toolbar would give up
-          width before the acts did — the canvas's own rule, one level up. They
-          size to their content and the centre keeps the column. */}
+          THE FLANKS MUST BE `flex-1 basis-0` FOR THAT TO HOLD. The canvas
+          centres itself with `margin: 0 auto`, so the chrome only agrees with it
+          when the free space is split EQUALLY on both sides. Sizing the flanks
+          to their content instead lands the centre wherever the left zone
+          happens to end — which is what shipped, and read as "the alignment
+          looks off" because it WAS off by exactly the difference between the two
+          flanks' content widths.
+
+          Column-centring is gated on `fullLabels` (the 1280px rung) because
+          below it the arithmetic stops working: the column (784) plus room for
+          the identity (~200) and the acts (~260) needs ~1270px, so a narrower
+          pane cannot honour all three and pinning the centre would crush the
+          flanks. Under that rung it degrades to an ordinary flow row — the
+          verbs stay beside the identity, nothing is hidden, and the canvas is
+          near enough full-width that there is no column to miss. */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
-        <div className="flex min-w-0 shrink items-center gap-1.5 text-sm">
+        <div
+          className={cn(
+            'flex min-w-0 items-center gap-1.5 text-sm',
+            fullLabels ? 'flex-1 basis-0' : 'shrink',
+          )}
+        >
           <button
             type="button"
             onClick={onClose}
@@ -775,19 +790,30 @@ export function TextEditor({
           </button>
         </div>
 
-        {/* The verbs, on the canvas column. `maxWidth` + `basis` rather than a
-            fixed `width`: the zone wants to BE the column where the pane can
-            afford it and to shrink below that where it cannot. A fixed width
-            would claim 784px inside a 500px pane and squeeze the acts beside
-            it before yielding any of its own. */}
+        {/* The verbs. At the full rung the zone IS the canvas column and does
+            not yield (`shrink-0`) — the toolbar keeps the page's width while the
+            equal flanks absorb everything else. Below it the zone is an ordinary
+            flexible cell. */}
+        {/* Padded by the canvas's own gutter, so the first verb sits over the
+            first CHARACTER rather than over the page's outer edge — the canvas
+            pads `.cm-content` by `FACE.gutter` inside this same column. */}
         <div
-          className="flex min-w-0 shrink justify-center"
-          style={{ flexBasis: FACE.column, maxWidth: FACE.column }}
+          className={cn('flex min-w-0', fullLabels ? 'shrink-0' : 'shrink')}
+          style={
+            fullLabels
+              ? { width: FACE.column, paddingLeft: FACE.gutter, paddingRight: FACE.gutter }
+              : undefined
+          }
         >
           <MarkdownToolbar onAction={runAction} />
         </div>
 
-        <div className="flex min-w-0 shrink items-center justify-end gap-2">
+        <div
+          className={cn(
+            'flex min-w-0 items-center justify-end gap-2',
+            fullLabels ? 'flex-1 basis-0' : 'shrink',
+          )}
+        >
 
         {/* Zoom — a VIEW control (doesn't touch the file), Docs' own clamp. */}
         <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
