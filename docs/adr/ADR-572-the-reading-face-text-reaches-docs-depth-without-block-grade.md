@@ -854,6 +854,61 @@ a cell boundary, i.e. it asserted the very corruption the escape prevents. The
 gate was wrong, not the code; it now counts boundaries the way a GFM parser
 does, with a control proving it measures alignment rather than "did it split".
 
+### D19 — A block insert must not eat what it was pointed at
+
+**Operator, 2026-08-21** (Text, center-panel Insert row): *"even a divider that
+gets added, it cancels another line. can you check this symptom not just for
+this one example but for the text app."*
+
+The symptom was general, and it was worth checking the family rather than the
+button: **five of the six block inserts deleted content.**
+
+`insertRule`, `insertTable`, `insertMermaid`, `insertImage` and
+`insertCsvTable` each computed their own insertion site as
+`text.slice(0, start) + snippet + text.slice(end)`. With a collapsed caret
+(`start === end`) that is correct and the arithmetic is invisible. With a
+**selection** it drops `[start, end)` — the selected text is deleted and
+replaced by the block. A toolbar is used precisely by selecting something and
+pressing a button, so this is the common gesture, not an edge case.
+
+`insertFence` alone escaped, and only incidentally: it reads
+`text.slice(start, end)` into the fence body, so the selection came back by
+accident of what a fence is for.
+
+Two defects, fixed as one because they answer the same question — *what is a
+block insert being asked to do?*
+
+**1. A selection is content, not a target.** Every other control in
+`markdownEdits.ts` already agreed on this: Quote/Bold/Strike wrap the
+selection, Heading and the lists convert it, Link makes it the label, the
+fence makes it the body. Five functions disagreed with the other eight. The
+selection is now **kept**, and the block lands after it.
+
+**2. A block goes between blocks.** With the caret mid-sentence the old code
+split the paragraph and wedged the block into the gap — `Two tiers, ` / rule /
+`low-friction first.` One line became two and the sentence was cut. This is
+the same question **D11** answered for the line-marker toggles with
+`openNewLine`; the block inserts never got the answer. The insert point now
+moves to the end of the caret's line.
+
+Both live in one helper, `blockSite()`, rather than six copies of the
+arithmetic — which is how the two behaviours diverged in the first place. The
+fence keeps its wrap branch, documented as the deliberate exception so a later
+sweep does not "simplify" it away.
+
+**Why this was invisible.** Nothing here is a type error, and the source-level
+result is well-formed markdown either way — `next build`, `tsc` and all 261
+ADR-571 checks were green over it. The gate asked whether an insert *produces*
+a table, a rule, a fence; it never asked whether the document still contained
+what it had before. Section **21** now executes every insert at every caret
+position and over every whole-line selection in a real document, asserting that
+no line is lost and none is split. Falsified against the pre-fix file: **4 of
+its 5 checks go red**, and 21d stays green — the one that pins the fence's wrap
+behaviour, so the fix is shown not to have removed correct behaviour along with
+the defect.
+
+Gate 261 → **266**.
+
 ## 3. Not done / explicitly out of scope
 
 Named rather than worked around, per the operator's instruction.

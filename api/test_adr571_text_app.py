@@ -2654,6 +2654,149 @@ check("20f the document is BYTE-IDENTICAL with every widget on screen — these 
       _d20.get("doc_byte_identical") is True, str(_d20)[:400])
 
 
+# ── 21. a block insert does not DESTROY what is already there (D19) ──────
+# Operator: "even a divider that gets added, it cancels another line."
+#
+# Every block insert computed its own `before`/`after` as `slice(0, start)` +
+# `slice(end)`, which DELETES `[start, end)`. Correct for a collapsed caret;
+# with a selection it silently removes the selected text — and a toolbar is
+# used precisely by selecting something and pressing a button. Five of the six
+# did this. `insertFence` alone survived, because it happened to reuse the
+# selection as the fence body.
+#
+# Two properties, checked by EXECUTION over every caret position rather than
+# by grepping for `blockSite`: a symbol can be present and still be wrong.
+#
+#   - NOTHING IS LOST. Every non-blank line of the document is still there,
+#     intact, whatever the caret was doing.
+#   - A BLOCK LANDS BETWEEN BLOCKS. With the caret mid-sentence the old code
+#     wedged the block into the middle of the line ("Two tiers, " / rule /
+#     "low-friction first."), turning one paragraph into two.
+_INSERT_PROBE = r"""
+const fs = require('fs');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+const js = transform(fs.readFileSync(WEB + '/components/text/markdownEdits.ts', 'utf8'),
+  { transforms: ['typescript', 'imports'] }).code;
+const m = { exports: {} };
+new Function('module', 'exports', 'require', js)(m, m.exports, () => ({}));
+const M = m.exports;
+
+const DOC = [
+  '# Campaign open brief', '',
+  'Why this wording: it costs one email.', '',
+  '## 3. Submission route', '',
+  'Two tiers, low-friction first.', '',
+  '- Tier 1 - tag to play.',
+  '- Tier 2 - the room.', '',
+  'Final paragraph.',
+].join('\n');
+const LINES = DOC.split('\n').filter((l) => l.trim());
+
+const K = {
+  table:   (t, s, e) => M.insertTable(t, s, e),
+  rule:    (t, s, e) => M.insertRule(t, s, e),
+  code:    (t, s, e) => M.insertFence(t, s, e),
+  mermaid: (t, s, e) => M.insertMermaid(t, s, e),
+  image:   (t, s, e) => M.insertImage(t, s, e, 'img/a.png'),
+  csv:     (t, s, e) => M.insertCsvTable(t, s, e, 'd.csv', 'a,b\n1,2\n', new Date(2026, 0, 1)),
+};
+
+// (1) every collapsed caret keeps every line whole
+const split = [];
+for (const [name, f] of Object.entries(K)) {
+  for (let at = 0; at <= DOC.length; at++) {
+    const out = f(DOC, at, at).text;
+    for (const L of LINES) if (!out.includes(L)) { split.push(name + '@' + at); break; }
+  }
+}
+
+// (2) a SELECTION survives verbatim. `code` is exempt and asserted separately:
+// a fence WRAPS the selection, which keeps it too, just not adjacent.
+const eaten = [];
+for (const [name, f] of Object.entries(K)) {
+  for (let i = 0; i < DOC.split('\n').length; i++) {
+    for (let j = i; j < DOC.split('\n').length; j++) {
+      const rows = DOC.split('\n');
+      const s = rows.slice(0, i).join('\n').length + (i ? 1 : 0);
+      const e = rows.slice(0, j + 1).join('\n').length;
+      const sel = DOC.slice(s, e);
+      if (!sel.trim()) continue;
+      if (!f(DOC, s, e).text.includes(sel)) eaten.push(name + ':' + i + '-' + j);
+    }
+  }
+}
+
+// (3) the operator's exact gesture: select a paragraph, press Divider.
+const ps = DOC.indexOf('Two tiers');
+const pe = ps + 'Two tiers, low-friction first.'.length;
+const ruled = M.insertRule(DOC, ps, pe).text;
+
+// (4) pressing twice must not pile up blank lines
+const twice = (name) => {
+  const f = K[name];
+  const a = f(DOC, pe, pe);
+  return /\n{4,}/.test(f(a.text, a.selectionStart, a.selectionEnd).text);
+};
+
+// (5) mid-line caret: the sentence stays in one piece, block lands after it
+const mid = DOC.indexOf('low-friction');
+
+console.log(JSON.stringify({
+  no_split: split.length === 0, split_sample: split.slice(0, 4),
+  no_eaten: eaten.length === 0, eaten_sample: eaten.slice(0, 4),
+  divider_keeps_paragraph: ruled.includes('Two tiers, low-friction first.'),
+  divider_lands_after: ruled.indexOf('---') > ruled.indexOf('low-friction first.'),
+  fence_wraps_selection:
+    M.insertFence(DOC, ps, pe).text.includes('```\nTwo tiers, low-friction first.\n```'),
+  no_pileup: !['table', 'rule', 'code', 'mermaid', 'image', 'csv'].some(twice),
+  midline_intact: Object.values(K).every(
+    (f) => f(DOC, mid, mid).text.includes('Two tiers, low-friction first.')),
+}));
+"""
+
+try:
+    _ins = json.loads(
+        subprocess.run(
+            ["node", "-e", _INSERT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+    _ins = {"error": str(exc)}
+
+check("21a ⭐⭐⭐ AN INSERT NEVER DELETES A SELECTION. The operator's report — "
+      "'even a divider that gets added, it cancels another line'. Five of the "
+      "six block inserts computed `slice(0,start) + slice(end)`, which drops "
+      "`[start,end)`; select a paragraph, press Divider, and the paragraph is "
+      "gone. Checked by EXECUTING every whole-line selection in a real "
+      "document, because the old code contained no wrong-looking symbol to "
+      "grep for.",
+      _ins.get("no_eaten") is True, str(_ins.get("eaten_sample"))[:300])
+check("21b …and the operator's exact gesture is asserted on its own: select "
+      "the paragraph, press Divider, the paragraph is still there and the "
+      "rule lands AFTER it rather than on top of it",
+      _ins.get("divider_keeps_paragraph") is True
+      and _ins.get("divider_lands_after") is True, str(_ins)[:300])
+check("21c ⭐ A BLOCK LANDS BETWEEN BLOCKS, never inside a line. With the "
+      "caret mid-sentence the old code wedged the block between the halves "
+      "('Two tiers, ' / rule / 'low-friction first.') — one paragraph became "
+      "two and the sentence was cut. This is the same D11 question the line "
+      "toggles already answered with `openNewLine`.",
+      _ins.get("midline_intact") is True and _ins.get("no_split") is True,
+      str(_ins.get("split_sample"))[:300])
+check("21d the fence is the ONE exception and stays that way — it WRAPS the "
+      "selection as its body, which is the obvious reading of 'make this "
+      "code'. A fix that made every insert land after the selection would "
+      "have silently removed this behaviour.",
+      _ins.get("fence_wraps_selection") is True, str(_ins)[:300])
+check("21e pressing an insert twice does not accumulate blank lines — the "
+      "lead/tail padding is added only where it is missing, which is the "
+      "property `blockSite` centralises instead of copying six times",
+      _ins.get("no_pileup") is True, str(_ins)[:300])
+
+
+
 # ── report ───────────────────────────────────────────────────────────────
 failed = 0
 for label, ok, detail in results:

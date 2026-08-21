@@ -294,23 +294,78 @@ export function insertLink(text: string, start: number, end: number): Edit {
 }
 
 /**
+ * Where a BLOCK insert lands, and what happens to what was selected
+ * (ADR-572 D19).
+ *
+ * Every block insert (`rule`/`table`/`code`/`mermaid`/`image`/`csvtable`)
+ * used to compute its own `before`/`after` as `slice(0, start)` +
+ * `slice(end)`. With a collapsed caret that is correct. With a SELECTION it
+ * silently DELETES it — the member selects a paragraph, presses Divider, and
+ * the paragraph is gone. The operator hit this and read it as "even a divider
+ * cancels another line".
+ *
+ * Two things were wrong and they are fixed together, because they are the
+ * same question — *what is a block insert being asked to do?*
+ *
+ *   1. **A selection is content, not a target.** Every OTHER control in this
+ *      file preserves it: Quote wraps it, Bold wraps it, Heading converts it,
+ *      Link makes it the label, and `insertFence` already makes it the fence
+ *      body. Five functions disagreed with the other eight. The selection is
+ *      now kept and the block lands AFTER it — the caret collapses to the end
+ *      of the selection first, which is what pressing an insert button with
+ *      text selected means everywhere else.
+ *
+ *   2. **A block must not be inserted INTO a line.** With the caret mid-
+ *      sentence, `slice` split the paragraph in half and wedged the block
+ *      between the pieces (`Two tiers, ` / rule / `low-friction first.`) —
+ *      one line became two and the sentence was cut. A thematic break, table
+ *      or diagram is a BLOCK: it goes between blocks. So the insert point
+ *      moves to the end of the caret's line, the same way `openNewLine` (the
+ *      D11 rule the line-marker toggles already follow) resolves the same
+ *      gesture.
+ *
+ * The result is one rule shared by every block insert rather than six copies
+ * of the arithmetic, which is how the two defects diverged in the first place.
+ */
+export interface BlockSite {
+  /** Everything before the insert point, selection included. */
+  before: string;
+  /** Everything after it. */
+  after: string;
+  /** Blank-line padding needed before the block. */
+  lead: string;
+  /** Newline needed after the block so it does not glue to what follows. */
+  tail: string;
+  /** Offset at which the block's own text begins. */
+  at: number;
+}
+
+export function blockSite(text: string, start: number, end: number): BlockSite {
+  // Keep the selection, then land after the line it ends on. A block belongs
+  // between blocks, never inside one.
+  const [, lineEnd] = lineSpan(text, end, end);
+  const cut = Math.max(end, lineEnd);
+  const before = text.slice(0, cut);
+  const after = text.slice(cut);
+  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const tail = after && !after.startsWith('\n') ? '\n' : '';
+  return { before, after, lead, tail, at: before.length + lead.length };
+}
+
+/**
  * Insert a GFM table skeleton on its own lines, caret in the first header
  * cell. Blank-line padding is added only where it is missing, so pressing the
  * button twice does not accumulate whitespace.
  */
 export function insertTable(text: string, start: number, end: number): Edit {
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
-  const tail = after && !after.startsWith('\n') ? '\n' : '';
+  const { before, after, lead, tail, at } = blockSite(text, start, end);
   const table =
     '| Column | Column |\n' +
     '| --- | --- |\n' +
     '|  |  |\n';
-  const snippet = lead + table + tail;
-  const caret = start + lead.length + 2; // just inside the first header cell
+  const caret = at + 2; // just inside the first header cell
   return {
-    text: before + snippet + after,
+    text: before + lead + table + tail + after,
     selectionStart: caret,
     selectionEnd: caret + 6, // select the word "Column"
   };
@@ -327,12 +382,21 @@ export function insertTable(text: string, start: number, end: number): Edit {
  * taken because the medium carries it for free.
  */
 export function insertFence(text: string, start: number, end: number, lang = ''): Edit {
+  // The one block insert that TAKES the selection as its body — a fence is a
+  // container, so "make this code" is the obvious reading of the gesture.
+  // Everything else lands after the selection and leaves it alone.
   const sel = text.slice(start, end);
-  const before = text.slice(0, start);
-  const after = text.slice(end);
+  // With a selection the fence WRAPS it, so the site is the selection's own
+  // start; with none there is nothing to wrap, so it lands like every other
+  // block — at the end of the caret's line, never splitting it.
+  const site = sel
+    ? { before: text.slice(0, start), after: text.slice(end) }
+    : blockSite(text, start, end);
+  const { before, after } = site;
   const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const tail = after && !after.startsWith('\n') ? '\n' : '';
   const body = sel || '';
-  const snippet = `${lead}\`\`\`${lang}\n${body}\n\`\`\`\n`;
+  const snippet = `${lead}\`\`\`${lang}\n${body}\n\`\`\`\n${tail}`;
   // With a selection the caret lands after it; with none, inside the fence
   // ready to type.
   const caret = before.length + lead.length + 3 + lang.length + 1 + body.length;
@@ -348,12 +412,10 @@ export function insertFence(text: string, start: number, end: number, lang = '')
  * empty `<div data-ref="…csv">` whose bars are manufactured at render time.
  */
 export function insertMermaid(text: string, start: number, end: number): Edit {
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const { before, after, lead, tail, at } = blockSite(text, start, end);
   const body = 'graph TD\n  A[Start] --> B[Next]';
-  const snippet = `${lead}\`\`\`mermaid\n${body}\n\`\`\`\n`;
-  const caret = before.length + lead.length + 11; // just inside, on the first line
+  const snippet = `${lead}\`\`\`mermaid\n${body}\n\`\`\`\n${tail}`;
+  const caret = at + 11; // just inside, on the first line
   return {
     text: before + snippet + after,
     selectionStart: caret,
@@ -376,11 +438,9 @@ export function insertMermaid(text: string, start: number, end: number): Edit {
  * worked around: the alternative is HTML in the file.
  */
 export function insertImage(text: string, start: number, end: number, path: string, alt = ''): Edit {
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+  const { before, after, lead, tail } = blockSite(text, start, end);
   const label = alt || path.split('/').pop()?.replace(/\.[^.]+$/, '') || 'image';
-  const snippet = `${lead}![${label}](${path})\n`;
+  const snippet = `${lead}![${label}](${path})\n${tail}`;
   const caret = before.length + snippet.length;
   return { text: before + snippet + after, selectionStart: caret, selectionEnd: caret };
 }
@@ -518,10 +578,7 @@ export function insertCsvTable(
   csv: string,
   now: Date,
 ): Edit {
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
-  const tail = after && !after.startsWith('\n') ? '\n' : '';
+  const { before, after, lead, tail } = blockSite(text, start, end);
   const { table, omitted } = csvToMarkdownTable(csv);
   // An unreadable or empty CSV writes the note alone rather than a broken
   // grid — the member sees which file came back empty instead of a `| |`.
@@ -535,12 +592,16 @@ export function insertCsvTable(
 
 /** A thematic break on its own line. */
 export function insertRule(text: string, start: number, end: number): Edit {
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
-  const snippet = `${lead}---\n\n`;
+  const { before, after, lead } = blockSite(text, start, end);
+  // A rule always ends its own block, so it carries its own trailing blank
+  // line rather than `blockSite`'s single-newline tail.
+  const snippet = `${lead}---\n`;
   const caret = before.length + snippet.length;
-  return { text: before + snippet + after, selectionStart: caret, selectionEnd: caret };
+  return {
+    text: before + snippet + (after.startsWith('\n') ? '' : '\n') + after,
+    selectionStart: caret,
+    selectionEnd: caret,
+  };
 }
 
 /** The character offset at which 0-based `line` begins. */
