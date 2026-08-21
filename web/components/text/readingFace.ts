@@ -64,6 +64,20 @@ export const FACE = {
   ui: 'var(--font-sans)',
   /** Body measure and rhythm, shared by canvas and reader. */
   measure: '46rem',
+  /** The canvas's horizontal padding, inside the measure. Declared here rather
+   *  than inline so the CHROME above the canvas can compose the same column. */
+  gutter: '1.5rem',
+  /**
+   * The full column the canvas occupies: `measure` + both gutters.
+   *
+   * The chrome rows (the crumb + name, the Insert toolbar) centre on THIS, so
+   * the document's identity and its verbs sit over the document itself. They
+   * were flush-left in a full-width row, which meant the file name drifted
+   * every time the right pane opened or closed — the page had no stable spine.
+   * Google Docs is the reference: the title and the toolbar are centred over
+   * the page, and the page does not move when a side panel appears.
+   */
+  column: '49rem',
   lineHeight: '1.75',
   /** Code renders a shade smaller inside a serif document. */
   codeSize: '0.88em',

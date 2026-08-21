@@ -4,7 +4,39 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-21 (latest) — PANES: the transcript gets a measure (no ADR — an amendment to [PANES.md](PANES.md) §8)
+## 2026-08-21 (latest) — TEXT: the chrome centres on the page, and the Insert row is sized like a toolbar (no ADR — [PANES.md](PANES.md) §9)
+
+Requested from the click-pass: centre Text's file name and Insert row, "regardless of right pane show hide", plus sizing polish against the Google Docs reference.
+
+**The drift was the point.** Text's canvas has been centred on `FACE.measure` all along, but the crumb row and the Insert row were flush-left in a full-width bar — so the file name **moved every time the right pane opened or closed**. The toggle shipped two commits ago is what made that visible: the surface had no stable spine. Docs' reference behaviour is that the title and the toolbar are centred over the **page**, and the page does not move when a side panel appears.
+
+### The column is derived, not pinned
+
+`FACE.column = FACE.measure + 2 × FACE.gutter` (46rem + 2×1.5rem = **49rem**). `gutter` is new and `ProseCanvas` now composes its padding from it instead of a literal `1.5rem`, so a measure change moves the page **and its chrome** together — a pinned `'49rem'` in the chrome would silently stop tracking, which is the same drift class as everything else in this arc.
+
+### Three zones, and the flanks must be equal
+
+Left acts · centre identity · right acts, both flanks `flex-1`. A centre zone between *unequal* siblings is not centred — it sits between them and slides as either side grows.
+
+The centre zone takes **`flexBasis` + `maxWidth`, never a fixed `width`**: it should *be* the column where the pane can afford it and shrink below it where it cannot. A fixed width claims 784px inside a 500px pane and squeezes the flanking acts before yielding. Verified across pane widths — at 1400/1100/900 the chrome is centred on the 784px column; at 760/500/380 it simply fills the pane, unchanged from before.
+
+### The Insert row scrolls; it never wraps
+
+It was `flex-wrap`. A wrapping toolbar changes the **canvas's vertical origin** as the pane narrows, so the document visibly jumps. Now `overflow-x-auto` with a hidden scrollbar — chrome on chrome, on a row one line tall. Docs scrolls for the same reason.
+
+### Sizing, against the reference
+
+Toolbar targets 28→**32px** with 14→**16px** glyphs (the reference reads as real buttons, not hairline marks), group dividers `h-4`→`h-5` with more breathing room, row padding `py-1`→`py-1.5`, the back arrow and file icon 14→16px, and the file name to `text-foreground/90`.
+
+### Gate
+
+`pane_layout.mjs` 87 → **93** (§10): the column is asserted as **arithmetic** over `FACE`, the canvas composes its gutter from `FACE` rather than a literal, both chrome rows centre on the column, the identity row has two equal flanks, and the Insert row scrolls rather than wraps.
+
+Falsified and restored: `column` set to 52rem (breaking the derivation) · a fixed `width` on the centre zone · the toolbar back to `flex-wrap`. **The wrap falsifier initially matched only the explanatory COMMENT** — the gate stayed green and the "failure" was invisible until I grepped what my own mutation had actually changed. The gate strips comments; my falsifier did not, so I had briefly been testing prose. Re-run against the real class string, it fails correctly.
+
+---
+
+## 2026-08-21 — PANES: the transcript gets a measure (no ADR — an amendment to [PANES.md](PANES.md) §8)
 
 Reported from the click-pass: the chat pane full-screen "goes almost to the edges."
 

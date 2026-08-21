@@ -71,6 +71,7 @@ import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { TextExport } from '@/components/text/TextExport';
 import { ProseCanvas, type ProseCanvasHandle, type SlashRun } from '@/components/text/ProseCanvas';
 import { MarkdownToolbar, type ToolbarAction } from '@/components/text/MarkdownToolbar';
+import { FACE } from '@/components/text/readingFace';
 import { SlashMenu, filterSlashItems, type SlashItem } from '@/components/text/SlashMenu';
 import { StudioCitablePicker } from '@/components/authoring/StudioCitablePicker';
 import { readConflict, type ConflictState } from '@/components/text/conflict';
@@ -715,17 +716,36 @@ export function TextEditor({
   return (
     <div ref={setWorkbenchNode} className="flex h-full min-h-0 flex-col">
       {/* ── The crumb row + view controls + boundary acts ───────────────── */}
+      {/* THREE ZONES, and the middle one is the document's own.
+          The identity (crumb + name) and the Insert row below it centre on the
+          CANVAS COLUMN (`FACE.column`), so they sit over the page rather than
+          over the pane. Flush-left in a full-width row, the name drifted every
+          time the right pane opened or closed and the surface had no stable
+          spine — Docs' reference behaviour is that the title and toolbar are
+          centred over the page and the page does not move when a side panel
+          appears. The flanks are `flex-1` and equal, so the centre zone is
+          truly centred no matter how wide either side's acts get. */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
-        <button
-          type="button"
-          onClick={onClose}
-          title="Back to documents"
-          aria-label="Back to documents"
-          className="inline-flex shrink-0 items-center rounded px-1.5 py-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            title="Back to documents"
+            aria-label="Back to documents"
+            className="inline-flex shrink-0 items-center rounded px-1.5 py-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* `maxWidth`, and `basis` rather than a fixed `width`: the zone wants
+            to BE the column where the pane can afford it and to shrink below
+            that where it cannot. A fixed width would claim 784px on a 500px
+            pane and squeeze the flanking acts before shrinking itself. */}
+        <div
+          className="flex min-w-0 shrink items-center justify-center gap-1.5 text-sm"
+          style={{ flexBasis: FACE.column, maxWidth: FACE.column }}
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-        </button>
-        <div className="flex min-w-0 items-center gap-1.5 text-sm">
           <button
             type="button"
             onClick={onClose}
@@ -738,14 +758,14 @@ export function TextEditor({
             type="button"
             onClick={() => organizeVerbs.onRename?.({ path, name: leafOf(path) })}
             title={`${relPath(path)} — click to rename`}
-            className="flex max-w-[26ch] items-center gap-1.5 truncate rounded px-1 py-0.5 font-medium text-foreground/80 hover:bg-muted/50"
+            className="flex min-w-0 items-center gap-1.5 truncate rounded px-1.5 py-0.5 font-medium text-foreground/90 hover:bg-muted/50"
           >
-            <FileText className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
+            <FileText className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
             <span className="truncate">{name}</span>
           </button>
         </div>
 
-        <div className="min-w-0 flex-1" />
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
 
         {/* Zoom — a VIEW control (doesn't touch the file), Docs' own clamp. */}
         <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
@@ -833,6 +853,7 @@ export function TextEditor({
             <PanelRight className="h-3.5 w-3.5" />
           </button>
         )}
+        </div>
       </div>
 
       {/* ── Canvas + rail ─────────────────────────────────────────────── */}

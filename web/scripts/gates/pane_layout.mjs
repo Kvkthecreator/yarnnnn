@@ -486,6 +486,51 @@ ok('the shared composer carries no viewport breakpoint',
   paneBp.length === 0,
   paneBp.length ? `found: ${[...new Set(paneBp)].join(', ')}` : '');
 
+// ── 10. TEXT'S CHROME IS CENTRED ON ITS CANVAS COLUMN ─────────────────────
+// The identity (crumb + name) and the Insert row sit over the PAGE, not over
+// the pane — so neither moves when the right pane opens or closes. Flush-left,
+// the file name drifted on every toggle and the surface had no stable spine.
+const face = read('web/components/text/readingFace.ts');
+const textEditor = read('web/components/text/TextEditor.tsx');
+const toolbar = read('web/components/text/MarkdownToolbar.tsx');
+
+// The column is DERIVED from the measure + both gutters, and asserted as
+// arithmetic rather than pinned as a string — a measure change must move the
+// chrome with it, which a pinned '49rem' would silently stop doing.
+const rem = (k) => {
+  const m = new RegExp(`${k}: '([\\d.]+)rem'`).exec(face);
+  if (!m) throw new Error(`gate cannot read FACE.${k}`);
+  return Number(m[1]);
+};
+ok('the canvas column is measure + both gutters',
+  rem('column') === rem('measure') + 2 * rem('gutter'),
+  `column=${rem('column')} measure=${rem('measure')} gutter=${rem('gutter')}`);
+ok('the canvas composes its gutter from FACE, not a literal',
+  /padding: `0 \$\{FACE\.gutter\}`/.test(read('web/components/text/ProseCanvas.tsx')),
+  'a second spelling of the gutter is how the chrome and the page drift apart');
+
+// Both chrome rows must centre on that column.
+ok("Text's identity row centres on the canvas column",
+  /flexBasis: FACE\.column, maxWidth: FACE\.column/.test(textEditor),
+  'a fixed width would claim the column on a pane too narrow for it');
+ok("Text's Insert row centres on the canvas column",
+  /maxWidth: FACE\.column/.test(toolbar) && /justify-center/.test(toolbar));
+
+// The flanks must be EQUAL, or the centre is not centred — it merely sits
+// between two unequal acts and moves as either side grows.
+const flanks = (textEditor.match(/flex min-w-0 flex-1 items-center/g) || []).length;
+ok("Text's identity row has two equal flanks", flanks >= 2,
+  `found ${flanks}; the centre zone is only centred between equal siblings`);
+
+// A WRAPPING toolbar changes the canvas's vertical origin as the pane narrows,
+// so the document visibly jumps. It scrolls instead.
+const toolbarStripped = toolbar
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+ok('the Insert row scrolls rather than wraps',
+  !/flex-wrap/.test(toolbarStripped) && /overflow-x-auto/.test(toolbarStripped),
+  'a wrapping toolbar moves the canvas origin as the pane narrows');
+
 // ── report ────────────────────────────────────────────────────────────────
 if (failures.length) {
   console.error(`\n✗ pane_layout — ${pass} passed, ${failures.length} FAILED\n`);

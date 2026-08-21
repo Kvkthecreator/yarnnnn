@@ -153,7 +153,9 @@ const PROSE_THEME = EditorView.theme({
   '.cm-content': {
     maxWidth: FACE.measure,
     margin: '0 auto',
-    padding: '0 1.5rem',
+    // The gutter is declared in `FACE` so the chrome above can compose the same
+    // column (`FACE.column` = measure + both gutters) and stay aligned with it.
+    padding: `0 ${FACE.gutter}`,
     caretColor: 'var(--foreground, #111)',
   },
   '.cm-line': { padding: '0' },

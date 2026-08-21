@@ -210,7 +210,35 @@ inside a 380px side pane on a large monitor. That is §9's refusal, and it shipp
 first cut of this change before being caught. The centred measure supplies the breathing
 room on a wide pane; the flat gutter keeps a narrow one honest.
 
-## 9. Standing refusals
+## 9. Chrome centres on the canvas column, not on the pane
+
+§8 gives the canvas a measure. The rows *above* it — an app's identity row and its
+verb row — then have a choice: sit flush against the pane's edge, or centre on the
+column the canvas actually occupies. **They centre on the column.**
+
+Flush-left, Text's file name **drifted every time the right pane opened or closed** —
+the surface had no stable spine, and the toggle we had just added made that visible. The
+reference behaviour is Google Docs: the title and the toolbar are centred over the page,
+and the page does not move when a side panel appears.
+
+The column is **derived**, not pinned: `FACE.column = FACE.measure + 2 × FACE.gutter`
+(46rem + 2×1.5rem = 49rem). The canvas composes its padding from the same `FACE.gutter`,
+so a measure change moves the page and its chrome together. A pinned `'49rem'` in the
+chrome would silently stop tracking.
+
+**Three zones, and the flanks must be equal.** Left acts · centre identity · right acts,
+with both flanks `flex-1`. A centre zone between *unequal* siblings is not centred — it
+merely sits between them and slides as either side grows.
+
+**The centre zone takes `flexBasis` + `maxWidth`, never a fixed `width`.** It should *be*
+the column where the pane can afford it and shrink below that where it cannot; a fixed
+width claims 784px inside a 500px pane and squeezes the flanking acts before it yields.
+
+**A verb row scrolls; it never wraps.** A wrapping toolbar changes the canvas's vertical
+origin as the pane narrows, so the document visibly jumps. Docs scrolls for the same
+reason. The scrollbar is hidden — chrome on chrome, on a row one line tall.
+
+## 10. Standing refusals
 
 - **No second threshold.** A surface declaring its own "how wide is wide" is the drift
   this contract ends. Chat's hand-rolled 600px was the fourth spelling; it is deleted.
@@ -232,7 +260,7 @@ layout mode it is a `position: fixed` overlay consuming zero flex space. Folding
 surface-slot contract would be a false unity. Recorded here so the exemption is a decision
 rather than an oversight.
 
-## 10. Owed
+## 11. Owed
 
 - **`SettingsPaneShell` still derives NARROW from `useViewport().isMobile`** — the window,
   not its own box. That is the fifth spelling of "how wide is wide" and the one place the

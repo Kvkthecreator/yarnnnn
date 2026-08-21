@@ -34,6 +34,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { FACE } from '@/components/text/readingFace';
 
 export type ToolbarAction =
   | { kind: 'wrap'; marker: string }
@@ -115,16 +116,30 @@ export function MarkdownToolbar({
 }) {
   return (
     <div
-      role="toolbar"
-      aria-label="Markdown formatting"
       className={cn(
-        'flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border px-3 py-1',
+        'flex shrink-0 justify-center border-b border-border px-3 py-1.5',
         className,
       )}
     >
+      {/* CENTRED ON THE CANVAS COLUMN, like the crumb row above it — the verbs
+          sit over the page they act on rather than over the pane, and neither
+          row moves when the right pane opens or closes.
+
+          `w-full` up to the column, so on a narrow pane the row is simply the
+          pane and nothing changes; `overflow-x-auto` rather than `flex-wrap`,
+          because a wrapping toolbar changes the CANVAS's vertical origin as the
+          pane narrows — the document would visibly jump. Docs scrolls its
+          toolbar for the same reason. The scrollbar is hidden: it is chrome on
+          chrome, and the row is one line tall. */}
+      <div
+        role="toolbar"
+        aria-label="Markdown formatting"
+        className="flex w-full items-center gap-0.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+        style={{ maxWidth: FACE.column }}
+      >
       {GROUPS.map((group, gi) => (
-        <div key={gi} className="flex items-center gap-0.5">
-          {gi > 0 && <span className="mx-1 h-4 w-px bg-border/60" aria-hidden />}
+        <div key={gi} className="flex shrink-0 items-center gap-0.5">
+          {gi > 0 && <span className="mx-1.5 h-5 w-px bg-border/60" aria-hidden />}
           {group.map((item) => (
             <button
               key={item.label}
@@ -139,13 +154,17 @@ export function MarkdownToolbar({
               }}
               title={item.keys ? `${item.label} (${item.keys})` : item.label}
               aria-label={item.label}
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              // Sized to the Docs reference: a 32px target with a 16px glyph
+              // reads as a real button rather than a hairline mark, and meets
+              // the touch floor closely enough at desktop density.
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
             >
-              <item.icon className="h-3.5 w-3.5" />
+              <item.icon className="h-4 w-4" />
             </button>
           ))}
         </div>
       ))}
+      </div>
     </div>
   );
 }
