@@ -30,7 +30,7 @@ import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Load
 import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
+import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
 import { formatAiReference, relPath as relPathShared } from '@/lib/interop/fileHandle';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useDeclareFocus, type SurfaceFocus } from '@/lib/shell/useSurfaceFocus';
@@ -2996,106 +2996,67 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // ── The collapse ladder (2026-08-12) ──────────────────────────────────────
   // The workbench measures ITS OWN container, not the window: a surface can be
   // narrow inside a roomy window (a 320px window on a 1440px monitor), and the
-  // shell's viewport-wide `isMobile` cannot see that. `useNarrowContainer` was
-  // generalized out of the Studio for this exact reason and never adopted back;
-  // `useWorkbenchWidth` closes that loop and holds the ONE spelling of the
+  // shell's viewport-wide `isMobile` cannot see that. `usePaneLadder` is the ONE
+  // measured-container answer — Studio, Text, Desk and Chat all read it — and it
+  // holds the ONE spelling of the
   // thresholds (lib/shell/surface-preferences.ts), which raw `md:` class strings
   // had been silently disagreeing with — measured live: at 820px the toolbar
   // painted 260px over the Properties column.
   // A CALLBACK ref, not an object ref: the workbench mounts on a LATER render
   // than this hook (the START state returns first), and an effect keyed on a
   // stable object ref runs once against a null node and never retries — the
-  // rung then sits at its roomy default forever. See workbench-width.ts.
-  const [setWorkbenchNode, { threeColumn, sideIsOverlay, singlePane, fullLabels, measuredWidth }] =
-    useWorkbenchWidth();
+  // rung then sits at its roomy default forever. See pane-layout.ts.
+  const [setWorkbenchNode, wb] = usePaneLadder();
+  const { threeColumn, sideIsOverlay, singlePane, fullLabels } = wb;
+  // Pane state is per (surface, slot, workspace, user) — the id scopes the key.
+  const { userId } = useSurfacePreferences();
   // Touch parity: a coarse pointer gets 44px targets (Apple/Google floor) while
   // desktop density is untouched. The CAPABILITY, not the width — a large tablet
   // has no mouse; a narrow desktop window still does (useCoarsePointer's own
   // distinction, which this surface previously ignored entirely).
   const coarsePointer = useCoarsePointer();
 
-  // The side pane (Properties · Chat) as an OVERLAY at the two-pane rung: the
-  // member opens it deliberately and it closes on Escape, rather than
-  // permanently eating 368px the canvas needs. Never open at the wider rungs —
-  // there it is a real column and this state is inert.
-  const [sideOpen, setSideOpen] = useState(false);
-  useEffect(() => {
-    if (!sideIsOverlay) setSideOpen(false);
-  }, [sideIsOverlay]);
-  useEffect(() => {
-    if (!sideOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSideOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [sideOpen]);
 
   // ADR-455: the navigator collapses (desktop) — a member reclaims the width
-  // when the outline/strip isn't earning it. Session-local state.
+  // when the outline/strip isn't earning it.
   //
   // DEFAULT BY LAYOUT (operator ruling 2026-07-14): a DECK's slide strip is its
   // primary navigation (PowerPoint) → open by default. A DOCUMENT/ARTICLE
   // outline is a thin table-of-contents that doesn't earn its width for the
   // short-to-medium artifacts the Studio actually produces → COLLAPSED by
-  // default. The member can still show it (the PanelLeft toggle); once they
-  // touch the toggle their choice sticks for the session (`navUserSet`), so the
-  // per-layout default never fights a deliberate open/close. This is ADR-455 D4
-  // resolving toward "gets out of the way" for documents while the deck keeps
-  // its strip — the deletion ADR-455 deferred, taken as a default-hide instead.
-  const [navCollapsed, setNavCollapsed] = useState(false);
-  const [navUserSet, setNavUserSet] = useState(false);
-  // The slide strip is RESIZABLE (drag its right divider). Width persists across
-  // sessions so a member's chosen strip stays put. Clamped to a sane band so a
-  // drag can neither hide the strip nor crush the canvas.
-  const NAV_MIN = 140;
-  const NAV_MAX = 520;
-  const [navWidth, setNavWidth] = useState(224); // ~w-56, the prior fixed width
+  // default. ADR-455 D4 resolving toward "gets out of the way" for documents
+  // while the deck keeps its strip.
+  //
+  // Both chrome slots ride the ONE pane contract (`lib/shell/pane-layout.ts`):
+  // show/hide + width + persistence, identical here, in Text and in Chat.
+  //
+  // The rail's RESTING answer depends on the medium, and is only knowable once
+  // the artifact loads — `template` reads 'document' from the extract-fallback
+  // before content arrives, so committing early would flash a deck's strip
+  // closed→open. Handed to the slot as a MOVING default rather than written
+  // after the fact: the slot follows it until the member chooses, and never
+  // fights them afterwards. That replaces the old `navUserSet` latch, which held
+  // the member's choice for the SESSION only — their next visit forgot it.
+  const rail = usePaneSlot('studio', 'rail', userId, wb, {
+    defaultShown: !!file?.content && isPaged,
+  });
+  // The side pane rests SHOWN: a member arriving at an artifact should see its
+  // properties without hunting for them.
+  const side = usePaneSlot('studio', 'side', userId, wb, { defaultShown: true });
+  const navCollapsed = !rail.shown;
+  const toggleNav = rail.toggle;
+  const sideOpen = side.shown;
+  // Escape withdraws the side pane while it is an OVERLAY — an overlay covers
+  // the canvas and is therefore modal; a COLUMN is not, and Escape must not
+  // reach across and close it (the member would have no idea what they hit).
   useEffect(() => {
-    const saved = Number(localStorage.getItem('studio.navWidth'));
-    if (saved >= NAV_MIN && saved <= NAV_MAX) setNavWidth(saved);
-  }, []);
-  const startNavResize = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startW = navWidth;
-      const onMove = (ev: PointerEvent) => {
-        const w = Math.min(NAV_MAX, Math.max(NAV_MIN, startW + (ev.clientX - startX)));
-        setNavWidth(w);
-      };
-      const onUp = () => {
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        setNavWidth((w) => {
-          localStorage.setItem('studio.navWidth', String(w));
-          return w;
-        });
-      };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-    },
-    [navWidth],
-  );
-  useEffect(() => {
-    if (navUserSet) return; // the member's choice wins over the per-layout default
-    // Gate on the artifact being LOADED: `template` reads 'document' from the
-    // extract-fallback before content arrives, so acting on it early would
-    // flash a deck's strip closed→open. Only seed the default once the real
-    // template is known.
-    if (!file?.content) return;
-    // PAGED artifacts navigate by container — the strip IS the navigation, so
-    // it opens. FLOW artifacts have no navigator at all now (the outline was a
-    // derived table of contents that, per the 2026-07-14 ruling, "doesn't earn
-    // its width" — an affordance defaulted off was the tell that it didn't
-    // belong). Kept collapsed here as belt-and-braces; the toggle + the whole
-    // navigator column are mode-gated below.
-    setNavCollapsed(!isPaged);
-  }, [isPaged, navUserSet, file?.content]);
-  const toggleNav = useCallback(() => {
-    setNavUserSet(true);
-    setNavCollapsed((c) => !c);
-  }, []);
+    if (!sideIsOverlay || !sideOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') side.toggle();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sideIsOverlay, sideOpen, side]);
 
   // Selecting a slide in the left navigator sets the selection to that slide
   // (no block; anchors page ops + the Design tab) AND scrolls the canvas to it.
@@ -3431,17 +3392,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             className={`relative shrink-0 flex-col border-r border-border ${
               threeColumn && !navCollapsed ? 'flex' : 'hidden'
             } ${singlePane && navActive ? '!flex w-full' : ''}`}
-            style={
-              singlePane && navActive
-                ? undefined
-                : // CLAMP the persisted strip against the room actually
-                  // measured: a member who dragged the strip to 520px on a wide
-                  // monitor must not carry that width into an 800px workbench,
-                  // where it would re-create the canvas crush through member
-                  // state rather than through the layout. A third of the
-                  // container is the ceiling; NAV_MIN keeps it usable.
-                  { width: Math.max(NAV_MIN, Math.min(navWidth, (measuredWidth ?? Infinity) / 3)) }
-            }
+            // The slot clamps its own width against the measured container, so
+            // a strip dragged to 520px on a wide monitor cannot carry that into
+            // an 800px workbench and re-create the crush through member state.
+            style={singlePane && navActive ? undefined : { width: rail.width }}
           >
             <PagedNavigator
               layout={template}
@@ -3464,9 +3418,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 6px target anyway. */}
             {threeColumn && !coarsePointer && (
               <div
-                onPointerDown={startNavResize}
+                onPointerDown={rail.startResize}
+                role="separator"
+                aria-orientation="vertical"
                 title="Drag to resize the slide strip"
-                className="absolute right-0 top-0 z-10 block h-full w-1.5 translate-x-1/2 cursor-col-resize hover:bg-indigo-400/40"
+                className="absolute right-0 top-0 z-10 block h-full w-1.5 translate-x-1/2 cursor-col-resize hover:bg-primary/20 active:bg-primary/30"
               />
             )}
           </div>
@@ -3650,16 +3606,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               compact={!fullLabels}
               coarsePointer={coarsePointer}
             />
-            {/* The side pane's DOOR at the two-pane rung. Without it the overlay
-                would have no opener and Properties/Chat would be unreachable —
-                a withdrawal that isn't reversible is worse than the crush it
-                replaced (the ADR-519 lesson: never ship an inescapable state). */}
-            {sideIsOverlay && (
+            {/* The side pane's DOOR — at EVERY rung that has a side pane, not
+                only where it is an overlay. Gating this on `sideIsOverlay` was
+                the inversion: the overlay rung already dismisses on backdrop
+                and Escape, while the COLUMN rung — the ordinary desktop — was
+                the one with no way out, permanently spending 380px with no
+                affordance to reclaim it. Hidden only at single-pane, where the
+                bottom tab bar IS the switcher and a second control would be a
+                second answer to one question. */}
+            {!singlePane && (
               <button
                 type="button"
-                onClick={() => setSideOpen((v) => !v)}
-                title="Properties and chat"
-                aria-label="Properties and chat"
+                onClick={side.toggle}
+                title={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
+                aria-label={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
                 aria-expanded={sideOpen}
                 className={`mr-1 inline-flex shrink-0 items-center justify-center rounded border border-border text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground ${
                   coarsePointer ? 'h-11 w-11' : 'h-7 w-7'
@@ -3996,14 +3956,26 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         {sideIsOverlay && sideOpen && (
           <div
             role="presentation"
-            onClick={() => setSideOpen(false)}
+            onClick={side.toggle}
             className="absolute inset-0 z-20 bg-black/20"
           />
         )}
+        {/* The side pane's resize divider — a column edge, so it exists only
+            where the pane IS a column. An overlay is dismissed, not resized. */}
+        {slotIsColumn(wb, side) && !coarsePointer && (
+          <div
+            onPointerDown={side.startResize}
+            role="separator"
+            aria-orientation="vertical"
+            title="Drag to resize"
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
+          />
+        )}
         <div
+          style={slotIsColumn(wb, side) ? { width: side.width } : undefined}
           className={`shrink-0 flex-col border-l border-border ${
             threeColumn
-              ? 'flex w-[380px] max-w-[45%]'
+              ? `${sideOpen ? 'flex' : 'hidden'}`
               : sideIsOverlay
                 ? `absolute inset-y-0 right-0 z-30 w-[min(380px,85%)] bg-background shadow-xl ${
                     sideOpen ? 'flex' : 'hidden'

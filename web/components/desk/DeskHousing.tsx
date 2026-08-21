@@ -12,8 +12,8 @@
  * (ADR-565 D8 held open, deliberately cheap).
  *
  * What the housing owns:
- *   - the workbench container + `useWorkbenchWidth` ladder (AUTHORING.md
- *     rule 15 — width rides the desk's own container, never the viewport):
+ *   - the pane container + `usePaneLadder` (docs/design/PANES.md — width rides
+ *     the desk's own container, never the viewport):
  *       full/condensed → three columns;
  *       two-pane       → the rail folds (the app renders a header switcher);
  *       single-pane    → one pane + a Desk/{colleague} tab bar;
@@ -37,7 +37,7 @@ import {
 } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
+import { usePaneLadder } from '@/lib/shell/pane-layout';
 import { LanePanel } from '@/components/chat-surface/LanePanel';
 
 // Lane env shapes come from the client, never hand-copied (the drift seam
@@ -48,7 +48,7 @@ type LaneRow = LanesEnv['lanes'][number];
 /** What the housing hands its render slots. */
 export interface DeskContext {
   /** The workbench-width ladder read on the desk's own container. */
-  wb: ReturnType<typeof useWorkbenchWidth>[1];
+  wb: ReturnType<typeof usePaneLadder>[1];
   /** Three-column rung → the rail renders as its own column; below it the
    *  app folds the roster into a header switcher. */
   showRailColumn: boolean;
@@ -112,7 +112,7 @@ export function DeskHousing({
   children,
   overlay,
 }: DeskHousingProps) {
-  const [setWorkbenchNode, wb] = useWorkbenchWidth();
+  const [setWorkbenchNode, wb] = usePaneLadder();
 
   // single-pane: which pane the tab bar shows. Switching subject lands on the
   // desk pane (the selectTopic behavior, hoisted with the chrome).

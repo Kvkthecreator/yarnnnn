@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
- * GATE — the authoring workbench's width ladder (2026-08-12).
+ * GATE — the pane layout contract (2026-08-12, widened 2026-08-21).
  *
- * Run from the REPO ROOT: `node web/scripts/gates/authoring_width_ladder.mjs`
+ * Run from the REPO ROOT: `node web/scripts/gates/pane_layout.mjs`
  *
  * ## What this defends
  *
- * Docs and Studio share one component (`StudioSurface`). It was the only major
- * surface doing responsive purely in raw Tailwind class strings, and two
- * defects followed, both measured live on prod:
+ * ONE housing contract for every multi-pane surface: one ladder, one toggle
+ * rule, one width store. Before the widening the ladder was real but its home
+ * was a module named for ONE app, so Chat grew a fourth threshold beside it and
+ * every check stayed green — the pane-spine failure one rung out.
+ *
+ * The original defects, measured live on prod, that the ladder half defends:
  *
  *  1. The shell collapses to single-window at `MOBILE_BREAKPOINT_PX` (640); the
  *     workbench switched panes at `md` (768). Between them — and from 768 up to
@@ -51,9 +54,9 @@ const ok = (name, cond, detail = '') => {
 // ── 1. The thresholds have ONE declared home ──────────────────────────────
 const prefs = read('web/lib/shell/surface-preferences.ts');
 for (const k of [
-  'WORKBENCH_SINGLE_PANE_PX',
-  'WORKBENCH_THREE_COLUMN_PX',
-  'WORKBENCH_FULL_LABELS_PX',
+  'PANE_SINGLE_PX',
+  'PANE_THREE_COLUMN_PX',
+  'PANE_FULL_LABELS_PX',
 ]) {
   ok(`threshold ${k} declared in surface-preferences`, prefs.includes(`export const ${k}`));
 }
@@ -69,45 +72,54 @@ const num = (k) => {
   if (!m) throw new Error(`gate cannot read ${k}`);
   return Number(m[1]);
 };
-const SINGLE = num('WORKBENCH_SINGLE_PANE_PX');
-const THREE = num('WORKBENCH_THREE_COLUMN_PX');
-const FULL = num('WORKBENCH_FULL_LABELS_PX');
+const SINGLE = num('PANE_SINGLE_PX');
+const THREE = num('PANE_THREE_COLUMN_PX');
+const FULL = num('PANE_FULL_LABELS_PX');
 
 ok('the ladder is strictly ordered', SINGLE < THREE && THREE < FULL, `${SINGLE}/${THREE}/${FULL}`);
 ok(
   'three columns are never attempted below their measured ~1008px minimum',
   THREE >= 1008,
-  `WORKBENCH_THREE_COLUMN_PX=${THREE}; measured minimum was ~1008 ` +
+  `PANE_THREE_COLUMN_PX=${THREE}; measured minimum was ~1008 ` +
     `(strip 225 + toolbar 274 + boundary 141 + side 368)`,
 );
 
 // ── 2. EXECUTE the derivation at every boundary ───────────────────────────
 const mod = await import(
-  pathToFileURL(`${ROOT}/web/lib/authoring/workbench-width.ts`).href
+  pathToFileURL(`${ROOT}/web/lib/shell/pane-layout.ts`).href
 ).catch(async () => {
   // The module is TS; if this runtime can't import it directly, transpile the
   // two pure functions out rather than skipping the behavioural half of the
   // gate (a gate that silently degrades to structure-only is not a gate).
-  const src = read('web/lib/authoring/workbench-width.ts');
-  const body = src
-    .replace(/^[\s\S]*?export type WorkbenchRung[^\n]*\n/, '')
-    .replace(/export interface WorkbenchWidth \{[\s\S]*?\n\}/, '')
-    .replace(/import[^\n]*\n/g, '')
-    .replace(/^'use client';/m, '')
-    .replace(/export function useWorkbenchWidth[\s\S]*$/, '')
-    .replace(/: number \| null = null/g, ' = null')
-    .replace(/: WorkbenchRung|: number|: WorkbenchWidth/g, '')
-    .replace(/export /g, '');
+  // Extract the TWO PURE FUNCTIONS and evaluate them directly. Slicing the
+  // whole module and subtracting TS syntax was brittle — it was tuned to one
+  // file's exact shape and broke twice on ordinary edits (a multi-line import,
+  // then a type alias). Naming what it needs cannot rot that way: if either
+  // function is renamed or deleted, this throws loudly instead of degrading to
+  // a structure-only pass.
+  const src = read('web/lib/shell/pane-layout.ts');
+  const grab = (name) => {
+    const m = new RegExp(
+      `export function ${name}\\([\\s\\S]*?\\n\\}`, 'm',
+    ).exec(src);
+    if (!m) throw new Error(`gate cannot find ${name} in pane-layout.ts`);
+    return m[0]
+      .replace(/export /, '')
+      .replace(/: PaneRung \| null = null/g, ' = null')
+      .replace(/: number \| null = null/g, ' = null')
+      .replace(/: PaneRung|: number|: PaneLadder/g, '');
+  };
   const fn = new Function(
-    'WORKBENCH_SINGLE_PANE_PX',
-    'WORKBENCH_THREE_COLUMN_PX',
-    'WORKBENCH_FULL_LABELS_PX',
-    `${body}; return { rungForWidth, widthFromRung };`,
+    'PANE_SINGLE_PX',
+    'PANE_THREE_COLUMN_PX',
+    'PANE_FULL_LABELS_PX',
+    `${grab('rungForWidth')}\n${grab('ladderFromRung')}\n` +
+      'return { rungForWidth, ladderFromRung };',
   );
   return fn(SINGLE, THREE, FULL);
 });
 
-const { rungForWidth, widthFromRung } = mod;
+const { rungForWidth, ladderFromRung: widthFromRung } = mod;
 
 // The boundary table. Each row is a WIDTH and the rung it must produce —
 // asserted as behaviour, not as a class string.
@@ -189,15 +201,15 @@ ok(
 // DERIVATION, and the derivation was always correct. What was broken was whether
 // anything ever CALLED it with a real width. That is the "computed and never
 // mounted" shape, and it is why this assertion is about wiring, not arithmetic.
-const hook = read('web/lib/authoring/workbench-width.ts');
+const hook = read('web/lib/shell/pane-layout.ts');
 ok(
   'the width hook returns a callback ref (not a RefObject it observes in an effect)',
-  /useWorkbenchWidth\(\):\s*\[\(node: HTMLElement \| null\) => void/.test(hook),
+  /usePaneLadder\(\):\s*\[\(node: HTMLElement \| null\) => void/.test(hook),
   'a RefObject + useEffect never re-runs when the workbench mounts on a later render',
 );
 ok(
   'the hook takes no ref parameter',
-  /export function useWorkbenchWidth\(\)/.test(hook),
+  /export function usePaneLadder\(\)/.test(hook),
   'accepting a ref is the shape that failed to attach',
 );
 ok(
@@ -245,10 +257,155 @@ ok(
   'the bottom tab bar is the primary navigation on a phone',
 );
 
+// ── 7. THE HOUSING CONTRACT — one ladder, one toggle rule, one width ──────
+// The half the old gate could not see. It read two files, both Studio's, so a
+// second spelling of the ladder in Chat (600px, hand-rolled) stayed green for
+// as long as it existed. These assert the CONTRACT across every consumer.
+
+const paneLayout = read('web/lib/shell/pane-layout.ts');
+
+// 7a. Every multi-pane surface reads the ONE ladder. Listed explicitly: a
+// derived list would pass vacuously the day a surface stops importing it.
+const LADDER_CONSUMERS = [
+  'web/components/authoring/StudioSurface.tsx',
+  'web/components/text/TextEditor.tsx',
+  'web/components/chat-surface/ChatSurface.tsx',
+  'web/components/desk/DeskHousing.tsx',
+  'web/components/settings/SettingsPaneShell.tsx',
+];
+for (const f of LADDER_CONSUMERS) {
+  const src = read(f);
+  ok(`${f.split('/').pop()} reads the shared ladder`,
+    /from ['"]@\/lib\/shell\/pane-layout['"]/.test(src));
+}
+
+// 7b. NO second threshold anywhere. The drift that made this module necessary
+// was a surface declaring its own "how wide is wide" — Chat's 600. Comments are
+// stripped first so an absence assertion cannot match its own prose (the
+// recorded `feedback_gate_assertion_matches_its_own_comment`).
+for (const f of LADDER_CONSUMERS) {
+  const src = read(f)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  const own = [...src.matchAll(/const\s+\w*(?:MIN_PX|_PX|BREAKPOINT\w*)\s*=\s*\d+/g)].map((m) => m[0]);
+  ok(`${f.split('/').pop()} declares no threshold of its own`, own.length === 0,
+    own.join(', '));
+}
+
+// 7c. The width store is SINGULAR. Three key schemes existed; the two that
+// belonged to surface panes are gone. The chat DRAWER keeps its own — it is
+// shell chrome sized against the VIEWPORT with a postural default keyed on the
+// foregrounded surface, not a slot inside a surface, and folding it in would be
+// a false unity. Named here so its exemption is a decision, not an oversight.
+const RETIRED_KEYS = ['studio.navWidth', 'yarnnn:pane-shell:nav-width:'];
+for (const k of RETIRED_KEYS) {
+  const hits = LADDER_CONSUMERS.filter((f) => read(f).includes(k));
+  ok(`the retired key ${k} has no writer left`, hits.length === 0, hits.join(', '));
+}
+ok('the shared store forms its key through shellStateSuffix',
+  paneLayout.includes('shellStateSuffix'),
+  'pane state must scope per (workspace, user) like every other piece of shell state');
+
+// 7d. NO hand-rolled drag survives in a surface. Every resize goes through the
+// slot; a surface reaching for clientX again is the drift returning.
+for (const f of LADDER_CONSUMERS) {
+  const src = read(f)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  const drag = [...src.matchAll(/addEventListener\(['"]pointermove|\bclientX\b\s*-|-\s*\bclientX\b/g)];
+  ok(`${f.split('/').pop()} rolls no drag of its own`, drag.length === 0,
+    `${drag.length} hand-rolled drag site(s) — resize belongs to usePaneSlot`);
+}
+
+// 7e. THE CLAMP. Execute it: a persisted width from a big monitor must be cut
+// down by the container, and the floor must survive a container too small to
+// honour both. This is the rule that actually protects the canvas.
+const clampSrc = /export function clampPaneWidth\([\s\S]*?\n\}/.exec(paneLayout);
+ok('clampPaneWidth is exported', !!clampSrc);
+// Read the BAND and the SHARE from the source, never from a copy in this file.
+// The first cut passed 180/560/(1/3) as literals into the Function ctor, so it
+// validated the gate's own arithmetic and stayed GREEN when PANE_MAX_SHARE was
+// falsified to 1 — a gate that cannot see the constant it is about. Caught by
+// falsification, which is the whole reason for running it.
+const constNum = (k) => {
+  const m = new RegExp(`export const ${k} = ([\\d./\\s]+);`).exec(paneLayout);
+  if (!m) throw new Error(`gate cannot read ${k}`);
+  // eslint-disable-next-line no-new-func
+  return Number(new Function(`return (${m[1]});`)());
+};
+const MIN = constNum('PANE_MIN_PX');
+const MAXW = constNum('PANE_MAX_PX');
+const SHARE = constNum('PANE_MAX_SHARE');
+ok('a slot may never take more than a third of its container', SHARE <= 1 / 3,
+  `PANE_MAX_SHARE=${SHARE}; above a third the canvas stops being the subject`);
+ok('the band is ordered and usable', MIN >= 120 && MIN < MAXW, `${MIN}/${MAXW}`);
+
+const clamp = new Function(
+  'PANE_MIN_PX', 'PANE_MAX_PX', 'PANE_MAX_SHARE',
+  `${clampSrc[0].replace(/export /, '').replace(/: number \| null|: number/g, '')}
+   return clampPaneWidth;`,
+)(MIN, MAXW, SHARE);
+ok('a slot wider than its share is cut down to the container',
+  clamp(MAXW, 800) === Math.floor(800 * SHARE), `got ${clamp(MAXW, 800)}`);
+ok('the same width is honoured where it fits',
+  clamp(MAXW, 4000) === MAXW, `got ${clamp(MAXW, 4000)}`);
+ok('the floor wins over the share ceiling in a very narrow container',
+  clamp(MIN + 20, 400) === MIN, `got ${clamp(MIN + 20, 400)}`);
+ok('an unmeasured container falls back to the band, never to Infinity',
+  clamp(9999, null) === MAXW, `got ${clamp(9999, null)}`);
+
+// 7f. A HIDDEN SLOT HAS A DOOR. The rule the old code broke in both directions:
+// Studio/Text gated their door on `sideIsOverlay` (so the COLUMN rung — ordinary
+// desktop — had none), and Chat had no door at all. An inescapable state is the
+// ADR-519 lesson; assert every surface that can hide a slot can also show it.
+const DOORS = [
+  ['web/components/authoring/StudioSurface.tsx', 'side.toggle'],
+  ['web/components/text/TextEditor.tsx', 'side.toggle'],
+  ['web/components/chat-surface/ChatSurface.tsx', 'rail.toggle'],
+];
+//
+// Counting call sites was the WRONG assertion, and this gate shipped RED against
+// correct code for it before being falsified: Text has ONE button whose label
+// flips (Hide / Show) — a two-way door in one element — while Chat needs two
+// because its button lives INSIDE the rail it hides. The number of controls is
+// not the property. The property is that at least one door renders under a
+// guard that does NOT require the slot to be shown.
+for (const [f, verb] of DOORS) {
+  const src = read(f)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  const slot = verb.split('.')[0];
+  const sites = [...src.matchAll(new RegExp(`onClick=\\{${slot}\\.toggle\\}`, 'g'))];
+  ok(`${f.split('/').pop()} wires its slot door to the shared toggle`,
+    sites.length > 0, `no onClick={${verb}} found`);
+  // The door must survive the slot being hidden. `${slot}IsColumn` and
+  // `${slot}.shown` both go false then, so a door guarded ONLY by those is
+  // one-way. At least one site must sit outside such a guard.
+  const guardedOnlyByShown = sites.every((m) => {
+    const before = src.slice(Math.max(0, m.index - 400), m.index);
+    const guard = before.slice(before.lastIndexOf('{'));
+    return /IsColumn|\.shown/.test(guard) && !/!\s*\w+\.shown|!\s*\w+IsColumn/.test(guard);
+  });
+  ok(`${f.split('/').pop()}: a door is reachable while the slot is hidden`,
+    !guardedOnlyByShown,
+    'every door is gated on the slot being SHOWN — hiding it would be one-way');
+}
+
+// 7g. No door may be gated on the OVERLAY rung — the inversion itself. An
+// overlay dismisses on scrim and Escape; the column is what needs the door.
+for (const [f] of DOORS) {
+  const src = read(f)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  ok(`${f.split('/').pop()} does not gate its door on sideIsOverlay`,
+    !/\{sideIsOverlay && \(\s*<button/.test(src),
+    'the overlay rung already dismisses itself; the COLUMN rung is the one that needs a door');
+}
+
 // ── report ────────────────────────────────────────────────────────────────
 if (failures.length) {
-  console.error(`\n✗ authoring_width_ladder — ${pass} passed, ${failures.length} FAILED\n`);
+  console.error(`\n✗ pane_layout — ${pass} passed, ${failures.length} FAILED\n`);
   for (const f of failures) console.error(`  ✗ ${f}`);
   process.exit(1);
 }
-console.log(`✓ authoring_width_ladder — ${pass}/${pass} green`);
+console.log(`✓ pane_layout — ${pass}/${pass} green`);

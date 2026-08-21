@@ -63,6 +63,7 @@ import { useState, useEffect, useRef, useCallback, type ComponentType, type Reac
 import { useSearchParams } from "next/navigation";
 import { useSurfaceParam, useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { useViewport } from "@/lib/shell/useViewport";
+import { usePaneLadder, usePaneSlot } from "@/lib/shell/pane-layout";
 import { useWindowCrumb } from "@/contexts/BreadcrumbContext";
 
 export interface PaneDef {
@@ -222,10 +223,6 @@ interface SettingsPaneShellProps {
   navLabel?: string;
 }
 
-const RESIZE_KEY_PREFIX = "yarnnn:pane-shell:nav-width:";
-const NAV_WIDTH_DEFAULT = 280;
-const NAV_WIDTH_MIN = 200;
-const NAV_WIDTH_MAX = 560;
 
 export function SettingsPaneShell({
   windowSlug,
@@ -354,51 +351,21 @@ export function SettingsPaneShell({
       : []
   );
 
-  // --- resizable nav (Files) -------------------------------------------------
-  const resizeStorageKey = RESIZE_KEY_PREFIX + windowSlug;
-  const [navWidth, setNavWidth] = useState(NAV_WIDTH_DEFAULT);
-  const dragging = useRef(false);
-
-  useEffect(() => {
-    if (!resizable) return;
-    try {
-      const raw = window.localStorage.getItem(resizeStorageKey);
-      if (raw) {
-        const n = parseInt(raw, 10);
-        if (!Number.isNaN(n)) setNavWidth(Math.max(NAV_WIDTH_MIN, Math.min(NAV_WIDTH_MAX, n)));
-      }
-    } catch {}
-  }, [resizable, resizeStorageKey]);
-
-  useEffect(() => {
-    if (!resizable) return;
-    const onMove = (e: MouseEvent) => {
-      if (!dragging.current) return;
-      setNavWidth(Math.max(NAV_WIDTH_MIN, Math.min(NAV_WIDTH_MAX, e.clientX)));
-    };
-    const onUp = () => {
-      if (!dragging.current) return;
-      dragging.current = false;
-      try {
-        window.localStorage.setItem(resizeStorageKey, String(navWidth));
-      } catch {}
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [resizable, navWidth, resizeStorageKey]);
-
-  const onDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragging.current = true;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, []);
+  // --- the nav rail: one contract, shared with every other pane -------------
+  // This was a bespoke mouse-listener resize with its own key scheme and its
+  // own band. Both now come from `usePaneSlot`, so a rail here resizes exactly
+  // as a rail in Chat or Studio does and persists under the same key shape.
+  //
+  // NOTE (deliberate, not an oversight): this shell still derives NARROW from
+  // `useViewport().isMobile` — the window, not its own box — which is the fifth
+  // spelling of "how wide is wide" and the one place the ladder has not reached.
+  // Converting it is a behaviour change to the drill-in contract every Settings
+  // pane depends on, so it is left standing and named here rather than folded in
+  // silently. The width contract is shared today; the threshold is owed.
+  const { userId } = useSurfacePreferences();
+  const [setPaneNode, ladder] = usePaneLadder();
+  const nav = usePaneSlot(windowSlug, "rail", userId, ladder);
+  const navIsColumn = resizable && !isNarrow && nav.shown;
 
   // === nav region ============================================================
   const navListChildren = navMode ? (
@@ -482,20 +449,22 @@ export function SettingsPaneShell({
 
   // === WIDE: two-pane row ====================================================
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div ref={setPaneNode} className="h-full flex flex-col min-h-0">
       {header}
       <div className="flex-1 flex min-h-0">
         <nav
           aria-label={navLabel}
           className={`${resizable ? "" : "w-44 sm:w-52"} shrink-0 border-r border-border overflow-y-auto ${navPadded ? "py-3 px-2 space-y-4" : ""}`}
-          style={resizable ? { width: navWidth } : undefined}
+          style={resizable && navIsColumn ? { width: nav.width } : undefined}
         >
           {navListChildren}
         </nav>
-        {resizable && (
+        {navIsColumn && (
           <div
-            onMouseDown={onDragStart}
-            className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+            onPointerDown={nav.startResize}
+            role="separator"
+            aria-orientation="vertical"
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
             title="Drag to resize"
           />
         )}

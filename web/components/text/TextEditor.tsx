@@ -93,7 +93,8 @@ import {
   type Edit,
 } from '@/components/text/markdownEdits';
 import { documentName, leafOf } from '@/components/text/TextSurface';
-import { useWorkbenchWidth } from '@/lib/authoring/workbench-width';
+import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 
 type LanesEnv = Awaited<ReturnType<typeof api.lanes.list>>;
@@ -132,7 +133,7 @@ export function TextEditor({
   onSaved?: () => void;
   onRenamed?: (nextPath: string) => void;
 }) {
-  const [setWorkbenchNode, wb] = useWorkbenchWidth();
+  const [setWorkbenchNode, wb] = usePaneLadder();
   const [reloadKey, setReloadKey] = useState(0);
   const { file, loading, notFound, error, headRevision, refreshRevision } = useFileLoad(path, {
     withRevision: true,
@@ -154,8 +155,14 @@ export function TextEditor({
   // Rail: Properties | Chat, the Docs grammar. The lane stays MOUNTED while
   // Properties is up (CSS-hidden) so a streaming turn survives the switch.
   const [rightTab, setRightTab] = useState<'properties' | 'chat'>('properties');
-  const [sideOpen, setSideOpen] = useState(true);
   const { sideIsOverlay, singlePane, fullLabels } = wb;
+  // The side pane rides the ONE pane contract (`lib/shell/pane-layout.ts`) —
+  // the same show/hide + width + persistence Studio and Chat use. Text composes
+  // no rail: absence is a property of the medium (markdown has no navigator),
+  // and a slot a surface does not compose is absent, never broken.
+  const { userId } = useSurfacePreferences();
+  const side = usePaneSlot('text', 'side', userId, wb, { defaultShown: true });
+  const sideOpen = side.shown;
   // The single-pane rung shows ONE pane at a time with a bottom tab bar — the
   // Docs ladder's last rung. Without it the rail would be unreachable on a
   // phone (the ADR-519 lesson: never ship an inescapable state).
@@ -695,7 +702,10 @@ export function TextEditor({
   // On the single-pane rung the rail becomes a tabbed pane; above it, an
   // overlay drawer or a resting column.
   const showCanvas = !singlePane || activePane === 'canvas';
-  const showRail = singlePane ? activePane === 'chat' : true;
+  // At single-pane the tab bar decides; above it the member's own show/hide
+  // does. A column the member has withdrawn is not rendered at all — hiding it
+  // with a class would leave its border painting a seam against the canvas.
+  const showRail = singlePane ? activePane === 'chat' : sideOpen;
 
   return (
     <div ref={setWorkbenchNode} className="flex h-full min-h-0 flex-col">
@@ -801,12 +811,17 @@ export function TextEditor({
           compact={!fullLabels}
         />
 
-        {sideIsOverlay && !singlePane && (
+        {/* The side pane's DOOR — at every rung that HAS a side pane, not only
+            where it is an overlay. The overlay rung already dismisses itself;
+            the COLUMN rung was the one permanently spending width with no way
+            to reclaim it. Hidden at single-pane, where the bottom tab bar is
+            the switcher. */}
+        {!singlePane && (
           <button
             type="button"
-            onClick={() => setSideOpen((v) => !v)}
-            title="Properties and chat"
-            aria-label="Properties and chat"
+            onClick={side.toggle}
+            title={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
+            aria-label={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
             aria-expanded={sideOpen}
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
           >
@@ -964,15 +979,27 @@ export function TextEditor({
         {/* The rail — Properties | Chat, Docs' grammar. At the narrow rungs it
             becomes an overlay with a header door; at the narrowest it is a
             pane the bottom bar switches to (never an unreachable pane). */}
+        {/* The resize divider — a column edge, so only where the pane IS a
+            column. An overlay is dismissed, not resized. */}
+        {slotIsColumn(wb, side) && (
+          <div
+            onPointerDown={side.startResize}
+            role="separator"
+            aria-orientation="vertical"
+            title="Drag to resize"
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
+          />
+        )}
         {showRail && (
         <aside
+          style={slotIsColumn(wb, side) ? { width: side.width } : undefined}
           className={cn(
             'flex min-h-0 flex-col border-border bg-background',
             singlePane
               ? 'min-w-0 flex-1'
               : sideIsOverlay
                 ? cn('absolute inset-y-0 right-0 z-20 w-[min(22rem,85vw)] border-l shadow-lg', sideOpen ? 'flex' : 'hidden')
-                : 'w-80 shrink-0 border-l',
+                : 'shrink-0 border-l',
           )}
         >
           <div className="flex shrink-0 border-b border-border">

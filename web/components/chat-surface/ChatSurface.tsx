@@ -34,7 +34,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Loader2, MessageCircle, Pencil, Pin, Plus, Search, X } from 'lucide-react';
+import { Archive, Loader2, MessageCircle, PanelLeft, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { LanePanel } from './LanePanel';
 import { ConversationHeader, type HeaderFace } from './ConversationHeader';
 import { ConversationDetail } from './ConversationDetail';
@@ -47,18 +47,8 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
-import { useNarrowContainer } from '@/lib/shell/useNarrowContainer';
+import { usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
-
-/** The width below which the chat surface stops being two columns.
- *
- *  The rail is `w-72` (288px) and a transcript needs roughly as much again to
- *  be readable, so under ~600px of surface the two-column layout is worse than
- *  one screen at a time. Measured against the SURFACE's own box (see
- *  `useNarrowContainer`), never the viewport — the viewport says "desktop" for
- *  a 768px tablet and for a 320px window alike, and both leave the transcript
- *  a sliver. */
-const CHAT_TWO_COLUMN_MIN_PX = 600;
 
 interface LaneInfo {
   id: string;
@@ -165,22 +155,27 @@ export function ChatSurface() {
         .map((m) => ({ principal_id: m.principal_id, label: m.label || 'A member' })),
     [wsMembers, userId],
   );
-  // One screen at a time when the space is tight (the Files/SettingsPaneShell
-  // principle): the lane list IS the screen until you pick a lane, then the
-  // conversation IS the screen.
+  // Measured on THIS surface's own box, not the viewport — a surface can be
+  // narrow inside a roomy window (a 320px window on a 1440px monitor), and a
+  // 768px tablet reads "desktop" to the viewport while leaving ~80px of
+  // transcript once the chat drawer takes its 400px.
   //
-  // Measured on THIS surface's own box, not the viewport. Keying it to
-  // `useViewport().isMobile` asked the window a question only the container can
-  // answer, and got it wrong in both directions: a 768px tablet reads
-  // "desktop" (the threshold is 640) and gets a 288px `shrink-0` rail that can
-  // leave ~80px of transcript once the chat drawer takes its 400px; and a 320px
-  // WINDOW on a large monitor reads "desktop" too, leaving ~32px. Observing the
-  // element covers both, and is what the Studio canvas already does.
-  //
-  // The threshold is the width below which two columns stop being two columns:
-  // the 288px rail plus a transcript wide enough to read.
-  const surfaceRef = useRef<HTMLDivElement>(null);
-  const isNarrow = useNarrowContainer(surfaceRef, CHAT_TWO_COLUMN_MIN_PX);
+  // The rungs are the SHELL's (`lib/shell/pane-layout.ts`), not a threshold of
+  // this surface's own. Chat previously hand-rolled 600px, which was a fourth
+  // spelling of "how wide is wide" and disagreed with the three around it.
+  const [setPaneNode, wb] = usePaneLadder();
+  // Chat composes a RAIL and a CANVAS; it composes no side pane, and that
+  // absence is a property of its grain, not a gap — the conversation IS the
+  // canvas, and the participants drill-in deliberately takes the whole pane
+  // rather than splitting it (see the ADR note at the detail mount below).
+  const rail = usePaneSlot('chat', 'rail', userId, wb, { defaultShown: true });
+  // One screen at a time at the narrowest rung: the lane list IS the screen
+  // until you pick a lane, then the conversation is.
+  const isNarrow = wb.singlePane;
+  // The rail is a real COLUMN only above the narrowest rung and only while the
+  // member is showing it. Derived once — branching on the pair at each call
+  // site is how Studio and Text came to disagree about when a toggle exists.
+  const railIsColumn = !isNarrow && rail.shown;
 
   // Debounced transcript search — content matches union with name matches.
   useEffect(() => {
@@ -687,7 +682,7 @@ export function ChatSurface() {
   // conversation, which is why neither is passed here any more.
 
   return (
-    <div ref={surfaceRef} className="h-full flex min-h-0">
+    <div ref={setPaneNode} className="h-full flex min-h-0">
       {creating && (
         <NewChatModal
           engines={data?.models ?? []}
@@ -695,28 +690,47 @@ export function ChatSurface() {
           onClose={() => setCreating(false)}
         />
       )}
-      {/* Lane list — flat recents, work-first (D4). On mobile it's the whole
-          screen (w-full) and yields entirely once a lane is picked; on desktop
-          it's the fixed 288px navigator column that's always present. */}
+      {/* Lane list — flat recents, work-first (D4). At the narrowest rung it is
+          the whole screen (w-full) and yields entirely once a lane is picked;
+          above it, a column the member can hide and resize. A hidden rail is
+          not rendered at all: hiding it with a class would leave its right
+          border painting a seam down the edge of the conversation. */}
       <div
+        style={railIsColumn ? { width: rail.width } : undefined}
         className={cn(
           'flex-col min-h-0',
           // The divider is a two-column artifact — full-width it's a hairline
           // against the screen edge.
-          isNarrow ? 'w-full' : 'w-72 shrink-0 flex border-r border-border',
+          isNarrow ? 'w-full' : 'shrink-0 flex border-r border-border',
           isNarrow && (activeLane ? 'hidden' : 'flex'),
+          !isNarrow && !rail.shown && 'hidden',
         )}
       >
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
           <span className="text-sm font-medium">Chat</span>
-          <button
-            onClick={() => setCreating((v) => !v)}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label="New lane"
-            title="New lane"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            {/* Hide the rail. Only where it is a COLUMN — at the narrowest rung
+                the rail IS the screen and hiding it would leave nothing. */}
+            {railIsColumn && (
+              <button
+                onClick={rail.toggle}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Hide the chat list"
+                title="Hide the chat list"
+                aria-expanded
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={() => setCreating((v) => !v)}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="New lane"
+              title="New lane"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Phase-A hygiene: search — lane names locally + transcript content
@@ -928,6 +942,18 @@ export function ChatSurface() {
         </div>
       </div>
 
+      {/* The rail's resize divider — a column edge, so only where the rail IS
+          a column. */}
+      {railIsColumn && (
+        <div
+          onPointerDown={rail.startResize}
+          role="separator"
+          aria-orientation="vertical"
+          title="Drag to resize"
+          className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
+        />
+      )}
+
       {/* Conversation area. On mobile it takes the whole screen when a lane is
           open and is absent otherwise — its empty state ("pick a lane on the
           left") is a desktop sentence; on one screen the lane list already IS
@@ -977,6 +1003,24 @@ export function ChatSurface() {
                 agent-OR-humans, never both). */}
             <ConversationHeader
               key={`header-${activeLane.id}`}
+              // The way BACK. A hidden rail with no door is an inescapable
+              // state (the ADR-519 lesson) — the member would have to reload.
+              // Shown only when the rail is hidden and COULD be a column: at
+              // the narrowest rung the crumb already returns to the list.
+              leading={
+                !isNarrow && !rail.shown ? (
+                  <button
+                    type="button"
+                    onClick={rail.toggle}
+                    className="shrink-0 -ml-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title="Show the chat list"
+                    aria-label="Show the chat list"
+                    aria-expanded={false}
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </button>
+                ) : null
+              }
               title={laneLabel(activeLane)}
               subtitle={laneSubLabel(activeLane)}
               // ADR-558 D5 — the mark, only where a single engine is the
@@ -1109,13 +1153,30 @@ export function ChatSurface() {
                 Your conversations
               </p>
               {/* §6.10b — same re-frame as the two empty states above: a
-                  chat is with a COLLEAGUE, not with a chosen engine. */}
+                  chat is with a COLLEAGUE, not with a chosen engine.
+
+                  "on the left" is only true while the rail IS on the left. With
+                  it hidden the sentence pointed at nothing and the surface had
+                  no visible way back — an empty state that names an absent
+                  affordance reads as a broken product, not a hidden one. */}
               <p>
                 Each chat is with one colleague, kept separate from the
-                others; your workspace files are the shared memory. Pick a
-                chat on the left or start a new one — the work lands in your
-                files, attributed to you.
+                others; your workspace files are the shared memory.
+                {railIsColumn
+                  ? ' Pick a chat on the left or start a new one'
+                  : ' Show your chats or start a new one'}
+                {' '}— the work lands in your files, attributed to you.
               </p>
+              {!isNarrow && !rail.shown && (
+                <button
+                  type="button"
+                  onClick={rail.toggle}
+                  className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-foreground/80 transition-colors hover:bg-muted"
+                >
+                  <PanelLeft className="h-3.5 w-3.5" />
+                  Show your chats
+                </button>
+              )}
             </div>
           </div>
         )}

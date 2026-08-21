@@ -4,7 +4,66 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-21 (latest) — FILES: a folder verb is a FAN-OUT, and a text file can be saved (no ADR — see "why no ADR" below)
+## 2026-08-21 (latest) — PANES: one housing contract, and the toggle that was inverted (no ADR — see "why no ADR" below)
+
+**Contract home**: **[`docs/design/PANES.md`](PANES.md)** — new. `AUTHORING.md` rule 15 is amended to point at it and keeps only what is genuinely authoring's (toolbar fold order, touch parity, the Docs/Studio one-component construction).
+
+The operator's framing, which is the right one: this is *foundational layout*, so it hardens in the design folder as a design-system contract — not as an ADR, and not as four per-surface fixes.
+
+### What was actually wrong
+
+An audit of every pane in the product found **six answers to three questions** across four surfaces:
+
+- **the ladder** — `useWorkbenchWidth` (Studio · Text · Desk) vs a hand-rolled `CHAT_TWO_COLUMN_MIN_PX = 600` in Chat, vs `useViewport().isMobile` in `SettingsPaneShell`;
+- **the toggle** — Studio `useState(false)` · Text `useState(true)` · Chat and Files none at all;
+- **the width** — three independent pointer-drag handlers, three localStorage key schemes (`yarnnn:shell:chat-drawer-width`, `yarnnn:pane-shell:nav-width:*`, `studio.navWidth`), three min/max bands, two different pointer APIs.
+
+**This is the pane-spine failure one rung out**, and AUTHORING.md had already written the diagnosis for the inner case: *"the rule was real and the divergence was invisible, because the rule lived in a docstring about one component."* Rule 15 was real; it lived in `lib/authoring/`, so a surface that was not an authoring app grew its own threshold beside it and every check stayed green.
+
+### The inversion — the finding that justified the sweep
+
+Studio and Text **did** have a `PanelRight` door for the side pane. It was gated on `sideIsOverlay` — the 768–1024px band **only**. But an overlay already dismisses on backdrop-click and on Escape. The rung with no way out was the **column** rung — the ordinary desktop — permanently spending 380px (Studio) / 320px (Text) with no affordance to reclaim it. The state existed and was **inert**: force-reset to `false` whenever the rung was not an overlay.
+
+So the affordance was shipped, wired, and rendered at exactly the rung that did not need it. Chat, meanwhile, had no door at all: a 288px `shrink-0` rail, always present.
+
+### The contract (full statement in PANES.md)
+
+Three slots — **`rail` · `canvas` · `side`**. The canvas is the subject and never yields (rule 15, unchanged). The two chrome slots are independently hideable and resizable. **A slot a surface does not compose is ABSENT, not broken** — Text has no rail, Chat has no side — which is the pane-spine asymmetry ("absence is legitimate; re-ordering never is") applied to the housing.
+
+- **Width is px**, clamped to a band (180–560) and again to **a third of the measured container**. Not %: 30% of a 1400px monitor is a comfortable 420px rail, and 30% of a 900px window is the crush the ladder exists to prevent, arriving through the member's own setting. The clamp runs **every render**, not only on drag, so a persisted width can never win over the room actually available.
+- **Persistence is per (surface, slot, workspace, user)**, localStorage only, keyed through `shellStateSuffix` — the one key-forming helper the dock already uses. Deliberately *not* in `useSurfacePreferences`: that store syncs to the server so a fresh device inherits a desktop, and a 520px rail chosen on a 27" monitor is actively wrong on the laptop opened next.
+- **A moving default** replaces Studio's `navUserSet` latch. A deck wants its slide strip, a document does not — knowable only once the artifact loads. The slot follows the caller's default until the member chooses, then never fights them. The old latch held the choice for the *session*; the next visit forgot it.
+
+### Deleted, not layered
+
+`lib/authoring/workbench-width.ts` · `lib/shell/useNarrowContainer.ts` (orphaned once Chat stopped hand-rolling) · `CHAT_TWO_COLUMN_MIN_PX` · Studio's bespoke drag + `studio.navWidth` · `SettingsPaneShell`'s bespoke drag + `RESIZE_KEY_PREFIX`/`NAV_WIDTH_*` · Studio's inert `sideOpen` state and its two reset effects. The `WORKBENCH_*_PX` constants are **renamed** `PANE_*_PX` — the ladder is not the workbench's any more, and a constant named for one consumer is how this drift started.
+
+**The one exemption, named in the doc rather than left to be discovered**: the chat **drawer** keeps its own store, band and drag. It is shell chrome sized against the viewport with a postural default keyed on the foregrounded surface (ADR-316 §5), and in Desktop mode a `position: fixed` overlay consuming zero flex space. Folding it in would be a false unity.
+
+### The gate, and the two defects it caught in itself
+
+`web/scripts/gates/authoring_width_ladder.mjs` → **`pane_layout.mjs`**, widened from 36 to 70 assertions: every consumer reads the shared ladder; no surface declares a threshold of its own; no surface rolls its own drag; the retired keys have no writer left; the clamp is **executed** at the boundaries; a door is reachable while its slot is hidden; and no door is gated on the overlay rung.
+
+Two of the new assertions were **wrong when first written**, and only falsification found them:
+
+1. *"A slot has at least two `toggle` call sites."* Shipped **RED against correct code** — Text has one button whose label flips (Hide ⇄ Show), a two-way door in one element, while Chat needs two because its button lives *inside* the rail it hides. The number of controls was never the property. Re-anchored to **reachability**: at least one door must render under a guard that does not require the slot to be shown.
+2. *The clamp test passed `180 / 560 / (1/3)` as literals into the `Function` constructor* — so it validated the gate's own arithmetic and stayed **GREEN when `PANE_MAX_SHARE` was falsified to `1`**. A gate that cannot see the constant it is about. Now reads all three from the source.
+
+Every new assertion was made to fail against the real pre-fix code and restored: a re-introduced 600px threshold, a hand-rolled drag, a door re-gated on `sideIsOverlay`, a one-way chat door, a consumer leaving the ladder, and a retired key returning.
+
+### Also fixed
+
+Chat's empty state read *"Pick a chat on the left."* With the rail hidden that sentence points at nothing — an empty state naming an absent affordance reads as a broken product, not a hidden panel. It now names what is there, and carries the door.
+
+`ConversationHeader` gains a `leading` slot rather than growing a layout control inside its documented grammar (faces · title · count · ⋯) — the header names the **room**; this names the **layout**.
+
+**Why no ADR.** No new decision. The ladder was ratified 2026-08-12 (rule 15); "never ship an inescapable state" by ADR-519; measured-container by the same. What was missing was a home one rung above any single app, so the rules reached every surface instead of whichever ones imported a module named `authoring/`. Ratified decisions, one home, one implementation. (Numbers 594–598 are unclaimed across the repo, so one was free had it been needed — checked because ADR numbers collide.)
+
+**OWED**: browser click-pass at each rung · `SettingsPaneShell`'s `useViewport().isMobile` (the fifth threshold spelling, named in PANES.md §8, left standing deliberately — converting it changes the drill-in contract every Settings pane depends on) · Files' collapse door (lost in the 2026-06-30 unification; `usePaneSlot` now supplies it, wiring is a small follow-on).
+
+---
+
+## 2026-08-21 — FILES: a folder verb is a FAN-OUT, and a text file can be saved (no ADR — see "why no ADR" below)
 
 **Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → A FOLDER VERB IS A FAN-OUT + THE DOWNLOAD MATRIX](WORKSPACE.md). The click-grammar section above them is unchanged and stands; these are two **absences** beside it, not a fourth rewrite of it.
 

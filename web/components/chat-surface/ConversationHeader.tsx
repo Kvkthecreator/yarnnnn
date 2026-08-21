@@ -57,6 +57,11 @@ export interface HeaderFace {
 }
 
 interface ConversationHeaderProps {
+  /** An optional control pinned at the row's leading edge — the surface's own
+   *  pane affordance (showing the lane rail again after it was hidden). Not
+   *  part of the header's grammar: the header names the room, and this names
+   *  the LAYOUT, which is why it is a slot rather than a fixed element. */
+  leading?: React.ReactNode;
   /** The room's name — EVERY participant but the viewer, species-blind. A
    *  group is named by its cast; a 1:1 by its counterpart, whatever it is. */
   title: string;
@@ -119,6 +124,7 @@ export function ConversationHeader({
   agentSlug,
   onOpenDetails,
   onAddParticipant,
+  leading,
 }: ConversationHeaderProps) {
   const identity = (
     <>
@@ -141,6 +147,11 @@ export function ConversationHeader({
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+      {/* The pane's own leading control (the rail door). A control for a panel
+          belongs on that panel's side, not in the middle of the row — the same
+          placement rule the Studio toolbar follows. It sits OUTSIDE the identity
+          link so it never becomes part of the "about this room" hit target. */}
+      {leading}
       {agentSlug ? (
         <SurfaceLink
           to="agents"
