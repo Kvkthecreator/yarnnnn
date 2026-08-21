@@ -2505,15 +2505,25 @@ async def get_recent_revisions(
                 continue
             latest_by_path[path] = row
 
+        from services.workspace_context import live_files_filter
+
         # One round-trip to find live files AND pull per-format preview material
         # (content_url for image thumbnails, content/summary for text snippets) —
         # the Explorer icon view renders real content, not a generic glyph.
         candidate_paths = list(latest_by_path.keys())
         live: dict[str, dict] = {}
         if candidate_paths:
+            # A file in Trash KEEPS its `workspace_files` row (delete is a
+            # lifecycle transition, ADR-337 D2), so "the revision resolves a
+            # row" is not the same question as "the file is live". Without this
+            # the operator's Recents kept offering files they had deleted —
+            # 20 briefs, still tiled in the Text app after a folder trash
+            # (2026-08-21).
             existing = (
-                auth.client.table("workspace_files")
-                .select("path, content_url, content_type, summary, content")
+                live_files_filter(
+                    auth.client.table("workspace_files")
+                    .select("path, content_url, content_type, summary, content")
+                )
                 .eq(*_substrate_scope_filter(auth))
                 .in_("path", candidate_paths)
                 .execute()

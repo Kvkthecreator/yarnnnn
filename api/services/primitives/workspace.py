@@ -1124,15 +1124,28 @@ def _exact_search(auth: Any, query: str, prefix: str) -> dict:
         return {"success": False, "error": "missing_query", "message": "query is required"}
     escaped = query.replace("%", r"\%").replace("_", r"\_")
     try:
-        rows = (
+        # NOT-IN-TRASH, spelled as a `not_.is_` + `neq` PAIR rather than the
+        # usual `live_files_filter` helper: the match itself already occupies
+        # this query's ONE `.or_()` slot (content OR path), and a second `.or_()`
+        # would replace the first rather than AND with it — silently turning a
+        # substring search into "everything not archived". The pair is
+        # equivalent: `lifecycle IS NULL OR lifecycle <> 'archived'` becomes two
+        # ANDed predicates only because PostgREST treats a null-safe `neq` as
+        # excluding NULLs, so the NULL case is restored explicitly.
+        # (Without this, a trashed file stayed searchable — 2026-08-21: 20
+        # briefs the operator had moved to Trash kept coming back as hits.)
+        q = (
             auth.client.table("workspace_files")
-            .select("path, content")
+            .select("path, content, lifecycle")
             .eq(*_scope_filter(auth))
             .like("path", f"{prefix}/%")
             .or_(f"content.ilike.%{escaped}%,path.ilike.%{escaped}%")
-            .limit(40)
-            .execute()
-        ).data or []
+            .limit(80)
+        )
+        rows = [
+            r for r in ((q.execute()).data or [])
+            if (r.get("lifecycle") or "active") != "archived"
+        ][:40]
     except Exception as e:
         logger.warning(f"[SEARCH_FILES] exact search failed: {e}")
         rows = []
@@ -1837,7 +1850,9 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         # roots below (a bare LIKE can't express the multi-root searchable set),
         # so recent-but-unsearchable rows don't crowd out searchable ones.
         try:
-            table_query = (
+            from services.workspace_context import live_files_filter
+
+            table_query = live_files_filter(
                 auth.client.table("workspace_files")
                 .select("path, content, summary, updated_at, metadata")
                 .eq(*_scope_filter(auth))

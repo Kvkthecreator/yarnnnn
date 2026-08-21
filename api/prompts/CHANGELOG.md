@@ -6,6 +6,39 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.21.5] - a trashed file does not read back
+
+### Fixed
+- `services/workspace.py` `UserMemory.read` / `read_sync`: filter archived rows.
+  This is the class serving `scope='workspace'` reads — the path `ReadFile`
+  takes for the operator's own substrate.
+- `services/primitives/workspace.py` `_exact_search`: exclude archived. Filtered
+  in PYTHON, not via the shared helper — the match already occupies the query's
+  one `.or_()` slot, and a second `.or_()` replaces the first rather than ANDing
+  (it would have turned a substring search into "everything not archived").
+- `routes/workspace.py` recent-revisions: the live-file lookup now asks whether
+  the row is archived. "The revision resolves a row" is not "the file is live".
+- `services/workspace_context.py`: `live_files_filter()` — the ONE spelling.
+- Expected behavior: **a file the operator moved to Trash is gone from every
+  read the LLM has.** `ReadFile` → `found: false`; `SearchFiles` → no hit;
+  `ListFiles` already behaved. Restore still works; the chain is untouched.
+
+  The operator trashed 20 briefs and they kept appearing in the Text app's
+  Recents, opened at their URL with full content, and read back through
+  `ReadFile` — so the delete looked broken when it had in fact worked (all 20
+  rows `lifecycle='archived'`, chain intact). Delete is a lifecycle transition,
+  not a row removal, which is what makes it restorable; the cost is that every
+  read must ask, and four did not. The predicate was a hand-copied string in six
+  places and absent from four, in two dialects that agree only while the column
+  is fully backfilled.
+
+### Gate
+- `api/test_trashed_file_does_not_read_back.py` — asserts the BEHAVIOUR, not
+  the spelling (a gate on the string would pass on the wrong dialect). Falsified
+  against the original defect and against the double-`.or_()` trap.
+
+---
+
 ## [2026.08.21.4] - the folder verbs complete the working-tree set
 
 ### Added

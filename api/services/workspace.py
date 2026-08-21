@@ -23,6 +23,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# A file in Trash keeps its `workspace_files` row (delete is a lifecycle
+# transition, ADR-337 D2) — so every read must say "not archived" out loud.
+# ONE spelling, never re-typed: `lifecycle.is.null` is load-bearing for rows
+# predating the column, and it is the half a from-memory re-spelling drops.
+from services.workspace_context import live_files_filter
+
 
 @dataclass
 class WorkspaceFile:
@@ -119,9 +125,11 @@ class AgentWorkspace:
         path = self._full_path(relative_path)
         try:
             result = (
-                _scoped(
-                    self._db.table("workspace_files").select("content"),
-                    self._user_id,
+                live_files_filter(
+                    _scoped(
+                        self._db.table("workspace_files").select("content"),
+                        self._user_id,
+                    )
                 )
                 .eq("path", path)
                 .limit(1)
@@ -140,10 +148,12 @@ class AgentWorkspace:
         path = self._full_path(relative_path)
         try:
             result = (
-                _scoped(
-                    self._db.table("workspace_files")
-                    .select("path, content, summary, content_type, metadata, tags, content_url, updated_at"),
-                    self._user_id,
+                live_files_filter(
+                    _scoped(
+                        self._db.table("workspace_files")
+                        .select("path, content, summary, content_type, metadata, tags, content_url, updated_at"),
+                        self._user_id,
+                    )
                 )
                 .eq("path", path)
                 .limit(1)
@@ -750,13 +760,23 @@ class UserMemory:
         return f"{self._base}/{filename}"
 
     async def read(self, filename: str) -> Optional[str]:
-        """Read a memory file. Returns None if not found."""
+        """Read a workspace file. Returns None if not found OR in Trash.
+
+        A trashed file KEEPS its `workspace_files` row (delete is a lifecycle
+        transition, ADR-337 D2 — that is what makes it restorable), so a read
+        without this filter serves content the operator has deleted. It did:
+        20 briefs moved to Trash still opened in the Text app and still read
+        back through `ReadFile` (2026-08-21). `found: false` is the honest
+        answer for an archived path — the tombstone is in the chain.
+        """
         path = self._full_path(filename)
         try:
             result = (
-                _scoped(
-                    self._db.table("workspace_files").select("content"),
-                    self._user_id,
+                live_files_filter(
+                    _scoped(
+                        self._db.table("workspace_files").select("content"),
+                        self._user_id,
+                    )
                 )
                 .eq("path", path)
                 .limit(1)
@@ -769,13 +789,19 @@ class UserMemory:
             return None
 
     def read_sync(self, filename: str) -> Optional[str]:
-        """Synchronous read for thread pool use (working_memory.py)."""
+        """Synchronous read for thread pool use (working_memory.py).
+
+        Same not-in-Trash rule as `read` — the two must never disagree about
+        whether a file exists.
+        """
         path = self._full_path(filename)
         try:
             result = (
-                _scoped(
-                    self._db.table("workspace_files").select("content"),
-                    self._user_id,
+                live_files_filter(
+                    _scoped(
+                        self._db.table("workspace_files").select("content"),
+                        self._user_id,
+                    )
                 )
                 .eq("path", path)
                 .limit(1)

@@ -199,6 +199,36 @@ def acting_workspace_owner(
         return user_id
 
 
+#: The ONE spelling of "not in Trash", for a `workspace_files` query.
+#:
+#: An archived file KEEPS its `workspace_files` row — delete is a lifecycle
+#: transition (ADR-337 D2 / ADR-400), not a row removal, which is what makes it
+#: restorable. So every read that answers "what is in the workspace" must say so
+#: explicitly, and a read that forgets shows the operator files they deleted.
+#:
+#: It went wrong exactly that way (2026-08-21): the operator moved 20 briefs to
+#: Trash, and they kept appearing in the Text app's Recents, in `ListFiles`, in
+#: `SearchFiles`, and in `ReadFile` — because the filter was a STRING copied by
+#: hand into six call sites and absent from four others. `lifecycle.is.null` is
+#: load-bearing (rows predating the column are live), and that is precisely the
+#: half a from-memory re-spelling drops.
+#:
+#: Usage — it returns the two arguments PostgREST's `.or_()` takes:
+#:
+#:     query = live_files_filter(client.table("workspace_files").select("path"))
+LIVE_FILES_OR_CLAUSE = "lifecycle.is.null,lifecycle.neq.archived"
+
+
+def live_files_filter(query):
+    """Apply the not-in-Trash predicate to a `workspace_files` query.
+
+    Wrapping the clause rather than exporting only the string is deliberate: a
+    bare constant still lets a caller forget to CALL `.or_()` with it, and the
+    forgetting is the failure mode this exists to end.
+    """
+    return query.or_(LIVE_FILES_OR_CLAUSE)
+
+
 __all__ = [
     "set_request_workspace",
     "reset_request_workspace",
@@ -206,4 +236,6 @@ __all__ = [
     "effective_workspace_id",
     "substrate_scope_filter",
     "acting_workspace_owner",
+    "LIVE_FILES_OR_CLAUSE",
+    "live_files_filter",
 ]

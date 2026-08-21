@@ -288,6 +288,36 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 - **LANE mode (ADR-411 D3 + ADR-467 D4) — the surface a MEMBER actually uses:** the **file verbs** (`ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile`, `SearchFiles`, `ListFiles`) + the **folder verbs** (`DeleteFolder`, `MoveFolder`) + the uniform extras `QueryKnowledge` / `WebSearch` / `list_integrations` (ADR-535 D2) / `GenerateImage` (ADR-568 D3). Declared in `api/services/lane_runner.py::LANE_TOOL_NAMES` + `LANE_SURFACE_EXTRA`, composed by `lane_tools_openai()`. **Uniform for every lane and every Agent** — capability is not a character trait (ADR-467 D4: a per-Agent `tools` field was a bug factory with no safety payoff). No entity verbs, no `Schedule`, no `DispatchSpecialist`, no `platform_*` reach. ⭐ **`DeleteFile` + `MoveFile` added 2026-08-21**: their absence was the anomaly — they already shipped in Chat, in Reviewer, and as `delete`/`move` on MCP, so a foreign LLM over MCP could delete a member's file while the member's own lane could not, and said so out loud. ⭐ **`DeleteFolder` + `MoveFolder` added the same day**, one grain up and for the identical reason: the fan-out already existed (`services/folder_organize.py`) and only the Files surface could reach it. Gate: [test_verb_families_are_one_set.py](../../api/test_verb_families_are_one_set.py).
 - **MCP mode (ADR-543 + ADR-545 over ADR-512):** the tool surface is file-native — `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `share` — composed server-side in `api/services/mcp_composition.py` over these kernel primitives: `WriteFile` (save — CAS via `expected_parent_version_id`, gate-checked against `CALLER_WRITE_POLICY["mcp"]`), `EditFile` / `DeleteFile` / `MoveFile` (the ADR-337 working-tree verbs, bound by ADR-545), `QueryKnowledge` (search's ranked read), `ListRevisions` / `DiffRevisions` (history's chain + inline diffs), and direct workspace-scoped reads (open/list, with list's `since` change feed). MCP is the foreign-LLM surface — a caller of `execute_primitive()` per ADR-164. **The ADR-209-era "revision reads deliberately NOT exposed on MCP" rule is REVERSED** (first by ADR-368's `trace`, ratified at contract altitude by ADR-512): the attributed revision chain is the surface's distinguishing capability, not an archaeology to hide. `InferContext` no longer exists (deleted per ADR-324); its row above is retained history in this table's deleted-primitives ledger sense only.
 
+> ### ⭐ Standing discipline — a trashed file does not read back
+>
+> Delete is a **lifecycle transition, not a row removal** (ADR-337 D2 /
+> ADR-400): a trashed file KEEPS its `workspace_files` row, which is exactly
+> what makes it restorable. So **"the row exists" and "the file is live" are
+> different questions**, and every read must ask the second one explicitly via
+> `services/workspace_context.py::live_files_filter`.
+>
+> **Why it is a rule (2026-08-21).** The operator moved 20 briefs to Trash. The
+> delete was correct — all 20 archived, chain intact. They kept appearing in the
+> Text app's Recents, opened at their URL with full content, read back through
+> `ReadFile`, and matched in `SearchFiles`, so the delete looked broken. Four
+> read paths never asked. The predicate was a STRING hand-copied into six sites
+> and absent from four, in two incompatible dialects —
+> `.or_("lifecycle.is.null,lifecycle.neq.archived")` (canonical) and
+> `.in_("lifecycle", ["active","delivered"])` (excludes NULL). They agree only
+> while the column stays fully backfilled, which is why the divergence hid.
+>
+> ⚠️ **`_exact_search` filters in Python, not with the helper** — deliberately.
+> Its match already occupies the query's one `.or_()` slot, and a second
+> `.or_()` REPLACES the first rather than ANDing, which would silently turn a
+> substring search into "everything not archived".
+>
+> The ranked/semantic paths filter **in SQL** (migration 218) so a new caller
+> inherits the behaviour — a Python-side filter cannot reach inside an RPC.
+>
+> Gate: [test_trashed_file_does_not_read_back.py](../../api/test_trashed_file_does_not_read_back.py)
+> — asserts the BEHAVIOUR, never the spelling (a gate on the string would pass
+> on the wrong dialect).
+
 > ### ⭐ Standing discipline — a verb FAMILY is ONE SET, whoever holds it
 >
 > Two families today: **file** (`ReadFile` · `WriteFile` · `EditFile` ·
