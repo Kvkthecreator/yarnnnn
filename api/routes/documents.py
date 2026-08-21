@@ -699,34 +699,74 @@ class TrashItem(BaseModel):
     authored_by: Optional[str] = None  # who last authored before archiving
 
 
+class TrashGroup(BaseModel):
+    """A whole folder that was moved to Trash, as ONE restorable unit.
+
+    A folder verb fans out (services/folder_organize.py) — trashing a folder of
+    40 files writes 40 attributed archive revisions. Listing those as 40 loose
+    rows would make the folder unrecoverable AS a folder: the operator would
+    restore 40 times and rebuild the shape by hand. So the rows the fan stamped
+    with `metadata['trashed_with']` are collapsed here into their deleted root,
+    restorable in one act via POST /documents/trash/restore-group.
+    """
+    root: str            #: the absolute path of the folder that was trashed
+    name: str            #: its leaf name, for the row label
+    count: int           #: FILES in the group (directories are not items)
+    archived_at: str
+
+
 class TrashListResponse(BaseModel):
     items: List[TrashItem]
+    #: Folder-trash acts, each restorable whole. Members of a group are NOT
+    #: repeated in `items` — one row per thing the operator deleted.
+    groups: List[TrashGroup] = []
 
 
 @router.get("/documents/trash", response_model=TrashListResponse)
 async def list_trash(auth: UserClient):
-    """List files the operator has moved to Trash (lifecycle='archived').
+    """List what the operator has moved to Trash (lifecycle='archived').
 
     ADR-400 D4 + Amendment 1: the Trash surface. Shows any archived file within
     the operator's organize reach (operator_can_organize) — i.e. what the
     operator could have trashed and can now restore. Newest first. Reversible
     via POST /documents/restore.
+
+    TWO SHAPES, because there are two acts. A file trashed on its own is a row.
+    A FOLDER trashed is a GROUP: the fan-out stamps every archived row with the
+    deleted root (`metadata['trashed_with']`), and this route collapses them
+    back into one restorable unit. Trash mirrors the act the operator performed
+    — deleting one folder must not read as deleting forty files.
     """
+    from services.folder_organize import TRASHED_WITH_KEY
+
     result = (
         auth.client.table("workspace_files")
-        .select("path, updated_at, "
+        .select("path, updated_at, metadata, "
                 "workspace_file_versions!head_version_id(authored_by)")
         .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
         .eq("lifecycle", "archived")
         .order("updated_at", desc=True)
-        .limit(200)
+        .limit(500)
         .execute()
     )
     items: List[TrashItem] = []
+    # root -> {count, archived_at}. Insertion order is the query's (newest
+    # first), so groups stay newest-first without a second sort.
+    grouped: dict = {}
     for row in (result.data or []):
         path = row["path"]
         if not operator_can_organize(path):
             continue  # only files the operator could have trashed
+        archived_at = (row.get("updated_at") or "")[:19]
+        root = (row.get("metadata") or {}).get(TRASHED_WITH_KEY)
+        if root:
+            g = grouped.setdefault(root, {"count": 0, "archived_at": archived_at})
+            # A folder MARKER inside the group is a directory, not an item —
+            # it must ride the group (so restore rebuilds empty sub-folders)
+            # but never inflate the count the operator reads.
+            if not is_folder_marker(path):
+                g["count"] += 1
+            continue
         if is_folder_marker(path):
             continue  # ADR-588 D1: a directory, not a trashable document
         embed = row.get("workspace_file_versions") or {}
@@ -735,10 +775,57 @@ async def list_trash(auth: UserClient):
         items.append(TrashItem(
             path=path,
             filename=filename,
-            archived_at=(row.get("updated_at") or "")[:19],
+            archived_at=archived_at,
             authored_by=(embed.get("authored_by") if isinstance(embed, dict) else None),
         ))
-    return TrashListResponse(items=items)
+    groups = [
+        TrashGroup(
+            root=root,
+            name=root.rstrip("/").rsplit("/", 1)[-1],
+            count=g["count"],
+            archived_at=g["archived_at"],
+        )
+        for root, g in grouped.items()
+    ]
+    return TrashListResponse(items=items, groups=groups)
+
+
+class RestoreGroupRequest(BaseModel):
+    root: str
+
+
+@router.post("/documents/trash/restore-group")
+async def restore_trash_group(body: RestoreGroupRequest, auth: UserClient):
+    """Restore a whole trashed FOLDER in one act (the inverse of the fan-out).
+
+    Addressed by the grouping key, never by a path prefix: a file the operator
+    trashed separately AFTER the folder went would match the prefix but was not
+    part of this act, and sweeping it back in would restore something they did
+    not ask for.
+    """
+    from services.folder_organize import restore_group
+
+    root = body.root if body.root.startswith("/") else "/" + body.root
+    root = root.rstrip("/")
+    if not operator_can_organize(root):
+        raise HTTPException(
+            status_code=403,
+            detail="This folder is managed by the system and can't be restored from here.",
+        )
+    result = restore_group(
+        get_service_client(),
+        user_id=auth.user_id,
+        workspace_id=getattr(auth, "workspace_id", None),
+        root=root,
+        author_identity_uuid=auth.user_id,
+    )
+    n = len(result["restored"])
+    return {
+        "success": True,
+        "message": f"Restored {n} item{'' if n == 1 else 's'}",
+        "root": root,
+        "restored": result["restored"],
+    }
 
 
 class RestoreRequest(BaseModel):
@@ -1083,6 +1170,205 @@ async def duplicate_document(body: DuplicateRequest, auth: UserClient):
 # =============================================================================
 # CREATE FOLDER — ADR-424 D2/D6: the operator makes a top-level PEER folder
 # =============================================================================
+
+# =============================================================================
+# FOLDER VERBS — a folder verb is a FAN-OUT, not one act (2026-08-21)
+# =============================================================================
+# Since ADR-588 a folder is a marker row plus whatever files share its path
+# prefix. So Rename / Move / Move-to-Trash on a folder cannot be a single row
+# update: each fans out over the subtree, one attributed revision at a time
+# through the ONE write path (ADR-209). That structural fact — not an oversight
+# — is why these three verbs were absent from the folder context menu until now.
+#
+# TWO OPERATOR-FACING REQUIREMENTS, enforced here rather than in the surface:
+#
+#   BLAST RADIUS BEFORE THE CLICK. The preflight returns the count the menu puts
+#   IN ITS LABEL ("Move to Trash (40 items)"). The count and the act share one
+#   enumeration (`enumerate_subtree`), so the number shown is the number
+#   performed — a count from a second, subtly different query would be a promise
+#   the act does not keep.
+#
+#   LOCKED CHILDREN REPORTED, NEVER SILENTLY SKIPPED. `operator_can_organize`
+#   refuses system/, raw inbound/, and _*.yaml/_*.json leaves, so a folder can
+#   only be PARTIALLY organized. Every response below carries `locked` beside
+#   the performed set, so the surface can say "38 moved to Trash · 2 are managed
+#   by the system and stayed." Same report shape as the set-Move (ADR-553 D2),
+#   not a second one.
+
+
+class FolderPreflightResponse(BaseModel):
+    """What a folder verb would touch — read BEFORE the operator commits."""
+    path: str
+    #: Files the operator may organize. THIS is the number in the menu label.
+    count: int
+    #: Files under a carve, which will stay put. Named, never a bare count —
+    #: "2 files" tells the operator nothing about which of their work stayed.
+    locked: List[str] = []
+    #: Nested directories that travel with the fan. Not "items".
+    folders: int = 0
+    #: True when the subtree is larger than one gesture may fan out over.
+    too_large: bool = False
+
+
+@router.get("/documents/folder/preflight", response_model=FolderPreflightResponse)
+async def folder_preflight(auth: UserClient, path: str):
+    """Count a folder's subtree so the menu can name its blast radius.
+
+    Deliberately a READ with no side effect: the menu resolves it on OPEN, the
+    same way Download resolves its href on open. An affordance that names a
+    consequence has to know the consequence before it is clicked.
+    """
+    from services.folder_organize import enumerate_subtree, MAX_FAN_OUT
+
+    abs_path = path if path.startswith("/") else "/" + path
+    subtree = enumerate_subtree(
+        get_service_client(),
+        user_id=auth.user_id,
+        workspace_id=getattr(auth, "workspace_id", None),
+        folder_path=abs_path,
+    )
+    total = len(subtree["files"]) + len(subtree["locked"]) + len(subtree["markers"])
+    return FolderPreflightResponse(
+        path=subtree["folder"],
+        count=len(subtree["files"]),
+        locked=subtree["locked"],
+        folders=len(subtree["markers"]),
+        too_large=total > MAX_FAN_OUT,
+    )
+
+
+class FolderTrashRequest(BaseModel):
+    path: str
+
+
+@router.post("/documents/folder/trash")
+async def trash_folder_route(body: FolderTrashRequest, auth: UserClient):
+    """Move a FOLDER to Trash — one attributed archive revision per file.
+
+    Preserves ADR-209 exactly as the single-file delete does: nothing is
+    removed, each row gets a `lifecycle='archived'` revision attributed to the
+    operator, and the whole act is restorable as ONE unit (the fan stamps a
+    grouping key that Trash reads back).
+
+    A POST, not a DELETE-on-the-path: the single-file `DELETE /documents/{path}`
+    already claims that route shape, and a folder path arriving there would be
+    a bare path-param catch-all reaching the wrong act.
+    """
+    from services.folder_organize import trash_folder, FolderTooLarge
+
+    abs_path = body.path if body.path.startswith("/") else "/" + body.path
+    if not operator_can_organize(abs_path):
+        raise HTTPException(
+            status_code=403,
+            detail="This folder is managed by the system and can't be moved to trash.",
+        )
+    try:
+        result = trash_folder(
+            get_service_client(),
+            user_id=auth.user_id,
+            workspace_id=getattr(auth, "workspace_id", None),
+            folder_path=abs_path,
+            author_identity_uuid=auth.user_id,
+        )
+    except FolderTooLarge as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+
+    n, locked = len(result["archived"]), result["locked"]
+    message = f"{n} moved to Trash"
+    if locked:
+        message += (
+            f" · {len(locked)} "
+            f"{'is' if len(locked) == 1 else 'are'} managed by the system and stayed"
+        )
+    return {
+        "success": True,
+        "message": message,
+        "root": result["root"],
+        "archived": result["archived"],
+        "locked": locked,
+    }
+
+
+class FolderMoveRequest(BaseModel):
+    path: str
+    #: The folder's NEW absolute path. Rename is the same act with a new leaf —
+    #: one implementation, so the two verbs cannot drift apart.
+    new_path: str
+
+
+@router.post("/documents/folder/move")
+async def move_folder_route(body: FolderMoveRequest, auth: UserClient):
+    """Move or RENAME a folder — the same fan-out, addressed differently.
+
+    Move  = a new_path under a different parent.
+    Rename = a new_path with the same parent, a new leaf.
+
+    Fans out over `MoveFile`, the ONE mover (attributed revision at the new path
+    + tombstone at the old, overwrite-refusing, and it carries an upload's
+    `.extracted.md` projection along with its raw per ADR-554 D1). No parallel
+    bulk mover exists, deliberately.
+    """
+    from services.folder_organize import (
+        enumerate_subtree,
+        assert_within_limit,
+        move_folder,
+        normalize_folder,
+        FolderTooLarge,
+    )
+
+    src, _ = normalize_folder(body.path)
+    dst, _ = normalize_folder(body.new_path)
+
+    if not operator_can_organize(src):
+        raise HTTPException(
+            status_code=403,
+            detail="This folder is managed by the system and can't be moved or renamed.",
+        )
+    if not operator_can_organize(dst):
+        raise HTTPException(
+            status_code=403,
+            detail="Folders can't be moved into a system location.",
+        )
+    if src == dst:
+        raise HTTPException(status_code=400, detail="Source and destination are the same.")
+    # A folder cannot be moved INSIDE itself — the fan would chase its own tail,
+    # writing each file to a path that is still under the prefix being walked.
+    if dst.startswith(src + "/"):
+        raise HTTPException(
+            status_code=400, detail="A folder can't be moved inside itself."
+        )
+
+    subtree = enumerate_subtree(
+        get_service_client(),
+        user_id=auth.user_id,
+        workspace_id=getattr(auth, "workspace_id", None),
+        folder_path=src,
+    )
+    try:
+        assert_within_limit(subtree)
+    except FolderTooLarge as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+
+    result = await move_folder(auth, subtree=subtree, new_folder=dst)
+
+    n, failed, locked = len(result["moved"]), result["failed"], result["locked"]
+    message = f"Moved {n} item{'' if n == 1 else 's'}"
+    if locked:
+        message += (
+            f" · {len(locked)} "
+            f"{'is' if len(locked) == 1 else 'are'} managed by the system and stayed"
+        )
+    if failed:
+        message += f" · {len(failed)} could not be moved"
+    return {
+        "success": True,
+        "message": message,
+        "path": dst,
+        "moved": result["moved"],
+        "failed": failed,
+        "locked": locked,
+    }
+
 
 class CreateFolderRequest(BaseModel):
     #: Workspace-relative path of the new folder (e.g. "the-acme-deal" or

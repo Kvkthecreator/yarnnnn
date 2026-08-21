@@ -16,8 +16,10 @@ import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
 interface RenameModalProps {
-  /** The file being renamed (null = closed). */
-  target: { path: string; name: string } | null;
+  /** The file OR FOLDER being renamed (null = closed). `isFolder` (2026-08-21)
+   *  only changes the pre-selection heuristic below — the field, the validation
+   *  and the copy are identical for both, because renaming is renaming. */
+  target: { path: string; name: string; isFolder?: boolean } | null;
   onClose: () => void;
   /** Called with the new leaf name (validated non-empty, slash-free). */
   onSubmit: (nextLeaf: string) => void | Promise<void>;
@@ -37,7 +39,11 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
         const el = inputRef.current;
         if (!el) return;
         el.focus();
-        const dot = currentLeaf.lastIndexOf('.');
+        // Pre-select the STEM, not the extension — the macOS rename gesture, so
+        // typing replaces the name and keeps `.md`. A FOLDER has no extension:
+        // a folder called `q3.data` would otherwise open with only `q3`
+        // selected and lose `.data` the moment the operator typed.
+        const dot = target.isFolder ? -1 : currentLeaf.lastIndexOf('.');
         el.setSelectionRange(0, dot > 0 ? dot : currentLeaf.length);
       });
     }

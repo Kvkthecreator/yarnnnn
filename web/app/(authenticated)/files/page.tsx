@@ -383,6 +383,36 @@ function formatNodeTimestamp(value: string): string {
   });
 }
 
+/**
+ * The MIME type a TEXT file downloads as (2026-08-21).
+ *
+ * A text file's bytes live in the `content` column, not the blob store, so the
+ * browser is handed a Blob we construct — and a Blob with no type saves as
+ * `application/octet-stream`, which the OS shows as a nameless binary even when
+ * the extension is right. The type has to be stated.
+ *
+ * Deliberately NARROW: the extensions the substrate's text lane actually holds
+ * (`.md/.csv/.yaml/.html/.txt/.json`), mirroring `_EXT_MIMES` in
+ * `api/services/content_types.py` for exactly those rows. NOT a second general
+ * type registry — the backend's `derive_content_type` remains the authority for
+ * every stored file, and anything else here falls back to `text/plain`, which
+ * is true of every file that reaches this function (a binary never does: it has
+ * a `content_url` and takes the signed-URL lane).
+ */
+function textDownloadMime(filename: string): string {
+  const ext = filename.includes('.') ? filename.split('.').pop()!.toLowerCase() : '';
+  switch (ext) {
+    case 'md':
+    case 'markdown': return 'text/markdown';
+    case 'csv': return 'text/csv';
+    case 'html': return 'text/html';
+    case 'json': return 'application/json';
+    case 'yaml':
+    case 'yml': return 'application/yaml';
+    default: return 'text/plain';
+  }
+}
+
 // =============================================================================
 // Context Page
 // =============================================================================
@@ -515,6 +545,19 @@ export default function ContextPage() {
   // one). Assigned once openPath exists; a deep-link that lands before that tick
   // is impossible (openPath is defined in the same render).
   const openPathRef = useRef<(path: string) => void>(() => {});
+  // Object URLs minted for TEXT downloads (2026-08-21). A `URL.createObjectURL`
+  // blob is held by the document until it is explicitly revoked — never GC'd
+  // while the page lives — so a member browsing a folder and right-clicking
+  // twenty `.md` files would leak twenty file bodies into memory. They cannot
+  // be revoked at mint time (that invalidates the href before the anchor is
+  // ever followed) nor on menu close (the click that closes the menu IS the
+  // navigation), so they are collected here and released on unmount, which is
+  // the first moment none of them can still be in flight.
+  const objectUrlsRef = useRef<string[]>([]);
+  useEffect(() => () => {
+    objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+    objectUrlsRef.current = [];
+  }, []);
   const registerActivate = useCallback((fn: () => void) => {
     activateBodyRef.current = fn;
   }, []);
@@ -1276,7 +1319,13 @@ export default function ContextPage() {
       setPropertiesPath(t.path);
       setDetailsOpen(true);
     },
-    onRename: openRename,
+    // RENAME / MOVE / MOVE-TO-TRASH — offered on FOLDERS as well as files
+    // since 2026-08-21. The menu speaks `isFile`; the organize hook speaks
+    // `isFolder`. The translation happens HERE, at the one boundary between
+    // them, rather than by teaching either side the other's spelling — the
+    // Files browser is the only surface that holds both kinds.
+    onRename: (t: { path: string; name: string; isFile: boolean }) =>
+      openRename({ path: t.path, name: t.name, isFolder: !t.isFile }),
     // MOVE — the verb the deleted selection chip used to carry.
     //
     // It takes the SET when the right-clicked file is part of a multi-selection,
@@ -1288,31 +1337,93 @@ export default function ContextPage() {
     // Right-clicking a row that is NOT in the selection first REPLACES the
     // selection with it — otherwise the menu would name one file and the verb
     // would move nine.
-    onMove: (t: { path: string; name: string }) => {
+    onMove: (t: { path: string; name: string; isFile: boolean }) => {
       if (selection.length > 1 && selection.includes(t.path)) {
         setMoveSetOpen(true);
         return;
       }
-      openMove(t);
+      openMove({ path: t.path, name: t.name, isFolder: !t.isFile });
     },
-    onDelete: handleTreeDelete,
+    onDelete: (t: { path: string; name: string; isFile: boolean }) =>
+      handleTreeDelete({ path: t.path, name: t.name, isFolder: !t.isFile }),
     onShare: handleShare,
     // DOWNLOAD — save to the operator's computer (2026-08-20). It left the
     // preview header (`FileActions`) for the right-click menu, the
     // cloud-provider convention (Dropbox / Drive / OneDrive) and where the
     // operator actually looks for it.
     //
-    // Only a blob-backed file resolves: a folder and a text file (whose bytes
-    // ARE its content, read through the API) return null and the entry does not
-    // render. The filename comes from the PATH, never from the CAS href —
-    // 1069fe3's fix, carried through the move.
+    // TWO LANES, because the substrate stores bytes two ways (ADR-427):
+    //
+    //   BINARY — the bytes live in the content-addressed blob store, reached by
+    //   a SIGNED URL. Preserved exactly as shipped in 1069fe3: `download` must
+    //   carry the file's own leaf name, because the CAS is keyed by CONTENT
+    //   ADDRESS and a bare `download` attribute saved the blob as its 64-char
+    //   SHA with no extension ("Kind: Document", generic icon, no preview).
+    //
+    //   TEXT (.md/.csv/.yaml/.html/.txt) — the bytes ARE the `content` column;
+    //   these files have NO `content_url` at all. Until 2026-08-21 that made
+    //   `downloadFor` return null for every text file, so right-clicking a
+    //   `.md` offered no Download and nothing explained why — an affordance
+    //   ABSENT rather than refused, which is the incorrect-success shape: the
+    //   operator concludes the product cannot do it. It can; the content is
+    //   already in the payload we just fetched. So mint an object URL from a
+    //   Blob with the right MIME type and hand it over.
+    //
+    // NEITHER LANE FIRES FOR A FOLDER, and no zip builder is coming. Dropbox /
+    // Drive / OneDrive all zip a folder server-side; we deliberately do not:
+    //   - ADR-417 — generation is rented, not owned. yarnnn hosts no
+    //     generation/rendering engine, and a zip builder sits near enough that
+    //     boundary to need its own decision, not a side effect of a menu fix.
+    //   - The bulk door already exists and is STRICTLY BETTER:
+    //     `GET /api/workspace/export` (ADR-328 D4) produces a real git repo of
+    //     the workspace WITH history and attribution. A zip has none of that.
+    // So the entry does not render for a folder — no dead affordance, no
+    // disabled-looking row. (The same is true of a multi-selection, which never
+    // reaches here: this resolver takes ONE target.)
     downloadFor: async (t: { path: string; name: string; isFile: boolean }) => {
       if (!t.isFile) return null;
+      const filename = t.path.split('/').pop() || t.name;
       try {
         const file = await api.workspace.getFile(t.path);
-        if (!file.content_url) return null;
-        const r = await api.documents.blobUrl(file.content_url);
-        return { href: r.url, filename: t.path.split('/').pop() || t.name };
+        // BINARY: resolve the stored reference to a fresh signed URL.
+        if (file.content_url) {
+          const r = await api.documents.blobUrl(file.content_url);
+          return { href: r.url, filename };
+        }
+        // TEXT: the content IS the file. A null content is a genuinely empty
+        // body, not a missing one — it still downloads (as an empty file),
+        // which is what the substrate holds. `undefined` means the payload had
+        // no content field at all, and there is nothing honest to save.
+        if (file.content === undefined) return null;
+        const href = URL.createObjectURL(
+          new Blob([file.content ?? ''], { type: textDownloadMime(filename) }),
+        );
+        // Collected for revocation on unmount (`objectUrlsRef`). Revoking here
+        // would invalidate the href before the browser ever followed it.
+        objectUrlsRef.current.push(href);
+        return { href, filename };
+      } catch {
+        return null;
+      }
+    },
+    // BLAST RADIUS — resolve the Move-to-Trash count so the menu label can name
+    // it BEFORE the click ("Move to Trash (40 items)"). Folders only: a file is
+    // one item and "(1 item)" is noise.
+    //
+    // The number is `count` — the files that will ACTUALLY move — not the total
+    // the folder holds. They differ when a carve is present, and the label must
+    // match the act: promising 40 and moving 38 is the same broken promise a
+    // bare "Move to Trash" makes, just with a number on it. The 2 that stay are
+    // named in the confirm and again in the result ("38 moved to Trash · 2 are
+    // managed by the system and stayed"), which is where a partial belongs.
+    //
+    // Same server-side enumeration the act performs (`enumerate_subtree`), so
+    // the shown number and the performed number cannot drift.
+    blastRadiusFor: async (t: { path: string; isFile: boolean }) => {
+      if (t.isFile) return null;
+      try {
+        const r = await api.documents.folderPreflight(t.path);
+        return r.count;
       } catch {
         return null;
       }

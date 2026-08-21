@@ -90,12 +90,19 @@ export interface ConfirmOptions {
  * runAction options — the fire-and-report async wrapper. `pending`/`success`/
  * `error` are the toast lines for each phase. Omit `pending` to skip the
  * in-flight toast (silent until it resolves); omit `success` to stay quiet on
- * success (only surface failures). `error` may be a string or a fn of the
- * caught error (to pull a backend `detail`).
+ * success (only surface failures).
+ *
+ * BOTH `success` and `error` may be a string or a FN of what resolved — `error`
+ * of the caught error (to pull a backend `detail`), `success` of the resolved
+ * value (2026-08-21). The symmetry exists because some acts only know what they
+ * did once they are done: a folder fan-out ("38 moved to Trash · 2 are managed
+ * by the system and stayed") cannot be phrased before it runs, and a fixed
+ * "Moved" line for a PARTIAL result would tell the operator their folder is
+ * empty when two of their files are still in it.
  */
-export interface RunActionOptions {
+export interface RunActionOptions<T = unknown> {
   pending?: string;
-  success?: string;
+  success?: string | ((result: T) => string);
   error?: string | ((err: unknown) => string);
 }
 
@@ -112,7 +119,7 @@ interface FeedbackContextValue {
    * failure — the toast is a SIDE-EFFECT, not a swallow. On error the
    * rejection is surfaced as an error toast AND re-thrown.
    */
-  runAction: <T>(op: () => Promise<T>, opts?: RunActionOptions) => Promise<T>;
+  runAction: <T>(op: () => Promise<T>, opts?: RunActionOptions<T>) => Promise<T>;
 }
 
 const FeedbackContext = createContext<FeedbackContextValue | null>(null);
@@ -202,17 +209,30 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   );
 
   const runAction = useCallback(
-    async <T,>(op: () => Promise<T>, opts?: RunActionOptions): Promise<T> => {
+    async <T,>(op: () => Promise<T>, opts?: RunActionOptions<T>): Promise<T> => {
       const pendingId = opts?.pending
         ? toast({ message: opts.pending, kind: 'pending' })
         : null;
       try {
         const result = await op();
-        if (pendingId && opts?.success) {
-          updateToast(pendingId, { kind: 'success', message: opts.success, durationMs: 3000 });
+        // Resolved AFTER the op, so a fn-form `success` can read what actually
+        // happened (a fan-out's partial report). A throw inside the formatter
+        // must not turn a SUCCESSFUL act into an error toast — fall back to the
+        // generic line rather than lying about the outcome.
+        let successMsg: string | undefined;
+        if (opts?.success) {
+          try {
+            successMsg =
+              typeof opts.success === 'function' ? opts.success(result) : opts.success;
+          } catch {
+            successMsg = 'Done';
+          }
+        }
+        if (pendingId && successMsg) {
+          updateToast(pendingId, { kind: 'success', message: successMsg, durationMs: 3000 });
         } else {
           if (pendingId) dismissToast(pendingId);
-          if (opts?.success) toast({ message: opts.success, kind: 'success' });
+          if (successMsg) toast({ message: successMsg, kind: 'success' });
         }
         return result;
       } catch (err) {

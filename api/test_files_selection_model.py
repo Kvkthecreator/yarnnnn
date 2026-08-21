@@ -418,16 +418,22 @@ def run() -> int:
     # Its Move lives in the shared menu, and it still takes the SET when the
     # right-clicked row is part of one. A menu Move that silently narrowed to
     # one file would make the selection decorative again, one address over.
-    move_verb = re.search(
-        r"onMove: \(t: \{ path: string; name: string \}\) => \{(.*?)\n    \},", page, re.DOTALL
-    )
+    #
+    # Anchored on the verb's BODY, not on its parameter list or on the exact
+    # call spelling. The 2026-08-21 folder-verb pass widened the target type
+    # (the menu now hands `isFile` through, so the handler can route a folder to
+    # the fan-out) and the single-target call became `openMove({...})` — neither
+    # of which touches the claim, and both of which broke the old pinned
+    # spelling. What must hold is the BRANCH: a set-membership test that opens
+    # the set modal, and a fall-through that opens the single-target picker.
+    move_verb = re.search(r"\n    onMove: \(t: \{[^}]*\}\) => \{(.*?)\n    \},", page, re.DOTALL)
     mv = move_verb.group(1) if move_verb else ""
     passed &= _check(
         "11b. Move is a MENU verb and still takes the whole set",
         move_verb is not None
         and "selection.length > 1 && selection.includes(t.path)" in mv
         and "setMoveSetOpen(true)" in mv
-        and "openMove(t)" in mv,
+        and re.search(r"openMove\(", mv) is not None,
     )
     # Right-clicking OUTSIDE the selection replaces it, or the menu names one
     # file while the set-taking verb moves nine.

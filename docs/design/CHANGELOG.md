@@ -4,7 +4,69 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-08-20 (latest) — FILES: Recents is a file browser too, and "selected" is a ring (no ADR — operator-approved after a production click-pass)
+## 2026-08-21 (latest) — FILES: a folder verb is a FAN-OUT, and a text file can be saved (no ADR — see "why no ADR" below)
+
+**Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → A FOLDER VERB IS A FAN-OUT + THE DOWNLOAD MATRIX](WORKSPACE.md). The click-grammar section above them is unchanged and stands; these are two **absences** beside it, not a fourth rewrite of it.
+
+Two gaps, both of the same shape: an affordance **missing rather than refused**, which reads to the operator as *"the product cannot do this."*
+
+### Gap 1 — a folder had no Rename, no Move, no Move to Trash
+
+Right-clicking a folder offered Open · Properties · Share · Keep-this-current · New Folder. Verified in production screenshots. **The reason was structural, not arbitrary**: since **ADR-588** a folder is a **marker row** (`content_type='inode/directory'`) plus whatever files share its path prefix. There is no folder object holding children, so a folder verb cannot be one row update — it is a **fan-out over the subtree**, and no fan existed.
+
+**What was built** — `api/services/folder_organize.py`, reached by three routes (`GET /documents/folder/preflight` · `POST /documents/folder/trash` · `POST /documents/folder/move`).
+
+- **Trash** fans out to one `lifecycle='archived'` revision **per file**, through `write_revision` — the ADR-209 single write path — plus the folder's own marker. It re-references the head **blob** (`content_ref`) rather than re-writing the text denorm, because a binary file's denorm is `''` and re-writing it would put an **empty text revision at the head of every binary chain the fan touches**: a folder of images would come back from Restore as a folder of empty files.
+- **Move** fans out over **`MoveFile`**, the ONE mover. Not a bespoke bulk mover — `handle_move_file` also carries an upload's `.extracted.md` projection along with its raw (ADR-554 D1), and a second implementation would have silently dropped it.
+- **Rename IS Move**, with a new leaf instead of a new parent. One route, so the two verbs cannot drift apart; the gate counts the call sites (2 — rename + move) rather than asserting one exists.
+- **Duplicate stays file-only.** Deep-copying a subtree with a `derived_from` edge per file is a different act with its own naming and attribution questions. Out of scope, and a half-working entry would be worse than its absence. **`isFile` was restructured, not layered**: it no longer gates the organize verbs at all, and now branches exactly three things (Duplicate · New Folder · Download), each for its own stated reason.
+
+**The blast radius is in the LABEL, before the click.** "Move to Trash (40 items)" — a folder verb wearing a file verb's label is one word hiding forty acts. Resolved when the **menu opens** (the same lifecycle as the download href, and the same principle: an entry that names a consequence has to know it before it is clicked), from **the same server-side enumeration the act performs**. A count from a second query would be a promise the act does not keep. It counts **what will actually move**, not what the folder holds — promising 40 and moving 38 is the same broken promise with a number on it.
+
+**Locked children are REPORTED, never silently skipped.** `operator_can_organize` refuses `system/`, raw `inbound/`, and `_*.yaml`/`_*.json` leaves, so a folder can only be **partially** organized. Named **in the confirm, before consent**, and again **in the result** ("38 moved to Trash · 2 are managed by the system and stayed"). Silently moving 38 of 40 and saying "Moved" is the incorrect-success shape. The **backend composes the sentence** and the surface reports it verbatim — two builders of one sentence is how they drift. Following the set-Move precedent (ADR-553 D2), not a second report shape.
+
+**Trash GROUPS by the deleted root.** 40 loose rows makes a folder unrecoverable **as a folder**. Each archived row carries a grouping key; Trash collapses them into one restorable unit ("ai-frontier · 40 items · Restore all"), and group members are **not** repeated as loose rows. The restore is addressed **by the key, never by a path prefix** — a file trashed separately *after* the folder went would match the prefix but was not part of that act.
+
+**Why no ADR.** The key is `workspace_files.metadata['trashed_with']` — **no schema change, no migration**. It is per-row presentation state about one archive act, which is what that JSONB is for, written with a **read-merge-write** following the `set_launch_handler` precedent: a blind replace would destroy a file's ADR-514 D2.4 Open-With binding on its way to the Trash, and Restore would bring back a file that had forgotten how to open. The verbs themselves were ratified by **ADR-400**; the substrate shape by **ADR-588**. This is an implementation of both, not a new decision. **`grep -rn "ADR-592"` across the whole repo returned nothing** (as did 593–597), so a number was free had one been needed — checked because ADR numbers collide and `ls docs/adr | tail` is not sufficient.
+
+**Two guards that were built rather than deferred.** A fan is capped at `MAX_FAN_OUT = 500` and refuses past it with a 413 that says why — a folder verb is an operator gesture, not a migration. And **self-containment is refused by construction**: the Move picker greys the folder being moved and everything under it, with the reason on the row. The backend refuses it too (that is the boundary; the picker is courtesy) — but a refusal met only *after* choosing is a dead end wearing a live affordance.
+
+**A falsified comment, fixed rather than left standing.** `ContentViewer`'s `tileDnd` read *"a folder is never draggable (there is no backend folder-move)"*. There is one now. The drag gesture is still held back — a picker cannot offer a destination inside the thing being moved but a drop target can, and a fan chasing its own tail is the wrong thing to discover by accident — so the comment now records that as a **choice with an exit condition**, not a limitation.
+
+### Gap 2 — a text file could not be downloaded, and nothing said why
+
+`downloadFor` resolved only a file with a `content_url`. **A `.md`/`.csv`/`.yaml` has no `content_url` at all** — its bytes are the `content` column — so right-clicking `gtm-strategy.md` offered **no Download entry** and nothing explained the absence. The content was sitting in the response the surface had just received.
+
+**Two lanes now, because the substrate stores bytes two ways (ADR-427).** Binary keeps the signed-URL path **exactly** as `1069fe3` shipped it, `download={filename}` included — the CAS is keyed by **content address**, so a bare `download` saved the blob as its 64-char SHA with no extension. Text mints a typed `Blob` from the content already fetched; the **MIME type must be stated** or the OS saves a nameless `application/octet-stream` even with the right extension. The leaf name is derived **once**, from the path, so the text lane cannot reintroduce the SHA-named-file bug at a new address (gated as a count).
+
+**No zip, and the decision is recorded rather than implied.** Dropbox · Drive · OneDrive all zip a folder server-side. We do not: **ADR-417** — generation is rented, not owned; yarnnn hosts no generation/rendering engine, and a zip builder sits near enough that boundary to need **its own decision**, not to arrive as a side effect of a menu fix. And **the bulk door already exists and is strictly better** — `GET /api/workspace/export` (ADR-328 D4) produces a **real git repo with history and attribution**; a zip has neither. So Download **simply does not render** for a folder or a multi-selection: **no dead affordance, no disabled-looking row**. An "Export workspace…" item was **not** added to the folder menu — the operator did not ask for it, and a *subtree* export is a separate future ADR.
+
+**The object URL is revoked.** `URL.createObjectURL` is held by the document until explicitly revoked — never GC'd while the page lives — so twenty right-clicks would leak twenty file bodies. It cannot be revoked at mint (that invalidates the href before the anchor is followed) nor on menu close (the click that closes the menu **is** the navigation), so mints are collected and released on unmount.
+
+### A shared-layer widening, stated because it touches every surface
+
+`runAction`'s `success` now accepts **a function of the resolved value**, matching the symmetry `error` already had. A fan-out's report ("38 moved · 2 stayed") **cannot be phrased before it runs**, and a fixed "Moved" line for a partial result would tell the operator their folder is empty while two of their files are still in it. The formatter is wrapped: a throw inside it falls back to a generic line rather than turning a **successful** act into an error toast. Four callers use the new form; the other four are untouched and the build type-checked all of them.
+
+### Gates — new `api/test_folder_verbs_and_download.py`, **43 checks**; `test_files_selection_model.py` amended
+
+The new gate covers: one shared enumeration (count == act) · the ADR-209 write path and the ONE mover · **no direct content-layer write in the fan** (counted over `.update()` calls, so a content write cannot hide among the metadata stamps) · the head-blob preservation · locked children **returned** by every fan route · the count in the label · Trash grouping + key-addressed restore · the merge-not-replace stamp · both download lanes · the folder/multi refusals · no zip builder · Duplicate still file-only · self-containment refused on both sides · the object-URL revoke · four client doors present.
+
+> **THREE assertions passed against BROKEN code before they were tightened**, each caught by falsifying rather than by reading:
+> - `2a` matched `lifecycle="archived"` **anywhere in the module** — and `move_folder`'s marker archival carries the same kwarg, so deleting the trash archive entirely still passed. Re-anchored on the isolated `trash_folder` body.
+> - `3b`/`3c` matched the word `locked` and the carve phrase **anywhere in a route body** — but a route that *mentions* them in a message and drops them from the payload still passed, and the phrase appears in two routes so removing one left the other. Re-anchored on the **returned key** and on a **count over the reporting routes**.
+> - `9b` (Duplicate is file-only) matched `isFile && onDuplicate` — which also appears in the organize group's **own separator condition**, one line away. Removing the gate from the Duplicate entry left it green. Re-anchored on the entry's `<MenuItem>` construct.
+>
+> **A gate that reads its own explanatory prose is testing its documentation.** All assertions run over comment-stripped source — and **the strip order is load-bearing**: `lib/api/client.ts` contains a line comment mentioning a glob (`// … uploads/*.md)`) whose `/*` opens a phantom block. Stripping blocks first, with DOTALL, swallowed **12,817 characters** of live code and the gate reported FAIL against entirely correct source. Line comments must be stripped **first**. That cost four false failures before it was found.
+
+**`test_files_selection_model.py` claim 11b was amended, not weakened.** It pinned the exact spelling `openMove(t)`; widening the menu target so a handler can route a folder to the fan made it `openMove({…})`, and the gate went red against correct source. **Never pin a spelling** — re-anchored on the **branch** (a set-membership test that opens the set modal, and a fall-through to the single-target picker), which is the actual claim. Falsified: narrowing the menu Move to one file trips it. 39/39 still green.
+
+**Falsification — 43 mutations, each confirmed RED then restored GREEN**, plus the amended 11b. Every mutation was a *plausible* regression (the pre-fix `content_url`-only resolver; the restored `isFile` gate; a prefix-swept restore; a blind metadata replace; a fixed label; an unrevoked object URL), not a deletion. Backup-copy + restore throughout; **never `git checkout`** — another session holds work in this tree. All eight touched modules diffed **byte-identical** to their snapshots before committing.
+
+**Build**: `cd web && node_modules/.bin/next build` — **exit 0**, types validated clean. Gates green: `test_files_selection_model.py` 39/0 · `test_folder_verbs_and_download.py` 43/0 · `test_adr452_studio_landing.py` 33/0 · `adr553_multi_select.mjs` 20/0 · `files_arrival_door.mjs` 12/0 · `test_adr400_files_verbs.py` 22/0 · `test_adr478_permanent_delete.py` 7/0 · `test_adr588_folder_markers_and_home_aliases.py` · `test_adr424_pure_os_filesystem.py` · `test_adr514_duplicate_verb.py`. **Pre-existing failures, NOT caused here**: `test_adr209_phase2.py` (9 errors — a missing `client` DB fixture) and `test_adr422_files_legibility.py::test_sys_word_removed_from_tree` (asserts `fileLegibilityState` in `WorkspaceTree.tsx`, which commit `5bde9f8` removed two days ago; `WorkspaceTree.tsx` is untouched by this work).
+
+---
+
+## 2026-08-20 — FILES: Recents is a file browser too, and "selected" is a ring (no ADR — operator-approved after a production click-pass)
 
 **Contract home**: [`docs/design/WORKSPACE.md` § Surface: Files → TWO PANES, TWO GRAMMARS](WORKSPACE.md). No new ADR; the click-grammar section is **rewritten a third time**, and the entry below it is **superseded** — its two panes are correct and stand, but it named only *one* browser inside the centre pane, and the pane holds more than one.
 

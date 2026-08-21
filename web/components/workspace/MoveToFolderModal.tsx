@@ -28,8 +28,10 @@ import type { WorkspaceTreeNode } from '@/types';
 import { WorkspacePickerModal } from './WorkspacePicker';
 
 interface MoveToFolderModalProps {
-  /** The file being moved (null = closed). */
-  target: { path: string; name: string } | null;
+  /** The file OR FOLDER being moved (null = closed). `isFolder` (2026-08-21)
+   *  makes the picker refuse a destination INSIDE the thing being moved — see
+   *  `folderSelectable` below. */
+  target: { path: string; name: string; isFolder?: boolean } | null;
   /** The workspace root nodes (same tree the explorer renders). Omit it and the
    *  picker lazy-fetches its own — the surface that holds no tree (Studio) pays
    *  nothing until the first Move-open, and gets an honest "Looking…" while it
@@ -51,10 +53,26 @@ export function MoveToFolderModal({ target, roots, canOrganize, onClose, onMove 
 
   if (!target) return null;
 
-  // A folder is selectable iff the operator can organize into it and it's not
-  // the file's current parent. Probe with a synthetic child path.
+  /**
+   * SELF-CONTAINMENT (2026-08-21). Moving a folder into itself, or into one of
+   * its own descendants, is not a move — the fan-out would write each file to a
+   * path still under the prefix it is walking. The backend refuses it (400), but
+   * a refusal the operator only meets AFTER choosing is a dead end wearing a
+   * live affordance: they picked a destination the picker offered.
+   *
+   * So the picker refuses it by CONSTRUCTION: the moved folder and everything
+   * under it are unselectable, with the reason on the row. Files are unaffected
+   * — a file has no descendants, so the prefix test can never match one.
+   */
+  const selfPrefix = target.isFolder ? `${target.path.replace(/\/+$/, '')}/` : null;
+  const isInsideSelf = (path: string) =>
+    !!selfPrefix && (path === target.path.replace(/\/+$/, '') || path.startsWith(selfPrefix));
+
+  // A folder is selectable iff the operator can organize into it, it's not the
+  // target's current parent, and it is not the target itself or inside it.
+  // Probe organize-reach with a synthetic child path.
   const folderSelectable = (node: WorkspaceTreeNode) =>
-    canOrganize(`${node.path}/x`) && node.path !== currentParent;
+    canOrganize(`${node.path}/x`) && node.path !== currentParent && !isInsideSelf(node.path);
 
   return (
     <WorkspacePickerModal
@@ -68,12 +86,16 @@ export function MoveToFolderModal({ target, roots, canOrganize, onClose, onMove 
       selectable={folderSelectable}
       folderDisabledTitle={(node) =>
         node.path === currentParent
-          ? 'The file is already here'
-          : !canOrganize(`${node.path}/x`)
-            ? 'This folder is managed by the system'
-            : undefined
+          ? `${target.isFolder ? 'The folder' : 'The file'} is already here`
+          : isInsideSelf(node.path)
+            ? 'A folder can’t be moved inside itself'
+            : !canOrganize(`${node.path}/x`)
+              ? 'This folder is managed by the system'
+              : undefined
       }
-      canConfirm={(sel) => sel !== currentParent && canOrganize(`${sel}/x`)}
+      canConfirm={(sel) =>
+        sel !== currentParent && canOrganize(`${sel}/x`) && !isInsideSelf(sel)
+      }
       footerHint={(sel) =>
         sel ? (
           <>Into <span className="font-mono">{sel.replace(/^\/workspace\//, '')}</span></>

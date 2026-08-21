@@ -43,6 +43,20 @@ import type { WorkspaceTreeNode } from '@/types';
 export interface FileOrganizeTarget {
   path: string;
   name: string;
+  /**
+   * True when the target is a FOLDER (2026-08-21). A folder verb is a FAN-OUT
+   * over the subtree, not one act — since ADR-588 a folder is a marker row plus
+   * whatever files share its path prefix, so there is no single row to rename,
+   * move, or archive. The three verbs below therefore take a DIFFERENT backend
+   * route when this is set (`folder/move`, `folder/trash`), and report the
+   * honest partial the fan produces.
+   *
+   * OPTIONAL and absent-means-file, deliberately. Four of the five surfaces
+   * that call this hook (Studio ×2, Text ×2) open FILES and can never hold a
+   * folder target; requiring the flag would make them all restate a fact their
+   * surface guarantees. Only the Files browser, which shows both, sets it.
+   */
+  isFolder?: boolean;
 }
 
 export interface UseFileOrganizeVerbsOptions {
@@ -76,7 +90,7 @@ export interface FileOrganizeVerbs {
    * the drag-and-drop fast path. `onMove` is the deliberate (modal) path; this
    * is the gesture path. Same API call, same optimistic feedback + onAfterMutate.
    */
-  commitMove: (fromPath: string, destFolder: string) => Promise<void>;
+  commitMove: (fromPath: string, destFolder: string, isFolder?: boolean) => Promise<void>;
   /** Move a SET into one folder — reports which half landed (ADR-553 D2). */
   commitMoveMany: (
     fromPaths: string[],
@@ -148,18 +162,44 @@ export function useFileOrganizeVerbs(
     [carveGuard, runAction, onAfterMutate],
   );
 
+  /**
+   * The report a FAN-OUT owes the operator (2026-08-21).
+   *
+   * A folder act can only PARTIALLY land: `operator_can_organize` refuses
+   * system/, raw inbound/, and _*.yaml/_*.json leaves, so a folder holding any
+   * of those keeps them. Silently moving 38 of 40 and saying "Moved" is the
+   * incorrect-success shape — the operator believes their folder is empty and
+   * two files of theirs are still sitting in it.
+   *
+   * The backend already composes this sentence (it holds the enumeration), so
+   * this returns the server's own message rather than re-deriving it here. Two
+   * places building the same sentence from the same numbers is how they drift.
+   */
+  const fanReport = (r: { message?: string } | undefined, fallback: string) =>
+    r?.message || fallback;
+
   const commitRename = useCallback(
     async (t: FileOrganizeTarget, nextLeaf: string) => {
       const parent = t.path.slice(0, t.path.lastIndexOf('/'));
       const newPath = `${parent}/${nextLeaf}`;
       if (newPath === t.path) return;
       try {
-        const r = await runAction(() => api.documents.move(t.path, newPath), {
-          pending: 'Renaming…',
-          success: 'Renamed',
-          error: (e) =>
-            e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Rename failed' : 'Rename failed',
-        });
+        // A folder rename is the fan-out with a new leaf — the SAME act as a
+        // folder move, addressed differently, so it takes the same route. One
+        // implementation means the two verbs cannot drift apart.
+        const r = t.isFolder
+          ? await runAction(() => api.documents.moveFolder(t.path, newPath), {
+              pending: 'Renaming folder…',
+              success: (res) => fanReport(res, 'Renamed'),
+              error: (e) =>
+                e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Rename failed' : 'Rename failed',
+            })
+          : await runAction(() => api.documents.move(t.path, newPath), {
+              pending: 'Renaming…',
+              success: 'Renamed',
+              error: (e) =>
+                e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Rename failed' : 'Rename failed',
+            });
         onAfterMutate?.(r?.path ?? newPath, t.path);
       } catch {
         /* error toast already surfaced; stop (don't refresh on failure) */
@@ -177,17 +217,24 @@ export function useFileOrganizeVerbs(
   );
 
   const commitMove = useCallback(
-    async (fromPath: string, destFolder: string) => {
-      const leaf = fromPath.slice(fromPath.lastIndexOf('/') + 1);
+    async (fromPath: string, destFolder: string, isFolder = false) => {
+      const leaf = fromPath.replace(/\/+$/, '').slice(fromPath.replace(/\/+$/, '').lastIndexOf('/') + 1);
       const newPath = destFolder.endsWith('/') ? `${destFolder}${leaf}` : `${destFolder}/${leaf}`;
       if (newPath === fromPath) return;
       try {
-        const r = await runAction(() => api.documents.move(fromPath, newPath), {
-          pending: 'Moving…',
-          success: 'Moved',
-          error: (e) =>
-            e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Move failed' : 'Move failed',
-        });
+        const r = isFolder
+          ? await runAction(() => api.documents.moveFolder(fromPath, newPath), {
+              pending: 'Moving folder…',
+              success: (res) => fanReport(res, 'Moved'),
+              error: (e) =>
+                e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Move failed' : 'Move failed',
+            })
+          : await runAction(() => api.documents.move(fromPath, newPath), {
+              pending: 'Moving…',
+              success: 'Moved',
+              error: (e) =>
+                e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Move failed' : 'Move failed',
+            });
         onAfterMutate?.(r?.path ?? newPath, fromPath);
       } catch {
         /* error toast already surfaced; stop */
@@ -229,8 +276,72 @@ export function useFileOrganizeVerbs(
     [onAfterMutate],
   );
 
+  /**
+   * Move a FOLDER to Trash — the fan-out (2026-08-21).
+   *
+   * Two things it owes the operator that the file path does not:
+   *
+   *   THE SIZE, IN THE CONFIRM. The menu label already carried the count
+   *   ("Move to Trash (40 items)"); the confirm restates it, because a
+   *   consequence this large should be named at the moment of consent and not
+   *   only at the moment of pointing.
+   *
+   *   THE CARVE, NAMED BEFORE CONSENT. If some children are managed by the
+   *   system they will stay put, and the operator must know that BEFORE they
+   *   agree — otherwise they accept "delete this folder" and get a folder that
+   *   is still there with two files in it. The preflight already knows; asking
+   *   afterwards would be a report, not a choice.
+   */
+  const onDeleteFolder = useCallback(
+    async (t: FileOrganizeTarget) => {
+      if (await carveGuard(t.path)) return;
+      let pre: { count: number; locked: string[]; too_large: boolean } | null = null;
+      try {
+        pre = await api.documents.folderPreflight(t.path);
+      } catch {
+        /* the confirm still asks; the backend remains authoritative */
+      }
+      if (pre?.too_large) {
+        await confirm({
+          title: `“${t.name}” is too large to move at once`,
+          body: 'This folder holds more items than a single action can move. Move some of its contents first.',
+          confirmLabel: 'OK',
+          cancelLabel: '',
+        });
+        return;
+      }
+      const n = pre?.count ?? 0;
+      const lockedCount = pre?.locked.length ?? 0;
+      const lockedLine = lockedCount
+        ? ` ${lockedCount} item${lockedCount === 1 ? ' is' : 's are'} managed by the system and will stay where ${lockedCount === 1 ? 'it is' : 'they are'}.`
+        : '';
+      const ok = await confirm({
+        title: `Move “${t.name}” to Trash?`,
+        body:
+          `${n} item${n === 1 ? '' : 's'} inside will move too. `
+          + `They stay recoverable — you can restore the whole folder from Trash.${lockedLine}`,
+        confirmLabel: 'Move to Trash',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await runAction(() => api.documents.trashFolder(t.path), {
+          pending: 'Moving to Trash…',
+          success: (res) => fanReport(res, 'Moved to Trash'),
+          error: (e) =>
+            e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Delete failed' : 'Delete failed',
+        });
+        onAfterMutate?.(null, t.path);
+      } catch {
+        /* error toast already surfaced; stop */
+      }
+    },
+    [carveGuard, confirm, runAction, onAfterMutate],
+  );
+
   const onDelete = useCallback(
     async (t: FileOrganizeTarget) => {
+      if (t.isFolder) return onDeleteFolder(t);
       if (await carveGuard(t.path)) return;
       // ADR-448: the load-bearing check — if other files were made FROM this one
       // (the derived_from reference edge), say so before the operator confirms.
@@ -267,7 +378,7 @@ export function useFileOrganizeVerbs(
         /* error toast already surfaced; stop */
       }
     },
-    [carveGuard, confirm, runAction, onAfterMutate],
+    [carveGuard, confirm, runAction, onAfterMutate, onDeleteFolder],
   );
 
   const modals = (
@@ -280,7 +391,9 @@ export function useFileOrganizeVerbs(
         onMove={async (destFolder) => {
           const t = moveTarget;
           setMoveTarget(null);
-          if (t) await commitMove(t.path, destFolder);
+          // The target carries its own kind — a folder move takes the fan-out
+          // route, a file move the single mover. One modal, two acts.
+          if (t) await commitMove(t.path, destFolder, t.isFolder);
         }}
       />
       <RenameModal

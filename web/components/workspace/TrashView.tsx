@@ -13,10 +13,17 @@
  * go, every OTHER file's ledger is untouched. Owner-gated in a shared workspace
  * (the backend 403s a non-owner). A file a live file still cites is refused
  * (per-file: 409 naming the dependents) or skipped (empty: reported back).
+ *
+ * TWO ROW SHAPES, because there are two acts (2026-08-21). Deleting a FOLDER
+ * fans out — one attributed archive revision per file under it — so a 40-file
+ * folder would arrive here as 40 loose rows, and restoring it would mean 40
+ * clicks and rebuilding the shape by hand. It comes back as ONE GROUP instead
+ * ("ai-frontier · 40 items"), restored whole. Trash mirrors the act the operator
+ * performed: they deleted one folder, so they see one thing.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Trash2, Undo2, FileText, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, Undo2, FileText, AlertTriangle, FolderClosed } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { FileIcon } from './FileIcon';
 import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
@@ -29,6 +36,15 @@ interface TrashItem {
   authored_by: string | null;
 }
 
+/** A whole folder that was moved to Trash, restorable as ONE unit. `count` is
+ *  FILES — a directory is not an item you deleted, it is where they were. */
+interface TrashGroup {
+  root: string;
+  name: string;
+  count: number;
+  archived_at: string;
+}
+
 function detail(e: unknown, fallback: string): string {
   return e instanceof APIError
     ? (e.data as { detail?: string })?.detail || fallback
@@ -38,6 +54,7 @@ function detail(e: unknown, fallback: string): string {
 export function TrashView() {
   const { runAction } = useFeedback();
   const [items, setItems] = useState<TrashItem[]>([]);
+  const [groups, setGroups] = useState<TrashGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   // Two-step confirm, per row and for the whole trash. `null` = nothing armed.
@@ -48,12 +65,31 @@ export function TrashView() {
     try {
       const r = await api.documents.trash();
       setItems(Array.isArray(r?.items) ? r.items : []);
+      setGroups(Array.isArray(r?.groups) ? r.groups : []);
     } catch {
       setItems([]);
+      setGroups([]);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  /** Restore a whole trashed folder — the inverse of the fan-out, in one act. */
+  const restoreGroup = useCallback(async (root: string) => {
+    setBusy(root);
+    try {
+      await runAction(() => api.documents.restoreTrashGroup(root), {
+        pending: 'Restoring folder…',
+        success: (res) => res.message || 'Restored',
+        error: (e) => detail(e, 'Restore failed'),
+      });
+      setGroups((prev) => prev.filter((g) => g.root !== root));
+    } catch {
+      // toast surfaced; keep the row for retry
+    } finally {
+      setBusy(null);
+    }
+  }, [runAction]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -113,15 +149,24 @@ export function TrashView() {
     }
   }, [runAction, load]);
 
+  // Groups and loose files are both ROWS. Counted together so the header, the
+  // empty state and the Empty-Trash affordance all agree on "is there anything
+  // in here" — three separate `items.length` checks would disagree the moment a
+  // trash held only folders.
+  const rowCount = items.length + groups.length;
+
   return (
     <div className="h-full overflow-y-auto px-6 py-4">
       <div className="mb-4 flex items-center gap-2">
         <Trash2 className="h-4 w-4 text-muted-foreground" />
         <h2 className="text-sm font-medium text-foreground">Trash</h2>
+        {/* The header count is ROWS — what the operator is looking at — so a
+            trashed folder counts as one thing, matching the one act that put it
+            here. Its 40 files are named on the row itself. */}
         <span className="text-[11px] text-muted-foreground">
-          {loading ? '' : `${items.length} item${items.length === 1 ? '' : 's'}`}
+          {loading ? '' : `${rowCount} item${rowCount === 1 ? '' : 's'}`}
         </span>
-        {!loading && items.length > 0 && (
+        {!loading && rowCount > 0 && (
           <div className="ml-auto">
             {confirmingEmpty ? (
               <div className="flex items-center gap-2">
@@ -162,7 +207,7 @@ export function TrashView() {
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading trash…
         </div>
-      ) : items.length === 0 ? (
+      ) : rowCount === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Trash2 className="mb-3 h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">Trash is empty.</p>
@@ -173,6 +218,35 @@ export function TrashView() {
         </div>
       ) : (
         <div className="divide-y divide-border/50 overflow-hidden rounded-lg border border-border/60">
+          {/* FOLDER GROUPS first — the biggest acts at the top, and the ones a
+              member is most likely to be looking for after a mis-click.
+              Restore-all only: permanently deleting a whole folder is a
+              different, terminal decision (ADR-478 is per-file and owner-gated,
+              and "Empty Trash" already reaches the whole trash). Offering a
+              per-group permanent delete would be a new destructive act smuggled
+              in beside a recovery affordance. */}
+          {groups.map((g) => (
+            <div key={g.root} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30">
+              <FolderClosed className="h-5 w-5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm text-foreground">{g.name}</div>
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="truncate">{g.root.replace('/workspace/', '')}</span>
+                  <span>· {g.count} item{g.count === 1 ? '' : 's'}</span>
+                  {g.archived_at && <span>· deleted {g.archived_at.slice(0, 10)}</span>}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => restoreGroup(g.root)}
+                disabled={busy === g.root}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+              >
+                {busy === g.root ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                Restore all
+              </button>
+            </div>
+          ))}
           {items.map((it) => (
             <div key={it.path} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30">
               <FileIcon filename={it.filename} size="md" />

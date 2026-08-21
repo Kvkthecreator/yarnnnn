@@ -1158,10 +1158,15 @@ export const api = {
       ),
 
     // ADR-400: the Trash surface — list operator-owned archived files.
+    // TWO SHAPES, because there are two acts: a file trashed on its own is an
+    // `item`; a FOLDER trashed is a `group` (one restorable unit naming its
+    // deleted root). Members of a group are NOT repeated in `items` — Trash
+    // shows one row per thing the operator deleted, not per file the fan wrote.
     trash: () =>
-      request<{ items: Array<{ path: string; filename: string; archived_at: string; authored_by: string | null }> }>(
-        "/api/documents/trash"
-      ),
+      request<{
+        items: Array<{ path: string; filename: string; archived_at: string; authored_by: string | null }>;
+        groups: Array<{ root: string; name: string; count: number; archived_at: string }>;
+      }>("/api/documents/trash"),
 
     // ADR-400 D8: restore a file from Trash (un-archive → active).
     restore: (path: string) =>
@@ -1222,6 +1227,66 @@ export const api = {
       request<{ success: boolean; path: string }>(
         "/api/documents/folder",
         { method: "POST", body: JSON.stringify(parent ? { path, parent } : { path }) }
+      ),
+
+    // ── FOLDER VERBS (2026-08-21) — a folder verb is a FAN-OUT ────────────
+    //
+    // Since ADR-588 a folder is a marker row plus whatever files share its path
+    // prefix, so Rename / Move / Move-to-Trash on a folder cannot be one row
+    // update — the backend fans out over the subtree, one attributed revision
+    // per file through the ONE write path (ADR-209).
+
+    // What the verb WOULD touch. Resolved when the menu OPENS, so the label can
+    // name the blast radius before the click ("Move to Trash (40 items)"). The
+    // count and the act share one enumeration server-side, so the number shown
+    // is the number performed. `locked` names the files a carve will leave in
+    // place — reported, never silently skipped.
+    folderPreflight: (path: string) =>
+      request<{
+        path: string;
+        count: number;
+        locked: string[];
+        folders: number;
+        too_large: boolean;
+      }>(`/api/documents/folder/preflight?path=${encodeURIComponent(path)}`),
+
+    // Move a FOLDER to Trash — one archive revision per file, restorable as ONE
+    // unit (the fan stamps a grouping key Trash reads back). A POST, not a
+    // DELETE on the path: the single-file DELETE already claims that shape.
+    trashFolder: (path: string) =>
+      request<{
+        success: boolean;
+        message: string;
+        root: string;
+        archived: string[];
+        locked: string[];
+      }>("/api/documents/folder/trash", {
+        method: "POST",
+        body: JSON.stringify({ path }),
+      }),
+
+    // Move or RENAME a folder — the same fan-out, addressed differently (rename
+    // is a move to a sibling path). Reports the honest partial.
+    moveFolder: (path: string, newPath: string) =>
+      request<{
+        success: boolean;
+        message: string;
+        path: string;
+        moved: string[];
+        failed: string[];
+        locked: string[];
+      }>("/api/documents/folder/move", {
+        method: "POST",
+        body: JSON.stringify({ path, new_path: newPath }),
+      }),
+
+    // Restore a whole trashed folder in one act — addressed by the grouping key,
+    // never by a path prefix (a file trashed separately AFTER the folder went
+    // would match the prefix but was not part of that act).
+    restoreTrashGroup: (root: string) =>
+      request<{ success: boolean; message: string; root: string; restored: string[] }>(
+        "/api/documents/trash/restore-group",
+        { method: "POST", body: JSON.stringify({ root }) }
       ),
 
     // ADR-127: Share file to global user_shared/ staging area

@@ -127,8 +127,17 @@ export interface ListingDnd {
 
 /** One listing row's drag affordances. Mirrors the tree's rule exactly: a FILE
  *  is draggable iff organizable; a FOLDER is the drop target. A file is never a
- *  drop target (there is no "drop onto a file" meaning) and a folder is never
- *  draggable (there is no backend folder-move). */
+ *  drop target (there is no "drop onto a file" meaning).
+ *
+ *  A FOLDER IS NOT DRAGGABLE — and as of 2026-08-21 that is a CHOICE, no longer
+ *  a limitation. It used to read "there is no backend folder-move"; there is
+ *  one now (`POST /documents/folder/move`, the fan-out), and the folder Move
+ *  verb reaches it from the right-click menu. The DRAG gesture is held back
+ *  deliberately: dropping a folder onto its own descendant is a self-containment
+ *  the picker refuses by construction (it cannot offer a destination inside the
+ *  thing being moved) but a drop target cannot, and a fan-out that chases its
+ *  own tail is the wrong thing to discover by accident. When the drag path grows
+ *  a containment guard, this line comes off. */
 function tileDnd(dnd: ListingDnd, child: { path: string; type?: string }) {
   const isFolder = child.type === 'folder';
   return {
