@@ -10,7 +10,7 @@
  * settled footer.
  *
  * The roster mirrors `api/services/lane_runner.py::lane_tool_names()` — the
- * five file verbs + LANE_SURFACE_EXTRA. An unknown name (a future roster
+ * seven file verbs + LANE_SURFACE_EXTRA. An unknown name (a future roster
  * addition) degrades to a humanized spelling rather than leaking camelCase, so
  * this map can lag the roster without re-shipping the defect.
  */
@@ -19,6 +19,11 @@ const TOOL_LABELS: Record<string, { doing: string; did: string }> = {
   ReadFile: { doing: 'reading a file', did: 'read a file' },
   WriteFile: { doing: 'writing a file', did: 'wrote a file' },
   EditFile: { doing: 'revising a file', did: 'revised a file' },
+  // 2026-08-21 — the file-verb set is one set, whoever holds it. Named
+  // explicitly rather than left to `humanize`: "deleting a file" is the one
+  // verb a member most needs to read accurately in a streaming transcript.
+  DeleteFile: { doing: 'deleting a file', did: 'deleted a file' },
+  MoveFile: { doing: 'moving a file', did: 'moved a file' },
   SearchFiles: { doing: 'searching files', did: 'searched files' },
   ListFiles: { doing: 'listing files', did: 'listed files' },
   QueryKnowledge: { doing: 'searching knowledge', did: 'searched knowledge' },

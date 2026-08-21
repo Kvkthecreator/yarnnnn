@@ -6,6 +6,45 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.21.3] - the file-verb set is one set, whoever holds it
+
+### Changed
+- `services/lane_runner.py` `LANE_TOOL_NAMES`: five file verbs → **seven**
+  (`DeleteFile` + `MoveFile` added). `lane_tools_openai` composes their
+  registry schemas; `LANE_ARTIFACT_VERBS` gains `MoveFile` only.
+- `services/lane_runner.py` `artifact_path_from`: `MoveFile` resolves
+  `new_path`, not `path` — a move's result carries both and `path` is the
+  SOURCE, which no longer exists once the move succeeds.
+- `web/components/chat-surface/toolLabels.ts`: operator-facing spellings for
+  the two new verbs ("deleting a file" / "moving a file").
+- Expected behavior: **a lane can now delete and move files in the member's
+  commons.** The frame's `{tools_line}` is derived from `lane_tool_names()`,
+  so the prose the model reads names the seven automatically — no separate
+  prompt edit, and the ADR-467 D4 three-way agreement (payload · allowlist ·
+  prose) holds by construction.
+
+  Previously a member asked their lane to delete two config files and was
+  told "my available file tools do not include a file deletion primitive" —
+  true of that surface and false of the system: `DeleteFile`/`MoveFile`
+  shipped in ADR-337 and were live in `CHAT_PRIMITIVES`, in
+  `FREDDIE_PRIMITIVES`, and as `delete`/`move` on the MCP interop surface. A
+  foreign LLM connected over MCP could delete a file the member's own lane
+  could not touch. The safety question was already settled by ADR-337: a
+  delete is a VIEW change (attributed tombstone, chain retained, restore =
+  ReadRevision + WriteFile), and governance-locked paths refuse.
+
+  Uniform, never per-Agent — ADR-467 D4 holds as written.
+
+  A deletion does NOT render an artifact card (a card is a deep link to a
+  file to open; after a delete there is nothing there). It shows as a
+  labelled tool row instead.
+
+### Gate
+- `api/test_file_verbs_are_one_set.py` — derives both sides and asserts no
+  surface is narrower than MCP. Falsified against the original defect.
+
+---
+
 ## [2026.08.21.2] - a model dial is validated, not trusted
 
 ### Changed

@@ -15,7 +15,7 @@ locked the system to one vendor while a provider-blind router sat unused:
                          equivalent, because it is not a completion, it is a
                          service that happens to arrive through one.
 
-    OUR OWN PRIMITIVES   the five file verbs, QueryKnowledge
+    OUR OWN PRIMITIVES   the seven file verbs, QueryKnowledge
                          provider-irrelevant. We are the server.
 
 **Model-agnostic does not mean vendor-capability-free.** It means: the agent asks

@@ -10,7 +10,7 @@ attribution.
 This module owns:
 - ``LANE_MODELS`` — the creation-time model whitelist (ADR-411 D5: a model
   enters only WITH a ``_BILLING_RATES`` row; no silent default pricing).
-- The lane tool surface (ADR-411 D3): the five file verbs, converted
+- The lane tool surface (ADR-411 D3): the seven file verbs, converted
   mechanically from the registry's Anthropic-format definitions to the
   OpenAI format LiteLLM translates per provider. Executed through
   ``execute_primitive`` under the member's auth with the member-embodiment
@@ -156,12 +156,37 @@ def _studio_max_tokens() -> int:
     return STUDIO_LANE_MAX_TOKENS
 
 # ---------------------------------------------------------------------------
-# Tool surface (ADR-411 D3) — five file verbs, registry definitions converted
+# Tool surface (ADR-411 D3) — seven file verbs, registry definitions converted
 # ---------------------------------------------------------------------------
 
-#: The lane tool allowlist. A helper is hands on the filesystem — no entity
-#: verbs, no Schedule, no DispatchSpecialist, no platform tools.
-LANE_TOOL_NAMES = ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles")
+#: The lane tool allowlist — the SEVEN file verbs. A helper is hands on the
+#: filesystem — no entity verbs, no Schedule, no DispatchSpecialist, no
+#: platform tools.
+#:
+#: ⭐ THE FILE-VERB SET IS ONE SET, WHOEVER HOLDS IT (2026-08-21).
+#: `DeleteFile` + `MoveFile` were added here because their ABSENCE was the
+#: anomaly, not their presence. They already shipped in CHAT_PRIMITIVES, in
+#: FREDDIE_PRIMITIVES, and — as `delete` / `move` — on the MCP interop surface
+#: (ADR-543/545). So a foreign LLM connected over MCP could delete a file in
+#: the member's workspace while the member's OWN lane could not, and the lane
+#: said so out loud ("my available file tools do not include a file deletion
+#: primitive"). One surface silently narrower than the other two is a
+#: coherence bug, not a safety posture.
+#:
+#: The safety argument was already settled by the verbs themselves (ADR-337):
+#: deletion is a VIEW change, not information loss — an attributed tombstone
+#: retains the chain, ListRevisions/ReadRevision still resolve the path, and
+#: restore is ReadRevision + WriteFile (ADR-209 D7). Governance-locked paths
+#: refuse. FREDDIE_PRIMITIVES says it plainly: *hygiene without delete/move is
+#: a duty without hands*. That is as true of a member's lane as of the steward.
+#:
+#: Uniform, never per-Agent — ADR-467 D4 holds exactly as written: capability
+#: is not a character trait, and a per-row `tools` field was a bug factory with
+#: no safety payoff. This is a uniform addition to the one set every lane reads.
+LANE_TOOL_NAMES = (
+    "ReadFile", "WriteFile", "EditFile", "DeleteFile", "MoveFile",
+    "SearchFiles", "ListFiles",
+)
 
 #: The three reads beyond the five verbs — UNIFORM for every lane (ADR-467 D4).
 #: Capability stopped being a per-Agent fact: the per-row `tools` field was a
@@ -197,7 +222,21 @@ LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations", "Gener
 #: a successful call lands an attributed revision the member should SEE. It is
 #: also what keeps the restated D4.a ceiling honest: the verb is classified as
 #: consequential rather than smuggled into `READ_ONLY_PRIMITIVES`.
-LANE_ARTIFACT_VERBS = ("WriteFile", "EditFile", "GenerateImage")
+#: `MoveFile` (2026-08-21) lands an attributed revision at its DESTINATION, so
+#: the member should see the file where it now lives — which is why
+#: `artifact_path_from` reads `new_path` for it, not `path` (the move's result
+#: carries BOTH, and `path` is the source that no longer exists).
+#:
+#: ⚠️ `DeleteFile` is deliberately NOT here. It lands a tombstone revision, but
+#: an artifact card is a DEEP LINK to a file to open — and after a successful
+#: delete there is nothing at that path to open. Carding it would render a dead
+#: link at the exact moment the member most needs the transcript to be honest.
+#: The delete still shows: `toolLabels` prints "deleted a file", and the
+#: revision chain remains walkable via history. The rule this set encodes is
+#: "the member should SEE what their lane MADE"; a deletion is not a thing made.
+LANE_ARTIFACT_VERBS = (
+    "WriteFile", "EditFile", "MoveFile", "GenerateImage",
+)
 
 
 def artifact_path_from(name: str, result: Any) -> Optional[str]:
@@ -213,6 +252,13 @@ def artifact_path_from(name: str, result: Any) -> Optional[str]:
         return None
     if not isinstance(result, dict) or not result.get("success"):
         return None
+    # MoveFile's result carries BOTH paths, and `path` is the SOURCE — which no
+    # longer exists once the move succeeds. The card must deep-link where the
+    # file now lives, or it points at a tombstone (2026-08-21).
+    if name == "MoveFile":
+        dst = result.get("new_path")
+        if isinstance(dst, str) and dst:
+            return dst
     path = result.get("path")
     return path if isinstance(path, str) and path else None
 
@@ -373,7 +419,7 @@ def turn_has_reach(app: Optional[str], artifact_path: Optional[str],
 
 
 def lane_tool_names(turn_reach: bool = False) -> tuple:
-    """THE lane's tool-name set: the five file verbs + the uniform reads
+    """THE lane's tool-name set: the seven file verbs + the uniform reads
     (ADR-467 D4). One set, every lane, every Agent.
 
     ⚠️ SINGULAR SOURCE. Three things must agree about which tools a turn has:
@@ -413,8 +459,10 @@ def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
     from services.primitives.registry import LIST_INTEGRATIONS_TOOL
     from services.primitives.web_search import WEB_SEARCH_PRIMITIVE
     from services.primitives.workspace import (
+        DELETE_FILE_TOOL,
         EDIT_FILE_TOOL,
         LIST_FILES_TOOL,
+        MOVE_FILE_TOOL,
         QUERY_KNOWLEDGE_TOOL,
         READ_FILE_TOOL,
         SEARCH_FILES_TOOL,
@@ -424,6 +472,7 @@ def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
     by_name = {
         t["name"]: t
         for t in (READ_FILE_TOOL, WRITE_FILE_TOOL, EDIT_FILE_TOOL,
+                  DELETE_FILE_TOOL, MOVE_FILE_TOOL,
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE,
                   LIST_INTEGRATIONS_TOOL, GENERATE_IMAGE_TOOL)

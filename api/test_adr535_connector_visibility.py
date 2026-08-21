@@ -122,10 +122,19 @@ def run() -> bool:
         "NO platform_* tool rode onto the lane surface (reach stays gated)",
         not any(t.startswith("platform_") for t in lane_tool_names()),
     )
+    # ADR-535's claim is that IT added no tools to the file-verb half — not
+    # that the half can never grow. Pinning the exact tuple made any later
+    # legitimate change (2026-08-21: DeleteFile + MoveFile, closing the
+    # lane-vs-MCP asymmetry) read as an ADR-535 violation. Assert the
+    # INVARIANT instead: the file half is file verbs only, no connector reach
+    # smuggled in among them.
     _check(
-        "the five file verbs are untouched",
-        LANE_TOOL_NAMES
-        == ("ReadFile", "WriteFile", "EditFile", "SearchFiles", "ListFiles"),
+        "the file-verb half carries only file verbs (no reach among them)",
+        all(
+            t in {"ReadFile", "WriteFile", "EditFile", "DeleteFile",
+                  "MoveFile", "SearchFiles", "ListFiles"}
+            for t in LANE_TOOL_NAMES
+        ),
     )
 
     print("\n── 3. ⚠️  D3 — the frame STATES ITS OWN EDGE (the ungated half) ──")
