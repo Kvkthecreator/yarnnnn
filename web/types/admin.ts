@@ -16,31 +16,6 @@ export interface AdminOverviewStats {
   sessions_7d: number;
 }
 
-// GET /admin/token-usage
-export interface TokenUsageRow {
-  date: string;
-  caller: string; // "chat" | "task_pipeline" | "other"
-  model: string;
-  billed_input_tokens: number;
-  output_tokens: number;
-  cache_read_tokens: number;
-  cache_creation_tokens: number;
-  api_calls: number;
-  estimated_cost_usd: number;
-}
-
-export interface AdminTokenUsage {
-  period_days: number;
-  total_billed_input_tokens: number;
-  total_output_tokens: number;
-  total_cache_read_tokens: number;
-  total_cache_creation_tokens: number;
-  total_api_calls: number;
-  total_estimated_cost_usd: number;
-  cache_hit_pct: number;
-  by_day: TokenUsageRow[];
-}
-
 // GET /admin/execution-stats
 export interface TaskExecutionRow {
   task_slug: string;

@@ -5,7 +5,6 @@ import { api } from "@/lib/api/client";
 import { formatLedgerTime } from "@/lib/formatting";
 import type {
   AdminOverviewStats,
-  AdminTokenUsage,
   AdminExecutionStats,
   AdminUserRow,
 } from "@/types/admin";
@@ -33,25 +32,21 @@ export default function AdminDashboardPage() {
   const [exporting, setExporting] = useState(false);
 
   const [overview, setOverview] = useState<AdminOverviewStats | null>(null);
-  const [tokenUsage, setTokenUsage] = useState<AdminTokenUsage | null>(null);
   const [execStats, setExecStats] = useState<AdminExecutionStats | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
-  const [tokenDays, setTokenDays] = useState(7);
 
-  const fetchData = async (days: number = 7) => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const [ov, tu, ex, us] = await Promise.all([
+      const [ov, ex, us] = await Promise.all([
         api.admin.stats(),
-        api.admin.tokenUsage(days),
         api.admin.executionStats(),
         api.admin.users(),
       ]);
 
       setOverview(ov);
-      setTokenUsage(tu);
       setExecStats(ex);
       setUsers(us);
     } catch (err) {
@@ -63,8 +58,8 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    fetchData(tokenDays);
-  }, [tokenDays]);
+    fetchData();
+  }, []);
 
   // ADR-429 §12.3a — toggle a workspace's billing-exempt (comp) state. Optimistic:
   // flip locally, call the admin route, revert on failure.
@@ -125,25 +120,6 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // Aggregate token usage by day (combine callers)
-  const dailyCosts: Record<string, { chat: number; pipeline: number; total: number }> = {};
-  if (tokenUsage) {
-    for (const row of tokenUsage.by_day) {
-      if (!dailyCosts[row.date]) {
-        dailyCosts[row.date] = { chat: 0, pipeline: 0, total: 0 };
-      }
-      const day = dailyCosts[row.date];
-      if (row.caller === "chat") {
-        day.chat += row.estimated_cost_usd;
-      } else {
-        day.pipeline += row.estimated_cost_usd;
-      }
-      day.total += row.estimated_cost_usd;
-    }
-  }
-
-  // Max cost for chart scaling
-  const maxDailyCost = Math.max(...Object.values(dailyCosts).map((d) => d.total), 0.01);
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto p-6">
@@ -182,154 +158,6 @@ export default function AdminDashboardPage() {
             icon={Zap}
           />
         </div>
-      )}
-
-      {/* Token & Cost Analytics */}
-      {tokenUsage && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <DollarSign className="w-4 h-4" />
-                Token Usage & Cost
-              </CardTitle>
-              <div className="flex gap-1">
-                {[7, 14, 30].map((d) => (
-                  <Button
-                    key={d}
-                    variant={tokenDays === d ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setTokenDays(d)}
-                    className="text-xs px-2 h-7"
-                  >
-                    {d}d
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Summary row */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Total Cost</p>
-                <p className="text-2xl font-semibold">
-                  ${tokenUsage.total_estimated_cost_usd.toFixed(2)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Billed Input</p>
-                <p className="text-xl font-semibold">{formatTokens(tokenUsage.total_billed_input_tokens)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Output Tokens</p>
-                <p className="text-xl font-semibold">{formatTokens(tokenUsage.total_output_tokens)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">API Calls</p>
-                <p className="text-xl font-semibold">{tokenUsage.total_api_calls}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground flex items-center gap-1">
-                  <TrendingDown className="w-3 h-3" /> Cache Hit
-                </p>
-                <p className={`text-xl font-semibold ${tokenUsage.cache_hit_pct > 0 ? "text-green-600" : "text-yellow-600"}`}>
-                  {tokenUsage.cache_hit_pct.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-
-            {/* Daily cost chart (simple bar chart via divs) */}
-            {Object.keys(dailyCosts).length > 0 && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Daily Cost (Chat vs Pipeline)</p>
-                <div className="flex items-end gap-1 h-32">
-                  {Object.entries(dailyCosts)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([date, costs]) => {
-                      const chatPct = costs.total > 0 ? (costs.chat / costs.total) * 100 : 0;
-                      const pipelinePct = 100 - chatPct;
-                      const heightPct = (costs.total / maxDailyCost) * 100;
-                      return (
-                        <div key={date} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                          <div
-                            className="w-full rounded-t-sm overflow-hidden flex flex-col justify-end"
-                            style={{ height: `${Math.max(heightPct, 2)}%` }}
-                            title={`${date}: $${costs.total.toFixed(2)} (chat: $${costs.chat.toFixed(2)}, pipeline: $${costs.pipeline.toFixed(2)})`}
-                          >
-                            <div
-                              className="bg-blue-400 w-full"
-                              style={{ height: `${chatPct}%` }}
-                            />
-                            <div
-                              className="bg-orange-400 w-full"
-                              style={{ height: `${pipelinePct}%` }}
-                            />
-                          </div>
-                          <span className="text-[9px] text-muted-foreground truncate w-full text-center">
-                            {date.slice(5)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                </div>
-                <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 bg-blue-400 rounded-sm inline-block" /> Chat
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 bg-orange-400 rounded-sm inline-block" /> Task Pipeline
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Per-caller breakdown table */}
-            {tokenUsage.by_day.length > 0 && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Breakdown by Day & Caller</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Date</th>
-                        <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Caller</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Calls</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Billed Input</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Output</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Cache Read</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Cost</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tokenUsage.by_day
-                        .sort((a, b) => b.date.localeCompare(a.date) || a.caller.localeCompare(b.caller))
-                        .map((row, i) => (
-                          <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                            <td className="py-1.5 px-2">{row.date}</td>
-                            <td className="py-1.5 px-2">
-                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                row.caller === "chat"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-orange-100 text-orange-700"
-                              }`}>
-                                {row.caller}
-                              </span>
-                            </td>
-                            <td className="py-1.5 px-2 text-right tabular-nums">{row.api_calls}</td>
-                            <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(row.billed_input_tokens)}</td>
-                            <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(row.output_tokens)}</td>
-                            <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(row.cache_read_tokens)}</td>
-                            <td className="py-1.5 px-2 text-right tabular-nums font-medium">${row.estimated_cost_usd.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       )}
 
       {/* Execution Stats */}

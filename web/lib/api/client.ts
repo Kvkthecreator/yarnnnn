@@ -54,7 +54,6 @@ import type {
 } from "@/types";
 import type {
   AdminOverviewStats,
-  AdminTokenUsage,
   AdminExecutionStats,
   AdminUserRow,
   AdminAccountRow,
@@ -1455,8 +1454,6 @@ export const api = {
   // Admin endpoints (requires admin access)
   admin: {
     stats: () => request<AdminOverviewStats>("/api/admin/stats"),
-    tokenUsage: (days: number = 7) =>
-      request<AdminTokenUsage>(`/api/admin/token-usage?days=${days}`),
     executionStats: () => request<AdminExecutionStats>("/api/admin/execution-stats"),
     users: () => request<AdminUserRow[]>("/api/admin/users"),
     // ADR-429 §12.3a — toggle a workspace's billing-exempt (comp) state.

@@ -148,6 +148,54 @@ def strip_provider(model: str) -> str:
     return model.split("/", 1)[1] if "/" in model else model
 
 
+def accept_model_override(env_var: str, raw: str, current: str) -> str:
+    """Validate an env-supplied model id, or IGNORE it and keep `current`.
+
+    ⭐ THE ONE VALIDATOR for every `provider/model` env override
+    (`YARNNN_MODEL_{SHAPE}` and `YARNNN_SYSCALL_{CALL_TYPE}`). Both dials used to
+    accept an arbitrary string, log it, and hand it to a provider SDK — so a
+    typo on a Render dashboard routed to a model that does not exist, and an
+    unpriced id billed silently at the Sonnet default rate. Neither failed
+    loudly; both produced a plausible wrong answer.
+
+    TWO CONDITIONS, and they are different questions:
+      • KNOWN    — is it a `LANE_MODELS` key? That dict is the engine registry
+                   (ADR-559), retired rows included: a retired engine is still
+                   ROUTABLE, so an override naming one is legitimate.
+      • PRICED   — does it have a `_BILLING_RATES` row? ADR-439 §4's rule is
+                   that an unpriced model never routes in prod. An override is
+                   not an exemption from the billing gate.
+
+    IGNORE, NEVER RAISE — the rounds override above set this precedent, and it
+    is the right one here: these resolvers run inside live wakes and lane turns.
+    A bad dial must degrade to the DECLARED engine (which is always valid) and
+    shout in the log; raising would take the steward down for a typo, turning a
+    cost mistake into an outage. The declared value is a safe floor by
+    construction — gates assert every table value is known and priced.
+    """
+    from services.lane_runner import LANE_MODELS
+    from services.telemetry import has_billing_rate
+
+    if raw not in LANE_MODELS:
+        logger.error(
+            "[MODEL-ROUTING] %s=%r IGNORED — not a LANE_MODELS engine. "
+            "Using the declared %r. Overrides use the `provider/model` form "
+            "(e.g. 'anthropic/claude-sonnet-5').",
+            env_var, raw, current,
+        )
+        return current
+    if not has_billing_rate(strip_provider(raw)):
+        logger.error(
+            "[MODEL-ROUTING] %s=%r IGNORED — no _BILLING_RATES row, so it would "
+            "bill at the default rate (ADR-439 §4). Using the declared %r.",
+            env_var, raw, current,
+        )
+        return current
+
+    logger.info("[MODEL-ROUTING] %s=%r accepted (was %r)", env_var, raw, current)
+    return raw
+
+
 def classify_shape(trigger: str, is_recurrence_fire: bool) -> str:
     """Map (trigger, sub-shape) → routing shape.
 
@@ -168,7 +216,9 @@ def resolve_route(trigger: str, is_recurrence_fire: bool) -> ModelRoute:
     shape = classify_shape(trigger, is_recurrence_fire)
     route = DEFAULT_ROUTES[shape]
 
-    model = os.environ.get(f"YARNNN_MODEL_{shape.upper()}", "").strip() or route.model
+    env_var = f"YARNNN_MODEL_{shape.upper()}"
+    raw_model = os.environ.get(env_var, "").strip()
+    model = accept_model_override(env_var, raw_model, route.model) if raw_model else route.model
 
     max_rounds = route.max_rounds
     raw_rounds = os.environ.get(f"YARNNN_ROUNDS_{shape.upper()}", "").strip()

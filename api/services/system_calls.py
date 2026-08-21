@@ -44,7 +44,10 @@ model_selection — ONE splitter) feeds the Anthropic SDK its own bare id at the
 call. At N=1 per row this is byte-identical; what changes is that the table can
 now NAME a model it does not yet call.
 
-Env overrides, per deployment, read at CALL time (never import time):
+Env overrides, per deployment, read at CALL time (never import time), and
+VALIDATED — an override must be a known `LANE_MODELS` engine WITH a
+`_BILLING_RATES` row, or it is ignored with an ERROR log and the declared model
+stands (`model_selection.accept_model_override`, shared with the steward dial):
 
     YARNNN_SYSCALL_{CALL_TYPE}   e.g. YARNNN_SYSCALL_FACT_EXTRACTION
 
@@ -157,13 +160,20 @@ def resolve_system_call(call_type: str) -> SystemCall:
     (the ADR-450 precedent: an unknown recipe is a caller bug).
     """
     call = SYSTEM_CALLS[call_type]
-    override = os.environ.get(f"YARNNN_SYSCALL_{call_type.upper()}", "").strip()
+    env_var = f"YARNNN_SYSCALL_{call_type.upper()}"
+    override = os.environ.get(env_var, "").strip()
     if not override:
         return call
-    logger.info(
-        "[SYSCALL] %s overridden by env: %s → %s", call_type, call.model, override,
+    # VALIDATED, not trusted (2026-08-21). This used to accept any string and
+    # hand it straight to a provider SDK, so a dashboard typo routed to a
+    # non-existent model and an unpriced id billed at the default rate — both
+    # silently. `accept_model_override` is the ONE validator, shared with the
+    # steward's `YARNNN_MODEL_{SHAPE}` dial; it returns the declared model
+    # unchanged when the override is unusable, and logs at ERROR.
+    from services.model_selection import accept_model_override
+    return call._replace(
+        model=accept_model_override(env_var, override, call.model),
     )
-    return call._replace(model=override)
 
 
 def system_call_model(call_type: str) -> str:

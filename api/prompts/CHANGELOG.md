@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.21.2] - a model dial is validated, not trusted
+
+### Changed
+- `services/model_selection.py`: new `accept_model_override(env_var, raw, current)`
+  — the ONE validator for every `provider/model` env dial.
+- `services/system_calls.py` `resolve_system_call`: `YARNNN_SYSCALL_{CALL_TYPE}`
+  now routes through it.
+- Expected behavior: an override naming an unknown or unpriced engine is
+  IGNORED with an ERROR log; the declared model stands. A valid override
+  (including a RETIRED engine — retired means un-offered, not un-routable) is
+  still honoured exactly as before.
+
+### Why (the observed defect)
+Both dials accepted an arbitrary string, logged it at INFO, and handed it to a
+provider SDK. A typo on a Render dashboard routed to a model that does not
+exist (failing at the provider, far from the cause), and an unpriced id billed
+at `_DEFAULT_RATE` — the silent cost lie ADR-439 §4 exists to prevent. Neither
+shouted. It IGNORES rather than raises, following the `YARNNN_ROUNDS_*`
+precedent: these resolvers run inside live wakes, and raising would turn a cost
+typo into an outage. Gate: `test_model_override_validation.py` (12/12),
+falsified against the real pre-fix code AND against a lazy "reject everything"
+fix that would otherwise have shipped green.
+
 ## [2026.08.21.1] - the engine label carries its version; a tool argument stops naming a retired engine
 
 ### Changed

@@ -3,7 +3,6 @@ Admin routes — Operational dashboard for yarnnn.
 
 Endpoints:
 - GET /stats - Overview: users, agents, tasks, sessions
-- GET /token-usage - Token & cost analytics from agent_runs + session_messages
 - GET /execution-stats - Task execution frequency, credits, scheduler health
 - GET /users - User list with activity metrics
 - GET /export/users - Export users as Excel
@@ -27,27 +26,35 @@ from services.admin_auth import AdminAuth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ADR-291: `compute_cost_usd_inclusive` is THE cost function — this module used
-# to carry its own copy, and the copy went wrong in two ways at once.
+# ⚠️ THIS MODULE COMPUTES NO COST, AND MUST NOT START AGAIN (2026-08-21).
 #
-# ⚠️ WHAT WAS HERE, AND WHY IT WAS WRONG (fixed 2026-08-21):
+# `GET /token-usage` lived here and was DELETED, along with its models, its
+# `_estimate_cost` helper, and the "Token Usage" sheet in the XLSX export. Two
+# independent reasons, either sufficient:
 #
-#   1. It halved every rate — `r["input_per_mtok"] / 2` — under the comment
-#      "Anthropic rates = user-facing rates / 2 (2x markup constant)". That 2x
-#      multiplier was RETIRED by the 2026-07-06 operator ruling (see the
-#      docstring on `compute_cost_usd_inclusive`): `_BILLING_RATES` has recorded
-#      ACTUAL PROVIDER COST ever since, so halving it made this dashboard read
-#      ~50% under true cost. Margin now lives in `billed_usd` at exactly one
-#      write site (ADR-490 §2, `USAGE_BILLING_MULTIPLIER = 1.30`) and is never
-#      applied to the rate table.
-#   2. It re-implemented the cache-multiplier arithmetic with Anthropic's
-#      10%/125% hardcoded, so every OpenAI / Gemini / DeepSeek row (which carry
-#      their own `cache_read_mult` / `cache_create_mult`) was mispriced.
+#   1. IT READ DEAD TABLES. It aggregated `agent_runs.metadata` and
+#      `session_messages.metadata`. Neither has an INSERT site left anywhere in
+#      `api/` — the one live meter is `execution_events` (ADR-396, written only
+#      by `telemetry.record_execution_event`). The card rendered a confident
+#      "$0.00 Total Cost" over tables nothing writes, and its `caller` axis was
+#      hard-coded to `task_pipeline`, a pipeline deleted by ADR-231.
+#   2. ITS COST MATH WAS A SECOND IMPLEMENTATION, AND IT WAS WRONG. It halved
+#      every rate under a "2x markup constant" — a multiplier RETIRED by the
+#      2026-07-06 operator ruling (margin lives in `billed_usd` at one write
+#      site, ADR-490 §2, x1.30, never in the rate table) — and re-implemented
+#      the cache arithmetic with Anthropic's 10%/125% hardcoded, mispricing
+#      every OpenAI / Gemini / DeepSeek row. Measured under-report: ~2.00x on
+#      Anthropic, 1.79-2.08x elsewhere, the two errors compounding.
 #
-# Both classes of error are invisible: a wrong cost number looks exactly like a
-# right one. Delegating removes the second implementation rather than repairing
-# it — there is one cost function, and this is now a caller of it.
-from services.telemetry import compute_cost_usd_inclusive
+# Both failures are INVISIBLE — a wrong cost number looks exactly like a right
+# one, and an empty dashboard looks like a quiet month. The live per-model
+# spend surface is `GET /user/usage-detail` (`routes/integrations.py`), which
+# reads `execution_events` and already answers this question. If admin needs a
+# cost view, build it on that ledger and on `compute_cost_usd_inclusive` — the
+# sole canonical cost function — never on a local rate table.
+#
+# `GET /execution-stats` DOES read `execution_events` for spend and is live;
+# it is deliberately untouched.
 
 
 # =============================================================================
@@ -64,40 +71,6 @@ class AdminOverviewStats(BaseModel):
     users_7d: int
     tasks_7d: int
     sessions_7d: int
-
-
-class TokenUsageRow(BaseModel):
-    """Per-day token usage breakdown.
-
-    billed_input_tokens: fresh input tokens charged at full rate (excludes cache_read).
-    cache_read_tokens: tokens served from cache at ~10% rate.
-    cache_creation_tokens: tokens written to cache (slightly above input rate).
-    The dashboard previously showed input_tokens from _total_input_tokens() which
-    summed all three — making runs look 2-3x more expensive than they were. Now
-    separated so cost and volume are independently legible.
-    """
-    date: str
-    caller: str  # "chat", "task_pipeline", "other"
-    model: str
-    billed_input_tokens: int   # fresh input only — excludes cache_read
-    output_tokens: int
-    cache_read_tokens: int
-    cache_creation_tokens: int
-    api_calls: int
-    estimated_cost_usd: float  # accurate: billed_input + cache_read*0.1 + cache_create*1.25 + output
-
-
-class AdminTokenUsage(BaseModel):
-    """Token usage analytics."""
-    period_days: int
-    total_billed_input_tokens: int
-    total_output_tokens: int
-    total_cache_read_tokens: int
-    total_cache_creation_tokens: int
-    total_api_calls: int
-    total_estimated_cost_usd: float
-    cache_hit_pct: float
-    by_day: list[TokenUsageRow]
 
 
 class TaskExecutionRow(BaseModel):
@@ -276,36 +249,6 @@ def _get_date_threshold(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
 
-def _estimate_cost(
-    model: str,
-    billed_input_tokens: int,
-    output_tokens: int,
-    cache_read_tokens: int = 0,
-    cache_creation_tokens: int = 0,
-) -> float:
-    """Provider cost for a bag of token counts — a thin call through to the one
-    cost function (`telemetry.compute_cost_usd_inclusive`).
-
-    Kept as a named wrapper only because this module's legacy aggregation calls
-    it in three places with positional args; it holds NO pricing knowledge of
-    its own. Per-model cache multipliers, the unknown-model fallback rate, and
-    the no-margin rule all live in telemetry. Do not reintroduce arithmetic
-    here — the copy that used to live in this function priced every non-
-    Anthropic engine wrong and halved every rate.
-
-    `model` here is a BARE id (`claude-sonnet-5`) as stamped into the legacy
-    `agent_runs` / `session_messages` metadata, which is the key space
-    `_BILLING_RATES` uses.
-    """
-    return compute_cost_usd_inclusive(
-        model=model,
-        input_tokens=billed_input_tokens,
-        output_tokens=output_tokens,
-        cache_read_tokens=cache_read_tokens,
-        cache_create_tokens=cache_creation_tokens,
-    )
-
-
 # =============================================================================
 # GET /stats — Overview
 # =============================================================================
@@ -364,155 +307,6 @@ async def get_overview_stats(admin: AdminAuth):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch stats: {str(e)}")
-
-
-# =============================================================================
-# GET /token-usage — Token & Cost Analytics
-# =============================================================================
-
-@router.get("/token-usage", response_model=AdminTokenUsage)
-async def get_token_usage(admin: AdminAuth, days: int = 7):
-    """Token usage analytics from agent_runs and session_messages metadata."""
-    try:
-        client = admin.client
-        cutoff = _get_date_threshold(min(days, 90))  # Cap at 90 days
-
-        # --- Agent runs (task pipeline + legacy execution) ---
-        runs_result = client.table("agent_runs")\
-            .select("created_at, metadata")\
-            .gte("created_at", cutoff)\
-            .order("created_at", desc=True)\
-            .limit(5000)\
-            .execute()
-
-        # --- Chat messages (TP + chat agents) ---
-        # Only assistant messages have token metadata
-        msgs_result = client.table("session_messages")\
-            .select("created_at, metadata")\
-            .eq("role", "assistant")\
-            .gte("created_at", cutoff)\
-            .not_.is_("metadata", "null")\
-            .order("created_at", desc=True)\
-            .limit(5000)\
-            .execute()
-
-        # Aggregate by day × caller
-        # billed_input_tokens = fresh input only (excludes cache_read).
-        # Separated so the dashboard shows real cost drivers, not inflated totals.
-        daily: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(lambda: {
-            "billed_input_tokens": 0, "output_tokens": 0,
-            "cache_read_tokens": 0, "cache_creation_tokens": 0,
-            "api_calls": 0, "model": "",
-        }))
-
-        totals = {
-            "billed_input_tokens": 0, "output_tokens": 0,
-            "cache_read_tokens": 0, "cache_creation_tokens": 0,
-            "api_calls": 0, "cost": 0.0,
-        }
-
-        # Process agent_runs → caller = "task_pipeline"
-        for run in (runs_result.data or []):
-            meta = run.get("metadata") or {}
-            input_t = meta.get("input_tokens", 0) or 0
-            output_t = meta.get("output_tokens", 0) or 0
-            cache_read = meta.get("cache_read_input_tokens", 0) or 0
-            cache_create = meta.get("cache_creation_input_tokens", 0) or 0
-            model = meta.get("model") or ""
-
-            date_str = run["created_at"][:10]
-            caller = "task_pipeline"
-
-            bucket = daily[date_str][caller]
-            bucket["billed_input_tokens"] += input_t
-            bucket["output_tokens"] += output_t
-            bucket["cache_read_tokens"] += cache_read
-            bucket["cache_creation_tokens"] += cache_create
-            bucket["api_calls"] += 1
-            bucket["model"] = model
-
-            cost = _estimate_cost(model, input_t, output_t, cache_read, cache_create)
-            totals["billed_input_tokens"] += input_t
-            totals["output_tokens"] += output_t
-            totals["cache_read_tokens"] += cache_read
-            totals["cache_creation_tokens"] += cache_create
-            totals["api_calls"] += 1
-            totals["cost"] += cost
-
-        # Process session_messages → caller = "chat"
-        for msg in (msgs_result.data or []):
-            meta = msg.get("metadata") or {}
-            input_t = meta.get("input_tokens", 0) or 0
-            output_t = meta.get("output_tokens", 0) or 0
-            cache_read = meta.get("cache_read_input_tokens", 0) or 0
-            cache_create = meta.get("cache_creation_input_tokens", 0) or 0
-            model = meta.get("model") or ""
-
-            if not input_t and not output_t:
-                continue
-
-            date_str = msg["created_at"][:10]
-            caller = "chat"
-
-            bucket = daily[date_str][caller]
-            bucket["billed_input_tokens"] += input_t
-            bucket["output_tokens"] += output_t
-            bucket["cache_read_tokens"] += cache_read
-            bucket["cache_creation_tokens"] += cache_create
-            bucket["api_calls"] += 1
-            bucket["model"] = model
-
-            cost = _estimate_cost(model, input_t, output_t, cache_read, cache_create)
-            totals["billed_input_tokens"] += input_t
-            totals["output_tokens"] += output_t
-            totals["cache_read_tokens"] += cache_read
-            totals["cache_creation_tokens"] += cache_create
-            totals["api_calls"] += 1
-            totals["cost"] += cost
-
-        # Build response rows
-        by_day = []
-        for date_str in sorted(daily.keys()):
-            for caller, bucket in daily[date_str].items():
-                model = bucket["model"] or ""
-                cost = _estimate_cost(
-                    model,
-                    bucket["billed_input_tokens"],
-                    bucket["output_tokens"],
-                    bucket["cache_read_tokens"],
-                    bucket["cache_creation_tokens"],
-                )
-                by_day.append(TokenUsageRow(
-                    date=date_str,
-                    caller=caller,
-                    model=model,
-                    billed_input_tokens=bucket["billed_input_tokens"],
-                    output_tokens=bucket["output_tokens"],
-                    cache_read_tokens=bucket["cache_read_tokens"],
-                    cache_creation_tokens=bucket["cache_creation_tokens"],
-                    api_calls=bucket["api_calls"],
-                    estimated_cost_usd=round(cost, 4),
-                ))
-
-        # Cache hit %: portion of all input-class tokens that were cache hits
-        total_cacheable = totals["billed_input_tokens"] + totals["cache_read_tokens"] + totals["cache_creation_tokens"]
-        cache_hit_pct = round(totals["cache_read_tokens"] / total_cacheable * 100, 1) if total_cacheable else 0.0
-
-        return AdminTokenUsage(
-            period_days=days,
-            total_billed_input_tokens=totals["billed_input_tokens"],
-            total_output_tokens=totals["output_tokens"],
-            total_cache_read_tokens=totals["cache_read_tokens"],
-            total_cache_creation_tokens=totals["cache_creation_tokens"],
-            total_api_calls=totals["api_calls"],
-            total_estimated_cost_usd=round(totals["cost"], 4),
-            cache_hit_pct=cache_hit_pct,
-            by_day=by_day,
-        )
-
-    except Exception as e:
-        logger.error(f"[ADMIN] Token usage query failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch token usage: {str(e)}")
 
 
 # =============================================================================
@@ -1191,7 +985,6 @@ async def export_full_report(admin: AdminAuth):
 
         # Fetch data
         stats = await get_overview_stats(admin)
-        token_usage = await get_token_usage(admin, days=30)
         exec_stats = await get_execution_stats(admin)
         users = await list_users(admin)
 
@@ -1229,12 +1022,6 @@ async def export_full_report(admin: AdminAuth):
         ws[f"A{row}"].font = section_font
         row += 1
         for label, value in [
-            ("Total API Calls", token_usage.total_api_calls),
-            ("Billed Input Tokens", f"{token_usage.total_billed_input_tokens:,}"),
-            ("Cache Read Tokens", f"{token_usage.total_cache_read_tokens:,}"),
-            ("Output Tokens", f"{token_usage.total_output_tokens:,}"),
-            ("Estimated Cost", f"${token_usage.total_estimated_cost_usd:.2f}"),
-            ("Cache Hit %", f"{token_usage.cache_hit_pct:.1f}%"),
         ]:
             ws[f"A{row}"] = label
             ws[f"A{row}"].font = metric_label_font
@@ -1274,22 +1061,6 @@ async def export_full_report(admin: AdminAuth):
         for col, w in enumerate([35, 8, 8, 8, 10, 10, 25, 25], 1):
             ws_users.column_dimensions[get_column_letter(col)].width = w
         ws_users.freeze_panes = "A2"
-
-        # --- Token Usage Sheet ---
-        ws_tokens = wb.create_sheet("Token Usage")
-        t_headers = ["Date", "Caller", "Model", "Billed Input", "Output Tokens", "Cache Read", "API Calls", "Cost ($)"]
-        for col, h in enumerate(t_headers, 1):
-            cell = ws_tokens.cell(row=1, column=col, value=h)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = thin_border
-        for r, row_data in enumerate(token_usage.by_day, 2):
-            for c, v in enumerate([row_data.date, row_data.caller, row_data.model,
-                                   row_data.billed_input_tokens, row_data.output_tokens,
-                                   row_data.cache_read_tokens, row_data.api_calls,
-                                   row_data.estimated_cost_usd], 1):
-                ws_tokens.cell(row=r, column=c, value=v).border = thin_border
-        ws_tokens.freeze_panes = "A2"
 
         # --- Task Executions Sheet ---
         ws_tasks = wb.create_sheet("Task Executions")
