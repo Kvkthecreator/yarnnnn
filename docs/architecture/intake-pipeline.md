@@ -33,12 +33,12 @@ reason** (§4). Stage 4 is a consequence, not a step.
 inbound/{lane}/{selector}/{stamp}.{ext}
 ```
 
-> **ADR-582 D3 amendment**: for the CONNECTOR lanes this grammar is the
-> **default destination**, not a law — the operator may re-home a
-> connection's snapshots (`settings.connector.destination`), and raw-ness
-> keys on `revision_kind='observation'` (the ledger), not the address.
-> Filing within any destination stays deterministic. Other lanes are
-> unchanged.
+> **ADR-594 D1**: for the CONNECTOR lanes this grammar is a **law** again —
+> the ADR-582 D3 destination dial is deleted (measured unused; its behavioral
+> differentials died with ADR-423's ledger re-key and ADR-591's GC deletion).
+> Raw-ness keys on `revision_kind='observation'` (the ledger), not the
+> address; the raw layer is addressed by mechanism, meaning lives at the
+> consumer layer.
 
 | Segment | Means | Examples |
 |---|---|---|
@@ -178,7 +178,7 @@ Whether a lane distils is a decision, and the reason must be stated:
 | `web` | **yes** | RSS/Atom is machine-shaped; unusable until distilled |
 | `uploads` | **yes** | `system:extract` → `derivation` (text out of blobs) |
 | `mcp` | **no** | an MCP write is already meaningful authored prose — there is nothing to distil |
-| `slack` / `notion` / `github` | **opt-in** (ADR-580, demoted by ADR-582 D5) | the digest (`connector_derive.py`) runs only for connections with `settings.connector.digest = true` — landed files are member-visible without it, so distil is a consumer, not the lane's obligation. Contract: [connectors.md](connectors.md) |
+| `slack` / `notion` / `github` | **via Strings** (ADR-594 D3) | landed files are member-visible without any distil; a member who wants a maintained prose view designates an md string with `connector:` sources (the digest, generalized — ADR-580's module is superseded and deleted). Contract: [connectors.md](connectors.md) |
 
 **`mcp` not deriving is correct.** The connector gap this table once named is
 closed by [ADR-580](../adr/ADR-580-the-connector-derive-step.md); the brief

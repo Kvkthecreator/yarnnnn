@@ -564,21 +564,77 @@ async def _fetch_source(url: str) -> str:
         return resp.text
 
 
+#: ADR-594 D2 — the freshness floor, THE spend guard for connector reach
+#: (successor of the deleted digest's `is_due`): a selector whose newest
+#: landed snapshot is younger than this is read, not re-reached, so two
+#: strings sharing a selector cost one platform read per window.
+_CONNECTOR_CAPTURE_MIN_INTERVAL_S = 600
+
+
+async def _reach_connector_sources(
+    client, user_id: str, conn_sources: list[dict], *, observed_at: str,
+) -> None:
+    """ADR-594 D2 — reach with a receipt: before reading, invoke the ONE
+    capture writer for this run's declared selectors (grouped per platform),
+    which lands attributed observations at the fixed intake lane. The
+    effective set is the intersection with the connection's aperture — a
+    string narrows the operator's consent, never widens it. Failure degrades
+    to the newest landed snapshot (stale-but-honest; the desk states
+    staleness); never raises."""
+    from services.connectors import (
+        connection_row,
+        read_landed_snapshots,
+        run_connector_capture,
+    )
+    from services.workspace import UserMemory
+
+    by_plat: dict[str, list[str]] = {}
+    for s in conn_sources:
+        plat = str(s.get("connector", "")).strip().lower()
+        sel = str(s.get("selector", "")).strip()
+        if plat and sel:
+            by_plat.setdefault(plat, []).append(sel)
+
+    um = UserMemory(client, user_id)
+    now = datetime.now(timezone.utc)
+    for plat, sels in by_plat.items():
+        row = connection_row(client, user_id, plat)
+        if row is None:
+            continue  # unconnected — the read step reports the honest empty
+        stale: list[str] = []
+        for sel in sels:
+            try:
+                snaps = await read_landed_snapshots(um, plat, sel, limit=1)
+            except Exception:  # noqa: BLE001
+                snaps = []
+            if snaps and (now - snaps[-1][1]).total_seconds() < _CONNECTOR_CAPTURE_MIN_INTERVAL_S:
+                continue  # the freshness floor — the receipt IS the guard
+            stale.append(sel)
+        if not stale:
+            continue
+        try:
+            await run_connector_capture(
+                client, user_id, row, observed_at=observed_at, selectors=stale,
+            )
+        except Exception as e:  # noqa: BLE001 — reach must not fail the run
+            logger.warning("[STRINGS] connector reach failed %s/%s: %s",
+                           user_id[:8], plat, e)
+
+
 async def _read_connector_source(
     client, user_id: str, platform: str, selector: str,
 ) -> tuple[Optional[str], Optional[str]]:
     """Resolve a connector source (ADR-582 D6): the newest LANDED snapshot at
-    the connection's destination. Returns (content, /workspace-absolute path)
-    or (None, None) — an un-captured selector is the same honest empty as a
-    dead feed. Substrate reads only; the connection-level aperture (what is
-    captured at all) stays the operator's setting."""
-    from services.connectors import connection_row, connector_settings, read_landed_snapshots
+    the fixed intake lane. Returns (content, /workspace-absolute path) or
+    (None, None) — an un-captured selector is the same honest empty as a dead
+    feed. Substrate reads only — the reach half lives in
+    `_reach_connector_sources`, which goes through the ONE capture writer;
+    this read path never touches a platform API or HTTP."""
+    from services.connectors import read_landed_snapshots
     from services.workspace import UserMemory
 
-    row = connection_row(client, user_id, platform)
-    settings = connector_settings(row) if row else {}
     um = UserMemory(client, user_id)
-    snaps = await read_landed_snapshots(um, platform, selector, settings, limit=1)
+    snaps = await read_landed_snapshots(um, platform, selector, limit=1)
     if not snaps:
         return None, None
     rel = snaps[-1][0]
@@ -883,14 +939,24 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
                 "error_reason": decl.problem or "unsupported_format"}
 
     # ── 1. fetch (mechanical, $0) — HTTP pull, raws retained; OR a connector
-    #       source (ADR-582 D6): read the LANDED snapshot at the connection's
-    #       destination and cite it — capture already retained it, so there is
-    #       no re-retain and no platform API call anywhere near this lane. ──
+    #       source: REACH WITH A RECEIPT (ADR-594 D2) — invoke the one capture
+    #       writer for this run's declared selectors (aperture-intersected,
+    #       freshness-floored), then read the LANDED snapshot and cite it.
+    #       Capture retained it, so there is no re-retain here. ──────────────
     observed_at = started.isoformat()
     stamp = started.strftime("%Y-%m-%dT%H-%M-%S")
     bodies: list[tuple[dict, str]] = []
     raw_paths: list[str] = []
     errors: list[str] = []
+    conn_sources = [s for s in decl.sources if _is_connector_source(s)]
+    if conn_sources:
+        # The stamp must satisfy `connectors.parse_stamp` (it names the landed
+        # file) — isoformat's microseconds/offset spelling would land
+        # snapshots the shared reader then skips as unstamped.
+        await _reach_connector_sources(
+            client, user_id, conn_sources,
+            observed_at=started.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        )
     for s in decl.sources:
         try:
             if _is_connector_source(s):

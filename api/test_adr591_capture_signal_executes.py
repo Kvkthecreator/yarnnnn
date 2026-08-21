@@ -1,28 +1,27 @@
-"""ADR-591 regression gate — the capture-signal payload is BUILT, not just parsed.
+"""ADR-591 → ADR-594 regression gate — the capture-signal payload stays honest.
 
 Why this file exists
 --------------------
-`d18a888` (ADR-591) narrowed `connector_settings()` to {destination,
-last_capture_at} — deleting `cadence` and `digest` with the clock. Three
-readers in `routes/integrations.py::get_capture_signal` were left behind:
+`d18a888` (ADR-591) narrowed the connector settings and left three stale
+readers behind in `routes/integrations.py::get_capture_signal` — a KeyError
+for every CONNECTED provider that both FE callers swallowed (`.catch(() =>
+null)`), so the drill-in silently rendered empty. No Sentry event: the
+ADR-561 "incorrect success" class. The original gate closed it by EXECUTING
+the payload composition instead of AST-ing its return keys.
 
-    capture = {"schedule": cs["cadence"], ...}
-    settings_obj = {"cadence": cs["cadence"], ..., "digest": cs["digest"]}
+ADR-594 D1 then deleted `connector_settings` entirely (the destination dial
+was its last tenant). The same failure class is still the target: the route
+must not READ machinery that no longer exists, and the payload must keep the
+compat shape deployed clients read. So this gate now holds:
 
-That is a KeyError for every CONNECTED provider (an unconnected one returns
-early with conn_row=None, which is why it hid). Both FE callers swallow the
-500 — `ManageConnectionSubsurface` `.catch(() => null)` and
-`ConnectedIntegrationsSection` `catch { return null }` — so the drill-in
-silently rendered without scopes, header, destination dial, or capabilities.
-No Sentry event: the ADR-561 "incorrect success" class.
+  1. the settings machinery stays deleted (no resurrection);
+  2. the route references none of it (the stale-reader class, inverted);
+  3. `settings` is still EMITTED — as a literal None — until no deployed
+     client reads it (the ADR-591 `connector_capture_enabled` precedent);
+  4. the retired `capture` field stays gone.
 
-`test_adr582_connectors.py` checked this function by AST — return-dict key
-names only, never executing it. This gate closes that class: it BUILDS the
-payload from the real `connector_settings` against a realistic connected row.
-Falsified against the pre-fix source (both stale readers) before landing.
-
-Run: python3 test_adr591_capture_signal_executes.py   (script-style, like its
-neighbours — note `pytest` reports "no tests ran" on these files.)
+Run: python3 test_adr591_capture_signal_executes.py   (script-style —
+`pytest` reports "no tests ran" on these files.)
 """
 import ast
 import os
@@ -45,34 +44,16 @@ def record(name: str, ok: bool, why: str = "") -> None:
         print(f"FAIL  {name}  {why}")
 
 
-# -- 1. the real function, executed against a realistic connected row --------
-from services.connectors import connector_settings  # noqa: E402
+# -- 1. the settings machinery stays deleted (ADR-594 D1) --------------------
+import services.connectors as conn  # noqa: E402
 
-CONNECTED_ROW = {
-    "platform": "slack",
-    "metadata": {"scope": "channels:read,users:read", "workspace_name": "Acme"},
-    "settings": {"connector": {"destination": "inbound/slack",
-                               "last_capture_at": "2026-08-19T00:00:00Z"}},
-}
-# A connection whose operator never set a destination — the default lane.
-BARE_ROW = {"platform": "notion", "metadata": {}, "settings": {}}
+record(
+    "connector_settings stays deleted",
+    not hasattr(conn, "connector_settings")
+    and not hasattr(conn, "update_connector_settings"),
+)
 
-for label, row in (("configured", CONNECTED_ROW), ("bare", BARE_ROW)):
-    cs = connector_settings(row)
-    record(
-        f"connector_settings({label}) exposes no retired clock keys",
-        "cadence" not in cs and "digest" not in cs,
-        f"got {sorted(cs)}",
-    )
-    record(
-        f"connector_settings({label}) still carries destination",
-        "destination" in cs,
-        f"got {sorted(cs)}",
-    )
-
-# -- 2. every key the ROUTE reads off cs must actually exist ----------------
-# This is the check that would have caught the regression: it pairs the
-# emitter with the producer instead of trusting either in isolation.
+# -- 2. the route reads NONE of it (the stale-reader class, inverted) --------
 src = open(os.path.join(REPO, "routes/integrations.py")).read()
 tree = ast.parse(src)
 fn = next(
@@ -80,38 +61,14 @@ fn = next(
     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
     and n.name == "get_capture_signal"
 )
-
-# Find the local name bound to connector_settings(...), then collect every
-# subscript read off it.
-bound = {
-    t.id
-    for node in ast.walk(fn)
-    if isinstance(node, ast.Assign)
-    for t in node.targets
-    if isinstance(t, ast.Name)
-    and isinstance(node.value, ast.Call)
-    and getattr(node.value.func, "id", None) == "connector_settings"
-}
-record("the route calls connector_settings", bool(bound), "no binding found")
-
-subscripts = {
-    node.slice.value
-    for node in ast.walk(fn)
-    if isinstance(node, ast.Subscript)
-    and isinstance(node.value, ast.Name)
-    and node.value.id in bound
-    and isinstance(node.slice, ast.Constant)
-    and isinstance(node.slice.value, str)
-}
-produced = set(connector_settings(CONNECTED_ROW))
-missing = subscripts - produced
+fn_src = ast.unparse(fn)
 record(
-    "every key the route subscripts off connector_settings is produced by it",
-    not missing,
-    f"route reads {sorted(missing)} which connector_settings never returns",
+    "get_capture_signal references no deleted settings machinery",
+    "connector_settings" not in fn_src,
+    "a resurrected reader is the exact KeyError class this gate exists for",
 )
 
-# -- 3. the retired `capture` block is gone from the payload ----------------
+# -- 3. the payload keeps the compat shape ----------------------------------
 returns = [n for n in ast.walk(fn) if isinstance(n, ast.Return)
            and isinstance(n.value, ast.Dict)]
 record("get_capture_signal returns a dict literal", bool(returns))
@@ -119,17 +76,41 @@ if returns:
     keys = {k.value for k in returns[-1].value.keys
             if isinstance(k, ast.Constant) and isinstance(k.value, str)}
     record(
+        "`settings` is still emitted (compat: served as None until no "
+        "deployed client reads it)",
+        "settings" in keys,
+        f"got {sorted(keys)}",
+    )
+    record(
         "the retired `capture` field is not emitted",
         "capture" not in keys,
         "ADR-591 deleted the cadence it carried; no caller read it",
     )
+
+    # settings_obj must be a bare None assignment — not a dict rebuilt from
+    # anything (the shape that could silently resurrect a reader).
+    def _targets(n):
+        if isinstance(n, ast.Assign):
+            return n.targets
+        if isinstance(n, ast.AnnAssign):  # `settings_obj: Optional[...] = None`
+            return [n.target]
+        return []
+
+    _settings_assigns = [
+        n for n in ast.walk(fn)
+        if isinstance(n, (ast.Assign, ast.AnnAssign)) and n.value is not None
+        and any(isinstance(t, ast.Name) and t.id == "settings_obj"
+                for t in _targets(n))
+    ]
     record(
-        "`settings` is still emitted (the destination dial reads it)",
-        "settings" in keys,
-        f"got {sorted(keys)}",
+        "settings_obj is assigned exactly once, to None",
+        len(_settings_assigns) == 1
+        and isinstance(_settings_assigns[0].value, ast.Constant)
+        and _settings_assigns[0].value.value is None,
+        ast.unparse(_settings_assigns[0]) if _settings_assigns else "no assignment",
     )
 
 print("=" * 60)
-print(f"ADR-591 capture-signal execution gate: {_passed}/{_passed + _failed} passed, {_failed} failed")
+print(f"ADR-591/594 capture-signal gate: {_passed}/{_passed + _failed} passed, {_failed} failed")
 print("=" * 60)
 sys.exit(1 if _failed else 0)

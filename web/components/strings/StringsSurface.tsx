@@ -35,6 +35,7 @@ import {
   RefreshCw, X, Zap,
 } from 'lucide-react';
 import { api, type StringSummary, type StringView } from '@/lib/api/client';
+import { scheduleDisplay } from '@/lib/schedule';
 import {
   useSurfaceParam, useSurfacePreferences,
 } from '@/lib/shell/useSurfacePreferences';
@@ -693,10 +694,23 @@ export default function StringsSurface() {
               </div>
             </div>
 
-            {/* Sources + fetch health */}
+            {/* Sources + fetch health. The health badge lives on the CARD
+                HEADER, not per row — it is per-string data (one sweep event),
+                and painting it per source implied per-source truth the data
+                does not carry (ADR-594 D4). */}
             <div className="rounded-md border">
               <div className="flex items-center justify-between border-b px-4 py-2">
-                <span className="text-xs font-medium">Where currency comes from</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium">Where currency comes from</span>
+                  {latestSweep && (
+                    <span
+                      className={`text-[11px] ${fetchBroken ? 'text-amber-600' : 'text-muted-foreground'}`}
+                      title={`The most recent fetch ${fetchBroken ? 'failed' : 'succeeded'} (${fmtWhen(latestSweep.created_at)})`}
+                    >
+                      last fetch {fetchBroken ? 'failed' : 'ok'}
+                    </span>
+                  )}
+                </div>
                 {lanesEnabled && (
                   <SeedButton onClick={() => seedChat('Change the source: ')}>
                     change in chat
@@ -713,30 +727,30 @@ export default function StringsSurface() {
                     <li key={s.id} className="flex items-center gap-3 px-4 py-2">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-xs font-medium">{s.id}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">{s.url}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {s.url
+                            ? s.url
+                            : `${s.connector} · ${s.selector} — read through your connection`}
+                        </div>
                       </div>
-                      {latestSweep && (
-                        <span
-                          className={`shrink-0 text-[11px] ${fetchBroken ? 'text-amber-600' : 'text-muted-foreground'}`}
-                          title={`The most recent fetch ${fetchBroken ? 'failed' : 'succeeded'} (${fmtWhen(latestSweep.created_at)})`}
-                        >
-                          last fetch {fetchBroken ? 'failed' : 'ok'}
-                        </span>
-                      )}
                     </li>
                   ))}
                 </ul>
               )}
             </div>
 
-            {/* Cadence */}
+            {/* Cadence — plain words beside a plain-words seed (the surface's
+                own contract); the raw cron is the tooltip, not the face. */}
             <div className="flex items-center justify-between rounded-md border px-4 py-2.5">
               <div className="text-xs">
                 <span className="font-medium">Cadence</span>
-                <span className="ml-2 font-mono text-muted-foreground">
-                  {Array.isArray(view.schedule)
+                <span
+                  className="ml-2 text-muted-foreground"
+                  title={Array.isArray(view.schedule)
                     ? view.schedule.join(' · ')
-                    : view.schedule || '—'}
+                    : view.schedule || undefined}
+                >
+                  {view.schedule ? scheduleDisplay(view.schedule) : '—'}
                 </span>
               </div>
               {lanesEnabled && (

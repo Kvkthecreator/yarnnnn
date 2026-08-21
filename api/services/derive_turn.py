@@ -1,14 +1,14 @@
 """The bounded derive turn — ONE implementation of the standing lanes'
 judgment call (ADR-580 D6).
 
-Three standing lanes revise a living file from fresh source material with one
-criterion-governed, tool-less LLM turn: radar (``report.md`` from the watch
-signal), Strings (a designated leaf from declared sources), and the connector
-derive (a selector digest from ``inbound/{platform}/{selector}/`` raw). Radar
-shipped the shape; Strings copied it; a third copy is the drift ADR-580 D6
-ends — the turn's MECHANICS live here, and each lane keeps what is genuinely
-its own: input assembly, posture, placement, write confinement, and metering
-taxonomy.
+A standing lane revises a living file from fresh source material with one
+criterion-governed, tool-less LLM turn. Strings (a designated leaf from
+declared sources) is the live tenant; radar and the connector digest — the
+two earlier tenants — were both superseded as specializations of the
+maintained file (ADR-592 deleted radar; ADR-594 D3 folded the digest into an
+md string with connector sources). The turn's MECHANICS live here, and the
+lane keeps what is genuinely its own: input assembly, posture, placement,
+write confinement, and metering taxonomy.
 
 The turn is deliberately minimal:
 

@@ -1,5 +1,10 @@
 # ADR-591: Setting Up a Connector Is Not Running a Pull Job
 
+> **Amended by [ADR-594](ADR-594-the-connection-is-a-rail.md)** (2026-08-21): the
+> D3 consumer seam has its first caller (a string's run — reach with a receipt);
+> the derive writer and `is_due` this ADR kept are superseded with the digest
+> (ADR-594 D3 — the spend guard survives as Strings' freshness floor).
+>
 > **Status**: Proposed 2026-08-20. **Supersedes [ADR-582](ADR-582-the-connector-is-a-writer-not-a-pipeline.md) D4**
 > (the direct scheduler walk) and retires cadence as a connector concept.
 >

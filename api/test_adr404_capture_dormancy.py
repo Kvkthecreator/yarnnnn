@@ -143,10 +143,10 @@ def test_modules_survive() -> None:
         "services.capture.scheduling",
         "services.capture.drainer",
         # ADR-582 deleted capture_connector + connector_watch; ADR-591
-        # deleted the walkers inside these. The modules themselves survive —
-        # they hold the WRITERS a consumer invokes (D3).
+        # deleted the walkers; ADR-594 D3 deleted connector_derive itself
+        # (the digest is an md string now). The survivors hold the WRITER a
+        # consumer invokes (ADR-594 D2) and the retention dial.
         "services.connectors",
-        "services.connector_derive",
         "services.connector_retention",
         "services.capture_lane_gating",
     ):

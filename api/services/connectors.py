@@ -1,32 +1,33 @@
-"""Connectors — a connector is a WRITER, not a pipeline (ADR-582).
+"""Connectors — the connection is a RAIL (ADR-594, on ADR-582's writer thesis).
 
-The whole feature: connect (OAuth) → select slices → attributed observation
-files land at the destination WHEN A CONSUMER ASKS. Zero LLM, zero judgment,
-zero derive obligation on this path. Everything downstream — radar/Strings
-sources, turn reach (ADR-585) — is a CONSUMER, wired separately.
+A connection is the set-up that ALLOWS access: consent (OAuth), credential
+custody, and the aperture (``landscape.selected_sources`` — which slices may
+be read at all). It carries NO placement choice and NO clock. The whole
+feature: connect → select slices → attributed observation files land at the
+fixed intake grammar WHEN A CONSUMER ASKS. Zero LLM, zero judgment on this
+path. Everything downstream — Strings' connector sources, turn reach
+(ADR-585) — is a CONSUMER, wired separately.
 
-ADR-591 retired the clock: there is no cadence, no scheduler walk, and no
-`CONNECTOR_CAPTURE_ENABLED`. `run_connector_capture` is the writer and it is
-invocation-shaped; what calls it is a named, unbuilt seam (ADR-591 D3).
+ADR-591 retired the clock; ADR-594 built the seam's first caller (a string's
+run invokes `run_connector_capture` narrowed to its declared selectors —
+"reach with a receipt") and DELETED the destination dial: raw lands at
+
+    inbound/{platform}/{selector}/{stamp}.{ext}
+
+as a LAW for this lane, not a default. The raw layer is addressed by
+mechanism; meaning lives at the consumer layer (the string's folder, the
+derived brief) — never at the landing address. `settings["connector"]` is an
+unread fossil key.
 
 One selection store: ``platform_connections.landscape.selected_sources`` —
 the store the selection UI always wrote. The `_watch.yaml` mirror, the
 `_captures.yaml` seed-at-select, and the `CaptureConnector` primitive are
-DELETED (ADR-582 D2); per-connection knobs live in
-``platform_connections.settings["connector"]``:
-
-    {destination, last_capture_at}
-
-Destination (D3): unset → the intake grammar
-``inbound/{platform}/{selector}/{stamp}.{ext}`` (the DEFAULT, not a law).
-Filing WITHIN the destination stays deterministic — a peripheral has no
-judgment to place with; flexibility is the operator's at wiring time.
+DELETED (ADR-582 D2).
 
 Attribution (axioms, unchanged): snapshots are ``system:capture-{platform}``
 + ``revision_kind='observation'`` (the mechanism string ADR-401 D1 named).
-The writer NEVER embeds — raw is never ranked into recall, wherever it lands
-(visibility keys on the ledger's revision_kind, not the path; ADR-423
-finished for this lane).
+The writer NEVER embeds — raw is never ranked into recall (visibility keys
+on the ledger's revision_kind, not the path; ADR-423 finished for this lane).
 
 This module deliberately carries no module-level ``services.*`` imports (the
 radar cycle-free property).
@@ -230,104 +231,27 @@ def connection_target(platform: str, metadata: Optional[dict]) -> Optional[str]:
     return None
 
 
-def connector_settings(row: dict) -> dict:
-    """The connection's connector-settings object, defaults applied. Pure.
-
-    {destination, last_capture_at} — destination None = the intake-grammar
-    default lane. ADR-591 retired `cadence` (there is no clock to compare it
-    against) and `digest` (its walker is deleted; whether a digest caller is
-    opt-in is that caller's decision to make). `last_capture_at` is an
-    OBSERVATION — when this connection was last captured — never a schedule.
-    """
-    raw = ((row.get("settings") or {}).get("connector")) or {}
-    dest = raw.get("destination")
-    dest = dest.strip().strip("/") if isinstance(dest, str) and dest.strip() else None
-    return {
-        "destination": dest,
-        "last_capture_at": raw.get("last_capture_at"),
-    }
-
-
-def _validate_destination(value: Any) -> Optional[str]:
-    """Normalize + validate an operator destination folder. None/empty → None
-    (the intake-grammar default lane). ValueError on a shape that could escape
-    the workspace or break the deterministic per-selector filing."""
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValueError("destination must be a folder path string")
-    dest = value.strip().strip("/")
-    if not dest:
-        return None
-    if len(dest) > 120:
-        raise ValueError("destination is too long (max 120 characters)")
-    if "\\" in dest or any(ord(c) < 32 for c in dest):
-        raise ValueError("destination contains invalid characters")
-    if any(seg in ("", ".", "..") for seg in dest.split("/")):
-        raise ValueError("destination must be a plain folder path (no . or ..)")
-    return dest
-
-
-def update_connector_settings(
-    client: Any, user_id: str, platform: str, patch: dict,
-) -> Optional[dict]:
-    """Merge a patch into settings["connector"] on the connection row.
-
-    THE validation chokepoint for connector settings — every caller goes
-    through here, so a value cannot be stored in a shape a consumer would
-    misread. Validates destination via _validate_destination (ValueError on a
-    shape that could escape the workspace). ADR-591 removed the cadence and
-    digest validators with the dials themselves. Returns the stored connector
-    object, or None when the platform is not connected."""
-    if "destination" in patch:
-        patch = {**patch, "destination": _validate_destination(patch["destination"])}
-    plat = (platform or "").strip().lower()
-    rows = (
-        client.table("platform_connections")
-        .select("id, settings")
-        .eq("user_id", user_id)
-        .eq("platform", plat)
-        .limit(1)
-        .execute()
-    ).data or []
-    if not rows:
-        return None
-    settings = rows[0].get("settings") or {}
-    connector = dict(settings.get("connector") or {})
-    connector.update({k: v for k, v in patch.items()})
-    settings["connector"] = connector
-    client.table("platform_connections").update({"settings": settings}).eq(
-        "id", rows[0]["id"]
-    ).execute()
-    return connector
-
-
 # ---------------------------------------------------------------------------
-# Placement (kernel-deterministic within the operator's chosen destination)
+# Placement (kernel-deterministic — the fixed intake grammar, ADR-594 D1)
 # ---------------------------------------------------------------------------
 
 
-def capture_destination(platform: str, selector: str, settings: dict) -> str:
-    """The workspace-relative directory a slice's snapshots land in.
-
-    Operator-set destination folder when declared; otherwise the intake
-    grammar's default lane. Either way the per-selector sub-directory and
-    stamped filenames are deterministic — flexibility is at wiring time,
-    never at write time (ADR-582 D3)."""
-    plat = _slugify_selector(platform)
-    sel = _slugify_selector(selector)
-    dest = settings.get("destination")
-    base = dest if dest else f"inbound/{plat}"
-    return f"{base}/{sel}"
+def capture_destination(platform: str, selector: str) -> str:
+    """The workspace-relative directory a slice's snapshots land in — the
+    intake grammar, a LAW for this lane (ADR-594 D1 deleted the per-connection
+    destination dial: ADR-423 re-keyed raw-ness to the ledger and ADR-591
+    deleted the retention GC, so a chosen destination had no remaining
+    behavior; measured zero uses in production, 2026-08-21)."""
+    return f"inbound/{_slugify_selector(platform)}/{_slugify_selector(selector)}"
 
 
 def snapshot_path(
-    platform: str, selector: str, observed_at: str, settings: dict, ext: str = "md",
+    platform: str, selector: str, observed_at: str, ext: str = "md",
 ) -> str:
-    """One snapshot's workspace-relative path: {destination}/{stamp}.{ext}."""
+    """One snapshot's workspace-relative path: {lane}/{stamp}.{ext}."""
     stamp = (observed_at or "").strip() or "unknown"
     ext = (ext or "md").lstrip(".")
-    return f"{capture_destination(platform, selector, settings)}/{stamp}.{ext}"
+    return f"{capture_destination(platform, selector)}/{stamp}.{ext}"
 
 
 def parse_stamp(name: str) -> Optional[datetime]:
@@ -350,16 +274,15 @@ async def read_landed_snapshots(
     um: Any,
     platform: str,
     selector: str,
-    settings: dict,
     *,
     since: Optional[datetime] = None,
     limit: int = 3,
 ) -> list[tuple[str, datetime]]:
     """The slice's stamped snapshots newer than `since`, oldest→newest, capped
     at the newest `limit`. Returns (workspace-relative path, stamp) pairs.
-    THE one reader consumers share (the digest, Strings' connector sources) —
-    a consumer reads landed files, never a platform API. Never raises."""
-    sub = capture_destination(platform, selector, settings) + "/"
+    THE one reader consumers share (Strings' connector sources) — a consumer
+    reads landed files, never a platform API. Never raises."""
+    sub = capture_destination(platform, selector) + "/"
     try:
         names = await um.list(sub)
     except Exception as exc:  # noqa: BLE001
@@ -386,7 +309,17 @@ async def read_landed_snapshots(
 
 class _CaptureAuth:
     """Auth shape for platform-tool calls in the capture walk (the
-    `kernel_mirrors._MirrorAuth` precedent)."""
+    `kernel_mirrors._MirrorAuth` precedent).
+
+    The credential posture, decided by ADR-594 D2 (the question ADR-591 D3
+    deferred): capture executes under the CONNECTION OWNER's OAuth token via
+    this non-agent machinery identity. This is NOT the ADR-577 agent
+    fall-through — no LLM holds or steers the credential at any point (the
+    tool, its arguments, and the write path are fixed by
+    CONNECTOR_CAPTURE_BINDINGS), and an invocation executes the composition
+    of two standing human declarations: the operator's aperture at the
+    connection × the consumer's declared ask (e.g. a string's designation).
+    ADR-577's refusal of agent callers is unchanged at its own chokepoint."""
 
     def __init__(self, user_id: str, client: Any):
         self.user_id = user_id
@@ -414,11 +347,17 @@ def _serialize_snapshot(payload: Any) -> str:
 
 async def run_connector_capture(
     client: Any, user_id: str, row: dict, *, observed_at: str,
+    selectors: Optional[list[str]] = None,
 ) -> dict:
     """One connection's capture: loop the selected slices through the platform
-    read tool, land diff-aware attributed snapshots at the destination.
+    read tool, land diff-aware attributed snapshots at the fixed intake lane.
     Returns {success, platform, paths_written, paths_skipped, items, error?}.
-    Never raises past its own boundary."""
+    Never raises past its own boundary.
+
+    `selectors` (ADR-594 D2) narrows the walk to the INTERSECTION of the
+    caller's ask with the connection's aperture — a consumer can narrow the
+    operator's consent, never widen it. A declared-but-unselected selector
+    captures nothing (the honest empty, with the aperture as the reason)."""
     from services.platform_tools import handle_platform_tool
     from services.workspace import UserMemory
 
@@ -429,11 +368,13 @@ async def run_connector_capture(
                 "paths_skipped": [], "items": 0, "skipped": "no_binding"}
 
     ids = selected_ids_from_row(row)
+    if selectors is not None:
+        asked = {str(s).strip() for s in selectors if str(s).strip()}
+        ids = [i for i in ids if i in asked]
     if not ids:
         return {"success": True, "platform": plat, "paths_written": [],
                 "paths_skipped": [], "items": 0, "skipped": "nothing_selected"}
 
-    settings = connector_settings(row)
     auth = _CaptureAuth(user_id, client)
     um = UserMemory(client, user_id)
     written: list[str] = []
@@ -457,12 +398,12 @@ async def run_connector_capture(
             continue
 
         content = _serialize_snapshot(result.get("result", {}))
-        path = snapshot_path(plat, sel_id, observed_at, settings)
+        path = snapshot_path(plat, sel_id, observed_at)
 
         # Diff baseline = the slice's LATEST snapshot (each run stamps a fresh
         # filename, so a same-path compare would never match): an unchanged
         # world writes nothing — no revision noise, no derive food.
-        prev = await read_landed_snapshots(um, plat, sel_id, settings, limit=1)
+        prev = await read_landed_snapshots(um, plat, sel_id, limit=1)
         prev_content = None
         if prev:
             try:
@@ -504,12 +445,11 @@ __all__ = [
     "CONNECTOR_CAPTURE_BINDINGS",
     "capture_destination",
     "connector_does",
-    "connector_settings",
+    "connection_row",
     "parse_stamp",
     "read_landed_snapshots",
     "run_connector_capture",
     "selected_ids",
     "selected_ids_from_row",
     "snapshot_path",
-    "update_connector_settings",
 ]

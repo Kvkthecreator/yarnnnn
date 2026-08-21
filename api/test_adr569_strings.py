@@ -315,6 +315,105 @@ check("the run meters string-sweep:{topic} + string-write:{topic}",
       and 'slug=f"string-write:{topic}"' in _run_src)
 
 # ---------------------------------------------------------------------------
+print("7. reach with a receipt (ADR-594 D2) — DRIVEN")
+import asyncio
+from datetime import datetime, timezone
+from services.strings import _reach_connector_sources, _CONNECTOR_CAPTURE_MIN_INTERVAL_S
+
+# The run body invokes the reach step for connector sources, before the read.
+check("the run reaches connector sources before reading",
+      "_reach_connector_sources(" in _run_src
+      and _run_src.index("_reach_connector_sources(") < _run_src.index("_read_connector_source("))
+
+_captures: list = []
+
+
+def _drive_reach(landed_age_s):
+    """Drive the reach with one declared slack source whose newest landed
+    snapshot is `landed_age_s` old (None = nothing landed)."""
+    import services.workspace as ws
+    import services.connectors as cn
+
+    now = datetime.now(timezone.utc)
+
+    class _UM:
+        def __init__(self, client, uid):
+            pass
+
+        async def list(self, sub):
+            if landed_age_s is None:
+                return []
+            stamp = datetime.fromtimestamp(
+                now.timestamp() - landed_age_s, tz=timezone.utc
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+            return [f"{stamp}.md"]
+
+    async def _fake_capture(client, user_id, row, *, observed_at, selectors=None):
+        _captures.append({"row": row, "selectors": selectors})
+        return {"success": True}
+
+    orig = (ws.UserMemory, cn.connection_row, cn.run_connector_capture)
+    ws.UserMemory = _UM
+    cn.connection_row = lambda client, uid, plat: {"platform": plat, "landscape": {}}
+    cn.run_connector_capture = _fake_capture
+    try:
+        asyncio.get_event_loop().run_until_complete(
+            _reach_connector_sources(
+                None, "u1",
+                [{"id": "standup", "connector": "slack", "selector": "C001"}],
+                observed_at="2026-08-21T09:00:00Z",
+            )
+        )
+    finally:
+        ws.UserMemory, cn.connection_row, cn.run_connector_capture = orig
+
+
+_captures.clear()
+_drive_reach(None)
+check("nothing landed → the run REACHES (capture invoked, selector-narrowed)",
+      len(_captures) == 1 and _captures[0]["selectors"] == ["C001"],
+      str(_captures))
+
+_captures.clear()
+_drive_reach(_CONNECTOR_CAPTURE_MIN_INTERVAL_S * 4)
+check("a stale snapshot → the run reaches again",
+      len(_captures) == 1, str(_captures))
+
+_captures.clear()
+_drive_reach(60)
+check("a FRESH snapshot → no reach (the freshness floor is the spend guard: "
+      "the receipt itself gates the platform read)",
+      len(_captures) == 0, str(_captures))
+
+
+def _drive_reach_unconnected():
+    import services.connectors as cn
+    orig = cn.connection_row
+    cn.connection_row = lambda client, uid, plat: None
+    try:
+        asyncio.get_event_loop().run_until_complete(
+            _reach_connector_sources(
+                None, "u1",
+                [{"id": "standup", "connector": "slack", "selector": "C001"}],
+                observed_at="2026-08-21T09:00:00Z",
+            )
+        )
+    finally:
+        cn.connection_row = orig
+
+
+_captures.clear()
+_drive_reach_unconnected()
+check("an unconnected platform → no reach, no raise (the read step reports "
+      "the honest empty)", len(_captures) == 0)
+
+# The reach stamp must satisfy the shared reader's grammar — an isoformat
+# stamp would land snapshots the reader then skips as unstamped.
+from services.connectors import parse_stamp as _ps
+check("the run passes a parse_stamp-conformant stamp to the reach",
+      '%Y-%m-%dT%H:%M:%SZ' in _run_src and _ps("2026-08-21T09:00:00Z.md") is not None)
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"✗ {len(FAILURES)} check(s) failed: {FAILURES}")

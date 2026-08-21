@@ -13,13 +13,12 @@
  *   served by the API from the machinery that enacts them — facts, not
  *   controls: no per-tool enforcement point exists on the outbound side).
  *
- *   CAPTURE — the background writer's configuration, ONE consumer block:
- *   which slices it reads (the selection — CONSENT, never auto-filled;
- *   ADR-079/113 smart defaults died 2026-08-19 and survive only as the
- *   `Suggested` badge) and where snapshots land (destination).
- *   Collapsed to one honest line while
- *   the capture lane is dormant (ADR-404 D2). For GitHub the selection also
- *   bounds platform-tool reach (ADR-576 D2; empty = unrestricted).
+ *   CAPTURE — the aperture: which slices may be read at all (the selection —
+ *   CONSENT, never auto-filled; ADR-079/113 smart defaults died 2026-08-19
+ *   and survive only as the `Suggested` badge). Where snapshots land is a
+ *   FACT, not a dial (ADR-594 D1: the fixed intake lane). For GitHub the
+ *   selection also bounds platform-tool reach (ADR-576 D2; empty =
+ *   unrestricted).
  *
  *   YIELD — the writer's read-back (freshness + landed files), flag-gated.
  *
@@ -59,10 +58,6 @@ interface Observed {
   observed_at?: string;
   items?: number;
   last_error?: string;
-}
-
-interface ConnectorSettings {
-  destination: string | null;
 }
 
 interface ConnectorDoes {
@@ -141,7 +136,6 @@ export function ManageConnectionSubsurface({
   const [connectorFreshness, setConnectorFreshness] = useState<Observed | null>(null);
   const [grantedScopes, setGrantedScopes] = useState<string[]>([]);
   const [connection, setConnection] = useState<ConnectionFacts | null>(null);
-  const [settings, setSettings] = useState<ConnectorSettings | null>(null);
   const [does, setDoes] = useState<ConnectorDoes | null>(null);
   const [agentEnabled, setAgentEnabled] = useState(true);
   // ADR-404 D2: the capture lane is dormant for the commons-first launch —
@@ -161,9 +155,6 @@ export function ManageConnectionSubsurface({
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [probing, setProbing] = useState(false);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
-  const [dialSaving, setDialSaving] = useState(false);
-  const [dialError, setDialError] = useState<string | null>(null);
-  const [destinationDraft, setDestinationDraft] = useState("");
   // Operator-opened while dormant; forced open when the lane runs.
   const [captureOpen, setCaptureOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -197,11 +188,10 @@ export function ManageConnectionSubsurface({
       setConnectorFreshness(block as Observed | null);
       setGrantedScopes(signal?.granted_scopes ?? []);
       setConnection(signal?.connection ?? null);
-      // `settings`/`does` are post-ADR-582 payload fields — absent on an
-      // older API, in which case their sections simply don't render.
-      setSettings(signal?.settings ?? null);
+      // `does` is a post-ADR-582 payload field — absent on an older API, in
+      // which case its section simply doesn't render. (`settings` is gone —
+      // ADR-594 D1 fixed the landing grammar and deleted the last dial.)
       setDoes(signal?.does ?? null);
-      setDestinationDraft(signal?.settings?.destination ?? "");
       setAgentEnabled(signal?.agent_enabled ?? true);
       setCaptureEnabled(signal?.connector_capture_enabled ?? false);
     } catch (e) {
@@ -301,32 +291,6 @@ export function ManageConnectionSubsurface({
     }
   };
 
-  // One dial write path — partial patch, echo the normalized store back.
-  const patchSettings = async (patch: {
-    destination?: string | null;
-  }) => {
-    setDialSaving(true);
-    setDialError(null);
-    try {
-      const res = await api.integrations.updateConnectorSettings(provider, patch);
-      setSettings(res.settings);
-      setDestinationDraft(res.settings.destination ?? "");
-    } catch (e) {
-      setDialError(
-        e instanceof Error ? e.message : "Could not save the capture settings.",
-      );
-    } finally {
-      setDialSaving(false);
-    }
-  };
-
-  const commitDestination = () => {
-    const draft = destinationDraft.trim();
-    const current = settings?.destination ?? "";
-    if (draft === current) return;
-    void patchSettings({ destination: draft === "" ? null : draft });
-  };
-
   // The honest connector-level freshness line. Item count is the number of
   // selectors captured, not message count (ADR-393 signal is thin).
   const freshnessLabel = (): string => {
@@ -348,10 +312,10 @@ export function ManageConnectionSubsurface({
       ? `read OK · ${relativeTime(new Date(probe.at).toISOString())}`
       : `${probe.status}${probe.errors?.length ? ` — ${probe.errors[0]}` : ""}`);
 
+  // ADR-594 D1 — the landing grammar is FIXED: a connection is a rail
+  // (consent + credential + aperture), it carries no placement choice.
   const defaultLane = `inbound/${provider}`;
-  const filesPath = settings?.destination
-    ? `/workspace/${settings.destination}`
-    : `/workspace/${defaultLane}`;
+  const filesPath = `/workspace/${defaultLane}`;
   const captureExpanded = captureEnabled || captureOpen;
 
   const scopeEmptyState = () =>
@@ -578,10 +542,11 @@ export function ManageConnectionSubsurface({
               {!captureEnabled && (
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground">
-                    Background reading is paused — nothing is captured on a
-                    schedule.
+                    Nothing runs on a schedule — snapshots land when something
+                    you set up reads this connection (a maintained file&apos;s
+                    sources, a chat turn).
                     {selected.size > 0 &&
-                      ` ${selected.size} ${resourceNoun} selected for when it resumes.`}
+                      ` ${selected.size} ${resourceNoun} in scope.`}
                   </p>
                   <button
                     type="button"
@@ -695,60 +660,24 @@ export function ManageConnectionSubsurface({
                     </div>
                   )}
 
-                  {/* The dials (ADR-582 D2/D3/D5) — rendered only when the API
-                      serves `settings` (FE and API deploy separately). */}
-                  {settings && (
-                    <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
-                      {!agentEnabled && (
-                        <p className="text-xs text-muted-foreground">
-                          Reads are off — the agent layer is disabled on this
-                          deployment.
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-3">
-                        <label
-                          htmlFor="connector-destination"
-                          className="w-24 shrink-0 text-xs font-medium"
-                        >
-                          Destination
-                        </label>
-                        <input
-                          id="connector-destination"
-                          type="text"
-                          value={destinationDraft}
-                          placeholder={defaultLane}
-                          disabled={dialSaving}
-                          onChange={(e) => setDestinationDraft(e.target.value)}
-                          onBlur={commitDestination}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          className="w-56 rounded-md border border-border/60 bg-background px-2 py-1 font-mono text-xs disabled:opacity-60"
-                        />
-                      </div>
+                  {/* ADR-594 D1: no dials — the landing grammar is a fact,
+                      stated, not configured. */}
+                  <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
+                    {!agentEnabled && (
                       <p className="text-xs text-muted-foreground">
-                        {/* ADR-591 deleted the retention GC (`prune_raw_lane`
-                            is gone; nothing sweeps the default lane). The
-                            previous sentence promised automatic cleanup no
-                            code performs — the retention DIAL survives as a
-                            stated ceiling, but no runner enforces it. */}
-                        Workspace folder where snapshots land. Empty = the
-                        default <span className="font-mono">{defaultLane}</span>{" "}
-                        lane. Either way the files stay until something removes
-                        them — snapshots are kept, not swept.
+                        Reads are off — the agent layer is disabled on this
+                        deployment.
                       </p>
-
-                      {dialSaving && (
-                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                      )}
-                      {dialError && (
-                        <p className="text-xs text-destructive">{dialError}</p>
-                      )}
-                    </div>
-                  )}
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {/* ADR-594 D1: the landing grammar is fixed — no
+                          destination dial. Snapshots stay until something
+                          removes them (no GC sweeps this lane). */}
+                      Snapshots land as attributed observation files under{" "}
+                      <span className="font-mono">{defaultLane}</span>, and stay
+                      until something removes them — kept, not swept.
+                    </p>
+                  </div>
                 </div>
               )}
             </SectionShell>
@@ -763,7 +692,7 @@ export function ManageConnectionSubsurface({
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Captured {resourceNoun} land as attributed observation files
-                  at the destination — readable immediately, cited by anything
+                  at the fixed intake lane — readable immediately, cited by anything
                   built from them.
                 </p>
                 {connectorFreshness?.observed_at && (

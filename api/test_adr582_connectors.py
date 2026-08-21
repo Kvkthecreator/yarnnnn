@@ -1,12 +1,14 @@
 """ADR-582 gate — the connector is a WRITER, not a pipeline.
 
-Holds the re-cut's contract:
+Holds the re-cut's contract, as amended by ADR-594 (the connection is a rail):
   §1 one selection store (the mirror stays deleted; every consumer reads it)
-  §2 placement — destination flexible at wiring, deterministic at write
-  §3 the capture walk DRIVEN — attribution, kind, diff-awareness, no embed
-  §4 the digest is OPT-IN (no LLM on the connect path)
-  §5 wiring — the walk runs inside the dormancy flag, before the digest
+  §2 placement — the FIXED intake grammar (ADR-594 D1 deleted the dial)
+  §3 the capture walk DRIVEN — attribution, kind, diff-awareness, no embed,
+     and the ADR-594 D2 `selectors=` narrowing (ask ∩ aperture)
+  §4 no LLM on the connect path (the digest is superseded — ADR-594 D3)
+  §5 wiring — no scheduler job; capture is consumer-invoked
   §6 apps consume LANDED files (Strings' connector source, driven)
+  §7 the settings door is DELETED; route roster holds
 
 Script-style (python3, from api/). Every non-trivial check was falsified
 against a broken shape before being trusted (ADR-582 §4).
@@ -70,10 +72,10 @@ check("1a connector_watch.py stays deleted",
 check("1b capture_connector.py stays deleted",
       not (API / "services" / "primitives" / "capture_connector.py").exists())
 
+import services.connectors as _conn_early  # noqa: E402
 from services.connectors import (  # noqa: E402
     CONNECTOR_CAPTURE_BINDINGS,
     capture_destination,
-    connector_settings,
     selected_ids_from_row,
     snapshot_path,
 )
@@ -83,26 +85,25 @@ row = {"platform": "slack", "landscape": {"selected_sources": [
 check("1c selection reads from landscape.selected_sources (no-id dropped)",
       selected_ids_from_row(row) == ["C001", "C003"])
 
-s = connector_settings(row)
-check("1d settings default: the default destination lane (ADR-591 retired "
-      "cadence + digest with the walker)",
-      s["destination"] is None and "cadence" not in s and "digest" not in s,
-      str(s))
+check("1d the settings object is DELETED with its last dial (ADR-594 D1 — "
+      "a connection carries no per-connection knobs)",
+      not hasattr(_conn_early, "connector_settings")
+      and not hasattr(_conn_early, "update_connector_settings"))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§2 placement — flexible at wiring, deterministic at write")
+print("§2 placement — the FIXED intake grammar (ADR-594 D1)")
 # ═════════════════════════════════════════════════════════════════════════════
 
-check("2a default destination follows the intake grammar",
-      capture_destination("slack", "C0A6P2WS4HL", {}) == "inbound/slack/c0a6p2ws4hl")
-check("2b operator destination is honored, filing stays per-selector",
-      capture_destination("slack", "C001", {"destination": "Projects/Acme/slack"})
-      == "Projects/Acme/slack/c001")
+check("2a placement follows the intake grammar",
+      capture_destination("slack", "C0A6P2WS4HL") == "inbound/slack/c0a6p2ws4hl")
+check("2b placement takes NO settings — the dial is gone from the signature "
+      "(flexibility at wiring time was the slop; the grammar is a law)",
+      capture_destination.__code__.co_argcount == 2)
 check("2c a slash-bearing selector stays ONE segment",
-      capture_destination("github", "Kvk/yarnnnn", {}).count("/") == 2)
+      capture_destination("github", "Kvk/yarnnnn").count("/") == 2)
 check("2d the snapshot filename is the stamp",
-      snapshot_path("slack", "C001", "2026-08-19T00:00:00Z", {})
+      snapshot_path("slack", "C001", "2026-08-19T00:00:00Z")
       == "inbound/slack/c001/2026-08-19T00:00:00Z.md")
 
 
@@ -168,14 +169,52 @@ captured_writes.clear()
 res2 = _drive_capture({"platform": "slack",
                        "settings": {"connector": {"destination": "Projects/Acme/slack"}},
                        "landscape": {"selected_sources": [{"id": "C001"}]}})
-check("3e an operator destination re-homes the snapshot",
+check("3e a legacy stored destination is IGNORED — the grammar is a law "
+      "(ADR-594 D1: the fossil key must not re-home a write)",
       captured_writes
-      and captured_writes[0]["path"].startswith("Projects/Acme/slack/c001/"),
+      and captured_writes[0]["path"].startswith("inbound/slack/c001/"),
       str([w.get("path") for w in captured_writes]))
 
 check("3f nothing selected → nothing captured, honestly",
       _drive_capture({"platform": "slack", "settings": {}, "landscape": {}})
       .get("skipped") == "nothing_selected")
+
+# ADR-594 D2 — the `selectors=` narrowing: the effective set is the
+# INTERSECTION of the ask with the aperture. A consumer can narrow the
+# operator's consent, never widen it.
+
+
+def _drive_capture_narrowed(row, selectors):
+    import services.workspace as ws
+    import services.platform_tools as pt
+    from services.connectors import run_connector_capture
+
+    orig = (ws.UserMemory, pt.handle_platform_tool)
+    ws.UserMemory = _FakeUM
+    pt.handle_platform_tool = _fake_tool
+    try:
+        return asyncio.get_event_loop().run_until_complete(
+            run_connector_capture(None, "u1", row,
+                                  observed_at="2026-08-19T01:00:00Z",
+                                  selectors=selectors)
+        )
+    finally:
+        ws.UserMemory, pt.handle_platform_tool = orig
+
+
+_ap_row = {"platform": "slack", "settings": {},
+           "landscape": {"selected_sources": [{"id": "C001"}, {"id": "C002"}]}}
+captured_writes.clear()
+_drive_capture_narrowed(_ap_row, ["C001"])
+check("3k selectors= narrows the walk to the ask (one slice captured)",
+      [w.get("path", "").split("/")[2] for w in captured_writes] == ["c001"],
+      str([w.get("path") for w in captured_writes]))
+captured_writes.clear()
+res_widen = _drive_capture_narrowed(_ap_row, ["C999"])
+check("3l a selector OUTSIDE the aperture captures NOTHING (ask ∩ aperture — "
+      "a consumer never widens the operator's consent)",
+      not captured_writes and res_widen.get("skipped") == "nothing_selected",
+      str(res_widen))
 
 # The writer must never rank raw into recall — no embed call anywhere in it.
 conn_code = _code_only(API / "services" / "connectors.py")
@@ -197,38 +236,24 @@ check("3j no per-platform binding carries a cadence (the walker's defaults)",
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§4 the digest is OPT-IN — no LLM on the connect path")
+print("§4 no LLM on the connect path — the digest is SUPERSEDED (ADR-594 D3)")
 # ═════════════════════════════════════════════════════════════════════════════
 
-# DRIVEN, not grepped (a co-occurrence check here passed its own falsifier's
-# gutting — "digest" matched digest_path calls): run the real drain over one
-# connection each way and count the derives attempted.
-
-
-# ADR-582 D5's opt-in was a per-connection dial on a WALKER. ADR-591 deleted
-# the walker, so the guarantee is now structural rather than conditional:
-# nothing on a tick can invoke the deriver, so connecting cannot cost a
-# member anything. Driven where a drive is still possible; asserted on the
-# module surface where the thing that could have driven it is gone.
-import services.connector_derive as cd  # noqa: E402
-
-check("4a no clock can invoke the deriver — the walker is DELETED "
-      "(connecting costs $0 by construction, not by a dial)",
-      not hasattr(cd, "drain_due_connector_derives"))
-check("4a2 the derive WRITER survives and stays invocable (D3.a — a "
-      "consumer calls it; only its clock died)",
-      callable(getattr(cd, "run_connector_derive", None)))
-check("4a3 the spend guard survives the walker (a caller in a loop is "
-      "exactly what is_due exists to refuse — ADR-401 D5)",
-      callable(getattr(cd, "is_due", None))
-      and cd.is_due(None, None, datetime(2026, 8, 19, 12, 0, tzinfo=timezone.utc)) is False)
-check("4b the capture walk never calls the derive (decoupled consumers)",
+# ADR-582 D5 made the digest opt-in; ADR-591 deleted its walker; ADR-594 D3
+# deleted the module — the digest is an md string with connector sources
+# (the ADR-569 generalization applied a second time). Connecting costs $0 by
+# construction: nothing on the connect path can invoke any LLM.
+check("4a connector_derive.py stays DELETED (a second prose-derive lane "
+      "beside Strings is a dual implementation)",
+      not (API / "services" / "connector_derive.py").exists())
+check("4b the capture writer never invokes an LLM (no derive, no dispatch)",
       "run_connector_derive" not in _calls_in(ast.parse(conn_code))
-      and "drain_due_connector_derives" not in conn_code)
+      and "run_bounded_derive_turn" not in conn_code
+      and "route_completion" not in conn_code)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§5 wiring — inside the flag, walk before digest")
+print("§5 wiring — no scheduler job; capture is consumer-invoked")
 # ═════════════════════════════════════════════════════════════════════════════
 
 sched_src = (API / "jobs" / "unified_scheduler.py").read_text()
@@ -266,7 +291,6 @@ check("6c the connector-source predicate needs BOTH platform and selector",
 
 def _drive_string_source():
     import services.workspace as ws
-    import services.connectors as cn
     from services.strings import _read_connector_source
 
     class _UM:
@@ -280,17 +304,17 @@ def _drive_string_source():
         async def read(self, rel):
             return "landed snapshot body"
 
+    # ADR-594: the READ path needs no connection row — placement is the fixed
+    # grammar, so only the filesystem is consulted. (The REACH path reads the
+    # row; that is §3's territory.)
     orig_um = ws.UserMemory
-    orig_row = cn.connection_row
     ws.UserMemory = _UM
-    cn.connection_row = lambda client, uid, plat: {"platform": plat, "settings": {}}
     try:
         return asyncio.get_event_loop().run_until_complete(
             _read_connector_source(None, "u1", "slack", "C001")
         )
     finally:
         ws.UserMemory = orig_um
-        cn.connection_row = orig_row
 
 
 body, cited = _drive_string_source()
@@ -309,81 +333,23 @@ check("6f the connector source path calls no platform API and no HTTP",
       and "httpx" not in ast.unparse(rcs))
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§7 the settings surface — dials validated, doors honest (2026-08-19)")
+print("§7 the settings door is DELETED — the connection is a rail (ADR-594 D1)")
 # ═════════════════════════════════════════════════════════════════════════════
 
-from services.connectors import _validate_destination, update_connector_settings  # noqa: E402
+check("7a the destination machinery is gone from the module "
+      "(validator + settings reader + chokepoint)",
+      not hasattr(_conn_mod, "_validate_destination")
+      and not hasattr(_conn_mod, "connector_settings")
+      and not hasattr(_conn_mod, "update_connector_settings"))
 
-check("7a destination: empty/slashes normalize to None (the default lane)",
-      _validate_destination("") is None
-      and _validate_destination("  /  ") is None
-      and _validate_destination("/Projects/Acme/") == "Projects/Acme")
-
-for bad in ("../escape", "a/../b", "a/./b", "a//b", "a\\b", "x" * 121):
-    try:
-        _validate_destination(bad)
-        check(f"7b destination rejects {bad[:20]!r}", False)
-    except ValueError:
-        check(f"7b destination rejects {bad[:20]!r}", True)
-
-
-class _SettingsQ:
-    def __init__(self, store):
-        self._store = store
-
-    def __getattr__(self, name):
-        return lambda *a, **k: self
-
-    def update(self, payload):
-        self._store["updated"] = payload
-        return self
-
-    def execute(self):
-        from types import SimpleNamespace
-        return SimpleNamespace(data=[{"id": "row1", "settings": self._store.get("settings", {})}])
-
-
-class _SettingsC:
-    def __init__(self, store):
-        self._store = store
-
-    def table(self, name):
-        return _SettingsQ(self._store)
-
-
-_store: dict = {"settings": {}}
-stored = update_connector_settings(_SettingsC(_store), "u1", "slack",
-                                   {"destination": " Projects/Acme/ "})
-check("7c the retired dials are not reintroduced at the chokepoint "
-      "(ADR-591: no cadence, no digest — a connector has one setting)",
-      stored is not None and "cadence" not in stored and "digest" not in stored,
-      str(stored))
-check("7d destination is normalized at the chokepoint",
-      stored is not None and stored.get("destination") == "Projects/Acme")
-
-# The request model forbids extras, so a stale client's `cadence`/`digest`
-# 422s at the door rather than being silently dropped (ADR-591 D1) — a dial
-# that controls nothing must fail loudly.
-from routes.integrations import ConnectorSettingsRequest  # noqa: E402
-import pydantic  # noqa: E402
-
-_refused = []
-for _dead in ("cadence", "digest"):
-    try:
-        ConnectorSettingsRequest(**{_dead: "x"})
-    except pydantic.ValidationError:
-        _refused.append(_dead)
-check("7e a retired dial is REFUSED at the door, never silently dropped",
-      _refused == ["cadence", "digest"], str(_refused))
-
-# --- the route roster: one settings door, the cadence-only door is gone ------
 import routes.integrations as ri  # noqa: E402
 
 route_paths = {r.path for r in ri.router.routes}
-check("7f PUT connector-settings exists (the three dials' one door)",
-      "/integrations/{provider}/connector-settings" in route_paths,
-      str(sorted(p for p in route_paths if "cadence" in p or "connector-settings" in p)))
-check("7g the cadence-only route is DELETED (singular implementation)",
+check("7f the connector-settings door is DELETED (its last dial died; a "
+      "connection is consent + credential + aperture)",
+      "/integrations/{provider}/connector-settings" not in route_paths
+      and "ConnectorSettingsRequest" not in (API / "routes" / "integrations.py").read_text())
+check("7g the cadence-only route stays DELETED (singular implementation)",
       "/integrations/{provider}/cadence" not in route_paths)
 
 # The pre-582 sync/coverage/import surface is DELETED (2026-08-19 sweep):
@@ -391,6 +357,7 @@ check("7g the cadence-only route is DELETED (singular implementation)",
 # {"deprecated": True} stubs, and every FE binding had zero callers. A route
 # reappearing here means a second implementation is growing back.
 _DEAD_ROUTES = {
+    "/integrations/{provider}/connector-settings",  # ADR-594 D1
     "/integrations/{provider}/sync",
     "/integrations/{provider}/sync-status",
     "/integrations/{provider}/coverage/{resource_id}",

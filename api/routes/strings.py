@@ -69,8 +69,16 @@ def _validate_topic(topic: str) -> str:
 
 
 class StringSource(BaseModel):
+    """One declared source — either shape (ADR-582 D6 / ADR-594 D4): an HTTP
+    pull (`url`) or a connector slice (`connector` + `selector`). The
+    projection serves BOTH — filtering on `url` silently hid connector
+    sources from the very desk that manages them (the ADR-594 audit's
+    finding)."""
+
     id: str
-    url: str
+    url: Optional[str] = None
+    connector: Optional[str] = None
+    selector: Optional[str] = None
 
 
 class UpdateStringRequest(BaseModel):
@@ -200,9 +208,17 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict]) -> StringS
         format=decl.format,
         schedule=decl.schedule,
         paused=decl.paused,
-        sources=[StringSource(id=str(s.get("id")), url=str(s.get("url")))
-                 for s in decl.sources
-                 if isinstance(s, dict) and s.get("id") and s.get("url")],
+        sources=[
+            StringSource(
+                id=str(s.get("id")),
+                url=(str(s["url"]) if s.get("url") else None),
+                connector=(str(s["connector"]) if s.get("connector") else None),
+                selector=(str(s["selector"]) if s.get("selector") else None),
+            )
+            for s in decl.sources
+            if isinstance(s, dict) and s.get("id")
+            and (s.get("url") or (s.get("connector") and s.get("selector")))
+        ],
         contract=_read_file(client, user_id, decl.contract_path),
         last_run_at=(index_row or {}).get("last_run_at"),
         next_run_at=(index_row or {}).get("next_run_at"),

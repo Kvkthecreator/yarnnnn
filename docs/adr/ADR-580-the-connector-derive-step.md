@@ -1,5 +1,10 @@
 # ADR-580: The Connector Derive Step — connector data reaches the commons
 
+> **SUPERSEDED by [ADR-594](ADR-594-the-connection-is-a-rail.md) D3** (2026-08-21):
+> the digest is a special case of an md string with `connector:` sources
+> (ADR-569's maintained file); `connector_derive.py` is deleted. What survives
+> is D6's shared bounded turn (`services/derive_turn.py`), tenanted by Strings.
+>
 > **Status**: Implemented 2026-08-18 (built + gated + migration 244 applied; the
 > lane ships DORMANT behind `CONNECTOR_CAPTURE_ENABLED` — ADR-404 D2 stands, and
 > flipping the flag remains a separate operator decision). Pending operator

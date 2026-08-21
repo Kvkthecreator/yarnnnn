@@ -1,5 +1,10 @@
 # ADR-582: The Connector Is a Writer, Not a Pipeline
 
+> **Amended by [ADR-594](ADR-594-the-connection-is-a-rail.md)** (2026-08-21): D1's
+> "operator-chosen destination" clause and D3 (the destination dial) are
+> SUPERSEDED — the landing grammar is fixed; D5's digest opt-in dissolved with
+> the digest itself (ADR-594 D3). The writer thesis and D2/D6 stand.
+>
 > **Status**: Implemented 2026-08-19 (operator-directed re-cut; the thesis was
 > the operator's, tested from the axioms in the 2026-08-19 discourse: *"the
 > architecture is over-engineered and holding us hostage to an old conceptual

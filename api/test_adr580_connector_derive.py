@@ -1,25 +1,27 @@
-"""ADR-580 gate — the connector derive step: connector data reaches the commons.
+"""ADR-580 → ADR-594 gate — the digest is SUPERSEDED; the shared turn survives.
 
-The failure classes this arc paid for, held here:
+ADR-580 built the connector digest as the intake pipeline's distil step.
+ADR-582 demoted it to an opt-in consumer; ADR-591 deleted its walker; ADR-594
+D3 deleted the module itself — the digest is a special case of an md string
+with connector sources (the ADR-569 generalization applied a second time,
+after radar). What ADR-580 permanently contributed is the SHARED bounded
+derive turn (`services/derive_turn.py`, D6), whose live tenant is Strings.
 
-  - "ratified but unbuilt" (ADR-394 D3's derive-by-reference produced ZERO
-    derived files in 7 weeks) → the write path is DRIVEN, not grepped.
-  - the D5 lesson (capture cadence must never multiply judgment spend) → the
-    pace law is a PURE function, driven over its whole truth table.
-  - green-gates-test-the-room → the scheduler CALL SITE is AST-checked inside
-    the flag branch, and the shared-turn rule is checked as an absence
-    (no lane calls route_completion directly).
+This gate holds:
+  §1 the supersession — the digest module and its system-call row stay
+     deleted; radar stays deleted (ADR-592)
+  §2 one turn implementation — Strings routes through the shared turn and
+     never calls the transport directly; derive_turn is the ONE home
+  §3 the stamp grammar — both live spellings parse (the shared reader's
+     contract, previously asserted here via the digest's re-export)
 
-Script-style (python3, from api/). Every check below was falsified against a
-broken shape before being trusted (see the ADR's verification section).
+Script-style (python3, from api/).
 """
 
 from __future__ import annotations
 
 import ast
-import asyncio
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 API = Path(__file__).resolve().parent
@@ -40,7 +42,6 @@ def check(label: str, ok, detail: str = "") -> None:
 
 
 def _code_only(path: Path) -> str:
-    """Source with docstrings stripped — a gate must never match its own prose."""
     src = path.read_text()
     tree = ast.parse(src)
     for node in ast.walk(tree):
@@ -50,232 +51,6 @@ def _code_only(path: Path) -> str:
                     and isinstance(body[0].value.value, str):
                 body[0].value.value = ""
     return ast.unparse(tree)
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-print("§1 placement — kernel-deterministic, grammar-conformant, reachable")
-# ═════════════════════════════════════════════════════════════════════════════
-
-from services.connector_derive import (  # noqa: E402
-    DERIVE_AUTHOR_PREFIX,
-    build_connector_derive_posture,
-    digest_path,
-    is_due,
-    parse_stamp,
-    strip_provenance_header,
-)
-
-p = digest_path("slack", "C0A6P2WS4HL")
-check("1a digest path is /workspace-absolute under operation/_connectors/",
-      p == "/workspace/operation/_connectors/slack/c0a6p2ws4hl.md", p)
-p2 = digest_path("github", "Kvk/yarnnnn")
-check("1b a slash-bearing selector stays ONE segment (no tree escape)",
-      p2.count("/") == p.count("/"), p2)
-check("1c the digest is prose, never machine-parsed (no underscore leaf)",
-      not p.rsplit("/", 1)[-1].startswith("_"))
-
-from services.primitives.embed import is_embed_eligible  # noqa: E402
-eligible, reason = is_embed_eligible(p, "x" * 500)
-check("1d the digest is embed-eligible — stage 4 reachability is REAL",
-      eligible, reason)
-raw_ok, raw_reason = is_embed_eligible("/workspace/inbound/slack/c1/2026-01-01T00:00:00Z.md", "x" * 500)
-check("1e the raw it derives from stays quarantined (control)", not raw_ok)
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-print("§2 the pace law — pure, driven over its truth table (the D5 lesson)")
-# ═════════════════════════════════════════════════════════════════════════════
-
-NOW = datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc)
-h = lambda n: NOW - timedelta(hours=n)  # noqa: E731
-
-import services.connector_derive as _cd_mod  # noqa: E402
-
-check("2a no raw → never due", not is_due(None, h(48), NOW))
-check("2b raw + no prior derive → due (first derive)", is_due(h(1), None, NOW))
-check("2c raw OLDER than the last derive → not due (quiet world costs $0)",
-      not is_due(h(10), h(8), NOW))
-check("2d newer raw but inside the 6h floor → not due (capture chatter "
-      "cannot multiply judgment spend)", not is_due(h(1), h(2), NOW))
-check("2e newer raw + floor passed → due", is_due(h(1), h(7), NOW))
-
-check("2f stamp parses the capture-lane spelling",
-      parse_stamp("2026-07-03T06:40:31Z.md") == datetime(2026, 7, 3, 6, 40, 31, tzinfo=timezone.utc))
-check("2g stamp parses the compact web-lane spelling",
-      parse_stamp("2026-08-17T210044Z.xml") == datetime(2026, 8, 17, 21, 0, 44, tzinfo=timezone.utc))
-check("2h a non-stamp filename is None, not a crash", parse_stamp("unknown.md") is None)
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-print("§3 the write — DRIVEN: attribution, kind, citation (never grepped)")
-# ═════════════════════════════════════════════════════════════════════════════
-
-
-class _Q:
-    """Chainable query fake: any filter chain executes to empty data."""
-
-    def __init__(self, data=None):
-        self._data = data or []
-
-    def __getattr__(self, name):
-        def _chain(*a, **k):
-            return self
-        return _chain
-
-    def execute(self):
-        from types import SimpleNamespace
-        return SimpleNamespace(data=self._data)
-
-
-class _FakeClient:
-    def __init__(self, files=None):
-        self.files = files or {}
-
-    def table(self, name):
-        if name == "workspace_files":
-            return _FakeFilesQ(self.files)
-        return _Q()
-
-
-class _FakeFilesQ(_Q):
-    def __init__(self, files):
-        super().__init__()
-        self.files = files
-        self._path = None
-
-    def eq(self, col, val):
-        if col == "path":
-            self._path = val
-        return self
-
-    def execute(self):
-        from types import SimpleNamespace
-        if self._path in self.files:
-            return SimpleNamespace(data=[{"content": self.files[self._path]}])
-        return SimpleNamespace(data=[])
-
-
-class _FakeUM:
-    def __init__(self, listing, bodies):
-        self._listing = listing
-        self._bodies = bodies
-
-    async def list(self, sub):
-        return self._listing
-
-    async def read(self, rel):
-        return self._bodies[rel]
-
-
-captured = {}
-
-
-def _fake_write_revision(client, **kw):
-    captured.update(kw)
-    return "rev-abc123def"
-
-
-class _FakeTurn:
-    status = "ok"
-    text = "# Slack — daily-work\n\nThe team shipped the thing."
-    ledger_model = "anthropic/claude-sonnet-5"
-    usage: dict = {}
-    error = None
-
-
-async def _fake_turn(**kw):
-    captured["turn_kwargs"] = kw
-    return _FakeTurn()
-
-
-def _run_drive():
-    import services.authored_substrate as asub
-    import services.derive_turn as dt
-    import services.workspace as ws
-    import services.telemetry as tel
-    import services.connector_derive as cd
-
-    orig = (asub.write_revision, dt.run_bounded_derive_turn, ws.UserMemory,
-            tel.record_execution_event)
-    asub.write_revision = _fake_write_revision
-    dt.run_bounded_derive_turn = _fake_turn
-    listing = ["2026-08-18T09:00:00Z.md", "2026-08-18T10:00:00Z.md"]
-    bodies = {
-        "inbound/slack/c0a6p2ws4hl/2026-08-18T09:00:00Z.md": "raw nine",
-        "inbound/slack/c0a6p2ws4hl/2026-08-18T10:00:00Z.md": "raw ten",
-    }
-    ws.UserMemory = lambda client, uid: _FakeUM(listing, bodies)
-    tel.record_execution_event = lambda *a, **k: None
-    try:
-        return asyncio.get_event_loop().run_until_complete(
-            cd.run_connector_derive(
-                _FakeClient(), "user-1", "slack", "C0A6P2WS4HL",
-                connected_by="2abf3f96-118b-4987-9d95-40f2d9be9a18",
-            )
-        )
-    finally:
-        (asub.write_revision, dt.run_bounded_derive_turn, ws.UserMemory,
-         tel.record_execution_event) = orig
-
-
-result = _run_drive()
-check("3a the derive succeeds and returns the revision id",
-      result.get("success") and result.get("revision_id") == "rev-abc123def",
-      str(result))
-check("3b authored_by is the MECHANISM — system:derive-{platform}",
-      captured.get("authored_by") == "system:derive-slack",
-      str(captured.get("authored_by")))
-
-from services.principal_display import _UUID_RE, display_author  # noqa: E402
-check("3c no UUID rides the authored_by string (the _scrub law)",
-      not _UUID_RE.search(captured.get("authored_by") or "uuid-missing"))
-check("3d the OWNER rides author_identity_uuid (= connected_by)",
-      captured.get("author_identity_uuid") == "2abf3f96-118b-4987-9d95-40f2d9be9a18")
-check("3e the write is a derivation, never authored raw",
-      captured.get("revision_kind") == "derivation")
-
-expected_raws = [
-    "/workspace/inbound/slack/c0a6p2ws4hl/2026-08-18T09:00:00Z.md",
-    "/workspace/inbound/slack/c0a6p2ws4hl/2026-08-18T10:00:00Z.md",
-]
-check("3f the ledger derived_from edge cites the consumed raw (absolute)",
-      captured.get("derived_from") == expected_raws, str(captured.get("derived_from")))
-
-from services.authored_substrate import extract_derived_from_list  # noqa: E402
-content = captured.get("content") or ""
-check("3g the content's head-anchored citation parses back to the same raw "
-      "(what gather_cited_raw_paths reads — the GC keeps cited raw)",
-      extract_derived_from_list(content) == expected_raws,
-      str(extract_derived_from_list(content)))
-check("3h the body survives after the provenance header",
-      "The team shipped the thing." in strip_provenance_header(content))
-
-# The ratified sentence composes at DISPLAY, never in storage.
-shown = display_author(
-    captured["authored_by"],
-    author_identity_uuid=captured["author_identity_uuid"],
-    member_names={"2abf3f96-118b-4987-9d95-40f2d9be9a18": "Kevin"},
-)
-check("3i display composes the ratified sentence — "
-      "'system:derive-slack on behalf of Kevin'",
-      shown == "system:derive-slack on behalf of Kevin", shown)
-shown_unresolved = display_author(
-    captured["authored_by"],
-    author_identity_uuid=captured["author_identity_uuid"],
-    member_names={},
-)
-check("3j an unresolvable owner degrades to the plain mechanism — never a UUID",
-      shown_unresolved == "system:derive-slack" and not _UUID_RE.search(shown_unresolved),
-      shown_unresolved)
-
-posture = build_connector_derive_posture("slack", "daily-work")
-check("3k the posture contracts the honest empty answer (NO_CHANGE)",
-      "NO_CHANGE" in posture)
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-print("§4 wiring — the scheduler calls the drain INSIDE the dormancy flag")
-# ═════════════════════════════════════════════════════════════════════════════
 
 
 def _calls_in(node) -> set:
@@ -290,56 +65,56 @@ def _calls_in(node) -> set:
     return names
 
 
-sched_src = (API / "jobs" / "unified_scheduler.py").read_text()
+# ═════════════════════════════════════════════════════════════════════════════
+print("§1 the supersession — deleted machinery stays deleted (ADR-594 D3)")
+# ═════════════════════════════════════════════════════════════════════════════
 
-# ADR-591 D3.a: the digest's WALKER is deleted. It was a clock (6h floor +
-# new-raw gate) standing in for a consumer that wants a digest — the same
-# shape as the capture walker, refused on the same logic. The writer survives
-# and is invocable; what calls it is the named, unbuilt D3 seam.
-check("4a the scheduler holds NO connector digest job (the clock is gone)",
-      "drain_due_connector_derives" not in sched_src)
-check("4b the walker is gone from the service module too, not merely unwired",
-      not hasattr(_cd_mod, "drain_due_connector_derives"))
-check("4c the derive WRITER survives and stays invocable (only its clock died)",
-      callable(getattr(_cd_mod, "run_connector_derive", None)))
-check("4c2 the pace law survives as a SPEND GUARD — a consumer-invoked derive "
-      "needs it more than a cron did (a caller in a loop is exactly the "
-      "ADR-401 D5 failure)",
-      callable(getattr(_cd_mod, "is_due", None)))
+check("1a connector_derive.py stays DELETED (the digest = an md string with "
+      "connector sources; a second prose-derive lane is a dual implementation)",
+      not (API / "services" / "connector_derive.py").exists())
 
-lane_code = _code_only(API / "services" / "capture" / "lane.py")
-check("4d the capture lane never invokes derive — cadence decoupling holds "
-      "(the retired ADR-401 D5 wake stays retired)",
-      "connector_derive" not in lane_code and "drain_due_connector_derives" not in lane_code)
+from services.system_calls import SYSTEM_CALLS  # noqa: E402
+
+check("1b the connector_derive SYSTEM_CALLS row is gone (Strings' judgment "
+      "routes through its RESIDENT per ADR-562, never a system call)",
+      "connector_derive" not in SYSTEM_CALLS)
+
+check("1c radar stays DELETED (ADR-592 — the first specialization folded)",
+      not (API / "services" / "radar.py").exists())
+
+# The digest's substrate survives as ordinary attributed files — code re-cuts
+# never delete substrate. Nothing here asserts on production data.
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§5 one turn implementation — no lane calls the transport directly")
+print("§2 one turn implementation — no lane calls the transport directly")
 # ═════════════════════════════════════════════════════════════════════════════
 
-for lane in ("services/radar.py", "services/strings.py", "services/connector_derive.py"):
-    code = _code_only(API / lane)
-    tree = ast.parse(code)
-    check(f"5 {lane} routes through the shared turn (no direct route_completion call)",
-          "route_completion" not in _calls_in(tree)
-          and "run_bounded_derive_turn" in _calls_in(tree))
+strings_code = _code_only(API / "services" / "strings.py")
+strings_calls = _calls_in(ast.parse(strings_code))
+check("2a strings routes through the shared turn",
+      "run_bounded_derive_turn" in strings_calls)
+check("2b strings never calls the transport directly",
+      "route_completion" not in strings_calls)
 
 turn_code = _code_only(API / "services" / "derive_turn.py")
-check("5d derive_turn itself IS the transport caller (the one home)",
+check("2c derive_turn itself IS the transport caller (the one home)",
       "route_completion" in _calls_in(ast.parse(turn_code)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§6 the engine row — machinery, declared, priced")
+print("§3 the stamp grammar — the shared reader's contract")
 # ═════════════════════════════════════════════════════════════════════════════
 
-from services.system_calls import SYSTEM_CALLS  # noqa: E402
+from services.connectors import parse_stamp  # noqa: E402
 
-check("6a connector_derive is a SYSTEM_CALLS row (machinery, not an app resident)",
-      "connector_derive" in SYSTEM_CALLS)
-# provider-prefix + pricing + tier + reason are held per-row by
-# test_adr556_system_calls.py, which iterates every row — including this one.
+check("3a stamp parses the capture-lane spelling",
+      parse_stamp("2026-07-03T06:40:31Z.md") is not None)
+check("3b stamp parses the compact web-lane spelling",
+      parse_stamp("2026-08-17T210044Z.md") is not None)
+check("3c a non-stamp filename is None, not a crash",
+      parse_stamp("unknown.md") is None)
 
 n = PASS + FAIL
-print(f"\n{PASS}/{n} ADR-580 assertions pass")
+print(f"\n{PASS}/{n} ADR-580/594 assertions pass")
 sys.exit(0 if FAIL == 0 else 1)
