@@ -60,7 +60,6 @@ stores:
   session_messages: { scope: member-experience, note: "lane messages" }
   notifications: { scope: member-experience, note: "after-witness transport, workspace-stamped rows on actual sends only (ADR-407 D8 / ADR-489 D4)" }
   member_state: { scope: member-experience, note: "the member-experience home (ADR-407 D7)" }
-  email_delivery_log: { scope: member-experience, note: "keyed by recipient — per-member delivery record" }
 
   # --- account: the human across workspaces (user_id) ---
   # TWO STORES IN ONE TABLE, disjoint by key (ADR-566 D2). `scope: account` is

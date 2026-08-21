@@ -20,6 +20,10 @@ import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { createClient } from "@/lib/supabase/client";
 import { useNarrative } from "@/contexts/NarrativeContext";
+// ADR-593 D5 — pref-save failures surface through the universal feedback
+// layer (ADR-400), not console.error: an optimistic toggle snapping back with
+// no explanation reads as a bug.
+import { useFeedback } from "@/contexts/FeedbackContext";
 // ADR-347 → ADR-416 follow-on (2026-07-08): this `settings` surface is the
 // ACCOUNT window — genuinely user_id-scoped (data & privacy, danger zone).
 // Billing + Usage moved OUT to Workspace Settings (both workspace-scoped money,
@@ -60,21 +64,24 @@ interface DangerZoneStats {
   action_proposals: number;
 }
 
-// ADR-489 D5 — the ONE prefs store is member_state['notification_prefs'],
-// keyed (acting workspace, principal): mute one commons, not all. Shape +
-// quiet defaults mirror services/notifications.py DEFAULT_NOTIFICATION_PREFS.
-// witness_email is the after-witness push dial (ADR-405 D2): the bell stays
-// the canonical channel; email push is opt-in.
+// ADR-593 D2 — the ONE prefs store is member_state['notification_prefs'],
+// keyed (acting workspace, principal): mute one commons, not all (ADR-489 D5
+// preserved). Shape: { email: { <kind>: dial } }. The kind VOCABULARY is
+// backend-driven (GET /api/notification-kinds — apps declare semantics, the
+// kernel derives emission); this page never hand-keeps the roster.
+type EmailDial = 'all' | 'high' | 'none';
+
 interface NotificationPreferences {
-  delivery_email: boolean;
-  failure_email: boolean;
-  witness_email: 'all' | 'high' | 'none';
+  email: Record<string, EmailDial>;
 }
 
-const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
-  delivery_email: true,
-  failure_email: true,
-  witness_email: 'high',
+type NotificationKind = {
+  key: string;
+  owner: string;
+  label: string;
+  description: string;
+  email_default: EmailDial | null;
+  email_note: string | null;
 };
 
 // The `settings` surface is the ACCOUNT window — genuinely user_id-scoped, the
@@ -91,7 +98,7 @@ const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
 // with members real, billing is authority-gated workspace governance (the
 // ChatGPT/Claude Team convention). Supersedes ADR-429 §13.3's account-door
 // placement.
-type SettingsTab = "account" | "connectors";
+type SettingsTab = "account" | "connectors" | "notification-settings";
 
 // Connections LEADS (2026-08-21, operator ruling). This door is opened to
 // manage a connection far more often than to reset an account, and Account's
@@ -105,6 +112,12 @@ const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Connections",
     panes: [{ key: "connectors", label: "Connectors", icon: Link2 }],
+  },
+  // ADR-593 D5 — the Notifications pane: how this workspace reaches you.
+  // Personal question (member-experience scope), per-workspace store.
+  {
+    label: "Notifications",
+    panes: [{ key: "notification-settings", label: "Notifications", icon: Bell }],
   },
   {
     label: "Account",
@@ -181,10 +194,15 @@ export default function SettingsPage() {
   const [dangerAction, setDangerAction] = useState<DangerAction>(null);
   const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
 
-  // Notification preferences state
+  // Notification preferences state (ADR-593 D5 — the Notifications pane)
+  const { toast } = useFeedback();
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
+  const [notificationKinds, setNotificationKinds] = useState<NotificationKind[] | null>(null);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  // The store is per (workspace, principal) — the pane names which commons
+  // it is tuning, or the "each workspace remembers its own" line reads empty.
+  const [activeWorkspaceLabel, setActiveWorkspaceLabel] = useState<string | null>(null);
 
   // Billing + Usage state/effects/loaders removed 2026-07-08 (ADR-416 follow-on)
   // — those panes moved to Workspace Settings as self-contained components
@@ -197,35 +215,51 @@ export default function SettingsPage() {
     }
   }, [activeTab]);
 
-  // Fetch notification preferences when notifications tab is active
+  // Fetch the kind registry + prefs when the Notifications pane is active
   useEffect(() => {
-    if (activeTab === "account" && !notificationPrefs) {
+    if (activeTab === "notification-settings" && !notificationKinds) {
       loadNotificationPreferences();
     }
-  }, [activeTab, notificationPrefs]);
+  }, [activeTab, notificationKinds]);
 
   const loadNotificationPreferences = async () => {
     setIsLoadingNotifications(true);
     try {
-      // ADR-489 D5 — member_state is the one prefs store; missing keys read
-      // the quiet defaults.
-      const res = await api.memberState.get('notification_prefs');
-      const stored = (res.value as Partial<NotificationPreferences> | null) ?? {};
-      setNotificationPrefs({ ...DEFAULT_NOTIFICATION_PREFS, ...stored });
+      // ADR-593 D1/D2 — vocabulary from the kind registry (backend-driven),
+      // values from member_state (the one prefs store); missing keys read
+      // each kind's quiet default.
+      const [kindsRes, prefsRes, membershipsRes] = await Promise.all([
+        api.notificationKinds(),
+        api.memberState.get('notification_prefs'),
+        api.workspace.memberships().catch(() => null),
+      ]);
+      const stored = (prefsRes.value as Partial<NotificationPreferences> | null) ?? {};
+      const email: Record<string, EmailDial> = { ...kindsRes.email_defaults };
+      for (const [kind, dial] of Object.entries(stored.email ?? {})) {
+        if (kind in email) email[kind] = dial as EmailDial;
+      }
+      setNotificationKinds(kindsRes.kinds);
+      setNotificationPrefs({ email });
+      const active = membershipsRes?.memberships?.find((m) => m.is_active);
+      setActiveWorkspaceLabel(active?.label ?? null);
     } catch (err) {
       console.error("Failed to fetch notification preferences:", err);
-      setNotificationPrefs({ ...DEFAULT_NOTIFICATION_PREFS });
+      setNotificationKinds(null);
+      setNotificationPrefs(null);
     } finally {
       setIsLoadingNotifications(false);
     }
   };
 
-  const handleNotificationChange = async (patch: Partial<NotificationPreferences>) => {
+  const handleNotificationChange = async (kind: string, dial: EmailDial) => {
     if (!notificationPrefs) return;
     const previous = notificationPrefs;
-    const next = { ...notificationPrefs, ...patch };
+    const next: NotificationPreferences = {
+      email: { ...notificationPrefs.email, [kind]: dial },
+    };
 
-    // Optimistic update, revert on error.
+    // Optimistic update, revert on error — and SAY SO (ADR-400: a toggle
+    // snapping back with no explanation reads as a bug).
     setNotificationPrefs(next);
     setIsSavingNotifications(true);
     try {
@@ -233,6 +267,7 @@ export default function SettingsPage() {
     } catch (err) {
       console.error("Failed to update notification preference:", err);
       setNotificationPrefs(previous);
+      toast({ message: "Couldn't save that setting", description: "Your change was not stored — try again.", kind: "error" });
     } finally {
       setIsSavingNotifications(false);
     }
@@ -507,86 +542,91 @@ export default function SettingsPage() {
             <div className="text-muted-foreground">Failed to load account stats</div>
           )}
 
-          {/* Notifications (nested under Account) */}
-          <div className="mt-8 pt-8 border-t border-border">
-            <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
-              <Bell className="w-4 h-4" />
-              Email Notifications
-            </h3>
-            {isLoadingNotifications ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : notificationPrefs ? (
-              <div className="space-y-3">
-                <div className="p-3 border border-border rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Mail className="w-4 h-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-sm font-medium">Work delivered</div>
-                      <div className="text-xs text-muted-foreground">Email when an agent&apos;s output is delivered</div>
+          {/* ADR-593 D5: the Email Notifications section MOVED OUT to its own
+              Notifications pane — it was an unlabeled block below the Danger
+              Zone, in a pane whose subject is data & privacy. */}
+        </section>
+      )}
+
+      {/* Notifications — ADR-593 D5. The pane renders the declared kind
+          registry (apps declare semantics, the kernel derives emission, the
+          OS routes/presents/manages). The STORE is per (workspace, principal)
+          — ADR-489 D5 "mute one commons, not all" — so the pane names the
+          workspace it governs. A kind with no wired email path prints its
+          refusal (the ADR-572 D10 lesson) instead of a dead dial. */}
+      {pane === "notification-settings" && (
+        <section className="mb-8">
+          <PaneHeader
+            icon={Bell}
+            title="Notifications"
+            subtitle={
+              activeWorkspaceLabel
+                ? `How ${activeWorkspaceLabel} reaches you. Each workspace remembers its own settings.`
+                : "How this workspace reaches you. Each workspace remembers its own settings."
+            }
+            bordered={false}
+          />
+          <p className="mb-4 text-xs text-muted-foreground">
+            In-app is always on — the bell and the{" "}
+            <SurfaceLink to="notifications" className="text-primary hover:underline">
+              Notifications window
+            </SurfaceLink>{" "}
+            derive from the workspace record itself. These dials govern{" "}
+            <span className="font-medium">email</span>.
+          </p>
+          {isLoadingNotifications ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : notificationPrefs && notificationKinds ? (
+            <div className="space-y-3">
+              {notificationKinds.map((k) => (
+                <div key={k.key} className="p-3 border border-border rounded-lg flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {k.key === "decisions" ? (
+                      <Bell className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <Mail className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium flex items-center gap-2">
+                        {k.label}
+                        {k.owner !== "kernel" && (
+                          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {k.owner}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{k.description}</div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleNotificationChange({ delivery_email: !notificationPrefs.delivery_email })}
-                    disabled={isSavingNotifications}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      notificationPrefs.delivery_email ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      notificationPrefs.delivery_email ? "translate-x-4" : "translate-x-0.5"
-                    }`} />
-                  </button>
+                  {k.email_default ? (
+                    <select
+                      value={notificationPrefs.email[k.key] ?? k.email_default}
+                      onChange={(e) => handleNotificationChange(k.key, e.target.value as EmailDial)}
+                      disabled={isSavingNotifications}
+                      aria-label={`${k.label} emails`}
+                      className="h-8 shrink-0 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                    >
+                      {/* `reports` is a plain opt-in — an "urgent only" tier
+                          would be a promise nothing grades, so it isn't offered. */}
+                      {k.key !== "reports" && <option value="high">Urgent only</option>}
+                      <option value="all">{k.key === "reports" ? "On" : "Every action"}</option>
+                      <option value="none">{k.key === "reports" ? "Off" : "Never"}</option>
+                    </select>
+                  ) : (
+                    <span className="shrink-0 max-w-[14rem] text-right text-[11px] leading-snug text-muted-foreground">
+                      {k.email_note ?? "Not wired yet."}
+                    </span>
+                  )}
                 </div>
-                <div className="p-3 border border-border rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="w-4 h-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-sm font-medium">Failures</div>
-                      <div className="text-xs text-muted-foreground">Email when a run or delivery fails</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleNotificationChange({ failure_email: !notificationPrefs.failure_email })}
-                    disabled={isSavingNotifications}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      notificationPrefs.failure_email ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      notificationPrefs.failure_email ? "translate-x-4" : "translate-x-0.5"
-                    }`} />
-                  </button>
-                </div>
-                {/* ADR-489 D4 — the after-witness push dial. The in-app bell
-                    is always on (derived); this governs EMAIL about peers'
-                    and agents' workspace acts. */}
-                <div className="p-3 border border-border rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Bell className="w-4 h-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-sm font-medium">Workspace activity</div>
-                      <div className="text-xs text-muted-foreground">Email when teammates or agents act in the workspace</div>
-                    </div>
-                  </div>
-                  <select
-                    value={notificationPrefs.witness_email}
-                    onChange={(e) => handleNotificationChange({ witness_email: e.target.value as NotificationPreferences['witness_email'] })}
-                    disabled={isSavingNotifications}
-                    aria-label="Workspace activity emails"
-                    className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
-                  >
-                    <option value="high">Urgent only</option>
-                    <option value="all">Every action</option>
-                    <option value="none">Never</option>
-                  </select>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">Failed to load preferences</div>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              Couldn&apos;t load notification settings — reload to try again.
+            </div>
+          )}
         </section>
       )}
     </>

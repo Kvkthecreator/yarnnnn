@@ -1,7 +1,9 @@
 """ADR-317 regression gate — daily-P&L post-judgment dispatcher.
 
 Locks the invariants that make this dispatcher canon-coherent:
-  1. The opt-in gate is default-off (operator must set active: true).
+  1. The opt-in gate is default-off — ADR-593 D4 moved it from
+     _preferences.yaml into the ONE prefs store (email.reports, default
+     'none') and the send routes through the send_notification chokepoint.
   2. The dispatcher reads _money_truth.md windows correctly into the email.
   3. The Reviewer never gains the email tool (the architectural commitment
      this dispatcher exists to honor) — FREDDIE_PRIMITIVES stays clean.
@@ -22,12 +24,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from services.daily_pnl_email import (  # noqa: E402
-    NOTIFICATION_SLUG,
     TRIGGER_SLUG,
     SENT_MARKER_PATH,
     build_headline,
     build_html,
-    is_opted_in,
     _already_sent_today,
     _parse_money_truth_windows,
 )
@@ -46,26 +46,29 @@ def check(name: str, cond: bool) -> None:
         print(f"  FAIL  {name}")
 
 
-# ── 1. opt-in gate is default-off ──────────────────────────────────────────
-OPTED_IN = """
-operator_notifications:
-  - slug: daily_pnl_reconciliation
-    active: true
-  - slug: signal_fire_alert
-    active: false
-"""
-OPTED_OUT = """
-operator_notifications:
-  - slug: daily_pnl_reconciliation
-    active: false
-"""
-NO_BLOCK = "deliverable_preferences:\n  - slug: pre-market-brief\n"
+# ── 1. opt-in gate is default-off (ADR-593 D4: email.reports, one store) ────
+from services.notifications import EMAIL_DIAL_DEFAULTS, _pref_allows  # noqa: E402
 
-check("opt-in true → sends", is_opted_in(OPTED_IN) is True)
-check("opt-in false → does not send", is_opted_in(OPTED_OUT) is False)
-check("no operator_notifications block → does not send (default-off)", is_opted_in(NO_BLOCK) is False)
-check("empty/None preferences → does not send", is_opted_in(None) is False)
-check("notification slug is daily_pnl_reconciliation", NOTIFICATION_SLUG == "daily_pnl_reconciliation")
+check("reports dial defaults 'none' — default-off preserved",
+      EMAIL_DIAL_DEFAULTS.get("reports") == "none")
+check("default dial → does not send",
+      _pref_allows({"email": dict(EMAIL_DIAL_DEFAULTS)}, "reports", "normal") is False)
+check("opted-in dial ('all') → sends",
+      _pref_allows({"email": {"reports": "all"}}, "reports", "normal") is True)
+check("unreadable store → fails closed",
+      _pref_allows(None, "reports", "normal") is False)
+
+# Anchor on CODE symbols, not prose — the module docstring legitimately
+# narrates the move and mentions the old store by name.
+import services.daily_pnl_email as _pnl_mod  # noqa: E402
+
+check("the second pref store is deleted (is_opted_in + PREFERENCES_PATH gone)",
+      not hasattr(_pnl_mod, "is_opted_in") and not hasattr(_pnl_mod, "PREFERENCES_PATH"))
+_pnl_src = (Path(__file__).resolve().parent / "services" / "daily_pnl_email.py").read_text()
+check("the send routes through the chokepoint (send_notification, kind=reports)",
+      "send_notification" in _pnl_src and 'kind="reports"' in _pnl_src)
+check("no direct jobs.email import remains",
+      "from jobs.email import" not in _pnl_src)
 check("trigger slug is outcome-reconciliation", TRIGGER_SLUG == "outcome-reconciliation")
 
 # ── 2. _money_truth.md windows parse + render ──────────────────────────────

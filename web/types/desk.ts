@@ -79,7 +79,8 @@ export type KernelSurfaceSlug =
   | 'activity'
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
-  | 'connectors';  // ADR-425 — the account door's Connections pane (pane_of: settings)
+  | 'connectors'  // ADR-425 — the account door's Connections pane (pane_of: settings)
+  | 'notification-settings';  // ADR-593 D5 — the account door's Notifications pane (pane_of: settings)
   // ADR-454 D4 (2026-07-13): the ADR-426 system-agent slug LEFT the navigable
   // allowlist — the door is reversed (the ambient steward); the registry row is
   // `hidden` (hide-not-delete), the dials re-home pane_of → workspace-settings
@@ -132,7 +133,9 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   'files', 'agents', 'queue', 'notifications', 'activity',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).
-  'settings', 'workspace-settings', 'connectors',
+  // ADR-593 D5: `notification-settings` joins — the account door's
+  // Notifications pane (pane-grade, search-only; /notification-settings stub).
+  'settings', 'workspace-settings', 'connectors', 'notification-settings',
 ] as const;
 
 export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {

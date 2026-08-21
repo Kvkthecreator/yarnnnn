@@ -157,7 +157,9 @@ def test_d3_radar_face() -> None:
 def test_d4_witness_transport_real() -> None:
     print("\n[D4] the outbound witness seam is real — and writes no in_app rows")
     w = _read("api/services/witness.py")
-    _assert('pref="witness"' in w and "send_notification" in w,
+    # ADR-593 D1 re-anchored: pref="witness" became kind="decisions" (the
+    # dial renamed into the kind registry; same gate, same default).
+    _assert('kind="decisions"' in w and "send_notification" in w,
             "the send loop landed, routed through the ONE gated send path")
     _assert('channel="in_app"' not in w and "'in_app'" not in w,
             "no in_app rows from the witness path (ADR-410 D3 intent preserved)")
@@ -169,24 +171,31 @@ def test_d4_witness_transport_real() -> None:
     notif = _read("api/services/notifications.py")
     _assert("notification_prefs" in notif and "member_state" in notif,
             "prefs read from member_state (the ADR-407 D7 home)")
-    _assert('"witness_email"' in notif and '"high"' in notif,
-            "witness_email dial (all|high|none), default 'high' — quiet by default")
+    # ADR-593 D2 re-anchored: the dial lives at email.decisions in the kind
+    # registry, default 'high' — the quiet-by-default intent is unchanged.
+    from services.notifications import EMAIL_DIAL_DEFAULTS
+
+    _assert(EMAIL_DIAL_DEFAULTS.get("decisions") == "high",
+            "decisions dial (all|high|none) defaults 'high' — quiet by default")
 
     # Behavioral: the pref gate logic is pure — call it.
-    from services.notifications import DEFAULT_NOTIFICATION_PREFS, _pref_allows
+    from services.notifications import _pref_allows
 
-    _assert(_pref_allows(DEFAULT_NOTIFICATION_PREFS, "witness", "normal") is False,
+    defaults = {"email": dict(EMAIL_DIAL_DEFAULTS)}
+    _assert(_pref_allows(defaults, "decisions", "normal") is False,
             "default dial ('high') stays quiet at normal urgency")
-    _assert(_pref_allows(DEFAULT_NOTIFICATION_PREFS, "witness", "high") is True,
+    _assert(_pref_allows(defaults, "decisions", "high") is True,
             "default dial sends at high urgency")
-    _assert(_pref_allows({"witness_email": "all"}, "witness", "low") is True,
+    _assert(_pref_allows({"email": {"decisions": "all"}}, "decisions", "low") is True,
             "'all' opts into every after-witness push")
-    _assert(_pref_allows({"witness_email": "none"}, "witness", "high") is False,
+    _assert(_pref_allows({"email": {"decisions": "none"}}, "decisions", "high") is False,
             "'none' silences even high urgency")
-    _assert(_pref_allows({"delivery_email": False}, "delivery", "normal") is False,
-            "delivery pref honored")
-    _assert(_pref_allows(DEFAULT_NOTIFICATION_PREFS, "failure", "high") is True,
-            "failure pref defaults on")
+    _assert(_pref_allows(defaults, "reports", "high") is False,
+            "reports defaults 'none' — the opt-in posture (ADR-593 D4)")
+    _assert(_pref_allows(None, "decisions", "high") is False,
+            "an unreadable prefs store FAILS CLOSED (ADR-593 D3)")
+    _assert(_pref_allows(None, "direct", "normal") is True,
+            "'direct' is ungated by policy (recorded by the chokepoint)")
 
 
 def test_d4_dial_open_sends() -> None:
@@ -244,7 +253,7 @@ def test_d4_dial_open_sends() -> None:
             elif name == "workspaces":
                 rows = [{"owner_id": OWNER}]
             elif name == "member_state":
-                rows = [{"value": {"witness_email": "all"}}]
+                rows = [{"value": {"email": {"decisions": "all"}}}]
             return _Q(self.sink, name, rows)
 
     # Fake the two transports the send path reaches for: the user-email

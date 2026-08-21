@@ -13,11 +13,11 @@ keeping them made a SECOND store of what the attributed ledgers already say —
 the DP29 shape of mistake. In-app attention is pure derivation (the bell +
 Notifications mount the timeline + witness queue).
 
-ADR-489 D4 (2026-07-28): the outbound send loop LANDED. For each derived
-recipient, the one gated send path (`services.notifications.send_notification`
-with pref="witness") consults the recipient's member_state
-notification_prefs `witness_email` dial ('all' | 'high' | 'none', default
-'high') and emails only where the dial allows — so default behavior stays
+ADR-489 D4 (2026-07-28), re-cut by ADR-593 D2: the outbound send loop routes
+each recipient through the one gated send path
+(`services.notifications.send_notification` with kind="decisions") — the
+recipient's member_state notification_prefs `email.decisions` dial
+('all' | 'high' | 'none', default 'high') decides, so default behavior stays
 quiet (the bell remains the canonical after-witness channel; push is opt-in).
 Transport rows are workspace-stamped (ADR-407 D8), written only on actual
 sends. Still no in_app rows, ever.
@@ -92,7 +92,7 @@ async def emit_after_witness(
 
     Derives who is told (the roster minus the actor, ADR-405 D5) and routes
     each recipient through the ONE gated send path — email under the
-    recipient's `witness_email` dial (member_state notification_prefs,
+    recipient's `email.decisions` dial (member_state notification_prefs,
     default 'high' → quiet at normal urgency). In-app attention stays pure
     derivation (no in_app rows — ADR-410 D3 preserved). Returns the number
     of recipients an email actually went to. Best-effort: never fails the
@@ -117,12 +117,12 @@ async def emit_after_witness(
                 client,
                 recipient,
                 message,
+                kind="decisions",  # ADR-593 D1 — the witness dial, renamed
                 urgency=urgency,  # type: ignore[arg-type]
                 context=context,
                 source_type=source_type,
                 source_id=source_id,
                 workspace_id=workspace_id,
-                pref="witness",
             )
             if result.id:
                 sent += 1

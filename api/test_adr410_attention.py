@@ -88,7 +88,9 @@ def test_d3_notifications_outbound_only() -> None:
     _assert('channel="in_app"' not in w and "'in_app'" not in w, "no in_app channel usage")
     _assert("workspace_witnesses" in w, "the recipient derivation survives (the outbound seam)")
     _assert("ADR-410 D3" in w, "the retirement is attributed in-source")
-    _assert('pref="witness"' in w, "outbound transport is pref-gated (ADR-489 D4)")
+    # ADR-593 re-anchored: pref="witness" became kind="decisions" (the dial
+    # renamed into the kind registry; same gate, same intent).
+    _assert('kind="decisions"' in w, "outbound transport is pref-gated (ADR-489 D4 / ADR-593 D1)")
 
 
 def test_d4_vocabulary() -> None:

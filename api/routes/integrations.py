@@ -424,65 +424,10 @@ async def update_retention(request: RetentionRequest, auth: UserClient) -> dict[
     return {"retention_days": written, "success": True, "clamped": clamped, "tier_max_days": tier_max}
 
 
-class ConnectorSettingsRequest(BaseModel):
-    """The connector's per-connection settings. Partial: only the fields
-    present are written. extra="forbid" so a stale FE field is refused
-    loudly, never silently dropped (the ADR-562 lesson).
-
-    ADR-591 retired `cadence` (no clock to compare it against) and `digest`
-    (its walker is deleted). Under extra="forbid" a stale caller sending
-    either now gets a 422 — deliberately: a dial that no longer controls
-    anything must fail loudly, not appear to work."""
-
-    model_config = {"extra": "forbid"}
-
-    destination: Optional[str] = None
-
-
-@router.put("/integrations/{provider}/connector-settings")
-async def update_connector_settings_route(
-    provider: str,
-    request: ConnectorSettingsRequest,
-    auth: UserClient,
-) -> dict[str, Any]:
-    """Set the connector's per-connection settings (ADR-582 D3, narrowed by
-    ADR-591 to one): destination — where snapshots land; empty → the
-    intake-grammar default lane.
-
-    400 on an invalid destination; 404 when the platform is not connected.
-    """
-    from services.connectors import connector_settings, update_connector_settings
-
-    patch = request.model_dump(exclude_unset=True)
-    # destination=null is a real instruction (reset to the default lane), so
-    # it survives the None filter that guards partial writes.
-    patch = {
-        k: v for k, v in patch.items()
-        if v is not None or k == "destination"
-    }
-    if not patch:
-        raise HTTPException(status_code=400, detail="No settings provided.")
-
-    db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
-    try:
-        touched = update_connector_settings(
-            auth.client, auth.user_id, db_platform, patch,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    if touched is None:
-        raise HTTPException(
-            status_code=404, detail=f"No {provider} connection found.",
-        )
-    # Echo the normalized, defaults-applied view (what a consumer will read),
-    # not the raw patch.
-    stored = connector_settings({"platform": db_platform,
-                                 "settings": {"connector": touched}})
-    return {
-        "success": True,
-        "provider": provider,
-        "settings": {"destination": stored["destination"]},
-    }
+# The connector-settings door is DELETED (ADR-594 D1): the destination dial
+# was the last setting, and the landing grammar is now fixed — a connection
+# is a rail (consent + credential + aperture), it carries no placement
+# choice. `settings["connector"]` is an unread fossil key.
 
 
 # =============================================================================
@@ -1534,8 +1479,9 @@ async def get_capture_signal(
       - `connection` — {workspace_name, connected_at} for the header line.
       - `capture` — {schedule, paused}; paused = empty selection (ADR-582:
         there is no seeded entry any more).
-      - `settings` — the three ADR-582 dials {cadence, destination, digest},
-        defaults applied; null when unconnected.
+      - `settings` — the surviving connector dial {destination} (ADR-591
+        retired cadence + digest with the walker), defaults applied; null
+        when unconnected.
       - `does` — the capability facts {reads, writes, agents}, derived from
         the capture binding + exporter registry + the ADR-577 refusal.
       - `agent_enabled` — the deploy-level gate (ADR-375 D4): when False,
@@ -1558,7 +1504,7 @@ async def get_capture_signal(
     """
     from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal
-    from services.connectors import connection_target, connector_does, connector_settings
+    from services.connectors import connection_target, connector_does
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
@@ -1618,19 +1564,10 @@ async def get_capture_signal(
             "connected_at": conn_row.get("created_at"),
         }
 
-    # SETTINGS — the connection's own dials (ADR-582 D3, narrowed by ADR-591).
-    # `connector_settings` returns {destination, last_capture_at} and nothing
-    # else: ADR-591 deleted the clock, so `cadence` and `digest` have no source
-    # to read. Reading them here raised KeyError for every CONNECTED provider
-    # (an unconnected one returns early), 500ing a call both callers swallow.
-    # The retired `capture` block went with them — it carried `schedule` off
-    # the same deleted cadence, and no caller ever read it.
+    # SETTINGS — gone (ADR-594 D1): the destination dial was the last one,
+    # and the landing grammar is fixed. The key is served as None until no
+    # deployed client reads it, then dropped.
     settings_obj: Optional[dict[str, Any]] = None
-    if conn_row:
-        cs = connector_settings(conn_row)
-        settings_obj = {
-            "destination": cs["destination"],
-        }
 
     return {
         "provider": provider,

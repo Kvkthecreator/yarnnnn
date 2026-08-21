@@ -96,7 +96,17 @@ export default function OperationPage() {
               icon={ClipboardCheck}
               title="To do"
               subtitle="What wants your decision — approve or reject below."
-              action={<MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />}
+              action={
+                <div className="flex items-center gap-4">
+                  <MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />
+                  {/* ADR-593 D5 — the window finally links the settings that
+                      govern what reaches its viewer. */}
+                  <MirrorLink
+                    label="Notification settings"
+                    onClick={() => navigateToSurface("settings", { pane: "notification-settings" })}
+                  />
+                </div>
+              }
             />
             <div className="flex-1 overflow-y-auto p-6">
               {/* ADR-350: the standing obligation (owed-vs-actual + the

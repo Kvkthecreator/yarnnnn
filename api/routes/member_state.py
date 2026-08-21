@@ -70,6 +70,16 @@ async def get_member_state(key: str, auth: UserClient) -> dict:
         raise HTTPException(status_code=500, detail="member_state read failed")
 
 
+@router.get("/notification-kinds")
+async def get_notification_kinds() -> dict:
+    """The declared notification-kind registry (ADR-593 D1) — served so the
+    Notifications pane renders backend-driven vocabulary (a hand-kept FE copy
+    is the drift ADR-592 exists to prevent). Static; no per-caller state."""
+    from services.notifications import NOTIFICATION_KINDS, EMAIL_DIAL_DEFAULTS
+
+    return {"kinds": NOTIFICATION_KINDS, "email_defaults": EMAIL_DIAL_DEFAULTS}
+
+
 @router.put("/member-state/{key}")
 async def put_member_state(key: str, auth: UserClient, value: Any = Body(...)) -> dict:
     if not _KEY_RE.match(key):
@@ -77,6 +87,14 @@ async def put_member_state(key: str, auth: UserClient, value: Any = Body(...)) -
     import json
     if len(json.dumps(value)) > _MAX_VALUE_BYTES:
         raise HTTPException(status_code=413, detail="member_state value too large")
+    # ADR-593 D2 — notification_prefs is the one schema-checked key: a typo'd
+    # enum must be refused at the door, never stored as permanent silence.
+    if key == "notification_prefs":
+        from services.notifications import validate_notification_prefs
+
+        errors = validate_notification_prefs(value)
+        if errors:
+            raise HTTPException(status_code=422, detail={"notification_prefs": errors})
     ws, principal = _scope(auth)
     try:
         get_service_client().table("member_state").upsert(

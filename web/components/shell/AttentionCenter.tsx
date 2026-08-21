@@ -524,13 +524,27 @@ export function AttentionCenter() {
               )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => goTo('resolve')}
-            className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-muted border-t border-border transition-colors"
-          >
-            Open Notifications →
-          </button>
+          <div className="flex items-center justify-between border-t border-border">
+            <button
+              type="button"
+              onClick={() => goTo('resolve')}
+              className="text-left px-3 py-2 text-xs text-primary hover:bg-muted transition-colors"
+            >
+              Open Notifications →
+            </button>
+            {/* ADR-593 D5 — the management door: the surface this popover IS
+                finally links the settings that govern it. */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                navigateToSurface('settings', { pane: 'notification-settings' });
+              }}
+              className="px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              Settings
+            </button>
+          </div>
         </div>
       )}
     </div>

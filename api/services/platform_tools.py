@@ -2820,21 +2820,6 @@ async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     # fetch is for the per-user audience-addressing wire (ADR-192 Phase 4)
     # used by send + send_bulk. send_to_operator does NOT need it.
     if tool == "send_to_operator":
-        from jobs.unified_scheduler import get_user_email
-        from jobs.email import send_email as system_send_email
-
-        operator_email = await get_user_email(auth.client, auth.user_id)
-        if not operator_email:
-            return {
-                "success": False,
-                "error": (
-                    "Operator email unresolvable from auth.users — cannot "
-                    "send operator-addressing email. This is a kernel-level "
-                    "identity-resolution failure, not an operator-fixable "
-                    "preference issue."
-                ),
-            }
-
         subject = tool_input.get("subject")
         html = tool_input.get("html")
         if not subject or not html:
@@ -2857,16 +2842,38 @@ async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
                     ),
                 }
 
-        # System Resend wire — RESEND_API_KEY env var; from_email defaults to
-        # RESEND_FROM_EMAIL env var (canonically `yarnnn <noreply@yarnnn.com>`).
-        # Reply-To pinned to operator's own email so any reply lands in their inbox.
-        result = await system_send_email(
-            to=operator_email,
+        # ADR-593 D3 — routes through the send_notification chokepoint with
+        # kind="direct": ungated by policy (the operator's own agent addressing
+        # them under explicit instruction — the instruction is the consent),
+        # but RECORDED, so /api/emissions stays honest about what was sent.
+        # The chokepoint resolves the address from operator identity and pins
+        # Reply-To to it so any reply lands in the operator's own inbox.
+        from jobs.unified_scheduler import get_user_email
+        from services.notifications import send_notification
+
+        operator_email = await get_user_email(auth.client, auth.user_id)
+        if not operator_email:
+            return {
+                "success": False,
+                "error": (
+                    "Operator email unresolvable from auth.users — cannot "
+                    "send operator-addressing email. This is a kernel-level "
+                    "identity-resolution failure, not an operator-fixable "
+                    "preference issue."
+                ),
+            }
+
+        result = await send_notification(
+            auth.client,
+            auth.user_id,
+            subject,
+            kind="direct",
+            source_type="agent",
             subject=subject,
             html=html,
             reply_to=tool_input.get("reply_to") or operator_email,
         )
-        if not result.success:
+        if result.status != "sent":
             return {
                 "success": False,
                 "error": result.error or "Email send failed",
@@ -2874,7 +2881,7 @@ async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
 
         return {
             "success": True,
-            "result": {"message_id": result.message_id},
+            "result": {"notification_id": result.id},
             "addressed_to": operator_email,
             "wire": "system_resend",
         }

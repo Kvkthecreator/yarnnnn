@@ -137,37 +137,10 @@ def _map_resend_event_to_delivery_status(event_type: str) -> Optional[str]:
     return None
 
 
-def _map_resend_event_to_log_status(event_type: str) -> str:
-    """Map Resend event type to email_delivery_log.status."""
-    normalized = (event_type or "").lower()
-    if normalized.startswith("email."):
-        return normalized.split(".", 1)[1]
-    return normalized or "unknown"
-
-
 def _extract_resend_message_id(payload: dict[str, Any]) -> Optional[str]:
     """Extract provider message ID from Resend webhook payload."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     return data.get("email_id") or data.get("id") or payload.get("email_id")
-
-
-def _extract_recipient(
-    data: dict[str, Any],
-    destination: Optional[dict[str, Any]],
-) -> Optional[str]:
-    """Extract recipient from webhook payload, fallback to export destination."""
-    to_value = data.get("to")
-    if isinstance(to_value, list) and to_value:
-        return str(to_value[0])
-    if isinstance(to_value, str) and to_value:
-        return to_value
-
-    if isinstance(destination, dict):
-        target = destination.get("target")
-        if isinstance(target, str) and target:
-            return target
-
-    return None
 
 
 def _merge_export_outcome(
@@ -216,7 +189,6 @@ def _record_resend_webhook(payload: dict[str, Any]) -> int:
         or datetime.now(timezone.utc).isoformat()
     )
     delivery_status = _map_resend_event_to_delivery_status(event_type)
-    email_log_status = _map_resend_event_to_log_status(event_type)
 
     client = get_service_client()
     rows = (
@@ -257,21 +229,11 @@ def _record_resend_webhook(payload: dict[str, Any]) -> int:
                 .execute()
             )
 
-        recipient = _extract_recipient(data, row.get("destination"))
-        if recipient:
-            try:
-                client.table("email_delivery_log").insert({
-                    "scheduled_message_id": None,
-                    "recipient": recipient,
-                    "subject": data.get("subject"),
-                    "provider": "resend",
-                    "provider_message_id": message_id,
-                    "status": email_log_status,
-                    "status_updated_at": observed_at,
-                }).execute()
-            except Exception as e:
-                # Non-fatal (legacy table, optional observability sink)
-                log.warning(f"[RESEND_WEBHOOK] Failed to write email_delivery_log: {e}")
+        # ADR-593 D6: the email_delivery_log write is DELETED with its table —
+        # it was write-only by construction (RLS joined through the dead
+        # scheduled_messages parent; zero readers, zero rows in production).
+        # export_log.outcome + agent_runs.delivery_status remain the
+        # delivery-outcome record.
 
     return len(export_rows)
 

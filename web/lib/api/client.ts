@@ -422,7 +422,11 @@ export interface Participant {
 // CONTRACT.md, the designated target leaf revised by Keeper.
 export interface StringSource {
   id: string;
-  url: string;
+  /** An HTTP pull source. Exactly one of `url` / `connector`+`selector`. */
+  url?: string | null;
+  /** A connector slice (ADR-582 D6 / ADR-594): reach with a receipt. */
+  connector?: string | null;
+  selector?: string | null;
 }
 
 export interface StringSummary {
@@ -2841,13 +2845,10 @@ export const api = {
         // ADR-591 — the `capture` field is GONE. It carried `schedule` off the
         // cadence this ADR deleted, and no caller ever read it; the server
         // emitter raised KeyError for every connected provider.
-        // ADR-582/591 — the per-connection settings, defaults applied.
-        // OPTIONAL: the API deploys separately; an older payload has no
-        // `settings` and the section simply doesn't render. `cadence` and
-        // `digest` were retired with the walker (ADR-591 D1/D3.a).
-        settings?: {
-          destination: string | null;
-        } | null;
+        // ADR-594 D1 — settings are GONE (the destination dial was the last
+        // one; the landing grammar is fixed). Served as null until no
+        // deployed client reads it.
+        settings?: null;
         // The capability facts (reads / writes / agents), derived server-side
         // from the machinery that enacts them. OPTIONAL for the same reason.
         does?: {
@@ -2863,26 +2864,9 @@ export const api = {
         connector_capture_enabled?: boolean;
       }>(`/api/integrations/${provider}/capture-signal`),
 
-    // ADR-582 D3, narrowed by ADR-591 to one setting: destination (null →
-    // the default inbound lane). Partial: send only what changed;
-    // destination:null is a real instruction (reset to the default lane).
-    // The API forbids extra fields — a stale `cadence`/`digest` 422s.
-    updateConnectorSettings: (
-      provider: "slack" | "notion" | "github",
-      patch: {
-        destination?: string | null;
-      },
-    ) =>
-      request<{
-        success: boolean;
-        provider: string;
-        settings: {
-          destination: string | null;
-        };
-      }>(`/api/integrations/${provider}/connector-settings`, {
-        method: "PUT",
-        body: JSON.stringify(patch),
-      }),
+    // The connector-settings door is DELETED (ADR-594 D1): the destination
+    // dial was the last setting, and the landing grammar is fixed — a
+    // connection is a rail (consent + credential + aperture).
 
     // ADR-401 D6: health is DERIVED, never stored — this runs the real
     // validate probe (for Slack it actually reads the platform). The stored
@@ -3188,6 +3172,23 @@ export const api = {
         }
       ).then(() => undefined),
   },
+
+  // ADR-593 D1 — the declared notification-kind registry. Backend-driven
+  // vocabulary for the Notifications settings pane (a hand-kept FE copy is
+  // the drift ADR-592 exists to prevent). `email_default: null` = declared
+  // but not wired: render the `email_note` refusal, never a dead dial.
+  notificationKinds: () =>
+    request<{
+      kinds: Array<{
+        key: string;
+        owner: string; // 'kernel' | an app slug
+        label: string;
+        description: string;
+        email_default: 'all' | 'high' | 'none' | null;
+        email_note: string | null;
+      }>;
+      email_defaults: Record<string, 'all' | 'high' | 'none'>;
+    }>("/api/notification-kinds"),
 
   // ADR-310 D4: MCP OAuth login handoff. The web /mcp/authorize page calls
   // this with the operator's JWT to bind the real user to the pending auth

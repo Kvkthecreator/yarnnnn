@@ -159,6 +159,10 @@ def test_three_way_parity() -> None:
             # (2026-07-09): `program` LEFT the pane set — the operator hire pane
             # is retired, the slug is dormant (routeless).
             "connectors",
+            # ADR-593 D5 (2026-08-21): `notification-settings` joins — the
+            # account door's Notifications pane (the management door for the
+            # bell/window pair).
+            "notification-settings",
             # Recurrence (Machinery) — ADR-340 D8
             "activity",
         },

@@ -974,6 +974,30 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Your platform connections (Slack, Notion, GitHub, Alpaca, Lemon Squeezy, etc.) — each is your own credential, in your account. Connect, see status, disconnect.",
     },
     {
+        # ADR-593 D5 (2026-08-21) — the Notifications settings pane, on the
+        # account door. "What should I be told" is a personal question (DP35
+        # member-experience scope, never authorization), so it lives beside
+        # Account/Connectors — but the STORE it edits is per (workspace,
+        # principal) (ADR-489 D5: mute one commons, not all), so the pane names
+        # the acting workspace it governs. The pane renders the ADR-593 D1 kind
+        # registry (GET /api/notification-kinds) — apps declare semantics, the
+        # kernel derives emission, the OS routes/presents/manages. Distinct
+        # from the `notifications` WINDOW (the bell's workbench zoom — a
+        # read/act surface); this is its management door.
+        "slug": "notification-settings",
+        "launcher_tier": "search-only",
+        "register": "os-config",
+        "pane_of": "settings",
+        "pane_group": "Notifications",
+        "title": "Notifications",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # member_state['notification_prefs'] via the KV routes
+        "icon_key": "bell",
+        "default_pinned": False,
+        "route": "/notification-settings",
+        "summary": "How this workspace reaches you — email dials per notification kind. In-app attention is always on (derived); each workspace remembers its own settings.",
+    },
+    {
         # ADR-425 D2 (2026-07-09): Sources is HIDDEN from the operator surface.
         # It has no pane home — `pane_of`/`pane_group` stripped so it renders
         # nowhere; the row is retained (hide-not-delete) so the slug still

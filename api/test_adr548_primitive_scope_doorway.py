@@ -92,7 +92,6 @@ _OWNER_RESOLVED_MODULES = {
     "services/outcomes/ledger.py",
     "services/outcomes/operator.py",
     "services/outcomes/trading.py",
-    "services/daily_update_email.py",
     "services/daily_pnl_email.py",
     "services/recurrence.py",
     "services/risk_gate.py",

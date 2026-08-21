@@ -156,7 +156,12 @@ WEB_EXCLUDE_DIRS = {"node_modules", ".next", "dist", "build"}
 # Backend files that compose operator-facing narration/email text.
 BACKEND_COPY_FILES = [
     REPO_ROOT / "api" / "services" / "freddie_chat_surfacing.py",
-    REPO_ROOT / "api" / "services" / "daily_update_email.py",
+    # daily_update_email.py left this list when ADR-593 D6 deleted the module.
+    # daily_pnl_email.py deliberately NOT added in its place: its flagged
+    # strings are docstrings + the machine-written sent-marker body, not
+    # rendered operator copy — adding it would spend allowlist entries on
+    # false positives. Its rendered email HTML lives in build_html, which a
+    # future precision pass can scope in.
     REPO_ROOT / "api" / "services" / "notifications.py",
     REPO_ROOT / "api" / "services" / "narrative.py",
 ]

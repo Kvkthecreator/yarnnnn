@@ -24,9 +24,15 @@ Derived Principle 12 — channel legibility).
 
 Observability, not consequential action (ADR-299 D5): the opt-in IS the
 standing approval. AUTONOMY `delegation` does NOT gate this — it is the
-operator's own inbox, no third-party write, same model ADR-040 + ADR-202
-already use for the operator-addressing channel. Default-off in the bundle
-(`active: false`); the operator flips it on per workspace.
+operator's own inbox, no third-party write.
+
+ADR-593 D4: the opt-in moved from `contract/_preferences.yaml`
+`operator_notifications` (a second pref store, deleted) into the ONE store —
+member_state['notification_prefs'] `email.reports` dial, default 'none'
+(opt-in posture preserved; the operator flips it on per workspace in the
+Notifications pane). The send routes through the `send_notification`
+chokepoint (gate + transport row + send); only the sent-marker idempotency
+stays local — it is send-dedup, not a preference.
 """
 
 from __future__ import annotations
@@ -39,12 +45,8 @@ logger = logging.getLogger(__name__)
 # The recurrence whose completion triggers this dispatcher.
 TRIGGER_SLUG = "outcome-reconciliation"
 
-# The operator_notifications opt-in slug in _preferences.yaml.
-NOTIFICATION_SLUG = "daily_pnl_reconciliation"
-
 # Canonical substrate the dispatcher reads (the judgment's output).
 MONEY_TRUTH_PATH = "/workspace/operation/trading/_money_truth.md"
-PREFERENCES_PATH = "/workspace/contract/_preferences.yaml"
 
 
 def _get_workspace_file_content(client: Any, user_id: str, path: str) -> Optional[str]:
@@ -68,30 +70,6 @@ def _get_workspace_file_content(client: Any, user_id: str, path: str) -> Optiona
     except Exception as exc:  # noqa: BLE001 — best-effort read
         logger.warning("[daily-pnl] read failed for %s: %s", path, exc)
     return None
-
-
-def is_opted_in(preferences_content: Optional[str]) -> bool:
-    """True iff the operator flipped operator_notifications.daily_pnl_reconciliation active.
-
-    Default-off discipline (ADR-299): the bundle ships `active: false`; this
-    returns False unless the operator explicitly set `active: true`.
-    """
-    if not preferences_content:
-        return False
-    try:
-        from services.review_policy import load_workspace_yaml
-
-        parsed = load_workspace_yaml(preferences_content) or {}
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[daily-pnl] _preferences.yaml parse failed: %s", exc)
-        return False
-
-    for entry in parsed.get("operator_notifications") or []:
-        if not isinstance(entry, dict):
-            continue
-        if entry.get("slug") == NOTIFICATION_SLUG:
-            return bool(entry.get("active") is True)
-    return False
 
 
 def _parse_money_truth_windows(money_truth_content: str) -> dict:
@@ -272,15 +250,11 @@ async def maybe_send_daily_pnl_email(client: Any, user_id: str) -> dict:
     notification failure). Returns a structured result for logging/telemetry.
 
     Gates, in order:
-      1. operator opted in (operator_notifications.daily_pnl_reconciliation active)
-      2. not already sent today (idempotency — one email per UTC day)
-      3. _money_truth.md exists (the judgment produced substrate to summarize)
-      4. operator email resolvable
+      1. not already sent today (idempotency — one email per UTC day)
+      2. _money_truth.md exists (the judgment produced substrate to summarize)
+      3. the recipient's `email.reports` dial, enforced INSIDE the
+         send_notification chokepoint (ADR-593 D3/D4; default 'none' = opt-in)
     """
-    prefs = _get_workspace_file_content(client, user_id, PREFERENCES_PATH)
-    if not is_opted_in(prefs):
-        return {"sent": False, "reason": "not_opted_in"}
-
     # Idempotency: the send-time clock is a runtime concern (Axiom 4 — time is
     # perceived, not stored), so the UTC date is read here, not from substrate.
     # The substrate marker records WHICH date was last sent (auditable, restart-
@@ -295,34 +269,33 @@ async def maybe_send_daily_pnl_email(client: Any, user_id: str) -> dict:
     if not money_truth:
         return {"sent": False, "reason": "no_money_truth"}
 
-    try:
-        from jobs.unified_scheduler import get_user_email
-
-        to = await get_user_email(client, user_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[daily-pnl] email lookup failed for %s: %s", user_id[:8], exc)
-        to = None
-    if not to:
-        return {"sent": False, "reason": "no_operator_email"}
-
     windows = _parse_money_truth_windows(money_truth)
 
-    from jobs.email import send_email
     from services.deep_links import overview_url as _overview_url
+    from services.notifications import send_notification
 
     overview = _overview_url()
     headline = build_headline(windows)
-    result = await send_email(
-        to=to,
+    # ADR-593 D3/D4 — the one chokepoint: gates on the recipient's
+    # `email.reports` dial (default 'none' — opt-in), records the transport
+    # row, resolves the address, sends the composed email.
+    result = await send_notification(
+        client,
+        user_id,
+        f"Daily P&L — {headline}",
+        kind="reports",
+        source_type="system",
         subject=f"Daily P&L — {headline}",
         html=build_html(windows, overview),
         text=build_text(windows, overview),
     )
-    if result.success:
+    if result.status == "skipped":
+        return {"sent": False, "reason": "not_opted_in"}
+    if result.status == "sent":
         # Stamp the marker only AFTER a confirmed send — a failed send should be
         # retryable on the next fire, not suppressed by a premature marker.
         _stamp_sent_marker(client, user_id, today, headline)
         logger.info("[daily-pnl] sent to %s (%s)", user_id[:8], headline)
-        return {"sent": True, "headline": headline, "message_id": result.message_id}
+        return {"sent": True, "headline": headline}
     logger.warning("[daily-pnl] send failed for %s: %s", user_id[:8], result.error)
     return {"sent": False, "reason": "send_failed", "error": result.error}
