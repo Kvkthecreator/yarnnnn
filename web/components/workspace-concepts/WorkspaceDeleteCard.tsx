@@ -42,6 +42,13 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
   const [loaded, setLoaded] = useState(false);
   const [forbidden, setForbidden] = useState(false);
   const [confirming, setConfirming] = useState<"delete" | "purge" | null>(null);
+  // Typed confirmation for PURGE only. Delete is reversible (Restore sits
+  // beside it), so a second click is proportionate friction there; purge
+  // destroys every file AND its history with no undo, which is the one act on
+  // this surface where the near-universal SaaS convention — type the name —
+  // actually earns its cost. Friction on a reversible act just trains people
+  // to type through the irreversible one.
+  const [purgeTyped, setPurgeTyped] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,8 +85,33 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
   }, [load]);
 
   if (!workspaceId || !loaded) return null;
-  // A 403 is a fact about the caller — this card is not theirs to see.
-  if (forbidden) return null;
+  // A 403 is a fact about the caller — but SHOW the control, disabled, with the
+  // reason. This used to `return null`, so a member saw the two clear cards
+  // greyed with "Only the workspace owner can clear shared content" and then
+  // simply no delete card at all: ONE pane, TWO refusal treatments, and the
+  // heavier act was the one that vanished. A missing control teaches nothing —
+  // the member cannot tell whether deletion is unavailable to them, or absent
+  // from the product. Disabled-with-a-reason tells them who to ask. Enforcement
+  // is server-side regardless (_assert_delete_authority); this is legibility,
+  // not permission. The preview never loads under a 403, so this renders from
+  // no workspace data at all.
+  if (forbidden) {
+    return (
+      <div className="rounded-lg border border-border p-4 opacity-70">
+        <div className="flex items-start gap-3">
+          <Trash2 className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+          <div className="min-w-0">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Delete Workspace
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Only the workspace owner can delete this workspace.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   // Anything else that stopped the preview loading is a BROKEN SURFACE, not a
   // refusal. Returning null here erased the card silently (2026-08-20 audit);
   // the whole point of naming the failure is that "Delete Workspace" vanishing
@@ -104,6 +136,7 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
   const act = async (verb: "delete" | "restore" | "purge") => {
     setPending(verb);
     setError(null);
+    setPurgeTyped("");
     try {
       if (verb === "delete") {
         await api.workspace.softDelete(workspaceId);
@@ -253,18 +286,44 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                         Download it first if you want to keep a copy.
                       </span>
                     </span>
+                    {/* Type the workspace name. The name is shown right here:
+                        the point is not recall, it is making the operator
+                        NAME the thing they are destroying, so an
+                        already-moving hand has to stop. Compared
+                        case-insensitively and trimmed — this is a speed bump,
+                        not a spelling test. */}
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">
+                        Type <span className="font-medium text-foreground">{preview.name}</span> to confirm:
+                      </span>
+                      <input
+                        type="text"
+                        value={purgeTyped}
+                        onChange={(e) => setPurgeTyped(e.target.value)}
+                        disabled={pending !== null}
+                        aria-label={`Type ${preview.name} to confirm permanent deletion`}
+                        autoComplete="off"
+                        className="w-48 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                      />
+                    </label>
                     <button
                       type="button"
                       onClick={() => void act("purge")}
-                      disabled={pending !== null}
-                      className="px-3 py-1.5 rounded-md bg-destructive text-destructive-foreground text-sm inline-flex items-center gap-1.5"
+                      disabled={
+                        pending !== null ||
+                        purgeTyped.trim().toLowerCase() !== preview.name.trim().toLowerCase()
+                      }
+                      className="px-3 py-1.5 rounded-md bg-destructive text-destructive-foreground text-sm inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {pending === "purge" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       Purge forever
                     </button>
                     <button
                       type="button"
-                      onClick={() => setConfirming(null)}
+                      onClick={() => {
+                        setConfirming(null);
+                        setPurgeTyped("");
+                      }}
                       className="px-3 py-1.5 rounded-md border text-sm"
                     >
                       Cancel

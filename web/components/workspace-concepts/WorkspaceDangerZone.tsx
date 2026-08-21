@@ -69,6 +69,11 @@ export function WorkspaceDangerZone() {
   // workspace CLEARS it), which is precisely the caller who may delete.
   const { memberships } = useWorkspaceMemberships();
   const activeWorkspaceId = memberships.find((m) => m.is_active)?.workspace_id ?? null;
+  // The acting workspace's NAME, for the typed confirmation on L2. `label` is
+  // the server's own display name (workspace name, else a humanized fallback),
+  // so the string the operator is asked to type is the string every other
+  // surface shows them.
+  const activeWorkspaceLabel = memberships.find((m) => m.is_active)?.label ?? null;
   const [otherMemberCount, setOtherMemberCount] = useState(0);
 
   useEffect(() => {
@@ -216,6 +221,7 @@ export function WorkspaceDangerZone() {
         busy={pending === "workspace"}
         confirming={confirming === "workspace"}
         confirmCopy="This removes all workspace content for every member. Continue?"
+        typeToConfirm={activeWorkspaceLabel}
         onAsk={() => setConfirming("workspace")}
         onCancel={() => setConfirming(null)}
         onConfirm={() => void run("workspace")}
@@ -263,6 +269,7 @@ function ActionCard({
   busy,
   confirming,
   confirmCopy,
+  typeToConfirm,
   onAsk,
   onCancel,
   onConfirm,
@@ -276,10 +283,23 @@ function ActionCard({
   busy: boolean;
   confirming: boolean;
   confirmCopy: string;
+  /** When set, the operator must type this string to enable Confirm. OPT-IN:
+   *  only the IRREVERSIBLE act carries it (L2 wipes every member's files with
+   *  no undo). L1 stays a two-click act — putting friction on the lighter one
+   *  too would just train people to type through the heavier one. */
+  typeToConfirm?: string | null;
   onAsk: () => void;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  // Local to the card: cleared on cancel so a reopened confirm starts empty.
+  const [typed, setTyped] = useState("");
+  // Trimmed + case-insensitive — a speed bump that makes the operator NAME
+  // what they are destroying, not a spelling test.
+  const confirmSatisfied =
+    !typeToConfirm ||
+    typed.trim().toLowerCase() === typeToConfirm.trim().toLowerCase();
+
   const border =
     tone === "amber"
       ? "border-amber-200 dark:border-amber-900/50"
@@ -301,15 +321,34 @@ function ActionCard({
         </div>
         {confirming ? (
           <div className="flex items-center gap-2 shrink-0">
+            {typeToConfirm && (
+              <label className="inline-flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">
+                  Type <span className="font-medium text-foreground">{typeToConfirm}</span>:
+                </span>
+                <input
+                  type="text"
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                  aria-label={`Type ${typeToConfirm} to confirm`}
+                  autoComplete="off"
+                  className="w-40 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+              </label>
+            )}
             <button
-              onClick={onCancel}
+              onClick={() => {
+                setTyped("");
+                onCancel();
+              }}
               className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
             >
               Cancel
             </button>
             <button
               onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium rounded-md border border-destructive/50 text-destructive hover:bg-destructive/10"
+              disabled={!confirmSatisfied}
+              className="px-4 py-2 text-sm font-medium rounded-md border border-destructive/50 text-destructive hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Confirm
             </button>

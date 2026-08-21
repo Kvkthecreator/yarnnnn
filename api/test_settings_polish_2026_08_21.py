@@ -164,6 +164,53 @@ record(
     is not None,
 )
 
+# -- 7. destructive-act treatment: shown-and-disabled, typed where final ----
+# Refusal treatment must be CONSISTENT across one pane. The clear cards render
+# greyed with "Only the workspace owner can clear shared content"; the delete
+# card used to `return null` on 403, so the HEAVIER act was the one that
+# vanished — a member could not tell whether deletion was unavailable to them
+# or absent from the product. Enforcement is server-side either way
+# (_assert_delete_authority / _require_workspace_clear_authority); this is
+# legibility.
+delete_card = _src("web/components/workspace-concepts/WorkspaceDeleteCard.tsx")
+record(
+    "a refused delete card is SHOWN with a reason, not hidden",
+    "if (forbidden) return null;" not in _strip_comments(delete_card)
+    and "Only the workspace owner can delete this workspace." in delete_card,
+    "returning null makes the heaviest act invisible to a member",
+)
+danger = _src("web/components/workspace-concepts/WorkspaceDangerZone.tsx")
+record(
+    "a refused clear card keeps its stated reason",
+    "Only the workspace owner can clear shared content." in danger,
+)
+
+# Typed confirmation guards the IRREVERSIBLE acts only.
+record(
+    "L2 (clear workspace, no undo) requires typing the workspace name",
+    "typeToConfirm={activeWorkspaceLabel}" in danger,
+)
+record(
+    "L1 (clear history) does NOT — friction on the lighter act trains "
+    "people to type through the heavier one",
+    danger.count("typeToConfirm={") == 1,
+    f"typeToConfirm wired {danger.count('typeToConfirm={')} times",
+)
+record(
+    "the Confirm button is actually gated on the typed value",
+    "disabled={!confirmSatisfied}" in danger,
+    "an input nobody checks is theatre",
+)
+record(
+    "purge (destroys history, no undo) requires typing the name too",
+    "purgeTyped.trim().toLowerCase() !== preview.name.trim().toLowerCase()"
+    in delete_card,
+)
+record(
+    "delete (reversible — Restore sits beside it) stays a two-click act",
+    "purgeTyped" in delete_card and "deleteTyped" not in delete_card,
+)
+
 print("=" * 62)
 print(f"settings polish gate: {_passed}/{_passed + _failed} passed, {_failed} failed")
 print("=" * 62)
