@@ -141,6 +141,29 @@ record(
     "'AI connections'" in members and "scope === 'mine'" in members,
 )
 
+# -- 6. no confidently-wrong first frame ------------------------------------
+# The roster fetch runs in a MOUNT EFFECT (post-paint). If the loading flag
+# starts false, the first frame renders the loaded branch against an EMPTY
+# status map: every connector reads as un-connected and falls into "New
+# connection", offering platforms that are ALREADY connected. Observed in prod
+# 2026-08-21 (Slack offered as new while active). There is no correct render
+# before the roster arrives, so the initial state must be "loading".
+raw_section = _src("web/components/settings/ConnectedIntegrationsSection.tsx")
+m = re.search(r"isLoadingIntegrations,\s*set\w+\]\s*=\s*useState\((\w+)\)", raw_section)
+record(
+    "the connector roster starts in its loading state",
+    bool(m) and m.group(1) == "true",
+    f"useState({m.group(1) if m else '?'}) — first frame offers connected "
+    "platforms as new",
+)
+# The drill-in makes the same shape of fetch; it already gets this right.
+raw_manage = _src("web/components/settings/ManageConnectionSubsurface.tsx")
+record(
+    "the connection drill-in starts in its loading state too",
+    re.search(r"\[loading,\s*setLoading\]\s*=\s*useState\(true\)", raw_manage)
+    is not None,
+)
+
 print("=" * 62)
 print(f"settings polish gate: {_passed}/{_passed + _failed} passed, {_failed} failed")
 print("=" * 62)

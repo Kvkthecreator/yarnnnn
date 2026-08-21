@@ -141,7 +141,14 @@ export function ConnectedIntegrationsSection({
   // ADR-404 D2: the capture lane is dormant for the commons-first launch —
   // the freshness strip + retention dial render only when the lane runs.
   const [captureEnabled, setCaptureEnabled] = useState(false);
-  const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
+  // Starts TRUE. The fetch runs in a mount effect (post-paint), so with this
+  // false the FIRST FRAME rendered the loaded branch against an EMPTY
+  // `platformStatuses` — every connector read as un-connected and dropped into
+  // "New connection", which offered Slack/Notion/GitHub as new while all three
+  // were already connected. A flash of confidently wrong content, which reads
+  // as a broken feature rather than as a load. There is no correct render
+  // before the roster arrives, so the honest initial state is "loading".
+  const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(true);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
   // ADR-494 D2 — the commerce/trading api-key connect state is DELETED along
