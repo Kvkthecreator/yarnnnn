@@ -47,6 +47,16 @@ from services.authored_substrate import (
     extract_derived_from_list as _extract_derived_from_list,
 )
 
+# Module-level, deliberately: `compose_open` reads these at module scope
+# (2026-08-22 outage: this import block was swallowed into `_substrate_scope`'s
+# body by a merge, making the names function-local — every `open` then died
+# with NameError while the import-time surface stayed green).
+from services.workspace_context import (
+    describe_if_trashed,
+    live_files_filter,
+    substrate_scope_filter,
+)
+
 
 def _substrate_scope(auth) -> tuple:
     """(column, value) scope for substrate reads — ADR-407 Phase 1.
@@ -56,11 +66,6 @@ def _substrate_scope(auth) -> tuple:
     caller's own row set. Closes the audit's 'reads still user-scoped'
     remainder — a foreign LLM or member reading under a grant sees the shared rows.
     """
-    from services.workspace_context import (
-    describe_if_trashed,
-    live_files_filter,
-    substrate_scope_filter,
-)
     return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
 logger = logging.getLogger(__name__)

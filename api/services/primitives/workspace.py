@@ -1741,7 +1741,10 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
         allowed_prefixes = read_scope_db_prefixes(auth)
         try:
             from services.workspace_context import effective_workspace_id
-            ws = effective_workspace_id(auth.user_id)
+            # ADR-548 D8: pass the binding — the contextvar never reaches this
+            # path, so the bare form silently sweeps the caller's OWN default
+            # workspace instead of the one their token/grant binds.
+            ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
             result = auth.client.rpc("search_workspace", {
                 "p_workspace_id": ws,
                 "p_query": query,
@@ -1840,7 +1843,11 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         # B′ line) to the genuinely-fuzzy queries that need it.
         bm25_ok = False
         from services.workspace_context import effective_workspace_id
-        _ws = effective_workspace_id(auth.user_id)
+        # ADR-548 D8: pass the binding — an MCP `search` (compose_search →
+        # QueryKnowledge) bound to a non-default workspace otherwise sweeps the
+        # principal's default one and returns confident zero-matches for files
+        # `list` can see (the ADR-373 D6 incorrect-success class).
+        _ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
         # Powerbox read gate — scope both RPCs at the DB (migration 212) so LIMIT
         # applies to in-scope rows only. None → unscoped; [] → deny-all.
         allowed_prefixes = read_scope_db_prefixes(auth)
