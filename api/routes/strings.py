@@ -73,12 +73,24 @@ class StringSource(BaseModel):
     pull (`url`) or a connector slice (`connector` + `selector`). The
     projection serves BOTH — filtering on `url` silently hid connector
     sources from the very desk that manages them (the ADR-594 audit's
-    finding)."""
+    finding).
+
+    The trailing fields are the ADR-595 D3 enrichment — the source as a
+    PARTY to the string (standing · receipts · contribution), derived at
+    read time on the DESK VIEW only; the roster list leaves them None."""
 
     id: str
     url: Optional[str] = None
     connector: Optional[str] = None
     selector: Optional[str] = None
+    #: newest landed receipt under this source's deterministic prefix
+    last_landed_at: Optional[str] = None
+    last_landed_path: Optional[str] = None
+    #: connector sources only — is the selector inside the connection's
+    #: aperture (ADR-594's intersection law, made visible)? None for HTTP.
+    in_aperture: Optional[bool] = None
+    #: newest leaf revision whose derived_from cites this source's receipts
+    last_contributed_at: Optional[str] = None
 
 
 class UpdateStringRequest(BaseModel):
@@ -123,13 +135,20 @@ class RepairState(BaseModel):
 
 
 class StringView(StringSummary):
-    content: Optional[str] = None  # the maintained leaf's head
+    """The desk view — ADR-595 D1: the tending surface NEVER serves the
+    maintained file's contents. Head FACTS ride instead (enough for the
+    glance, not the document); reading happens at the file's own surface."""
+
     shape: dict = {}
     recent_runs: list[RunEvent] = []
     repair: Optional[RepairState] = None
     #: D5 — the consumers list: which files cite this leaf (reference edges +
     #: in-content path citations), derived at read time, never stored.
     consumers: list[str] = []
+    #: ADR-595 D1 — head facts (never the head itself).
+    head_updated_at: Optional[str] = None
+    head_lines: Optional[int] = None
+    head_bytes: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +314,94 @@ def _consumers(client, user_id: str, decl) -> list[str]:
     return out
 
 
+def _receipt_prefix(src: StringSource) -> Optional[str]:
+    """The source's deterministic landing prefix — /workspace-absolute, with
+    the trailing slash. The grammar is a LAW (ADR-594 D1), so this is pure
+    derivation: `inbound/{platform}/{selector}/` for a connector slice,
+    `inbound/web/{slug(id)}/` for an HTTP pull (the `_retain_raw` home)."""
+    if src.connector and src.selector:
+        from services.connectors import capture_destination
+        return f"/workspace/{capture_destination(src.connector, src.selector)}/"
+    if src.url:
+        from services.primitives.track_web_sources import _slug as _source_slug
+        return f"/workspace/inbound/web/{_source_slug(src.id)}/"
+    return None
+
+
+def _enrich_sources(
+    client, user_id: str, sources: list[StringSource], target_path: Optional[str],
+) -> None:
+    """ADR-595 D3 — the source as a PARTY, composed at read time (never
+    stored): newest landed receipt · aperture standing · last contribution.
+    Best-effort per block; the instrument never takes down the view."""
+    prefixes = {s.id: _receipt_prefix(s) for s in sources}
+
+    # Receipts — newest landed file under each source's prefix.
+    for src in sources:
+        prefix = prefixes.get(src.id)
+        if not prefix:
+            continue
+        try:
+            rows = (
+                client.table("workspace_files")
+                .select("path, created_at")
+                .eq("user_id", user_id)
+                .like("path", f"{prefix}%")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            ).data or []
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[STRINGS] receipt probe failed for %s: %s", src.id, e)
+            rows = []
+        if rows:
+            src.last_landed_path = rows[0].get("path")
+            src.last_landed_at = rows[0].get("created_at")
+
+    # Standing — the aperture check, one connection read per platform.
+    platforms = {s.connector for s in sources if s.connector and s.selector}
+    for plat in platforms:
+        try:
+            from services.connectors import connection_row, selected_ids_from_row
+            row = connection_row(client, user_id, plat)
+            selected = set(selected_ids_from_row(row)) if row else set()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[STRINGS] aperture probe failed for %s: %s", plat, e)
+            continue
+        for src in sources:
+            if src.connector == plat and src.selector:
+                src.in_aperture = src.selector in selected
+
+    # Contribution — newest leaf revision citing each source's receipts
+    # (the N→1 edge at revision grain; derived_from carries absolute paths).
+    if target_path:
+        try:
+            revs = (
+                client.table("workspace_file_versions")
+                .select("created_at, derived_from")
+                .eq("user_id", user_id)
+                .eq("path", target_path)
+                .order("created_at", desc=True)
+                .limit(40)
+                .execute()
+            ).data or []
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[STRINGS] contribution probe failed: %s", e)
+            revs = []
+        for rev in revs:
+            cited = rev.get("derived_from") or []
+            if not isinstance(cited, list):
+                continue
+            for src in sources:
+                if src.last_contributed_at is not None:
+                    continue
+                prefix = prefixes.get(src.id)
+                if prefix and any(
+                    isinstance(p, str) and p.startswith(prefix) for p in cited
+                ):
+                    src.last_contributed_at = rev.get("created_at")
+
+
 def _parse_or_none(content: str, topic: str, user_id: str):
     from services.strings import parse_string_yaml
     return parse_string_yaml(
@@ -379,17 +486,43 @@ async def get_string(topic: str, auth: UserClient) -> StringView:
                         ("slug", "status", "created_at", "error_reason")})
             for e in events]
 
-    from services.strings import _read_file
-    head = _read_file(auth.client, actor, decl.target_path) if decl.target else None
+    # Head FACTS, never the head (ADR-595 D1) — the pane is the tending
+    # surface; the document is read at its own surface through the Open door.
+    head_updated_at = None
+    head_lines = None
+    head_bytes = None
+    if decl.target:
+        try:
+            head_rows = (
+                auth.client.table("workspace_files")
+                .select("content, updated_at")
+                .eq("user_id", actor)
+                .eq("path", decl.target_path)
+                .limit(1)
+                .execute()
+            ).data or []
+        except Exception as e:
+            logger.warning("[STRINGS] head-fact probe failed for %s: %s", topic, e)
+            head_rows = []
+        if head_rows and head_rows[0].get("content") is not None:
+            body = head_rows[0]["content"]
+            head_updated_at = head_rows[0].get("updated_at")
+            head_lines = body.count("\n") + (0 if body.endswith("\n") or not body else 1)
+            head_bytes = len(body.encode("utf-8"))
 
-    return StringView(
+    view = StringView(
         **summary.model_dump(),
-        content=head,
         shape=decl.shape,
         recent_runs=runs,
         repair=_compose_repair(runs),
         consumers=_consumers(auth.client, actor, decl),
+        head_updated_at=head_updated_at,
+        head_lines=head_lines,
+        head_bytes=head_bytes,
     )
+    _enrich_sources(auth.client, actor, view.sources,
+                    decl.target_path if decl.target else None)
+    return view
 
 
 @router.patch("/strings/{topic:path}")

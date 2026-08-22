@@ -653,7 +653,7 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // desk loses its lane binding). `file` is the delivered Files-association
   // deep-link ("Keep this current…"), consumed into topic/target. Registered
   // at birth — the unconstrained miss-case reads as permission (3f44a8f).
-  strings: ['topic', 'target', 'file'],
+  strings: ['topic', 'target', 'file', 'tab'],
 };
 
 // ----------------------------------------------------------------------------

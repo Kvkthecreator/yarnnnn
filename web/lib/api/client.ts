@@ -427,6 +427,14 @@ export interface StringSource {
   /** A connector slice (ADR-582 D6 / ADR-594): reach with a receipt. */
   connector?: string | null;
   selector?: string | null;
+  /** ADR-595 D3 enrichment — the source as a party (desk view only; the
+   *  roster list leaves these unset). */
+  last_landed_at?: string | null;
+  last_landed_path?: string | null;
+  /** Connector sources: is the selector inside the connection's aperture?
+   *  null/undefined for HTTP sources. */
+  in_aperture?: boolean | null;
+  last_contributed_at?: string | null;
 }
 
 export interface StringSummary {
@@ -448,8 +456,12 @@ export interface StringSummary {
 }
 
 export interface StringView extends StringSummary {
-  /** The maintained leaf's head. */
-  content?: string | null;
+  /** ADR-595 D1 — the tending surface never serves the maintained file's
+   *  contents. Head FACTS ride instead; reading happens through the Open
+   *  door at the file's own surface. */
+  head_updated_at?: string | null;
+  head_lines?: number | null;
+  head_bytes?: number | null;
   /** The machine-checkable half of the contract (csv columns / json keys). */
   shape: { columns?: string[]; keys?: string[] };
   recent_runs: Array<{

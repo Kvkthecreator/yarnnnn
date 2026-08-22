@@ -6,10 +6,16 @@
  * A STRING is the member's designation of one file as kept current: a
  * contract (CONTRACT.md — what it must stay true to), sources (where currency
  * comes from), a cadence, and Keeper revising the head while the member
- * corrects it like any file. Derived from what the member DOES here, in
- * frequency order (D7): read the file → see what changed → correct → tune the
- * setup → designate. The FILE is the canvas — rendered by format (a real
- * table for CSV, a document for md), the last thing to lose width.
+ * corrects it like any file.
+ *
+ * THE TENDING SURFACE (ADR-595): this pane shows the file's SITUATION —
+ * currency, provenance, governance, audience — and never the file's
+ * contents. Reading and correcting happen at the file's own surface (the
+ * Open door); the desk view doesn't even carry the head (D1 — enforced at
+ * the API). Four tabs (D2): Overview (status + the N→1 flow strip) ·
+ * Sources (each source as a PARTY: standing, receipts, contribution) ·
+ * Activity (the attributed rail) · Contract (the terms). Loud states render
+ * ABOVE the tabs — a repair is never hidden behind one.
  *
  * The chrome is the shared `DeskHousing` (ADR-569 D6 — the second tenant;
  * radar was the first). This file keeps what is STRINGS': the string state
@@ -28,20 +34,21 @@
  * switches stay direct: Pause/Resume and Run now.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Cable, ChevronDown, FileText, Loader2, MessageSquare, Pause, Play, Plus,
-  RefreshCw, X, Zap,
+  ArrowRight, Cable, ChevronDown, ExternalLink, FileText, Globe, Loader2,
+  MessageSquare, Pause, Play, Plus, RefreshCw, X, Zap,
 } from 'lucide-react';
-import { api, type StringSummary, type StringView } from '@/lib/api/client';
+import {
+  api, type StringSource, type StringSummary, type StringView,
+} from '@/lib/api/client';
 import { scheduleDisplay } from '@/lib/schedule';
 import {
   useSurfaceParam, useSurfacePreferences,
 } from '@/lib/shell/useSurfacePreferences';
 import { useDeclareFocus } from '@/lib/shell/useSurfaceFocus';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { parseCsv, CSV_SNAPSHOT_ROW_CAP } from '@/components/text/markdownEdits';
 import { WorkspacePickerBody } from '@/components/workspace/WorkspacePicker';
 import { DeskHousing, type DeskContext } from '@/components/desk/DeskHousing';
 import {
@@ -134,69 +141,23 @@ function runStatusLine(e: RailEvent): string {
   return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
 }
 
-// ── Format renderers — the canvas, by format (D7.1) ─────────────────────────
+// The private format renderers are DELETED (ADR-595 D1): the tending surface
+// never renders the maintained file — the OS owns exactly one reading face
+// and one editing face, and this pane hands you the door instead.
 
-// The CSV parser used to be declared here. ADR-572 D18 needed the same one in
-// Text (to write a CSV's rows into a `.md`), and a second copy of a parser
-// whose bugs are silent — a mis-split cell shifts every column after it — is
-// exactly the drift worth spending an import to avoid. It moved to the pure
-// `markdownEdits` module, where the gate CALLS it; behaviour is unchanged.
+// ── The tabs (ADR-595 D2) — remembered posture, `strings.tab` ───────────────
 
-const _CSV_ROW_CAP = CSV_SNAPSHOT_ROW_CAP;
+const STRINGS_TABS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'sources', label: 'Sources' },
+  { key: 'activity', label: 'Activity' },
+  { key: 'contract', label: 'Contract' },
+] as const;
+type StringsTab = (typeof STRINGS_TABS)[number]['key'];
 
-function CsvTable({ text }: { text: string }) {
-  const rows = useMemo(() => parseCsv(text), [text]);
-  if (rows.length === 0) {
-    return <p className="px-4 py-6 text-center text-xs text-muted-foreground">The file is empty.</p>;
-  }
-  const [header, ...body] = rows;
-  const shown = body.slice(0, _CSV_ROW_CAP);
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b bg-muted/40">
-            {header.map((h, i) => (
-              <th key={i} className="px-3 py-2 text-left font-semibold">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((r, i) => (
-            <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
-              {header.map((_, j) => (
-                <td key={j} className="px-3 py-1.5 tabular-nums">{r[j] ?? ''}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {body.length > _CSV_ROW_CAP && (
-        <p className="border-t px-3 py-1.5 text-[11px] text-muted-foreground">
-          Showing the first {_CSV_ROW_CAP} of {body.length} rows — the full file is in Files.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function FileCanvas({ view }: { view: StringView }) {
-  const content = view.content ?? '';
-  if (view.format === 'csv') return <CsvTable text={content} />;
-  if (view.format === 'md') {
-    return (
-      <div className="px-5 py-4">
-        <MarkdownRenderer content={content} />
-      </div>
-    );
-  }
-  // json / txt — the honest monospace view.
-  return (
-    <pre className="max-h-[32rem] overflow-auto whitespace-pre px-4 py-3 font-mono text-xs">
-      {content}
-    </pre>
-  );
-}
+//: The arity law (server: `_classify_sources`) — stated in the pane, not
+//: discovered by refusal.
+const PROSE_SOURCE_CAP = 12;
 
 // ── Operator words for the problem states (D3 — served loudly) ──────────────
 
@@ -204,7 +165,7 @@ const PROBLEM_COPY: Record<string, string> = {
   missing_target: 'The declaration names no target file. Ask Keeper to declare which file this string keeps current.',
   invalid_target: 'The declared target is not a plain file in this folder. Ask Keeper to point the string at a single file here.',
   unsupported_format: 'The declared target is a format Keeper does not maintain (v1 keeps md, csv, json and txt — an authored artifact stays current through reference instead).',
-  sources_invalid: 'The declared sources cannot run — structured formats pull from exactly one http(s) endpoint. Ask Keeper to repair the source list.',
+  sources_invalid: 'The declared sources cannot run — a structured format keeps exactly one source (an http(s) endpoint or a connector slice). Ask Keeper to repair the source list.',
 };
 
 export default function StringsSurface() {
@@ -214,6 +175,16 @@ export default function StringsSurface() {
   const topic = param.get('topic');
   const targetParam = param.get('target');
   const deskRoot = topic ? `${WORKSPACE_ROOT}/${topic}` : null;
+
+  // The tab (ADR-595 D2) — remembered posture; 'overview' is the unset default.
+  const tabRaw = param.get('tab');
+  const tab: StringsTab = STRINGS_TABS.some((t) => t.key === tabRaw)
+    ? (tabRaw as StringsTab)
+    : 'overview';
+  const setTab = useCallback(
+    (t: StringsTab) => param.set({ tab: t === 'overview' ? null : t }),
+    [param],
+  );
 
   const [strings, setStrings] = useState<StringSummary[] | null>(null);
   const [desk, setDesk] = useState<DeskState>({ phase: 'idle' });
@@ -603,212 +574,166 @@ export default function StringsSurface() {
           </div>
         )}
 
-        {/* ── The file — THE canvas, rendered by format (D7.1) ── */}
+        {/* ── The tabs (ADR-595 D2) — loud states stay ABOVE, never behind ── */}
         {desk.phase === 'ready' && view && (
-          <section>
-            <div className="mb-2 flex items-baseline justify-between gap-3">
-              <SectionHeading>The file</SectionHeading>
-              {view.content != null && view.target_path && (
-                <span className="text-xs text-muted-foreground">
-                  <button
-                    type="button"
-                    className="underline-offset-2 hover:underline"
-                    onClick={() => view.target_path && openInFiles(view.target_path)}
-                    title="Open the file — correcting it corrects every future run"
-                  >
-                    edit in Files
-                  </button>
-                </span>
-              )}
-            </div>
-            {fetchBroken && (
-              <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-                The last fetch failed — showing the last good version
-                (as of {fmtWhen(lastGoodWrite)}).
-              </p>
-            )}
-            {view.content != null ? (
-              <article className="rounded-md border">
-                <FileCanvas view={view} />
-              </article>
-            ) : (
-              <p className="rounded-md border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
-                No content yet. The first version lands on the next run
-                {!view.paused && view.next_run_at
-                  ? ` — due ${fmtWhen(view.next_run_at)}`
-                  : ''}.
-              </p>
-            )}
-          </section>
-        )}
+          <>
+            <nav className="flex gap-1 border-b" aria-label="String tabs">
+              {STRINGS_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTab(t.key)}
+                  aria-current={tab === t.key ? 'page' : undefined}
+                  className={`-mb-px border-b-2 px-3 py-1.5 text-xs font-medium ${
+                    tab === t.key
+                      ? 'border-foreground text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {t.label}
+                  {t.key === 'sources' && ` (${view.sources.length})`}
+                </button>
+              ))}
+            </nav>
 
-        {/* ── What changed — ONE attributed lifecycle rail (D7.2) ── */}
-        {desk.phase === 'ready' && deskRoot && view && (
-          <section>
-            <SectionHeading className="mb-2">What changed</SectionHeading>
-            <DeskActivityRail
-              deskRoot={deskRoot}
-              events={view.recent_runs}
-              refreshNonce={activityNonce}
-              onReverted={refreshDesk}
-              authorLabel={stringsAuthorLabel}
-              authorChip={stringsAuthorChip}
-              fileLabel={(rel) => {
-                if (view.target && rel === view.target) return 'File';
-                if (rel === 'CONTRACT.md') return 'Contract';
-                if (rel === '_string.yaml') return 'Setup';
-                return undefined;
-              }}
-              canRevert={(p) =>
-                (view.target != null && p === `${deskRoot}/${view.target}`) ||
-                p === `${deskRoot}/CONTRACT.md`}
-              eventLine={runStatusLine}
-            />
-          </section>
-        )}
-
-        {/* ── The setup — the declaration held up to the light (D7.4) ── */}
-        {desk.phase === 'ready' && view && (
-          <section className="space-y-5">
-            <SectionHeading className="mb-0">Setup</SectionHeading>
-
-            {/* Contract */}
-            <div className="rounded-md border">
-              <div className="flex items-center justify-between border-b px-4 py-2">
-                <span className="text-xs font-medium">What this file must stay true to</span>
-                {lanesEnabled && (
-                  <SeedButton onClick={() => seedChat('Refine the contract: ')}>
-                    refine in chat
-                  </SeedButton>
-                )}
+            {tab === 'overview' && (
+              <div className="space-y-6">
+                <StatusCard
+                  view={view}
+                  lastGoodWrite={lastGoodWrite}
+                  fetchBroken={fetchBroken}
+                  onOpenFile={() => view.target_path && openInFiles(view.target_path)}
+                />
+                <FlowStrip
+                  view={view}
+                  onSources={() => setTab('sources')}
+                  onOpenFile={() => view.target_path && openInFiles(view.target_path)}
+                />
+                <section>
+                  <SectionHeading className="mb-2">Cited by</SectionHeading>
+                  {view.consumers.length === 0 ? (
+                    <p className="rounded-md border border-dashed px-4 py-4 text-xs text-muted-foreground">
+                      Nothing cites this file yet. Reference it from a doc or a
+                      deck and the projection stays current as the file moves —
+                      the artifact itself is never rewritten.
+                    </p>
+                  ) : (
+                    <ul className="divide-y rounded-md border">
+                      {view.consumers.map((p) => (
+                        <li key={p}>
+                          <button
+                            type="button"
+                            onClick={() => openInFiles(p)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/60"
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{relPath(p) ?? p}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
               </div>
-              <div className="px-4 py-3">
-                {view.contract ? (
-                  <MarkdownRenderer content={view.contract} compact />
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No contract declared — runs hold a conservative bar.
-                    Declaring one sharpens every future run.
-                  </p>
-                )}
-              </div>
-            </div>
+            )}
 
-            {/* Sources + fetch health. The health badge lives on the CARD
-                HEADER, not per row — it is per-string data (one sweep event),
-                and painting it per source implied per-source truth the data
-                does not carry (ADR-594 D4). */}
-            <div className="rounded-md border">
-              <div className="flex items-center justify-between border-b px-4 py-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium">Where currency comes from</span>
-                  {latestSweep && (
+            {tab === 'sources' && (
+              <SourcesPanel
+                view={view}
+                lanesEnabled={lanesEnabled}
+                seedChat={seedChat}
+                openInFiles={openInFiles}
+              />
+            )}
+
+            {tab === 'activity' && deskRoot && (
+              <section>
+                <DeskActivityRail
+                  deskRoot={deskRoot}
+                  events={view.recent_runs}
+                  refreshNonce={activityNonce}
+                  onReverted={refreshDesk}
+                  authorLabel={stringsAuthorLabel}
+                  authorChip={stringsAuthorChip}
+                  fileLabel={(rel) => {
+                    if (view.target && rel === view.target) return 'File';
+                    if (rel === 'CONTRACT.md') return 'Contract';
+                    if (rel === '_string.yaml') return 'Setup';
+                    return undefined;
+                  }}
+                  canRevert={(p) =>
+                    (view.target != null && p === `${deskRoot}/${view.target}`) ||
+                    p === `${deskRoot}/CONTRACT.md`}
+                  eventLine={runStatusLine}
+                />
+              </section>
+            )}
+
+            {tab === 'contract' && (
+              <section className="space-y-5">
+                <div className="rounded-md border">
+                  <div className="flex items-center justify-between border-b px-4 py-2">
+                    <span className="text-xs font-medium">What this file must stay true to</span>
+                    {lanesEnabled && (
+                      <SeedButton onClick={() => seedChat('Refine the contract: ')}>
+                        refine in chat
+                      </SeedButton>
+                    )}
+                  </div>
+                  <div className="px-4 py-3">
+                    {view.contract ? (
+                      <MarkdownRenderer content={view.contract} compact />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        No contract declared — runs hold a conservative bar.
+                        Declaring one sharpens every future run.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cadence — plain words; the raw cron is the tooltip. */}
+                <div className="flex items-center justify-between rounded-md border px-4 py-2.5">
+                  <div className="text-xs">
+                    <span className="font-medium">Cadence</span>
                     <span
-                      className={`text-[11px] ${fetchBroken ? 'text-amber-600' : 'text-muted-foreground'}`}
-                      title={`The most recent fetch ${fetchBroken ? 'failed' : 'succeeded'} (${fmtWhen(latestSweep.created_at)})`}
+                      className="ml-2 text-muted-foreground"
+                      title={Array.isArray(view.schedule)
+                        ? view.schedule.join(' · ')
+                        : view.schedule || undefined}
                     >
-                      last fetch {fetchBroken ? 'failed' : 'ok'}
+                      {view.schedule ? scheduleDisplay(view.schedule) : '—'}
                     </span>
+                  </div>
+                  {lanesEnabled && (
+                    <SeedButton onClick={() => seedChat('Change the cadence: ')}>
+                      change in chat
+                    </SeedButton>
                   )}
                 </div>
-                {lanesEnabled && (
-                  <SeedButton onClick={() => seedChat('Change the source: ')}>
-                    change in chat
-                  </SeedButton>
-                )}
-              </div>
-              {view.sources.length === 0 ? (
-                <p className="px-4 py-3 text-xs text-muted-foreground">
-                  No sources declared yet.
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {view.sources.map((s) => (
-                    <li key={s.id} className="flex items-center gap-3 px-4 py-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-medium">{s.id}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">
-                          {s.url
-                            ? s.url
-                            : `${s.connector} · ${s.selector} — read through your connection`}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
 
-            {/* Cadence — plain words beside a plain-words seed (the surface's
-                own contract); the raw cron is the tooltip, not the face. */}
-            <div className="flex items-center justify-between rounded-md border px-4 py-2.5">
-              <div className="text-xs">
-                <span className="font-medium">Cadence</span>
-                <span
-                  className="ml-2 text-muted-foreground"
-                  title={Array.isArray(view.schedule)
-                    ? view.schedule.join(' · ')
-                    : view.schedule || undefined}
-                >
-                  {view.schedule ? scheduleDisplay(view.schedule) : '—'}
-                </span>
-              </div>
-              {lanesEnabled && (
-                <SeedButton onClick={() => seedChat('Change the cadence: ')}>
-                  change in chat
-                </SeedButton>
-              )}
-            </div>
-
-            {/* The shape, in words (structured formats only) */}
-            {(view.shape?.columns?.length || view.shape?.keys?.length) ? (
-              <div className="flex items-center justify-between rounded-md border px-4 py-2.5">
-                <div className="min-w-0 text-xs">
-                  <span className="font-medium">Shape</span>
-                  <span className="ml-2 text-muted-foreground">
-                    {view.shape.columns?.length
-                      ? <>Columns: <span className="font-mono">{view.shape.columns.join(', ')}</span></>
-                      : <>Keys: <span className="font-mono">{view.shape.keys?.join(', ')}</span></>}
-                    {' — a fetched update that breaks this is refused, never written.'}
-                  </span>
-                </div>
-                {lanesEnabled && (
-                  <SeedButton onClick={() => seedChat('Change the declared shape: ')}>
-                    change in chat
-                  </SeedButton>
-                )}
-              </div>
-            ) : null}
-          </section>
-        )}
-
-        {/* ── Consumers — who reads from this file (D5 / D7.5) ── */}
-        {desk.phase === 'ready' && view && (
-          <section>
-            <SectionHeading className="mb-2">Cited by</SectionHeading>
-            {view.consumers.length === 0 ? (
-              <p className="rounded-md border border-dashed px-4 py-4 text-xs text-muted-foreground">
-                Nothing cites this file yet. Reference it from a doc or a deck
-                and the projection stays current as the file moves — the
-                artifact itself is never rewritten.
-              </p>
-            ) : (
-              <ul className="divide-y rounded-md border">
-                {view.consumers.map((p) => (
-                  <li key={p}>
-                    <button
-                      type="button"
-                      onClick={() => openInFiles(p)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/60"
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{relPath(p) ?? p}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                {/* The shape, in words (structured formats only) */}
+                {(view.shape?.columns?.length || view.shape?.keys?.length) ? (
+                  <div className="flex items-center justify-between rounded-md border px-4 py-2.5">
+                    <div className="min-w-0 text-xs">
+                      <span className="font-medium">Shape</span>
+                      <span className="ml-2 text-muted-foreground">
+                        {view.shape.columns?.length
+                          ? <>Columns: <span className="font-mono">{view.shape.columns.join(', ')}</span></>
+                          : <>Keys: <span className="font-mono">{view.shape.keys?.join(', ')}</span></>}
+                        {' — a fetched update that breaks this is refused, never written.'}
+                      </span>
+                    </div>
+                    {lanesEnabled && (
+                      <SeedButton onClick={() => seedChat('Change the declared shape: ')}>
+                        change in chat
+                      </SeedButton>
+                    )}
+                  </div>
+                ) : null}
+              </section>
             )}
-          </section>
+          </>
         )}
       </div>
     );
@@ -898,6 +823,244 @@ export default function StringsSurface() {
     >
       {renderCenter}
     </DeskHousing>
+  );
+}
+
+function fmtBytes(n?: number | null): string | null {
+  if (n == null) return null;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** One source's identity line — shared by the flow strip and the source card. */
+function sourceKindLine(s: StringSource): string {
+  return s.url ?? `${s.connector} · ${s.selector}`;
+}
+
+// ── Overview: the status card — file FACTS, never the file (ADR-595 D1) ────
+
+function StatusCard({
+  view, lastGoodWrite, fetchBroken, onOpenFile,
+}: {
+  view: StringView;
+  lastGoodWrite: string | null;
+  fetchBroken: boolean;
+  onOpenFile: () => void;
+}) {
+  const facts = [
+    view.format?.toUpperCase(),
+    view.head_lines != null
+      ? `${view.head_lines} ${view.format === 'csv' ? 'rows' : 'lines'}`
+      : null,
+    fmtBytes(view.head_bytes),
+  ].filter(Boolean);
+  return (
+    <div className="rounded-md border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">{view.target}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {facts.join(' · ')}
+            {(view.head_updated_at ?? lastGoodWrite) &&
+              ` · updated ${fmtWhen(view.head_updated_at ?? lastGoodWrite)}`}
+          </p>
+        </div>
+        {view.target_path ? (
+          <button
+            type="button"
+            onClick={onOpenFile}
+            title="Open the file at its own surface — correcting it there corrects every future run"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Open file
+          </button>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            No version yet — the first lands on the next run
+            {!view.paused && view.next_run_at ? ` (${fmtWhen(view.next_run_at)})` : ''}.
+          </span>
+        )}
+      </div>
+      {fetchBroken && (
+        <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          The last fetch failed — the file still shows the last good version
+          (as of {fmtWhen(lastGoodWrite)}).
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Overview: the N→1 flow strip — the relation itself, legible (D2) ────────
+
+function FlowStrip({
+  view, onSources, onOpenFile,
+}: {
+  view: StringView;
+  onSources: () => void;
+  onOpenFile: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-md border px-4 py-3">
+      <div className="flex min-w-0 flex-col gap-1.5">
+        {view.sources.length === 0 ? (
+          <span className="rounded border border-dashed px-2 py-1 text-[11px] text-muted-foreground">
+            no sources declared
+          </span>
+        ) : (
+          view.sources.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={onSources}
+              title={sourceKindLine(s)}
+              className={`flex max-w-56 items-center gap-1.5 rounded border px-2 py-1 text-left text-[11px] hover:bg-muted ${
+                s.in_aperture === false ? 'border-amber-400 text-amber-700 dark:text-amber-400' : ''
+              }`}
+            >
+              {s.connector
+                ? <Cable className="h-3 w-3 shrink-0" />
+                : <Globe className="h-3 w-3 shrink-0" />}
+              <span className="truncate font-medium">{s.id}</span>
+              <span className="shrink-0 text-muted-foreground">
+                {s.in_aperture === false
+                  ? 'not selected'
+                  : s.last_landed_at
+                    ? fmtWhen(s.last_landed_at)
+                    : 'no receipt'}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <button
+        type="button"
+        onClick={onOpenFile}
+        disabled={!view.target_path}
+        className="min-w-0 rounded border px-3 py-2 text-left hover:bg-muted disabled:opacity-60"
+      >
+        <div className="truncate text-xs font-medium">{view.target}</div>
+        <div className="text-[11px] text-muted-foreground">
+          {view.paused ? 'paused' : 'kept current'}
+        </div>
+      </button>
+      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="text-[11px] text-muted-foreground">
+        cited by {view.consumers.length}
+      </span>
+    </div>
+  );
+}
+
+// ── Sources: each source as a PARTY — standing · receipts · contribution ────
+
+function SourcesPanel({
+  view, lanesEnabled, seedChat, openInFiles,
+}: {
+  view: StringView;
+  lanesEnabled: boolean | null;
+  seedChat: (text: string) => void;
+  openInFiles: (path: string) => void;
+}) {
+  const n = view.sources.length;
+  const arity = view.format === 'md'
+    ? `A prose string can weave up to ${PROSE_SOURCE_CAP} sources — ${n} declared.`
+    : `A ${view.format ?? 'structured'} string keeps exactly one feed.`;
+  const canAdd = view.format === 'md' ? n < PROSE_SOURCE_CAP : n === 0;
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{arity}</p>
+        {lanesEnabled && canAdd && (
+          <SeedButton onClick={() => seedChat('Add a source: ')}>
+            add a source
+          </SeedButton>
+        )}
+      </div>
+      {n === 0 ? (
+        <p className="rounded-md border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
+          No sources declared yet — tell Keeper where currency comes from.
+        </p>
+      ) : (
+        view.sources.map((s) => (
+          <div key={s.id} className="rounded-md border">
+            <div className="flex items-center justify-between border-b px-4 py-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                {s.connector
+                  ? <Cable className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  : <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                <span className="truncate text-xs font-medium">{s.id}</span>
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {s.connector ? `${s.connector} slice` : 'http pull'}
+                </span>
+              </div>
+              {lanesEnabled && (
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <SeedButton onClick={() => seedChat(`Change source '${s.id}': `)}>
+                    change
+                  </SeedButton>
+                  <SeedButton onClick={() => seedChat(`Remove source '${s.id}'.`)}>
+                    remove
+                  </SeedButton>
+                </div>
+              )}
+            </div>
+            <dl className="space-y-1.5 px-4 py-3 text-xs">
+              <div className="flex gap-2">
+                <dt className="w-24 shrink-0 text-muted-foreground">Reads</dt>
+                <dd className="min-w-0 truncate">
+                  {s.url ?? `${s.connector} · ${s.selector} — through your connection`}
+                </dd>
+              </div>
+              {s.connector && (
+                <div className="flex gap-2">
+                  <dt className="w-24 shrink-0 text-muted-foreground">Standing</dt>
+                  <dd className={s.in_aperture === false ? 'text-amber-700 dark:text-amber-400' : ''}>
+                    {s.in_aperture === false
+                      ? `outside your ${s.connector} selection — nothing is read until you select it on the connection`
+                      : s.in_aperture === true
+                        ? `inside your ${s.connector} selection`
+                        : 'selection unknown — the connection could not be read'}
+                  </dd>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <dt className="w-24 shrink-0 text-muted-foreground">Last landed</dt>
+                <dd className="min-w-0">
+                  {s.last_landed_path ? (
+                    <button
+                      type="button"
+                      onClick={() => s.last_landed_path && openInFiles(s.last_landed_path)}
+                      className="truncate underline-offset-2 hover:underline"
+                      title="Open the landed snapshot — the receipt this source's last read left"
+                    >
+                      {fmtWhen(s.last_landed_at)} · open receipt
+                    </button>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      nothing landed yet — the next run reaches and retains
+                    </span>
+                  )}
+                </dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-24 shrink-0 text-muted-foreground">Contributed</dt>
+                <dd className="text-muted-foreground">
+                  {s.last_contributed_at
+                    ? `last moved the file ${fmtWhen(s.last_contributed_at)}`
+                    : 'hasn’t moved the file yet'}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        ))
+      )}
+    </section>
   );
 }
 

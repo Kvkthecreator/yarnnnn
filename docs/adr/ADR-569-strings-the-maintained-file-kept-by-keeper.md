@@ -1,5 +1,12 @@
 # ADR-569: Strings — the maintained file: standing currency under contract, kept by Keeper
 
+> **Amended by [ADR-595](ADR-595-strings-the-tending-surface.md)** (2026-08-22):
+> D7's center-pane architecture is superseded — the pane is the TENDING
+> surface (situation, never contents; four tabs; sources as first-class
+> parties). D7's doors, switches, conversational management and loud states
+> stand. Sources were earlier amended by ADR-582 D6 + ADR-594 D2 (connector
+> slices; reach with a receipt).
+>
 > **Status**: **Accepted** (2026-08-14, operator-ratified — *"aligned. please update to
 > strings and keeper accordingly. double check the scope and ratify the documentation"*,
 > closing the standing-maintenance discourse; deliberation trail:
