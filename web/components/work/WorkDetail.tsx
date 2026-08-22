@@ -126,8 +126,8 @@ export function WorkDetail({
           <SurfaceIdentityHeader
             title={task.title}
             metadata={
-              {/* The inline actionNotice slot is DELETED (2026-08-22) — run/
-                  pause outcomes report through FeedbackContext toasts. */}
+              /* The inline actionNotice slot is DELETED (2026-08-22) — run/
+                 pause outcomes report through FeedbackContext toasts. */
               <ChromeRenderer decl={chrome.metadata} />
             }
             actions={<ChromeRenderer decls={chrome.actions} />}
