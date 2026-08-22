@@ -1863,7 +1863,12 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
             }).execute()
             rows = result.data or []
             if rows:
-                search_method = "bm25"
+                # Migration 246: the RPC degrades an all-words miss to an
+                # any-word pass, labelling each row match_mode='loose'. Carry
+                # the label — compose_search grades loose as WEAK, never
+                # "high", never "none" (the 2026-08-22 false "nothing here").
+                loose = all(r.get("match_mode") == "loose" for r in rows)
+                search_method = "bm25_loose" if loose else "bm25"
                 bm25_ok = True
         except Exception as e:
             logger.warning(f"[QUERY_KNOWLEDGE] BM25 search failed, escalating to semantic: {e}")
@@ -1885,8 +1890,11 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
                     "p_allowed_prefixes": allowed_prefixes,
                 }).execute()
                 sem_rows = result.data or []
-                # Only use semantic results if we got meaningful similarity scores
-                if sem_rows and sem_rows[0].get("similarity", 0) > 0.3:
+                # Sub-bar similarity is a WEAK lead, not an absence — rows pass
+                # through and the confidence grade (compose_search) names them
+                # honestly. The old >0.3 hard floor turned "loose matches only"
+                # into "nothing exists", which a calling model believes.
+                if sem_rows:
                     rows = sem_rows
                     search_method = "semantic"
             except Exception as e:

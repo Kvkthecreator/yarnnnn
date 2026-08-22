@@ -461,6 +461,12 @@ async def compose_search(
 
     # Honest-state signal (zero inference): let the HOST decide answer-vs-clarify.
     confidence = _search_confidence(results)
+    # Migration 246 degrade pass: every row matched SOME query words, none
+    # matched ALL of them. That is a lead, not a hit — cap the grade at WEAK.
+    # (The pre-246 shape reported this exact state as "none", and the calling
+    # model believed nothing existed — 2026-08-22, operator receipt.)
+    if result.get("search_method") == "bm25_loose":
+        confidence = CONFIDENCE_WEAK
     explanation = None
     if confidence == "ambiguous":
         explanation = (
