@@ -14,7 +14,7 @@
  *   Z_DRAWER_BODY         101    ChatDrawer body (D16)
  *   Z_FAB                 150    ChatDrawer FAB (D19.5.1 — viewport-fixed,
  *                                floats above windows)
- *   Z_POPOVER             200    UserMenu / TopBar context menu / cap-hit toast
+ *   Z_POPOVER             200    UserMenu / TopBar context menu / bell popover
  *   Z_LAUNCHER_OVERLAY    400    Launcher search overlay (D4 + D11)
  *
  * Note: Z_DRAWER_BACKDROP (100) intentionally falls between WINDOW_Z_MAX

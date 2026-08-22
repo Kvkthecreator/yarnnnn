@@ -70,10 +70,21 @@ interface ToastRecord extends Required<Pick<ToastOptions, 'message'>> {
   durationMs: number;
 }
 
+/**
+ * The one duration for copy-flip micro-feedback (a Copy control flipping to a
+ * check). The 2026-08-22 sweep found four durations (1500/1600/2000/2500ms)
+ * for the identical gesture — micro-feedback stays AT the control (never a
+ * toast), but its timing is one token, not per-site taste.
+ */
+export const COPY_FEEDBACK_MS = 2000;
+
 export interface ConfirmOptions {
   title: string;
-  /** Body text (a plain sentence — write it operator-plain, macOS-style). */
-  body?: string;
+  /** Body (a plain sentence — write it operator-plain, macOS-style). A
+   *  ReactNode is accepted for structured bodies (a stat list before a
+   *  purge); rich multi-FIELD modals stay their own components (see
+   *  ACTION-FEEDBACK.md "What this layer is NOT"). */
+  body?: string | React.ReactNode;
   /** Confirm-button label. Default "Continue". */
   confirmLabel?: string;
   /**
@@ -293,8 +304,20 @@ export function useFeedback(): FeedbackContextValue {
 }
 
 // ---------------------------------------------------------------------------
-// Toast viewport (portal — bottom-right stack)
+// Toast viewport (portal — top-right stack, the attention corridor)
 // ---------------------------------------------------------------------------
+//
+// TOP-RIGHT, below the top bar, beside the bell — operator-ruled 2026-08-22
+// (was bottom-right, the unexamined web-app default). The macOS benchmark:
+// banners arrive top-right next to the Notification Center, so everything
+// that INFORMS the operator shares one corridor — transient self-act
+// feedback lands here and evaporates; durable peer/system attention
+// accumulates behind the bell an inch away (ADR-593's split, rendered).
+// Newest toast on top (existing ones push down), macOS banner order.
+//
+// The viewport ALWAYS renders once mounted — a live region must exist in
+// the DOM BEFORE its content changes, or the first toast is never announced
+// to screen readers (the empty-stack `return null` was that bug).
 
 function ToastViewport({
   toasts,
@@ -305,16 +328,16 @@ function ToastViewport({
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted || toasts.length === 0) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <div
-      className="fixed bottom-4 right-4 flex flex-col gap-2 pointer-events-none"
+      className="fixed top-[4.25rem] right-4 flex flex-col gap-2 pointer-events-none"
       style={{ zIndex: Z_TOAST }}
       role="status"
       aria-live="polite"
     >
-      {toasts.map((t) => (
+      {[...toasts].reverse().map((t) => (
         <ToastCard key={t.id} toast={t} onDismiss={() => onDismiss(t.id)} />
       ))}
     </div>,
@@ -335,7 +358,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastRecord; onDismiss: () => 
       className={cn(
         'pointer-events-auto flex items-start gap-2.5 min-w-[240px] max-w-[360px]',
         'rounded-lg border border-border bg-popover px-3.5 py-2.5 shadow-lg',
-        'animate-in fade-in slide-in-from-bottom-2 duration-200',
+        'animate-in fade-in slide-in-from-top-2 duration-200 motion-reduce:animate-none',
       )}
     >
       <div className="mt-0.5 shrink-0">{TOAST_ICON[toast.kind]}</div>
@@ -406,7 +429,7 @@ function ConfirmDialog({
         style={{ zIndex: Z_CONFIRM_DIALOG }}
       >
         <div
-          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none"
           role="alertdialog"
           aria-modal="true"
         >
@@ -417,7 +440,7 @@ function ConfirmDialog({
             <div className="min-w-0 flex-1">
               <h3 className="text-base font-semibold text-card-foreground">{opts.title}</h3>
               {opts.body && (
-                <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">{opts.body}</p>
+                <div className="mt-1.5 text-sm text-muted-foreground leading-relaxed">{opts.body}</div>
               )}
             </div>
           </div>

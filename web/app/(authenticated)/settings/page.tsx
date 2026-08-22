@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Loader2,
-  Check,
   User,
   RefreshCw,
   LogOut,
@@ -190,12 +189,12 @@ export default function SettingsPage() {
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [dangerAction, setDangerAction] = useState<DangerAction>(null);
-  const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
 
-  // Notification preferences state (ADR-593 D5 — the Notifications pane)
-  const { toast } = useFeedback();
+  // The universal feedback layer (ADR-400). The danger zone confirms and
+  // reports through it too — this page's hand-rolled bottom-right toast and
+  // bespoke z-50 confirm modal are DELETED (the toast rendered failures in
+  // success styling, sat below the canonical z-tier, and had no live region).
+  const { toast, confirm, runAction } = useFeedback();
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
   const [notificationKinds, setNotificationKinds] = useState<NotificationKind[] | null>(null);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
@@ -285,66 +284,95 @@ export default function SettingsPage() {
     }
   };
 
-  // Danger zone action handler
-  const handleDangerAction = async () => {
-    if (!dangerAction) return;
+  // Danger zone — gate through the canonical confirm, report through the
+  // canonical toast/runAction (success and failure each in their own dress;
+  // the old shared channel rendered "Operation failed" under a green check).
+  const initiateDangerAction = async (action: DangerAction) => {
+    if (!action || isPurging) return;
+
+    const ok = await confirm(
+      action === "reset"
+        ? {
+            title: "Full Account Reset?",
+            danger: true,
+            confirmLabel: "Reset Account",
+            body: (
+              <>
+                <p className="mb-2">
+                  Are you sure you want to <strong>reset your entire account</strong>? This will delete:
+                </p>
+                <ul className="list-disc list-inside text-sm space-y-1">
+                  <li>{dangerStats?.workspace_files} workspace files</li>
+                  <li>{dangerStats?.agents} agents and all scheduled work</li>
+                  <li>{dangerStats?.platform_connections} platform connections</li>
+                  <li>{dangerStats?.chat_sessions} chat sessions</li>
+                  <li>All memories, documents, activity, and sync data</li>
+                </ul>
+                <p className="mt-2 text-sm">
+                  Your account stays active with a freshly reset workspace
+                  (the default agents and behind-the-scenes setup restored; scheduled
+                  work and context start empty).
+                </p>
+              </>
+            ),
+          }
+        : {
+            title: "Delete Account Permanently?",
+            danger: true,
+            confirmLabel: "Deactivate Account",
+            body: (
+              <>
+                <p className="font-medium text-destructive mb-2">
+                  This action is PERMANENT and cannot be undone.
+                </p>
+                <p className="mb-2">All your data will be permanently deleted:</p>
+                <ul className="list-disc list-inside text-sm space-y-1">
+                  <li>All agents, memories, documents, and chat history</li>
+                  <li>All platform connections and synced content</li>
+                  <li>Your account will be removed from the system</li>
+                </ul>
+                <p className="mt-2 text-sm">
+                  You will be logged out immediately. To use yarnnn again, you would need to create a new account.
+                </p>
+              </>
+            ),
+          },
+    );
+    if (!ok) return;
 
     setIsPurging(true);
-    setPurgeSuccess(null);
-
     try {
-      let result;
-      switch (dangerAction) {
-        case "reset":
-          result = await api.account.resetAccount();
-          setPurgeSuccess(result.message);
-          clearMessages();
-          // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
-          // This call is a harmless safety net; it returns the already-restored state.
-          await api.workspace.getState().catch(() => null);
-          // Route to /chat so TP greets the user and triggers the onboarding
-          // modal (identity is empty/sparse after full reset). Previously routed
-          // to /work which skipped onboarding entirely.
-          // ADR-297 D19.4 — foreground a surface (window-open), not
-          // router.push (which erases the Desktop). ADR-435 (2026-07-10): land
-          // on Chat — the steward's voice + activation surface (Home was
-          // deleted; identity sparse after full reset, so the steward greets +
-          // the onboarding modal triggers). Was 'home', before that 'channels'.
-          setTimeout(() => navigateToSurface('chat'), 1500);
-          break;
-        case "deactivate":
-          result = await api.account.deactivateAccount();
-          setPurgeSuccess(result.message);
-          const supabase = createClient();
-          await supabase.auth.signOut();
-          router.push("/");
-          break;
+      if (action === "reset") {
+        await runAction(() => api.account.resetAccount(), {
+          pending: "Resetting your account…",
+          success: "Account reset — a fresh workspace is ready.",
+          error: "Reset failed — nothing was deleted. Try again.",
+        });
+        clearMessages();
+        // Backend re-scaffolds transactionally (ADR-140/151/161/164
+        // invariants); this call is a harmless safety net.
+        await api.workspace.getState().catch(() => null);
+        // ADR-297 D19.4 — foreground a surface (window-open), not
+        // router.push. ADR-435: land on Chat (the steward greets; the
+        // onboarding modal triggers on the sparse identity).
+        setTimeout(() => navigateToSurface('chat'), 1500);
+        await loadDangerZoneStats();
+      } else {
+        await runAction(() => api.account.deactivateAccount(), {
+          pending: "Deleting your account…",
+          success: "Account deleted. Signing you out…",
+          error: "Deletion failed — your account is untouched. Try again.",
+        });
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        router.push("/");
       }
-      // Refresh danger zone stats
-      await loadDangerZoneStats();
-    } catch (err) {
-      console.error("Danger action failed:", err);
-      setPurgeSuccess("Operation failed. Please try again.");
+    } catch {
+      // runAction already reported the failure; nothing more to say here.
     } finally {
       setIsPurging(false);
-      setShowConfirm(false);
-      setDangerAction(null);
     }
   };
-
-  const initiateDangerAction = (action: DangerAction) => {
-    setDangerAction(action);
-    setShowConfirm(true);
-  };
-
-
-  // Auto-dismiss purge success
-  useEffect(() => {
-    if (purgeSuccess) {
-      const timer = setTimeout(() => setPurgeSuccess(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [purgeSuccess]);
 
   // ADR-341: the body for the active pane. The shared SettingsPaneShell
   // owns the sidebar + selection + `?pane=` sync; the page provides the
@@ -633,8 +661,9 @@ export default function SettingsPage() {
   );
 
   // ADR-341: System Settings mounts the shared SettingsPaneShell (Singular
-  // Implementation, ADR-341 D5) with the OS-governance pane set. Modals +
-  // toast are fixed-position siblings outside the shell's scroll area.
+  // Implementation, ADR-341 D5) with the OS-governance pane set. Transient
+  // feedback (toasts + confirms) rides FeedbackContext — nothing fixed-
+  // position is hand-rolled here any more.
   return (
     <>
       <SettingsPaneShell
@@ -644,94 +673,9 @@ export default function SettingsPage() {
         renderPane={renderPane}
       />
 
-      {/* Success Message Toast */}
-      {purgeSuccess && (
-        <div className="fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg shadow-lg z-50">
-          <Check className="w-5 h-5" />
-          {purgeSuccess}
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="w-6 h-6 text-destructive" />
-              <h3 className="text-lg font-semibold">
-                {dangerAction === "deactivate" ? "Delete Account Permanently?" :
-                 dangerAction === "reset" ? "Full Account Reset?" :
-                 "Confirm Deletion"}
-              </h3>
-            </div>
-
-            <div className="text-muted-foreground mb-6">
-              {dangerAction === "reset" && (
-                <>
-                  <p className="mb-2">
-                    Are you sure you want to <strong>reset your entire account</strong>? This will delete:
-                  </p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>{dangerStats?.workspace_files} workspace files</li>
-                    <li>{dangerStats?.agents} agents and all scheduled work</li>
-                    <li>{dangerStats?.platform_connections} platform connections</li>
-                    <li>{dangerStats?.chat_sessions} chat sessions</li>
-                    <li>All memories, documents, activity, and sync data</li>
-                  </ul>
-                  <p className="mt-2 text-sm">
-                    Your account stays active with a freshly reset workspace
-                    (the default agents and behind-the-scenes setup restored; scheduled
-                    work and context start empty).
-                  </p>
-                </>
-              )}
-              {dangerAction === "deactivate" && (
-                <>
-                  <p className="font-medium text-destructive mb-2">
-                    This action is PERMANENT and cannot be undone.
-                  </p>
-                  <p className="mb-2">All your data will be permanently deleted:</p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>All agents, memories, documents, and chat history</li>
-                    <li>All platform connections and synced content</li>
-                    <li>Your account will be removed from the system</li>
-                  </ul>
-                  <p className="mt-2 text-sm">
-                    You will be logged out immediately. To use yarnnn again, you would need to create a new account.
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowConfirm(false);
-                  setDangerAction(null);
-                }}
-                className="px-4 py-2 border border-border rounded-md"
-                disabled={isPurging}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDangerAction}
-                disabled={isPurging}
-                className="px-4 py-2 text-destructive text-sm font-medium hover:underline flex items-center gap-2 disabled:opacity-50"
-              >
-                {isPurging && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isPurging
-                  ? "Processing..."
-                  : dangerAction === "deactivate"
-                  ? "Deactivate Account"
-                  : dangerAction === "reset"
-                  ? "Reset Account"
-                  : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* The hand-rolled toast + confirm modal that lived here are DELETED —
+          the danger zone gates and reports through FeedbackContext (ADR-400;
+          transient-surfacing streamline 2026-08-22). */}
     </>
   );
 }

@@ -25,6 +25,7 @@
 
 import { useEffect, useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,9 @@ const TIER_LABEL: Record<SubscriptionTier, string> = {
 const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 
 export function SubscriptionCard({ workspaceName }: { workspaceName?: string | null }) {
+  // Transient-surfacing streamline 2026-08-22: a money-visible act gets the
+  // styled danger gate, not the browser's unstyled window.confirm.
+  const { confirm: confirmDialog } = useFeedback();
   const { status, tier, isLoading, error, isForbidden, topup, subscribe, openPaymentMethods, cancel } =
     useSubscription();
   const { navigateToSurface } = useSurfacePreferences();
@@ -468,9 +472,13 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!window.confirm(
-                      "Cancel this plan? The workspace keeps its current plan until the end of the billing period, then returns to Free. Your files and history are not affected.",
-                    )) return;
+                    const ok = await confirmDialog({
+                      title: "Cancel this plan?",
+                      body: "The workspace keeps its current plan until the end of the billing period, then returns to Free. Your files and history are not affected.",
+                      confirmLabel: "Cancel plan",
+                      danger: true,
+                    });
+                    if (!ok) return;
                     const res = await cancel();
                     if (res) setCancelled(res.ends_at ?? new Date().toISOString());
                   }}

@@ -38,7 +38,6 @@ import {
 import { resolveChrome, getDetailMiddles, useComposition } from '@/lib/compositor';
 import { FeedbackStrip } from './details/FeedbackStrip';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
-import { cn } from '@/lib/utils';
 import type { Recurrence, RecurrenceDetail, Agent } from '@/types';
 
 interface WorkDetailProps {
@@ -47,7 +46,6 @@ interface WorkDetailProps {
   refreshKey: number;
   mutationPending: boolean;
   pendingAction: 'run' | 'pause' | null;
-  actionNotice: { kind: 'info' | 'success' | 'error'; text: string } | null;
   onRunTask: (slug: string) => void;
   onPauseTask: (slug: string) => void;
   onOpenChat: (prompt?: string) => void;
@@ -90,7 +88,6 @@ export function WorkDetail({
   refreshKey,
   mutationPending,
   pendingAction,
-  actionNotice,
   onRunTask,
   onPauseTask,
   onOpenChat,
@@ -116,7 +113,6 @@ export function WorkDetail({
     assignedAgent,
     mutationPending,
     pendingAction,
-    actionNotice,
     onRunTask,
     onPauseTask,
     onEdit: (prompt) => onOpenChat(prompt ?? editPrompt),
@@ -130,21 +126,9 @@ export function WorkDetail({
           <SurfaceIdentityHeader
             title={task.title}
             metadata={
-              <div className="space-y-1">
-                <ChromeRenderer decl={chrome.metadata} />
-                {actionNotice && (
-                  <p className={cn(
-                    'text-[11px]',
-                    actionNotice.kind === 'error'
-                      ? 'text-destructive'
-                      : actionNotice.kind === 'success'
-                        ? 'text-primary'
-                        : 'text-muted-foreground',
-                  )}>
-                    {actionNotice.text}
-                  </p>
-                )}
-              </div>
+              {/* The inline actionNotice slot is DELETED (2026-08-22) — run/
+                  pause outcomes report through FeedbackContext toasts. */}
+              <ChromeRenderer decl={chrome.metadata} />
             }
             actions={<ChromeRenderer decls={chrome.actions} />}
           />

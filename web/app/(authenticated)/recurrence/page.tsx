@@ -46,8 +46,7 @@ import { cn } from '@/lib/utils';
 import { humanizeSlug } from '@/lib/schedule';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
-
-type ActionNotice = { kind: 'info' | 'success' | 'error'; text: string } | null;
+import { useFeedback } from '@/contexts/FeedbackContext';
 
 function getActionErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof APIError) {
@@ -129,17 +128,11 @@ export default function RecurrencePage() {
   const [mutationPending, setMutationPending] = useState(false);
   const [pendingAction, setPendingAction] = useState<'run' | 'pause' | null>(null);
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
-  const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
-
-  useEffect(() => {
-    if (!actionNotice) return;
-    const timeout = window.setTimeout(() => setActionNotice(null), 5000);
-    return () => window.clearTimeout(timeout);
-  }, [actionNotice]);
-
-  useEffect(() => {
-    setActionNotice(null);
-  }, [taskSlugFromUrl]);
+  // Transient-surfacing streamline 2026-08-22: the hand-rolled ActionNotice
+  // (a verbatim runAction clone rendered inline in the detail header, with
+  // its own kind enum, 5s timer and clear-on-navigation effect) is DELETED —
+  // run/pause outcomes report through the canonical layer.
+  const { runAction } = useFeedback();
 
   // D19 (2026-05-22): workspace-wide setBreadcrumb removed.
   // Per-window locator (2026-06-25): the WindowFrame title bar shows
@@ -173,48 +166,40 @@ export default function RecurrencePage() {
   const handleRunTask = useCallback(async (slug: string) => {
     setMutationPending(true);
     setPendingAction('run');
-    setActionNotice({ kind: 'info', text: 'Running task now. This can take up to a minute.' });
     try {
-      await api.recurrences.run(slug);
+      await runAction(() => api.recurrences.run(slug), {
+        pending: 'Running task — this can take up to a minute…',
+        success: 'Task run completed',
+        error: (err) => getActionErrorMessage(err, 'Failed to run task.'),
+      });
       setDetailRefreshKey((current) => current + 1);
       await Promise.all([reload(), reloadRecurrenceDetail()]);
-      setActionNotice({ kind: 'success', text: 'Task run completed. Latest task data refreshed.' });
-    } catch (err) {
-      console.error('[Work] Failed to trigger task:', err);
-      setActionNotice({
-        kind: 'error',
-        text: getActionErrorMessage(err, 'Failed to run task.'),
-      });
+    } catch {
+      // runAction reported it.
     } finally {
       setMutationPending(false);
       setPendingAction(null);
     }
-  }, [reload, reloadRecurrenceDetail]);
+  }, [reload, reloadRecurrenceDetail, runAction]);
 
   const handlePauseTask = useCallback(async (slug: string) => {
     setMutationPending(true);
     setPendingAction('pause');
-    setActionNotice(null);
     try {
       const task = (selectedRecurrenceDetail?.slug === slug ? selectedRecurrenceDetail : null) ?? tasks.find(t => t.slug === slug);
       const newStatus = task?.status === 'active' ? 'paused' : 'active';
-      await api.recurrences.update(slug, { status: newStatus });
+      await runAction(() => api.recurrences.update(slug, { status: newStatus }), {
+        success: newStatus === 'paused' ? 'Task paused' : 'Task resumed',
+        error: (err) => getActionErrorMessage(err, 'Failed to update task.'),
+      });
       await Promise.all([reload(), reloadRecurrenceDetail()]);
-      setActionNotice({
-        kind: 'success',
-        text: newStatus === 'paused' ? 'Task paused.' : 'Task resumed.',
-      });
-    } catch (err) {
-      console.error('[Work] Failed to update task:', err);
-      setActionNotice({
-        kind: 'error',
-        text: getActionErrorMessage(err, 'Failed to update task.'),
-      });
+    } catch {
+      // runAction reported it.
     } finally {
       setMutationPending(false);
       setPendingAction(null);
     }
-  }, [tasks, selectedRecurrenceDetail, reload, reloadRecurrenceDetail]);
+  }, [tasks, selectedRecurrenceDetail, reload, reloadRecurrenceDetail, runAction]);
 
   // D19: WorkDetail accepts onOpenChat as an optional callback. The
   // universal ChatDrawer FAB provides the primary chat affordance now;
@@ -378,7 +363,6 @@ export default function RecurrencePage() {
           refreshKey={detailRefreshKey}
           mutationPending={mutationPending}
           pendingAction={pendingAction}
-          actionNotice={actionNotice}
           onRunTask={handleRunTask}
           onPauseTask={handlePauseTask}
           onOpenChat={handleOpenChatDraft}

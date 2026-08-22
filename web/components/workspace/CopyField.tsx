@@ -31,6 +31,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
+import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { Check, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -58,7 +59,7 @@ export function CopyField({
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     } catch {
       // Denied / insecure origin / webview — hand the operator the selection
       // so ⌘C still works. Never report a copy that did not happen.

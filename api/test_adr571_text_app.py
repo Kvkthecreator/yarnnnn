@@ -236,8 +236,13 @@ check("5g the rail is Properties | Chat, the Docs grammar",
       "'properties', 'Properties'" in _editor and "'chat', 'Chat'" in _editor)
 check("5h the lane stays MOUNTED across a tab switch (a streaming turn survives)",
       "rightTab === 'chat' ? 'flex' : 'hidden'" in _editor)
+# 5i re-anchored 2026-08-22: the "Properties and chat" copy left with the
+# b58ea08 pane-contract recut (found pre-existing red, hidden by a
+# node_modules-less baseline). The MECHANISM is the check: at overlay rungs
+# the rail renders as an absolute overlay gated on sideOpen — reachable,
+# dismissible, never an inescapable state.
 check("5i the rail is reachable at narrow rungs (never an inescapable state)",
-      "sideIsOverlay" in _editor and "Properties and chat" in _editor)
+      "sideIsOverlay" in _editor and "sideOpen ? 'flex' : 'hidden'" in _editor)
 check("5j exactly ONE <main> landmark (the nested-main defect that clipped "
       "the rail when Text rode the dashboard housing)",
       _editor.count("<main") == 1 and _landing.count("<main") == 0)
@@ -2106,23 +2111,27 @@ check("18j the CSV insert reads the document from the CANVAS at apply time "
       re.search(r"canvasRef\.current\?\.text\(\)", _editor_nc) is not None
       and "insertCsvTable(current" in _editor_nc,
       "a stale-string apply would silently destroy typing during the fetch")
-# The `catch` block of takeCsv, isolated. Its BODY is what must not insert.
-_csv_catch = re.search(
-    r"const takeCsv[\s\S]*?\}\s*catch\s*\{([\s\S]*?)\}\s*finally", _editor_nc)
+# 18k re-anchored 2026-08-22 (transient-surfacing streamline): the failure
+# notice moved from a hand-rolled bottom-center div (`setCsvError` + JSX) to
+# the canonical toast layer — `reportAction`'s `error:` line. The BEHAVIOUR
+# is unchanged and still what this check reads: a failed read INSERTS
+# NOTHING (the catch body carries no insert; the insert lives inside the
+# reportAction op, which rethrows on failure) and SAYS SO (the "nothing was
+# inserted" copy rides the reportAction error option, in live code).
+_csv_fn = re.search(r"const takeCsv[\s\S]*?\n  \);", _editor_nc)
+_csv_fn_body = _csv_fn.group(0) if _csv_fn else ""
+_csv_catch = re.search(r"\}\s*catch\s*\{([\s\S]*?)\}", _csv_fn_body)
 _csv_catch_body = _csv_catch.group(1) if _csv_catch else ""
 check("18k a FAILED read inserts NOTHING and says so — writing a source note "
       "with no rows under it would assert 'that file is empty', a different and "
-      "false claim when the request simply failed. "
-      "EIGHTH occurrence this arc of a check matching a NAME where it meant a "
-      "BEHAVIOUR: the first spelling required `setCsvError` + the copy string "
-      "and PASSED its own falsification — replacing the catch body with an "
-      "insert left the setter in its own `useState`/timeout and the copy in the "
-      "JSX. It now reads the CATCH BODY and requires that no insert happens there.",
-      _csv_catch is not None
-      and "setCsvError" in _csv_catch_body
+      "false claim when the request simply failed. The catch body must not "
+      "insert; the error copy must ride the canonical reportAction call.",
+      _csv_fn is not None
+      and _csv_catch is not None
       and "insertCsvTable" not in _csv_catch_body
       and "applyEdit" not in _csv_catch_body
-      and "nothing was inserted" in _editor_src,
+      and "reportAction(" in _csv_fn_body
+      and re.search(r"error:\s*`[^`]*nothing was inserted", _csv_fn_body) is not None,
       f"catch body: {_csv_catch_body.strip()[:160]!r}")
 
 _strings_src = (WEB / "components" / "strings" / "StringsSurface.tsx").read_text(encoding="utf-8")

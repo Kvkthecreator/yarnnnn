@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { DECK_STAGE_FALLBACK_W, DECK_STAGE_FALLBACK_H } from './stageGeometry';
@@ -220,6 +221,9 @@ export function PagedNavigator({
   onReorderPages,
   onDeletePages,
 }: PagedNavigatorProps) {
+  // The canonical gate (ADR-400) — replaces the unstyled window.confirm on
+  // multi-delete (transient-surfacing streamline 2026-08-22).
+  const { confirm: confirmDialog } = useFeedback();
   const [previews, setPreviews] = useState<SlidePreview[] | null>(null);
   // Drag-to-reorder (PowerPoint): the index being dragged, and the gap the drop
   // would land in (0..N — a drop BEFORE page `dropAt`, or after the last).
@@ -318,15 +322,21 @@ export function PagedNavigator({
 
   // Delete the current selection (Delete/Backspace or a future menu). Confirms
   // only for a multi-delete — a single delete is cheap and ⌘Z undoes it.
-  const deleteSelection = useCallback(() => {
+  const deleteSelection = useCallback(async () => {
     const list = selectedList();
     if (!list.length || !onDeletePages) return;
     if (list.length > 1) {
       const noun = layout === 'deck' ? 'slides' : 'sections';
-      if (!window.confirm(`Delete ${list.length} ${noun}?`)) return;
+      const ok = await confirmDialog({
+        title: `Delete ${list.length} ${noun}?`,
+        body: '⌘Z undoes it.',
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
     }
     onDeletePages(list);
-  }, [selectedList, onDeletePages, layout]);
+  }, [selectedList, onDeletePages, layout, confirmDialog]);
 
   // Keyboard on the focused strip (PowerPoint/Finder ladder): Delete removes the
   // selection; ↑/↓ move the primary (+ scroll); ⌘A selects all; Esc clears to

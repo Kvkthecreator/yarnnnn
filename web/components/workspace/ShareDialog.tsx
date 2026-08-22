@@ -46,6 +46,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
 
@@ -248,7 +249,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(url);
-      setTimeout(() => setCopied((c) => (c === url ? null : c)), 2000);
+      setTimeout(() => setCopied((c) => (c === url ? null : c)), COPY_FEEDBACK_MS);
     } catch {
       linkRef.current?.select();
     }

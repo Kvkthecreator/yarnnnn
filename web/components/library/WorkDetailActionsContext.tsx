@@ -9,7 +9,7 @@
  *
  * Singular Implementation discipline: this is the single channel by
  * which chrome components reach lifecycle actions (run, pause, edit
- * in chat) and surface state (mutationPending, actionNotice). The
+ * in chat) and surface state (mutationPending). The
  * deleted per-kind action clusters in WorkDetail.tsx took these as
  * direct props — those clusters are gone; this context replaces the
  * plumbing.
@@ -24,7 +24,6 @@ export interface WorkDetailActionsContextValue {
   assignedAgent: Agent | null;
   mutationPending: boolean;
   pendingAction: 'run' | 'pause' | null;
-  actionNotice: { kind: 'info' | 'success' | 'error'; text: string } | null;
   onRunTask: (slug: string) => void;
   onPauseTask: (slug: string) => void;
   onEdit: (prompt?: string) => void;

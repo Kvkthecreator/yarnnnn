@@ -31,6 +31,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { FileOutput, Share2 } from 'lucide-react';
 
 interface StudioShareExportProps {
@@ -106,7 +107,7 @@ export function StudioShareExport({
     try {
       await copyAiRef();
       setAiRefState('copied');
-      setTimeout(() => setAiRefState('idle'), 2500);
+      setTimeout(() => setAiRefState('idle'), COPY_FEEDBACK_MS);
     } catch {
       /* clipboard denied — nothing durable failed */
     }

@@ -52,6 +52,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import { useStickToBottom, JumpToLatest } from '@/hooks/useStickToBottom';
 import {
@@ -887,7 +888,7 @@ export function LanePanel({
   const copyMessage = useCallback((m: LaneMessage) => {
     void navigator.clipboard?.writeText(m.content).then(() => {
       setCopiedId(m.id);
-      setTimeout(() => setCopiedId((cur) => (cur === m.id ? null : cur)), 1500);
+      setTimeout(() => setCopiedId((cur) => (cur === m.id ? null : cur)), COPY_FEEDBACK_MS);
     });
   }, []);
 

@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react';
+import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import {
   Loader2,
@@ -155,7 +156,7 @@ function VersionPreviewFull({
     if (!content) return;
     await navigator.clipboard.writeText(content);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
   };
 
   return (

@@ -95,6 +95,7 @@ import {
 } from '@/components/text/markdownEdits';
 import { documentName, leafOf } from '@/components/text/TextSurface';
 import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 
@@ -382,6 +383,10 @@ export function TextEditor({
     setText(edit.text);
   }, []);
 
+  // The canonical async-outcome reporter (ADR-400), aliased — this file's own
+  // `runAction` below is the TOOLBAR dispatcher, an unrelated verb.
+  const { runAction: reportAction } = useFeedback();
+
   const runAction = useCallback(
     (action: ToolbarAction) => {
       const sel = canvasRef.current?.selection();
@@ -417,8 +422,6 @@ export function TextEditor({
   // returns both lists (`images` and `tables`), and `cites` selects between
   // them. `for` carries which insert the pick will run.
   const [picker, setPicker] = useState<{ at: number; for: 'image' | 'csvtable' } | null>(null);
-  /** Set while a picked CSV is being read, so the pane can say so. */
-  const [csvLoading, setCsvLoading] = useState(false);
 
   const takeImage = useCallback(
     (path: string) => {
@@ -445,30 +448,32 @@ export function TextEditor({
     async (path: string) => {
       const at = picker?.at ?? canvasRef.current?.selection()?.[0] ?? text.length;
       setPicker(null);
-      setCsvLoading(true);
       try {
-        const file = await api.workspace.getFile(relPath(path));
-        const current = canvasRef.current?.text() ?? text;
-        const where = Math.min(at, current.length);
-        applyEdit(insertCsvTable(current, where, where, relPath(path), file.content ?? '', new Date()));
+        // Transient-surfacing streamline 2026-08-22: the D18 notice rides the
+        // canonical toast layer (was a hand-rolled bottom-center div). The
+        // D18 contract is unchanged: the fetch says so while in flight, and
+        // a read that fails inserts NOTHING — a source note with no rows
+        // under it would read as "that file is empty", which is a different
+        // and false claim (the file may be fine and the request may not
+        // have been).
+        await reportAction(
+          async () => {
+            const file = await api.workspace.getFile(relPath(path));
+            const current = canvasRef.current?.text() ?? text;
+            const where = Math.min(at, current.length);
+            applyEdit(insertCsvTable(current, where, where, relPath(path), file.content ?? '', new Date()));
+          },
+          {
+            pending: 'Reading the CSV…',
+            error: `Couldn’t read ${relPath(path)} — nothing was inserted.`,
+          },
+        );
       } catch {
-        // A read that fails writes NOTHING. A source note with no rows under
-        // it would read as "that file is empty", which is a different and
-        // false claim — the file may be fine and the request may not have been.
-        setCsvError(relPath(path));
-      } finally {
-        setCsvLoading(false);
+        // Reported by the toast; nothing was inserted.
       }
     },
-    [picker, text, applyEdit],
+    [picker, text, applyEdit, reportAction],
   );
-
-  const [csvError, setCsvError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!csvError) return;
-    const t = setTimeout(() => setCsvError(null), 6000);
-    return () => clearTimeout(t);
-  }, [csvError]);
 
   /**
    * Go to a source range and scroll it into view — the outline jump.
@@ -1303,21 +1308,9 @@ export function TextEditor({
           onClose={() => setPicker(null)}
         />
       )}
-      {/* ADR-572 D18 — a CSV read is the one insert that can be slow or fail,
-          so it says so. Silence during the fetch reads as a dead click, and a
-          silent failure reads as "that file was empty". */}
-      {(csvLoading || csvError) && (
-        <div
-          role="status"
-          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border border-border bg-popover px-3 py-1.5 text-xs shadow-md"
-        >
-          {csvLoading ? (
-            <span className="text-muted-foreground">Reading the CSV…</span>
-          ) : (
-            <span className="text-destructive">Couldn’t read {csvError} — nothing was inserted.</span>
-          )}
-        </div>
-      )}
+      {/* ADR-572 D18's CSV notice now rides the canonical toast layer
+          (runAction in takeCsv) — the hand-rolled bottom-center div is
+          deleted (transient-surfacing streamline 2026-08-22). */}
       {organizeModals}
       {fileMenu}
       <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />

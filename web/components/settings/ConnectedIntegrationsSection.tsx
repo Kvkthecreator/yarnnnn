@@ -10,6 +10,7 @@ import {
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { formatRelativeTime } from "@/lib/formatting";
 import {
   CONNECTOR_REGISTRY,
@@ -134,6 +135,9 @@ export function ConnectedIntegrationsSection({
   oauthOutcome = null,
   onDismissOauthOutcome,
 }: ConnectedIntegrationsSectionProps) {
+  // The canonical gate + reporter (ADR-400). `confirm` aliased so the name
+  // never shadows (or gets shadowed by) the banned native `confirm`.
+  const { confirm: confirmDialog, runAction } = useFeedback();
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [platformStatuses, setPlatformStatuses] = useState<Record<string, string>>({});
@@ -242,16 +246,27 @@ export function ConnectedIntegrationsSection({
   };
 
   const handleDisconnectIntegration = async (provider: string) => {
-    if (!confirm(`Disconnect ${provider}? You'll need to reconnect to export to ${provider} again.`)) {
-      return;
-    }
+    // Transient-surfacing streamline 2026-08-22: the bare native `confirm(`
+    // becomes the canonical gate, and the silent console.error failure
+    // becomes a reported one (the operator watched nothing happen before).
+    const ok = await confirmDialog({
+      title: `Disconnect ${provider}?`,
+      body: `You'll need to reconnect to reach ${provider} again.`,
+      confirmLabel: 'Disconnect',
+      danger: true,
+    });
+    if (!ok) return;
 
     setDisconnectingProvider(provider);
     try {
-      await api.integrations.disconnect(provider);
+      await runAction(() => api.integrations.disconnect(provider), {
+        pending: `Disconnecting ${provider}…`,
+        success: `${provider} disconnected`,
+        error: `Couldn't disconnect ${provider} — the connection is unchanged.`,
+      });
       await loadIntegrations();
-    } catch (err) {
-      console.error(`Failed to disconnect ${provider}:`, err);
+    } catch {
+      // runAction reported it.
     } finally {
       setDisconnectingProvider(null);
     }

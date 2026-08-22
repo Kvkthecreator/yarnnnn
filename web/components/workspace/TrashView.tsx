@@ -23,7 +23,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Trash2, Undo2, FileText, AlertTriangle, FolderClosed } from 'lucide-react';
+import { Loader2, Trash2, Undo2, FileText, FolderClosed } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { FileIcon } from './FileIcon';
 import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
@@ -52,14 +52,16 @@ function detail(e: unknown, fallback: string): string {
 }
 
 export function TrashView() {
-  const { runAction } = useFeedback();
+  // Gates AND outcomes both ride the canonical layer now — this file used
+  // runAction for its outcomes while hand-rolling inline "second-click"
+  // gates, which made permanent delete (the MOST destructive act on the
+  // surface) carry the LIGHTEST confirmation in the app (transient-surfacing
+  // streamline 2026-08-22).
+  const { runAction, confirm: confirmDialog } = useFeedback();
   const [items, setItems] = useState<TrashItem[]>([]);
   const [groups, setGroups] = useState<TrashGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  // Two-step confirm, per row and for the whole trash. `null` = nothing armed.
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
-  const [confirmingEmpty, setConfirmingEmpty] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -109,9 +111,15 @@ export function TrashView() {
     }
   }, [runAction]);
 
-  const permanentDelete = useCallback(async (path: string) => {
+  const permanentDelete = useCallback(async (path: string, filename: string) => {
+    const ok = await confirmDialog({
+      title: 'Delete forever?',
+      body: `"${filename}" cannot be recovered after this.`,
+      confirmLabel: 'Delete forever',
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(path);
-    setConfirmingDelete(null);
     try {
       await runAction(() => api.documents.permanentDelete(path), {
         pending: 'Deleting permanently…',
@@ -124,11 +132,17 @@ export function TrashView() {
     } finally {
       setBusy(null);
     }
-  }, [runAction]);
+  }, [runAction, confirmDialog]);
 
   const emptyTrash = useCallback(async () => {
+    const ok = await confirmDialog({
+      title: 'Empty Trash?',
+      body: 'Everything here is deleted permanently. Files other work was made from are kept.',
+      confirmLabel: 'Empty Trash',
+      danger: true,
+    });
+    if (!ok) return;
     setBusy('__empty__');
-    setConfirmingEmpty(false);
     try {
       const res = await runAction(() => api.documents.emptyTrash(), {
         pending: 'Emptying trash…',
@@ -147,7 +161,7 @@ export function TrashView() {
     } finally {
       setBusy(null);
     }
-  }, [runAction, load]);
+  }, [runAction, load, confirmDialog]);
 
   // Groups and loose files are both ROWS. Counted together so the header, the
   // empty state and the Empty-Trash affordance all agree on "is there anything
@@ -168,36 +182,15 @@ export function TrashView() {
         </span>
         {!loading && rowCount > 0 && (
           <div className="ml-auto">
-            {confirmingEmpty ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-destructive">Delete all permanently?</span>
-                <button
-                  type="button"
-                  onClick={() => setConfirmingEmpty(false)}
-                  className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={emptyTrash}
-                  disabled={busy === '__empty__'}
-                  className="inline-flex items-center gap-1 rounded-md border border-destructive/50 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                >
-                  {busy === '__empty__' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Empty Trash
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmingEmpty(true)}
-                className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Empty Trash
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={emptyTrash}
+              disabled={busy === '__empty__'}
+              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
+            >
+              {busy === '__empty__' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Empty Trash
+            </button>
           </div>
         )}
       </div>
@@ -260,49 +253,27 @@ export function TrashView() {
                 </div>
               </div>
 
-              {confirmingDelete === it.path ? (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="text-[11px] text-destructive">Delete forever?</span>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingDelete(null)}
-                    className="rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => permanentDelete(it.path)}
-                    disabled={busy === it.path}
-                    className="inline-flex items-center gap-1 rounded-md border border-destructive/50 px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                  >
-                    {busy === it.path ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-                    Confirm
-                  </button>
-                </div>
-              ) : (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => restore(it.path)}
-                    disabled={busy === it.path}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
-                  >
-                    {busy === it.path ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
-                    Restore
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingDelete(it.path)}
-                    disabled={busy === it.path}
-                    className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-                    title="Permanently delete — cannot be undone"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                </div>
-              )}
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => restore(it.path)}
+                  disabled={busy === it.path}
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+                >
+                  {busy === it.path ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                  Restore
+                </button>
+                <button
+                  type="button"
+                  onClick={() => permanentDelete(it.path, it.filename)}
+                  disabled={busy === it.path}
+                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                  title="Permanently delete — cannot be undone"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

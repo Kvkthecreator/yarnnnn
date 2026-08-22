@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { Check, Download, Link2, Printer, Share2, Upload } from 'lucide-react';
 import { printProse } from '@/components/text/printProse';
 import { cn } from '@/lib/utils';
@@ -75,7 +76,7 @@ export function TextExport({
   const copyReference = async () => {
     await navigator.clipboard.writeText(formatAiReference(path, name));
     setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+    setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
   };
 
   return (
