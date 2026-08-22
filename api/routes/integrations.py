@@ -23,6 +23,11 @@ from pydantic import BaseModel
 
 from services.supabase import UserClient, get_service_client
 from services.workspace_context import substrate_scope_filter, account_scope_filter
+# Module-level on purpose: three handlers resolve a connection's target, and a
+# function-local copy of this import is how the summary endpoint shipped a
+# NameError that import-time checks cannot see (services.connectors is
+# cycle-free by its own contract, so there is nothing to defer).
+from services.connectors import connection_target
 # ADR-494 D1 — the single offered-connector source (mirrors the FE registry;
 # drift is CI-gated by api/test_adr494_connector_registry.py).
 from services.connector_registry import (
@@ -137,8 +142,6 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
     List all of user's connected integrations.
     Returns only active integrations with sanitized data (no tokens).
     """
-    from services.connectors import connection_target
-
     user_id = auth.user_id
 
     try:
@@ -199,6 +202,10 @@ class PlatformSummary(BaseModel):
     provider: str
     status: str  # active, error, expired
     workspace_name: Optional[str] = None
+    # WHERE the connection points (services.connectors.connection_target) —
+    # without this declaration pydantic silently swallowed the handler's
+    # `target=` kwarg, so the summary claimed a field it never emitted.
+    target: Optional[str] = None
     connected_at: datetime
     resource_count: int = 0
     resource_type: str = ""  # channels, labels, pages
@@ -306,7 +313,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 provider=provider,
                 status=integration["status"],
                 workspace_name=metadata.get("workspace_name"),
-                target=connection_target(platform, metadata),
+                target=connection_target(provider, metadata),
                 connected_at=integration["created_at"],
                 resource_count=_resource_count_for(provider, integration),
                 resource_type=resource_type,
@@ -1504,7 +1511,7 @@ async def get_capture_signal(
     """
     from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal
-    from services.connectors import connection_target, connector_does
+    from services.connectors import connector_does
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 

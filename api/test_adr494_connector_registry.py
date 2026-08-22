@@ -208,7 +208,13 @@ check(
     "the ADR-491 budget→usage normalizer is deleted",
     'wsParam.set({ pane: "usage" })' not in ws_page,
 )
-check("the account door still defaults to Account", 'defaultPane="account"' in account_page)
+# Re-anchored 2026-08-22: the settings-polish arc (2026-08-21, operator-
+# requested) made Connectors the LANDING pane; test_settings_polish §3 owns
+# the assertion that the shell default and the page fallback AGREE. This
+# check's old spelling ('defaultPane="account"') pinned the superseded
+# default and read the deliberate change as a regression.
+check("the account door defaults to Connectors (settings-polish landing pane)",
+      'defaultPane="connectors"' in account_page)
 
 print()
 if _failures:

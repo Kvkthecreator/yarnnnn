@@ -93,6 +93,86 @@ record(
     "two faces of one connection could name their target differently",
 )
 
+# -- 2b. the SUMMARY endpoint EXECUTES with a connected row ------------------
+# The two checks above pin a SPELLING, and the spelling stayed green while
+# production 500'd on every summary call (2026-08-21→22): `connection_target`
+# was imported function-locally in the LIST handler only, and the summary's
+# copy of the call named `platform` — a variable that scope does not have.
+# Both defects are invisible at import time and to any source grep; the only
+# detector is RUNNING the handler with a connection row present, because the
+# broken line lives inside `_to_summary`, which executes only for connected
+# platforms. The FE consequence was total: loadIntegrations() Promise.all's
+# the list and the summary, so the 500 blanked the whole Connectors pane —
+# every OAuth reconnect succeeded server-side and rendered as "no update".
+import asyncio  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
+from routes.integrations import get_integrations_summary  # noqa: E402
+
+
+class _Result:
+    def __init__(self, data=None, count=0):
+        self.data = data or []
+        self.count = count
+
+
+class _Query:
+    def __init__(self, result):
+        self._result = result
+
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, *a, **k):
+        return self
+
+    def neq(self, *a, **k):
+        return self
+
+    def execute(self):
+        return self._result
+
+
+class _StubClient:
+    def table(self, name):
+        if name == "platform_connections":
+            return _Query(_Result(data=[{
+                "id": "conn-1",
+                "platform": "slack",
+                "status": "active",
+                "metadata": {"workspace_name": "yarnnn"},
+                "landscape": {"resources": [{"id": "C1", "name": "#general"}]},
+                "created_at": "2026-08-22T00:00:00Z",
+            }]))
+        return _Query(_Result(data=[], count=0))
+
+
+class _StubAuth:
+    user_id = "00000000-0000-0000-0000-000000000000"
+    client = _StubClient()
+
+
+try:
+    _summary = asyncio.run(get_integrations_summary(_StubAuth()))
+    _slack = [p for p in _summary.platforms if p.provider == "slack"]
+    record(
+        "the SUMMARY endpoint executes end-to-end with a connected row",
+        len(_slack) == 1,
+        "the connected platform was dropped from the summary",
+    )
+    record(
+        "…and the summary row carries the resolved target",
+        bool(_slack) and _slack[0].target == "yarnnn",
+        f"target={_slack[0].target!r}" if _slack else "no slack row emitted",
+    )
+except HTTPException as e:
+    record(
+        "the SUMMARY endpoint executes end-to-end with a connected row",
+        False,
+        f"handler raised {e.status_code}: {e.detail} — the prod-blanking shape",
+    )
+    record("…and the summary row carries the resolved target", False,
+           "handler raised before emitting any row")
+
 # -- 3. connectors leads AND lands (the two must agree) ---------------------
 page = _strip_comments(_src("web/app/(authenticated)/settings/page.tsx"))
 record(
