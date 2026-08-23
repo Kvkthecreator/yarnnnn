@@ -1953,6 +1953,11 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         }
         if "similarity" in r:
             item["similarity"] = round(r["similarity"], 3)
+        if "rank" in r and r.get("rank") is not None:
+            # The ts_rank the RPC already computed — the margin carrier. Grading
+            # confidence by COUNT while discarding this manufactured "ambiguous"
+            # over a dominant rank-1 (operator receipt 2026-08-23).
+            item["rank"] = round(float(r["rank"]), 5)
         result_items.append(item)
 
     # Powerbox read gate (2026-07-10) — filter to the caller's granted roots.

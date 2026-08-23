@@ -223,6 +223,71 @@ try:
     out = asyncio.run(compose_search(_auth(None), "q"))
     check("control: an actually-empty result still grades none",
           out.get("confidence") == "none" and out.get("results") == [])
+
+    # =========================================================================
+    # [5] confidence is MARGIN, not count (operator receipt 2026-08-23)
+    # =========================================================================
+    # The three calibration points are LIVE production measurements — a check
+    # that grades them wrongly reproduces the exact complaint: a
+    # contract-following host asked a clarifying question over a bullseye.
+
+    print("\n[5] BM25 confidence comes from the rank margin, never the count")
+
+    def _r(path, rank):
+        return {"path": path, "content_preview": "x", "updated_at": "t", "rank": rank}
+
+    dumps = [_r(f"/workspace/inbound/slack/c1/2026-07-03T0{i}.md", 0.3552) for i in range(4)]
+    _reg_mod.execute_primitive = _with_primitive_result(_qk(
+        [_r("/workspace/operation/definition-of-done.md", 0.99679)] + dumps, "bm25"))
+    out = asyncio.run(compose_search(_auth(None), "definition of done"))
+    check("a 2.8x dominant rank-1 grades HIGH despite four trailing rows",
+          out.get("confidence") == "high",
+          f"got {out.get('confidence')!r} — count-based grading manufactured "
+          "'ambiguous' over a bullseye and the host hedged on a nailed answer")
+
+    _reg_mod.execute_primitive = _with_primitive_result(_qk([
+        _r("/workspace/operation/yarrnnnn-decl/assets/downturn-companies.csv", 0.99706),
+        _r("/workspace/operation/yarrnnnn-decl/deck.html", 0.47396),
+        _r("/workspace/operation/yarrnnnn-decl/assets/downturn-outcomes.csv", 0.30156),
+    ], "bm25"))
+    out = asyncio.run(compose_search(_auth(None), "downturn companies"))
+    check("control: a 2.1x margin over close authored candidates stays AMBIGUOUS",
+          out.get("confidence") == "ambiguous",
+          f"got {out.get('confidence')!r} — margin grading must not crown every "
+          "rank-1; two files genuinely about the topic deserve the question")
+
+    # =========================================================================
+    # [6] raw arrivals step aside — authored understanding is the candidate set
+    # =========================================================================
+
+    print("\n[6] inbound/ rows are set aside when authored files match")
+
+    _reg_mod.execute_primitive = _with_primitive_result(_qk(
+        [_r("/workspace/operation/fundraising/market-sizing-reference.md", 0.99972)]
+        + [_r(f"/workspace/inbound/web/simonwillison/2026-07-2{i}.xml", 0.0) for i in range(4)],
+        "bm25"))
+    out = asyncio.run(compose_search(_auth(None), "market sizing figures"))
+    check("the authored bullseye is the ONLY candidate, graded high",
+          out.get("confidence") == "high"
+          and [r["path"] for r in out.get("results", [])]
+          == ["/workspace/operation/fundraising/market-sizing-reference.md"],
+          f"got {out.get('confidence')!r} over {len(out.get('results', []))} candidates")
+    check("…citations carry no inbound path",
+          all("/inbound/" not in p for p in out.get("citations", [])))
+    check("…and the arrivals are SET ASIDE, not hidden (labelled, counted)",
+          len(out.get("raw_arrivals", [])) == 4
+          and "inbound/" in (out.get("explanation") or ""),
+          "dropping them silently would be the third honesty defect this file exists to end")
+
+    _reg_mod.execute_primitive = _with_primitive_result(_qk(
+        [_r(f"/workspace/inbound/web/simonwillison/2026-07-2{i}.xml", 0.0001) for i in range(3)],
+        "bm25"))
+    out = asyncio.run(compose_search(_auth(None), "slack conversation about pricing"))
+    check("when ONLY arrivals match, they ARE the result set",
+          len(out.get("results", [])) == 3 and "raw_arrivals" not in out,
+          "an arrival can be the only place an answer exists")
+    check("…graded WEAK (all-words at negligible density is a lead, not a hit)",
+          out.get("confidence") == "weak", f"got {out.get('confidence')!r}")
 finally:
     _reg_mod.execute_primitive = _orig_exec
 

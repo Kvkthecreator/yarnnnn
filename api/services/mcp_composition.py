@@ -337,6 +337,21 @@ CONFIDENCE_NONE = "none"
 _SEARCH_DOMINANT_MIN = 0.55   # a top score this high is a confident standalone hit
 _SEARCH_AMBIGUOUS_GAP = 0.08  # if #1 and #2 are within this, no clear winner
 
+# BM25 grading is MARGIN-based, never count-based (operator receipt 2026-08-23:
+# a bullseye at rank-1 trailed by four raw feed dumps graded "ambiguous", so a
+# contract-following host asked a clarifying question it already had the answer
+# to — false ambiguity, the mirror of the false "none"). ts_rank is not on the
+# cosine scale and varies with document length, so dominance is a RATIO.
+# Calibrated on live production queries (workspace d5b9029b, 2026-08-23):
+#   "market sizing figures"  → 0.99972 vs 0.00000  (∞×)  must grade HIGH
+#   "definition of done"     → 0.99679 vs 0.35520  (2.8×) must grade HIGH
+#   "downturn companies"     → 0.99706 vs 0.47396  (2.1×) fairly AMBIGUOUS
+#     (the csv and the deck are both genuinely about it — worth the question)
+_BM25_DOMINANT_RATIO = 2.5
+# All-words-matched at negligible density (huge diffuse docs — feed dumps score
+# 0.000x): a lead, not a hit.
+_BM25_NOISE_RANK = 0.02
+
 
 def _search_confidence(results: list[dict]) -> str:
     """Derive an honest confidence label from results (pure; no inference).
@@ -351,8 +366,18 @@ def _search_confidence(results: list[dict]) -> str:
         return CONFIDENCE_NONE
     sims = sorted((c["similarity"] for c in results if "similarity" in c), reverse=True)
     if not sims:
-        # BM25/list path (no scores) — single hit is high; multiple is ambiguous.
-        return CONFIDENCE_HIGH if len(results) == 1 else CONFIDENCE_AMBIGUOUS
+        # BM25 path: grade on the ts_rank margin the RPC already computed.
+        ranks = sorted((c["rank"] for c in results if "rank" in c), reverse=True)
+        if not ranks:
+            # scoreless rows (the no-query list path) — count is all we have.
+            return CONFIDENCE_HIGH if len(results) == 1 else CONFIDENCE_AMBIGUOUS
+        top = ranks[0]
+        if top < _BM25_NOISE_RANK:
+            return CONFIDENCE_WEAK
+        second = ranks[1] if len(ranks) > 1 else 0.0
+        if second <= 0.0 or (top / second) >= _BM25_DOMINANT_RATIO:
+            return CONFIDENCE_HIGH
+        return CONFIDENCE_AMBIGUOUS
     top = sims[0]
     second = sims[1] if len(sims) > 1 else 0.0
     if top >= _SEARCH_DOMINANT_MIN and (top - second) >= _SEARCH_AMBIGUOUS_GAP:
@@ -434,13 +459,31 @@ async def compose_search(
             "reference": format_file_reference(r.get("path", "")),
             "excerpt": _short_excerpt(r.get("content_preview") or r.get("summary") or ""),
             "last_updated": r.get("updated_at"),
-            # Carry the per-row similarity QueryKnowledge already computed
-            # (semantic path only; absent on BM25/list). The host uses it to
+            # Carry the per-row score QueryKnowledge already computed —
+            # similarity (semantic) or ts_rank (BM25). The host uses it to
             # decide answer-vs-clarify (see confidence below).
             **({"similarity": r["similarity"]} if "similarity" in r else {}),
+            **({"rank": r["rank"]} if "rank" in r else {}),
         }
         for r in (result.get("results") or [])
     ]
+
+    # Raw arrivals are not authored understanding (intake-pipeline canon: a
+    # feed dump or transcript lands as an OBSERVATION; meaning lives at the
+    # consumer layer). Long diffuse dumps match a little of everything, so
+    # left in the candidate set they manufacture false ambiguity around an
+    # authored bullseye — the operator receipt behind this partition
+    # (2026-08-23: rank-1 exact file + four RSS dumps graded "ambiguous").
+    # When ANY authored file matches, the inbound/ rows step aside into
+    # `raw_arrivals` — still returned, labelled, never candidates and never
+    # confidence inputs. When ONLY inbound matches, it IS the result set
+    # (an arrival can be the only place an answer exists).
+    raw_arrivals = [r for r in results if r["path"].startswith("/workspace/inbound/")]
+    authored = [r for r in results if not r["path"].startswith("/workspace/inbound/")]
+    if authored:
+        results = authored
+    else:
+        raw_arrivals = []
 
     if not results:
         return {
@@ -487,6 +530,14 @@ async def compose_search(
         "confidence": confidence,
         "citations": [r["path"] for r in results],
     }
+    if raw_arrivals:
+        out["raw_arrivals"] = raw_arrivals
+        note = (
+            f"{len(raw_arrivals)} raw arrival(s) under inbound/ also matched "
+            "(unprocessed feed/transcript captures — see `raw_arrivals`); they "
+            "are set aside from the candidates and the confidence grade."
+        )
+        explanation = f"{explanation} {note}" if explanation else note
     if explanation:
         out["explanation"] = explanation
     return out
