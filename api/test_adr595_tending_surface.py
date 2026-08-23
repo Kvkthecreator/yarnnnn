@@ -204,6 +204,24 @@ check("4c per-source seeds carry the source id",
 check("4d the arity law is stated in the pane, not discovered by refusal",
       "exactly one feed" in fe and "PROSE_SOURCE_CAP" in fe)
 
+# ═════════════════════════════════════════════════════════════════════════════
+print("§5 setup is first-class (D4) — the pane carries the act")
+# ═════════════════════════════════════════════════════════════════════════════
+
+check("5a the unconfigured pane renders the anatomy slots, not a placard",
+      "SetupPanel" in fe and fe.count("SetupSlot") >= 4)
+check("5b the aperture is surfaced at designation (selected slices fetched "
+      "across the connection roster, not guessed in prose)",
+      "getCaptureSignal" in fe and "FRESHNESS_PROVIDERS" in fe
+      and ".filter((d) => d.selected)" in fe)
+check("5c an aperture chip's seed carries the SELECTOR ID (the declaration "
+      "needs the id; the name is display)",
+      "(${s.id})" in fe)
+check("5d the one direct gesture survives — the file pick, in slot one",
+      "Pick the file to keep current" in fe)
+check("5e the contract slot fills live from the substrate",
+      "done={!!contract}" in fe)
+
 n = PASS + FAIL
 print(f"\n{PASS}/{n} ADR-595 assertions pass")
 sys.exit(0 if FAIL == 0 else 1)

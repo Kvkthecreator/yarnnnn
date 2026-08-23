@@ -91,6 +91,26 @@ cites that prefix). Nothing new is stored; every fact is a read over the
 ledger and the fixed grammar. The roster list (`GET /strings`) stays light —
 enrichment rides the desk view only.
 
+### D4 — Setup is first-class (2026-08-23 amendment, operator-directed)
+
+The first click-pass found the unconfigured pane was a placard pointing at a
+side conversation — it *described* setup without *carrying* it ("this current
+surfacing has no implication to do so"). Re-cut: **the unconfigured pane IS
+the setup surface.** The string's anatomy renders as four numbered slots —
+the file (the one direct gesture, ADR-567 D3 unchanged) · the contract · the
+sources · the cadence — each act a precise seed into Keeper's lane. Slots
+fill live as the files land (the contract slot renders CONTRACT.md the
+moment Keeper writes it — the substrate is the state machine), and the desk
+promotes to the tabs when the declaration parses.
+
+The sources slot surfaces **the aperture at designation**: the selected
+slices across the member's connections render as chips whose click seeds
+"pull from this slice" with the selector id — so a connector source is
+composed from what the connection may already read, instead of being guessed
+in prose and failing later as out-of-selection. Authorship stays
+conversational throughout — the slots sharpen the seeds; they are not a
+form.
+
 ## 3. What this ADR does NOT do
 
 - **No change to the string's mechanics** — declaration grammar, run body,

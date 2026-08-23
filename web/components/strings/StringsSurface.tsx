@@ -54,6 +54,7 @@ import { DeskHousing, type DeskContext } from '@/components/desk/DeskHousing';
 import {
   DeskActivityRail, type RailEvent,
 } from '@/components/desk/DeskActivityRail';
+import { FRESHNESS_PROVIDERS } from '@/lib/connectors/registry';
 import type { WorkspaceTreeNode } from '@/types';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
@@ -107,6 +108,21 @@ const SETUP_SUGGESTIONS = [
   'This file must stay true to: ',
   'Pull from this source: ',
   'Refresh it every morning and keep it current.',
+];
+
+/** One selected slice on a connection — an aperture chip the setup pane
+ *  offers as a source (ADR-595 D4: the aperture surfaced at designation,
+ *  where it matters, instead of failing later as an out-of-selection source). */
+interface ApertureSlice {
+  provider: string;
+  id: string;
+  name: string | null;
+}
+
+const CADENCE_PRESETS: Array<{ label: string; seed: string }> = [
+  { label: 'every morning', seed: 'Refresh it every morning and keep it current.' },
+  { label: 'hourly', seed: 'Refresh it hourly.' },
+  { label: 'weekly', seed: 'Refresh it weekly, Monday morning.' },
 ];
 
 const TUNE_SUGGESTIONS = [
@@ -188,6 +204,9 @@ export default function StringsSurface() {
 
   const [strings, setStrings] = useState<StringSummary[] | null>(null);
   const [desk, setDesk] = useState<DeskState>({ phase: 'idle' });
+  //: The aperture chips for the setup pane — selected slices across the
+  //: member's connections. null = not loaded; [] = loaded, none selected.
+  const [apertureSlices, setApertureSlices] = useState<ApertureSlice[] | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [activityNonce, setActivityNonce] = useState(0);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -307,6 +326,30 @@ export default function StringsSurface() {
     if (topic) void loadDesk(topic);
     else setDesk({ phase: 'idle' });
   }, [topic, loadDesk]);
+
+  // The setup pane's aperture chips (ADR-595 D4) — loaded once, on first
+  // entering the unconfigured state. Best-effort per provider: an
+  // unconnected platform simply contributes no chips.
+  useEffect(() => {
+    if (desk.phase !== 'unconfigured' || apertureSlices !== null) return;
+    void (async () => {
+      const results = await Promise.all(
+        FRESHNESS_PROVIDERS.map(async (p) => {
+          try {
+            const signal = await api.integrations.getCaptureSignal(
+              p as 'slack' | 'notion' | 'github',
+            );
+            return (signal.declared ?? [])
+              .filter((d) => d.selected)
+              .map((d) => ({ provider: p, id: d.id, name: d.name }));
+          } catch {
+            return [];
+          }
+        }),
+      );
+      setApertureSlices(results.flat());
+    })();
+  }, [desk.phase, apertureSlices]);
 
   const selectTopic = useCallback((t: string, target?: string | null) => {
     param.set({ topic: t, target: target ?? null, file: null });
@@ -525,53 +568,23 @@ export default function StringsSurface() {
           />
         )}
 
-        {/* ── Unconfigured — the conversational designation (D7) ── */}
+        {/* ── Unconfigured — SETUP IS FIRST-CLASS (ADR-595 D4): the pane IS
+            the setup surface. The string's anatomy renders as numbered
+            slots; each act is a precise seed into Keeper's lane; the slots
+            fill live as the files land (the substrate is the state machine),
+            and the desk promotes to the tabs the moment the declaration
+            parses. Authorship stays conversational — the one direct gesture
+            is still the file pick. ── */}
         {desk.phase === 'unconfigured' && (
-          <div className="space-y-4">
-            <div className="rounded-md border bg-muted/30 p-4 text-sm">
-              <p className="font-medium">
-                Tell Keeper what {targetParam ? <code>{targetParam}</code> : 'this file'} must stay true to.
-              </p>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                Say what the file means and where currency comes from. Keeper
-                writes the contract and the string declaration into the folder
-                — attributed, revisable — and the standing loop begins on the
-                next tick (~5&nbsp;minutes). Your own edits to the file are
-                corrections, and they compound into every future run.
-              </p>
-              {lanesEnabled === false && (
-                <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                  Setting up happens in conversation with Keeper, which
-                  isn&apos;t enabled on this workspace yet — so this file
-                  can&apos;t be designated from here right now.
-                </p>
-              )}
-              {/* The folder door arrives without a leaf — the pick is still
-                  the member's one direct gesture, offered here so the desk
-                  never strands them without Keeper's lane. */}
-              {!targetParam && lanesEnabled !== false && (
-                <button
-                  type="button"
-                  onClick={() => setAttachOpen(true)}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Pick the file to keep current
-                </button>
-              )}
-            </div>
-            {desk.contract && (
-              <section>
-                <SectionHeading>Contract — declared</SectionHeading>
-                <div className="rounded-md border p-4">
-                  <MarkdownRenderer content={desk.contract} compact />
-                </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  The string declaration is still pending — Keeper finishes
-                  the setup in the conversation.
-                </p>
-              </section>
-            )}
-          </div>
+          <SetupPanel
+            targetParam={targetParam}
+            topic={topic}
+            contract={desk.contract}
+            slices={apertureSlices}
+            lanesEnabled={lanesEnabled}
+            seedChat={seedChat}
+            onPick={() => setAttachOpen(true)}
+          />
         )}
 
         {/* ── The tabs (ADR-595 D2) — loud states stay ABOVE, never behind ── */}
@@ -823,6 +836,170 @@ export default function StringsSurface() {
     >
       {renderCenter}
     </DeskHousing>
+  );
+}
+
+// ── Setup — first-class (ADR-595 D4): the anatomy as numbered slots ─────────
+
+function SetupSlot({
+  n, title, done, children,
+}: {
+  n: number;
+  title: React.ReactNode;
+  done?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border">
+      <div className="flex items-center gap-2.5 border-b px-4 py-2.5">
+        <span
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+            done
+              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {done ? '✓' : n}
+        </span>
+        <span className="text-xs font-medium">{title}</span>
+      </div>
+      {children && <div className="px-4 py-3">{children}</div>}
+    </div>
+  );
+}
+
+function SetupPanel({
+  targetParam, topic, contract, slices, lanesEnabled, seedChat, onPick,
+}: {
+  targetParam: string | null;
+  topic: string | null;
+  contract: string | null;
+  slices: ApertureSlice[] | null;
+  lanesEnabled: boolean | null;
+  seedChat: (text: string) => void;
+  onPick: () => void;
+}) {
+  const seeds = lanesEnabled !== false;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Four things make a string. Say each one to Keeper — it writes the
+        contract and the declaration into the folder, attributed and
+        revisable, and this desk becomes the file&apos;s tending surface the
+        moment the declaration lands.
+      </p>
+      {lanesEnabled === false && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          Setting up happens in conversation with Keeper, which isn&apos;t
+          enabled on this workspace yet — so this file can&apos;t be
+          designated from here right now.
+        </p>
+      )}
+
+      {/* ① The file — the one direct gesture */}
+      <SetupSlot n={1} title="The file" done={!!targetParam}>
+        {targetParam ? (
+          <p className="text-xs">
+            <code>{targetParam}</code>
+            <span className="text-muted-foreground"> in {topic}</span>
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={onPick}
+            disabled={!seeds}
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" /> Pick the file to keep current
+          </button>
+        )}
+      </SetupSlot>
+
+      {/* ② The contract — fills live once CONTRACT.md lands */}
+      <SetupSlot n={2} title="The contract — what must it stay true to?" done={!!contract}>
+        {contract ? (
+          <MarkdownRenderer content={contract} compact />
+        ) : seeds ? (
+          <SeedButton onClick={() => seedChat('This file must stay true to: ')}>
+            This file must stay true to…
+          </SeedButton>
+        ) : (
+          <p className="text-xs text-muted-foreground">Not declared yet.</p>
+        )}
+      </SetupSlot>
+
+      {/* ③ The sources — the aperture surfaced where it matters */}
+      <SetupSlot n={3} title="The sources — where does currency come from?">
+        <div className="space-y-2.5">
+          {slices === null ? (
+            <p className="text-xs text-muted-foreground">Checking your connections…</p>
+          ) : slices.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-[11px] text-muted-foreground">
+                From your connections — already in your selection, ready to pull:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {slices.map((s) => (
+                  <button
+                    key={`${s.provider}:${s.id}`}
+                    type="button"
+                    disabled={!seeds}
+                    onClick={() =>
+                      seedChat(
+                        `Pull from the ${s.provider} slice '${s.name ?? s.id}' (${s.id}). `,
+                      )}
+                    className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-40"
+                  >
+                    <Cable className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-medium">{s.provider}</span>
+                    <span className="max-w-40 truncate text-muted-foreground">
+                      {s.name ?? s.id}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              No connection slices selected yet — connect a platform and select
+              what it may read, or pull from an address instead.
+            </p>
+          )}
+          {seeds && (
+            <div className="flex items-center gap-1.5">
+              <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <SeedButton onClick={() => seedChat('Pull from this source: ')}>
+                Pull from an address (URL)…
+              </SeedButton>
+            </div>
+          )}
+        </div>
+      </SetupSlot>
+
+      {/* ④ The cadence */}
+      <SetupSlot n={4} title="The cadence — how often?">
+        {seeds ? (
+          <div className="flex flex-wrap gap-1.5">
+            {CADENCE_PRESETS.map((c) => (
+              <SeedButton key={c.label} onClick={() => seedChat(c.seed)}>
+                {c.label}
+              </SeedButton>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Not declared yet.</p>
+        )}
+      </SetupSlot>
+
+      {contract && (
+        <p className="text-xs text-muted-foreground">
+          The declaration is still pending — Keeper finishes it in the
+          conversation, and the standing loop begins on the next tick
+          (~5&nbsp;minutes). Your own edits to the file are corrections, and
+          they compound into every future run.
+        </p>
+      )}
+    </div>
   );
 }
 
