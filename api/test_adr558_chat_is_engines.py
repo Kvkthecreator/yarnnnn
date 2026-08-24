@@ -155,12 +155,18 @@ body = ast.unparse(fn)
 check("create_lane derives boundness from the binding fields",
       "is_bound" in body and "artifact_path" in body and "derive_recipe" in body)
 
-# A chat lane must never write lane_meta["agent"] — the whole point.
-lane_meta_agent = 'lane_meta["agent"] = agent_slug' in src
-check("lane_meta['agent'] is still written (bound lanes need it)", lane_meta_agent)
-check("...but only reachable when agent_slug survived the D3 guard",
-      body.index("is_bound") < body.index("lane_meta"),
-      "the guard must precede the write")
+# ⚠️ RE-ANCHORED 2026-08-24 (ADR-597 D1). The old pair pinned the STAMP
+# (`lane_meta["agent"] = agent_slug`, "bound lanes need it") — retired: a
+# bound lane's resident is a fact about the APP, derived at every read
+# (`_lane_agent`). What ADR-558 D3 actually holds is unchanged and still
+# checked here: an UNBOUND lane never acquires a resident — the 422 guard
+# (section 2 above) refuses `agent` at the door, and the resident that DOES
+# exist reaches the lane only through the app/recipe derivation, never a
+# client assertion.
+check("the resident is never stamped — it derives from the registration",
+      'lane_meta["agent"] = agent_slug' not in src and "def _lane_agent(" in src)
+check("...and the derivation keys on the BINDING (app/recipe), never the client",
+      'lane_meta.get("app")' in src and 'lane_meta.get("derive_recipe")' in src)
 
 print("\n4. the envelope leads with engines (the chat chooser)")
 

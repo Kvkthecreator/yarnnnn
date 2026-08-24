@@ -91,4 +91,9 @@ def build_text_posture(client: Any, user_id: str, artifact_path: str) -> str:
 # KERNEL_AGENTS, never a caller-supplied model. "Editor" is the app's name
 # for that resident (the Docs/"Writer" shape): Writer lives in Docs; Editor
 # lives in Text.
-register_app("text", resident="designer", name="Editor")
+# ADR-597 D2 — Text seats its OWN colleague. Editor is a kernel posture
+# (based_on designer, agents_registry.KERNEL_POSTURES), not designer wearing
+# a rename: one desk, one colleague, and the D6 rename machinery is no longer
+# load-bearing here (it survives for member nicknames and for Docs while that
+# app is internal-staged).
+register_app("text", resident="editor")

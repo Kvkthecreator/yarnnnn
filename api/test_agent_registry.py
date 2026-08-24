@@ -579,9 +579,16 @@ def run() -> bool:
         "resident_for_app(app_slug)" in routes,
     )
     _check("an unknown app is a 422", 'detail=(\n                    f"Unknown app: {app_slug}' in routes)
+    # ⚠️ RE-ANCHORED 2026-08-24 (ADR-597 D1). This pinned the creation-time
+    # STAMP (`lane_meta["agent"] = agent_slug`) — the stored now-fact that
+    # stranded live desks on yesterday's registration. The face now DERIVES
+    # from the app's declaration at every read (`_lane_agent`); the fact that
+    # legitimately persists is the model (above) and the cast row (below).
     _check(
-        "the slug lands on the lane BESIDE the model (the face + the fact)",
-        'lane_meta["agent"] = agent_slug' in routes,
+        "the face derives at read time — never a stored stamp (ADR-597)",
+        'lane_meta["agent"] = agent_slug' not in routes
+        and "def _lane_agent(" in routes
+        and '"agent": _lane_agent(lane_meta)' in routes,
     )
     # The turn's responder comes from the CAST (ADR-495), with the lane's own
     # resident as the fallback — `agent=responder`. Pinning the pre-495 spelling

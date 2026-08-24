@@ -42,13 +42,18 @@ from services.authoring import resident_for_app, resolve_app  # noqa: E402
 
 _resident = resident_for_app("text")
 check("1a the text app resolves a resident (create_lane would 422 otherwise)", bool(_resident))
-check(
-    "1b the colleague displays as Editor (the app's name over the resident)",
-    (resolve_app("text") or {}).get("name") == "Editor",
-    str(resolve_app("text")),
-)
-
 from services.agents_registry import KERNEL_AGENTS, KERNEL_POSTURES  # noqa: E402
+
+# Re-anchored for ADR-597 D2: the member reads "Editor" — originally supplied
+# by the ADR-562 D6 rename (registration name over designer), now by the
+# character row itself (text seats its own colleague). The DISPLAYED FACT is
+# what this check holds; the supplying mechanism may be either.
+_char = (KERNEL_AGENTS.get(_resident) or KERNEL_POSTURES.get(_resident) or {})
+check(
+    "1b the colleague displays as Editor (app name or the character's own)",
+    ((resolve_app("text") or {}).get("name") or _char.get("name")) == "Editor",
+    f"app={resolve_app('text')} char={_char.get('name')}",
+)
 
 check(
     "1c the resident is a REAL agent row (engine follows it, ADR-562)",
@@ -2134,14 +2139,23 @@ check("18k a FAILED read inserts NOTHING and says so — writing a source note "
       and re.search(r"error:\s*`[^`]*nothing was inserted", _csv_fn_body) is not None,
       f"catch body: {_csv_catch_body.strip()[:160]!r}")
 
+# ⚠️ RE-ANCHORED 2026-08-24. The original required Strings to IMPORT the
+# shared parser — but the ADR-595 tending-surface rewrite removed CSV
+# *parsing* from StringsSurface entirely (it renders "N rows" summaries,
+# never a parsed grid), so the import requirement pinned a consumer that no
+# longer exists and read the removal as "a second parser was reintroduced"
+# (it wasn't — measured at clean HEAD). The LAW is unchanged and still held:
+# ONE quote-aware parser, in markdownEdits, and no surface declares its own.
 _strings_src = (WEB / "components" / "strings" / "StringsSurface.tsx").read_text(encoding="utf-8")
-check("18L ONE CSV parser, not two. Strings had its own copy; D18 needed the "
-      "same behaviour in Text, and a second parser whose bugs are SILENT (a "
-      "mis-split cell shifts every later column) is drift worth an import to "
-      "avoid. Strings must IMPORT it and declare no local `function parseCsv`.",
-      "from '@/components/text/markdownEdits'" in _strings_src
+_md_edits_src = (WEB / "components" / "text" / "markdownEdits.ts").read_text(encoding="utf-8")
+check("18L ONE CSV parser, not two. The shared quote-aware parser lives in "
+      "markdownEdits (a naive split(',') makes \"Kim, Kevin\" two cells and "
+      "shifts every later column silently); no other surface may declare its "
+      "own. Strings imports it IF it parses — today it renders row-count "
+      "summaries and parses nothing.",
+      re.search(r"export function parseCsv", _md_edits_src) is not None
       and re.search(r"function\s+parseCsv", _strings_src) is None,
-      "a second CSV parser was reintroduced")
+      "a second CSV parser exists, or the shared one moved")
 
 
 # ── 19. ADR-575 — the surface HEARS other principals' writes ─────────────

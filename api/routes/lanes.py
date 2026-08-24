@@ -221,16 +221,50 @@ def _conversation_write_client(auth: UserClient):
     return get_service_client()
 
 
+def _lane_agent(lane_meta: dict) -> Optional[str]:
+    """The lane's resident, DERIVED from the registration (ADR-597 D1). Pure-ish.
+
+    A bound lane's resident is a fact about the APP, so it follows the app's
+    own declaration at read time — the same rule that already governed the
+    app's rename (`as_name`, ADR-562 D6) and the posture text (ADR-460 D4:
+    a now-fact is derived, never stored). Persisting it was what stranded
+    every live desk on yesterday's registration ("Claude Sonnet" in Studio).
+
+    Precedence: the app's registration → the derive recipe's declaration →
+    the legacy stored stamp (pre-597 rows; a registration that has since left
+    the roster) → None. A lane with none of these shows its engine, which is
+    honest — that IS what such a lane is.
+    """
+    app = (lane_meta.get("app") or "").strip()
+    if app:
+        # The package import IS the registration — load-bearing, never prune.
+        import services.apps  # noqa: F401  (registration side-effect)
+        from services.authoring import resident_for_app
+
+        derived = resident_for_app(app)
+        if derived:
+            return derived
+    recipe = (lane_meta.get("derive_recipe") or "").strip()
+    if recipe:
+        from services.derive_recipes import resident_for_recipe
+
+        derived = resident_for_recipe(recipe)
+        if derived:
+            return derived
+    return lane_meta.get("agent") or None
+
+
 def _lane_row_to_dict(row: dict) -> dict:
     lane_meta = (row.get("context_metadata") or {}).get("lane") or {}
     return {
         "id": row["id"],
         "name": lane_meta.get("name") or "Lane",
         "model": lane_meta.get("model") or "",
-        # ADR-460 D4 — WHO this lane talks to. None for every pre-registry lane
-        # and every Studio/derive lane: the FE falls back to the model label,
-        # which is honest (that IS what those lanes are) rather than guessed.
-        "agent": lane_meta.get("agent"),
+        # ADR-597 D1 — WHO this lane talks to, derived from the registration
+        # at serve time (never the creation-time stamp). None only when
+        # nothing derivable or stored remains; the FE then falls back to the
+        # model label, which is honest rather than guessed.
+        "agent": _lane_agent(lane_meta),
         # Phase-A hygiene: pinned lanes sort first in the workbench list.
         "pinned": bool(lane_meta.get("pinned")),
         # ADR-440 D3 — the Studio binding (None for plain chat lanes).
@@ -605,12 +639,13 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         )
 
     lane_meta: dict = {"name": name, "model": model}
-    # ADR-558 D3 — the resident, on BOUND lanes only. `agent_slug` is refused
-    # above for an unbound lane, so this can only be an app's pinned colleague
-    # (Studio · Docs · IMAGES). A chat lane carries an ENGINE and nothing else;
-    # who replies comes from the cast.
-    if agent_slug:
-        lane_meta["agent"] = agent_slug
+    # ADR-597 D1 — the resident is NOT stamped. It is a fact about the app,
+    # derived from the registration at every read (`_lane_agent`); persisting
+    # it here was what stranded live desks on yesterday's declaration. What
+    # creation legitimately records: the MODEL (a historical fact — what the
+    # lane ran on, ADR-460 spec §6) below, and the CAST row (a membership
+    # event — who was invited) further down. `agent_slug` remains resolved
+    # above because both of those need it at creation time.
     # ADR-567 D4 — a bound lane carries its BINDING APP. The runner keys the
     # job overlay on it (radar → the desk posture, not Studio's): the agent
     # slug cannot name the app (Docs and Studio share designer), and radar's
@@ -1047,6 +1082,11 @@ def _turn_stream_response(
 
     lane_id = lane["id"]
     lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
+    # ADR-597 D1 — the lane's resident, derived from the registration (see
+    # _lane_agent). Used as the responder fallback and as the pin-comparison
+    # baseline below, so a registration change reaches a live desk's TURN,
+    # not just its label.
+    lane_agent = _lane_agent(lane_meta)
 
     try:
         cast = list_participants(lane_id)
@@ -1073,7 +1113,7 @@ def _turn_stream_response(
         content,
         cast,
         roster=_cast_roster(auth, cast_agents),
-        fallback=_last_responder(auth, lane_id, cast_agents) or lane_meta.get("agent"),
+        fallback=_last_responder(auth, lane_id, cast_agents) or lane_agent,
     )
     # Nobody replies when the conversation holds people and no Agent. A solo
     # cast keeps today's behavior (the engine IS that conversation). Add an
@@ -1148,13 +1188,14 @@ def _turn_stream_response(
     # `lane_id` + `lane_meta` are resolved above, before the cast read.
     model = lane_meta.get("model") or ""
     # The RESPONDER's own engine, when the cast named someone other than the
-    # lane's creation-time Agent (i.e. an Agent invited later). ADR-460's rule
+    # lane's own resident (i.e. an Agent invited later). ADR-460's rule
     # that a lane's model is pinned is about not letting a registry edit
     # retroactively relabel PAST turns — it is not a rule that a newly invited
     # colleague must run on the previous one's engine. The pin still holds for
-    # the lane's own Agent: `responder == lane_meta["agent"]` resolves to the
-    # same stored model and nothing changes.
-    if responder and responder != lane_meta.get("agent"):
+    # the lane's own resident: `responder == lane_agent` (ADR-597: derived,
+    # never the creation-time stamp) resolves to the same stored model and
+    # nothing changes.
+    if responder and responder != lane_agent:
         from services.agents_registry import find_member_agents, resolve_agent
 
         try:
