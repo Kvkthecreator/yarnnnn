@@ -124,7 +124,7 @@ def test_kernel_surfaces_module() -> None:
         # This list kept asserting it, so the gate has been red on this line
         # ever since (cleared 2026-07-22 with the rest of the stale set).
         "chat",  # ADR-412 D3 — the lanes surface (Altitude 2's chrome home)
-        "recurrence",  # 2026-06-03 — renamed from `cadence` (substrate already spoke "recurrence")
+        # `recurrence` DELETED (ADR-603 D5, 2026-08-24 — retire-clean)
         # ADR-491 D3 (2026-07-28): `budget` DELETED — the pane dissolved into
         # Usage (completing ADR-433); /budget + /pace are redirect stubs.
         "autonomy",  # 2026-05-24 design polish — renamed from "delegation"
@@ -137,7 +137,7 @@ def test_kernel_surfaces_module() -> None:
         "setup",  # ADR-331 D1 — guided first-boot Sequence surface
         "program",
         "queue",
-        "activity",
+        # `activity` DELETED with its parent window (ADR-603 D5)
         "sources",  # ADR-338 D4.1 — standing-watch drivers view
         # ADR-297 D19.4 (2026-05-22): settings + connectors promoted
         # from legacy pages to atomic kernel surfaces. Reverses D19.7.

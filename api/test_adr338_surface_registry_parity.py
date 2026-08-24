@@ -163,8 +163,8 @@ def test_three_way_parity() -> None:
             # account door's Notifications pane (the management door for the
             # bell/window pair).
             "notification-settings",
-            # Recurrence (Machinery) — ADR-340 D8
-            "activity",
+            # `activity` LEFT (ADR-603 D5, 2026-08-24) — the Runs lens died
+            # with the Recurrence window.
         },
         f"panes={sorted(panes)}",
     )
