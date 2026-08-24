@@ -81,6 +81,7 @@ import { AgentFace } from '@/components/agents/AgentFace';
 import { MentionMenu, type MentionCandidate } from './MentionMenu';
 import { ArtifactCard } from './ArtifactCard';
 import { toolLabelLine } from './toolLabels';
+import { StreamSteps, type StreamStep } from './StreamSteps';
 
 /** Render a member's text with recognized `@handles` marked (ADR-492 D3).
  *
@@ -143,6 +144,12 @@ interface LaneMessage {
   content: string;
   created_at?: string;
   tools_called?: string[];
+  /** The stepped thread this turn drew while it worked — one entry per tool
+   *  round, in order, each with the subject the server named (`tool_step`).
+   *  Streaming-only: it is NOT persisted, so a reloaded transcript shows the
+   *  settled `tools_called` footer instead. That asymmetry is deliberate —
+   *  the steps are progress, and progress is over once the turn is. */
+  steps?: StreamStep[];
   /** Persisted on the assistant row's metadata, so a reloaded lane keeps its cards. */
   artifacts?: LaneArtifact[];
   /** Phase-A attachments: what this user turn carried (metadata, chips). */
@@ -719,11 +726,15 @@ export function LanePanel({
           appendDelta(text);
         },
         onSpeaker: ({ agent_slug }: { agent_slug: string }) => stampSpeaker(agent_slug),
-        onTool: (name: string) =>
+        onTool: (step: { name: string; subject?: string }) =>
           setMessages((prev) =>
             prev.map((m) =>
               m.id === replyId
-                ? { ...m, tools_called: [...(m.tools_called ?? []), name] }
+                ? {
+                    ...m,
+                    tools_called: [...(m.tools_called ?? []), step.name],
+                    steps: [...(m.steps ?? []), step],
+                  }
                 : m,
             ),
           ),
@@ -1026,6 +1037,19 @@ export function LanePanel({
                   {authorLabel}
                 </span>
               )}
+              {/* THE STEPPED THREAD — above the bubble, and deliberately NOT
+                  gated on `!m.content`. A tool called after the reply began
+                  narrating used to be invisible until the turn settled; the
+                  steps now stay put and keep accruing under the narration.
+                  The last one spins while the turn runs (`sending` + this being
+                  the trailing row); when it settles they all read as done. */}
+              {m.role === 'assistant' && m.steps && m.steps.length > 0 && (
+                <StreamSteps
+                  steps={m.steps}
+                  running={sending && i === messages.length - 1}
+                  className={cn('mb-1', attributed && 'pl-[1.875rem]')}
+                />
+              )}
               {(m.content || m.role === 'user' || !m.artifacts?.length) && (
                 <div
                   className={cn(
@@ -1072,9 +1096,13 @@ export function LanePanel({
                             the engine behind them. */}
                         {/* Verbs in the member's language (`toolLabels`) —
                             raw primitive names are internal vocabulary. */}
-                        {(m.tools_called && m.tools_called.length > 0)
-                          ? `${authorLabel || speaker} · ${toolLabelLine(m.tools_called, 'doing')}…`
-                          : `${authorLabel || speaker} is working…`}
+                        {/* The VERBS moved out to the stepped thread above,
+                            which names each one with its subject and survives
+                            the first token. This line is now only WHO — so the
+                            two never restate each other, and a turn mid-tool
+                            reads as "Lisa is working…" beneath a thread that
+                            says exactly what she is doing. */}
+                        {`${authorLabel || speaker} is working…`}
                       </span>
                     ) : m.role === 'assistant' ? (
                       // 2026-07-09: the lane's reply is markdown, like every

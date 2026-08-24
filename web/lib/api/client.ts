@@ -333,7 +333,11 @@ type LaneStreamHandlers = {
    *  in-flight bubble is attributed the moment it appears (ADR-495 D3
    *  addressing). Absent for a direct, agent-less conversation. */
   onSpeaker?: (s: { agent_slug: string; reason?: string }) => void;
-  onTool?: (name: string) => void;
+  /** A tool round started. `subject` is the ONE short label the server chose
+   *  for what the call is about (a path, a query) — never the raw arguments.
+   *  Undefined for a verb with no meaningful subject, and for any frame from a
+   *  server deployed before the step seam. */
+  onTool?: (step: { name: string; subject?: string }) => void;
   /** A WriteFile/EditFile landed — render the file inline (artifact card). */
   onArtifact?: (a: { path: string; verb: string }) => void;
   onDone?: (info: {
@@ -383,7 +387,13 @@ async function streamLaneTurn(
       if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
       else if (evt.speaker && typeof evt.speaker === "object") {
         handlers.onSpeaker?.(evt.speaker as { agent_slug: string; reason?: string });
-      } else if (typeof evt.tool === "string") handlers.onTool?.(evt.tool);
+      } else if (evt.tool_step && typeof evt.tool_step === "object") {
+        const step = evt.tool_step as { name: string; subject?: string | null };
+        handlers.onTool?.({ name: step.name, subject: step.subject ?? undefined });
+      } else if (typeof evt.tool === "string") {
+        // Pre-step-seam server: the name alone. Same handler, no subject.
+        handlers.onTool?.({ name: evt.tool });
+      }
       else if (evt.artifact && typeof evt.artifact === "object") {
         handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
       } else if (typeof evt.error === "string") handlers.onError?.(evt.error);

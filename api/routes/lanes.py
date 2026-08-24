@@ -1417,7 +1417,20 @@ def _turn_stream_response(
                     yield sse({"text_delta": payload})
                 elif kind == "tool":
                     tools_called.append(payload["name"])
-                    yield sse({"tool": payload["name"]})
+                    # The step frame is an OBJECT (name + optional subject).
+                    # `tool` stays a bare string for the older readers that
+                    # match on `typeof evt.tool === "string"`; the object rides
+                    # beside it as `tool_step`, so a client deployed before this
+                    # change keeps working and one deployed after gets the
+                    # subject. (A commit is not a deploy — the two halves of
+                    # this seam ship independently.)
+                    yield sse({
+                        "tool": payload["name"],
+                        "tool_step": {
+                            "name": payload["name"],
+                            "subject": payload.get("subject"),
+                        },
+                    })
                 elif kind == "artifact":
                     artifacts.append(payload["path"])
                     yield sse({"artifact": payload})

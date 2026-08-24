@@ -287,6 +287,75 @@ def artifact_path_from(name: str, result: Any) -> Optional[str]:
     return path if isinstance(path, str) and path else None
 
 
+#: The lane tools whose ARGUMENTS carry a subject worth showing mid-stream, and
+#: which argument names it. A streaming step reads "Reading Documents/memo.md"
+#: rather than a bare "Reading files in your workspace" — the member can see
+#: WHICH file their colleague touched while the turn is still running, which is
+#: exactly when it is cheapest to interrupt a wrong one.
+#:
+#: ⚠️ ARGUMENTS, not results — deliberately, and this is the one place in the
+#: module where that is the right source. `artifact_path_from` reads the RESULT
+#: because a card is a deep link that must not point at a file that never landed.
+#: A step row makes the weaker claim ("this is what was asked for"), and it is
+#: emitted BEFORE the call runs, when no result exists yet. A failed call still
+#: leaves an honest row: the subject is what was attempted.
+#:
+#: Order matters within a tuple: the first key present wins. `MoveFile` names
+#: its DESTINATION when it has one, mirroring `artifact_path_from`'s rule that
+#: a move is read where the file ends up.
+_TOOL_SUBJECT_KEYS: dict = {
+    "ReadFile": ("path",),
+    "WriteFile": ("path",),
+    "EditFile": ("path",),
+    "DeleteFile": ("path",),
+    "MoveFile": ("new_path", "destination", "path"),
+    "DeleteFolder": ("path",),
+    "MoveFolder": ("new_path", "destination", "path"),
+    "Restore": ("path",),
+    "ListFiles": ("path", "directory"),
+    "SearchFiles": ("query",),
+    "QueryKnowledge": ("query",),
+    "WebSearch": ("query",),
+    "GenerateImage": ("prompt",),
+    "platform_slack_get_channel_history": ("channel", "channel_id"),
+    "platform_notion_search": ("query",),
+    "platform_notion_get_page": ("page_id",),
+    "platform_github_get_issues": ("repo", "repository"),
+    "platform_github_get_repo_metadata": ("repo", "repository"),
+    "platform_github_get_readme": ("repo", "repository"),
+    "platform_github_get_releases": ("repo", "repository"),
+}
+
+#: A subject is a LABEL, not a payload. Long free text (a search query, an image
+#: prompt) is clipped here rather than in the renderer: the cap is a property of
+#: what we are willing to put on the wire, and a client-side cap would still have
+#: shipped the whole string to the browser.
+_SUBJECT_MAX = 120
+
+
+def tool_subject_from(name: str, arguments: Any) -> Optional[str]:
+    """The one short human-readable subject for a tool call, or None.
+
+    Pure. Used only for DISPLAY (the streaming step row) — never for dispatch,
+    authorization, or attribution. Returning None is always safe: the row falls
+    back to the verb alone, which is what every tool without a meaningful
+    subject (`ListFiles` at the root, `list_integrations`) should read as.
+
+    Never returns the raw argument dict. Only the ONE named key is exposed, so
+    a tool argument we did not intend to surface cannot reach the client just
+    because a future primitive gained a field.
+    """
+    keys = _TOOL_SUBJECT_KEYS.get(name)
+    if not keys or not isinstance(arguments, dict):
+        return None
+    for key in keys:
+        value = arguments.get(key)
+        if isinstance(value, str) and value.strip():
+            subject = value.strip()
+            return subject if len(subject) <= _SUBJECT_MAX else subject[: _SUBJECT_MAX - 1] + "…"
+    return None
+
+
 def _resolve_byok_key(auth: Any, model: str) -> Optional[str]:
     """ADR-439 — the workspace's own provider key for this model, or None.
 
@@ -1317,7 +1386,11 @@ async def run_lane_turn_stream(
         for tc in routed.tool_calls:
             name = tc["name"]
             tools_called.append(name)
-            yield ("tool", {"name": name})
+            # The subject rides with the name (never the raw argument dict —
+            # `tool_subject_from` exposes one named key). A step row that can
+            # say WHICH file is being read is legible mid-turn; the bare verb
+            # is the honest fallback when no key applies.
+            yield ("tool", {"name": name, "subject": tool_subject_from(name, tc.get("arguments"))})
             if name not in _allowed:
                 result: Any = {
                     "success": False, "error": "tool_not_on_lane_surface",
