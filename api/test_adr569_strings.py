@@ -269,15 +269,18 @@ check("parseable-but-cannot-run → named in the state block",
 # ---------------------------------------------------------------------------
 print("5. the resident (ADR-562) — keeper, a posture, priced")
 import services.apps  # noqa: F401  (registration side-effect)
-from services.agents_registry import KERNEL_AGENTS, KERNEL_POSTURES
+from services.agents_registry import APP_RESIDENTS, KERNEL_AGENTS
 from services.authoring import resident_for_app
 from services.strings import resolve_strings_resident
 
 check("strings registers keeper as its resident",
       resident_for_app("strings") == "keeper")
-check("keeper is a POSTURE over Produce — the three-operation base roster stays closed",
-      "keeper" in KERNEL_POSTURES
-      and KERNEL_POSTURES["keeper"]["based_on"] == "designer"
+# Re-anchored for ADR-598: keeper is an APP RESIDENT (the strings desk's own
+# voice — on no hire roster), still a stance over Produce; the three-operation
+# base roster stays closed either way.
+check("keeper is an APP RESIDENT over Produce — the base roster stays closed",
+      "keeper" in APP_RESIDENTS
+      and APP_RESIDENTS["keeper"]["based_on"] == "designer"
       and "keeper" not in KERNEL_AGENTS
       and len(KERNEL_AGENTS) == 3)
 r_model, r_posture = resolve_strings_resident()

@@ -150,11 +150,46 @@ def run() -> bool:
             f"posture '{p['slug']}' carries every required key + based_on",
             (_required | {"based_on"}) <= set(p.keys()),
         )
-    # The two keyspaces are DISJOINT — resolution folds them into one namespace
-    # (`_kernel_character`), so a shared slug would make a slug ambiguous.
+    # ADR-598 — the cliff holds on the THIRD register identically: an app
+    # resident is identity + capability pointer + engine, same row shape as a
+    # posture, and the keyspaces stay disjoint (one resolution namespace).
+    from services.agents_registry import APP_RESIDENTS
+    for r in APP_RESIDENTS.values():
+        _check(
+            f"resident '{r['slug']}' carries no key outside the allowed shape",
+            set(r.keys()) <= POSTURE_ROW_KEYS,
+        )
+        _check(
+            f"resident '{r['slug']}' carries every required key + based_on",
+            (_required | {"based_on"}) <= set(r.keys()),
+        )
+        _check(
+            f"resident '{r['slug']}' is based_on a base agent ({r['based_on']})",
+            r["based_on"] in KERNEL_AGENTS,
+        )
+    # The three keyspaces are DISJOINT — resolution folds them into one
+    # namespace (`_kernel_character`), so a shared slug would be ambiguous.
     _check(
-        "base agents and postures share no slug (one namespace, no collisions)",
-        not (set(KERNEL_AGENTS) & set(KERNEL_POSTURES)),
+        "agents, postures, and residents share no slug (one namespace)",
+        not (set(KERNEL_AGENTS) & set(KERNEL_POSTURES))
+        and not ((set(KERNEL_AGENTS) | set(KERNEL_POSTURES)) & set(APP_RESIDENTS)),
+    )
+    # ADR-598 — the ROSTER serves colleagues only: no resident slug reaches
+    # the chooser, and a member manifest cannot base on a resident (the desk's
+    # voice is not a character to wear).
+    from services.agents_registry import list_agents, parse_agent_manifest
+    _served = {a["slug"] for a in list_agents()}
+    _check(
+        "no app resident is served on the hire roster",
+        not (_served & set(APP_RESIDENTS)),
+    )
+    _check(
+        "a manifest based_on an app resident is REFUSED",
+        parse_agent_manifest("based_on: editor\nname: Impostor\n") is None,
+    )
+    _check(
+        "…while based_on a colleague posture still parses",
+        parse_agent_manifest("based_on: critic\nname: Lisa\n") is not None,
     )
     # Every posture's `based_on` is a real base OPERATION (a posture is a stance
     # over an addressed operation, not over thin air or another posture).

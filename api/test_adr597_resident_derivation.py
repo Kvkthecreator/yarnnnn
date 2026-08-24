@@ -121,14 +121,15 @@ def test_injectivity():
 
 
 def test_editor_row():
-    print("4. editor is a well-formed posture")
+    print("4. editor is a well-formed app resident")
     from services.agents_registry import (
+        APP_RESIDENTS,
         KERNEL_AGENTS,
-        KERNEL_POSTURES,
         POSTURE_ROW_KEYS,
     )
-    row = KERNEL_POSTURES.get("editor")
-    _assert(row is not None, "editor lives in KERNEL_POSTURES (a stance, not a base row)")
+    row = APP_RESIDENTS.get("editor")
+    _assert(row is not None,
+            "editor lives in APP_RESIDENTS (a desk voice, not a colleague — ADR-598)")
     _assert(set(row or {}) == set(POSTURE_ROW_KEYS),
             "editor carries exactly POSTURE_ROW_KEYS — no authority, no reach")
     _assert((row or {}).get("based_on") in KERNEL_AGENTS,

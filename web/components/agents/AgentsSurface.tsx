@@ -386,8 +386,10 @@ export function AgentsSurface() {
         {/* DISCOVERY — the base set IS the catalogue (spec §2/§3). */}
         <section className="space-y-2">
           <h2 className="text-sm font-medium">Who you can hire</h2>
+          {/* No count in the copy — the roster is server-derived and a pinned
+              number reads growth as a lie (it said "Three" over six rows). */}
           <p className="text-xs text-muted-foreground">
-            Three colleagues, each good at a different thing. Hire one to give them
+            Colleagues, each good at a different thing. Hire one to give them
             a name and a manner of your own.
           </p>
           <div className="space-y-1.5">

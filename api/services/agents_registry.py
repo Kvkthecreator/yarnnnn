@@ -268,25 +268,46 @@ KERNEL_POSTURES: dict[str, dict[str, Any]] = {
             "name what would still falsify it. Never flatter."
         ),
     },
-    # ADR-569 D6 — the Strings app's resident colleague. A POSTURE, not a
-    # fourth base row, by this module's own growth rule: keeping a designated
-    # file true is PRODUCE (landing authored revisions) pointed at
-    # maintenance — a stance, not a new addressed operation ("Researcher
-    # watches the world; Keeper keeps your files true"). The Critic precedent
-    # applies verbatim: a named character the member reaches for, resolving
-    # in the one character namespace, pinnable as an app's resident
-    # (`register_app("strings", resident="keeper")` — ADR-562), with the
-    # engine riding behind the name. Sonnet, deliberately: maintenance is
-    # careful work — preserve the member's corrections, refuse to invent,
-    # say plainly when a source and the contract disagree.
-    # ADR-597 D2 — the Text app's dedicated resident. A POSTURE over Produce,
-    # by the same growth rule as Keeper: working prose in the member's own
-    # document is landing authored revisions, pointed at the page. Before this
-    # row, Text pinned designer renamed "Editor" (ADR-562 D6) — the rename
-    # mechanism stays for member nicknames, but the app no longer needs it:
-    # one desk, one colleague whose character IS the desk's craft (the
-    # operator's one-agent-one-app ruling, 2026-08-24). Sonnet, matching the
-    # authoring family; 8192 because documents run long.
+}
+
+#: The keys a posture row may carry. `based_on` (its base operation) is required
+#: and is the one field an agent row lacks. No `tools` (reach is uniform,
+#: ADR-467 D4) and no authority-shaped key, ever — the cliff.
+POSTURE_ROW_KEYS = frozenset(
+    {"slug", "name", "based_on", "blurb", "icon", "model", "token_profile", "posture"}
+)
+
+
+# ---------------------------------------------------------------------------
+# App residents — an APP's own voice, not a colleague (ADR-598)
+# ---------------------------------------------------------------------------
+#
+# WHY A THIRD REGISTER. Editor and Keeper briefly lived in KERNEL_POSTURES and
+# immediately appeared under "Who you can hire" — an app's furniture offered
+# as a colleague. The member-facing question the roster answers ("who do you
+# want to work with?") and the question a resident answers ("who speaks for
+# this desk?") are different questions, and one dict was serving both.
+#
+# A RESIDENT IS APP-OWNED IDENTITY. It exists because its app exists; it is
+# named for the desk's craft; it is pinned by `register_app(...)` and reached
+# only through its app's bound lanes. It is NOT offered for hire, NOT a base
+# a member manifest may build on (`based_on` takes colleagues only — an app's
+# voice is not a character to wear), and NOT on the /agents roster. ADR-460
+# D1's rule ("no un-hireable rows on the roster") is not violated — it is
+# honored by the resident never being ON the roster, because it was never a
+# colleague at all.
+#
+# ⚠️ THE D3.a CLIFF HOLDS HERE IDENTICALLY: identity + capability pointer +
+# engine, never authority, never reach. Same row shape as a posture
+# (POSTURE_ROW_KEYS), same gates.
+#
+# Resolution stays ONE namespace (`_kernel_character`): a lane pinning
+# `editor` resolves exactly like one pinning `critic`. The three keyspaces are
+# disjoint (gate-asserted). Slugs are data-compat: `editor`/`keeper` are on
+# live cast rows and lane stamps — display names may move; slugs must not.
+APP_RESIDENTS: dict[str, dict[str, Any]] = {
+    # Text's resident (ADR-597 D2). Working prose in the member's own document
+    # is PRODUCE pointed at the page.
     "editor": {
         "slug": "editor",
         "name": "Editor",
@@ -307,6 +328,9 @@ KERNEL_POSTURES: dict[str, dict[str, Any]] = {
             "assumed."
         ),
     },
+    # Strings' resident (ADR-569 D6, re-homed by ADR-598): keeping a
+    # designated file true is PRODUCE pointed at maintenance. Sonnet,
+    # deliberately — maintenance is careful work.
     "keeper": {
         "slug": "keeper",
         "name": "Keeper",
@@ -326,29 +350,22 @@ KERNEL_POSTURES: dict[str, dict[str, Any]] = {
     },
 }
 
-#: The keys a posture row may carry. `based_on` (its base operation) is required
-#: and is the one field an agent row lacks. No `tools` (reach is uniform,
-#: ADR-467 D4) and no authority-shaped key, ever — the cliff.
-POSTURE_ROW_KEYS = frozenset(
-    {"slug", "name", "based_on", "blurb", "icon", "model", "token_profile", "posture"}
-)
-
 
 def _kernel_character(slug: str) -> Optional[dict]:
-    """The kernel character for a slug — a base AGENT or a POSTURE. Pure.
+    """The kernel character for a slug — base AGENT, POSTURE, or APP RESIDENT.
 
-    ONE namespace for resolution: base agents (the addressed operations) and
-    postures (stances over them) both resolve here, so a lane pinning `critic`
-    (now a posture) resolves exactly as it did when Critic was a base row. The
-    two dicts are kept SEPARATE for the roster/cliff distinction — KERNEL_AGENTS
-    is the base OPERATIONS the chooser leads with, KERNEL_POSTURES the stances —
-    but resolution does not care which one a slug came from.
+    ONE namespace for resolution (a lane pinning `editor` resolves exactly like
+    one pinning `critic`); THREE registers for meaning — KERNEL_AGENTS is the
+    base OPERATIONS the chooser leads with, KERNEL_POSTURES the colleague
+    stances over them, APP_RESIDENTS the app-owned desk voices (ADR-598: on no
+    roster, hireable by nobody, reached only through their app's bound lanes).
+    Resolution does not care which register a slug came from; the roster and
+    the manifest parser do.
 
-    Base agents take precedence on a slug collision (there is none by
-    construction — the gate asserts the two keyspaces are disjoint).
+    The three keyspaces are disjoint by construction (gate-asserted).
     """
     s = (slug or "").strip()
-    return KERNEL_AGENTS.get(s) or KERNEL_POSTURES.get(s)
+    return KERNEL_AGENTS.get(s) or KERNEL_POSTURES.get(s) or APP_RESIDENTS.get(s)
 
 
 # NOTE: `resolve_agent_tools` (ADR-463 D4's per-Agent reach resolution) was
@@ -444,13 +461,19 @@ def parse_agent_manifest(content: Optional[str]) -> Optional[dict]:
     name = str(data.get("name") or "").strip()
     if not based_on or not name:
         return None
-    base = _kernel_character(based_on)
+    # A member may base on any COLLEAGUE — a base agent (Thinker, Researcher,
+    # Designer) or a posture (Critic). "My adversarial colleague Lisa" is
+    # `based_on: critic`; naming a stance is as valid as naming an operation.
+    # An APP RESIDENT is not a base (ADR-598): an app's desk voice is not a
+    # character to wear, and offering it here would put the furniture back on
+    # the hiring path the register split just took it off. Unknown → refused
+    # (a member cannot invent a capability).
+    base = KERNEL_AGENTS.get(based_on) or KERNEL_POSTURES.get(based_on)
     if base is None:
-        # A member may base on any kernel CHARACTER — a base agent (Thinker,
-        # Researcher, Designer) or a posture (Critic). "My adversarial colleague
-        # Lisa" is `based_on: critic`; naming a stance is as valid as naming an
-        # operation. Unknown → refused (a member cannot invent a capability).
-        logger.warning("[AGENTS] manifest names an unknown based_on: %r", based_on)
+        logger.warning(
+            "[AGENTS] manifest names an unknown or non-colleague based_on: %r",
+            based_on,
+        )
         return None
 
     # The engine override (spec §4): available, never ASKED. The picker still
@@ -726,13 +749,17 @@ def list_agents(member_agents: Optional[list[dict]] = None) -> list[dict]:
     colleagues; the kernel set is the floor beneath. `kernel: true|false`
     lets the UI mark which are theirs (and which can be renamed/edited).
 
-    EVERY kernel character is served — the base agents (the addressed
-    operations) FIRST, then the postures (stances over them, e.g. Critic). A
-    member reaches for "break this" as readily as "think this", so Critic is on
-    the roster like any colleague; it is structurally a posture over Reason, not
-    a fourth operation, but the chooser does not draw that line — it offers who
-    you can talk to. Designer is served too: that Studio's lane pins it is a fact
-    about the BOUND LANE, not about the agent (ADR-460 D1).
+    EVERY COLLEAGUE is served — the base agents (the addressed operations)
+    FIRST, then the postures (stances over them, e.g. Critic). A member
+    reaches for "break this" as readily as "think this", so Critic is on the
+    roster like any colleague. Designer is served too: that Studio's lane pins
+    it is a fact about the BOUND LANE, not about the agent (ADR-460 D1).
+
+    APP RESIDENTS are NOT served (ADR-598): Editor and Keeper are their apps'
+    desk voices, reached through the app's bound lanes — offering them here
+    briefly happened and read as colleagues-for-hire, which they are not. The
+    roster answers "who do you want to work with?"; a resident answers "who
+    speaks for this desk?" — different questions, different registers.
     """
     # NOTE what is served and what is NOT. `based_on` + `tone` + `avatar` +
     # `color` ride along because the hiring card pre-fills an EDIT from them —

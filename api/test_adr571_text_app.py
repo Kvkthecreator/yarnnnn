@@ -42,13 +42,14 @@ from services.authoring import resident_for_app, resolve_app  # noqa: E402
 
 _resident = resident_for_app("text")
 check("1a the text app resolves a resident (create_lane would 422 otherwise)", bool(_resident))
-from services.agents_registry import KERNEL_AGENTS, KERNEL_POSTURES  # noqa: E402
+from services.agents_registry import get_agent  # noqa: E402
 
-# Re-anchored for ADR-597 D2: the member reads "Editor" — originally supplied
-# by the ADR-562 D6 rename (registration name over designer), now by the
-# character row itself (text seats its own colleague). The DISPLAYED FACT is
-# what this check holds; the supplying mechanism may be either.
-_char = (KERNEL_AGENTS.get(_resident) or KERNEL_POSTURES.get(_resident) or {})
+# Re-anchored for ADR-597 D2 + ADR-598: the member reads "Editor" — supplied
+# by the resident's own character row (Editor is Text's APP RESIDENT, on no
+# hire roster). Resolution goes through the ONE namespace (`get_agent`), the
+# same door the lane runner uses — the check must not re-derive which
+# register a slug lives in.
+_char = get_agent(_resident) or {}
 check(
     "1b the colleague displays as Editor (app name or the character's own)",
     ((resolve_app("text") or {}).get("name") or _char.get("name")) == "Editor",
@@ -56,8 +57,8 @@ check(
 )
 
 check(
-    "1c the resident is a REAL agent row (engine follows it, ADR-562)",
-    _resident in KERNEL_AGENTS or _resident in KERNEL_POSTURES,
+    "1c the resident is a REAL character row (engine follows it, ADR-562)",
+    bool(_char.get("model")),
     f"resident={_resident}",
 )
 

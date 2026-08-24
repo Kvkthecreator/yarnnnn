@@ -102,7 +102,9 @@ check("the apps package registers every app at import (no router dependency)",
 
 print("\n── 3. every declared resident is real ──")
 
-_characters = set(KERNEL_AGENTS) | set(KERNEL_POSTURES)
+# ADR-598 — residents live in their own register; still one resolution namespace.
+from services.agents_registry import APP_RESIDENTS  # noqa: E402
+_characters = set(KERNEL_AGENTS) | set(KERNEL_POSTURES) | set(APP_RESIDENTS)
 for slug, row in sorted(APPS.items()):
     check(f"{slug} names a resolvable kernel character ({row['resident']})",
           row["resident"] in _characters)
