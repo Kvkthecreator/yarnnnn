@@ -287,7 +287,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Slides",
         "archetype": "document",
         "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
-        "icon_key": "palette",
+        "icon_key": "presentation",
         "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
         "route": "/slides",
         "summary": "Build slide decks as living artifacts: Designer drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",

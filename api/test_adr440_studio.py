@@ -100,15 +100,15 @@ def run() -> bool:
 
     # ── 3. The kernel surface row ────────────────────────────────────────
     from services.kernel_surfaces import KERNEL_SURFACES
-    rows = [r for r in KERNEL_SURFACES if r.get("slug") == "studio"]
-    _check("exactly one studio registry row", len(rows) == 1)
+    rows = [r for r in KERNEL_SURFACES if r.get("slug") == "slides"]
+    _check("exactly one slides registry row", len(rows) == 1)
     if rows:
         row = rows[0]
-        _check("studio: window-grade (no pane_of)", "pane_of" not in row)
-        _check("studio: launcher primary", row.get("launcher_tier") == "primary")
-        _check("studio: register application", row.get("register") == "application")
-        _check("studio: route /studio", row.get("route") == "/studio")
-        _check("studio: icon resolves FE-side (palette)", row.get("icon_key") == "palette")
+        _check("slides: window-grade (no pane_of)", "pane_of" not in row)
+        _check("slides: launcher primary", row.get("launcher_tier") == "primary")
+        _check("slides: register application", row.get("register") == "application")
+        _check("slides: route /slides", row.get("route") == "/slides")
+        _check("slides: icon resolves FE-side (presentation)", row.get("icon_key") == "presentation")
 
     # ── 4. The routes module ─────────────────────────────────────────────
     import routes.studio as studio_routes

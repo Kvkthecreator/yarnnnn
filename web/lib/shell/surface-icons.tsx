@@ -31,7 +31,7 @@ import {
   Link2,
   MessageCircle,
   Package,
-  Palette,
+  Presentation,
   Rocket,
   Rss,
   Scale,
@@ -130,7 +130,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // returns if a surface declares it.
   'message-circle': MessageCircle,
   package: Package,
-  palette: Palette,
+  // ADR-599 D4: presentation glyph for the Slides app — a deck that evolves
+  // with live rendering. The icon reads as the concrete object (presentation),
+  // distinct from editing tools (palette was too broad).
+  presentation: Presentation,
   // ADR-331 D1: rocket glyph for the /setup guided first-boot sequence.
   rocket: Rocket,
   // ADR-338 D4.1: rss glyph for the /sources standing-watch surface.
