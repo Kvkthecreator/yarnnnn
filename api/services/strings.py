@@ -401,7 +401,7 @@ async def materialize_string_index(
     from services.scheduling import (
         compute_next_run_at, preserve_due_commitment, _parse_iso,
     )
-    from services.schedule_utils import get_user_timezone
+    from services.schedule_utils import get_workspace_timezone
 
     if now is None:
         now = datetime.now(timezone.utc)
@@ -420,7 +420,7 @@ async def materialize_string_index(
         logger.warning("[STRINGS_SCHED] index read failed for %s: %s", user_id[:8], e)
         return 0
 
-    user_tz = get_user_timezone(client, user_id)
+    user_tz = get_workspace_timezone(client, user_id)
     touched = 0
 
     for slug, decl in by_slug.items():
@@ -503,12 +503,12 @@ def claim_string_run(client, user_id: str, slug: str, original_next_run: Optiona
 def record_string_run(client, user_id: str, decl: StringDecl, *, last_run_at: datetime) -> None:
     """Advance last_run_at + next_run_at post-run (clears the CAS sentinel)."""
     from services.scheduling import compute_next_run_at
-    from services.schedule_utils import get_user_timezone
+    from services.schedule_utils import get_workspace_timezone
 
     try:
         next_run = compute_next_run_at(
             decl, last_run_at=last_run_at, now=last_run_at,
-            user_timezone=get_user_timezone(client, user_id),
+            user_timezone=get_workspace_timezone(client, user_id),
         )
     except ValueError:
         next_run = None

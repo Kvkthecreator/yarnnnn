@@ -161,7 +161,7 @@ def build_operating_context_block(client: Any, user_id: str) -> str:
         **Market state**: <pre-market | RTH | post-market | closed | n/a> (<context>)
         **Workspace tenure**: <N days> since activation
     """
-    from services.scheduling import get_user_timezone
+    from services.scheduling import get_workspace_timezone
     try:
         from services.bundle_reader import get_market_context_for_user
     except Exception:
@@ -169,7 +169,7 @@ def build_operating_context_block(client: Any, user_id: str) -> str:
 
     now_utc = datetime.now(timezone.utc)
     try:
-        tz_name = get_user_timezone(client, user_id) or "UTC"
+        tz_name = get_workspace_timezone(client, user_id) or "UTC"
     except Exception:
         tz_name = "UTC"
 

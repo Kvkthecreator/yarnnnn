@@ -239,24 +239,34 @@ class WorkspaceMembership(BaseModel):
     # Workspace identity phase 1 (2026-08-14): the owner-chosen glyph (emoji).
     # None → the FE renders its default org glyph.
     icon: Optional[str] = None
+    # ADR-596 D4: the workspace home timezone (IANA). None → undeclared → the
+    # settings surface says "scheduling uses UTC" rather than implying a choice.
+    timezone: Optional[str] = None
 
 
 class WorkspaceIdentityUpdate(BaseModel):
     """PATCH /api/workspace — rename / re-glyph the acting workspace.
 
-    Both fields optional; only provided fields are written. `icon` accepts
+    All fields optional; only provided fields are written. `icon` accepts
     null/"" to clear. The gate is the RLS UPDATE policy (owner-only, mig 002):
     the write goes through the CALLER's client, so a non-owner's PATCH matches
     zero rows and 403s — never a service-role bypass.
+
+    `timezone` (ADR-596 D4, mig 247): the workspace HOME timezone — an IANA
+    name ("Asia/Seoul"), validated at this door; null/"" clears back to
+    undeclared (scheduling then uses UTC). Shared clock declarations resolve
+    against it (`schedule_utils.get_workspace_timezone`).
     """
     name: Optional[str] = None
     icon: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 class WorkspaceIdentityResponse(BaseModel):
     workspace_id: str
     name: str
     icon: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 class WorkspaceCreateRequest(BaseModel):
@@ -1270,6 +1280,21 @@ async def update_workspace_identity(
         if len(icon) > 16:
             raise HTTPException(status_code=400, detail="Workspace icon is too long")
         update["icon"] = icon or None
+    if "timezone" in body.model_fields_set:
+        # ADR-596 D4 — IANA name or clear. Validated here, at the one door,
+        # so the column never holds a name the scheduler cannot resolve
+        # (store names, never offsets; DST math stays in kernel scheduling).
+        tz = (body.timezone or "").strip()
+        if tz:
+            import pytz
+            try:
+                pytz.timezone(tz)
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unknown timezone — use an IANA name like Asia/Seoul or Europe/London",
+                )
+        update["timezone"] = tz or None
     if not update:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
@@ -1289,6 +1314,7 @@ async def update_workspace_identity(
         workspace_id=workspace_id,
         name=row.get("name") or "",
         icon=row.get("icon"),
+        timezone=row.get("timezone"),
     )
 
 
@@ -1467,7 +1493,7 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
         if own_ids:
             try:
                 fetched = (
-                    svc.table("workspaces").select("id, name, icon")
+                    svc.table("workspaces").select("id, name, icon, timezone")
                     .in_("id", own_ids).execute()
                 ).data or []
                 own_rows = {r["id"]: r for r in fetched}
@@ -1482,6 +1508,7 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
             memberships.append(WorkspaceMembership(
                 workspace_id=own_ws, role="owner",
                 label=own_name or "My workspace", icon=row.get("icon"),
+                timezone=row.get("timezone"),
                 is_active=(own_ws == acting),
             ))
             seen.add(own_ws)
@@ -1525,13 +1552,15 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
             # caller's.
             label = "Shared workspace"
             icon = None
+            ws_tz = None
             try:
                 owner_row = (
-                    svc.table("workspaces").select("owner_id, name, icon")
+                    svc.table("workspaces").select("owner_id, name, icon, timezone")
                     .eq("id", ws_id).limit(1).execute()
                 ).data or []
                 if owner_row:
                     icon = owner_row[0].get("icon")
+                    ws_tz = owner_row[0].get("timezone")
                     named = display_workspace_name(owner_row[0].get("name"))
                     if named:
                         label = named
@@ -1544,7 +1573,7 @@ async def get_workspace_memberships(auth: UserClient) -> WorkspaceMembershipsRes
                 pass
             memberships.append(WorkspaceMembership(
                 workspace_id=ws_id, role=r.get("role") or "member", label=label,
-                icon=icon, is_active=(ws_id == acting),
+                icon=icon, timezone=ws_tz, is_active=(ws_id == acting),
             ))
     except Exception as e:
         logger.warning("[MEMBERSHIPS] grant lookup failed: %s", e)

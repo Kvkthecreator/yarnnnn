@@ -44,7 +44,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from services.schedule_utils import calculate_next_run_at, get_user_timezone
 
 logger = logging.getLogger(__name__)
 

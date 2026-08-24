@@ -74,7 +74,7 @@ from services.recurrence import (
 from services.schedule_utils import (
     DEFAULT_TIMEZONE,
     calculate_next_run_at as _calc_legacy,
-    get_user_timezone,
+    get_workspace_timezone,
 )
 
 logger = logging.getLogger(__name__)
@@ -486,7 +486,7 @@ async def materialize_scheduling_index(
         logger.warning("[SCHED] index read failed for %s: %s", user_id[:8], e)
         return 0
 
-    user_tz = get_user_timezone(client, user_id)
+    user_tz = get_workspace_timezone(client, user_id)
     # ADR-268: load workspace's active bundle market_context once. Passed
     # to compute_next_run_at for any recurrence with semantic (@-prefixed)
     # schedules. None is acceptable when no bundle declares market_context
@@ -720,7 +720,7 @@ def record_task_run(
     flag's re-fire arming lives in compute_next_run_at's `last_run_at
     is None` check, which we preserve here by not writing last_run_at.
     """
-    user_tz = user_timezone or get_user_timezone(client, user_id)
+    user_tz = user_timezone or get_workspace_timezone(client, user_id)
     # ADR-268: load market_context for semantic-schedule resolution.
     from services.bundle_reader import get_market_context_for_user
     market_context = get_market_context_for_user(user_id, client)

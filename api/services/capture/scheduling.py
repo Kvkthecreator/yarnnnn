@@ -39,7 +39,7 @@ from typing import Optional
 from services.capture.declarations import CaptureDeclaration, walk_workspace_captures
 from services.conventions import CAPTURES_PATH
 from services.scheduling import compute_next_run_at, _parse_iso
-from services.schedule_utils import get_user_timezone
+from services.schedule_utils import get_workspace_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ async def materialize_capture_index(
         )
         return 0
 
-    user_tz = get_user_timezone(client, user_id)
+    user_tz = get_workspace_timezone(client, user_id)
     from services.bundle_reader import get_market_context_for_user
     market_context = get_market_context_for_user(user_id, client)
     touched = 0
@@ -256,7 +256,7 @@ def record_capture_run(
     or None. Honors ADR-270 fire_on_activation via compute_next_run_at's
     last_run_at handling. Kind-scoped update so it never touches a recurrence row.
     """
-    user_tz = user_timezone or get_user_timezone(client, user_id)
+    user_tz = user_timezone or get_workspace_timezone(client, user_id)
     from services.bundle_reader import get_market_context_for_user
     market_context = get_market_context_for_user(user_id, client)
 

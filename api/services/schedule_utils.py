@@ -15,21 +15,42 @@ DEFAULT_TIMEZONE = "UTC"
 DEFAULT_LOCAL_TIME = "09:00"
 
 
-def get_user_timezone(client, user_id: str, default: str = DEFAULT_TIMEZONE) -> str:
-    """Resolve user's configured timezone from /workspace/persona/IDENTITY.md (ADR-206).
+def get_workspace_timezone(client, user_id: str, default: str = DEFAULT_TIMEZONE) -> str:
+    """The ACTING WORKSPACE's home timezone (ADR-596 D4) — IANA name, UTC fallback.
 
-    Falls back to UTC when missing or invalid.
+    A shared clock ("daily at 9am") is a fact about the commons, not about
+    whoever authored the declaration, so it resolves against the workspace's
+    own declared timezone (`workspaces.timezone`, migration 247; owner-edited
+    at Workspace Settings → General). NULL = not yet declared → UTC.
+
+    `user_id` is the resolver input, not the semantic: the workspace comes from
+    `effective_workspace_id` (explicit > request binding > owner resolution) —
+    the data layer's one resolution rule.
+
+    Replaces `get_user_timezone`, which regex-parsed the PROSE file
+    `persona/IDENTITY.md` for a `timezone:` line — a machine fact read from a
+    never-machine-parsed doc (ADR-254), silently UTC for every workspace in
+    production (measured 2026-08-24: zero declarations existed). A `timezone:`
+    line in IDENTITY.md is prose about a person now; nothing machine-reads it.
     """
     try:
-        from services.workspace import UserMemory
-        from services.workspace_paths import PERSONA_IDENTITY_PATH
+        from services.workspace_context import effective_workspace_id
 
-        um = UserMemory(client, user_id)
-        profile = UserMemory._parse_memory_md(um.read_sync(PERSONA_IDENTITY_PATH))
-        return normalize_timezone_name(profile.get("timezone") or default)
+        ws = effective_workspace_id(user_id)
+        if ws:
+            rows = (
+                client.table("workspaces")
+                .select("timezone")
+                .eq("id", ws)
+                .limit(1)
+                .execute()
+            ).data or []
+            tz = (rows[0].get("timezone") or "") if rows else ""
+            if tz:
+                return normalize_timezone_name(tz)
     except Exception as e:
-        logger.debug(f"[SCHEDULE] Failed to resolve user timezone for {user_id[:8]}: {e}")
-        return normalize_timezone_name(default)
+        logger.debug(f"[SCHEDULE] workspace timezone resolve failed for {user_id[:8]}: {e}")
+    return normalize_timezone_name(default)
 
 
 def format_datetime_for_timezone(
