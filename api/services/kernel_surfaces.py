@@ -364,6 +364,36 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # Radar precedent, whose own unveil was taken early the same way).
         # The D8 falsifiers stay armed as MEASURES of the standing loop, no
         # longer as the unveil's gate.
+        # ADR-603 D4 — the Supervisor desk: the lens over STANDING
+        # DECLARATIONS (what runs, on what cadence, to keep what true).
+        #
+        # `stage: internal` at birth, and NOT timidity — ADR-592's rule: an
+        # app with a clock spends money unattended, and *an app with a clock
+        # is deleted, not staged*. It ships behind the roster until D5/D6 give
+        # it real declarations to show and the spend story is settled.
+        # `internal` REMOVES the row from the served roster, so there is no
+        # route/middleware obligation to discharge yet (ADR-592) — and per
+        # ADR-602 D3 its resident is withheld from /agents for exactly as
+        # long, derived, with no second edit.
+        "slug": "supervisor",
+        "stage": "internal",
+        "register": "application",
+        "title": "Supervisor",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # declarations are meaning-placed beside their subject
+        "icon_key": "clipboard-list",
+        # NO `route` — deliberately. ADR-592's obligation (an internal slug
+        # leaves the served roster, so `SURFACE_PREFIXES` loses it and the
+        # route would serve 200 logged-out) applies to a route that EXISTS.
+        # Docs had one because it was exposed first; Supervisor never has
+        # been, so the honest answer is not a redirect stub to a page nobody
+        # can reach — it is no route until D5/D6 give the desk something to
+        # show. The route + its middleware hand-listing land in the same
+        # commit as the surface. The gate reads this row: adding `route` here
+        # without both is what it exists to catch.
+        "summary": "Standing work in one place — what runs, on what cadence, to keep what true. Each declaration names the app that does the work; Supervisor is who you talk to about it.",
+    },
+    {
         "slug": "strings",
         "launcher_tier": "primary",  # ADR-569 unveil 2026-08-14 (was search-only per D6)
         "register": "application",

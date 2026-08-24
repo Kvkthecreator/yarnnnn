@@ -131,8 +131,11 @@ for r in AGENTS.values():
            r["model"] in LANE_MODELS and not unpriced_lane_model(r["model"]))
     _check(f"model_for_agent('{r['slug']}') answers",
            model_for_agent(r["slug"]) == r["model"])
-_check("the expected beings are exactly {designer, editor, keeper}",
-       set(AGENTS) == {"designer", "editor", "keeper"})
+# ADR-603 — Supervisor joins. The set is pinned deliberately (a new being is
+# an ADR decision, not a drive-by), and it is EDITED here when one lands —
+# which is the point: this line is where the roster's growth gets noticed.
+_check("the expected beings are exactly {designer, editor, keeper, supervisor}",
+       set(AGENTS) == {"designer", "editor", "keeper", "supervisor"})
 # ADR-602 D1/D2 — the craft split, asserted as the RELATION not a spelling.
 _check("Editor serves BOTH authoring desks (slides + text)",
        set(homes_for_agent("editor")) == {"slides", "text"})

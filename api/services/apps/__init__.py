@@ -79,3 +79,14 @@ from services.authoring import register_app as _register_app  # noqa: E402
 # follows the keeper row in `agents_registry.AGENTS`, never a caller-supplied
 # model.
 _register_app("strings", resident="keeper")
+
+# supervisor (ADR-603 D4) — the lens over STANDING DECLARATIONS: what runs, on
+# what cadence, to keep what true. Declared here for the same reason as
+# strings' row: the app has no module of its own yet (its material is
+# declarations, not a canvas), and every app's residency reads in one list.
+#
+# It has NO CRAFT of its own — each declaration's work is done by ITS OWN
+# app's resident (ADR-603 D2), so the ADR-601 orthogonality holds: capability
+# at the app, character at the agent. Supervisor's own resident is the voice
+# you talk to ABOUT the work, never the hand that does it.
+_register_app("supervisor", resident="supervisor")

@@ -132,6 +132,16 @@ _mw = read("lib/supabase/middleware.ts")
 _mw_code = code_only(_mw)
 for e in _internal:
     slug = e["slug"]
+    # ADR-603: an internal app may have NO route yet — a desk that has never
+    # been exposed (Supervisor) has nothing to stub, and inventing a redirect
+    # to a page nobody can reach is worse than the absence. The obligation
+    # binds a route that EXISTS: declaring one without both halves is exactly
+    # what this loop catches, so the row's `route` key is the trigger.
+    if not e.get("route"):
+        check(f"/{slug} declares no route (nothing to gate) — internal, unbuilt",
+              not (_WEB / "app" / "(authenticated)" / slug / "page.tsx").exists(),
+              "a routeless internal row must not have a live page either")
+        continue
     route_src = read(f"app/(authenticated)/{slug}/page.tsx")
     check(f"/{slug} is a redirect stub (internal app must not render)",
           "redirect(" in code_only(route_src) and bool(route_src))
