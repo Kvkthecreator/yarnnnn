@@ -2203,7 +2203,7 @@ export const api = {
     // Workspace identity phase 1 — rename / re-glyph the acting workspace.
     // Owner-gated server-side (RLS UPDATE policy; a member's PATCH 403s).
     // `icon: null` clears the glyph; omit a field to leave it unchanged.
-    updateIdentity: (body: { name?: string; icon?: string | null }) =>
+    updateIdentity: (body: { name?: string; icon?: string | null; timezone?: string | null }) =>
       request<{ workspace_id: string; name: string; icon: string | null }>(
         "/api/workspace",
         { method: "PATCH", body: JSON.stringify(body) },

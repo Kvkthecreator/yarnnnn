@@ -1,13 +1,21 @@
 "use client";
 
 /**
- * Workspace General — name + icon (workspace identity phase 1, 2026-08-14).
+ * Workspace General — name + icon (workspace identity phase 1, 2026-08-14)
+ * + home timezone (ADR-596 D4, 2026-08-24).
  *
  * The one place the workspace's own identity is edited. The name is what
  * invite emails, the invite/share landings, and the switcher show; the icon
  * is a short text glyph (emoji) — deliberately NOT an image upload (the
  * unauthenticated invite/share landings would need a public serving lane the
  * private workspace-cas bucket rightly refuses).
+ *
+ * The home timezone is the clock's anchor: shared declarations (recurring
+ * work, kept-file cadences) resolve "9am" against it, because a shared clock
+ * is a fact about the commons, not about whoever authored the declaration.
+ * Undeclared = scheduling uses UTC, and the pane SAYS so rather than
+ * implying a choice was made. IANA names only, validated server-side; the
+ * selector seeds from the browser's own zone as a suggestion, never a write.
  *
  * Gate: the backend PATCH writes through the CALLER's client, so the RLS
  * UPDATE policy (owner-only) is the enforcement — a member's save would 403.
@@ -31,6 +39,7 @@ export function WorkspaceGeneralPane() {
   // (render the server value), a string = the operator's edit in progress.
   const [nameEdit, setNameEdit] = useState<string | null>(null);
   const [iconEdit, setIconEdit] = useState<string | null>(null);
+  const [tzEdit, setTzEdit] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,9 +60,30 @@ export function WorkspaceGeneralPane() {
 
   const name = nameEdit ?? active.label;
   const icon = iconEdit ?? (active.icon || "");
+  // `timezone` may be absent on a not-yet-redeployed API — treat as undeclared.
+  const serverTz = active.timezone || "";
+  const tz = tzEdit ?? serverTz;
   const dirty =
     (nameEdit !== null && nameEdit.trim() !== active.label) ||
-    (iconEdit !== null && iconEdit.trim() !== (active.icon || ""));
+    (iconEdit !== null && iconEdit.trim() !== (active.icon || "")) ||
+    (tzEdit !== null && tzEdit !== serverTz);
+
+  // The IANA roster, from the runtime itself (no shipped table to go stale);
+  // older engines without supportedValuesOf degrade to a bare-input fallback.
+  let zones: string[] = [];
+  try {
+    type IntlWithValues = typeof Intl & { supportedValuesOf?: (k: string) => string[] };
+    zones = (Intl as IntlWithValues).supportedValuesOf?.("timeZone") ?? [];
+  } catch {
+    zones = [];
+  }
+  const browserZone = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch {
+      return "";
+    }
+  })();
 
   const handleSave = async () => {
     const trimmed = name.trim();
@@ -64,9 +94,10 @@ export function WorkspaceGeneralPane() {
     setSaving(true);
     setError(null);
     try {
-      const body: { name?: string; icon?: string | null } = {};
+      const body: { name?: string; icon?: string | null; timezone?: string | null } = {};
       if (nameEdit !== null) body.name = trimmed;
       if (iconEdit !== null) body.icon = icon.trim() || null;
+      if (tzEdit !== null) body.timezone = tz || null;
       await api.workspace.updateIdentity(body);
       // The switcher label rides the module-cached memberships read
       // (lib/workspace/viewer.ts) and every open surface may render the old
@@ -141,6 +172,51 @@ export function WorkspaceGeneralPane() {
         />
         <p className="mt-1 text-[11px] text-muted-foreground">
           An emoji. Leave empty for the default glyph.
+        </p>
+      </div>
+
+      <div>
+        <label
+          htmlFor="workspace-timezone"
+          className="block text-xs font-medium text-muted-foreground mb-1"
+        >
+          Home timezone
+        </label>
+        {zones.length ? (
+          <select
+            id="workspace-timezone"
+            value={tz}
+            disabled={!isOwner || saving}
+            onChange={(e) => setTzEdit(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+          >
+            <option value="">Not set — scheduling uses UTC</option>
+            {browserZone && !serverTz && (
+              <option value={browserZone}>{browserZone} (your browser&rsquo;s zone)</option>
+            )}
+            {zones
+              .filter((z) => z !== browserZone || serverTz)
+              .map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
+              ))}
+          </select>
+        ) : (
+          <input
+            id="workspace-timezone"
+            type="text"
+            value={tz}
+            disabled={!isOwner || saving}
+            onChange={(e) => setTzEdit(e.target.value)}
+            placeholder="Asia/Seoul"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+          />
+        )}
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Scheduled work in this workspace — recurring runs, kept-file
+          cadences — fires on this clock. Until it&rsquo;s set, everything runs
+          on UTC.
         </p>
       </div>
 

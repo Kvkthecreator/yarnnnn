@@ -55,6 +55,9 @@ export interface WorkspaceMembershipRow {
   /** Workspace identity phase 1 — owner-chosen glyph (emoji); null/absent →
    *  the default org glyph. */
   icon?: string | null;
+  /** ADR-596 D4 — the workspace home timezone (IANA). null/absent →
+   *  undeclared: scheduling uses UTC, and the settings pane says so. */
+  timezone?: string | null;
 }
 
 export interface WorkspaceRoster {
