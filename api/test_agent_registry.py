@@ -1,25 +1,26 @@
-"""The agent-registry ratchet — ADR-460 D3.a's cliff, on the ADR-599 registers.
+"""The agent-registry ratchet — ADR-460 D3.a's cliff, on the ADR-600 register.
 
 Script-style (run: cd api && python3 test_agent_registry.py).
 
-What this gate holds, post-ADR-599 (the roster empties; agents are app
-residents):
+What this gate holds, post-ADR-600 (one register; hireability is a field):
 
-  1. The colleague registers are EMPTY — deliberately, by operator ruling.
-     A row reappearing in KERNEL_AGENTS/KERNEL_POSTURES is a design decision
-     that must re-open the ADR, not a drive-by addition.
+  1. There is ONE register. The three-dict split is DELETED, not aliased —
+     a re-appearing KERNEL_AGENTS/KERNEL_POSTURES/APP_RESIDENTS (or a
+     `_kernel_character` union) is the exact shape that produced two dead
+     planners and a vacuous ratchet, so it must re-open the ADR.
   2. The member-agent machinery STAYS DELETED — the symbols do not import,
      and the /lane-agents doors are gone from the routes.
-  3. THE CLIFF on the surviving register: an APP_RESIDENTS row carries
-     identity + engine + character and nothing else — no authority-shaped
-     key, no tools, no based_on (self-contained since ADR-599 D3). The
-     whitelist itself contains no authority vocabulary.
-  4. Every resident is routable and priced (the ADR-439 §4 rule), the
-     keyspaces are disjoint (one resolution namespace), and the roster
-     serves nobody (list_agents() == []).
-  5. The /agents surface is the honest empty state, and resolution is
-     kernel-only (resolve_agent takes a slug, nothing else — no member list
-     to consult).
+  3. THE CLIFF: a row carries identity + character + engine + `offered` and
+     nothing else — no authority-shaped key, no tools, no based_on. The
+     whitelist itself contains no authority vocabulary. `offered` is REACH
+     (who may be invited), never authority (what they may do).
+  4. Every being is routable and priced (the ADR-439 §4 rule), and the
+     roster is the FIELD's filter — list_agents() serves exactly the
+     offered rows (empty today, per ADR-599 D1).
+  5. Machinery resolves a BEING, never a container (ADR-600 D4): no call
+     site subscripts the register by name.
+  6. The cast door gates on `offered`, not on bare resolvability (D3).
+  7. The /agents surface shows beings sectioned by where they live (D6).
 """
 
 from __future__ import annotations
@@ -34,11 +35,7 @@ sys.path.insert(0, str(API))
 
 from services.agents_registry import (  # noqa: E402
     AGENT_ROW_KEYS,
-    APP_RESIDENTS,
-    KERNEL_AGENTS,
-    KERNEL_POSTURES,
-    POSTURE_ROW_KEYS,
-    RESIDENT_ROW_KEYS,
+    AGENTS,
     list_agents,
     model_for_agent,
     resolve_agent,
@@ -59,16 +56,20 @@ def _check(label: str, cond: bool) -> None:
         FAIL += 1
 
 
-print("1. the colleague registers are empty (ADR-599 D1)")
-_check("KERNEL_AGENTS is empty — the base roster is deleted, not hidden",
-       KERNEL_AGENTS == {})
-_check("KERNEL_POSTURES is empty — Critic went with the roster",
-       KERNEL_POSTURES == {})
-_check("the hire roster serves nobody (list_agents() == [])",
+print("1. one register, no containers (ADR-600 D1)")
+import services.agents_registry as _reg  # noqa: E402
+for _dead in ("KERNEL_AGENTS", "KERNEL_POSTURES", "APP_RESIDENTS",
+              "RESIDENT_ROW_KEYS", "POSTURE_ROW_KEYS", "_kernel_character"):
+    _check(f"{_dead} is deleted, not aliased", not hasattr(_reg, _dead))
+_check("the roster is a FILTER over the one register, not a second namespace",
+       list_agents() == [r for r in AGENTS.values() if r.get("offered")])
+_check("nobody is offered today (ADR-599 D1, unreopened)",
        list_agents() == [])
 _check("a deleted colleague slug resolves None (honest, not aliased)",
        resolve_agent("sonnet") is None and resolve_agent("scout") is None
        and resolve_agent("critic") is None)
+_check("resolution reaches EVERY being — `offered` gates the invite, not the read",
+       all(resolve_agent(s) is not None for s in AGENTS))
 
 print("2. the member-agent machinery stays deleted (ADR-599 D2)")
 for _sym in ("find_member_agents", "find_agent_skills", "parse_agent_manifest",
@@ -91,41 +92,101 @@ banned = (
     "autonomous", "unattended", "standing_intent", "mandate", "wake",
     "principal", "grant", "scopes",
 )
-for _keys, _name in ((AGENT_ROW_KEYS, "AGENT_ROW_KEYS"),
-                     (POSTURE_ROW_KEYS, "POSTURE_ROW_KEYS"),
-                     (RESIDENT_ROW_KEYS, "RESIDENT_ROW_KEYS")):
-    _check(f"{_name} contains no authority-shaped key",
-           not any(w in " ".join(_keys).lower() for w in banned))
-for r in APP_RESIDENTS.values():
-    _check(f"resident '{r['slug']}' carries no key outside RESIDENT_ROW_KEYS",
-           set(r.keys()) <= RESIDENT_ROW_KEYS)
-    _check(f"resident '{r['slug']}' carries every required key",
-           {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
-           <= set(r.keys()))
-    _check(f"resident '{r['slug']}' is self-contained (no based_on — ADR-599 D3)",
+_check("AGENT_ROW_KEYS contains no authority-shaped key",
+       not any(w in " ".join(AGENT_ROW_KEYS).lower() for w in banned))
+for r in AGENTS.values():
+    _check(f"'{r['slug']}' carries no key outside AGENT_ROW_KEYS",
+           set(r.keys()) <= AGENT_ROW_KEYS)
+    _check(f"'{r['slug']}' carries every required key",
+           {"slug", "name", "blurb", "icon", "model", "token_profile",
+            "posture", "offered"} <= set(r.keys()))
+    _check(f"'{r['slug']}' is self-contained (no based_on — ADR-599 D3)",
            "based_on" not in r)
+    _check(f"'{r['slug']}' declares reach as a bool, not a string",
+           isinstance(r["offered"], bool))
     keys = " ".join(r.keys()).lower()
-    _check(f"resident '{r['slug']}' has no authority-shaped field",
+    _check(f"'{r['slug']}' has no authority-shaped field",
            not any(w in keys for w in banned))
 
-print("4. residents are routable, priced, and unambiguous")
-for r in APP_RESIDENTS.values():
+print("4. every being is routable and priced")
+for r in AGENTS.values():
     _check(f"'{r['slug']}' routes a live engine with a billing rate",
            r["model"] in LANE_MODELS and not unpriced_lane_model(r["model"]))
     _check(f"model_for_agent('{r['slug']}') answers",
            model_for_agent(r["slug"]) == r["model"])
-_check("the three keyspaces are disjoint (one resolution namespace)",
-       not (set(KERNEL_AGENTS) & set(KERNEL_POSTURES))
-       and not ((set(KERNEL_AGENTS) | set(KERNEL_POSTURES)) & set(APP_RESIDENTS)))
-_check("the expected residents are exactly {designer, editor, keeper}",
-       set(APP_RESIDENTS) == {"designer", "editor", "keeper"})
+_check("the expected beings are exactly {designer, editor, keeper}",
+       set(AGENTS) == {"designer", "editor", "keeper"})
 
-print("5. the surface is the honest empty state")
+print("5. machinery resolves a BEING, never a container (ADR-600 D4)")
+# The pattern that broke: a call site subscripting the register by name.
+# `designer` moved containers in ADR-599 and two planners KeyError'd into a
+# permanent silent fallback. Resolution has one door; reaching past it is the
+# bug, so the gate refuses the shape rather than the symptom.
+_planners = {
+    "services/apps/images/decompose.py": "IMAGES layer plan",
+    "services/studio_arrangement_plan.py": "Slides arrangement plan",
+}
+for _rel, _what in _planners.items():
+    _src = (API / _rel).read_text()
+    _check(f"{_what} resolves through resolve_agent",
+           'resolve_agent("designer")' in _src)
+    _check(f"{_what} never subscripts a register by name",
+           "AGENTS[" not in _src and "KERNEL_AGENTS" not in _src)
+# ...and the lookup sits OUTSIDE the try, so a missing being RAISES instead of
+# masquerading as "the router is off" (each file's own comment says so).
+for _rel, _what in _planners.items():
+    _src = (API / _rel).read_text()
+    _lookup = _src.index('resolve_agent("designer")')
+    _try = _src.index("    try:", _src.index("from services.model_router"))
+    _check(f"{_what}: the lookup precedes the try (a missing being raises)",
+           _lookup < _try)
+
+# Whole-tree sweep: no OTHER module may subscript the register either, and
+# the deleted container names must not come back as CODE. Comments are
+# excluded deliberately — the registry's own docstring names what it deleted,
+# and a gate that cannot tell prose from code teaches sessions to reword
+# rather than to fix.
+_offenders = []
+for _py in list((API / "services").rglob("*.py")) + list((API / "routes").rglob("*.py")):
+    if _py.name == "agents_registry.py":
+        continue
+    for _i, _line in enumerate(_py.read_text().splitlines(), 1):
+        _code = _line.split("#", 1)[0]
+        if "AGENTS[" in _code or "KERNEL_AGENTS" in _code or "APP_RESIDENTS" in _code:
+            _offenders.append(f"{_py.relative_to(API)}:{_i}")
+_check(f"no module subscripts the register or names a deleted container "
+       f"(found: {_offenders or 'none'})", not _offenders)
+
+print("6. the cast door gates on `offered`, not on resolvability (ADR-600 D3)")
+_add_door = _lanes_src[_lanes_src.index('elif kind == "agent":'):]
+_add_door = _add_door[:_add_door.index("result = add_participant")]
+_check("the door reads `offered` before admitting a being",
+       '.get("offered")' in _add_door)
+_check("a housed being is refused with its reason, not a generic miss",
+       "works at a desk" in _add_door)
+
+print("7. the surface shows beings, sectioned by where they live (ADR-600 D6)")
 _surface = (API.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
-_check("the /agents surface names the ruling (ADR-599) instead of a blank page",
-       "ADR-599" in _surface)
+_check("the surface names the ruling (ADR-600) instead of a blank page",
+       "ADR-600" in _surface)
 _check("no hire machinery survives on the surface",
        "makeAgent" not in _surface and "AgentCard" not in _surface)
+# The failure this section replaces: the predecessor hardcoded "Designer in
+# Slides, Editor in Text, Keeper in Strings" in PROSE, so a fourth being would
+# silently never appear. Server-driven or it drifts (the ADR-562 second home).
+# Comments stripped first: this file's own docstring quotes the copy it
+# replaced, and a gate that cannot tell prose from code teaches sessions to
+# reword rather than to fix (the same lesson as the register sweep above).
+_surface_code = "\n".join(
+    l for l in _surface.splitlines()
+    if not l.lstrip().startswith(("*", "/*", "//"))
+)
+_check("the roster is read from the server, not hardcoded in copy",
+       "res.beings" in _surface_code and "api.lanes" in _surface_code)
+for _name in ("Designer", "Editor", "Keeper"):
+    _check(f"the surface does not hardcode '{_name}'", _name not in _surface_code)
+_check("both sections exist — housed beings and the offered roster",
+       "At a desk" in _surface and "To work with" in _surface)
 # The anti-pattern ratchet (kept from the original gate): the surface must
 # never grow the ChatGPT business-agent editor's authority vocabulary.
 _check("the surface carries no authority vocabulary",

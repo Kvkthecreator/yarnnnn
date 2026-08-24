@@ -269,7 +269,7 @@ check("parseable-but-cannot-run → named in the state block",
 # ---------------------------------------------------------------------------
 print("5. the resident (ADR-562) — keeper, a posture, priced")
 import services.apps  # noqa: F401  (registration side-effect)
-from services.agents_registry import APP_RESIDENTS, KERNEL_AGENTS
+from services.agents_registry import AGENTS
 from services.authoring import resident_for_app
 from services.strings import resolve_strings_resident
 
@@ -281,10 +281,10 @@ check("strings registers keeper as its resident",
 # Re-anchored for ADR-599: residents are self-contained (no based_on — the
 # base operations are deleted with the colleague roster, which is EMPTY).
 check("keeper is a self-contained APP RESIDENT; the colleague roster is empty",
-      "keeper" in APP_RESIDENTS
-      and "based_on" not in APP_RESIDENTS["keeper"]
-      and "keeper" not in KERNEL_AGENTS
-      and len(KERNEL_AGENTS) == 0)
+      "keeper" in AGENTS
+      and "based_on" not in AGENTS["keeper"]
+      # ADR-600 D2 — Keeper's home is the Strings desk: a being, not a hire.
+      and AGENTS["keeper"].get("offered") is False)
 r_model, r_posture = resolve_strings_resident()
 check("the resident resolves to Keeper's character on a live engine",
       "Keeper" in r_posture and r_model in LANE_MODELS

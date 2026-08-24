@@ -8,7 +8,7 @@
     USER-FACING             — chat, lanes, apps. Routing IS the feature.
                               Governed by choice + defaults + visible cost.
                               Lives in `lane_runner.LANE_MODELS` (the member's
-                              whitelist) + `agents_registry.KERNEL_AGENTS`
+                              whitelist) + `agents_registry.AGENTS`
                               (the colleague whose engine rides behind a name).
 
 Collapsing the two was the standing error this module ends. A member should

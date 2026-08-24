@@ -92,7 +92,7 @@ check(
 
 print("\n2. the boundary — systematic is NOT on the member's picker")
 
-from services.agents_registry import KERNEL_AGENTS, KERNEL_POSTURES
+from services.agents_registry import AGENTS  # noqa: F401 (ADR-600: one register)
 from services.lane_runner import LANE_MODELS
 
 # The whole ADR in one assertion. LANE_MODELS is what a MEMBER may pin;

@@ -69,9 +69,11 @@ class ComposeRequest(BaseModel):
     # a client name any engine straight into `route_completion` with neither
     # the `LANE_MODELS` membership check nor the ADR-439 §4 billing gate that
     # every other routed path enforces, so an unpriced model priced silently at
-    # the Sonnet default. An app's engine follows its RESIDENT (declared in
-    # `web/lib/apps/authoring.ts` + `KERNEL_AGENTS`), never a caller-supplied
-    # id — the same rule that made Designer exist instead of `models[0]`.
+    # the Sonnet default. An app's engine follows its RESIDENT (declared
+    # server-side by the app's own `register_app`, ADR-562 —
+    # `web/lib/apps/authoring.ts` is DELETED), resolved through
+    # `agents_registry.resolve_agent`, never a caller-supplied id — the same
+    # rule that made Designer exist instead of `models[0]`.
     # Whether a member may CHOOSE that resident is the open Phase-2 question.
 
 

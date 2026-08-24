@@ -172,12 +172,18 @@ async def plan_arrangement(
     if not areas:
         return None, None
 
-    # OUTSIDE the try, deliberately (the ADR-475 lesson): a typo'd symbol here
-    # would otherwise be swallowed by the fallback and look exactly like "the
-    # router is off" — the planner would silently never plan again. A broken
-    # import is a bug, not a fallback condition; only the CALL may fail soft.
-    from services.agents_registry import KERNEL_AGENTS
+    # OUTSIDE the try, deliberately (the ADR-475 lesson) — and so is the LOOKUP
+    # below. Inside it, a symbol or a slug that no longer resolves is swallowed
+    # by the fallback and looks exactly like "the router is off": the planner
+    # silently never plans again. Not hypothetical — ADR-599 moved `designer`
+    # between registers while this line subscripted a register by name, and
+    # Slides arranged mechanically in production until ADR-600 found it. A
+    # missing being is a BUG THAT RAISES; only the CALL may fail soft.
+    from services.agents_registry import resolve_agent
     from services.model_router import model_router_enabled, route_completion
+
+    # ADR-600 D4 — resolve the BEING, never a container.
+    engine = resolve_agent("designer")["model"]
 
     completion = None
     try:
@@ -185,13 +191,12 @@ async def plan_arrangement(
             logger.info("[STUDIO] router off — mechanical arrangement")
             return None, None
 
-        # Studio's resident is Designer (ADR-562: an app's engine follows its
+        # Slides' resident is Designer (ADR-562: an app's engine follows its
         # RESIDENT, resolved server-side). The `model` PARAMETER is removed
         # (2026-08-21): no caller passed it, and it was the same
         # caller-supplied-engine door `routes/images.py` closed on
         # `ComposeRequest.model` — reaching `route_completion` without the
         # LANE_MODELS membership check or the ADR-439 §4 billing gate.
-        engine = KERNEL_AGENTS["designer"]["model"]
         completion = await route_completion(
             engine,
             [{"role": "user", "content": build_plan_request(blocks, areas)}],

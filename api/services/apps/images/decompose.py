@@ -248,13 +248,21 @@ async def plan_layers(brief: str) -> list[Layer]:
     composition must never dead-end, so every failure path here lands a real,
     editable, one-layer-lighter composition instead of an error.
     """
-    # OUTSIDE the try, deliberately. Inside it, a typo'd symbol (this line said
-    # `AGENTS` for one revision) would be swallowed by the fallback and look
-    # exactly like "the router is off" — the resident would never plan again
-    # and nothing would say so. A broken import is a bug, not a fallback
-    # condition; only the CALL is allowed to fail soft.
-    from services.agents_registry import KERNEL_AGENTS
+    # OUTSIDE the try, deliberately — and so is the LOOKUP below. Inside it, a
+    # symbol or a slug that no longer resolves would be swallowed by the
+    # fallback and look exactly like "the router is off": the resident would
+    # never plan again and nothing would say so. That is not hypothetical —
+    # ADR-599 moved `designer` between registers while this line subscripted a
+    # register by name, and IMAGES planned heuristically in production until
+    # ADR-600 found it. A missing being is a BUG THAT RAISES; only the CALL is
+    # allowed to fail soft.
+    from services.agents_registry import resolve_agent
     from services.model_router import model_router_enabled, route_completion
+
+    # ADR-600 D4 — resolve the BEING, never a container. `resolve_agent` is the
+    # one door; a call site that reaches into the register by name breaks the
+    # moment the being's row moves or its flags change.
+    engine = resolve_agent("designer")["model"]
 
     try:
         if not model_router_enabled():
@@ -265,7 +273,6 @@ async def plan_layers(brief: str) -> list[Layer]:
         # this read is gone (it was an ungated client passthrough); layer
         # planning is machinery, and machinery does not take an engine from a
         # caller.
-        engine = KERNEL_AGENTS["designer"]["model"]
         completion = await route_completion(
             engine,
             [{"role": "user", "content": f"Compose this image:\n\n{brief}"}],

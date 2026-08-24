@@ -36,7 +36,7 @@ WHAT THIS BUYS, CONCRETELY
   get_anthropic_client()` buried 260 lines into a primitive — was not.
 
 WHY A REGISTRY AND NOT AN ABSTRACT BASE CLASS
-Same reason as `LANE_MODELS`, `DERIVE_RECIPES`, `KERNEL_AGENTS` (ADR-450's rule,
+Same reason as `LANE_MODELS`, `DERIVE_RECIPES`, `AGENTS` (ADR-450's rule,
 fifth instance): servers are DATA. A second search server is a row and a
 function, not a subclass. There is exactly one row today, and one row is the
 honest state — this module does not pretend to a plurality it does not have. It

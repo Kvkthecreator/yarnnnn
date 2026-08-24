@@ -87,13 +87,10 @@ def build_text_posture(client: Any, user_id: str, artifact_path: str) -> str:
 
 
 # ── ADR-562 D3: the registration, beside the code it configures ───────────
-# The resident is IDENTITY only — the engine follows the designer row in
-# KERNEL_AGENTS, never a caller-supplied model. "Editor" is the app's name
-# for that resident (the Docs/"Writer" shape): Writer lives in Docs; Editor
-# lives in Text.
-# ADR-597 D2 — Text seats its OWN colleague. Editor is a kernel posture
-# (based_on designer, agents_registry.KERNEL_POSTURES), not designer wearing
-# a rename: one desk, one colleague, and the D6 rename machinery is no longer
-# load-bearing here (it survives for member nicknames and for Docs while that
-# app is internal-staged).
+# The resident is IDENTITY only — the engine follows Editor's own row in
+# `agents_registry.AGENTS`, never a caller-supplied model.
+# ADR-597 D2 — Text seats its OWN being. Editor is a row of its own, not
+# designer wearing a rename: one desk, one voice. ADR-600 collapsed the
+# register split, so Editor is simply a being with `offered: False` — its
+# home is this desk.
 register_app("text", resident="editor")

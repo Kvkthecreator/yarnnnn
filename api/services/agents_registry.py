@@ -1,40 +1,50 @@
-"""The kernel Agent registry — app residents, and two deliberately empty registers.
+"""The kernel Agent registry — ONE register of beings, ADR-600.
 
-WHERE THIS LANDED (ADR-599, 2026-08-24 — operator ruling)
-The free-floating colleague roster (Thinker · Researcher · Designer-as-colleague
-· Critic, ADR-460) and the member-agent machinery (manifests, skills, "Make
-one" — ADR-449/464) are DELETED, not hidden: for now, **the only agents are app
-residents** — each app seats exactly one dedicated colleague (ADR-597 D2), and
-nothing free-floats. The /agents surface is an honest empty state until the
-roster returns as app-paired agents built on the ADR-596 scaffold (identity ⊕
-character ⊕ engine; authority/clock/judgment on grants, declarations, gates —
-never on beings).
+WHERE THIS LANDED (ADR-600, 2026-08-24 — operator ruling)
+There is ONE kind of agent. `KERNEL_AGENTS` / `KERNEL_POSTURES` /
+`APP_RESIDENTS` are DELETED: three dicts with identical row shapes and one
+shared resolution namespace were never a type distinction — they were a
+VISIBILITY FLAG modelled as three containers, and modelling a property of a
+being as the identity of its container means the being changes identity when
+the property changes. That cost two silently-dead planners, a vacuous pricing
+ratchet, and a cast door that contradicted its own roster (ADR-600 Context).
 
-WHAT AN AGENT IS (ADR-460 → ADR-596, unchanged by the deletion)
-A named, configured BEING. It attributes as the member (`member:{id} via
-{model}` — ADR-411 D4), carries configuration, holds NO standing intent, and
-fires only when addressed through its app's bound lanes.
+WHAT AN AGENT IS (ADR-460 → ADR-596, unchanged)
+A named, configured BEING: identity ⊕ character ⊕ engine. It attributes as the
+member (`member:{id} via {model}` — ADR-411 D4), holds NO standing intent, and
+fires only when addressed.
 
 WHAT AN AGENT IS NOT
 - NOT a principal. No `principal_grants` row, never on the ADR-431 roster.
 - NOT standing intent. No wake source, no mandate, no autonomy dial.
 
-⚠️ THE CLIFF — ADR-460 D3.a, STRUCTURAL, SURVIVING EVERY RECUT ⚠️
-There is NO field in any register here for consequential authority, and there
-must never be one. The authority is UNREPRESENTABLE, not merely unset: an
-agent that would take consequential external action needs the ADR-307 gate, a
-mandate, an autonomy dial, and a track record accruing on a clock we do not
-control (ADR-596: those live on GRANTS, DECLARATIONS, and GATES — never on the
-being's row). **A session that adds an authority field to a row here has
-violated ADR-460.** `test_agent_registry.py` is that ratchet.
+HIREABILITY IS A FIELD (ADR-600 D2)
+`offered` answers ONE question: is this being on the roster a member picks
+from? `offered: False` means its home is a desk — met where it works, never
+invited (Designer/Slides · Editor/Text · Keeper/Strings). `offered: True` is a
+colleague; today NOBODY is, per ADR-599 D1, which ADR-600 does not reopen.
+`offered` is REACH, never authority — it says who may be invited, never what
+they may do.
 
-History of the registers (kept because the derivation is load-bearing):
-ADR-460 derived the base roster from the addressed operations (ACQUIRE →
-Researcher · REASON → Thinker · PRODUCE → Designer); postures were stances
-over them (Critic); ADR-597 dedicated one resident per app; ADR-598 split
-residents from colleagues; ADR-599 emptied the colleague registers. A future
-colleague roster, if one returns, is designed against the app scaffold — not
-resurrected from git.
+⚠️ THE CLIFF — ADR-460 D3.a, STRUCTURAL, SURVIVING EVERY RECUT ⚠️
+There is NO field here for consequential authority, and there must never be
+one. The authority is UNREPRESENTABLE, not merely unset: an agent that would
+take consequential external action needs the ADR-307 gate, a mandate, an
+autonomy dial, and a track record accruing on a clock we do not control
+(ADR-596: those live on GRANTS, DECLARATIONS and GATES — never on the being's
+row). **A session that adds an authority field to a row here has violated
+ADR-460.** `test_agent_registry.py` is that ratchet.
+
+SLUGS ARE DATA-COMPAT, NOT DISPLAY. `designer` rides ~65 live cast rows and
+lane stamps; `editor`/`keeper` ride live desks. Display names may move; slugs
+must not, or every existing lane orphans.
+
+History (kept because the derivation is load-bearing): ADR-460 derived a base
+roster from the addressed operations (ACQUIRE → Researcher · REASON → Thinker
+· PRODUCE → Designer), with postures as stances over them; ADR-597 dedicated
+one resident per app; ADR-598 split residents from colleagues into their own
+register; ADR-599 emptied the colleague registers and made resident rows
+self-contained; ADR-600 collapsed what was left to one register plus a field.
 """
 
 from __future__ import annotations
@@ -44,61 +54,22 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-#: The base-operation register — EMPTY by ADR-599. The register (and its gate)
-#: survives because the derivation is structural: a base row, if the roster
-#: ever returns, is an ADDRESSED OPERATION a member names out loud — never an
-#: engine, never an output shape. Population today: zero, deliberately.
-KERNEL_AGENTS: dict[str, dict[str, Any]] = {}
-
-#: The keys a base-agent row may carry. Kept while the register is empty: the
-#: gate asserts the shape so the cliff is structural rather than documentary.
-AGENT_ROW_KEYS = frozenset(
-    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
-)
-
-#: The colleague-stance register — EMPTY by ADR-599 (Critic deleted with the
-#: roster). A posture was a stance over a base operation; with zero base rows
-#: there is nothing to posture over.
-KERNEL_POSTURES: dict[str, dict[str, Any]] = {}
-
-#: The keys a posture row may carry. `based_on` (its base operation) is the one
-#: field an agent row lacks. No `tools` (reach is uniform, ADR-467 D4) and no
-#: authority-shaped key, ever — the cliff.
-POSTURE_ROW_KEYS = frozenset(
-    {"slug", "name", "based_on", "blurb", "icon", "model", "token_profile", "posture"}
-)
-
-
 # ---------------------------------------------------------------------------
-# App residents — an APP's own voice, the ONLY populated register (ADR-598/599)
+# The register — every being, one namespace (ADR-600 D1)
 # ---------------------------------------------------------------------------
 #
-# A RESIDENT IS APP-OWNED IDENTITY. It exists because its app exists; it is
-# named for the desk's craft; it is pinned by `register_app(...)` and reached
-# only through its app's bound lanes. It is NOT offered for hire and NOT on
-# the /agents roster — the roster's question ("who do you want to work with?")
-# and a resident's question ("who speaks for this desk?") are different
-# questions (ADR-598).
-#
-# SELF-CONTAINED since ADR-599: rows carry their own posture + engine and no
-# `based_on` — the base operations they once pointed at are deleted.
-#
-# ⚠️ THE D3.a CLIFF HOLDS HERE IDENTICALLY: identity + engine + character,
-# never authority, never reach.
-#
-# SLUGS ARE DATA-COMPAT, NOT DISPLAY. `designer` rides ~65 live cast rows and
-# lane stamps; `editor`/`keeper` ride live desks. Display names may move;
-# slugs must not, or every existing lane orphans.
-#
-# Adding a resident = a row here + the app's `register_app(resident=...)`.
-# Its `model` MUST be a LANE_MODELS key with a billing rate (gate-asserted).
-APP_RESIDENTS: dict[str, dict[str, Any]] = {
-    # Slides' resident (ADR-599 D4 — re-homed from the deleted colleague
-    # roster; the maker keeps its desk and its slug). The engine and the
-    # authoring token profile ride with it.
+# Adding a being = a row here. If it speaks for an app, the app also names it
+# in `register_app(resident=...)` (ADR-562 D3). Its `model` MUST be a
+# LANE_MODELS key with a billing rate (gate-asserted, ADR-600 D5).
+AGENTS: dict[str, dict[str, Any]] = {
+
+    # Slides' voice (ADR-599 D4 — the maker keeps its desk and its slug).
+    # The engine and the authoring token profile ride with it.
     "designer": {
         "slug": "designer",
         "name": "Designer",
+        # Its home is the Slides desk — met there, never invited (ADR-600 D2).
+        "offered": False,
         "blurb": "Makes the deck itself — slides, layout, the artifact in front of you.",
         "icon": "pen-tool",
         "model": "anthropic/claude-sonnet-5",
@@ -118,10 +89,11 @@ APP_RESIDENTS: dict[str, dict[str, Any]] = {
             "creative."
         ),
     },
-    # Text's resident (ADR-597 D2): working prose in the member's own document.
+    # Text's voice (ADR-597 D2): working prose in the member's own document.
     "editor": {
         "slug": "editor",
         "name": "Editor",
+        "offered": False,
         "blurb": "Works your document with you — drafts, restructures, tightens prose.",
         "icon": "file-pen",
         "model": "anthropic/claude-sonnet-5",
@@ -138,11 +110,12 @@ APP_RESIDENTS: dict[str, dict[str, Any]] = {
             "assumed."
         ),
     },
-    # Strings' resident (ADR-569 D6): keeping a designated file true. Sonnet,
+    # Strings' voice (ADR-569 D6): keeping a designated file true. Sonnet,
     # deliberately — maintenance is careful work.
     "keeper": {
         "slug": "keeper",
         "name": "Keeper",
+        "offered": False,
         "blurb": "Keeps designated files true — under a contract, from declared sources.",
         "icon": "archive",
         "model": "anthropic/claude-sonnet-5",
@@ -158,57 +131,49 @@ APP_RESIDENTS: dict[str, dict[str, Any]] = {
     },
 }
 
-#: The keys a resident row may carry — the posture shape minus `based_on`
-#: (residents are self-contained since ADR-599 D3). No `tools`, no
-#: authority-shaped key, ever — the cliff.
-RESIDENT_ROW_KEYS = frozenset(
-    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture"}
+#: The keys a row may carry — identity + character + engine + reach. No
+#: `tools` (reach is uniform, ADR-467 D4) and no authority-shaped key, ever:
+#: the ADR-460 D3.a cliff, enforced as a whitelist rather than as prose.
+AGENT_ROW_KEYS = frozenset(
+    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture", "offered"}
 )
 
 
-def _kernel_character(slug: str) -> Optional[dict]:
-    """The kernel character for a slug — ONE resolution namespace. Pure.
-
-    Three registers, one namespace: base agents and postures (both empty
-    today, ADR-599) and app residents all resolve here, so a live lane or
-    cast row pinning any historical slug resolves if and only if the row
-    still exists. The keyspaces are disjoint (gate-asserted).
-    """
-    s = (slug or "").strip()
-    return KERNEL_AGENTS.get(s) or KERNEL_POSTURES.get(s) or APP_RESIDENTS.get(s)
-
-
 def resolve_agent(slug: str) -> Optional[dict]:
-    """A character by slug, or None. Pure.
+    """A being by slug, or None. Pure.
 
-    ADR-599: kernel-only — the member-agent register is deleted, so there is
-    no member list to consult first. A deleted slug (`sonnet`, `scout`,
-    `critic`, a member's `lisa`) resolves None: its historical turns keep
-    their transcript rows, and new turns run bare-engine, which is honest.
+    ADR-600: ONE register, so resolution is one lookup — a live lane or cast
+    row pinning any historical slug resolves if and only if the row still
+    exists. A deleted slug (`sonnet`, `scout`, `critic`, a member's `lisa`)
+    resolves None: its historical turns keep their transcript rows, and new
+    turns run bare-engine, which is honest.
+
+    This resolves EVERY being, offered or not — a desk's resident must
+    resolve for its own lanes to run. `offered` gates the INVITE (ADR-600
+    D3), never the read.
     """
-    return _kernel_character(slug)
+    return AGENTS.get((slug or "").strip())
 
 
 def get_agent(slug: str) -> Optional[dict]:
-    """The kernel character for a slug, or None. Pure. (Alias of resolve.)"""
-    return _kernel_character(slug)
+    """A being by slug, or None. Pure. (Alias of resolve.)"""
+    return resolve_agent(slug)
 
 
 def list_agents() -> list[dict]:
-    """The hire-roster payload — EMPTY by ADR-599, deliberately.
+    """The hire-roster payload — the OFFERED beings. Pure.
 
-    The colleague roster is deleted until it returns app-paired; app
-    residents are never served here (ADR-598: a desk's voice is not a
-    colleague for hire). The FE renders the /agents surface as an honest
-    empty state, and the cast bar has nobody to offer — both by construction,
-    not by filtering.
+    ADR-600 D2: hireability is a field, so this is a filter over the one
+    register rather than a separate namespace. Empty today (ADR-599 D1 left
+    nobody offered), but empty as an OBSERVABLE FACT about the beings — a
+    row flipping `offered` appears here with no other edit.
     """
-    return []
+    return [r for r in AGENTS.values() if r.get("offered")]
 
 
 def model_for_agent(slug: str) -> Optional[str]:
     """The engine behind the name, or None if the slug is unknown. Pure."""
-    agent = _kernel_character(slug)
+    agent = resolve_agent(slug)
     return agent["model"] if agent else None
 
 
@@ -225,7 +190,7 @@ def build_agent_posture(slug: str, as_name: Optional[str] = None) -> str:
     an app may rename its resident, and the override must be stated as an
     override because the character text opens with its own name.
     """
-    agent = _kernel_character(slug)
+    agent = resolve_agent(slug)
     if not agent:
         return ""
     character = agent.get("posture") or ""

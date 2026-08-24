@@ -66,9 +66,9 @@ from services.apps import images as images  # noqa: F401,E402  (registration sid
 # overlay and already imports `services.authoring` for the registration.
 from services.apps import text as text  # noqa: F401,E402  (registration side-effect)
 
-# ADR-592 — the radar row is DELETED with the app. Its resident (scout /
-# Researcher) stays in KERNEL_AGENTS: an agent is not an app, and `system:radar`
-# attribution on the briefs it already authored must keep rendering a name.
+# ADR-592 — the radar row is DELETED with the app, and ADR-599 deleted its
+# being (scout) with the colleague roster. `system:radar` attribution on the
+# briefs it already authored renders its stored slug — honest, un-aliased.
 
 from services.authoring import register_app as _register_app  # noqa: E402
 
@@ -76,5 +76,6 @@ from services.authoring import register_app as _register_app  # noqa: E402
 # the same reason as radar's row: `services/strings.py` deliberately carries
 # no module-level `services.*` imports (cycle-free), and every app's residency
 # reads in one list. The resident is IDENTITY only (ADR-562): the engine
-# follows the keeper row in KERNEL_AGENTS, never a caller-supplied model.
+# follows the keeper row in `agents_registry.AGENTS`, never a caller-supplied
+# model.
 _register_app("strings", resident="keeper")

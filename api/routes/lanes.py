@@ -361,6 +361,41 @@ def _apps_payload() -> list[dict]:
     ]
 
 
+def _beings_payload() -> list[dict]:
+    """Every being, FE-shaped, with the desk it speaks for (ADR-600 D6).
+
+    `agents` above is the ROSTER — who a member may INVITE (`offered`). This is
+    the fuller answer to "who exists": a housed being is real and answers in
+    its app every day, so a surface that lists only the offered ones tells the
+    member they have nobody while Designer is mid-conversation with them.
+
+    `home` is the app slug a non-offered being speaks for, resolved from the
+    SAME registration the prompt uses — never a TS-side table (the second home
+    ADR-562 deleted).
+    """
+    import services.apps  # noqa: F401  (registration side-effect)
+    from services.agents_registry import AGENTS
+    from services.authoring import all_apps
+
+    homes: dict[str, str] = {}
+    for a in all_apps().values():
+        # First registration wins, matching `register_app` itself — a being
+        # shared by two apps (IMAGES on Designer) names the desk it was
+        # dedicated to, not the last one to import.
+        homes.setdefault(a["resident"], a["slug"])
+    return [
+        {
+            "slug": r["slug"],
+            "name": r["name"],
+            "blurb": r["blurb"],
+            "icon": r["icon"],
+            "offered": bool(r.get("offered")),
+            "home": homes.get(r["slug"]),
+        }
+        for r in AGENTS.values()
+    ]
+
+
 def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
     """The capability envelope around the conversation list. Extracted so the
     empty-cast early return serves the identical shape (one envelope, one
@@ -424,6 +459,11 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # beats a parallel TS table: that is precisely the second home ADR-562
         # deleted, and it would drift the moment one side was edited.
         "apps": _apps_payload(),
+        # ADR-600 D6 — every being, with its desk. `agents` is who may be
+        # INVITED; this is who EXISTS, so the /agents surface can show a
+        # housed being where it lives instead of claiming the member has
+        # nobody.
+        "beings": _beings_payload(),
         # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
         # on the capability envelope (no new endpoint, no FE duplication).
         "recipes": list_recipes(),
@@ -1722,14 +1762,29 @@ async def add_conversation_participant(
     elif kind == "agent":
         if not req.agent_slug:
             raise HTTPException(status_code=422, detail="An agent needs agent_slug")
-        # ADR-599: kernel resolution only. With the colleague roster empty,
-        # the only resolvable slugs are app residents — and a resident's home
-        # is its desk, so this door effectively invites nobody until the
-        # roster returns app-paired.
+        # ADR-600 D3 — the door asks the FIELD, not mere resolvability. Before
+        # this, it gated on `resolve_agent`, which resolves EVERY being: a
+        # desk's resident was accepted into any chat lane's cast while the
+        # roster offered nobody, so the API contradicted its own surface (the
+        # ADR-373 D6 incorrect-success class). `offered` is the same question
+        # `list_agents` answers, asked at the door.
         from services.agents_registry import resolve_agent
 
-        if resolve_agent(req.agent_slug) is None:
+        _being = resolve_agent(req.agent_slug)
+        if _being is None:
             raise HTTPException(status_code=422, detail=f"No agent called '{req.agent_slug}'")
+        if not _being.get("offered"):
+            # Refused with the REASON — a resident is not missing, it is
+            # housed. The generic "no agent called…" would read as a typo and
+            # send the member looking for a different spelling.
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{_being.get('name') or req.agent_slug} works at a desk — "
+                    "you meet them in their app, not by inviting them to a "
+                    "conversation."
+                ),
+            )
     else:
         raise HTTPException(status_code=422, detail=f"Unknown participant kind: {req.kind}")
 

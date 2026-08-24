@@ -14,8 +14,9 @@ What this gate holds:
      colleague — studio→designer, text→editor, strings→keeper, pairwise
      distinct. The named exceptions (images, docs on designer) are asserted
      AS exceptions so silent growth of the exception list trips the gate.
-  4. The editor row is a well-formed posture: in KERNEL_POSTURES, based_on
-     a real base agent, exactly POSTURE_ROW_KEYS, priced engine.
+  4. The editor row is a well-formed being: in AGENTS, self-contained (no
+     based_on), exactly AGENT_ROW_KEYS, priced engine, `offered: False` —
+     its home is the Text desk (ADR-600 D2).
 """
 
 from __future__ import annotations
@@ -127,15 +128,16 @@ def test_injectivity():
 
 
 def test_editor_row():
-    print("4. editor is a well-formed app resident")
-    from services.agents_registry import APP_RESIDENTS, RESIDENT_ROW_KEYS
-    row = APP_RESIDENTS.get("editor")
-    _assert(row is not None,
-            "editor lives in APP_RESIDENTS (a desk voice, not a colleague — ADR-598)")
+    print("4. editor is a well-formed being")
+    from services.agents_registry import AGENTS, AGENT_ROW_KEYS
+    row = AGENTS.get("editor")
+    _assert(row is not None, "editor is a being in the one register (ADR-600 D1)")
+    _assert(row is not None and row.get("offered") is False,
+            "editor is not offered — its home is the Text desk (ADR-600 D2)")
     # ADR-599 D3: residents are self-contained — the resident shape has no
     # based_on (the base operations are deleted) and no authority/reach key.
-    _assert(set(row or {}) == set(RESIDENT_ROW_KEYS),
-            "editor carries exactly RESIDENT_ROW_KEYS — no authority, no reach")
+    _assert(set(row or {}) == set(AGENT_ROW_KEYS),
+            "editor carries exactly AGENT_ROW_KEYS — no authority")
     # The SHIPPED pricing check, not a re-derivation — `_BILLING_RATES` keys
     # are provider-stripped, and `unpriced_lane_model` owns that mapping.
     from services.lane_runner import LANE_MODELS, unpriced_lane_model

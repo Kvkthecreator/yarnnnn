@@ -40,7 +40,7 @@ def check(label: str, ok: bool, detail: str = "") -> None:
 
 # The package import IS the registration (ADR-562 §2).
 import services.apps  # noqa: E402,F401
-from services.agents_registry import KERNEL_AGENTS, KERNEL_POSTURES  # noqa: E402
+from services.agents_registry import AGENTS  # noqa: E402
 from services.authoring import (  # noqa: E402
     all_apps,
     register_app,
@@ -101,9 +101,10 @@ check("the apps package registers every app at import (no router dependency)",
 
 print("\n── 3. every declared resident is real ──")
 
-# ADR-598 — residents live in their own register; still one resolution namespace.
-from services.agents_registry import APP_RESIDENTS  # noqa: E402
-_characters = set(KERNEL_AGENTS) | set(KERNEL_POSTURES) | set(APP_RESIDENTS)
+# ADR-600 — ONE register, so the union of containers this line used to spell
+# is just the register. That hand-spelled union is exactly what went stale
+# elsewhere (the ADR-559 ratchet iterated two emptied dicts and passed).
+_characters = set(AGENTS)
 for slug, row in sorted(APPS.items()):
     check(f"{slug} names a resolvable kernel character ({row['resident']})",
           row["resident"] in _characters)

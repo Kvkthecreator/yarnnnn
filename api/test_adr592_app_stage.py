@@ -227,7 +227,7 @@ _attr = read("lib/workspace/attribution.ts")
 check("system:radar keeps a display name client-side",
       "system:radar" in _attr)
 
-from services.agents_registry import KERNEL_AGENTS  # noqa: E402
+from services.agents_registry import AGENTS  # noqa: E402
 
 # ⚠️ RE-ANCHORED for ADR-599 D1: scout was deleted WITH the colleague roster
 # (a deliberate later ruling, not radar's deletion reaching an agent). The
@@ -236,7 +236,7 @@ from services.agents_registry import KERNEL_AGENTS  # noqa: E402
 # on their own grounds. `system:radar` attribution never read the registry
 # (principal_display), so the briefs keep rendering their author.
 check("scout is deleted with the roster (ADR-599), not resurrected by data",
-      "scout" not in KERNEL_AGENTS)
+      "scout" not in AGENTS)
 
 # ── verdict ─────────────────────────────────────────────────────────────────
 print()

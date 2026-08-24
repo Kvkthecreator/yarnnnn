@@ -66,7 +66,7 @@ for mid in LANE_MODELS:
 
 # The phantom-row defect: a rate row nothing can route to is a claim about
 # what we run that is not true.
-from services.agents_registry import KERNEL_AGENTS, KERNEL_POSTURES  # noqa: E402
+from services.agents_registry import AGENTS  # noqa: E402
 from services.model_selection import DEFAULT_ROUTES  # noqa: E402
 from services.system_calls import SYSTEM_CALLS  # noqa: E402
 
@@ -84,8 +84,12 @@ check("no priced-but-unroutable engine", not _orphan_rates,
 for name, ids in (
     ("SYSTEM_CALLS", [c.model for c in SYSTEM_CALLS.values()]),
     ("DEFAULT_ROUTES", [r.model for r in DEFAULT_ROUTES.values()]),
-    ("KERNEL_AGENTS", [a["model"] for a in KERNEL_AGENTS.values()]),
-    ("KERNEL_POSTURES", [p["model"] for p in KERNEL_POSTURES.values()]),
+    # ADR-600 D5 — iterate the REGISTER, never a hand-spelled list of
+    # containers. The predecessor named KERNEL_AGENTS + KERNEL_POSTURES, both
+    # of which ADR-599 emptied: this ratchet iterated ZERO rows and reported
+    # green while every live engine went unchecked. A register cannot go
+    # vacuous without the beings themselves disappearing.
+    ("AGENTS", [a["model"] for a in AGENTS.values()]),
 ):
     stale = [i for i in ids if i in ("anthropic/claude-sonnet-4-6",
                                      "anthropic/claude-haiku-4-5-20251001")]
