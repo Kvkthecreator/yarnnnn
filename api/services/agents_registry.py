@@ -85,17 +85,20 @@ logger = logging.getLogger(__name__)
 # is the ambiguity the registration exists to prevent.
 AGENTS: dict[str, dict[str, Any]] = {
 
-    # Slides' voice (ADR-599 D4 — the maker keeps its desk and its slug).
-    # The engine and the authoring token profile ride with it.
+    # IMAGES' voice (ADR-602 D2). Editor took the AUTHORING desks; Designer
+    # keeps GENERATION — a metered pipeline is not a document, and folding it
+    # under a prose voice would re-merge the distinction ADR-597 D2 drew.
+    # The slug stays live regardless: ~65 cast rows and both planners resolve
+    # it (retiring it needs a measured migration — ADR-602 D2, not performed).
     "designer": {
         "slug": "designer",
         "name": "Designer",
-        # Its home is the Slides desk — met there, never invited (ADR-600 D2).
+        # Its home is the IMAGES desk — met there, never invited (ADR-600 D2).
         "offered": False,
-        # yarnnn wrote this being; Slides depends on it (ADR-601 D2).
+        # yarnnn wrote this being; IMAGES depends on it (ADR-601 D2).
         "kernel": True,
-        "blurb": "Makes the deck itself — slides, layout, the artifact in front of you.",
-        "icon": "pen-tool",
+        "blurb": "Composes the image itself — layers, stage, the visual in front of you.",
+        "icon": "palette",
         "model": "anthropic/claude-sonnet-5",
         "token_profile": 8192,
         # The grounding line is EVIDENCE-EARNED (the Designer click pass,
@@ -103,36 +106,47 @@ AGENTS: dict[str, dict[str, Any]] = {
         # ratified positioning one QueryKnowledge away, Designer invented a
         # generic line instead of recalling the decision.
         "posture": (
-            "You are Designer — the member's maker. You build the thing itself: "
-            "decks, documents, the artifact in front of you. Work in their material "
-            "rather than describing what you would do; when the ask is ambiguous, "
-            "make the smallest honest version and say what you assumed. When the "
-            "ask leans on something the workspace may have settled — positioning, "
-            "pricing, names, claims — recall it first (QueryKnowledge) and build "
-            "from the decision; inventing over a settled decision is wrong, not "
-            "creative."
+            "You are Designer — the member's maker of visuals. You compose the "
+            "image itself: layers on a stage, positioned and stacked. Work in "
+            "their material rather than describing what you would do; when the "
+            "ask is ambiguous, make the smallest honest version and say what "
+            "you assumed. When the ask leans on something the workspace may "
+            "have settled — positioning, names, claims — recall it first "
+            "(QueryKnowledge) and build from the decision; inventing over a "
+            "settled decision is wrong, not creative."
         ),
     },
-    # Text's voice (ADR-597 D2): working prose in the member's own document.
+    # The authoring voice (ADR-602 D1) — Slides AND Text. One being for
+    # document work: the member asking "who is responsible for my writing?"
+    # gets one answer across decks and documents. The two desks keep their own
+    # grammar (the job overlay, selected by `app`) — widening a being costs
+    # nothing, which is the whole ADR-601 D1 point.
     "editor": {
         "slug": "editor",
         "name": "Editor",
         "offered": False,
         "kernel": True,
-        "blurb": "Works your document with you — drafts, restructures, tightens prose.",
-        "icon": "file-pen",
+        "blurb": "Works the document with you — decks and prose, drafted, restructured, tightened.",
+        "icon": "pen-tool",
         "model": "anthropic/claude-sonnet-5",
         "token_profile": 8192,
+        # ADR-602 D1 — names both crafts, claims NEITHER app's grammar: the
+        # blocks and arrangements a desk offers are the job overlay's to teach,
+        # derived per app. A character that named them would be a second home
+        # for facts the app already declares.
         "posture": (
-            "You are Editor — the member's partner in the document itself. Work "
-            "in their prose rather than describing changes: draft, restructure, "
-            "tighten, in their voice and the document's existing register. "
-            "Preserve what the member wrote unless the ask says otherwise — "
-            "their words compound; an edit that flattens their voice is a loss "
-            "even when it is technically cleaner. Markdown is the currency; "
-            "keep structure (headings, lists, tables) intentional, and when the "
-            "ask is ambiguous, make the smallest honest edit and say what you "
-            "assumed."
+            "You are Editor — the member's partner in the document itself, "
+            "whether that document is a deck or prose. Work in their material "
+            "rather than describing changes: draft, restructure, tighten, in "
+            "their voice and the document's existing register. Preserve what "
+            "the member wrote unless the ask says otherwise — their words "
+            "compound; an edit that flattens their voice is a loss even when "
+            "it is technically cleaner. When the ask leans on something the "
+            "workspace may have settled — positioning, pricing, names, claims "
+            "— recall it first (QueryKnowledge) and build from the decision; "
+            "inventing over a settled decision is wrong, not creative. When "
+            "the ask is ambiguous, make the smallest honest version and say "
+            "what you assumed."
         ),
     },
     # Strings' voice (ADR-569 D6): keeping a designated file true. Sonnet,
@@ -200,6 +214,42 @@ def list_agents() -> list[dict]:
 
 class NotEditable(Exception):
     """A kernel being was asked to change. Carries the reason, not just a no."""
+
+
+def is_promoted(slug: str) -> bool:
+    """Is any desk this being serves PROMOTED to a member today? DERIVED.
+
+    ADR-602 D3. A being appears on the /agents pane when its work is somewhere
+    a member actually goes. `launcher_tier_for` is the right predicate, NOT
+    `is_exposed`: exposure asks *does this surface reach the served roster*
+    (true even for `search-only`, which is reachable-but-unpromoted), while the
+    pane's question is *would a member meet this being in the normal course of
+    using the product*. IMAGES is `search-only` — off the Dock, not in the
+    product's front door — so Designer waits with it.
+
+    DERIVED, never a column on the being: the surface registry already
+    declares the stage (ADR-592), and a second copy here is the ADR-562
+    second-home failure — it would drift the moment an app is promoted and
+    nobody remembered to flip the being. Deriving it means promoting the app
+    promotes its voice, in one edit and with no gate to remember.
+
+    Presentation only, in the same family as `offered`: it answers *is this
+    being's work in front of a member*, never *what may this being do*.
+
+    A being serving NO desk is promoted — not being housed is `offered`'s
+    question, not this one.
+    """
+    from services.app_stage import launcher_tier_for
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    homes = set(homes_for_agent(slug))
+    if not homes:
+        return True
+    return any(
+        launcher_tier_for(e) == "primary"
+        for e in KERNEL_SURFACES
+        if e.get("slug") in homes
+    )
 
 
 def assert_editable(slug: str) -> dict:

@@ -45,8 +45,13 @@ def test_derivation_behavior():
     # The app registration wins over a stale stamp — the whole point.
     _assert(_lane_agent({"app": "text", "agent": "designer"}) == "editor",
             "a text desk stamped designer resolves to editor (registration wins)")
-    _assert(_lane_agent({"app": "slides"}) == "designer",
-            "a slides desk resolves designer with no stamp at all")
+    # ADR-602 D1 — Slides seats Editor now. The stamp is IGNORED, which is the
+    # whole ADR-597 D1 point: re-registering the app re-pointed every live and
+    # historical Slides lane with no data move.
+    _assert(_lane_agent({"app": "slides"}) == "editor",
+            "a slides desk resolves editor with no stamp at all")
+    _assert(_lane_agent({"app": "slides", "agent": "designer"}) == "editor",
+            "a pre-602 slides lane stamped designer resolves editor (registration wins)")
     # A pre-599 lane stamped with the RENAMED app slug: the registration is
     # gone (`studio` left the registry), so the stored stamp is the honest
     # fallback — exactly the deleted-registration path.
@@ -105,7 +110,7 @@ def test_stamp_retired_and_reads_derive():
 def test_many_to_one():
     print("3. an app pins ONE resident; a being may serve MANY desks")
     import services.apps  # noqa: F401  (registration side-effect)
-    from services.agents_registry import homes_for_agent, resolve_agent
+    from services.agents_registry import homes_for_agent, resolve_agent  # noqa: F811
     from services.authoring import all_apps
 
     apps = all_apps()
@@ -153,7 +158,7 @@ def test_editor_row():
     row = AGENTS.get("editor")
     _assert(row is not None, "editor is a being in the one register (ADR-600 D1)")
     _assert(row is not None and row.get("offered") is False,
-            "editor is not offered — its home is the Text desk (ADR-600 D2)")
+            "editor is not offered — its home is a desk (ADR-600 D2)")
     # ADR-599 D3: residents are self-contained — the resident shape has no
     # based_on (the base operations are deleted) and no authority/reach key.
     _assert(set(row or {}) == set(AGENT_ROW_KEYS),

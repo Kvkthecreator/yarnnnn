@@ -24,7 +24,10 @@ What this gate holds, post-ADR-600 (one register; hireability is a field):
   7. Provenance is a field, and `assert_editable` is the chokepoint that
      refuses a kernel being WITH ITS REASON — built before its door
      (ADR-601 D3), so it is gated rather than merely absent.
-  8. The /agents surface shows beings sectioned by where they live (D6),
+  8. Promotion is DERIVED from the desks a being serves (ADR-602 D3) — a
+     being whose only desk is unpromoted waits with it, and promoting the
+     app promotes the being with no second edit.
+  9. The /agents surface shows beings sectioned by where they live (D6),
      rendering provenance and desks from SERVED FIELDS (ADR-601 D4).
 """
 
@@ -44,6 +47,7 @@ from services.agents_registry import (  # noqa: E402
     NotEditable,
     assert_editable,
     homes_for_agent,
+    is_promoted,
     list_agents,
     model_for_agent,
     resolve_agent,
@@ -126,6 +130,13 @@ for r in AGENTS.values():
            model_for_agent(r["slug"]) == r["model"])
 _check("the expected beings are exactly {designer, editor, keeper}",
        set(AGENTS) == {"designer", "editor", "keeper"})
+# ADR-602 D1/D2 — the craft split, asserted as the RELATION not a spelling.
+_check("Editor serves BOTH authoring desks (slides + text)",
+       set(homes_for_agent("editor")) == {"slides", "text"})
+_check("Designer keeps generation only (images)",
+       homes_for_agent("designer") == ["images"])
+_check("each being's icon is distinct (the crafts read apart at a glance)",
+       len({r["icon"] for r in AGENTS.values()}) == len(AGENTS))
 
 print("5. machinery resolves a BEING, never a container (ADR-600 D4)")
 # The pattern that broke: a call site subscripting the register by name.
@@ -215,10 +226,45 @@ _check("provenance gates the WRITE only (resolve_agent still answers)",
 # ADR-601 D1 — homes is a LIST, resolved from the registrations.
 _check("homes_for_agent returns a list per being",
        all(isinstance(homes_for_agent(s), list) for s in AGENTS))
-_check("many-to-one is live in the data (designer serves >1 desk)",
-       len(homes_for_agent("designer")) > 1)
+# Asserted as the RELATION, never a named being: which being serves two desks
+# is a product decision that moves (it was designer until ADR-602, now editor),
+# and a gate pinning the name reports an ordinary re-pairing as a violation.
+_check("many-to-one is live in the data (some being serves >1 desk)",
+       any(len(homes_for_agent(s)) > 1 for s in AGENTS))
 
-print("8. the surface shows beings, sectioned by where they live (ADR-600 D6)")
+print("8. promotion is derived from the desks a being serves (ADR-602 D3)")
+import services.apps  # noqa: E402,F401  (registration side-effect)
+from services.app_stage import launcher_tier_for  # noqa: E402
+import services.kernel_surfaces as _ks  # noqa: E402
+
+_tier = {e["slug"]: launcher_tier_for(e) for e in _ks.KERNEL_SURFACES if e.get("slug")}
+_check("IMAGES is unpromoted today (the fact this derivation reads)",
+       _tier.get("images") != "primary")
+_check("Designer waits with its only desk", not is_promoted("designer"))
+_check("Editor is promoted (slides + text are both primary)", is_promoted("editor"))
+_check("Keeper is promoted (strings is primary)", is_promoted("keeper"))
+# The derivation must FOLLOW the registry, not a copy of it: promoting the app
+# must promote the being with NO edit here. Proven by moving the app's stage.
+_img = next(e for e in _ks.KERNEL_SURFACES if e.get("slug") == "images")
+_saved = (_img.get("launcher_tier"), _img.get("default_pinned"))
+_img["launcher_tier"], _img["default_pinned"] = "primary", True
+try:
+    _follows = is_promoted("designer")
+finally:
+    _img["launcher_tier"], _img["default_pinned"] = _saved
+_check("promoting the app promotes its being (derived, not copied)", _follows)
+_check("...and the restore held (designer is withheld again)",
+       not is_promoted("designer"))
+# Presentation only — the cliff is untouched.
+_check("promotion never gates resolution (the being still answers)",
+       resolve_agent("designer") is not None)
+# The payload is what the pane reads: an unpromoted being must not be served.
+import routes.lanes as _L  # noqa: E402
+_served = {b["slug"] for b in _L._beings_payload()}
+_check("the payload withholds an unpromoted being",
+       "designer" not in _served and {"editor", "keeper"} <= _served)
+
+print("9. the surface shows beings, sectioned by where they live (ADR-600 D6)")
 _surface = (API.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
 _check("the surface names the ruling (ADR-600) instead of a blank page",
        "ADR-600" in _surface)

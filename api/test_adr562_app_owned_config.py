@@ -77,10 +77,15 @@ print("\n── 2. the door, and its one direction ──")
 
 # Re-registering is idempotent: FIRST registration wins, matching
 # `register_layouts`. A second claim must not silently re-point a live app.
+# ADR-602 D1 — Slides seats EDITOR now. Captured BEFORE the second claim
+# rather than spelled: this check owns IDEMPOTENCE, not which being sits where,
+# and a hardcoded name turns an ordinary re-pairing into a false red (it did,
+# at ADR-602).
+_incumbent = resident_for_app("slides")
 register_app("slides", resident="keeper")
 check("re-registration does NOT re-point a live app (first wins)",
-      resident_for_app("slides") == "designer",
-      f"got {resident_for_app('slides')}")
+      resident_for_app("slides") == _incumbent,
+      f"got {resident_for_app('slides')}, incumbent was {_incumbent}")
 
 check("an unregistered app resolves to None, never a plausible default",
       resident_for_app("no-such-app") is None and resolve_app("no-such-app") is None)

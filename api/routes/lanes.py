@@ -378,8 +378,12 @@ def _beings_payload() -> list[dict]:
                  `register_app` declarations the prompt reads.
     """
     import services.apps  # noqa: F401  (registration side-effect)
-    from services.agents_registry import AGENTS, homes_for_agent
+    from services.agents_registry import AGENTS, homes_for_agent, is_promoted
 
+    # ADR-602 D3 — a being whose only desk is unpromoted waits with it. Filtered
+    # SERVER-side: the pane asks "who works here", and a being the member cannot
+    # reach is not an answer to that. Derived from the app's own stage, so
+    # promoting the app promotes its voice with no second edit.
     return [
         {
             "slug": r["slug"],
@@ -391,6 +395,7 @@ def _beings_payload() -> list[dict]:
             "homes": homes_for_agent(r["slug"]),
         }
         for r in AGENTS.values()
+        if is_promoted(r["slug"])
     ]
 
 

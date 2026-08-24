@@ -14,6 +14,7 @@ import type { LucideIcon } from 'lucide-react';
 import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import {
   Activity,
+  Bot,
   ArrowLeftRight,
   BarChart3,
   Bell,
@@ -39,7 +40,6 @@ import {
   Target,
   User,
   UserCircle,
-  UsersRound,
 } from 'lucide-react';
 
 // The type the resolver returns — every call site renders `<Icon className=... />`
@@ -148,17 +148,17 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // it. NOTE: the constitution root's `scroll-text` is a DIFFERENT registry
   // (`lib/workspace/root-icons.tsx`) and is untouched.
   'shield-check': ShieldCheck,
-  // 2026-07-20: the `agents` roster glyph — a pair of ROUNDED people = the
-  // colleagues you've hired and named. Object-like, so it sits in the family
-  // (Chat bubble / Studio palette / Files folder), rounded to match
-  // MessageCircle + UserCircle. Distinct from `users` (the reserved MEMBERS
-  // crowd — humans who joined the commons) and from `user-circle`/`user` (the
-  // single-principal account door). Was `sparkles` (2026-07-16), which read as
-  // generic "AI magic" and broke the concrete-object family; and `users`
-  // before that, which named the wrong noun. Neither is retained as an orphan
-  // mapping (Singular Implementation); `users` returns when a members surface
-  // declares it.
-  'users-round': UsersRound,
+  // ADR-602 D4 (2026-08-24): the `agents` glyph is `bot`. The prior
+  // `users-round` rationale — "a pair of ROUNDED people = the colleagues
+  // you've hired and named" — EXPIRED with ADR-596: agents are BEINGS, and
+  // the roster is app residents rather than hires, so a people-glyph names
+  // the wrong noun. That is precisely the fault it records `users` being
+  // replaced for. `bot` stays object-like and in the concrete family (Chat
+  // bubble / Files folder / Slides deck). Lineage: `users` → `sparkles`
+  // (2026-07-16, read as generic "AI magic") → `users-round` (2026-07-20) →
+  // `bot`. No orphan mappings retained (Singular Implementation) — each
+  // returns when a surface declares it.
+  bot: Bot,
   target: Target,
   // ADR-347: user glyph for the account window (the `settings` slug,
   // UserMenu-reached — billing/usage/privacy, the human/principal).

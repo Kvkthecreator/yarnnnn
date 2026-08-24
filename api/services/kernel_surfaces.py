@@ -697,8 +697,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # reserved MEMBERS crowd — humans who joined the commons) and from
         # `user-circle` (the single-principal account door). History: `users`
         # until 2026-07-16 (named the wrong noun) → `sparkles` (too abstract,
-        # broke the family) → `users-round` (2026-07-20).
-        "icon_key": "users-round",
+        # broke the family) → `users-round` (2026-07-20) → `bot` (ADR-602 D4).
+        # The `users-round` rationale — "a pair of ROUNDED people = the
+        # colleagues you've hired and named" — EXPIRED with ADR-596: agents are
+        # BEINGS, the roster is app residents rather than hires, and a
+        # people-glyph now names the wrong noun. That is the same fault the
+        # note records `users` being replaced for. `bot` is object-like and
+        # sits in the concrete family (Chat bubble · Files folder · deck).
+        "icon_key": "bot",
         "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
         # (five at first; four since ADR-488 took Images internal).
         "route": "/agents",  # _route_status: EXISTING — hired-agent detail + roster live here

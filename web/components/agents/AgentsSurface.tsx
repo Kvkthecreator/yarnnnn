@@ -30,7 +30,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Archive, FilePen, PenTool, Users } from 'lucide-react';
+import { Archive, Bot, Palette, PenTool } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
@@ -40,9 +40,9 @@ import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 // should render the neutral fallback, not crash the surface. `AgentIcon` is
 // NOT reused — it keys off the pre-ADR-596 ROLE taxonomy, not a being's slug.
 const ICONS: Record<string, React.ElementType> = {
-  'pen-tool': PenTool,
-  'file-pen': FilePen,
-  archive: Archive,
+  'pen-tool': PenTool,   // authoring — decks and prose (ADR-602 D4)
+  palette: Palette,      // generation — the metered pipeline
+  archive: Archive,      // maintenance — a designated file kept true
 };
 
 // Provenance, rendered from the field. A member-authored being simply lacks
@@ -59,7 +59,7 @@ function KernelMark() {
 }
 
 function BeingIcon({ icon }: { icon: string }) {
-  const Glyph = ICONS[icon] ?? Users;
+  const Glyph = ICONS[icon] ?? Bot;
   return <Glyph className="h-4 w-4 text-muted-foreground" />;
 }
 
@@ -153,7 +153,7 @@ export function AgentsSurface() {
           {offered.length === 0 ? (
             <div className="flex items-start gap-3 rounded-lg border border-dashed border-border/60 p-4">
               <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <Bot className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Nobody yet. A roster of colleagues you can invite into a

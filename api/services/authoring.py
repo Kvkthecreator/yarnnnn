@@ -2325,7 +2325,11 @@ def resolve_arrangements(slug: str) -> dict:
 # home being here costs nothing: it declares through the same door as the
 # others, and the DOOR is what makes app config uniform, never the file path.
 register_layouts(STUDIO_LAYOUTS, STUDIO_ARRANGEMENTS)
-register_app("slides", resident="designer")
+# ADR-602 D1 — Slides seats EDITOR. No data move: ADR-597 D1 made the resident
+# DERIVED at read time, so this line re-points every Slides lane, live and
+# historical, at serve and at turn. That property is exactly what ADR-597 was
+# written to establish; this is its first real dividend.
+register_app("slides", resident="editor")
 
 
 def build_skeleton(layout: str, title: str | None = None) -> str:
