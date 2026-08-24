@@ -72,6 +72,19 @@ def test_derivation_behavior():
             f"a derive lane resolves the recipe's resident ({slug}→{want})")
     _assert(_lane_agent({}) is None, "a plain chat lane has no resident")
 
+    # ADR-602 D7 — THE PRE-567 GAP (operator-observed on a live deck). A bound
+    # lane with no `app` stamp derived None, so the composer named the ENGINE:
+    # "Message Claude Sonnet 4.6…" while Editor was authoring. ~35 such lanes
+    # exist (ADR-597 D3 left them alone, correctly — this derives instead).
+    _assert(_lane_agent({"artifact_path": "/w/operation/deck.html"}) == "editor",
+            "a pre-567 BOUND deck derives its app from the artifact, not None")
+    _assert(_lane_agent({"artifact_path": "/w/notes.md"}) == "editor",
+            "a pre-567 bound document derives Text's resident")
+    _assert(_lane_agent({"app": "strings", "artifact_path": "/w/x.md"}) == "keeper",
+            "an explicit stamp still outranks the artifact (precedence intact)")
+    _assert(_lane_agent({"artifact_path": "/w/thing.csv"}) is None,
+            "an unrecognised artifact stays honest (None), never a guess")
+
 
 def test_stamp_retired_and_reads_derive():
     print("2. the stamp is retired as a write; both reads derive")

@@ -845,7 +845,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // (`modelLabel`, still shown beside the artifact). The rule is ADR-460 D4's:
   // identity leads, the technical fact rides behind it.
   const laneLabel = useMemo(() => {
-    const slug = boundLane?.agent;
+    // ADR-602 D7 — resolve from THIS SURFACE's app first, then the lane's
+    // derived resident. A pre-ADR-567 bound lane carries no `app` stamp
+    // (ADR-597 D3 deliberately left ~35 of them alone), so the server's
+    // derivation returns None and the composer fell back to the ENGINE —
+    // "Message Claude Sonnet 4.6…" on a deck Editor was authoring. The
+    // surface cannot be wrong about which app it IS, so it is the stronger
+    // fact; the lane's stamp remains the fallback for anything else.
+    const slug = apps.find((a) => a.slug === app.slug)?.resident || boundLane?.agent;
     if (slug) {
       // ADR-562 D6 — THIS app's name for its resident wins ("Writer" in Docs).
       // Read from the served registry, never a TS table: the declaration the

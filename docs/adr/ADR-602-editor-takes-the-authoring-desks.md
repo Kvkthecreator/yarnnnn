@@ -70,6 +70,21 @@ The key is changed in BOTH registries in one commit (`kernel_surfaces.py` declar
 
 The engine is served on the payload (`model`) so the page can say what runs a being rather than implying it — no new disclosure, since `model_names` is already public on the lane envelope.
 
+## D7 — A bound lane belongs to an app, stamped or not
+
+**Operator-observed after D5 shipped**: a live Slides deck still read *"Claude Sonnet 4.6 is working…"*. D5 fixed the lookup; this is the layer beneath it.
+
+`_lane_agent` derived the app from `lane_meta["app"]` — the ADR-567 D4 stamp. Every lane created **before** ADR-567 has no such stamp (~35 of them, which ADR-597 D3 deliberately left alone rather than back-inferring), so the precedence skipped to the legacy `agent` stamp and, absent that, returned `None`. The FE then correctly rendered the engine label. Correct by the letter of the precedence, wrong in the room.
+
+**A bound lane belongs to an app whether or not anyone stamped it.** `app_for_lane(lane_meta)` reads the stamp when present and otherwise asks the artifact: `.html` is Slides' currency, `.md` is Text's. Path-shaped rather than content-shaped, deliberately — reading artifact CONTENT here would make a hot pure function do IO for every lane in a list, and the two apps that have residents are unambiguous by extension. Anything else returns `""` and the precedence continues exactly as before, so an unrecognised artifact stays honest rather than guessed.
+
+Fixed at **both** layers, because they fail independently:
+
+- **API** — `app_for_lane` closes the gap for every consumer (the turn, attribution, the lane list).
+- **FE** — each authoring surface resolves the resident from **its own app registration** first, falling back to the lane's derived agent. A surface cannot be wrong about which app it is; that is a stronger fact than any stamp on a row.
+
+The precedence is otherwise untouched and gate-asserted: an explicit stamp still outranks the artifact.
+
 ## Consequences
 
 - One voice for document work: a member asking "who is responsible for my writing?" gets one answer across decks and documents.

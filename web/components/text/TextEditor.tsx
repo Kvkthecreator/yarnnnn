@@ -698,7 +698,9 @@ export function TextEditor({
   // ADR-562 D5 — WHO the member reads: the app's name for its resident, read
   // back from the wire, never asserted here.
   const speakerLabel = useMemo(() => {
-    const slug = boundLane?.agent;
+    // ADR-602 D7 — see StudioSurface: this surface IS the Text app, which is
+    // a stronger fact than a lane stamp that may predate ADR-567.
+    const slug = apps.find((a) => a.slug === 'text')?.resident || boundLane?.agent;
     if (slug) {
       const appName = apps.find((a) => a.slug === 'text')?.name;
       if (appName) return appName;

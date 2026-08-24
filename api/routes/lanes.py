@@ -221,6 +221,33 @@ def _conversation_write_client(auth: UserClient):
     return get_service_client()
 
 
+def app_for_lane(lane_meta: dict) -> str:
+    """The app a lane belongs to — its stamp, else its artifact's layout.
+
+    ADR-602 D7. The stamp (ADR-567 D4) is authoritative when present. Without
+    one, a BOUND lane still belongs to an app: its artifact declares a layout
+    and the layout registry declares that layout's owner. Deriving it means a
+    pre-567 lane behaves like every other lane instead of reading as
+    residentless.
+
+    Path-shaped, deliberately: reading the artifact's CONTENT here would make
+    a hot pure function do IO on every lane in a list. `.html` is Slides'
+    currency and `.md` is Text's — a coarse but honest split, and a wrong
+    guess is impossible for the two apps that have residents (both are
+    unambiguous by extension). Anything else returns "" and the precedence
+    continues exactly as before.
+    """
+    stamped = (lane_meta.get("app") or "").strip()
+    if stamped:
+        return stamped
+    path = (lane_meta.get("artifact_path") or "").strip().lower()
+    if path.endswith(".html"):
+        return "slides"
+    if path.endswith(".md"):
+        return "text"
+    return ""
+
+
 def _lane_agent(lane_meta: dict) -> Optional[str]:
     """The lane's resident, DERIVED from the registration (ADR-597 D1). Pure-ish.
 
@@ -234,8 +261,17 @@ def _lane_agent(lane_meta: dict) -> Optional[str]:
     the legacy stored stamp (pre-597 rows; a registration that has since left
     the roster) → None. A lane with none of these shows its engine, which is
     honest — that IS what such a lane is.
+
+    ⚠️ THE PRE-567 GAP (ADR-602 D7, operator-observed). A lane bound to an
+    artifact but carrying NO `app` stamp — every lane created before ADR-567,
+    ~35 of which ADR-597 D3 deliberately left alone — skipped straight to the
+    legacy stamp, and an unstamped one derived None. The member then read
+    "Message Claude Sonnet 4.6…" on a deck Editor was authoring: correct by
+    the letter of the precedence, wrong in the room. `app_for_lane` closes it
+    by asking the ARTIFACT what app owns its layout, which is the same
+    question `build_studio_posture` already answers at turn time.
     """
-    app = (lane_meta.get("app") or "").strip()
+    app = app_for_lane(lane_meta)
     if app:
         # The package import IS the registration — load-bearing, never prune.
         import services.apps  # noqa: F401  (registration side-effect)

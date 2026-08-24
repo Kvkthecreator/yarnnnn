@@ -284,6 +284,11 @@ for _rel, _what in (("authoring/StudioSurface.tsx", "Slides"),
     _lookup, _fallback = _src.find("beings.find"), _src.find("return modelLabel")
     _check(f"{_what} resolves the being BEFORE falling back to the engine",
            _lookup != -1 and _fallback != -1 and _lookup < _fallback)
+    # ADR-602 D7 — the surface resolves from ITS OWN app first. A pre-567 lane
+    # has no `app` stamp, so trusting only `boundLane.agent` left the composer
+    # naming the engine. A surface cannot be wrong about which app it is.
+    _check(f"{_what} resolves the resident from its own app registration",
+           "?.resident" in _src)
 
 print("10. the surface shows beings, sectioned by where they live (ADR-600 D6)")
 _surface = (API.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
