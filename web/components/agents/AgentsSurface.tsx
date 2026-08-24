@@ -15,6 +15,18 @@
  *     offered); that section carries the empty state, which is the one the
  *     operator actually ruled on.
  *
+ * ADR-602 D6 — LIST/DETAIL. `?agents.agent={slug}` opens one being's page:
+ * who they are, where they work, what runs them, and whether you can change
+ * them. The param is already sanctioned (`SURFACE_PARAM_KEYS.agents`) and
+ * already EPHEMERAL (`SURFACE_EPHEMERAL_PARAM_KEYS`) — a roster's point is
+ * the list, so a launch must never land on one member's page. Depth changes
+ * via `setSurfaceParams`, never a pathname flip (the shell effects branch on
+ * the `/desktop` baseline).
+ *
+ * A kernel being's page is READ-ONLY, and says so plainly. Editability is
+ * `assert_editable`'s to enforce server-side (ADR-601 D3) — this surface
+ * states it, and must never be the only thing that does.
+ *
  * ADR-601 D4 — two facts are rendered from FIELDS the server sends, never
  * inferred: `kernel` (yarnnn authored this being, so its character is not
  * editable — shown so the distinction is legible before the first
@@ -30,9 +42,11 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Archive, Bot, Palette, PenTool } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Archive, ArrowLeft, Bot, Palette, PenTool } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 // The registry's `icon` is a kebab-case lucide name (ADR-460 row shape).
 // Mapped explicitly rather than resolved dynamically: lucide's dynamic import
@@ -51,7 +65,7 @@ function KernelMark() {
   return (
     <span
       className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-      title="A yarnnn system agent — it comes with the apps it works in, so its character is not editable."
+      title="Comes with yarnnn — you can't edit this one."
     >
       yarnnn
     </span>
@@ -71,11 +85,89 @@ type Being = {
   offered: boolean;
   kernel: boolean;
   homes: string[];
+  /** The engine behind the name (ADR-460 D4). Served so the page can say what
+   *  actually runs this being rather than implying it. */
+  model?: string;
 };
 
+/** One being's page. Read-only for a kernel being — stated, not merely
+ *  unbuilt (ADR-601 D3's chokepoint is the enforcement; this is the telling). */
+function BeingDetail({ being, onBack }: { being: Being; onBack: () => void }) {
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        All agents
+      </button>
+
+      <header className="flex items-start gap-3">
+        <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-muted">
+          <BeingIcon icon={being.icon} />
+        </div>
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <h1 className="text-sm font-medium">{being.name}</h1>
+            {being.kernel && <KernelMark />}
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {being.blurb}
+          </p>
+        </div>
+      </header>
+
+      <dl className="space-y-3 text-xs">
+        <div className="flex gap-3">
+          <dt className="w-24 shrink-0 text-muted-foreground">Works in</dt>
+          <dd>{being.homes.length ? being.homes.join(', ') : 'Anywhere you invite them'}</dd>
+        </div>
+        <div className="flex gap-3">
+          <dt className="w-24 shrink-0 text-muted-foreground">Add to a chat</dt>
+          <dd>
+            {being.offered
+              ? 'Yes — bring them into any conversation.'
+              : 'No — you find them in their app.'}
+          </dd>
+        </div>
+        {being.model && (
+          <div className="flex gap-3">
+            <dt className="w-24 shrink-0 text-muted-foreground">Runs on</dt>
+            <dd className="break-all">{being.model}</dd>
+          </div>
+        )}
+        <div className="flex gap-3">
+          <dt className="w-24 shrink-0 text-muted-foreground">Editing</dt>
+          <dd>
+            {being.kernel
+              ? 'Comes with yarnnn — this one can\u2019t be changed.'
+              : 'Yours — you can change this one.'}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 export function AgentsSurface() {
-  useWindowCrumb('agents', []);
+  const params = useSearchParams();
+  const { setSurfaceParams } = useSurfacePreferences();
   const [beings, setBeings] = useState<Being[] | null>(null);
+  // Read UNPREFIXED: the shell owns the `agents.` namespacing on the way in
+  // and out (surface-preferences), and a surface reads its own key plainly —
+  // the SettingsPaneShell `tab` precedent.
+  const selectedSlug = params.get('agent') || '';
+  const selected = (beings ?? []).find((b) => b.slug === selectedSlug) ?? null;
+
+  // The crumb follows the depth, so the address bar and the trail agree.
+  useWindowCrumb('agents', selected ? [{ label: selected.name }] : []);
+
+  // `setSurfaceParams`, never a pathname flip: the shell's foreground effects
+  // branch on the `/desktop` baseline, and a flip here trips all three
+  // (surface-preferences §depth). null clears the key — back to the list.
+  const open = (slug: string | null) => setSurfaceParams({ agent: slug });
 
   useEffect(() => {
     let alive = true;
@@ -95,34 +187,44 @@ export function AgentsSurface() {
   const housed = (beings ?? []).filter((b) => !b.offered);
   const offered = (beings ?? []).filter((b) => b.offered);
 
+  if (selected) {
+    return (
+      <div className="h-full overflow-y-auto px-6 py-8">
+        <BeingDetail being={selected} onBack={() => open(null)} />
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-y-auto px-6 py-8">
       <div className="mx-auto max-w-2xl space-y-8">
         <header className="space-y-1">
           <h1 className="text-sm font-medium">Agents</h1>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            The colleagues in this workspace. Some work at a desk — you meet
-            them in their app. Others you can invite into a conversation.
+            Who works with you here. Some are part of an app — you find them
+            there. Others you can bring into a chat.
           </p>
         </header>
 
         <section className="space-y-3">
           <h2 className="text-xs font-medium text-muted-foreground">
-            At a desk
+            In an app
           </h2>
           {housed.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               {beings === null
-                ? 'Could not load the roster.'
-                : 'No app has a resident yet.'}
+                ? 'Could not load this.'
+                : 'None yet.'}
             </p>
           ) : (
             <ul className="space-y-2">
               {housed.map((b) => (
-                <li
-                  key={b.slug}
-                  className="flex items-start gap-3 rounded-lg border border-border/60 p-3"
-                >
+                <li key={b.slug}>
+                  <button
+                    type="button"
+                    onClick={() => open(b.slug)}
+                    className="flex w-full items-start gap-3 rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
+                  >
                   <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
                     <BeingIcon icon={b.icon} />
                   </div>
@@ -139,7 +241,8 @@ export function AgentsSurface() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {b.blurb}
                     </p>
-                  </div>
+                    </div>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -155,19 +258,23 @@ export function AgentsSurface() {
               <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
                 <Bot className="h-4 w-4 text-muted-foreground" />
               </div>
+              {/* ADR-602 D5 — plain language. The prior copy said "roster of
+                  colleagues … agent-and-app scaffolding settles (ADR-599)":
+                  an ADR number is an internal address, and a member reading
+                  it learns nothing they can act on. */}
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Nobody yet. A roster of colleagues you can invite into a
-                conversation, name, and build on will return here once the
-                agent-and-app scaffolding settles (ADR-599).
+                Nobody yet — you&rsquo;ll be able to add your own here later.
               </p>
             </div>
           ) : (
             <ul className="space-y-2">
               {offered.map((b) => (
-                <li
-                  key={b.slug}
-                  className="flex items-start gap-3 rounded-lg border border-border/60 p-3"
-                >
+                <li key={b.slug}>
+                  <button
+                    type="button"
+                    onClick={() => open(b.slug)}
+                    className="flex w-full items-start gap-3 rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
+                  >
                   <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
                     <BeingIcon icon={b.icon} />
                   </div>
@@ -179,7 +286,8 @@ export function AgentsSurface() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {b.blurb}
                     </p>
-                  </div>
+                    </div>
+                  </button>
                 </li>
               ))}
             </ul>

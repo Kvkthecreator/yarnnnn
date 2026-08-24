@@ -652,6 +652,10 @@ export function TextEditor({
   const [lanes, setLanes] = useState<LaneRow[]>([]);
   const [agents, setAgents] = useState<LanesEnv['agents']>([]);
   const [apps, setApps] = useState<NonNullable<LanesEnv['apps']>>([]);
+  // ADR-602 — the BEINGS roster. See StudioSurface: `agents` is the HIRE
+  // roster (empty since ADR-599), so a resident's name was never found there
+  // and the composer addressed the ENGINE instead of Editor.
+  const [beings, setBeings] = useState<NonNullable<LanesEnv['beings']>>([]);
   const [models, setModels] = useState<LanesEnv['models']>([]);
   const [creatingLane, setCreatingLane] = useState(false);
 
@@ -662,6 +666,7 @@ export function TextEditor({
       setLanes(env.lanes ?? []);
       setAgents(env.agents ?? []);
       setApps(env.apps ?? []);
+      setBeings(env.beings ?? []);
       setModels(env.models ?? []);
     } catch {
       setLanesEnabled(false);
@@ -697,11 +702,13 @@ export function TextEditor({
     if (slug) {
       const appName = apps.find((a) => a.slug === 'text')?.name;
       if (appName) return appName;
+      const being = beings.find((b) => b.slug === slug)?.name;
+      if (being) return being;
       const named = agents.find((a) => a.slug === slug)?.name;
       if (named) return named;
     }
     return modelLabel;
-  }, [agents, apps, boundLane, modelLabel]);
+  }, [agents, apps, beings, boundLane, modelLabel]);
 
   const words = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/).length : 0),

@@ -54,6 +54,22 @@ The `users-round` note in `surface-icons.tsx` records why it was chosen in 2026-
 
 The key is changed in BOTH registries in one commit (`kernel_surfaces.py` declares, `surface-icons.tsx` maps) — the recorded lesson that an `icon_key` is shared across registries and a one-sided edit renders a blank.
 
+## D5 — A bound lane names its resident, and speaks plainly
+
+**The defect this closes was operator-observed on the deployed surface**: a Slides lane's composer read *"Message Claude Sonnet 4.6…"* while Editor was answering. Both authoring surfaces resolved the speaker through two lookups that are structurally empty — `apps[].name` (the ADR-562 D6 RENAME override, `''` for slides and text because neither renames its resident) and `agents` (the HIRE roster, `[]` since ADR-599 because nobody is `offered`). Both missed, and the chain fell through to the engine label.
+
+**A resident was never going to be on the hire roster** — that is ADR-598's whole ruling — so this was not a wiring slip but the two rosters answering different questions. Both surfaces now consult `beings` (served from the same registry the prompt reads) before falling back, and the fallback stays: an engine label is the honest answer for a lane with no resident.
+
+**Copy is plain language.** Blurbs are one short line in a member's own words (*"Writes with you — decks and documents."*), the pane's sections read "In an app" / "To work with", and **the ADR number is gone from the empty state** — an ADR is an internal address, and a member reading "ADR-599" learns nothing they can act on. Gate-asserted: no `ADR-` may appear in rendered surface copy, and a blurb is capped at 60 characters.
+
+## D6 — The per-being page
+
+`?agents.agent={slug}` opens one being: who they are, where they work, what runs them, and whether they can be changed. Both halves of the plumbing were already sanctioned and needed no new decision — `SURFACE_PARAM_KEYS.agents = ['agent']` declares the depth, and `SURFACE_EPHEMERAL_PARAM_KEYS` already marks it not-remembered, because (in the compositor's own words) *"a roster's POINT is the list; a profile is a momentary look"*. Depth moves via `setSurfaceParams`, never a pathname flip — the shell's foreground effects branch on the `/desktop` baseline.
+
+**A kernel being's page is read-only and says so.** Enforcement stays server-side at `assert_editable` (ADR-601 D3); this surface *states* the fact and must never be the only thing that does. A member-authored being's page will read "Yours — you can change this one" from the same field, with no new branch.
+
+The engine is served on the payload (`model`) so the page can say what runs a being rather than implying it — no new disclosure, since `model_names` is already public on the lane envelope.
+
 ## Consequences
 
 - One voice for document work: a member asking "who is responsible for my writing?" gets one answer across decks and documents.

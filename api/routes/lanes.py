@@ -393,6 +393,10 @@ def _beings_payload() -> list[dict]:
             "offered": bool(r.get("offered")),
             "kernel": bool(r.get("kernel")),
             "homes": homes_for_agent(r["slug"]),
+            # ADR-602 D6 — the engine, so a being's page can SAY what runs it
+            # rather than implying it. Already public on the lane envelope
+            # (`model_names`); no new disclosure.
+            "model": r.get("model") or "",
         }
         for r in AGENTS.values()
         if is_promoted(r["slug"])

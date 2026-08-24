@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, PanelRight, Plus, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, PanelRight, Plus, Presentation, Upload } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -327,7 +327,14 @@ export const STUDIO_APP: AuthoringApp = {
   label: 'Slides',
   tagline:
     'Name a deck, then describe what you want in plain words — it takes shape live, slide by slide, pulling in your files, images, and data as it goes.',
-  icon: Palette,
+  // ADR-602 D4 — the PRESENTATION glyph, matching the launcher (`icon_key:
+  // presentation`, kernel_surfaces). The landing had kept `Palette` from
+  // before ADR-599 D4's icon pass, so the app wore two different faces
+  // depending on where a member met it; `palette` is now Designer's glyph,
+  // which would have read as the wrong being's mark on the Slides door.
+  // (`Palette` the import STAYS — the design-system picker uses it, which is
+  // a different noun and a correct use.)
+  icon: Presentation,
 };
 export const IMAGES_APP: AuthoringApp = {
   slug: 'images',
@@ -384,6 +391,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   /** ADR-562 D6 — the served app registry (slug → its name for its resident). */
   const [apps, setApps] = useState<Array<{ slug: string; resident: string; name: string }>>([]);
+  // ADR-602 — the BEINGS roster. `agents` is the HIRE roster and is empty by
+  // ADR-599 (nobody is `offered`), so resolving a resident's name through it
+  // always missed and fell through to the ENGINE label: the bound lane read
+  // "Message Claude Sonnet 4.6…" when Editor was answering. A resident is not
+  // a hire, so it was never going to be there.
+  const [beings, setBeings] = useState<Array<{ slug: string; name: string }>>([]);
   const [lanes, setLanes] = useState<LaneInfo[]>([]);
   const [laneError, setLaneError] = useState<string | null>(null);
 
@@ -398,6 +411,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // say "Claude Sonnet is working…" in a lane whose resident is Designer.
       setAgents((res.agents ?? []) as AgentInfo[]);
       setApps(res.apps ?? []);
+      setBeings((res.beings ?? []) as Array<{ slug: string; name: string }>);
       setLanes(res.lanes as LaneInfo[]);
     } catch {
       setLanesEnabled(false);
@@ -839,11 +853,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // disagree about who the member is talking to.
       const appName = apps.find((a) => a.slug === app.slug)?.name;
       if (appName) return appName;
+      // The being's OWN name — served from the same registry the prompt reads.
+      // Checked before `agents` because `agents` is the hire roster: a desk's
+      // resident is never on it (ADR-598), which is why this fell through to
+      // the engine label until ADR-602.
+      const being = beings.find((b) => b.slug === slug)?.name;
+      if (being) return being;
       const named = agents.find((a) => a.slug === slug)?.name;
       if (named) return named;
     }
     return modelLabel;
-  }, [agents, apps, app.slug, boundLane, modelLabel]);
+  }, [agents, apps, beings, app.slug, boundLane, modelLabel]);
 
   // ── The served kernel vocabulary (ADR-443 R4 + ADR-444 + ADR-447): blocks +
   // arrangements — the toolbar EXECUTES from it, the posture teaches from the

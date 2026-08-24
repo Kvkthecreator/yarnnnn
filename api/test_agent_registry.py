@@ -27,8 +27,11 @@ What this gate holds, post-ADR-600 (one register; hireability is a field):
   8. Promotion is DERIVED from the desks a being serves (ADR-602 D3) — a
      being whose only desk is unpromoted waits with it, and promoting the
      app promotes the being with no second edit.
-  9. The /agents surface shows beings sectioned by where they live (D6),
-     rendering provenance and desks from SERVED FIELDS (ADR-601 D4).
+  9. A bound lane names its RESIDENT, not its engine (ADR-602 D5) — both
+     authoring surfaces resolve through the beings roster.
+ 10. The /agents surface shows beings sectioned by where they live (D6),
+     rendering provenance and desks from SERVED FIELDS (ADR-601 D4), with a
+     per-being page at the sanctioned depth param (ADR-602 D6).
 """
 
 from __future__ import annotations
@@ -264,7 +267,25 @@ _served = {b["slug"] for b in _L._beings_payload()}
 _check("the payload withholds an unpromoted being",
        "designer" not in _served and {"editor", "keeper"} <= _served)
 
-print("9. the surface shows beings, sectioned by where they live (ADR-600 D6)")
+print("9. a bound lane names its RESIDENT, not its engine (ADR-602 D5)")
+# The bug: both authoring surfaces resolved the speaker through `agents` (the
+# HIRE roster, empty since ADR-599) and through `apps[].name` (the RENAME
+# override, empty for slides/text) — so both missed and fell through to the
+# ENGINE label. A member working with Editor read "Message Claude Sonnet 4.6…".
+# A resident is not a hire; it was never going to be on that roster.
+_WEB = API.parent / "web" / "components"
+for _rel, _what in (("authoring/StudioSurface.tsx", "Slides"),
+                    ("text/TextEditor.tsx", "Text")):
+    _src = (_WEB / _rel).read_text()
+    _check(f"{_what} reads the beings roster for its speaker label",
+           "res.beings" in _src or "env.beings" in _src)
+    # `.index` raises when the lookup is gone — a CRASH is not a clean red, and
+    # a gate that traps instead of reporting hides which check failed.
+    _lookup, _fallback = _src.find("beings.find"), _src.find("return modelLabel")
+    _check(f"{_what} resolves the being BEFORE falling back to the engine",
+           _lookup != -1 and _fallback != -1 and _lookup < _fallback)
+
+print("10. the surface shows beings, sectioned by where they live (ADR-600 D6)")
 _surface = (API.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
 _check("the surface names the ruling (ADR-600) instead of a blank page",
        "ADR-600" in _surface)
@@ -276,8 +297,15 @@ _check("no hire machinery survives on the surface",
 # Comments stripped first: this file's own docstring quotes the copy it
 # replaced, and a gate that cannot tell prose from code teaches sessions to
 # reword rather than to fix (the same lesson as the register sweep above).
+import re as _re
+# Strip BOTH comment spellings before asserting: block comments (/** … */,
+# leading `*`), line comments (`//`), and JSX comment nodes ({/* … */}). The
+# ADR-600/601/602 arc hit the prose-vs-code trap three times — a gate that
+# cannot tell a comment from a rendered string teaches sessions to reword
+# rather than to fix.
+_surface_code = _re.sub(r"\{/\*.*?\*/\}", "", _surface, flags=_re.DOTALL)
 _surface_code = "\n".join(
-    l for l in _surface.splitlines()
+    _re.sub(r"//.*$", "", l) for l in _surface_code.splitlines()
     if not l.lstrip().startswith(("*", "/*", "//"))
 )
 _check("the roster is read from the server, not hardcoded in copy",
@@ -285,12 +313,31 @@ _check("the roster is read from the server, not hardcoded in copy",
 for _name in ("Designer", "Editor", "Keeper"):
     _check(f"the surface does not hardcode '{_name}'", _name not in _surface_code)
 _check("both sections exist — housed beings and the offered roster",
-       "At a desk" in _surface and "To work with" in _surface)
+       "In an app" in _surface_code and "To work with" in _surface_code)
 # ADR-601 D4 — rendered from the FIELDS, never inferred.
 _check("the surface renders provenance from the served field",
        "b.kernel" in _surface_code)
 _check("the surface renders the desk LIST, not a single home",
        "b.homes" in _surface_code and "b.home " not in _surface_code)
+# ADR-602 D6 — the per-being page. Depth rides the SANCTIONED param and moves
+# via setSurfaceParams (a pathname flip trips the shell's foreground effects).
+# Both halves: the component must be DEFINED and RENDERED. Checking only the
+# usage passed when the definition was renamed away (falsifier F1) — a call
+# site to a missing symbol is a build error, but the gate should not depend on
+# the compiler to notice a deleted feature.
+_check("a being's page exists (list/detail)",
+       "function BeingDetail" in _surface_code and "<BeingDetail" in _surface_code)
+_check("depth moves via setSurfaceParams, never a pathname flip",
+       "setSurfaceParams" in _surface_code and "router.push" not in _surface_code)
+_check("the page STATES editability rather than leaving it implied",
+       "Editing" in _surface_code)
+# ADR-602 D5 — plain language. An ADR number is an internal address; a member
+# reading one learns nothing they can act on.
+_check("no ADR number is shown to a member on this surface",
+       "ADR-" not in _surface_code)
+for _r in AGENTS.values():
+    _check(f"'{_r['slug']}' blurb is terse plain language (<= 60 chars)",
+           len(_r["blurb"]) <= 60)
 # The anti-pattern ratchet (kept from the original gate): the surface must
 # never grow the ChatGPT business-agent editor's authority vocabulary.
 _check("the surface carries no authority vocabulary",

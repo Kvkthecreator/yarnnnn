@@ -511,7 +511,7 @@ export const api = {
          *  the FIELD, never inferred from absence). `homes` is a LIST —
          *  many-to-one is ordinary, and empty means it serves no desk. */
         beings?: Array<{ slug: string; name: string; blurb: string; icon: string;
-          offered: boolean; kernel: boolean; homes: string[] }>;
+          offered: boolean; kernel: boolean; homes: string[]; model?: string }>;
         models: Array<{ id: string; label: string; vision?: boolean;
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */
