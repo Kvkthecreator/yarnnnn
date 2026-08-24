@@ -11,21 +11,10 @@
  *     routine renders as a slim non-interactive label+summary row;
  *     housekeeping renders as a dim one-liner.
  *
- *   - **Authorship attribution chip** per ADR-205 F1 / ADR-219:
- *       - taskSlug set + role !== 'user' → "from {slug}", linked to
- *         /work?task={slug} (recurrence-fired output)
- *       - taskSlug unset + role === 'assistant' + addressed pulse
- *         + invocationId → "ran inline" (chat-fired invocation)
- *
- *   - **Run-on-schedule affordance** — small button below assistant
- *     material messages whose invocation fired inline (no recurrence
- *     slug attached, but `narrative.invocationId` is set, indicating
- *     real production). Per ADR-236 Item 8.2 (2026-04-30) the
- *     graduation attaches to the assistant **output**, not the user
- *     ask — once the operator likes what came out, "run this on a
- *     schedule" is the right verbalization. Wired via the
- *     onMakeRecurring callback (the prop name is preserved for
- *     stability; the surface label says "Run this on a schedule").
+ *   - **Authorship attribution chip**: role === 'assistant' + addressed
+ *     pulse + invocationId → "ran inline" (chat-fired invocation).
+ *     (The "from recurrence" chip and the run-on-schedule affordance are
+ *     DELETED — ADR-603 D5 retired recurrences, 2026-08-24.)
  *
  * The row wrapper is the canonical extension point for future cross-
  * cutting concerns (autonomy badges, surface-aware variants, etc.).
@@ -34,7 +23,7 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { CornerDownRight, Zap, Repeat } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import type { TPMessage } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -54,13 +43,12 @@ import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 interface MaterialWrapperProps {
   msg: TPMessage;
   isLoading: boolean;
-  onMakeRecurring?: (messageContent: string) => void;
 }
 
 /**
  * Material weight — full bubble/card rendering. Wraps the dispatched
- * shape with the authorship chip (above) and Make Recurring affordance
- * (below) per ADR-237 D2.
+ * shape with the authorship chip (above); the Make Recurring affordance
+ * is deleted (ADR-603 D5).
  *
  * Reviewer verdicts (role === 'freddie') skip the chip stack — the
  * FreddieCard owns its own chrome per ADR-212. The dispatcher emits
@@ -94,35 +82,21 @@ function shortPathLabel(path: string): string {
   return path.split('/').pop() ?? path;
 }
 
-function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps): JSX.Element {
+function MaterialRow({ msg, isLoading }: MaterialWrapperProps): JSX.Element {
   const { sendMessage } = useNarrative();
   // openFilePath: which file path is currently open in the overlay (null = closed)
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
   const freddiePersonaName = useFreddiePersona();
 
-  const recurrenceSlug = msg.narrative?.taskSlug;
-  const showRecurrenceChip = !!recurrenceSlug && msg.role !== 'user';
   const showInlineFireHint =
-    !recurrenceSlug &&
+    !msg.narrative?.taskSlug &&
     msg.role === 'assistant' &&
     msg.narrative?.pulse === 'addressed' &&
     !!msg.narrative?.invocationId;
-  const isInlineAction = !msg.narrative?.taskSlug;
-  const showMakeRecurring =
-    msg.role === 'assistant' &&
-    isInlineAction &&
-    !!msg.narrative?.invocationId &&
-    !!onMakeRecurring &&
-    !!msg.content?.trim();
 
   // Generalised workspace path extraction — works for any role.
   // Replaces the recurrence-only runLogPath/outputPath pattern.
   const workspacePaths = extractWorkspacePaths(msg.content);
-  // Primary path for the recurrence chip (prefer _run_log.md)
-  const primaryPath =
-    workspacePaths.find(p => p.includes('_run_log')) ??
-    workspacePaths[0] ??
-    null;
 
   // Reviewer entries — ADR-258: Reviewer is a chat participant, not a gate announcement.
   // No section dividers for any verdict type. The persona label on the bubble is
@@ -137,17 +111,7 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
   }
 
   const chip =
-    showRecurrenceChip ? (
-      <button
-        type="button"
-        onClick={() => setOpenFilePath(p => p ? null : (primaryPath ?? null))}
-        className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded transition-colors"
-        title={`From recurrence: ${recurrenceSlug} — view output inline`}
-      >
-        <CornerDownRight className="w-2.5 h-2.5" />
-        <span className="font-mono">{recurrenceSlug}</span>
-      </button>
-    ) : showInlineFireHint ? (
+    showInlineFireHint ? (
       <span
         className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/60 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded"
         title="Inline action — fired immediately on ask"
@@ -196,19 +160,6 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
         )}
       </InteractiveModal>
 
-      {showMakeRecurring && (
-        <div className="mt-1.5 -mb-0.5">
-          <button
-            type="button"
-            onClick={() => onMakeRecurring!(msg.content)}
-            className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/70 hover:text-primary hover:bg-primary/5 px-1.5 py-0.5 rounded transition-colors"
-            title="Run this on a schedule — chat with the system to set cadence + delivery"
-          >
-            <Repeat className="w-2.5 h-2.5" />
-            Run this on a schedule
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -291,7 +242,6 @@ function RoutineRow({ msg, freddiePersona }: { msg: TPMessage; freddiePersona?: 
 export interface MessageRowProps {
   msg: TPMessage;
   isLoading: boolean;
-  onMakeRecurring?: (messageContent: string) => void;
 }
 
 /**
@@ -308,11 +258,11 @@ export interface MessageRowProps {
  * fall through to RoutineRow via the default branch — read-side
  * tolerance for stored historical data.
  */
-export function MessageRow({ msg, isLoading, onMakeRecurring }: MessageRowProps): JSX.Element {
+export function MessageRow({ msg, isLoading }: MessageRowProps): JSX.Element {
   const freddiePersona = useFreddiePersona();
   const weight = msg.narrative?.weight ?? 'material';
   if (weight === 'material') {
-    return <MaterialRow msg={msg} isLoading={isLoading} onMakeRecurring={onMakeRecurring} />;
+    return <MaterialRow msg={msg} isLoading={isLoading} />;
   }
   // routine + any legacy weight value (e.g. stored 'housekeeping' rows
   // from before ADR-277) → slim routine row

@@ -500,28 +500,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/notifications",
         "summary": "Operate the recurring work in one place — what wants your decision, what just happened, what's coming up.",
     },
-    {
-        # Renamed cadence → recurrence (2026-06-03). The surface's
-        # substrate, hooks (useRecurrenceDetail), and detail logic already
-        # spoke "recurrence" everywhere — only the surface label/slug/route
-        # lagged. "Cadence" survives as a temporal-classification concept
-        # (Recurring vs Reactive grouping; Pace's tempo tagline), NOT as
-        # this surface's name. /cadence kept as a redirect stub.
-        "slug": "recurrence",
-        "launcher_tier": "search-only",  # ADR-349 — fronted by Notifications (Schedule pane); summon by name (was utilities)
-        "register": "application",  # ADR-309 two-register model
-        "title": "Recurrence",
-        "archetype": "dashboard",
-        "substrate_paths": [
-            "/workspace/_recurrences.yaml",
-            "/workspace/_hooks.yaml",
-            "/workspace/persona/standing_intent.md",
-        ],
-        "icon_key": "clock",
-        "default_pinned": False,
-        "route": "/recurrence",
-        "summary": "What's on the schedule — the recurring work this workspace runs, what fires when, and what your agent is standing watch on.",  # ADR-340 P4 F1: operator vocabulary
-    },
+    # The `recurrence` surface row is DELETED (ADR-603 D5 executed 2026-08-24
+    # — production counted 0 recurrence declarations; retire-clean). Runs
+    # surface as receipts in Notifications' Activity ledger; the /recurrence
+    # route is a redirect stub hand-listed in middleware.ts (the ADR-592
+    # obligation: a slug leaving the roster leaves the auth gate with it).
     # ADR-491 D3 (2026-07-28): the `budget` surface row is DELETED — the Budget
     # pane dissolved (completing ADR-433: its numbers were the Usage pane's; the
     # runway line moved there; governance/_budget.yaml stays the machine-owned
@@ -803,30 +786,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/queue",  # _route_status: NEW in Phase 2 — extracts proposal queue from /work or /agents context
         "summary": "Pending proposals awaiting Reviewer or operator decision.",
     },
-    {
-        # ADR-340 D8 (2026-06-18) — Machinery consolidation. Activity folds
-        # to pane-grade under Recurrence: the two surfaces are one operator
-        # concern ("the machinery") seen at two moments — declaration
-        # (_recurrences.yaml, "what fires when") and execution
-        # (execution_events, "did it run, what did it cost"). Declaration-led:
-        # /recurrence is the window, Activity is the Runs lens reached via
-        # ?pane=activity. Generic P2 pane_of mechanism (nothing hardcodes
-        # `settings` as the only valid parent). Mirror discipline intact —
-        # the substrate read + route + deep-link all survive (§11/§12); only
-        # the launcher tile count drops (Utilities 4 → 3).
-        "slug": "activity",
-        "launcher_tier": "search-only",  # ADR-340 D8 — pane-grade, hidden at rest, found via flat search
-        "register": "application",  # ADR-309 two-register model
-        "pane_of": "recurrence",  # ADR-340 D8 — Runs lens inside the Recurrence window
-        "pane_group": "Machinery",
-        "title": "Activity",
-        "archetype": "stream",
-        "substrate_paths": [],  # execution_events DB table
-        "icon_key": "activity",
-        "default_pinned": False,
-        "route": "/activity",  # ADR-308 server redirect stub → /recurrence?pane=activity (ADR-340 D8)
-        "summary": "What ran and what it cost — the execution log behind the Feed's story. Open when you're checking the machinery, not the narrative.",  # ADR-340 P4 F1: operator vocabulary
-    },
+    # The `activity` surface row (the Runs lens, pane_of recurrence) is
+    # DELETED with its parent (ADR-603 D5 executed 2026-08-24). Run receipts
+    # live in Notifications' Activity ledger (`invocation` kind over
+    # execution_events); /activity redirects there, hand-listed in middleware.
     # ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
     # legacy pages to atomic kernel surfaces. Reverses D19.7 ("settings
     # stays a page") after operator surfaced the real axiom violation:

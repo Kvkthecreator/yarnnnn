@@ -50,7 +50,9 @@ import StringsPage from '@/app/(authenticated)/strings/page';
 // ADR-571 — Text: the prose app (md · txt). Docs-shaped, unveiled at birth by
 // operator direction ("a dedicated app. just like docs").
 import TextPage from '@/app/(authenticated)/text/page';
-import RecurrencePage from '@/app/(authenticated)/recurrence/page';
+// ADR-603 D5 (2026-08-24) — the Recurrence window is DELETED (retire-clean:
+// production counted 0 declarations). /recurrence is a redirect stub into
+// Notifications; run receipts live in its Activity ledger.
 // ADR-327: /pace retired from the surface registry — it is now a route-level
 // redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
 // file routing, not a mounted kernel surface.
@@ -67,11 +69,8 @@ import QueuePage from '@/app/(authenticated)/queue/page';
 // ADR-346 (2026-06-19) — the Operation composition window (Decide · Read ·
 // Tune). Window-grade (no pane_of) like Home; its panes reuse mirror bodies.
 import NotificationsPage from '@/app/(authenticated)/notifications/page';
-// ADR-340 D8 (2026-06-18) — Machinery consolidation. Activity is PANE-GRADE
-// under Recurrence (registry `pane_of: "recurrence"`): the Runs lens rendered
-// inside RecurrencePage (shared ActivityLog body). No window component — the
-// slug resolves to `undefined` here, foregroundSurface('activity') → recurrence
-// + ?pane=activity, and /activity is an ADR-308 redirect stub.
+// ADR-603 D5 (2026-08-24) — `activity` (the Runs lens, pane_of recurrence)
+// is deleted with its parent window; /activity redirects into Notifications.
 import AgentsPage from '@/app/(authenticated)/agents/page';
 import FilesPage from '@/app/(authenticated)/files/page';
 // ADR-437 (2026-07-10): the `setup` guided first-boot Sequence surface is
@@ -104,7 +103,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   slides: SlidesPage,  // ADR-440 Studio → ADR-599 — the dedicated deck app
   images: ImagesPage,  // ADR-472 — the second authoring app (stages → rendered rasters)
   strings: StringsPage,  // ADR-569 — the maintained file, kept by Keeper
-  recurrence: RecurrencePage,
+  // ADR-603 D5 — `recurrence` left the registry (window deleted; stub route).
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.
   // /brand is a server redirect → /identity (ADR-308).
@@ -112,7 +111,6 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // workspace-settings; no window component (resolve to undefined here).
   queue: QueuePage,
   notifications: NotificationsPage,  // ADR-346/349 — the operating-work composition (was 'operation')
-  // ADR-340 D8 — `activity` is pane-grade under recurrence; no window component.
   agents: AgentsPage,
   files: FilesPage,
   // ADR-437 (2026-07-10) — `setup` deleted (dormant registry row backend-side).

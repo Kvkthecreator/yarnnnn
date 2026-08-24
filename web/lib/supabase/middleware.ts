@@ -54,13 +54,13 @@ const LEGACY_AND_STUB_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
   "/setup", // ADR-437 — redirect stub → /chat (the guided first-boot wizard was deleted)
   "/feed", // redirect stub → /notifications?notifications.pane=understand (the narrative's home; 2026-07-02 ACTIVITY re-scope)
-  "/recurrence", // ADR-297 — absorbed /work (recurrence list + task detail); renamed from /cadence 2026-06-03
-  "/cadence", // redirect stub → /recurrence (2026-06-03 — surface rename)
+  "/recurrence", // ADR-603 D5 — redirect stub → /notifications (the window is deleted; slug left the roster)
+  "/cadence", // redirect stub → /notifications (ADR-603 D5; was → /recurrence)
   "/agents",
   "/files",
   "/channels", // ADR-415 — redirect stub → /home (Channels surface dissolved)
   "/context", // ADR-415 — redirect stub → /home (was → /channels, ADR-385)
-  "/activity",
+  "/activity", // ADR-603 D5 — redirect stub → /notifications (the Runs lens died with its parent)
   "/connectors",
   "/sources", // ADR-338 D4.1 — standing-watch drivers surface
   "/operation", // redirect stub → /mandate
@@ -87,8 +87,7 @@ const LEGACY_AND_STUB_PREFIXES = [
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
   "/studio", // ADR-599 — redirect stub → /slides (Studio's full evolve; slug left the roster)
   // Legacy routes still protected for redirect stubs
-  "/backend",    // ADR-265 — redirect stub → /activity
-  "/schedule",
+  "/backend",    // ADR-603 D5 — redirect stub → /notifications (was → /activity)
   "/overview",
   "/team",
   "/workfloor",

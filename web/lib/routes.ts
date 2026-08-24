@@ -49,15 +49,16 @@
 //   /orchestrator  → /notifications?notifications.pane=understand (ADR-163, ADR-205 F1 → narrative home)
 //   /feed          → /notifications?notifications.pane=understand (the /feed alias was always the NARRATIVE; lands at its real home)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
-//   /overview      → /recurrence                       (ADR-205 F2; ADR-297 dissolved /work → Cadence; renamed → Recurrence 2026-06-03)
-//   /cadence       → /recurrence                       (2026-06-03 — surface rename; substrate already spoke "recurrence")
+//   /overview      → /notifications                    (ADR-603 D5 — the Recurrence window is retired)
+//   /cadence       → /notifications                    (ADR-603 D5)
 //   /workfloor     → /notifications?notifications.pane=understand (ADR-163 → narrative home)
 //   /memory        → /files?files.path=...IDENTITY.md   (ADR-215 R3; ADR-587 — the param is slug-namespaced)
 //   (/context is NO LONGER a stub — ADR-370 reclaimed it as the boundary composition surface; the prior /context → /files stub is deleted.)
 //   /system        → /settings                         (system tab removed 2026-05-02)
 //   /operation     → /mandate                          (ADR-297 — atomic surface; routes.ts doc corrected 2026-05-30)
-//   /backend       → /recurrence?recurrence.pane=activity         (ADR-265 rename; ADR-340 D8 fold to Runs lens)
-//   /activity      → /recurrence?recurrence.pane=activity         (ADR-340 D8 — Machinery consolidation, Runs lens)
+//   /backend       → /notifications?notifications.pane=understand (ADR-603 D5)
+//   /activity      → /notifications?notifications.pane=understand (ADR-603 D5)
+//   /recurrence    → /notifications?notifications.pane=understand (ADR-603 D5 — the window is deleted)
 //
 // =============================================================================
 // ADR-297 §D17 (2026-05-22): HOME_ROUTE flips /feed → /desktop. The
@@ -77,11 +78,9 @@ export const DESKTOP_ROUTE = "/desktop";
 // deep-link params survive.
 export const FEED_ROUTE = "/feed";
 // ADR-297: /work dissolved — recurrence list + task detail folded into
-// the Recurrence surface (renamed from Cadence 2026-06-03). WORK_ROUTE
-// repointed to /recurrence so the surviving deep-links (`?task=`)
-// resolve to the live surface. Both consumers (AgentContentView task
-// links, /overview redirect stub) heal via this single repoint.
-export const WORK_ROUTE = "/recurrence";
+// WORK_ROUTE deleted (ADR-603 D5, 2026-08-24) — the Recurrence surface it
+// pointed at is retired; /recurrence and /overview are redirect stubs into
+// /notifications. Zero consumers at deletion time.
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 // Files surface — slug `files`, route `/files`. Legacy `/context` is a
 // redirect stub (2026-06-01). The substrate path `/workspace/context/…`
@@ -90,11 +89,8 @@ export const FILES_ROUTE = "/files";
 // WORKSPACE_CONFIG_ROUTE ("/workspace") deleted 2026-05-30 — ADR-297
 // dissolved the /workspace container into atomic surfaces (mandate,
 // autonomy, principles, etc.); the constant had zero consumers.
-// ADR-340 D8 (2026-06-18): Activity folded to pane-grade under Recurrence —
-// the Runs lens. /activity survives as an ADR-308 redirect stub; this constant
-// repoints to the canonical live destination so any future consumer mounts the
-// Runs lens directly. (Zero consumers at repoint time.)
-export const ACTIVITY_ROUTE = "/recurrence?recurrence.pane=activity"; // Execution ledger (execution_events) — Runs lens of the Recurrence window.
+// ACTIVITY_ROUTE deleted (ADR-603 D5, 2026-08-24) — the Runs lens died with
+// the Recurrence window; receipts live in Notifications' Activity ledger.
 export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack, Notion, GitHub, Lemon Squeezy, Alpaca.
 // FREDDIE_ROUTE deleted 2026-07-07 — zero consumers, and ADR-412 D5 moved
 // Freddie's panes off the /agents roster into Workspace Settings → System

@@ -1,20 +1,13 @@
 /**
- * /backend redirect stub — renamed to /activity per ADR-265, then folded
- * into the Recurrence window's Runs lens per ADR-340 D8.
+ * /backend redirect stub — renamed to /activity (ADR-265), folded into the
+ * Recurrence window (ADR-340 D8), retired with it (ADR-603 D5, 2026-08-24).
+ * The activity-audit job lives in Notifications' Activity ledger.
  *
- * "Backend" was engineer vocabulary; the page's actual operator job is
- * activity audit. ADR-340 D8 (2026-06-18) folded that audit to pane-grade
- * under Recurrence (the Runs lens). Repointed straight at the canonical
- * destination — no double redirect through the now-stub /activity.
- *
- * ADR-308 (2026-06-01): pure transport — server redirect(), never renders
- * inside the OS shell. A client stub paints one orphaned frame in
- * SurfaceViewport before redirecting (the bimodality seam); server
- * redirect() fires before any layout mounts.
+ * Pure server transport per ADR-308.
  */
 
 import { redirect } from 'next/navigation';
 
 export default function BackendRedirect() {
-  redirect('/recurrence?recurrence.pane=activity');
+  redirect('/notifications?notifications.pane=understand');
 }

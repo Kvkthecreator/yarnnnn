@@ -1,24 +1,14 @@
 /**
- * Legacy /cadence route — redirects to /recurrence, preserving query params.
+ * Legacy /cadence route — was renamed to /recurrence (2026-06-03), whose
+ * window is retired in full (ADR-603 D5, 2026-08-24). Standing work is read
+ * in Notifications; "cadence" survives only as a temporal-classification
+ * concept, not a route.
  *
- * 2026-06-03: the surface renamed Cadence → Recurrence. The substrate
- * (_recurrences.yaml), hooks (useRecurrenceDetail), and detail logic
- * already spoke "recurrence"; only the surface label/slug/route lagged.
- * The old /cadence URL (and its ?task= / ?agent= deep-links) survives as
- * a bookmark-safety stub. "Cadence" remains a live temporal-classification
- * concept (Recurring vs Reactive grouping) — unrelated to this route.
- *
- * ADR-308 (2026-06-01): pure transport — server redirect(). searchParams
- * arrive as a server-component prop.
+ * Pure server transport per ADR-308.
  */
 
 import { redirect } from 'next/navigation';
 
-export default function CadenceRedirect({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
-}) {
-  const qs = new URLSearchParams(searchParams as Record<string, string>).toString();
-  redirect(qs ? `/recurrence?${qs}` : '/recurrence');
+export default function CadenceRedirect() {
+  redirect('/notifications');
 }

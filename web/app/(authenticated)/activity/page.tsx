@@ -1,21 +1,15 @@
 /**
- * /activity → /recurrence?recurrence.pane=activity redirect stub (ADR-340 D8).
+ * /activity → /notifications redirect stub (ADR-603 D5, executed 2026-08-24).
  *
- * Machinery consolidation: Activity folded to pane-grade under Recurrence —
- * the Runs (execution) lens inside the Recurrence window, no longer a window
- * of its own. The execution-events body is unchanged (now the shared
- * `web/components/activity/ActivityLog.tsx`); only the surface tier moved.
- * Pure server transport per ADR-308 — preserves a stale `?slug=` bookmark
- * so the deep-link lands pre-filtered on the right recurrence.
+ * The Runs lens (pane_of recurrence) is deleted with its parent window. Run
+ * receipts live in Notifications' Activity ledger — the `invocation` filter
+ * over the same execution_events the lens read.
+ *
+ * Pure server transport per ADR-308.
  */
 
 import { redirect } from 'next/navigation';
 
-export default function ActivityRedirect({
-  searchParams,
-}: {
-  searchParams: { slug?: string };
-}) {
-  const slug = searchParams?.slug;
-  redirect(slug ? `/recurrence?recurrence.pane=activity&recurrence.slug=${encodeURIComponent(slug)}` : '/recurrence?recurrence.pane=activity');
+export default function ActivityRedirect() {
+  redirect('/notifications?notifications.pane=understand');
 }

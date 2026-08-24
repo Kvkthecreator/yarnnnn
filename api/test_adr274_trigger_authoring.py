@@ -373,7 +373,7 @@ def test_all_schedule_callers_provide_authored_by() -> None:
 
     callers = {
         "services/execution_router.py": True,  # pause/resume literal
-        "routes/recurrences.py": True,         # patch routes literal
+        # routes/recurrences.py DELETED (ADR-603 D5, 2026-08-24)
         "scripts/oneshot/cleanup_orphan_recurrences.py": True,
         "agents/yarnnn.py": True,              # tool_executor injection
         "agents/freddie_agent.py": True,      # dispatch injection

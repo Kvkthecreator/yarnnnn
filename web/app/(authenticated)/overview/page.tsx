@@ -1,20 +1,15 @@
 /**
- * /overview — redirect stub (ADR-205 F2).
+ * /overview — redirect stub (ADR-205 F2; re-pointed 2026-08-24).
  *
- * The Overview surface dissolved into /work's cockpit zone (ADR-205 F2);
- * since ADR-225 Phase 3 the cockpit panes flow through the compositor
- * via web/components/library/CockpitRenderer.tsx. This stub preserves
- * existing bookmarks and deep-links that still point to /overview; the
- * route itself is no longer part of the nav (see
- * web/components/shell/ToggleBar.tsx).
+ * The Overview surface dissolved into /work (ADR-205 F2), which /recurrence
+ * absorbed (ADR-297) and ADR-603 D5 retired. The bookmark's nearest live
+ * answer to "what is this workspace doing" is Notifications.
  *
- * Follows the same pattern as /workfloor, /orchestrator, /tasks legacy stubs
- * documented in web/lib/supabase/middleware.ts.
+ * Pure server transport per ADR-308.
  */
 
 import { redirect } from 'next/navigation';
-import { WORK_ROUTE } from '@/lib/routes';
 
 export default function OverviewRedirect() {
-  redirect(WORK_ROUTE);
+  redirect('/notifications');
 }

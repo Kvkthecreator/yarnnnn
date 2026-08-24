@@ -1812,115 +1812,10 @@ export const api = {
       }>;
     }>('/api/sources'),
 
-  // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)
-  recurrences: {
-    list: (statusOrOpts?: string | { status?: string; include_system?: boolean }) => {
-      let qs = "";
-      if (typeof statusOrOpts === "string") {
-        qs = statusOrOpts ? `?status=${statusOrOpts}` : "";
-      } else if (statusOrOpts) {
-        const parts: string[] = [];
-        if (statusOrOpts.status) parts.push(`status=${encodeURIComponent(statusOrOpts.status)}`);
-        if (statusOrOpts.include_system) parts.push(`include_system=true`);
-        if (parts.length > 0) qs = `?${parts.join("&")}`;
-      }
-      return request<Recurrence[]>(`/api/recurrences${qs}`);
-    },
-
-    get: (slug: string) =>
-      request<RecurrenceDetail>(`/api/recurrences/${slug}`),
-
-    // ADR-215 Phase 4 + ADR-231 D5 + ADR-235 D1.c: frontend no longer POSTs
-    // /api/recurrences for creation. Recurrence creation routes through YARNNN
-    // via RecurrenceSetupModal → ManageRecurrence(action='create', shape=...,
-    // slug=..., body={...}) per ADR-206 CRUD split (ManageTask deleted in
-    // ADR-231 Phase 3.7; UpdateContext deleted in ADR-235).
-
-    update: (slug: string, data: { status?: string; schedule?: string; sources?: Record<string, string[]> }) =>
-      request<Recurrence>(`/api/recurrences/${slug}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
-
-    delete: (slug: string) =>
-      request<{ success: boolean; message: string }>(
-        `/api/recurrences/${slug}`,
-        { method: "DELETE" }
-      ),
-
-    // Get latest output (rendered HTML)
-    getLatestOutput: (slug: string) =>
-      request<RecurrenceOutput>(`/api/recurrences/${slug}/outputs/latest`),
-
-    // Get specific output by date folder
-    getOutput: (slug: string, dateFolder: string) =>
-      request<RecurrenceOutput>(`/api/recurrences/${slug}/outputs/${dateFolder}`),
-
-    // List output history
-    listOutputs: async (slug: string, limit?: number) => {
-      const params = limit ? `?limit=${limit}` : "";
-      const data = await request<RecurrenceOutput[] | { outputs: RecurrenceOutput[]; total: number }>(
-        `/api/recurrences/${slug}/outputs${params}`
-      );
-      // API returns plain array; normalize to { outputs, total }
-      if (Array.isArray(data)) {
-        return { outputs: data, total: data.length };
-      }
-      return data;
-    },
-
-    // Trigger immediate execution
-    run: (slug: string) =>
-      request<{ success: boolean; message: string }>(
-        `/api/recurrences/${slug}/run`,
-        { method: "POST" }
-      ),
-
-    // ADR-148: Export task output as PDF/XLSX/DOCX
-    export: (slug: string, format: string, dateFolder?: string) => {
-      const params = dateFolder ? `&date_folder=${dateFolder}` : "";
-      return request<{ success: boolean; url: string; format: string; title: string }>(
-        `/api/recurrences/${slug}/export?format=${format}${params}`
-      );
-    },
-
-    // ADR-207 P4b (2026-04-22) + ADR-231 D5 + ADR-235 D1.c (2026-04-29):
-    // `listTypes` + `getType` DELETED. The `/api/tasks/types` endpoints never
-    // had an `/api/recurrences/types` equivalent — the registry was dissolved
-    // before the URL rename. Recurrence creation happens via YARNNN
-    // self-declaration through ManageRecurrence(action='create', shape=...,
-    // slug=..., body={...}). Not a catalog pick.
-
-    // ADR-145: Process step outputs for a given run
-    getStepOutputs: (slug: string, dateFolder: string) =>
-      request<ProcessStepsResponse>(
-        `/api/recurrences/${slug}/outputs/${dateFolder}/steps`
-      ),
-
-    // Live execution progress
-    getRunStatus: (slug: string) =>
-      request<RunStatus>(`/api/recurrences/${slug}/status`),
-
-    // ADR-158 Phase 2: Update task-level source selection in TASK.md.
-    // sources: {platform: ids[]} e.g. { slack: ["C123", "C456"] }
-    updateSources: (slug: string, sources: Record<string, string[]>) =>
-      request<Recurrence>(`/api/recurrences/${slug}/sources`, {
-        method: "PATCH",
-        body: JSON.stringify({ sources }),
-      }),
-  },
-
-  // ADR-219 Commit 4: narrative filter-over-substrate for /work list view.
-  // Replaces the `task.last_run_at` timestamp on list rows with the
-  // most-recent material-weight narrative entry's headline. Tasks with
-  // no narrative entries yet are simply absent from the response — the
-  // list view falls back to no headline (graceful empty state).
-  narrative: {
-    byTask: (windowHours?: number) => {
-      const qs = windowHours ? `?window_hours=${windowHours}` : "";
-      return request<NarrativeByTaskResponse>(`/api/narrative/by-task${qs}`);
-    },
-  },
+  // The `recurrences` + `narrative` namespaces are DELETED (ADR-603 D5,
+  // executed 2026-08-24 — recurrences retired; production counted 0 live
+  // declarations). Run receipts read through workspace.timeline (the
+  // Activity ledger's `invocation` kind).
 
   // Workspace Explorer (ADR-152) + Workspace Lifecycle (ADR-244)
   workspace: {
@@ -3017,16 +2912,9 @@ export const api = {
         timestamps: Record<string, string>;
       }>("/api/system/sync-timestamps"),
 
-    // Per-invocation execution log — powers /activity page (ADR-250 + ADR-265)
-    executionEvents: (opts: { slug?: string; status?: string; mode?: string; limit?: number } = {}) => {
-      const parts: string[] = [];
-      if (opts.slug) parts.push(`slug=${encodeURIComponent(opts.slug)}`);
-      if (opts.status) parts.push(`status=${encodeURIComponent(opts.status)}`);
-      if (opts.mode) parts.push(`mode=${encodeURIComponent(opts.mode)}`);
-      if (opts.limit) parts.push(`limit=${opts.limit}`);
-      const qs = parts.length ? `?${parts.join("&")}` : "";
-      return request<ExecutionEvent[]>(`/api/system/execution-events${qs}`);
-    },
+    // executionEvents DELETED (ADR-603 D5) — the /activity Runs lens is
+    // gone; receipts read through workspace.timeline.
+  },
   },
 
   // ADR-193: Action proposals (approval loop)

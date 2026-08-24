@@ -1,6 +1,6 @@
 # ADR-603: The standing declaration — and the Supervisor's desk
 
-**Status**: Ratified 2026-08-24; D1–D4 Implemented. D5 (recurrence retirement) and D6 (strings absorption) are RATIFIED DIRECTION, sequenced behind a live measurement the dev environment cannot take.
+**Status**: Ratified 2026-08-24; D1–D4 Implemented. **D5 measured and EXECUTED at the concept/surface layer 2026-08-24** (see D5 execution note below); D6 (strings absorption) remains RATIFIED DIRECTION, sequenced behind a second declaration kind.
 
 **Builds on**: ADR-596 (a being; authority on grants/declarations/gates) · ADR-597 (the resident follows the registration) · ADR-601 (many-to-one; provenance) · ADR-602 (Editor takes the authoring desks). **Supersedes** ADR-569's framing of strings as an app-private mechanism (the mechanism survives; the framing generalises). **Sequences the retirement of** ADR-261/ADR-393's recurrence declaration.
 
@@ -88,6 +88,39 @@ Every writer of `_recurrences.yaml` is `services/programs.py` (bundle fork) or `
 So this is not a live feature to migrate. Absorbing it would carry the steward's plumbing into the architecture built to replace it; the two merits worth keeping — *work happens without a member present*, and *a schedule is a declaration, and declarations are substrate* — are **already re-implemented, better, by strings**.
 
 **Gated on a live count** (`tasks WHERE kind='recurrence'` vs `kind='string'`), which the dev environment cannot take (no `SUPABASE_DB_URL`). Retiring a mechanism whose live population is unmeasured is exactly the guess this repo's discipline forbids. The direction is ratified; the deletion is a separate commit with the count in its message.
+
+### D5 execution note (2026-08-24)
+
+**Measured against production** (PostgREST, service key): `tasks` holds **0
+`kind='recurrence'` rows and 0 `kind='string'` rows** (3 inert `kind='radar'`
+rows remain — ADR-592's owed sweep); the substrate holds exactly **one
+`_recurrences.yaml`, content `[]`**, untouched since 2026-07-10, and zero
+`_string.yaml` files. **Retire-clean: there is nothing to migrate.**
+
+Executed in this pass — the recurrence CONCEPT and every member-facing
+surface:
+
+- FE: the `/recurrence` window (Schedule + Runs lenses), the notifications
+  "Schedule" pane, the bell's "Coming up" limb, the chat rail's
+  "from recurrence" chip and "Run this on a schedule" affordance, the
+  `recurrences`/`narrative` API-client namespaces, and the whole WorkDetail
+  chrome layer (its only tenant). `/recurrence`, `/activity`, `/backend`,
+  `/cadence`, `/overview` are redirect stubs into `/notifications`,
+  hand-listed in middleware (the ADR-592 obligation).
+- API: `routes/recurrences.py` + `routes/narrative.py` deleted; the
+  `recurrence` + `activity` kernel-surface rows deleted. Run receipts'
+  surviving home is the notifications Activity ledger (`invocation` kind
+  over `execution_events`) — this ADR's own sentence.
+
+**Deliberately NOT deleted here** (assigned, not forgotten): the steward-side
+plumbing — `services/recurrence.py`, the scheduler's recurrence dispatch,
+`wake_sources/cron_tick.py`/`manual_fire.py`, the `Schedule` +
+`FireInvocation` primitives, and the bundle-fork seeding in
+`services/programs.py` + the two alpha bundles' `_recurrences.yaml`. That
+stack is the steward's cadence authority (ADR-296), and its deletion is
+**ADR-596 D3 phase (a)** work — it dies with the steward's machinery
+reclassification, each phase its own ADR. With zero declarations, one empty
+file, and no serving surface, it can fire nothing meanwhile.
 
 ## D6 — Strings dissolves UPWARD (direction)
 

@@ -800,11 +800,11 @@ export type TierLimits = BalanceSummary;
 // ADR-231: Recurrences (the post-cutover work model)
 // =============================================================================
 //
-// A Recurrence is the legibility wrapper (nameplate + pulse + contract) over
-// a stream of Invocations per FOUNDATIONS Axiom 9. Authoritative substrate
-// is workspace_files YAML at `declaration_path`. The TypeScript shape below
-// is the API serialization — the backend's TaskResponse rendered for the
-// frontend. The HTTP surface lives at `/api/recurrences/*`.
+// RETIRED (ADR-603 D5, executed 2026-08-24): recurrences are retired —
+// production counted 0 declarations; the `/api/recurrences/*` HTTP surface
+// and every FE mount are DELETED. These types survive only for the legacy
+// `agents`-table readers (AgentContentView) that still name the shape;
+// they describe nothing the API serves and go when those readers go.
 
 export type RecurrenceStatus = "active" | "completed" | "archived";
 

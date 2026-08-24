@@ -148,10 +148,11 @@ _check(
     and "repurpose" not in registry
     and '"Compose"' in registry,  # presence control: the file is the real registry
 )
-recurrences = (API / "routes/recurrences.py").read_text()
+# routes/recurrences.py is DELETED outright (ADR-603 D5, 2026-08-24), which
+# subsumes "the /repurpose route is gone" — assert the deletion holds.
 _check(
-    "the /repurpose route is gone — control: /export route still present",
-    "repurpose" not in recurrences.lower() and "/export" in recurrences,
+    "the recurrence routes (once /repurpose's home) stay deleted",
+    not (API / "routes/recurrences.py").exists(),
 )
 syscalls = (API / "services/system_calls.py").read_text()
 _check(

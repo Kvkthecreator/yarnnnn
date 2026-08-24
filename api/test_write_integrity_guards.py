@@ -131,43 +131,15 @@ check(
 
 
 # =============================================================================
-# 3. Output routes — folder discovery + compose fallback
+# 3. Output routes — DELETED (ADR-603 D5, 2026-08-24)
 # =============================================================================
-
-from routes.recurrences import _derive_date_folders  # noqa: E402
-
-root = "/workspace/operation/reports/weekly-performance-review"
-paths = [
-    f"{root}/2026-06-08/sections/1-portfolio-totals.md",
-    f"{root}/2026-06-08/sys_manifest.json",
-    f"{root}/2026-06-08/output.md",
-    f"{root}/2026-06-01/sections/1-portfolio-totals.md",  # no output.md — must still surface
-    f"{root}/run_log.md",  # root-level file — must NOT surface as a folder
-    "/workspace/operation/reports/other-slug/2026-06-09/output.md",  # different root
-]
-folders = _derive_date_folders(paths, root)
+# routes/recurrences.py (and its _derive_date_folders / compose fallback) is
+# deleted with the recurrence concept — production counted 0 declarations.
+# The guards above (§1 truncation, §2 WriteFile) are the surviving scope.
 check(
-    "folder discovery surfaces sections-only folders (no output.md required)",
-    folders == ["2026-06-08", "2026-06-01"],
-    f"got: {folders}",
+    "the recurrence output routes stay deleted (ADR-603 D5)",
+    not (API_ROOT / "routes" / "recurrences.py").exists(),
 )
-check(
-    "folder discovery excludes root-level files and foreign roots",
-    "run_log.md" not in folders and "2026-06-09" not in folders,
-)
-
-routes_src = (API_ROOT / "routes" / "recurrences.py").read_text()
-check(
-    "read path falls back to compose_task_output_html when output.md empty",
-    "_read_output_for_folder" in routes_src
-    and "compose_task_output_html" in routes_src
-    and "output_md and output_md.strip()" in routes_src,
-)
-check(
-    "no route discovers outputs via output.md-only LIKE anymore",
-    '/%/output.md"' not in routes_src,
-)
-
 
 # =============================================================================
 

@@ -232,8 +232,8 @@ def test_callers_migrated() -> None:
          "from services.wake_sources.manual_fire import fire"),
         ("services/operator_proxy/scenarios.py",
          "from services.wake_sources.manual_fire import fire"),
-        ("routes/recurrences.py",
-         "from services.wake_sources.manual_fire import fire"),
+        # routes/recurrences.py DELETED (ADR-603 D5, 2026-08-24) — its
+        # manual-fire caller went with it.
         ("routes/admin.py",
          "from services.wake_sources.manual_fire import fire"),
         ("routes/agents.py",
@@ -363,7 +363,6 @@ def test_all_files_compile() -> None:
         "routes/feed.py",
         "routes/agents.py",
         "routes/admin.py",
-        "routes/recurrences.py",
         "services/operator_proxy/scenarios.py",
         "scripts/alpha_ops/manual_fire.py",
         "jobs/unified_scheduler.py",

@@ -23,21 +23,19 @@
  *                  ADR-405 D4). Re-sourced from chat.globalHistory, which
  *                  post-ADR-407-Phase-4 was the viewer's PRIVATE thread —
  *                  self-echo in, peers invisible. → ?pane=understand
- *   - "Coming up" (future — what's scheduled next)     → recurrence next_run_at
- *                  → Operation ?pane=tune (the Schedule list)
  *   - runway warning (low balance)                     → settings ?pane=billing
+ *
+ * ADR-603 D5 (2026-08-24): the "Coming up" limb (recurrence next_run_at) is
+ * deleted with the recurrence concept — the bell carries the three rows above.
  *
  * Operator-vocabulary partition (the deliberate one): the bell NEVER shows
  * engine words (wake / recurrence / invocation / proposal). Those stay in
- * substrate + ADRs + the run-ledger detail. "Coming up" rows show the
- * recurrence's operator-facing TITLE + a relative time, never "next wake."
+ * substrate + ADRs + the ledger detail.
  *
  * Binding discipline (ADR-340 D3 / Derived Principle 29): attention is
  * DERIVED, NEVER STORED. No notifications table exists or may exist — every
  * row is a live derivation over already-ratified substrate (proposals,
- * ADR-219 material narrative, recurrence next_run_at, balance). The "Coming
- * up" limb adds NO state — next_run_at already rides on every recurrence
- * (api.recurrences.list). The "last looked" cursor is presentation state —
+ * ADR-219 material narrative, balance). The "last looked" cursor is presentation state —
  * localStorage keyed per (workspace, user) as the local cache, write-through
  * to the member-state store ('attention') for cross-device continuity
  * (ADR-407 Phase 3; a read cursor, not workspace state).
@@ -100,15 +98,9 @@ interface PeerActivity {
  * Missing weight reads material (fail-open — new kinds are never hidden). */
 const isMaterial = (weight?: string) => !weight || weight === 'material';
 
-// "Coming up" — a derived view over each recurrence's next_run_at. No new
-// state: next_run_at already rides on the recurrence list (ADR-340 D3
-// derived-never-stored preserved). title is the operator-facing label —
-// never the engine "recurrence/wake" word.
-interface UpcomingFire {
-  slug: string;
-  title: string;
-  next_run_at: string;
-}
+// ADR-603 D5 (2026-08-24): the "Coming up" limb (recurrence next_run_at) is
+// DELETED with the recurrence concept. The bell carries To do + Activity +
+// the runway warning; standing work is read at its own desk.
 
 function lastSeenKey(userId: string): string {
   return `${LAST_SEEN_KEY_PREFIX}${shellStateSuffix(userId)}`;
@@ -137,7 +129,6 @@ export function AttentionCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
   const [activity, setActivity] = useState<PeerActivity[]>([]);
-  const [upcoming, setUpcoming] = useState<UpcomingFire[]>([]);
   const [lowBalance, setLowBalance] = useState<number | null>(null);
   // Whether the low-balance warning may show the dollar figure (billing
   // authority) or the dollar-free member copy.
@@ -188,7 +179,7 @@ export function AttentionCenter() {
     let cancelled = false;
 
     const derive = async () => {
-      const [proposalsResult, timelineResult, limitsResult, recurrencesResult] =
+      const [proposalsResult, timelineResult, limitsResult] =
         await Promise.allSettled([
           api.proposals.list('pending', 20),
           // ADR-410 D1 — the ONE "what happened" source (the attributed
@@ -196,7 +187,6 @@ export function AttentionCenter() {
           // read the viewer's PRIVATE thread — self-echo, peers invisible.
           api.workspace.timeline(60),
           api.integrations.getLimits(),
-          api.recurrences.list({ status: 'active' }),
         ]);
       if (cancelled) return;
 
@@ -265,18 +255,6 @@ export function AttentionCenter() {
         }
       }
 
-      if (recurrencesResult.status === 'fulfilled') {
-        // "Coming up" — future-only next_run_at, non-paused, soonest first.
-        // Pure derivation over the recurrence list (next_run_at already rides
-        // on every row; no new state, ADR-340 D3 preserved). The title is the
-        // operator-facing label — never the engine "recurrence/wake" word.
-        const now = Date.now();
-        const fires: UpcomingFire[] = (recurrencesResult.value || [])
-          .filter((r) => !r.paused && r.next_run_at && Date.parse(r.next_run_at) > now)
-          .map((r) => ({ slug: r.slug, title: r.title, next_run_at: r.next_run_at as string }))
-          .sort((a, b) => Date.parse(a.next_run_at) - Date.parse(b.next_run_at));
-        setUpcoming(fires);
-      }
     };
 
     derive();
@@ -454,7 +432,7 @@ export function AttentionCenter() {
             )}
 
             {peerActivity.length > 0 && (
-              <div className={upcoming.length > 0 ? 'border-b border-border/60' : undefined}>
+              <div>
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                   Activity
                 </div>
@@ -479,47 +457,12 @@ export function AttentionCenter() {
               </div>
             )}
 
-            {/* "Coming up" (future limb) — next scheduled fires, soonest
-                first. Reference, not a demand: it does NOT inflate the badge
-                (the badge counts only what NEEDS you — To do + unseen
-                Activity). Deep-links to the Schedule pane. */}
-            {upcoming.length > 0 && (
-              <div>
-                <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Coming up
-                </div>
-                {upcoming.slice(0, MAX_ROWS_PER_SECTION).map((u) => (
-                  <button
-                    key={u.slug}
-                    type="button"
-                    onClick={() => goTo('tune')}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
-                  >
-                    <span className="text-foreground">{u.title}</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {' · '}{formatRelativeTime(u.next_run_at)}
-                    </span>
-                  </button>
-                ))}
-                {upcoming.length > MAX_ROWS_PER_SECTION && (
-                  <button
-                    type="button"
-                    onClick={() => goTo('tune')}
-                    className="w-full text-left px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
-                  >
-                    +{upcoming.length - MAX_ROWS_PER_SECTION} more scheduled…
-                  </button>
-                )}
-              </div>
-            )}
-
             {!hasWarning &&
               proposals.length === 0 &&
-              peerActivity.length === 0 &&
-              upcoming.length === 0 && (
+              peerActivity.length === 0 && (
                 <p className="px-3 py-4 text-xs text-muted-foreground">
-                  Nothing here yet. To-dos, activity, what&apos;s coming up, and
-                  runway warnings surface here.
+                  Nothing here yet. To-dos, activity, and runway warnings
+                  surface here.
                 </p>
               )}
           </div>

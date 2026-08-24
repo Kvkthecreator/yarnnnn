@@ -8,14 +8,14 @@
  *
  * ADR-228/312: cockpit-side resolution (resolveCockpitPanes,
  * KERNEL_DEFAULT_COCKPIT_PANES) deleted. ADR-435: the Home surface itself was
- * deleted, along with getProgramSections (its program-section reader). The
- * compositor now resolves only WorkDetail middle/chrome — no Home path remains.
+ * deleted, along with getProgramSections (its program-section reader).
+ * ADR-603 D5 (2026-08-24): WorkDetail middle/chrome resolution
+ * (resolver.ts + kernel-defaults.ts) deleted with the Recurrence window —
+ * its only tenant. What survives is the composition fetch + tree selectors
+ * the shell reads (useComposition, surfaceTitle).
  */
 
 export { useComposition, getTab, getDetailMiddles, getActiveBundles } from './useComposition';
-export { resolveMiddle, resolveChrome } from './resolver';
-export type { ResolutionContext } from './resolver';
-export { KERNEL_DEFAULT_CHROME } from './kernel-defaults';
 export type {
   SurfacesResponse,
   BundleMetadata,

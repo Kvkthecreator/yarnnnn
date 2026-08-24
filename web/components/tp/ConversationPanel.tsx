@@ -86,7 +86,6 @@ export interface ConversationPanelProps {
    * Parent typically opens RecurrenceSetupModal pre-filled with the message
    * text. When undefined, the affordance is hidden.
    */
-  onMakeRecurring?: (messageContent: string) => void;
 }
 
 /**
@@ -108,7 +107,6 @@ export function ConversationPanel({
   emptyState,
   showCommandPicker = true,
   showInputDivider = true,
-  onMakeRecurring,
 }: ConversationPanelProps) {
   const {
     messages,
@@ -257,7 +255,6 @@ export function ConversationPanel({
               key={msg.id}
               msg={msg}
               isLoading={isLoading}
-              onMakeRecurring={onMakeRecurring}
             />
           ))}
 
@@ -438,16 +435,14 @@ export function ConversationPanel({
  *
  * This shell exists only because the surrounding map() in
  * ConversationPanel passes a single message + isLoading +
- * onMakeRecurring; the row API accepts the same triple.
+ * (onMakeRecurring deleted — ADR-603 D5); the row API accepts the same pair.
  */
 function NarrativeMessage({
   msg,
   isLoading,
-  onMakeRecurring,
 }: {
   msg: TPMessage;
   isLoading: boolean;
-  onMakeRecurring?: (messageContent: string) => void;
 }) {
-  return <MessageRow msg={msg} isLoading={isLoading} onMakeRecurring={onMakeRecurring} />;
+  return <MessageRow msg={msg} isLoading={isLoading} />;
 }

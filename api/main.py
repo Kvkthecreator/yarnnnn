@@ -73,7 +73,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import images, memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings
+from routes import images, memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings
 
 app = FastAPI(
     title="YARNNN API",
@@ -213,7 +213,8 @@ app.include_router(domains.router, tags=["domains"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 
 # Tasks routes (ADR-138)
-app.include_router(recurrences.router, prefix="/api/recurrences", tags=["recurrences"])
+# routes/recurrences.py DELETED (ADR-603 D5 executed 2026-08-24 — recurrences
+# retired; production counted 0 declarations, 1 empty _recurrences.yaml).
 app.include_router(authored.router, prefix="/api/authored", tags=["authored"])  # ADR-333 D6
 app.include_router(workspace.router, prefix="/api", tags=["workspace"])
 # ADR-437 D4: the shared-artifact wedge — create/list/revoke + the /s/{token}
@@ -229,7 +230,8 @@ app.include_router(studio.router, prefix="/api", tags=["studio"])  # ADR-440 the
 app.include_router(images.router, prefix="/api", tags=["images"])  # ADR-474 IMAGES compose
 
 # ADR-219 Commit 4: narrative filter-over-substrate for /work list view
-app.include_router(narrative.router, prefix="/api/narrative", tags=["narrative"])
+# routes/narrative.py DELETED with it (task-grouped narrative slices — its one
+# FE consumer was the deleted /work→/recurrence list view).
 
 # ADR-225: program composition surfaces (compositor's API-side resolver)
 app.include_router(programs.router, prefix="/api/programs", tags=["programs"])

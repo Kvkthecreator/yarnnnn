@@ -40,7 +40,10 @@ export type KernelSurfaceSlug =
   | 'images'  // ADR-472 — the second authoring app (stages, rendered rasters)
   | 'strings' // ADR-569 — the maintained file, kept by Keeper (search-only tier)
   | 'text'    // ADR-571 — the prose app (md · txt), Editor beside the canvas
-  | 'recurrence'
+  // ADR-603 D5 (2026-08-24): `recurrence` + `activity` LEFT the union — the
+  // window and its Runs lens are deleted (retire-clean, 0 live declarations);
+  // both routes are redirect stubs into /notifications, hand-listed in
+  // middleware (the ADR-592 obligation).
   // ADR-491 D3 (2026-07-28): `budget` LEFT the union — the Budget pane
   // dissolved (its numbers live on Workspace Settings → Usage; /budget is a
   // redirect stub; the kernel registry row is deleted). ADR-491 D1 launcher
@@ -73,7 +76,6 @@ export type KernelSurfaceSlug =
   | 'program'
   | 'queue'
   | 'notifications'  // ADR-346/349 — the operating-work composition (was 'operation')
-  | 'activity'
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
   | 'connectors'  // ADR-425 — the account door's Connections pane (pane_of: settings)
@@ -126,8 +128,9 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // ADR-491 D3: `budget` LEFT (pane dissolved into Usage; slug retired).
   // ADR-491 D1: `billing` + `usage` join (pane-grade on the workspace door).
   // ADR-518: `docs` joins — the writing app, carved from Studio.
-  'chat', 'text', 'slides', 'images', 'strings', 'recurrence', 'billing', 'usage', 'autonomy',
-  'files', 'agents', 'queue', 'notifications', 'activity',
+  // ADR-603 D5: `recurrence` + `activity` LEFT (window + Runs lens deleted).
+  'chat', 'text', 'slides', 'images', 'strings', 'billing', 'usage', 'autonomy',
+  'files', 'agents', 'queue', 'notifications',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).
   // ADR-593 D5: `notification-settings` joins — the account door's

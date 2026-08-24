@@ -206,7 +206,9 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
           navigateToSurface('agents', { agent: newSurface.agentId });
           return;
         case 'task-detail':
-          navigateToSurface('recurrence', { task: newSurface.taskSlug });
+          // ADR-603 D5 — the Recurrence window is deleted; a stored legacy
+          // task chip degrades to the Activity ledger (run receipts' home).
+          navigateToSurface('notifications', { pane: 'understand' });
           return;
         case 'document-list':
         case 'platform-list':

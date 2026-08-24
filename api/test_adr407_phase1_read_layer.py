@@ -44,7 +44,7 @@ REKEYED_TABLES = [
 # The request-layer files swept in Phase 1 — these must not scope the
 # re-keyed tables by bare user_id anymore.
 SWEPT_FILES = [
-    "routes/recurrences.py",
+    # routes/recurrences.py DELETED (ADR-603 D5, 2026-08-24)
     "routes/agents.py",
     "routes/proposals.py",
     "routes/documents.py",

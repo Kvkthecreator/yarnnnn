@@ -2,65 +2,50 @@
 
 /**
  * /notifications — the Notifications surface, the SECOND composition window
- * (ADR-346, renamed operation → notifications by ADR-349 D2). Home was the
- * first composition (Dwell); this one carries the three operating-work acts
- * ADR-340 D2 named but never built a composition for:
+ * (ADR-346, renamed operation → notifications by ADR-349 D2). It carries the
+ * operating-work acts:
  *
  *   "To do"    (Decide, pane key `resolve`)    → the Queue body over action_proposals
  *   "Activity" (Read, pane key `understand`)   → the workspace-timeline workbench
- *                                                 (ADR-410 D5; run ledger stays the escape hatch)
- *   "Schedule" (Tune, pane key `tune`)         → the recurring-work list (escape hatch → full Recurrence)
+ *                                                 (ADR-410 D5 — run receipts included)
+ *
+ * ADR-603 D5 (2026-08-24): the "Schedule" pane (Tune) is DELETED with the
+ * recurrence concept it fronted — production counted 0 recurrence
+ * declarations; retire-clean. Standing work is the standing declaration
+ * (strings today), read at its own desk; run RECEIPTS surface here in the
+ * Activity ledger (`invocation` kind over execution_events), which is
+ * ADR-603's own sentence: "runs stop being a concept: receipts surface in
+ * notifications." The `tune` pane key retires with the pane.
  *
  * ADR-410 D5 (2026-07-06): the Activity pane re-mounts the SAME "what
  * happened" derivation the bell and the Home slot read — the workspace
  * timeline (the three attributed ledgers) — as the breadth workbench
- * (actor/kind/date filters, full history via the `before` cursor),
- * replacing the chat-narrative FeedSurface body (post-ADR-407-Phase-4 the
- * chat thread is the viewer's PRIVATE session — self-echo, peers
- * invisible). Bell = glance, THIS = workbench, Home slot = ambient: three
- * depths, one source. The To-do pane was already the witness-queue mount
- * (QueueBody, D5.2-labeled).
- *
- * One object, two zooms: the topbar bell ("Notifications") is the glance;
- * this window is the full surface. They share one name + one vocabulary (To
- * do / Activity / Coming up — ADR-346 §5a). Pane keys + act identities
- * (Decide/Read/Tune, ADR-340 D2) are unchanged through the rename.
+ * (actor/kind/date filters, full history via the `before` cursor). Bell =
+ * glance, THIS = workbench: depths over one source.
  *
  * It is a COMPOSITION over the operational mirrors, not a new mirror: it owns
  * no substrate and no state, and each pane reuses an existing mirror BODY
- * (one body, two mounts — the ADR-340 D8 rule) with an "Open full ___ →"
- * escape hatch into the complete mirror. Mounts the shared SettingsPaneShell
- * (Singular Implementation, the same shell behind both Settings doors), in
- * fullBleed mode so the Feed/Recurrence panes fill the pane region.
- *
- * Launcher: primary tier (Workspace group, ADR-349) — the default
- * destination for operating work. The mirrors it fronts (Feed/Queue/
- * Recurrence) are search-only (ADR-349) — complete + reachable by name, no
- * longer the default route in. /operation is an ADR-308 redirect stub here.
+ * (one body, two mounts — the ADR-340 D8 rule). Mounts the shared
+ * SettingsPaneShell (Singular Implementation) in fullBleed mode.
  */
 
-import { ExternalLink, ClipboardCheck, ScrollText, Clock } from "lucide-react";
+import { ExternalLink, ClipboardCheck, ScrollText } from "lucide-react";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
-import { useAgentsAndRecurrences } from "@/hooks/useAgentsAndRecurrences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { QueueBody } from "@/components/queue/QueueBody";
 import { StandingBand } from "@/components/queue/StandingBand";
 import { ActivityLedger } from "@/components/notifications/ActivityLedger";
-import { RecurrenceList } from "@/components/work/RecurrenceList";
 
-// ADR-346 label pass (2026-06-19): the act labels are plain operator words
-// — "To do" (the queue), "Activity" (what happened), "Schedule" (the
-// recurring work). The Attention center's section headers use the SAME
-// words so the bell and the surface it lands on speak one language. The
-// pane KEYS (resolve/understand/tune) are unchanged — they are URL params
-// + the ADR-340 D2 act identities (Decide/Read/Tune); only the labels change.
+// ADR-346 label pass (2026-06-19): the act labels are plain operator words.
+// The pane KEYS (resolve/understand) are unchanged — they are URL params +
+// the ADR-340 D2 act identities (Decide/Read); only the roster shrank
+// (ADR-603 D5 removed `tune`).
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Operate",
     panes: [
       { key: "resolve", label: "To do", icon: ClipboardCheck },
       { key: "understand", label: "Activity", icon: ScrollText },
-      { key: "tune", label: "Schedule", icon: Clock },
     ],
   },
 ];
@@ -119,30 +104,19 @@ export default function OperationPage() {
         );
       case "understand":
         // Read — the workspace timeline as a workbench (ADR-410 D5): every
-        // attributed act, every actor, filters + full history. The run
-        // ledger stays one hop away via the Recurrence Runs lens.
+        // attributed act, every actor, filters + full history. Run receipts
+        // are the `invocation` kind here (ADR-603 D5 — the run ledger's home).
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={ScrollText}
               title="Activity"
               subtitle="What happened across the workspace — every actor, attributed."
-              action={<MirrorLink label="Open run ledger" onClick={() => navigateToSurface("recurrence", { pane: "activity" })} />}
             />
             <div className="flex-1 min-h-0">
               <ActivityLedger />
             </div>
           </div>
-        );
-      case "tune":
-        // Tune — the recurring-work list. Selecting a row deep-links into the
-        // full Recurrence window (detail mode: ?task=slug), where pause /
-        // run-now / edit live. The list is the glance; the window is the bench.
-        return (
-          <TunePane
-            onSelect={(slug) => navigateToSurface("recurrence", { task: slug })}
-            onOpenFull={() => navigateToSurface("recurrence")}
-          />
         );
       default:
         return null;
@@ -158,36 +132,5 @@ export default function OperationPage() {
       fullBleed
       navLabel="Notifications"
     />
-  );
-}
-
-/**
- * TunePane — the recurring-work glance. Reuses RecurrenceList (the same body
- * the Recurrence mirror renders in list mode); selection deep-links into the
- * full Recurrence window where the Run/Pause/Edit controls live.
- */
-function TunePane({ onSelect, onOpenFull }: { onSelect: (slug: string) => void; onOpenFull: () => void }) {
-  const { agents, tasks, narrativeByTask, error } = useAgentsAndRecurrences({ includeNarrative: true });
-
-  return (
-    <div className="flex h-full flex-col">
-      <PaneHeader
-        icon={Clock}
-        title="Schedule"
-        subtitle="The recurring work — pick a row to pause, run now, or edit."
-        action={<MirrorLink label="Open full Schedule" onClick={onOpenFull} />}
-      />
-      <div className="flex-1 overflow-y-auto">
-        <RecurrenceList
-          tasks={tasks}
-          agents={agents}
-          narrativeByTask={narrativeByTask}
-          agentFilter={null}
-          dataError={error}
-          onClearAgentFilter={() => {}}
-          onSelect={onSelect}
-        />
-      </div>
-    </div>
   );
 }

@@ -76,7 +76,8 @@ def test_callers_pass_workspace() -> None:
         _bad("narrative: autonomous target resolves within the workspace", "filter missing")
 
     for rel, marker, name in [
-        ("routes/narrative.py", 'sessions_query.eq("workspace_id", _ws)', "narrative route: session ids scoped (workspace, principal)"),
+        # routes/narrative.py DELETED (ADR-603 D5, 2026-08-24) — the
+        # services/narrative.py check above still gates the live writer.
         ("routes/feed.py", 'q.eq("workspace_id", _hist_ws)', "feed history: scoped (workspace, principal)"),
         ("routes/feed.py", '_list_q.eq("workspace_id", _list_ws)', "feed session list: scoped (workspace, principal)"),
         ("services/working_memory.py", 'session_query.eq("workspace_id", _sess_ws)', "working memory: active session scoped"),
