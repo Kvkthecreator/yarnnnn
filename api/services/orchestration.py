@@ -1380,7 +1380,8 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # compute environment it had named as the missing one). It never retired the
     # CONVENTION. Skills are back as `agents/{slug}/skills/*.md` — instructions,
     # not engines, and vendor-free by construction because prose is what every
-    # model reads. See services/agents_registry.py::find_agent_skills.
+    # model reads. (The member-skills machinery was deleted by ADR-599 D2; the
+    # convention note stays for the recipes below.)
 
     # -- Composition (post-generation pipeline step) --
     "compose_html": {

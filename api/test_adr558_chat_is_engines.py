@@ -259,15 +259,14 @@ agents_surface = (web / "components/agents/AgentsSurface.tsx").read_text()
 _as_code = _re.sub(r"//.*$", "", agents_surface, flags=_re.M)
 _as_code = _re.sub(r"/\*.*?\*/", "", _as_code, flags=_re.S)
 
-check("the /agents door creates with an ENGINE, never a colleague",
-      "lanes.create({ model:" in _as_code and "lanes.create({ agent" not in _as_code,
-      "an unbound lane naming a colleague is the 422 this ADR defines")
-check("...and joins the colleague through the CAST (ADR-495)",
-      "addParticipant" in _as_code and "agent_slug" in _as_code,
-      "who replies must come from the cast, not a birth-persona")
-check("...and invents no engine when the member has none (ADR-467 D2)",
-      "readLastEngine" in _as_code,
-      "a default engine here would be the resident ADR-467 D2 refuses")
+# Re-anchored for ADR-599: the "Start a chat with a colleague" door is
+# DELETED with the roster (the surface is an empty state). What this section
+# now holds is the ABSENCE: no create call of any shape survives on the
+# surface — a dead door quietly returning would re-open the D3 hole this
+# block was written to close.
+check("the /agents surface makes no lane-create call at all (ADR-599)",
+      "lanes.create" not in _as_code and "addParticipant" not in _as_code,
+      "the empty state must not carry a live door")
 
 
 # ---------------------------------------------------------------------------
@@ -311,8 +310,14 @@ check("the header carries it too, keyed on the SAME resolution",
 header_src = (web / "components/chat-surface/ConversationHeader.tsx").read_text()
 check("...and the header renders it from a model id, not a label",
       "engineBrandIcon(engineModel)" in header_src)
-check("the agents surface carries the mark as well",
-      "engineBrandIcon(engines[" in agents_surface)
+# Re-anchored for ADR-599: the agents surface is a deliberate EMPTY STATE
+# (the colleague roster is deleted until it returns app-paired), so there is
+# no engine row to mark. The check inverts to hold the emptiness: no hire
+# machinery, no engine fetch, and the surface says why.
+check("the agents surface is the honest empty state (no hire machinery)",
+      "ADR-599" in agents_surface
+      and "engineBrandIcon" not in agents_surface
+      and "makeAgent" not in agents_surface)
 
 # D5 — ONE mark per vendor, drawn ONCE.
 #

@@ -651,15 +651,13 @@ def _build_cast_section(
         if not others:
             return ""
 
-        member_agents = None
         lines: list[str] = []
         for p in others:
             if p.get("member_kind") == "agent" and p.get("agent_slug"):
-                if member_agents is None:
-                    from services.agents_registry import find_member_agents
-                    member_agents = find_member_agents(client, user_id)
+                # ADR-599: kernel resolution only — a deleted colleague's cast
+                # row falls back to its slug label below, honestly.
                 from services.agents_registry import resolve_agent
-                character = resolve_agent(p["agent_slug"], member_agents) or {}
+                character = resolve_agent(p["agent_slug"]) or {}
                 name = character.get("name") or p["agent_slug"]
                 blurb = (character.get("blurb") or "").strip()
                 lines.append(f"- {name} — {blurb}" if blurb else f"- {name}")
@@ -731,11 +729,6 @@ def build_lane_conventions(
     label = LANE_MODELS.get(model, {}).get("label", model)
     member = member_label or "the member"
 
-    # This turn's member-authored Agents, read ONCE for the whole frame — the
-    # posture and the skills consume it (best-effort; a broken manifest never
-    # breaks a turn). Empty for a lane with no agent.
-    from services.agents_registry import find_member_agents
-    _mine = find_member_agents(client, user_id) if agent else []
 
     # The tool line names the lane surface (ADR-467 D4). Derived from the same
     # `lane_tool_names` + the same turn facts the payload and the loop's
@@ -800,26 +793,15 @@ def build_lane_conventions(
     # the colleague. Empty string for a lane with no agent (every pre-registry
     # lane, and every Studio/derive lane) — byte-identical to today.
     if agent:
-        from services.agents_registry import build_agent_posture, find_agent_skills
-        # Member-first (the later-widening): a named colleague ("Lisa") wears a
-        # kernel capability's character plus the member's own tone. `_mine` was
-        # read once at the top of the frame (shared with the tool line).
-        # ADR-464 — the skills the member taught THIS colleague. The folder comes
-        # free from the manifest the discovery above already read; a kernel agent
-        # has no folder, so it has no skills (a kernel skill would be a kernel
-        # edit, and the kernel corpus is code — the DERIVE_RECIPES pattern).
-        _skills: list = []
-        _me = next((a for a in _mine if a["slug"] == agent), None)
-        if _me and _me.get("manifest_path"):
-            _skills = find_agent_skills(
-                client, user_id, _me["manifest_path"].rsplit("/", 1)[0]
-            )
-        # ADR-562 D6 — the APP's name for its resident (Docs calls Designer
-        # "Writer"). DERIVED from the artifact's own `data-template`, never
-        # stored on the lane: the app is a fact about the DOCUMENT, so deriving
-        # it means a lane can never carry a stale label for an artifact that
-        # changed hands. Empty for an unbound lane (no artifact → no app → the
-        # character's own name), which is byte-identical to pre-564.
+        # ADR-599: kernel characters only — the member-agent machinery
+        # (manifests, tone, skills) is deleted; a resident's character is
+        # self-contained.
+        from services.agents_registry import build_agent_posture
+        # ADR-562 D6 — the APP's name for its resident. DERIVED from the
+        # artifact's own `data-template`, never stored on the lane: the app is
+        # a fact about the DOCUMENT, so deriving it means a lane can never
+        # carry a stale label for an artifact that changed hands. Empty for an
+        # unbound lane (no artifact → no app → the character's own name).
         _as_name = ""
         if artifact_path:
             import services.apps  # noqa: F401  (registration side-effect)
@@ -831,7 +813,7 @@ def build_lane_conventions(
 
             _app = app_for_layout(extract_template(artifact))
             _as_name = (resolve_app(_app) or {}).get("name") or ""
-        posture_section += build_agent_posture(agent, _mine, _skills, as_name=_as_name)
+        posture_section += build_agent_posture(agent, as_name=_as_name)
     if artifact_path and app == "strings":
         # ADR-569 D6 (the ADR-567 D4 mechanism, one more branch) — a strings
         # lane is bound to the maintained file's target leaf, and its JOB is

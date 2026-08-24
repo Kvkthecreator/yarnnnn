@@ -43,9 +43,9 @@ from typing import Optional
 DERIVE_RECIPES: dict[str, dict] = {
     "design-system": {
         "label": "Design system",
-        # Also the fast reader — deriving a system from a source is reading it
-        # closely, not authoring a new artifact.
-        "resident": "scout",
+        # No resident (ADR-599: `scout` deleted with the colleague roster;
+        # absent-resident is legal — the lane runs on its engine, and the
+        # instructions below are the whole job).
         "description": "A design-system folder (tokens-first CSS + manifest) Studio artifacts can wear.",
         "accepts": ["file"],
         "target": "A meaning-folder satisfying the ADR-449 contract: _design.yaml (name + ordered css) + the css files it lists.",

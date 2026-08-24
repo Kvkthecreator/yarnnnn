@@ -278,11 +278,13 @@ check("strings registers keeper as its resident",
 # Re-anchored for ADR-598: keeper is an APP RESIDENT (the strings desk's own
 # voice — on no hire roster), still a stance over Produce; the three-operation
 # base roster stays closed either way.
-check("keeper is an APP RESIDENT over Produce — the base roster stays closed",
+# Re-anchored for ADR-599: residents are self-contained (no based_on — the
+# base operations are deleted with the colleague roster, which is EMPTY).
+check("keeper is a self-contained APP RESIDENT; the colleague roster is empty",
       "keeper" in APP_RESIDENTS
-      and APP_RESIDENTS["keeper"]["based_on"] == "designer"
+      and "based_on" not in APP_RESIDENTS["keeper"]
       and "keeper" not in KERNEL_AGENTS
-      and len(KERNEL_AGENTS) == 3)
+      and len(KERNEL_AGENTS) == 0)
 r_model, r_posture = resolve_strings_resident()
 check("the resident resolves to Keeper's character on a live engine",
       "Keeper" in r_posture and r_model in LANE_MODELS

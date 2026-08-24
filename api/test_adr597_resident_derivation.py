@@ -122,18 +122,14 @@ def test_injectivity():
 
 def test_editor_row():
     print("4. editor is a well-formed app resident")
-    from services.agents_registry import (
-        APP_RESIDENTS,
-        KERNEL_AGENTS,
-        POSTURE_ROW_KEYS,
-    )
+    from services.agents_registry import APP_RESIDENTS, RESIDENT_ROW_KEYS
     row = APP_RESIDENTS.get("editor")
     _assert(row is not None,
             "editor lives in APP_RESIDENTS (a desk voice, not a colleague — ADR-598)")
-    _assert(set(row or {}) == set(POSTURE_ROW_KEYS),
-            "editor carries exactly POSTURE_ROW_KEYS — no authority, no reach")
-    _assert((row or {}).get("based_on") in KERNEL_AGENTS,
-            "editor is based on a real base operation")
+    # ADR-599 D3: residents are self-contained — the resident shape has no
+    # based_on (the base operations are deleted) and no authority/reach key.
+    _assert(set(row or {}) == set(RESIDENT_ROW_KEYS),
+            "editor carries exactly RESIDENT_ROW_KEYS — no authority, no reach")
     # The SHIPPED pricing check, not a re-derivation — `_BILLING_RATES` keys
     # are provider-stripped, and `unpriced_lane_model` owns that mapping.
     from services.lane_runner import LANE_MODELS, unpriced_lane_model

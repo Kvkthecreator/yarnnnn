@@ -365,7 +365,7 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
     """The capability envelope around the conversation list. Extracted so the
     empty-cast early return serves the identical shape (one envelope, one
     definition — the FE must never see two payload shapes for one endpoint)."""
-    from services.agents_registry import find_member_agents, list_agents
+    from services.agents_registry import list_agents
     from services.derive_recipes import list_recipes
     from services.lane_runner import (
         LANE_MODELS,
@@ -418,7 +418,7 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # who a member may ADD to a conversation (ADR-495 — a colleague is
         # joined, never chosen at the door). Personas are configured in
         # `/agents`; this is the list of who is available to invite.
-        "agents": list_agents(find_member_agents(auth.client, auth.user_id)),
+        "agents": list_agents(),
         # ADR-562 D6 — the app registry, served so the FE resolves an app's name for
         # its resident from the SAME declaration the prompt uses. Serving it
         # beats a parallel TS table: that is precisely the second home ADR-562
@@ -503,7 +503,7 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
 
 @router.post("/lanes")
 async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
-    from services.agents_registry import find_member_agents, resolve_agent
+    from services.agents_registry import resolve_agent
     from services.lane_runner import LANE_MODELS, lane_model_availability
     from services.model_router import lanes_enabled
 
@@ -571,7 +571,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         agent_slug = resident_for_recipe(req.derive_recipe) or ""
     if agent_slug:
         # Member-first: their named colleagues, then the kernel set.
-        agent = resolve_agent(agent_slug, find_member_agents(auth.client, auth.user_id))
+        agent = resolve_agent(agent_slug)
         if not agent:
             # The ADR-450 precedent: an unknown recipe is a caller bug, not a lane.
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
@@ -761,12 +761,11 @@ def _cast_roster(auth: UserClient, slugs: list[str]) -> dict[str, dict]:
     if not slugs:
         return {}
     try:
-        from services.agents_registry import find_member_agents, resolve_agent
+        from services.agents_registry import resolve_agent
 
-        member_agents = find_member_agents(auth.client, auth.user_id)
         out: dict[str, dict] = {}
         for s in slugs:
-            character = resolve_agent(s, member_agents)
+            character = resolve_agent(s)
             if character:
                 out[s] = character
         return out
@@ -1196,12 +1195,10 @@ def _turn_stream_response(
     # never the creation-time stamp) resolves to the same stored model and
     # nothing changes.
     if responder and responder != lane_agent:
-        from services.agents_registry import find_member_agents, resolve_agent
+        from services.agents_registry import resolve_agent
 
         try:
-            _resolved = resolve_agent(
-                responder, find_member_agents(auth.client, auth.user_id)
-            )
+            _resolved = resolve_agent(responder)
         except Exception:  # noqa: BLE001 — registry read is best-effort
             _resolved = None
         if _resolved and _resolved.get("model"):
@@ -1492,142 +1489,10 @@ async def regenerate_lane_turn(lane_id: str, auth: UserClient):
     )
 
 
-class CreateAgentRequest(BaseModel):
-    """The "make your own" form (personified-agents spec §7).
-
-    Deliberately NO tools/authority field — not omitted from the model, but
-    absent from the vocabulary: an Agent a member names is a member-named HAND,
-    not a seat (ADR-460 D3.a). The manifest parser refuses them too, on the
-    other side of the door.
-    """
-    name: str
-    based_on: str                      # the kernel capability this wears
-    tone: Optional[str] = None         # their manner, in their words
-    model: Optional[str] = None        # the engine override (§4: available, never asked)
-    color: Optional[str] = None
-    avatar: Optional[str] = None       # a workspace image path (the ADR-395 bucket lane)
-
-
-@router.post("/lane-agents")
-async def create_member_agent(req: CreateAgentRequest, auth: UserClient) -> dict:
-    """Make an Agent of your own — "Lisa", not "Sonnet".
-
-    The UI is a DOOR, not a database: this validates and writes
-    `/workspace/agents/{slug}/_agent.yaml` through the ordinary authored-write
-    path, attributed like any member act. The FILE stays the source of truth —
-    inspectable in Files, versioned on the ledger, revertible. (The ADR-449
-    posture: no write path in the registry module; applies go through the
-    ordinary doors.)
-    """
-    return await _write_member_agent(req, auth, slug=None, verb="made")
-
-
-async def _write_member_agent(
-    req: "CreateAgentRequest", auth: UserClient, *, slug: Optional[str], verb: str
-) -> dict:
-    """The one write body for make + edit (Singular Implementation).
-
-    `slug=None` mints one from the name (create); a slug edits that folder.
-    Every validation below holds on BOTH doors — an edit must not be a way to
-    reach what a create refuses.
-    """
-    import re as _re
-
-    from services.agents_registry import (
-        AGENT_MANIFEST_BASENAME,
-        _kernel_character,
-        find_member_agents,
-    )
-    from services.authored_substrate import write_revision
-    from services.lane_runner import LANE_MODELS, unpriced_lane_model
-
-    name = (req.name or "").strip()[:_MAX_NAME_LEN]
-    if not name:
-        raise HTTPException(status_code=422, detail="name is required")
-    based_on = (req.based_on or "").strip()
-    # EVERY kernel character is hireable — a base agent (Designer, "my designer
-    # is Maya") OR a posture (Critic, "my critic is Lisa"). (A one-commit
-    # `bound_only` block lived here on 2026-07-16 and was removed the same day:
-    # it made Designer a different KIND of Agent, which is the taxonomy ADR-460
-    # D1 dissolved.)
-    if _kernel_character(based_on) is None:
-        raise HTTPException(status_code=422, detail=f"Unknown based_on: {based_on}")
-
-    # The engine override — available, never asked (spec §4). A member's file
-    # may not route an unpriced engine: the ADR-439 §4 rule holds on this side
-    # of the door too.
-    model = (req.model or "").strip()
-    if model:
-        if model not in LANE_MODELS:
-            raise HTTPException(status_code=422, detail=f"Unknown model: {model}")
-        if unpriced_lane_model(model):
-            raise HTTPException(
-                status_code=422,
-                detail="this model has no billing rate configured and cannot run (ADR-439 §4)",
-            )
-
-    if slug is None:
-        slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "agent"
-        if _kernel_character(slug) is not None:
-            # A member folder may not shadow a kernel slug — base agent OR
-            # posture. "critic" must not mean two things by workspace.
-            raise HTTPException(
-                status_code=409, detail=f"'{slug}' is a built-in agent's name — pick another"
-            )
-        if any(a["slug"] == slug for a in find_member_agents(auth.client, auth.user_id)):
-            raise HTTPException(
-                status_code=409, detail=f"You already have an agent called '{name}'"
-            )
-
-    lines = [f"based_on: {based_on}", f"name: {name}"]
-    tone = (req.tone or "").strip()
-    if tone:
-        # Block scalar — a member's tone is prose and may carry any punctuation.
-        lines.append("tone: |")
-        lines.extend(f"  {ln}" for ln in tone.splitlines())
-    if model:
-        lines.append(f"model: {model}")
-    color = (req.color or "").strip()
-    if color:
-        lines.append(f"color: {color}")
-    avatar = (req.avatar or "").strip()
-    if avatar:
-        lines.append(f"avatar: {avatar}")
-
-    path = f"/workspace/agents/{slug}/{AGENT_MANIFEST_BASENAME}"
-    write_revision(
-        auth.client,
-        user_id=auth.user_id,
-        path=path,
-        content="\n".join(lines) + "\n",
-        authored_by="operator",
-        message=f"{verb} an agent: {name}",
-        workspace_id=_acting_workspace(auth),
-    )
-    return {"slug": slug, "name": name, "based_on": based_on, "path": path}
-
-
-@router.patch("/lane-agents/{slug}")
-async def patch_member_agent(slug: str, req: CreateAgentRequest, auth: UserClient) -> dict:
-    """Edit one of your Agents — the same card, over an existing folder.
-
-    A second revision on the ledger, not an overwrite of history: the file
-    stays the source of truth, versioned and revertible (ADR-449's posture —
-    the UI is a door, not a database). A kernel Agent cannot be edited: it is
-    the capability, not a colleague you named. To change what Lisa IS, hire
-    someone else — which is what making another Agent is.
-    """
-    from services.agents_registry import _kernel_character, find_member_agents
-
-    if _kernel_character(slug) is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"'{slug}' is built in — make your own agent to change it",
-        )
-    mine = find_member_agents(auth.client, auth.user_id)
-    if not any(a["slug"] == slug for a in mine):
-        raise HTTPException(status_code=404, detail=f"No agent called '{slug}'")
-    return await _write_member_agent(req, auth, slug=slug, verb="updated")
+# The member-agent CRUD (`POST/PATCH /lane-agents`, the "make your own" door)
+# is DELETED by ADR-599 D2 with the rest of the member-agent machinery. If
+# member agents return, they return app-paired, built against the ADR-596
+# scaffold — not resurrected from this file's history.
 
 
 @router.patch("/lanes/{lane_id}")
@@ -1857,13 +1722,13 @@ async def add_conversation_participant(
     elif kind == "agent":
         if not req.agent_slug:
             raise HTTPException(status_code=422, detail="An agent needs agent_slug")
-        from services.agents_registry import find_member_agents, resolve_agent
+        # ADR-599: kernel resolution only. With the colleague roster empty,
+        # the only resolvable slugs are app residents — and a resident's home
+        # is its desk, so this door effectively invites nobody until the
+        # roster returns app-paired.
+        from services.agents_registry import resolve_agent
 
-        try:
-            member_agents = find_member_agents(auth.client, auth.user_id)
-        except Exception:  # noqa: BLE001 — registry read is best-effort
-            member_agents = []
-        if resolve_agent(req.agent_slug, member_agents) is None:
+        if resolve_agent(req.agent_slug) is None:
             raise HTTPException(status_code=422, detail=f"No agent called '{req.agent_slug}'")
     else:
         raise HTTPException(status_code=422, detail=f"Unknown participant kind: {req.kind}")

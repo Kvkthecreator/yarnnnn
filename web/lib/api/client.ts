@@ -580,44 +580,9 @@ export const api = {
           metadata: Record<string, unknown>;
         }>;
       }>(`/api/lanes/${laneId}/messages`),
-    /**
-     * The member's own lane Agents — the hiring card's doors (ADR-460 D4).
-     * NOT the ADR-251 roster's agents (`api.agents.*`, /api/agents): those are
-     * the workspace's own entities. These write the member's
-     * `/workspace/agents/{slug}/_agent.yaml` — the file is the source of
-     * truth, the UI is a door (ADR-449's posture).
-     *
-     * Note the vocabulary that is absent, deliberately: no tools, no
-     * authority, no scopes (ADR-460 D3.a — the manifest parser refuses them
-     * on the other side of the door too).
-     */
-    makeAgent: (data: {
-      name: string;
-      based_on: string;
-      tone?: string;
-      model?: string;
-      color?: string;
-      avatar?: string;
-    }) =>
-      request<{ slug: string; name: string; based_on: string; path: string }>(
-        "/api/lane-agents",
-        { method: "POST", body: JSON.stringify(data) },
-      ),
-    editAgent: (
-      slug: string,
-      data: {
-        name: string;
-        based_on: string;
-        tone?: string;
-        model?: string;
-        color?: string;
-        avatar?: string;
-      },
-    ) =>
-      request<{ slug: string; name: string; based_on: string; path: string }>(
-        `/api/lane-agents/${slug}`,
-        { method: "PATCH", body: JSON.stringify(data) },
-      ),
+    // makeAgent/editAgent (the "make your own" hiring doors, /api/lane-agents)
+    // are DELETED by ADR-599 D2 with the member-agent machinery. If member
+    // agents return, they return app-paired (ADR-596 scaffold).
     /**
      * Streaming lane turn (ADR-412 D2), over the shared reader (ADR-441 D4).
      * Phase-A turn controls: `opts.signal` aborts the stream (stop — the
