@@ -1,6 +1,7 @@
 # Agent Taxonomy — the axes YARNNN has classified agents on, and the invariant
 
-> **Status**: Reference (hardened from the 2026-07-16 research). This is the durable companion to the two analysis docs; those record the *investigation*, this records the *conclusion* as canon.
+> **Status**: Reference — **overtaken on the roster by the ADR-596→603 arc (2026-08-24)**. The INVARIANT this doc records (no authority on a being — the ADR-460 D3.a cliff) survives verbatim as ADR-596 D1. The ROSTER details are now historical: the kernel four (`Sonnet/Scout/Critic/Designer`) and member-named instances (`based_on`) are DELETED (ADR-599); the three registers collapsed to ONE (`AGENTS` + `offered`/`kernel` fields, ADR-600/601); "posture" as a register is gone. Current vocabulary: GLOSSARY's **Agent / Resident / Colleague / Standing declaration** entries. Read this doc for the axes-that-dissolve story, not for who exists.
+> Original status: hardened from the 2026-07-16 research; the durable companion to the two analysis docs — those record the *investigation*, this records the *conclusion* as canon.
 > **Sources**: `docs/analysis/what-kind-of-agent-the-taxonomy-that-keeps-dissolving-2026-07-16.md` (the dissolution meta-story) + the concrete-catalogue research (this doc's §2). Every name below is verbatim from the ADR record with an era anchor.
 > **Load-bearing for**: any future agent-type decision. Read this before proposing a new agent, a new role, or a new "kind" — the odds are the axis has been tried.
 

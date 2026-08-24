@@ -5,6 +5,8 @@ scope: conceptual — substrate, files, layers, bootstrap, autonomy threshold
 status: Canonical
 last_updated: 2026-05-12
 ---
+> ⚠️ **RECURRENCES ARE RETIRED (ADR-603 D5, executed 2026-08-24).** Production counted 0 recurrence declarations (one empty `_recurrences.yaml`); the member-facing surface, routes, and FE are DELETED. Everywhere this doc says "recurrence" as a live mechanism, read it as HISTORICAL: standing work is the **standing declaration** (strings today, ADR-603 D1/D2), and run receipts live in the notifications Activity ledger. The steward-side plumbing (walker, `Schedule`, cron_tick) survives inert and dies with ADR-596 D3 phase (a).
+
 
 # Workspace — Architecture
 

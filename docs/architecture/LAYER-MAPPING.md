@@ -53,7 +53,7 @@ The altitude table drew three real distinctions. They survive — as **recurring
 
 ### The `/agents` roster holds member hands AND judgment agents (corrected)
 
-> ⚠️ **Correction (ADR-460, 2026-07-18).** The pre-460 doc said *"the roster is Altitude 3 only."* **That is now false.** The kernel Agent registry (`Sonnet · Scout · Critic · Designer`) ships on `/agents`, and those are **member hands** (`member:` attribution, no standing intent) — a member-hands cluster, not a judgment cluster. `/agents` is *"who you can address / hire"* — it spans the member-hands cluster (the base agents + a member's own named instances) and, when hired, the judgment cluster (persona agents). Freddie is the one thing that is **never** on the roster (it is the rail, not a colleague). The industry-`agent` note stands but re-reads: what the operator sees on `/agents` are Agents in the *addressable-colleague* sense, of which the *judgment* cluster is the sharpest but not the only, kind.
+> ⚠️ **Correction (ADR-460, 2026-07-18).** The pre-460 doc said *"the roster is Altitude 3 only."* **That is now false.** The kernel Agent registry shipped colleagues on `/agents` (historically `Sonnet · Scout · Critic · Designer`; ADR-599 D1 deleted the colleague set and ADR-600 collapsed the registers — the pane now shows BEINGS sectioned by desk: Editor · Designer · Keeper · Supervisor, `offered: False`), and those are **member hands** (`member:` attribution, no standing intent) — a member-hands cluster, not a judgment cluster. `/agents` is *"who you can address / hire"* — it spans the member-hands cluster (the base agents + a member's own named instances) and, when hired, the judgment cluster (persona agents). Freddie is the one thing that is **never** on the roster (it is the rail, not a colleague). The industry-`agent` note stands but re-reads: what the operator sees on `/agents` are Agents in the *addressable-colleague* sense, of which the *judgment* cluster is the sharpest but not the only, kind.
 
 ### Accountability, two orders (ADR-382 §3, preserved verbatim — a mandate-holding fact, never an altitude fact)
 
@@ -93,8 +93,8 @@ The altitude table drew three real distinctions. They survive — as **recurring
 |---|---|---|
 | System agent (Freddie) | one per workspace | **No persona path** — kernel constants + `governance/_autonomy.yaml` + `governance/_budget.yaml` (ADR-414 D2) |
 | Judgment agent / domain Agent | zero-to-many | `agents/{slug}/` — home carries the full ADR-383 file set (+ `skills/*.md`, ADR-464) |
-| Member hands — base agents | fixed kernel set | **kernel constants** (`KERNEL_AGENTS`) — not member-owned |
-| Member hands — named instances | zero-to-many per member | `agents/{slug}/_agent.yaml` (+ `skills/`) — a member's own colleague, `based_on` a kernel verb (ADR-449/460) |
+| Member hands — base agents | the kernel beings (ADR-600: ONE register, `agents_registry.AGENTS`; `KERNEL_AGENTS` is deleted) | **kernel constants** — not member-owned |
+| Member hands — named instances | **machinery DELETED (ADR-599 D2/D3)** — `based_on`, the manifests, and the make-one door are gone; a future member-authored being is `kernel: False` in the one register (ADR-601 D2) | (historical: `agents/{slug}/_agent.yaml`) |
 | Member hands — lanes | zero-to-many per member | none — transcripts are member-experience scope (`chat_sessions`); work lands in the commons |
 | Orchestration | n/a | `system/` accumulation only; never Identity-bearing |
 
