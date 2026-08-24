@@ -387,13 +387,24 @@ def _apps_payload() -> list[dict]:
     for its resident ("Writer" in Docs), empty when the app did not rename one.
     Served rather than mirrored in TypeScript: a parallel table is the second
     home ADR-562 deleted, and it drifts the moment one side is edited.
+
+    EXPOSED apps only (audited 2026-08-24): `stage: internal` means "absent
+    from the served roster" (ADR-592), and this envelope is served to every
+    member — an internal app (Supervisor at birth, ADR-603 D4) must not leak
+    here. Filtered at the surface row, the same declaration
+    `kernel_surface_entries()` honours; an app with NO surface row is not
+    visitable and is likewise withheld (fail closed).
     """
     import services.apps  # noqa: F401  (registration side-effect)
+    from services.app_stage import is_exposed
     from services.authoring import all_apps
+    from services.kernel_surfaces import KERNEL_SURFACES
 
+    rows = {e.get("slug"): e for e in KERNEL_SURFACES}
     return [
         {"slug": a["slug"], "resident": a["resident"], "name": a["name"]}
         for a in all_apps().values()
+        if a["slug"] in rows and is_exposed(rows[a["slug"]])
     ]
 
 

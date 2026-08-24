@@ -129,6 +129,10 @@ export function DeskHousing({
   const [lanes, setLanes] = useState<LaneRow[]>([]);
   const [agents, setAgents] = useState<LanesEnv['agents']>([]);
   const [apps, setApps] = useState<NonNullable<LanesEnv['apps']>>([]);
+  // ADR-602 — the BEINGS roster. `agents` is the HIRE roster (empty since
+  // ADR-599), so a resident's name was never found there and this housing
+  // addressed the ENGINE instead of Keeper/Editor.
+  const [beings, setBeings] = useState<NonNullable<LanesEnv['beings']>>([]);
   const [models, setModels] = useState<LanesEnv['models']>([]);
   // The NAMING table (every engine, retired included). `models` is the CHOOSER
   // and drops retired rows, so a bound lane pinned to one would name itself by
@@ -142,6 +146,7 @@ export function DeskHousing({
       setLanes(res.lanes);
       setAgents(res.agents ?? []);
       setApps(res.apps ?? []);
+      setBeings(res.beings ?? []);
       setModels(res.models ?? []);
       setModelNames(res.model_names ?? {});
     } catch {
@@ -194,15 +199,19 @@ export function DeskHousing({
   // (served from the app's own registration), else the colleague's own name,
   // else the engine label. Read back from the wire, never asserted here.
   const speakerLabel = useMemo(() => {
-    const slug = boundLane?.agent;
+    // ADR-602 D7 — this housing KNOWS which app it is (the `app` prop), which
+    // is a stronger fact than a lane stamp that may predate ADR-567.
+    const slug = apps.find((a) => a.slug === app)?.resident || boundLane?.agent;
     if (slug) {
       const appName = apps.find((a) => a.slug === app)?.name;
       if (appName) return appName;
+      const being = beings.find((b) => b.slug === slug)?.name;
+      if (being) return being;
       const named = agents.find((a) => a.slug === slug)?.name;
       if (named) return named;
     }
     return modelLabel;
-  }, [agents, apps, boundLane, modelLabel, app]);
+  }, [agents, apps, beings, boundLane, modelLabel, app]);
 
   const seedChat = useCallback((text: string) => {
     setSeed({ text, nonce: Date.now() });

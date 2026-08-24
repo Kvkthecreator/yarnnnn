@@ -163,10 +163,13 @@ for _rel, _what in _planners.items():
 # masquerading as "the router is off" (each file's own comment says so).
 for _rel, _what in _planners.items():
     _src = (API / _rel).read_text()
-    _lookup = _src.index('resolve_agent("designer")')
-    _try = _src.index("    try:", _src.index("from services.model_router"))
+    # `.find`, never `.index` — a moved anchor must read as a RED CHECK, not a
+    # gate crash that hides which check failed (audited 2026-08-24).
+    _lookup = _src.find('resolve_agent("designer")')
+    _imp = _src.find("from services.model_router")
+    _try = _src.find("    try:", _imp) if _imp != -1 else -1
     _check(f"{_what}: the lookup precedes the try (a missing being raises)",
-           _lookup < _try)
+           _lookup != -1 and _try != -1 and _lookup < _try)
 
 # Whole-tree sweep: no OTHER module may subscript the register either, and
 # the deleted container names must not come back as CODE. Comments are
@@ -269,6 +272,25 @@ import routes.lanes as _L  # noqa: E402
 _served = {b["slug"] for b in _L._beings_payload()}
 _check("the payload withholds an unpromoted being",
        "designer" not in _served and {"editor", "keeper"} <= _served)
+# Fail CLOSED on the unhoused (ADR-602 D3 as amended 2026-08-24): a NON-offered
+# being with no desk is unreachable everywhere — a deleted app REGISTRATION
+# must withhold its orphaned resident, never leak it onto the pane. An OFFERED
+# being with no desk is the roster's normal state and stays promoted.
+_r.AGENTS["_orphan"] = dict(_r.AGENTS["editor"], slug="_orphan", offered=False)
+_r.AGENTS["_colleague"] = dict(_r.AGENTS["editor"], slug="_colleague", offered=True)
+try:
+    _check("an unhoused NON-offered being is withheld (fail closed)",
+           not is_promoted("_orphan"))
+    _check("an unhoused OFFERED being stays promoted (a colleague has no desk)",
+           is_promoted("_colleague"))
+finally:
+    del _r.AGENTS["_orphan"], _r.AGENTS["_colleague"]
+# The apps payload obeys the same exposure rule (ADR-592): `stage: internal`
+# means absent from the served roster, and the lane envelope is served to every
+# member — the Supervisor app must not leak there while it is internal.
+_served_apps = {a["slug"] for a in _L._apps_payload()}
+_check("the apps payload withholds an internal app (supervisor)",
+       "supervisor" not in _served_apps and {"slides", "text", "strings"} <= _served_apps)
 
 print("9. a bound lane names its RESIDENT, not its engine (ADR-602 D5)")
 # The bug: both authoring surfaces resolved the speaker through `agents` (the
@@ -277,8 +299,14 @@ print("9. a bound lane names its RESIDENT, not its engine (ADR-602 D5)")
 # ENGINE label. A member working with Editor read "Message Claude Sonnet 4.6…".
 # A resident is not a hire; it was never going to be on that roster.
 _WEB = API.parent / "web" / "components"
+# EVERY speaker-resolution surface, not a hand-picked pair: DeskHousing mounts
+# the Strings + Text desks and carried this exact defect unexamined until the
+# 2026-08-24 audit — a coverage set that is hand-spelled is the ADR-559
+# vacuity class one layer up. A new desk chrome that resolves a speaker gets a
+# row HERE in the commit that adds it.
 for _rel, _what in (("authoring/StudioSurface.tsx", "Slides"),
-                    ("text/TextEditor.tsx", "Text")):
+                    ("text/TextEditor.tsx", "Text"),
+                    ("desk/DeskHousing.tsx", "Desk housing (Strings/Text)")):
     _src = (_WEB / _rel).read_text()
     _check(f"{_what} reads the beings roster for its speaker label",
            "res.beings" in _src or "env.beings" in _src)
@@ -295,8 +323,9 @@ for _rel, _what in (("authoring/StudioSurface.tsx", "Slides"),
 
 print("10. the surface shows beings, sectioned by where they live (ADR-600 D6)")
 _surface = (API.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
-_check("the surface names the ruling (ADR-600) instead of a blank page",
-       "ADR-600" in _surface)
+# (A former check asserted "ADR-600 in the file" — satisfied solely by the
+# header comment, in direct tension with the no-ADR-in-copy check below.
+# Dropped 2026-08-24: a check a comment can satisfy verifies nothing.)
 _check("no hire machinery survives on the surface",
        "makeAgent" not in _surface and "AgentCard" not in _surface)
 # The failure this section replaces: the predecessor hardcoded "Designer in
@@ -318,7 +347,9 @@ _surface_code = "\n".join(
 )
 _check("the roster is read from the server, not hardcoded in copy",
        "res.beings" in _surface_code and "api.lanes" in _surface_code)
-for _name in ("Designer", "Editor", "Keeper"):
+# Every being's display name, FROM the register — a literal tuple here missed
+# Supervisor the day it landed (audited 2026-08-24).
+for _name in sorted({_b["name"] for _b in AGENTS.values()}):
     _check(f"the surface does not hardcode '{_name}'", _name not in _surface_code)
 _check("both sections exist — housed beings and the offered roster",
        "In an app" in _surface_code and "To work with" in _surface_code)
@@ -326,7 +357,10 @@ _check("both sections exist — housed beings and the offered roster",
 _check("the surface renders provenance from the served field",
        "b.kernel" in _surface_code)
 _check("the surface renders the desk LIST, not a single home",
-       "b.homes" in _surface_code and "b.home " not in _surface_code)
+       "b.homes" in _surface_code
+       # `(?!s)` — any bare `b.home` spelling (`b.home}`, `b.home?`) trips it;
+       # the old trailing-space match let those through.
+       and not _re.search(r"\bb\.home(?!s)", _surface_code))
 # ADR-602 D6 — the per-being page. Depth rides the SANCTIONED param and moves
 # via setSurfaceParams (a pathname flip trips the shell's foreground effects).
 # Both halves: the component must be DEFINED and RENDERED. Checking only the

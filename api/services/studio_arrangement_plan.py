@@ -191,8 +191,10 @@ async def plan_arrangement(
             logger.info("[STUDIO] router off — mechanical arrangement")
             return None, None
 
-        # Slides' resident is Designer (ADR-562: an app's engine follows its
-        # RESIDENT, resolved server-side). The `model` PARAMETER is removed
+        # Slides' resident is EDITOR since ADR-602 D1; this planner still
+        # resolves `designer` deliberately — arrangement planning is MACHINERY
+        # that happens to plan layout, not the desk's voice (ADR-602 D2).
+        # The `model` PARAMETER is removed
         # (2026-08-21): no caller passed it, and it was the same
         # caller-supplied-engine door `routes/images.py` closed on
         # `ComposeRequest.model` — reaching `route_completion` without the

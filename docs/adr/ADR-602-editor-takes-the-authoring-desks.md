@@ -42,6 +42,8 @@ IMAGES is `launcher_tier: search-only` (ADR-488 — off the default Dock, reacha
 
 Filtered server-side, in `_beings_payload`: the pane asks "who works here", and a being the member cannot reach is not an answer to that question.
 
+**Amended 2026-08-24 (audit)**: a being serving NO desk is promoted only if it is `offered`. The original clause promoted every unhoused being, which failed *open* — deleting an app's `register_app` line would have leaked its orphaned resident onto the pane while deleting the surface row correctly withheld it. A colleague (`offered`) legitimately has no desk; a non-offered being with no desk is unreachable everywhere and is withheld.
+
 The cliff is untouched: promotion is presentation, in the same family as `offered`. It answers *is this being's work in front of a member today*, never *what may this being do*.
 
 ## D4 — Icons follow the craft

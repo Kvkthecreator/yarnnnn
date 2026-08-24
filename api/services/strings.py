@@ -527,20 +527,24 @@ def record_string_run(client, user_id: str, decl: StringDecl, *, last_run_at: da
 
 
 def resolve_strings_resident() -> tuple[str, str]:
-    """The standing writer's resident colleague — Keeper.
+    """The standing writer's resident — Keeper today, derived, never assumed.
 
-    The SLUG comes from the app's own registration (ADR-562 D3 — one
-    declaration, read back); model + character come from the character row,
-    where identity/engine/character live (ADR-460). Keeper is a POSTURE over
-    Produce (the Critic shape — a stance, not a fourth addressed operation),
-    so resolution goes through the one folded character namespace, exactly as
-    a lane pinning it does. Returns ``(model, posture)``.
+    The SLUG comes from the app's own registration (ADR-562 D3; ADR-603 D2
+    names this the kernel rule — a declaration names the APP, the agent is
+    derived); model + character come from the being's row in the ONE register
+    (ADR-600). Returns ``(model, posture)``.
+
+    No plausible-default fallback: a strings app with no registered resident
+    is a bug that raises, not a reason to quietly become Keeper (the ADR-548
+    lesson `resident_for_declaration` already states).
     """
     import services.apps  # noqa: F401  (registration side-effect — ADR-562)
     from services.agents_registry import get_agent
     from services.authoring import resident_for_app
 
-    slug = resident_for_app("strings") or "keeper"
+    slug = resident_for_app("strings")
+    if not slug:
+        raise KeyError("the strings app has no registered resident")
     row = get_agent(slug)
     if row is None:  # a registration naming a ghost is a bug, not a fallback
         raise KeyError(f"strings resident {slug!r} is not a kernel character")

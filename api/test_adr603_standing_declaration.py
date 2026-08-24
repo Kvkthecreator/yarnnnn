@@ -43,10 +43,19 @@ def test_the_rule():
     from services.standing_declarations import resident_for_declaration
     from services.authoring import all_apps
 
+    # Anchored to the RATIFIED pairings (ADR-602 D1/D2, ADR-603 D3/D4) — the
+    # first cut compared `resident_for_declaration(slug)` against
+    # `all_apps()[slug]["resident"]`, which is the same value read twice
+    # through the same registry row: unfalsifiable (audited 2026-08-24). A
+    # re-pairing is an ADR decision, and this line is where it gets noticed.
+    _RATIFIED = {"slides": "editor", "text": "editor", "images": "designer",
+                 "strings": "keeper", "supervisor": "supervisor"}
     apps = all_apps()
-    for slug, row in sorted(apps.items()):
-        _assert(resident_for_declaration(slug) == row["resident"],
-                f"a declaration on '{slug}' derives {row['resident']}")
+    _assert(set(apps) == set(_RATIFIED),
+            f"the registered apps are exactly the ratified set ({sorted(apps)})")
+    for slug, want in sorted(_RATIFIED.items()):
+        _assert(resident_for_declaration(slug) == want,
+                f"a declaration on '{slug}' derives {want}")
     _assert(resident_for_declaration("no-such-app") is None,
             "an unregistered app resolves None, never a plausible default")
     _assert(resident_for_declaration(None) is None, "no app named → no executor")
@@ -55,6 +64,15 @@ def test_the_rule():
     # declarations too, rather than each carrying a frozen agent slug.
     _assert(resident_for_declaration("slides") == resident_for_declaration("text"),
             "a re-paired app carries its declarations with it (ADR-602's dividend)")
+    # The rule must hold on the SHIPPED mechanism, not only the thin module:
+    # strings is the first instance (D1), and its resolver must agree with the
+    # kernel rule — two answers here is the ADR-562 second-home failure.
+    from services.agents_registry import AGENTS
+    from services.strings import resolve_strings_resident
+    _model, _posture = resolve_strings_resident()
+    _derived = AGENTS[resident_for_declaration("strings")]
+    _assert(_model == _derived["model"] and _posture == _derived["posture"],
+            "resolve_strings_resident rides the kernel derivation (one answer)")
 
 
 def test_no_key_names_a_being():
@@ -69,6 +87,28 @@ def test_no_key_names_a_being():
     # And no key may be spelled as a live being's slug.
     _assert(not (DECLARATION_KEYS & set(AGENTS)),
             "no declaration key is a being's slug")
+    # The SHIPPED declaration shape obeys the same rule (audited 2026-08-24:
+    # `DECLARATION_KEYS` governs no parser yet — strings' `_string.yaml` is the
+    # live instance, so the cliff must be asserted on ITS fields too, or the
+    # gate defends a whitelist nothing reads while the real schema drifts).
+    import dataclasses
+    from services.strings import StringDecl
+    _fields = {f.name for f in dataclasses.fields(StringDecl)}
+    for banned in ("agent", "resident", "colleague", "assignee", "who"):
+        _assert(banned not in _fields,
+                f"StringDecl (the shipped shape) has no `{banned}` field")
+    _assert(not (_fields & set(AGENTS)),
+            "no StringDecl field is a being's slug")
+    # A `_string.yaml` smuggling an `agent:` key gets it parked in `options`
+    # (unread residue), never an executor — the parser cannot be talked into
+    # naming a being.
+    from services.strings import parse_string_yaml
+    _decl = parse_string_yaml(
+        "target: t/out.md\nschedule: weekly\nagent: editor\n",
+        topic="t", declaration_path="/w/t/_string.yaml")
+    _assert(_decl is not None and _decl.options.get("agent") == "editor"
+            and not hasattr(_decl, "agent"),
+            "an `agent:` key in a _string.yaml is inert residue, never an executor")
 
 
 def test_supervisor_row():

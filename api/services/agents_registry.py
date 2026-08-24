@@ -284,15 +284,20 @@ def is_promoted(slug: str) -> bool:
     Presentation only, in the same family as `offered`: it answers *is this
     being's work in front of a member*, never *what may this being do*.
 
-    A being serving NO desk is promoted — not being housed is `offered`'s
-    question, not this one.
+    A being serving NO desk is promoted only if it is OFFERED — a colleague
+    lives on the roster, so having no desk is its normal state. A non-offered
+    being with no desk is unreachable everywhere, and promoting it would mean
+    a deleted app REGISTRATION leaks its orphaned resident onto the pane
+    (fail-open) while a deleted surface row correctly withholds it. Audited
+    2026-08-24: the asymmetry was real; this fails closed.
     """
     from services.app_stage import launcher_tier_for
     from services.kernel_surfaces import KERNEL_SURFACES
 
     homes = set(homes_for_agent(slug))
     if not homes:
-        return True
+        being = resolve_agent(slug)
+        return bool(being and being.get("offered"))
     return any(
         launcher_tier_for(e) == "primary"
         for e in KERNEL_SURFACES

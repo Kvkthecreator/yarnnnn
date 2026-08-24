@@ -116,8 +116,14 @@ def test_stamp_retired_and_reads_derive():
     core_src = ast.get_source_segment((API / "routes" / "lanes.py").read_text(), core) or ""
     _assert("_lane_agent(" in core_src and "responder != lane_agent" in core_src,
             "the turn derives lane_agent and compares the responder against it")
-    _assert('lane_meta.get("agent")' not in core_src,
-            "the turn no longer reads the raw stamp directly")
+    # Regex over COMMENT-STRIPPED source — `lane_meta['agent']` / `.get( "agent"`
+    # spellings slipped a plain substring match, and the turn core's own history
+    # comment QUOTES the retired spelling (both audited 2026-08-24; a gate that
+    # cannot tell prose from code teaches sessions to reword, not to fix).
+    import re as _re
+    _core_code = "\n".join(l.split("#", 1)[0] for l in core_src.splitlines())
+    _assert(not _re.search(r"lane_meta\s*(\.get\(\s*|\[\s*)['\"]agent['\"]", _core_code),
+            "the turn no longer reads the raw stamp directly (any spelling)")
 
 
 def test_many_to_one():
@@ -146,23 +152,47 @@ def test_many_to_one():
         _assert(bool(homes), f"{slug} reports the desk(s) it serves: {homes}")
         _assert(all(apps[h]["resident"] == slug for h in homes),
                 f"{slug}'s homes each pin it back (the relation is consistent)")
-    _assert(sum(len(homes_for_agent(s)) for s in
-                {a["resident"] for a in apps.values()}) == len(apps),
-            "every registered app is claimed by exactly one being's home list")
+    # The former check here summed `homes_for_agent` over the residents and
+    # compared against `len(apps)` — an identity true by construction for ANY
+    # registry state (audited 2026-08-24). Replaced with a LIVE probe: the
+    # derivation must FOLLOW a new registration with no other edit.
+    from services.authoring import register_app
+    import services.authoring as _authoring
+    register_app("_probe-desk", resident="editor")
+    try:
+        _assert("_probe-desk" in homes_for_agent("editor"),
+                "a new registration appears in its resident's homes, no other edit")
+    finally:
+        # `all_apps()` returns a COPY — the cleanup must hit the registry itself.
+        _authoring._APP_REGISTRY.pop("_probe-desk", None)
+    _assert("_probe-desk" not in homes_for_agent("editor"),
+            "...and the probe registration is gone again")
     # The shape that must NOT come back: a gate naming specific pairings, which
     # would make an ordinary second desk read as a violation. Checked by AST —
     # a substring search here matches THIS check's own assertion literal (it
     # did, on the first cut), which is the a-gate-matches-its-own-text trap
     # one level deeper: not a comment this time, but the check's own code.
+    # Swept over the code the rule GOVERNS, not only this file — the first cut
+    # parsed the test file alone, so the pattern re-appearing in the registry,
+    # the app registrations or a sibling gate was invisible (audited
+    # 2026-08-24, the a-gate-guards-only-itself trap).
     import ast as _ast
-    _tree = _ast.parse((API / "test_adr597_resident_derivation.py").read_text())
-    _cmps = [
-        n for n in _ast.walk(_tree)
-        if isinstance(n, _ast.Compare)
-        and isinstance(n.left, _ast.Name) and n.left.id == "exceptions"
+    _sweep = [
+        API / "test_adr597_resident_derivation.py",
+        API / "test_agent_registry.py",
+        API / "services" / "agents_registry.py",
+        API / "services" / "authoring.py",
+        API / "services" / "apps" / "__init__.py",
     ]
+    _cmps = []
+    for _p in _sweep:
+        for n in _ast.walk(_ast.parse(_p.read_text())):
+            if (isinstance(n, _ast.Compare)
+                    and isinstance(n.left, _ast.Name) and n.left.id == "exceptions"):
+                _cmps.append(_p.name)
     _assert(not _cmps,
-            "no named-exception list survives (sharing is ordinary — ADR-601 D1)")
+            f"no named-exception list survives anywhere it could bind "
+            f"(sharing is ordinary — ADR-601 D1; found: {_cmps or 'none'})")
 
 
 def test_editor_row():
