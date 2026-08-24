@@ -87,7 +87,6 @@ import { PropertiesModal } from '@/components/workspace/PropertiesModal';
 import { FilesViewToggle } from '@/components/workspace/FilesViewToggle';
 import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
-import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
 type FileClickIntent = import('@/types').FileClickIntent;
@@ -1709,13 +1708,10 @@ export default function ContextPage() {
         }
       />
       <div className="flex-1 overflow-auto">
-        {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
-            (ADR-180 + ADR-231 D2). Path shape: /workspace/operation/reports/{slug}. */}
-        {/^\/workspace\/reports\/[^/]+\/?$/.test(viewNode.path) ? (() => {
-          // path = /workspace/operation/reports/{slug}  →  slug at index 3
-          const taskSlug = viewNode.path.split('/')[3];
-          return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
-        })() : (
+        {/* The DeliverableMiddle branch (recurrence report roots) is DELETED
+            — ADR-603 D5 retired recurrences; a /workspace/reports/{slug}
+            folder now renders as an ordinary listing. */}
+        {(
           <ContentViewer
             node={viewNode}
             selection={selection}

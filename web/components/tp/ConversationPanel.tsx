@@ -39,10 +39,6 @@ import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
-import {
-  InlineActionCard,
-  type ActionCardConfig,
-} from '@/components/tp/InlineActionCard';
 import { MessageRow } from '@/components/tp/MessageRow';
 import type { TPMessage } from '@/types/desk';
 import { filterAddressedMessages } from '@/lib/feed-grouping';
@@ -58,7 +54,6 @@ export interface ConversationPanelProps {
   /** Plus menu actions for the input bar */
   plusMenuActions: PlusMenuAction[];
   /** Action card pushed from parent (e.g., panel header buttons) */
-  pendingActionConfig?: ActionCardConfig | null;
   /** Input placeholder text */
   placeholder?: string;
   /**
@@ -102,7 +97,6 @@ export function ConversationPanel({
   locator,
   draftSeed,
   plusMenuActions,
-  pendingActionConfig,
   placeholder = 'Type, drop a file, or paste a link...',
   emptyState,
   showCommandPicker = true,
@@ -126,7 +120,6 @@ export function ConversationPanel({
 
   const [input, setInput] = useState('');
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);
-  const [actionCard, setActionCard] = useState<ActionCardConfig | null>(null);
   // THE scroll policy (2026-08-18) — shared with LanePanel; one rule, two
   // transcripts. Follows the bottom only while the reader is there.
   const { containerRef, contentRef, pinned, scrollToBottom } = useStickToBottom();
@@ -136,32 +129,16 @@ export function ConversationPanel({
   // Composer-side useAutonomy + popover state remains retired (Singular
   // Implementation); autonomy lives on Workspace Settings → Autonomy.
 
-  // Accept action card from parent
-  useEffect(() => {
-    if (pendingActionConfig) {
-      setActionCard(pendingActionConfig);
-    }
-  }, [pendingActionConfig]);
+  // (The inline action card — "Run this / Adjust this" recurrence seeds — is
+  // DELETED with the recurrence concept, ADR-603 D5. No parent ever passed
+  // its config; the plumbing was dead.)
 
   // Parent surfaces can seed the input without sending immediately.
   useEffect(() => {
     if (!draftSeed?.text) return;
     setInput(draftSeed.text);
-    setActionCard(null);
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [draftSeed?.id, draftSeed?.text]);
-
-  const handleActionSelect = (message: string) => {
-    if (message.endsWith(' ')) {
-      setInput(message);
-      setActionCard(null);
-      textareaRef.current?.focus();
-    } else {
-      sendMessage(message, { surface, locator });
-      setActionCard(null);
-      scrollToBottom();
-    }
-  };
 
   const {
     attachments,
@@ -326,16 +303,6 @@ export function ConversationPanel({
                 <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-background border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100"><X className="w-2 h-2" /></button>
               </div>
             ))}
-          </div>
-        )}
-
-        {actionCard && (
-          <div className="mb-2">
-            <InlineActionCard
-              config={actionCard}
-              onSelect={handleActionSelect}
-              onDismiss={() => setActionCard(null)}
-            />
           </div>
         )}
 

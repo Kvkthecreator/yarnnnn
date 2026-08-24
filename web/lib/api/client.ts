@@ -2915,7 +2915,6 @@ export const api = {
     // executionEvents DELETED (ADR-603 D5) — the /activity Runs lens is
     // gone; receipts read through workspace.timeline.
   },
-  },
 
   // ADR-193: Action proposals (approval loop)
   proposals: {
