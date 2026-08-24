@@ -15,7 +15,8 @@
  * surface matches it against the workspace's Agent folders + the kernel set and
  * falls back to list mode when it matches nothing, which is the honest
  * behaviour for a legacy id that no longer names anything.
- * (The hook itself stays — /recurrence and /notifications are live consumers.)
+ * (useAgentsAndRecurrences is DELETED — ADR-603 D5 retired recurrences and
+ * its last consumers with them.)
  *
  * Preserved: `navigateToSurface` with the `agents.`-namespaced param — it keeps
  * the OS shell on /desktop. A bare `router.replace('?agent=')` would be a

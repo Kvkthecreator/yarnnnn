@@ -14,9 +14,11 @@
  * that is deferred AND scoped out of the vision (ADR-380 §5). It is replaced,
  * not siblinged (Singular Implementation).
  *
- * What it shows now is what actually exists: the colleagues a member hires and
- * names (ADR-460 D4 + the personified widening). Nothing here re-opens Rung 2
- * — every pane is identity or capability, never authority.
+ * What it shows now is what actually exists: BEINGS, sectioned by where they
+ * live (ADR-600 D6 — "In an app" residents + the honest "To work with" empty
+ * state; provenance and desks served, ADR-601 D4). The hire machinery is
+ * deleted (ADR-599). Nothing here re-opens Rung 2 — every pane is identity
+ * or capability, never authority.
  *
  * Derivation: docs/analysis/agents-surface-and-debt-2026-07-16.md
  */

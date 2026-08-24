@@ -48,7 +48,7 @@ const SECTIONS = [
     id: "agents",
     kicker: "Intelligence · Agents",
     title: "Agents ready out of the box.",
-    body: "A thinker, a researcher, a designer — ready to talk from the first minute. Hire one, give it a name and a manner, and it works on your files as you, with every edit kept in the file's history. Swap the engine any time; the name and the work stay.",
+    body: "Every app comes with its own colleague — an editor for your decks and documents, a keeper for the files you want kept current. They work on your files as you, with every edit attributed and kept in the file's history. You meet them where the work is, from the first minute.",
     Mock: AgentsReplica,
   },
 ];
