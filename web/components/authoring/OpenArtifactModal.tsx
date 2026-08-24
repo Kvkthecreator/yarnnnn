@@ -34,7 +34,8 @@ const isProsePath = (p: string) => /\.(md|markdown|txt)$/i.test(p);
 /** Apps whose artifacts appear in the served `/studio/artifacts` index — the
  *  HTML-authoring apps. A prose app (ADR-571) has no row there and scopes by
  *  the type registry alone. */
-const SERVED_INDEX_APPS = new Set(['docs', 'studio', 'images']);
+// ADR-599: `docs` deleted with its app; `studio` renamed `slides`.
+const SERVED_INDEX_APPS = new Set(['slides', 'images']);
 
 interface OpenArtifactModalProps {
   open: boolean;

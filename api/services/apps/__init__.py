@@ -55,7 +55,11 @@ declaration per app and that every registered app names a resolvable resident.
 # question entirely: `resident_for_app` cannot be reached without
 # `services.authoring`, and any caller that resolves an app imports THIS.
 # A new app adds its line here — one place, checked by the gate.
-from services.apps import docs as docs  # noqa: F401,E402  (registration side-effect)
+# docs (ADR-518) — DELETED by ADR-599 D5. It was `stage: internal` since
+# ADR-592 with its future deferred; the operator has since named that future
+# (a blogger app + agent pairing, its own arc), which made Docs dormant
+# machinery with no successor claim. Its 11 live flow-family artifacts remain
+# as files; /docs still redirects to /text.
 from services.apps import images as images  # noqa: F401,E402  (registration side-effect)
 # text (ADR-571) — the prose-currency app. Registers itself in its own module
 # (the Docs shape), because `services/apps/text.py` also holds the lane's job

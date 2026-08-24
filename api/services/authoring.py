@@ -124,7 +124,7 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "convertible": True,
         "elements": ("aside",),
         "promote": False,
-        "apps": ("studio",),
+        "apps": ("slides",),
         "description": "A visually offset aside that highlights one point.",
         "markup": '<aside data-block="callout" data-block-id="b2"><p>…</p></aside>',
     },
@@ -203,7 +203,7 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "convertible": True,
         "elements": ("details",),
         "promote": False,
-        "apps": ("studio",),
+        "apps": ("slides",),
         "description": "A collapsible section — a summary line that expands.",
         "markup": '<details data-block="toggle" data-block-id="b10"><summary>Summary line</summary><p>…</p></details>',
     },
@@ -232,7 +232,7 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     # rendering (ADR-511 D8 — the kernel card CSS below stays for it); what
     # changed is what the door OFFERS: picking Component opens the library.
     #
-    # `apps: ("studio",)` unchanged (the ADR-528 D5 scoping).
+    # `apps: ("slides",)` unchanged (the ADR-528 D5 scoping; slug renamed by ADR-599).
     "component": {
         "label": "Component",
         "tier": "object",
@@ -240,7 +240,7 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
         "convertible": False,
         "elements": ("div",),
         "promote": False,
-        "apps": ("studio",),
+        "apps": ("slides",),
         "description": "A composed component CITED from the workspace library (a *.component.html fragment).",
         "markup": '<div data-block="component" data-block-id="b16" data-ref="operation/components/card.component.html" data-ref-kind="component" data-ref-rev="<head-rev-id>"></div>',
     },
@@ -554,15 +554,15 @@ STUDIO_LAYOUT_MODES = ("flow", "paged")
 #: THE MEDIA ARE THREE (ADR-505 D1) — `document` · `deck` · `web`, one type per
 #: medium the member actually works in — and THE HOUSINGS ARE TWO (ADR-518 D1):
 #:
-#:   document — CAPTURE. Notes, drafts, working docs. Continuous, internal,
-#:              revised forever. Notion-class, never Word-class (no pagination,
-#:              ADR-480 D6). The workspace's centre of gravity. OWNED BY DOCS —
-#:              the row lives in `services/docs.py::DOCS_LAYOUTS` (the app
-#:              boundary is the MODULE, ADR-473 D2) and registers below.
 #:   deck     — PRESENT. A framed stage, spoken over. PowerPoint-class: the only
 #:              type with a coordinate space, because the only one with a frame.
-#:   web      — PUBLISH. A banded page read by someone OUTSIDE the workspace.
-#:              Medium/Wix-class: band sequence + typography, no placement.
+#:              Since ADR-599 D5 it is the ONLY registered type: `document`
+#:              (capture prose) belongs to the Text app's medium now, the Docs
+#:              app is deleted, and `web` (publish) is deleted with its future
+#:              named as a separate blogger-app arc. Existing document/article/
+#:              page artifacts remain as files; the kernel CSS below still
+#:              renders them — a type leaving the registry stops CREATION,
+#:              never the reading of what exists.
 #:
 #: This table therefore carries STUDIO'S OWN TWO — the paged/layout media. The
 #: type SET is unchanged by the split (no fourth type, ADR-505 stands); only
@@ -582,7 +582,7 @@ STUDIO_LAYOUT_MODES = ("flow", "paged")
 #: for it here; the app boundary is the MODULE (ADR-473 D2).
 STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     "deck": {
-        "app": "studio",
+        "app": "slides",
         "label": "Deck",
         "mode": "paged",
         "description": "A slide deck — one idea per slide, spoken over.",
@@ -642,78 +642,6 @@ STUDIO_LAYOUTS: dict[str, dict[str, str]] = {
     </div>
   </div>
 </section>""",
-    },
-    # ADR-505 D2: the OUTWARD type — `article` and `page` merged. Both answered
-    # one question ("HTML for someone outside the workspace"); the split asked
-    # the member to pre-classify an essay against a landing page before writing
-    # a word, and neither was ever used for real work (2 articles + 1 page at
-    # the cut, all `test-*`). The band stack serves both: a `prose-header` band
-    # opens a blog post, `hero`/`cta` open a landing page, and the difference is
-    # which bands you stack — a composition choice, not a type.
-    #
-    # BAND-FIRST, NEVER OBJECT-FIRST (ADR-505 D3). No x/y/z here, ever: a web
-    # page has a VIEWPORT, not a frame (ADR-461 D4), so a percentage position
-    # means something different at every width and pinning it is per-breakpoint
-    # editing. The reference class agrees — Medium, Substack, Ghost ship zero
-    # positional control; the tools that do (Framer/Webflow) pay with a
-    # breakpoint editor we refuse. Geometry is unreachable here STRUCTURALLY:
-    # `block-staged` tests `.slide` ancestry and a web band is not a slide.
-    "web": {
-        "app": "studio",
-        "label": "Web",
-        "mode": "paged",
-        "description": "A published page — blog post, essay, landing page.",
-        "flow": (
-            "one <main> of full-width section BANDS, each <section data-arrange=…> "
-            "stacked vertically. A blog post or essay opens with a `prose-header` "
-            "band (kicker/h1/standfirst/byline) and continues in `content` bands; "
-            "a landing page opens with a `hero` (kicker + h1 promise + tagline + "
-            "button), stacks feature/testimonial bands, and closes on a "
-            "call-to-action. Band content centers itself in a reading column; a "
-            "band may wear a cited background image (data-ref + "
-            "data-ref-kind=\"background\" on the section) with a data-scrim for "
-            "legibility. Written to be read by someone OUTSIDE the workspace — "
-            "never position blocks (a page has a viewport, not a frame)."
-        ),
-        "skin": """
-    section[data-arrange] { padding: 4rem 1.5rem; }
-    section[data-arrange] > * { max-width: 56rem; margin-left: auto; margin-right: auto; }
-    section[data-arrange="hero"] { padding: 6rem 1.5rem; text-align: center; }
-    h1 { font-size: var(--text-4xl, 2.6rem); margin-bottom: 0.75rem; }
-    .kicker { color: var(--accent); font-size: var(--text-sm, 0.85rem); letter-spacing: 0.08em;
-              text-transform: uppercase; margin-bottom: 1rem; }
-    .tagline { font-size: var(--text-lg, 1.2rem); color: var(--muted); }
-    section[data-arrange] h2 { font-size: var(--text-2xl, 1.8rem); margin-bottom: 1rem; }
-    /* The long-form band: a narrower reading column than a landing band, and a
-       byline. This is the article shape, expressed as a band. */
-    section[data-arrange="prose-header"] { padding: 5rem 1.5rem 2rem; }
-    section[data-arrange="prose-header"] > *,
-    section[data-arrange="prose"] > * { max-width: 42rem; }
-    section[data-arrange="prose-header"] .standfirst { font-size: var(--text-lg, 1.15rem);
-              color: var(--muted); }
-    section[data-arrange="prose-header"] .byline { font-size: var(--text-sm, 0.85rem);
-              color: var(--muted); margin-top: 1rem; letter-spacing: 0.02em; }
-    section[data-arrange="prose"] { padding: 1rem 1.5rem; }
-    section[data-arrange="prose"] [data-block="prose"] p { margin: 1rem 0; }
-""".strip("\n"),
-        "scaffold": """<main>
-  <section data-arrange="hero">
-    <div data-area="main" data-area-role="body">
-      <p class="kicker" data-block="heading" data-block-id="k1">Untitled page</p>
-      <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
-      <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
-      <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
-    </div>
-  </section>
-  <section data-arrange="content">
-    <div data-area="heading" data-area-role="heading">
-      <h2 data-block="heading" data-block-id="t2">First section</h2>
-    </div>
-    <div data-area="main" data-area-role="body">
-      <div data-block="prose" data-block-id="b1"><p>Start here.</p></div>
-    </div>
-  </section>
-</main>""",
     },
 }
 
@@ -917,132 +845,6 @@ STUDIO_ARRANGEMENTS: dict[str, dict[str, dict]] = {
     <p class="kicker" data-block="heading" data-block-id="k1">Thank you</p>
     <h1 data-block="heading" data-block-id="t1">The closing line.</h1>
     <p data-block="heading" data-block-id="f1">Contact · next step</p>
-  </div>
-</section>""",
-        },
-    },
-    # ADR-456 D4 (Wave 3): the web layout's band family — the builder-class
-    # section stack (hero · content · features · testimonial · CTA · footer),
-    # widened by ADR-505 D2 with the two LONG-FORM bands that carry what the
-    # `article` layout used to be (prose-header · prose). The registry key is
-    # `web`; the `grain: page` field is unrelated — that is the page-GRAIN of the
-    # arrangement (whole-page vs section-band), untouched by the rename.
-    "web": {
-        "prose-header": {
-            "label": "Article header",
-            "description": "The long-form opening — kicker, title, standfirst, byline.",
-            "grain": "page",
-            # `main`/body, not `heading`: the byline sits alongside the headings
-            # and the role ladder routes body content PAST a heading-role Area.
-            "areas": [{"name": "main", "role": "body"}],
-            "fragment": """<section data-arrange="prose-header">
-  <div data-area="main" data-area-role="body">
-    <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
-    <h1 data-block="heading" data-block-id="t1">The title of the piece.</h1>
-    <p class="standfirst" data-block="heading" data-block-id="s1">The one-sentence promise to the reader.</p>
-    <p class="byline" data-block="heading" data-block-id="y1">Byline · Date</p>
-  </div>
-</section>""",
-        },
-        "prose": {
-            "label": "Prose",
-            "description": "A narrow reading column — the body of a post or essay.",
-            "grain": "page",
-            "areas": [{"name": "main", "role": "body"}],
-            "fragment": """<section data-arrange="prose">
-  <div data-area="main" data-area-role="body">
-    <div data-block="prose" data-block-id="b1"><p>Start writing.</p></div>
-  </div>
-</section>""",
-        },
-        "hero": {
-            "label": "Hero",
-            "description": "The headline band — kicker, promise, tagline, button.",
-            "grain": "page",
-            # `main`/body, not `heading`: this band carries a button alongside
-            # its headings, and the role ladder routes body content PAST a
-            # heading-role Area — a hero declared `heading` would take content
-            # only via the last-resort fallback. The name describes what the
-            # region actually holds.
-            "areas": [{"name": "main", "role": "body"}],
-            "fragment": """<section data-arrange="hero">
-  <div data-area="main" data-area-role="body">
-    <p class="kicker" data-block="heading" data-block-id="k1">Kicker</p>
-    <h1 data-block="heading" data-block-id="t1">The headline promise.</h1>
-    <p class="tagline" data-block="heading" data-block-id="s1">One sentence expanding on it.</p>
-    <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
-  </div>
-</section>""",
-        },
-        "content": {
-            "label": "Content",
-            "description": "A heading with content below.",
-            "grain": "page",
-            "areas": [
-                {"name": "heading", "role": "heading"},
-                {"name": "main", "role": "body"},
-            ],
-            "fragment": """<section data-arrange="content">
-  <div data-area="heading" data-area-role="heading">
-    <h2 data-block="heading" data-block-id="t1">Section title</h2>
-  </div>
-  <div data-area="main" data-area-role="body"></div>
-</section>""",
-        },
-        "feature-grid": {
-            "label": "Feature grid",
-            "description": "A heading over three side-by-side features.",
-            "grain": "page",
-            "areas": [
-                {"name": "heading", "role": "heading"},
-                {"name": "a", "role": "body", "place": "left"},
-                {"name": "b", "role": "body", "place": "center"},
-                {"name": "c", "role": "body", "place": "right"},
-            ],
-            "fragment": """<section data-arrange="feature-grid">
-  <div data-area="heading" data-area-role="heading">
-    <h2 data-block="heading" data-block-id="t1">Section title</h2>
-  </div>
-  <div class="cols">
-    <div class="col" data-area="a" data-area-role="body" data-area-place="left"><div data-block="prose" data-block-id="b1"><h3>Feature</h3><p>One sentence on it.</p></div></div>
-    <div class="col" data-area="b" data-area-role="body" data-area-place="center"><div data-block="prose" data-block-id="b2"><h3>Feature</h3><p>One sentence on it.</p></div></div>
-    <div class="col" data-area="c" data-area-role="body" data-area-place="right"><div data-block="prose" data-block-id="b3"><h3>Feature</h3><p>One sentence on it.</p></div></div>
-  </div>
-</section>""",
-        },
-        "testimonial": {
-            "label": "Testimonial",
-            "description": "One centered quote with attribution.",
-            "grain": "page",
-            "areas": [{"name": "main", "role": "body"}],
-            "fragment": """<section data-arrange="testimonial">
-  <div data-area="main" data-area-role="body">
-    <blockquote data-block="quote" data-block-id="q1"><p>What a customer said.</p><cite>Name, role</cite></blockquote>
-  </div>
-</section>""",
-        },
-        "cta": {
-            "label": "Call to action",
-            "description": "A closing ask — heading and button, centered.",
-            "grain": "page",
-            # `main`/flow for the same reason as `hero` — the band holds a
-            # button, not headings alone.
-            "areas": [{"name": "main", "role": "body"}],
-            "fragment": """<section data-arrange="cta" data-tone="accent">
-  <div data-area="main" data-area-role="body">
-    <h2 data-block="heading" data-block-id="t1">The closing ask.</h2>
-    <p data-block="button" data-block-id="c1"><a href="https://…">Call to action</a></p>
-  </div>
-</section>""",
-        },
-        "footer": {
-            "label": "Footer",
-            "description": "A quiet closing band — fine print, contact.",
-            "grain": "page",
-            "areas": [{"name": "main", "role": "body"}],
-            "fragment": """<section data-arrange="footer">
-  <div data-area="main" data-area-role="body">
-    <div data-block="prose" data-block-id="b1"><p>Fine print · contact · attribution.</p></div>
   </div>
 </section>""",
         },
@@ -2161,7 +1963,18 @@ def ensure_kernel_style_in_html(artifact_html: str) -> str:
 #: covers Docs' document and IMAGES' stage as well as Studio's own rows.
 #: (The prior frozen derivation read STUDIO_LAYOUTS only, which silently
 #: missed the IMAGES scaffold and would have lost `document` at the carve.)
-_SCAFFOLD_TITLES: set[str] = set()
+#: LEGACY placeholders from DELETED layouts (ADR-599 D5) — the derivation
+#: source is gone while the DATA persists: live pre-599 artifacts still carry
+#: these scaffold texts, and dropping them from the set would resurrect the
+#: pre-ADR-469 defect (a placeholder reading as the artifact's NAME) on
+#: exactly those files. Data-compat, like retired slugs: extend only when a
+#: layout with live artifacts is deleted.
+_LEGACY_SCAFFOLD_TITLES: frozenset[str] = frozenset({
+    "Untitled document",       # Docs' `document` (deleted with the app)
+    "The headline promise.",   # the `web` layout's h1 thesis
+})
+
+_SCAFFOLD_TITLES: set[str] = set(_LEGACY_SCAFFOLD_TITLES)
 
 
 def _scaffold_title(lay: dict) -> str | None:
@@ -2512,7 +2325,7 @@ def resolve_arrangements(slug: str) -> dict:
 # home being here costs nothing: it declares through the same door as the
 # others, and the DOOR is what makes app config uniform, never the file path.
 register_layouts(STUDIO_LAYOUTS, STUDIO_ARRANGEMENTS)
-register_app("studio", resident="designer")
+register_app("slides", resident="designer")
 
 
 def build_skeleton(layout: str, title: str | None = None) -> str:
@@ -2558,7 +2371,7 @@ def build_skeleton(layout: str, title: str | None = None) -> str:
 
 #: The creation-time registry (API surface of routes/studio.py — shape kept
 #: stable from ADR-440). Derived: a template IS a layout + its starters.
-DEFAULT_APP = "studio"
+DEFAULT_APP = "slides"
 
 
 def app_for_kind(kind: Optional[str]) -> Optional[str]:

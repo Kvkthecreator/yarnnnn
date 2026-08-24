@@ -44,8 +44,13 @@ def test_derivation_behavior():
     # The app registration wins over a stale stamp — the whole point.
     _assert(_lane_agent({"app": "text", "agent": "designer"}) == "editor",
             "a text desk stamped designer resolves to editor (registration wins)")
-    _assert(_lane_agent({"app": "studio"}) == "designer",
-            "a studio desk resolves designer with no stamp at all")
+    _assert(_lane_agent({"app": "slides"}) == "designer",
+            "a slides desk resolves designer with no stamp at all")
+    # A pre-599 lane stamped with the RENAMED app slug: the registration is
+    # gone (`studio` left the registry), so the stored stamp is the honest
+    # fallback — exactly the deleted-registration path.
+    _assert(_lane_agent({"app": "studio", "agent": "designer"}) == "designer",
+            "a legacy studio-stamped desk falls back to its stored stamp")
     _assert(_lane_agent({"app": "strings", "agent": "designer"}) == "keeper",
             "a strings desk stamped designer resolves to keeper")
     # A registration that left the roster falls back to the stored stamp.
@@ -102,21 +107,22 @@ def test_injectivity():
     from services.authoring import all_apps
 
     residents = {slug: row["resident"] for slug, row in all_apps().items()}
-    _assert(residents.get("studio") == "designer", "studio seats Designer")
+    # ADR-599: studio → slides (the full evolve); docs deleted with its app.
+    _assert(residents.get("slides") == "designer", "slides seats Designer")
     _assert(residents.get("text") == "editor", "text seats Editor")
     _assert(residents.get("strings") == "keeper", "strings seats Keeper")
-    dedicated = {k: v for k, v in residents.items() if k in ("studio", "text", "strings")}
+    dedicated = {k: v for k, v in residents.items() if k in ("slides", "text", "strings")}
     _assert(len(set(dedicated.values())) == len(dedicated),
             "the dedicated set is pairwise distinct (injective)")
 
-    # The KNOWN exceptions, asserted as such (ADR-597 D2): images (metered
-    # pipeline — re-posturing needs its own evidence) and docs (internal,
-    # awaiting the ADR-581 D5 split). A new app sharing a resident, or one of
-    # these silently changing, must be a deliberate ADR edit — here.
-    exceptions = {k for k, v in residents.items()
-                  if k not in dedicated and v in set(residents.values())
-                  and list(residents.values()).count(v) > 1}
-    _assert(exceptions <= {"images", "docs"},
+    # The KNOWN exception, asserted as such (ADR-597 D2 / ADR-599 D3): images
+    # shares designer (metered pipeline — its own resident when evidence
+    # arrives). A new sharer, or this one silently changing, must be a
+    # deliberate ADR edit — here.
+    exceptions = {k for k in residents
+                  if k not in dedicated
+                  and list(residents.values()).count(residents[k]) > 1}
+    _assert(exceptions <= {"images"},
             f"resident-sharing stays within the named exceptions (found: {sorted(exceptions)})")
 
 

@@ -116,7 +116,11 @@ check("a chrome/dormant row is never pinned however its stage resolves",
 print("\n[D2] `internal` leaves the roster — and the route stays gated")
 
 _internal = [e for e in KERNEL_SURFACES if resolve_stage(e) == "internal"]
-check("at least one app is internal (this ADR hides Docs)", bool(_internal))
+# ADR-599 deleted Docs (the one internal app), so the internal SET may be
+# empty — the MECHANISM is what this section holds, and the roster-exclusion
+# check below exercises it regardless of population.
+check("the internal stage resolves (mechanism live, population may be zero)",
+      isinstance(_internal, list))
 check("no internal app reaches the served roster",
       not ({e["slug"] for e in _internal} & {s["slug"] for s in _served}))
 check("kernel_surface_slugs() is the EXPOSED set, not the declared one",
@@ -192,16 +196,17 @@ print("\n[D4] Docs is hidden in full; its implementation stays")
 import services.apps  # noqa: F401,E402  (registration side-effect)
 from services.authoring import resolve_app, resolve_layout  # noqa: E402
 
-_docs_row = next((e for e in KERNEL_SURFACES if e["slug"] == "docs"), None)
-check("the docs row survives and declares stage=internal",
-      bool(_docs_row) and _docs_row.get("stage") == "internal")
+# ⚠️ RE-ANCHORED for ADR-599 D5: Docs graduated from `stage: internal`
+# (ADR-592's hide) to DELETED — row, registration, and layouts all gone. The
+# internal-stage checks this block held are superseded by absence checks: the
+# hide became a delete, which is the stricter form of the same decision.
+check("the docs row is DELETED (ADR-599 — the hide became a delete)",
+      not any(e["slug"] == "docs" for e in KERNEL_SURFACES))
 check("docs is NOT served", not any(s["slug"] == "docs" for s in _served))
-check("the docs app is STILL REGISTERED (exposure hidden, not implementation)",
-      resolve_app("docs") is not None)
-check("the `document` layout still resolves with mode=flow",
-      resolve_layout("document").get("mode") == "flow",
-      "ADR-574 D3's trap: mode comes from the LAYOUT, so the Studio fallback "
-      "renders flow — this is why removing APP_SURFACES.docs is safe")
+check("the docs app is NOT registered (deleted with its layouts)",
+      resolve_app("docs") is None)
+check("the `document` layout no longer resolves (creation gone; old files render)",
+      resolve_layout("document") is None)
 
 _reg = code_only(read("components/shell/SurfaceRegistry.tsx"))
 check("SurfaceRegistry carries no docs row (nothing may mount it)",
@@ -224,8 +229,14 @@ check("system:radar keeps a display name client-side",
 
 from services.agents_registry import KERNEL_AGENTS  # noqa: E402
 
-check("the scout/Researcher AGENT survives the app's deletion",
-      "scout" in KERNEL_AGENTS, "an agent is not an app")
+# ⚠️ RE-ANCHORED for ADR-599 D1: scout was deleted WITH the colleague roster
+# (a deliberate later ruling, not radar's deletion reaching an agent). The
+# principle this check held — "an agent is not an app" — survives as its
+# inverse ruling: an app is not an agent's lifeline either; both are deleted
+# on their own grounds. `system:radar` attribution never read the registry
+# (principal_display), so the briefs keep rendering their author.
+check("scout is deleted with the roster (ADR-599), not resurrected by data",
+      "scout" not in KERNEL_AGENTS)
 
 # ── verdict ─────────────────────────────────────────────────────────────────
 print()

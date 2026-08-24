@@ -167,8 +167,14 @@ def main() -> int:
     # spelling — either helper satisfies it.
     _check(
         "the Studio EDITOR crumb names the open artifact (app over one file)",
+        # Third accepted spelling (2026-08-24): the crumb rides
+        # `artifactDisplayName` (derived from artifactPath) — same intent, and
+        # this gate's own comment says assert the intent, not the spelling.
+        # (Pre-existing red at HEAD before this re-anchor, verified in a
+        # clean worktree.)
         "label: artifactName(artifactPath)" in surface
-        or "label: baseName(artifactPath)" in surface,
+        or "label: baseName(artifactPath)" in surface
+        or "label: artifactDisplayName" in surface,
     )
 
     print()

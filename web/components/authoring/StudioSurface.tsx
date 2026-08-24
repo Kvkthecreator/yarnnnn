@@ -302,7 +302,7 @@ export interface AuthoringApp {
    *  the app identity the kernel's type→app association keys on (ADR-473 D2).
    *  Which shapes this app offers and which artifacts are its own are both
    *  DERIVED from that association — never listed here (ADR-473 D3). */
-  slug: 'docs' | 'studio' | 'images';
+  slug: 'slides' | 'images';
   /** Operator-readable app name — the one fact the chrome shows (ADR-518 D7
    *  retired the per-site slug ternaries in favor of this declaration). */
   label: string;
@@ -318,18 +318,15 @@ export interface AuthoringApp {
   dimensionsFirst?: boolean;
 }
 
-export const DOCS_APP: AuthoringApp = {
-  slug: 'docs',
-  label: 'Docs',
-  tagline:
-    'Name a document and start writing — or describe what you want in plain words and the draft takes shape live, pulling in your files, images, and data as it goes.',
-  icon: FileText,
-};
+// DOCS_APP was DELETED by ADR-599 D5 with its app; the writing medium's
+// future is a separate blogger-app arc.
 export const STUDIO_APP: AuthoringApp = {
-  slug: 'studio',
-  label: 'Studio',
+  // ADR-599 D4 — the full evolve: member-facing identity is Slides (slug,
+  // label, route); the component tree keeps its internal Studio name (D6).
+  slug: 'slides',
+  label: 'Slides',
   tagline:
-    'Pick a shape, name it, then describe what you want in plain words — it takes shape live, pulling in your files, images, and data as it goes.',
+    'Name a deck, then describe what you want in plain words — it takes shape live, slide by slide, pulling in your files, images, and data as it goes.',
   icon: Palette,
 };
 export const IMAGES_APP: AuthoringApp = {

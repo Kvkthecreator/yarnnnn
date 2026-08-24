@@ -75,27 +75,20 @@ def run() -> bool:
            "if (kind === 'background') return;" in proj)
 
     # ── 3. The banded layout — `page`, renamed `web` by ADR-505 D2 ───────
-    # W3's band family is intact; the layout it belongs to absorbed `article`
-    # and took the outward-facing name. The retired slug still RESOLVES (a
-    # pre-cut artifact keeps rendering) but is never offered.
-    _check("web is the banded layout (templates derive)",
-           "web" in STUDIO_LAYOUTS and "web" in STUDIO_TEMPLATES)
-    _check("the W3 band family survives the rename",
-           set(STUDIO_ARRANGEMENTS.get("web", {}))
-           >= {"hero", "content", "feature-grid", "testimonial", "cta", "footer"})
-    _check("ADR-505 D2 added the two long-form bands (the article shape)",
-           {"prose-header", "prose"} <= set(STUDIO_ARRANGEMENTS.get("web", {})))
-    _check("the hero leads the web scaffold",
-           'data-arrange="hero"' in build_skeleton("web")
-           and 'data-template="web"' in build_skeleton("web"))
-    _check("cta band rides the tone token (no new mechanism)",
-           'data-tone="accent"' in STUDIO_ARRANGEMENTS["web"]["cta"]["fragment"])
-    # ADR-544 D2 — three BODY Areas (the role set is heading|body|media|aside),
-    # under one heading Area the band gained when the containment law landed.
-    _check("feature-grid declares three body Areas",
-           [s["role"] for s in STUDIO_ARRANGEMENTS["web"]["feature-grid"]["areas"]
-            if s["role"] != "heading"]
-           == ["body", "body", "body"])
+    # ⚠️ RE-ANCHORED for ADR-599 D5: the `web` layout (and with it the W3 band
+    # family + the ADR-505 D2 long-form bands) is DELETED — the app's full
+    # evolve into Slides made the deck the one medium, and the banded/article
+    # shape's future is a separate blogger-app arc. What this section now
+    # holds is the ABSENCE: the layout must not quietly return outside that
+    # arc, and the deck registry must not have absorbed its bands.
+    _check("the web layout is deleted (creation gone; old artifacts render via kernel CSS)",
+           "web" not in STUDIO_LAYOUTS and "web" not in STUDIO_TEMPLATES
+           and "web" not in STUDIO_ARRANGEMENTS)
+    _check("the deck did not absorb the band family",
+           not ({"hero", "cta", "prose-header", "prose"}
+                & set(STUDIO_ARRANGEMENTS.get("deck", {}))))
+    # (feature-grid's three-body-Areas check retired with the web layout,
+    # ADR-599 D5 — the band family is deleted, held above as an absence.)
     # The base rule later widened to all [data-arrange] (kernel evolution); the
     # deck exemption lives in the responsive STACKING rule, which is the part
     # that must stay non-slide (a deck slide is a fixed stage, never stacks).
@@ -149,8 +142,7 @@ def run() -> bool:
     posture = build_studio_posture("/workspace/operation/x/p.html", build_skeleton("page"))
     _check("posture teaches the cited background (never inline style)",
            'data-ref-kind="background"' in posture and "data-scrim=" in posture)
-    _check("posture lists the page bands (registry-derived)",
-           "hero — " in posture and "feature-grid — " in posture)
+    # ("posture lists the page bands" retired with the web layout, ADR-599 D5.)
 
     print()
     failed = [label for label, ok in _results if not ok]

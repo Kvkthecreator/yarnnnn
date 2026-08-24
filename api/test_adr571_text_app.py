@@ -158,7 +158,7 @@ const out = {
   txt_routes_text: surfaceOf('/workspace/Documents/log.txt') === 'text',
   arrival_not_claimed: surfaceOf('/workspace/inbound/mcp/observed.md') === null,
   machine_leaf_not_claimed: surfaceOf('/workspace/x/_feedback.md') === null,
-  html_still_authoring: ['docs', 'studio', 'images'].includes(surfaceOf('/workspace/x/document.html')),
+  html_still_authoring: ['slides', 'images'].includes(surfaceOf('/workspace/x/document.html')), // ADR-599: docs deleted, studio→slides
   image_unclaimed: surfaceOf('/workspace/x/shot.png') === null,
 };
 console.log(JSON.stringify(out));

@@ -85,7 +85,7 @@ const LEGACY_AND_STUB_PREFIXES = [
   "/docs", // ADR-592 — redirect stub → /text (was the ADR-518 Docs app)
   "/radar", // ADR-592 — redirect stub → /files (the ADR-486 app is deleted)
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
-  "/studio", // ADR-440 — the Studio authoring surface (bound lane + live canvas)
+  "/studio", // ADR-599 — redirect stub → /slides (Studio's full evolve; slug left the roster)
   // Legacy routes still protected for redirect stubs
   "/backend",    // ADR-265 — redirect stub → /activity
   "/schedule",

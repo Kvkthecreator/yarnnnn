@@ -45,7 +45,7 @@ def _h1(html: str):
 
 def main() -> int:
     from services.naming import disambiguate, path_slug
-    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
+    import services.apps  # noqa: F401 — registration side-effect (ADR-599: docs deleted)
     from services.authoring import (
         all_layouts,
         all_templates,
@@ -88,9 +88,16 @@ def main() -> int:
     # the lift made content win, such a file read as "Untitled document" — and a
     # member clicking a card so labelled opened `prd-for-yarnnn`. Found by
     # browser test 2026-07-20; one live file was affected.
-    doc_sk = all_templates()["document"]["skeleton"]
+    # ADR-599: the `document` LAYOUT is deleted with Docs, but the DATA it
+    # scaffolded persists — live pre-599 artifacts still carry the "Untitled
+    # document" placeholder, so the fall-through must keep firing for them
+    # (`_LEGACY_SCAFFOLD_TITLES` in authoring.py — deleting the layout must
+    # not resurrect the pre-ADR-469 defect on existing files). The checks now
+    # run against a minimal legacy-document body instead of the retired
+    # template.
+    doc_sk = "<html><head><title>Untitled document</title></head><body></body></html>"
     _check(
-        "a stale placeholder falls THROUGH to the real folder name",
+        "a LEGACY stale placeholder falls THROUGH to the real folder name",
         artifact_name("/workspace/operation/prd-for-yarnnn/document.html", doc_sk)
         == "Prd for yarnnn",
     )
@@ -175,16 +182,16 @@ def main() -> int:
     # derived from the path) makes the h1 look AUTHORED, so set_artifact_title's
     # placeholder guard then refuses to replace it — the member's later rename
     # would silently no-op on the h1, forever.
-    doc = all_templates()["document"]["skeleton"]
+    doc = all_templates()["deck"]["skeleton"]  # ADR-599: document deleted; the guard is layout-agnostic
     renamed_from_placeholder = set_artifact_title(doc, "My real name", set_h1=True)
     _check(
         "a rename REPLACES the untouched placeholder (the offer works)",
         _h1(renamed_from_placeholder) == "My real name",
     )
-    invented = set_artifact_title(doc, "Untitled document 2", set_h1=True)
+    invented = set_artifact_title(doc, "Untitled deck 2", set_h1=True)
     _check(
         "…but an INVENTED name is frozen: the guard treats it as authored",
-        _h1(set_artifact_title(invented, "My real name", set_h1=True)) == "Untitled document 2",
+        _h1(set_artifact_title(invented, "My real name", set_h1=True)) == "Untitled deck 2",
     )
     _check(
         "so creation leaves the skeleton alone when no name is given",

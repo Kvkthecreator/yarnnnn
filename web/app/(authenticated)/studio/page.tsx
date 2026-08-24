@@ -1,16 +1,14 @@
-'use client';
-
 /**
- * /studio — the Studio surface route (ADR-440).
+ * /studio → /slides redirect stub (ADR-599 D4 — Studio's full evolve).
  *
- * The first authoring app: a bound lane (left) authors one HTML artifact
- * while the canvas (right) renders it live. Thin wrapper — the surface
- * component owns everything; the window manager owns the frame
- * (window = surface, ADR-436).
+ * Pure server transport (ADR-308): never 'use client' + useEffect. Query
+ * params (e.g. ?file=…) are NOT carried — the shell's surface params are
+ * window-internal state, and a stale deep link lands on the Slides surface
+ * itself, which restores its own posture.
  */
 
-import { StudioSurface } from '@/components/authoring/StudioSurface';
+import { redirect } from 'next/navigation';
 
-export default function StudioPage() {
-  return <StudioSurface />;
+export default function StudioRedirect() {
+  redirect('/slides');
 }

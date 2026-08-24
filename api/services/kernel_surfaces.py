@@ -266,75 +266,31 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/chat",
         "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
     },
-    {
-        # ADR-518 (2026-08-04) — DOCS, the WRITING app. Carved from Studio
-        # along the mode seam ({document} vs {deck, web}): the flow medium's
-        # caret-first editor gets its own door, recents, and default handler,
-        # over the SAME shared authoring machinery (one grammar, one write
-        # door — the split is housing, not a fork; the /images precedent
-        # re-run). Owns the `document` type via services/docs.py's registered
-        # row (the app boundary is the MODULE, ADR-473 D2).
-        #
-        # PAUSED 2026-08-17 (ADR-574 D2) — the ADR-488 template, re-run:
-        # HIDDEN, NOT UNPLUGGED. The route, this row, the `document` layout
-        # registration, the flow editor and every gate stay live; a document
-        # still opens into /docs via ADR-473 type→app routing, and the app is
-        # findable by flat search. What changed is which app the product LEADS
-        # with for text: `.md` reaches BOTH doors and a `document` artifact
-        # reaches only one — measured, an MCP `open` on an artifact returns
-        # ~24KB of kernel CSS and never reaches <body> (ADR-574 §2b). Docs and
-        # Text shipped side by side, both primary, with no bridge between them
-        # (ADR-456 Wave 4 never landed); the pair was incoherent at the Dock.
-        # D5's unveil evidence ("9 of 18 live artifacts") is retired as
-        # INAPPLICABLE, not refuted — those artifacts are 100% test data.
-        # Reopening is a decision recorded against ADR-574 §5, and its only
-        # sanctioned form is an outbound PUBLISH surface (D4) — never a more
-        # HTML-native word processor.
-        #
-        # ⚠️ tier and pin move TOGETHER — test_adr297_phase1.py gates
-        # `default_pinned == the primary tier` as a set; a half-flip fails.
-        # ADR-592 (2026-08-21) — the pause becomes a HIDE. ADR-574 D2 declared
-        # this app paused on 2026-08-17 and it stayed reachable: /docs rendered,
-        # flat search matched it, a curated Dock kept its icon (the reseed fires
-        # only on byte-equality with the previous default), and double-clicking
-        # any `document` artifact opened it. `stage: internal` is that decision
-        # actually taking effect. Prose leads (ADR-574 D1), so .md/.txt opens in
-        # Text; a `document` artifact falls back to Studio, which shares the
-        # authoring machinery one implementation deep.
-        "slug": "docs",
-        "stage": "internal",  # ADR-592 — hidden in full (was search-only, ADR-574 D2)
-        "launcher_tier": "search-only",  # derived from stage when served
-        "register": "application",
-        "title": "Docs",
-        "archetype": "document",
-        "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
-        "icon_key": "file-text",
-        "default_pinned": False,  # ADR-574 D2 — left the default Dock (was True, 2026-08-04)
-        "route": "/docs",
-        "summary": "Write documents as living artifacts — notes, drafts, PRDs captured and revised at the caret: a model-pinned lane drafts and patches the file while the page re-renders it, every citation a live workspace reference, every edit an attributed revision.",
-    },
+    # The Docs surface row was DELETED by ADR-599 D5 with the app (it had been
+    # `stage: internal` since ADR-592; the operator has since named its future
+    # — a blogger app + agent pairing — as a separate arc). /docs remains a
+    # redirect stub to /text, hand-listed in the FE middleware.
     {
         # ADR-440 (2026-07-10) — the Studio, the first AUTHORING app (the
         # second app class after ADR-436's viewer renderers). One surface ↔
         # one operator act — re-cut by ADR-518 to the LAYOUT half: LAY OUT AN
-        # ARTIFACT (deck · web, the paged media). The writing half (document)
-        # moved to the Docs app; the machinery underneath is one
-        # implementation, three consumers. Left pane = a BOUND lane
-        # (ADR-411 machinery + an artifact binding + the authoring posture);
-        # right pane = the live canvas over one self-contained HTML artifact.
-        # Types: Deck · Web (kernel constants, services/authoring.py — apps
-        # bring program, not substrate, D6).
-        "slug": "studio",
+        # SLIDES (ADR-599 D4 — the full evolve of Studio into the dedicated
+        # deck app; slug + route + title renamed, `icon_key` deliberately
+        # unchanged — an icon_key is shared across three registries, and a
+        # swap is a scope change, not a rename). The `web` type is deleted
+        # (D5); Docs is deleted; the deck is the ONE medium. Left pane = a
+        # BOUND lane (Designer, the app's resident); right pane = the live
+        # canvas over one self-contained HTML artifact.
+        "slug": "slides",
         "launcher_tier": "primary",  # ADR-440 D2 — the probe needs traffic
         "register": "application",
-        "title": "Studio",
+        "title": "Slides",
         "archetype": "document",
         "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
         "icon_key": "palette",
         "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
-        # (five at first; four since ADR-488 took Images internal).
-        "route": "/studio",
-        "summary": "Lay out decks and web pages as living artifacts: a model-pinned lane drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
+        "route": "/slides",
+        "summary": "Build slide decks as living artifacts: Designer drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
     },
     {
         # ADR-472 (2026-07-20) — IMAGES, the SECOND authoring app. Carved out

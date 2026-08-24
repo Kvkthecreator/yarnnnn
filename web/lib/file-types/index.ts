@@ -170,12 +170,11 @@ const KIND_TO_APP = new Map<string, string>();
 
 /** The surfaces that can own an artifact type, by app slug (ADR-473 D2). */
 const APP_SURFACES: Record<string, SurfaceApplication> = {
-  // ADR-592 — `docs` is REMOVED from the association: the app is
-  // `stage: internal`, so a `document` artifact must not open into a surface
-  // nothing serves. It falls back to DEFAULT_ARTIFACT_APP (Studio), which
-  // shares the authoring machinery one implementation deep. Restoring the app
-  // = restore this row.
-  studio: { surface: 'studio', param: 'file', label: 'Studio' },
+  // ADR-599 — `docs` is DELETED with its app (was `stage: internal`, ADR-592);
+  // a legacy `document`/`article` artifact falls back to DEFAULT_ARTIFACT_APP
+  // (Slides), which still renders it — the kernel CSS survives the type
+  // registry (creation stopped; reading did not).
+  slides: { surface: 'slides', param: 'file', label: 'Slides' }, // ADR-599 — Studio's full evolve
   images: { surface: 'images', param: 'file', label: 'Images' },
   text: { surface: 'text', param: 'file', label: 'Text' }, // ADR-571 — the prose app
 };
@@ -183,7 +182,7 @@ const APP_SURFACES: Record<string, SurfaceApplication> = {
 /** The prose class the Text app owns (ADR-571 D2 / ADR-570 D4's format class). */
 const PROSE_EXT_RE = /\.(md|markdown|txt)$/i;
 
-const DEFAULT_ARTIFACT_APP = 'studio';
+const DEFAULT_ARTIFACT_APP = 'slides';
 
 /** Publish the served association (call once with the vocabulary's layouts). */
 export function registerKindApps(rows: Array<{ slug: string; app?: string }>): void {

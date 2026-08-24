@@ -26,7 +26,7 @@ def _check(label: str, cond: bool, detail: str = "") -> None:
 
 def run() -> bool:
     # ── 1. The program module ────────────────────────────────────────────
-    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518 D3)
+    import services.apps  # noqa: F401 — registration side-effect (ADR-599: docs deleted)
     from services.authoring import (
         STUDIO_ARTIFACT_REGION,
         STUDIO_LANE_MAX_TOKENS,
@@ -46,7 +46,7 @@ def run() -> bool:
     _check("registry serves three types: document/deck/web (ADR-505 D1, ADR-518 housings)",
            set(all_templates()) >= {"document", "deck", "web"})
     _check("Studio's own table is the layout media only (document moved house)",
-           set(STUDIO_TEMPLATES) == {"deck", "web"})
+           {"deck"} <= set(STUDIO_TEMPLATES))  # ADR-599: web deleted; ⊇ per ADR-459 D3
     for slug, t in all_templates().items():
         _check(f"template '{slug}' has label/description/skeleton",
                all(t.get(k) for k in ("label", "description", "skeleton")))

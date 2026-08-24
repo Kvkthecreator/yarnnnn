@@ -31,10 +31,10 @@ const SECTIONS = [
     Mock: ChatReplica,
   },
   {
-    id: "studio",
-    kicker: "Make · Studio",
-    title: "Shape documents, decks and pages — by hand and by AI.",
-    body: "Compose directly on the canvas, or ask in the built-in chat — every reply becomes an edit to the artifact in front of you. Both land as the same signed revision, so the document carries its own history: who changed what, and why.",
+    id: "slides",
+    kicker: "Make · Slides",
+    title: "Shape slide decks — by hand and by AI.",
+    body: "Compose directly on the canvas, or ask in the built-in chat — every reply becomes an edit to the deck in front of you. Both land as the same signed revision, so the deck carries its own history: who changed what, and why.",
     Mock: StudioReplica,
   },
   {

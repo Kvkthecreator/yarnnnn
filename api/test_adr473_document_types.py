@@ -56,14 +56,15 @@ def run() -> bool:
         all(row.get("app") for row in all_layouts().values()),
     )
     _check(
-        "Studio's four types are Studio's",
-        all(STUDIO_LAYOUTS[s].get("app") == "studio" for s in STUDIO_LAYOUTS),
+        "Slides' one type is Slides' (ADR-599 D5 — deck is the one medium)",
+        set(STUDIO_LAYOUTS) == {"deck"}
+        and STUDIO_LAYOUTS["deck"].get("app") == "slides",
     )
 
     # ── §2 The resolver ──────────────────────────────────────────────────
     _check(
         "kind→app resolves both apps",
-        app_for_kind("deck") == "studio" and app_for_kind("image") == "images",
+        app_for_kind("deck") == "slides" and app_for_kind("image") == "images",
     )
     _check(
         "an UNOWNED type degrades to None, never raises (D6)",
@@ -74,12 +75,9 @@ def run() -> bool:
         # ADR-505 D1/D2 via ADR-518 D1: three media across three apps —
         # Docs' document; Studio's deck + web (`article`/`page` → `web`);
         # IMAGES' image.
-        kinds_for_app("docs") == {"document"}
-        and kinds_for_app("studio") == {"deck", "web"}
+        kinds_for_app("slides") == {"deck"}  # ADR-599: docs deleted, web deleted
         and kinds_for_app("images") == {"image"}
-        and not (kinds_for_app("docs") & kinds_for_app("studio"))
-        and not (kinds_for_app("studio") & kinds_for_app("images"))
-        and not (kinds_for_app("docs") & kinds_for_app("images")),
+        and not (kinds_for_app("slides") & kinds_for_app("images")),
     )
 
     # ── §3 + §4 Serving AND execution ────────────────────────────────────
@@ -90,7 +88,7 @@ def run() -> bool:
         _check("GET /studio/templates EXECUTES and carries `app` per row", all(rows.values()))
         _check(
             "…and every app's types are present (the picker filters client-side on it)",
-            rows.get("deck") == "studio" and rows.get("image") == "images",
+            rows.get("deck") == "slides" and rows.get("image") == "images",
         )
     except Exception as exc:  # noqa: BLE001
         _check(f"GET /studio/templates EXECUTES — raised {type(exc).__name__}: {exc}", False)
@@ -101,7 +99,7 @@ def run() -> bool:
         layouts = {l["slug"]: l.get("app") for l in vocab["layouts"]}
         _check(
             "GET /studio/vocabulary EXECUTES and serves the association (D3)",
-            layouts.get("deck") == "studio" and layouts.get("image") == "images",
+            layouts.get("deck") == "slides" and layouts.get("image") == "images",
         )
     except Exception as exc:  # noqa: BLE001
         _check(f"GET /studio/vocabulary EXECUTES — raised {type(exc).__name__}: {exc}", False)

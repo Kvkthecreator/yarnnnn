@@ -83,7 +83,7 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
   // competing "chat" affordances on one screen. The rail stays reachable from
   // any other surface; this only suppresses the redundant summon here. Freddie
   // stays addressable — the drawer, if already open, is unaffected.
-  const onOwnChatSurface = foregrounded === 'chat' || foregrounded === 'studio';
+  const onOwnChatSurface = foregrounded === 'chat' || foregrounded === 'slides';
   const ref = useRef<HTMLDivElement>(null);
   // ADR-358 — in CANVAS the window area is NOT a desktop with a floating
   // window on wallpaper; it is ONE primary surface filling the column. So

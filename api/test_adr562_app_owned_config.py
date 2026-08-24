@@ -52,14 +52,14 @@ from services.derive_recipes import DERIVE_RECIPES, resident_for_recipe  # noqa:
 print("\n── 1. one declaration per app ──")
 
 APPS = all_apps()
-# ADR-592 — `radar` is DELETED (the app, not merely hidden), so it must NOT be
-# registered. `docs` stays registered: it is `stage: internal`, which hides the
-# app's DOOR, not its implementation — the layouts it owns still resolve.
-check("every live app is registered (studio · docs · images · strings)",
-      {"studio", "docs", "images", "strings"} <= set(APPS),
+# Re-anchored for ADR-599: `studio` renamed `slides` (the full evolve, D4);
+# `docs` DELETED with its app (D5 — was `stage: internal`); `radar` deleted
+# by ADR-592. The live set is exactly the four desk apps.
+check("every live app is registered (slides · images · text · strings)",
+      set(APPS) == {"slides", "images", "text", "strings"},
       f"registered={sorted(APPS)}")
-check("the deleted radar app is NOT registered (ADR-592)",
-      "radar" not in set(APPS),
+check("the deleted apps are NOT registered (radar — ADR-592; docs, studio — ADR-599)",
+      not ({"radar", "docs", "studio"} & set(APPS)),
       f"registered={sorted(APPS)}")
 
 check("a registration carries IDENTITY only — slug · resident · name",
@@ -77,10 +77,10 @@ print("\n── 2. the door, and its one direction ──")
 
 # Re-registering is idempotent: FIRST registration wins, matching
 # `register_layouts`. A second claim must not silently re-point a live app.
-register_app("studio", resident="scout")
+register_app("slides", resident="keeper")
 check("re-registration does NOT re-point a live app (first wins)",
-      resident_for_app("studio") == "designer",
-      f"got {resident_for_app('studio')}")
+      resident_for_app("slides") == "designer",
+      f"got {resident_for_app('slides')}")
 
 check("an unregistered app resolves to None, never a plausible default",
       resident_for_app("no-such-app") is None and resolve_app("no-such-app") is None)
@@ -96,8 +96,7 @@ check("the kernel imports no app module (registration is one-directional)",
 # introduced, closed by making the package itself the registration point).
 _apps_init = (ROOT / "api" / "services" / "apps" / "__init__.py").read_text()
 check("the apps package registers every app at import (no router dependency)",
-      "from services.apps import docs" in _apps_init
-      and "from services.apps import images" in _apps_init
+      "from services.apps import images" in _apps_init  # ADR-599: docs deleted
       and '_register_app("strings"' in _apps_init)
 
 print("\n── 3. every declared resident is real ──")
@@ -148,7 +147,7 @@ check("…proven by construction (the model rejects it)", _refused)
 
 # And the legitimate shapes still construct.
 for kw in ({"model": "anthropic/claude-sonnet-5"},
-           {"app": "studio", "artifact_path": "/workspace/x.html"},
+           {"app": "slides", "artifact_path": "/workspace/x.html"},
            {"derive_recipe": "design-system", "derive_source": "/workspace/s.md"}):
     _ok = True
     try:
@@ -192,10 +191,11 @@ print("\n── 5b. ADR-562 D6 — an app may NAME its resident ──")
 from services.authoring import resolve_app  # noqa: E402
 from services.agents_registry import build_agent_posture  # noqa: E402
 
-check("Docs names its resident Writer",
-      (resolve_app("docs") or {}).get("name") == "Writer")
-check("…and Studio does NOT rename (the character's own name stands)",
-      not (resolve_app("studio") or {}).get("name"))
+# Re-anchored for ADR-599: Docs (the one renaming app) is deleted; no live
+# registration renames its resident today. The MECHANISM is exercised below
+# with a literal as_name — the overlay must still state the override.
+check("no live app renames its resident (slides/text/strings use the character's own name)",
+      not any((resolve_app(s) or {}).get("name") for s in ("slides", "text", "strings")))
 
 _docs_posture = build_agent_posture("designer", as_name="Writer")
 _studio_posture = build_agent_posture("designer", as_name="")
@@ -217,8 +217,10 @@ check("…while the CHARACTER is identical (a name is not a character)",
 from services.authoring import app_for_layout, extract_template  # noqa: E402
 
 check("the app derives from the artifact's data-template (never lane state)",
-      app_for_layout(extract_template('<html data-template="document">')) == "docs"
-      and app_for_layout(extract_template('<html data-template="deck">')) == "studio")
+      # ADR-599: deck → slides; a legacy `document` template resolves None
+      # (its app is deleted — creation gone, rendering kept by kernel CSS).
+      app_for_layout(extract_template('<html data-template="deck">')) == "slides"
+      and app_for_layout(extract_template('<html data-template="document">')) is None)
 
 _lane_src = (ROOT / "api" / "services" / "lane_runner.py").read_text()
 check("the frame reads the bound artifact ONCE (one round-trip, two consumers)",

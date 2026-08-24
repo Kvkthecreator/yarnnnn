@@ -92,11 +92,11 @@ def run() -> bool:
     # ADR-505 D1: the seeded set is THREE — document · deck · web — now across
     # TWO app tables (ADR-518: Docs owns document via services/docs.py; Studio
     # keeps deck/web). The registry is the kernel's one view.
-    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
+    import services.apps  # noqa: F401 — registration side-effect (ADR-599: docs deleted)
     from services.authoring import all_layouts as _all_layouts
     _check("kernel seeds 3 layouts: Docs document + Studio deck/web (ADR-505 D1 via ADR-518)",
-           set(_all_layouts()) >= {"document", "deck", "web"}
-           and set(STUDIO_LAYOUTS) >= {"deck", "web"})
+           set(_all_layouts()) >= {"deck"}
+           and set(STUDIO_LAYOUTS) == {"deck"})  # ADR-599 D5: document/web deleted
     for slug, lay in STUDIO_LAYOUTS.items():
         _check(f"layout '{slug}': label/description/flow/skin/scaffold complete",
                all(lay.get(k) for k in ("label", "description", "flow", "skin", "scaffold")))
@@ -142,7 +142,7 @@ def run() -> bool:
             )
     # A scaffold is markup the kernel ships directly (not through an
     # arrangement fragment), so it can drift the same way and independently.
-    for slug in ("deck", "web"):
+    for slug in ("deck",):  # ADR-599 D5: web deleted
         sc = STUDIO_LAYOUTS[slug]["scaffold"]
         want = sorted(
             n
@@ -377,7 +377,7 @@ def run() -> bool:
            and "border-l border-border" in surface)
     desktop = (repo / "web/components/shell/Desktop.tsx").read_text()
     _check("Freddie FAB suppressed on the studio surface (own-chat carve)",
-           "onOwnChatSurface" in desktop and "'studio'" in desktop)
+           "onOwnChatSurface" in desktop and "'slides'" in desktop)  # ADR-599 rename
 
     # ── 12. ADR-447 canvas view controls + mobile (2026-07-13) ───────────
     _check("navigator selection scrolls the canvas (yarnnn-scroll-to-slide)",

@@ -77,7 +77,7 @@ export const DEFAULT_KEPT_SURFACES: string[] = [
   // 'docs' — removed 2026-08-17 (ADR-574 D2): the app PAUSED to search-only.
   // Hidden, not unplugged — /docs still routes and a document still opens
   // there. Reopening is ADR-574 §5, and only as a Publish surface (D4).
-  'studio',
+  'slides', // ADR-599 D4 — Studio's full evolve (deck-only; `studio` aliases here)
   // 'radar' — DELETED 2026-08-21 (ADR-592): the app is gone, not paused. A
   // persisted pin is dropped via DOCK_RETIRED_SLUGS so it renders no ghost icon.
   'strings', // ADR-569 unveil (2026-08-14, operator decision) — the maintained file
@@ -200,6 +200,11 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
   feed: 'chat',
   channels: 'chat',
   home: 'chat',
+  // ADR-599 D4 — Studio's full evolve into Slides. An ALIAS, not a retire:
+  // a curated Studio pin becomes a Slides pin (authorship preserved), and an
+  // uncustomized stored default normalizes straight onto the new default —
+  // no reseed generation needed.
+  studio: 'slides',
 };
 
 // Slugs retired from the DOCK (kept/open/foregrounded) but NOT deleted as

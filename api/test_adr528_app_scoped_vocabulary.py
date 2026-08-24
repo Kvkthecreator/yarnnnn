@@ -36,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-import services.apps.docs  # noqa: F401,E402 — registration side-effect (as the app does)
+import services.apps  # noqa: F401 — registration side-effect (ADR-599: docs deleted)
 import services.authoring as st  # noqa: E402
 
 PASS, FAIL = 0, 0
@@ -66,7 +66,7 @@ t(
 )
 
 docs = st.blocks_for_app("docs")
-studio = st.blocks_for_app("studio")
+studio = st.blocks_for_app("slides")  # ADR-599 rename
 every = set(st.STUDIO_BLOCKS)
 
 # ── 2. The scoping itself ─────────────────────────────────────────────────
@@ -94,7 +94,7 @@ t(
 
 # COMPLETENESS: every row is either unscoped or names a registered app. A typo
 # in an `apps` tuple would silently hide a kind from every app.
-KNOWN_APPS = {"docs", "studio", "images"}
+KNOWN_APPS = {"slides", "images"}  # ADR-599: docs deleted, studio renamed slides
 bad = {
     kind: b["apps"]
     for kind, b in st.STUDIO_BLOCKS.items()
@@ -104,7 +104,7 @@ t(f"D5: every `apps` value names a known app (offenders: {bad or 'none'})", not 
 
 # ── 3. The LANE posture is scoped too ─────────────────────────────────────
 docs_grammar = st._blocks_grammar("docs")
-studio_grammar = st._blocks_grammar("studio")
+studio_grammar = st._blocks_grammar("slides")
 t(
     "D5: the Docs lane posture does not teach callout/toggle "
     "(ADR-525 D4's lesson — the lane reads this grammar too)",

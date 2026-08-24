@@ -41,7 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-import services.apps.docs  # noqa: F401,E402 — registration side-effect (as the app does)
+import services.apps  # noqa: F401,E402 — registration side-effect (ADR-599: docs deleted)
 import services.authoring as st  # noqa: E402
 
 PASS, FAIL = 0, 0
@@ -171,15 +171,15 @@ comp = st.STUDIO_BLOCKS.get("component", {})
 t("`component` row exists", bool(comp))
 t("component cites a fragment (ADR-583 — the library re-cut)",
   comp.get("cites") == "fragment" and st.block_group(comp) == "component")
-t("component is studio-scoped", comp.get("apps") == ("studio",))
+t("component is slides-scoped (ADR-599 rename)", comp.get("apps") == ("slides",))
 t("component's markup is a CITATION of a *.component.html file",
   "data-ref=" in comp.get("markup", "")
   and 'data-ref-kind="component"' in comp.get("markup", "")
   and ".component.html" in comp.get("markup", ""))
 t("the kernel still draws the LEGACY inline card (ADR-511 D8 — old markup renders)",
   'div[data-block="component"]' in KERNEL_NC)
-t("Docs is not offered the component", "component" not in st.blocks_for_app("docs"))
-t("Studio IS offered the component", "component" in st.blocks_for_app("studio"))
+t("a deleted app is not offered the component", "component" not in st.blocks_for_app("docs"))
+t("Slides IS offered the component", "component" in st.blocks_for_app("slides"))
 
 print("\n=== 4. D4 — motion is declarative, guarded, and versioned ===")
 

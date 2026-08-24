@@ -46,9 +46,11 @@ def run() -> bool:
         slugs = {t["slug"] for t in templates["templates"]}
         _check("GET /studio/templates EXECUTES (no NameError in the body)", True)
         _check(
-            "…and serves both apps' layouts (Studio's + the IMAGES stage)",
-            # ADR-505 D1: the Studio set is document/deck/web.
-            {"document", "deck", "web"} <= slugs and "image" in slugs,
+            "…and serves both apps' layouts (Slides' deck + the IMAGES stage)",
+            # ADR-599 D5: the deck is the ONE Slides medium (document went
+            # with Docs; web is deleted).
+            {"deck"} <= slugs and "image" in slugs
+            and not ({"document", "web", "article"} & slugs),
         )
     except Exception as exc:  # noqa: BLE001
         _check(f"GET /studio/templates EXECUTES — raised {type(exc).__name__}: {exc}", False)

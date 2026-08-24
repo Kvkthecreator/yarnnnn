@@ -48,7 +48,7 @@ def run() -> bool:
     nav = (web / "components/authoring/PagedNavigator.tsx").read_text()
     toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
 
-    import services.apps.docs  # noqa: F401, E402 — registers the document row (ADR-518)
+    import services.apps  # noqa: F401, E402 — registration side-effect (ADR-599: docs deleted)
     from services.authoring import (  # noqa: E402
         STUDIO_ARRANGEMENTS,
         STUDIO_LAYOUTS,
@@ -59,15 +59,13 @@ def run() -> bool:
     # ── D1 — flow serves no arrangements; the scaffolds are flat ───────────
     _check(
         "D1 the arrangement registry serves PAGED layouts only",
-        set(STUDIO_ARRANGEMENTS) == {"deck", "web"},
+        set(STUDIO_ARRANGEMENTS) == {"deck"},  # ADR-599 D5: web deleted
     )
     _check(
-        # ADR-505 D2: `page` became `web` and gained the two long-form bands
-        # (prose-header + prose), so the count is 6 + 2. Deck is untouched.
-        "D1 deck/web arrangement rows: deck 11, web 6 W3 bands + 2 long-form",
-        len(STUDIO_ARRANGEMENTS["deck"]) == 11 and len(STUDIO_ARRANGEMENTS["web"]) == 8,
+        "D1 deck arrangement rows: 11 (web deleted, ADR-599 D5)",
+        len(STUDIO_ARRANGEMENTS["deck"]) == 11,
     )
-    for slug in ("document",):  # ADR-505 D2: `article` merged into the paged `web`
+    for slug in ():  # ADR-599: the flow skeleton checks retired with Docs (`document` deleted)
         body = build_skeleton(slug)
         body = body[body.index("<body>") :]
         _check(f"D1 the {slug} scaffold BODY has no data-arrange", "data-arrange" not in body)
@@ -78,10 +76,11 @@ def run() -> bool:
         body = body[body.index("<body>") :]
         _check(f"D1 the {slug} scaffold KEEPS its arrangement", "data-arrange" in body)
     _check(
-        # ADR-518: the flow side lives in Docs' table now — the seam spans the
-        # REGISTRY, not one app's rows.
-        "D1 the mode seam still names both kinds",
-        {v["mode"] for v in all_layouts().values()} >= {"flow", "paged"},
+        # ADR-599: the registry is paged-only (deck + the IMAGES stage) — the
+        # flow medium left with Docs; prose lives in the Text app, outside
+        # this registry. The seam VOCABULARY survives in the mode field.
+        "D1 the mode seam still names the paged kind (flow left with Docs)",
+        {v["mode"] for v in all_layouts().values()} >= {"paged"},
     )
     # The toolbar derives from the served set — no flag, no slug test.
     _check(

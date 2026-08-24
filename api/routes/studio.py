@@ -38,7 +38,7 @@ import services.apps.images  # noqa: F401  (import for registration side-effect)
 
 # ADR-518 D3: same contract for the Docs app — importing it registers the
 # `document` type (carved out of STUDIO_LAYOUTS) with the shared registry.
-import services.apps.docs  # noqa: F401  (import for registration side-effect)
+
 
 # The cross-app layout resolver (ADR-472 D2). Module-level: the endpoints below
 # use these at request time, so a function-local import in ONE handler would
@@ -83,7 +83,7 @@ async def list_templates(auth: UserClient) -> dict:
                 "slug": slug,
                 "label": t["label"],
                 "description": t["description"],
-                "app": t.get("app") or "studio",  # ADR-473 D2
+                "app": t.get("app") or "slides",  # ADR-473 D2
             }
             for slug, t in _templates.items()
         ]
@@ -333,7 +333,7 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 # ADR-473 D2/D3: which app OWNS this type. Served so the FE
                 # resolves kind→app at runtime and never hardcodes a slug — a
                 # program-shipped type stays routable with no frontend deploy.
-                "app": l.get("app") or "studio",
+                "app": l.get("app") or "slides",
             }
             for s, l in all_layouts().items()
         ],
