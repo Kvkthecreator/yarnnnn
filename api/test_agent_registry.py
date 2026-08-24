@@ -10,7 +10,8 @@ What this gate holds, post-ADR-600 (one register; hireability is a field):
      planners and a vacuous ratchet, so it must re-open the ADR.
   2. The member-agent machinery STAYS DELETED — the symbols do not import,
      and the /lane-agents doors are gone from the routes.
-  3. THE CLIFF: a row carries identity + character + engine + `offered` and
+  3. THE CLIFF: a row carries identity + character + engine + `offered` +
+     `kernel` (provenance, ADR-601 D2 — descriptive, never authority) and
      nothing else — no authority-shaped key, no tools, no based_on. The
      whitelist itself contains no authority vocabulary. `offered` is REACH
      (who may be invited), never authority (what they may do).
@@ -20,7 +21,11 @@ What this gate holds, post-ADR-600 (one register; hireability is a field):
   5. Machinery resolves a BEING, never a container (ADR-600 D4): no call
      site subscripts the register by name.
   6. The cast door gates on `offered`, not on bare resolvability (D3).
-  7. The /agents surface shows beings sectioned by where they live (D6).
+  7. Provenance is a field, and `assert_editable` is the chokepoint that
+     refuses a kernel being WITH ITS REASON — built before its door
+     (ADR-601 D3), so it is gated rather than merely absent.
+  8. The /agents surface shows beings sectioned by where they live (D6),
+     rendering provenance and desks from SERVED FIELDS (ADR-601 D4).
 """
 
 from __future__ import annotations
@@ -36,6 +41,9 @@ sys.path.insert(0, str(API))
 from services.agents_registry import (  # noqa: E402
     AGENT_ROW_KEYS,
     AGENTS,
+    NotEditable,
+    assert_editable,
+    homes_for_agent,
     list_agents,
     model_for_agent,
     resolve_agent,
@@ -99,11 +107,13 @@ for r in AGENTS.values():
            set(r.keys()) <= AGENT_ROW_KEYS)
     _check(f"'{r['slug']}' carries every required key",
            {"slug", "name", "blurb", "icon", "model", "token_profile",
-            "posture", "offered"} <= set(r.keys()))
+            "posture", "offered", "kernel"} <= set(r.keys()))
     _check(f"'{r['slug']}' is self-contained (no based_on — ADR-599 D3)",
            "based_on" not in r)
     _check(f"'{r['slug']}' declares reach as a bool, not a string",
            isinstance(r["offered"], bool))
+    _check(f"'{r['slug']}' declares provenance as a bool, not a string",
+           isinstance(r["kernel"], bool))
     keys = " ".join(r.keys()).lower()
     _check(f"'{r['slug']}' has no authority-shaped field",
            not any(w in keys for w in banned))
@@ -165,7 +175,50 @@ _check("the door reads `offered` before admitting a being",
 _check("a housed being is refused with its reason, not a generic miss",
        "works at a desk" in _add_door)
 
-print("7. the surface shows beings, sectioned by where they live (ADR-600 D6)")
+print("7. provenance is a field, and the edit door is a GATE (ADR-601 D2/D3)")
+_check("every being today is kernel-authored (no member beings yet)",
+       all(r["kernel"] for r in AGENTS.values()))
+# The chokepoint refuses, and says WHY — a generic no reads as a bug and sends
+# the member hunting a permission they cannot grant.
+for _slug in AGENTS:
+    try:
+        assert_editable(_slug)
+        _ok, _msg = False, "admitted"
+    except NotEditable as _e:
+        _ok, _msg = True, str(_e)
+    _check(f"assert_editable('{_slug}') refuses a kernel being", _ok)
+    _check(f"...and names it and the reason",
+           AGENTS[_slug]["name"] in _msg and "not editable" in _msg)
+# Fails CLOSED: an unknown slug is refused, never treated as member-authored.
+try:
+    assert_editable("no-such-being")
+    _closed = False
+except NotEditable:
+    _closed = True
+_check("assert_editable fails closed on an unknown slug", _closed)
+# ...and a member-authored being WOULD pass — the gate is a filter on
+# provenance, not a blanket refusal that happens to look right today.
+import services.agents_registry as _r
+_r.AGENTS["_probe"] = dict(_r.AGENTS["editor"], slug="_probe", kernel=False)
+try:
+    _passes = assert_editable("_probe")["slug"] == "_probe"
+except NotEditable:
+    _passes = False
+finally:
+    del _r.AGENTS["_probe"]
+_check("a member-authored being passes the same gate", _passes)
+
+# Reading is NEVER gated — a kernel being must resolve for its own lanes to run.
+_check("provenance gates the WRITE only (resolve_agent still answers)",
+       all(resolve_agent(s) is not None for s in AGENTS))
+
+# ADR-601 D1 — homes is a LIST, resolved from the registrations.
+_check("homes_for_agent returns a list per being",
+       all(isinstance(homes_for_agent(s), list) for s in AGENTS))
+_check("many-to-one is live in the data (designer serves >1 desk)",
+       len(homes_for_agent("designer")) > 1)
+
+print("8. the surface shows beings, sectioned by where they live (ADR-600 D6)")
 _surface = (API.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
 _check("the surface names the ruling (ADR-600) instead of a blank page",
        "ADR-600" in _surface)
@@ -187,6 +240,11 @@ for _name in ("Designer", "Editor", "Keeper"):
     _check(f"the surface does not hardcode '{_name}'", _name not in _surface_code)
 _check("both sections exist — housed beings and the offered roster",
        "At a desk" in _surface and "To work with" in _surface)
+# ADR-601 D4 — rendered from the FIELDS, never inferred.
+_check("the surface renders provenance from the served field",
+       "b.kernel" in _surface_code)
+_check("the surface renders the desk LIST, not a single home",
+       "b.homes" in _surface_code and "b.home " not in _surface_code)
 # The anti-pattern ratchet (kept from the original gate): the surface must
 # never grow the ChatGPT business-agent editor's authority vocabulary.
 _check("the surface carries no authority vocabulary",

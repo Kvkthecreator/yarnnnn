@@ -10,10 +10,10 @@ What this gate holds:
      to that key anywhere in the handler), and both consumption points run
      through the derivation (serve builds `agent` from `_lane_agent`; the
      turn compares against `lane_agent`).
-  3. D2 injectivity: the user-facing desk apps each seat a DEDICATED
-     colleague — studio→designer, text→editor, strings→keeper, pairwise
-     distinct. The named exceptions (images, docs on designer) are asserted
-     AS exceptions so silent growth of the exception list trips the gate.
+  3. ADR-601 D1 many-to-one: an APP pins exactly ONE resident (ADR-467 D1,
+     the surviving direction), and a BEING may serve several desks — sharing
+     is ordinary, not an exception to excuse. ADR-597 D2's injectivity is
+     retired with its named-exception list.
   4. The editor row is a well-formed being: in AGENTS, self-contained (no
      based_on), exactly AGENT_ROW_KEYS, priced engine, `offered: False` —
      its home is the Text desk (ADR-600 D2).
@@ -102,29 +102,49 @@ def test_stamp_retired_and_reads_derive():
             "the turn no longer reads the raw stamp directly")
 
 
-def test_injectivity():
-    print("3. one desk, one dedicated colleague — exceptions named, not silent")
+def test_many_to_one():
+    print("3. an app pins ONE resident; a being may serve MANY desks")
     import services.apps  # noqa: F401  (registration side-effect)
+    from services.agents_registry import homes_for_agent, resolve_agent
     from services.authoring import all_apps
 
-    residents = {slug: row["resident"] for slug, row in all_apps().items()}
-    # ADR-599: studio → slides (the full evolve); docs deleted with its app.
-    _assert(residents.get("slides") == "designer", "slides seats Designer")
-    _assert(residents.get("text") == "editor", "text seats Editor")
-    _assert(residents.get("strings") == "keeper", "strings seats Keeper")
-    dedicated = {k: v for k, v in residents.items() if k in ("slides", "text", "strings")}
-    _assert(len(set(dedicated.values())) == len(dedicated),
-            "the dedicated set is pairwise distinct (injective)")
+    apps = all_apps()
+    # The surviving direction (ADR-467 D1): one desk, one voice. A registration
+    # carries a single `resident` string, so two voices is unrepresentable —
+    # asserted anyway, because the row shape is what makes it true.
+    _assert(all(isinstance(a.get("resident"), str) and a["resident"]
+                for a in apps.values()),
+            "every app pins exactly one resident (a string, never a list)")
+    _assert(all(resolve_agent(a["resident"]) is not None for a in apps.values()),
+            "every app's resident resolves to a real being")
 
-    # The KNOWN exception, asserted as such (ADR-597 D2 / ADR-599 D3): images
-    # shares designer (metered pipeline — its own resident when evidence
-    # arrives). A new sharer, or this one silently changing, must be a
-    # deliberate ADR edit — here.
-    exceptions = {k for k in residents
-                  if k not in dedicated
-                  and list(residents.values()).count(residents[k]) > 1}
-    _assert(exceptions <= {"images"},
-            f"resident-sharing stays within the named exceptions (found: {sorted(exceptions)})")
+    # ADR-601 D1 — the retired direction. Sharing is ORDINARY now: `designer`
+    # serves Slides and IMAGES, and a Blogger app may take `editor` beside
+    # Text. The old gate treated this as an exception list to be kept from
+    # growing silently; growth is now the expected case, so the gate asserts
+    # the RELATION instead of policing it.
+    for slug in {a["resident"] for a in apps.values()}:
+        homes = homes_for_agent(slug)
+        _assert(bool(homes), f"{slug} reports the desk(s) it serves: {homes}")
+        _assert(all(apps[h]["resident"] == slug for h in homes),
+                f"{slug}'s homes each pin it back (the relation is consistent)")
+    _assert(sum(len(homes_for_agent(s)) for s in
+                {a["resident"] for a in apps.values()}) == len(apps),
+            "every registered app is claimed by exactly one being's home list")
+    # The shape that must NOT come back: a gate naming specific pairings, which
+    # would make an ordinary second desk read as a violation. Checked by AST —
+    # a substring search here matches THIS check's own assertion literal (it
+    # did, on the first cut), which is the a-gate-matches-its-own-text trap
+    # one level deeper: not a comment this time, but the check's own code.
+    import ast as _ast
+    _tree = _ast.parse((API / "test_adr597_resident_derivation.py").read_text())
+    _cmps = [
+        n for n in _ast.walk(_tree)
+        if isinstance(n, _ast.Compare)
+        and isinstance(n.left, _ast.Name) and n.left.id == "exceptions"
+    ]
+    _assert(not _cmps,
+            "no named-exception list survives (sharing is ordinary — ADR-601 D1)")
 
 
 def test_editor_row():
@@ -149,7 +169,7 @@ def test_editor_row():
 if __name__ == "__main__":
     test_derivation_behavior()
     test_stamp_retired_and_reads_derive()
-    test_injectivity()
+    test_many_to_one()
     test_editor_row()
     print()
     if FAILURES:

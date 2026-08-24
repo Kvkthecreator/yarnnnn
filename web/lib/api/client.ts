@@ -505,13 +505,13 @@ export const api = {
          *  Served rather than mirrored here: a TS copy is the second home
          *  ADR-562 deleted. */
         apps?: Array<{ slug: string; resident: string; name: string }>;
-        /** ADR-600 D6 — every being, with the desk it speaks for. `agents`
-         *  above is who may be INVITED (`offered`); this is who EXISTS, so a
-         *  surface can show a housed being where it lives instead of telling
-         *  the member they have nobody. `home` is the app slug, null when the
-         *  being is offered rather than housed. */
+        /** ADR-600 D6 / ADR-601 D4 — every being, with provenance and the
+         *  desks it serves. `agents` above is who may be INVITED (`offered`);
+         *  this is who EXISTS. `kernel` = yarnnn authored it (rendered from
+         *  the FIELD, never inferred from absence). `homes` is a LIST —
+         *  many-to-one is ordinary, and empty means it serves no desk. */
         beings?: Array<{ slug: string; name: string; blurb: string; icon: string;
-          offered: boolean; home: string | null }>;
+          offered: boolean; kernel: boolean; homes: string[] }>;
         models: Array<{ id: string; label: string; vision?: boolean;
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */

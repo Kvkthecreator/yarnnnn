@@ -362,27 +362,24 @@ def _apps_payload() -> list[dict]:
 
 
 def _beings_payload() -> list[dict]:
-    """Every being, FE-shaped, with the desk it speaks for (ADR-600 D6).
+    """Every being, FE-shaped, with provenance and the desks it serves.
 
     `agents` above is the ROSTER — who a member may INVITE (`offered`). This is
     the fuller answer to "who exists": a housed being is real and answers in
     its app every day, so a surface that lists only the offered ones tells the
     member they have nobody while Designer is mid-conversation with them.
 
-    `home` is the app slug a non-offered being speaks for, resolved from the
-    SAME registration the prompt uses — never a TS-side table (the second home
-    ADR-562 deleted).
+    ADR-601 D4 — two facts are SERVED rather than inferred:
+      `kernel` — yarnnn authored this being (so the pane can say so from the
+                 FIELD, never from absence-from-a-list, which would have the
+                 surface asserting something the API never said).
+      `homes`  — a LIST: many-to-one is ordinary since ADR-601 D1, and a being
+                 serving no desk gets an empty array. Resolved from the same
+                 `register_app` declarations the prompt reads.
     """
     import services.apps  # noqa: F401  (registration side-effect)
-    from services.agents_registry import AGENTS
-    from services.authoring import all_apps
+    from services.agents_registry import AGENTS, homes_for_agent
 
-    homes: dict[str, str] = {}
-    for a in all_apps().values():
-        # First registration wins, matching `register_app` itself — a being
-        # shared by two apps (IMAGES on Designer) names the desk it was
-        # dedicated to, not the last one to import.
-        homes.setdefault(a["resident"], a["slug"])
     return [
         {
             "slug": r["slug"],
@@ -390,7 +387,8 @@ def _beings_payload() -> list[dict]:
             "blurb": r["blurb"],
             "icon": r["icon"],
             "offered": bool(r.get("offered")),
-            "home": homes.get(r["slug"]),
+            "kernel": bool(r.get("kernel")),
+            "homes": homes_for_agent(r["slug"]),
         }
         for r in AGENTS.values()
     ]

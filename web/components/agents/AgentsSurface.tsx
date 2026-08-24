@@ -15,6 +15,13 @@
  *     offered); that section carries the empty state, which is the one the
  *     operator actually ruled on.
  *
+ * ADR-601 D4 — two facts are rendered from FIELDS the server sends, never
+ * inferred: `kernel` (yarnnn authored this being, so its character is not
+ * editable — shown so the distinction is legible before the first
+ * member-authored being exists) and `homes` (a LIST — one being may serve
+ * several desks since ADR-601 D1, so "Editor — Text, Blogger" reads directly
+ * instead of one-to-one being inferred from silence).
+ *
  * Server-driven, deliberately: the roster comes from `lanes.list().beings`,
  * which the API builds from the SAME registry the prompt uses. The previous
  * version hardcoded "Designer in Slides, Editor in Text, Keeper in Strings"
@@ -38,6 +45,19 @@ const ICONS: Record<string, React.ElementType> = {
   archive: Archive,
 };
 
+// Provenance, rendered from the field. A member-authored being simply lacks
+// the mark — there is no "yours" badge, because the member already knows.
+function KernelMark() {
+  return (
+    <span
+      className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+      title="A yarnnn system agent — it comes with the apps it works in, so its character is not editable."
+    >
+      yarnnn
+    </span>
+  );
+}
+
 function BeingIcon({ icon }: { icon: string }) {
   const Glyph = ICONS[icon] ?? Users;
   return <Glyph className="h-4 w-4 text-muted-foreground" />;
@@ -49,7 +69,8 @@ type Being = {
   blurb: string;
   icon: string;
   offered: boolean;
-  home: string | null;
+  kernel: boolean;
+  homes: string[];
 };
 
 export function AgentsSurface() {
@@ -106,13 +127,14 @@ export function AgentsSurface() {
                     <BeingIcon icon={b.icon} />
                   </div>
                   <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="text-sm font-medium">{b.name}</span>
-                      {b.home && (
+                      {b.homes.length > 0 && (
                         <span className="text-[11px] text-muted-foreground">
-                          in {b.home}
+                          in {b.homes.join(', ')}
                         </span>
                       )}
+                      {b.kernel && <KernelMark />}
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {b.blurb}
@@ -150,7 +172,10 @@ export function AgentsSurface() {
                     <BeingIcon icon={b.icon} />
                   </div>
                   <div className="min-w-0 space-y-0.5">
-                    <div className="text-sm font-medium">{b.name}</div>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="text-sm font-medium">{b.name}</span>
+                      {b.kernel && <KernelMark />}
+                    </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {b.blurb}
                     </p>

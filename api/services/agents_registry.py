@@ -18,6 +18,23 @@ WHAT AN AGENT IS NOT
 - NOT a principal. No `principal_grants` row, never on the ADR-431 roster.
 - NOT standing intent. No wake source, no mandate, no autonomy dial.
 
+EVERY QUESTION ABOUT A BEING IS A FIELD ON THE BEING (ADR-600 D2, ADR-601 D2)
+Two orthogonal facts, each declared rather than structural:
+  `offered` — may a member INVITE this being into a conversation?
+  `kernel`  — did YARNNN author this being, or did the member?
+Capability is on NEITHER: it belongs to the APP (ADR-601 D1). A bound lane's
+job overlay is selected by `app` and derived from the app's own registries —
+measured at 86.7% of a Slides frame against the character's 2.4% — so a
+being's prompt weight is CONSTANT in the number of desks it serves. That is
+why many-to-one is free, and why ADR-597 D2's injectivity is retired.
+
+`kernel` IS DESCRIPTIVE, NEVER AUTHORITY. It says who wrote the row, never
+what the being may do; the moment it gates capability it is authority on a
+being and violates ADR-460 D3.a. Provenance is also deliberately NOT spelled
+`editable`: the two coincide today but may diverge (renaming a kernel being's
+display name, forking one into a member copy). Provenance is the durable
+fact; editability is a policy over it (`assert_editable`).
+
 HIREABILITY IS A FIELD (ADR-600 D2)
 `offered` answers ONE question: is this being on the roster a member picks
 from? `offered: False` means its home is a desk — met where it works, never
@@ -61,6 +78,11 @@ logger = logging.getLogger(__name__)
 # Adding a being = a row here. If it speaks for an app, the app also names it
 # in `register_app(resident=...)` (ADR-562 D3). Its `model` MUST be a
 # LANE_MODELS key with a billing rate (gate-asserted, ADR-600 D5).
+#
+# MANY-TO-ONE (ADR-601 D1): a being may serve SEVERAL desks — capability lives
+# at the app, so a second desk costs a being nothing. The converse still holds:
+# an app pins exactly ONE resident (ADR-467 D1), because a desk with two voices
+# is the ambiguity the registration exists to prevent.
 AGENTS: dict[str, dict[str, Any]] = {
 
     # Slides' voice (ADR-599 D4 — the maker keeps its desk and its slug).
@@ -70,6 +92,8 @@ AGENTS: dict[str, dict[str, Any]] = {
         "name": "Designer",
         # Its home is the Slides desk — met there, never invited (ADR-600 D2).
         "offered": False,
+        # yarnnn wrote this being; Slides depends on it (ADR-601 D2).
+        "kernel": True,
         "blurb": "Makes the deck itself — slides, layout, the artifact in front of you.",
         "icon": "pen-tool",
         "model": "anthropic/claude-sonnet-5",
@@ -94,6 +118,7 @@ AGENTS: dict[str, dict[str, Any]] = {
         "slug": "editor",
         "name": "Editor",
         "offered": False,
+        "kernel": True,
         "blurb": "Works your document with you — drafts, restructures, tightens prose.",
         "icon": "file-pen",
         "model": "anthropic/claude-sonnet-5",
@@ -116,6 +141,7 @@ AGENTS: dict[str, dict[str, Any]] = {
         "slug": "keeper",
         "name": "Keeper",
         "offered": False,
+        "kernel": True,
         "blurb": "Keeps designated files true — under a contract, from declared sources.",
         "icon": "archive",
         "model": "anthropic/claude-sonnet-5",
@@ -135,7 +161,8 @@ AGENTS: dict[str, dict[str, Any]] = {
 #: `tools` (reach is uniform, ADR-467 D4) and no authority-shaped key, ever:
 #: the ADR-460 D3.a cliff, enforced as a whitelist rather than as prose.
 AGENT_ROW_KEYS = frozenset(
-    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture", "offered"}
+    {"slug", "name", "blurb", "icon", "model", "token_profile", "posture",
+     "offered", "kernel"}
 )
 
 
@@ -169,6 +196,52 @@ def list_agents() -> list[dict]:
     row flipping `offered` appears here with no other edit.
     """
     return [r for r in AGENTS.values() if r.get("offered")]
+
+
+class NotEditable(Exception):
+    """A kernel being was asked to change. Carries the reason, not just a no."""
+
+
+def assert_editable(slug: str) -> dict:
+    """The being, or raise — the ONE chokepoint for "may this row be edited?"
+
+    ADR-601 D3. Built BEFORE the door it guards, deliberately: a protection
+    written alongside the feature it constrains is one that feature's author
+    may forget, and the ADR-563 lesson (guard at the chokepoint, never at call
+    sites) applies just as well to a chokepoint whose callers are still to
+    come. Any future member-facing edit path calls THIS — never re-derives it.
+
+    Fails closed: an unknown slug is refused, not treated as member-authored.
+
+    NOTE the asymmetry with `resolve_agent`, and keep it: reading a being is
+    never gated (a kernel being must resolve for its own lanes to run). This
+    gates the WRITE only.
+    """
+    being = resolve_agent(slug)
+    if being is None:
+        raise NotEditable(f"No agent called '{slug}'.")
+    if being.get("kernel"):
+        # Named, with the reason — a generic refusal reads as a bug and sends
+        # the member looking for a permission they can grant themselves.
+        raise NotEditable(
+            f"{being.get('name') or slug} is a yarnnn system agent — it comes "
+            "with the apps it works in, so its character is not editable here."
+        )
+    return being
+
+
+def homes_for_agent(slug: str) -> list[str]:
+    """The app slugs this being speaks for, registration order. Pure-ish.
+
+    ADR-601 D1 — many-to-one, so this is a LIST. Resolved from the app
+    registrations (the same declaration the prompt reads), never stored on the
+    being: an app names its resident, and a being that learns a desk should
+    not need editing to know it.
+    """
+    import services.apps  # noqa: F401  (registration side-effect)
+    from services.authoring import all_apps
+
+    return [a["slug"] for a in all_apps().values() if a.get("resident") == slug]
 
 
 def model_for_agent(slug: str) -> Optional[str]:
