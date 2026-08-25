@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.25.4] - ADR-579 D7: the gesture line — what the member clicked
+
+### Changed
+- `services/lane_runner.py`: `_compose_focus_section` gains the GESTURE —
+  when a turn carries a typed seed (a Rewrite…/Check this…/Ask about this…
+  door named its target), the frame renders one line before the focus line:
+  `- The member's gesture: they clicked Rewrite on the {label} block
+  (id {…}) — "{excerpt}". That is this turn's target — act on it, never a
+  copy elsewhere.` Same one-site rule (ADR-606 D1), same binding-authority
+  guard (a foreign-path seed is silence), same clip-honesty mark. No seed →
+  frames byte-identical.
+- Expected behavior: a gesture-seeded turn acts on the clicked block by id
+  instead of parsing it back out of composer prose — and the member's
+  composer no longer carries `(id: bkq3)` flattenings at all (the target
+  rides as a typed chip, dismissible, metered marker visible).
+
+### Gates
+- `test_adr579_d7_structured_turns.py` new (falsified 4×: stamp dropped,
+  guard gutted, prose flattening restored, clear-on-send broken — all red);
+  522/606/607 green; ratchets green.
+
+---
+
 ## [2026.08.25.3] - ADR-607: the steward hears the typed focus
 
 ### Changed

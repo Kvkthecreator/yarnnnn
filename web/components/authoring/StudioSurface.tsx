@@ -56,7 +56,7 @@ import {
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
-import { LanePanel } from '@/components/chat-surface/LanePanel';
+import { LanePanel, type SeedTarget } from '@/components/chat-surface/LanePanel';
 import {
   StudioCanvas,
   type PointerEvent2,
@@ -601,9 +601,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   });
 
   // ── Composer seeding (v1.1): pointing + the insert menu ────────────────
-  const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const [seed, setSeed] = useState<{ text: string; nonce: number; target?: SeedTarget } | null>(null);
+  // ADR-579 D7 — a gesture door passes WHAT WAS CLICKED as a typed target
+  // beside the editable intent text; the pane holds it as a chip and sends
+  // it as the turn's `seed`. Ids and excerpts no longer flatten into the
+  // member's composer prose.
   const seedComposer = useCallback(
-    (text: string) => setSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 })),
+    (text: string, target?: SeedTarget) =>
+      setSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1, target })),
     [],
   );
   // ── The selection (ADR-444; slot + page grains ADR-453): held by the
@@ -732,17 +737,29 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const askAboutSelection = useCallback(() => {
     if (!selection) return;
     const s = selection;
+    // ADR-579 D7 — the target rides TYPED; the prose is only the editable
+    // intent opener. `(id: …)` and quoted excerpts no longer land in the
+    // member's composer (the flattening ADR-522 §1 called out).
+    const path = artifactPath ? relPath(artifactPath) : null;
     if (s.blockId || s.blockKind) {
       const kind = s.blockKind ?? 'content';
-      const id = s.blockId ? ` (id: ${s.blockId})` : '';
-      seedComposer(`About the ${kind} block${id}${s.text ? ` — "${s.text}"` : ''}: `);
+      seedComposer(`About the ${kind} block: `, {
+        verb: 'ask', path, blockId: s.blockId ?? null, label: kind,
+        excerpt: s.text || null, pageIndex: s.slideIndex ?? s.pageIndex ?? null,
+      });
     } else if (s.slideIndex != null) {
-      seedComposer(`About slide ${s.slideIndex + 1}: `);
+      seedComposer(`About slide ${s.slideIndex + 1}: `, {
+        verb: 'ask', path, blockId: null, label: 'slide',
+        excerpt: null, pageIndex: s.slideIndex,
+      });
     } else {
-      seedComposer(`About the selection${s.text ? ` "${s.text}"` : ''}: `);
+      seedComposer(`About the selection: `, {
+        verb: 'ask', path, blockId: null, label: 'selection',
+        excerpt: s.text || null, pageIndex: null,
+      });
     }
     setRightTab('chat');
-  }, [selection, seedComposer]);
+  }, [selection, seedComposer, artifactPath]);
 
   // ── The canvas context menu (ADR-462) ──────────────────────────────────
   // The runtime has already SELECTED the block under the cursor (D7), so this
@@ -2219,21 +2236,28 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const t = ctxMenu;
     if (!t) return;
     const kind = t.blockKind ?? 'content';
-    const id = t.blockId ? ` (id: ${t.blockId})` : '';
-    seedComposer(`Rewrite the ${kind} block${id}${t.text ? ` — "${t.text}"` : ''}: `);
+    // ADR-579 D7 — target typed, intent editable (see askAboutSelection).
+    seedComposer(`Rewrite the ${kind} block: `, {
+      verb: 'rewrite', path: artifactPath ? relPath(artifactPath) : null,
+      blockId: t.blockId ?? null, label: kind,
+      excerpt: t.text || null, pageIndex: t.slideIndex ?? t.pageIndex ?? null,
+    });
     setRightTab('chat');
-  }, [ctxMenu, seedComposer]);
+  }, [ctxMenu, seedComposer, artifactPath]);
 
   const menuCheck = useCallback(() => {
     const t = ctxMenu;
     if (!t) return;
     const kind = t.blockKind ?? 'content';
-    const id = t.blockId ? ` (id: ${t.blockId})` : '';
     // Trailing "for" on purpose: "check for WHAT" is the member's question to
     // answer, and a complete sentence here would answer it for them.
-    seedComposer(`Check the ${kind} block${id}${t.text ? ` — "${t.text}"` : ''} for `);
+    seedComposer(`Check the ${kind} block for `, {
+      verb: 'check', path: artifactPath ? relPath(artifactPath) : null,
+      blockId: t.blockId ?? null, label: kind,
+      excerpt: t.text || null, pageIndex: t.slideIndex ?? t.pageIndex ?? null,
+    });
     setRightTab('chat');
-  }, [ctxMenu, seedComposer]);
+  }, [ctxMenu, seedComposer, artifactPath]);
 
   // The two rows no reference can ship (D3): a block has a durable address, and
   // the revision chain joins by that same id.

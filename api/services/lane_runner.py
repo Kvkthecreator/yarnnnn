@@ -749,12 +749,54 @@ def _build_cast_section(
         return ""
 
 
+def _seed_line(seed: Optional[dict]) -> str:
+    """ADR-579 D7 — the gesture, rendered: what the member CLICKED.
+
+    The deliberate half of "sees what the member sees" (focus is the ambient
+    half): a door named its target, typed, and this line hands the colleague
+    that target as the turn's subject. Same register as the focus lines,
+    same clip-honesty rule (a truncated excerpt says so)."""
+    if not seed:
+        return ""
+    verb = (seed.get("verb") or "").strip()
+    phrase = {
+        "ask": "asked about",
+        "rewrite": "clicked Rewrite on",
+        "check": "clicked Check on",
+    }.get(verb)
+    if not phrase:
+        return ""
+    label = (seed.get("label") or "").strip()
+    bid = (seed.get("block_id") or "").strip()
+    ex = (seed.get("excerpt") or "").strip()
+    page = seed.get("page_index")
+    if label == "selection":
+        noun = "the selection"
+    elif page is not None and not bid:
+        noun = f"{label or 'slide'} {page + 1}"
+    else:
+        noun = f"the {label or 'content'} block"
+    ident = f" (id {bid})" if bid else ""
+    clipped = ex[:80].strip()
+    quoted = (
+        f' — "{clipped}{"…" if len(ex.strip()) > len(clipped) else ""}"'
+        if clipped else ""
+    )
+    return (
+        f"- The member's gesture: they {phrase} {noun}{ident}{quoted}."
+        " That is this turn's target — act on it, never a copy elsewhere."
+    )
+
+
 def _compose_focus_section(
     artifact_path: Optional[str],
     artifact: str,
     focus: Optional[dict],
+    seed: Optional[dict] = None,
 ) -> str:
-    """The member's place, rendered at ONE kernel site (ADR-606 D1).
+    """The member's place AND gesture, rendered at ONE kernel site (ADR-606
+    D1; the ADR-579 D7 gesture rides the same site — deliberate beside
+    ambient, one home).
 
     BOUND lane: the ADR-522 grain line — but only when the declaration names
     the bound artifact or names nothing (ADR-606 D2). The binding is the
@@ -768,33 +810,44 @@ def _compose_focus_section(
     received the member's declared focus, said nothing about it, and meaning-
     placed file work the member expected to watch land on their open canvas).
     """
-    if not focus:
-        return ""
-
     def _rel(p: str) -> str:
         return p[len("/workspace/"):] if p.startswith("/workspace/") else p
 
-    fpath = _rel((focus.get("path") or "").strip())
-    if artifact_path:
-        if fpath and fpath != _rel(artifact_path):
-            return ""
-        from services.authoring import build_focus_line, extract_template
+    lines: list[str] = []
 
-        template = extract_template(artifact) or "document"
-        line = build_focus_line(focus, template)
-        return f"\n{line}\n" if line else ""
+    # The GESTURE first (deliberate beats ambient) — same binding-authority
+    # guard as the focus: a seed naming a different file than the binding is
+    # silence, not a redirected target.
+    if seed:
+        spath = _rel((seed.get("path") or "").strip())
+        if not (artifact_path and spath and spath != _rel(artifact_path)):
+            sline = _seed_line(seed)
+            if sline:
+                lines.append(sline)
 
-    _flabel = (focus.get("label") or "").strip()
-    _fapp = (focus.get("app") or "a surface").strip()
-    _fdesc = fpath or _flabel
-    if not _fdesc:
-        return ""
-    return (
-        f"\n- The member is looking at: {_fapp} — {_fdesc}."
-        " When they ask for changes to a document or file without naming"
-        " one, they mean THIS one — edit it in place; never a copy"
-        " elsewhere.\n"
-    )
+    if focus:
+        fpath = _rel((focus.get("path") or "").strip())
+        if artifact_path:
+            if not (fpath and fpath != _rel(artifact_path)):
+                from services.authoring import build_focus_line, extract_template
+
+                template = extract_template(artifact) or "document"
+                fline = build_focus_line(focus, template)
+                if fline:
+                    lines.append(fline)
+        else:
+            _flabel = (focus.get("label") or "").strip()
+            _fapp = (focus.get("app") or "a surface").strip()
+            _fdesc = fpath or _flabel
+            if _fdesc:
+                lines.append(
+                    f"- The member is looking at: {_fapp} — {_fdesc}."
+                    " When they ask for changes to a document or file without"
+                    " naming one, they mean THIS one — edit it in place; never"
+                    " a copy elsewhere."
+                )
+
+    return "\n" + "\n".join(lines) + "\n" if lines else ""
 
 
 def build_lane_conventions(
@@ -808,6 +861,7 @@ def build_lane_conventions(
     derive_source: Optional[str] = None,
     agent: Optional[str] = None,
     focus: Optional[dict] = None,
+    seed: Optional[dict] = None,
     app: Optional[str] = None,
     cast: Optional[list[dict]] = None,
     responder_reason: Optional[str] = None,
@@ -956,7 +1010,7 @@ def build_lane_conventions(
     # the job wearing the turn (the ADR-495 cast-section reasoning) — rendered
     # inside one app's posture builder it decayed one branch at a time, with
     # Strings declaring focus the server dropped and Text never rendering any.
-    posture_section += _compose_focus_section(artifact_path, artifact, focus)
+    posture_section += _compose_focus_section(artifact_path, artifact, focus, seed)
 
     # ADR-450 D3 — the derive binding's recipe section (the "Learn from"
     # lane's job description; pure composition from the kernel registry).
@@ -1023,6 +1077,9 @@ async def run_lane_turn(
     # ADR-522 — what the member is looking at THIS turn (transient; never
     # persisted). Threaded straight to the posture; None → byte-identical.
     focus: Optional[dict] = None,
+    # ADR-579 D7 — what the member CLICKED this turn (the gesture target);
+    # stamped by the route, rendered here. None → byte-identical.
+    seed: Optional[dict] = None,
     # ADR-460 D4 — WHO the member is talking to: the kernel Agent slug whose
     # posture this turn composes. None on Studio/derive lanes and every
     # pre-registry lane (they run byte-identically).
@@ -1090,6 +1147,7 @@ async def run_lane_turn(
         derive_recipe=derive_recipe, derive_source=derive_source,
         agent=agent,
         focus=focus,
+        seed=seed,
         app=app,
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
@@ -1233,6 +1291,8 @@ async def run_lane_turn_stream(
     derive_source: Optional[str] = None,
     # ADR-522 — the focus declaration; see ``run_lane_turn``.
     focus: Optional[dict] = None,
+    # ADR-579 D7 — the gesture target; see ``run_lane_turn``.
+    seed: Optional[dict] = None,
     # ADR-460 D4 — the Agent slug; see ``run_lane_turn``.
     agent: Optional[str] = None,
     # W0 / ADR-457 D8 — the falsifier join key; see ``run_lane_turn``.
@@ -1304,6 +1364,7 @@ async def run_lane_turn_stream(
         derive_recipe=derive_recipe, derive_source=derive_source,
         agent=agent,
         focus=focus,
+        seed=seed,
         app=app,
         cast=cast,
         responder_reason=responder_reason,

@@ -66,6 +66,7 @@ import {
   Paperclip,
   Pencil,
   RefreshCw,
+  Sparkles,
   Square,
   Wrench,
   X,
@@ -138,6 +139,57 @@ interface LaneArtifact {
   verb?: string;
 }
 
+/** ADR-579 D7 — what a gesture door clicked, carried typed beside the intent.
+ *  The operator words (`label`, 1-indexed pages at render) are the ADR-511 D3
+ *  vocabulary; `verb` names the door. Never authority — the server renders it
+ *  into the frame and stamps it on the row; the binding still decides reach. */
+export interface SeedTarget {
+  verb: 'ask' | 'rewrite' | 'check';
+  path: string | null;
+  blockId: string | null;
+  label: string | null;
+  excerpt: string | null;
+  pageIndex: number | null;
+}
+
+/** Wire form (snake_case, the focus precedent) — what goes up on Send and
+ *  what the ADR-605-shaped stamp stores on the row. */
+function seedToWire(t: SeedTarget) {
+  return {
+    verb: t.verb,
+    path: t.path,
+    block_id: t.blockId,
+    label: t.label,
+    excerpt: t.excerpt,
+    page_index: t.pageIndex,
+  };
+}
+
+/** Read the stamp back off a persisted row's metadata. Best-effort: a row
+ *  written before D7 (or a malformed stamp) renders as a plain turn. */
+function seedFromMeta(raw: unknown): SeedTarget | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const s = raw as Record<string, unknown>;
+  const verb = s.verb;
+  if (verb !== 'ask' && verb !== 'rewrite' && verb !== 'check') return undefined;
+  return {
+    verb,
+    path: typeof s.path === 'string' ? s.path : null,
+    blockId: typeof s.block_id === 'string' ? s.block_id : null,
+    label: typeof s.label === 'string' ? s.label : null,
+    excerpt: typeof s.excerpt === 'string' ? s.excerpt : null,
+    pageIndex: typeof s.page_index === 'number' ? s.page_index : null,
+  };
+}
+
+/** The chip's noun for a seed target — shared by the composer chip and the
+ *  transcript chip so a gesture reads identically before and after Send. */
+function seedTargetNoun(t: SeedTarget): string {
+  if (t.label === 'selection') return 'the selection';
+  if (t.pageIndex != null && !t.blockId) return `${t.label || 'slide'} ${t.pageIndex + 1}`;
+  return `the ${t.label || 'block'} block`;
+}
+
 interface LaneMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -154,6 +206,8 @@ interface LaneMessage {
   artifacts?: LaneArtifact[];
   /** Phase-A attachments: what this user turn carried (metadata, chips). */
   attachments?: Array<{ path: string; kind: 'image' | 'file'; name?: string }>;
+  /** ADR-579 D7 — the gesture this user turn carried (stamped metadata). */
+  seed?: SeedTarget;
   /** Direct conversations (2+ humans, no agent): WHO wrote this user row.
    *  Absent on solo-lane rows — every user row there is the viewer's own. */
   authorPrincipalId?: string;
@@ -216,8 +270,17 @@ export interface LaneMountSlots {
    *  empty; clicking one fills the composer (ADR-440). */
   suggestions?: string[];
   /** Composer seed: when `nonce` changes, `text` is set into (or appended to)
-   *  the composer. Drives pointing + the insert menu (ADR-440 v1.1). */
-  composerSeed?: { text: string; nonce: number } | null;
+   *  the composer. Drives pointing + the insert menu (ADR-440 v1.1).
+   *
+   *  ADR-579 D7 — the TARGET rides typed, never flattened into the prose.
+   *  A gesture door (Rewrite… / Check this… / Ask about this…) passes what
+   *  was clicked as `target`; the pane holds it as a chip beside the
+   *  composer (named, dismissible, metered marker visible), the intent text
+   *  stays editable, and NOTHING fires until Send — at which point the
+   *  target goes up the wire as `seed` and is stamped on the message row
+   *  (the ADR-605 mentions-stamp shape). Text-only seeds (`target` absent)
+   *  behave exactly as before. */
+  composerSeed?: { text: string; nonce: number; target?: SeedTarget } | null;
   /** How this mount renders an assistant turn's artifact writes (ADR-443):
    *   - `'card'` (default): the full ArtifactCard preview — the mount has no
    *     other view of the artifact (/chat).
@@ -477,6 +540,7 @@ export function LanePanel({
       artifacts: toArtifacts(m.metadata?.artifacts),
       attachments:
         (m.metadata?.attachments as LaneMessage['attachments']) ?? undefined,
+      seed: seedFromMeta(m.metadata?.seed),
       authorPrincipalId:
         typeof m.metadata?.author_principal_id === 'string'
           ? (m.metadata.author_principal_id as string)
@@ -657,11 +721,21 @@ export function LanePanel({
     [input, mention],
   );
 
+  // ADR-579 D7 — the held gesture target: what the door clicked, waiting
+  // beside the composer as a typed chip until Send (or ✕). This is the place
+  // a typed turn lives between mount-slot arrival and send — the seam the
+  // prefill-only mechanism never had.
+  const [pendingSeed, setPendingSeed] = useState<SeedTarget | null>(null);
+
   // ADR-440 v1.1 — composer seeding (pointing + insert menu). Appends when
   // the member already typed something; replaces when the composer is empty.
+  // ADR-579 D7: a target-carrying seed also arms the chip; a text-only seed
+  // clears it (a fresh gesture replaces the last, and a plain seed is not a
+  // gesture).
   useEffect(() => {
     if (!composerSeed?.text) return;
     setInput((cur) => (cur.trim() ? `${cur.replace(/\s*$/, ' ')}${composerSeed.text}` : composerSeed.text));
+    setPendingSeed(composerSeed.target ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerSeed?.nonce]);
 
@@ -675,6 +749,8 @@ export function LanePanel({
         content?: string;
         replaceFromMessageId?: string;
         attachments?: Array<{ path: string; kind: 'image' | 'file'; name?: string }>;
+        /** ADR-579 D7 — the gesture target riding this send. */
+        seed?: SeedTarget;
       } = {},
     ) => {
       if (sending) return;
@@ -701,6 +777,7 @@ export function LanePanel({
               role: 'user',
               content: opts.content ?? '',
               attachments: opts.attachments,
+              seed: opts.seed,
             },
             { id: replyId, role: 'assistant', content: '' },
           ];
@@ -843,6 +920,7 @@ export function LanePanel({
             signal: controller.signal,
             replaceFromMessageId: opts.replaceFromMessageId,
             attachments: opts.attachments,
+            seed: opts.seed ? seedToWire(opts.seed) : undefined,
             // ADR-522 D2: what the member is looking at, read at SEND time —
             // focus is volatile (it changes between turns and within one), so
             // the reading that matters is the one at the moment they ask.
@@ -892,12 +970,17 @@ export function LanePanel({
     setAttachments([]);
     const replaceFromMessageId = editing?.id;
     setEditing(null);
+    // ADR-579 D7 — the held gesture fires WITH the send, then clears; a
+    // gesture is one turn's target, never a sticky mode.
+    const seed = pendingSeed ?? undefined;
+    setPendingSeed(null);
     await runStream('send', {
       content,
       replaceFromMessageId,
       attachments: ready.length ? ready : undefined,
+      seed,
     });
-  }, [input, sending, editing, attachments, runStream]);
+  }, [input, sending, editing, attachments, runStream, pendingSeed]);
 
   /** Phase-A turn controls: stop — abort the stream; the server persists the
    *  partial reply (any writes that landed stand — the no-rewind rule). */
@@ -1137,6 +1220,19 @@ export function LanePanel({
                     ) : (
                       renderWithMentions(m.content, knownHandles)
                     )}
+                    {/* ADR-579 D7 — the typed turn in the transcript: the
+                        gesture this send carried, read off the row's stamp,
+                        so what-was-clicked stays legible after the fact. */}
+                    {m.role === 'user' && m.seed && (
+                      <div className="mt-1.5 pt-1.5 border-t border-primary-foreground/20">
+                        <span className="inline-flex items-center gap-1 rounded bg-primary-foreground/15 px-1.5 py-0.5 text-[10px]">
+                          <Sparkles className="w-3 h-3" />
+                          <span className="capitalize">{m.seed.verb}</span>
+                          <span>·</span>
+                          <span className="truncate max-w-[200px]">{seedTargetNoun(m.seed)}</span>
+                        </span>
+                      </div>
+                    )}
                     {/* Phase-A attachments: what this user turn carried. */}
                     {m.role === 'user' && m.attachments && m.attachments.length > 0 && (
                       <div className="mt-1.5 pt-1.5 border-t border-primary-foreground/20 flex flex-wrap gap-1">
@@ -1305,6 +1401,34 @@ export function LanePanel({
             >
               Cancel
             </button>
+          </div>
+        )}
+        {/* ADR-579 D7 — the held gesture: target named, metered marker
+            visible, dismissible; the intent below stays editable and nothing
+            fires until Send. The `AI` pill is StudioBlockMenu's D4 badge
+            riding into the turn it will spend. */}
+        {pendingSeed && (
+          <div className="flex flex-wrap gap-1 px-1 pb-1.5">
+            <span className="inline-flex items-center gap-1 rounded border border-amber-300/60 bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
+              <Sparkles className="w-3 h-3" />
+              <span className="capitalize">{pendingSeed.verb}</span>
+              <span>·</span>
+              <span className="truncate max-w-[180px]">
+                {seedTargetNoun(pendingSeed)}
+                {pendingSeed.excerpt ? ` — “${pendingSeed.excerpt.slice(0, 40)}${pendingSeed.excerpt.length > 40 ? '…' : ''}”` : ''}
+              </span>
+              <span className="ml-0.5 inline-flex items-center gap-0.5 rounded bg-amber-200/70 px-1 text-[9px] font-semibold tracking-wide text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
+                AI
+              </span>
+              <button
+                type="button"
+                onClick={() => setPendingSeed(null)}
+                className="p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                aria-label="Drop the gesture target"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
           </div>
         )}
         {/* Phase-A attachments: composer chips (uploading → ready | failed). */}

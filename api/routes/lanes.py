@@ -129,12 +129,34 @@ class LaneFocus(BaseModel):
     viewport_page_index: Optional[int] = None
 
 
+class LaneSeed(BaseModel):
+    """ADR-579 D7 — the gesture this turn carries: what the member CLICKED.
+
+    A door (Rewrite… / Check this… / Ask about this…) names its target here,
+    typed, instead of flattening ids and excerpts into the composer prose.
+    Two lifetimes, deliberately opposite to focus: the seed is STAMPED on the
+    member's message row (the ADR-605 mentions-stamp shape — what-was-clicked
+    is part of the record of the ask) AND rendered into the frame; focus is
+    where-they-stand and is never persisted. Never authority — the binding
+    still decides what the lane may write.
+    """
+
+    verb: str  # ask | rewrite | check
+    path: Optional[str] = None
+    block_id: Optional[str] = None
+    label: Optional[str] = None
+    excerpt: Optional[str] = None
+    page_index: Optional[int] = None
+
+
 class LaneTurnRequest(BaseModel):
     content: str
     # ADR-522 D2: the focus declaration for THIS turn. Optional throughout —
     # an app that declares nothing sends nothing, and the posture simply
     # carries no focus line.
     focus: Optional[LaneFocus] = None
+    # ADR-579 D7: the gesture target for THIS turn (a door's typed seed).
+    seed: Optional[LaneSeed] = None
     # Phase-A turn controls: edit-and-resend. When set, the transcript tail is
     # truncated from this USER message (inclusive) before the turn runs. The
     # no-rewind rule (three-axes discourse §3): truncation is transcript-only —
@@ -1119,6 +1141,9 @@ def _turn_stream_response(
     # A regenerate passes None — focus is per-turn and never persisted, so
     # there is nothing to replay.
     focus: Optional[LaneFocus] = None,
+    # ADR-579 D7 — the gesture target. Stamped on the user row AND rendered
+    # into the frame; a regenerate passes None (the gesture fired once).
+    seed: Optional[LaneSeed] = None,
 ) -> StreamingResponse:
     """The one streaming turn core — serves POST messages AND regenerate.
 
@@ -1238,6 +1263,12 @@ def _turn_stream_response(
         meta: dict = {"author_principal_id": auth.user_id}
         if attachments_meta:
             meta["attachments"] = attachments_meta
+        if seed is not None:
+            # ADR-579 D7 — the gesture STAMP (the ADR-605 shape): derived
+            # structure stored with the content it belongs to, re-read by the
+            # transcript rather than re-derived. The prose stays verbatim in
+            # the content; what-was-clicked rides typed beside it.
+            meta["seed"] = seed.model_dump()
         write_narrative_entry(
             auth.client, lane_id,
             role="user",
@@ -1392,6 +1423,8 @@ def _turn_stream_response(
                 # the request (transient), never off `lane_meta` (durable):
                 # the binding says WHICH artifact, the focus says where in it.
                 focus=focus.model_dump() if focus else None,
+                # ADR-579 D7 — WHAT the member clicked, this turn.
+                seed=seed.model_dump() if seed else None,
                 # ADR-460 D4 — WHO the member is talking to: the Agent's
                 # posture composes at turn time from this slug. ADR-495 D3: the
                 # slug comes from the CAST (`responder`, resolved above), so an
@@ -1555,6 +1588,7 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
         model_message=model_message,
         attachments_meta=attachments_meta,
         focus=req.focus,
+        seed=req.seed,
     )
 
 

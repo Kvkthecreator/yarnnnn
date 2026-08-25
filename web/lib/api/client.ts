@@ -618,6 +618,9 @@ export const api = {
         /** ADR-522 D2: what the member is looking at — per-turn, because focus
          *  is volatile. The durable lane↔artifact binding is separate. */
         focus?: FocusWire;
+        /** ADR-579 D7: the gesture target this send carries (snake_case wire
+         *  form) — stamped on the row, rendered into the frame. */
+        seed?: Record<string, unknown>;
       },
     ): Promise<void> =>
       streamLaneTurn(
@@ -629,6 +632,7 @@ export const api = {
             : {}),
           ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
           ...(opts?.focus ? { focus: opts.focus } : {}),
+          ...(opts?.seed ? { seed: opts.seed } : {}),
         },
         handlers,
         opts?.signal,

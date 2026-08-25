@@ -51,8 +51,10 @@ Plus the frame-level facts that belong to no app: the commons contract clauses
   one optional field, dropped by regenerates, never persisted.
 
 **The attention gradient this captures** (and deliberately stops at): open object →
-viewport (what's on screen) → selection/caret (a held commitment). Everything above
-the selection grain is declared; nothing below it is inferred — see §6.
+viewport (what's on screen) → selection/caret (a held commitment) → **gesture** (a
+door clicked on a named target — ADR-579 D7's typed seed, the deliberate half focus
+is the ambient half of). Everything above the selection grain is declared; nothing
+below it is inferred — see §6.
 
 ## 3. The composition order (build_lane_conventions)
 
@@ -66,7 +68,11 @@ the selection grain is declared; nothing below it is inferred — see §6.
    for an unregistered or unstamped binding. Signature:
    `(client, user_id, artifact_path, artifact) -> str`, where `artifact` is the
    head the kernel already read once. Every binding APPENDS to the character.
-6. **Focus** — `_compose_focus_section`, the ONE site (ADR-606 D1):
+6. **Gesture + focus** — `_compose_focus_section`, the ONE site (ADR-606 D1; the
+   ADR-579 D7 gesture rides it, deliberate beside ambient). A turn carrying a
+   typed seed (`LaneTurnRequest.seed` — what a Rewrite/Check/Ask door clicked,
+   also STAMPED on the message row in the ADR-605 shape) renders the gesture
+   line first, under the same binding guard and clip-honesty rule. Then focus:
    - *Bound lane*: the ADR-522 grain bullet (`build_focus_line` — operator words,
      1-indexed, viewing≠selected per D3, flow-only heading reading per D4, a
      `selection` label gets its own sentence, a clipped excerpt carries "…") —
