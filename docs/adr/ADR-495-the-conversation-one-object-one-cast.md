@@ -22,6 +22,10 @@ smaller and over-determined.)
 > **Not built, per D6:** notifications/attention wiring (deferred to post-stabilization by operator
 > ruling), human-`@mention` parsing, streaming for multi-participant conversations. A peer's
 > message still reaches no attention surface — the standing honest gap.
+> *(2026-08-25: the mention half of that gap is CLOSED by
+> [ADR-605](ADR-605-a-mention-reaches-its-person.md) — human mentions are parsed, stamped on the
+> message row, derived into the mentioned member's To-do, and dial-gated onto email. Undirected
+> peer messages still reach no attention surface, deliberately — see ADR-605 §5.)*
 >
 > **D2 is now enforced by the DATABASE (migration 228, 2026-07-30).** As shipped, D2 was an
 > application promise: `chat_sessions`/`session_messages` RLS stayed creator-scoped (migration 008,
@@ -243,8 +247,10 @@ Two nouns for one object caused the confusion this discourse opened with.
 
 - **No notifications.** Operator-ruled: attention wiring waits for core-infra stabilization.
   Standing honest gap, unchanged: a peer's message and an `@mention` reach no attention surface.
+  *(Superseded for MENTIONS 2026-08-25 by [ADR-605](ADR-605-a-mention-reaches-its-person.md) —
+  an `@mention` now routes attention. Undirected peer messages stay off attention surfaces.)*
 - **No human-`@mention` parsing** — it belongs with notifications; a mention routing nowhere is
-  theatre.
+  theatre. *(Built by ADR-605, exactly on those grounds: the routing exists now.)*
 - **No streaming for multi-participant conversations, no presence, no typing indicators, no read
   receipts.** ADR-492 §6 non-goals carry forward.
 - **No per-turn engine picker.** Responder selection is addressing (ADR-492 D3); engines stay

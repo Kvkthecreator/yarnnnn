@@ -569,7 +569,8 @@ export function LanePanel({
   const knownHandles = useMemo(() => {
     const s = new Set<string>();
     for (const c of mentionCandidates) {
-      if (c.kind !== 'agent') continue;
+      // ADR-605 — people mark too: a human mention now routes to their
+      // attention surface, so the chip claims a delivery that happens.
       s.add(c.handle.toLowerCase());
       s.add(c.name.replace(/\s+/g, '').toLowerCase());
     }

@@ -1185,6 +1185,15 @@ def _turn_stream_response(
         cast = list_participants(lane_id)
     except Exception:  # noqa: BLE001 — cast unreadable → the lane's own Agent
         cast = []
+    # ADR-605 — human cast rows gain their display label here, so the same
+    # addressing grammar that routes an @agent to a turn can resolve an
+    # @person for the ATTENTION stamp below. Best-effort: unlabelled rows
+    # just leave those mentions unresolved.
+    from services.mentions import (
+        enrich_cast_labels, fire_and_forget, mentioned_humans, notify_mentioned,
+    )
+
+    cast = enrich_cast_labels(cast)
     humans = sum(1 for c in cast if c.get("member_kind") == "human")
     cast_agents = agent_slugs(cast)
     # ADR-492 D3 / ADR-495 D3, finally built: ADDRESSING selects who answers.
@@ -1202,10 +1211,11 @@ def _turn_stream_response(
     # the picker ADR-492 D3 refused.
     from services.addressing import select_responder
 
+    cast_roster = _cast_roster(auth, cast_agents)
     responder, responder_reason = select_responder(
         content,
         cast,
-        roster=_cast_roster(auth, cast_agents),
+        roster=cast_roster,
         fallback=_last_responder(auth, lane_id, cast_agents) or lane_agent,
     )
     # Nobody replies when the conversation holds people and no Agent. A solo
@@ -1233,6 +1243,14 @@ def _turn_stream_response(
         meta: dict = {"author_principal_id": auth.user_id}
         if attachments_meta:
             meta["attachments"] = attachments_meta
+        # ADR-605 — the mention STAMP: addressing metadata parsed once and
+        # stored with the content it derives from (the ADR-492 D3 split: the
+        # @token stays verbatim in the text; the attention consequence is the
+        # kernel's, derived per viewer from this stamp). The author is
+        # excluded at stamp time — they are present (ADR-405 D4).
+        user_mentions = mentioned_humans(content, cast, exclude=auth.user_id)
+        if user_mentions:
+            meta["mentions"] = user_mentions
         write_narrative_entry(
             auth.client, lane_id,
             role="user",
@@ -1241,6 +1259,17 @@ def _turn_stream_response(
             authored_by=f"member:{auth.user_id}",
             extra_metadata=meta,
         )
+        if user_mentions:
+            # The email consequence, off the turn's critical path — the one
+            # chokepoint gates by each recipient's dial and fails closed.
+            fire_and_forget(notify_mentioned(
+                auth.client,
+                workspace_id=lane.get("workspace_id"),
+                conversation_id=lane_id,
+                conversation_name=lane_meta.get("name") or "a conversation",
+                mentioned=user_mentions,
+                author_label=(getattr(auth, "email", None) or "A teammate").split("@")[0],
+            ))
 
     if direct:
         async def dm_stream():
@@ -1353,6 +1382,13 @@ def _turn_stream_response(
             if responder:
                 extra["agent_slug"] = responder
                 extra["responder_reason"] = responder_reason
+            # ADR-605 — an agent's turn mentions people the same way a
+            # member's does (the derivation never asks who authored the
+            # mentioning turn). The acting member is excluded at stamp time:
+            # they are watching this reply arrive.
+            reply_mentions = mentioned_humans(reply, cast, exclude=auth.user_id)
+            if reply_mentions:
+                extra["mentions"] = reply_mentions
             write_narrative_entry(
                 auth.client, lane_id,
                 role="assistant",
@@ -1361,6 +1397,17 @@ def _turn_stream_response(
                 authored_by=lane_caller_identity(auth.user_id, model),
                 extra_metadata=extra,
             )
+            if reply_mentions:
+                fire_and_forget(notify_mentioned(
+                    auth.client,
+                    workspace_id=lane.get("workspace_id"),
+                    conversation_id=lane_id,
+                    conversation_name=lane_meta.get("name") or "a conversation",
+                    mentioned=reply_mentions,
+                    author_label=(
+                        (cast_roster.get(responder) or {}).get("name") or responder or "An agent"
+                    ),
+                ))
             try:
                 _conversation_write_client(auth).table("chat_sessions").update(
                     {"updated_at": "now()"}

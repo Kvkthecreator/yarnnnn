@@ -17,15 +17,16 @@ a named hand with the same gesture." The `@name` stays in the message the
 member sent; this module only READS it. Nothing is stripped, nothing is
 rewritten, and the transcript keeps exactly what was typed.
 
-WHAT THIS DELIBERATELY DOES NOT DO (ADR-495 D6)
+WHAT THIS DELIBERATELY DOES NOT DO
 
-- **No human-mention routing.** `@a-person` resolves to nobody here. D6 defers
-  human mentions *because they belong with notifications* — "a mention routing
-  nowhere is theatre" — and notifications do not exist. An Agent mention is a
-  different act: it routes to a TURN, which does exist. That asymmetry is the
-  whole reason this module can ship while D6 still stands. `resolve_address`
-  returns humans it recognized ONLY so a caller can tell "addressed a person"
-  apart from "addressed nobody" — no attention surface is reached.
+- **No human TURN routing.** A human mention never fires anything and never
+  selects a responder — a person answers when they answer. What it does reach,
+  since ADR-605 closed the ADR-495 D6 gap: the ATTENTION consequence. The
+  caller (`routes/lanes.py`) stamps `resolve_address`'s `humans` onto the
+  message row (`metadata.mentions`) and the kernel derives the To-do entry +
+  dial-gated email from there (`services/mentions.py`). Same gesture, two
+  consequence machineries: @agent = a turn now (the mention IS the human act
+  that fires it); @human = attention routed (ADR-492 D3's split, built).
 - **No change to never-ambient.** This selects WHICH agent answers a human act;
   it never causes a turn. A message with no mention still fires exactly one
   reply, from the same agent as before.
@@ -111,9 +112,18 @@ def resolve_address(
             for h in _handles(p, roster):
                 agent_by_handle.setdefault(h, p["agent_slug"])
         elif p.get("member_kind") == "human" and p.get("principal_id"):
+            # Every spelling that addresses this person — the mirror of
+            # `_handles` for agents: the resolved label (a full name or an
+            # email local-part, per `principal_display.resolve_member_names`),
+            # its space-squashed form (the mention grammar is one token), and
+            # the raw email local-part. The FE menu emits the squashed form;
+            # accepting all three keeps a hand-typed handle honest too.
             label = (p.get("display_name") or p.get("email") or "").strip()
             if label:
-                human_by_handle.setdefault(label.split("@")[0].lower(), p["principal_id"])
+                local = label.split("@")[0]
+                for h in {local.lower(), local.replace(" ", "").lower()}:
+                    if h:
+                        human_by_handle.setdefault(h, p["principal_id"])
 
     agent: Optional[str] = None
     humans: list[str] = []
@@ -124,7 +134,8 @@ def resolve_address(
             if agent is None:
                 agent = agent_by_handle[h]
         elif h in human_by_handle:
-            humans.append(human_by_handle[h])
+            if human_by_handle[h] not in humans:
+                humans.append(human_by_handle[h])
         else:
             unresolved.append(h)
     return {"agent": agent, "humans": humans, "unresolved": unresolved}

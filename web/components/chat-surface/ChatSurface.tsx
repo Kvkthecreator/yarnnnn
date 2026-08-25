@@ -1101,10 +1101,11 @@ export function ChatSurface() {
                 ]),
               )}
               // The '@' roster: this conversation's cast, viewer excluded.
-              // Agents route; people render inert (ADR-495 D6 defers human
-              // mentions to notifications). The handle is what the SERVER
-              // matches on — slug or display name, case-insensitive — so the
-              // menu can only ever emit something the router honours.
+              // One species-blind gesture (ADR-605): an agent answers now; a
+              // person gets the mention routed to their attention. The handle
+              // is what the SERVER matches on — slug or display name,
+              // space-squashed (the mention grammar is one token) — so the
+              // menu can only ever emit something the parser honours.
               onDefaultResponderChange={setDefaultResponder}
               mentionCandidates={(activeLane.participants ?? [])
                 .filter((p) => !(p.member_kind === 'human' && p.principal_id === userId))
@@ -1124,7 +1125,7 @@ export function ChatSurface() {
                     'A member';
                   return {
                     kind: 'human' as const,
-                    handle: label.split('@')[0],
+                    handle: label.split('@')[0].replace(/\s+/g, ''),
                     name: label,
                   };
                 })

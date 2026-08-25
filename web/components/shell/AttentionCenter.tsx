@@ -81,6 +81,20 @@ interface PendingProposal {
   source: string | null;
 }
 
+/** ADR-605 — one unresolved mention of the viewer (the To-do second source,
+ * ADR-492 D3). Derived server-side from the conversation substrate — cast ∩
+ * visibility window ∩ the write-time stamp; membership keys on RESOLUTION
+ * (dealt-with), while the badge keys on the read cursor, so a mention never
+ * silently clears by scroll-by. */
+interface MentionRow {
+  conversation_id: string;
+  conversation_name: string;
+  sequence: number;
+  at: string | null;
+  excerpt: string;
+  author: string;
+}
+
 /** ADR-410 D1 — one peer/agent act from the workspace timeline. */
 interface PeerActivity {
   id: string;
@@ -128,6 +142,7 @@ function writeLastSeen(userId: string, iso: string) {
 export function AttentionCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
+  const [mentions, setMentions] = useState<MentionRow[]>([]);
   const [activity, setActivity] = useState<PeerActivity[]>([]);
   const [lowBalance, setLowBalance] = useState<number | null>(null);
   // Whether the low-balance warning may show the dollar figure (billing
@@ -179,9 +194,13 @@ export function AttentionCenter() {
     let cancelled = false;
 
     const derive = async () => {
-      const [proposalsResult, timelineResult, limitsResult] =
+      const [proposalsResult, mentionsResult, timelineResult, limitsResult] =
         await Promise.allSettled([
           api.proposals.list('pending', 20),
+          // ADR-605 — the To-do second source: unresolved mentions of the
+          // viewer (ADR-492 D3). allSettled: an API deployed without the
+          // endpoint yet degrades to no mention rows, never a broken bell.
+          api.mentions.list(20),
           // ADR-410 D1 — the ONE "what happened" source (the attributed
           // ledgers). chat.globalHistory is gone: post-ADR-407-Phase-4 it
           // read the viewer's PRIVATE thread — self-echo, peers invisible.
@@ -202,6 +221,10 @@ export function AttentionCenter() {
             source: (p as { source?: string | null }).source ?? null,
           })),
         );
+      }
+
+      if (mentionsResult.status === 'fulfilled') {
+        setMentions(mentionsResult.value.mentions || []);
       }
 
       if (timelineResult.status === 'fulfilled') {
@@ -280,7 +303,15 @@ export function AttentionCenter() {
     ({ e }) => !lastSeen || e.created_at > lastSeen,
   );
 
-  const badgeCount = proposals.length + unseenPeer.length;
+  // ADR-492 §7 — two facts, kept distinct: the LIST is unresolved mentions
+  // (they stay until dealt with); the BADGE counts only the unseen ones
+  // (the cursor), so opening the bell quiets the count without discharging
+  // the ask.
+  const unseenMentions = mentions.filter(
+    (m) => !lastSeen || (m.at != null && m.at > lastSeen),
+  );
+
+  const badgeCount = proposals.length + unseenMentions.length + unseenPeer.length;
   const hasWarning = lowBalance != null;
 
   const toggleOpen = useCallback(() => {
@@ -395,11 +426,38 @@ export function AttentionCenter() {
               </button>
             )}
 
-            {proposals.length > 0 && (
+            {(proposals.length > 0 || mentions.length > 0) && (
               <div className="border-b border-border/60">
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                   To do
                 </div>
+                {/* ADR-605 — mentions lead the section: the most personal ask
+                    there is. Clicking lands IN the conversation (the mention
+                    resolves by being dealt with there, or via Done in the
+                    Notifications window — never by this click alone). */}
+                {mentions.slice(0, MAX_ROWS_PER_SECTION).map((m) => (
+                  <button
+                    key={`mention-${m.conversation_id}-${m.sequence}`}
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      navigateToSurface('chat', { lane: m.conversation_id });
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                  >
+                    <span className="block text-foreground truncate">
+                      {m.author} mentioned you · {m.conversation_name}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="truncate">{m.excerpt}</span>
+                      {m.at && (
+                        <span className="shrink-0" title={formatAbsolute(m.at)}>
+                          {formatRelativeTime(m.at)}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                ))}
                 {proposals.slice(0, MAX_ROWS_PER_SECTION).map((p) => (
                   <button
                     key={p.id}
@@ -459,6 +517,7 @@ export function AttentionCenter() {
 
             {!hasWarning &&
               proposals.length === 0 &&
+              mentions.length === 0 &&
               peerActivity.length === 0 && (
                 <p className="px-3 py-4 text-xs text-muted-foreground">
                   Nothing here yet. To-dos, activity, and runway warnings

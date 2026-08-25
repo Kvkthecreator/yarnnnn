@@ -72,7 +72,12 @@ def test_d2_validated_writer() -> None:
             "a valid v2 shape passes")
     _assert(v({"email": {"decisions": "ALL"}}) != [],
             "a typo'd dial is refused (the silent-silence defect)")
-    _assert(v({"email": {"mentions": "all"}}) != [],
+    # Re-anchored 2026-08-25 (ADR-605): `mentions` is WIRED — the stamp lands
+    # at the turn write and the email rides the chokepoint — so its pref is
+    # now accepted. `runs` remains the declared-unwired probe.
+    _assert(v({"email": {"mentions": "all"}}) == [],
+            "the wired mentions kind is accepted (ADR-605)")
+    _assert(v({"email": {"runs": "all"}}) != [],
             "an UNWIRED kind is refused (a stored pref nothing honors)")
     _assert(v({"witness_email": "all"}) != [],
             "the legacy 3-key shape is refused, not dual-read")

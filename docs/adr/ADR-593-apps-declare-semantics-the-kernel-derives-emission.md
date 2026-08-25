@@ -89,7 +89,7 @@ ratification:
 |---|---|---|---|
 | `decisions` | kernel | dial, default `high` | proposals awaiting you + peer/agent workspace acts (was `witness_email`) |
 | `reports` | kernel | dial, default `none` | recurring reports addressed to you (today: the daily P&L reconciliation) — opt-in preserved |
-| `mentions` | chat | **declared, unwired** | the ADR-495 D6 standing gap; the pane names the absence instead of hiding it |
+| `mentions` | chat | **declared, unwired** *(WIRED 2026-08-25 by [ADR-605](ADR-605-a-mention-reaches-its-person.md): default `all`, on/off dial)* | the ADR-495 D6 standing gap; the pane names the absence instead of hiding it |
 | `runs` | agents | **declared, unwired** | failures already reach the bell as `material` via the weight derivation; email lands only when a real send path exists |
 
 The registry is served (`GET /api/notification-kinds`) so the pane renders
@@ -177,7 +177,8 @@ ADR-582 doc-drift in `routes/integrations.py` corrected.
 ## 4. What this does NOT do
 
 - No mention wiring (Phase 3 — ADR-492's ruled shape, its own build). The
-  `mentions` kind is declared so the pane can name the gap.
+  `mentions` kind is declared so the pane can name the gap. *(Phase 3 landed
+  2026-08-25 as [ADR-605](ADR-605-a-mention-reaches-its-person.md).)*
 - No push transport, no digest batching (both remain named future mounts;
   the dial enum keeps headroom).
 - No per-path subscription matrix — never (ADR-405 D5). No second attention

@@ -20,7 +20,8 @@ Preference gating reads member_state['notification_prefs'] — the ONE prefs
 store (ADR-489 D5, keying preserved: per (workspace, principal) — mute one
 commons, not all). Shape (ADR-593 D2):
 
-    { "email": { "decisions": "all"|"high"|"none", "reports": "all"|"none" } }
+    { "email": { "decisions": "all"|"high"|"none", "reports": "all"|"none",
+                 "mentions": "all"|"none" } }
 
 Only WIRED kinds are accepted (validate_notification_prefs — the member-state
 PUT 422s on anything else). The gate FAILS CLOSED: if the store cannot be
@@ -71,9 +72,15 @@ NOTIFICATION_KINDS: list[dict] = [
         "key": "mentions",
         "owner": "chat",
         "label": "Mentions",
-        "description": "When someone @mentions you in a conversation.",
-        "email_default": None,  # ADR-495 D6 standing gap — declared so the pane can name it
-        "email_note": "Not wired yet — a mention doesn't reach anyone's attention surface today. Coming with the mentions build.",
+        "description": "When someone — a teammate or an agent — @mentions you in a conversation.",
+        # WIRED (ADR-605): the mention stamp lands at the turn write
+        # (routes/lanes.py → services/mentions.py) and the email rides this
+        # chokepoint. Default 'all' — a mention is a direct personal ask, the
+        # strongest email case there is; at most one email per (recipient,
+        # conversation) per EMAIL_SUPPRESSION_MINUTES, derived from the
+        # transport ledger, so an active back-and-forth never becomes a drip.
+        "email_default": "all",
+        "email_note": None,
     },
     {
         "key": "runs",
@@ -91,7 +98,7 @@ EMAIL_DIAL_DEFAULTS: dict = {
 }
 
 # The wired kinds + the ungated-but-recorded direct kind (ADR-593 D3).
-NotificationKind = Literal["decisions", "reports", "direct"]
+NotificationKind = Literal["decisions", "reports", "mentions", "direct"]
 
 _VALID_DIALS = ("all", "high", "none")
 

@@ -636,10 +636,15 @@ export default function SettingsPage() {
                       aria-label={`${k.label} emails`}
                       className="h-8 shrink-0 rounded-md border border-border bg-background px-2 text-xs text-foreground"
                     >
-                      {/* `reports` is a plain opt-in — an "urgent only" tier
-                          would be a promise nothing grades, so it isn't offered. */}
-                      {k.key !== "reports" && <option value="high">Urgent only</option>}
-                      <option value="all">{k.key === "reports" ? "On" : "Every action"}</option>
+                      {/* `reports` and `mentions` are plain on/off — an
+                          "urgent only" tier would be a promise nothing
+                          grades, so it isn't offered (ADR-593/605). */}
+                      {!["reports", "mentions"].includes(k.key) && (
+                        <option value="high">Urgent only</option>
+                      )}
+                      <option value="all">
+                        {k.key === "reports" ? "On" : k.key === "mentions" ? "Every mention" : "Every action"}
+                      </option>
                       <option value="none">{k.key === "reports" ? "Off" : "Never"}</option>
                     </select>
                   ) : (

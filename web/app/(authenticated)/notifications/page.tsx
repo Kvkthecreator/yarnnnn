@@ -35,6 +35,7 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 import { QueueBody } from "@/components/queue/QueueBody";
 import { StandingBand } from "@/components/queue/StandingBand";
 import { ActivityLedger } from "@/components/notifications/ActivityLedger";
+import { MentionQueue } from "@/components/notifications/MentionQueue";
 
 // ADR-346 label pass (2026-06-19): the act labels are plain operator words.
 // The pane KEYS (resolve/understand) are unchanged — they are URL params +
@@ -98,6 +99,9 @@ export default function OperationPage() {
                   Reviewer's standing intent) renders above the discrete
                   proposals — an unmet mandate is the deepest "to do". */}
               <StandingBand />
+              {/* ADR-605 — the To-do second source (ADR-492 D3): unresolved
+                  mentions of the viewer, discharged by replying or by Done. */}
+              <MentionQueue />
               <QueueBody />
             </div>
           </div>

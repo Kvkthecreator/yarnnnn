@@ -24,13 +24,12 @@
  *    this reports its filtered rows up via `onItemsChange` so the host can
  *    pick the highlighted one without duplicating the filter logic.
  *
- * WHY PEOPLE APPEAR BUT INERT. The cast is species-blind (ADR-495 D1) and the
- * member should see the whole room, so hiding humans would misrepresent who is
- * here. But a human mention routes NOWHERE today: ADR-495 D6 defers it to
- * notifications, on the grounds that "a mention routing nowhere is theatre."
- * Offering a person as a live target would promise a delivery the system does
- * not make. So they render — greyed, unselectable, with the reason stated once
- * at the foot of the section. The honest middle: visible, and visibly not yet.
+ * PEOPLE ARE LIVE TARGETS (ADR-605 closed the ADR-495 D6 gap). One
+ * species-blind gesture, two consequences: an @agent routes a TURN (it
+ * answers now); an @person routes ATTENTION (their To-do + bell, and a
+ * dial-gated email) — the ADR-492 D3 split, built. The sections stay
+ * labelled because the consequences differ and the member should know
+ * which kind of colleague they are reaching for.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -43,7 +42,7 @@ export interface MentionCandidate {
   name: string;
   avatarUrl?: string;
   blurb?: string;
-  /** Agents route; people are shown inert (ADR-495 D6). */
+  /** Agents route a turn; people route attention (ADR-605). */
   kind: 'agent' | 'human';
 }
 
@@ -58,9 +57,8 @@ interface MentionMenuProps {
   onPick: (c: MentionCandidate) => void;
   onClose: () => void;
   /** Reports the SELECTABLE rows up, so the host's Enter picks the same row
-   *  this list highlights. People are excluded: they are displayed, not
-   *  targets, and a host that could "select" one would write a handle that
-   *  routes nowhere. */
+   *  this list highlights — agents first, then people, matching the render
+   *  order so the highlight index and the visible list never disagree. */
   onItemsChange: (items: MentionCandidate[]) => void;
 }
 
@@ -81,10 +79,13 @@ export function MentionMenu({
       !q || c.handle.toLowerCase().includes(q) || c.name.toLowerCase().includes(q);
     const hit = candidates.filter(match);
     const agentRows = hit.filter((c) => c.kind === 'agent');
+    const peopleRows = hit.filter((c) => c.kind === 'human');
     return {
       agents: agentRows,
-      people: hit.filter((c) => c.kind === 'human'),
-      selectable: agentRows,
+      people: peopleRows,
+      // ADR-605 — people are live targets: the flat keyboard order matches
+      // the render order (agents, then people).
+      selectable: [...agentRows, ...peopleRows],
     };
   }, [candidates, filter]);
 
@@ -163,22 +164,33 @@ export function MentionMenu({
           <div className="px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
             People
           </div>
-          {people.map((c) => (
-            <div
-              key={`human-${c.handle}`}
-              aria-disabled
-              // The reason rides on the ROW (title + a quiet trailing word)
-              // rather than a footnote under the list: a sentence of
-              // explanation below a picker is a paragraph the member has to
-              // read every time they reach for the gesture.
-              title="Mentioning a person doesn’t notify them yet"
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm opacity-45 cursor-default"
-            >
-              <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground">no alerts yet</span>
-            </div>
-          ))}
+          {people.map((c, i) => {
+            // Flat keyboard index continues past the agent rows (selectable
+            // order = render order).
+            const idx = agents.length + i;
+            return (
+              <button
+                key={`human-${c.handle}`}
+                type="button"
+                role="option"
+                aria-selected={idx === highlight}
+                data-mention-item={idx}
+                title="Mentioning a person flags it for them — they’ll see it in their notifications"
+                onMouseEnter={() => onHighlight(idx)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onPick(c);
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm transition-colors',
+                  idx === highlight ? 'bg-muted' : 'hover:bg-muted/60',
+                )}
+              >
+                <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              </button>
+            );
+          })}
         </>
       )}
 

@@ -3071,6 +3071,30 @@ export const api = {
       email_defaults: Record<string, 'all' | 'high' | 'none'>;
     }>("/api/notification-kinds"),
 
+  // ADR-605 — mentions: the To-do second source (ADR-492 D3). `list` is a
+  // per-viewer DERIVATION over the conversation substrate (cast ∩ visibility
+  // window ∩ the write-time stamp) — no inbox table. `resolve` advances the
+  // viewer's per-conversation resolution cursor (monotonic, server-merged),
+  // so a mention clears by being dealt with, never by scroll-by.
+  mentions: {
+    list: (limit = 20) =>
+      request<{
+        mentions: Array<{
+          conversation_id: string;
+          conversation_name: string;
+          sequence: number;
+          at: string | null;
+          excerpt: string;
+          author: string;
+        }>;
+      }>(`/api/mentions?limit=${limit}`),
+    resolve: (conversationId: string, sequence: number): Promise<void> =>
+      request<{ resolved: boolean }>("/api/mentions/resolve", {
+        method: "POST",
+        body: JSON.stringify({ conversation_id: conversationId, sequence }),
+      }).then(() => undefined),
+  },
+
   // ADR-310 D4: MCP OAuth login handoff. The web /mcp/authorize page calls
   // this with the operator's JWT to bind the real user to the pending auth
   // code, then navigates the browser to the returned redirect_url (back to

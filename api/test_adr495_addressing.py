@@ -85,10 +85,12 @@ def test_an_unknown_handle_is_never_guessed_at():
     assert select_responder("@lisaa typo", CAST, roster=ROSTER)[1] != "addressed"
 
 
-def test_human_mentions_resolve_but_route_nowhere():
-    """ADR-495 D6 defers human mentions because they belong with notifications
-    ("a mention routing nowhere is theatre"). Recognizing one must not fire a
-    turn at it, and must not be mistaken for an unresolved handle."""
+def test_human_mentions_resolve_but_never_fire_a_turn():
+    """A human mention routes ATTENTION, never a TURN (ADR-605 built the
+    ADR-492 D3 split; ADR-495 D6's gap is closed). Recognizing one must not
+    select a responder, and must not be mistaken for an unresolved handle —
+    the caller stamps `humans` onto the message row for the kernel to derive
+    the To-do entry + dial-gated email from."""
     r = resolve_address("@kvkthecreator hello", CAST, roster=ROSTER)
     assert r["agent"] is None
     assert r["humans"] == ["u-1"]
@@ -297,13 +299,15 @@ def test_the_server_puts_the_speaker_on_the_wire():
 
 def test_the_mention_menu_only_offers_what_the_router_honours():
     """An unresolved handle is never fuzzy-matched server-side, so a menu that
-    could emit an invalid handle would promise a routing that never happens."""
+    could emit an invalid handle would promise a delivery that never happens.
+
+    Re-anchored 2026-08-25 (ADR-605): people are LIVE targets now — an @person
+    routes attention (To-do + dial-gated email), so the selectable list holds
+    the whole cast. What this test defends is unchanged: the menu emits only
+    cast handles, and the flat keyboard order matches the render order."""
     menu = (WEB / "MentionMenu.tsx").read_text()
-    # People are DISPLAYED (the cast is species-blind) but not selectable —
-    # ADR-495 D6 defers human mentions to notifications.
     assert "onItemsChange(selectable)" in menu
-    assert "selectable: agentRows" in menu, "only Agents may be picked"
-    assert "no alerts yet" in menu, "say why a person is inert, on the row"
+    assert "agentRows, ...peopleRows" in menu, "the whole cast may be picked (ADR-605)"
     # A filter matching nobody must CLOSE the menu, or a typed email address
     # strands it over the composer (the StudioSlashPalette lesson).
     assert "onClose();" in menu and "filter.length > 0" in menu

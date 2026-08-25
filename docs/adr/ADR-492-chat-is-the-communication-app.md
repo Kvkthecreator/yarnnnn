@@ -173,6 +173,11 @@ Chat never sends a notification. It writes addressed acts; the OS routes attenti
 whole point of the split, and it is why communication lands with its notification story already
 built.
 
+> *(2026-08-25: this section is BUILT — [ADR-605](ADR-605-a-mention-reaches-its-person.md). The
+> agent half shipped first as ADR-495 D3 addressing; the human half now lands as the write-time
+> stamp + per-viewer derivation + the wired `mentions` email kind, with resolution keyed exactly
+> as §7 below specifies: To-do membership on resolution, the unseen count on the cursor.)*
+
 ## 5. D4 — The comments inversion, ratified: binding-capable from birth
 
 Pending ruling (c) closes on the inversion's side. **The Conversation object is binding-capable
