@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.25.2] - a clipped focus excerpt says it is one
+
+### Changed
+- `services/authoring.py::build_focus_line`: the selection/block excerpt gains
+  a trailing "…" when the 80-char clip actually truncated. Found by driving
+  production (the ADR-606 click-pass): asked "what do I have selected?", the
+  Editor asserted the clip boundary as where the member's selection ENDED
+  ("cuts off right after 'first it'") — an unmarked excerpt reads as the
+  whole thing.
+- Expected behavior: the colleague treats a marked excerpt as the START of
+  the selection, not its extent. Unclipped excerpts are byte-identical.
+
+---
+
 ## [2026.08.25.1] - ADR-606: the pane sees what the member sees
 
 ### Changed

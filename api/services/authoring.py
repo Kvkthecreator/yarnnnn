@@ -2949,7 +2949,15 @@ def build_focus_line(focus: Optional[dict], template: str) -> str:
 
     def _quoted(text: str) -> str:
         clipped = text[:80].strip()
-        return f' — "{clipped}"' if clipped else ""
+        if not clipped:
+            return ""
+        # Mark the clip (2026-08-25, found by driving production): an unmarked
+        # excerpt reads as the WHOLE thing — the Editor told a member their
+        # selection "cuts off right after 'first it'", asserting the clip
+        # boundary as a fact about the document. An ellipsis makes the excerpt
+        # honest about being one.
+        suffix = "…" if len(text.strip()) > len(clipped) else ""
+        return f' — "{clipped}{suffix}"'
 
     if scope == "block":
         thing = label or "block"

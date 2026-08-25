@@ -91,6 +91,15 @@ check(
         "document",
     ),
 )
+# Found by driving production (2026-08-25): an unmarked clip reads as the
+# whole selection — the Editor asserted the 120-char boundary as where the
+# member's selection ended. A clipped excerpt must say it is one.
+_long = build_focus_line(
+    {"scope": "block", "label": "selection", "excerpt": "x" * 200}, "document")
+_short = build_focus_line(
+    {"scope": "block", "label": "selection", "excerpt": "short"}, "document")
+check("606 D4 a clipped excerpt carries a truncation mark", "…" in _long, _long)
+check("606 D4 an unclipped excerpt carries none", "…" not in _short, _short)
 
 # ── 2. The originating failure: staged deck, nothing selected ───────────────
 staged = build_focus_line(
