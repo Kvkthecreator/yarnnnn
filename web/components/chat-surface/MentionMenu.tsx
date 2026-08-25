@@ -44,6 +44,11 @@ export interface MentionCandidate {
   blurb?: string;
   /** Agents route a turn; people route attention (ADR-605). */
   kind: 'agent' | 'human';
+  /** Layer-1 G4 — a workspace member NOT in this cast. Never a mention
+   *  target (no delivery to promise); picking one opens the add-participant
+   *  drill-in instead — a real door, not the inert row this menu used to
+   *  carry. Absent/true = in the cast. */
+  inCast?: boolean;
 }
 
 interface MentionMenuProps {
@@ -55,6 +60,10 @@ interface MentionMenuProps {
   highlight: number;
   onHighlight: (i: number) => void;
   onPick: (c: MentionCandidate) => void;
+  /** Picking a NOT-in-cast member — the host opens the add-participant
+   *  drill-in (adding is an explicit disclosure decision with a visibility
+   *  window, ADR-495 D2; a mention must never perform it as a side effect). */
+  onPickOutsider?: (c: MentionCandidate) => void;
   onClose: () => void;
   /** Reports the SELECTABLE rows up, so the host's Enter picks the same row
    *  this list highlights — agents first, then people, matching the render
@@ -68,21 +77,25 @@ export function MentionMenu({
   highlight,
   onHighlight,
   onPick,
+  onPickOutsider,
   onClose,
   onItemsChange,
 }: MentionMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const { agents, people, selectable } = useMemo(() => {
+  const { agents, people, outsiders, selectable } = useMemo(() => {
     const q = filter.trim().toLowerCase();
     const match = (c: MentionCandidate) =>
       !q || c.handle.toLowerCase().includes(q) || c.name.toLowerCase().includes(q);
     const hit = candidates.filter(match);
-    const agentRows = hit.filter((c) => c.kind === 'agent');
-    const peopleRows = hit.filter((c) => c.kind === 'human');
+    const agentRows = hit.filter((c) => c.kind === 'agent' && c.inCast !== false);
+    const peopleRows = hit.filter((c) => c.kind === 'human' && c.inCast !== false);
     return {
       agents: agentRows,
       people: peopleRows,
+      // G4 — not-in-cast members are click-only doors (never Enter-picked
+      // into a mention: there is no delivery to promise).
+      outsiders: hit.filter((c) => c.inCast === false),
       // ADR-605 — people are live targets: the flat keyboard order matches
       // the render order (agents, then people).
       selectable: [...agentRows, ...peopleRows],
@@ -98,8 +111,9 @@ export function MentionMenu({
   // server's own grammar agrees: `_MENTION` requires a leading boundary, so
   // that text was never a mention to begin with.
   useEffect(() => {
-    if (filter.length > 0 && agents.length === 0 && people.length === 0) onClose();
-  }, [filter, agents.length, people.length, onClose]);
+    if (filter.length > 0 && agents.length === 0 && people.length === 0 && outsiders.length === 0)
+      onClose();
+  }, [filter, agents.length, people.length, outsiders.length, onClose]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -109,7 +123,7 @@ export function MentionMenu({
     return () => document.removeEventListener('mousedown', onDown);
   }, [onClose]);
 
-  if (agents.length === 0 && people.length === 0) return null;
+  if (agents.length === 0 && people.length === 0 && outsiders.length === 0) return null;
 
   return (
     <div
@@ -191,6 +205,30 @@ export function MentionMenu({
               </button>
             );
           })}
+        </>
+      )}
+
+      {outsiders.length > 0 && onPickOutsider && (
+        <>
+          <div className="px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
+            Not in this conversation
+          </div>
+          {outsiders.map((c) => (
+            <button
+              key={`outsider-${c.handle}`}
+              type="button"
+              title="Opens Add people — adding them is your call, never a mention's side effect"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPickOutsider(c);
+              }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm opacity-70 hover:opacity-100 hover:bg-muted/60 transition-all"
+            >
+              <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">add…</span>
+            </button>
+          ))}
         </>
       )}
 

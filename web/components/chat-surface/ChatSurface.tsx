@@ -1129,7 +1129,39 @@ export function ChatSurface() {
                     name: label,
                   };
                 })
-                .filter((c) => c.handle)}
+                .filter((c) => c.handle)
+                // G4 — workspace members NOT in this cast, as add-doors
+                // (`inCast: false`): never mention targets, picking one
+                // opens the add-participant drill-in below.
+                .concat(
+                  people
+                    .filter(
+                      (m) =>
+                        !(activeLane.participants ?? []).some(
+                          (p) => p.member_kind === 'human' && p.principal_id === m.principal_id,
+                        ),
+                    )
+                    .map((m) => ({
+                      kind: 'human' as const,
+                      handle: m.label.split('@')[0].replace(/\s+/g, ''),
+                      name: m.label,
+                      inCast: false,
+                    }))
+                    .filter((c) => c.handle),
+                )}
+              onMentionOutsider={() => setParam({ detail: 'add' })}
+              // G4 — the viewer's own handles, so a mention OF the reader
+              // chips in their transcript (the roster above excludes them).
+              extraKnownHandles={(wsMembers ?? [])
+                .filter((m) => m.principal_id === userId)
+                .flatMap((m) => {
+                  const label = m.label ?? '';
+                  return [
+                    label.split('@')[0].replace(/\s+/g, ''),
+                    label.replace(/\s+/g, ''),
+                  ];
+                })
+                .filter(Boolean)}
               suggestions={deriveSuggestions}
               // Phase-A hygiene: the first turn auto-names a default-named
               // lane server-side; reflect it in the list + header.

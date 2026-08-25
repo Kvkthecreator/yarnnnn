@@ -59,6 +59,7 @@ import { PrincipalBadge } from '@/lib/workspace/principal-badge';
 import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
 import { resolveActorForViewer, useWorkspaceRoster } from '@/lib/workspace/viewer';
 import { actorLine } from '@/lib/workspace/timeline-rows';
+import { useAttentionRealtime } from '@/lib/realtime/use-attention-realtime';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD_USD = 1.0;
@@ -190,10 +191,14 @@ export function AttentionCenter() {
     };
   }, [userId]);
 
-  useEffect(() => {
-    let cancelled = false;
+  // One derivation, shared by the poll floor and the realtime invalidation
+  // (Layer-1 G3). `alive` replaces the old effect-local `cancelled` flag so
+  // the callback survives outside the effect without setting state after
+  // unmount.
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
-    const derive = async () => {
+  const derive = useCallback(async () => {
       const [proposalsResult, mentionsResult, timelineResult, limitsResult] =
         await Promise.allSettled([
           api.proposals.list('pending', 20),
@@ -207,7 +212,7 @@ export function AttentionCenter() {
           api.workspace.timeline(60),
           api.integrations.getLimits(),
         ]);
-      if (cancelled) return;
+      if (!alive.current) return;
 
       if (proposalsResult.status === 'fulfilled') {
         setProposals(
@@ -280,15 +285,20 @@ export function AttentionCenter() {
         }
       }
 
-    };
+  }, []);
 
+  useEffect(() => {
     derive();
     const interval = setInterval(derive, REFRESH_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
+    return () => clearInterval(interval);
+  }, [derive]);
+
+  // Layer-1 G3 (ADR-593 §6, phase 4's first mount) — push invalidation on
+  // the PUBLISHED tables (session_messages: mentions + turns, RLS-gated per
+  // viewer; workspace_file_versions: revisions). A mention badges in
+  // seconds instead of a minute; proposals/runs stay on the poll floor
+  // until their tables are published (a migration, not an FE change).
+  useAttentionRealtime({ enabled: !!userId, onActivity: derive });
 
   // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
   usePopoverDismissal(containerRef, isOpen, () => setIsOpen(false));

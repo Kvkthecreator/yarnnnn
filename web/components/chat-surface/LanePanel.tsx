@@ -266,10 +266,18 @@ interface LanePanelProps extends LaneMountSlots {
   /** principal_id → display label (email) for foreign user-row authorship. */
   principalLabels?: Record<string, string>;
   /** Everyone addressable in this conversation, viewer excluded — the '@'
-   *  menu's roster (ADR-492 D3). Agents route; people are shown inert,
-   *  because ADR-495 D6 defers human mentions to notifications. Empty (the
-   *  default) simply means no menu opens. */
+   *  menu's roster (ADR-492 D3/ADR-605: agents route a turn, people route
+   *  attention; `inCast: false` rows are add-doors). Empty (the default)
+   *  simply means no menu opens. */
   mentionCandidates?: MentionCandidate[];
+  /** G4 — picking a not-in-cast member from the '@' menu: the host opens
+   *  the add-participant drill-in. */
+  onMentionOutsider?: (c: MentionCandidate) => void;
+  /** G4 — handles that should MARK in the transcript beyond the menu's
+   *  roster: the VIEWER's own (candidates exclude the viewer, so without
+   *  this the one chip that means "this is about me" is the one that never
+   *  marked). */
+  extraKnownHandles?: string[];
   /** Reports WHO an unaddressed message would go to (the ADR-492 D3 continuity
    *  rung), so the mount can mark it on the roster. Null when the cast has
    *  fewer than two Agents — then there is nothing it could have been instead.
@@ -312,6 +320,8 @@ export function LanePanel({
   principalLabels,
   agentFaces,
   mentionCandidates = [],
+  onMentionOutsider,
+  extraKnownHandles = [],
   onDefaultResponderChange,
   onArtifactWrite,
   emptyState,
@@ -571,11 +581,19 @@ export function LanePanel({
     for (const c of mentionCandidates) {
       // ADR-605 — people mark too: a human mention now routes to their
       // attention surface, so the chip claims a delivery that happens.
+      // Outsider rows are excluded: their mention routes nowhere, and a
+      // chip on one would claim a delivery that never happened.
+      if (c.inCast === false) continue;
       s.add(c.handle.toLowerCase());
       s.add(c.name.replace(/\s+/g, '').toLowerCase());
     }
+    // G4 — the viewer's own handles: mentions OF the reader are the chips
+    // that matter most, and the roster above deliberately excludes them.
+    for (const h of extraKnownHandles) {
+      if (h) s.add(h.toLowerCase());
+    }
     return s;
-  }, [mentionCandidates]);
+  }, [mentionCandidates, extraKnownHandles]);
   // ── WHO ANSWERS NEXT (the floor) ──────────────────────────────────────
   // With several Agents present and no mention, the server continues with
   // whoever spoke last (`select_responder`'s `last_responder` rung). That rule
@@ -1335,6 +1353,14 @@ export function LanePanel({
               highlight={mentionHighlight}
               onHighlight={setMentionHighlight}
               onPick={pickMention}
+              onPickOutsider={
+                onMentionOutsider
+                  ? (c) => {
+                      setMention(null);
+                      onMentionOutsider(c);
+                    }
+                  : undefined
+              }
               onClose={() => setMention(null)}
               onItemsChange={(items) => {
                 mentionItemsRef.current = items;

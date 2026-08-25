@@ -199,6 +199,14 @@ def stamp_and_route_mentions(
                 ((rows[0].get("context_metadata") or {}).get("lane") or {}).get("name")
                 or conversation_name
             )
+        # G4 — same DM rule as the derivation: a two-human, zero-agent cast
+        # is labelled by the relationship, not the creator's stored string
+        # (which is usually the RECIPIENT's own email — "mentioned you in
+        # ‘you@…’" read wrong in the first live email).
+        humans = sum(1 for p in cast if p.get("member_kind") == "human")
+        agents = sum(1 for p in cast if p.get("member_kind") == "agent")
+        if humans == 2 and agents == 0:
+            conversation_name = "a direct chat"
     except Exception as exc:  # noqa: BLE001
         logger.warning("[MENTIONS] conversation lookup failed: %s", exc)
 
@@ -445,16 +453,39 @@ def list_mentions(workspace_id: str, viewer_id: str, *, limit: int = 20) -> list
     if not live:
         return []
 
+    live_convs = sorted({r["session_id"] for r in live})
     name_rows = (
         svc.table("chat_sessions")
         .select("id, context_metadata")
-        .in_("id", sorted({r["session_id"] for r in live}))
+        .in_("id", live_convs)
         .execute()
     ).data or []
     names = {
         r["id"]: ((r.get("context_metadata") or {}).get("lane") or {}).get("name")
         for r in name_rows
     }
+    # G4 — a DM's stored name is whatever its creator called it (usually the
+    # counterpart's email), which reads wrong in "‹author› mentioned you in
+    # ‹name›" when the name IS the author. For a two-human, zero-agent cast
+    # the honest label is the relationship, not the stored string.
+    try:
+        cast_rows = (
+            svc.table("conversation_members")
+            .select("conversation_id, member_kind")
+            .in_("conversation_id", live_convs)
+            .execute()
+        ).data or []
+        comp: dict = {}
+        for r in cast_rows:
+            c = comp.setdefault(r["conversation_id"], {"human": 0, "agent": 0})
+            k = r.get("member_kind")
+            if k in c:
+                c[k] += 1
+        for conv, c in comp.items():
+            if c["human"] == 2 and c["agent"] == 0:
+                names[conv] = "a direct chat"
+    except Exception as exc:  # noqa: BLE001 — the stored name is the degrade
+        logger.warning("[MENTIONS] DM label derivation failed: %s", exc)
 
     out: list[dict] = []
     for r in live:

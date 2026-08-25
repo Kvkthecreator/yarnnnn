@@ -372,6 +372,74 @@ def test_fe_wiring() -> None:
             "the settings dial knows the wired kind (no 'urgent only' promise)")
 
 
+def test_g4_polish() -> None:
+    print("\n[G4] polish — viewer's own chip, outsider door, DM label")
+    menu = _read("web/components/chat-surface/MentionMenu.tsx")
+    out_block = menu.split("Not in this conversation", 1)[-1]
+    _assert("onPickOutsider(c)" in out_block and "onMouseDown" in out_block,
+            "a not-in-cast row is a wired DOOR (opens Add people), never a mention target")
+    _assert("c.inCast === false" in menu,
+            "outsiders are partitioned from live targets in the menu")
+
+    lane = _read("web/components/chat-surface/LanePanel.tsx")
+    _assert("extraKnownHandles" in lane and "c.inCast === false" in lane,
+            "the viewer's own handles mark in the transcript; outsider handles never chip")
+
+    chat = _read("web/components/chat-surface/ChatSurface.tsx")
+    _assert("inCast: false" in chat and "extraKnownHandles=" in chat,
+            "the surface supplies both: outsiders as add-doors, viewer handles for chips")
+    _assert("setParam({ detail: 'add' })" in chat.replace('"', "'"),
+            "picking an outsider opens the add-participant drill-in (the existing door)")
+
+    # DM label, behavioral: a two-human zero-agent cast emails/derives as
+    # "a direct chat", never the stored name (which is usually the
+    # RECIPIENT's own email — observed wrong in the first live send).
+    import services.mentions as m
+    import services.conversation_cast as cc
+
+    class _Q:
+        def __init__(self, data=None): self._data = data or []
+        def select(self, *a, **k): return self
+        def eq(self, *a, **k): return self
+        def in_(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def order(self, *a, **k): return self
+        def execute(self):
+            d = self._data
+            class R: data = d
+            return R()
+
+    class _Svc:
+        def table(self, name):
+            if name == "chat_sessions":
+                return _Q([{"workspace_id": "ws", "context_metadata": {"lane": {"name": "kvk@x.com"}}}])
+            return _Q()
+
+    captured: dict = {}
+    def _fake_notify(**kw):
+        captured.update(kw)
+        return None
+
+    real = (cc.list_participants, m._svc, m.enrich_cast_labels,
+            m.notify_mentioned, m.fire_and_forget)
+    try:
+        cc.list_participants = lambda sid: [
+            {"member_kind": "human", "principal_id": "u1", "display_name": "Kevin Kim"},
+            {"member_kind": "human", "principal_id": "u2", "display_name": "Seul Kim"},
+        ]
+        m._svc = lambda: _Svc()
+        m.enrich_cast_labels = lambda c: c
+        m.notify_mentioned = _fake_notify
+        m.fire_and_forget = lambda coro: None
+        got = m.stamp_and_route_mentions(
+            "s1", "@KevinKim look", {"author_principal_id": "u2"})
+        _assert(got == ["u1"] and captured.get("conversation_name") == "a direct chat",
+                "a DM's mention names the relationship, not the stored string")
+    finally:
+        (cc.list_participants, m._svc, m.enrich_cast_labels,
+         m.notify_mentioned, m.fire_and_forget) = real
+
+
 if __name__ == "__main__":
     for fn in [
         test_kind_wired,
@@ -381,6 +449,7 @@ if __name__ == "__main__":
         test_suppression_and_dedupe,
         test_routes,
         test_fe_wiring,
+        test_g4_polish,
     ]:
         fn()
     print(f"\n{'ALL PASS' if _fail == 0 else 'FAIL'} — {_pass} passed, {_fail} failed")

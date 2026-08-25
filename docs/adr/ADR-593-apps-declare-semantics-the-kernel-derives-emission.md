@@ -208,19 +208,25 @@ opt-in-or-quiet until Layer 2 opens as its own deliberate arc.
 balance runway · per-(workspace, principal) scoping with the cross-device
 cursor. Remaining Layer-1 work, ordered:
 
-1. **G1** — the mention stamp moves to the ONE conversation-write chokepoint
-   (today only `routes/lanes.py` stamps; five other `write_narrative_entry`
-   callers — including live MCP-authored rows — do not, so a connected AI's
-   @mention routes nowhere).
-2. **G2** — membership changes become visible ("X joined the workspace"):
-   `accept_invite` touches no ledger, and the timeline's closed source list
-   (ADR-410 §2) needs an ADR-level widening to carry grant events.
-3. **G3** — realtime bell (this ADR's named phase 4): replace the 60s poll
-   on the ADR-575 realtime primitive.
-4. **G4** — mention polish: the viewer's own chip · DM display-name in
-   mention rows · the "add them?" OFFER on mentioning a non-participant
-   (never auto-invite).
-5. **G5** — verification debt: suppression live-proof.
+1. **G1 — EXECUTED same day**: the stamp lives in `write_narrative_entry`
+   (`services/mentions.stamp_and_route_mentions`); lanes' per-caller copy
+   DELETED; every writer stamps, '@' pre-check keeps the common case free.
+2. **G2 — EXECUTED same day as [ADR-608](../adr/ADR-608-membership-joins-the-timeline.md)**:
+   the timeline gains the membership source (JOINS only, human roles,
+   owner-genesis excluded), material weight, shared FE grammar.
+3. **G3 — EXECUTED same day**: `use-attention-realtime` (third tenant of the
+   ADR-575 primitive) push-invalidates the bell's derivation on the two
+   PUBLISHED tables (`session_messages` — mentions + turns, RLS-gated per
+   viewer; `workspace_file_versions`); proposals/runs stay on the 60s poll
+   floor until their tables are published (a migration with the mig-240 RLS
+   ceremony, deliberately not taken here).
+4. **G4 — EXECUTED same day**: the viewer's own handle chips in their
+   transcript · a DM's mention rows/emails name "a direct chat", not the
+   stored string · mentioning a non-participant OFFERS the add-participant
+   drill-in (a wired door; never an auto-invite, never an inert row).
+5. **G5 — open**: verification debt — suppression live-proof; plus the
+   Layer-1 click-pass of G1–G4 (membership row · realtime badge latency ·
+   outsider door · own-chip).
 
 **Out of Layer 1, recorded**: email defaults/digest/push (Layer 2) · `runs`
 email · `@everyone` · tags-as-routing (ADR-405 D5) · per-path subscriptions
