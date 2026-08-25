@@ -152,3 +152,4 @@ reads everyone else's declaration — that is its design.
 | 8 | Gate: single-site rendering, mismatch guard, pane roster, Text declaration | `api/test_adr606_pane_sees_the_member.py` |
 | 9 | ADR-522 gate re-anchored off the old call spelling; 569/571 signature pins re-anchored | `api/test_adr522_focus_declaration.py`, `api/test_adr569_strings.py`, `api/test_adr571_text_app.py` |
 | 10 | Prompt CHANGELOG entry (the posture layer is LLM-facing) | `api/prompts/CHANGELOG.md` |
+| 11 | Living-canon carve-out: the Altitude-2 frame reference (this ADR is the decision; that doc is the standing description) | `docs/architecture/lane-frame.md` + GLOSSARY "Focus declaration" entry + CLAUDE.md pointer row |
