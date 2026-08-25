@@ -163,7 +163,12 @@ export function ActivityLedger() {
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [resolved]);
 
-  const visible = resolved.filter(({ e, actorKey }) => {
+  const visible = resolved.filter(({ e, actorKey, who }) => {
+    // ADR-405 D4 / ADR-608 — you are not told about your own arrival. Scoped
+    // to membership ONLY: this ledger is the full attributed record, so a
+    // viewer's own file changes and runs must still show. The bell applies the
+    // same rule peer-wide by construction (AttentionCenter — peer-first).
+    if (e.kind === 'membership' && who.isSelf) return false;
     if (weightLens === 'matters' && e.weight === 'housekeeping') return false;
     if (kindFilter !== 'all' && e.kind !== kindFilter) return false;
     if (actorFilter !== 'all' && actorKey !== actorFilter) return false;

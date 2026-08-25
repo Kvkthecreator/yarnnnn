@@ -86,6 +86,16 @@ def test_fe_admits_the_kind() -> None:
     bell = _read("web/components/shell/AttentionCenter.tsx")
     _assert("e.kind !== 'membership'" in bell.replace('"', "'"),
             "the bell's Activity admits membership entries")
+    # The joiner is not told they joined (ADR-405 D4). The bell excludes every
+    # self-act by construction; the LEDGER shows self-acts deliberately (it is
+    # the full attributed record), so it must suppress this ONE kind
+    # explicitly. Absent that, a joiner reads "You joined the workspace" —
+    # observed in production 2026-08-26 before this assertion existed.
+    ledger = _read("web/components/notifications/ActivityLedger.tsx").replace('"', "'")
+    _assert("e.kind === 'membership' && who.isSelf" in ledger,
+            "the ledger suppresses the viewer's OWN membership row")
+    _assert("who" in ledger.split("const visible = resolved.filter(", 1)[1].split(")", 1)[0],
+            "…and `who` is actually destructured into that filter (not merely referenced)")
     _assert("'membership'" in _read("web/lib/api/client.ts"),
             "the client's TimelineEntry kind union carries it")
 
