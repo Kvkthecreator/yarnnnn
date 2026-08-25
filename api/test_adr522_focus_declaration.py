@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 from services.authoring import build_focus_line, build_studio_posture
+from services.lane_runner import _compose_focus_section
 
 failures: list[str] = []
 
@@ -37,20 +38,58 @@ DECK = (
     "</body></html>"
 )
 
-# ── 1. Silence costs nothing ────────────────────────────────────────────────
-base = build_studio_posture("operation/q3/deck.html", DECK, None)
-check("D5 no-focus posture carries no focus line", "The member is" not in base)
+# ── 1. Silence costs nothing (re-anchored: ADR-606 D1 moved the rendering to
+#       ONE kernel site — the posture builder no longer sees focus at all) ───
+base = build_studio_posture("operation/q3/deck.html", DECK)
+check("606 D1 the posture never carries a focus line", "The member is" not in base)
 check(
-    "D5 focus is purely additive (exactly one line)",
-    len(build_studio_posture("operation/q3/deck.html", DECK,
-                             {"scope": "page", "page_index": 3,
-                              "viewport_page_index": 3}).splitlines())
-    - len(base.splitlines()) == 1,
+    "606 D1 focus renders at the kernel site, exactly one line, additive",
+    _compose_focus_section(
+        "operation/q3/deck.html", DECK,
+        {"scope": "page", "page_index": 3, "viewport_page_index": 3},
+    ).strip().count("\n") == 0
+    and "slide 4" in _compose_focus_section(
+        "operation/q3/deck.html", DECK,
+        {"scope": "page", "page_index": 3, "viewport_page_index": 3},
+    ),
 )
-check("D5 empty declaration renders nothing", build_focus_line(None, "deck") == "")
+check("D5 empty declaration renders nothing",
+      build_focus_line(None, "deck") == ""
+      and _compose_focus_section("operation/q3/deck.html", DECK, None) == "")
 check(
     "D5 document scope renders nothing (no finer grain to report)",
     build_focus_line({"scope": "document", "label": "deck"}, "deck") == "",
+)
+# ── 1b. ADR-606 D2 — on a bound lane the BINDING is the authority ───────────
+check(
+    "606 D2 a focus naming a DIFFERENT file than the binding is silence",
+    _compose_focus_section(
+        "operation/q3/deck.html", DECK,
+        {"scope": "page", "page_index": 3, "viewport_page_index": 3,
+         "path": "operation/other/notes.md"},
+    ) == "",
+)
+check(
+    "606 D2 a focus naming the bound file (either spelling) renders",
+    "slide 4" in _compose_focus_section(
+        "operation/q3/deck.html", DECK,
+        {"scope": "page", "page_index": 3, "viewport_page_index": 3,
+         "path": "/workspace/operation/q3/deck.html"},
+    ),
+)
+check(
+    "606 D1 the unbound lane keeps the default-target line",
+    "they mean THIS one" in _compose_focus_section(
+        None, "", {"app": "text", "path": "operation/q3/notes.md",
+                   "scope": "document"},
+    ),
+)
+check(
+    "606 D4 a text selection gets its own sentence, never a fake block",
+    "has this text selected" in build_focus_line(
+        {"scope": "block", "label": "selection", "excerpt": "the closing ask"},
+        "document",
+    ),
 )
 
 # ── 2. The originating failure: staged deck, nothing selected ───────────────
@@ -111,8 +150,32 @@ for fn in ("build_lane_conventions", "run_lane_turn", "run_lane_turn_stream"):
     if node:
         args = [a.arg for a in node.args.args + node.args.kwonlyargs]
         check(f"D2 {fn} accepts focus", "focus" in args)
-check("D2 the posture receives the focus",
-      "build_studio_posture(artifact_path, artifact, focus)" in runner_src)
+# ADR-606 D1 re-anchor: the posture no longer receives focus — the ONE kernel
+# site does. The mechanism is the `_compose_focus_section` call inside
+# build_lane_conventions with the threaded `focus` argument (AST, not grep).
+_blc = next(
+    n for n in ast.walk(tree)
+    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    and n.name == "build_lane_conventions"
+)
+_focus_calls = [
+    c for c in ast.walk(_blc)
+    if isinstance(c, ast.Call)
+    and (getattr(c.func, "id", None) or getattr(c.func, "attr", None))
+    == "_compose_focus_section"
+]
+check("606 D1 the kernel composes the focus section (one site)",
+      len(_focus_calls) == 1)
+check(
+    "606 D1 …with the threaded focus, never a re-derivation",
+    bool(_focus_calls)
+    and any(isinstance(a, ast.Name) and a.id == "focus"
+            for a in _focus_calls[0].args),
+)
+check(
+    "606 D1 no posture builder is handed focus any more",
+    "build_studio_posture(artifact_path, artifact, focus)" not in runner_src,
+)
 
 # ── 7. The grain vocabulary is ADR-519's, not ADR-453's dissolved ladder ────
 studio_src = Path("services/authoring.py").read_text()

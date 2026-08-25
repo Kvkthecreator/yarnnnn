@@ -65,11 +65,18 @@ check("the deleted apps are NOT registered (radar — ADR-592; docs, studio — 
       not ({"radar", "docs", "studio", "supervisor"} & set(APPS)),
       f"registered={sorted(APPS)}")
 
-check("a registration carries IDENTITY only — slug · resident · name · "
-      "standing_executor (ADR-604 D2)",
-      all(set(row) == {"slug", "resident", "name", "standing_executor"}
+# ADR-606 D3 widened the row by ONE declaration: `posture`, the app's pane
+# job overlay. Still no authority, no tool grant, no model — an app pins WHO
+# sits at the desk and WHAT the desk's job reads as, never what it may do.
+check("a registration carries identity + the pane job — slug · resident · "
+      "name · standing_executor (ADR-604 D2) · posture (ADR-606 D3)",
+      all(set(row) == {"slug", "resident", "name", "standing_executor", "posture"}
           for row in APPS.values()),
       f"keys={ {k: sorted(v) for k, v in APPS.items()} }")
+check("every live app answers the posture question (ADR-606 D5 — declared, "
+      "never defaulted by silence)",
+      all(callable(row["posture"]) for row in APPS.values()),
+      f"missing={ [k for k, v in APPS.items() if not callable(v['posture'])] }")
 # ADR-604 D2 — the voice/executor split: declared by exactly ONE app today
 # (strings — Supervisor speaks, Keeper keeps), "" everywhere else so the
 # undeclared case is the resident by construction.
@@ -114,7 +121,10 @@ check("the kernel imports no app module (registration is one-directional)",
 _apps_init = (ROOT / "api" / "services" / "apps" / "__init__.py").read_text()
 check("the apps package registers every app at import (no router dependency)",
       "from services.apps import images" in _apps_init  # ADR-599: docs deleted
-      and '_register_app("strings"' in _apps_init)
+      # ADR-606: the strings registration went multi-line (it now declares its
+      # pane posture too) — anchor on the call + the slug argument, not one
+      # spelling of their adjacency.
+      and re.search(r'_register_app\(\s*"strings"', _apps_init) is not None)
 
 print("\n── 3. every declared resident is real ──")
 

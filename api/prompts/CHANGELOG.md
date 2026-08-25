@@ -6,6 +6,42 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.25.1] - ADR-606: the pane sees what the member sees
+
+### Changed
+- `services/lane_runner.py`: the member's focus (ADR-522) renders at ONE
+  kernel site (`_compose_focus_section`), after the app's job overlay, for
+  every lane — bound and unbound. Previously it rendered only inside the
+  studio posture, so a Strings pane's declared focus was silently dropped and
+  a Text pane never rendered any (the observed failure: "rewrite this
+  section" in Text could not resolve — ADR-522's own acceptance case,
+  orphaned by the Docs→Text transition). New: a bound lane renders focus only
+  when the declaration names the bound artifact (a foreign focus carried in
+  by the shell's recency fallback is silence — the binding is the authority).
+- `services/lane_runner.py`: the per-app `if/elif` job-overlay chain is
+  DELETED — the kernel resolves `posture_for_app(app)` (registered by each
+  app, ADR-562's door) with the studio posture as the unregistered fallback.
+  Overlay CONTENT is unchanged for all four apps; the studio focus bullet
+  moves from beside the outline to the kernel tail.
+- `services/authoring.py`: `build_focus_line` gains the `selection` label —
+  a raw text range in a prose editor renders as "The member has this text
+  selected — '…'", never as a fake block.
+- `services/apps/text.py`: `build_text_posture` is pure — the head is the
+  kernel's once-per-turn read, its private duplicate re-read deleted.
+
+### Expected behavior
+"Tidy this up" / "rewrite this section" in the Text and Strings panes now
+resolves against the member's caret section or held selection without asking.
+Studio/Images behavior unchanged except the focus bullet's position in the
+frame. No focus declared → frames byte-identical to before.
+
+### Gates
+- `test_adr522_focus_declaration.py` re-anchored (falsified 3×: guard gutted,
+  kernel call deleted, selection branch deleted); `test_adr606_pane_sees_the_member.py`
+  new (falsified 3×); `test_adr562/569/571` re-anchored; ratchets green.
+
+---
+
 ## [2026.08.21.7] - the same act, at both grains
 
 ### Changed

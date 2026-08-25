@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 from html import escape as html_escape, unescape as html_unescape
-from typing import Optional
+from typing import Any, Callable, Optional
 
 # Authoring turns rewrite/patch real documents — the chat-sized 2048 ceiling
 # starves them. Applied by the lane runner when a lane is bound (ADR-440 D3).
@@ -2246,6 +2246,7 @@ def register_app(
     resident: str,
     name: str | None = None,
     standing_executor: str | None = None,
+    posture: Callable[..., str] | None = None,
 ) -> None:
     """Declare an app's AI configuration (ADR-562 D2). Idempotent, slug-keyed.
 
@@ -2263,6 +2264,15 @@ def register_app(
     not need the split is unchanged by construction. Today exactly one app
     declares it: strings — Supervisor speaks, Keeper keeps.
 
+    ``posture`` (ADR-606 D3) — the app's JOB overlay for its bound pane: a
+    callable ``(client, user_id, artifact_path, artifact) -> str`` composing
+    the desk section of the lane frame from the artifact head the kernel
+    already read once this turn. Declared here so the kernel never hand-
+    branches per app (the ADR-567 D4 / ADR-569 D6 / ADR-571 D4 branches this
+    replaces); absent → the kernel's studio fallback postures the binding.
+    Focus (ADR-522) is NOT the posture's business — the kernel renders the
+    member's place at its own single site (ADR-606 D1).
+
     FIRST REGISTRATION WINS, matching `register_layouts` — a second claim on a
     live slug is a programming error, but silently keeping the incumbent beats
     crashing an import chain at boot. The gate asserts one declaration per app,
@@ -2278,6 +2288,8 @@ def register_app(
         "name": (name or "").strip(),
         # ADR-604 D2 — "" means "the resident executes" (the common case).
         "standing_executor": (standing_executor or "").strip(),
+        # ADR-606 D3 — None means "the studio fallback postures this binding".
+        "posture": posture,
     }
 
 
@@ -2313,6 +2325,36 @@ def standing_executor_for_app(slug: str | None) -> str | None:
     if not row:
         return None
     return row.get("standing_executor") or row.get("resident") or None
+
+
+def posture_for_app(slug: str | None) -> Optional[Callable[..., str]]:
+    """The app's declared pane job overlay, or None (ADR-606 D3).
+
+    None means "not declared", and the CALLER decides what that means — for
+    the lane kernel it means the studio fallback (`studio_pane_posture`), the
+    behavior every unstamped or unregistered binding had before this door
+    existed. Same fail-honest posture as `resident_for_app`.
+    """
+    row = resolve_app(slug)
+    return row.get("posture") if row else None
+
+
+def studio_pane_posture(
+    client: Any, user_id: str, artifact_path: str, artifact: str
+) -> str:
+    """The studio desks' job overlay, in the ADR-606 D3 builder shape.
+
+    Registered by slides + images, and the kernel's fallback for a bound lane
+    whose app declared no posture. Composes the pure authoring posture plus,
+    when the workspace has a design system, the ADR-449 D4 Skin contract —
+    a fact about the STUDIO job, not about every job, which is why it lives
+    in this wrapper and not in the kernel tail.
+    """
+    posture = build_studio_posture(artifact_path, artifact)
+    from services.design_systems import build_design_system_section
+
+    ds = build_design_system_section(client, user_id)
+    return posture + (f"\n\n{ds}" if ds else "")
 
 
 def all_apps() -> dict[str, dict]:
@@ -2359,7 +2401,8 @@ register_layouts(STUDIO_LAYOUTS, STUDIO_ARRANGEMENTS)
 # DERIVED at read time, so this line re-points every Slides lane, live and
 # historical, at serve and at turn. That property is exactly what ADR-597 was
 # written to establish; this is its first real dividend.
-register_app("slides", resident="editor")
+# ADR-606 D3 — the job overlay is declared here too, through the same door.
+register_app("slides", resident="editor", posture=studio_pane_posture)
 
 
 def build_skeleton(layout: str, title: str | None = None) -> str:
@@ -2918,6 +2961,11 @@ def build_focus_line(focus: Optional[dict], template: str) -> str:
         if thing == "heading" and page_noun == "section":
             named = f' "{excerpt[:80].strip()}"' if excerpt else " (untitled)"
             return f"- The member is writing under the heading{named}."
+        # ADR-606 D4 — a raw text range in a prose editor is not a block and
+        # must not claim to be one ("the selection block selected" would be a
+        # DOM word wearing an operator costume). It gets its own sentence.
+        if thing == "selection":
+            return f"- The member has this text selected{_quoted(excerpt)}."
         return f"- The member has the {thing} block selected{_quoted(excerpt)}."
     if scope == "container":
         thing = label or "container"
@@ -2940,7 +2988,6 @@ def build_focus_line(focus: Optional[dict], template: str) -> str:
 def build_studio_posture(
     artifact_path: str,
     artifact_content: str,
-    focus: Optional[dict] = None,
 ) -> str:
     """The bound lane's authoring posture — pure, composed per turn.
 
@@ -2948,9 +2995,10 @@ def build_studio_posture(
     fresh each turn — derived, never stored). An empty/missing artifact still
     yields a posture: the lane can (re)create the file at the bound path.
 
-    ``focus`` (ADR-522) is what the member is looking at THIS turn — one
-    bullet, optional, transient. Absent → byte-identical to the pre-ADR-522
-    posture.
+    Focus (ADR-522) is deliberately NOT a parameter — ADR-606 D1 moved the
+    member's place to one kernel site in ``build_lane_conventions``, because
+    a fact rendered inside one app's builder decays one branch at a time
+    (Strings and Text both dropped it before the move).
     """
     template = extract_template(artifact_content) or "document"
     # Registry-resolved fallback (ADR-518 D3): `document` is Docs' row now, and
@@ -2968,12 +3016,6 @@ def build_studio_posture(
         else "- The artifact is currently empty or missing — create it at the "
              "bound path from the member's direction."
     )
-    # ADR-522 D5: the focus bullet rides as a sibling of the outline, before
-    # the first `- PATCH` line — the member's PLACE reads next to the
-    # artifact's SHAPE, which is the order the two are used in.
-    focus_line = build_focus_line(focus, template)
-    if focus_line:
-        outline_section = f"{outline_section}\n{focus_line}"
     return _POSTURE_FRAME.format(
         path=artifact_path,
         template=template,

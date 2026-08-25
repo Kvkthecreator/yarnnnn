@@ -865,18 +865,21 @@ THE CURRENT STATE (read fresh this turn)
 {state}"""
 
 
-def build_strings_desk_posture(client: Any, user_id: str, target_path: str) -> str:
+def build_strings_desk_posture(
+    client: Any, user_id: str, target_path: str, head: str
+) -> str:
     """The desk job overlay for a strings-bound lane (ADR-567 D4's mechanism,
     ADR-569's branch). ``target_path`` is the lane's binding
     (``{root}/{target-leaf}``); the root derives from it. Reads the folder's
-    files fresh — the state block lets the colleague answer from substrate,
-    not memory."""
+    desk files fresh — the state block lets the colleague answer from
+    substrate, not memory. ``head`` is the TARGET's current content, read once
+    by the lane kernel (ADR-606 D3) — the desk files (declaration + contract)
+    stay this builder's own reads because they are not the bound artifact."""
     root = target_path.rsplit("/", 1)[0]
     leaf = target_path.rsplit("/", 1)[-1]
     topic = root[len(_WORKSPACE_PREFIX):] if root.startswith(_WORKSPACE_PREFIX) else root
     decl = _read_file(client, user_id, f"{root}/{STRING_DECLARATION_LEAF}")
     contract = _read_file(client, user_id, f"{root}/{CONTRACT_LEAF}")
-    head = _read_file(client, user_id, target_path)
 
     lines: list[str] = []
     if decl and decl.strip():

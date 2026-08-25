@@ -84,7 +84,22 @@ from services.authoring import register_app as _register_app  # noqa: E402
 # the being whose model + posture the unattended writer resolves and whose
 # face the receipts wear (`system:strings` in Keeper's costume, the ADR-596
 # D1 form — unchanged). One desk, two legible roles.
-_register_app("strings", resident="supervisor", standing_executor="keeper")
+# ADR-606 D3 — the desk's pane job overlay, declared here (not in the kernel
+# chain this door replaced) with a lazy body: `services/strings.py` stays
+# cycle-free of module-level `services.*` imports, so the import happens at
+# turn time, exactly where the lane kernel used to do it.
+def _strings_pane_posture(client, user_id, artifact_path, artifact):
+    from services.strings import build_strings_desk_posture
+
+    return build_strings_desk_posture(client, user_id, artifact_path, artifact)
+
+
+_register_app(
+    "strings",
+    resident="supervisor",
+    standing_executor="keeper",
+    posture=_strings_pane_posture,
+)
 
 # The dedicated `supervisor` app is DELETED (ADR-604 D3, superseding ADR-603
 # D4): Supervisor's desk IS strings — a second app whose lens shows the same

@@ -233,12 +233,19 @@ IMAGES_ARRANGEMENTS: dict[str, dict] = {
 # posture, artifact-kind, arrangement grammar) are kernel code both apps
 # consume — registration is how IMAGES reaches them without Studio importing an
 # app or the builders being forked.
-from services.authoring import register_app, register_layouts  # noqa: E402  (registration side-effect)
+from services.authoring import (  # noqa: E402  (registration side-effect)
+    register_app,
+    register_layouts,
+    studio_pane_posture,
+)
 
 register_layouts(IMAGES_LAYOUTS, IMAGES_ARRANGEMENTS)
 
 # ADR-562 D3 — the resident, declared where the app lives.
-register_app("images", resident="designer")
+# ADR-606 D3 — IMAGES' bound pane wears the studio job overlay (its artifact
+# is a studio-grammar document), declared here rather than defaulted so the
+# registration answers the posture question explicitly.
+register_app("images", resident="designer", posture=studio_pane_posture)
 
 
 def stage_root_attrs(width: int, height: int) -> str:

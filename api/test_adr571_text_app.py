@@ -71,38 +71,42 @@ def _fn(module: Path, name: str):
     raise AssertionError(f"{name} not found in {module}")
 
 
-def _selects_text_posture(fn) -> bool:
-    """An `if/elif` whose test compares the app to 'text' and whose body
-    calls build_text_posture. Branch extraction, never a source grep — a
-    comment mentioning the app would satisfy a grep."""
+def _dispatches_registry_posture(fn) -> bool:
+    """ADR-606 D3 re-anchor: the per-app `if/elif` chain is DELETED — the
+    kernel resolves the app's declared posture through the registry. The
+    mechanism is the `posture_for_app` call inside the artifact-bound branch;
+    AST extraction, never a source grep (a comment would satisfy a grep)."""
     for node in ast.walk(fn):
-        if not isinstance(node, ast.If):
-            continue
-        consts = {
-            c.value for c in ast.walk(node.test)
-            if isinstance(c, ast.Constant) and isinstance(c.value, str)
-        }
-        if "text" not in consts:
-            continue
-        called = {
-            getattr(c.func, "id", None) or getattr(c.func, "attr", None)
-            for c in ast.walk(ast.Module(body=node.body, type_ignores=[]))
-            if isinstance(c, ast.Call)
-        }
-        if "build_text_posture" in called:
+        if isinstance(node, ast.Call) and (
+            getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        ) == "posture_for_app":
             return True
     return False
 
 
 check(
-    "2a lane_meta.app=='text' selects the Text posture (else the studio "
-    "fallback hands an HTML-block contract to a markdown lane)",
-    _selects_text_posture(_fn(API / "services" / "lane_runner.py", "build_lane_conventions")),
+    "2a the kernel dispatches the app's DECLARED posture (ADR-606 D3 — no "
+    "hand-branched app chain left to drop a desk on the floor)",
+    _dispatches_registry_posture(_fn(API / "services" / "lane_runner.py", "build_lane_conventions")),
 )
 
+# …and the text registration's declared posture IS the Text job overlay —
+# executed, not grepped: the registered callable and the module's builder must
+# produce the same bytes for the same binding.
+import services.apps  # noqa: E402,F401  (registration side-effect)
 from services.apps.text import build_text_posture  # noqa: E402
+from services.authoring import posture_for_app  # noqa: E402
 
-_posture = build_text_posture(None, "u", "/workspace/marketing/notes.md")
+_registered = posture_for_app("text")
+check("2a.ii text DECLARES a pane posture (ADR-606 D5)", callable(_registered))
+check(
+    "2a.iii the declared posture IS build_text_posture (same bytes, same binding)",
+    callable(_registered)
+    and _registered(None, "u", "/workspace/marketing/notes.md", "hello")
+    == build_text_posture("/workspace/marketing/notes.md", "hello"),
+)
+
+_posture = build_text_posture("/workspace/marketing/notes.md", "")
 check("2b the posture names the bound document", "marketing/notes.md" in _posture)
 check(
     "2c the posture forbids Studio machinery (plain markdown, whole writes)",

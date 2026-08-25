@@ -1306,6 +1306,7 @@ export function ProseCanvas({
   value,
   onChange,
   onSlashRun,
+  onSelectionChange,
   handleRef,
   zoom = 1,
   className,
@@ -1314,6 +1315,14 @@ export function ProseCanvas({
   onChange: (next: string) => void;
   /** The `/` run behind the caret, or null when there is none (D14). */
   onSlashRun?: (run: SlashRun | null) => void;
+  /**
+   * Where the member stands, reported as source offsets `[from, to)` on every
+   * caret/selection settle (ADR-606 D4). The view owns the caret; the SURFACE
+   * owns what to make of it (the focus declaration) — same division of labor
+   * as `onSlashRun`, and read through a ref for the same state-stability
+   * reason.
+   */
+  onSelectionChange?: (from: number, to: number) => void;
   handleRef?: (h: ProseCanvasHandle | null) => void;
   zoom?: number;
   className?: string;
@@ -1326,6 +1335,8 @@ export function ProseCanvas({
   onChangeRef.current = onChange;
   const onCaretRef = useRef(onSlashRun);
   onCaretRef.current = onSlashRun;
+  const onSelectionRef = useRef(onSelectionChange);
+  onSelectionRef.current = onSelectionChange;
 
   /**
    * Every document this canvas has EMITTED since the last external write —
@@ -1385,6 +1396,7 @@ export function ProseCanvas({
           onCaretRef.current?.(
             sel.empty ? readSlashRun(u.state.doc.toString(), sel.head) : null,
           );
+          onSelectionRef.current?.(sel.from, sel.to);
         }
       }),
     ],

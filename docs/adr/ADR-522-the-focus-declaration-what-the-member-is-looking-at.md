@@ -1,5 +1,14 @@
 # ADR-522: The focus declaration — what the member is looking at, declared once, spoken by every app
 
+> **⚠ Amended by ADR-606 (2026-08-25)**: D5's *placement* is superseded — the focus
+> bullet composes at ONE kernel site in `build_lane_conventions` (after the app's job
+> overlay), no longer inside `build_studio_posture` beside the outline, because a fact
+> rendered inside one app's builder decayed one branch at a time (Strings' declared
+> focus was dropped server-side; Text never declared). Every other decision here
+> stands: the type, the wire, D3's viewing≠selected, D4's flow-only heading rule, and
+> the copy register. ADR-606 also adds the bound-lane path guard and the `selection`
+> label, and makes the app-side declaration an obligation.
+>
 > **Status**: **Accepted + Implemented** (2026-08-06, `7eeb39d`). All nine sites in §8
 > shipped in one commit. Gates: the ADR-522 gate (`api/test_adr522_focus_declaration.py`)
 > **falsified 4×** — 1-indexing, viewing-vs-selected, the flow-only heading rule, and the

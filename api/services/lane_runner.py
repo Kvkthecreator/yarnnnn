@@ -749,6 +749,54 @@ def _build_cast_section(
         return ""
 
 
+def _compose_focus_section(
+    artifact_path: Optional[str],
+    artifact: str,
+    focus: Optional[dict],
+) -> str:
+    """The member's place, rendered at ONE kernel site (ADR-606 D1).
+
+    BOUND lane: the ADR-522 grain line — but only when the declaration names
+    the bound artifact or names nothing (ADR-606 D2). The binding is the
+    authority on what this desk is about; a focus carried in by the shell's
+    recency fallback that names a DIFFERENT file renders as silence, because
+    narrating another file's selection into this desk's frame would aim the
+    colleague at the wrong object.
+
+    UNBOUND lane: the situational default-target line, verbatim from the
+    2026-08-12 completion (the fundraiser-copy incident: a general chat lane
+    received the member's declared focus, said nothing about it, and meaning-
+    placed file work the member expected to watch land on their open canvas).
+    """
+    if not focus:
+        return ""
+
+    def _rel(p: str) -> str:
+        return p[len("/workspace/"):] if p.startswith("/workspace/") else p
+
+    fpath = _rel((focus.get("path") or "").strip())
+    if artifact_path:
+        if fpath and fpath != _rel(artifact_path):
+            return ""
+        from services.authoring import build_focus_line, extract_template
+
+        template = extract_template(artifact) or "document"
+        line = build_focus_line(focus, template)
+        return f"\n{line}\n" if line else ""
+
+    _flabel = (focus.get("label") or "").strip()
+    _fapp = (focus.get("app") or "a surface").strip()
+    _fdesc = fpath or _flabel
+    if not _fdesc:
+        return ""
+    return (
+        f"\n- The member is looking at: {_fapp} — {_fdesc}."
+        " When they ask for changes to a document or file without naming"
+        " one, they mean THIS one — edit it in place; never a copy"
+        " elsewhere.\n"
+    )
+
+
 def build_lane_conventions(
     client: Any,
     user_id: str,
@@ -883,72 +931,32 @@ def build_lane_conventions(
             _app = app_for_layout(extract_template(artifact))
             _as_name = (resolve_app(_app) or {}).get("name") or ""
         posture_section += build_agent_posture(agent, as_name=_as_name)
-    if artifact_path and app == "strings":
-        # ADR-569 D6 (the ADR-567 D4 mechanism, one more branch) — a strings
-        # lane is bound to the maintained file's target leaf, and its JOB is
-        # the string's lifecycle (author/revise CONTRACT.md + _string.yaml,
-        # tend the designated file), not Studio authoring. The binding app is
-        # a LANE fact here: the target is plain md/csv/json/txt (no
-        # data-template to read) and the agent slug cannot name the app
-        # (Docs and Studio share designer).
-        # Selects the JOB overlay only — never the resident (the voice is
-        # Supervisor since ADR-604 D1; the overlay is role-neutral).
-        from services.strings import build_strings_desk_posture
-        posture_section += "\n" + build_strings_desk_posture(client, user_id, artifact_path) + "\n"
-    elif artifact_path and app == "text":
-        # ADR-571 D4 — the Text app's JOB overlay. Same reasoning as the two
-        # branches above, and here it is load-bearing rather than merely
-        # tidy: the studio fallback lifts `data-template` from the artifact,
-        # an .md has none, so it resolves to `document` and would hand the
-        # colleague an HTML-BLOCK contract for a markdown file. The job is
-        # this one prose document, written whole and plain.
-        from services.apps.text import build_text_posture
-        posture_section += "\n" + build_text_posture(client, user_id, artifact_path) + "\n"
-    elif artifact_path:
-        from services.authoring import build_studio_posture
-        # `artifact` was read once at the top of the frame (shared with ADR-562 D6's
-        # app-name resolution) — still the CURRENT head, still derived-never-stored.
+    if artifact_path:
+        # ADR-606 D3 — the JOB overlay is the APP's declaration, resolved
+        # through the same registry door as its resident (ADR-562). The old
+        # per-app `if/elif` chain here (ADR-567 D4 → 569 D6 → 571 D4, one
+        # branch per app) is deleted: a kernel chokepoint that must be hand-
+        # edited per app is how Strings' and Text's focus got dropped on the
+        # floor. `artifact` was read once at the top of the frame — still the
+        # CURRENT head, still derived-never-stored.
         # `+=`, NOT `=`. This was an assignment until 2026-07-16, which was
-        # latent-only because no bound lane carried an agent — the moment
-        # Studio's lane got a Designer (ADR-460 §4b), an `=` here would have
-        # silently eaten the colleague's character and left only the job. The
-        # rule the comment above states ("the binding postures below are the
-        # JOB, this is the colleague") is now what the code does. Three
-        # overlays, one rule: every binding APPENDS to the character.
-        # ADR-522: the focus rides the SAME overlay as the artifact head — both
-        # are per-turn readings of the bound artifact (what it IS, where the
-        # member IS in it), so they compose in one place.
+        # latent-only because no bound lane carried an agent — an `=` here
+        # would silently eat the colleague's character and leave only the
+        # job. Every binding APPENDS to the character.
+        import services.apps  # noqa: F401  (registration side-effect)
+        from services.authoring import posture_for_app, studio_pane_posture
+
+        _builder = posture_for_app(app) or studio_pane_posture
         posture_section += (
-            "\n" + build_studio_posture(artifact_path, artifact, focus) + "\n"
+            "\n" + _builder(client, user_id, artifact_path, artifact) + "\n"
         )
-        # ADR-449 D4: when the workspace has a design system, the bound lane
-        # learns the Skin contract as an ADDITIVE section (composed here, not
-        # in build_studio_posture — the studio posture frame is the ADR-447
-        # pass's file). No design system → empty string → zero prompt cost.
-        from services.design_systems import build_design_system_section
-        ds_section = build_design_system_section(client, user_id)
-        if ds_section:
-            posture_section += "\n" + ds_section + "\n"
-    elif focus and (focus.get("path") or focus.get("label")):
-        # ADR-522, completed for the UNBOUND lane (2026-08-12). The focus wire
-        # was threaded end-to-end and then rendered ONLY inside the bound
-        # lane's studio posture — a general chat lane received the member's
-        # declared focus and said nothing about it, so file work the member
-        # expected to SEE on their canvas was meaning-placed elsewhere (the
-        # fundraiser-copy incident: the lane duplicated the open document into
-        # a new folder and the member watched an unchanged canvas). One
-        # situational line; the member's open file is the DEFAULT target for
-        # file work they expect to watch land.
-        _fpath = (focus.get("path") or "").strip()
-        _flabel = (focus.get("label") or "").strip()
-        _fapp = (focus.get("app") or "a surface").strip()
-        _fdesc = _fpath or _flabel
-        posture_section += (
-            f"\n- The member is looking at: {_fapp} — {_fdesc}."
-            " When they ask for changes to a document or file without naming"
-            " one, they mean THIS one — edit it in place; never a copy"
-            " elsewhere.\n"
-        )
+
+    # ADR-606 D1 — the member's PLACE renders at this ONE kernel site, for
+    # every lane. It is a fact about the MEMBER, not about the character or
+    # the job wearing the turn (the ADR-495 cast-section reasoning) — rendered
+    # inside one app's posture builder it decayed one branch at a time, with
+    # Strings declaring focus the server dropped and Text never rendering any.
+    posture_section += _compose_focus_section(artifact_path, artifact, focus)
 
     # ADR-450 D3 — the derive binding's recipe section (the "Learn from"
     # lane's job description; pure composition from the kernel registry).

@@ -23,29 +23,17 @@ from services.authoring import register_app
 _WORKSPACE_PREFIX = "/workspace/"
 
 
-def _read_file(client: Any, user_id: str, path: str) -> str:
-    from services.workspace_context import substrate_scope_filter
-
-    try:
-        res = (
-            client.table("workspace_files")
-            .select("content")
-            .eq(*substrate_scope_filter(user_id))
-            .eq("path", path)
-            .limit(1)
-            .execute()
-        )
-        return (res.data[0].get("content") or "") if res.data else ""
-    except Exception:  # noqa: BLE001 — the posture degrades to "unread", never raises
-        return ""
-
-
-def build_text_posture(client: Any, user_id: str, artifact_path: str) -> str:
+def build_text_posture(artifact_path: str, head: str) -> str:
     """The job overlay for a text-bound lane (ADR-571 D4).
 
     The lane is bound to ONE prose document. The job is that document —
-    read fresh, refined conversationally, written whole and honestly. No
-    block grammar, no Studio machinery (ADR-456 D1's grade constraint).
+    refined conversationally, written whole and honestly. No block grammar,
+    no Studio machinery (ADR-456 D1's grade constraint).
+
+    Pure since ADR-606 D3: ``head`` is the artifact's current head, read ONCE
+    by the lane kernel — this builder's private re-read (a second round-trip
+    for the same bytes every turn) is deleted, the same fix the studio path
+    made for itself in 2026-07.
     """
     leaf = artifact_path.rsplit("/", 1)[-1]
     rel = (
@@ -53,7 +41,6 @@ def build_text_posture(client: Any, user_id: str, artifact_path: str) -> str:
         if artifact_path.startswith(_WORKSPACE_PREFIX)
         else artifact_path
     )
-    head = _read_file(client, user_id, artifact_path)
 
     lines: list[str] = [
         "## Your desk — the Text app (a prose document)",
@@ -86,6 +73,13 @@ def build_text_posture(client: Any, user_id: str, artifact_path: str) -> str:
     return "\n".join(lines)
 
 
+def text_pane_posture(client: Any, user_id: str, artifact_path: str, artifact: str) -> str:
+    """The ADR-606 D3 builder shape over the pure posture. ``client`` and
+    ``user_id`` are part of the shared contract and deliberately unused —
+    this desk's whole job is the one document the kernel already read."""
+    return build_text_posture(artifact_path, artifact)
+
+
 # ── ADR-562 D3: the registration, beside the code it configures ───────────
 # The resident is IDENTITY only — the engine follows Editor's own row in
 # `agents_registry.AGENTS`, never a caller-supplied model.
@@ -93,4 +87,5 @@ def build_text_posture(client: Any, user_id: str, artifact_path: str) -> str:
 # designer wearing a rename: one desk, one voice. ADR-600 collapsed the
 # register split, so Editor is simply a being with `offered: False` — its
 # home is this desk.
-register_app("text", resident="editor")
+# ADR-606 D3 — the job overlay is declared here, not branched in the kernel.
+register_app("text", resident="editor", posture=text_pane_posture)

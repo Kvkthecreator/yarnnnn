@@ -254,19 +254,24 @@ studio = build_lane_conventions(
 check("an app-less bound lane still gets the studio posture (byte-compatible)",
       "STANDING-WORK DESK" not in studio and "THE RESEARCHER'S DESK" not in studio)
 
+# ADR-606 D3: the target's head is a PARAMETER now — the lane kernel reads
+# the bound artifact once per turn and hands it in; the builder's own reads
+# are the desk files only (declaration + contract).
 from services.strings import build_strings_desk_posture
-empty = build_strings_desk_posture(FakeClient({}), "u1", TARGET)
+empty = build_strings_desk_posture(FakeClient({}), "u1", TARGET, "")
 check("no declaration → the SETTING UP branch, naming the picked leaf",
       "NO DECLARATION YET" in empty and "metrics.csv" in empty)
 broken = build_strings_desk_posture(
-    FakeClient({f"{ROOT}/_string.yaml": "x: [unclosed\n y"}), "u1", TARGET)
+    FakeClient({f"{ROOT}/_string.yaml": "x: [unclosed\n y"}), "u1", TARGET, "")
 check("unparseable declaration → the loud repair line", "DOES NOT PARSE" in broken)
 prob = build_strings_desk_posture(
     FakeClient({f"{ROOT}/_string.yaml":
                 "target: deck.html\nsources:\n  - id: a\n    url: https://a.b/c\n"}),
-    "u1", TARGET)
+    "u1", TARGET, "")
 check("parseable-but-cannot-run → named in the state block",
       "CANNOT RUN (unsupported_format)" in prob)
+check("a handed-in head is DESCRIBED, never re-read (ADR-606 D3)",
+      "2 lines" in build_strings_desk_posture(FakeClient({}), "u1", TARGET, "a\nb"))
 
 # ---------------------------------------------------------------------------
 print("5. the resident (ADR-562) — keeper, a posture, priced")

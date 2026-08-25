@@ -76,6 +76,7 @@ import { SlashMenu, filterSlashItems, type SlashItem } from '@/components/text/S
 import { StudioCitablePicker } from '@/components/authoring/StudioCitablePicker';
 import { readConflict, type ConflictState } from '@/components/text/conflict';
 import { useFileRevisionsRealtime } from '@/lib/realtime/use-file-revisions-realtime';
+import { useDeclareFocus, type SurfaceFocus } from '@/lib/shell/useSurfaceFocus';
 import { parseOutline, readingMinutes } from '@/components/text/outline';
 import {
   insertCsvTable,
@@ -718,6 +719,75 @@ export function TextEditor({
   );
   const outline = useMemo(() => parseOutline(text), [text]);
 
+  // ── ADR-606 D4 — the desk declares where the member stands (ADR-522) ──
+  // The declaration ADR-522's own acceptance case named ("caret under a
+  // heading, ask 'rewrite this section'") — Docs carried it, the Docs→Text
+  // transition dropped it, and until now this desk's colleague knew the
+  // document but never the place. The canvas reports offsets; the surface
+  // derives the commitment: a held selection (the member's own text, the
+  // truest grain), else the nearest h1/h2 at or above the caret (D4's
+  // flow reading, by SOURCE LINE — minting nothing), else the document.
+  // Derived fields are stored with an equality guard so caret travel inside
+  // one section re-renders nothing.
+  const [focusPoint, setFocusPoint] = useState<{
+    selection: string | null;
+    heading: string | null;
+  }>({ selection: null, heading: null });
+  const onCanvasSelection = useCallback((from: number, to: number) => {
+    // Read the view's doc, not React's `text` — during a keystroke the state
+    // lags a render and the offsets belong to the NEW doc (the D12 lesson).
+    const doc = canvasRef.current?.text() ?? '';
+    const selection =
+      from !== to ? doc.slice(from, to).slice(0, 120).trim() || null : null;
+    let heading: string | null = null;
+    if (!selection) {
+      const line = doc.slice(0, from).split('\n').length - 1;
+      const heads = parseOutline(doc).filter(
+        (h) => h.level <= 2 && h.line <= line,
+      );
+      heading = heads.length ? heads[heads.length - 1].text : null;
+    }
+    setFocusPoint((prev) =>
+      prev.selection === selection && prev.heading === heading
+        ? prev
+        : { selection, heading },
+    );
+  }, []);
+  const focus = useMemo<SurfaceFocus | null>(() => {
+    const base = {
+      app: 'text',
+      path: relPath(path),
+      id: null,
+      pageIndex: null,
+      viewport: null,
+    };
+    if (focusPoint.selection) {
+      return {
+        ...base,
+        scope: 'block' as const,
+        label: 'selection',
+        excerpt: focusPoint.selection,
+      };
+    }
+    if (focusPoint.heading) {
+      return {
+        ...base,
+        scope: 'block' as const,
+        label: 'heading',
+        excerpt: focusPoint.heading,
+      };
+    }
+    // The whole document — renders nothing on the bound lane (the binding
+    // already names it) but keeps the declaration live for /chat's fallback.
+    return {
+      ...base,
+      scope: 'document' as const,
+      label: leafOf(path),
+      excerpt: null,
+    };
+  }, [focusPoint, path]);
+  useDeclareFocus('text', focus);
+
   const name = documentName(path);
   // On the single-pane rung the rail becomes a tabbed pane; above it, an
   // overlay drawer or a resting column.
@@ -1048,6 +1118,7 @@ export function TextEditor({
                 value={text}
                 onChange={setText}
                 onSlashRun={setSlash}
+                onSelectionChange={onCanvasSelection}
                 handleRef={(h) => { canvasRef.current = h; }}
                 zoom={zoom}
               />
