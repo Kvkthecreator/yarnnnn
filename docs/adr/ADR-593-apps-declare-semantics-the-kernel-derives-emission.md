@@ -192,3 +192,36 @@ One arc, three commits: (1) this ADR; (2) backend re-cut + migration 245 +
 gate; (3) the pane + FE doors. Render parity: no env-var changes; the
 scheduler's only touchpoint is `daily_pnl_email`, which keeps its trigger and
 changes only its send path.
+
+## 6. Layer sequencing — the internal-first rule and the Layer-1 scope (amended 2026-08-25, operator-ruled)
+
+Ratified in-discourse after ADR-605's opt-in amendment: **the system-internal
+(derived, in-app) notification surfaces stabilize to a comprehensive level
+BEFORE outbound expansion.** Email/push/digest are Layer 2 — machinery a
+member turns on, never a default the system assumes; every kind's dial is
+opt-in-or-quiet until Layer 2 opens as its own deliberate arc.
+
+**Layer 1 scope** (from the comprehensiveness audit,
+`docs/evaluations/2026-08-25-notifications-layer1-comprehensiveness-audit.md`
+— receipts there). Stable core, verified: decisions · mentions (lane path)
+· peer/agent acts with weight · run receipts+failures · inbound arrivals ·
+balance runway · per-(workspace, principal) scoping with the cross-device
+cursor. Remaining Layer-1 work, ordered:
+
+1. **G1** — the mention stamp moves to the ONE conversation-write chokepoint
+   (today only `routes/lanes.py` stamps; five other `write_narrative_entry`
+   callers — including live MCP-authored rows — do not, so a connected AI's
+   @mention routes nowhere).
+2. **G2** — membership changes become visible ("X joined the workspace"):
+   `accept_invite` touches no ledger, and the timeline's closed source list
+   (ADR-410 §2) needs an ADR-level widening to carry grant events.
+3. **G3** — realtime bell (this ADR's named phase 4): replace the 60s poll
+   on the ADR-575 realtime primitive.
+4. **G4** — mention polish: the viewer's own chip · DM display-name in
+   mention rows · the "add them?" OFFER on mentioning a non-participant
+   (never auto-invite).
+5. **G5** — verification debt: suppression live-proof.
+
+**Out of Layer 1, recorded**: email defaults/digest/push (Layer 2) · `runs`
+email · `@everyone` · tags-as-routing (ADR-405 D5) · per-path subscriptions
+· stored read receipts.
