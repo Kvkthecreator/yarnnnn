@@ -100,6 +100,36 @@ DEFAULT_SITE = os.environ.get("YARNNN_SITE_URL", "https://www.yarnnn.com")
 CALLBACK_PATH = "/auth/callback"
 
 
+def _service_key_origin() -> str:
+    """Which env file supplied the SUPABASE_SERVICE_KEY now in os.environ.
+
+    Diagnostic only. `load_dotenv` is first-wins, so the value in play may come
+    from a file the operator is not looking at — and a stale key's 401 gives no
+    hint which one. Returns a human-readable origin, never raises.
+    """
+    live = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    if not live:
+        return "unset"
+    candidates = (
+        ("api/.env.alpha-ops", _API_ROOT / ".env.alpha-ops"),
+        ("<repo>/.env", _API_ROOT.parent / ".env"),
+        ("api/.env", _API_ROOT / ".env"),
+    )
+    for label, path in candidates:
+        try:
+            if not path.exists():
+                continue
+            for line in path.read_text().splitlines():
+                line = line.strip()
+                if not line.startswith("SUPABASE_SERVICE_KEY="):
+                    continue
+                if line.split("=", 1)[1].strip().strip('"').strip("'") == live:
+                    return label
+        except OSError:
+            continue
+    return "the shell environment (or an unmatched file)"
+
+
 def mint_browser_link(email: str, redirect_to: str) -> str:
     """Return a navigable magic-link URL that establishes a browser session."""
     if email not in ALLOWED_EMAILS:
@@ -133,6 +163,29 @@ def mint_browser_link(email: str, redirect_to: str) -> str:
             },
         )
         if r.status_code >= 300:
+            # A 401 here is almost never "the request was wrong" — it is a
+            # STALE SERVICE KEY, and the raw Supabase text ("Unregistered API
+            # key") does not say WHICH of the three env files supplied it.
+            # `load_dotenv` does not override, so the FIRST file that defines
+            # the var wins: .env.alpha-ops, then repo .env, then api/.env.
+            # That precedence cost ~15 minutes on 2026-08-25 (the stream-steps
+            # click-pass) — two files carried a rotated-out key while api/.env
+            # carried the live one, and the failure read as a bug in this
+            # script. Name the file and the remedy instead.
+            if r.status_code == 401:
+                raise SystemExit(
+                    f"generate_link REFUSED [401]: {r.text}\n\n"
+                    f"This is a stale SUPABASE_SERVICE_KEY, not a bad request.\n"
+                    f"  key in use : {service_key[:16]}… (from {_service_key_origin()})\n"
+                    f"  precedence : load_dotenv does NOT override — the FIRST\n"
+                    f"               file defining the var wins, in this order:\n"
+                    f"                 1. api/.env.alpha-ops\n"
+                    f"                 2. <repo>/.env\n"
+                    f"                 3. api/.env\n"
+                    f"  remedy     : rotate the key in the file named above to\n"
+                    f"               the live one (see docs/database/ACCESS.md),\n"
+                    f"               rather than overriding it per-invocation."
+                )
             raise SystemExit(f"generate_link failed [{r.status_code}]: {r.text}")
         payload = r.json()
         props = payload.get("properties") or payload
