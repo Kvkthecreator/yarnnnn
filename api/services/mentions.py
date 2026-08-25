@@ -151,7 +151,12 @@ def fire_and_forget(coro) -> None:
 def _recent_mention_email_exists(
     db_client, user_id: str, conversation_id: str
 ) -> bool:
-    """Suppression, derived from the transport ledger (no new state)."""
+    """Suppression, derived from the transport ledger (no new state).
+
+    `db_client` must be the SERVICE client — a user-scoped client's RLS view
+    of `notifications` is "own rows only", which for the AUTHOR is always
+    empty over the RECIPIENT's rows, i.e. suppression that never suppresses.
+    """
     cutoff = (
         datetime.now(timezone.utc) - timedelta(minutes=EMAIL_SUPPRESSION_MINUTES)
     ).isoformat()
@@ -173,7 +178,6 @@ def _recent_mention_email_exists(
 
 
 async def notify_mentioned(
-    db_client,
     *,
     workspace_id: Optional[str],
     conversation_id: str,
@@ -186,16 +190,25 @@ async def notify_mentioned(
     send; fails closed on an unreadable pref store). Returns sends attempted.
 
     Pointer-only (ADR-202): the email says who and where, never the content.
+
+    NO client parameter — the seam resolves the SERVICE client itself (the
+    `conversation_cast._svc` rule: taking the client as a parameter makes the
+    wrong client expressible). This consequence acts on the RECIPIENT — their
+    prefs (`member_state` is service-role-only RLS), their address
+    (`auth.admin`), their transport rows — none of which the AUTHOR's
+    user-scoped client can read. The first prod drive proved it: the author's
+    client resolved "No email for user" on a recipient with a real address.
     """
     from services.notifications import send_notification
 
+    svc = _svc()
     sent = 0
     for user_id in dict.fromkeys(mentioned):  # ordered dedupe
         try:
-            if _recent_mention_email_exists(db_client, user_id, conversation_id):
+            if _recent_mention_email_exists(svc, user_id, conversation_id):
                 continue
             result = await send_notification(
-                db_client,
+                svc,
                 user_id,
                 f"{author_label} mentioned you in “{conversation_name}”",
                 kind="mentions",

@@ -131,6 +131,13 @@ def test_stamp_wired_at_route() -> None:
     ]
     _assert(len(ff_calls) >= 2,
             "the email consequence fires off the critical path, for both kinds")
+    nm_calls = [a for n in ff_calls for a in n.args
+                if isinstance(a, ast.Call) and isinstance(a.func, ast.Name)
+                and a.func.id == "notify_mentioned"]
+    _assert(all(len(c.args) == 0 for c in nm_calls),
+            "no caller hands notify_mentioned a client — the seam resolves the "
+            "SERVICE client itself (a user-scoped client cannot read the "
+            "recipient's prefs/address; proven live 2026-08-25)")
     _assert("enrich_cast_labels" in _strip_comments_py(src),
             "the cast gains human labels before the grammar runs")
 
@@ -252,12 +259,16 @@ def test_suppression_and_dedupe() -> None:
         class R: status = "sent"
         return R()
 
-    real_send = n.send_notification
+    # notify_mentioned takes NO client — it resolves the SERVICE client
+    # itself (the conversation_cast._svc rule; the author's user-scoped
+    # client cannot read the recipient's prefs/address/transport rows, and
+    # the first prod drive proved it: "No email for user" on a real address).
+    real_send, real_svc = n.send_notification, m._svc
     try:
         n.send_notification = _fake_send
+        m._svc = lambda: _Db([])
         count = asyncio.get_event_loop().run_until_complete(
             m.notify_mentioned(
-                _Db([]),
                 workspace_id="ws", conversation_id="c",
                 conversation_name="Deal room",
                 mentioned=["u1", "u1", "u2"],
@@ -265,7 +276,7 @@ def test_suppression_and_dedupe() -> None:
             )
         )
     finally:
-        n.send_notification = real_send
+        n.send_notification, m._svc = real_send, real_svc
     _assert(count == 2 and [s[0] for s in sent] == ["u1", "u2"],
             "recipients dedupe — one turn never double-emails one person")
     _assert(all(s[1] == "mentions" for s in sent),

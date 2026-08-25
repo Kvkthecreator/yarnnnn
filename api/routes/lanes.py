@@ -1263,7 +1263,6 @@ def _turn_stream_response(
             # The email consequence, off the turn's critical path — the one
             # chokepoint gates by each recipient's dial and fails closed.
             fire_and_forget(notify_mentioned(
-                auth.client,
                 workspace_id=lane.get("workspace_id"),
                 conversation_id=lane_id,
                 conversation_name=lane_meta.get("name") or "a conversation",
@@ -1399,7 +1398,6 @@ def _turn_stream_response(
             )
             if reply_mentions:
                 fire_and_forget(notify_mentioned(
-                    auth.client,
                     workspace_id=lane.get("workspace_id"),
                     conversation_id=lane_id,
                     conversation_name=lane_meta.get("name") or "a conversation",
