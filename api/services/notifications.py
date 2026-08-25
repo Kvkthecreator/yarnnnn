@@ -75,11 +75,15 @@ NOTIFICATION_KINDS: list[dict] = [
         "description": "When someone — a teammate or an agent — @mentions you in a conversation.",
         # WIRED (ADR-605): the mention stamp lands at the turn write
         # (routes/lanes.py → services/mentions.py) and the email rides this
-        # chokepoint. Default 'all' — a mention is a direct personal ask, the
-        # strongest email case there is; at most one email per (recipient,
-        # conversation) per EMAIL_SUPPRESSION_MINUTES, derived from the
-        # transport ledger, so an active back-and-forth never becomes a drip.
-        "email_default": "all",
+        # chokepoint. Default 'none' — OPT-IN, operator-ruled 2026-08-25:
+        # internal notifications stabilize to a comprehensive level BEFORE
+        # outbound expansion; email is machinery a member turns on, never a
+        # default the system assumes. (The first cut shipped 'all' for one
+        # deploy — an unflagged upgrade of the aligned "if they've opted in"
+        # wording; recorded in ADR-605's amendment note.) The suppression
+        # window (≤1 per recipient+conversation per EMAIL_SUPPRESSION_MINUTES,
+        # derived from the transport ledger) still guards whoever opts in.
+        "email_default": "none",
         "email_note": None,
     },
     {

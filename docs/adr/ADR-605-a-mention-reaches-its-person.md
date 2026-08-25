@@ -1,6 +1,7 @@
 # ADR-605: A Mention Reaches Its Person — the attention half of the @ gesture, built
 
-**Status**: Accepted (2026-08-25, operator-aligned in-discourse) — implemented same session
+**Status**: Accepted (2026-08-25, operator-aligned in-discourse) — implemented same session.
+**Amended same day (operator-ruled): mentions email is OPT-IN (`email_default: "none"`)** — see D3. The sequencing rule the amendment ratifies: **internal (in-app, derived) notifications stabilize to a comprehensive level BEFORE outbound expansion**; email is machinery a member turns on, never a default the system assumes. The first cut shipped default-`all` for one deploy — an unflagged upgrade of the discourse's own "if they've opted in" wording, corrected here.
 **Dimension**: Channel (Axiom 6 — where attention routes) + Identity (species-blind addressing)
 **Builds**: ADR-492 D3 (the mention split — content is Chat's, attention is the kernel's), closing the ADR-495 D6 standing gap ("a mention routing nowhere is theatre" — the routing now exists)
 **Amends**: ADR-593 D1 (the `mentions` kind flips declared-unwired → wired), ADR-489 D1 (mention-of-viewer is material to that viewer — the amendment ADR-492's header declared, landed here as the To-do source rather than a timeline weight row)
@@ -90,11 +91,13 @@ the proposal queue.
 
 ## 4. D3 — The email consequence rides the one chokepoint; the kind is wired
 
-`NOTIFICATION_KINDS['mentions']` flips to `email_default: "all"` — a mention
-is a direct personal ask, the strongest email case there is; the dial
-(`Every mention` / `Never` — no "urgent only": nothing grades a mention's
-urgency, the reports precedent) appears in the settings pane automatically
-because the pane is backend-driven (ADR-593 D5).
+`NOTIFICATION_KINDS['mentions']` flips to wired with **`email_default:
+"none"` — opt-in** (amended same day, operator-ruled; the first cut's `"all"`
+lasted one deploy). The dial (`Every mention` / `Never` — no "urgent only":
+nothing grades a mention's urgency, the reports precedent) appears in the
+settings pane automatically because the pane is backend-driven (ADR-593 D5).
+The in-app surface (D2) is the canonical mention channel and is always on;
+email is the member's own escalation, per workspace.
 
 - Emission is `send_notification(kind="mentions")` — gate by the recipient's
   per-(workspace, principal) dial → transport row → send; fails closed

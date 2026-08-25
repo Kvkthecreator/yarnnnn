@@ -69,11 +69,15 @@ def test_kind_wired() -> None:
     )
 
     row = {k["key"]: k for k in NOTIFICATION_KINDS}["mentions"]
-    _assert(row["email_default"] == "all",
-            "mentions email_default is 'all' (a direct personal ask)")
+    # Operator-ruled 2026-08-25 (ADR-605 amendment): OPT-IN — internal
+    # notifications stabilize before outbound expansion; email is never a
+    # default the system assumes. 'all' here would re-ship the unflagged
+    # upgrade this ruling corrected.
+    _assert(row["email_default"] == "none",
+            "mentions email is OPT-IN (wired dial, quiet default)")
     _assert(row["email_note"] is None,
             "the 'not wired yet' refusal is retired from the registry")
-    _assert(EMAIL_DIAL_DEFAULTS.get("mentions") == "all",
+    _assert(EMAIL_DIAL_DEFAULTS.get("mentions") == "none",
             "EMAIL_DIAL_DEFAULTS derives the wired kind")
     _assert("mentions" in get_args(NotificationKind),
             "send_notification's kind type admits 'mentions'")
