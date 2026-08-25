@@ -15,7 +15,7 @@
  * renders an engine enum.
  */
 
-import { FilePenLine, Zap, Hexagon } from 'lucide-react';
+import { FilePenLine, Zap, Hexagon, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { proposalActionLabel } from '@/lib/proposal-labels';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,10 @@ export function KindGlyph({ entry }: { entry: TimelineEntry }) {
         )}
       />
     );
+  }
+  if (entry.kind === 'membership') {
+    // ADR-608 — a colleague joined the commons.
+    return <UserPlus className="h-3 w-3 text-muted-foreground/60 shrink-0" />;
   }
   return <Hexagon className="h-3 w-3 text-muted-foreground/60 shrink-0" />;
 }
@@ -144,6 +148,11 @@ export function actorLine(
   }
   if (entry.kind === 'proposal') {
     return `${who} proposed: ${proposalLabel(entry)}`;
+  }
+  if (entry.kind === 'membership') {
+    // ADR-608 — the server's title IS the sentence tail ("joined the
+    // workspace"); the viewer layer resolved `who`.
+    return `${who} ${entry.title || 'joined the workspace'}`;
   }
   const title = (entry.title || entry.slug || 'work')
     .replace(/[-_]/g, ' ')

@@ -50,6 +50,12 @@ def classify_weight(
         # A witness event — before-witness demands, after-witness informs.
         return MATERIAL
 
+    if kind == "membership":
+        # ADR-608 — a colleague joining the commons is precisely what the
+        # bell exists for. Explicit rather than riding the fail-open default,
+        # so the rule survives a future default change.
+        return MATERIAL
+
     if kind == "invocation":
         if status == "failed":
             return MATERIAL  # failures demand attention regardless of mode

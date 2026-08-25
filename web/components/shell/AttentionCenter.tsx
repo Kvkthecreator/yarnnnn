@@ -100,7 +100,7 @@ interface PeerActivity {
   id: string;
   actor: string | null;
   actorId: string | null;
-  kind: 'revision' | 'invocation';
+  kind: 'revision' | 'invocation' | 'membership';
   title: string;
   detail: string | null;
   created_at: string;
@@ -235,7 +235,9 @@ export function AttentionCenter() {
         const seen = new Set<string>();
         const rows: PeerActivity[] = [];
         for (const e of timelineResult.value.entries || []) {
-          if (e.kind !== 'revision' && e.kind !== 'invocation') continue;
+          // membership (ADR-608): a colleague joining is a material peer
+          // act — the bell's exact job. Proposals still render in TO DO.
+          if (e.kind !== 'revision' && e.kind !== 'invocation' && e.kind !== 'membership') continue;
           if (!e.at) continue;
           // ADR-489 D2 — glance depth: material only.
           if (!isMaterial(e.weight)) continue;

@@ -2020,7 +2020,7 @@ export const api = {
     timeline: (limit: number = 40, before?: string) =>
       request<{
         entries: Array<{
-          kind: 'revision' | 'invocation' | 'proposal';
+          kind: 'revision' | 'invocation' | 'proposal' | 'membership';
           // ADR-410 D6 — stable derived id (kind:natural-key:at) for row
           // keys + read-state derivation.
           id: string;

@@ -195,7 +195,7 @@ class WorkspaceMembersResponse(BaseModel):
 class TimelineEntry(BaseModel):
     """One attributed act in the workspace timeline (ADR-408 D5.1 / ADR-407
     Phase 4b). Derived from the ledgers at read time — never stored."""
-    kind: str                              # revision | invocation | proposal
+    kind: str                              # revision | invocation | proposal | membership (ADR-608)
     # ADR-410 D6 — stable derived id ("kind:natural-key:at") for cursoring +
     # per-row keys. Derived, never stored (DP29).
     id: str = ""
@@ -1245,6 +1245,49 @@ async def get_workspace_timeline(
             ))
     except Exception as e:
         logger.warning("[TIMELINE] proposals read failed: %s", e)
+
+    # 4. Membership — who joined the commons (ADR-608, Layer-1 G2). Derived
+    # from the grant ledger itself (DP29 — no event table): human member/
+    # viewer grants, JOINS only (a revoked row's created_at is the grant's
+    # birth, not the revocation moment — a wrong-timed "left" is worse than
+    # none). The owner's founding grant is genesis, not an arrival. Service
+    # client: principal_grants is not member-JWT-readable; the workspace
+    # filter is the already-resolved acting scope (activity_log precedent).
+    try:
+        from services.supabase import get_service_client
+
+        from services.workspace_context import effective_workspace_id
+
+        ws_for_grants = val if col == "workspace_id" else effective_workspace_id(auth.user_id)
+        if ws_for_grants:
+            q = (
+                get_service_client().table("principal_grants")
+                .select("principal_id, role, status, created_at")
+                .eq("workspace_id", ws_for_grants)
+                .in_("role", ["member", "viewer"])
+                .eq("status", "active")
+            )
+            if before:
+                q = q.lt("created_at", before)
+            rows = q.order("created_at", desc=True).limit(limit).execute().data or []
+            for r in rows:
+                at = r.get("created_at") or ""
+                pid = r.get("principal_id")
+                entries.append(TimelineEntry(
+                    kind="membership",
+                    id=f"membership:{pid}:{at}",
+                    at=at,
+                    # member:{uuid} — the FE attribution module resolves the
+                    # name; actor_id lets the viewer layer suppress self
+                    # (ADR-405 D4: the joiner is not told they joined).
+                    actor=f"member:{pid}",
+                    actor_id=pid,
+                    title="joined the workspace",
+                    status=r.get("role"),
+                    weight=classify_weight("membership"),
+                ))
+    except Exception as e:
+        logger.warning("[TIMELINE] membership read failed: %s", e)
 
     entries.sort(key=lambda e: e.at or "", reverse=True)
     return WorkspaceTimelineResponse(entries=entries[:limit], has_more=page_full)
