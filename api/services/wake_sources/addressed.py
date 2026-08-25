@@ -15,7 +15,7 @@ async generator and formats events as SSE for the operator's HTTP response.
 from __future__ import annotations
 
 import logging
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from services.wake import stream_addressed_wake
 
@@ -30,7 +30,7 @@ async def stream(
     invocation_id: str,
     user_message: str,
     conversation_window: str,
-    operator_locator: str = "",
+    operator_focus: Optional[dict] = None,
 ) -> AsyncGenerator[dict, None]:
     """Stream the addressed Reviewer cycle as a sequence of SSE-shaped events.
 
@@ -45,8 +45,9 @@ async def stream(
         invocation_id: pre-generated execution_events.id for the cycle
         user_message: operator's input
         conversation_window: rolling N-message context window
-        operator_locator: ADR-398 D2 — where the operator is writing from
-            (the shell-composed foregrounded-window locator; opaque string)
+        operator_focus: ADR-607 — where the operator is standing, as the
+            typed ADR-522 focus shape (dict of the StewardFocus wire model);
+            rendered into the ask by the one steward site, never persisted
 
     Yields:
         Event dicts per services.wake.stream_addressed_wake() contract.
@@ -58,7 +59,7 @@ async def stream(
         invocation_id=invocation_id,
         user_message=user_message,
         conversation_window=conversation_window,
-        operator_locator=operator_locator,
+        operator_focus=operator_focus,
     ):
         yield event
 

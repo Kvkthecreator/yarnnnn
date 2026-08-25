@@ -32,6 +32,7 @@ import {
   Square,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
+import type { FocusWire } from '@/lib/shell/useSurfaceFocus';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 // Commit G (2026-05-11): useAutonomy import retired here — the autonomy chip
 // left the composer. (It later lived on the top-bar status cluster, itself
@@ -47,8 +48,8 @@ import { filterAddressedMessages } from '@/lib/feed-grouping';
 export interface ConversationPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
   surfaceOverride?: any;
-  /** ADR-398 D2: shell-composed foregrounded-window locator string. */
-  locator?: string;
+  /** ADR-607: the operator's typed focus (the ADR-522 wire shape). */
+  focus?: FocusWire;
   /** Prefill the input from a parent surface without auto-sending */
   draftSeed?: { id: string; text: string } | null;
   /** Plus menu actions for the input bar */
@@ -94,7 +95,7 @@ export interface ConversationEmptyStateHelpers {
 
 export function ConversationPanel({
   surfaceOverride,
-  locator,
+  focus,
   draftSeed,
   plusMenuActions,
   placeholder = 'Type, drop a file, or paste a link...',
@@ -189,7 +190,7 @@ export function ConversationPanel({
       : input;
     sendMessage(messageContent, {
       surface,
-      locator,
+      focus,
       images: images.length > 0 ? images : undefined,
       fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
     });

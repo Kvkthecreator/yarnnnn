@@ -13,6 +13,7 @@ import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotifi
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
+import type { FocusWire } from '@/lib/shell/useSurfaceFocus';
 import { sseEvents } from '@/lib/sse';
 import { getToolDisplayMessage } from '@/lib/utils';
 import { getFreddiePersonaName } from '@/lib/freddie-persona';
@@ -193,8 +194,8 @@ interface NarrativeContextValue {
     content: string,
     context?: {
       surface?: DeskSurface;
-      /** ADR-398 D2: shell-composed foregrounded-window locator string. */
-      locator?: string;
+      /** ADR-607: the operator's typed focus (the ADR-522 wire shape). */
+      focus?: FocusWire;
       images?: TPImageAttachment[];
       targetAgentId?: string;
       fileAttachments?: Array<{ file_id: string; filename: string; mime_type: string }>;
@@ -573,7 +574,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
       content: string,
       context?: {
         surface?: DeskSurface;
-        locator?: string;
+        focus?: FocusWire;
         images?: TPImageAttachment[];
         targetAgentId?: string;
         fileAttachments?: Array<{ file_id: string; filename: string; mime_type: string }>;
@@ -618,11 +619,11 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           include_context: true,
         };
 
-        // ADR-398 D2: the operator locator — where the operator is writing
-        // from (foregrounded window + params). Replaces the deleted
-        // surface_context fossil; the backend treats it as an opaque line.
-        if (context?.locator) {
-          body.locator = context.locator;
+        // ADR-607: the operator's typed focus — where the operator is
+        // standing, in the same ADR-522 shape the lane rail sends. The
+        // backend renders it at the one steward site; never persisted.
+        if (context?.focus) {
+          body.focus = context.focus;
         }
 
         // ADR-124: Add target agent ID for meeting room @-mentions

@@ -47,13 +47,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 import { ConversationPanel } from '@/components/tp/ConversationPanel';
 import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useFreddiePersona } from '@/lib/freddie-persona';
 import { useViewport } from '@/lib/shell/useViewport';
 import { Z_DRAWER_BACKDROP, Z_DRAWER_BODY } from '@/lib/shell/z-tiers';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { focusToWire, useCurrentFocus } from '@/lib/shell/useSurfaceFocus';
 import { useShellChrome } from '../ShellChromeContext';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { cn } from '@/lib/utils';
@@ -146,19 +146,11 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const surfaceOverride = foregrounded
     ? { type: 'atomic' as const, slug: foregrounded }
     : undefined;
-  // ADR-398 D2: the operator locator — the foregrounded surface + its
-  // scoped window params (ADR-358 grammar), composed as one short line the
-  // agent receives in the ask block ("The operator is writing from: …").
-  const searchParams = useSearchParams();
-  const locator = (() => {
-    if (!foregrounded) return undefined;
-    const parts: string[] = [foregrounded];
-    const prefix = `${foregrounded}.`;
-    searchParams.forEach((v, k) => {
-      if (k.startsWith(prefix) && v) parts.push(`${k.slice(prefix.length)}=${v}`);
-    });
-    return parts.join(' · ');
-  })();
+  // ADR-607: the operator's typed focus — the SAME declaration the lane
+  // rail reads (ADR-522/606), recency fallback included, so the drawer and
+  // a pane beside it tell one story. Replaces the ADR-398 D2 URL-scrape,
+  // which let any app contribute by accident and could never carry a grain.
+  const currentFocus = useCurrentFocus();
   // `explicitWidth` is the operator's dragged width (null until they drag).
   // The RESOLVED width is explicitWidth ?? posturalDefaultWidth(foregrounded)
   // — so an un-dragged rail widens on authoring surfaces and narrows on
@@ -290,7 +282,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           <div className="flex-1 min-h-0 flex flex-col">
             <ConversationPanel
               surfaceOverride={surfaceOverride}
-              locator={locator}
+              focus={currentFocus ? focusToWire(currentFocus) : undefined}
               plusMenuActions={[]}
               placeholder={`Ask ${personaName ?? 'Freddie'}…`}
               showCommandPicker={true}

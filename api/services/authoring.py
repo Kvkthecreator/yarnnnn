@@ -2918,8 +2918,15 @@ def extract_outline(artifact_content: str, limit: int = 24) -> list[str]:
     return out
 
 
-def build_focus_line(focus: Optional[dict], template: str) -> str:
+def build_focus_line(
+    focus: Optional[dict], template: str, actor: str = "The member"
+) -> str:
     """ADR-522 D5 — one bullet naming where the member is standing.
+
+    ``actor`` (ADR-607 D2) parameterizes the subject word so BOTH rails share
+    this one renderer: lanes pass the default ("The member"), the steward's
+    addressed ask passes "The operator". Same grammar, same grain rules, same
+    1-indexing — two rails, one vocabulary, zero copy drift.
 
     The register is _POSTURE_FRAME's: operator words, "the member" as actor,
     prose rather than key-value, and **1-indexed** page numbers (the state is
@@ -2968,19 +2975,19 @@ def build_focus_line(focus: Optional[dict], template: str) -> str:
         # a selected block and saying "writing under" would be false.
         if thing == "heading" and page_noun == "section":
             named = f' "{excerpt[:80].strip()}"' if excerpt else " (untitled)"
-            return f"- The member is writing under the heading{named}."
+            return f"- {actor} is writing under the heading{named}."
         # ADR-606 D4 — a raw text range in a prose editor is not a block and
         # must not claim to be one ("the selection block selected" would be a
         # DOM word wearing an operator costume). It gets its own sentence.
         if thing == "selection":
-            return f"- The member has this text selected{_quoted(excerpt)}."
-        return f"- The member has the {thing} block selected{_quoted(excerpt)}."
+            return f"- {actor} has this text selected{_quoted(excerpt)}."
+        return f"- {actor} has the {thing} block selected{_quoted(excerpt)}."
     if scope == "container":
         thing = label or "container"
         # Operator words are sometimes plural ("columns"), so agree the article
         # rather than always emitting "a".
         article = "the" if thing.endswith("s") else "a"
-        return f"- The member has {article} {thing} selected{_quoted(excerpt)}."
+        return f"- {actor} has {article} {thing} selected{_quoted(excerpt)}."
     if scope == "page":
         if page is None:
             return ""
@@ -2989,7 +2996,11 @@ def build_focus_line(focus: Optional[dict], template: str) -> str:
         # the staged-deck case, where paging changes what is shown and nothing
         # is selected.
         verb = "is viewing" if page == viewport else "has selected"
-        return f"- The member {verb} {page_noun} {page + 1}."
+        # ADR-607: the DECLARED page word wins when it is one of the two
+        # operator nouns — the steward has no artifact to derive a template
+        # from, so a deck's "slide 4" must survive on the declaration alone.
+        noun = label if label in ("slide", "section") else page_noun
+        return f"- {actor} {verb} {noun} {page + 1}."
     return ""
 
 

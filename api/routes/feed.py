@@ -90,14 +90,35 @@ class FileAttachment(BaseModel):
     mime_type: str        # MIME type (application/pdf, text/plain, etc.)
 
 
+class StewardFocus(BaseModel):
+    """ADR-607 D1 — what the operator is looking at, typed (the ADR-522 shape).
+
+    Replaces the ADR-398 D2 `locator` string (URL-scraped, `[:200]`-truncated,
+    opaque). The shell composes it from the same declaration the lane rail
+    reads (`useCurrentFocus()`, recency fallback included); the steward renders
+    it as the place lines in the addressed ask. Transient, never persisted,
+    never authority — the steward's reach is unchanged. Own model, own wire:
+    the rails share a VOCABULARY, never a field (ADR-441 D1).
+    """
+
+    app: Optional[str] = None
+    path: Optional[str] = None
+    scope: Optional[str] = None
+    id: Optional[str] = None
+    page_index: Optional[int] = None
+    label: Optional[str] = None
+    excerpt: Optional[str] = None
+    viewport_page_index: Optional[int] = None
+
+
 class ChatRequest(BaseModel):
     content: str
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
-    # ADR-398 D2: the operator locator — a short human-readable string the
-    # shell composes from the foregrounded window + its params (replaces the
-    # deleted ADR-023 SurfaceContext fossil, which the backend ignored).
-    locator: Optional[str] = None
+    # ADR-607 D1: the operator's typed focus. The ADR-398 D2 `locator` string
+    # is DELETED — an old client still sending it is silently ignored (the
+    # pre-398 state, honest for the duration of a deploy skew).
+    focus: Optional[StewardFocus] = None
     images: Optional[list[ImageAttachment]] = None  # Images attached to message (ephemeral)
     file_attachments: Optional[list[FileAttachment]] = None  # Ephemeral doc attachments (ADR-249)
     target_agent_id: Optional[str] = None  # ADR-124: route message to specific agent in meeting room
@@ -1085,7 +1106,7 @@ async def global_chat(
                 invocation_id=invocation_id,
                 user_message=request.content,
                 conversation_window="\n".join(conv_lines) if conv_lines else "",
-                operator_locator=(request.locator or "").strip()[:200],
+                operator_focus=request.focus.model_dump() if request.focus else None,
             ):
                 etype = event.get("type")
 

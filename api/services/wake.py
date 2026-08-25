@@ -1326,7 +1326,7 @@ async def stream_addressed_wake(
     invocation_id: str,
     user_message: str,
     conversation_window: str,
-    operator_locator: str = "",
+    operator_focus: Optional[dict] = None,
 ) -> AsyncGenerator[dict, None]:
     """Addressed wake source — SSE-streaming entry point.
 
@@ -1459,10 +1459,10 @@ async def stream_addressed_wake(
             **governance_envelope,  # ADR-276 + ADR-301 — full envelope incl. operating_context_block
             "user_message": user_message,
             "conversation_window": conversation_window,
-            # ADR-398 D2: the operator locator — one situational line in the
-            # ask block ("The operator is writing from: ..."). Shell-composed,
-            # backend-opaque.
-            "operator_locator": operator_locator or "",
+            # ADR-607: the operator's typed focus — the place lines in the
+            # ask block. Shell-declared (ADR-522's declaration, not a URL
+            # scrape); rendered by the one steward site; never persisted.
+            "operator_focus": operator_focus or {},
             # 2026-05-27 Hat-A parity fix: explicit wake_source so the Reviewer
             # perceives "operator directly addressed me" as a first-class envelope
             # input (was previously implicit via the user_message field's presence).

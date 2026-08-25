@@ -101,15 +101,19 @@ server-side), and declaring being optional (so the Docs→Text transition silent
 dropped it). A mechanism whose per-app half is optional decays one surface at a
 time; the obligation is what makes "first-class" durable.
 
-## 5. The two rails (do not merge them)
+## 5. The two rails (one vocabulary, separate wires)
 
-The steward rail (`POST /api/feed`, Altitude 1) carries an `operator_locator` —
-an opaque, `[:200]`-truncated, URL-scraped string (ADR-398 D2). The lane rail
-carries the typed focus. ADR-522 refused to extend the locator and ADR-606 kept
-the refusal: one string serving both altitudes would put two contracts behind one
-field. The known inversion — the steward pre-loads governance exhaustively but
-knows the member's place only opaquely; the lane knows the place richly — is
-named, deferred, and demand-gated.
+Both rails now carry the typed focus — the lane rail as `LaneTurnRequest.focus`,
+the steward rail as `ChatRequest.focus` (`StewardFocus`, its own Pydantic model —
+ADR-607 superseded the ADR-398 D2 `operator_locator` URL-scrape and deleted it
+everywhere). They share the `SurfaceFocus` vocabulary and the ONE pure renderer
+(`build_focus_line`, actor-parameterized: "The member" / "The operator") but keep
+separate wires, separate request models, and one rendering site each (lanes:
+`_compose_focus_section`; steward: the addressed-ask composer in
+`freddie_agent._ask_for_trigger`). The rails are NOT merged — ADR-441 D1 stands;
+what they share is vocabulary, exactly as they already share the path grammar.
+The steward renders every declaration (it has no binding to be the authority);
+if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
 
 ## 6. Refusals (recorded so they are not re-proposed)
 

@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.25.3] - ADR-607: the steward hears the typed focus
+
+### Changed
+- `agents/freddie_agent.py::_ask_for_trigger` (addressed branch): the ADR-398
+  D2 opaque-locator line is DELETED and replaced by two lines composed from
+  the operator's TYPED focus (the ADR-522 shape, carried as
+  `ChatRequest.focus` → `operator_focus` in the wake context):
+  `_The operator is writing from: {app} — {path}_` plus the grain line
+  through the SAME `build_focus_line` renderer the lanes use, with
+  `actor="The operator"`. No focus → no lines (unchanged silence).
+- `services/authoring.py::build_focus_line`: gains `actor` (default
+  "The member" — lane copy byte-stable) and lets a declared page noun
+  ("slide"/"section") survive without a template, since the steward has no
+  artifact to derive one from.
+- Carrier chain (supersedes the [2026.08.06.x] locator entry's pinned chain):
+  `ChatRequest.focus` (routes/feed.py, `StewardFocus` model) →
+  `wake_sources/addressed.stream(operator_focus=)` →
+  `wake.stream_addressed_wake` → context bag `operator_focus` →
+  `_ask_for_trigger`. The FE composes it from `useCurrentFocus()`
+  (ChatDrawer) — the URL-param scrape is deleted.
+
+### Expected behavior
+"Tidy up this slide" addressed to Freddie from the drawer resolves the slide
+the way a lane turn does; the steward's place line can now carry a grain
+(viewing vs selected, heading-as-section) instead of an opaque `k=v` string.
+Reactive/scheduled wakes unchanged (no operator standing anywhere).
+
+### Gates
+- `test_adr607_steward_hears_focus.py` new (falsified 4×: rendering gutted,
+  locator field resurrected, actor hardcoded, scrape resurrected); prompt
+  ratchets 18/18; 522/606/562/569/571 green.
+
+---
+
 ## [2026.08.25.2] - a clipped focus excerpt says it is one
 
 ### Changed

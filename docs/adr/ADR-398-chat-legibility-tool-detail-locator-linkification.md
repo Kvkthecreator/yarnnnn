@@ -1,6 +1,14 @@
 # ADR-398: Chat Legibility — Actual-Call Detail, Operator Locator, OS-Owned Linkification
 
-**Status**: Implemented (2026-07-02)
+> **⚠ D2 superseded by ADR-607 (2026-08-25).** The operator locator — the
+> URL-scraped opaque string — is DELETED end to end (ChatDrawer scrape,
+> `ChatRequest.locator`, the `operator_locator` hops, the ask-block line). Its
+> goal survives, strengthened: the steward now receives the operator's place as
+> the TYPED focus declaration (ADR-522's shape) on its own wire, rendered
+> through the shared grain renderer. D1 (actual-call detail) and D3
+> (OS-owned linkification) stand untouched.
+
+**Status**: Implemented (2026-07-02); **D2 superseded by ADR-607**
 **Date**: 2026-07-02
 **Deciders**: KVK + Claude
 **Plan context**: the chat-legibility arc surfaced by the operator's live test of the rungs-1+2 Freddie (2026-07-02) — "coherence and expected behavior are closely knit to the actual surfacing"

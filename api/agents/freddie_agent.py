@@ -550,11 +550,28 @@ def _ask_for_trigger(trigger: str, ctx: FreddieContext) -> str:
             parts += ["## Recent conversation", "", ctx["conversation_window"], ""]
         msg = (ctx.get("user_message") or "").strip()
         parts += ["## The ask (operator message)", "", msg, ""]
-        # ADR-398 D2: the operator locator — where they are writing from.
-        # One situational line; shell-composed, opaque here.
-        locator = (ctx.get("operator_locator") or "").strip()
-        if locator:
-            parts += [f"_The operator is writing from: {locator}_", ""]
+        # ADR-607: the operator's typed focus — where they are standing,
+        # in the ADR-522 shape the shell already declares for the lane rail.
+        # Rendered here, the ONE steward site (the ADR-606 D1 rule applied to
+        # this rail): a place line, plus the grain line through the SAME pure
+        # renderer the lanes use, with the actor word swapped. Replaces the
+        # ADR-398 D2 opaque locator string — deleted, not extended.
+        fd = ctx.get("operator_focus") or {}
+        if fd:
+            _fwhere = " — ".join(
+                x for x in [
+                    (fd.get("app") or "").strip(),
+                    (fd.get("path") or fd.get("label") or "").strip(),
+                ] if x
+            )
+            if _fwhere:
+                parts += [f"_The operator is writing from: {_fwhere}_"]
+            from services.authoring import build_focus_line
+            _fline = build_focus_line(fd, "document", actor="The operator")
+            if _fline:
+                parts += [_fline]
+            if _fwhere or _fline:
+                parts += [""]
     return "\n".join(parts)
 
 
