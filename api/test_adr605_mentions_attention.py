@@ -93,57 +93,85 @@ def test_kind_wired() -> None:
 # D1 — the stamp is wired at the route (AST over the real call sites)
 # ---------------------------------------------------------------------------
 
-def test_stamp_wired_at_route() -> None:
-    print("\n[D1] the stamp + notify are WIRED in routes/lanes.py")
-    src = _read("api/routes/lanes.py")
-    tree = ast.parse(src)
+def test_stamp_wired_at_the_chokepoint() -> None:
+    """Layer-1 G1 (ADR-593 §6): the stamp lives at the ONE conversation-write
+    site — `write_narrative_entry` — so EVERY writer gets it (the first cut
+    stamped only in routes/lanes.py, leaving five writers silent: a live
+    MCP-authored @mention routed nowhere)."""
+    print("\n[D1/G1] the stamp lives at the ONE write chokepoint")
+    nar = _read("api/services/narrative.py")
+    nar_nc = _strip_comments_py(nar)
+    _assert("stamp_and_route_mentions" in nar_nc,
+            "write_narrative_entry calls the stamp seam")
+    tree = ast.parse(nar)
+    wne = [n for n in ast.walk(tree)
+           if isinstance(n, ast.FunctionDef) and n.name == "write_narrative_entry"]
+    _assert(bool(wne), "write_narrative_entry exists")
+    if wne:
+        seg = ast.get_source_segment(nar, wne[0]) or ""
+        _assert("stamp_and_route_mentions" in _strip_comments_py(seg)
+                and 'metadata["mentions"]' in seg,
+                "the stamp lands on the metadata INSIDE the write function (wired)")
 
-    mh_calls = [
-        n for n in ast.walk(tree)
-        if isinstance(n, ast.Call)
-        and isinstance(n.func, ast.Name) and n.func.id == "mentioned_humans"
-    ]
-    _assert(len(mh_calls) >= 2,
-            "mentioned_humans is called for BOTH row kinds (member turn + agent reply)")
-    args0 = {a.id for c in mh_calls for a in c.args if isinstance(a, ast.Name)}
-    _assert("content" in args0 and "reply" in args0,
-            "one call parses the member's text, one the agent's reply")
-    _assert(all(
-        any(kw.arg == "exclude" for kw in c.keywords) for c in mh_calls
-    ), "every stamp excludes the acting member (ADR-405 D4 — present, not told)")
+    lanes_nc = _strip_comments_py(_read("api/routes/lanes.py"))
+    _assert("mentioned_humans" not in lanes_nc and "notify_mentioned" not in lanes_nc,
+            "routes/lanes.py carries NO mention code — per-caller stamping "
+            "was the defect shape; one site only")
 
-    stamp_assigns = [
-        n for n in ast.walk(tree)
-        if isinstance(n, ast.Assign)
-        and any(
-            isinstance(t, ast.Subscript)
-            and isinstance(t.slice, ast.Constant) and t.slice.value == "mentions"
-            for t in n.targets
-        )
-    ]
-    _assert(len(stamp_assigns) >= 2,
-            "the stamp lands on the metadata of both row kinds")
+    # Behavioral: the seam itself, with every collaborator faked.
+    import services.mentions as m
+    import services.conversation_cast as cc
 
-    ff_calls = [
-        n for n in ast.walk(tree)
-        if isinstance(n, ast.Call)
-        and isinstance(n.func, ast.Name) and n.func.id == "fire_and_forget"
-        and any(
-            isinstance(a, ast.Call) and isinstance(a.func, ast.Name)
-            and a.func.id == "notify_mentioned" for a in n.args
-        )
-    ]
-    _assert(len(ff_calls) >= 2,
-            "the email consequence fires off the critical path, for both kinds")
-    nm_calls = [a for n in ff_calls for a in n.args
-                if isinstance(a, ast.Call) and isinstance(a.func, ast.Name)
-                and a.func.id == "notify_mentioned"]
-    _assert(all(len(c.args) == 0 for c in nm_calls),
-            "no caller hands notify_mentioned a client — the seam resolves the "
-            "SERVICE client itself (a user-scoped client cannot read the "
-            "recipient's prefs/address; proven live 2026-08-25)")
-    _assert("enrich_cast_labels" in _strip_comments_py(src),
-            "the cast gains human labels before the grammar runs")
+    class _Q:
+        def __init__(self, data=None): self._data = data or []
+        def select(self, *a, **k): return self
+        def eq(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def execute(self):
+            class R: data = []
+            return R()
+
+    class _Svc:
+        def table(self, name): return _Q()
+
+    calls = {"cast": 0}
+    def _fake_cast(sid):
+        calls["cast"] += 1
+        return [
+            {"member_kind": "human", "principal_id": "u1", "display_name": "Kevin Kim"},
+            {"member_kind": "human", "principal_id": "u2", "display_name": "Seul Kim"},
+        ]
+
+    real_cast, real_svc, real_enrich = cc.list_participants, m._svc, m.enrich_cast_labels
+    try:
+        cc.list_participants = _fake_cast
+        m._svc = lambda: _Svc()
+        m.enrich_cast_labels = lambda c: c  # labels already present
+        none = m.stamp_and_route_mentions("s1", "no at-sign here", {})
+        _assert(none is None and calls["cast"] == 0,
+                "no '@' → no stamp AND no cast fetch (the cheap pre-check, proven)")
+        got = m.stamp_and_route_mentions(
+            "s1", "@KevinKim please look", {"author_principal_id": "u2"})
+        _assert(got == ["u1"], "a cast human's mention stamps, by any author")
+        self_stamp = m.stamp_and_route_mentions(
+            "s1", "@KevinKim note to self", {"authored_by": "member:" + "1" * 8 + "-1111-1111-1111-" + "1" * 12})
+        _assert(self_stamp == ["u1"],
+                "a member:{uuid} authored_by parses for exclusion (different member → still stamps)")
+        excl = m.stamp_and_route_mentions(
+            "s1", "@KevinKim ping", {"author_principal_id": "u1"})
+        _assert(excl is None,
+                "the present author is excluded (ADR-405 D4), at the chokepoint")
+    finally:
+        cc.list_participants, m._svc, m.enrich_cast_labels = real_cast, real_svc, real_enrich
+
+    # The seam still never accepts a client (the wrong-client class, proven live).
+    src_m = _read("api/services/mentions.py")
+    t2 = ast.parse(src_m)
+    nm = [n for n in ast.walk(t2)
+          if isinstance(n, ast.AsyncFunctionDef) and n.name == "notify_mentioned"]
+    _assert(bool(nm) and not nm[0].args.args and not nm[0].args.posonlyargs,
+            "notify_mentioned takes NO positional client — the seam resolves "
+            "the SERVICE client itself")
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +375,7 @@ def test_fe_wiring() -> None:
 if __name__ == "__main__":
     for fn in [
         test_kind_wired,
-        test_stamp_wired_at_route,
+        test_stamp_wired_at_the_chokepoint,
         test_derivation_core,
         test_resolution_cursor_is_monotonic,
         test_suppression_and_dedupe,

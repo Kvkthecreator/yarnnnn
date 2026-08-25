@@ -199,6 +199,21 @@ def write_narrative_entry(
         metadata.update(extra_metadata)
     metadata.update(envelope)  # envelope wins on collision
 
+    # ADR-605 D1 at the ONE write site (Layer-1 G1, ADR-593 §6): every
+    # conversation write stamps the humans it @mentions — whoever authored
+    # it — and the kernel routes the attention consequence. Stamping lived
+    # in routes/lanes.py first, which made five other writers silent
+    # (a live MCP-authored @mention routed nowhere). A stamp failure must
+    # never fail the write.
+    try:
+        from services.mentions import stamp_and_route_mentions
+
+        stamped = stamp_and_route_mentions(session_id, content, metadata)
+        if stamped:
+            metadata["mentions"] = stamped
+    except Exception as stamp_exc:  # noqa: BLE001
+        logger.warning("[NARRATIVE] mention stamp failed (write proceeds): %s", stamp_exc)
+
     try:
         result = client.rpc(
             "append_session_message",

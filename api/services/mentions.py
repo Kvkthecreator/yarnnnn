@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
@@ -122,6 +123,93 @@ def mentioned_humans(
 
     resolved = resolve_address(content or "", cast)
     return [h for h in resolved["humans"] if h and h != exclude]
+
+
+def _author_principal_of(metadata: dict) -> Optional[str]:
+    """The human present at authoring time, if any — the one the stamp
+    excludes (ADR-605 D1 / ADR-405 D4).
+
+    `author_principal_id` where the writer set it (member turns); else the
+    uuid inside a `member:{id}` / `member:{id} via {model}` authored_by (the
+    member's hands). A non-member author (`yarnnn:mcp:*`, `system:*`,
+    steward) yields None — no human is present, nobody is excluded.
+    """
+    meta = metadata or {}
+    pid = meta.get("author_principal_id")
+    if pid:
+        return str(pid)
+    authored = str(meta.get("authored_by") or "")
+    if authored.startswith("member:"):
+        m = re.match(r"member:([0-9a-f-]{36})", authored)
+        if m:
+            return m.group(1)
+    return None
+
+
+def stamp_and_route_mentions(
+    session_id: str, content: str, metadata: dict
+) -> Optional[list]:
+    """THE stamp, at the ONE conversation-write chokepoint (Layer-1 G1,
+    ADR-593 §6 — executing ADR-605 D1 at the right site).
+
+    Called by `write_narrative_entry` for EVERY conversation write, whoever
+    authored it — a member's turn, an agent's reply, an MCP-connected AI's
+    contribution, a steward entry. The first cut stamped only in
+    `routes/lanes.py`, which made one of six writers species-blind and the
+    other five silent (a live MCP-authored @mention routed nowhere — the
+    exact "theatre" gap ADR-605 exists to close). Per-caller stamping is the
+    defect shape; this is the repair.
+
+    Returns the stamp (list of mentioned cast-human principal ids) or None.
+    Also fires the outbound consequence off the write path. NEVER raises —
+    a stamp failure must not fail the write (the caller logs).
+
+    The '@' pre-check keeps the common case free: no '@' in the text means
+    no cast fetch, no label resolution, no queries.
+    """
+    if not content or "@" not in content:
+        return None
+    from services.conversation_cast import list_participants
+
+    cast = list_participants(session_id)
+    if not any(p.get("member_kind") == "human" for p in cast):
+        return None
+    cast = enrich_cast_labels(cast)
+    mentioned = mentioned_humans(
+        content, cast, exclude=_author_principal_of(metadata)
+    )
+    if not mentioned:
+        return None
+
+    # The conversation's own workspace + name for the outbound pointer —
+    # read only on the rare stamped write.
+    workspace_id = None
+    conversation_name = "a conversation"
+    try:
+        rows = (
+            _svc().table("chat_sessions")
+            .select("workspace_id, context_metadata")
+            .eq("id", session_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        if rows:
+            workspace_id = rows[0].get("workspace_id")
+            conversation_name = (
+                ((rows[0].get("context_metadata") or {}).get("lane") or {}).get("name")
+                or conversation_name
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[MENTIONS] conversation lookup failed: %s", exc)
+
+    fire_and_forget(notify_mentioned(
+        workspace_id=workspace_id,
+        conversation_id=session_id,
+        conversation_name=conversation_name,
+        mentioned=mentioned,
+        author_label=_author_label(metadata),
+    ))
+    return mentioned
 
 
 # ---------------------------------------------------------------------------
