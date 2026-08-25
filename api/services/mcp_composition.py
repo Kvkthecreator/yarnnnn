@@ -51,6 +51,7 @@ from services.authored_substrate import (
 # (2026-08-22 outage: this import block was swallowed into `_substrate_scope`'s
 # body by a merge, making the names function-local — every `open` then died
 # with NameError while the import-time surface stayed green).
+from services.workspace_paths import display_home_alias
 from services.workspace_context import (
     describe_if_trashed,
     live_files_filter,
@@ -533,7 +534,7 @@ async def compose_search(
     if raw_arrivals:
         out["raw_arrivals"] = raw_arrivals
         note = (
-            f"{len(raw_arrivals)} raw arrival(s) under inbound/ also matched "
+            f"{len(raw_arrivals)} raw arrival(s) under Downloads also matched "
             "(unprocessed feed/transcript captures — see `raw_arrivals`); they "
             "are set aside from the candidates and the confidence grade."
         )
@@ -570,7 +571,7 @@ async def compose_history(
             "success": False, "error": "invalid_reference",
             "message": (
                 "Not a yarnnn file reference. Pass a workspace-relative path "
-                "(e.g. operation/reports/q3.md) or a yarnnn://workspace/… handle."
+                "(e.g. Documents/reports/q3.md) or a yarnnn://workspace/… handle."
             ),
             "reference": reference,
         }
@@ -759,6 +760,24 @@ YARNNN_REF_SCHEME = "yarnnn://workspace/"
 #: workspaces.
 OPEN_CONTENT_CAP = 24_000
 
+#: What an EXTERNAL client reads when something inside yarnnn broke.
+#:
+#: ⚠️ NEVER `str(exc)` on this surface. These composers sit behind PostgREST and
+#: httpx, whose exceptions stringify to their own internals — a failed read
+#: rendered `{'message': 'relation "workspace_files" does not exist', 'code':
+#: '42P01', …}` and handed an external client (Claude Desktop, ChatGPT) our
+#: table names and Postgres error codes. That is disclosure, not diction: the
+#: caller is outside the trust boundary, and no phrasing of an internal fault is
+#: actionable to them.
+#:
+#: The real detail is LOGGED at each site — operators keep everything, clients
+#: get a stable sentence and a retry that is honest about what they can do.
+INTERNAL_FAILURE_MESSAGE = (
+    "Something went wrong inside yarnnn while reading the workspace — this is "
+    "not a problem with your request. Try again; if it persists, tell the user "
+    "so they can check the workspace."
+)
+
 
 def parse_file_reference(reference: Optional[str]) -> Optional[str]:
     """Normalize a cross-boundary file reference to a workspace-relative path.
@@ -828,7 +847,7 @@ async def compose_open(
             "success": False, "error": "invalid_reference",
             "message": (
                 "Not a yarnnn file reference. Pass a workspace-relative path "
-                "(e.g. operation/reports/q3.md) or a yarnnn://workspace/… handle."
+                "(e.g. Documents/reports/q3.md) or a yarnnn://workspace/… handle."
             ),
             "reference": reference,
         }
@@ -849,7 +868,9 @@ async def compose_open(
         ).data or []
     except Exception as exc:  # noqa: BLE001
         logger.warning("[MCP] open read failed for %s: %s", abs_path, exc)
-        return {"success": False, "error": "read_failed", "message": str(exc), "reference": reference}
+        return {"success": False, "error": "read_failed", "reference": reference,
+                # NEVER str(exc) — see INTERNAL_FAILURE_MESSAGE.
+                "message": INTERNAL_FAILURE_MESSAGE}
 
     if not rows:
         # TRASHED is not ABSENT (2026-08-21). The filter above stops a deleted
@@ -862,6 +883,8 @@ async def compose_open(
             user_id=auth.user_id,
             workspace_id=getattr(auth, "workspace_id", None),
             abs_path=abs_path,
+            # The MCP roster has `history`, not the kernel revision primitives.
+            interop=True,
         )
         if trashed:
             return {
@@ -984,7 +1007,7 @@ async def compose_list(
                 "success": False, "error": "invalid_reference",
                 "message": (
                     "Not a yarnnn folder reference. Pass a workspace-relative "
-                    "folder path (e.g. operation/reports), a yarnnn://workspace/… "
+                    "folder path (e.g. Documents/reports), a yarnnn://workspace/… "
                     "handle, or omit it to list the whole workspace."
                 ),
                 "reference": reference,
@@ -1019,8 +1042,8 @@ async def compose_list(
         ).data or []
     except Exception as exc:  # noqa: BLE001
         logger.warning("[MCP] list read failed for %s: %s", abs_prefix, exc)
-        return {"success": False, "error": "list_failed", "message": str(exc),
-                "reference": reference}
+        return {"success": False, "error": "list_failed", "reference": reference,
+                "message": INTERNAL_FAILURE_MESSAGE}
 
     # ADR-588 D1: folder markers are directories, not documents — `list`
     # enumerates FILES, so a marker never appears here. (An empty folder is
@@ -1050,7 +1073,12 @@ async def compose_list(
             "author_class": classify_author(head.get("authored_by")) if head else None,
         })
 
-    where = f"`{rel.rstrip('/')}`" if rel else "the workspace"
+    # ADR-588 D2, display half: the participant was TOLD "Documents"/"Downloads"
+    # — answer in the vocabulary we taught, not the kernel root. Prose only; the
+    # `path`/`reference` fields above stay canonical addresses.
+    where = (
+        f"`{display_home_alias(rel.rstrip('/'))}`" if rel else "the workspace"
+    )
     if not files:
         explanation = (
             (f"No files under {where} changed since {since}. Quiet is a clean "
@@ -1344,7 +1372,9 @@ async def compose_save(
             .execute()
         ).data or []
     except Exception as exc:  # noqa: BLE001
-        return {"success": False, "error": "head_lookup_failed", "message": str(exc)}
+        logger.warning("[MCP] save head lookup failed for %s: %s", rel, exc)
+        return {"success": False, "error": "head_lookup_failed",
+                "message": INTERNAL_FAILURE_MESSAGE}
 
     head = head_rows[0] if head_rows else None
 

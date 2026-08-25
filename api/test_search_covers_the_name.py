@@ -274,9 +274,20 @@ try:
           f"got {out.get('confidence')!r} over {len(out.get('results', []))} candidates")
     check("…citations carry no inbound path",
           all("/inbound/" not in p for p in out.get("citations", [])))
+    # Re-anchored 2026-08-25: this asserted the arrivals are LABELLED AND
+    # COUNTED, but pinned the kernel SPELLING `inbound/`. The interop surface
+    # now answers in the told-name the participant was taught ("Downloads",
+    # ADR-588 D2 display half) — the intent holds, the spelling moved. Assert
+    # the intent: a count, and a note that NAMES the home in whatever
+    # vocabulary this surface speaks.
+    from services.workspace_paths import HOME_ALIASES, INBOUND_ROOT
+
+    _arrivals_home = HOME_ALIASES_INVERSE = {
+        v.rstrip("/"): k for k, v in HOME_ALIASES.items()
+    }[INBOUND_ROOT.strip("/")]
     check("…and the arrivals are SET ASIDE, not hidden (labelled, counted)",
           len(out.get("raw_arrivals", [])) == 4
-          and "inbound/" in (out.get("explanation") or ""),
+          and _arrivals_home in (out.get("explanation") or ""),
           "dropping them silently would be the third honesty defect this file exists to end")
 
     _reg_mod.execute_primitive = _with_primitive_result(_qk(

@@ -229,7 +229,9 @@ def live_files_filter(query):
     return query.or_(LIVE_FILES_OR_CLAUSE)
 
 
-def describe_if_trashed(client, *, user_id: str, workspace_id, abs_path: str):
+def describe_if_trashed(
+    client, *, user_id: str, workspace_id, abs_path: str, interop: bool = False,
+):
     """If this path is in Trash, describe it. Otherwise None.
 
     THE POINT (2026-08-21): a trashed file must not answer "not found".
@@ -282,11 +284,27 @@ def describe_if_trashed(client, *, user_id: str, workspace_id, abs_path: str):
         msg += f" (moved {when})"
     if group:
         msg += f", as part of the folder `{group}`"
-    msg += (
-        ". It was deleted, not lost — the revision chain is intact and it can be "
-        "restored. Tell the operator it is in Trash rather than saying the file "
-        "does not exist; use ListRevisions/ReadRevision to read its content."
-    )
+    # ⭐ NAME A VERB THE CALLER ACTUALLY HOLDS. The whole point of this
+    # resolver is to "route to the verb that answers it" — which fails closed
+    # into confusion if the verb named is not on the caller's roster.
+    # `ListRevisions`/`ReadRevision` are KERNEL primitives; an MCP participant
+    # (Claude Desktop, ChatGPT) holds neither, and being told to call one leaves
+    # it to hallucinate the tool or stall. Its equivalent is `history`.
+    # Likewise "the operator" is our internal noun — every other string on the
+    # interop surface says "the user".
+    if interop:
+        msg += (
+            ". It was deleted, not lost — the revision chain is intact and it "
+            "can be restored. Tell the user it is in Trash rather than saying "
+            "the file does not exist; use `history` to walk its revisions."
+        )
+    else:
+        msg += (
+            ". It was deleted, not lost — the revision chain is intact and it "
+            "can be restored. Tell the operator it is in Trash rather than "
+            "saying the file does not exist; use ListRevisions/ReadRevision to "
+            "read its content."
+        )
     return {
         "path": abs_path,
         "trashed": True,

@@ -279,6 +279,46 @@ class HostGatedFastMCP(FastMCP):
     (`registry.strip_widget_meta`). Kernel boundary preserved (ADR-222/372 D5).
     """
 
+    async def call_tool(self, name, arguments):  # type: ignore[override]
+        """Compose a scope refusal instead of letting it escape as a fault.
+
+        ⭐ ADR-563 put the scope CHECK at the one door every verb opens
+        (`resolve_request_client(verb=…)` → `assert_scope`), for the stated
+        reason that "a guard a call site can forget is not a guard". The
+        REFUSAL was never given the same treatment: `ScopeDenied` was imported
+        here and caught nowhere (one occurrence in this file, zero uses), so an
+        under-scoped connection got a protocol-level exception rather than an
+        answer — on the authorization surface, the one place a refusal most
+        needs to read cleanly. It also rendered a raw Python list literal
+        (`this connection holds ['(none)']`).
+
+        The handler belongs HERE for the same reason the check does: this is the
+        single funnel every tool call passes through, so a verb added tomorrow
+        is covered without remembering anything. Ten try/excepts in ten bodies
+        would be the shape ADR-563 already rejected.
+        """
+        try:
+            return await super().call_tool(name, arguments)
+        except ScopeDenied as exc:
+            held = ", ".join(exc.held) if exc.held else "no file scopes"
+            logger.info(
+                "[MCP SCOPE] refused verb=%s required=%s held=%s",
+                exc.verb, exc.required, exc.held,
+            )
+            return {
+                "success": False,
+                "error": "scope_denied",
+                "message": (
+                    f"This connection is not authorized to {exc.verb}. It holds "
+                    f"{held}, and {exc.verb} needs the '{exc.required}' scope. "
+                    "Tell the user to re-authorize the yarnnn connector and "
+                    "grant it — you cannot widen your own access from here."
+                ),
+                "verb": exc.verb,
+                "required_scope": exc.required,
+                "held_scopes": list(exc.held),
+            }
+
     async def list_tools(self):  # type: ignore[override]
         tools = await super().list_tools()
         try:
@@ -736,7 +776,7 @@ async def list_files(
     Call this to see what exists — before guessing a path, when the user asks
     "what's in my workspace / in that folder", or to orient yourself at the
     start of real work. Pass a folder reference (a workspace-relative path like
-    `operation/reports`, or a yarnnn://workspace/… handle); omit it to list the
+    `Documents/reports`, or a yarnnn://workspace/… handle); omit it to list the
     entire workspace tree.
 
     THE CHANGE FEED: pass `since` (ISO timestamp) to get only the files whose
@@ -939,7 +979,7 @@ async def open_file(
 
     Call this when you hold a reference to a specific file — a
     `yarnnn://workspace/…` handle (the user may paste one, e.g. from Studio's
-    "Copy AI reference"), a workspace-relative path like `operation/reports/q3.md`,
+    "Copy AI reference"), a workspace-relative path like `Documents/reports/q3.md`,
     or a `/workspace/…` absolute path. This is the exact-version read: you get
     THIS file's current content, who last changed it, and its recent attributed
     revisions — so you and the user are looking at the same version, not a copy.
@@ -1165,6 +1205,9 @@ async def delete(
 ) -> dict:
     """Remove a file from the live yarnnn workspace — tidy, don't hoard.
 
+    The file goes to Trash: it is a PLACE, not an erasure — the revision chain
+    is retained and the user can put it back.
+
     Call this when a file would mislead the next reader: superseded scratch,
     a dead duplicate after a move, a stale artifact. Nothing is lost — an
     attributed tombstone records who removed it and why, the revision chain
@@ -1353,9 +1396,13 @@ async def share(
             "success": False, "error": exc.code, "message": str(exc),
         }, client_name=client_name)
     except Exception as exc:  # noqa: BLE001
+        # `ShareError` above is OURS — typed, member-language, and keeps its
+        # message. This branch is anything else (transport, PostgREST), whose
+        # str() carries our internals to an external client.
         logger.warning("[MCP] share mint failed: %s", exc)
         return _present("share", {
-            "success": False, "error": "share_failed", "message": str(exc),
+            "success": False, "error": "share_failed",
+            "message": mcp_composition.INTERNAL_FAILURE_MESSAGE,
         }, client_name=client_name)
 
     # A membership act is material to the operator (ADR-368 D4 visibility).
@@ -1376,7 +1423,7 @@ async def share(
             f"A {('read-only' if access == 'viewer' else 'full-access')} share link. "
             "Relay it to the user — anyone who opens it sees the "
             + ("document and who changed it" if artifact_rel else "workspace invitation")
-            + "; joining requires sign-in. The user can revoke it from Files."
+            + "; joining requires sign-in. The user can revoke it in their yarnnn workspace."
         ),
     }, client_name=client_name)
 

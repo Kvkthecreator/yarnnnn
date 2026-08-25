@@ -846,6 +846,46 @@ HOME_ALIASES: dict[str, str] = {
 
 _HOME_ALIAS_LOOKUP = {k.lower(): v for k, v in HOME_ALIASES.items()}
 
+#: The INVERSE lookup — kernel root → the told-name a participant was taught.
+#: Derived from HOME_ALIASES so the two directions can never disagree: adding a
+#: home is one edit, and `display_home_alias(resolve_home_alias(x)) == x` holds
+#: for every told-name by construction.
+_HOME_ALIAS_DISPLAY = {v: k for k, v in HOME_ALIASES.items()}
+
+
+def display_home_alias(rel_path: str) -> str:
+    """The told-name spelling of a kernel path — the DISPLAY half of ADR-588 D2.
+
+    `operation/q3.md` → `Documents/q3.md`; `inbound/slack/x` →
+    `Downloads/slack/x`. Any other path is returned byte-identical.
+
+    ⭐ WHY THIS EXISTS. `resolve_home_alias` made the told-name an ACCEPTED
+    ADDRESS, but only on the way IN. Nothing spoke it on the way OUT, so one
+    connection taught a participant two vocabularies for the same two folders:
+    `PARTICIPANT_FILESYSTEM_MODEL` says its homes are "Documents" and
+    "Downloads", while search results, path examples and refusals answered in
+    `operation/` and `inbound/`. A participant cannot be expected to write by
+    meaning in a vocabulary we contradict in every reply.
+
+    ⚠️ PROSE ONLY — never a handle, never a stored path. A `yarnnn://` handle
+    and the `path` field are ADDRESSES that must round-trip through other
+    systems and back into `parse_file_reference`; aliasing those would make the
+    emitted address differ from the stored one. This spells a path for a HUMAN
+    or an LLM to read in a sentence. The ADR-395/588 rule holds: alias at
+    PRESENTATION, never at authorization or storage.
+
+    Takes and returns a WORKSPACE-RELATIVE path (no leading slash, no
+    `/workspace/` prefix).
+    """
+    rel = rel_path or ""
+    if not rel or rel.startswith("/"):
+        return rel
+    head, sep, tail = rel.partition("/")
+    told = _HOME_ALIAS_DISPLAY.get(head)
+    if told is None:
+        return rel
+    return f"{told}{sep}{tail}" if sep else told
+
 
 def resolve_home_alias(rel_path: str) -> str:
     """Resolve a told-name home in the FIRST segment to its kernel path.
