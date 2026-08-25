@@ -1,11 +1,14 @@
 'use client';
 
 /**
- * StringsSurface — Keeper's desk: the maintained file (ADR-569).
+ * StringsSurface — Supervisor's desk over the maintained file (ADR-569 →
+ * ADR-604): Supervisor is the conversation about standing work; Keeper is
+ * the standing executor whose face is on every run receipt.
  *
  * A STRING is the member's designation of one file as kept current: a
  * contract (CONTRACT.md — what it must stay true to), sources (where currency
- * comes from), a cadence, and Keeper revising the head while the member
+ * comes from), a cadence, and the standing run revising the head (Keeper's
+ * face on the receipts) while the member
  * corrects it like any file.
  *
  * THE TENDING SURFACE (ADR-595): this pane shows the file's SITUATION —
@@ -24,7 +27,7 @@
  * The desk's identity is the `strings.topic` param (the folder — one string
  * per folder, v1). `strings.target` carries a designation-in-flight's leaf so
  * a refresh resumes the unconfigured desk with its lane intact; the desk
- * promotes itself the moment Keeper's declaration parses (the substrate is
+ * promotes itself the moment the declaration parses (the substrate is
  * the state machine, ADR-567 D3). `strings.file` is inbound transport from
  * Files ("Keep this current…"), drained on the param VALUE (the 3f44a8f
  * lesson), never at mount.
@@ -92,7 +95,7 @@ const kebab = (s: string) =>
 
 /** What the desk knows about the selected folder. The substrate is the state
  *  machine: `unconfigured` = no declaration YET (a fresh designation, or one
- *  Keeper is mid-setup on); `repair` = the declaration exists and fails to
+ *  setup is mid-flight on); `repair` = the declaration exists and fails to
  *  parse (the loud state — ADR-567 D6 / ADR-569 D3). A PARSEABLE declaration
  *  in trouble (problem / refused write) arrives as `ready` and renders its
  *  own loud cards. */
@@ -178,10 +181,10 @@ const PROSE_SOURCE_CAP = 12;
 // ── Operator words for the problem states (D3 — served loudly) ──────────────
 
 const PROBLEM_COPY: Record<string, string> = {
-  missing_target: 'The declaration names no target file. Ask Keeper to declare which file this string keeps current.',
-  invalid_target: 'The declared target is not a plain file in this folder. Ask Keeper to point the string at a single file here.',
-  unsupported_format: 'The declared target is a format Keeper does not maintain (v1 keeps md, csv, json and txt — an authored artifact stays current through reference instead).',
-  sources_invalid: 'The declared sources cannot run — a structured format keeps exactly one source (an http(s) endpoint or a connector slice). Ask Keeper to repair the source list.',
+  missing_target: 'The declaration names no target file. Ask Supervisor to declare which file this string keeps current.',
+  invalid_target: 'The declared target is not a plain file in this folder. Ask Supervisor to point the string at a single file here.',
+  unsupported_format: 'The declared target is a format the standing run does not maintain (v1 keeps md, csv, json and txt — an authored artifact stays current through reference instead).',
+  sources_invalid: 'The declared sources cannot run — a structured format keeps exactly one source (an http(s) endpoint or a connector slice). Ask Supervisor to repair the source list.',
 };
 
 export default function StringsSurface() {
@@ -217,7 +220,7 @@ export default function StringsSurface() {
 
   // The lane's binding leaf: the declared target once it parses, else the
   // designation-in-flight's picked leaf (the `target` param) — so the
-  // unconfigured desk still seats Keeper.
+  // unconfigured desk still seats the desk voice (Supervisor, ADR-604).
   const artifactPath =
     view?.target && deskRoot
       ? `${deskRoot}/${view.target}`
@@ -262,7 +265,7 @@ export default function StringsSurface() {
       const status = (e as { status?: number })?.status;
       if (status === 404) {
         // No declaration yet — the unconfigured desk. Show the contract if
-        // Keeper has already authored one (setup lands file by file).
+        // the lane has already authored one (setup lands file by file).
         let contract: string | null = null;
         try {
           const f = await api.workspace.getFile(`${WORKSPACE_ROOT}/${t}/CONTRACT.md`);
@@ -487,7 +490,7 @@ export default function StringsSurface() {
               </>
             )}
             {desk.phase === 'unconfigured' &&
-              'Not kept yet — Keeper sets it up in the conversation.'}
+              'Not kept yet — Supervisor sets it up in the conversation.'}
             {desk.phase === 'loading' && 'Loading…'}
             {deskRoot && (
               <>
@@ -570,7 +573,7 @@ export default function StringsSurface() {
 
         {/* ── Unconfigured — SETUP IS FIRST-CLASS (ADR-595 D4): the pane IS
             the setup surface. The string's anatomy renders as numbered
-            slots; each act is a precise seed into Keeper's lane; the slots
+            slots; each act is a precise seed into Supervisor's lane; the slots
             fill live as the files land (the substrate is the state machine),
             and the desk promotes to the tabs the moment the declaration
             parses. Authorship stays conversational — the one direct gesture
@@ -752,7 +755,7 @@ export default function StringsSurface() {
     );
   };
 
-  // ── Render — the shared housing, wearing Keeper's vocabulary ────────────
+  // ── Render — the shared housing, wearing the standing-work vocabulary ───
   return (
     <DeskHousing
       app="strings"
@@ -760,25 +763,25 @@ export default function StringsSurface() {
       artifactPath={artifactPath}
       laneReady={desk.phase !== 'idle' && desk.phase !== 'loading'}
       laneName={topic ? `Keep: ${view?.target ?? targetParam ?? topic}` : ''}
-      laneTabLabel="Keeper"
+      laneTabLabel="Supervisor"
       suggestions={setupIncomplete ? SETUP_SUGGESTIONS : TUNE_SUGGESTIONS}
       laneFallbackLabel={
         targetParam || view
-          ? 'Keeper’s lane could not be opened.'
-          : 'Pick the file to keep current — Keeper joins once it’s chosen.'
+          ? 'Supervisor’s lane could not be opened.'
+          : 'Pick the file to keep current — Supervisor joins once it’s chosen.'
       }
       onLaneWrite={onLaneWrite}
       laneEmptyState={
         <div className="space-y-2 text-center text-xs text-muted-foreground">
           <p className="text-sm font-medium text-foreground/80">
             {setupIncomplete
-              ? 'Tell Keeper what this file must stay true to.'
-              : 'This file is Keeper’s desk.'}
+              ? 'Tell Supervisor what this file must stay true to.'
+              : 'This file is on the standing-work desk.'}
           </p>
           <p>
-            Say what the file means and where currency comes from — Keeper
+            Say what the file means and where currency comes from — Supervisor
             writes the contract and the string declaration into the folder,
-            and the standing loop takes it from there. Change the source,
+            and Keeper's standing runs take it from there. Change the source,
             the cadence, or the contract the same way, any time; your own
             edits to the file are corrections that compound.
           </p>
@@ -807,7 +810,7 @@ export default function StringsSurface() {
             </p>
             {ctx.lanesEnabled === false ? (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Keeping a file is set up in conversation with Keeper, which
+                Keeping a file is set up in conversation with Supervisor, which
                 isn&apos;t enabled on this workspace yet.
               </p>
             ) : (
@@ -883,14 +886,14 @@ function SetupPanel({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Four things make a string. Say each one to Keeper — it writes the
+        Four things make a string. Say each one to Supervisor — it writes the
         contract and the declaration into the folder, attributed and
         revisable, and this desk becomes the file&apos;s tending surface the
         moment the declaration lands.
       </p>
       {lanesEnabled === false && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          Setting up happens in conversation with Keeper, which isn&apos;t
+          Setting up happens in conversation with Supervisor, which isn&apos;t
           enabled on this workspace yet — so this file can&apos;t be
           designated from here right now.
         </p>
@@ -993,7 +996,7 @@ function SetupPanel({
 
       {contract && (
         <p className="text-xs text-muted-foreground">
-          The declaration is still pending — Keeper finishes it in the
+          The declaration is still pending — Supervisor finishes it in the
           conversation, and the standing loop begins on the next tick
           (~5&nbsp;minutes). Your own edits to the file are corrections, and
           they compound into every future run.
@@ -1161,7 +1164,7 @@ function SourcesPanel({
       </div>
       {n === 0 ? (
         <p className="rounded-md border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
-          No sources declared yet — tell Keeper where currency comes from.
+          No sources declared yet — tell Supervisor where currency comes from.
         </p>
       ) : (
         view.sources.map((s) => (
@@ -1286,7 +1289,7 @@ function RepairCard({
           onClick={() => seedChat(seed)}
           className="mt-2 inline-flex items-center gap-1.5 rounded border border-red-400 px-2.5 py-1 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900"
         >
-          <MessageSquare className="h-3.5 w-3.5" /> Ask Keeper to repair it
+          <MessageSquare className="h-3.5 w-3.5" /> Ask Supervisor to repair it
         </button>
       )}
     </div>
@@ -1325,7 +1328,7 @@ function StringRail({
           type="button"
           title={
             lanesEnabled === false
-              ? 'Keeping a file is set up in conversation with Keeper, which isn’t enabled here yet'
+              ? 'Keeping a file is set up in conversation with Supervisor, which isn’t enabled here yet'
               : 'Keep a file current'
           }
           disabled={lanesEnabled === false}
@@ -1344,7 +1347,7 @@ function StringRail({
               <div className="block w-full border-b bg-muted px-4 py-3 text-left">
                 <StringRow
                   title={topic.split('/').pop() ?? topic}
-                  subtitle="setting up with Keeper…"
+                  subtitle="setting up with Supervisor…"
                   dot="pending"
                 />
               </div>
@@ -1487,7 +1490,7 @@ function StringSwitcher({
 // ---------------------------------------------------------------------------
 // The one direct gesture: picking the file (ADR-569 D7 / ADR-384 layer 1) —
 // an existing file, or a folder plus a name for the new leaf. Everything
-// after the pick is Keeper's conversation.
+// after the pick is Supervisor's conversation.
 // ---------------------------------------------------------------------------
 
 function DesignateFileModal({
@@ -1561,7 +1564,7 @@ function DesignateFileModal({
             <div className="min-w-0">
               <h3 className="text-base font-semibold text-card-foreground">Keep a file current</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Pick the file — Keeper sets the rest up with you in
+                Pick the file — Supervisor sets the rest up with you in
                 conversation. One kept file per folder.
               </p>
             </div>

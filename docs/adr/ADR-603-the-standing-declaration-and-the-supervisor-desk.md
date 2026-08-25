@@ -1,6 +1,6 @@
 # ADR-603: The standing declaration — and the Supervisor's desk
 
-**Status**: Ratified 2026-08-24; D1–D4 Implemented. **D5 measured and EXECUTED at the concept/surface layer 2026-08-24** (see D5 execution note below); D6 (strings absorption) remains RATIFIED DIRECTION, sequenced behind a second declaration kind.
+**Status**: Ratified 2026-08-24; D1–D4 Implemented. **D5 measured and EXECUTED at the concept/surface layer 2026-08-24** (see D5 execution note below). **D4 is SUPERSEDED and D6's surface half discharged by [ADR-604](ADR-604-strings-is-supervisors-desk.md)** (2026-08-25): the dedicated supervisor app is deleted — Supervisor's desk IS strings, with Keeper as `standing_executor`; the kind-machinery generalisation in D6 remains gated on a second declaration kind.
 
 **Builds on**: ADR-596 (a being; authority on grants/declarations/gates) · ADR-597 (the resident follows the registration) · ADR-601 (many-to-one; provenance) · ADR-602 (Editor takes the authoring desks). **Supersedes** ADR-569's framing of strings as an app-private mechanism (the mechanism survives; the framing generalises). **Sequences the retirement of** ADR-261/ADR-393's recurrence declaration.
 

@@ -15,9 +15,10 @@ What this gate holds:
      it holds no primitive that addresses one.
   4. Supervisor is NOT Freddie: no standing intent, no self-wake, no mandate,
      no autonomy dial anywhere on its row.
-  5. The desk is `stage: internal` (ADR-592 — an app with a clock spends
-     unattended), so it is NOT on the served roster and its resident is
-     withheld from /agents, DERIVED (ADR-602 D3), with no second edit.
+  5. Supervisor's desk IS strings (ADR-604 — the dedicated app is deleted):
+     the voice home is supervisor's, the executor home keeper's, both
+     promoted with the desk and both served on the pane, DERIVED
+     (ADR-602 D3 + ADR-604 D4), with no second edit.
 """
 
 from __future__ import annotations
@@ -48,14 +49,24 @@ def test_the_rule():
     # `all_apps()[slug]["resident"]`, which is the same value read twice
     # through the same registry row: unfalsifiable (audited 2026-08-24). A
     # re-pairing is an ADR decision, and this line is where it gets noticed.
+    # ADR-604: the supervisor APP is deleted (strings is Supervisor's desk),
+    # and the derivation is EXECUTOR-first — a declaration on strings derives
+    # Keeper (the standing executor) while the desk's VOICE is Supervisor.
     _RATIFIED = {"slides": "editor", "text": "editor", "images": "designer",
-                 "strings": "keeper", "supervisor": "supervisor"}
+                 "strings": "keeper"}
     apps = all_apps()
     _assert(set(apps) == set(_RATIFIED),
             f"the registered apps are exactly the ratified set ({sorted(apps)})")
     for slug, want in sorted(_RATIFIED.items()):
         _assert(resident_for_declaration(slug) == want,
                 f"a declaration on '{slug}' derives {want}")
+    # The voice/executor split, asserted BOTH ways (ADR-604 D1/D2): the desk
+    # conversation is Supervisor's; the declaration's work is Keeper's.
+    from services.authoring import resident_for_app
+    _assert(resident_for_app("strings") == "supervisor",
+            "strings' desk VOICE is supervisor (ADR-604 D1)")
+    _assert(resident_for_declaration("strings") == "keeper",
+            "...while a strings declaration's WORK derives keeper (D2)")
     _assert(resident_for_declaration("no-such-app") is None,
             "an unregistered app resolves None, never a plausible default")
     _assert(resident_for_declaration(None) is None, "no app named → no executor")
@@ -140,38 +151,39 @@ def test_supervisor_row():
                 f"supervisor carries no '{freddie_ish}' (it is not Freddie)")
 
 
-def test_desk_is_internal():
-    print("4. the desk is internal, and its resident is withheld — DERIVED")
+def test_desk_is_strings():
+    print("4. Supervisor's desk IS strings (ADR-604) — promoted, derived")
     import services.apps  # noqa: F401
     from services.agents_registry import homes_for_agent, is_promoted, resolve_agent
-    from services.app_stage import is_exposed, resolve_stage
+    from services.authoring import resolve_app
     from services.kernel_surfaces import KERNEL_SURFACES
-    from services.authoring import resident_for_app
 
-    _assert(resident_for_app("supervisor") == "supervisor",
-            "the app seats its own resident")
-    _assert(homes_for_agent("supervisor") == ["supervisor"],
-            "supervisor's only desk is its own")
-    rows = [e for e in KERNEL_SURFACES if e.get("slug") == "supervisor"]
-    _assert(len(rows) == 1, "the surface row exists exactly once")
-    _assert(resolve_stage(rows[0]) == "internal" and not is_exposed(rows[0]),
-            "the desk is internal — NOT on the served roster (ADR-592)")
-    _assert(not is_promoted("supervisor"),
-            "its resident is withheld from /agents, derived from the desk")
-    # Withheld from the PANE, never from resolution — a resident must resolve
-    # for its own lanes to run (the ADR-602 D3 asymmetry).
+    # The dedicated supervisor app is DELETED (ADR-604 D3, superseding
+    # ADR-603 D4): no registration, no surface row — a second window over the
+    # same declarations is the ADR-562 second-home drift.
+    _assert(resolve_app("supervisor") is None,
+            "no `supervisor` app registration survives (ADR-604 D3)")
+    _assert(not [e for e in KERNEL_SURFACES if e.get("slug") == "supervisor"],
+            "no `supervisor` surface row survives (ADR-604 D3)")
+
+    _assert(homes_for_agent("supervisor") == ["strings"],
+            "supervisor's desk is strings — the voice home")
+    _assert(homes_for_agent("keeper") == ["strings"],
+            "keeper still works at strings — the executor home (ADR-604 D4)")
+    _assert(is_promoted("supervisor") and is_promoted("keeper"),
+            "both roles are promoted with the desk (strings is primary)")
     _assert(resolve_agent("supervisor") is not None,
-            "withheld from the pane never means unresolvable")
+            "promotion is presentation — resolution unchanged")
     import routes.lanes as L
-    _assert("supervisor" not in {b["slug"] for b in L._beings_payload()},
-            "the payload withholds it while the desk is internal")
-
+    _served = {b["slug"] for b in L._beings_payload()}
+    _assert({"supervisor", "keeper"} <= _served,
+            "the pane serves BOTH halves of the desk (voice + executor)")
 
 if __name__ == "__main__":
     test_the_rule()
     test_no_key_names_a_being()
     test_supervisor_row()
-    test_desk_is_internal()
+    test_desk_is_strings()
     print()
     if FAILURES:
         print(f"FAILED — {len(FAILURES)} check(s):")

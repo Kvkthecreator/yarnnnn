@@ -76,9 +76,12 @@ Files association both carry it).
 Attribution: raws as ``system:strings`` observations; the leaf write as
 ``system:strings`` with the face being Keeper (ADR-460 D2 — the member reads
 "Keeper"; authored_by stays the mechanism). This module deliberately carries
-no module-level ``services.*`` imports (the radar cycle-free property);
-Keeper's registration lives in ``services/apps/__init__.py`` with the other
-app residencies (ADR-562).
+no module-level ``services.*`` imports (the radar cycle-free property).
+
+ADR-604 — the voice/executor split: the strings DESK is Supervisor's (the
+bound-lane conversation is about standing work), while the RUNS here resolve
+the app's ``standing_executor`` — Keeper. Both roles are declared on the one
+registration in ``services/apps/__init__.py`` (ADR-562).
 """
 
 from __future__ import annotations
@@ -527,24 +530,27 @@ def record_string_run(client, user_id: str, decl: StringDecl, *, last_run_at: da
 
 
 def resolve_strings_resident() -> tuple[str, str]:
-    """The standing writer's resident — Keeper today, derived, never assumed.
+    """The standing writer's EXECUTOR — Keeper today, derived, never assumed.
 
-    The SLUG comes from the app's own registration (ADR-562 D3; ADR-603 D2
-    names this the kernel rule — a declaration names the APP, the agent is
-    derived); model + character come from the being's row in the ONE register
+    ADR-604 D2 — the voice/executor split: the strings desk's RESIDENT is
+    Supervisor (the conversation about standing work), but the unattended
+    runs resolve the app's ``standing_executor`` — the being whose model +
+    posture power the writer and whose face the receipts wear (attribution
+    stays ``system:strings``, the ADR-596 D1 machinery-in-costume form).
+    Model + character come from the being's row in the ONE register
     (ADR-600). Returns ``(model, posture)``.
 
-    No plausible-default fallback: a strings app with no registered resident
+    No plausible-default fallback: a strings app with no registered executor
     is a bug that raises, not a reason to quietly become Keeper (the ADR-548
     lesson `resident_for_declaration` already states).
     """
     import services.apps  # noqa: F401  (registration side-effect — ADR-562)
     from services.agents_registry import get_agent
-    from services.authoring import resident_for_app
+    from services.authoring import standing_executor_for_app
 
-    slug = resident_for_app("strings")
+    slug = standing_executor_for_app("strings")
     if not slug:
-        raise KeyError("the strings app has no registered resident")
+        raise KeyError("the strings app has no registered standing executor")
     row = get_agent(slug)
     if row is None:  # a registration naming a ghost is a bug, not a fallback
         raise KeyError(f"strings resident {slug!r} is not a kernel character")
@@ -790,12 +796,16 @@ def build_keeper_run_posture(decl: StringDecl) -> str:
 
 
 #: The DESK posture (ADR-569 D6, via ADR-567 D4's mechanism) — the job
-#: overlay for a lane bound to a maintained file's target leaf. This is
-#: Keeper-as-file-custodian: the member and the colleague run the string's
-#: lifecycle in conversation, and the colleague works by writing the folder's
-#: files. Composed fresh per turn (derived-never-stored); the state block
-#: keeps the conversation honest against the substrate.
-_KEEPER_DESK_FRAME = """KEEPER'S DESK — you keep the maintained file in {root} with the member.
+#: overlay for a lane bound to a maintained file's target leaf. The member
+#: and the desk's VOICE run the string's lifecycle in conversation, and the
+#: voice works by writing the folder's files. ROLE-NEUTRAL deliberately
+#: (ADR-604): the job layer teaches the JOB and never claims an identity —
+#: the character layer names who speaks (Supervisor since ADR-604 D1), and a
+#: job frame that said "Keeper's desk" would split the voice in two. Keeper
+#: remains the RUNS' face (`standing_executor`). Composed fresh per turn
+#: (derived-never-stored); the state block keeps the conversation honest
+#: against the substrate.
+_STANDING_DESK_FRAME = """THE STANDING-WORK DESK — you tend the maintained file in {root} with the member.
 
 A string runs a standing loop: on a schedule, its declared sources are pulled
 and the DESIGNATED file is revised under its contract (mechanically for
@@ -855,7 +865,7 @@ THE CURRENT STATE (read fresh this turn)
 {state}"""
 
 
-def build_keeper_desk_posture(client: Any, user_id: str, target_path: str) -> str:
+def build_strings_desk_posture(client: Any, user_id: str, target_path: str) -> str:
     """The desk job overlay for a strings-bound lane (ADR-567 D4's mechanism,
     ADR-569's branch). ``target_path`` is the lane's binding
     (``{root}/{target-leaf}``); the root derives from it. Reads the folder's
@@ -904,7 +914,7 @@ def build_keeper_desk_posture(client: Any, user_id: str, target_path: str) -> st
     else:
         lines.append(f"- {leaf} does not exist yet — the first run writes it.")
 
-    return _KEEPER_DESK_FRAME.format(root=root, state="\n".join(lines))
+    return _STANDING_DESK_FRAME.format(root=root, state="\n".join(lines))
 
 
 def _read_file(client, user_id: str, path: str) -> Optional[str]:
@@ -1214,7 +1224,7 @@ __all__ = [
     "resolve_strings_resident",
     "map_structured",
     "build_keeper_run_posture",
-    "build_keeper_desk_posture",
+    "build_strings_desk_posture",
     "run_string_sweep",
     "drain_due_string_runs",
 ]

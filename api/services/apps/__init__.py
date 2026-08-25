@@ -78,15 +78,14 @@ from services.authoring import register_app as _register_app  # noqa: E402
 # reads in one list. The resident is IDENTITY only (ADR-562): the engine
 # follows the keeper row in `agents_registry.AGENTS`, never a caller-supplied
 # model.
-_register_app("strings", resident="keeper")
+# ADR-604 D1/D2 — Strings is SUPERVISOR'S desk: the conversation is about
+# standing work (what runs, on what cadence, to keep what true), which is
+# Supervisor's material. The RUNS stay Keeper's: `standing_executor` names
+# the being whose model + posture the unattended writer resolves and whose
+# face the receipts wear (`system:strings` in Keeper's costume, the ADR-596
+# D1 form — unchanged). One desk, two legible roles.
+_register_app("strings", resident="supervisor", standing_executor="keeper")
 
-# supervisor (ADR-603 D4) — the lens over STANDING DECLARATIONS: what runs, on
-# what cadence, to keep what true. Declared here for the same reason as
-# strings' row: the app has no module of its own yet (its material is
-# declarations, not a canvas), and every app's residency reads in one list.
-#
-# It has NO CRAFT of its own — each declaration's work is done by ITS OWN
-# app's resident (ADR-603 D2), so the ADR-601 orthogonality holds: capability
-# at the app, character at the agent. Supervisor's own resident is the voice
-# you talk to ABOUT the work, never the hand that does it.
-_register_app("supervisor", resident="supervisor")
+# The dedicated `supervisor` app is DELETED (ADR-604 D3, superseding ADR-603
+# D4): Supervisor's desk IS strings — a second app whose lens shows the same
+# declarations would be the ADR-562 second-home drift. Do not re-register it.

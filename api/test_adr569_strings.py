@@ -17,7 +17,8 @@ falsified by construction — remove the mechanism and the check goes red:
      conforming one, and the route's repair composer turns the ledger's
      refusal into the desk's repair state (cleared by a later success).
   4. POSTURE SELECTION (D6, the ADR-567 D4 mechanism) — build_lane_conventions
-     executed two ways: app='strings' → KEEPER'S DESK; (app='radar' was
+     executed two ways: app='strings' → THE STANDING-WORK DESK (role-neutral
+     since ADR-604 — Supervisor speaks, Keeper executes); (app='radar' was
      deleted with the app, ADR-592);
      THE RESEARCHER'S DESK; app-less bound → studio. Extends test_adr567's
      pins, never breaks them.
@@ -227,7 +228,8 @@ sdesk = build_lane_conventions(
                 f"{ROOT}/CONTRACT.md": "Monthly KPI table; mrr in USD."}),
     "u1", model=model, artifact_path=TARGET, app="strings",
 )
-check("a strings-bound lane gets KEEPER'S DESK", "KEEPER'S DESK" in sdesk)
+check("a strings-bound lane gets THE STANDING-WORK DESK (role-neutral, ADR-604)",
+      "THE STANDING-WORK DESK" in sdesk and "KEEPER'S DESK" not in sdesk)
 check("…which teaches the D1 law and the strict grammar",
       "only the DESIGNATED target" in sdesk and "READ IT BACK" in sdesk
       and "NEVER invent source URLs" in sdesk)
@@ -243,23 +245,23 @@ rdesk = build_lane_conventions(
 # naming `app="radar"` (a stale lane_meta row) must fall through to NO job
 # overlay rather than resolving one — the branch is absent, not re-pointed.
 check("a stale radar-bound lane resolves NO desk (the app is deleted, ADR-592)",
-      "THE RESEARCHER'S DESK" not in rdesk and "KEEPER'S DESK" not in rdesk)
+      "THE RESEARCHER'S DESK" not in rdesk and "STANDING-WORK DESK" not in rdesk)
 
 studio = build_lane_conventions(
     FakeClient({}), "u1", model=model,
     artifact_path="/workspace/operation/deck/presentation.html",
 )
 check("an app-less bound lane still gets the studio posture (byte-compatible)",
-      "KEEPER'S DESK" not in studio and "THE RESEARCHER'S DESK" not in studio)
+      "STANDING-WORK DESK" not in studio and "THE RESEARCHER'S DESK" not in studio)
 
-from services.strings import build_keeper_desk_posture
-empty = build_keeper_desk_posture(FakeClient({}), "u1", TARGET)
+from services.strings import build_strings_desk_posture
+empty = build_strings_desk_posture(FakeClient({}), "u1", TARGET)
 check("no declaration → the SETTING UP branch, naming the picked leaf",
       "NO DECLARATION YET" in empty and "metrics.csv" in empty)
-broken = build_keeper_desk_posture(
+broken = build_strings_desk_posture(
     FakeClient({f"{ROOT}/_string.yaml": "x: [unclosed\n y"}), "u1", TARGET)
 check("unparseable declaration → the loud repair line", "DOES NOT PARSE" in broken)
-prob = build_keeper_desk_posture(
+prob = build_strings_desk_posture(
     FakeClient({f"{ROOT}/_string.yaml":
                 "target: deck.html\nsources:\n  - id: a\n    url: https://a.b/c\n"}),
     "u1", TARGET)
@@ -270,11 +272,15 @@ check("parseable-but-cannot-run → named in the state block",
 print("5. the resident (ADR-562) — keeper, a posture, priced")
 import services.apps  # noqa: F401  (registration side-effect)
 from services.agents_registry import AGENTS
-from services.authoring import resident_for_app
+from services.authoring import resident_for_app, standing_executor_for_app
 from services.strings import resolve_strings_resident
 
-check("strings registers keeper as its resident",
-      resident_for_app("strings") == "keeper")
+# ADR-604 — the voice/executor split: Supervisor is the desk CONVERSATION,
+# Keeper is the standing EXECUTOR (the runs' model/posture and their face).
+check("strings' desk voice is Supervisor (ADR-604 D1)",
+      resident_for_app("strings") == "supervisor")
+check("strings' standing executor is Keeper (ADR-604 D2)",
+      standing_executor_for_app("strings") == "keeper")
 # Re-anchored for ADR-598: keeper is an APP RESIDENT (the strings desk's own
 # voice — on no hire roster), still a stance over Produce; the three-operation
 # base roster stays closed either way.
@@ -286,7 +292,7 @@ check("keeper is a self-contained APP RESIDENT; the colleague roster is empty",
       # ADR-600 D2 — Keeper's home is the Strings desk: a being, not a hire.
       and AGENTS["keeper"].get("offered") is False)
 r_model, r_posture = resolve_strings_resident()
-check("the resident resolves to Keeper's character on a live engine",
+check("the EXECUTOR resolves to Keeper's character on a live engine",
       "Keeper" in r_posture and r_model in LANE_MODELS
       and not LANE_MODELS[r_model].get("retired"))
 try:

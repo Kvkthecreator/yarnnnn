@@ -2240,7 +2240,13 @@ def app_for_layout(slug: str | None) -> str | None:
 _APP_REGISTRY: dict[str, dict] = {}
 
 
-def register_app(slug: str, *, resident: str, name: str | None = None) -> None:
+def register_app(
+    slug: str,
+    *,
+    resident: str,
+    name: str | None = None,
+    standing_executor: str | None = None,
+) -> None:
     """Declare an app's AI configuration (ADR-562 D2). Idempotent, slug-keyed.
 
     ``resident`` is the kernel agent slug this app's bound lane carries — the
@@ -2248,6 +2254,14 @@ def register_app(slug: str, *, resident: str, name: str | None = None) -> None:
     ``name`` optionally overrides the DISPLAYED colleague name for this app,
     so Docs may present "Writer" over the same resident without minting an
     agent (the per-app naming ADR-467 D3 deferred as demand-gated).
+
+    ``standing_executor`` (ADR-604 D2) — a desk has a VOICE and its standing
+    work has an EXECUTOR, and `resident` was answering both questions with one
+    value. When declared, the app's unattended runs resolve THIS being's
+    model + posture (and wear its face on receipts) while `resident` stays the
+    conversation. Undeclared → the resident executes, so every app that does
+    not need the split is unchanged by construction. Today exactly one app
+    declares it: strings — Supervisor speaks, Keeper keeps.
 
     FIRST REGISTRATION WINS, matching `register_layouts` — a second claim on a
     live slug is a programming error, but silently keeping the incumbent beats
@@ -2262,6 +2276,8 @@ def register_app(slug: str, *, resident: str, name: str | None = None) -> None:
         # `name` is the app's own label for its resident; absent → the agent's
         # own name is used (resolved at read time, so a registry rename follows).
         "name": (name or "").strip(),
+        # ADR-604 D2 — "" means "the resident executes" (the common case).
+        "standing_executor": (standing_executor or "").strip(),
     }
 
 
@@ -2283,6 +2299,20 @@ def resident_for_app(slug: str | None) -> str | None:
     """
     row = resolve_app(slug)
     return row.get("resident") if row else None
+
+
+def standing_executor_for_app(slug: str | None) -> str | None:
+    """The being that executes this app's STANDING runs. None if unregistered.
+
+    ADR-604 D2 — the voice/executor split. The declared `standing_executor`
+    when the app names one, else the resident: an app that never declared the
+    split behaves exactly as before, by construction. Same fail-honest posture
+    as `resident_for_app`: an unregistered app is None, never a guess.
+    """
+    row = resolve_app(slug)
+    if not row:
+        return None
+    return row.get("standing_executor") or row.get("resident") or None
 
 
 def all_apps() -> dict[str, dict]:

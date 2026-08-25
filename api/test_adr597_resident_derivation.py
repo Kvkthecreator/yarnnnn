@@ -57,8 +57,11 @@ def test_derivation_behavior():
     # fallback — exactly the deleted-registration path.
     _assert(_lane_agent({"app": "studio", "agent": "designer"}) == "designer",
             "a legacy studio-stamped desk falls back to its stored stamp")
-    _assert(_lane_agent({"app": "strings", "agent": "designer"}) == "keeper",
-            "a strings desk stamped designer resolves to keeper")
+    # ADR-604 D1 — the strings desk's VOICE is Supervisor (the lane is the
+    # conversation about standing work); Keeper is the standing EXECUTOR and
+    # never the lane's speaker.
+    _assert(_lane_agent({"app": "strings", "agent": "designer"}) == "supervisor",
+            "a strings desk stamped designer resolves to supervisor (the voice)")
     # A registration that left the roster falls back to the stored stamp.
     _assert(_lane_agent({"app": "radar", "agent": "scout"}) == "scout",
             "a deleted app's desk falls back to the stored stamp")
@@ -80,7 +83,7 @@ def test_derivation_behavior():
             "a pre-567 BOUND deck derives its app from the artifact, not None")
     _assert(_lane_agent({"artifact_path": "/w/notes.md"}) == "editor",
             "a pre-567 bound document derives Text's resident")
-    _assert(_lane_agent({"app": "strings", "artifact_path": "/w/x.md"}) == "keeper",
+    _assert(_lane_agent({"app": "strings", "artifact_path": "/w/x.md"}) == "supervisor",
             "an explicit stamp still outranks the artifact (precedence intact)")
     _assert(_lane_agent({"artifact_path": "/w/thing.csv"}) is None,
             "an unrecognised artifact stays honest (None), never a guess")

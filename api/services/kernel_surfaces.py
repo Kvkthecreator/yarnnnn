@@ -345,55 +345,29 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # history has to keep rendering a name, not a raw string.
     #
     # Reopening is a new decision recorded against ADR-592, not a tier flip.
+    # The dedicated `supervisor` surface row is DELETED (ADR-604 D3,
+    # superseding ADR-603 D4): Supervisor's desk IS strings, below — a second
+    # window over the same declarations is the ADR-562 second-home drift. It
+    # never had a route, so no middleware obligation to discharge.
     {
-        # ADR-569 — Strings, the maintained file kept by Keeper. The second
-        # member-facing manifestation of the ADR-564 frame (radar is its
-        # shipped specialization, re-read by D1): the member DESIGNATES a
+        # ADR-569 — Strings, the maintained file. The member DESIGNATES a
         # file, declares its contract (CONTRACT.md) + sources + cadence
         # ({folder}/_string.yaml), and the standing loop keeps the head
         # current while member corrections compound (ADR-384 D4). The write
         # is confined to the designated leaf ONLY — un-designated files are
-        # never a standing writer's target (the D1 law). This surface is
-        # Keeper's desk on the shared desk housing (D6, the ADR-518 move):
-        # string roster + the composed view (file canvas by format · what
-        # changed · setup · consumers), projected at read time.
+        # never a standing writer's target (the D1 law). Shared desk housing
+        # (D6, the ADR-518 move): string roster + the composed view (file
+        # canvas by format · what changed · setup · consumers), projected at
+        # read time.
+        #
+        # ADR-604 — this desk is SUPERVISOR'S: the conversation is about
+        # standing work, so the bound lane carries the `supervisor` resident;
+        # the RUNS stay Keeper's via `standing_executor` (the voice/executor
+        # split). One surface, two legible roles.
         #
         # launcher_tier started SEARCH-ONLY (D6 — registration ≠ unveil, the
         # ADR-486 D7 rule). UNVEILED 2026-08-14, same day as the build
-        # (operator decision — "i do want it to be fully published"; the
-        # Radar precedent, whose own unveil was taken early the same way).
-        # The D8 falsifiers stay armed as MEASURES of the standing loop, no
-        # longer as the unveil's gate.
-        # ADR-603 D4 — the Supervisor desk: the lens over STANDING
-        # DECLARATIONS (what runs, on what cadence, to keep what true).
-        #
-        # `stage: internal` at birth, and NOT timidity — ADR-592's rule: an
-        # app with a clock spends money unattended, and *an app with a clock
-        # is deleted, not staged*. It ships behind the roster until D5/D6 give
-        # it real declarations to show and the spend story is settled.
-        # `internal` REMOVES the row from the served roster, so there is no
-        # route/middleware obligation to discharge yet (ADR-592) — and per
-        # ADR-602 D3 its resident is withheld from /agents for exactly as
-        # long, derived, with no second edit.
-        "slug": "supervisor",
-        "stage": "internal",
-        "register": "application",
-        "title": "Supervisor",
-        "archetype": "dashboard",
-        "substrate_paths": [],  # declarations are meaning-placed beside their subject
-        "icon_key": "clipboard-list",
-        # NO `route` — deliberately. ADR-592's obligation (an internal slug
-        # leaves the served roster, so `SURFACE_PREFIXES` loses it and the
-        # route would serve 200 logged-out) applies to a route that EXISTS.
-        # Docs had one because it was exposed first; Supervisor never has
-        # been, so the honest answer is not a redirect stub to a page nobody
-        # can reach — it is no route until D5/D6 give the desk something to
-        # show. The route + its middleware hand-listing land in the same
-        # commit as the surface. The gate reads this row: adding `route` here
-        # without both is what it exists to catch.
-        "summary": "Standing work in one place — what runs, on what cadence, to keep what true. Each declaration names the app that does the work; Supervisor is who you talk to about it.",
-    },
-    {
+        # (operator decision — "i do want it to be fully published").
         "slug": "strings",
         "launcher_tier": "primary",  # ADR-569 unveil 2026-08-14 (was search-only per D6)
         "register": "application",
@@ -403,7 +377,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "cable",
         "default_pinned": True,  # ships in the Dock with the other apps
         "route": "/strings",
-        "summary": "Files you designate as kept current — a contract in plain words, declared sources pulled on schedule, Keeper revising the head while your corrections compound. Docs and decks that cite a maintained file stay current by reference.",
+        "summary": "Standing work in one place — files kept current on a declared contract and cadence. Supervisor is who you talk to about what runs; Keeper is the hand that keeps each file true, your corrections compounding.",
     },
     {
         # ADR-571 — Text, the dedicated surface for the prose currency

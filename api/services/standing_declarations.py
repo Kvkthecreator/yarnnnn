@@ -43,26 +43,29 @@ DECLARATION_KEYS = frozenset(
 
 
 def resident_for_declaration(app: Optional[str]) -> Optional[str]:
-    """The being that will do this declaration's work, or None. Pure-ish.
+    """The being that will do this declaration's WORK, or None. Pure-ish.
 
     ADR-603 D2 — resolved through the app's own registration at READ time
     (the ADR-597 D1 precedence, reused rather than reinvented), so a
     re-pairing follows every declaration with no data move.
 
+    ADR-604 D2 deepened the derivation by one field: a desk has a VOICE
+    (`resident`) and its standing work has an EXECUTOR (`standing_executor`,
+    else the resident). "The being that will do this declaration's work" is
+    the EXECUTOR — a declaration on `strings` derives Keeper while the desk's
+    conversation is Supervisor's. The rule itself is unchanged: a declaration
+    names the APP, never a being.
+
     Returns None for an unregistered app rather than a plausible default: the
     ADR-548 lesson, that a fallback degrading to a plausible value hides the
     bug it should surface. The caller decides what an unnamed executor means.
-
-    ``resolve_strings_resident()`` has always done exactly this. This function
-    is the rule it was an unnamed instance of — strings is not migrated onto
-    it here, because a wrapper with one caller is indirection, not reuse.
     """
     if not app:
         return None
     import services.apps  # noqa: F401  (registration side-effect — ADR-562)
-    from services.authoring import resident_for_app
+    from services.authoring import standing_executor_for_app
 
-    return resident_for_app(app)
+    return standing_executor_for_app(app)
 
 
 __all__ = ["DECLARATION_KEYS", "resident_for_declaration"]

@@ -54,19 +54,29 @@ print("\n── 1. one declaration per app ──")
 APPS = all_apps()
 # Re-anchored for ADR-599: `studio` renamed `slides` (the full evolve, D4);
 # `docs` DELETED with its app (D5 — was `stage: internal`); `radar` deleted
-# by ADR-592. ADR-603 adds `supervisor` (stage: internal — the standing-work
-# desk). Pinned deliberately: a new app is an ADR decision, and this line is
-# where its arrival gets noticed rather than absorbed silently.
-check("every live app is registered (slides · images · text · strings · supervisor)",
-      set(APPS) == {"slides", "images", "text", "strings", "supervisor"},
+# by ADR-592. ADR-604 D3 DELETED the `supervisor` app — Supervisor's desk is
+# strings. Pinned deliberately: a new app is an ADR decision, and this line
+# is where its arrival gets noticed rather than absorbed silently.
+check("every live app is registered (slides · images · text · strings)",
+      set(APPS) == {"slides", "images", "text", "strings"},
       f"registered={sorted(APPS)}")
-check("the deleted apps are NOT registered (radar — ADR-592; docs, studio — ADR-599)",
-      not ({"radar", "docs", "studio"} & set(APPS)),
+check("the deleted apps are NOT registered (radar — ADR-592; docs, studio — "
+      "ADR-599; supervisor — ADR-604 D3)",
+      not ({"radar", "docs", "studio", "supervisor"} & set(APPS)),
       f"registered={sorted(APPS)}")
 
-check("a registration carries IDENTITY only — slug · resident · name",
-      all(set(row) == {"slug", "resident", "name"} for row in APPS.values()),
+check("a registration carries IDENTITY only — slug · resident · name · "
+      "standing_executor (ADR-604 D2)",
+      all(set(row) == {"slug", "resident", "name", "standing_executor"}
+          for row in APPS.values()),
       f"keys={ {k: sorted(v) for k, v in APPS.items()} }")
+# ADR-604 D2 — the voice/executor split: declared by exactly ONE app today
+# (strings — Supervisor speaks, Keeper keeps), "" everywhere else so the
+# undeclared case is the resident by construction.
+check("only strings declares a standing_executor (keeper); others inherit",
+      APPS["strings"]["standing_executor"] == "keeper"
+      and all(not row["standing_executor"]
+              for slug, row in APPS.items() if slug != "strings"))
 
 # §3 — THE CLIFF. An app pins a colleague; it can never widen one. There is no
 # field for authority or reach, and the absence must stay STRUCTURAL (the

@@ -285,12 +285,33 @@ try:
            is_promoted("_colleague"))
 finally:
     del _r.AGENTS["_orphan"], _r.AGENTS["_colleague"]
-# The apps payload obeys the same exposure rule (ADR-592): `stage: internal`
-# means absent from the served roster, and the lane envelope is served to every
-# member — the Supervisor app must not leak there while it is internal.
-_served_apps = {a["slug"] for a in _L._apps_payload()}
-_check("the apps payload withholds an internal app (supervisor)",
-       "supervisor" not in _served_apps and {"slides", "text", "strings"} <= _served_apps)
+# The apps payload obeys the exposure rule (ADR-592): `stage: internal` (or a
+# missing surface row — fail closed) means absent from the served envelope.
+# No live app is internal today (the supervisor app is DELETED, ADR-604 D3),
+# so the filter is exercised by PROBE — a registered app with no surface row
+# must be withheld, or the check is green only because nothing tests it.
+import services.authoring as _authoring
+_authoring.register_app("_probe-internal", resident="editor")
+try:
+    _served_apps = {a["slug"] for a in _L._apps_payload()}
+    _check("the apps payload withholds an app with no exposed surface (fail closed)",
+           "_probe-internal" not in _served_apps
+           and {"slides", "text", "strings"} <= _served_apps)
+finally:
+    _authoring._APP_REGISTRY.pop("_probe-internal", None)
+_check("no `supervisor` app survives to serve (ADR-604 D3 — strings is its desk)",
+       "supervisor" not in {a["slug"] for a in _L._apps_payload()})
+
+print("8b. the desk's two roles are both served (ADR-604)")
+_check("supervisor's home is strings — the voice (ADR-604 D1)",
+       homes_for_agent("supervisor") == ["strings"])
+_check("keeper's home is strings — the standing executor (ADR-604 D2/D4)",
+       homes_for_agent("keeper") == ["strings"])
+_check("both roles are promoted with the desk",
+       is_promoted("supervisor") and is_promoted("keeper"))
+_served2 = {b["slug"] for b in _L._beings_payload()}
+_check("the beings payload serves BOTH halves of the desk",
+       {"supervisor", "keeper"} <= _served2)
 
 print("9. a bound lane names its RESIDENT, not its engine (ADR-602 D5)")
 # The bug: both authoring surfaces resolved the speaker through `agents` (the

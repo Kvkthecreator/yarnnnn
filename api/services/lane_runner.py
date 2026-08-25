@@ -891,9 +891,10 @@ def build_lane_conventions(
         # a LANE fact here: the target is plain md/csv/json/txt (no
         # data-template to read) and the agent slug cannot name the app
         # (Docs and Studio share designer).
-        # Selects the JOB overlay only — never the resident.
-        from services.strings import build_keeper_desk_posture
-        posture_section += "\n" + build_keeper_desk_posture(client, user_id, artifact_path) + "\n"
+        # Selects the JOB overlay only — never the resident (the voice is
+        # Supervisor since ADR-604 D1; the overlay is role-neutral).
+        from services.strings import build_strings_desk_posture
+        posture_section += "\n" + build_strings_desk_posture(client, user_id, artifact_path) + "\n"
     elif artifact_path and app == "text":
         # ADR-571 D4 — the Text app's JOB overlay. Same reasoning as the two
         # branches above, and here it is load-bearing rather than merely
