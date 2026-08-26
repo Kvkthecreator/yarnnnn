@@ -189,10 +189,15 @@ export function Launcher({
 
   // Filter out launcher-non-navigable surfaces (chrome: route="" per
   // D11+D12+D14). The Dock has its own entry; we shouldn't list itself
-  // as a navigation target. Hidden rows (ADR-425 D2 sources, ADR-454 D4
-  // system-agent) render nowhere — not even in flat search.
+  // as a navigation target.
+  //
+  // The `&& !s.hidden` clause is GONE (2026-08-26). `hidden` was a
+  // frontend-only spelling of "not a product" that the API's `is_exposed`
+  // never read; both rows carrying it are now `stage: "internal"` (ADR-592),
+  // which drops them from the served roster before they reach this component.
+  // Filtering here would have been the second place to remember.
   const navigableSurfaces = useMemo(
-    () => surfaces.filter((s) => s.route !== '' && !s.hidden),
+    () => surfaces.filter((s) => s.route !== ''),
     [surfaces]
   );
 

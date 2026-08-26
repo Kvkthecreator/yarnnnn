@@ -98,12 +98,65 @@ for e in KERNEL_SURFACES:
 check("the derivation is an IDENTITY for every untouched row (ships inert)",
       not _drift, f"drift={_drift[:4]}")
 
+# ⚠️ THE VACUITY GUARD (added 2026-08-26 — the defect this section had).
+# The identity check above compares DECLARED against DERIVED, so it is
+# strictly weaker the fewer rows declare, and perfectly green when NOTHING
+# declares. That was the live state until this commit: zero rows carried a
+# `stage`, `_implied_stage` back-derived it from the very pair the field
+# exists to replace, and the whole chain was a tautological round-trip. The
+# gate was green and would have stayed green if the field were deleted.
+#
+# So assert the POPULATION, not only the consistency: an APP must state its
+# stage. "App" is defined structurally — a row with a route and an
+# `application` register — never by a hand-kept slug list, which would be the
+# same drift one level up.
+# A config DOOR is not an app: it declares a PLACEMENT tier
+# (`workspace-config` / `system-config`), which `launcher_tier_for` passes
+# through untouched precisely because a placement is not a promotion rung. An
+# app declares `primary` or `search-only` — the rungs the stage governs. That
+# distinction is read from the row, never from a slug list, so a new app is
+# covered the day it is added and a new door is not miscounted.
+_PLACEMENT_TIERS = {"workspace-config", "system-config"}
+_apps = [
+    e for e in KERNEL_SURFACES
+    if e.get("route")
+    and e.get("register") == "application"
+    and e.get("launcher_tier") not in _PLACEMENT_TIERS
+]
+check("there ARE app rows to check (guards a silent no-op scan)",
+      len(_apps) >= 8, f"found {len(_apps)}")
+_undeclared = sorted(e["slug"] for e in _apps if e.get("stage") not in STAGES)
+check("every APP declares its stage (the field is not inert)",
+      not _undeclared,
+      f"undeclared={_undeclared} — a row that declares none cannot drift, so "
+      f"the identity check above passes vacuously for it")
+_declared = [e for e in KERNEL_SURFACES if e.get("stage") in STAGES]
+check("the declared set is non-empty (the identity check has subjects)",
+      len(_declared) >= 8, f"declared={len(_declared)}")
+
 # Coherence, derived rather than hand-kept (the ADR-297 invariant).
 _served = kernel_surface_entries()
 _prim = {s["slug"] for s in _served if s.get("launcher_tier") == "primary"}
 _pin = {s["slug"] for s in _served if s.get("default_pinned")}
 check("served pinned set == served primary tier (ADR-297 coherence, derived)",
       _prim == _pin, f"primary={sorted(_prim)} pinned={sorted(_pin)}")
+
+# ⭐ The Dock's client-side seed must equal the derived pinned set.
+# `DEFAULT_KEPT_SURFACES` is a hand-kept copy of a truth the backend derives —
+# it exists only because the Dock seeds before any roster arrives. A hand-kept
+# list beside a derived truth is the exact drift vector this ADR was written to
+# eliminate, so if it cannot be deleted it must at least be ASSERTED. Its own
+# ordering comment had gone stale by three deleted slugs (Docs · Studio ·
+# Radar) before anyone noticed, which is what an unasserted copy does.
+_prefs = read("lib/shell/surface-preferences.ts")
+_kept_block = _prefs.split("DEFAULT_KEPT_SURFACES: string[] = [")[1].split("]")[0]
+_kept = set(re.findall(r"^\s*'([a-z0-9-]+)'", _kept_block, re.M))
+check("DEFAULT_KEPT_SURFACES parsed (guards a silent no-op scan)",
+      len(_kept) >= 4, f"parsed={sorted(_kept)}")
+check("DEFAULT_KEPT_SURFACES == the DERIVED pinned set",
+      _kept == _pin,
+      f"dock={sorted(_kept)} derived={sorted(_pin)} — the derivation is right; "
+      f"this list is stale")
 
 check("a chrome/dormant row is never pinned however its stage resolves",
       not any(
@@ -112,15 +165,32 @@ check("a chrome/dormant row is never pinned however its stage resolves",
           if not e.get("route")
       ))
 
+# ⭐ ONE hiding mechanism, not two (the ADR-592 premise, enforced 2026-08-26).
+# `hidden: True` was a SECOND spelling of "not a product": declared on two rows
+# and honoured by exactly ONE consumer (the Launcher's filter). `is_exposed`
+# never read it, so backend and frontend disagreed about what hidden meant —
+# the six-spellings problem this ADR exists to end, surviving inside the ADR
+# that ended it. Both rows now carry `stage: "internal"`.
+check("no registry row carries the retired `hidden` flag",
+      not [e["slug"] for e in KERNEL_SURFACES if e.get("hidden")],
+      f"found={[e['slug'] for e in KERNEL_SURFACES if e.get('hidden')]}")
+_launcher = read("components/shell/Launcher.tsx")
+check("the Launcher no longer filters on `hidden` (its only reader)",
+      "!s.hidden" not in code_only(_launcher))
+
 # ── D2 — internal leaves the roster, AND stays gated ────────────────────────
 print("\n[D2] `internal` leaves the roster — and the route stays gated")
 
 _internal = [e for e in KERNEL_SURFACES if resolve_stage(e) == "internal"]
-# ADR-599 deleted Docs (the one internal app), so the internal SET may be
-# empty — the MECHANISM is what this section holds, and the roster-exclusion
-# check below exercises it regardless of population.
-check("the internal stage resolves (mechanism live, population may be zero)",
-      isinstance(_internal, list))
+# ⚠️ This was `isinstance(_internal, list)` — a TAUTOLOGY, written when ADR-599
+# deleted the one internal app and left the set empty. The loop below (the
+# stub + middleware pairing, the whole point of D2) therefore ran ZERO
+# iterations, and five ungated redirect stubs went undetected until an audit
+# found them by hand. The set is populated again (`sources`, `system-agent`),
+# so assert the population: an empty set means the loop is measuring nothing.
+check("there ARE internal rows, so the pairing loop below actually runs",
+      len(_internal) >= 1,
+      "an empty internal set makes every per-route check below vacuous")
 check("no internal app reaches the served roster",
       not ({e["slug"] for e in _internal} & {s["slug"] for s in _served}))
 check("kernel_surface_slugs() is the EXPOSED set, not the declared one",

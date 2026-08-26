@@ -127,7 +127,13 @@ def test_kernel_surfaces_module() -> None:
         # `recurrence` DELETED (ADR-603 D5, 2026-08-24 — retire-clean)
         # ADR-491 D3 (2026-07-28): `budget` DELETED — the pane dissolved into
         # Usage (completing ADR-433); /budget + /pace are redirect stubs.
-        "autonomy",  # 2026-05-24 design polish — renamed from "delegation"
+        # `autonomy` REMOVED from this expectation 2026-08-26. It has NEVER had
+        # a KERNEL_SURFACES row — it is a redirect stub (/autonomy →
+        # /workspace-settings), so this line asserted a phantom and had been
+        # RED for as long as anyone checked. The slug also sat in the frontend
+        # KERNEL_SURFACE_SLUGS allowlist, where it protected its own route by
+        # accident; both were corrected together (it is hand-listed in the
+        # middleware stub block, where every other row-less stub lives).
         "mandate",
         "principles",
         "identity",

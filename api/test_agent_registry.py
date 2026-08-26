@@ -254,13 +254,22 @@ _check("Editor is promoted (slides + text are both primary)", is_promoted("edito
 _check("Keeper is promoted (strings is primary)", is_promoted("keeper"))
 # The derivation must FOLLOW the registry, not a copy of it: promoting the app
 # must promote the being with NO edit here. Proven by moving the app's stage.
+#
+# ⚠️ Re-anchored 2026-08-26: this moved `launcher_tier`/`default_pinned`, which
+# stopped working the day app rows began DECLARING a stage — a declared stage
+# WINS over the pair, so the mutation was silently ignored and the check read
+# "promoting the app does not promote its being". Move the STAGE, which is now
+# the single declaration (ADR-592); the pair is derived FROM it.
 _img = next(e for e in _ks.KERNEL_SURFACES if e.get("slug") == "images")
-_saved = (_img.get("launcher_tier"), _img.get("default_pinned"))
-_img["launcher_tier"], _img["default_pinned"] = "primary", True
+_saved = _img.get("stage")
+_img["stage"] = "primary"
 try:
     _follows = is_promoted("designer")
 finally:
-    _img["launcher_tier"], _img["default_pinned"] = _saved
+    if _saved is None:
+        _img.pop("stage", None)
+    else:
+        _img["stage"] = _saved
 _check("promoting the app promotes its being (derived, not copied)", _follows)
 _check("...and the restore held (designer is withheld again)",
        not is_promoted("designer"))

@@ -256,6 +256,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # DEFAULT_KEPT_SURFACES=['chat'] and the context/feed/channels/home
         # legacy-slug normalization → `chat`.
         "slug": "chat",
+        "stage": "primary",  # ADR-592 declared 2026-08-26 (was implied)
         "launcher_tier": "primary",  # ADR-412 D3
         "register": "application",
         "title": "Chat",
@@ -282,6 +283,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # BOUND lane (Designer, the app's resident); right pane = the live
         # canvas over one self-contained HTML artifact.
         "slug": "slides",
+        "stage": "primary",  # ADR-592 declared 2026-08-26 (was implied)
         "launcher_tier": "primary",  # ADR-440 D2 — the probe needs traffic
         "register": "application",
         "title": "Slides",
@@ -316,6 +318,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # app is unpromoted, not unplugged. Dock re-unveil = a deliberate
         # ADR-488 §5 decision, not a flag flip.
         "slug": "images",
+        # ADR-488's "hidden, not unplugged" posture, now SPELLED ONCE. Images is
+        # functionally complete but held from the front door pending polish
+        # parity; it still opens when a composition routes to it.
+        "stage": "search-only",  # ADR-592 declared 2026-08-26 (was implied)
         "launcher_tier": "search-only",  # ADR-488 — unveil held for polish parity
         "register": "application",
         "title": "Images",
@@ -369,6 +375,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # ADR-486 D7 rule). UNVEILED 2026-08-14, same day as the build
         # (operator decision — "i do want it to be fully published").
         "slug": "strings",
+        "stage": "primary",  # ADR-592 declared 2026-08-26 (was implied)
         "launcher_tier": "primary",  # ADR-569 unveil 2026-08-14 (was search-only per D6)
         "register": "application",
         "title": "Strings",
@@ -392,6 +399,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # decision ("my understanding was that it is a dedicated app. just
         # like docs").
         "slug": "text",
+        "stage": "primary",  # ADR-592 declared 2026-08-26 (was implied)
         "launcher_tier": "primary",  # ADR-571 D1 — unveiled at birth, operator-directed
         "register": "application",
         "title": "Text",
@@ -448,6 +456,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # at-rest launcher tile is redundant chrome — the operator observed the
         # duplication on mobile and ruled it applies to all sizes. Still
         # summonable by name via flat search, still dockable while open.
+        # ADR-592 declared 2026-08-26 (was implied). Notifications IS a product
+        # — it is `search-only` because the bell is its dedicated door, not
+        # because it is unfinished. The stage says "present, unpromoted".
+        "stage": "search-only",
         "launcher_tier": "search-only",  # fronted by the top-bar bell (was own bottom group)
         # 2026-07-08 — the top-bar bell (AttentionCenter) is this surface's
         # DEDICATED chrome door, so it must not ALSO render a generic Dock
@@ -635,6 +647,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # surface is removed.
     {
         "slug": "files",
+        "stage": "primary",  # ADR-592 declared 2026-08-26 (was implied)
         "launcher_tier": "primary",  # ADR-340 P3
         "register": "application",  # ADR-309 two-register model
         "title": "Files",
@@ -673,6 +686,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # Derivation: docs/analysis/agents-surface-and-debt-2026-07-16.md
         # Freddie's own dials stay at Workspace Settings → System Agent
         # (ADR-412 D5), not here.
+        "stage": "primary",  # ADR-592 declared 2026-08-26 (was implied)
         "launcher_tier": "primary",
         "register": "application",  # ADR-309 two-register model
         "title": "Agents",
@@ -750,6 +764,9 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # preserved). Queue stays the complete decide mirror, reachable +
         # searchable; the Attention bell + Operation are now the default route in.
         "slug": "queue",
+        # ADR-592 declared 2026-08-26 (was implied). Reachable + searchable by
+        # design — Notifications' To-do pane is the default route in.
+        "stage": "search-only",
         "launcher_tier": "search-only",  # ADR-349 — fronted by Notifications (To do pane); summon by name (was utilities, ADR-346)
         "register": "application",  # ADR-309 two-register model
         "title": "Queue",
@@ -873,7 +890,16 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # group); /system-agent is a next.config redirect stub →
         # /workspace-settings?pane=autonomy. Row retained for any re-light.
         "slug": "system-agent",
-        "hidden": True,  # ADR-454 D4 — no operator door; renders in no pane
+        # ADR-592 FOLD, 2026-08-26. This row carried `hidden: True` — a SECOND
+        # hiding mechanism ADR-592 was written to end, and one only the frontend
+        # honoured (Launcher.tsx was its single reader; `is_exposed` never knew
+        # it existed). `internal` is the same intent spelled where every
+        # consumer agrees: the row leaves the served roster, so no Dock icon, no
+        # tile, no flat-search hit, for a curated Dock too. The obligation it
+        # carries is already discharged — /system-agent is a redirect stub and
+        # is hand-listed in middleware's stub block (the slug has been out of
+        # KERNEL_SURFACE_SLUGS since ADR-454 D4).
+        "stage": "internal",
         "launcher_tier": "search-only",  # ADR-454 D4 (was system-agent-config, ADR-426)
         "register": "application",  # a windowed app like workspace-settings / settings
         "title": "Freddie System Agent",
@@ -937,9 +963,15 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # manages today; it returns as its own thing, not grouped with a human's
         # OAuth connectors under a cosmetic "Perception" label.
         "slug": "sources",
+        # ADR-592 FOLD, 2026-08-26 — same as system-agent above: `hidden: True`
+        # was a frontend-only spelling of "not a product". /sources is a
+        # redirect stub, hand-listed in middleware, and off KERNEL_SURFACE_SLUGS
+        # since ADR-425 D2, so the obligation is discharged. The substrate +
+        # GET /api/sources + SourcesCard stay intact for the future first-class
+        # home (ADR-425 OQ3) — internal means unshipped, never unplugged.
+        "stage": "internal",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 — a transport/driver binding
-        "hidden": True,  # ADR-425 D2 — no operator door; renders in no pane
         "title": "Sources",
         "archetype": "dashboard",
         "substrate_paths": [],  # per-bundle _sources.yaml + _watch_signal.yaml, resolved via GET /api/sources

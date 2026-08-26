@@ -59,14 +59,26 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 // ORDER is meaning, not registry-declaration accident (the Dock renders `kept`
 // in its stored order, so this array IS the on-screen order):
 //
-//     Chat  │  Docs  Studio  Radar  Strings  │  Files  Agents
-//     think     make (write · lay out)  perceive (watch · keep)  <-- the record -->
+//     Chat  │  Text  Slides  Strings  │  Files  Agents
+//     think     make (write · lay out)  keep     <-- the record -->
+//
+// (Redrawn 2026-08-26. The previous diagram read `Chat │ Docs Studio Radar
+// Strings │ Files Agents` — THREE deleted slugs. Docs died with ADR-599,
+// Radar with ADR-592, and Studio evolved into Slides in ADR-599 D4. A comment
+// naming surfaces that no longer exist is worse than none: it is the map a
+// future session trusts.)
 //
 // Chat first (ADR-457's Think verb — the steward's voice + the activation
-// landing). Then the MAKERS (ADR-457 Make, split by ADR-518: Docs writes,
-// Studio lays out; Images, their sibling canvas app, rejoins here when
-// ADR-488 §5 re-unveils it) and the STANDING PERCEIVER (ADR-486). Then what
-// the making settles into: the record (Files) and its residents (Agents).
+// landing). Then the MAKERS (ADR-457 Make: Text writes, Slides lays out;
+// Images, their sibling canvas app, rejoins here when ADR-488 §5 re-unveils
+// it) and the KEEPER of standing work (Strings, ADR-569). Then what the making
+// settles into: the record (Files) and its residents (Agents).
+//
+// ⚠️ THIS ARRAY MUST EQUAL THE DERIVED PINNED SET. It is a hand-kept copy of a
+// truth the backend already derives — `is_default_pinned()` over the ADR-592
+// stage — kept here only because the Dock seeds client-side before any roster
+// arrives. The two are asserted equal by `api/test_adr592_app_stage.py`; if
+// they ever disagree, the DERIVATION is right and this list is stale.
 //
 // Keep/unkeep is untouched — the right-click toggle still governs; only the
 // starting state stops being near-empty. Mobile: six 36px icons + the launcher

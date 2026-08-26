@@ -261,13 +261,14 @@ export interface Surface {
    */
   chrome_fronted?: boolean;
   /**
-   * Hidden registry rows (hide-not-delete): the row is retained backend-side
-   * for lineage/re-light but renders NOWHERE — no launcher tile, no flat-search
-   * result, no pane. `sources` (ADR-425 D2) and `system-agent` (ADR-454 D4 —
-   * the reversed Freddie door) carry it. The backend serializes the field;
-   * consumers filter on it (Launcher navigableSurfaces).
+   * `hidden` is DELETED (2026-08-26). It was a SECOND spelling of "not a
+   * product" — declared on two backend rows (`sources`, `system-agent`) and
+   * honoured by exactly ONE consumer, the Launcher's `navigableSurfaces`
+   * filter. The API's own `is_exposed` never read it, so the two halves
+   * disagreed about what "hidden" meant. Both rows now carry
+   * `stage: "internal"` (ADR-592), which removes them from the served roster
+   * entirely — so a hidden row cannot arrive here to be filtered.
    */
-  hidden?: boolean;
   /**
    * ADR-340 P3 / ADR-341 / ADR-347 — the launcher's at-rest grouping,
    * derived from the operator's standing loop (NOT from the register):
