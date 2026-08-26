@@ -63,11 +63,32 @@ def test_callers_pass_workspace() -> None:
     else:
         _bad("feed: fallback session insert stamps the acting workspace", "stamp missing")
 
+    # notifications.py no longer resolves a chat session — the ADR-593/605 work
+    # removed that call site, so the old "passes p_workspace_id" row asserted a
+    # caller that does not exist. It had been failing UNSEEN behind the
+    # working_memory crash above. Re-anchored to the invariant that still has a
+    # subject: no caller may reach the session RPC WITHOUT the acting workspace.
     notif = (ROOT / "services/notifications.py").read_text()
-    if '"p_workspace_id": effective_workspace_id(user_id)' in notif:
-        _ok("notifications: chat continuity passes the workspace")
+    if "get_or_create_chat_session" not in notif:
+        _ok("notifications: no unscoped session-RPC call site")
     else:
-        _bad("notifications: chat continuity passes the workspace", "param missing")
+        _bad(
+            "notifications: no unscoped session-RPC call site",
+            "it calls the session RPC again — it must pass p_workspace_id",
+        )
+
+    # Count INVOCATIONS, not mentions: the name also appears in prose above,
+    # explaining why the RPC is broken. Counting the bare name would read a
+    # docstring as a call site (it did — 3 vs 1 on the first cut).
+    feed_rpc_calls = feed.count('"get_or_create_chat_session",')
+    feed_rpc_scoped = feed.count('"p_workspace_id": acting_ws')
+    if feed_rpc_calls and feed_rpc_calls == feed_rpc_scoped:
+        _ok("feed: every session-RPC call carries the acting workspace")
+    else:
+        _bad(
+            "feed: every session-RPC call carries the acting workspace",
+            f"{feed_rpc_calls} invocation(s) vs {feed_rpc_scoped} scoped",
+        )
 
     narr = (ROOT / "services/narrative.py").read_text()
     if 'query = query.eq("workspace_id", ws)' in narr:
@@ -80,10 +101,16 @@ def test_callers_pass_workspace() -> None:
         # services/narrative.py check above still gates the live writer.
         ("routes/feed.py", 'q.eq("workspace_id", _hist_ws)', "feed history: scoped (workspace, principal)"),
         ("routes/feed.py", '_list_q.eq("workspace_id", _list_ws)', "feed session list: scoped (workspace, principal)"),
-        ("services/working_memory.py", 'session_query.eq("workspace_id", _sess_ws)', "working memory: active session scoped"),
-        ("services/working_memory.py", 'summaries_query.eq("workspace_id", _sum_ws)', "working memory: summaries scoped"),
+        # services/working_memory.py rows DELETED 2026-08-26 — the module went
+        # with the retired agent model (commit 00e30fe, 1,690 lines / 0 callers).
+        # They had been CRASHING this gate on a missing file, which hides every
+        # assertion after them; a gate that cannot run is not a gate.
     ]:
-        text = (ROOT / rel).read_text()
+        path = ROOT / rel
+        if not path.exists():
+            _bad(name, f"{rel}: file missing — re-anchor or delete this row")
+            continue
+        text = path.read_text()
         _ok(name) if marker in text else _bad(name, f"{rel}: marker missing")
 
 

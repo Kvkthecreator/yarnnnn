@@ -54,16 +54,36 @@ def check(cond, msg):
 #: in prose; production code may not query them.
 _PROD_DIRS = ("services", "routes", "jobs", "agents", "mcp_server", "integrations")
 
-#: The eight tables of the retired model (migration 248 drops all of them).
+#: The retired model's relations. SEVEN TABLES and ONE VIEW — the distinction
+#: matters here and not only in the migration: `DROP TABLE` on a view is an
+#: ERROR, so a gate that demanded `DROP TABLE agent_role_metrics` would be
+#: demanding a statement that cannot run. Both this list and the migration were
+#: written from a PostgREST roster, which does not report relkind; --dry-run is
+#: what surfaced it (2026-08-26).
 _RETIRED_TABLES = (
     "agents",
     "agent_runs",
     "agent_context_log",
     "agent_export_preferences",
     "agent_proposals",
-    "agent_role_metrics",
     "agent_source_runs",
     "agent_validation_results",
+)
+
+#: The one VIEW, dropped with `DROP VIEW` and BEFORE the tables it reads.
+_RETIRED_VIEWS = ("agent_role_metrics",)
+
+#: SQL functions over the retired model. They split around the table drops:
+#: a function taking/returning a table's ROW TYPE must go BEFORE it, while a
+#: TRIGGER function must go AFTER the table carrying its trigger. That is why
+#: the migration has four steps — see its step 2 / step 4 comments.
+_RETIRED_FUNCTIONS = (
+    "fill_agent_run_workspace_id",
+    "get_agent_domain",
+    "get_agent_export_history",
+    "get_due_pulse_agents",
+    "get_next_run_number",
+    "get_suggested_agent_runs",
 )
 
 #: Modules deleted with the model. Reintroducing one means reintroducing the
@@ -102,8 +122,9 @@ def _prod_files():
 
 def main() -> int:
     # 1. No production module queries a retired table.
+    _all_relations = _RETIRED_TABLES + _RETIRED_VIEWS
     table_re = re.compile(
-        r'\.(?:table|from_)\(\s*["\'](' + "|".join(_RETIRED_TABLES) + r')["\']\s*\)'
+        r'\.(?:table|from_)\(\s*["\'](' + "|".join(_all_relations) + r')["\']\s*\)'
     )
     offenders = []
     scanned = 0
@@ -189,8 +210,29 @@ def main() -> int:
         for t in _RETIRED_TABLES:
             check(
                 re.search(rf"DROP TABLE IF EXISTS {t}\b", sql) is not None,
-                f"migration 248 drops `{t}`",
+                f"migration 248 drops table `{t}`",
             )
+        for v in _RETIRED_VIEWS:
+            check(
+                re.search(rf"DROP VIEW IF EXISTS {v}\b", sql) is not None,
+                f"migration 248 drops VIEW `{v}` (not DROP TABLE — that errors)",
+            )
+        for fn in _RETIRED_FUNCTIONS:
+            check(
+                re.search(rf"DROP FUNCTION IF EXISTS {fn}\(", sql) is not None,
+                f"migration 248 drops function `{fn}`",
+            )
+        # The ordering is load-bearing and was established by --dry-run: the
+        # row-type functions precede the table drops, the trigger function
+        # follows them. Assert the split rather than trusting the comment.
+        _i_rowtype = sql.find("DROP FUNCTION IF EXISTS get_due_pulse_agents")
+        _i_tables = sql.find("DROP TABLE IF EXISTS agents;")
+        _i_trigger = sql.find("DROP FUNCTION IF EXISTS fill_agent_run_workspace_id")
+        check(
+            -1 < _i_rowtype < _i_tables < _i_trigger,
+            "the function drops SPLIT around the table drops "
+            f"(rowtype={_i_rowtype} tables={_i_tables} trigger={_i_trigger})",
+        )
         # The dangling FK columns on LIVE tables are the reason this is a
         # migration and not a bare drop.
         for tbl, col in (

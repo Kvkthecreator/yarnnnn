@@ -5,8 +5,10 @@ ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
 ADR-059/064: Memory via user_memory table and build_working_memory()
 ADR-067: Session compaction Phase 1+2 — cross-session continuity
-ADR-087: Agent-scoped context (agent_id on sessions, scoped working memory)
-ADR-125: Project-native sessions — two scopes (Global TP + Project), thread model
+ADR-087: Agent-scoped context — RETIRED. `chat_sessions.agent_id` is dropped
+         (migration 248); a BEING is not a session scope (ADR-596/ADR-460 D3.a)
+ADR-125: Project-native sessions — RETIRED with the project model; sessions are
+         global per workspace (see get_or_create_session)
 ADR-159: Filesystem-as-memory — compact index + 10-message window + conversation.md
 ADR-219: Narrative substrate — session_messages.role widened (six Identities)
 ADR-221: Layered context strategy — non-conversation roles filtered from API;
@@ -21,11 +23,12 @@ Session Philosophy (ADR-159 + ADR-221):
 - Global TP: 4h inactivity boundary (ADR-067 Phase 2)
 - Project sessions: 24h inactivity boundary (ADR-125)
 
-ADR-125: Project-Native Sessions:
-- Two session scopes: Global TP (no project) and Project (via project_slug)
-- No standalone agent sessions — agent requests resolve to project sessions
-- Thread model: thread_agent_id on session_messages filters 1:1 threads
-- Agent pages render their thread from the project session
+ADR-125 (HISTORICAL — the project model and its columns are gone):
+- Described two scopes (Global TP + Project) and a thread model keyed on
+  session_messages.thread_agent_id. `project_slug`, `deliverable_id` and
+  `thread_agent_id` were all dropped; sessions are now global per workspace.
+- Retained here only to explain why `get_or_create_chat_session` (the RPC)
+  still names those columns and therefore errors on every call.
 
 Endpoints:
 - POST /chat - Global chat with streaming + tools
@@ -133,7 +136,6 @@ async def get_or_create_session(
     user_id: str,
     session_type: str = "thinking_partner",
     scope: str = "daily",  # "conversation", "daily"
-    agent_id: Optional[str] = None,  # DEPRECATED by ADR-125: use project sessions with thread_agent_id
 ) -> dict:
     """
     Get or create a chat session using the database RPC.
@@ -142,10 +144,16 @@ async def get_or_create_session(
     - conversation: Always creates new session
     - daily: Reuses session active within last 4 hours (inactivity boundary)
 
-    DEPRECATED (ADR-125): agent_id parameter is a legacy fallback for agents not
-    yet wrapped in projects. New code should use get_or_create_project_session()
-    with thread_agent_id on messages instead. The agent_id column on chat_sessions
-    will be removed once all agents are project-native.
+    ADR-596 / migration 248: the `agent_id` parameter and its column are GONE.
+    ADR-125 deprecated it and predicted "the agent_id column will be removed
+    once all agents are project-native"; the retired agent model took it
+    instead. A BEING is not a session scope, so nothing replaces it.
+
+    NOTE: the `get_or_create_chat_session` RPC below still names `project_id`
+    and `deliverable_id`, columns dropped long before 248 — it errors on every
+    call and the table-ops fallback is what actually runs. Pre-existing drift,
+    documented at mcp_server/server.py::_ensure_daily_session; not repaired
+    here, but it is why the fallback must stay correct.
 
     Returns:
         Session dict with 'id', 'is_new' (bool), and optionally
@@ -164,7 +172,6 @@ async def get_or_create_session(
                 "p_project_id": None,
                 "p_session_type": session_type,
                 "p_scope": scope,
-                "p_agent_id": agent_id,
                 "p_workspace_id": acting_ws,
             }
         ).execute()
@@ -190,11 +197,6 @@ async def get_or_create_session(
                 .eq("status", "active")
             if acting_ws:
                 q = q.eq("workspace_id", acting_ws)
-            # ADR-087 Phase 3: scope by agent_id
-            if agent_id:
-                q = q.eq("agent_id", agent_id)
-            else:
-                q = q.is_("agent_id", "null")
             existing = q.order("updated_at", desc=True)\
                 .limit(1)\
                 .execute()
@@ -226,8 +228,6 @@ async def get_or_create_session(
         }
         if acting_ws:
             data["workspace_id"] = acting_ws
-        if agent_id:
-            data["agent_id"] = agent_id
 
         result = client.table("chat_sessions").insert(data).execute()
         if result.data:
@@ -1391,14 +1391,17 @@ async def global_chat(
 async def get_global_chat_history(
     auth: UserClient,
     limit: int = Query(default=1, le=10),
-    agent_id: Optional[str] = Query(default=None),
     task_slug: Optional[str] = Query(default=None),
 ):
     """
-    Get chat history scoped by agent, task, or global.
+    Get chat history scoped by task, or global.
     Returns the most recent session(s) with messages.
 
     ADR-138: project_slug and thread_agent_id removed (columns dropped).
+    ADR-596 / migration 248: `agent_id` removed for the same reason — the
+    column is dropped with the retired agent model. It was the LAST scoping
+    dimension that named a per-workspace agent row; a BEING is not a scope,
+    so there is no successor parameter (ADR-460 D3.a).
     """
     # Fetch recent sessions — task-scoped, agent-scoped, or global TP,
     # within the acting workspace (ADR-407 Phase 4: (workspace, principal)).
@@ -1414,10 +1417,8 @@ async def get_global_chat_history(
         q = q.eq("workspace_id", _hist_ws)
     if task_slug:
         q = q.eq("task_slug", task_slug)
-    elif agent_id:
-        q = q.eq("agent_id", agent_id)
     else:
-        q = q.is_("agent_id", "null").is_("task_slug", "null")
+        q = q.is_("task_slug", "null")
     sessions_result = q.order("created_at", desc=True).limit(limit).execute()
 
     sessions = []
@@ -1453,7 +1454,6 @@ async def list_global_sessions(
         auth.client.table("chat_sessions")
         .select("id, created_at, summary")
         .eq("user_id", auth.user_id)
-        .is_("agent_id", "null")
         .eq("session_type", "thinking_partner")
     )
     _list_ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))

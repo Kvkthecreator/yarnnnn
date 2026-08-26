@@ -13,14 +13,13 @@ This gives a TRUE cold-start. Wipe order (FK-safe):
    task charters, /workspace/persona/, agent workspaces)
 3. action_proposals (ADR-194 Reviewer queue)
 4. tasks (ADR-138)
-5. agents + agent_runs (cascaded via agent_id)
-6. chat_sessions (cascades session_messages — ADR-125)
-7. platform_connections (OAuth tokens)
-8. execution_events (ADR-291 unified cost ledger; was token_usage pre-ADR-291)
-9. notifications (ADR-041)
-10. uploaded documents purged via workspace_files (ADR-249: /workspace/uploads/*)
-11. user_admin_flags (ADR-194 v2 Phase 2b impersonation scope)
-12. activity_log
+5. chat_sessions (cascades session_messages — ADR-125)
+6. platform_connections (OAuth tokens)
+7. execution_events (ADR-291 unified cost ledger; was token_usage pre-ADR-291)
+8. notifications (ADR-041)
+9. uploaded documents purged via workspace_files (ADR-249: /workspace/uploads/*)
+10. user_admin_flags (ADR-194 v2 Phase 2b impersonation scope)
+11. activity_log
 
 NOT deleted (intentional):
 - auth.users row — keep the login; we just wipe their workspace state
@@ -180,28 +179,10 @@ def purge_user_data(email: str, dry_run: bool = False):
     print(f"   {n} tasks")
 
     # ──────────────────────────────────────────────────────────────────────
-    # 4. Agent runs + agents (ADR-103 renames from deliverable_versions)
-    # ──────────────────────────────────────────────────────────────────────
-    print(f"🗑️  {label} agent_runs (joining through agent_id)...")
-    agents_result = client.table("agents").select("id").eq("user_id", user_id).execute()
-    agent_ids = [a["id"] for a in (agents_result.data or [])]
-    runs_total = 0
-    if agent_ids:
-        for aid in agent_ids:
-            if dry_run:
-                c = _count(client, "agent_runs", aid, column="agent_id")
-                runs_total += c
-            else:
-                try:
-                    client.table("agent_runs").delete().eq("agent_id", aid).execute()
-                    runs_total += 1  # count of agents whose runs were purged
-                except Exception as e:
-                    print(f"   (delete failed for agent {aid[:8]}: {e})")
-    print(f"   {runs_total} agent run batches")
-
-    print(f"🗑️  {label} agents...")
-    n = _delete(client, "agents", user_id, dry_run=dry_run)
-    print(f"   {n} agents")
+    # Agent runs + agents: step DELETED 2026-08-26. Migration 248 drops both
+    # tables with the retired pre-ADR-596 agent model; a purge naming a dropped
+    # table RAISES rather than no-ops, which would abort this script mid-wipe
+    # and leave a partial purge — the opposite of a true cold start.
 
     # ──────────────────────────────────────────────────────────────────────
     # 5. Chat sessions (cascades session_messages) — ADR-125
@@ -281,7 +262,7 @@ if __name__ == "__main__":
 
     if not dry_run:
         print(f"\n⚠️  WARNING: This will permanently delete ALL workspace state for {email}")
-        print("This includes: agents, tasks, proposals, workspace_files, chat, platform")
+        print("This includes: tasks, proposals, workspace_files, chat, platform")
         print("connections, tokens, notifications, activity log. Auth + balance preserved.")
         confirm = input("Type 'yes' to confirm: ")
         if confirm.lower() != "yes":

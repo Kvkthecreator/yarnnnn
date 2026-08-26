@@ -163,8 +163,9 @@ async def initialize_workspace(
     # per ADR-067 / ADR-159) — it finds the bootstrapped row on first
     # invocation rather than creating one.
     #
-    # Idempotent: skips when an active thinking_partner session (no
-    # agent_id, no task_slug — workspace-scope) already exists.
+    # Idempotent: skips when an active thinking_partner session (no task_slug
+    # — workspace-scope) already exists. The `agent_id` half of that condition
+    # left with migration 248, which drops the column.
     try:
         existing_session = (
             client.table("chat_sessions")
@@ -172,7 +173,6 @@ async def initialize_workspace(
             .eq("user_id", user_id)
             .eq("session_type", "thinking_partner")
             .eq("status", "active")
-            .is_("agent_id", "null")
             .is_("task_slug", "null")
             .limit(1)
             .execute()

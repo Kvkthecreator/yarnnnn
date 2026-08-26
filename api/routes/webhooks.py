@@ -187,7 +187,9 @@ def _record_resend_webhook(payload: dict[str, Any]) -> int:
     client = get_service_client()
     rows = (
         client.table("export_log")
-        .select("id, agent_run_id, destination, outcome")
+        # `agent_run_id` LEFT this select 2026-08-26 — migration 248 drops the
+        # column, and the mirror write that was its only reader is gone (below).
+        .select("id, destination, outcome")
         .eq("provider", "email")
         .eq("external_id", message_id)
         .execute()

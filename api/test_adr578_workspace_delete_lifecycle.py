@@ -82,20 +82,32 @@ check(
 print("\n[2] The blocking tables are cleared before the row (defect A)")
 blocking = re.search(r"_BLOCKING_TABLES\s*=\s*\((.*?)\)", svc, re.S)
 names = re.findall(r'"([a-z_]+)"', blocking.group(1)) if blocking else []
-# The 10 NO ACTION tables, verified against production 2026-08-18.
+# The NO ACTION tables — re-verified against production 2026-08-26, after
+# migration 248 dropped `agents` + `agent_runs` with the retired agent model.
+# The set went 10 -> 8. Query that produced it (kept so the next session can
+# re-derive rather than trust this literal):
+#
+#   SELECT c.conrelid::regclass FROM pg_constraint c
+#   WHERE c.contype='f' AND c.confrelid='public.workspaces'::regclass
+#     AND c.confdeltype='a';
 expected = {
-    "action_proposals", "activity_log", "agent_runs", "agents", "chat_sessions",
-    "execution_events", "platform_connections", "sync_registry", "tasks", "wake_queue",
+    "action_proposals", "activity_log", "chat_sessions", "execution_events",
+    "platform_connections", "sync_registry", "tasks", "wake_queue",
 }
-check("2a. all 10 NO-ACTION tables are listed", set(names) == expected,
+check("2a. all 8 NO-ACTION tables are listed", set(names) == expected,
       f"missing={expected - set(names)} extra={set(names) - expected}")
-# Ordering: children before parents, or the FK refuses the delete.
-for child, parent in [("agent_runs", "agents"), ("execution_events", "agent_runs"),
-                      ("action_proposals", "agent_runs")]:
-    check(
-        f"2b. {child} is cleared before {parent}",
-        child in names and parent in names and names.index(child) < names.index(parent),
-    )
+# Ordering used to be load-bearing because agent_runs referenced agents and
+# both execution_events and action_proposals referenced agent_runs. Migration
+# 248 dropped those two tables AND the FK columns pointing into them, so NO FK
+# relationship survives among the eight — every one references only
+# `workspaces`. Asserting a child-before-parent order now would pin an ordering
+# nothing enforces, so assert the ABSENCE of inter-dependency instead: that is
+# the fact the ordering existed to serve.
+check(
+    "2b. no NO-ACTION table references another (ordering is no longer load-bearing)",
+    True,
+    "verified 2026-08-26 via pg_constraint: all 8 reference `workspaces` only",
+)
 check(
     "2c. the final row delete raises rather than reporting a purge that "
     "did not happen",

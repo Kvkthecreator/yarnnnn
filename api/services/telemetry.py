@@ -396,8 +396,11 @@ def record_execution_event(
             row["wake_source"] = wake_source
         if funnel_decision is not None:
             row["funnel_decision"] = funnel_decision
-        if agent_run_id is not None:
-            row["agent_run_id"] = agent_run_id
+        # `agent_run_id` REMOVED 2026-08-26 — migration 248 dropped the column
+        # (execution_events.agent_run_id, 0 non-null of 571 rows) with the
+        # retired agent model. The kwarg stays on the signature so any stale
+        # caller is a no-op rather than a TypeError; it was already unreachable
+        # (no caller in api/ ever passed it), which is why the column was null.
         # W0 / ADR-457 D8 (migration 216): the session this metered turn served.
         # The falsifier JOIN KEY — the surface class (think/make/derive) is
         # DERIVED from the joined session's lane binding at read time (DP29),
