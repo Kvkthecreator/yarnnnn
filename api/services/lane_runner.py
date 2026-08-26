@@ -778,14 +778,34 @@ def _seed_line(seed: Optional[dict]) -> str:
         noun = f"the {label or 'content'} block"
     ident = f" (id {bid})" if bid else ""
     clipped = ex[:80].strip()
-    quoted = (
-        f' — "{clipped}{"…" if len(ex.strip()) > len(clipped) else ""}"'
-        if clipped else ""
+    # ADR-609 D4 — one marker, never two (see build_focus_line's _quoted).
+    _suffix = (
+        "" if clipped.endswith("…")
+        else "…" if len(ex.strip()) > len(clipped) else ""
     )
-    return (
+    quoted = f' — "{clipped}{_suffix}"' if clipped else ""
+    line = (
         f"- The member's gesture: they {phrase} {noun}{ident}{quoted}."
         " That is this turn's target — act on it, never a copy elsewhere."
     )
+
+    # ADR-609 D3 — hand over the ADDRESS, not just the name of the thing.
+    # Until this clause the target was described and the colleague had to
+    # re-find it by string search against a quoted PREFIX; an anchored edit
+    # acts on the member's actual selection with nothing to reconstruct.
+    rng = seed.get("range") if isinstance(seed.get("range"), dict) else None
+    if rng and isinstance(rng.get("start"), int) and isinstance(rng.get("end"), int):
+        line += (
+            f" To change it, pass anchor={{'start': {rng['start']},"
+            f" 'end': {rng['end']}}} to EditFile — that span IS the selection,"
+            " so the quoted text above (a clipped prefix) is not its extent."
+        )
+    elif bid:
+        line += (
+            f" To change it, pass anchor={{'block_id': '{bid}'}} to EditFile"
+            " — the edit is then confined to that block."
+        )
+    return line
 
 
 def _compose_focus_section(

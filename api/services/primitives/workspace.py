@@ -21,6 +21,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -200,7 +201,19 @@ Contract:
   retained in the revision chain.
 - An edit may not empty the file — removing a file is DeleteFile, by intent.
 
-  EditFile(path='persona/principles.md', old_string='threshold: 5', new_string='threshold: 8')""",
+  EditFile(path='persona/principles.md', old_string='threshold: 5', new_string='threshold: 8')
+
+ANCHORED EDITS (ADR-609) — when the frame tells you the member SELECTED
+something, pass its address as `anchor` and edit only that:
+- `anchor={'block_id': 'b7'}` for an HTML artifact block (Slides).
+- `anchor={'start': 120, 'end': 240}` for a prose selection (Text).
+The anchor CONFINES the edit to that region. With `old_string` the search runs
+inside the span only; OMIT `old_string` to replace the span WHOLESALE — the
+"rewrite this" case, which needs no exact-match reconstruction at all.
+Anchoring is how you act on the member's actual selection instead of guessing
+its extent from a quoted excerpt (which is a clipped PREFIX, never the whole).
+
+  EditFile(path='decks/q3.html', anchor={'block_id': 'b7'}, new_string='<p data-block="body" data-block-id="b7">Tighter line.</p>')""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -210,7 +223,7 @@ Contract:
             },
             "old_string": {
                 "type": "string",
-                "description": "Exact text to replace. Must exist in the file; must be unique unless replace_all=true.",
+                "description": "Exact text to replace. Must exist in the file; must be unique unless replace_all=true. Optional when `anchor` is given — omit it to replace the anchored span as a whole.",
             },
             "new_string": {
                 "type": "string",
@@ -219,6 +232,15 @@ Contract:
             "replace_all": {
                 "type": "boolean",
                 "description": "Replace every occurrence of old_string (default false).",
+            },
+            "anchor": {
+                "type": "object",
+                "description": "ADR-609 — the member's selection, addressed directly. EITHER {block_id} (HTML artifacts) OR {start, end} source offsets (prose), never both. Confines the edit to that span.",
+                "properties": {
+                    "block_id": {"type": "string", "description": "data-block-id of the target element."},
+                    "start": {"type": "integer", "description": "Selection start offset (inclusive)."},
+                    "end": {"type": "integer", "description": "Selection end offset (exclusive)."},
+                },
             },
             "scope": {
                 "type": "string",
@@ -234,7 +256,7 @@ Contract:
                 "description": "ADR-209 commit-style message describing the change (optional).",
             },
         },
-        "required": ["path", "old_string", "new_string"],
+        "required": ["path", "new_string"],
     },
 }
 
@@ -846,9 +868,7 @@ def _resolve_read_gate_path(input: dict) -> Optional[str]:
 # bloat in the primitive's input schema. The recognition table is small;
 # unknown paths emit no event (silent default).
 
-import re as _re
-
-_AGENT_FEEDBACK_PATH_RE = _re.compile(r"^agents/([^/]+)/memory/feedback\.md$")
+_AGENT_FEEDBACK_PATH_RE = re.compile(r"^agents/([^/]+)/memory/feedback\.md$")
 
 
 def _classify_workspace_path_for_activity(rel_path: str) -> Optional[dict]:
@@ -1214,31 +1234,237 @@ def _normalize_workspace_rel(path: str) -> str:
     return path
 
 
+#: HTML void elements — no close tag, so an anchored span is the tag itself.
+_VOID_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+})
+
+ANCHOR_NOT_FOUND = "anchor_not_found"
+
+
+def _resolve_anchor(
+    content: str, anchor: Optional[dict]
+) -> tuple[Optional[tuple[int, int]], Optional[dict]]:
+    """ADR-609 D1 — resolve the member's SELECTION to a span of `content`.
+
+    The member points at a thing; the browser knows exactly which thing. Until
+    this function existed that address was rendered to prose and the model had
+    to re-find it by string search — the funnel ADR-609 §1 measures. An anchor
+    carries the address itself, and the span it resolves to is the ONLY region
+    an edit may touch.
+
+    Two anchor kinds, one per medium — each is the address that medium already
+    has, never a new coordinate system:
+
+    - ``{"block_id": "b7"}`` — HTML artifacts (Slides). Resolves to the span of
+      the element carrying ``data-block-id="b7"``, tag boundaries included.
+    - ``{"start": 12, "end": 40}`` — prose (Text). Source offsets, half-open,
+      exactly as CodeMirror reports them.
+
+    Returns ``(span, None)`` or ``(None, error_dict)``. A `None` anchor returns
+    ``(None, None)`` — no anchor is not an error, it is the whole-file case.
+    """
+    if not anchor:
+        return None, None
+
+    block_id = (anchor.get("block_id") or "").strip()
+    start = anchor.get("start")
+    end = anchor.get("end")
+
+    if block_id and (start is not None or end is not None):
+        return None, {
+            "success": False, "error": "anchor_ambiguous",
+            "message": (
+                "An anchor carries EITHER block_id (an HTML artifact) OR "
+                "start/end offsets (prose) — never both. They are two media's "
+                "addresses, and one file has only one."
+            ),
+        }
+
+    if block_id:
+        # The element carrying this id, from its opening tag to its matching
+        # close. Depth-counted rather than regex-matched: a nested same-tag
+        # child (a <div> inside a <div>) would otherwise end the span early,
+        # which is precisely how a "surgical" edit eats a sibling.
+        m = re.search(
+            r"<(?P<tag>[a-zA-Z][\w-]*)\b[^>]*\bdata-block-id=[\"\']"
+            + re.escape(block_id)
+            + r"[\"\'][^>]*>",
+            content,
+        )
+        if not m:
+            return None, {
+                "success": False, "error": ANCHOR_NOT_FOUND,
+                "message": (
+                    f"No element carries data-block-id=\"{block_id}\" in this "
+                    "file. The block may have been removed or the artifact "
+                    "re-authored — re-read the file and use the id it shows."
+                ),
+            }
+        tag = m.group("tag")
+        # A void element has no close tag; its span is the tag itself.
+        if re.match(r"^<[^>]*/>$", m.group(0)) or tag.lower() in _VOID_TAGS:
+            return (m.start(), m.end()), None
+        open_re = re.compile(rf"<{re.escape(tag)}\b[^>]*?(?<!/)>", re.IGNORECASE)
+        close_re = re.compile(rf"</{re.escape(tag)}\s*>", re.IGNORECASE)
+        depth = 1
+        pos = m.end()
+        while depth > 0:
+            nxt_open = open_re.search(content, pos)
+            nxt_close = close_re.search(content, pos)
+            if not nxt_close:
+                return None, {
+                    "success": False, "error": ANCHOR_NOT_FOUND,
+                    "message": (
+                        f"The element carrying data-block-id=\"{block_id}\" is "
+                        f"not closed (<{tag}> has no matching </{tag}>). The "
+                        "file's markup is malformed — read it and repair the "
+                        "block with a whole-file write."
+                    ),
+                }
+            if nxt_open and nxt_open.start() < nxt_close.start():
+                depth += 1
+                pos = nxt_open.end()
+            else:
+                depth -= 1
+                pos = nxt_close.end()
+        return (m.start(), pos), None
+
+    if start is None and end is None:
+        return None, {
+            "success": False, "error": "anchor_empty",
+            "message": (
+                "An anchor must carry block_id or start/end offsets. Omit "
+                "`anchor` entirely to edit the file as a whole."
+            ),
+        }
+    if not isinstance(start, int) or not isinstance(end, int):
+        return None, {
+            "success": False, "error": "anchor_invalid",
+            "message": "start and end must be integers (source offsets).",
+        }
+    if start < 0 or end < start:
+        return None, {
+            "success": False, "error": "anchor_invalid",
+            "message": f"Invalid span [{start}, {end}) — need 0 <= start <= end.",
+        }
+    if end > len(content):
+        # The document moved under the member's selection. Say so with the
+        # numbers: a silent clamp would edit a region they never selected.
+        return None, {
+            "success": False, "error": ANCHOR_NOT_FOUND,
+            "message": (
+                f"The span [{start}, {end}) runs past the end of the file "
+                f"({len(content)} characters) — it changed since the member "
+                "selected. Re-read the file and work from its current text."
+            ),
+        }
+    return (start, end), None
+
+
+def _edit_replacements(
+    existing: str, old_string: str, replace_all: bool, anchor: Optional[dict]
+) -> int:
+    """How many replacements the landed edit made — reported, never guessed.
+
+    An anchored span replaced WHOLESALE (no old_string) is exactly one
+    replacement; counting occurrences of "" would report the file's length.
+    """
+    if not old_string:
+        return 1
+    if not replace_all:
+        return 1
+    if anchor:
+        span, err = _resolve_anchor(existing, anchor)
+        if span and not err:
+            lo, hi = span
+            return existing[lo:hi].count(old_string)
+    return existing.count(old_string)
+
+
 def _apply_edit(
-    content: str, old_string: str, new_string: str, replace_all: bool
+    content: str,
+    old_string: str,
+    new_string: str,
+    replace_all: bool,
+    anchor: Optional[dict] = None,
 ) -> tuple[Optional[str], Optional[dict]]:
-    """Pure edit application (ADR-337 D1 — the Claude Code Edit contract).
+    """Pure edit application (ADR-337 D1 — the Claude Code Edit contract),
+    optionally CONFINED to an anchored span (ADR-609 D1).
+
+    Two shapes, and the anchor is what separates them:
+
+    - **No anchor** — the original contract, byte-identical: ``old_string``
+      must be found, and unique unless ``replace_all``. The search is the
+      whole file.
+    - **Anchored** — the span resolved by ``_resolve_anchor`` is the only
+      region that may change. With ``old_string`` the search is confined to
+      that span (so the same words elsewhere in the file are not a collision,
+      and not a casualty). WITHOUT ``old_string`` the span is replaced
+      wholesale — the "rewrite THIS" case, which needs no string reconstruction
+      at all and is the reason the anchor exists.
 
     Returns (new_content, None) on success or (None, error_dict) on failure.
     Errors mirror the contract the model's trained prior expects:
     old_string_not_found / old_string_not_unique / no_change.
     """
+    span, err = _resolve_anchor(content, anchor)
+    if err:
+        return None, err
+
+    if span is None:
+        # ── The unanchored contract, unchanged ──────────────────────────
+        if not old_string:
+            return None, {"success": False, "error": "missing_old_string",
+                          "message": "old_string is required and must be non-empty."}
+        if old_string == new_string:
+            return None, {"success": False, "error": "no_change",
+                          "message": "old_string and new_string are identical — nothing to do."}
+        count = content.count(old_string)
+        if count == 0:
+            return None, {"success": False, "error": "old_string_not_found",
+                          "message": "old_string was not found in the file. It must match the current content exactly, including whitespace."}
+        if count > 1 and not replace_all:
+            return None, {"success": False, "error": "old_string_not_unique",
+                          "message": f"old_string appears {count} times. Include more surrounding context to make it unique, or pass replace_all=true."}
+        if replace_all:
+            return content.replace(old_string, new_string), None
+        return content.replace(old_string, new_string, 1), None
+
+    # ── Anchored: the span is the whole world for this edit ─────────────
+    lo, hi = span
+    region = content[lo:hi]
+
     if not old_string:
-        return None, {"success": False, "error": "missing_old_string",
-                      "message": "old_string is required and must be non-empty."}
+        # Replace the span itself. No string to reconstruct, so the failure
+        # mode the anchor exists to remove cannot occur here.
+        if region == new_string:
+            return None, {"success": False, "error": "no_change",
+                          "message": "The anchored span already reads exactly like new_string — nothing to do."}
+        return content[:lo] + new_string + content[hi:], None
+
     if old_string == new_string:
         return None, {"success": False, "error": "no_change",
                       "message": "old_string and new_string are identical — nothing to do."}
-    count = content.count(old_string)
+    count = region.count(old_string)
     if count == 0:
         return None, {"success": False, "error": "old_string_not_found",
-                      "message": "old_string was not found in the file. It must match the current content exactly, including whitespace."}
+                      "message": (
+                          "old_string was not found INSIDE the anchored span. "
+                          "It must match that region exactly, including "
+                          "whitespace — or omit old_string to replace the span "
+                          "as a whole."
+                      )}
     if count > 1 and not replace_all:
         return None, {"success": False, "error": "old_string_not_unique",
-                      "message": f"old_string appears {count} times. Include more surrounding context to make it unique, or pass replace_all=true."}
-    if replace_all:
-        return content.replace(old_string, new_string), None
-    return content.replace(old_string, new_string, 1), None
+                      "message": f"old_string appears {count} times inside the anchored span. Include more surrounding context, or pass replace_all=true."}
+    edited = (
+        region.replace(old_string, new_string)
+        if replace_all
+        else region.replace(old_string, new_string, 1)
+    )
+    return content[:lo] + edited + content[hi:], None
 
 
 def _resolved_author_and_message(auth: Any, input: dict, default_message: str) -> tuple[str, str]:
@@ -1269,6 +1495,11 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
     old_string = input.get("old_string", "")
     new_string = input.get("new_string", "")
     replace_all = bool(input.get("replace_all", False))
+    # ADR-609 D1 — the member's address, carried instead of re-derived.
+    anchor = input.get("anchor") or None
+    if anchor is not None and not isinstance(anchor, dict):
+        return {"success": False, "error": "anchor_invalid",
+                "message": "anchor must be an object: {block_id} or {start, end}."}
     scope = input.get("scope") or _default_file_scope(auth)
 
     if not path:
@@ -1291,7 +1522,7 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
             return {"success": False, "error": "file_not_found",
                     "message": f"No file at /workspace/{path}. EditFile requires an existing file — use WriteFile to create one."}
 
-        new_content, err = _apply_edit(existing, old_string, new_string, replace_all)
+        new_content, err = _apply_edit(existing, old_string, new_string, replace_all, anchor)
         if err:
             return err
         if not new_content.strip():
@@ -1333,7 +1564,7 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
             return {"success": False, "error": "write_failed", "message": f"Failed to write: /workspace/{path}"}
         await _emit_workspace_activity(auth, path, new_content)
         return {"success": True, "scope": "workspace", "path": f"/workspace/{path}",
-                "replacements": (existing.count(old_string) if replace_all else 1)}
+                "replacements": _edit_replacements(existing, old_string, replace_all, anchor)}
 
     # scope == "agent"
     agent = getattr(auth, "agent", None)
@@ -1344,7 +1575,7 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
     existing = await ws.read(path)
     if existing is None:
         return {"success": False, "error": "file_not_found", "message": f"No file at {path}."}
-    new_content, err = _apply_edit(existing, old_string, new_string, replace_all)
+    new_content, err = _apply_edit(existing, old_string, new_string, replace_all, anchor)
     if err:
         return err
     if not new_content.strip():
@@ -1354,7 +1585,7 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
     if not ok:
         return {"success": False, "error": "write_failed", "message": f"Failed to write: {path}"}
     return {"success": True, "scope": "agent", "path": path,
-            "replacements": (existing.count(old_string) if replace_all else 1)}
+            "replacements": _edit_replacements(existing, old_string, replace_all, anchor)}
 
 
 async def handle_delete_file(auth: Any, input: dict) -> dict:

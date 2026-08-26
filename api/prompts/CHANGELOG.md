@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.26.2] - ADR-609: the member's selection is an address the colleague can act on
+
+### Changed
+- `services/primitives/workspace.py` (`EditFile` tool definition): the verb
+  gains an optional `anchor` — `{block_id}` for HTML artifacts, `{start, end}`
+  source offsets for prose — and `old_string` leaves the required set. The
+  description teaches both modes: anchored WITH `old_string` confines the
+  search to the span; anchored WITHOUT it replaces the span wholesale.
+- `services/lane_runner.py` (`_seed_line`): a gesture now names the ANCHOR to
+  use, not just the target's noun. Previously the line described the thing and
+  the colleague had to re-find it by string search against a quoted PREFIX.
+- `services/authoring.py` (`_POSTURE_FRAME`): the studio patch bullet teaches
+  `anchor={'block_id': …}` for a selected block.
+- `services/apps/text.py` (`build_text_posture`): the JOB gains the anchor
+  instruction and states outright that the quoted excerpt is a clipped prefix
+  which never tells you where the selection ends.
+- `services/authoring.py` (`build_focus_line._quoted`) + `_seed_line`: the clip
+  marker is idempotent — the capture side now marks its own 120-char clip, and
+  a second "…" would describe this cut while implying the text ended at the
+  previous one.
+
+### Expected behavior
+- Asked to rewrite a selected block or a highlighted passage, the colleague
+  passes the anchor and the edit lands on exactly that region. The
+  `old_string_not_found` / `old_string_not_unique` failure class — whose
+  cheapest recovery was rewriting the whole file — no longer applies to the
+  common gesture case.
+- The colleague should no longer infer a selection's EXTENT from the quoted
+  excerpt. It names the target; the anchor states its bounds.
+- Unanchored calls are byte-identical: the trained Claude-Code-Edit prior is
+  unchanged, and no existing caller (MCP `edit` included) passes an anchor.
+
+---
+
 ## [2026.08.26.1] - Interop delete/move: the grain is resolved on the live tree, and named
 
 ### Changed

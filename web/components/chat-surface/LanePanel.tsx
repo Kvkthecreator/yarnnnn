@@ -150,6 +150,16 @@ export interface SeedTarget {
   label: string | null;
   excerpt: string | null;
   pageIndex: number | null;
+  /** ADR-609 D2 — the selection's EXTENT, for prose. `excerpt` is a clipped
+   *  PREFIX (120 chars at capture, 80 at render) and always has been: it
+   *  names the target so the colleague can say it back. It cannot say where
+   *  the selection ENDS, which is what an edit needs. These are the source
+   *  offsets the canvas already reports, carried instead of discarded, so an
+   *  anchored edit acts on exactly what the member highlighted.
+   *
+   *  Half-open `[start, end)`. Null on every non-prose gesture — a Slides
+   *  block has `blockId`, which is the same address in that medium's terms. */
+  range: { start: number; end: number } | null;
 }
 
 /** Wire form (snake_case, the focus precedent) — what goes up on Send and
@@ -162,6 +172,8 @@ function seedToWire(t: SeedTarget) {
     label: t.label,
     excerpt: t.excerpt,
     page_index: t.pageIndex,
+    // ADR-609 D2 — the extent rides beside the prefix, never inside it.
+    range: t.range ? { start: t.range.start, end: t.range.end } : null,
   };
 }
 
@@ -179,7 +191,18 @@ function seedFromMeta(raw: unknown): SeedTarget | undefined {
     label: typeof s.label === 'string' ? s.label : null,
     excerpt: typeof s.excerpt === 'string' ? s.excerpt : null,
     pageIndex: typeof s.page_index === 'number' ? s.page_index : null,
+    range: readRange(s.range),
   };
+}
+
+/** A persisted range stamp, or null. Best-effort like the rest of the stamp:
+ *  a pre-609 row simply has no range and renders as a plain gesture. */
+function readRange(raw: unknown): { start: number; end: number } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  return typeof r.start === 'number' && typeof r.end === 'number'
+    ? { start: r.start, end: r.end }
+    : null;
 }
 
 /** The chip's noun for a seed target — shared by the composer chip and the

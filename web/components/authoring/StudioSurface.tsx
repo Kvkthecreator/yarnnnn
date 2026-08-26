@@ -746,16 +746,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       seedComposer(`About the ${kind} block: `, {
         verb: 'ask', path, blockId: s.blockId ?? null, label: kind,
         excerpt: s.text || null, pageIndex: s.slideIndex ?? s.pageIndex ?? null,
+        range: null,
       });
     } else if (s.slideIndex != null) {
       seedComposer(`About slide ${s.slideIndex + 1}: `, {
         verb: 'ask', path, blockId: null, label: 'slide',
         excerpt: null, pageIndex: s.slideIndex,
+        range: null,
       });
     } else {
       seedComposer(`About the selection: `, {
         verb: 'ask', path, blockId: null, label: 'selection',
         excerpt: s.text || null, pageIndex: null,
+        range: null,
       });
     }
     setRightTab('chat');
@@ -2241,6 +2244,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       verb: 'rewrite', path: artifactPath ? relPath(artifactPath) : null,
       blockId: t.blockId ?? null, label: kind,
       excerpt: t.text || null, pageIndex: t.slideIndex ?? t.pageIndex ?? null,
+      range: null,
     });
     setRightTab('chat');
   }, [ctxMenu, seedComposer, artifactPath]);
@@ -2255,6 +2259,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       verb: 'check', path: artifactPath ? relPath(artifactPath) : null,
       blockId: t.blockId ?? null, label: kind,
       excerpt: t.text || null, pageIndex: t.slideIndex ?? t.pageIndex ?? null,
+      range: null,
     });
     setRightTab('chat');
   }, [ctxMenu, seedComposer, artifactPath]);

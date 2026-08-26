@@ -58,6 +58,7 @@ import {
   Loader2,
   MoreHorizontal,
   PanelRight,
+  Sparkles,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { PANE_HEADING, PANE_SECTION } from '@/lib/authoring/pane-spine';
@@ -66,7 +67,7 @@ import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { formatRelativeTime } from '@/lib/formatting';
-import { LanePanel } from '@/components/chat-surface/LanePanel';
+import { LanePanel, type SeedTarget } from '@/components/chat-surface/LanePanel';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { TextExport } from '@/components/text/TextExport';
 import { ProseCanvas, type ProseCanvasHandle, type SlashRun } from '@/components/text/ProseCanvas';
@@ -732,13 +733,20 @@ export function TextEditor({
   const [focusPoint, setFocusPoint] = useState<{
     selection: string | null;
     heading: string | null;
-  }>({ selection: null, heading: null });
+    // ADR-609 D2 — the selection's EXTENT, kept beside its clipped name.
+    // `selection` is a 120-char prefix for the focus SENTENCE; these offsets
+    // are what an anchored edit acts on. Before this they were computed here
+    // and dropped on the next line, so the colleague could be told a
+    // selection existed but never which bytes it covered.
+    range: { start: number; end: number } | null;
+  }>({ selection: null, heading: null, range: null });
   const onCanvasSelection = useCallback((from: number, to: number) => {
     // Read the view's doc, not React's `text` — during a keystroke the state
     // lags a render and the offsets belong to the NEW doc (the D12 lesson).
     const doc = canvasRef.current?.text() ?? '';
     const selection =
       from !== to ? doc.slice(from, to).slice(0, 120).trim() || null : null;
+    const range = selection ? { start: from, end: to } : null;
     let heading: string | null = null;
     if (!selection) {
       const line = doc.slice(0, from).split('\n').length - 1;
@@ -748,9 +756,12 @@ export function TextEditor({
       heading = heads.length ? heads[heads.length - 1].text : null;
     }
     setFocusPoint((prev) =>
-      prev.selection === selection && prev.heading === heading
+      prev.selection === selection &&
+      prev.heading === heading &&
+      prev.range?.start === range?.start &&
+      prev.range?.end === range?.end
         ? prev
-        : { selection, heading },
+        : { selection, heading, range },
     );
   }, []);
   const focus = useMemo<SurfaceFocus | null>(() => {
@@ -787,6 +798,36 @@ export function TextEditor({
     };
   }, [focusPoint, path]);
   useDeclareFocus('text', focus);
+
+  // ── ADR-609 D2 — the gesture door this desk never had ─────────────────
+  // The whole SeedTarget protocol (ADR-579 D7) existed and Text produced no
+  // seeds, so its strongest targeting sentence ("that is this turn's target")
+  // was unreachable here: the only way to ask for a change was free prose
+  // over a document the colleague held in full, with a clipped prefix naming
+  // the selection and nothing naming its extent. The door carries the
+  // member's OFFSETS, so the edit lands on exactly what they highlighted.
+  const [seed, setSeed] = useState<{
+    text: string;
+    nonce: number;
+    target?: SeedTarget;
+  } | null>(null);
+  const rewriteSelection = useCallback(() => {
+    if (!focusPoint.selection || !focusPoint.range) return;
+    setSeed((s) => ({
+      text: 'Rewrite the selection: ',
+      nonce: (s?.nonce ?? 0) + 1,
+      target: {
+        verb: 'rewrite',
+        path: relPath(path),
+        blockId: null,
+        label: 'selection',
+        excerpt: focusPoint.selection,
+        pageIndex: null,
+        range: focusPoint.range,
+      },
+    }));
+    setRightTab('chat');
+  }, [focusPoint, path]);
 
   const name = documentName(path);
   // On the single-pane rung the rail becomes a tabbed pane; above it, an
@@ -890,6 +931,21 @@ export function TextEditor({
           }
         >
           <MarkdownToolbar onAction={runAction} />
+          {/* ADR-609 D2 — the gesture door, shown only while a selection is
+              held: the act it names is "rewrite THIS", and without a selection
+              there is no this. Metered (Sparkles, the Studio spelling) because
+              it spends a turn, unlike every deterministic verb beside it. */}
+          {focusPoint.selection && focusPoint.range && (
+            <button
+              type="button"
+              onClick={rewriteSelection}
+              title="Rewrite the selected text — opens the chat with it as the target"
+              className="ml-1 inline-flex shrink-0 items-center gap-1 self-center rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {fullLabels && <span>Rewrite</span>}
+            </button>
+          )}
         </div>
 
         <div
@@ -1325,6 +1381,7 @@ export function TextEditor({
                 artifactWrite="none"
                 onArtifactWrite={() => setReloadKey((n) => n + 1)}
                 suggestions={SUGGESTIONS}
+              composerSeed={seed}
                 emptyState={
                   <div className="space-y-2 text-center text-xs text-muted-foreground">
                     <p className="text-sm font-medium text-foreground/80">Editor is reading this document.</p>

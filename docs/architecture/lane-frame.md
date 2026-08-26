@@ -134,6 +134,13 @@ if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
   server-side.
 - **Focus is never durable, never authority, never a tool argument.** Per-turn;
   the binding decides what a lane may write; ADR-522 §7 stands.
+  **ADR-609 does not breach this**, and the distinction is load-bearing: the
+  ANCHOR the colleague may pass to `EditFile` rides the SEED — the deliberate
+  gesture (ADR-579 D7), stamped on the message row — never the ambient focus
+  declaration. Focus still renders to a sentence and stops there. A screenshot
+  channel was considered for the same problem and REFUSED: pixels are strictly
+  less addressable than the `data-block-id`/offsets the seed already carries,
+  and it would give up citation semantics (ADR-538 D2, one level down).
 
 ## 7. Gates
 
@@ -143,4 +150,5 @@ if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
 | `api/test_adr522_focus_is_threaded_not_closed_over.py` | focus threaded as a parameter, never closed over |
 | `api/test_adr606_pane_sees_the_member.py` | the pane roster + focus-story obligation, the Text declaration wiring |
 | `api/test_adr562_app_owned_config.py` | one registration per app; every app declares resident + posture |
+| `api/test_adr609_anchored_edit.py` | the anchor resolves + CONFINES; the extent on the wire; Text's door; one clip marker |
 | `api/test_adr571_text_app.py` §2 | the registry dispatch mechanism; text's declared posture IS its builder |

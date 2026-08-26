@@ -940,8 +940,15 @@ const POINTER_SCRIPT = `
       // ADR-443 D6: the selection UNIT is the block when one encloses the hit.
       var blk = el.closest ? el.closest('[data-block]') : null;
       mark = blk || el;
-      var text = (el.getAttribute('alt') || el.textContent || '')
-        .replace(/\\s+/g, ' ').trim().slice(0, 120);
+      // ADR-609 D4 — mark the clip at SOURCE. This 120-char bound and the
+      // server's 80-char one used to compound: a 90-char block arrived
+      // already silently shortened, then got the honest "…" applied to the
+      // ALREADY-shortened string, so the marker described the second cut and
+      // hid the first. The block's real extent travels as its id (the
+      // anchor); this text only has to name it, and say when it is partial.
+      var rawText = (el.getAttribute('alt') || el.textContent || '')
+        .replace(/\\s+/g, ' ').trim();
+      var text = rawText.length > 120 ? rawText.slice(0, 120) + '…' : rawText;
       var blkKind = blk ? (blk.getAttribute('data-block') || null) : null;
       payload = {
         type: 'yarnnn-point',

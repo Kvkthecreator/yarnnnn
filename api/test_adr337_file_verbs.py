@@ -127,8 +127,18 @@ edit_tool = next(t for t in CHAT_PRIMITIVES if t["name"] == "EditFile")
 props = edit_tool["input_schema"]["properties"]
 check(
     "EditFile schema is the Claude Code Edit contract (borrowed prior)",
-    all(k in props for k in ("path", "old_string", "new_string", "replace_all"))
-    and edit_tool["input_schema"]["required"] == ["path", "old_string", "new_string"],
+    all(k in props for k in ("path", "old_string", "new_string", "replace_all")),
+)
+# ADR-609 D1 AMENDS the required set: `old_string` becomes optional, because an
+# ANCHORED edit may replace the member's selected span WHOLESALE — there is no
+# string to reconstruct in that case, which is the point of the anchor. The
+# borrowed prior is otherwise untouched: unanchored calls still demand
+# old_string (enforced in _apply_edit, driven by test_adr609_anchored_edit.py),
+# so the model's trained shape still works unchanged.
+check(
+    "EditFile requires path + new_string; old_string is anchor-optional (ADR-609)",
+    edit_tool["input_schema"]["required"] == ["path", "new_string"]
+    and "anchor" in props,
 )
 
 search_tool = next(t for t in CHAT_PRIMITIVES if t["name"] == "SearchFiles")

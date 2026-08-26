@@ -129,6 +129,14 @@ class LaneFocus(BaseModel):
     viewport_page_index: Optional[int] = None
 
 
+class LaneSeedRange(BaseModel):
+    """Half-open source offsets `[start, end)` — what the prose canvas
+    reported when the member selected (ADR-609 D2)."""
+
+    start: int
+    end: int
+
+
 class LaneSeed(BaseModel):
     """ADR-579 D7 — the gesture this turn carries: what the member CLICKED.
 
@@ -147,6 +155,11 @@ class LaneSeed(BaseModel):
     label: Optional[str] = None
     excerpt: Optional[str] = None
     page_index: Optional[int] = None
+    # ADR-609 D2 — the selection's EXTENT (prose only). `excerpt` is a clipped
+    # PREFIX by design; it names the target but cannot say where it ends.
+    # A Slides gesture carries `block_id` instead — the same address, in the
+    # medium that has one.
+    range: Optional[LaneSeedRange] = None
 
 
 class LaneTurnRequest(BaseModel):

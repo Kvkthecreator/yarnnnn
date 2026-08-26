@@ -118,7 +118,7 @@ Verbs: `ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile` (ADR-337 wo
 |---|---|---|
 | `Read` | `ReadFile` | — |
 | `Write` | `WriteFile` | every write is an attributed revision (ADR-209) |
-| `Edit` | `EditFile` | identical contract (`old_string`/`new_string`/`replace_all`); may not empty a file |
+| `Edit` | `EditFile` | same contract (`old_string`/`new_string`/`replace_all`); may not empty a file. **ADR-609 adds an optional `anchor`** — `{block_id}` (HTML artifacts) or `{start, end}` source offsets (prose) — which CONFINES the edit to the member's selected span; with no `old_string` the span is replaced wholesale. Unanchored calls are byte-identical to the borrowed prior. |
 | `rm` | `DeleteFile` | view-only removal — tombstone revision; chain retained; restore = revert-as-write |
 | `mv` | `MoveFile` | one attributed operation; refuses destination overwrite; both paths lock-checked |
 | Put Back | `Restore` | one verb, both grains — a single trashed file, or a folder trashed as a unit (resolved from `trashed_with`, never from the caller) |

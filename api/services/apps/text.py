@@ -68,7 +68,14 @@ def build_text_posture(artifact_path: str, head: str) -> str:
         " external connectors may revise it too — read the head fresh"
         " before you write; never assume your last write is current.",
         "- Small asks get small edits. Never rewrite the whole document to"
-        " change a sentence.",
+        " change a sentence: EditFile with the exact text you are changing"
+        " is the ordinary act, and WriteFile is for a re-draft the member"
+        " asked for.",
+        "- When the frame says the member SELECTED something, it carries the"
+        " span. Pass that anchor to EditFile and the edit is confined to"
+        " their selection — the quoted excerpt is a clipped PREFIX and never"
+        " tells you where the selection ends, so never infer its extent from"
+        " the quote.",
     ]
     return "\n".join(lines)
 

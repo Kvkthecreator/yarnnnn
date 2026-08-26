@@ -2582,7 +2582,11 @@ and revise THAT artifact; the member sees it re-render beside this chat after
 every write.
 {outline_section}
 - PATCH, don't rewrite: prefer EditFile with exact old/new fragments for
-  changes; reserve WriteFile (full replace) for re-drafts the member
+  changes. When the frame names a BLOCK the member selected, pass
+  anchor={{'block_id': '<id>'}} to EditFile — the edit is then confined to that
+  block, so the same words elsewhere in the artifact are neither a collision
+  nor a casualty, and omitting old_string replaces the block as a whole.
+  Reserve WriteFile (full replace) for re-drafts the member
   explicitly asks for — and for FIRST COMPOSITION onto a fresh scaffold,
   where one WriteFile carrying the complete document is honest (a compose is
   a re-draft of placeholder content; send the FULL content in that same
@@ -2963,7 +2967,15 @@ def build_focus_line(
         # selection "cuts off right after 'first it'", asserting the clip
         # boundary as a fact about the document. An ellipsis makes the excerpt
         # honest about being one.
-        suffix = "…" if len(text.strip()) > len(clipped) else ""
+        # ADR-609 D4 — one marker, never two. The capture side now marks its
+        # own clip, so a string arriving as "…" is ALREADY known-partial and
+        # appending a second ellipsis would describe this cut while implying
+        # the text ended at the previous one.
+        suffix = (
+            ""
+            if clipped.endswith("…")
+            else "…" if len(text.strip()) > len(clipped) else ""
+        )
         return f' — "{clipped}{suffix}"'
 
     if scope == "block":
