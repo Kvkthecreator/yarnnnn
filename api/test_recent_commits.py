@@ -453,15 +453,17 @@ def test_manage_recurrence_tool_schema():
     record("ManageRecurrence has domain field (accumulation)", "domain" in props)
 
 
-def test_manage_agent_action_enum_no_create():
-    """ADR-235 D2: ManageAgent action enum drops 'create'."""
-    from services.primitives.coordinator import MANAGE_AGENT_TOOL
+def test_manage_agent_primitive_deleted():
+    """ADR-235 D2, re-anchored 2026-08-26: the ManageAgent primitive is DELETED
+    with the pre-ADR-596 agent model, which subsumes D2's enum narrowing."""
+    import importlib
 
-    actions = MANAGE_AGENT_TOOL["input_schema"]["properties"]["action"]["enum"]
-    record("ManageAgent does NOT have 'create' action",
-           "create" not in actions)
-    record("ManageAgent has 4 lifecycle actions",
-           set(actions) == {"update", "pause", "resume", "archive"})
+    try:
+        importlib.import_module("services.primitives.coordinator")
+        gone = False
+    except ModuleNotFoundError:
+        gone = True
+    record("ManageAgent primitive module is deleted", gone)
 
 
 def test_manage_recurrence_routing():
@@ -677,7 +679,7 @@ def main():
             test_infer_workspace_removed,
             test_write_file_workspace_scope,
             test_manage_recurrence_tool_schema,
-            test_manage_agent_action_enum_no_create,
+            test_manage_agent_primitive_deleted,
             test_manage_recurrence_routing,
             test_get_tools_for_mode,
             test_headless_executor_blocks_chat_only_tools,

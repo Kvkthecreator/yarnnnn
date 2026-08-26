@@ -17,27 +17,6 @@
  * itself encodes whether the work is repeatable.
  */
 
-import type { Recurrence } from '@/types';
-
-export type CadenceCategory = 'recurring' | 'reactive';
-
-/** Section render order on /schedule. */
-export const CADENCE_ORDER: readonly CadenceCategory[] = [
-  'recurring',
-  'reactive',
-] as const;
-
-export const CADENCE_LABELS: Record<CadenceCategory, { title: string; description: string }> = {
-  recurring: {
-    title: 'Recurring',
-    description: 'Runs on a cadence (daily, weekly, custom).',
-  },
-  reactive: {
-    title: 'Reactive',
-    description: 'Runs when something happens — you ask, a decision comes in, or a scheduled prompt calls for it.',
-  },
-};
-
 /**
  * Schedule shape accepted across the FE — single string, list of strings,
  * or null/undefined. Per ADR-268, list-form represents multiple fires per
@@ -70,11 +49,6 @@ function _firstScheduleString(schedule: ScheduleValue): string | null {
  * and the section on /schedule stay in agreement.
  * ADR-268: handles both string and list-of-strings.
  */
-export function cadenceCategory(recurrence: Recurrence): CadenceCategory {
-  const first = _firstScheduleString(recurrence.schedule)?.toLowerCase();
-  if (first && first !== 'on-demand') return 'recurring';
-  return 'reactive';
-}
 
 /**
  * Humanize a schedule string for display in list rows.

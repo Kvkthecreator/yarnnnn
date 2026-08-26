@@ -8,7 +8,7 @@ Single source of truth for creating agents. Called by:
 
 Replaces the duplicated logic that was in:
 - primitives/write.py (_process_agent)
-- primitives/coordinator.py (handle_create_agent)
+- (was primitives/coordinator.py — ManageAgent deleted 2026-08-26)
 """
 
 from __future__ import annotations

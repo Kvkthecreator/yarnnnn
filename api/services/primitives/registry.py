@@ -29,7 +29,6 @@ from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 # ADR-568 D3: the second kernel-resolved capability (see capabilities.py).
 from .generate_image import GENERATE_IMAGE_TOOL, handle_generate_image
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
-from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
 # ADR-231 Phase 3.7: ManageTask DELETED. Lifecycle dissolves into
 # UpdateContext(target='recurrence', ...) and FireInvocation per D5.
 from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
@@ -324,9 +323,9 @@ CHAT_PRIMITIVES = [
     # removed INFER_WORKSPACE_TOOL.)
     # ADR-155: Domain scaffolding (TP-driven)
     MANAGE_DOMAINS_TOOL,
-    # Agent lifecycle (1, was 2 pre-ADR-231; ADR-235 D2: action enum drops 'create').
-    # No chat-surface pathway for creating user-authored Agents — see ADR-235 R4.
-    MANAGE_AGENT_TOOL,
+    # ManageAgent DELETED 2026-08-26 with the pre-ADR-596 agent model: it wrote
+    # to the `agents` table, which production held EMPTY, for a concept an agent
+    # is no longer (a BEING is a registry row, not a DB row — ADR-596/600).
     # ADR-235 D1.c: ManageRecurrence — recurrence-declaration lifecycle.
     # Mirrors ManageAgent / ManageDomains shape.
     SCHEDULE_TOOL,
@@ -389,8 +388,7 @@ HEADLESS_PRIMITIVES = [
     # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
     READ_AGENT_FILE_TOOL,
-    # Lifecycle (ADR-235 D2: ManageAgent action enum drops 'create' — chat parity)
-    MANAGE_AGENT_TOOL,
+    # ManageAgent DELETED 2026-08-26 (see the chat roster above).
     # ADR-235 D1.c: ManageRecurrence — agents may pause/resume/update their
     # own declarations on outcome signals. Chat parity.
     SCHEDULE_TOOL,
@@ -565,7 +563,6 @@ HANDLERS: dict[str, Callable] = {
     "GetSystemState": handle_get_system_state,
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
-    "ManageAgent": handle_manage_agent,
     # "CreateTask": DELETED (ADR-168 Commit 3 — folded into ManageTask action="create")
     # "ManageTask": DELETED (ADR-231 Phase 3.7 — replaced by ManageRecurrence + FireInvocation per D5)
     # "UpdateContext": DELETED (ADR-235 — dissolved into InferContext / InferWorkspace / ManageRecurrence / WriteFile scope='workspace')

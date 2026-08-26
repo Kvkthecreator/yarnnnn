@@ -73,7 +73,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import images, memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions
+from routes import images, memory, feed, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions
 
 app = FastAPI(
     title="YARNNN API",
@@ -197,8 +197,14 @@ app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 app.include_router(subscription.router, prefix="/api", tags=["subscription"])
 app.include_router(subscription.webhook_router, prefix="/api", tags=["subscription-webhooks"])
 
-# Agents routes (ADR-018)
-app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
+# routes/agents.py DELETED (2026-08-26). It served the pre-ADR-596 agent model
+# — ADR-109's Scope x Role x Trigger over the `agents` + `agent_runs` tables —
+# and by the time it was removed production held 0 rows in both, with 0 callers
+# for all 12 endpoints. What an agent IS now is a BEING (ADR-596), one row in
+# `services/agents_registry.AGENTS`, served to the /agents surface by
+# `routes/lanes.py::_beings_payload`. Two models for one word is the ambiguity
+# Singular Implementation exists to prevent; the retired one is gone, not
+# shimmed. Gate: test_adr272_identity_collapse.py::test_legacy_agents_router_deleted.
 
 # Account management routes (Danger Zone)
 app.include_router(account.router, prefix="/api", tags=["account"])

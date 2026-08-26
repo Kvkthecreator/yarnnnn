@@ -10,7 +10,6 @@ import React, { createContext, useContext, useReducer, useCallback, useRef, useS
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotification, mapToolActionToSurface, DeskSurface, Todo, MessageBlock, SystemCardType } from '@/types/desk';
-import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
 import type { FocusWire } from '@/lib/shell/useSurfaceFocus';
@@ -165,7 +164,6 @@ interface NarrativeContextValue {
   error: string | null;
   pendingClarification: ClarificationRequest | null;
   status: TPStatus;  // Real-time status for UI
-  setupConfirmModal: { open: boolean; data: SetupConfirmData | null };  // Setup confirmation modal state
   tokenUsage: TokenUsage | null;  // Current turn's token usage
 
   // ADR-025: Todo tracking state
@@ -204,7 +202,6 @@ interface NarrativeContextValue {
   clearMessages: () => void;
   clearClarification: () => void;
   respondToClarification: (answer: string) => void;
-  closeSetupConfirmModal: () => void;
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
   /** ADR-087 Phase 3 / ADR-138: Load history scoped to agent, task, or global */
   loadScopedHistory: (agentId?: string, taskSlug?: string) => Promise<void>;
@@ -227,10 +224,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
   const [state, dispatch] = useReducer(tpReducer, initialState);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
   const [status, setStatus] = useState<TPStatus>({ type: 'idle' });
-  const [setupConfirmModal, setSetupConfirmModal] = useState<{ open: boolean; data: SetupConfirmData | null }>({
-    open: false,
-    data: null,
-  });
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   // ADR-399 stop fix: first Stop press = cooperative (server flag, stream
@@ -829,10 +822,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   setPendingClarification({ question, options });
                   setStatus({ type: 'clarify', question, options });
                   updateStreamingMessage();
-                } else if (action.type === 'SHOW_SETUP_CONFIRM') {
-                  const setupData = action.data as unknown as SetupConfirmData;
-                  setSetupConfirmModal({ open: true, data: setupData });
-                  setStatus({ type: 'complete', message: 'Agent created' });
                 } else if (action.type === 'NAVIGATE') {
                   // ADR-144: Navigation links shown inline on tool call result.
                   // No auto-redirect — user clicks the "View →" link when ready.
@@ -1172,12 +1161,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
   }, [sendMessage]);
 
   // ---------------------------------------------------------------------------
-  // Close setup confirmation modal
-  // ---------------------------------------------------------------------------
-  const closeSetupConfirmModal = useCallback(() => {
-    setSetupConfirmModal({ open: false, data: null });
-  }, []);
-
   // ---------------------------------------------------------------------------
   // ADR-025: Work panel expansion control
   // ---------------------------------------------------------------------------
@@ -1200,7 +1183,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
     error: state.error,
     pendingClarification,
     status,
-    setupConfirmModal,
     tokenUsage,
     // ADR-025: Todo tracking state
     todos: state.todos,
@@ -1218,7 +1200,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
     clearMessages,
     clearClarification,
     respondToClarification,
-    closeSetupConfirmModal,
     onSurfaceChange,
     loadScopedHistory,
   };

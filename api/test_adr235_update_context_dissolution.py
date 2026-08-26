@@ -207,52 +207,40 @@ def test_mcp_composition_dispatch_routes_through_new_primitives():
 # ---------------------------------------------------------------------------
 
 
-def test_manage_agent_action_enum_no_create():
-    from services.primitives.coordinator import MANAGE_AGENT_TOOL
-    actions = MANAGE_AGENT_TOOL["input_schema"]["properties"]["action"]["enum"]
-    expected = {"update", "pause", "resume", "archive"}
+def test_manage_agent_primitive_deleted():
+    """ADR-235 D2 re-anchored 2026-08-26. D2 narrowed ManageAgent's action enum
+    (dropping 'create') because there must be no chat pathway for creating
+    user-authored Agents. The PRIMITIVE is now deleted outright with the
+    pre-ADR-596 agent model, which subsumes the narrowing: an enum cannot offer
+    'create' when the tool does not exist. Assert the deletion — it is the
+    stronger claim and the one that stays true.
+    """
+    import importlib
+    from pathlib import Path
+
+    gone = not (REPO_API / "services" / "primitives" / "coordinator.py").exists()
     record(
-        "test_manage_agent_action_enum_no_create",
-        set(actions) == expected,
-        f"actions={sorted(actions)} expected={sorted(expected)}",
+        "test_manage_agent_primitive_deleted",
+        gone,
+        "services/primitives/coordinator.py absent",
     )
-
-
-def test_agent_creation_record_still_importable():
-    """Service code preserved for kernel/signup path."""
     try:
-        from services.agent_creation import create_agent_record
-        ok = callable(create_agent_record)
-    except Exception as e:
-        ok = False
-        detail = f"import failed: {e}"
-    else:
-        detail = "create_agent_record callable"
-    record("test_agent_creation_record_still_importable", ok, detail)
-
-
-def test_manage_agent_create_returns_disabled_error():
-    """ADR-235 D2: LLM-facing handler returns explicit error on action='create'."""
-    import asyncio
-    from services.primitives.coordinator import handle_manage_agent
-
-    async def _run():
-        return await handle_manage_agent(None, {"action": "create", "title": "X", "role": "writer"})
-
-    try:
-        result = asyncio.get_event_loop().run_until_complete(_run())
-    except RuntimeError:
-        # If no running loop, create one
-        result = asyncio.new_event_loop().run_until_complete(_run())
-
-    ok = (
-        result.get("success") is False
-        and result.get("error") == "create_action_disabled"
-    )
+        importlib.import_module("services.primitives.coordinator")
+        importable = True
+    except ModuleNotFoundError:
+        importable = False
     record(
-        "test_manage_agent_create_returns_disabled_error",
-        ok,
-        f"result={result}",
+        "coordinator module not importable",
+        not importable,
+        "ModuleNotFoundError as expected" if not importable else "STILL IMPORTABLE",
+    )
+    # And it is off both tool rosters + the dispatch map.
+    reg = (REPO_API / "services" / "primitives" / "registry.py").read_text()
+    record(
+        "registry carries no ManageAgent handler",
+        '"ManageAgent": handle_manage_agent' not in reg
+        and "MANAGE_AGENT_TOOL," not in reg,
+        "no MANAGE_AGENT_TOOL entry, no handler mapping",
     )
 
 
@@ -411,9 +399,7 @@ def main():
         test_writefile_activity_classifier,
         test_mcp_composition_dispatch_routes_through_new_primitives,
         # D2
-        test_manage_agent_action_enum_no_create,
-        test_agent_creation_record_still_importable,
-        test_manage_agent_create_returns_disabled_error,
+        test_manage_agent_primitive_deleted,
         test_chat_prompts_no_manage_agent_create,
         # D3
         test_no_live_updatecontext_invocations_in_code,

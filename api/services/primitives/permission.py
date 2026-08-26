@@ -149,6 +149,11 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     "Restore",
     "Schedule",
     "ManageHook",
+    # ManageAgent's PRIMITIVE was deleted 2026-08-26 with the pre-ADR-596 agent
+    # model. The NAME stays on this list deliberately: the gate is keyed by name
+    # and fails CLOSED, so a stale or resurrected caller is queued rather than
+    # silently applied. A name costs nothing here; removing it is the only edit
+    # that could ever make this list more permissive.
     "ManageAgent",
     "ManageDomains",
     # ADR-325: Embed is consequential + autonomy-governed (the autonomy mode IS

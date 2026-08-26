@@ -9,7 +9,7 @@ Scoping: Two-tier (ADR-129) — workspace-level macro + project-level micro via 
 
 Write points (all non-fatal — callers continue regardless of log failure):
   - invocation_dispatcher.py: invocation lifecycle events (ADR-231 successor to task_pipeline)
-  - routes/agents.py: 'agent_approved' / 'agent_rejected' on version status change
+  - (was routes/agents.py: 'agent_approved'/'agent_rejected' — router deleted 2026-08-26)
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - chat.py: 'chat_session' when session ends
   - unified_scheduler.py: 'scheduler_heartbeat' on hourly heartbeat writes

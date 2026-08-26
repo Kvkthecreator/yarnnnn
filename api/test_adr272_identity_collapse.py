@@ -277,25 +277,35 @@ def test_reviewer_prompt_defaults_to_inline():
     )
 
 
-def test_list_agents_filters_orchestration_row():
-    """ADR-272 D1 + D7 (Phase 2 BE): the orchestration LLM identity row
-    (role='thinking_partner') is filtered out of /api/agents responses.
-    The FE never sees it; System Agent no longer surfaces as a peer entity.
-    Asserts by source-text inspection (no live DB call needed).
+def test_legacy_agents_router_deleted():
+    """ADR-272 D7, re-anchored 2026-08-26: the orchestration LLM identity row
+    was filtered out of /api/agents responses. That router is now DELETED in
+    full (the pre-ADR-596 Scope x Role x Trigger model: 0 rows and 0 callers in
+    production), which subsumes the filter — there is no response left to leak
+    into. Asserting the DELETION rather than the filter is the stronger claim,
+    and it is the one that stays true.
     """
-    import inspect
-    from routes.agents import list_agents
-    source = inspect.getsource(list_agents)
-    # The filter expression should EXCLUDE thinking_partner explicitly
+    import os
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
     assert_true(
-        'a.get("role") != "thinking_partner"' in source,
-        "list_agents filter excludes role='thinking_partner' (ADR-272 D7)",
+        not (root / "routes" / "agents.py").exists(),
+        "routes/agents.py is deleted (the retired agent model has no router)",
     )
-    # And should NOT preserve thinking_partner via the legacy ADR-214 carve-out
-    legacy_carveout = 'a.get("origin") != "system_bootstrap" or a.get("role") == "thinking_partner"'
+    # And nothing mounts it. A stale `include_router` would be an ImportError
+    # at boot, but a stale import line in the `from routes import ...` tuple is
+    # the failure that actually happened before — so pin the mount too.
+    main_src = (root / "main.py").read_text()
     assert_true(
-        legacy_carveout not in source,
-        "legacy ADR-214 carve-out (thinking_partner kept regardless of origin) removed",
+        "agents.router" not in main_src,
+        "main.py mounts no agents router",
+    )
+    # `thinking_partner` was the row the filter existed for. It must not come
+    # back through any other door.
+    assert_true(
+        "thinking_partner" not in main_src,
+        "main.py carries no thinking_partner carve-out",
     )
 
 
@@ -326,7 +336,7 @@ def main():
         test_falsify_signals_recurrence_deleted,
         test_dispatch_specialist_primitive_preserved,
         test_dispatch_specialist_tool_enum_narrowed,
-        test_list_agents_filters_orchestration_row,
+        test_legacy_agents_router_deleted,
         test_reviewer_prompt_defaults_to_inline,
         test_record_task_run_preserves_activation_arming_on_capability_missing,
     ]

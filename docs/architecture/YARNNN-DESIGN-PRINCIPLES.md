@@ -69,7 +69,7 @@ YARNNN is the intelligence layer. It reads context, assesses state, and makes ju
 - Rich context (working memory, WORKSPACE.md, workspace_state, navigation state)
 - Clear priorities (identity before brand before tasks)
 - Behavioral philosophy (one thing at a time, act then adjust, don't overwhelm)
-- Tools to act (UpdateContext, ManageTask, ManageAgent, ManageDomains, etc.)
+- Tools to act (Schedule, ManageHook, ManageDomains, the file family, etc.)
 
 **We do NOT give YARNNN:**
 - State machines ("IF identity == empty THEN only suggest identity")
@@ -87,7 +87,7 @@ YARNNN is the intelligence layer. It reads context, assesses state, and makes ju
 YARNNN manages what's in the workspace filesystem. Every primitive is a filesystem write with judgment about what to write and where.
 
 - Reads: working memory, WORKSPACE.md, workspace_state, navigation context
-- Writes: UpdateContext (identity/brand/memory/agent/task/awareness), ManageTask (create/trigger/update/evaluate/steer/complete), ManageAgent, ManageDomains
+- Writes: WriteFile (scope="workspace"), Schedule, ManageHook, ManageDomains
 - Routes feedback to the right scope (workspace / agent / task)
 - Scaffolds context domains: after processing identity, YARNNN reasons about what entities should exist and calls ManageDomains to pre-populate (ADR-155). No separate inference service — YARNNN IS the inference layer.
 

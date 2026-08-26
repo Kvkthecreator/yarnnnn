@@ -45,7 +45,6 @@ import {
   SurfacePreferencesProvider,
   useSurfacePreferences,
 } from '@/lib/shell/useSurfacePreferences';
-import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -254,21 +253,6 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
         <ShellCompositor>{children}</ShellCompositor>
       </div>
 
-      {/* Setup Confirmation Modal - rendered inside NarrativeProvider */}
-      <SetupConfirmModalWrapper />
     </NarrativeProvider>
-  );
-}
-
-// Separate component to access NarrativeContext inside NarrativeProvider
-function SetupConfirmModalWrapper() {
-  const { setupConfirmModal, closeSetupConfirmModal } = useNarrative();
-
-  return (
-    <SetupConfirmModal
-      open={setupConfirmModal.open}
-      data={setupConfirmModal.data}
-      onClose={closeSetupConfirmModal}
-    />
   );
 }

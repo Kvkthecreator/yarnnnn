@@ -21,23 +21,10 @@ import type {
   CheckoutResponse,
   PortalResponse,
   CancelResponse,
-  Agent,
-  AgentCreate,
-  AgentUpdate,
-  AgentDetail,
-  AgentRun,
-  VersionUpdate,
-  AgentRunResponse,
   // ADR-034: Context Domains
   ContextDomainSummary,
   ContextDomainDetail,
   ActiveDomainResponse,
-  // ADR-119 Phase 4b: Output manifest (agent outputs)
-  OutputManifest,
-  // ADR-231: Recurrences (post-cutover; replaces ADR-138 Tasks naming)
-  Recurrence,
-  RecurrenceDetail,
-  RecurrenceOutput,
   // ADR-231 D5 + ADR-235 D1.c: TaskCreate / TaskType / TaskTypesResponse
   // DELETED. Recurrence creation flows through ManageRecurrence(action='create');
   // the registry catalog is dissolved.
@@ -48,7 +35,6 @@ import type {
   WorkspaceFile,
   WorkspaceFileWithRevision,
   // ADR-219 Commit 4: narrative filter-over-substrate
-  NarrativeByTaskResponse,
   // ADR-250: per-invocation execution log
   ExecutionEvent,
 } from "@/types";
@@ -1455,129 +1441,13 @@ export const api = {
     },
   },
 
-  // ADR-018: Agents endpoints
-  agents: {
-    // List user's agents
-    list: (status?: string) => {
-      const params = status ? `?status=${status}` : "";
-      return request<Agent[]>(`/api/agents${params}`);
-    },
+  // The `agents` client block is DELETED (2026-08-26). It called the
+  // pre-ADR-596 agent model at /api/agents — ADR-109 Scope x Role x Trigger
+  // over the `agents` + `agent_runs` tables. Both tables were EMPTY in
+  // production and every method here had ZERO call sites. The router is
+  // deleted server-side; what an agent IS now is a BEING, served on the lane
+  // envelope as `beings` and rendered by components/agents/AgentsSurface.tsx.
 
-    // ADR-251 D5 (reframed 2026-05-08): Reviewer supervision surface —
-    // recent runs (liveness), recent autonomous actions (history), and
-    // upcoming scheduled fires. Reviewer-specific by intent.
-    reviewerActivity: () =>
-      request<{
-        runs: Array<{
-          slug: string;
-          status: string;
-          created_at: string;
-          error_reason: string | null;
-          duration_ms: number | null;
-        }>;
-        actions: Array<{
-          id: string;
-          // ADR-307: generic queue shape.
-          primitive: string;
-          family: "capital" | "substrate";
-          decision_context: Record<string, unknown> | null;
-          status: string;
-          approved_at: string | null;
-          executed_at: string | null;
-          approved_by: string | null;
-          source: string | null;
-          created_at: string;
-        }>;
-        schedules: Array<{
-          slug: string;
-          display_name: string;
-          schedule: string | null;
-          paused: boolean;
-          next_fires_at: string | null;
-        }>;
-        window_days: number;
-      }>("/api/agents/freddie/activity"),
-
-    // ADR-426 amendment (2026-07-09): reviewerCapabilities() removed. The
-    // Capabilities pane read /workspace/operation/specs/ (a hired-agent output-
-    // spec concept, pre-ADR-414); the pane + its /api/agents/freddie/capabilities
-    // route are retired. The system agent's About pane replaced it.
-
-    // Create a new agent
-    create: (data: AgentCreate) =>
-      request<Agent>("/api/agents", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // Get agent with version history
-    get: (agentId: string) =>
-      request<AgentDetail>(`/api/agents/${agentId}`),
-
-    // Update agent settings
-    update: (agentId: string, data: AgentUpdate) =>
-      request<Agent>(`/api/agents/${agentId}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
-
-    // Archive agent
-    delete: (agentId: string) =>
-      request<{ success: boolean; message: string }>(
-        `/api/agents/${agentId}`,
-        { method: "DELETE" }
-      ),
-
-    // Trigger an ad-hoc run
-    run: (agentId: string) =>
-      request<AgentRunResponse>(`/api/agents/${agentId}/run`, {
-        method: "POST",
-      }),
-
-    // List runs for an agent
-    listRuns: (agentId: string, limit?: number) => {
-      const params = limit ? `?limit=${limit}` : "";
-      return request<AgentRun[]>(
-        `/api/agents/${agentId}/runs${params}`
-      );
-    },
-
-    // Get a specific run
-    getRun: (agentId: string, runId: string) =>
-      request<AgentRun>(
-        `/api/agents/${agentId}/runs/${runId}`
-      ),
-
-    // Update version (approve, reject, save edits)
-    updateRun: (
-      agentId: string,
-      runId: string,
-      data: VersionUpdate
-    ) =>
-      request<AgentRun>(
-        `/api/agents/${agentId}/runs/${runId}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(data),
-        }
-      ),
-
-    // ADR-087 Phase 3: Scoped sessions
-    listSessions: (agentId: string, limit?: number) => {
-      const params = limit ? `?limit=${limit}` : "";
-      return request<Array<{ id: string; created_at: string; summary?: string; message_count: number }>>(
-        `/api/agents/${agentId}/sessions${params}`
-      );
-    },
-
-    // ADR-119 P4b: Output folder history
-    getOutputs: (agentId: string, limit?: number) => {
-      const params = limit ? `?limit=${limit}` : "";
-      return request<{ outputs: OutputManifest[]; total: number }>(
-        `/api/agents/${agentId}/outputs${params}`
-      );
-    },
-  },
 
   // ADR-225 + ADR-240: Programs — composition surfaces (ADR-225) +
   // activation lifecycle (ADR-240 FE consumption of ADR-226 backend).

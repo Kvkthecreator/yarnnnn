@@ -51,7 +51,8 @@ export type KernelSurfaceSlug =
   // door (search-only — Spotlight finds the money surfaces again).
   | 'billing'
   | 'usage'
-  | 'autonomy'
+  // 2026-08-26: `autonomy` LEFT the union with the allowlist — it names a
+  // redirect stub, not a surface (no KERNEL_SURFACES row).
   // ADR-348 added the Expected-Output pane. ADR-418 (2026-07-08) made it DORMANT
   // (routeless, off this allowlist) — the output contract is a HIRED agent's
   // concern with no constitution-band door, so its slug leaves the navigable set
@@ -129,7 +130,12 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // ADR-491 D1: `billing` + `usage` join (pane-grade on the workspace door).
   // ADR-518: `docs` joins — the writing app, carved from Studio.
   // ADR-603 D5: `recurrence` + `activity` LEFT (window + Runs lens deleted).
-  'chat', 'text', 'slides', 'images', 'strings', 'billing', 'usage', 'autonomy',
+  // 2026-08-26: `autonomy` LEFT this list. It is a redirect stub (→
+  // /workspace-settings) with NO row in KERNEL_SURFACES, so it was a phantom
+  // slug driving SURFACE_PREFIXES — protecting its route by accident rather
+  // than by declaration. It is hand-listed in middleware's stub block, where
+  // every other row-less stub lives.
+  'chat', 'text', 'slides', 'images', 'strings', 'billing', 'usage',
   'files', 'agents', 'queue', 'notifications',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).

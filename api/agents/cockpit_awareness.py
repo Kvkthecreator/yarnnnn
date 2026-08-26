@@ -74,7 +74,7 @@ def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
     lines.append(
         "**Not in your curated tool surface** (per ADR-258 revised — the "
         "FREDDIE_PRIMITIVES subset of CHAT_PRIMITIVES is curated for the "
-        "judgment-seat role): ManageDomains, ManageAgent, "
+        "judgment-seat role): ManageDomains, "
         "EditEntity, "
         "ExecuteProposal, RejectProposal. These shape orchestration / agent "
         "scaffolding — not authority-escalation gates. "

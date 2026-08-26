@@ -368,6 +368,10 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
                 if name in (
                     "ManageDomains",
                     "ManageRecurrence",
+                    # ManageAgent's primitive is deleted (2026-08-26), but this
+                    # list renders HISTORICAL tool_history rows — a past turn
+                    # that called it must still summarize. Same reason the
+                    # ManageRecurrence labels survived ADR-603 D5.
                     "ManageAgent",
                     "WriteFile",
                 ):

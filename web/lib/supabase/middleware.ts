@@ -42,6 +42,11 @@ import { KERNEL_SURFACE_SLUGS } from "@/types/desk";
 // append to. Every surface added since the last person remembered was
 // ungated.
 //
+// NOTE (2026-08-26): the derivation covers slugs that HAVE a surface row. A
+// redirect stub whose slug never had one — or whose row was deleted — is
+// invisible to it and must be hand-listed below. That is not a flaw in the
+// derivation; it is the half it cannot see, and the reason the literals stay.
+//
 // The repair: DERIVE the protected set from the surface roster
 // (KERNEL_SURFACE_SLUGS — the same list the compositor, dock and launcher
 // read), so adding a surface protects it by construction. A hand-kept list
@@ -53,7 +58,6 @@ const SURFACE_PREFIXES = KERNEL_SURFACE_SLUGS.map((slug) => `/${slug}`);
 const LEGACY_AND_STUB_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
   "/setup", // ADR-437 — redirect stub → /chat (the guided first-boot wizard was deleted)
-  "/feed", // redirect stub → /notifications?notifications.pane=understand (the narrative's home; 2026-07-02 ACTIVITY re-scope)
   "/recurrence", // ADR-603 D5 — redirect stub → /notifications (the window is deleted; slug left the roster)
   "/cadence", // redirect stub → /notifications (ADR-603 D5; was → /recurrence)
   "/agents",
@@ -87,6 +91,24 @@ const LEGACY_AND_STUB_PREFIXES = [
   "/chat", // ADR-412 D3 — the Chat surface (lanes workbench), a real authenticated surface
   "/studio", // ADR-599 — redirect stub → /slides (Studio's full evolve; slug left the roster)
   // Legacy routes still protected for redirect stubs
+  // 2026-08-26 — the ADR-592 obligation, discharged for the rows it missed.
+  // Each of these is a live redirect stub under (authenticated) whose slug is
+  // NOT in KERNEL_SURFACE_SLUGS, so SURFACE_PREFIXES did not cover it and the
+  // gate let a logged-out visitor through to a 302. A stub is still an
+  // authenticated destination. Found by diffing the pages on disk against
+  // SURFACE_PREFIXES ∪ this list — the check the roster-derivation cannot make
+  // for slugs that never had a row.
+  "/mandate",         // dormant constitution row (route: "") — stub → /workspace-settings
+  "/principles",      // dormant constitution row (route: "") — stub → /workspace-settings
+  "/identity",        // dormant constitution row (route: "") — stub → /workspace-settings
+  "/expected-output", // ADR-418 dormant row (route: "") — stub → /workspace-settings
+  "/program",         // ADR-432 D2d dormant row (no route key) — stub → /workspace-settings
+  "/budget",          // ADR-491 D3 — pane dissolved into Usage; stub → /workspace-settings
+  "/pace",            // stub → /budget (the pace dial re-homed)
+  "/delegation",      // stub → /autonomy (the witness dial re-homed)
+  "/autonomy",        // ADR-454 D4 — stub → /workspace-settings. Was carried in
+                      // KERNEL_SURFACE_SLUGS despite having NO KERNEL_SURFACES
+                      // row; a stub belongs here, not in the surface roster.
   "/backend",    // ADR-603 D5 — redirect stub → /notifications (was → /activity)
   "/overview",
   "/team",
