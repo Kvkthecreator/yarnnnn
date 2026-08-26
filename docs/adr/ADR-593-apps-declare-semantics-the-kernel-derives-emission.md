@@ -225,8 +225,41 @@ cursor. Remaining Layer-1 work, ordered:
    stored string · mentioning a non-participant OFFERS the add-participant
    drill-in (a wired door; never an auto-invite, never an inert row).
 5. **G5 — open**: verification debt — suppression live-proof; plus the
-   Layer-1 click-pass of G1–G4 (membership row · realtime badge latency ·
-   outsider door · own-chip).
+   remainder of the Layer-1 click-pass (own-chip; and a re-measure of the
+   badge latency after the G3 repair deploys).
+
+**Click-pass results (2026-08-26, two runs against production, rig `bf5b25a9`,
+two principals in isolated contexts).** Both findings are recorded in
+`docs/evaluations/2026-08-26-layer1-membership-click-pass-FINDING.md` and
+`…-layer1-g3-g4-click-pass-FINDING.md`.
+
+- **G1 — CONFIRMED live.** A real member turn persisted with
+  `"mentions": [<principal>]` in its metadata and the recipient's
+  `/api/mentions` served it.
+- **G2 — PASSES both halves**, driven through the real invite → accept
+  lifecycle. The joiner's two PRIOR REVOKED grants and the owner's founding
+  grant all stayed invisible: the two refusals hold against live data, not
+  only in the gate. One defect found and fixed (`40b23da`): self-suppression
+  was claimed in the gate's prose but built only in the bell — the Activity
+  ledger showed a joiner "You joined the workspace". Now suppressed there,
+  scoped to the membership kind so a viewer's own file changes still show.
+- **G3 — FAILED AS SHIPPED; repaired in `a991105`, re-measure OWED.** The
+  bell's socket joined with `apikey` and no `access_token` (`setAuth` called
+  fire-and-forget beside `.subscribe()`), so RLS delivered nothing and the
+  channel was SUBSCRIBED-but-silent. Measured: badge at +10.1s, tracking the
+  API by ~0.9s — the poll floor, not a 750ms-debounced push. The repair
+  sequences the join; a directory-walking gate
+  (`test_realtime_tenants_sequence_auth.py`) then found the identical race in
+  `use-session-messages-realtime` and it is fixed too. **The claim "a mention
+  badges in seconds" is NOT yet proven live** — it is gate-proven only.
+- **G4 — PASSES.** The outsider door opens the real add-participant drill-in
+  (with its "let them read what came before" disclosure); the DM rule reads
+  "a direct chat" as the RECIPIENT. G4(a) (own-chip) not isolated — see G5.
+
+**Found adjacent, fixed in `a991105`:** ADR-499's stale-pin self-heal was dead
+in production — it read `data.detail` while the envelope middleware had moved
+the string to `error.message`, so a re-invited member could not accept their
+invite (the preview 403'd on their own stale pin, with nothing to clear it).
 
 **Out of Layer 1, recorded**: email defaults/digest/push (Layer 2) · `runs`
 email · `@everyone` · tags-as-routing (ADR-405 D5) · per-path subscriptions
