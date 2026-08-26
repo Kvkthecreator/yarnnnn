@@ -1,4 +1,4 @@
-"""ADR-569 gate — Strings: the maintained file, kept by Keeper.
+"""ADR-569 gate — Strings: the maintained file, kept under contract.
 
 Run with:  cd api && python3 test_adr569_strings.py
 (studio/check style — prints ✗ and exits 1 on failure. Script-style: under
@@ -18,11 +18,11 @@ falsified by construction — remove the mechanism and the check goes red:
      refusal into the desk's repair state (cleared by a later success).
   4. POSTURE SELECTION (D6, the ADR-567 D4 mechanism) — build_lane_conventions
      executed two ways: app='strings' → THE STANDING-WORK DESK (role-neutral
-     since ADR-604 — Supervisor speaks, Keeper executes); (app='radar' was
+     since ADR-604/610 — Supervisor both speaks and executes); (app='radar' was
      deleted with the app, ADR-592);
      THE RESEARCHER'S DESK; app-less bound → studio. Extends test_adr567's
      pins, never breaks them.
-  5. THE RESIDENT (ADR-562) — strings registers keeper; keeper resolves as a
+  5. THE RESIDENT (ADR-562) — strings registers supervisor, which resolves as a
      kernel character (a POSTURE over Produce — the closed three-operation
      base roster holds) on a priced engine.
   6. WIRING — the drainer rides the scheduler tick; the routes are mounted;
@@ -274,36 +274,41 @@ check("a handed-in head is DESCRIBED, never re-read (ADR-606 D3)",
       "2 lines" in build_strings_desk_posture(FakeClient({}), "u1", TARGET, "a\nb"))
 
 # ---------------------------------------------------------------------------
-print("5. the resident (ADR-562) — keeper, a posture, priced")
+print("5. the resident (ADR-562) — supervisor, a posture, priced")
 import services.apps  # noqa: F401  (registration side-effect)
 from services.agents_registry import AGENTS
 from services.authoring import resident_for_app, standing_executor_for_app
 from services.strings import resolve_strings_resident
 
-# ADR-604 — the voice/executor split: Supervisor is the desk CONVERSATION,
-# Keeper is the standing EXECUTOR (the runs' model/posture and their face).
+# ADR-604 opened the voice/executor seam; ADR-610 dissolved the executor
+# BEING, so both resolve to Supervisor — and must do so BY DERIVATION (the
+# field undeclared), never by the two being re-merged into one.
 check("strings' desk voice is Supervisor (ADR-604 D1)",
       resident_for_app("strings") == "supervisor")
-check("strings' standing executor is Keeper (ADR-604 D2)",
-      standing_executor_for_app("strings") == "keeper")
-# Re-anchored for ADR-598: keeper is an APP RESIDENT (the strings desk's own
-# voice — on no hire roster), still a stance over Produce; the three-operation
-# base roster stays closed either way.
+check("strings' standing executor derives the resident (ADR-610 D2)",
+      standing_executor_for_app("strings") == "supervisor")
+check("the dissolved `keeper` being is not resurrected (ADR-610 D1)",
+      "keeper" not in AGENTS)
 # Re-anchored for ADR-599: residents are self-contained (no based_on — the
 # base operations are deleted with the colleague roster, which is EMPTY).
-check("keeper is a self-contained APP RESIDENT; the colleague roster is empty",
-      "keeper" in AGENTS
-      and "based_on" not in AGENTS["keeper"]
-      # ADR-600 D2 — Keeper's home is the Strings desk: a being, not a hire.
-      and AGENTS["keeper"].get("offered") is False)
+check("supervisor is a self-contained APP RESIDENT; the colleague roster is empty",
+      "supervisor" in AGENTS
+      and "based_on" not in AGENTS["supervisor"]
+      # ADR-600 D2 — its home is the Strings desk: a being, not a hire.
+      and AGENTS["supervisor"].get("offered") is False)
 r_model, r_posture = resolve_strings_resident()
-check("the EXECUTOR resolves to Keeper's character on a live engine",
-      "Keeper" in r_posture and r_model in LANE_MODELS
+# Identity by IDENTITY, not by a substring of the prose: assert the resolved
+# character IS the register's row, so a reworded posture cannot fail this and
+# a swapped being cannot pass it.
+check("the EXECUTOR resolves to Supervisor's character on a live engine",
+      r_posture == AGENTS["supervisor"]["posture"]
+      and r_model == AGENTS["supervisor"]["model"]
+      and r_model in LANE_MODELS
       and not LANE_MODELS[r_model].get("retired"))
 try:
     from services.model_router import ledger_model_name
     from services.telemetry import has_billing_rate
-    check("Keeper's engine is priced (never routes unpriced)",
+    check("the executor's engine is priced (never routes unpriced)",
           has_billing_rate(ledger_model_name(r_model)))
 except Exception as exc:  # pragma: no cover
     check(f"billing-rate probe ran ({exc})", False)

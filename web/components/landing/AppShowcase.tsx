@@ -48,7 +48,7 @@ const SECTIONS = [
     id: "agents",
     kicker: "Intelligence · Agents",
     title: "Agents ready out of the box.",
-    body: "Every app comes with its own colleague — an editor for your decks and documents, a keeper for the files you want kept current. They work on your files as you, with every edit attributed and kept in the file's history. You meet them where the work is, from the first minute.",
+    body: "Every app comes with its own colleague — an editor for your decks and documents, a supervisor for the files you want kept current on a contract you set. They work on your files as you, with every edit attributed and kept in the file's history. You meet them where the work is, from the first minute.",
     Mock: AgentsReplica,
   },
 ];

@@ -135,8 +135,12 @@ for r in AGENTS.values():
 # ADR-603 — Supervisor joins. The set is pinned deliberately (a new being is
 # an ADR decision, not a drive-by), and it is EDITED here when one lands —
 # which is the point: this line is where the roster's growth gets noticed.
-_check("the expected beings are exactly {designer, editor, keeper, supervisor}",
-       set(AGENTS) == {"designer", "editor", "keeper", "supervisor"})
+_check("the expected beings are exactly {designer, editor, supervisor}",
+       set(AGENTS) == {"designer", "editor", "supervisor"})
+# ADR-610 — `keeper` is DELETED and must not return. Maintenance is the
+# steward's seat (judgment) and daemon work (mechanics); a being for it would
+# be authority on a being, the ADR-460 D3.a cliff.
+_check("the dissolved `keeper` being is not resurrected", "keeper" not in AGENTS)
 # ADR-602 D1/D2 — the craft split, asserted as the RELATION not a spelling.
 _check("Editor serves BOTH authoring desks (slides + text)",
        set(homes_for_agent("editor")) == {"slides", "text"})
@@ -252,7 +256,7 @@ _check("IMAGES is unpromoted today (the fact this derivation reads)",
        _tier.get("images") != "primary")
 _check("Designer waits with its only desk", not is_promoted("designer"))
 _check("Editor is promoted (slides + text are both primary)", is_promoted("editor"))
-_check("Keeper is promoted (strings is primary)", is_promoted("keeper"))
+_check("Supervisor is promoted (strings is primary)", is_promoted("supervisor"))
 # The derivation must FOLLOW the registry, not a copy of it: promoting the app
 # must promote the being with NO edit here. Proven by moving the app's stage.
 #
@@ -281,7 +285,7 @@ _check("promotion never gates resolution (the being still answers)",
 import routes.lanes as _L  # noqa: E402
 _served = {b["slug"] for b in _L._beings_payload()}
 _check("the payload withholds an unpromoted being",
-       "designer" not in _served and {"editor", "keeper"} <= _served)
+       "designer" not in _served and {"editor", "supervisor"} <= _served)
 # Fail CLOSED on the unhoused (ADR-602 D3 as amended 2026-08-24): a NON-offered
 # being with no desk is unreachable everywhere — a deleted app REGISTRATION
 # must withhold its orphaned resident, never leak it onto the pane. An OFFERED
@@ -312,16 +316,27 @@ finally:
 _check("no `supervisor` app survives to serve (ADR-604 D3 — strings is its desk)",
        "supervisor" not in {a["slug"] for a in _L._apps_payload()})
 
-print("8b. the desk's two roles are both served (ADR-604)")
+print("8b. the desk's roles resolve to ONE being (ADR-604 seam, ADR-610 value)")
 _check("supervisor's home is strings — the voice (ADR-604 D1)",
        homes_for_agent("supervisor") == ["strings"])
-_check("keeper's home is strings — the standing executor (ADR-604 D2/D4)",
-       homes_for_agent("keeper") == ["strings"])
-_check("both roles are promoted with the desk",
-       is_promoted("supervisor") and is_promoted("keeper"))
 _served2 = {b["slug"] for b in _L._beings_payload()}
-_check("the beings payload serves BOTH halves of the desk",
-       {"supervisor", "keeper"} <= _served2)
+_check("the desk serves exactly one being", {"supervisor"} <= _served2)
+
+# ADR-610 D2 — the voice/executor SEAM survives its second being's deletion.
+# Undeclared `standing_executor` must derive the resident, which is how every
+# other app has always worked. Asserted by DRIVING the resolver, not by
+# reading the registration: the fallback is the whole mechanism now.
+import services.apps as _apps  # noqa: F401,E402
+from services.authoring import all_apps as _all_apps, standing_executor_for_app  # noqa: E402
+_check("strings declares NO standing_executor (ADR-610 — the being is gone)",
+       not (_all_apps()["strings"].get("standing_executor") or "").strip())
+_check("an undeclared executor derives the resident (the seam still works)",
+       standing_executor_for_app("strings") == "supervisor"
+       and standing_executor_for_app("strings") == _all_apps()["strings"]["resident"])
+# And the strings runtime resolves that same being for its unattended runs.
+from services.strings import resolve_strings_resident  # noqa: E402
+_check("the standing run resolves Supervisor's engine + character",
+       resolve_strings_resident()[1] == AGENTS["supervisor"]["posture"])
 
 print("9. a bound lane names its RESIDENT, not its engine (ADR-602 D5)")
 # The bug: both authoring surfaces resolved the speaker through `agents` (the

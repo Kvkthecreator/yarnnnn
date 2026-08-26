@@ -131,7 +131,7 @@ export function DeskHousing({
   const [apps, setApps] = useState<NonNullable<LanesEnv['apps']>>([]);
   // ADR-602 — the BEINGS roster. `agents` is the HIRE roster (empty since
   // ADR-599), so a resident's name was never found there and this housing
-  // addressed the ENGINE instead of Keeper/Editor.
+  // addressed the ENGINE instead of the desk's colleague.
   const [beings, setBeings] = useState<NonNullable<LanesEnv['beings']>>([]);
   const [models, setModels] = useState<LanesEnv['models']>([]);
   // The NAMING table (every engine, retired included). `models` is the CHOOSER

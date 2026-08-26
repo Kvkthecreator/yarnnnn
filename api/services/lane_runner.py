@@ -1117,7 +1117,7 @@ async def run_lane_turn(
     # rooms, session_id is the conversation id.
     ledger_slug: str = "lane",
     # ADR-567 D4 — the lane's binding app (lane_meta["app"]), selecting the
-    # JOB overlay only (strings → the keeper desk posture). None →
+    # JOB overlay only (strings → the standing-work desk posture). None →
     # byte-identical.
     app: Optional[str] = None,
 ) -> dict:

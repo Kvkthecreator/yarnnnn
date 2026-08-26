@@ -138,7 +138,7 @@ export interface FileVerbs {
    * bundle so one wiring reaches every surface the bundle is threaded to
    * (tree · grid · listing) — the same reason the bundle exists (a second
    * arg per surface would be the ADR-514 D2.6 prop wall again). First
-   * consumer: the Files door into Keeper's desk ("Keep this current…",
+   * consumer: the Files door into the standing-work desk ("Keep this current…",
    * ADR-569 D7 — the gesture lives where the file does; the management
    * does not).
    */

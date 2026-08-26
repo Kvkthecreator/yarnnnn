@@ -2262,7 +2262,11 @@ def register_app(
     model + posture (and wear its face on receipts) while `resident` stays the
     conversation. Undeclared → the resident executes, so every app that does
     not need the split is unchanged by construction. Today exactly one app
-    declares it: strings — Supervisor speaks, Keeper keeps.
+    declares it today: NONE. ADR-610 dissolved the one executor being that
+    filled it (strings → keeper), so strings derives its resident like every
+    other app. The FIELD stays: the seam is real — a being that executed a
+    desk's runs without speaking there would still be met on every receipt —
+    and a mechanism is not wrong because its first filling was.
 
     ``posture`` (ADR-606 D3) — the app's JOB overlay for its bound pane: a
     callable ``(client, user_id, artifact_path, artifact) -> str`` composing

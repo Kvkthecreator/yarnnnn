@@ -360,8 +360,8 @@ async def run_unified_scheduler():
         # ---------------------------------------------------------------------
 
         # ADR-569: the strings lane — maintained files under contract
-        # ({folder}/_string.yaml → the designated leaf, kept current by
-        # Keeper). Sibling to the radar lane, same posture: NOT behind the
+        # ({folder}/_string.yaml → the designated leaf, kept current on its
+        # contract). Sibling to the radar lane, same posture: NOT behind the
         # capture lane's flag (v1 sources are HTTP pull; connector sources
         # read LANDED files), inside AGENT_ENABLED because
         # a prose string's derive is metered judgment spend. Zero strings

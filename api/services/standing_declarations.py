@@ -52,8 +52,9 @@ def resident_for_declaration(app: Optional[str]) -> Optional[str]:
     ADR-604 D2 deepened the derivation by one field: a desk has a VOICE
     (`resident`) and its standing work has an EXECUTOR (`standing_executor`,
     else the resident). "The being that will do this declaration's work" is
-    the EXECUTOR — a declaration on `strings` derives Keeper while the desk's
-    conversation is Supervisor's. The rule itself is unchanged: a declaration
+    the EXECUTOR. ADR-610 dissolved the one being that made these differ, so
+    a declaration on `strings` derives Supervisor — the same being the desk's
+    conversation runs through. The rule itself is unchanged: a declaration
     names the APP, never a being.
 
     Returns None for an unregistered app rather than a plausible default: the

@@ -1,6 +1,6 @@
 # ADR-604: Strings is Supervisor's desk — the voice/executor split
 
-**Status**: Ratified 2026-08-25 (operator thesis, tested and aligned in discourse: *"couldn't we actually just make strings the dedicated app for supervisor … and thus actually push down the designation of tasks, runs to the keeper"*). Implemented same day.
+**Status**: Ratified 2026-08-25 · **D2's executor BEING and D4's two-face pane superseded by [ADR-610](ADR-610-the-keeper-dissolves-into-the-supervisor.md) (2026-08-26)** — the voice/executor *seam* this ADR identified is correct and survives; the second being that filled it is dissolved (maintenance is the steward's seat and daemon work, never a being) (operator thesis, tested and aligned in discourse: *"couldn't we actually just make strings the dedicated app for supervisor … and thus actually push down the designation of tasks, runs to the keeper"*). Implemented same day.
 
 **Builds on**: ADR-596 (beings; authority on grants/declarations/gates) · ADR-597 (resident derived at read time) · ADR-601 (capability at the app; many-to-one) · ADR-603 (the standing declaration; Supervisor). **Supersedes** ADR-603 D4 (the dedicated `supervisor` app — deleted here) and **amends** ADR-603 D3/D6 (the desk arrives now; the kind-machinery generalisation stays gated).
 

@@ -664,8 +664,8 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // with it. The 2026-08-13 lesson it carried still stands for every surface
   // below: an unregistered slug takes the unconstrained miss-case, which reads
   // as permission (the 3f44a8f lesson).
-  // Keeper's desk (ADR-569). `topic` names the string's folder; `target`
-  // carries a designation-in-flight's leaf (the picked file before Keeper's
+  // The standing-work desk (ADR-569). `topic` names the string's folder;
+  // `target` carries a designation-in-flight's leaf (the picked file before the
   // declaration parses — a refresh must not lose it, or the unconfigured
   // desk loses its lane binding). `file` is the delivered Files-association
   // deep-link ("Keep this current…"), consumed into topic/target. Registered
@@ -756,7 +756,7 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // The desk's `topic` is deliberately RESTORED (like `chat.lane` — the desk
   // is a place you live in, and the folder roster sits right beside it); only
   // the delivered Files-association deep-link is an open act, not a posture.
-  // Same rule for Keeper's desk (ADR-569): `topic` + `target` restore (the
+  // Same rule for the standing-work desk (ADR-569): `topic` + `target` restore (the
   // designation-in-flight is a real place — losing `target` on refresh
   // strands the unconfigured desk without its lane); the delivered `file`
   // deep-link is an open act, not a posture.

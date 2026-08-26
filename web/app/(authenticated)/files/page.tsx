@@ -1437,7 +1437,7 @@ export default function ContextPage() {
     // folder INSIDE it. The Explorer "New > Folder" grammar; the canvas menu
     // stays the sibling-level act.
     onNewFolder: (t: { path: string; name: string }) => openNewFolder(t),
-    // ADR-569 D7 — the Files door into Keeper's desk (doors-in-context,
+    // ADR-569 D7 — the Files door into the standing-work desk (doors-in-context,
     // ADR-514: the gesture lives where the file does; the management does
     // not). Offered on designatable files (the v1 md/csv/json/txt scope,
     // machinery leaves excluded) and on folders (the desk asks for the leaf

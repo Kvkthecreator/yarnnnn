@@ -38,7 +38,7 @@ export type KernelSurfaceSlug =
   // separate blogger-app arc); its slug left this union entirely.
   | 'slides'  // ADR-440 Studio → ADR-599 the full evolve: the dedicated deck app
   | 'images'  // ADR-472 — the second authoring app (stages, rendered rasters)
-  | 'strings' // ADR-569 — the maintained file, kept by Keeper (search-only tier)
+  | 'strings' // ADR-569 — the maintained file, kept under contract (search-only tier)
   | 'text'    // ADR-571 — the prose app (md · txt), Editor beside the canvas
   // ADR-603 D5 (2026-08-24): `recurrence` + `activity` LEFT the union — the
   // window and its Runs lens are deleted (retire-clean, 0 live declarations);

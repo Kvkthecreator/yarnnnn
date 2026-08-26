@@ -84,7 +84,7 @@ The connector never knows who reads its files. Current consumers:
 
 | Consumer | Opt-in | What it does |
 |---|---|---|
-| **Strings** (ADR-582 D6 + ADR-594 D2) | a `connector:` source in `_string.yaml` | the run reaches (aperture-intersected, freshness-floored), then Keeper folds the newest landed snapshot into the designated file, citing the landed path |
+| **Strings** (ADR-582 D6 + ADR-594 D2) | a `connector:` source in `_string.yaml` | the run reaches (aperture-intersected, freshness-floored), then the standing run folds the newest landed snapshot into the designated file, citing the landed path |
 | **Agent reach aperture** (ADR-576 D2) | automatic | the github selection bounds which repos platform tools answer about |
 
 The **digest** (ADR-580) is SUPERSEDED (ADR-594 D3): a prose leaf kept

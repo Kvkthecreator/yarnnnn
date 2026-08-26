@@ -9,9 +9,10 @@
  * "Lisa", a Thinker/Researcher/Designer roster — that ADR-599 deleted in
  * full. A replica of a deleted surface is fiction on the homepage.
  *
- * Faithful to the live pane (ADR-600 D6 / ADR-602): beings sectioned by
- * where they live — "In an app" (Editor across the authoring desks, Keeper
- * tending maintained files), the honest "To work with" empty state, and the
+ * Faithful to the live pane (ADR-600 D6 / ADR-602 / ADR-610): beings
+ * sectioned by where they live — "In an app" (Editor across the authoring
+ * desks, Supervisor over standing work), the honest "To work with" empty
+ * state, and the
  * attribution promise footer. Animation: the beings reveal one by one, then
  * the footer — met where they work, not hired.
  */
@@ -30,9 +31,9 @@ const BEINGS = [
     homes: "In Slides, Text",
   },
   {
-    initial: "K",
-    name: "Keeper",
-    blurb: "Keeps chosen files up to date.",
+    initial: "S",
+    name: "Supervisor",
+    blurb: "Looks after standing work — what runs, and when.",
     homes: "In Strings",
   },
 ];

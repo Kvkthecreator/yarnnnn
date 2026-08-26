@@ -72,18 +72,19 @@ from services.apps import text as text  # noqa: F401,E402  (registration side-ef
 
 from services.authoring import register_app as _register_app  # noqa: E402
 
-# strings (ADR-569) — the maintained file, kept by Keeper. Declared here for
-# the same reason as radar's row: `services/strings.py` deliberately carries
-# no module-level `services.*` imports (cycle-free), and every app's residency
-# reads in one list. The resident is IDENTITY only (ADR-562): the engine
-# follows the keeper row in `agents_registry.AGENTS`, never a caller-supplied
-# model.
-# ADR-604 D1/D2 — Strings is SUPERVISOR'S desk: the conversation is about
-# standing work (what runs, on what cadence, to keep what true), which is
-# Supervisor's material. The RUNS stay Keeper's: `standing_executor` names
-# the being whose model + posture the unattended writer resolves and whose
-# face the receipts wear (`system:strings` in Keeper's costume, the ADR-596
-# D1 form — unchanged). One desk, two legible roles.
+# strings (ADR-569) — the maintained file. Declared here for the same reason
+# as radar's row: `services/strings.py` deliberately carries no module-level
+# `services.*` imports (cycle-free), and every app's residency reads in one
+# list. The resident is IDENTITY only (ADR-562): the engine follows the
+# being's row in `agents_registry.AGENTS`, never a caller-supplied model.
+# ADR-604 D1 — Strings is SUPERVISOR'S desk: the conversation is about
+# standing work (what runs, on what cadence, to keep what true).
+# ADR-610 — and the RUNS are Supervisor's too. `standing_executor` is left
+# UNDECLARED, so it derives the resident exactly as every other app does; the
+# `keeper` executor being is dissolved (maintenance is the steward's seat and
+# daemon work, never a being). The field itself survives deliberately — the
+# voice/executor seam is real, and a mechanism is not wrong because its first
+# filling was. One desk, one contract, one name.
 # ADR-606 D3 — the desk's pane job overlay, declared here (not in the kernel
 # chain this door replaced) with a lazy body: `services/strings.py` stays
 # cycle-free of module-level `services.*` imports, so the import happens at
@@ -97,7 +98,6 @@ def _strings_pane_posture(client, user_id, artifact_path, artifact):
 _register_app(
     "strings",
     resident="supervisor",
-    standing_executor="keeper",
     posture=_strings_pane_posture,
 )
 

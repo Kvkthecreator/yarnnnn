@@ -439,7 +439,7 @@ export interface Participant {
 
 // ADR-569 — string shapes (mirror api/routes/strings.py). A STRING is the
 // member's designation of one file as kept current: {folder}/_string.yaml +
-// CONTRACT.md, the designated target leaf revised by Keeper.
+// CONTRACT.md, the designated target leaf revised by the standing run.
 export interface StringSource {
   id: string;
   /** An HTTP pull source. Exactly one of `url` / `connector`+`selector`. */
@@ -704,8 +704,9 @@ export const api = {
     },
   },
 
-  // ADR-569 — strings, the maintained file kept by Keeper. Declarations are
-  // conversational (Keeper authors them through its lane — no create route);
+  // ADR-569 — strings, the maintained file kept under contract. Declarations
+  // are conversational (the desk's colleague authors them through its lane —
+  // no create route);
   // these are the projections the desk reads plus the direct switches.
   strings: {
     list: () => request<StringSummary[]>("/api/strings"),

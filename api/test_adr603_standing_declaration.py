@@ -15,10 +15,10 @@ What this gate holds:
      it holds no primitive that addresses one.
   4. Supervisor is NOT Freddie: no standing intent, no self-wake, no mandate,
      no autonomy dial anywhere on its row.
-  5. Supervisor's desk IS strings (ADR-604 — the dedicated app is deleted):
-     the voice home is supervisor's, the executor home keeper's, both
-     promoted with the desk and both served on the pane, DERIVED
-     (ADR-602 D3 + ADR-604 D4), with no second edit.
+  5. Supervisor's desk IS strings (ADR-604 — the dedicated app is deleted),
+     and since ADR-610 it holds the desk WHOLE: the voice AND the standing
+     executor resolve to one being, promoted with the desk and served on the
+     pane, DERIVED (ADR-602 D3 + ADR-604 D4), with no second edit.
 """
 
 from __future__ import annotations
@@ -50,23 +50,28 @@ def test_the_rule():
     # through the same registry row: unfalsifiable (audited 2026-08-24). A
     # re-pairing is an ADR decision, and this line is where it gets noticed.
     # ADR-604: the supervisor APP is deleted (strings is Supervisor's desk),
-    # and the derivation is EXECUTOR-first — a declaration on strings derives
-    # Keeper (the standing executor) while the desk's VOICE is Supervisor.
+    # and the derivation is EXECUTOR-first. ADR-610 dissolved the executor
+    # BEING, so strings' executor now derives its resident — the rule is
+    # unchanged, only its value moved.
     _RATIFIED = {"slides": "editor", "text": "editor", "images": "designer",
-                 "strings": "keeper"}
+                 "strings": "supervisor"}
     apps = all_apps()
     _assert(set(apps) == set(_RATIFIED),
             f"the registered apps are exactly the ratified set ({sorted(apps)})")
     for slug, want in sorted(_RATIFIED.items()):
         _assert(resident_for_declaration(slug) == want,
                 f"a declaration on '{slug}' derives {want}")
-    # The voice/executor split, asserted BOTH ways (ADR-604 D1/D2): the desk
-    # conversation is Supervisor's; the declaration's work is Keeper's.
-    from services.authoring import resident_for_app
+    # The voice/executor seam, asserted BOTH ways. ADR-610: they resolve to
+    # the SAME being for strings, and that must be because the executor is
+    # UNDECLARED and derives the resident — not because the two were re-merged
+    # into one field. Assert the mechanism, not just the coincidence.
+    from services.authoring import resident_for_app, all_apps as _apps2
     _assert(resident_for_app("strings") == "supervisor",
             "strings' desk VOICE is supervisor (ADR-604 D1)")
-    _assert(resident_for_declaration("strings") == "keeper",
-            "...while a strings declaration's WORK derives keeper (D2)")
+    _assert(resident_for_declaration("strings") == "supervisor",
+            "...and its declaration's WORK derives supervisor too (ADR-610)")
+    _assert(not (_apps2()["strings"].get("standing_executor") or "").strip(),
+            "...by DERIVATION: strings declares no executor (the seam intact)")
     _assert(resident_for_declaration("no-such-app") is None,
             "an unregistered app resolves None, never a plausible default")
     _assert(resident_for_declaration(None) is None, "no app named → no executor")
@@ -168,16 +173,17 @@ def test_desk_is_strings():
 
     _assert(homes_for_agent("supervisor") == ["strings"],
             "supervisor's desk is strings — the voice home")
-    _assert(homes_for_agent("keeper") == ["strings"],
-            "keeper still works at strings — the executor home (ADR-604 D4)")
-    _assert(is_promoted("supervisor") and is_promoted("keeper"),
-            "both roles are promoted with the desk (strings is primary)")
+    from services.agents_registry import AGENTS as _AG
+    _assert("keeper" not in _AG,
+            "the dissolved `keeper` being is not resurrected (ADR-610 D1)")
+    _assert(is_promoted("supervisor"),
+            "the desk's being is promoted with it (strings is primary)")
     _assert(resolve_agent("supervisor") is not None,
             "promotion is presentation — resolution unchanged")
     import routes.lanes as L
     _served = {b["slug"] for b in L._beings_payload()}
-    _assert({"supervisor", "keeper"} <= _served,
-            "the pane serves BOTH halves of the desk (voice + executor)")
+    _assert("supervisor" in _served and "keeper" not in _served,
+            "the pane serves the desk's one being, and not the dissolved one")
 
 if __name__ == "__main__":
     test_the_rule()

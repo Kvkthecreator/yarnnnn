@@ -38,9 +38,8 @@ fact; editability is a policy over it (`assert_editable`).
 HIREABILITY IS A FIELD (ADR-600 D2)
 `offered` answers ONE question: is this being on the roster a member picks
 from? `offered: False` means its home is a desk — met where it works, never
-invited (Editor/authoring · Designer/images · Supervisor/strings-voice ·
-Keeper/strings-executor, ADR-602/604). `offered: True` is a
-colleague; today NOBODY is, per ADR-599 D1, which ADR-600 does not reopen.
+invited (Editor/authoring · Designer/images · Supervisor/strings,
+ADR-602/604/610). `offered: True` is a colleague; today NOBODY is, per ADR-599 D1, which ADR-600 does not reopen.
 `offered` is REACH, never authority — it says who may be invited, never what
 they may do.
 
@@ -54,8 +53,8 @@ row). **A session that adds an authority field to a row here has violated
 ADR-460.** `test_agent_registry.py` is that ratchet.
 
 SLUGS ARE DATA-COMPAT, NOT DISPLAY. `designer` rides ~65 live cast rows and
-lane stamps; `editor`/`keeper` ride live desks. Display names may move; slugs
-must not, or every existing lane orphans.
+lane stamps; `editor`/`supervisor` ride live desks. Display names may move;
+slugs must not, or every existing lane orphans.
 
 History (kept because the derivation is load-bearing): ADR-460 derived a base
 roster from the addressed operations (ACQUIRE → Researcher · REASON → Thinker
@@ -152,8 +151,10 @@ AGENTS: dict[str, dict[str, Any]] = {
     },
     # The coordinator (ADR-603 D3): standing work — what runs, on what
     # cadence, to keep what true. Its MATERIAL is declarations. Its desk is
-    # STRINGS (ADR-604 D1 — the dedicated `supervisor` app is deleted):
-    # Supervisor is the strings conversation; Keeper executes the runs.
+    # STRINGS (ADR-604 D1 — the dedicated `supervisor` app is deleted).
+    # ADR-610: it holds the desk WHOLE — the conversation a member declares a
+    # contract in, and the face on that contract's run receipts. One desk, one
+    # contract, one name; the `keeper` executor being is dissolved.
     #
     # ⚠️ IT AUTHORS DECLARATIONS; IT NEVER COMMANDS BEINGS. Supervisor holds
     # no field and no primitive naming another agent: it writes a declaration
@@ -199,29 +200,12 @@ AGENTS: dict[str, dict[str, Any]] = {
             "kept true beats a daily one nobody reads."
         ),
     },
-    # Strings' STANDING EXECUTOR (ADR-604 D2; was its voice, ADR-569 D6):
-    # keeping a designated file true. Supervisor took the desk conversation;
-    # Keeper's model + posture power the unattended runs and its face is on
-    # every receipt (`system:strings` in Keeper's costume, ADR-596 D1).
-    # Sonnet, deliberately — maintenance is careful work.
-    "keeper": {
-        "slug": "keeper",
-        "name": "Keeper",
-        "offered": False,
-        "kernel": True,
-        "blurb": "Keeps chosen files up to date.",
-        "icon": "archive",
-        "model": "anthropic/claude-sonnet-5",
-        "token_profile": 4096,
-        "posture": (
-            "You are Keeper — the member's custodian of maintained files. "
-            "Fidelity over novelty: a file you keep stays exactly what its "
-            "contract says it is. Preserve the member's own corrections — "
-            "they compound; never invent facts, numbers, or sources; and when "
-            "a source and the contract disagree, say so plainly rather than "
-            "papering over it."
-        ),
-    },
+    # ADR-610 — the `keeper` row was HERE and is DELETED. Maintenance as a
+    # concept did not move onto another being: its judgment half is the
+    # STEWARD's seat (attribution-integrity / commons-coherence, the four-field
+    # rules in orchestration.py) and its mechanical half is DAEMON work
+    # (reclaim_stale_locks, retention, the wake drain). Neither earns a
+    # character row. Do not reintroduce a being for it.
 }
 
 #: The keys a row may carry — identity + character + engine + reach. No
@@ -347,10 +331,10 @@ def homes_for_agent(slug: str) -> list[str]:
     not need editing to know it.
 
     ADR-604 D4 — a desk is served as its VOICE (`resident`) or as its
-    STANDING EXECUTOR (`standing_executor`); both count as working there. A
-    member meets the executor's face on every run receipt, so a pane that
-    listed only voices would assert Keeper stopped existing the day
-    Supervisor took the strings conversation.
+    STANDING EXECUTOR (`standing_executor`); both count as working there. The
+    mechanism stays after ADR-610 even though no app diverges the two today:
+    a being that executed a desk's runs without speaking there would still be
+    met on every receipt, and a pane listing only voices would hide it.
     """
     import services.apps  # noqa: F401  (registration side-effect)
     from services.authoring import all_apps

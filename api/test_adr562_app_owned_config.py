@@ -41,7 +41,8 @@ def check(label: str, ok: bool, detail: str = "") -> None:
 # The package import IS the registration (ADR-562 §2).
 import services.apps  # noqa: E402,F401
 from services.agents_registry import AGENTS  # noqa: E402
-from services.authoring import (  # noqa: E402
+from services.authoring import (
+    standing_executor_for_app,  # noqa: E402
     all_apps,
     register_app,
     resident_for_app,
@@ -77,13 +78,18 @@ check("every live app answers the posture question (ADR-606 D5 — declared, "
       "never defaulted by silence)",
       all(callable(row["posture"]) for row in APPS.values()),
       f"missing={ [k for k, v in APPS.items() if not callable(v['posture'])] }")
-# ADR-604 D2 — the voice/executor split: declared by exactly ONE app today
-# (strings — Supervisor speaks, Keeper keeps), "" everywhere else so the
-# undeclared case is the resident by construction.
-check("only strings declares a standing_executor (keeper); others inherit",
-      APPS["strings"]["standing_executor"] == "keeper"
-      and all(not row["standing_executor"]
-              for slug, row in APPS.items() if slug != "strings"))
+# ADR-604 D2 — the voice/executor split. ADR-610 dissolved the ONE being that
+# filled it, so today NO app declares an executor and every app derives its
+# resident. The FIELD survives (the seam is real); its emptiness is the
+# assertion, and the derivation is DRIVEN rather than read off the row —
+# an undeclared field that silently resolved to None would look identical here.
+check("no app declares a standing_executor (ADR-610 — the being is gone)",
+      all(not row["standing_executor"] for row in APPS.values()),
+      f"declared={[k for k, v in APPS.items() if v['standing_executor']]}")
+check("an undeclared executor derives the resident, never None",
+      all(standing_executor_for_app(slug) == row["resident"]
+          for slug, row in APPS.items() if row["resident"]),
+      f"mismatch={[(k, standing_executor_for_app(k), v['resident']) for k, v in APPS.items() if standing_executor_for_app(k) != v['resident']]}")
 
 # §3 — THE CLIFF. An app pins a colleague; it can never widen one. There is no
 # field for authority or reach, and the absence must stay STRUCTURAL (the
@@ -101,7 +107,7 @@ print("\n── 2. the door, and its one direction ──")
 # and a hardcoded name turns an ordinary re-pairing into a false red (it did,
 # at ADR-602).
 _incumbent = resident_for_app("slides")
-register_app("slides", resident="keeper")
+register_app("slides", resident="_not-a-real-being")
 check("re-registration does NOT re-point a live app (first wins)",
       resident_for_app("slides") == _incumbent,
       f"got {resident_for_app('slides')}, incumbent was {_incumbent}")

@@ -1,4 +1,4 @@
-"""Strings — the maintained file, kept by Keeper (ADR-569).
+"""Strings — the maintained file, kept on a declared contract (ADR-569).
 
 The second member-facing manifestation of the ADR-564 frame (radar shipped
 first as its specialization — ADR-569 D1 re-reads `report.md` as a maintained
@@ -74,14 +74,17 @@ The topic is the folder path relative to ``/workspace/`` (any meaning-folder
 Files association both carry it).
 
 Attribution: raws as ``system:strings`` observations; the leaf write as
-``system:strings`` with the face being Keeper (ADR-460 D2 — the member reads
-"Keeper"; authored_by stays the mechanism). This module deliberately carries
-no module-level ``services.*`` imports (the radar cycle-free property).
+``system:strings`` with the face being Supervisor (ADR-460 D2 — the member
+reads "Supervisor"; authored_by stays the mechanism). This module deliberately
+carries no module-level ``services.*`` imports (the radar cycle-free property).
 
-ADR-604 — the voice/executor split: the strings DESK is Supervisor's (the
-bound-lane conversation is about standing work), while the RUNS here resolve
-the app's ``standing_executor`` — Keeper. Both roles are declared on the one
-registration in ``services/apps/__init__.py`` (ADR-562).
+ADR-604 opened the voice/executor split; ADR-610 closes it for this desk.
+Strings is Supervisor's WHOLE: the bound-lane conversation about standing work
+AND the unattended runs. The runs still resolve the app's
+``standing_executor``, which is undeclared and therefore derives the resident —
+the seam survives, its second being does not (maintenance is the steward's
+seat and daemon work, never a being). Declared on the one registration in
+``services/apps/__init__.py`` (ADR-562).
 """
 
 from __future__ import annotations
@@ -525,12 +528,12 @@ def record_string_run(client, user_id: str, decl: StringDecl, *, last_run_at: da
 
 
 # ---------------------------------------------------------------------------
-# The resident — Keeper (ADR-562: declared in the app's registration)
+# The standing executor (ADR-562: declared in the app's registration)
 # ---------------------------------------------------------------------------
 
 
 def resolve_strings_resident() -> tuple[str, str]:
-    """The standing writer's EXECUTOR — Keeper today, derived, never assumed.
+    """The standing writer's EXECUTOR — Supervisor today, derived, never assumed.
 
     ADR-604 D2 — the voice/executor split: the strings desk's RESIDENT is
     Supervisor (the conversation about standing work), but the unattended
@@ -541,7 +544,7 @@ def resolve_strings_resident() -> tuple[str, str]:
     (ADR-600). Returns ``(model, posture)``.
 
     No plausible-default fallback: a strings app with no registered executor
-    is a bug that raises, not a reason to quietly become Keeper (the ADR-548
+    is a bug that raises, not a reason to quietly pick a being (the ADR-548
     lesson `resident_for_declaration` already states).
     """
     import services.apps  # noqa: F401  (registration side-effect — ADR-562)
@@ -757,10 +760,15 @@ def map_structured(raw: str, *, fmt: str, shape: dict) -> str:
 # The prose posture — the JOB overlay for an md string's judgment turn
 # ---------------------------------------------------------------------------
 
-#: Composed at run time UNDER Keeper's character (character first, job second
-#: — the lane_runner order). The CONTRACT rides the user message, exactly as
-#: radar's criterion does.
-_KEEPER_RUN_POSTURE = """THE STANDING KEEPER JOB — the maintained file "{target}" in {root}.
+#: Composed at run time UNDER the executor's character (character first, job
+#: second — the lane_runner order). The CONTRACT rides the user message,
+#: exactly as radar's criterion does.
+#:
+#: ADR-610 — named for the JOB, not for a being. The `keeper` being is
+#: dissolved; what was load-bearing in its character was job instruction all
+#: along (§3.2.1: rules of judgment belong to the contract and the job layer,
+#: never to a persona frame) and lives here.
+_STANDING_RUN_POSTURE = """THE STANDING-MAINTENANCE JOB — the maintained file "{target}" in {root}.
 
 A scheduled run fired in the member's workspace. Nobody is present; the file
 you keep will be read later, and other artifacts cite it by reference. You are
@@ -783,6 +791,9 @@ THE BAR
   contradict them; when they do, update the claim and cite why.
 - Every new claim cites its source url inline as a markdown link. NEVER
   invent facts, numbers, or sources.
+- When a source and the contract genuinely disagree, say so plainly in the
+  file rather than papering over it — an honest contradiction the member can
+  see beats a smooth file that hides one.
 
 THE OUTPUT CONTRACT
 Return the full file's markdown and NOTHING else — or the exact token
@@ -790,9 +801,9 @@ NO_CHANGE. No preamble, no code fence around the whole thing.
 """
 
 
-def build_keeper_run_posture(decl: StringDecl) -> str:
+def build_standing_run_posture(decl: StringDecl) -> str:
     """The prose run's derive posture — pure."""
-    return _KEEPER_RUN_POSTURE.format(target=decl.target, root=decl.root)
+    return _STANDING_RUN_POSTURE.format(target=decl.target, root=decl.root)
 
 
 #: The DESK posture (ADR-569 D6, via ADR-567 D4's mechanism) — the job
@@ -800,9 +811,10 @@ def build_keeper_run_posture(decl: StringDecl) -> str:
 #: and the desk's VOICE run the string's lifecycle in conversation, and the
 #: voice works by writing the folder's files. ROLE-NEUTRAL deliberately
 #: (ADR-604): the job layer teaches the JOB and never claims an identity —
-#: the character layer names who speaks (Supervisor since ADR-604 D1), and a
-#: job frame that said "Keeper's desk" would split the voice in two. Keeper
-#: remains the RUNS' face (`standing_executor`). Composed fresh per turn
+#: the character layer names who speaks (Supervisor, ADR-604 D1). Since
+#: ADR-610 Supervisor is the runs' face too, but the frame stays role-neutral:
+#: a job frame naming its being is how the two layers start duplicating each
+#: other. Composed fresh per turn
 #: (derived-never-stored); the state block keeps the conversation honest
 #: against the substrate.
 _STANDING_DESK_FRAME = """THE STANDING-WORK DESK — you tend the maintained file in {root} with the member.
@@ -1061,7 +1073,7 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         resident_model, resident_character = resolve_strings_resident()
         turn = await run_bounded_derive_turn(
             model=resident_model,
-            system=resident_character + "\n\n" + build_keeper_run_posture(decl),
+            system=resident_character + "\n\n" + build_standing_run_posture(decl),
             user_msg=user_msg,
             max_tokens=_STRING_MAX_TOKENS,
             timeout=_DERIVE_TIMEOUT_S,
@@ -1121,9 +1133,9 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         user_id=user_id,
         path=path,
         content=content,
-        # The face is Keeper, the fact is the ledger (ADR-460 D2).
+        # The face is Supervisor, the fact is the ledger (ADR-460 D2).
         authored_by="system:strings",
-        message=f"Keeper kept '{decl.target}' current "
+        message=f"Supervisor kept '{decl.target}' current "
                 f"(standing pull, {len(bodies)} source{'s' if len(bodies) != 1 else ''})",
         revision_kind="derivation",
         derived_from=raw_paths,
@@ -1226,7 +1238,7 @@ __all__ = [
     "record_string_run",
     "resolve_strings_resident",
     "map_structured",
-    "build_keeper_run_posture",
+    "build_standing_run_posture",
     "build_strings_desk_posture",
     "run_string_sweep",
     "drain_due_string_runs",

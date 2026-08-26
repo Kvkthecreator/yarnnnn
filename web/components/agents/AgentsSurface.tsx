@@ -37,6 +37,7 @@
  * Server-driven, deliberately: the roster comes from `lanes.list().beings`,
  * which the API builds from the SAME registry the prompt uses. The previous
  * version hardcoded "Designer in Slides, Editor in Text, Keeper in Strings"
+ * (a roster that has since moved twice — ADR-602, ADR-610 — which is the point)
  * in prose — a fourth being would silently never have appeared (the ADR-562
  * second-home failure, in copy rather than in code).
  */

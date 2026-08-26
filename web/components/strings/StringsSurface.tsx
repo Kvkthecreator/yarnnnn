@@ -2,14 +2,13 @@
 
 /**
  * StringsSurface — Supervisor's desk over the maintained file (ADR-569 →
- * ADR-604): Supervisor is the conversation about standing work; Keeper is
+ * ADR-604/610): Supervisor is the conversation about standing work AND
  * the standing executor whose face is on every run receipt.
  *
  * A STRING is the member's designation of one file as kept current: a
  * contract (CONTRACT.md — what it must stay true to), sources (where currency
- * comes from), a cadence, and the standing run revising the head (Keeper's
- * face on the receipts) while the member
- * corrects it like any file.
+ * comes from), a cadence, and the standing run revising the head while the
+ * member corrects it like any file.
  *
  * THE TENDING SURFACE (ADR-595): this pane shows the file's SITUATION —
  * currency, provenance, governance, audience — and never the file's
@@ -137,7 +136,7 @@ const TUNE_SUGGESTIONS = [
 // ── Strings' vocabulary for the shared activity rail ────────────────────────
 
 function stringsAuthorLabel(authoredBy: string): string | undefined {
-  return authoredBy === 'system:strings' ? 'Keeper' : undefined;
+  return authoredBy === 'system:strings' ? 'Supervisor' : undefined;
 }
 
 function stringsAuthorChip(authoredBy: string): string | undefined {
@@ -781,7 +780,7 @@ export default function StringsSurface() {
           <p>
             Say what the file means and where currency comes from — Supervisor
             writes the contract and the string declaration into the folder,
-            and Keeper's standing runs take it from there. Change the source,
+            and its standing runs take it from there. Change the source,
             the cadence, or the contract the same way, any time; your own
             edits to the file are corrections that compound.
           </p>
@@ -803,7 +802,7 @@ export default function StringsSurface() {
             <Cable className="mx-auto h-8 w-8 text-muted-foreground" />
             <h1 className="text-lg font-semibold">Keep a file current</h1>
             <p className="text-sm text-muted-foreground">
-              Designate a file and Keeper maintains it — pulling its declared
+              Designate a file and Supervisor maintains it — pulling its declared
               sources on a schedule and revising the file under a contract
               you set in plain words, while your own corrections compound.
               Docs and decks that cite it stay current by reference.
@@ -1354,7 +1353,7 @@ function StringRail({
             )}
             {strings.length === 0 && !settingUp ? (
               <div className="p-4 text-xs text-muted-foreground">
-                No files kept yet. Designate one and Keeper maintains it while
+                No files kept yet. Designate one and Supervisor maintains it while
                 you&apos;re away.
               </div>
             ) : (

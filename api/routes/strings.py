@@ -1,4 +1,4 @@
-"""Strings routes — ADR-569 (the maintained file, kept by Keeper).
+"""Strings routes — ADR-569 (the maintained file, kept under contract).
 
 The composed view is a LAZY PROJECTION over the string's folder + the ledgers
 (the radar R2 pattern, ADR-486 D5 — derived-never-stored): declaration +
@@ -6,8 +6,8 @@ contract + the maintained leaf's head + run health from execution_events +
 the CONSUMERS list (D5 — which files cite this leaf, derived at read time),
 composed per request. Nothing here stores desk state.
 
-Creation is CONVERSATIONAL (D7): Keeper authors CONTRACT.md + _string.yaml
-through its lane; the tick discovers. There is deliberately NO create route —
+Creation is CONVERSATIONAL (D7): the desk's colleague authors CONTRACT.md +
+_string.yaml through its lane; the tick discovers. There is deliberately NO create route —
 the two doors (the app's picker, Files' "Keep this current…") both open the
 desk on a folder and hand the gesture to the conversation. The routes here
 are the direct switches (Pause/Resume, Run now) and the projections the desk
@@ -95,7 +95,7 @@ class StringSource(BaseModel):
 
 class UpdateStringRequest(BaseModel):
     """The direct switches (D7). Everything else is the conversation's —
-    target/sources/shape/contract revisions land through Keeper's lane, and a
+    target/sources/shape/contract revisions land through the desk's lane, and a
     silently-widened PATCH here would rebuild the form ADR-567 D3 replaced."""
 
     paused: Optional[bool] = None

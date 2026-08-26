@@ -367,9 +367,9 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # read time.
         #
         # ADR-604 — this desk is SUPERVISOR'S: the conversation is about
-        # standing work, so the bound lane carries the `supervisor` resident;
-        # the RUNS stay Keeper's via `standing_executor` (the voice/executor
-        # split). One surface, two legible roles.
+        # standing work, so the bound lane carries the `supervisor` resident.
+        # ADR-610 — and so do the RUNS: `standing_executor` is undeclared and
+        # derives the resident. One surface, one colleague, one contract.
         #
         # launcher_tier started SEARCH-ONLY (D6 — registration ≠ unveil, the
         # ADR-486 D7 rule). UNVEILED 2026-08-14, same day as the build
@@ -384,7 +384,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "cable",
         "default_pinned": True,  # ships in the Dock with the other apps
         "route": "/strings",
-        "summary": "Standing work in one place — files kept current on a declared contract and cadence. Supervisor is who you talk to about what runs; Keeper is the hand that keeps each file true, your corrections compounding.",
+        "summary": "Standing work in one place — files kept current on a declared contract and cadence. Supervisor is who you declare it with, and the hand that keeps each file true, your corrections compounding.",
     },
     {
         # ADR-571 — Text, the dedicated surface for the prose currency
