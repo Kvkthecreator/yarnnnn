@@ -11,7 +11,8 @@ What this gate defends
    button is no longer hidden/disabled when nothing is selected.
 4. D4 — arity adds NO rung (inherited from ADR-519 D4.1: the set is STATE).
 5. D5 — the door is an ENTRANCE: every act routes to an op the pane also calls;
-   the object rung routes to the ONE block-acts menu rather than restating it.
+   every rung routes to an op or the dwell pane (ADR-613 removed the object
+   rung's second-MENU route — the only rung that mounted one).
 6. Cleanup — the moved gallery is not COPIED: the toolbar keeps no dead panel,
    no orphaned arrangement props, and no dismissal effect for a panel it no
    longer owns.
@@ -123,10 +124,12 @@ t("the set shows as the WITHDRAWAL, on the pane",
 
 print("=== 5. D5 — the door is an entrance, never a second write path ===")
 
-t("the object rung routes to the ONE block-acts menu",
-  "onBlockActs" in DOOR_NC and "onBlockActs={openBlockActs}" in SURFACE_NC)
-t("the block-acts route opens the SAME menu the right-click renders",
-  "setCtxInitialOpen('update')" in SURFACE_NC and "setCtxMenu({" in SURFACE_NC)
+t("the object rung routes to the DWELL like every other rung (ADR-613)",
+  "onBlockActs" not in DOOR_NC
+  and "openBlockActs" not in SURFACE_NC
+  and "ctxInitialOpen" not in SURFACE_NC)
+t("no rung mounts a second MENU (the door opens the pane, or acts)",
+  "onBlockActs" not in DOOR_NC and "BlockMenu" not in DOOR_NC)
 t("every other rung's act opens the pane (the dwell), not a private control",
   DOOR_NC.count("onOpenPane") >= 2 and "setRightTab('design')" in SURFACE_NC)
 t("re-arrange still calls the SAME apply op",

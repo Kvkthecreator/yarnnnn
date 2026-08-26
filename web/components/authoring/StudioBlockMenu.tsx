@@ -9,11 +9,12 @@
  * macOS tiered-access principle): right-click is the fast path, the Design tab
  * is the dwell, one implementation underneath.
  *
- * D4: the free/metered line is the thing this component makes VISIBLE. A row
- * that spends a metered lane turn wears the `AI` badge; a free row wears
- * nothing (silence is the signal — most of the menu is free, so marking the
- * exception is cheaper than marking the rule). The badge means METERED, not
- * MUTATING: `Check this…` writes nothing and is badged, because it costs a turn.
+ * ADR-613: every row here is now MECHANICAL. The judged verbs (Rewrite, Check)
+ * left for the selection-anchored gesture and Ask was deleted outright, so the
+ * ADR-462 D4 free/metered line is no longer drawn HERE — it is drawn at the
+ * gesture, which is the only metered act on this surface. The `meter` prop and
+ * its `AI` badge went with them: a discriminator with nothing to discriminate
+ * is a second spelling waiting to happen.
  *
  * This is NOT `FileContextMenu` reused: that contract is file-shaped (path,
  * name, file verbs) and a block is not a file. It borrows its dismissal
@@ -75,15 +76,6 @@ export interface StudioBlockMenuProps {
    *  gates the rows; nudgeZ backstops the op side). */
   onBringForward: () => void;
   onBringBackward: () => void;
-  /** Metered (D6): each SEEDS the composer and sends nothing. `onAsk` is the
-   *  open question (relocated here 2026-07-24 when the Properties block-verb
-   *  section was deleted — this menu became its only mount): it seeds "About
-   *  the ‹kind› block…" with the selection's id + text and flips to Chat. Not
-   *  a rewrite-with-an-adjective, so it does not violate D6's two-verb
-   *  reasoning — it is the third DISTINCT act, an ask rather than an edit. */
-  onRewrite: () => void;
-  onCheck: () => void;
-  onAsk: () => void;
   /** The two rows no reference can ship (D3) — a block has an address, and the
    *  revision chain joins by that same id. */
   onCopyLink: () => void;
@@ -109,43 +101,25 @@ export interface StudioBlockMenuProps {
    *  menu of one act that could not happen. A paste offer requires something
    *  to paste. */
   hasClipboard?: boolean;
-  /** ADR-586 D6 — the toolbar's contextual [Update] opens THIS menu with the
-   *  Update tier already expanded (a verb door opens its verb's contents —
-   *  ADR-579 D6.a's law, kept). One definition of the block acts, two mounts. */
-  initialOpen?: 'update';
 }
 
 function Row({
-  icon, children, onClick, meter, shortcut,
+  icon, children, onClick, shortcut,
 }: {
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick: () => void;
-  meter?: boolean;
   shortcut?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] ${
-        meter ? 'hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'hover:bg-accent'
-      }`}
+      className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
     >
-      <span className={meter ? 'text-amber-700 dark:text-amber-500' : 'text-muted-foreground'}>
-        {icon}
-      </span>
+      <span className="text-muted-foreground">{icon}</span>
       <span className="truncate">{children}</span>
-      {meter && (
-        // The badge: ochre, a filled dot, the word AI. Three redundant signals
-        // carry the line (group header + badge + hue) because it must be
-        // impossible to miss at a glance or mistake at speed (D4).
-        <span className="ml-auto inline-flex items-center gap-1 rounded-[3px] border border-amber-300/70 bg-amber-50 px-1 py-[1px] text-[9px] font-semibold tracking-wide text-amber-700 dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-500">
-          <span className="h-[5px] w-[5px] rounded-full bg-current" />
-          AI
-        </span>
-      )}
-      {!meter && shortcut && (
+      {shortcut && (
         <span className="ml-auto text-[10.5px] tabular-nums text-muted-foreground/60">
           {shortcut}
         </span>
@@ -242,14 +216,13 @@ const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
   target, onClose, onCopy, onPaste, onDuplicate, onDelete, setCount,
-  onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward, onRewrite, onCheck, onAsk,
-  onCopyLink, onHistory, onInsertKind, mode, hasClipboard, initialOpen,
+  onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward,
+  onCopyLink, onHistory, onInsertKind, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
   // ADR-579 D5 two-tier — the verb tiers (one open at a time). ADR-586 D6:
   // the toolbar's contextual Update mounts this menu with its tier expanded.
-  const [updateOpen, setUpdateOpen] = useState(initialOpen === 'update');
-  const [askOpen, setAskOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
   // ADR-586 D4 — the located insert tiers are the CATEGORIES (one open at a
   // time), replacing the ADR-579 New ▸/Add ▸ provenance pair.
   const [insertOpen, setInsertOpen] = useState<BlockCategory | null>(null);
@@ -354,7 +327,7 @@ export function StudioBlockMenu({
   // box's height (the inline housing). On a pointer screen it is a constant,
   // so opening a flyout never re-clamps the parent.
   const tierDeps = inlineTiers
-    ? `${turnOpen}|${insertOpen}|${updateOpen}|${askOpen}`
+    ? `${turnOpen}|${insertOpen}|${updateOpen}`
     : '';
   useLayoutEffect(() => {
     const el = boxRef.current;
@@ -418,7 +391,7 @@ export function StudioBlockMenu({
             const opened = insertOpen === g.key;
             const toggle = () => {
               setInsertOpen((v) => (v === g.key ? null : g.key));
-              setUpdateOpen(false); setAskOpen(false);
+              setUpdateOpen(false);
             };
             return (
               <div
@@ -429,7 +402,7 @@ export function StudioBlockMenu({
                 // route when tiers are inline. Hover never CLOSES: leaving
                 // toward the panel would dismiss what you are reaching for.
                 onMouseEnter={inlineTiers ? undefined : () => {
-                  setInsertOpen(g.key); setUpdateOpen(false); setAskOpen(false);
+                  setInsertOpen(g.key); setUpdateOpen(false);
                 }}
               >
                 <button
@@ -514,12 +487,12 @@ export function StudioBlockMenu({
           <div
             className="relative"
             onMouseEnter={inlineTiers ? undefined : () => {
-              setUpdateOpen(true); setAskOpen(false); setInsertOpen(null);
+              setUpdateOpen(true); setInsertOpen(null);
             }}
           >
           <button
             type="button"
-            onClick={() => { setUpdateOpen((v) => !v); setAskOpen(false); setInsertOpen(null); }}
+            onClick={() => { setUpdateOpen((v) => !v); setInsertOpen(null); }}
             className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${updateOpen && !inlineTiers ? 'bg-accent' : ''}`}
           >
             <span className="text-muted-foreground"><PenLine className={ICO} /></span>
@@ -595,46 +568,6 @@ export function StudioBlockMenu({
                   </Row>
                 </>
               )}
-              {/* D6: Rewrite SEEDS the composer and sends nothing — a head
-                  start on a sentence, not a button. Shorter/longer/sharper
-                  are things the member TYPES (no rewrites-with-adjectives). */}
-              <Row icon={<Sparkles className={ICO} />} onClick={() => run(onRewrite)} meter>
-                Rewrite…
-              </Row>
-            </div>
-          </Flyout>
-          </div>
-          {/* ASK — neither row lands a revision; both produce an ANSWER in
-              the pane (the badge means METERED, not MUTATING — ADR-462 D4,
-              now structural). The old mechanism-named header is retired per
-              ADR-579 D3. */}
-          <div
-            className="relative"
-            onMouseEnter={inlineTiers ? undefined : () => {
-              setAskOpen(true); setUpdateOpen(false); setInsertOpen(null);
-            }}
-          >
-          <button
-            type="button"
-            onClick={() => { setAskOpen((v) => !v); setUpdateOpen(false); setInsertOpen(null); }}
-            className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-amber-50 dark:hover:bg-amber-950/30 ${askOpen && !inlineTiers ? 'bg-amber-50 dark:bg-amber-950/30' : ''}`}
-          >
-            <span className="text-amber-700 dark:text-amber-500"><MessageSquare className={ICO} /></span>
-            <span className="truncate">Ask</span>
-            <ChevronRight
-              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${askOpen && inlineTiers ? 'rotate-90' : ''}`}
-            />
-          </button>
-          <Flyout open={askOpen} inline={inlineTiers}>
-            <div className={inlineTiers ? '' : 'min-w-[176px]'}>
-              <Row icon={<SearchCheck className={ICO} />} onClick={() => run(onCheck)} meter>
-                Check this…
-              </Row>
-              {/* The open question — the third distinct act (see the prop
-                  doc): seeds the selection reference and flips to Chat. */}
-              <Row icon={<MessageSquare className={ICO} />} onClick={() => run(onAsk)} meter>
-                Ask about this…
-              </Row>
             </div>
           </Flyout>
           </div>

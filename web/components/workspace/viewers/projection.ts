@@ -2608,6 +2608,9 @@ const EDIT_SCRIPT = `
     if (fmtBar) fmtBar.style.display = 'none';
     if (fmtInput) fmtInput.style.display = 'none';
     if (fmtBtns) fmtBtns.style.display = 'inline-flex';
+    // ADR-613 — the range grain lost its subject. The BLOCK may still be
+    // selected, and showBox re-reports it; this only retracts the range.
+    if (window.__yarnnnPostSelRect) window.__yarnnnPostSelRect(null, null);
   }
 
   function openLink() {
@@ -2725,6 +2728,10 @@ const EDIT_SCRIPT = `
     var fz = window.__yarnnnZf ? window.__yarnnnZf() : 1;
     fmtBar.style.left = Math.max(4, (rect.left + window.scrollX) / fz) + 'px';
     fmtBar.style.top = Math.max(4, (rect.top + window.scrollY) / fz - 36) + 'px';
+    // ADR-613 — the same rect, reported for the parent-side judged gesture.
+    // The RANGE grain: the member has text selected inside a block, so the
+    // target is the range, not the block that holds it.
+    if (window.__yarnnnPostSelRect) window.__yarnnnPostSelRect(rect, 'range');
   });
 
   // ── ADR-521 D4: ⌘B/⌘I are the bar's op behind a key ───────────────────
@@ -4322,6 +4329,35 @@ const OBJECT_SCRIPT = `
     return !!(el && el.matches && el.matches('div[data-block-id]:not([data-block])'));
   }
 
+  // ADR-613 — the selection's VISUAL box, posted for the parent-side judged
+  // gesture. Iframe-viewport coordinates (the clientX/Y space), so the parent
+  // offsets by the iframe's page position with NO zoom multiply — the mapping
+  // proven at StudioCanvas's context-menu bridge. Do NOT divide by zf() here:
+  // that is only correct for body-appended chrome inside the zoomed document
+  // (the format bar), and dividing would put the door at ~37% of the offset on
+  // a deck.
+  var lastSelRectKey = '';
+  function postSelectionRect(rect, grain) {
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
+      if (lastSelRectKey === '') return;
+      lastSelRectKey = '';
+      parent.postMessage({ type: 'yarnnn-selection-rect', rect: null }, '*');
+      return;
+    }
+    var key = grain + ':' + Math.round(rect.left) + ',' + Math.round(rect.top)
+      + ',' + Math.round(rect.right) + ',' + Math.round(rect.bottom);
+    if (key === lastSelRectKey) return;
+    lastSelRectKey = key;
+    parent.postMessage({
+      type: 'yarnnn-selection-rect',
+      grain: grain,
+      rect: {
+        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+      },
+    }, '*');
+  }
+  window.__yarnnnPostSelRect = postSelectionRect;
+
   function showBox(block) {
     ensureBox();
     selBlock = block;
@@ -4332,6 +4368,7 @@ const OBJECT_SCRIPT = `
     box.style.top = ((r.top + window.scrollY) / z - 1) + 'px';
     box.style.width = (r.width / z + 2) + 'px';
     box.style.height = (r.height / z + 2) + 'px';
+    postSelectionRect(r, 'object');
     // The band is honest about inertness: no move cursor where no move exists.
     if (isContainerEl(block)) {
       // ADR-520 D2: a STAGED container is adjustable — handles live, move
@@ -4356,6 +4393,10 @@ const OBJECT_SCRIPT = `
     if (box) box.style.display = 'none';
     selBlock = null;
     hideFrame();
+    // ADR-613 — no subject, no door. Clearing here (rather than only on an
+    // explicit deselect) keeps the parent's gesture bound to what is actually
+    // selected, including the scroll/resize paths syncBox already drives.
+    postSelectionRect(null, null);
   }
 
   /** P10: the frame reference is visible WHENEVER the box is — not only

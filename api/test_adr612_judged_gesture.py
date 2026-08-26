@@ -173,6 +173,72 @@ check("D4 MarkdownToolbar declares no judged/metered act",
       "Sparkles" not in toolbar and "rewrite" not in toolbar.lower(),
       "that row is markdown verbs — every one mechanical and free")
 
+# ── ADR-613: the Slides half — same concept, this medium's address ─────────
+surface = read("components/authoring/StudioSurface.tsx")
+block_menu = read("components/authoring/StudioBlockMenu.tsx")
+canvas = read("components/authoring/StudioCanvas.tsx")
+projection = read("components/workspace/viewers/projection.ts")
+
+check("613 Slides mounts the SHARED gesture (not a second implementation)",
+      "<SelectionGesture" in surface and "SelectionGesture" in surface,
+      "the component lives in components/authoring/ precisely for this")
+
+# THE gap Slides had: StudioSelection carries identity and never geometry, and
+# every other iframe message carries a pointer POINT (which D1 refuses) or
+# nothing at all. The runtime now reports the selection's VISUAL box.
+check("613 the runtime reports a selection RECT, not a pointer point",
+      "yarnnn-selection-rect" in projection and "postSelectionRect" in projection)
+check("613 the rect is the visual box of what is SELECTED",
+      "postSelectionRect(r, 'object')" in projection
+      and "__yarnnnPostSelRect(rect, 'range')" in projection,
+      "both grains report; neither reads the cursor")
+check("613 no subject, no door — the rect retracts",
+      "postSelectionRect(null, null)" in projection)
+# The zoom trap: dividing by the zoom factor is correct ONLY for body-appended
+# chrome inside the zoomed document (the format bar). A parent-side door needs
+# the raw visual rect; dividing put an earlier menu at ~37% of the offset.
+_post_fn = projection.split("function postSelectionRect")[1].split("\n  }\n")[0]
+check("613 the reporter does NOT zoom-divide (that is in-frame chrome's rule)",
+      "postSelectionRect" in projection
+      and "/ z" not in _post_fn and "zf()" not in _post_fn,
+      "the parent maps with + iframeRect offset and no zoom multiply")
+check("613 the bridge maps iframe→parent coordinates",
+      "onSelectionRect" in canvas and "getBoundingClientRect()" in canvas
+      and "yarnnn-selection-rect" in canvas)
+
+# D2 in this medium: a text RANGE inside a block and the BLOCK are different
+# targets. The noun and the anchor must be decided together or the member gets
+# a block rewritten when they meant three words.
+check("613 the chip noun and the anchor are decided together",
+      "gestureTarget" in surface
+      and "selRect.grain === 'range'" in surface,
+      "the grain the runtime reported picks the noun AND the label")
+check("613 the gesture yields to every other floating door",
+      "!slash && !citePicker && !updateMenu && !ctxMenu" in surface,
+      "two doors at one selection is a collision, not a choice")
+
+# The deletion — stated as an invariant, not a count.
+check("613 the judged verbs left the block menu",
+      "Rewrite…" not in block_menu
+      and "Check this…" not in block_menu
+      and "Ask about this…" not in block_menu)
+check("613 the Ask tier went with its rows (every row in it was judged)",
+      "askOpen" not in block_menu
+      and '<span className="truncate">Ask</span>' not in block_menu)
+_bm_code = re.sub(r"/\*[\s\S]*?\*/|//[^\n]*", "", block_menu)
+check("613 the meter discriminator is DELETED, not left latent",
+      "meter" not in _bm_code,
+      "a discriminator with nothing to discriminate is a second spelling waiting")
+check("613 the surface's judged seed producers are gone",
+      "menuRewrite" not in surface
+      and "menuCheck" not in surface
+      and "askAboutSelection" not in surface)
+check("613 the second-menu route is deleted whole",
+      "openBlockActs" not in surface
+      and "ctxInitialOpen" not in surface
+      and "initialOpen" not in block_menu)
+
+
 # ── The mechanical door is UNTOUCHED (ADR-589 keeps the ladder) ────────────
 studio_menu = read("components/authoring/StudioUpdateMenu.tsx")
 check("ADR-589's ladder survives — this ADR does not merge the two doors",

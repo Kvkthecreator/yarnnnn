@@ -174,7 +174,7 @@ that changed more than asked, no change at all, an emptied document). None
 produce an inverted or wrong span; the overreach case correctly lands on the
 whole changed region, which is the honest answer.
 
-## 6. OWED — the Slides half
+## 6. OWED — the Slides half (DONE: [ADR-613](ADR-613-the-judged-act-leaves-the-menus.md), 2026-08-26)
 
 Deliberately a separate commit, and the cleanup is the point. Pulling the
 judged verbs out of `StudioBlockMenu` collapses the `Move, turn into,

@@ -57,6 +57,7 @@ import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useSelfLocatedSurface, useSurfaceActions, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { LanePanel, type SeedTarget } from '@/components/chat-surface/LanePanel';
+import { SelectionGesture } from '@/components/authoring/SelectionGesture';
 import {
   StudioCanvas,
   type PointerEvent2,
@@ -730,40 +731,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // edit (the runtime commits on the enter of the next).
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
 
-  // The explicit ask (replaces the auto-seed): the member chose to bring the
-  // selection to the lane — one seed, on purpose, in operator words. Lives in
-  // the right-click menu's AI group (relocated 2026-07-24 when the Properties
-  // block-verb section was deleted); it flips back to Chat so the seed is seen.
-  const askAboutSelection = useCallback(() => {
-    if (!selection) return;
-    const s = selection;
-    // ADR-579 D7 — the target rides TYPED; the prose is only the editable
-    // intent opener. `(id: …)` and quoted excerpts no longer land in the
-    // member's composer (the flattening ADR-522 §1 called out).
-    const path = artifactPath ? relPath(artifactPath) : null;
-    if (s.blockId || s.blockKind) {
-      const kind = s.blockKind ?? 'content';
-      seedComposer(`About the ${kind} block: `, {
-        verb: 'ask', path, blockId: s.blockId ?? null, label: kind,
-        excerpt: s.text || null, pageIndex: s.slideIndex ?? s.pageIndex ?? null,
-        range: null,
-      });
-    } else if (s.slideIndex != null) {
-      seedComposer(`About slide ${s.slideIndex + 1}: `, {
-        verb: 'ask', path, blockId: null, label: 'slide',
-        excerpt: null, pageIndex: s.slideIndex,
-        range: null,
-      });
-    } else {
-      seedComposer(`About the selection: `, {
-        verb: 'ask', path, blockId: null, label: 'selection',
-        excerpt: s.text || null, pageIndex: null,
-        range: null,
-      });
-    }
-    setRightTab('chat');
-  }, [selection, seedComposer, artifactPath]);
-
   // ── The canvas context menu (ADR-462) ──────────────────────────────────
   // The runtime has already SELECTED the block under the cursor (D7), so this
   // holds only the anchor + the grain. Every row dispatches an op that already
@@ -771,7 +738,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const [ctxMenu, setCtxMenu] = useState<StudioContextTarget | null>(null);
   // ADR-586 D6 — which tier the mount opens expanded. Set ONLY by the
   // toolbar's contextual [Update]; a right-click opens collapsed (null).
-  const [ctxInitialOpen, setCtxInitialOpen] = useState<'update' | null>(null);
   // The toolbar's contextual Update: synthesize the menu's target from the
   // live selection and mount the SAME menu the right-click renders — one
   // definition of the block acts, two mounts (the blockRows discipline).
@@ -787,34 +753,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const openUpdateDoor = useCallback((at: { x: number; y: number }) => {
     setUpdateMenu({ x: at.x, y: at.y });
   }, []);
-
-  /** The object rung routes to the ONE block-acts menu (ADR-586 D6 — one
-   *  definition, two mounts). Restating those rows inside the door would be
-   *  the second write path ADR-462 D1 forbids. */
-  const openBlockActs = useCallback(
-    (at: { x: number; y: number }) => {
-      const sel = selection;
-      if (!sel?.blockId) return;
-      setCtxInitialOpen('update');
-      setCtxMenu({
-        x: at.x,
-        y: at.y,
-        tag: null,
-        text: sel.text ?? '',
-        dataRef: null,
-        blockId: sel.blockId,
-        blockKind: sel.blockKind,
-        slideIndex: sel.slideIndex,
-        pageIndex: sel.pageIndex,
-        slot: sel.slot,
-        arrange: sel.arrange,
-        framed: false,
-        positioned: false,
-        tier: sel.tier ?? null,
-      });
-    },
-    [selection],
-  );
 
   /** ADR-589 D1 — picking a rung RE-TARGETS. Setting selection IS the
    *  mechanism: StudioCanvas re-commands the runtime with
@@ -2235,35 +2173,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 
   // D6: both AI rows SEED and send nothing. The seeds differ only in how much
   // they pre-fill; the member finishes the sentence and presses enter.
-  const menuRewrite = useCallback(() => {
-    const t = ctxMenu;
-    if (!t) return;
-    const kind = t.blockKind ?? 'content';
-    // ADR-579 D7 — target typed, intent editable (see askAboutSelection).
-    seedComposer(`Rewrite the ${kind} block: `, {
-      verb: 'rewrite', path: artifactPath ? relPath(artifactPath) : null,
-      blockId: t.blockId ?? null, label: kind,
-      excerpt: t.text || null, pageIndex: t.slideIndex ?? t.pageIndex ?? null,
-      range: null,
-    });
-    setRightTab('chat');
-  }, [ctxMenu, seedComposer, artifactPath]);
-
-  const menuCheck = useCallback(() => {
-    const t = ctxMenu;
-    if (!t) return;
-    const kind = t.blockKind ?? 'content';
-    // Trailing "for" on purpose: "check for WHAT" is the member's question to
-    // answer, and a complete sentence here would answer it for them.
-    seedComposer(`Check the ${kind} block for `, {
-      verb: 'check', path: artifactPath ? relPath(artifactPath) : null,
-      blockId: t.blockId ?? null, label: kind,
-      excerpt: t.text || null, pageIndex: t.slideIndex ?? t.pageIndex ?? null,
-      range: null,
-    });
-    setRightTab('chat');
-  }, [ctxMenu, seedComposer, artifactPath]);
-
   // The two rows no reference can ship (D3): a block has a durable address, and
   // the revision chain joins by that same id.
   const menuCopyBlockLink = useCallback(() => {
@@ -2534,6 +2443,59 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [],
   );
+  // ── ADR-613 — the judged act's anchor, reported by the runtime ────────
+  // The one thing Slides lacked: a selection RECT. `StudioSelection` carries
+  // identity and never geometry, and every other iframe message carries a
+  // pointer POINT (which ADR-612 D1 refuses) or nothing. The runtime posts the
+  // visual box; StudioCanvas maps it to parent-page coordinates.
+  const [selRect, setSelRect] = useState<{
+    rect: { left: number; top: number; right: number; bottom: number };
+    grain: string | null;
+  } | null>(null);
+  const onSelectionRect = useCallback(
+    (
+      rect: { left: number; top: number; right: number; bottom: number } | null,
+      grain: string | null,
+    ) => setSelRect(rect ? { rect, grain } : null),
+    [],
+  );
+
+  // ── ADR-613 — the judged act, one gesture at the selection ────────────
+  // The grain question this surface has and Text does not: a text RANGE inside
+  // a block and the BLOCK itself are different targets, and ADR-612 D2's rule
+  // is that whatever the chip names is what gets anchored. The runtime tells
+  // us which it reported, so the noun and the anchor are decided together and
+  // cannot drift — the member never gets a block rewritten when they meant
+  // three words.
+  const gestureTarget = useMemo(() => {
+    if (!selRect || !selection) return null;
+    const isRange = selRect.grain === 'range';
+    const kind = selection.blockKind ?? 'content';
+    return {
+      noun: isRange ? 'the selection' : `the ${kind} block`,
+      label: isRange ? 'selection' : kind,
+      // A range is addressed by the block that holds it — the runtime has no
+      // source offsets for HTML, so `block_id` IS this medium's address
+      // (ADR-609 D2). The noun still says "the selection" because that is what
+      // the member has, and the frame carries the excerpt to narrow it.
+      blockId: selection.blockId ?? null,
+    };
+  }, [selRect, selection]);
+
+  const rewriteSelection = useCallback(() => {
+    if (!gestureTarget) return;
+    seedComposer(`Rewrite ${gestureTarget.noun}: `, {
+      verb: 'rewrite',
+      path: artifactPath ? relPath(artifactPath) : null,
+      blockId: gestureTarget.blockId,
+      label: gestureTarget.label,
+      excerpt: selection?.text || null,
+      pageIndex: selection?.slideIndex ?? selection?.pageIndex ?? null,
+      range: null,
+    });
+    setRightTab('chat');
+  }, [gestureTarget, selection, seedComposer, artifactPath]);
+
   const onSlashOpen = useCallback(
     (blockId: string, empty: boolean, rect: { left: number; top: number; bottom: number }) => {
       const wrap = canvasWrapRef.current;
@@ -3752,6 +3714,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               <StudioCanvas
                 file={file}
                 artifactPath={artifactPath}
+                onSelectionRect={onSelectionRect}
                 onPoint={onPoint}
                 onPointClear={onPointClear}
                 onRange={onRange}
@@ -3776,7 +3739,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onContextMenu={(t) => {
                   // A right-click opens COLLAPSED; only the toolbar's
                   // contextual Update pre-expands its tier (ADR-586 D6).
-                  setCtxInitialOpen(null);
                   setCtxMenu(t);
                 }}
                 onKeyVerb={handleKeyVerb}
@@ -3828,6 +3790,26 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   blockLabels={blockLabels}
                   onSelectPage={selectSlideFromNavigator}
                   onSelectNode={selectNodeFromNavigator}
+                />
+              )}
+              {/* ADR-613 — the judged act, at the thing it acts on. Yields to
+                  every other floating door on this canvas: they all anchor off
+                  the same surface, and two doors at one selection is a
+                  collision, not a choice (the Text mount's rule). */}
+              {!slash && !citePicker && !updateMenu && !ctxMenu && (
+                <SelectionGesture
+                  anchor={
+                    selRect
+                      ? {
+                          ...selRect.rect,
+                          endLeft: selRect.rect.left,
+                          endTop: selRect.rect.top,
+                          endBottom: selRect.rect.bottom,
+                        }
+                      : null
+                  }
+                  label={gestureTarget?.noun ?? 'the selection'}
+                  onClick={rewriteSelection}
                 />
               )}
               {slash && (
@@ -3893,7 +3875,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   groupCount={groupCount}
                   onApplyArrangement={handleApplyArrangement}
                   onRetarget={retargetToRung}
-                  onBlockActs={openBlockActs}
                   onOpenPane={(sc: PaneScope) => { void sc; setRightTab('design'); }}
                   onClose={() => setUpdateMenu(null)}
                 />
@@ -3909,8 +3890,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   // the render), so the ref's non-reactivity is not a problem —
                   // the clipboard cannot change while the menu is on screen.
                   hasClipboard={!!blockClip.current}
-                  initialOpen={ctxInitialOpen ?? undefined}
-                  onClose={() => { setCtxMenu(null); setCtxInitialOpen(null); }}
+                  onClose={() => setCtxMenu(null)}
                   onCopy={menuCopy}
                   onPaste={menuPaste}
                   onDuplicate={() => handleBlockVerb('duplicate')}
@@ -3943,12 +3923,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                     if (id && gz)
                       void applyOp((html) => nudgeZ(html, id, -1, gz), `${app.label}: bring ${id} backward`);
                   }}
-                  onRewrite={menuRewrite}
-                  onCheck={menuCheck}
-                  // The open question, relocated from the deleted Properties
-                  // block-verb section (2026-07-24) — same seed, same flip to
-                  // Chat; the menu is its only mount now.
-                  onAsk={askAboutSelection}
                   onCopyLink={menuCopyBlockLink}
                   onHistory={menuHistory}
                   // The LOCATED half of the paged mouse insert route

@@ -127,7 +127,10 @@ t("the tiers are the categories (one module, second mount)",
 # holds still.
 t("ONE flyout mechanism serves every tier (no per-tier housing)",
   BLOCKMENU_NC.count("function Flyout(") == 1
-  and BLOCKMENU_NC.count("<Flyout open={") == 4)
+  # NOT a pinned count: ADR-613 deleted the Ask tier, and a hand-kept number
+  # reads a deletion as a violation (the ADR-584 lesson). The invariant is that
+  # every tier's housing IS this one component.
+  and BLOCKMENU_NC.count("<Flyout open={") >= 3)
 t("the flyout FLIPS horizontally off its own measured width",
   re.search(r"width \+ MARGIN > window\.innerWidth \?[^:]*r\.left - width", BLOCKMENU_NC)
   is not None)
@@ -140,8 +143,9 @@ t("the parent does NOT re-clamp on tier open (that jump WAS the defect)",
   and not re.search(r"\}, \[target\.x, target\.y[^\]]*(insertOpen|updateOpen|askOpen)[^\]]*\]\);",
                     BLOCKMENU_NC))
 t("...but the INLINE housing still re-clamps (it really does grow the box)",
-  re.search(r"inlineTiers\s*\?\s*`\$\{turnOpen\}\|\$\{insertOpen\}\|\$\{updateOpen\}\|\$\{askOpen\}`",
-            BLOCKMENU_NC) is not None)
+  re.search(r"inlineTiers\s*\?\s*`\$\{turnOpen\}\|\$\{insertOpen\}\|\$\{updateOpen\}`",
+            BLOCKMENU_NC) is not None
+  and "askOpen" not in BLOCKMENU_NC)
 t("narrow screens keep the INLINE tier (a flyout needs a pointer)",
   "window.innerWidth < 640" in BLOCKMENU_NC
   and re.search(r"inline=\{inlineTiers\}", BLOCKMENU_NC) is not None)
@@ -164,16 +168,22 @@ print("=== 6. D6 — Update goes contextual ===")
 t("the toolbar Update opens ONE door, ungated by selection (ADR-589 D1/D3)",
   "onUpdateBlock({ x: r.left, y: r.bottom + 4 })" in TOOLBAR_NC
   and "hasBlockSelection && onUpdateBlock" not in TOOLBAR_NC)
-t("the surface still synthesizes the block target from the LIVE selection",
-  "const openBlockActs = useCallback" in SURFACE_NC
-  and "blockId: sel.blockId" in SURFACE_NC.split("openBlockActs")[1][:900])
-t("the one menu opens with its Update tier expanded (a door opens its verb's contents)",
-  "useState(initialOpen === 'update')" in BLOCKMENU_NC
-  and "initialOpen={ctxInitialOpen ?? undefined}" in SURFACE_NC)
-t("a right-click opens COLLAPSED (the pre-expansion is the toolbar's alone)",
-  "setCtxInitialOpen(null);" in SURFACE_NC.split("onContextMenu={(t) =>")[1][:400])
-t("the meter badge survives as the only mechanical/metered seam (Rewrite is badged)",
-  re.search(r"onClick=\{\(\) => run\(onRewrite\)\} meter", BLOCKMENU_NC) is not None)
+# ADR-613 SUPERSEDES D6's second-menu route. The toolbar's [Update] opened this
+# menu with its Update tier pre-expanded, reached via `openBlockActs`; that
+# whole chain is deleted, because the door's object rung now reads like every
+# other rung (one row -> the dwell pane) and the judged act it was carrying
+# left for the gesture. What survives from D6 is the door itself, asserted
+# above; what is gated here is that the route is gone WHOLE, not half-removed.
+t("the second-menu route is deleted whole (surface, door and menu prop)",
+  "openBlockActs" not in SURFACE_NC
+  and "onBlockActs" not in (WEB / "StudioUpdateMenu.tsx").read_text()
+  and "initialOpen" not in BLOCKMENU_NC
+  and "ctxInitialOpen" not in SURFACE_NC)
+t("the object rung keeps its dwell row (the rung did not go empty)",
+  "Align, position" in (WEB / "StudioUpdateMenu.tsx").read_text())
+t("the metered seam left this menu with the judged act (ADR-613)",
+  "meter" not in BLOCKMENU_NC.replace("metered", "").replace("MECHANICAL", "")
+  and "Rewrite" not in BLOCKMENU_NC)
 
 print("=== 7. D7 — the library in the gallery ===")
 

@@ -28,7 +28,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { LayoutTemplate, Sparkles, Type, SlidersHorizontal, Palette } from 'lucide-react';
+import { LayoutTemplate, Type, SlidersHorizontal, Palette } from 'lucide-react';
 import { ArrangementThumb } from './ArrangementThumb';
 import { buildLadder, initialRung, type LadderAncestor, type LadderRung } from './updateLadder';
 import type { PaneScope } from './selection';
@@ -58,9 +58,6 @@ export interface StudioUpdateMenuProps {
   onApplyArrangement: (a: StudioArrangement) => void;
   /** Re-target: the member picked a rung that is not the current selection. */
   onRetarget: (rung: LadderRung) => void;
-  /** Open the block-acts menu for the selected block (the object rung's acts
-   *  are ALREADY one menu — this door routes to it rather than restating it). */
-  onBlockActs: (at: { x: number; y: number }) => void;
   /** Flip the Properties pane open at this scope — the dwell (D5). */
   onOpenPane: (scope: PaneScope) => void;
   onClose: () => void;
@@ -73,7 +70,7 @@ const ICO = 'h-3.5 w-3.5';
 export function StudioUpdateMenu({
   x, y, selection, scope, ancestors, mode, pageNoun, artifactLabel, setCount,
   arrangements, currentArrange, carriedCount, groupCount,
-  onApplyArrangement, onRetarget, onBlockActs, onOpenPane, onClose,
+  onApplyArrangement, onRetarget, onOpenPane, onClose,
 }: StudioUpdateMenuProps) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [clamped, setClamped] = useState<{ left: number; top: number } | null>(null);
@@ -243,21 +240,6 @@ export function StudioUpdateMenu({
               ({setCount} selected).
             </p>
           )}
-          {/* The object rung's acts ARE the block-acts menu — one definition,
-              two mounts (ADR-586 D6). Restating them here would be the second
-              write path ADR-462 D1 forbids. */}
-          <button
-            type="button"
-            className={ROW}
-            onClick={(e) => {
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              onClose();
-              onBlockActs({ x: r.left, y: r.bottom + 4 });
-            }}
-          >
-            <span className="text-muted-foreground"><Sparkles className={ICO} /></span>
-            <span className="truncate">Move, turn into, rewrite…</span>
-          </button>
           <button type="button" className={ROW} onClick={openDwell('object')}>
             <span className="text-muted-foreground"><SlidersHorizontal className={ICO} /></span>
             <span className="truncate">Align, position &amp; style…</span>

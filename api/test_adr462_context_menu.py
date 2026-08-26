@@ -176,52 +176,49 @@ def main() -> bool:
         "rgba(16,185,129" in proj,
     )
 
-    print("\n── D4: the metered badge ──")
+    print("\n── D4/D6 as AMENDED by ADR-613: the menu is wholly MECHANICAL ──")
+    # ADR-613 moved the judged verbs OUT of this menu (Rewrite + Check to the
+    # selection-anchored gesture; Ask deleted outright — the operator's ruling,
+    # rebuildable from the same seed machinery if it is ever wanted back).
+    #
+    # D4's free/metered LINE is not abandoned — it is drawn where the metered
+    # act now lives. What this gate defends is the consequence: with no metered
+    # row left here, the `meter` discriminator and its AI badge are DELETED
+    # rather than kept latent. A discriminator with nothing to discriminate is
+    # a second spelling waiting to happen (ADR-592's six-spellings lesson).
     _check(
-        "the badge renders on metered rows",
-        "meter &&" in menu and ">\n          AI\n        </span>" in menu,
+        "no metered row survives in this menu",
+        "meter" not in menu.replace("metered", "").replace("MECHANICAL", ""),
     )
     _check(
-        "ALL THREE AI rows are badged (meter passed, not decorative)",
-        menu.count("meter>\n") == 3,
+        "the AI badge went with them (not kept latent)",
+        ">\n          AI\n        </span>" not in menu,
     )
     _check(
-        "no free row carries a badge (silence is the signal)",
-        "onClick={() => run(onDuplicate)} shortcut=\"⌘D\">" in menu
-        # Turn into became a SUBMENU trigger (ADR-479 D5), not a <Row> — and a
-        # submenu carries no badge either. Free is free.
-        and "Turn into" in menu
-        and "meter" not in menu.split("Turn into")[1].split("</div>")[0],
+        "the judged verbs are gone from the menu",
+        "Rewrite…" not in menu
+        and "Check this…" not in menu
+        and "Ask about this…" not in menu,
     )
     _check(
-        "the tiers name the VERB, never the mechanism (ADR-579 D3/D5, two-tier)",
+        "the Ask TIER is gone with its rows (every row in it was judged)",
+        '<span className="truncate">Ask</span>' not in menu
+        and "askOpen" not in menu,
+    )
+    _check(
+        "the mechanical tier survives and still names its VERB",
         "Write with AI" not in menu
-        and '<span className="truncate">Update</span>' in menu
-        and '<span className="truncate">Ask</span>' in menu,
-    )
-
-    print("\n── D6: the AI verbs — a seed is a sentence not a button ──")
-    # (Amended 2026-07-24: THREE verbs. Rewrite + Check stay the only EDIT
-    #  verbs — shorter/expand remain banned as rewrites-with-an-adjective.
-    #  "Ask about this…" joined when the Properties block-verb section was
-    #  deleted, leaving this menu as the act's only mount. It is a distinct
-    #  act (an open question, not an edit instruction), so D6's reasoning —
-    #  no pre-typed adjectives — is preserved, not violated.)
-    _check(
-        "three AI verbs — Rewrite + Check + Ask (no rewrites-with-adjectives)",
-        "Rewrite…" in menu and "Check this…" in menu and "Ask about this…" in menu
-        and "Make shorter" not in menu and "Expand this" not in menu,
+        and '<span className="truncate">Update</span>' in menu,
     )
     _check(
-        "all three SEED the composer and send nothing",
-        "seedComposer(`Rewrite the ${kind} block" in surface
-        and "seedComposer(`Check the ${kind} block" in surface
-        and "onAsk={askAboutSelection}" in surface
-        and "seedComposer(`About the ${kind} block" in surface,
+        "the surface's judged seed producers are deleted, not orphaned",
+        "menuRewrite" not in surface
+        and "menuCheck" not in surface
+        and "askAboutSelection" not in surface,
     )
     _check(
-        "neither AI row calls a send path (the member presses enter)",
-        "sendMessage" not in menu and "onSend" not in menu,
+        "free rows keep their shortcut affordance",
+        'shortcut="⌘D"' in menu and "{shortcut && (" in menu,
     )
 
     print("\n── D1: a second ENTRANCE, never a second write path ──")

@@ -94,28 +94,27 @@ _check(
     "the mechanism-named header is gone",
     "Write with AI" not in menu,
 )
+# ADR-613: the ASK tier is DELETED. Every row in it was judged (Check, Ask),
+# and the judged act left this menu for the selection-anchored gesture — a tier
+# whose whole contents moved is not kept as an empty shell. D5's rule is
+# untouched and still gated: the tier that REMAINS names its verb.
 _check(
-    "Update and Ask are the menu's verb TIERS (two-tier, expandable)",
-    '<span className="truncate">Update</span>' in menu
-    and '<span className="truncate">Ask</span>' in menu
-    and "setUpdateOpen" in menu
-    and "setAskOpen" in menu,
+    "Update is the menu's verb TIER (named for the verb, expandable)",
+    '<span className="truncate">Update</span>' in menu and "setUpdateOpen" in menu,
 )
-# Structural order: Rewrite (Update's colleague row) must come BEFORE the Ask
-# tier opens; Check/Ask must come AFTER it — Check writes nothing and may not
-# sit in a write tier.
-# ADR-586 D4 (flyout recut) moved the tier housing from `{askOpen && (` to a
-# <Flyout open={askOpen}> panel. The ORDER claim below is unchanged; only the
-# landmark moved, so anchor on the wired open-state, not the old JSX spelling.
-ask_at = menu.index("open={askOpen}")
-# Anchor on the WIRED handlers, not the labels — a label also appears in the
-# file's own doc comments, and an assertion matching a comment is the recorded
-# failure class this suite exists to avoid.
 _check(
-    "Rewrite sits under Update (before Ask); Check/Ask sit under Ask",
-    menu.index("run(onRewrite)") < ask_at
-    and menu.index("run(onCheck)") > ask_at
-    and menu.index("run(onAsk)") > ask_at,
+    "the Ask tier is gone, state and all (ADR-613)",
+    '<span className="truncate">Ask</span>' not in menu and "setAskOpen" not in menu,
+)
+# ADR-613 replaced the ORDER claim with an ABSENCE claim. The order existed to
+# keep Check (which writes nothing) out of a write tier; with all three judged
+# verbs gone from this menu there is no ordering left to defend here, and the
+# separation it protected now lives in the gesture (one act, no tier at all).
+_check(
+    "no judged verb is wired in this menu any more",
+    "run(onRewrite)" not in menu
+    and "run(onCheck)" not in menu
+    and "run(onAsk)" not in menu,
 )
 _check(
     # ADR-586 D4 — the located tiers are the CATEGORIES now; the landing law

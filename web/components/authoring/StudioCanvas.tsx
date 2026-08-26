@@ -206,6 +206,15 @@ interface StudioCanvasProps {
    *  at the block's rect (frame-viewport coordinates ≈ iframe-box pixels).
    *  `empty` = the whole block was empty (the palette converts it in place
    *  instead of inserting after it). */
+  /** ADR-613 — the selection's VISUAL box, mapped into PARENT-page coordinates
+   *  so a parent-side door can anchor to it. `null` means nothing is selected.
+   *  The runtime reports iframe-viewport coordinates (the `clientX/Y` space),
+   *  so this offsets by the iframe's page position with NO zoom multiply — the
+   *  same mapping the context-menu bridge below explains at length. */
+  onSelectionRect?: (
+    rect: { left: number; top: number; right: number; bottom: number } | null,
+    grain: string | null,
+  ) => void;
   onSlashOpen?: (
     blockId: string,
     empty: boolean,
@@ -311,6 +320,7 @@ export function StudioCanvas({
   onSplitBlock,
   onMergeBlock,
   onAddHere,
+  onSelectionRect,
   onSlashOpen,
   onSlashFilter,
   onSlashClose,
@@ -709,6 +719,22 @@ export function StudioCanvas({
           typeof d.arrange === 'string' ? d.arrange : null,
           typeof d.containerId === 'string' && d.containerId ? d.containerId : null,
         );
+      } else if (d.type === 'yarnnn-selection-rect') {
+        if (!d.rect || typeof d.rect !== 'object') {
+          onSelectionRect?.(null, null);
+        } else {
+          const f = iframeRef.current?.getBoundingClientRect();
+          const r = d.rect as Record<string, number>;
+          onSelectionRect?.(
+            {
+              left: (f?.left ?? 0) + (Number(r.left) || 0),
+              top: (f?.top ?? 0) + (Number(r.top) || 0),
+              right: (f?.left ?? 0) + (Number(r.right) || 0),
+              bottom: (f?.top ?? 0) + (Number(r.bottom) || 0),
+            },
+            typeof d.grain === 'string' ? d.grain : null,
+          );
+        }
       } else if (
         d.type === 'yarnnn-slash-open' &&
         typeof d.blockId === 'string' &&
@@ -739,7 +765,7 @@ export function StudioCanvas({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onPoint, onPointClear, onRange, onEdit, onEditExited, onEditEntered, onEnterBlock, onSplitBlock, onMergeBlock, onAddHere, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
+  }, [onPoint, onPointClear, onRange, onEdit, onEditExited, onEditEntered, onEnterBlock, onSplitBlock, onMergeBlock, onAddHere, onSelectionRect, onSlashOpen, onSlashFilter, onSlashClose, onSlashMove, onSlashEnter, onSlashTaken, onKeyVerb, onGeometry, onGeometryMany, onGroup, onRatio, onContextMenu, onUndo, onRedo]);
 
   return (
     <iframe
