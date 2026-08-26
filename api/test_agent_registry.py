@@ -535,34 +535,15 @@ _check(
     not _orphan_icons,
 )
 
-# "Where you've worked together" reads the lanes the surface ALREADY fetches.
-# Two sources must be unioned or the count under-reports, silently and
-# plausibly: `lane.agent` (the derived resident — how Editor appears in a
-# Slides lane it was never invited to) and the CAST (`participants` — how a
-# colleague appears in an open chat). Either alone looks like a working
-# feature while missing a whole class of conversation.
-_check("the pane reads the lanes from the envelope it already fetches",
-       "setLanes(" in _surface and "res.lanes" in _surface)
-_check("the worked-together selector unions the resident AND the cast",
-       "l.agent === slug" in _surface
-       and "p.member_kind === 'agent'" in _surface
-       and "p.agent_slug === slug" in _surface)
-# It must NOT claim a work log. Agent writes attribute `member:{id} via
-# {model}` (ADR-411 D4) and the beings share an engine, so per-being
-# authorship is genuinely underivable — a "files authored" or "spend" panel
-# here would be inventing a distinction the substrate refuses to make.
+# The "Where you've worked together" section is DELETED (2026-08-27, operator:
+# "REMOVE this part"). Its four assertions went with it rather than being left
+# to pin a feature that no longer exists — a gate guarding deleted code is the
+# same dead-vocabulary class as the orphaned `archive` icon.
+# What SURVIVES is the negative below: the pane must still claim no per-being
+# authorship or spend. That one was never about the section; it guards the
+# tempting next edit, and the temptation outlived the section.
 _check("the pane claims no per-being authorship or spend",
        not re.search(r"authored_by|cost_usd|spend", _surface))
-# A bound lane is auto-named after its artifact FILE, so `name` and the path's
-# basename are frequently the same string — printing both rendered
-# "deck.html   deck.html", eight times over, with the folder that actually
-# distinguishes them (ir-deck-yarnnn-march-2026-v5) thrown away by `.pop()`.
-# The label must derive from the PATH, and must not print one half twice.
-_check("the lane label is derived, not the raw name beside the basename",
-       "function laneLabel(" in _surface
-       and "artifact_path.split('/').pop()" not in _surface)
-_check("the label prefers the folder that distinguishes a bound lane",
-       "parts[parts.length - 2]" in _surface)
 
 print()
 if FAIL:

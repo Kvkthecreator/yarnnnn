@@ -147,60 +147,6 @@ type Being = {
   model?: string;
 };
 
-/** The slice of a lane row this surface reads. `agent` is DERIVED server-side
- *  (`_lane_agent` — the app's resident at read time, ADR-597 D1), so a
- *  re-pairing moves this view with no edit here. Deliberately narrow: copying
- *  the whole row would be a second home for a shape the client already has. */
-type Lane = {
-  id: string;
-  name: string;
-  agent?: string | null;
-  app?: string | null;
-  artifact_path?: string | null;
-  updated_at?: string;
-  participants?: { member_kind: string; agent_slug: string | null }[];
-};
-
-// The lanes a being worked in. TWO sources, deliberately unioned:
-//   - the derived resident (`lane.agent`) — a bound lane's being, which is
-//     how Editor appears in a Slides lane it was never "invited" to;
-//   - the CAST (`participants`) — a being explicitly joined to a conversation
-//     (ADR-495), which is how a colleague appears in an open chat.
-// Either alone under-reports: the first misses invited beings, the second
-// misses every bound desk lane, whose resident is never a cast row.
-// What to CALL a lane in a list. A bound lane is auto-named after its artifact
-// file, so `name` is often the bare filename — and the filename is the least
-// distinguishing part of the path: eight lanes all called "deck.html" or
-// "document.html". The MEANING is in the folder (`ir-deck-yarnnn-march-2026-v5`),
-// which the auto-name throws away. Prefer the folder for a bound lane, keep the
-// member's own name when they gave the lane one, and never print both halves of
-// the same string (which rendered "deck.html   deck.html").
-function laneLabel(lane: Lane): { title: string; detail: string | null } {
-  const path = lane.artifact_path?.trim() || '';
-  const name = lane.name?.trim() || '';
-  if (!path) return { title: name || 'Untitled', detail: null };
-
-  const parts = path.split('/').filter(Boolean);
-  const file = parts[parts.length - 1] ?? '';
-  const folder = parts.length > 1 ? parts[parts.length - 2] : '';
-  // A member-given name is one the auto-namer would not have produced.
-  const memberNamed = name && name !== file;
-  return {
-    title: memberNamed ? name : folder || file || 'Untitled',
-    detail: memberNamed ? folder || file : file && folder ? file : null,
-  };
-}
-
-function lanesForBeing(lanes: Lane[], slug: string): Lane[] {
-  return lanes.filter(
-    (l) =>
-      l.agent === slug ||
-      (l.participants ?? []).some(
-        (p) => p.member_kind === 'agent' && p.agent_slug === slug,
-      ),
-  );
-}
-
 // The connector scoping control (ADR-612). Three states a member can express,
 // and they must stay distinguishable:
 //   not scoped (absent)  — reaches every connected platform. The DEFAULT.
@@ -293,26 +239,42 @@ function ConnectorScope({
           );
         })}
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        {!scoped
-          ? 'Everything you connect — this one follows your connections.'
-          : (optIn ?? []).length === 0
-            ? 'Nothing — this one cannot read through any connection.'
-            : `Only ${(optIn ?? []).join(', ')}.`}
-        {scoped && (
-          <>
-            {' '}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void save(null)}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              Reset to everything connected
-            </button>
-          </>
-        )}
-      </p>
+      {/* Only what the switches CANNOT say themselves. Listing the selected
+          platforms back ("Only notion, slack") restated the toggle row
+          verbatim. Two states remain worth a line because they are invisible
+          in the switches alone:
+            - UNSCOPED reads identical to "all switched on", but behaves
+              differently — it follows connections added later.
+            - SCOPED TO NOTHING is all-off, which could be misread as an
+              unsaved state rather than a deliberate choice. */}
+      {!scoped ? (
+        <p className="text-[11px] text-muted-foreground">
+          Following your connections — including any you add later.
+        </p>
+      ) : (optIn ?? []).length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          Reads through no connection.{' '}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void save(null)}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Follow my connections instead
+          </button>
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void save(null)}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Follow my connections instead
+          </button>
+        </p>
+      )}
     </div>
   );
 }
@@ -321,20 +283,17 @@ function ConnectorScope({
  *  unbuilt (ADR-601 D3's chokepoint is the enforcement; this is the telling). */
 function BeingDetail({
   being,
-  lanes,
   available,
   optIn,
   onScope,
   onBack,
 }: {
   being: Being;
-  lanes: Lane[];
   available: string[];
   optIn: Record<string, string[]>;
   onScope: (slug: string, platforms: string[] | null) => Promise<void>;
   onBack: () => void;
 }) {
-  const worked = lanesForBeing(lanes, being.slug);
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <button
@@ -407,50 +366,6 @@ function BeingDetail({
         </div>
       </dl>
 
-      {/* Where the two of you have actually worked. Read from the SAME lanes
-          envelope this surface already fetches — no endpoint, no per-agent
-          query, no new column. It answers "have I worked with this one, and
-          where" from data the member's own cast membership already scopes.
-
-          Deliberately NOT a work log: an agent's writes attribute as
-          `member:{id} via {model}` (ADR-411 D4 — it acts AS the member), and
-          the beings share an engine, so "what Editor wrote" is genuinely
-          indistinguishable from what Designer wrote. Listing conversations is
-          the honest granularity; anything finer would be invented. */}
-      {worked.length > 0 && (
-        <section className="space-y-2 border-t border-border/60 pt-5">
-          <h2 className="text-xs font-medium">
-            Where you&rsquo;ve worked together
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {worked.length === 1
-              ? '1 conversation'
-              : `${worked.length} conversations`}
-            {' '}in this workspace.
-          </p>
-          <ul className="space-y-1 pt-1">
-            {worked.slice(0, 8).map((l) => {
-              const { title, detail } = laneLabel(l);
-              return (
-                <li
-                  key={l.id}
-                  className="flex items-baseline gap-2 text-xs text-muted-foreground"
-                >
-                  <span className="truncate text-foreground/80">{title}</span>
-                  {detail && (
-                    <span className="shrink-0 truncate text-[11px]">{detail}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          {worked.length > 8 && (
-            <p className="text-[11px] text-muted-foreground">
-              and {worked.length - 8} more.
-            </p>
-          )}
-        </section>
-      )}
     </div>
   );
 }
@@ -459,7 +374,6 @@ export function AgentsSurface() {
   const params = useSearchParams();
   const { setSurfaceParams } = useSurfacePreferences();
   const [beings, setBeings] = useState<Being[] | null>(null);
-  const [lanes, setLanes] = useState<Lane[]>([]);
   // ADR-612 — the member's connector scoping. `available` is what there is to
   // opt into (the grant side); `optIn` is per being. A being ABSENT from the
   // map is not scoped and reaches everything granted — absence must never be
@@ -496,11 +410,6 @@ export function AgentsSurface() {
       .then((res) => {
         if (!alive) return;
         setBeings((res.beings ?? []) as Being[]);
-        // The SAME response already carries every lane the member is in, each
-        // with its derived `agent` and its cast. "Where we've worked together"
-        // is therefore a filter over data we were already fetching and
-        // throwing away — no endpoint, no query, no new column.
-        setLanes((res.lanes ?? []) as Lane[]);
       })
       // A failed read must not render as "you have nobody" — that is the exact
       // false statement this surface exists to stop telling.
@@ -528,7 +437,6 @@ export function AgentsSurface() {
       <div className="h-full overflow-y-auto px-6 py-8">
         <BeingDetail
           being={selected}
-          lanes={lanes}
           available={available}
           optIn={optIn}
           onScope={scopeConnectors}
