@@ -322,6 +322,36 @@ _check("supervisor's home is strings — the voice (ADR-604 D1)",
 _served2 = {b["slug"] for b in _L._beings_payload()}
 _check("the desk serves exactly one being", {"supervisor"} <= _served2)
 
+# The desks payload — the app's OWN identity, so the pane can render the mark
+# the Dock renders. Derived from the surface rows: assert the icon_key and
+# route actually RESOLVE, because a chip whose icon_key is empty silently
+# degrades to a text label and looks like a styling choice, not a break.
+from services.agents_registry import desks_for_agent  # noqa: E402
+_desks = {slug: desks_for_agent(slug) for slug in AGENTS}
+_thin = {
+    slug: [d for d in ds if not (d.get("icon_key") and d.get("route") and d.get("title"))]
+    for slug, ds in _desks.items()
+}
+_thin = {k: v for k, v in _thin.items() if v}
+_check(f"every desk carries title + icon_key + route (thin: {_thin or 'none'})", not _thin)
+_check("the desks match the homes, one for one",
+       all(len(_desks[s]) == len(homes_for_agent(s)) for s in AGENTS))
+# The icon_key must be one the FE resolver actually knows, or the chip falls
+# back to a generic Box and the app stops being recognisable.
+_icons_tsx = (API.parent / "web" / "lib" / "shell" / "surface-icons.tsx").read_text()
+# Keys are object properties and may be quoted ('file-text') or bare (cable) —
+# matching only the quoted form read two live keys as unknown on the first cut.
+# Parse the KEY POSITION instead of grepping for the name anywhere in the file.
+_resolver_keys = set(re.findall(r"^\s*'([a-z0-9-]+)'\s*:", _icons_tsx, re.M)) | set(
+    re.findall(r"^\s*([a-zA-Z][a-zA-Z0-9]*)\s*:", _icons_tsx, re.M)
+)
+_unknown = sorted({
+    d["icon_key"] for ds in _desks.values() for d in ds
+    if d["icon_key"] and d["icon_key"] not in _resolver_keys
+})
+_check(f"every desk icon_key is known to resolveSurfaceIcon (unknown: {_unknown or 'none'})",
+       not _unknown)
+
 # ADR-610 D2 — the voice/executor SEAM survives its second being's deletion.
 # Undeclared `standing_executor` must derive the resident, which is how every
 # other app has always worked. Asserted by DRIVING the resolver, not by
@@ -489,6 +519,20 @@ _missing_icons = sorted(
 _check(
     f"every registry icon is mapped in the surface (unmapped: {_missing_icons or 'none'})",
     not _missing_icons,
+)
+# ...and the reverse: an entry for a being that no longer exists. Harmless at
+# runtime, which is why it survives — ADR-610 deleted Keeper and left `archive`
+# behind, mapping nothing. Dead UI vocabulary is how a deleted concept keeps
+# looking supported; the map should read as the roster, both directions.
+_mapped_icons = {
+    key for key in re.findall(r"^\s*'?([a-z-]+)'?\s*:", _icon_map_block, re.M)
+}
+_orphan_icons = sorted(
+    _mapped_icons - {row["icon"] for row in AGENTS.values() if row.get("icon")}
+)
+_check(
+    f"the surface maps no icon for a being that does not exist (orphans: {_orphan_icons or 'none'})",
+    not _orphan_icons,
 )
 
 print()

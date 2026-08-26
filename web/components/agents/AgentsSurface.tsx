@@ -44,10 +44,11 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Archive, ArrowLeft, Bot, ClipboardList, Palette, PenTool } from 'lucide-react';
+import { ArrowLeft, Bot, ClipboardList, Palette, PenTool } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 
 // The registry's `icon` is a kebab-case lucide name (ADR-460 row shape).
 // Mapped explicitly rather than resolved dynamically: lucide's dynamic import
@@ -64,7 +65,6 @@ const ICONS: Record<string, React.ElementType> = {
   'pen-tool': PenTool,             // authoring — decks and prose (ADR-602 D4)
   palette: Palette,                // generation — the metered pipeline
   'clipboard-list': ClipboardList, // the standing declaration — Supervisor's desk
-  archive: Archive,                // maintenance — a designated file kept true
 };
 
 // Provenance, rendered from the field. A member-authored being simply lacks
@@ -87,6 +87,40 @@ function homeNames(being: { homes: string[]; home_titles?: string[] }): string[]
   return being.home_titles?.length ? being.home_titles : being.homes;
 }
 
+// An app, shown as the member already knows it: the Dock's own mark and name.
+// The icon resolves through `resolveSurfaceIcon` — the SAME resolver the Dock
+// and Launcher use (ADR-297) — so an app has one look everywhere and a re-icon
+// moves every rendering at once. A desk that predates the `desks` payload has
+// no icon_key; the chip still renders, named, rather than disappearing.
+function DeskChip({ desk }: { desk: { slug: string; title: string; icon_key: string } }) {
+  const Icon = desk.icon_key ? resolveSurfaceIcon(desk.icon_key) : null;
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[11px] font-medium text-foreground/80">
+      {Icon ? <Icon className="h-3.5 w-3.5 text-muted-foreground" /> : null}
+      {desk.title}
+    </span>
+  );
+}
+
+// The desk row for a being, chips where the payload carries them and the plain
+// titles otherwise — the same fallback ladder as `homeNames`, one level richer.
+function DeskChips({ being }: { being: Being }) {
+  if (being.desks?.length) {
+    return (
+      <span className="flex flex-wrap items-center gap-1.5">
+        {being.desks.map((d) => (
+          <DeskChip key={d.slug} desk={d} />
+        ))}
+      </span>
+    );
+  }
+  const names = homeNames(being);
+  if (!names.length) return null;
+  return (
+    <span className="text-[11px] text-muted-foreground">in {names.join(', ')}</span>
+  );
+}
+
 function BeingIcon({ icon }: { icon: string }) {
   const Glyph = ICONS[icon] ?? Bot;
   return <Glyph className="h-4 w-4 text-muted-foreground" />;
@@ -102,8 +136,12 @@ type Being = {
   /** The desks this being works at, as ROUTING KEYS. Kept for addressing. */
   homes: string[];
   /** The same desks as the member READS them — the app's declared title.
-   *  Render this one; `homes` is an address, and an address is not a name. */
+   *  Kept as the text fallback when the richer `desks` shape is absent. */
   home_titles?: string[];
+  /** The desks as the APP's own identity — title + `icon_key` + route, served
+   *  from the surface rows. Rendered as chips carrying the SAME mark the Dock
+   *  shows, so a member recognises the app rather than reading its name. */
+  desks?: { slug: string; title: string; icon_key: string; route: string }[];
   /** The engine behind the name (ADR-460 D4). Served so the page can say what
    *  actually runs this being rather than implying it. */
   model?: string;
@@ -141,7 +179,13 @@ function BeingDetail({ being, onBack }: { being: Being; onBack: () => void }) {
       <dl className="space-y-3 text-xs">
         <div className="flex gap-3">
           <dt className="w-24 shrink-0 text-muted-foreground">Works in</dt>
-          <dd>{homeNames(being).length ? homeNames(being).join(', ') : 'Anywhere you invite them'}</dd>
+          <dd>
+            {homeNames(being).length ? (
+              <DeskChips being={being} />
+            ) : (
+              'Anywhere you invite them'
+            )}
+          </dd>
         </div>
         <div className="flex gap-3">
           <dt className="w-24 shrink-0 text-muted-foreground">Add to a chat</dt>
@@ -219,9 +263,12 @@ export function AgentsSurface() {
       <div className="mx-auto max-w-2xl space-y-8">
         <header className="space-y-1">
           <h1 className="text-sm font-medium">Agents</h1>
+          {/* The second sentence described a roster that does not exist yet
+              (nobody is `offered`, ADR-599 D1) — the same unfulfillable
+              promise as the empty section below it. Says what IS true. */}
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Who works with you here. Some are part of an app — you find them
-            there. Others you can bring into a chat.
+            Who works with you here. Each one lives in an app — you meet them
+            where the work is.
           </p>
         </header>
 
@@ -247,19 +294,15 @@ export function AgentsSurface() {
                   <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
                     <BeingIcon icon={b.icon} />
                   </div>
-                  <div className="min-w-0 space-y-0.5">
+                  <div className="min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="text-sm font-medium">{b.name}</span>
-                      {homeNames(b).length > 0 && (
-                        <span className="text-[11px] text-muted-foreground">
-                          in {homeNames(b).join(', ')}
-                        </span>
-                      )}
                       {b.kernel && <KernelMark />}
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {b.blurb}
                     </p>
+                    <DeskChips being={b} />
                     </div>
                   </button>
                 </li>
@@ -268,24 +311,20 @@ export function AgentsSurface() {
           )}
         </section>
 
+        {/* "To work with" — the OFFERED beings. Rendered only when there ARE
+            any: nobody is offered today (ADR-599 D1) and member-authored
+            agents are ruled out for MVP 1.0, so the section could only ever
+            show an empty box promising a feature that is not coming yet. A
+            standing promise a member cannot act on is worse than silence.
+            The `offered` FIELD is untouched — it still gates the cast door —
+            and the moment a being carries it, this section appears with no
+            edit here. Deleting the branch, not the capability. */}
+        {offered.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-medium text-muted-foreground">
             To work with
           </h2>
-          {offered.length === 0 ? (
-            <div className="flex items-start gap-3 rounded-lg border border-dashed border-border/60 p-4">
-              <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
-                <Bot className="h-4 w-4 text-muted-foreground" />
-              </div>
-              {/* ADR-602 D5 — plain language. The prior copy said "roster of
-                  colleagues … agent-and-app scaffolding settles (ADR-599)":
-                  an ADR number is an internal address, and a member reading
-                  it learns nothing they can act on. */}
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Nobody yet — you&rsquo;ll be able to add your own here later.
-              </p>
-            </div>
-          ) : (
+          {(
             <ul className="space-y-2">
               {offered.map((b) => (
                 <li key={b.slug}>
@@ -312,6 +351,7 @@ export function AgentsSurface() {
             </ul>
           )}
         </section>
+        )}
       </div>
     </div>
   );

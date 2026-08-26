@@ -462,6 +462,7 @@ def _beings_payload() -> list[dict]:
     import services.apps  # noqa: F401  (registration side-effect)
     from services.agents_registry import (
         AGENTS,
+        desks_for_agent,
         home_titles_for_agent,
         homes_for_agent,
         is_promoted,
@@ -485,6 +486,11 @@ def _beings_payload() -> list[dict]:
             # "in slides, text" until 2026-08-26 — routing keys shown to a
             # person, while the app had declared a title all along.
             "home_titles": home_titles_for_agent(r["slug"]),
+            # The desks as the APP's own identity — title + icon_key + route,
+            # so the pane can render the same mark the Dock does rather than
+            # spelling app names as prose. Derived from the surface rows
+            # (ADR-297's icon_key), never a second table.
+            "desks": desks_for_agent(r["slug"]),
             # ADR-602 D6 — the engine, so a being's page can SAY what runs it
             # rather than implying it. Already public on the lane envelope
             # (`model_names`); no new disclosure.

@@ -368,6 +368,41 @@ def home_titles_for_agent(slug: str) -> list[str]:
     return [titles.get(s) or s for s in homes_for_agent(slug)]
 
 
+def desks_for_agent(slug: str) -> list[dict[str, str]]:
+    """The desks this being works at, as the APP's own identity. Pure-ish.
+
+    `homes_for_agent` answers WHERE (the address) and `home_titles_for_agent`
+    answers WHAT IT IS CALLED. A member reading the pane wants to RECOGNISE the
+    app — the same mark they click in the Dock — so this carries the whole
+    identity the surface row already declares: slug, title, `icon_key` and
+    route. The FE resolves the icon through the SAME `resolveSurfaceIcon` the
+    Dock and Launcher use (ADR-297), so an app has one look everywhere.
+
+    Derived from the surface rows, never a second table: an app renamed or
+    re-iconed once is renamed here too. A desk with no surface row still
+    returns, titled by its slug and unrouted — showing the key beats dropping
+    the desk (the same fallback reason as `home_titles_for_agent`).
+    """
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    rows = (
+        KERNEL_SURFACES
+        if isinstance(KERNEL_SURFACES, list)
+        else list(KERNEL_SURFACES.values())
+    )
+    by_slug = {r.get("slug"): r for r in rows if r.get("slug")}
+    desks: list[dict[str, str]] = []
+    for app_slug in homes_for_agent(slug):
+        row = by_slug.get(app_slug) or {}
+        desks.append({
+            "slug": app_slug,
+            "title": row.get("title") or app_slug,
+            "icon_key": row.get("icon_key") or "",
+            "route": row.get("route") or "",
+        })
+    return desks
+
+
 def model_for_agent(slug: str) -> Optional[str]:
     """The engine behind the name, or None if the slug is unknown. Pure."""
     agent = resolve_agent(slug)
