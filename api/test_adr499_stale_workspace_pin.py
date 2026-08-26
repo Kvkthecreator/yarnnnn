@@ -94,6 +94,34 @@ check(
     "it only fires when a pin is actually set",
     "!!getActiveWorkspaceId()" in client,
 )
+
+# --- 2b. THE WIRE SHAPE the detail actually arrives in ---------------------
+# The server RAISES `detail=`, but main.py's envelope handler normalizes EVERY
+# HTTPException to {"error": {"code", "message", "hint"}} — so `data.detail` is
+# absent on the wire and a reader that knows only that shape never fires.
+# Observed 2026-08-26 in production: a re-invited member could not accept,
+# because the invite preview 403'd on their own stale pin and the heal was
+# reading a field the envelope had removed. Asserting the string matches the
+# server is NOT enough — it must be extracted from the shape it ARRIVES in.
+
+check(
+    "the client extracts the detail from BOTH wire shapes",
+    "export function errorDetailFrom" in client
+    and "error?.message" in client.replace(" ", ""),
+    "envelope responses carry error.message, not detail",
+)
+check(
+    "the stale-pin check reads through that extractor, not a raw .detail",
+    "isStaleWorkspacePin(\n      response.status,\n      errorDetailFrom(data),\n    )" in client
+    or ("errorDetailFrom(data)" in client and "?.detail,\n    );" not in client),
+    "a second spelling of the extraction is how the shapes drift",
+)
+check(
+    "the SSE transport uses the same extractor (it hand-builds its headers)",
+    "errorDetailFrom(await response.clone().json())"
+    in open(os.path.join(REPO, "web", "lib", "api", "chatTransport.ts")).read(),
+    "the third transport had the identical blind spot",
+)
 check(
     "it clears the pin before retrying",
     "clearActiveWorkspace();" in client,

@@ -1,4 +1,4 @@
-import { getActiveWorkspaceId, healStaleWorkspacePin, isStaleWorkspacePin } from "./client";
+import { errorDetailFrom, getActiveWorkspaceId, healStaleWorkspacePin, isStaleWorkspacePin } from "./client";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -108,7 +108,9 @@ export async function postChatWithFallback({
         // which parses its own error detail (and streams it on success).
         let detail: unknown;
         try {
-          detail = (await response.clone().json())?.detail;
+          // BOTH wire shapes — `{detail}` and the envelope's
+          // `{error:{message}}` (see errorDetailFrom).
+          detail = errorDetailFrom(await response.clone().json());
         } catch {
           // Not JSON — cannot be the stale-pin shape; fall through untouched.
         }

@@ -137,11 +137,19 @@ export function useSessionMessagesRealtime(
     // Set BEFORE subscribing — see the file-revisions hook for why the race
     // matters: the losing side is the silent one, and it resolves from cache
     // locally while failing on a cold load.
-    void resolveAccessToken(supabase).then((token) => {
-      if (token) supabase.realtime.setAuth(token);
-    });
+    // Sequenced, not fire-and-forget: the intent above was right, but
+    // `.then()` beside the join lets `.subscribe()` run first on a cold load
+    // (measured 2026-08-26 in the sibling bell hook — the socket carried
+    // `apikey` and no `access_token`). Await the token, THEN join.
+    let cancelled = false;
+    let channel: RealtimeChannel | null = null;
 
-    const channel = supabase
+    void (async () => {
+      const token = await resolveAccessToken(supabase);
+      if (token) supabase.realtime.setAuth(token);
+      if (cancelled) return;
+
+      channel = supabase
       .channel(channelName)
       .on(
         // The Supabase Realtime API uses a string literal here; the
@@ -174,11 +182,13 @@ export function useSessionMessagesRealtime(
         }
       });
 
-    channelRef.current = channel;
+      channelRef.current = channel;
+    })();
 
     return () => {
+      cancelled = true;
       try {
-        channel.unsubscribe();
+        channel?.unsubscribe();
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn('[useSessionMessagesRealtime] cleanup failed:', err);

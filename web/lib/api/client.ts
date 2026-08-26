@@ -68,6 +68,30 @@ import type { FocusWire } from "@/lib/shell/useSurfaceFocus";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+/** The API speaks TWO error wire shapes and every reader must accept both.
+ *
+ *  Raw FastAPI raises surface as `{detail}`; anything through the envelope
+ *  middleware (`api/main.py`, which normalizes EVERY HTTPException) arrives as
+ *  `{error: {code, message, hint}}`. A reader that knows only `detail` compiles,
+ *  ships, and then silently misreads every enveloped error.
+ *
+ *  Observed 2026-08-26: ADR-499's stale-pin self-heal tested `data.detail` and
+ *  so never fired in production — the envelope had moved the string to
+ *  `error.message`. A member with a revoked grant kept a poisoned
+ *  `X-Workspace-Id` pin with no clearing path, and the invite that would have
+ *  restored their access 403'd on the pin itself: they could not rejoin the
+ *  workspace they had been re-invited to.
+ *
+ *  One extractor, so the two shapes can never drift apart again. */
+export function errorDetailFrom(data: unknown): unknown {
+  const d = data as
+    | { detail?: unknown; error?: { message?: unknown } | null }
+    | null;
+  if (d?.detail !== undefined && d.detail !== null) return d.detail;
+  const enveloped = d?.error?.message;
+  return typeof enveloped === "string" ? enveloped : undefined;
+}
+
 export class APIError extends Error {
   constructor(
     public status: number,
@@ -89,7 +113,7 @@ export class APIError extends Error {
     statusText: string,
     data: unknown
   ): string {
-    const detail = (data as { detail?: unknown } | null)?.detail;
+    const detail = errorDetailFrom(data);
     if (typeof detail === "string" && detail.trim()) return detail;
     // 422s arrive as a list of validation objects — surface the first `msg`
     // rather than "[object Object]".
@@ -273,7 +297,7 @@ async function request<T>(
     // 403 (owner-only verbs, etc.) is never swallowed.
     const staleWorkspacePin = isStaleWorkspacePin(
       response.status,
-      (data as { detail?: unknown } | null)?.detail,
+      errorDetailFrom(data),
     );
 
     if (staleWorkspacePin && !options.__retriedWithoutWorkspace) {

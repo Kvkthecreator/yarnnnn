@@ -69,31 +69,50 @@ export function useAttentionRealtime(opts: UseAttentionRealtimeOptions): void {
       }, DEBOUNCE_MS);
     };
 
-    void resolveAccessToken(supabase).then((token) => {
+    // `setAuth` MUST land BEFORE `subscribe()`, so the whole join is sequenced
+    // behind the session read — the same shape use-file-revisions-realtime
+    // already uses, and for the same reason. Fire-and-forget beside the join
+    // is a race whose losing side is SILENT: the socket joins with the anon
+    // apikey, `auth.uid()` is NULL, RLS on session_messages yields nothing,
+    // and the channel reports SUBSCRIBED while delivering zero rows.
+    //
+    // It loses on a COLD load (the session resolves from the network) and wins
+    // warm (resolved from cache) — so it works in local dev and fails in
+    // production. Measured 2026-08-26: the socket joined with `apikey` and no
+    // `access_token`, and a mention took ~10s (the poll), not the "seconds"
+    // G3 claims.
+    let cancelled = false;
+    let channel: RealtimeChannel | null = null;
+
+    void (async () => {
+      const token = await resolveAccessToken(supabase);
       if (token) supabase.realtime.setAuth(token);
-    });
+      if (cancelled) return;
 
-    const channel = supabase
-      .channel('attention-invalidation')
-      .on(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        'postgres_changes' as any,
-        { event: 'INSERT', schema: 'public', table: 'session_messages' },
-        bump,
-      )
-      .on(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        'postgres_changes' as any,
-        { event: 'INSERT', schema: 'public', table: 'workspace_file_versions' },
-        bump,
-      )
-      .subscribe();
+      channel = supabase
+        .channel('attention-invalidation')
+        .on(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          'postgres_changes' as any,
+          { event: 'INSERT', schema: 'public', table: 'session_messages' },
+          bump,
+        )
+        .on(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          'postgres_changes' as any,
+          { event: 'INSERT', schema: 'public', table: 'workspace_file_versions' },
+          bump,
+        )
+        .subscribe();
 
-    channelRef.current = channel;
+      channelRef.current = channel;
+    })();
+
     return () => {
+      cancelled = true;
       if (timerRef.current) clearTimeout(timerRef.current);
       try {
-        channel.unsubscribe();
+        channel?.unsubscribe();
       } catch {
         // best-effort cleanup
       }
