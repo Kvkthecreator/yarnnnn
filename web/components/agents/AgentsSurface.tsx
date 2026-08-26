@@ -147,9 +147,49 @@ type Being = {
   model?: string;
 };
 
+/** The slice of a lane row this surface reads. `agent` is DERIVED server-side
+ *  (`_lane_agent` — the app's resident at read time, ADR-597 D1), so a
+ *  re-pairing moves this view with no edit here. Deliberately narrow: copying
+ *  the whole row would be a second home for a shape the client already has. */
+type Lane = {
+  id: string;
+  name: string;
+  agent?: string | null;
+  app?: string | null;
+  artifact_path?: string | null;
+  updated_at?: string;
+  participants?: { member_kind: string; agent_slug: string | null }[];
+};
+
+// The lanes a being worked in. TWO sources, deliberately unioned:
+//   - the derived resident (`lane.agent`) — a bound lane's being, which is
+//     how Editor appears in a Slides lane it was never "invited" to;
+//   - the CAST (`participants`) — a being explicitly joined to a conversation
+//     (ADR-495), which is how a colleague appears in an open chat.
+// Either alone under-reports: the first misses invited beings, the second
+// misses every bound desk lane, whose resident is never a cast row.
+function lanesForBeing(lanes: Lane[], slug: string): Lane[] {
+  return lanes.filter(
+    (l) =>
+      l.agent === slug ||
+      (l.participants ?? []).some(
+        (p) => p.member_kind === 'agent' && p.agent_slug === slug,
+      ),
+  );
+}
+
 /** One being's page. Read-only for a kernel being — stated, not merely
  *  unbuilt (ADR-601 D3's chokepoint is the enforcement; this is the telling). */
-function BeingDetail({ being, onBack }: { being: Being; onBack: () => void }) {
+function BeingDetail({
+  being,
+  lanes,
+  onBack,
+}: {
+  being: Being;
+  lanes: Lane[];
+  onBack: () => void;
+}) {
+  const worked = lanesForBeing(lanes, being.slug);
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <button
@@ -210,6 +250,52 @@ function BeingDetail({ being, onBack }: { being: Being; onBack: () => void }) {
           </dd>
         </div>
       </dl>
+
+      {/* Where the two of you have actually worked. Read from the SAME lanes
+          envelope this surface already fetches — no endpoint, no per-agent
+          query, no new column. It answers "have I worked with this one, and
+          where" from data the member's own cast membership already scopes.
+
+          Deliberately NOT a work log: an agent's writes attribute as
+          `member:{id} via {model}` (ADR-411 D4 — it acts AS the member), and
+          the beings share an engine, so "what Editor wrote" is genuinely
+          indistinguishable from what Designer wrote. Listing conversations is
+          the honest granularity; anything finer would be invented. */}
+      {worked.length > 0 && (
+        <section className="space-y-2 border-t border-border/60 pt-5">
+          <h2 className="text-xs font-medium">
+            Where you&rsquo;ve worked together
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            {worked.length === 1
+              ? '1 conversation'
+              : `${worked.length} conversations`}
+            {' '}in this workspace.
+          </p>
+          <ul className="space-y-1 pt-1">
+            {worked.slice(0, 8).map((l) => (
+              <li
+                key={l.id}
+                className="flex items-baseline gap-2 text-xs text-muted-foreground"
+              >
+                <span className="truncate text-foreground/80">
+                  {l.name?.trim() || 'Untitled'}
+                </span>
+                {l.artifact_path && (
+                  <span className="shrink-0 truncate text-[11px]">
+                    {l.artifact_path.split('/').pop()}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {worked.length > 8 && (
+            <p className="text-[11px] text-muted-foreground">
+              and {worked.length - 8} more.
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -218,6 +304,7 @@ export function AgentsSurface() {
   const params = useSearchParams();
   const { setSurfaceParams } = useSurfacePreferences();
   const [beings, setBeings] = useState<Being[] | null>(null);
+  const [lanes, setLanes] = useState<Lane[]>([]);
   // Read UNPREFIXED: the shell owns the `agents.` namespacing on the way in
   // and out (surface-preferences), and a surface reads its own key plainly —
   // the SettingsPaneShell `tab` precedent.
@@ -237,7 +324,13 @@ export function AgentsSurface() {
     api.lanes
       .list(true)
       .then((res) => {
-        if (alive) setBeings((res.beings ?? []) as Being[]);
+        if (!alive) return;
+        setBeings((res.beings ?? []) as Being[]);
+        // The SAME response already carries every lane the member is in, each
+        // with its derived `agent` and its cast. "Where we've worked together"
+        // is therefore a filter over data we were already fetching and
+        // throwing away — no endpoint, no query, no new column.
+        setLanes((res.lanes ?? []) as Lane[]);
       })
       // A failed read must not render as "you have nobody" — that is the exact
       // false statement this surface exists to stop telling.
@@ -253,7 +346,7 @@ export function AgentsSurface() {
   if (selected) {
     return (
       <div className="h-full overflow-y-auto px-6 py-8">
-        <BeingDetail being={selected} onBack={() => open(null)} />
+        <BeingDetail being={selected} lanes={lanes} onBack={() => open(null)} />
       </div>
     );
   }
