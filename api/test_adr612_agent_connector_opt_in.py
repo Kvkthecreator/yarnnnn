@@ -214,6 +214,19 @@ check("a strings run goes through the toolless derive path, not the lane",
       and "lane_tools_openai" not in _strings_src)
 
 # ---------------------------------------------------------------------------
+print("6. the control reads as a toggle, not as deleted text")
+# ---------------------------------------------------------------------------
+_surface = (ROOT.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
+# Observed in the click-pass: an un-selected platform rendered STRUCK THROUGH,
+# which reads as "removed" rather than "available but off" — and the plain
+# button carried no pressed state at all, so assistive tech could not tell on
+# from off.
+check("an un-selected platform is not rendered as struck-through text",
+      "line-through" not in _surface)
+check("the control carries switch semantics (state reaches assistive tech)",
+      'role="switch"' in _surface and "aria-checked=" in _surface)
+
+# ---------------------------------------------------------------------------
 print("4. the door fails closed")
 # ---------------------------------------------------------------------------
 _route = (ROOT / "routes" / "agent_connectors.py").read_text()

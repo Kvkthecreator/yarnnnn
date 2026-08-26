@@ -243,13 +243,16 @@ function ConnectorScope({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="space-y-1">
         {available.map((p) => {
           const on = !scoped || (optIn ?? []).includes(p);
           return (
             <button
               key={p}
               type="button"
+              role="switch"
+              aria-checked={on}
+              aria-label={p}
               disabled={busy}
               onClick={() => {
                 const base = scoped ? optIn ?? [] : available;
@@ -258,14 +261,34 @@ function ConnectorScope({
                   : [...base, p];
                 void save(next);
               }}
-              className={
-                'rounded-md border px-2 py-1 text-[11px] font-medium capitalize transition-colors ' +
-                (on
-                  ? 'border-foreground/20 bg-foreground/5 text-foreground'
-                  : 'border-border/60 text-muted-foreground line-through')
-              }
+              className="flex w-full items-center justify-between gap-3 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/50 disabled:opacity-60"
             >
-              {p}
+              <span
+                className={
+                  'text-xs capitalize ' +
+                  (on ? 'text-foreground' : 'text-muted-foreground')
+                }
+              >
+                {p}
+              </span>
+              {/* A switch, not a struck-through label: "off" is a STATE the
+                  member can flip, and strikethrough reads as deleted rather
+                  than available-but-unselected. `role="switch"` carries the
+                  state to assistive tech, which the plain button did not. */}
+              <span
+                aria-hidden="true"
+                className={
+                  'relative h-4 w-7 shrink-0 rounded-full transition-colors ' +
+                  (on ? 'bg-foreground/80' : 'bg-border')
+                }
+              >
+                <span
+                  className={
+                    'absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ' +
+                    (on ? 'left-3.5' : 'left-0.5')
+                  }
+                />
+              </span>
             </button>
           );
         })}
