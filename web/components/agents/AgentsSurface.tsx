@@ -79,6 +79,13 @@ function KernelMark() {
   );
 }
 
+// The desks a being works at, in the member's vocabulary. Prefers the served
+// titles and falls back to the slugs, so a backend that predates `home_titles`
+// still renders a being's desks rather than an empty line.
+function homeNames(being: { homes: string[]; home_titles?: string[] }): string[] {
+  return being.home_titles?.length ? being.home_titles : being.homes;
+}
+
 function BeingIcon({ icon }: { icon: string }) {
   const Glyph = ICONS[icon] ?? Bot;
   return <Glyph className="h-4 w-4 text-muted-foreground" />;
@@ -91,7 +98,11 @@ type Being = {
   icon: string;
   offered: boolean;
   kernel: boolean;
+  /** The desks this being works at, as ROUTING KEYS. Kept for addressing. */
   homes: string[];
+  /** The same desks as the member READS them — the app's declared title.
+   *  Render this one; `homes` is an address, and an address is not a name. */
+  home_titles?: string[];
   /** The engine behind the name (ADR-460 D4). Served so the page can say what
    *  actually runs this being rather than implying it. */
   model?: string;
@@ -129,7 +140,7 @@ function BeingDetail({ being, onBack }: { being: Being; onBack: () => void }) {
       <dl className="space-y-3 text-xs">
         <div className="flex gap-3">
           <dt className="w-24 shrink-0 text-muted-foreground">Works in</dt>
-          <dd>{being.homes.length ? being.homes.join(', ') : 'Anywhere you invite them'}</dd>
+          <dd>{homeNames(being).length ? homeNames(being).join(', ') : 'Anywhere you invite them'}</dd>
         </div>
         <div className="flex gap-3">
           <dt className="w-24 shrink-0 text-muted-foreground">Add to a chat</dt>
@@ -238,9 +249,9 @@ export function AgentsSurface() {
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="text-sm font-medium">{b.name}</span>
-                      {b.homes.length > 0 && (
+                      {homeNames(b).length > 0 && (
                         <span className="text-[11px] text-muted-foreground">
-                          in {b.homes.join(', ')}
+                          in {homeNames(b).join(', ')}
                         </span>
                       )}
                       {b.kernel && <KernelMark />}

@@ -361,6 +361,29 @@ def homes_for_agent(slug: str) -> list[str]:
     ]
 
 
+def home_titles_for_agent(slug: str) -> list[str]:
+    """`homes_for_agent`, rendered as the member reads them.
+
+    The pane said "in slides, text" — routing keys, shown to a person. The app
+    already declares a title in KERNEL_SURFACES; a slug is an ADDRESS, and an
+    address is not a name (the ADR-609 distinction, one layer out).
+
+    Derived, never a second mapping: the title comes from the surface row the
+    Launcher and Dock already render, so an app renamed once is renamed here
+    too. Falls back to the slug — an app with no surface row is a real (if
+    odd) state, and showing its key beats showing nothing.
+    """
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    rows = (
+        KERNEL_SURFACES
+        if isinstance(KERNEL_SURFACES, list)
+        else list(KERNEL_SURFACES.values())
+    )
+    titles = {r.get("slug"): r.get("title") for r in rows if r.get("slug")}
+    return [titles.get(s) or s for s in homes_for_agent(slug)]
+
+
 def model_for_agent(slug: str) -> Optional[str]:
     """The engine behind the name, or None if the slug is unknown. Pure."""
     agent = resolve_agent(slug)

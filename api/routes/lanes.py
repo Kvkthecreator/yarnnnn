@@ -460,7 +460,12 @@ def _beings_payload() -> list[dict]:
                  `register_app` declarations the prompt reads.
     """
     import services.apps  # noqa: F401  (registration side-effect)
-    from services.agents_registry import AGENTS, homes_for_agent, is_promoted
+    from services.agents_registry import (
+        AGENTS,
+        home_titles_for_agent,
+        homes_for_agent,
+        is_promoted,
+    )
 
     # ADR-602 D3 — a being whose only desk is unpromoted waits with it. Filtered
     # SERVER-side: the pane asks "who works here", and a being the member cannot
@@ -475,6 +480,11 @@ def _beings_payload() -> list[dict]:
             "offered": bool(r.get("offered")),
             "kernel": bool(r.get("kernel")),
             "homes": homes_for_agent(r["slug"]),
+            # The same desks, as the member reads them. `homes` stays the
+            # ADDRESS (routing keys); this is the NAME. The pane rendered
+            # "in slides, text" until 2026-08-26 — routing keys shown to a
+            # person, while the app had declared a title all along.
+            "home_titles": home_titles_for_agent(r["slug"]),
             # ADR-602 D6 — the engine, so a being's page can SAY what runs it
             # rather than implying it. Already public on the lane envelope
             # (`model_names`); no new disclosure.

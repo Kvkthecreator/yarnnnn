@@ -387,11 +387,24 @@ _check("both sections exist — housed beings and the offered roster",
 # ADR-601 D4 — rendered from the FIELDS, never inferred.
 _check("the surface renders provenance from the served field",
        "b.kernel" in _surface_code)
+# The point is the PLURAL — many-to-one is ordinary (ADR-601 D1), so a surface
+# rendering "the home" would assert the opposite of the architecture.
+# Re-anchored 2026-08-26: the desks now render through `homeNames()`, which
+# prefers the served TITLES and falls back to the slugs. Pinning the old
+# `b.homes` spelling would have pinned the ADDRESS being shown to a person —
+# the very thing that change fixed. Assert the plural SOURCE and the absence of
+# a singular spelling, not one call site's text.
 _check("the surface renders the desk LIST, not a single home",
-       "b.homes" in _surface_code
+       ("b.homes" in _surface_code or "homeNames(" in _surface_code)
        # `(?!s)` — any bare `b.home` spelling (`b.home}`, `b.home?`) trips it;
        # the old trailing-space match let those through.
-       and not _re.search(r"\bb\.home(?!s)", _surface_code))
+       and not _re.search(r"\bb\.home(?!s|_titles|Names)", _surface_code))
+# The titles are PREFERRED but never required — a payload predating
+# `home_titles` must still render the desks rather than an empty line.
+_check("the desk names fall back to the slugs when titles are absent",
+       "home_titles?.length ? " in _surface_code
+       and ": being.homes" in _surface_code or ": b.homes" in _surface_code
+       or "being.homes" in _surface_code)
 # ADR-602 D6 — the per-being page. Depth rides the SANCTIONED param and moves
 # via setSurfaceParams (a pathname flip trips the shell's foreground effects).
 # Both halves: the component must be DEFINED and RENDERED. Checking only the
