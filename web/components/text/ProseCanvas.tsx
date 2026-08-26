@@ -1533,9 +1533,16 @@ export function ProseCanvas({
       },
       scrollRangeIntoView: (from, to) => {
         const clamp = (n: number) => Math.max(0, Math.min(view.state.doc.length, n));
+        const a = clamp(from);
+        const b = clamp(Math.max(to, from));
+        // The RANGE, not a bare position — `goTo` above learned this: a
+        // position centres its own line and lets a long passage run off the
+        // bottom, while a range keeps the whole destination on screen. The
+        // selection is set too, so the member SEES the passage that changed
+        // rather than just finding themselves near it.
         view.dispatch({
-          selection: { anchor: clamp(from), head: clamp(to) },
-          effects: EditorView.scrollIntoView(clamp(from), { y: 'center' }),
+          selection: { anchor: a, head: b },
+          effects: EditorView.scrollIntoView(EditorSelection.range(a, b), { y: 'center' }),
         });
       },
     };

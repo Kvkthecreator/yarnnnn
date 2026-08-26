@@ -155,8 +155,17 @@ export function TextEditor({
   // ADR-612 D5 — the landing's three inputs, held as refs because the effect
   // that consumes them runs above their declarations and must not close over
   // a stale render's copy.
+  /** ADR-612 D4 — the target a gesture ARMED, held until the member actually
+   *  sends (or abandons it). Armed is not pending: a seeded composer is an
+   *  intent being written, not a turn in flight. */
+  const armedRewriteRef = useRef<{ start: number; end: number; excerpt: string } | null>(null);
+  /** ADR-612 D5 — the span the LANDING will re-find, held separately from the
+   *  spinner's state. The turn settles (`onSeededTurn(false)`) as soon as the
+   *  stream closes, which is often BEFORE the refetch resolves — reading the
+   *  spinner's state here meant the target was already gone and the landing
+   *  silently never ran, leaving the member at the top of the document. */
+  const landingTargetRef = useRef<{ start: number; end: number; excerpt: string } | null>(null);
   const preWriteRef = useRef<string | null>(null);
-  const pendingRewriteRef = useRef<{ start: number; end: number; excerpt: string } | null>(null);
   const landOnRewriteRef = useRef<
     (before: string, after: string, span: { start: number; end: number }) => void
   >(() => {});
@@ -193,13 +202,12 @@ export function TextEditor({
     // specific passage. Put them back on it, once, after the canvas has taken
     // the new document (a frame later — the effect runs before the value
     // reaches the view).
-    const pending = pendingRewriteRef.current;
+    const target = landingTargetRef.current;
     const before = preWriteRef.current;
-    if (pending && before !== null && before !== content) {
-      pendingRewriteRef.current = null;
+    if (target && before !== null && before !== content) {
+      landingTargetRef.current = null;
       preWriteRef.current = null;
-      setPendingRewrite(null);
-      requestAnimationFrame(() => landOnRewriteRef.current(before, content, pending));
+      requestAnimationFrame(() => landOnRewriteRef.current(before, content, target));
     }
   }, [file]);
 
@@ -859,7 +867,11 @@ export function TextEditor({
   } | null>(null);
   const rewriteSelection = useCallback(() => {
     if (!focusPoint.selection || !focusPoint.range) return;
-    setPendingRewrite({ ...focusPoint.range, excerpt: focusPoint.selection });
+    // The click only SEEDS the composer (ADR-579 D7): the member still edits
+    // the intent and presses Send, or dismisses the chip, or never sends. So
+    // this ARMS the target and claims nothing — `pendingRewrite` is set when
+    // the lane reports a seeded turn actually going up.
+    armedRewriteRef.current = { ...focusPoint.range, excerpt: focusPoint.selection };
     setSeed((s) => ({
       text: 'Rewrite the selection: ',
       nonce: (s?.nonce ?? 0) + 1,
@@ -908,7 +920,6 @@ export function TextEditor({
     [],
   );
 
-  pendingRewriteRef.current = pendingRewrite;
   landOnRewriteRef.current = landOnRewrite;
 
   // A pending rewrite is cleared by the write landing (D5). A turn that
@@ -1470,6 +1481,22 @@ export function TextEditor({
                 modelLabel={modelLabel}
                 speakerLabel={speakerLabel}
                 artifactWrite="none"
+                onSeededTurn={(running) => {
+                  // ADR-612 D4 — the ONE moment the act becomes real: a turn
+                  // carrying this desk's gesture has gone up. `false` settles
+                  // it however it ended (reply, refusal, error, stop) — the
+                  // write-landing path clears it first when there was one.
+                  if (running) {
+                    // One arming feeds two lifetimes: the spinner (ends when
+                    // the turn settles) and the landing (ends when the WRITE
+                    // arrives, which is later).
+                    setPendingRewrite(armedRewriteRef.current);
+                    landingTargetRef.current = armedRewriteRef.current;
+                    armedRewriteRef.current = null;
+                  } else {
+                    setPendingRewrite(null);
+                  }
+                }}
                 onArtifactWrite={() => {
                   // Hold the text as it stands BEFORE the refetch: the landing
                   // is computed by diffing it against what arrives (D5).

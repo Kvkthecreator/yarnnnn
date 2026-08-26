@@ -304,6 +304,16 @@ export interface LaneMountSlots {
    *  (the ADR-605 mentions-stamp shape). Text-only seeds (`target` absent)
    *  behave exactly as before. */
   composerSeed?: { text: string; nonce: number; target?: SeedTarget } | null;
+  /** ADR-612 D4 — a turn carrying THIS mount's gesture started or ended.
+   *
+   *  The mount cannot infer this from the click: clicking a gesture door only
+   *  SEEDS the composer (ADR-579 D7 — nothing fires until Send, and the member
+   *  may edit the intent, or dismiss the chip, or never send at all). A door
+   *  that says "working" at click time is claiming a turn that does not exist.
+   *
+   *  Fires `true` when a seeded turn actually goes up, and `false` when it
+   *  settles — however it settles, including an error or a stop. */
+  onSeededTurn?: (running: boolean) => void;
   /** How this mount renders an assistant turn's artifact writes (ADR-443):
    *   - `'card'` (default): the full ArtifactCard preview — the mount has no
    *     other view of the artifact (/chat).
@@ -410,6 +420,7 @@ export function LanePanel({
   extraKnownHandles = [],
   onDefaultResponderChange,
   onArtifactWrite,
+  onSeededTurn,
   emptyState,
   suggestions,
   composerSeed,
@@ -967,6 +978,8 @@ export function LanePanel({
         const stopped = controller.signal.aborted;
         abortRef.current = null;
         setSending(false);
+        // ADR-612 D4 — the seeded turn has settled, however it settled.
+        if (opts.seed) onSeededTurn?.(false);
         if (stopped) {
           // Stopped: drop a text-less placeholder, then resync once the server
           // has persisted the partial (it does so on disconnect — give it a beat).
@@ -977,7 +990,7 @@ export function LanePanel({
         }
       }
     },
-    [laneId, sending, onArtifactWrite, onLaneRenamed, resyncMessages, scrollToBottom],
+    [laneId, sending, onArtifactWrite, onSeededTurn, onLaneRenamed, resyncMessages, scrollToBottom],
   );
 
   const send = useCallback(async () => {
@@ -997,13 +1010,14 @@ export function LanePanel({
     // gesture is one turn's target, never a sticky mode.
     const seed = pendingSeed ?? undefined;
     setPendingSeed(null);
+    if (seed) onSeededTurn?.(true);
     await runStream('send', {
       content,
       replaceFromMessageId,
       attachments: ready.length ? ready : undefined,
       seed,
     });
-  }, [input, sending, editing, attachments, runStream, pendingSeed]);
+  }, [input, sending, editing, attachments, runStream, pendingSeed, onSeededTurn]);
 
   /** Phase-A turn controls: stop — abort the stream; the server persists the
    *  partial reply (any writes that landed stand — the no-rewind rule). */

@@ -103,6 +103,24 @@ check("D4 the pending door refuses a second click",
       "disabled={pending}" in gesture and "pending ? undefined : onClick" in gesture)
 check("D4 Text drives the pending state from a real in-flight rewrite",
       "pending={pendingRewrite !== null}" in editor)
+# THE defect this revision fixes: the door said "Rewriting…" the instant the
+# member clicked. But a click only SEEDS the composer (ADR-579 D7) — nothing
+# fires until Send, and the member may edit the intent, dismiss the chip, or
+# never send. A door claiming a turn that does not exist is a lie about state.
+check("D4 the click ARMS a target and claims no turn",
+      "armedRewriteRef.current = {" in editor
+      and "setPendingRewrite({ ...focusPoint.range" not in editor,
+      "the click must not set the pending/working state")
+check("D4 the lane reports when a SEEDED turn actually goes up",
+      "onSeededTurn" in lane_panel
+      and "if (seed) onSeededTurn?.(true);" in lane_panel,
+      "the mount cannot infer this from the click")
+check("D4 the seeded turn settles however it ended",
+      "if (opts.seed) onSeededTurn?.(false);" in lane_panel,
+      "reply, refusal, error or stop — all settle the door")
+check("D4 Text promotes armed → pending only on that report",
+      "onSeededTurn={(running)" in editor
+      and "setPendingRewrite(armedRewriteRef.current)" in editor)
 check("D4 a turn that never writes releases the stuck state",
       "setPendingRewrite(null), 180_000" in editor
       or re.search(r"setTimeout\(\(\) => setPendingRewrite\(null\), 180_000\)", editor)
@@ -118,6 +136,17 @@ check("D5 the landing re-finds the passage by CONTENT, not by offset",
 check("D5 the landing fires when the reloaded text ARRIVES, not at write time",
       "requestAnimationFrame(() => landOnRewriteRef.current" in editor,
       "the document has not reached the canvas yet when onArtifactWrite fires")
+# The scroll silently never ran: the turn settles when the STREAM closes, often
+# BEFORE the refetch resolves, so reading the spinner's state cleared the
+# target first and the member stayed at the top of the document.
+check("D5 the landing target outlives the spinner's state",
+      "const target = landingTargetRef.current;" in editor
+      and "landingTargetRef.current = armedRewriteRef.current;" in editor
+      and "pendingRewriteRef" not in editor,
+      "two lifetimes from one arming — the spinner ends at settle, the landing at the WRITE")
+check("D5 the scroll uses a RANGE, not a bare position",
+      "EditorView.scrollIntoView(EditorSelection.range(a, b)" in canvas,
+      "a position centres its own line and lets a long passage run off the bottom")
 check("D5 the pre-write text is captured before the refetch",
       "preWriteRef.current = textRef.current;" in editor)
 
