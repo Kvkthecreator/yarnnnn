@@ -401,10 +401,26 @@ _check("the surface renders the desk LIST, not a single home",
        and not _re.search(r"\bb\.home(?!s|_titles|Names)", _surface_code))
 # The titles are PREFERRED but never required — a payload predating
 # `home_titles` must still render the desks rather than an empty line.
-_check("the desk names fall back to the slugs when titles are absent",
-       "home_titles?.length ? " in _surface_code
-       and ": being.homes" in _surface_code or ": b.homes" in _surface_code
-       or "being.homes" in _surface_code)
+#
+# Two halves, because they can break independently and the FE half alone
+# passed VACUOUSLY: every app carries a title today, so the fallback branch is
+# never exercised by real data, and an unparenthesised and/or chain made the
+# last clause sufficient on its own. DRIVE the resolver with a desk that has
+# no surface row — the only way the fallback is actually observed.
+_check("the surface prefers the served titles, falling back to `homes`",
+       "home_titles?.length" in _surface_code and "being.homes" in _surface_code)
+
+import services.agents_registry as _ar  # noqa: E402
+_real_homes = _ar.homes_for_agent
+try:
+    _ar.homes_for_agent = lambda _slug: ["slides", "a-desk-with-no-surface-row"]
+    _fallback = _ar.home_titles_for_agent("editor")
+finally:
+    _ar.homes_for_agent = _real_homes
+_check(
+    f"an unlisted desk falls back to its slug, never None ({_fallback})",
+    _fallback == ["Slides", "a-desk-with-no-surface-row"],
+)
 # ADR-602 D6 — the per-being page. Depth rides the SANCTIONED param and moves
 # via setSurfaceParams (a pathname flip trips the shell's foreground effects).
 # Both halves: the component must be DEFINED and RENDERED. Checking only the
