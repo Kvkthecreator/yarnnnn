@@ -1187,6 +1187,17 @@ def _names_a_folder(auth: Any, rel: str) -> bool:
     `delete` and `move` to pick the grain — the interop roster keeps ONE delete
     and ONE move (a foreign caller should not have to know our two grains), and
     the verb resolves which fan-out answers.
+
+    ⚠️ THE LIFECYCLE FILTER IS LOAD-BEARING (2026-08-26). This asks about the
+    LIVE tree, because that is the only tree the fan-outs act on:
+    `folder_organize.enumerate_subtree` excludes archived rows by contract ("a
+    subtree walk answers about the LIVE folder"). Without the filter the two
+    disagreed, and `delete` on an already-trashed folder resolved as a folder,
+    fanned out over nothing, and answered `success: True · "0 moved to Trash"`
+    — the ADR-373 D6 incorrect-success class. `DeleteFile` on a dead path
+    returns `file_not_found`; declining the folder grain here is what lets the
+    trashed case fall through to that honest refusal. The filter set is the
+    SAME one `compose_list` reads with — one definition of "what is live".
     """
     from services.workspace_context import substrate_scope_filter
     from services.workspace_paths import folder_marker_path
@@ -1203,6 +1214,7 @@ def _names_a_folder(auth: Any, rel: str) -> bool:
             .select("path")
             .eq(*substrate_scope_filter(auth.user_id, workspace_id))
             .or_(f"path.eq.{marker},path.like.{abs_folder}/%")
+            .in_("lifecycle", ["active", "delivered"])
             .limit(1)
             .execute()
         ).data or []

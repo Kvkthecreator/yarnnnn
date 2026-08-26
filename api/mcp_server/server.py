@@ -428,16 +428,19 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
     ),
     (
         "delete",
-        "remove a file from the live workspace. Nothing is lost: an attributed "
-        "tombstone records who and why, the revision chain keeps the content, "
-        "and history still walks it. Use it to tidy — superseded scratch, dead "
-        "duplicates, stale artifacts that would mislead the next reader.",
+        "remove a file — or a WHOLE FOLDER — from the live workspace. Point it "
+        "at a folder and everything under it goes, as one restorable unit: say "
+        "so before you do. Nothing is lost either way: an attributed tombstone "
+        "records who and why, the revision chain keeps the content, and history "
+        "still walks it. Use it to tidy — superseded scratch, dead duplicates, "
+        "stale artifacts that would mislead the next reader.",
     ),
     (
         "move",
-        "move or rename a file to a new path as one attributed operation. "
-        "Refuses to overwrite an existing destination (delete it first, by "
-        "intent). The old path keeps a tombstone pointing at the new one.",
+        "move or rename a file — or a WHOLE FOLDER, with every file under it — "
+        "to a new path as one attributed operation. Refuses to overwrite an "
+        "existing destination (delete it first, by intent). The old path keeps "
+        "a tombstone pointing at the new one.",
     ),
     (
         "history",
@@ -1203,22 +1206,33 @@ async def delete(
     reference: str,
     message: Optional[str] = None,
 ) -> dict:
-    """Remove a file from the live yarnnn workspace — tidy, don't hoard.
+    """Remove a file — or a whole folder — from the live yarnnn workspace.
 
     The file goes to Trash: it is a PLACE, not an erasure — the revision chain
     is retained and the user can put it back.
 
-    Call this when a file would mislead the next reader: superseded scratch,
+    ONE VERB, TWO GRAINS. `reference` may name a file or a FOLDER, and the
+    workspace resolves which — you don't have to know. Naming a folder deletes
+    its whole subtree, every file under it, as one restorable unit. That is a
+    much larger act than deleting a file: say what you are about to sweep, and
+    for anything beyond obvious scratch, confirm with the user first. If only
+    some of it should go, `list` the folder and delete the files by name.
+
+    Call this when something would mislead the next reader: superseded scratch,
     a dead duplicate after a move, a stale artifact. Nothing is lost — an
     attributed tombstone records who removed it and why, the revision chain
     keeps the content, and `history` still walks it; the user can restore
-    from the workspace. Governance-protected paths refuse, same as save.
+    from the workspace. Governance-protected paths refuse, same as save — on a
+    folder they are reported in `locked` rather than silently skipped, so say
+    "19 moved to Trash · 2 are managed by the system and stayed" rather than
+    claiming a clean sweep. A folder larger than one gesture should move (500
+    items) is refused outright rather than half-performed.
 
     Say why in `message` — the tombstone is the next reader's explanation.
 
     Args:
-        reference: The file — same grammar as open. Required.
-        message: Why this file is being removed (recorded on the tombstone).
+        reference: The file OR folder — same grammar as open. Required.
+        message: Why this is being removed (recorded on the tombstone).
     """
     auth = resolve_request_client(verb="delete")
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -1263,18 +1277,26 @@ async def move(
     new_reference: str,
     message: Optional[str] = None,
 ) -> dict:
-    """Move or rename a file in the user's yarnnn workspace.
+    """Move or rename a file — or a whole folder — in the user's yarnnn workspace.
 
-    Call this to put a file where it belongs — a better folder, a clearer
-    name. One attributed operation: the content lands at the new path, the
-    old path keeps a tombstone pointing there, and both revision chains are
-    retained. Refuses to overwrite an existing destination — if the
-    destination must be replaced, `delete` it first (explicit intent).
+    Call this to put work where it belongs — a better home, a clearer name.
+    One attributed operation: the content lands at the new path, the old path
+    keeps a tombstone pointing there, and both revision chains are retained.
+    Refuses to overwrite an existing destination — if the destination must be
+    replaced, `delete` it first (explicit intent).
+
+    ONE VERB, TWO GRAINS. `reference` may name a file or a FOLDER, and the
+    workspace resolves which — you don't have to know. Naming a folder moves
+    every file under it, keeping their relative layout; a rename is the same
+    act with a new leaf. Locked children are reported in `locked` and a
+    partially-landed fan in `failed`, never hidden — report what actually
+    moved rather than assuming the whole tree did.
 
     Args:
-        reference: The file's current path — same grammar as open. Required.
+        reference: The current path of the file OR folder — same grammar as
+            open. Required.
         new_reference: The destination path (must not already exist). Required.
-        message: Why this file is moving (recorded on both revisions).
+        message: Why this is moving (recorded on both revisions).
     """
     auth = resolve_request_client(verb="move")
     client_name = mcp_composition.derive_client_name_from_token(auth)

@@ -287,7 +287,7 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 - **Headless mode:** **29 static primitives + `platform_*` dynamic** (ADR-417 removed `RuntimeDispatch`) — `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `SyncPlatformState` (ADR-264 — substrate mirror, also dispatched by `mechanical`-mode recurrences via `@primitive: ...` parser), `ReadFile`, `WriteFile`, `EditFile` / `DeleteFile` / `MoveFile` (**ADR-337**), `SearchFiles`, `QueryKnowledge`, `ListFiles`, `Embed` (ADR-325), `DiscoverAgents`, `ReadAgentFile`, `ManageAgent` (lifecycle-only), `Schedule` (ADR-235 D1.c — agents may pause/resume their own declarations on outcome signals), **`ManageHook` (ADR-296 v2 D2)**, `ManageDomains`, `FireInvocation` (ADR-231 D5), `Compose`, `DispatchSpecialist`, `ProposeAction` (ADR-193), `ListRevisions` / `ReadRevision` / `DiffRevisions` (ADR-209 Phase 3). `ManageTask` removed by ADR-231 Phase 3.7. `UpdateContext` removed by ADR-235.
 - **REVIEWER_PRIMITIVES (curated subset for the Reviewer's chat-mode invocations):** **24 tools** — all reads (`ReadFile`/`ListFiles`/`SearchFiles`/`ListRevisions`/`ReadRevision`/`DiffRevisions`/`GetSystemState`/`SearchEntities`/`LookupEntity`/`ListEntities`/`list_integrations`/`WebSearch`/`QueryKnowledge`) + `WriteFile` (lock-gated) + `EditFile` / `DeleteFile` / `MoveFile` (**ADR-337 D5 — the working-tree verbs whose primary customer is the Reviewer's ADR-275 housekeeping cadence**; same-family file verbs, not novel-surface tools — the standing soak watches post-deploy output volume against the 2026-05-25 tool-count canary fingerprint) + `ProposeAction` + `Schedule` + **`ManageHook` (ADR-296 v2 D3 — Reviewer's standing-intent-authoring authority extends to substrate-event hooks)** + `Compose` + `DispatchSpecialist` + `SyncPlatformState` + `Clarify`. **`FireInvocation` removed per ADR-296 v2 D3** — Reviewer does not self-invoke; cadence (`Schedule`) + substrate-event interest (`ManageHook`) + standing intent (`WriteFile` to `/workspace/review/standing_intent.md`) are its trigger-authoring authority.
 - **LANE mode (ADR-411 D3 + ADR-467 D4) — the surface a MEMBER actually uses:** the **file verbs** (`ReadFile`, `WriteFile`, `EditFile`, `DeleteFile`, `MoveFile`, `SearchFiles`, `ListFiles`) + the **folder verbs** (`DeleteFolder`, `MoveFolder`) + the uniform extras `QueryKnowledge` / `WebSearch` / `list_integrations` (ADR-535 D2) / `GenerateImage` (ADR-568 D3). Declared in `api/services/lane_runner.py::LANE_TOOL_NAMES` + `LANE_SURFACE_EXTRA`, composed by `lane_tools_openai()`. **Uniform for every lane and every Agent** — capability is not a character trait (ADR-467 D4: a per-Agent `tools` field was a bug factory with no safety payoff). No entity verbs, no `Schedule`, no `DispatchSpecialist`, no `platform_*` reach. ⭐ **`DeleteFile` + `MoveFile` added 2026-08-21**: their absence was the anomaly — they already shipped in Chat, in Reviewer, and as `delete`/`move` on MCP, so a foreign LLM over MCP could delete a member's file while the member's own lane could not, and said so out loud. ⭐ **`DeleteFolder` + `MoveFolder` added the same day**, one grain up and for the identical reason: the fan-out already existed (`services/folder_organize.py`) and only the Files surface could reach it. Gate: [test_verb_families_are_one_set.py](../../api/test_verb_families_are_one_set.py).
-- **MCP mode (ADR-543 + ADR-545 over ADR-512):** the tool surface is file-native — `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `share` — composed server-side in `api/services/mcp_composition.py` over these kernel primitives: `WriteFile` (save — CAS via `expected_parent_version_id`, gate-checked against `CALLER_WRITE_POLICY["mcp"]`), `EditFile` / `DeleteFile` / `MoveFile` (the ADR-337 working-tree verbs, bound by ADR-545), `QueryKnowledge` (search's ranked read), `ListRevisions` / `DiffRevisions` (history's chain + inline diffs), and direct workspace-scoped reads (open/list, with list's `since` change feed). MCP is the foreign-LLM surface — a caller of `execute_primitive()` per ADR-164. **The ADR-209-era "revision reads deliberately NOT exposed on MCP" rule is REVERSED** (first by ADR-368's `trace`, ratified at contract altitude by ADR-512): the attributed revision chain is the surface's distinguishing capability, not an archaeology to hide. `InferContext` no longer exists (deleted per ADR-324); its row above is retained history in this table's deleted-primitives ledger sense only.
+- **MCP mode (ADR-543 + ADR-545 over ADR-512):** the tool surface is file-native — `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `share` — composed server-side in `api/services/mcp_composition.py` over these kernel primitives: `WriteFile` (save — CAS via `expected_parent_version_id`, gate-checked against `CALLER_WRITE_POLICY["mcp"]`), `EditFile` / `DeleteFile` / `MoveFile` (the ADR-337 working-tree verbs, bound by ADR-545), **`DeleteFolder` / `MoveFolder` (the same two verbs at folder grain)**, `QueryKnowledge` (search's ranked read), `ListRevisions` / `DiffRevisions` (history's chain + inline diffs), and direct workspace-scoped reads (open/list, with list's `since` change feed). MCP is the foreign-LLM surface — a caller of `execute_primitive()` per ADR-164. **The ADR-209-era "revision reads deliberately NOT exposed on MCP" rule is REVERSED** (first by ADR-368's `trace`, ratified at contract altitude by ADR-512): the attributed revision chain is the surface's distinguishing capability, not an archaeology to hide. `InferContext` no longer exists (deleted per ADR-324); its row above is retained history in this table's deleted-primitives ledger sense only.
 
 > ### ⭐ Standing discipline — ONE delete, ONE meaning
 >
@@ -333,6 +333,31 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 > trustworthy. A hidden lifecycle flag has two failure modes and we shipped
 > both: readers that forget it serve deleted content; readers that respect it
 > report absence.
+>
+> ⭐ **Interop resolves the grain — against the LIVE tree (2026-08-26).** The
+> kernel has two grains; the MCP roster deliberately has ONE `delete` and ONE
+> `move`, and `mcp_composition._names_a_folder` picks the fan-out, so a foreign
+> caller never has to learn our taxonomy. That resolver must ask about the
+> **live** tree, because that is the only tree the fan-outs act on
+> (`folder_organize.enumerate_subtree` excludes archived rows by contract). It
+> did not, and the two disagreed: `delete` on an already-trashed folder resolved
+> as a folder, fanned out over nothing, and answered `success: True · "0 moved
+> to Trash"` — an **incorrect success** (ADR-373 D6), where the file grain would
+> have refused with `file_not_found`. The resolver now reads with the same
+> `lifecycle in (active, delivered)` filter `compose_list` uses: **one definition
+> of "what is live"**, so a third reader cannot invent a fourth.
+>
+> ⭐ **A silently-resolved grain must be a LOUDLY-described one.** Because the
+> caller does not choose the grain, the only place the blast radius can be
+> declared is the verb's own prose — and ADR-337's safety model is exactly that
+> *the descriptive name carries the radius*. Both interop entries said "a
+> **file**" while the code fanned out over a subtree up to `MAX_FAN_OUT` (500);
+> the kernel's `DELETE_FOLDER_TOOL` had stated its radius since the day it
+> shipped. Roster entry and tool docstring now both name the folder grain and
+> the sweep. Gate: [test_adr337_interop_folder_grain.py](../../api/test_adr337_interop_folder_grain.py)
+> — it DRIVES the resolver (a grep for a missing filter passes for the wrong
+> reason) and pins the grain phrase, not the word "folder" (`move`'s docstring
+> already said "a better folder", about the destination, and passed vacuously).
 
 > ### ⭐ Standing discipline — a trashed file does not read back
 >

@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.26.1] - Interop delete/move: the grain is resolved on the live tree, and named
+
+### Changed
+- `services/mcp_composition.py`: `_names_a_folder` now filters
+  `lifecycle in (active, delivered)` — the same filter `compose_list` reads
+  with. It asks about the LIVE tree because that is the only tree the fan-outs
+  act on (`enumerate_subtree` excludes archived rows by contract). Without it,
+  `delete` on an already-trashed folder resolved as a folder, fanned out over
+  nothing, and returned `success: True · "0 moved to Trash"` — an incorrect
+  success (ADR-373 D6) where the file grain refuses with `file_not_found`.
+- `mcp_server/server.py`: the `delete` and `move` roster entries AND their tool
+  docstrings now name the FOLDER grain and its sweep. Both said "a file" while
+  the code fanned out over a subtree up to `MAX_FAN_OUT` (500). Because interop
+  resolves the grain silently (ONE `delete`, ONE `move` — the caller does not
+  choose), the verb's prose is the ONLY place the blast radius can be declared,
+  which is ADR-337's safety model ("the descriptive names ARE the safety
+  model"). The kernel's own `DELETE_FOLDER_TOOL` had stated its radius since it
+  shipped; interop had not.
+- Expected behavior: a foreign LLM (Claude Desktop, ChatGPT) pointing `delete`
+  at a trashed folder now gets an honest refusal instead of a fabricated clean
+  sweep; and one pointing `delete`/`move` at a live folder is told, before it
+  calls, that the whole subtree travels — with the instruction to say what it
+  is about to sweep and confirm for anything beyond obvious scratch. The
+  `locked`/`failed` partial-report shape is now named in the prose too, so a
+  partial fan is reported rather than narrated as complete.
+
+### Gates
+- `test_adr337_interop_folder_grain.py` NEW — falsified against the pre-fix
+  tree, 7/7 red, now 11/11 green. It DRIVES `_names_a_folder` through a fake
+  query surface (the defect was a MISSING call; a grep for an absent string
+  passes for the wrong reason) and pins the GRAIN PHRASE rather than the word
+  "folder" — a bare word-search passed vacuously on `move`, whose docstring
+  already said "a better folder" about the destination.
+- Green: 533 participant-contract · 588 interop-vocabulary · 587 handle-grammar
+  · 573 stale-deferral · 512 open/save · 563 scope · 584 whoami ·
+  trashed-does-not-read-back · verb-families-are-one-set · prompt ratchets
+  (383 + 323, 14 passed).
+
 ## [2026.08.25.4] - ADR-579 D7: the gesture line — what the member clicked
 
 ### Changed
