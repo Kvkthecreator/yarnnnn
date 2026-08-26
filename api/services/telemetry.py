@@ -12,7 +12,6 @@ Also provides:
 Design rules (from observability.md):
   - record_execution_event() never raises — non-fatal, logs on failure
   - cost_usd uses cache-inclusive formula (compute_cost_usd_inclusive)
-  - agent_run_id is NULL for failures that produce no agent_runs row
 """
 
 from __future__ import annotations
@@ -304,7 +303,11 @@ def record_execution_event(
                             mechanical. NULL for rows predating migration 177
                             + Session B. Population wired in Session C/D when
                             wake_evaluation.evaluate() produces the decision.
-        agent_run_id:       agent_runs.id if a row was created (NULL for early exits)
+        agent_run_id:       ACCEPTED AND DISCARDED. Migration 248 dropped the
+                            column with the retired agent model; the kwarg is
+                            kept only so a stale caller no-ops instead of
+                            raising. Nothing in api/ passes it. Do not
+                            reintroduce a write — there is no agent_runs table.
         principal_id:       the PRINCIPAL that caused this invocation (ADR-373
                             resolve_principal_id: owner user_id | foreign-LLM
                             provider host-id | agent slug). NULL = unattributed
