@@ -1517,15 +1517,34 @@ export function ProseCanvas({
         const a = view.coordsAtPos(sel.from);
         const b = view.coordsAtPos(sel.to);
         if (!a || !b) return null;
-        // The union of the two ends. A multi-line selection's `to` sits at the
-        // LAST line's x — often far left, mid-paragraph — so anchoring to that
-        // point alone puts the door over the prose below it. The rect lets the
-        // caller place the door against the selection as a whole.
+        // The selection's VISUAL box — the union of the two CARET positions is
+        // not it, and driving the built door is what showed the difference: a
+        // selection spanning two full lines has both carets near the left, so
+        // the caret-union read ~350px wide inside a 736px column and the door
+        // was placed in the middle of the prose. The rendered range knows its
+        // real extent; the carets only know where it starts and stops.
+        let left = Math.min(a.left, b.left);
+        let right = Math.max(a.left, b.left);
+        let top = Math.min(a.top, b.top);
+        let bottom = Math.max(a.bottom, b.bottom);
+        const dom = view.domAtPos(sel.from);
+        if (dom?.node) {
+          const r = document.createRange();
+          try {
+            const end = view.domAtPos(sel.to);
+            r.setStart(dom.node, Math.min(dom.offset, dom.node.childNodes?.length ?? dom.node.textContent?.length ?? 0));
+            r.setEnd(end.node, Math.min(end.offset, end.node.childNodes?.length ?? end.node.textContent?.length ?? 0));
+            const box = r.getBoundingClientRect();
+            if (box.width > 0 || box.height > 0) {
+              left = box.left; right = box.right; top = box.top; bottom = box.bottom;
+            }
+          } catch {
+            // A range the DOM refuses to build (a decoration boundary) simply
+            // keeps the caret-union — narrower, never wrong.
+          }
+        }
         return {
-          left: Math.min(a.left, b.left),
-          right: Math.max(a.left, b.left),
-          top: Math.min(a.top, b.top),
-          bottom: Math.max(a.bottom, b.bottom),
+          left, right, top, bottom,
           endLeft: b.left,
           endTop: b.top,
           endBottom: b.bottom,
