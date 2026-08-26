@@ -58,7 +58,6 @@ import {
   Loader2,
   MoreHorizontal,
   PanelRight,
-  Sparkles,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { PANE_HEADING, PANE_SECTION } from '@/lib/authoring/pane-spine';
@@ -68,6 +67,7 @@ import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { formatRelativeTime } from '@/lib/formatting';
 import { LanePanel, type SeedTarget } from '@/components/chat-surface/LanePanel';
+import { SelectionGesture } from '@/components/authoring/SelectionGesture';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { TextExport } from '@/components/text/TextExport';
 import { ProseCanvas, type ProseCanvasHandle, type SlashRun } from '@/components/text/ProseCanvas';
@@ -811,6 +811,21 @@ export function TextEditor({
     nonce: number;
     target?: SeedTarget;
   } | null>(null);
+  // ADR-612 D1 — where the gesture sits: the END of the selection, in viewport
+  // coordinates, read from the view (the SlashMenu precedent). The SELECTION's
+  // rect, never the pointer's position — a selection has a rect on touch,
+  // where a pointer has none, so this is the anchor that survives both media
+  // (lane-frame §6, amended).
+  const selectionAnchor = useMemo(
+    () =>
+      focusPoint.range
+        ? canvasRef.current?.coordsAt(focusPoint.range.end) ?? null
+        : null,
+    // `text` is a dep so the anchor re-reads as the line moves underneath —
+    // the same reason slashCoords carries it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [focusPoint.range, text],
+  );
   const rewriteSelection = useCallback(() => {
     if (!focusPoint.selection || !focusPoint.range) return;
     setSeed((s) => ({
@@ -931,21 +946,6 @@ export function TextEditor({
           }
         >
           <MarkdownToolbar onAction={runAction} />
-          {/* ADR-609 D2 — the gesture door, shown only while a selection is
-              held: the act it names is "rewrite THIS", and without a selection
-              there is no this. Metered (Sparkles, the Studio spelling) because
-              it spends a turn, unlike every deterministic verb beside it. */}
-          {focusPoint.selection && focusPoint.range && (
-            <button
-              type="button"
-              onClick={rewriteSelection}
-              title="Rewrite the selected text — opens the chat with it as the target"
-              className="ml-1 inline-flex shrink-0 items-center gap-1 self-center rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {fullLabels && <span>Rewrite</span>}
-            </button>
-          )}
         </div>
 
         <div
@@ -1185,6 +1185,17 @@ export function TextEditor({
                   coords={slashCoords}
                   onPick={takeSlash}
                   onHover={setSlashIndex}
+                />
+              )}
+              {/* ADR-612 D1 — the judged act, at the thing it acts on. Yields
+                  to the slash palette: both anchor off the same canvas, and
+                  two floating doors at one caret is a collision, not a
+                  choice. */}
+              {!slashOpen && (
+                <SelectionGesture
+                  anchor={selectionAnchor}
+                  label="the selection"
+                  onClick={rewriteSelection}
                 />
               )}
             </>

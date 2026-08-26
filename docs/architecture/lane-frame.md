@@ -128,6 +128,17 @@ if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
   not commitment, and does not exist on touch. Gestures PROMOTE attention into
   the declared grains (selection today; ADR-579 D7's structured turns next);
   attention below the selection grain is never inferred.
+  **ADR-612 D1 amends the SCOPE of this refusal, and does not overturn it.**
+  What is refused is the pointer as a FOCUS SIGNAL — inferring what the member
+  cares about from where the cursor sits, and sending that up the wire. A
+  floating affordance POSITIONED near the selection is not that: the pointer
+  never crosses the wire, the coordinates are a browser-only rendering input,
+  and what travels is still the selection the member deliberately made. The
+  anchor choice is what keeps it true — a selection has a rect on touch, where
+  a pointer has no position at all, so anchoring to the CURSOR would be dead on
+  touch and jittery on mouse (the refusal's own two reasons). Anchoring to the
+  SELECTION is immune to both. Enforced, not merely stated: the affordance may
+  carry no hover/mousemove handler (`test_adr612_judged_gesture.py`).
 - **No screen/DOM serialization.** The substrate is the shared truth; a serialized
   screen is a second, unattributed, drifting context channel. If a pane shows
   state the colleague lacks, the fix is the posture deriving the same projection
@@ -151,4 +162,5 @@ if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
 | `api/test_adr606_pane_sees_the_member.py` | the pane roster + focus-story obligation, the Text declaration wiring |
 | `api/test_adr562_app_owned_config.py` | one registration per app; every app declares resident + posture |
 | `api/test_adr609_anchored_edit.py` | the anchor resolves + CONFINES; the extent on the wire; Text's door; one clip marker |
+| `api/test_adr612_judged_gesture.py` | ONE judged-gesture producer per desk; the selection anchor (no pointer); chip/label agreement |
 | `api/test_adr571_text_app.py` §2 | the registry dispatch mechanism; text's declared posture IS its builder |

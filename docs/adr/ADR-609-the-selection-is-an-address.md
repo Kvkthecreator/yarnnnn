@@ -100,6 +100,12 @@ that has one. Text keeps the offsets it was discarding and gains a `Rewrite`
 gesture door, shown only while a selection is held (the act it names is
 "rewrite THIS", and without a selection there is no this).
 
+> **PLACEMENT superseded by [ADR-612](ADR-612-the-judged-act-is-one-gesture-at-the-selection.md) D1/D3
+> (2026-08-26).** This door shipped as a header-toolbar button; it is now a
+> floating affordance at the selection, and the header button is DELETED
+> rather than kept beside it. The seed, the chip and the anchor are unchanged
+> — only where the member reaches the act moved.
+
 ### D3 — The frame hands over the ADDRESS, not just the name of the thing
 
 `_seed_line` appends the anchor to use. Describing the target and leaving the
