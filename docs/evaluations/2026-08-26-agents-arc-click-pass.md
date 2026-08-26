@@ -110,6 +110,46 @@ exist.
   correctly redirects to `/desktop`. The admin field removals are covered by
   `tsc --noEmit` + `next build` + the API gates instead. Driving them needs an
   allowlisted principal.
-- **Migration 248** — written, NOT run (no DB URL this session). D1/D3 show the
-  code is already correct for the post-drop schema; the migration makes the
-  schema agree.
+- **Migration 248** — ✅ APPLIED later the same day (`26972aa`). See the
+  addendum below.
+
+---
+
+# Addendum — migration 248 applied, and the 500 it exposed
+
+**Applied** 2026-08-26 via `scripts/db/run-migration.sh`. Verified independently
+after: 0 of 8 relations · 0 of 9 FK columns · 0 of 6 functions remain; the three
+live tables untouched (action_proposals 125 · chat_sessions 122 ·
+execution_events 571 — unchanged).
+
+## ⚠️ It caused a real production 500, and green gates did not see it
+
+`GET /api/feed/history` returned 500: the DEPLOYED handler filtered
+`chat_sessions` on `.is_("agent_id","null")` — the column just dropped. The
+repair was written in my working tree and simply **not staged**.
+
+Everything I had checked passed *while production was 500ing*:
+- gates read source text and never execute a query,
+- an API boot resolves routes and never calls a handler.
+
+**Blast radius was established by driving, not assumed**: `/api/lanes` and the
+lane transcript returned 200 and chat rendered, because the ADR-411 lane path
+does not use that endpoint. Only that one endpoint was affected.
+
+Fixed, deployed (`dep-da775q67bikc73fi3krg`, live 05:02Z) and re-driven:
+`/api/feed/history` **200**, chat transcript renders, Danger Zone unchanged
+("Delete 0 dated output files…" / 29 workspace files).
+
+## What --dry-run caught before any of that
+
+Three defects the audit had missed, none visible to a row count or code grep:
+`agent_role_metrics` is a **VIEW** not a table (`DROP TABLE` on a view errors);
+**three more tables** carry agent FK columns (the audit's `pg_depend` query
+walked views, not constraints); and **six SQL functions** that cannot drop
+together — a row-type function must precede its table, a trigger function must
+follow it.
+
+The file also carried its own `BEGIN`/`COMMIT` and was correctly **refused** by
+the runner. After the dry run I re-queried to prove the rollback: the trailing
+`WARNING: there is no transaction in progress` is expected `DO`-block noise but
+is also the signature of a rollback that did nothing.
