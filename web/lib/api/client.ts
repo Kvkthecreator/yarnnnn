@@ -704,6 +704,26 @@ export const api = {
     },
   },
 
+  // ADR-612 — which of the member's granted connectors a being works against.
+  // NOT an edit to the being (its row is kernel data, ADR-460 D3.a): this is
+  // the member's own preference, keyed (workspace, principal).
+  agentConnectors: {
+    /** Every being's opt-in, plus the platforms there are to opt INTO. A being
+     *  absent from `opt_in` is NOT scoped — it reaches everything granted. */
+    get: () =>
+      request<{
+        available: string[];
+        opt_in: Record<string, string[]>;
+      }>("/api/agent-connectors"),
+    /** `platforms: null` clears the scoping (back to everything granted);
+     *  `[]` is the different, real choice of "reaches nothing". */
+    set: (agentSlug: string, platforms: string[] | null) =>
+      request<{ saved: boolean; opt_in: Record<string, string[]> }>(
+        `/api/agent-connectors/${encodeURIComponent(agentSlug)}`,
+        { method: "PUT", body: JSON.stringify({ platforms }) },
+      ),
+  },
+
   // ADR-569 — strings, the maintained file kept under contract. Declarations
   // are conversational (the desk's colleague authors them through its lane —
   // no create route);

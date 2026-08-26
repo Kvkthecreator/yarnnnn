@@ -14,6 +14,7 @@ unset must leave every surface byte-identical to pre-585.
 from __future__ import annotations
 
 import ast
+import re
 import os
 import sys
 from pathlib import Path
@@ -158,10 +159,26 @@ def _fn(name):
 for variant in ("run_lane_turn", "run_lane_turn_stream"):
     body = _fn(variant)
     src = ast.unparse(body)
+    # Re-anchored 2026-08-26 (ADR-612): both consumers still derive from the
+    # SAME `_reach` fact — that is the D4 invariant — but they now also carry
+    # the per-being platform narrowing, resolved ONCE beside it. Pinning the
+    # bare `(_reach)` spelling would have pinned the un-narrowed call and read
+    # a correct addition as a regression. Assert the SHARED ARGUMENT, not the
+    # arity: `_reach` must reach both, and any extra argument must reach both
+    # too (a narrowing applied to the payload but not the allowlist is exactly
+    # the declared-but-undispatchable bug this section exists to prevent).
+    _payload = re.search(r"lane_tools_openai\(([^)]*)\)", src)
+    _allow = re.search(r"lane_tool_names\(([^)]*)\)", src)
     check(f"5a {variant}: tools + allowlist both derive from turn_has_reach",
           "turn_has_reach(app, artifact_path, derive_recipe)" in src
-          and "lane_tools_openai(_reach)" in src
-          and "lane_tool_names(_reach)" in src)
+          and _payload is not None and _allow is not None
+          and _payload.group(1).strip().startswith("_reach")
+          and _allow.group(1).strip().startswith("_reach"))
+    check(f"5a {variant}: payload and allowlist take the SAME arguments",
+          _payload is not None and _allow is not None
+          and _payload.group(1).strip() == _allow.group(1).strip(),
+          f"payload=({_payload.group(1) if _payload else '?'}) "
+          f"allowlist=({_allow.group(1) if _allow else '?'})")
 
 _blc = _fn("build_lane_conventions")
 _reach_ifs = [n for n in ast.walk(_blc) if isinstance(n, ast.If)

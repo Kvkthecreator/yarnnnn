@@ -511,7 +511,44 @@ def turn_has_reach(app: Optional[str], artifact_path: Optional[str],
             and not app and not artifact_path and not derive_recipe)
 
 
-def lane_tool_names(turn_reach: bool = False) -> tuple:
+def reach_platforms_for(client: Any, user_id: str, workspace_id: Optional[str],
+                        agent: Optional[str], turn_reach: bool) -> Optional[tuple]:
+    """The platforms THIS turn may reach, narrowed by the being's opt-in.
+
+    ADR-612 D3. None = not scoped (every reachable platform) — the load-bearing
+    default: an opt-in that defaulted to "nothing" would silently strip tools
+    from every existing lane the day it deployed.
+
+    Resolved ONCE per turn and handed to the payload, the allowlist and the
+    frame prose, because ADR-585's rule is that all three derive from one
+    computation or they disagree and ship a lie (the Scout bug).
+
+    Never raises: a lookup failure degrades to "not scoped", never to
+    "nothing allowed" — a transient DB error must not look like a scope the
+    member never set.
+    """
+    if not turn_reach or not agent:
+        return None
+    try:
+        from services.agent_connectors import allowed_platforms, opt_in_for
+        from services.turn_reach import TURN_REACH_PLATFORMS
+        from services.workspace_context import effective_workspace_id
+
+        ws = effective_workspace_id(user_id, workspace_id)
+        if not ws:
+            return None
+        opt_in = opt_in_for(client, ws, user_id, agent)
+        if opt_in is None:
+            return None
+        return allowed_platforms(TURN_REACH_PLATFORMS, opt_in)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[LANE] reach opt-in lookup failed for %s: %s",
+                       agent, exc)
+        return None
+
+
+def lane_tool_names(turn_reach: bool = False,
+                    reach_platforms: Optional[tuple] = None) -> tuple:
     """THE lane's tool-name set: the file + folder verbs + the uniform reads
     (ADR-467 D4). One set, every lane, every Agent.
 
@@ -531,11 +568,13 @@ def lane_tool_names(turn_reach: bool = False) -> tuple:
     if turn_reach:
         from services.turn_reach import turn_reach_tool_names
 
-        return LANE_TOOL_NAMES + LANE_SURFACE_EXTRA + turn_reach_tool_names()
+        return (LANE_TOOL_NAMES + LANE_SURFACE_EXTRA
+                + turn_reach_tool_names(reach_platforms))
     return LANE_TOOL_NAMES + LANE_SURFACE_EXTRA
 
 
-def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
+def lane_tools_openai(turn_reach: bool = False,
+                      reach_platforms: Optional[tuple] = None) -> list[dict]:
     """The lane tool surface in OpenAI format, derived from the registry's
     own definitions (no parallel schemas — Singular Implementation).
 
@@ -582,8 +621,9 @@ def lane_tools_openai(turn_reach: bool = False) -> list[dict]:
         # missing schema — same fail-loud rule as below).
         from services.turn_reach import turn_reach_tool_defs
 
-        by_name.update({t["name"]: t for t in turn_reach_tool_defs()})
-    names = lane_tool_names(turn_reach)
+        by_name.update({t["name"]: t
+                        for t in turn_reach_tool_defs(reach_platforms)})
+    names = lane_tool_names(turn_reach, reach_platforms)
     missing = [n for n in names if n not in by_name]
     if missing:
         raise ValueError(
@@ -927,17 +967,53 @@ def build_lane_conventions(
     # handed (the Scout bug's prose half). ADR-585: the reach fact re-derives
     # here from the SAME arguments run_lane_turn passed.
     _reach = turn_has_reach(app, artifact_path, derive_recipe)
-    tools_line = " · ".join(lane_tool_names(_reach))
+    # ADR-612 D3 — the SAME narrowing the payload and allowlist got. Re-derived
+    # from the same arguments rather than passed, which is the ADR-585 rule
+    # this file already follows for `_reach` itself: two derivations from one
+    # function agree; two hand-maintained values drift (the Scout bug).
+    _reach_plats = reach_platforms_for(client, user_id, None, agent, _reach)
+    tools_line = " · ".join(lane_tool_names(_reach, _reach_plats))
 
     # ADR-585 / ADR-535 D3 — the connector edge, stated affirmatively either
     # way. Without reach the model must not infer it from the inventory; with
     # reach it must know the bound (the MEMBER's own connections, read-only,
     # transient) rather than guess at more.
-    if _reach:
+    if _reach and _reach_plats is not None and not _reach_plats:
+        # ADR-612 D3 — an explicit empty opt-in. The member scoped this one to
+        # NO platform, so it holds no platform_* tool at all. Said plainly:
+        # the honest-absence branch below would tell it connections are
+        # unreadable in general, which is false and would have it offering
+        # remedies ("connect in Settings") for a limit the member set here.
+        connector_reach_section = (
+            f"You have no platform reach in this workspace: {member} scoped "
+            "you to no connections. list_integrations still tells you what "
+            "THEY have connected, and you may name it — you simply cannot "
+            "read through any of it. If they want that content here, say so "
+            "plainly: they can widen your connections on your agent page, "
+            "paste it, or drop the files into the commons."
+        )
+    elif _reach:
+        # Unscoped (None) and scoped-to-a-subset read differently, and the
+        # difference must be TRUE: claiming "the member scoped you to these"
+        # when nobody scoped anything would have the model report a limit that
+        # does not exist.
+        if _reach_plats is None:
+            _scope_line = (
+                "CONNECTED (Notion, Slack, GitHub) and whether each is "
+                "active. Call it instead of guessing. "
+            )
+        else:
+            _plat_label = ", ".join(p.capitalize() for p in _reach_plats)
+            _scope_line = (
+                f"CONNECTED and whether each is active. YOU can read through "
+                f"{_plat_label} — that is what {member} scoped you to, and "
+                "the platform_* tools you hold are only for those. Call "
+                "list_integrations instead of guessing. "
+            )
         connector_reach_section = (
             f"list_integrations tells you which platforms {member} has "
-            "CONNECTED (Notion, Slack, GitHub) and whether each is active. "
-            "Call it instead of guessing. The platform_* tools read through "
+            + _scope_line
+            + "The platform_* tools read through "
             f"{member}'s OWN connections — theirs only, granted by their "
             "authorization on each platform, read-only. What you fetch lives "
             "in this conversation and dies with it; if it is worth keeping, "
@@ -1159,8 +1235,13 @@ async def run_lane_turn(
     # ADR-585: the reach fact derives from the turn's own shape; the frame
     # prose re-derives it from the SAME arguments inside build_lane_conventions.
     _reach = turn_has_reach(app, artifact_path, derive_recipe)
-    tools = lane_tools_openai(_reach)
-    _allowed = lane_tool_names(_reach)
+    # ADR-612 D3 — resolved ONCE and handed to all three consumers below
+    # (payload, allowlist, and the frame prose via build_lane_conventions).
+    _reach_plats = reach_platforms_for(
+        auth.client, auth.user_id, getattr(auth, "workspace_id", None),
+        agent, _reach)
+    tools = lane_tools_openai(_reach, _reach_plats)
+    _allowed = lane_tool_names(_reach, _reach_plats)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
@@ -1376,8 +1457,13 @@ async def run_lane_turn_stream(
     # ADR-585: the reach fact derives from the turn's own shape; the frame
     # prose re-derives it from the SAME arguments inside build_lane_conventions.
     _reach = turn_has_reach(app, artifact_path, derive_recipe)
-    tools = lane_tools_openai(_reach)
-    _allowed = lane_tool_names(_reach)
+    # ADR-612 D3 — resolved ONCE and handed to all three consumers below
+    # (payload, allowlist, and the frame prose via build_lane_conventions).
+    _reach_plats = reach_platforms_for(
+        auth.client, auth.user_id, getattr(auth, "workspace_id", None),
+        agent, _reach)
+    tools = lane_tools_openai(_reach, _reach_plats)
+    _allowed = lane_tool_names(_reach, _reach_plats)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,

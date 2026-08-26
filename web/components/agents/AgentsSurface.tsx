@@ -201,15 +201,114 @@ function lanesForBeing(lanes: Lane[], slug: string): Lane[] {
   );
 }
 
+// The connector scoping control (ADR-612). Three states a member can express,
+// and they must stay distinguishable:
+//   not scoped (absent)  — reaches every connected platform. The DEFAULT.
+//   a subset             — reaches only those.
+//   scoped to none ([])  — reaches nothing, deliberately.
+// "Not scoped" is NOT the same as "all boxes ticked": ticking every box is a
+// standing choice that silently stops tracking a platform connected later,
+// while absence follows the grant. The row therefore offers an explicit
+// "Everything connected" reset rather than inferring it from a full set.
+function ConnectorScope({
+  slug,
+  available,
+  optIn,
+  onChange,
+}: {
+  slug: string;
+  available: string[];
+  optIn: string[] | undefined;
+  onChange: (platforms: string[] | null) => void;
+}) {
+  const scoped = optIn !== undefined;
+  const [busy, setBusy] = useState(false);
+
+  const save = async (next: string[] | null) => {
+    setBusy(true);
+    try {
+      await onChange(next);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (available.length === 0) {
+    return (
+      <span className="text-muted-foreground">
+        No connections yet — connect one in Settings, then scope it here.
+      </span>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {available.map((p) => {
+          const on = !scoped || (optIn ?? []).includes(p);
+          return (
+            <button
+              key={p}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                const base = scoped ? optIn ?? [] : available;
+                const next = base.includes(p)
+                  ? base.filter((x) => x !== p)
+                  : [...base, p];
+                void save(next);
+              }}
+              className={
+                'rounded-md border px-2 py-1 text-[11px] font-medium capitalize transition-colors ' +
+                (on
+                  ? 'border-foreground/20 bg-foreground/5 text-foreground'
+                  : 'border-border/60 text-muted-foreground line-through')
+              }
+            >
+              {p}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        {!scoped
+          ? 'Everything you connect — this one follows your connections.'
+          : (optIn ?? []).length === 0
+            ? 'Nothing — this one cannot read through any connection.'
+            : `Only ${(optIn ?? []).join(', ')}.`}
+        {scoped && (
+          <>
+            {' '}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void save(null)}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Reset to everything connected
+            </button>
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 /** One being's page. Read-only for a kernel being — stated, not merely
  *  unbuilt (ADR-601 D3's chokepoint is the enforcement; this is the telling). */
 function BeingDetail({
   being,
   lanes,
+  available,
+  optIn,
+  onScope,
   onBack,
 }: {
   being: Being;
   lanes: Lane[];
+  available: string[];
+  optIn: Record<string, string[]>;
+  onScope: (slug: string, platforms: string[] | null) => Promise<void>;
   onBack: () => void;
 }) {
   const worked = lanesForBeing(lanes, being.slug);
@@ -264,6 +363,17 @@ function BeingDetail({
             <dd className="break-all">{being.model}</dd>
           </div>
         )}
+        <div className="flex gap-3">
+          <dt className="w-24 shrink-0 text-muted-foreground">Connections</dt>
+          <dd className="min-w-0 flex-1">
+            <ConnectorScope
+              slug={being.slug}
+              available={available}
+              optIn={optIn[being.slug]}
+              onChange={(platforms) => onScope(being.slug, platforms)}
+            />
+          </dd>
+        </div>
         <div className="flex gap-3">
           <dt className="w-24 shrink-0 text-muted-foreground">Editing</dt>
           <dd>
@@ -327,6 +437,12 @@ export function AgentsSurface() {
   const { setSurfaceParams } = useSurfacePreferences();
   const [beings, setBeings] = useState<Being[] | null>(null);
   const [lanes, setLanes] = useState<Lane[]>([]);
+  // ADR-612 — the member's connector scoping. `available` is what there is to
+  // opt into (the grant side); `optIn` is per being. A being ABSENT from the
+  // map is not scoped and reaches everything granted — absence must never be
+  // read as "nothing", which is the whole default this feature rests on.
+  const [available, setAvailable] = useState<string[]>([]);
+  const [optIn, setOptIn] = useState<Record<string, string[]>>({});
   // Read UNPREFIXED: the shell owns the `agents.` namespacing on the way in
   // and out (surface-preferences), and a surface reads its own key plainly —
   // the SettingsPaneShell `tab` precedent.
@@ -340,6 +456,15 @@ export function AgentsSurface() {
   // branch on the `/desktop` baseline, and a flip here trips all three
   // (surface-preferences §depth). null clears the key — back to the list.
   const open = (slug: string | null) => setSurfaceParams({ agent: slug });
+
+  // ADR-612 — save the scoping, then hold the SERVER's map rather than a
+  // locally-patched one: the server is what the turn will actually read, and
+  // a client that kept its own optimistic copy would show a scoping the lane
+  // does not have.
+  const scopeConnectors = async (slug: string, platforms: string[] | null) => {
+    const res = await api.agentConnectors.set(slug, platforms);
+    setOptIn(res.opt_in ?? {});
+  };
 
   useEffect(() => {
     let alive = true;
@@ -357,6 +482,16 @@ export function AgentsSurface() {
       // A failed read must not render as "you have nobody" — that is the exact
       // false statement this surface exists to stop telling.
       .catch(() => alive && setBeings(null));
+    api.agentConnectors
+      .get()
+      .then((res) => {
+        if (!alive) return;
+        setAvailable(res.available ?? []);
+        setOptIn(res.opt_in ?? {});
+      })
+      // A failed read leaves the map empty = "nothing scoped", which renders
+      // as today's behaviour rather than as a false restriction.
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -368,7 +503,14 @@ export function AgentsSurface() {
   if (selected) {
     return (
       <div className="h-full overflow-y-auto px-6 py-8">
-        <BeingDetail being={selected} lanes={lanes} onBack={() => open(null)} />
+        <BeingDetail
+          being={selected}
+          lanes={lanes}
+          available={available}
+          optIn={optIn}
+          onScope={scopeConnectors}
+          onBack={() => open(null)}
+        />
       </div>
     );
   }

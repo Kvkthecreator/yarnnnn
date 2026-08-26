@@ -23,6 +23,7 @@ lit deliberately).
 from __future__ import annotations
 
 import os
+from typing import Optional
 
 #: The content platforms a turn may read through — the connector trio.
 #: (commerce/trading/email are api-key operational connectors, not content;
@@ -36,26 +37,35 @@ def is_turn_reach_enabled() -> bool:
     return os.getenv("TURN_REACH_ENABLED", "").strip().lower() in ("1", "true", "yes")
 
 
-def turn_reach_tool_names() -> tuple:
+def turn_reach_tool_names(platforms: Optional[tuple] = None) -> tuple:
     """The read-only platform tool names a reach-bearing turn holds — derived
     from the capability registry's read rosters (Singular Implementation: the
     same rosters agent-capability resolution reads), so a write tool cannot
-    drift in without editing the registry itself."""
+    drift in without editing the registry itself.
+
+    ADR-612: `platforms` NARROWS to a being's opt-in. None = every reachable
+    platform (no opt-in recorded — today's behaviour, and the load-bearing
+    default). An empty tuple is a real state: the being reaches nothing, so it
+    holds no platform tools at all.
+    """
     from services.platform_tools import PLATFORM_TOOLS_BY_CAPABILITY
 
+    allowed = TURN_REACH_PLATFORMS if platforms is None else tuple(platforms)
     names: list = []
     for plat in TURN_REACH_PLATFORMS:
+        if plat not in allowed:
+            continue
         names.extend(PLATFORM_TOOLS_BY_CAPABILITY.get(f"read_{plat}", []))
     return tuple(names)
 
 
-def turn_reach_tool_defs() -> list:
+def turn_reach_tool_defs(platforms: Optional[tuple] = None) -> list:
     """Anthropic-format definitions for the reach surface, from the provider
     rosters' own schemas (no parallel definitions). A reach name with no
     schema is an ERROR, never a silent drop (the ADR-467 D4 rule)."""
     from services.platform_tools import PLATFORM_TOOLS_BY_PROVIDER
 
-    wanted = set(turn_reach_tool_names())
+    wanted = set(turn_reach_tool_names(platforms))
     defs = [
         t
         for plat in TURN_REACH_PLATFORMS
