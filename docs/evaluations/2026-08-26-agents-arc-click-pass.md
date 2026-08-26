@@ -153,3 +153,41 @@ The file also carried its own `BEGIN`/`COMMIT` and was correctly **refused** by
 the runner. After the dry run I re-queried to prove the rollback: the trailing
 `WARNING: there is no transaction in progress` is expected `DO`-block noise but
 is also the signature of a rollback that did nothing.
+
+
+---
+
+# Addendum 2 — the two carried-forward defects, fixed and driven
+
+Both items this pass listed under "Observed, NOT introduced here" are closed and
+verified live (`9f95303` · `c9e59b9` · `ab81591` · `0695a17`).
+
+| # | Check | Observed |
+|---|---|---|
+| E1 | Supervisor has its own glyph | a **clipboard**, distinct from Keeper's archive box and from the `Bot` in the empty state |
+| E2 | The list shows desk NAMES | "Editor · in **Slides, Text**" · "Supervisor · in **Strings**" — no lowercase slugs anywhere |
+| E3 | The detail page agrees | "Works in **Slides, Text**" |
+| E4 | The served payload carries both | `homes: ["slides","text"]` (address) + `home_titles: ["Slides","Text"]` (name) |
+
+⭐ E1's failure mode is why it needed a gate rather than a fix: a missing key in
+the FE `ICONS` map is **not an error** — `BeingIcon` falls back to `Bot` by
+design, so the being renders looking exactly like one that was never given an
+icon. Silent, and indistinguishable from intent. The gate derives the expected
+set from `AGENTS`, so a new being's icon is covered the day it lands.
+
+⭐ E2/E3: `homes` STAYS as the address; the titles are derived from
+`KERNEL_SURFACES[].title` — the same rows the Launcher and Dock render — so an
+app renamed once is renamed everywhere, never a second mapping.
+
+**Two gates fought their own fix**, and both were re-anchored rather than
+obeyed: one pinned the literal `b.homes` spelling (satisfying it would have
+restored routing-keys-shown-to-a-person), and one I wrote had an
+unparenthesised `and`/`or` chain that made its last clause sufficient alone —
+deleting the real fallback left it GREEN. It now DRIVES the resolver with a
+desk that has no surface row, the only way that branch is observed.
+`test_agent_registry` 124/124, falsified.
+
+**Deploy lag is real and worth stating**: the API served `home_titles` for
+several minutes before the Vercel bundle carried the reader. The page showed
+slugs the whole time — correct behaviour, since the FE falls back to `homes`
+when titles are absent. That fallback is exactly what made the window benign.
