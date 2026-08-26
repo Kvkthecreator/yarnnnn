@@ -553,6 +553,16 @@ _check("the worked-together selector unions the resident AND the cast",
 # here would be inventing a distinction the substrate refuses to make.
 _check("the pane claims no per-being authorship or spend",
        not re.search(r"authored_by|cost_usd|spend", _surface))
+# A bound lane is auto-named after its artifact FILE, so `name` and the path's
+# basename are frequently the same string — printing both rendered
+# "deck.html   deck.html", eight times over, with the folder that actually
+# distinguishes them (ir-deck-yarnnn-march-2026-v5) thrown away by `.pop()`.
+# The label must derive from the PATH, and must not print one half twice.
+_check("the lane label is derived, not the raw name beside the basename",
+       "function laneLabel(" in _surface
+       and "artifact_path.split('/').pop()" not in _surface)
+_check("the label prefers the folder that distinguishes a bound lane",
+       "parts[parts.length - 2]" in _surface)
 
 print()
 if FAIL:

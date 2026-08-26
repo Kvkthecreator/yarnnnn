@@ -168,6 +168,29 @@ type Lane = {
 //     (ADR-495), which is how a colleague appears in an open chat.
 // Either alone under-reports: the first misses invited beings, the second
 // misses every bound desk lane, whose resident is never a cast row.
+// What to CALL a lane in a list. A bound lane is auto-named after its artifact
+// file, so `name` is often the bare filename — and the filename is the least
+// distinguishing part of the path: eight lanes all called "deck.html" or
+// "document.html". The MEANING is in the folder (`ir-deck-yarnnn-march-2026-v5`),
+// which the auto-name throws away. Prefer the folder for a bound lane, keep the
+// member's own name when they gave the lane one, and never print both halves of
+// the same string (which rendered "deck.html   deck.html").
+function laneLabel(lane: Lane): { title: string; detail: string | null } {
+  const path = lane.artifact_path?.trim() || '';
+  const name = lane.name?.trim() || '';
+  if (!path) return { title: name || 'Untitled', detail: null };
+
+  const parts = path.split('/').filter(Boolean);
+  const file = parts[parts.length - 1] ?? '';
+  const folder = parts.length > 1 ? parts[parts.length - 2] : '';
+  // A member-given name is one the auto-namer would not have produced.
+  const memberNamed = name && name !== file;
+  return {
+    title: memberNamed ? name : folder || file || 'Untitled',
+    detail: memberNamed ? folder || file : file && folder ? file : null,
+  };
+}
+
 function lanesForBeing(lanes: Lane[], slug: string): Lane[] {
   return lanes.filter(
     (l) =>
@@ -273,21 +296,20 @@ function BeingDetail({
             {' '}in this workspace.
           </p>
           <ul className="space-y-1 pt-1">
-            {worked.slice(0, 8).map((l) => (
-              <li
-                key={l.id}
-                className="flex items-baseline gap-2 text-xs text-muted-foreground"
-              >
-                <span className="truncate text-foreground/80">
-                  {l.name?.trim() || 'Untitled'}
-                </span>
-                {l.artifact_path && (
-                  <span className="shrink-0 truncate text-[11px]">
-                    {l.artifact_path.split('/').pop()}
-                  </span>
-                )}
-              </li>
-            ))}
+            {worked.slice(0, 8).map((l) => {
+              const { title, detail } = laneLabel(l);
+              return (
+                <li
+                  key={l.id}
+                  className="flex items-baseline gap-2 text-xs text-muted-foreground"
+                >
+                  <span className="truncate text-foreground/80">{title}</span>
+                  {detail && (
+                    <span className="shrink-0 truncate text-[11px]">{detail}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           {worked.length > 8 && (
             <p className="text-[11px] text-muted-foreground">
