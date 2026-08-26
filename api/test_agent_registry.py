@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import re
 import sys
 from pathlib import Path
 
@@ -425,6 +426,26 @@ _writes = [
     and n.func.attr in ("insert", "update", "upsert", "delete")
 ]
 _check("the registry module has no write path", not _writes)
+
+# Every icon the register declares must exist in the surface's ICONS map.
+# A missing key does NOT error — BeingIcon falls back to `Bot`, so the being
+# renders looking like an unmapped generic. Supervisor shipped that way:
+# the register said `clipboard-list`, the map had three keys, and the pane
+# showed the fallback glyph with nothing anywhere going red.
+# Derived from the register, never a hand-kept list — a hand-kept copy is the
+# same drift one level up.
+_icon_map_block = _surface.split("const ICONS", 1)[-1].split("};", 1)[0]
+_missing_icons = sorted(
+    {row["icon"] for row in AGENTS.values() if row.get("icon")}
+    - {
+        key
+        for key in re.findall(r"^\s*'?([a-z-]+)'?\s*:", _icon_map_block, re.M)
+    }
+)
+_check(
+    f"every registry icon is mapped in the surface (unmapped: {_missing_icons or 'none'})",
+    not _missing_icons,
+)
 
 print()
 if FAIL:
