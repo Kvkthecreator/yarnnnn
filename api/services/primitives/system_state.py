@@ -37,7 +37,6 @@ Use when the user asks about system status, resource coverage, or "what happened
 
 Returns structured SystemStateSnapshot with:
 - platform_sync_status: Per-platform resource state with timestamps and details
-- pending_reviews: Count of agent versions awaiting review
 - failed_jobs: Reserved compatibility field (currently empty)
 - scheduler_health: Last heartbeat, items processed
 
@@ -99,7 +98,6 @@ class SystemStateSnapshot:
     """Complete system state snapshot for TP consumption."""
     captured_at: str
     platform_sync_status: list[PlatformSyncStatus] = field(default_factory=list)
-    pending_reviews_count: int = 0
     failed_jobs: list[FailedJob] = field(default_factory=list)
     scheduler_health: Optional[SchedulerHealth] = None
 
@@ -118,7 +116,6 @@ class SystemStateSnapshot:
                 }
                 for p in self.platform_sync_status
             ],
-            "pending_reviews_count": self.pending_reviews_count,
             "failed_jobs": [
                 {
                     "job_id": j.job_id,
@@ -171,7 +168,6 @@ async def handle_get_system_state(auth: Any, input: dict) -> dict:
 
         if scope in ("full", "scheduler"):
             snapshot.scheduler_health = await _get_scheduler_health(client, user_id)
-            snapshot.pending_reviews_count = await _get_pending_reviews_count(client, user_id)
 
         if scope in ("full", "jobs"):
             snapshot.failed_jobs = await _get_failed_jobs(client, user_id)
@@ -345,40 +341,11 @@ async def _get_scheduler_health(client: Any, user_id: str) -> Optional[Scheduler
         return None
 
 
-async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
-    """Count agent versions awaiting review (status=draft).
-
-    agent_runs has no user_id — must find user's agent IDs first,
-    then count versions in review states for those agents.
-    """
-    try:
-        # Get user's agent IDs
-        agent_result = (
-            client.table("agents")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("status", "active")
-            .execute()
-        )
-        agent_ids = [d["id"] for d in (agent_result.data or [])]
-        if not agent_ids:
-            return 0
-
-        # Count versions in review states for those agents
-        result = (
-            client.table("agent_runs")
-            .select("id", count="exact")
-            .in_("agent_id", agent_ids)
-            .in_("status", ["draft"])
-            .execute()
-        )
-
-        return result.count or 0
-
-    except Exception as e:
-        logger.warning(f"[GetSystemState] Failed to get pending reviews: {e}")
-        return 0
-
+# _get_pending_reviews_count DELETED 2026-08-26. It counted `agent_runs`
+# rows with status="draft" for the retired agent model — both tables held
+# ZERO rows, so it short-circuited to 0 on every call, and the field it fed
+# was rendered only under `if count > 0`. A field that can only be 0 is a
+# confident claim about a concept that no longer exists.
 
 async def _get_failed_jobs(client: Any, user_id: str) -> list[FailedJob]:
     """ADR-156: integration_import_jobs deprecated. Returns empty list."""
@@ -408,8 +375,5 @@ def _format_state_message(snapshot: SystemStateSnapshot) -> str:
     # Issues
     if snapshot.failed_jobs:
         parts.append(f"{len(snapshot.failed_jobs)} failed job(s) in last 24h")
-
-    if snapshot.pending_reviews_count > 0:
-        parts.append(f"{snapshot.pending_reviews_count} item(s) awaiting review")
 
     return " | ".join(parts)

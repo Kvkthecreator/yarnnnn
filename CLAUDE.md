@@ -296,7 +296,6 @@ The one-line statement (canonized at `agent-composition.md` §4.2 + §3.2.1): **
 
 **Key files**:
 - `api/services/memory.py` — `process_conversation` / `get_for_prompt` / `extract_from_text_to_user_memory`
-- `api/services/working_memory.py` — formats memory for prompt injection
 - Memory-write guidance now lives in the system agent's frame (`api/agents/freddie_agent.py`); the `agents/prompts/` profile registry is DELETED.
 - `docs/features/memory.md` — user-facing docs
 
@@ -304,7 +303,7 @@ The one-line statement (canonized at `agent-composition.md` §4.2 + §3.2.1): **
 
 **Per-table detail lives in [docs/database/SCHEMA-NOTES.md](docs/database/SCHEMA-NOTES.md)** — current table names, deprecated columns, and the ADR history behind each. Read it on demand; `supabase/migrations/` is authoritative for actual DDL.
 
-The rule that matters every session: **use current names.** `agents` not `deliverables`, `agent_runs` not `deliverable_versions`, `platform_connections` not `user_integrations`. Verify against the live schema before writing a query.
+The rule that matters every session: **use current names**, and note `agents`/`agent_runs` are DROPPED (mig 248). `platform_connections` not `user_integrations`. Verify against the live schema before writing a query.
 
 ### Platform sync + agent workspace (ADR-056/057/077/106, post-ADR-153)
 
@@ -322,7 +321,6 @@ The rule that matters every session: **use current names.** `agents` not `delive
 | Tool Primitives (code) | `api/services/primitives/*.py` — canonical registry in `registry.py` |
 | Tool Primitives (canonical doc) | `docs/architecture/primitives-matrix.md` (ADR-168) — substrate × mode × capability matrix, rename protocol, deleted primitives ledger |
 | Memory Service | `api/services/memory.py` |
-| Working Memory | `api/services/working_memory.py` |
 | Chat/Streaming | `api/services/anthropic.py` |
 | OAuth Flow | `api/integrations/core/oauth.py` |
 | **Workspace (canonical doc)** | `docs/architecture/WORKSPACE.md` — layers, filesystem inventory, 5-phase bootstrap, autonomy threshold. Paired with `docs/design/WORKSPACE.md` (per-tab surface contracts). **Start here for anything substrate/init/onboarding/bootstrap/autonomy-threshold.** |
@@ -337,14 +335,12 @@ The rule that matters every session: **use current names.** `agents` not `delive
 | Agent Framework (canonical) | [docs/architecture/orchestration.md](docs/architecture/orchestration.md) + [agent-composition.md](docs/architecture/agent-composition.md) |
 | Directory Registry | `api/services/directory_registry.py` — `WORKSPACE_DIRECTORIES` (context domains, uploads, output categories) |
 | Agent Framework (code) | `api/services/orchestration.py` — mostly kernel default-content constants (`DEFAULT_*_MD`, `KERNEL_VERSION`, steward defaults) + role/capability resolution (`resolve_role`, `has_capability`, `ALL_ROLES`). ⚠️ `AGENT_TEMPLATES` + `AGENT_TYPES` are **DELETED** — a gate forbids reintroducing them (`test_adr269_capability_flow.py`). |
-| Agent Creation (near-dead) | `api/services/agent_creation.py` + `docs/features/agent-playbook-framework.md` — the retired `agents`-table model; sole live caller is a Hat-B script. Do not build on it. |
-| DELETED — do not reintroduce | Composer/Heartbeat (ADR-156), Pulse Engine (ADR-141), Invocation Dispatcher + Dispatch Helpers (ADR-260/261), the headless task pipeline (`task_pipeline.py`, `task_workspace.py`, `task_types.py`, `task_derivation.py`, `primitives/manage_task.py` — ADR-231), Platform Sync Worker + Scheduler (ADR-153), Task Deliverable Inference (ADR-231), Dashboard Summary, **the pre-ADR-596 agent model** (2026-08-26 — `routes/agents.py`, `ManageAgent`/`coordinator.py`, the FE `api.agents` client, `agent-identity.ts`; ADR-109 Scope×Role×Trigger over the EMPTY `agents`/`agent_runs` tables, 0 callers). ⭐NO successor verb — authority over a being is unrepresentable (ADR-460 D3.a). The `agents` TABLE + its read-side degradation are untouched: a separate sweep. **Wakes route through `services/wake.py` → `wake_drainer.py`; sub-LLM calls through `primitives/dispatch_specialist.py`.** |
+| DELETED — do not reintroduce | Composer/Heartbeat (ADR-156), Pulse Engine (ADR-141), Invocation Dispatcher + Dispatch Helpers (ADR-260/261), the headless task pipeline (`task_pipeline.py`, `task_workspace.py`, `task_types.py`, `task_derivation.py`, `primitives/manage_task.py` — ADR-231), Platform Sync Worker + Scheduler (ADR-153), Task Deliverable Inference (ADR-231), Dashboard Summary, **the pre-ADR-596 agent model** (2026-08-26 — `routes/agents.py`, `ManageAgent`/`coordinator.py`, the FE `api.agents` client, `agent-identity.ts`; ADR-109 Scope×Role×Trigger over the EMPTY `agents`/`agent_runs` tables, 0 callers), and its **8 TABLES** (mig 248 — all empty; `SearchEntities`/`DiscoverAgents`/`ReadAgentFile`, the `agent`+`version` entity types, `working_memory.py`/`agent_creation.py`/`feedback_{engine,formatters,distillation,actuation}.py` all went with them). ⭐NO successor verb — authority over a being is unrepresentable (ADR-460 D3.a). Gate: `test_agent_model_is_retired.py`. **Wakes route through `services/wake.py` → `wake_drainer.py`; sub-LLM calls through `primitives/dispatch_specialist.py`.** |
 | **Recurrences (RETIRED — ADR-603 D5, 2026-08-24)** | Concept + every member surface DELETED (production: 0 declarations — retire-clean): `routes/recurrences.py` + `routes/narrative.py`, the `recurrence`/`activity` surface rows, the whole FE chain. Run receipts = notifications Activity ledger. **Steward-side plumbing survives INERT** (`services/recurrence.py`, `Schedule`/`FireInvocation`, scheduler dispatch, bundle seeding) — dies with ADR-596 D3 phase (a); do not build on it. Standing work = the **standing declaration** (`services/standing_declarations.py`; strings first instance). |
 | Scheduling | `api/services/scheduling.py` — `compute_next_run_at` (shared by strings + capture); its recurrence slice is inert per ADR-603 D5 |
 | Inference Primitives | DELETED (`InferContext`/`InferWorkspace`); identity/brand authoring = ordinary substrate writes. |
 | Substrate Write Primitive (ADR-235 D1.b + Option A) | `api/services/primitives/workspace.py::handle_write_file` with `scope='workspace'`. Reaches operator-shared substrate (`context/_shared/*`, `memory/*`, `reports/*/feedback.md`, etc.) via workspace-relative path. Recognized canonical paths emit activity-log events automatically. |
 | Agent Execution (deleted) | DELETED (ADR-271 dead-headless-path sweep) — `execute_agent_generation` / `generate_draft_inline` / `_build_headless_system_prompt` are gone. **Two live execution paths**: scheduler walkers → `wake_queue` → `wake_drainer` → `invoke_freddie`, and chat → `invoke_freddie(trigger='addressed')`. Sub-LLM calls go through `dispatch_specialist.py`. |
-| Feedback Distillation | `api/services/feedback_distillation.py` — edits distil to the natural-home `_feedback.md`. |
 | Platform API Clients | `api/integrations/core/{slack,notion,github}_client.py` |
 | Landscape Discovery | `api/services/landscape.py` |
 | Tier Limits | `api/services/platform_limits.py` |
@@ -377,7 +373,7 @@ The rule that matters every session: **use current names.** `agents` not `delive
 
 ## Common Pitfalls
 
-1. **Schema mismatch**: Code referencing old table/column names — use `agents` not `deliverables`, `agent_runs` not `deliverable_versions`, `agent_id` not `deliverable_id`
+1. **Schema mismatch**: Code referencing dropped/renamed tables — `agents`/`agent_runs` no longer exist (mig 248); verify against the live schema
 2. **Tool loop exhaustion**: YARNNN hits `max_tool_rounds=5` without text response if tools return empty
 3. **PGRST205 errors**: PostgREST schema cache needs refresh after table changes
 4. **Render env var drift**: Worker/Scheduler missing env vars that API has — Worker silently fails to decrypt tokens, reports `success=True` with 0 items. Always check all services.

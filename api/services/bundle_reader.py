@@ -658,3 +658,58 @@ def list_bundle_layouts() -> dict[str, dict[str, Any]]:
             if slug and slug not in result:
                 result[slug] = _normalize_bundle_layout(lay, bundle)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Activation state (ADR-226) — RELOCATED here 2026-08-26.
+#
+# It lived in `services/working_memory.py`, which was deleted: that module's two
+# public entrypoints (`build_working_memory` / `format_compact_index`) had ZERO
+# production callers, and the file said so itself. This function was its ONE
+# live export. Its home is here because `bundles_active_for_workspace` — the
+# question it actually asks — is defined in this module; `workspace_utils` was
+# the other candidate and is wrong (it declares "no DB access; no async", and
+# this opens a client).
+# ---------------------------------------------------------------------------
+
+def classify_activation_state(
+    user_id: str, mandate_content: Optional[str]
+) -> str:
+    """ADR-226: classify the workspace's activation state for the YARNNN
+    prompt overlay decision.
+
+    Returns one of:
+      - "none": no program bundle is active for this workspace (no platform
+        connection matches an active bundle's requires_connection).
+      - "post_fork_pre_author": a bundle is active AND MANDATE.md is still
+        skeleton or empty. YARNNN's activation overlay engages.
+      - "operational": a bundle is active AND MANDATE.md is non-skeleton.
+        Workspace runs normally; no activation overlay.
+
+    Uses bundle_reader.bundles_active_for_workspace per ADR-224 §3
+    capability-implicit activation. Skeleton detection via
+    services.workspace_utils.is_skeleton_content (single implementation).
+    """
+    try:
+        import os
+        from supabase import create_client as _create_supabase_client
+        from services.supabase import close_supabase_client
+        url = os.environ.get("SUPABASE_URL", "")
+        key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+        client = _create_supabase_client(url, key)
+        try:
+            bundles = bundles_active_for_workspace(user_id, client)
+        finally:
+            close_supabase_client(client)
+    except Exception:
+        bundles = []
+
+    if not bundles:
+        return "none"
+
+    # Bundle is active for this workspace. Now classify MANDATE.md.
+    from services.workspace_utils import is_skeleton_content
+    if is_skeleton_content(mandate_content):
+        return "post_fork_pre_author"
+
+    return "operational"

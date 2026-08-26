@@ -203,34 +203,10 @@ async def _apply_overrides(persona: Persona) -> list[str]:
 # Step 5 — Pre-create specialist agent rows
 # =============================================================================
 
-def _ensure_specialists(user_id: str, roles: list[str]) -> dict[str, str]:
-    """Pre-create the specialist agent rows the program's tasks.yaml
-    references. ADR-205 lazy-creates specialists at dispatch time, but
-    ManageTask(create) validates the agent row exists up-front. Bridge
-    by invoking ensure_infrastructure_agent for every unique role.
-    Idempotent — existing rows short-circuit."""
-    from services.agent_creation import ensure_infrastructure_agent
-
-    client = _service_client()
-
-    async def _run() -> dict[str, str]:
-        created: dict[str, str] = {}
-        for role in roles:
-            agent = await ensure_infrastructure_agent(client, user_id, role)
-            if agent:
-                created[role] = agent.get("slug", "?")
-        return created
-
-    return asyncio.run(_run())
-
-
-# =============================================================================
-# Step 5 helpers — discover specialist roles from bundle YAML declarations
-# =============================================================================
-#
-# ADR-231 cutover: tasks.yaml is gone. Specialist roles are discovered from
-# the bundle's recurrence declaration YAMLs in reference-workspace/.
-# Walks the same file set _fork_reference_workspace touches.
+# _ensure_specialists DELETED 2026-08-26. It pre-created `agents` rows because
+# ManageTask(create) validated one existed up-front — but ManageTask was
+# deleted by ADR-231, and this function had no caller even inside this file.
+# The `agents` table it wrote to is dropped.
 
 def _bundle_recurrence_roles(program_slug: str) -> list[str]:
     """Walk docs/programs/{program}/reference-workspace/ for recurrence

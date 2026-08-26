@@ -3346,8 +3346,11 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         GOVERNANCE_BUDGET_PATH,
         PERSONA_PRINCIPLES_PATH,
     )
-    from services.working_memory import _classify_activation_state
-    from services.bundle_reader import _all_slugs, _load_manifest
+    from services.bundle_reader import (
+        _all_slugs,
+        _load_manifest,
+        classify_activation_state,
+    )
     from services.programs import (
         resolve_hired_program_slug,
         resolve_judgment_home,
@@ -3444,7 +3447,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     mandate_content = await um.read(mandate_path)
     activation_state = "none"
     try:
-        activation_state = _classify_activation_state(
+        activation_state = classify_activation_state(
             auth.user_id,
             mandate_content,
         )

@@ -70,10 +70,14 @@ class EntityRef:
 
 # Valid entity types — the /proc core (ADR-322): genuinely-non-file DB objects.
 ENTITY_TYPES = {
-    "agent",
-    "version",  # Agent versions / run ledger (agent_runs — immutable audit)
     "platform",
     "session",
+    # 2026-08-26: "agent" and "version" removed with the pre-ADR-596 agent
+    #   model. They addressed the `agents` / `agent_runs` tables, which held
+    #   ZERO rows in production, so every ref resolved to None (or [] for a
+    #   collection query). A being is NOT an entity-ref target: it lives in
+    #   `services/agents_registry.AGENTS` as static kernel data, not a
+    #   per-workspace DB row an LLM looks up.
     # ADR-322: "document" and "task" removed — they are not /proc records.
     #   document → a FILE (ADR-197: workspace_files row at uploads/{slug}.md).
     #     Reads move to the file family: SearchFiles(path_prefix='uploads/') +
@@ -160,8 +164,10 @@ def parse_ref(ref: str) -> EntityRef:
 
 # Table mappings for entity types (ADR-322: the /proc core — 4 DB objects).
 TABLE_MAP = {
-    "agent": "agents",
-    "version": "agent_runs",  # Run ledger (immutable audit)
+    # 2026-08-26: "agent" -> agents and "version" -> agent_runs removed (see
+    # ENTITY_TYPES above). ⚠️ ENTITY_TYPES and TABLE_MAP are two literals that
+    # must be edited TOGETHER — a type in one but not the other either raises
+    # "No table mapping for entity type" or silently becomes unaddressable.
     "platform": "platform_connections",
     "session": "chat_sessions",
     # ADR-322: "document" (→ file: SearchFiles/ReadFile on uploads/) and "task"
@@ -198,10 +204,6 @@ async def resolve_ref(
 
     # ADR-168 Commit 2: "action" and "system" branches removed along with Execute.
 
-    # Handle version type specially — scoped through agent, no direct user_id
-    if ref.entity_type == "version":
-        return await _resolve_version_ref(ref, auth)
-
     table = TABLE_MAP.get(ref.entity_type)
     if not table:
         raise ValueError(f"No table mapping for entity type: {ref.entity_type}")
@@ -221,13 +223,6 @@ async def resolve_ref(
             query = query.limit(int(ref.query["limit"]))
         # ADR-196: memory-by-tag query removed (user_memory table dropped).
         # ADR-322: "task" removed from the status-filter set (no longer an entity type).
-        if ref.entity_type == "agent":
-            # Default to excluding archived unless explicitly requested
-            if "status" in ref.query:
-                query = query.eq("status", ref.query["status"])
-            else:
-                query = query.neq("status", "archived")
-
         result = query.execute()
         return result.data if result.data else []
 
@@ -354,84 +349,9 @@ async def _enrich_platform_with_sync_status(client: Any, user_id: str, platform:
 #   - mcp__slack__slack_search_* for Slack
 
 
-async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Dict], None]:
-    """
-    Resolve version references. Versions are scoped through agents (no direct user_id).
-
-    Supports:
-      - version:latest?agent_id=X  → latest version for a specific agent
-      - version:latest                    → latest version across all user's agents
-      - version:<uuid>                    → specific version by ID
-      - version:*?agent_id=X        → all versions for an agent
-    """
-    client = auth.client
-    agent_id = ref.query.get("agent_id")
-
-    # Get user's agent IDs for scoping
-    if agent_id:
-        # Verify this agent belongs to the user
-        check = client.table("agents").select("id").eq(
-            "id", agent_id
-        ).eq("user_id", auth.user_id).execute()
-        if not check.data:
-            return None
-        user_agent_ids = [agent_id]
-    else:
-        user_agents = client.table("agents").select("id").eq(
-            "user_id", auth.user_id
-        ).execute()
-        user_agent_ids = [d["id"] for d in (user_agents.data or [])]
-        if not user_agent_ids:
-            return [] if ref.identifier == "*" else None
-
-    select_cols = (
-        "id, agent_id, version_number, status, "
-        "draft_content, final_content, "
-        "source_snapshots, metadata, "
-        "created_at, delivery_status, delivery_error"
-    )
-
-    if ref.identifier == "*":
-        q = client.table("agent_runs").select(select_cols)
-        if agent_id:
-            q = q.eq("agent_id", agent_id)
-        else:
-            q = q.in_("agent_id", user_agent_ids)
-        limit = int(ref.query.get("limit", 20))
-        result = q.order("created_at", desc=True).limit(limit).execute()
-        # Normalize content field + truncate in list view
-        for item in (result.data or []):
-            content = item.pop("final_content", None) or item.pop("draft_content", None) or ""
-            item["content"] = content[:500] + "..." if len(content) > 500 else content
-            # Strip verbose content IDs from list view (available on single reads)
-            # Strip verbose IDs from list view metadata
-            # ADR-153: platform_content_ids filter removed (field no longer exists)
-        return result.data or []
-
-    elif ref.identifier == "latest":
-        q = client.table("agent_runs").select(select_cols)
-        if agent_id:
-            q = q.eq("agent_id", agent_id)
-        else:
-            q = q.in_("agent_id", user_agent_ids)
-        result = q.order("created_at", desc=True).limit(1).execute()
-        if result.data:
-            item = result.data[0]
-            item["content"] = item.pop("final_content", None) or item.pop("draft_content", None) or ""
-            return item
-        return None
-
-    else:
-        # Specific version by ID
-        result = client.table("agent_runs").select(select_cols).eq(
-            "id", ref.identifier
-        ).in_("agent_id", user_agent_ids).execute()
-        if result.data:
-            item = result.data[0]
-            item["content"] = item.pop("final_content", None) or item.pop("draft_content", None) or ""
-            return item
-        return None
-
+# _resolve_version_ref DELETED 2026-08-26 with the `version` entity type.
+# It existed because `agent_runs` has no user_id — ownership had to be proven
+# through the parent `agents` row. Both tables are gone from the entity layer.
 
 def _extract_subpath(entity: dict, subpath: str) -> Any:
     """Extract nested data from entity using subpath."""

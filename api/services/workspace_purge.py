@@ -392,7 +392,7 @@ def purge_l2_workspace(
     # workspace — a member's agents/sessions/activity are the workspace's, not
     # the purging user's private rows.
     deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True, workspace_id=ws)
-    deleted["agents"] = _delete_rows(client, "agents", user_id, workspace_id=ws)
+    # `agents` LEFT this sweep with migration 248 — the table is dropped.
     # ADR-194 Reviewer proposal queue — prior proposals must not survive reset
     # `optional=True` mirrors the STATS side (`_count_ws("action_proposals",
     # optional=True)`): the count swallowed a missing/erroring table and showed

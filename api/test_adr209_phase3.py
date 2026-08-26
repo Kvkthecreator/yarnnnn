@@ -399,96 +399,9 @@ def test_list_files_authored_by_filter(client) -> None:
 # Test 11 — recent authorship aggregation
 # ---------------------------------------------------------------------------
 
-def test_recent_authorship_aggregation(client) -> None:
-    try:
-        from services.working_memory import _get_recent_authorship_sync
-
-        # The DB has been accumulating revisions from Phase 1/2 backfill + test runs.
-        # Sanity check: the aggregator returns the expected shape and buckets
-        # authors correctly by prefix.
-        result = _get_recent_authorship_sync(TEST_USER_ID, client)
-        ok = (
-            isinstance(result, dict)
-            and "window_hours" in result
-            and "total" in result
-            and "by_layer" in result
-            and result["window_hours"] == 24
-            and isinstance(result["by_layer"], dict)
-        )
-        # Verify at least one bucket is a known cognitive-layer prefix
-        layers = set(result.get("by_layer", {}).keys())
-        known = {"operator", "yarnnn", "agent", "specialist", "reviewer", "system"}
-        ok = ok and (not layers or layers.issubset(known))
-        record(
-            "_get_recent_authorship_sync returns correct shape + buckets by layer",
-            ok,
-            f"total={result.get('total')}, layers={sorted(layers)}",
-        )
-    except Exception as e:
-        record("Recent authorship aggregation", False, f"Error: {e}")
-
-
 # ---------------------------------------------------------------------------
 # Test 12 + 13 — compact index activity line + token ceiling
 # ---------------------------------------------------------------------------
-
-def test_compact_index_activity_line() -> None:
-    try:
-        from services.working_memory import format_compact_index
-
-        # Build a minimal working_memory with a populated recent_authorship
-        working_memory = {
-            "workspace_state": {
-                "identity": "rich",
-                "brand": "rich",
-                "documents": 2,
-                "context_domains": 1,
-                "tasks_active": 1,
-                "tasks_stale": 0,
-                "balance_usd": 5.0,
-                "balance_exhausted": False,
-            },
-            "active_tasks": [],
-            "context_domains": [],
-            "agents": [],
-            "platforms": [],
-            "recent_uploads": [],
-            "recent_authorship": {
-                "window_hours": 24,
-                "total": 23,
-                "by_layer": {
-                    "operator": 3,
-                    "yarnnn": 12,
-                    "system": 8,
-                },
-            },
-        }
-
-        output = format_compact_index(working_memory)
-        ok = (
-            "Recent activity (24h, 23 revisions)" in output
-            and "operator (3)" in output
-            and "yarnnn (12)" in output
-            and "system (8)" in output
-            and "ListRevisions/ReadRevision/DiffRevisions" in output
-        )
-        record(
-            "Compact index renders the activity line correctly",
-            ok,
-            f"contains_activity_line={'Recent activity' in output}",
-        )
-
-        # Token ceiling check (400 tokens ~= 1600 chars — well below 600/2400)
-        char_count = len(output)
-        token_ok = char_count < 2400
-        record(
-            "Compact index stays under 600-token ceiling (2400 chars)",
-            token_ok,
-            f"char_count={char_count}, approx_tokens={char_count // 4}",
-        )
-    except Exception as e:
-        record("Compact index activity line", False, f"Error: {e}")
-
 
 # ---------------------------------------------------------------------------
 # Test 14 — regression check
@@ -544,9 +457,8 @@ def main() -> int:
         test_diff_identical_blobs(client)
         test_list_files_authored_by_filter(client)
 
-        # Compact index + aggregation
-        test_recent_authorship_aggregation(client)
-        test_compact_index_activity_line()
+        # (Compact index + aggregation checks removed 2026-08-26 with
+        #  services/working_memory.py — zero production callers.)
 
         # Regression
         test_no_regression_phases_1_and_2()

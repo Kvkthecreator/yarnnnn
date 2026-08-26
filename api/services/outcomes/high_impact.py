@@ -44,6 +44,14 @@ logger = logging.getLogger(__name__)
 #: Shape: `high_impact: { <domain>: { threshold_cents: <int> } }` — but we
 #: accept a flatter form `<domain>: { high_impact_threshold_cents: <int> }`
 #: since the principles parser handles line-based top-level-domain entries.
+#: Maximum feedback entries kept in a report's _feedback.md, newest first.
+#: RELOCATED here 2026-08-26 from services/feedback_distillation.py, which was
+#: deleted: every other symbol in that module read the retired agent model's
+#: EMPTY `agent_runs` table and had zero callers (they went with
+#: routes/agents.py). This constant was its one live export, and a 254-line
+#: module kept alive for one integer is a worse seam than the integer itself.
+_MAX_FEEDBACK_ENTRIES = 10
+
 _HIGH_IMPACT_KEY = "high_impact_threshold_cents"
 
 
@@ -303,7 +311,6 @@ async def _append_entries_to_task_feedback(
     try:
         # ADR-262 D1: feedback lives at /workspace/operation/reports/{slug}/_feedback.md.
         from services.conventions import report_feedback_path
-        from services.feedback_distillation import _MAX_FEEDBACK_ENTRIES
         from services.workspace import UserMemory
 
         relative = report_feedback_path(task_slug)[len("/workspace/"):]

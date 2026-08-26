@@ -46,18 +46,21 @@ class WorkspaceDeleteError(Exception):
     """A delete/restore/purge was refused. Message is operator-safe."""
 
 
-# The ten `NO ACTION` tables, in FK-dependency order (children before parents).
+# The `NO ACTION` tables, in FK-dependency order (children before parents).
 # A raw DELETE on workspaces is refused while ANY of these hold a row, so this
 # list is not housekeeping — it is the precondition for the final delete.
 #
-# ⚠️ Ordering is load-bearing: agent_runs references agents, action_proposals
-# and execution_events reference runs. Reordering this list reintroduces the
-# very FK violation the module exists to clear.
+# ⚠️ Ordering is load-bearing: children before parents. Reordering this list
+# reintroduces the very FK violation the module exists to clear.
+#
+# `agent_runs` and `agents` LEFT this tuple with migration 248 — the tables are
+# dropped. Their FK columns on the survivors (execution_events.agent_run_id,
+# action_proposals.agent_slug) went with them, so those two rows no longer
+# depend on anything agent-shaped and their position here is now only about
+# the workspace FK.
 _BLOCKING_TABLES = (
     "action_proposals",
     "execution_events",
-    "agent_runs",
-    "agents",
     "wake_queue",
     "tasks",
     "chat_sessions",

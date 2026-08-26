@@ -22,29 +22,28 @@ LOOKUP_ENTITY_TOOL = {
     "description": """Look up a database-backed entity by reference. Returns the full row.
 
 This is the ENTITY LAYER primitive — the agent OS's `/proc` (ADR-322). It
-operates on the relational abstraction (typed refs like agent:uuid) over
+operates on the relational abstraction (typed refs like platform:slack) over
 genuinely-non-file DB records, NOT on the filesystem. For file reads (including
 uploaded documents at uploads/{slug}.md), use ReadFile (path-based).
 
-IMPORTANT: Use the exact `ref` value returned by SearchEntities or ListEntities. The ref contains a UUID, not a filename.
+IMPORTANT: Use the exact `ref` value returned by ListEntities. The ref contains a UUID, not a filename.
 
 Examples:
-- LookupEntity(ref="agent:latest") - most recent agent
 - LookupEntity(ref="platform:slack") - platform connection by provider name
 - LookupEntity(ref="session:uuid-123") - a chat session
-- LookupEntity(ref="version:uuid-123") - an agent run (run ledger)
 
 Reference format: <type>:<UUID>
-Types (ADR-322 /proc core): agent, platform, session, version.
+Types (the /proc core): platform, session.
 NOT entities (use the file family / Schedule instead):
 - documents → ReadFile('uploads/{slug}.md') (they are files, ADR-197)
-- tasks/recurrences → ReadFile of the YAML + Schedule (ADR-231)""",
+- tasks/recurrences → ReadFile of the YAML + Schedule (ADR-231)
+- agents → a being is kernel data (agents_registry), not a workspace row""",
     "input_schema": {
         "type": "object",
         "properties": {
             "ref": {
                 "type": "string",
-                "description": "Entity reference from SearchEntities/ListEntities results (e.g., 'agent:abc12345-uuid'). Must use UUID, not filename."
+                "description": "Entity reference from ListEntities results (e.g., 'session:abc12345-uuid'). Must use UUID, not filename."
             },
             "refs": {
                 "type": "array",
@@ -132,25 +131,8 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
     try:
         parsed = parse_ref(ref_str)
 
-        # Ergonomic guard: agent refs must be UUIDs (or 'latest'/'*'). If caller
-        # passed a slug-looking identifier, return a targeted hint instead of
-        # letting Postgres explode with "invalid input syntax for type uuid".
-        if parsed.entity_type == "agent" and parsed.identifier not in {"*", "latest", "current", "new"}:
-            import re as _re
-            _UUID_RE = _re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", _re.IGNORECASE)
-            if not _UUID_RE.match(parsed.identifier):
-                hint = (
-                    f"'{parsed.identifier}' looks like a slug, not a UUID. "
-                    f"For agent content, use ReadFile(path='/agents/{parsed.identifier}/AGENT.md'). "
-                    f"For the entity row, pass the id from ListEntities(pattern='agent:*')."
-                )
-                return {
-                    "success": False,
-                    "error": "slug_not_uuid",
-                    "message": hint,
-                    "ref": ref_str,
-                    "retry_hint": hint,
-                }
+        # The agent slug-vs-UUID ergonomic guard is DELETED 2026-08-26 with the
+        # `agent` entity type — parse_ref can no longer produce one.
 
         data = await resolve_ref(parsed, auth)
 
@@ -158,10 +140,9 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
             # Provide retry hint based on entity type
             # (ADR-196: "memory" retired — memory is filesystem-native;
             # agents/YARNNN read /workspace/*.md directly via ReadFile.)
-            if parsed.entity_type == "agent":
-                retry_hint = "Use ListEntities(pattern='agent:*') to see available agents."
-            else:
-                retry_hint = f"Use SearchEntities or ListEntities to find valid {parsed.entity_type} refs."
+            # SearchEntities is deleted (2026-08-26) — a retry hint must never
+            # name a tool the caller does not have.
+            retry_hint = f"Use ListEntities to find valid {parsed.entity_type} refs."
 
             return {
                 "success": False,
@@ -210,12 +191,7 @@ def _format_read_message(parsed, data) -> str:
         return f"Found {len(data)} {parsed.entity_type}(s)"
 
     # Single entity messages
-    if parsed.entity_type == "agent":
-        title = data.get("title", "Untitled")
-        status = data.get("status", "unknown")
-        return f"Agent: {title} ({status})"
-
-    elif parsed.entity_type == "platform":
+    if parsed.entity_type == "platform":
         provider = data.get("provider", "unknown")
         status = data.get("status", "unknown")
         return f"Platform: {provider} ({status})"

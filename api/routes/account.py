@@ -70,13 +70,16 @@ router = APIRouter()
 class DangerZoneStats(BaseModel):
     """Stats for all user data that can be purged."""
     workspace_files: int
-    agents: int
     tasks: int
     chat_sessions: int
     platform_connections: int
-    # ADR-166 / Phase 3: count of past task runs (work history). Sum of
-    # `agent_runs` rows. Drives the L1 "Clear Work History" card stats.
-    agent_runs: int
+    # `agents` + `agent_runs` counts REMOVED 2026-08-26 (migration 248 drops
+    # both tables). `work_history_files` replaces `agent_runs` as the L1 card's
+    # number BECAUSE THE CARD IS GATED ON IT: the old gate was
+    # `agent_runs === 0`, which had been permanently true, so "Clear Work
+    # History" was a button nobody could press. This counts what L1 actually
+    # deletes — the dated report output folders and per-run logs.
+    work_history_files: int
     # ADR-194 Reviewer queue — pending proposals the user has in flight.
     # Surfaced so Clear Workspace / Full Reset confirmation copy can tell
     # the user what will be discarded.
@@ -209,21 +212,8 @@ def _delete_workspace_pattern(
         return 0
 
 
-def _user_agent_ids(client, user_id: str, workspace_id: Optional[str] = None) -> list[str]:
-    """Return the agent IDs whose runs a purge may reach (scopes agent_runs ops).
-
-    ADR-476 D1: workspace-scoped. `agent_runs` carries only `workspace_id` (no
-    `user_id`), and is reached through `agents` — so scoping the agents lookup
-    to the user left every other member's runs unreachable by L1.
-    """
-    try:
-        result = _purge_scope(
-            client.table("agents").select("id"), user_id, workspace_id
-        ).execute()
-        return [r["id"] for r in (result.data or [])]
-    except Exception:
-        return []
-
+# _user_agent_ids DELETED 2026-08-26 (migration 248 drops the `agents` and
+# `agent_runs` tables it scoped). See the run-count helpers below.
 
 # ADR-425 §2 (2026-08-20) — `_count_workspace_paths` and
 # `_delete_workspace_file_versions_by_path` are DELETED with the L3 platform
@@ -233,42 +223,12 @@ def _user_agent_ids(client, user_id: str, workspace_id: Optional[str] = None) ->
 # disconnect (ADR-582 D2), so nothing replaces them.
 
 
-def _count_user_agent_runs(client, user_id: str, workspace_id: Optional[str] = None) -> int:
-    """Count agent_runs rows in scope (via agent_id → agents). ADR-476 D1."""
-    agent_ids = _user_agent_ids(client, user_id, workspace_id)
-    if not agent_ids:
-        return 0
-    try:
-        result = (
-            client.table("agent_runs")
-            .select("*", count="exact")
-            .in_("agent_id", agent_ids)
-            .execute()
-        )
-        return result.count or 0
-    except Exception:
-        return 0
-
-
-def _delete_user_agent_runs(client, user_id: str, workspace_id: Optional[str] = None) -> int:
-    """Delete the agent_runs rows in scope. Returns count deleted. ADR-476 D1."""
-    agent_ids = _user_agent_ids(client, user_id, workspace_id)
-    if not agent_ids:
-        return 0
-    try:
-        count = _count_user_agent_runs(client, user_id, workspace_id)
-        if count > 0:
-            (
-                client.table("agent_runs")
-                .delete()
-                .in_("agent_id", agent_ids)
-                .execute()
-            )
-        return count
-    except Exception as e:
-        logger.warning(f"[ACCOUNT] agent_runs delete failed for {user_id}: {e}")
-        return 0
-
+# _count_user_agent_runs / _delete_user_agent_runs DELETED 2026-08-26.
+# Both walked `agents` -> `agent_runs`, the retired model's tables, which
+# migration 248 drops. They already short-circuited to 0 on the empty
+# tables, so the L1 "Clear Work History" card reported "0 run records" and
+# the purge issued zero writes. A purge must cover a table regardless of
+# row count — but not a table that no longer exists.
 
 # ADR-489 D5: the notification-preference routes are DELETED — the one prefs
 # store is member_state['notification_prefs'] (GET/PUT /api/member-state/
@@ -315,24 +275,34 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
                 raise
 
         workspace_files = _count_ws("workspace_files")
-        agents = _count_ws("agents")
         tasks = _count_ws("tasks")
         chat_sessions = _count_ws("chat_sessions")
         platform_connections = _count_rows(client, "platform_connections", user_id)
 
-        # Phase 3: count of past task runs (drives the L1 "Clear Work History" card).
-        agent_runs = _count_user_agent_runs(client, user_id, ws)
+        # What L1 actually clears — the same three path patterns
+        # `clear_work_history` deletes. Counted, not guessed: the card's
+        # number and its enabled/disabled state must describe one thing.
+        # `_count_workspace_pattern` is the SAME helper `_delete_workspace_pattern`
+        # counts with — reused rather than re-spelled, so the number on the card
+        # and the number the delete reports can never disagree.
+        work_history_files = sum(
+            _count_workspace_pattern(client, user_id, pattern, ws)
+            for pattern in (
+                "/workspace/operation/reports/%/%/%",
+                "/workspace/operation/reports/%/_run_log.md",
+                "/workspace/operation/operations/%/_run_log.md",
+            )
+        )
 
         # ADR-194 Reviewer queue — in-flight proposals
         action_proposals = _count_ws("action_proposals", optional=True)
 
         return DangerZoneStats(
             workspace_files=workspace_files,
-            agents=agents,
+            work_history_files=work_history_files,
             tasks=tasks,
             chat_sessions=chat_sessions,
             platform_connections=platform_connections,
-            agent_runs=agent_runs,
             action_proposals=action_proposals,
         )
     except Exception as e:
@@ -355,9 +325,6 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     user who wants to "start fresh" without losing anything they've built up.
 
     What gets deleted:
-      - All `agent_runs` rows belonging to the user (every past invocation
-        execution record). FK cascades on these tables also wipe their
-        dependents (e.g. `agent_export_preferences` legacy entries).
       - `workspace_files` rows where path matches `/workspace/operation/reports/%/%/%`
         (every dated DELIVERABLE output folder under any recurrence slug —
         ADR-231 D2 natural-home substrate. The three-segment pattern avoids
@@ -371,7 +338,6 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
       - Every `tasks` table row (the thin scheduling index post-ADR-231).
       - Every recurrence YAML declaration (`_spec.yaml`, `_recurring.yaml`,
         `_action.yaml`, `_shared/back-office.yaml`).
-      - Every `agents` table row.
       - All `chat_sessions` (the user's relationship with YARNNN).
       - All `_feedback.md` and `_intent.md` files (operator-authored guidance).
       - The entire `/workspace/context/` substrate (every accumulated context
@@ -397,9 +363,6 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     try:
         client = get_service_client()
 
-        # Run records — every past invocation
-        deleted["agent_runs"] = _delete_user_agent_runs(client, user_id, ws)
-
         # Dated DELIVERABLE output folders under any recurrence slug.
         # Pattern `/workspace/operation/reports/%/%/%` matches anything 3+ segments deep
         # — i.e. dated subfolders like `/workspace/operation/reports/{slug}/{date}/{file}`.
@@ -424,8 +387,7 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
         return OperationResult(
             success=True,
             message=(
-                f"Cleared work history: {deleted['agent_runs']} run records, "
-                f"{deleted['report_outputs']} output files, "
+                f"Cleared work history: {deleted['report_outputs']} output files, "
                 f"{report_logs} run logs ({total} items total)"
             ),
             deleted=deleted,
@@ -445,7 +407,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
       wipe before workspace_files since revisions reference files)
     - workspace_files (all paths — agents, context, tasks, memory)
     - tasks table (thin scheduling index per ADR-231 D4 Path B)
-    - agents table (cascades agent_runs, export_log)
+    - export_log
     - action_proposals (ADR-194 Reviewer queue — prior proposals must not
       survive a workspace reset)
     - chat_sessions (cascades session_messages)
@@ -568,7 +530,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
       - ADR-194 Reviewer queue: action_proposals. user_admin_flags preserved
         only when operator is a platform admin; L4 deliberately wipes it so
         a reset is a true fresh start.
-      - Task / agent state: tasks, agents, agent_runs (cascaded from agents).
+      - Task state: tasks.
       - Interaction: chat_sessions (cascades session_messages), activity_log,
         notifications, execution_events (ADR-291 cost ledger),
         wake_queue (ADR-298 transient wake compute — no auth cascade).
@@ -605,7 +567,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "chat_sessions",
             "action_proposals",           # ADR-194 Reviewer queue
             "tasks",
-            "agents",                     # cascades agent_runs
+            # "agents" LEFT this list — migration 248 drops the table.
             "destination_delivery_log",
             "event_trigger_log",
             "export_log",

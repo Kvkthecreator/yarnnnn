@@ -10,13 +10,14 @@ Chat-only — mutates entities under explicit user direction. Headless has
 no user-authorization path.
 
 Usage:
-  EditEntity(ref="agent:uuid-123", changes={status: "paused"})
-  EditEntity(ref="agent:uuid-123", changes={agent_instructions: "Use formal tone."})
-  EditEntity(ref="memory:uuid-456", changes={content: "Updated content"})
+  EditEntity(ref="platform:notion", changes={status: "paused"})
 
-For agent_memory, use append_observation or set_goal keys (scoped writes, not replace):
-  EditEntity(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data finalized"}})
-  EditEntity(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress"}})
+2026-08-26 — the `agent` target is REMOVED with the pre-ADR-596 agent model
+(the `agents` table held zero rows; every agent: ref resolved to None, so all
+four agent branches here were unreachable behind the not-found gate). The
+agent_memory / agent_instructions writes went with it — a being's character
+lives in `services/agents_registry.AGENTS`, and editing a KERNEL being is
+refused at `assert_editable`, not performed here.
 """
 
 from typing import Any
@@ -29,25 +30,22 @@ EDIT_ENTITY_TOOL = {
     "name": "EditEntity",
     "description": """Modify an existing entity by typed ref.
 
-This is the ENTITY LAYER primitive — it mutates database-backed entities. Post
-ADR-322 it serves the two mutable /proc records: **agent** and **platform**.
+This is the ENTITY LAYER primitive — it mutates database-backed entities. It
+serves the mutable /proc record: **platform** (a connection's own settings).
 For filesystem writes (including domain context + uploaded docs), use WriteFile.
-(documents/tasks are not entities — they are files / recurrence YAML.)
+Documents and tasks are not entities — they are files / recurrence YAML; and
+agents are not entities either (a being is kernel data, not a workspace row).
 
 Examples:
-- EditEntity(ref="agent:uuid-123", changes={status: "paused"})
-- EditEntity(ref="agent:uuid-123", changes={agent_instructions: "Always use bullet points."})
-- EditEntity(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data is now finalized"}})
-- EditEntity(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress", milestones: [...]}})
+- EditEntity(ref="platform:notion", changes={status: "paused"})
 
-For agent_memory, use append_observation or set_goal (scoped writes — do not pass raw agent_memory JSONB).
 Only specified fields are updated; others remain unchanged.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "ref": {
                 "type": "string",
-                "description": "Entity reference (e.g., 'agent:uuid-123')"
+                "description": "Entity reference (e.g., 'platform:notion')"
             },
             "changes": {
                 "type": "object",
@@ -136,60 +134,28 @@ async def handle_edit_entity(auth: Any, input: dict) -> dict:
             "ref": ref_str,
         }
 
-    # ADR-091: Scoped agent_memory writes — append_observation / set_goal
-    # These are handled specially to avoid clobbering system-accumulated memory.
-    if parsed.entity_type == "agent" and (
-        "append_observation" in changes or "set_goal" in changes
-    ):
-        return await _handle_agent_memory_write(auth, parsed, existing, changes)
+    # 2026-08-26 — the four `agent` branches are DELETED with the entity type:
+    # the ADR-091 agent_memory write, the ADR-106 agent_instructions write to
+    # AGENT.md, and the ADR-109 scope/role validation. All four sat BEHIND the
+    # resolve_ref not-found gate above, so with the `agents` table empty none
+    # was reachable; removing the type removes them honestly rather than
+    # leaving branches keyed on a value `parse_ref` can no longer produce.
 
-    # ADR-106: agent_instructions writes go to workspace only (not DB column)
-    if parsed.entity_type == "agent" and "agent_instructions" in changes:
-        from services.workspace import AgentWorkspace, get_agent_slug
-        ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(existing))
-        await ws.write("AGENT.md", changes["agent_instructions"],
-                       summary="Agent identity and behavioral instructions")
-        # If this was the only change, return immediately
-        remaining = {k: v for k, v in changes.items() if k != "agent_instructions"}
-        if not remaining:
-            return {
-                "success": True,
-                "data": existing,
-                "ref": ref_str,
-                "entity_type": "agent",
-                "changes_applied": ["agent_instructions"],
-                "message": "Updated agent instructions.",
-            }
-        changes = remaining
-
-    # Filter out immutable fields (and scoped memory keys, handled above)
+    # Filter out immutable fields
     filtered_changes = {
         k: v for k, v in changes.items()
-        if k not in IMMUTABLE_FIELDS and k not in ("append_observation", "set_goal", "agent_memory", "agent_instructions")
+        if k not in IMMUTABLE_FIELDS
     }
-
-    # ADR-109: Validate scope/role if being updated on agents
-    if parsed.entity_type == "agent":
-        from services.agent_creation import VALID_SCOPES, VALID_ROLES
-        if "scope" in filtered_changes and filtered_changes["scope"] not in VALID_SCOPES:
-            return {
-                "success": False,
-                "error": "invalid_scope",
-                "message": f"Invalid scope. Must be one of: {', '.join(sorted(VALID_SCOPES))}",
-            }
-        if "role" in filtered_changes and filtered_changes["role"] not in VALID_ROLES:
-            return {
-                "success": False,
-                "error": "invalid_role",
-                "message": f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}",
-            }
 
     if not filtered_changes:
         return {
             "success": False,
             "error": "no_valid_changes",
+            # 2026-08-26 — the old hint named append_observation / set_goal,
+            # verbs deleted with the `agent` entity type. A refusal that names
+            # a tool the caller does not have sends them looking for it.
             "message": f"Cannot modify fields: {', '.join(changes.keys())}. "
-                       f"Use append_observation or set_goal to write agent memory.",
+                       f"Only mutable, non-identity fields can be edited here.",
         }
 
     # Add updated_at
@@ -237,84 +203,9 @@ async def handle_edit_entity(auth: Any, input: dict) -> dict:
         }
 
 
-async def _handle_agent_memory_write(auth: Any, parsed: Any, existing: dict, changes: dict) -> dict:
-    """
-    Scoped write to agent workspace files.
+# _handle_agent_memory_write DELETED 2026-08-26 with the `agent` entity type.
 
-    ADR-106 Phase 2: Writes to workspace (source of truth), not agent_memory JSONB.
-    ADR-091: append_observation appends to memory/observations.md.
-    set_goal replaces memory/goal.md.
-    """
-    from services.workspace import AgentWorkspace, get_agent_slug
-
-    try:
-        ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(existing))
-        applied = []
-
-        if "append_observation" in changes:
-            obs = changes["append_observation"]
-            if not isinstance(obs, dict) or "note" not in obs:
-                return {
-                    "success": False,
-                    "error": "invalid_observation",
-                    "message": "append_observation requires {note: '...', source: '...' (optional)}",
-                }
-            source = obs.get("source", "user")
-            await ws.append_observation(obs["note"], source=source)
-            applied.append("append_observation")
-
-        if "set_goal" in changes:
-            goal = changes["set_goal"]
-            if not isinstance(goal, dict) or "description" not in goal:
-                return {
-                    "success": False,
-                    "error": "invalid_goal",
-                    "message": "set_goal requires {description: '...', status: '...', milestones: [...] (optional)}",
-                }
-            desc = goal["description"]
-            status = goal.get("status", "in_progress")
-            milestones = goal.get("milestones", [])
-            content = f"# Goal\n\n{desc}\n\n**Status:** {status}"
-            if milestones:
-                content += "\n\n## Milestones\n"
-                for m in milestones:
-                    content += f"- {m}\n"
-            await ws.write("system/goal.md", content, summary="Agent goal and milestones")
-            applied.append("set_goal")
-
-        if applied:
-            return {
-                "success": True,
-                "data": existing,
-                "ref": f"agent:{parsed.identifier}",
-                "entity_type": "agent",
-                "changes_applied": applied,
-                "message": _format_memory_write_message(applied, changes),
-            }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": "memory_write_failed",
-            "message": str(e),
-        }
-
-    return {
-        "success": False,
-        "error": "no_memory_changes",
-        "message": "No recognized memory write keys. Use append_observation or set_goal.",
-    }
-
-
-def _format_memory_write_message(applied: list, changes: dict) -> str:
-    parts = []
-    if "append_observation" in applied:
-        note = changes["append_observation"].get("note", "")
-        parts.append(f"Observation added: \"{note[:60]}{'...' if len(note) > 60 else ''}\"")
-    if "set_goal" in applied:
-        desc = changes["set_goal"].get("description", "")
-        parts.append(f"Goal set: \"{desc[:60]}{'...' if len(desc) > 60 else ''}\"")
-    return ". ".join(parts)
-
+# _format_memory_write_message DELETED with its only caller.
 
 def _format_edit_message(entity_type: str, changes: dict, data: dict) -> str:
     """Generate a human-readable message for the edit result."""
@@ -322,12 +213,6 @@ def _format_edit_message(entity_type: str, changes: dict, data: dict) -> str:
     # Remove updated_at from display
     if "updated_at" in change_list:
         change_list.remove("updated_at")
-
-    if entity_type == "agent":
-        title = data.get("title", "Untitled")
-        if "status" in changes:
-            return f"Updated {title}: now {changes['status']}"
-        return f"Updated {title}: {', '.join(change_list)}"
 
     # ADR-196 + ADR-235: memory edit branch removed (user_memory dropped;
     # memory is filesystem-native, mutated via WriteFile(scope="workspace",

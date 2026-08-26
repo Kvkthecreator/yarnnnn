@@ -127,14 +127,9 @@ def verify_resend_signature(
     return any(hmac.compare_digest(sig, expected) for sig in signatures)
 
 
-def _map_resend_event_to_delivery_status(event_type: str) -> Optional[str]:
-    """Map Resend event types to agent_runs.delivery_status values."""
-    normalized = (event_type or "").lower()
-    if normalized == "email.delivered":
-        return "delivered"
-    if normalized in {"email.bounced", "email.complained"}:
-        return "failed"
-    return None
+# _map_resend_event_to_delivery_status DELETED 2026-08-26 with its one consumer
+# (the agent_runs.delivery_status mirror). The event type itself still reaches
+# _merge_export_outcome, which is where the outcome is now recorded.
 
 
 def _extract_resend_message_id(payload: dict[str, Any]) -> Optional[str]:
@@ -188,7 +183,6 @@ def _record_resend_webhook(payload: dict[str, Any]) -> int:
         or data.get("created_at")
         or datetime.now(timezone.utc).isoformat()
     )
-    delivery_status = _map_resend_event_to_delivery_status(event_type)
 
     client = get_service_client()
     rows = (
@@ -218,22 +212,15 @@ def _record_resend_webhook(payload: dict[str, Any]) -> int:
             .execute()
         )
 
-        if delivery_status:
-            run_update = {"delivery_status": delivery_status}
-            if delivery_status == "failed":
-                run_update["delivery_error"] = f"Email provider event: {event_type}"
-            (
-                client.table("agent_runs")
-                .update(run_update)
-                .eq("id", row["agent_run_id"])
-                .execute()
-            )
+        # The agent_runs.delivery_status mirror is DELETED (2026-08-26). It was
+        # an UPDATE keyed on export_log.agent_run_id — a column whose only
+        # writer was the deleted agent-run delivery path, so it matched zero
+        # rows. The export_log.outcome write below is the live half.
 
         # ADR-593 D6: the email_delivery_log write is DELETED with its table —
         # it was write-only by construction (RLS joined through the dead
         # scheduled_messages parent; zero readers, zero rows in production).
-        # export_log.outcome + agent_runs.delivery_status remain the
-        # delivery-outcome record.
+        # export_log.outcome is now the whole delivery-outcome record.
 
     return len(export_rows)
 
@@ -354,7 +341,6 @@ async def handle_resend_events(request: Request):
 
     This updates:
     - export_log.outcome / outcome_observed_at
-    - agent_runs.delivery_status for terminal failures (bounce/complaint)
     - email_delivery_log (best-effort observability sink)
     """
     body = await request.body()

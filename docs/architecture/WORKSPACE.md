@@ -262,7 +262,7 @@ Three callers previously had diverging skeleton-detection heuristics. As of 2026
 
 - `services.workspace_init` — fork idempotency (`authored` tier only re-applied when skeleton)
 - `routes/workspace._classify_file_state` — `/workspace` surface substrate status panel
-- `services.working_memory._classify_activation_state` — MANDATE.md skeleton → `post_fork_pre_author`
+- `services.bundle_reader.classify_activation_state` — MANDATE.md skeleton → `post_fork_pre_author` (relocated 2026-08-26 when working_memory.py was deleted)
 
 ### First-run user flow
 

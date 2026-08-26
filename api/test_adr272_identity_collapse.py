@@ -122,28 +122,30 @@ def test_orchestration_prompts_deleted():
         )
 
 
-def test_default_instructions_inlined_to_agent_creation():
-    """D7 doc cascade: DEFAULT_INSTRUCTIONS moved inline into agent_creation."""
-    from services import agent_creation
-    di = getattr(agent_creation, "_DEFAULT_INSTRUCTIONS", None)
+def test_agent_creation_module_deleted():
+    """D7's DEFAULT_INSTRUCTIONS + ADR-417's PRODUCTION_ROLE_SLUGS both lived in
+    services/agent_creation.py. Re-anchored 2026-08-26: that module is DELETED
+    with the pre-ADR-596 agent model — it wrote rows to the `agents` table
+    (dropped by migration 248) and its last caller was a dev script. Deletion
+    subsumes both narrowings: an empty roster cannot be non-empty when the
+    module holding it does not exist.
+    """
+    import importlib
+
+    try:
+        importlib.import_module("services.agent_creation")
+        importable = True
+    except ModuleNotFoundError:
+        importable = False
     assert_true(
-        di is not None,
-        "agent_creation._DEFAULT_INSTRUCTIONS exists (inlined from deleted orchestration_prompts)",
+        not importable,
+        "services.agent_creation is deleted (ModuleNotFoundError on import)",
     )
-    if di is None:
-        return
-    assert_eq(
-        set(di.keys()), {"thinking_partner"},
-        "agent_creation._DEFAULT_INSTRUCTIONS keyed by thinking_partner only (designer removed)",
-    )
-
-
-def test_production_role_slugs_narrowed():
-    """ADR-417 follow-on: PRODUCTION_ROLE_SLUGS in agent_creation.py is empty."""
-    from services.agent_creation import PRODUCTION_ROLE_SLUGS
-    assert_eq(
-        set(PRODUCTION_ROLE_SLUGS), set(),
-        "PRODUCTION_ROLE_SLUGS is empty (designer removed — ADR-417 follow-on)",
+    from pathlib import Path
+    root = Path(__file__).resolve().parent
+    assert_true(
+        not (root / "services" / "agent_creation.py").exists(),
+        "services/agent_creation.py is absent from disk",
     )
 
 
@@ -331,8 +333,7 @@ def main():
         test_all_roles_surviving,
         test_legacy_role_map_only_survivors,
         test_orchestration_prompts_deleted,
-        test_default_instructions_inlined_to_agent_creation,
-        test_production_role_slugs_narrowed,
+        test_agent_creation_module_deleted,
         test_falsify_signals_recurrence_deleted,
         test_dispatch_specialist_primitive_preserved,
         test_dispatch_specialist_tool_enum_narrowed,

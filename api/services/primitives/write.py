@@ -187,9 +187,11 @@ async def handle_write(auth: Any, input: dict) -> dict:
         }
 
 
-# ADR-111: Agent creation logic moved to services/agent_creation.py
-# Re-export for any remaining imports
-from services.agent_creation import VALID_SCOPES, VALID_ROLES, ROLE_TO_SCOPE  # noqa: F401
+# ADR-111 moved agent-creation logic to services/agent_creation.py and left a
+# re-export here "for any remaining imports". DELETED 2026-08-26: there were
+# none — a re-export with zero importers is a second name for a symbol, and it
+# kept `agent_creation` (now a Hat-B-script-only module) on the live import
+# graph of a chat primitive.
 
 
 # ADR-196 + ADR-235: _process_memory() deleted. Memory writes flow through

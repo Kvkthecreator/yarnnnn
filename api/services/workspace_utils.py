@@ -3,7 +3,7 @@ Workspace utility helpers (workspace-init refactor 2026-05-03,
 simplified 2026-05-17 per ADR-286).
 
 Thin pure-Python helpers shared across workspace_init, workspace.py (routes),
-and working_memory. No DB access; no async.
+and bundle_reader. No DB access; no async.
 
 ADR-286 simplification (2026-05-17): kernel-default rescue patches deleted.
 Pre-ADR-286 `is_skeleton_content` had to distinguish "kernel default that
@@ -26,7 +26,7 @@ def is_skeleton_content(content: Optional[str], bundle_body: Optional[str] = Non
         (was operator-authored or still matches bundle template?)
       - routes/workspace._classify_file_state: surface display
         (skeleton / authored / missing)
-      - working_memory._classify_activation_state: activation gate
+      - bundle_reader.classify_activation_state: activation gate
         (MANDATE.md skeleton → post_fork_pre_author state)
 
     Detection layers (post-ADR-286 simplified set — bundle-template-detection only):

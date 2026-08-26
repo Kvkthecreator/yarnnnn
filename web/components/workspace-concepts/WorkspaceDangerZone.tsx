@@ -45,11 +45,14 @@ import { SurfaceLink } from "@/components/shell/SurfaceLink";
 
 interface DangerZoneStats {
   workspace_files: number;
-  agents: number;
+  // `work_history_files` REPLACES `agent_runs` (2026-08-26). The card below is
+  // GATED on this number, and `agent_runs` counted a table that had been empty
+  // for as long as it existed — so "Clear History" was permanently disabled
+  // while still deleting real output folders. This counts what L1 clears.
+  work_history_files: number;
   tasks: number;
   chat_sessions: number;
   platform_connections: number;
-  agent_runs: number;
   action_proposals: number;
 }
 
@@ -192,10 +195,10 @@ export function WorkspaceDangerZone() {
       <ActionCard
         icon={<History className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
         title="Clear Work History"
-        description={`Delete ${stats.agent_runs} past run records and all dated output folders. Scheduled work, agents, identity, and accumulated context are preserved.`}
+        description={`Delete ${stats.work_history_files} dated output files and per-run logs. Scheduled work, identity, and accumulated context are preserved.`}
         cta="Clear History"
         tone="amber"
-        disabled={!canClear || stats.agent_runs === 0 || pending !== null}
+        disabled={!canClear || stats.work_history_files === 0 || pending !== null}
         busy={pending === "work-history"}
         confirming={confirming === "work-history"}
         confirmCopy="This deletes every member's run records and outputs. Continue?"
@@ -208,14 +211,12 @@ export function WorkspaceDangerZone() {
       <ActionCard
         icon={<Database className="w-4 h-4 text-orange-600 dark:text-orange-400" />}
         title="Clear Workspace"
-        description={`Delete ${stats.agents} agents, ${stats.workspace_files} workspace files, ${stats.action_proposals} pending proposals, and all activity. The workspace is re-scaffolded afterwards.`}
+        description={`Delete ${stats.workspace_files} workspace files, ${stats.action_proposals} pending proposals, and all activity. The workspace is re-scaffolded afterwards.`}
         cta="Clear Workspace"
         tone="orange"
         disabled={
           !canClear ||
-          (stats.workspace_files === 0 &&
-            stats.agents === 0 &&
-            stats.action_proposals === 0) ||
+          (stats.workspace_files === 0 && stats.action_proposals === 0) ||
           pending !== null
         }
         busy={pending === "workspace"}

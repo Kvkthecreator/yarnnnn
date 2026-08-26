@@ -37,7 +37,9 @@ def _bad(name: str, reason: str) -> None:
 
 
 REKEYED_TABLES = [
-    "tasks", "agents", "agent_runs", "activity_log", "wake_queue",
+    # `agents` + `agent_runs` LEFT this list — migration 248 drops both tables
+    # with the pre-ADR-596 agent model.
+    "tasks", "activity_log", "wake_queue",
     "action_proposals", "platform_connections", "sync_registry",
 ]
 
@@ -45,12 +47,13 @@ REKEYED_TABLES = [
 # re-keyed tables by bare user_id anymore.
 SWEPT_FILES = [
     # routes/recurrences.py DELETED (ADR-603 D5, 2026-08-24)
-    "routes/agents.py",
+    # routes/agents.py + services/agent_creation.py DELETED (2026-08-26, the
+    # pre-ADR-596 agent model). A sweep entry naming a missing file fails, so
+    # the list has to shrink with the code it sweeps.
     "routes/proposals.py",
     "routes/documents.py",
     "routes/sources.py",
     "routes/authored.py",
-    "services/agent_creation.py",
     "services/activity_log.py",
     "services/primitives/propose_action.py",
     "services/mcp_composition.py",

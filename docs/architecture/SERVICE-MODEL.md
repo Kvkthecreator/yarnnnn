@@ -57,7 +57,7 @@ Scheduler, task pipeline, compose substrate, Reviewer, reconciler, render servic
 The database is narrowly permitted for four row kinds only:
 
 1. **Scheduling indexes** — what needs to run, when (`tasks`, `agents` — lean pointers at TASK.md / AGENT.md).
-2. **Neutral audit ledgers** — what happened for billing / debugging (`agent_runs`, `token_usage`, `activity_log`, `render_usage`). No semantic content.
+2. **Neutral audit ledgers** — what happened for billing / debugging (`execution_events`, `token_usage`, `activity_log`). No semantic content. (`agent_runs` dropped by migration 248; `render_usage` by ADR-417.)
 3. **Credentials / auth** — encrypted secrets the filesystem cannot hold safely (`platform_connections`, `mcp_oauth_*`).
 4. **Ephemeral queues / inboxes** — TTL-bounded items awaiting action (`action_proposals`). The row disappears after acceptance, rejection, or expiration.
 
@@ -393,7 +393,7 @@ Primitives are the operations available to agents. Two explicit registries (ADR-
 
 Current surface (post-ADR-168 Commit 3):
 - **Chat mode** (~13 tools): entity-layer verbs + the file family + lifecycle verbs (Schedule/ManageHook/ManageDomains) + Clarify + WebSearch + list_integrations + GetSystemState. (`RepurposeOutput` deleted, ADR-579 D9; `UpdateContext` ADR-235; `ManageTask` ADR-231; `ManageAgent` 2026-08-26.)
-- **Headless mode** (~15 static tools + `platform_*` dynamic): entity-layer verbs + file-layer verbs (ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace/QueryKnowledge) + inter-agent verbs (DiscoverAgents/ReadAgentContext) + lifecycle verbs + WebSearch + GetSystemState.
+- **Headless mode** (~15 static tools + `platform_*` dynamic): entity-layer verbs + file-layer verbs (ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace/QueryKnowledge) + lifecycle verbs + WebSearch + GetSystemState. (The inter-agent verbs DiscoverAgents/ReadAgentFile are DELETED, 2026-08-26 — see primitives-matrix.)
 
 The surface continues to evolve through ADR-168 Commits 4–5 (rename to `*Entity`/`*File` families; Commit 3 completed the CreateTask fold).
 
@@ -418,7 +418,7 @@ Inference is the upstream lever for everything downstream — bad inference at I
 
 - **Iterative**: After every successful inference, `detect_inference_gaps()` (pure-Python, zero LLM cost) examines the output for missing-but-load-bearing fields. The structured gap report is returned to YARNNN, which issues at most one targeted Clarify per inference cycle when the most important gap is high-severity. Deterministic by design — no shadow LLM judgment, preserves single-intelligence-layer (ADR-156).
 
-- **Proactive on uploads**: `working_memory.py` surfaces documents uploaded in the last 7 days as a "Recent uploads" entry in YARNNN's compact index. YARNNN sees this on every chat turn and proactively offers to process the upload via `UpdateContext`, with user consent. Filesystem-as-notification — no separate notification table.
+- **Proactive on uploads**: RETIRED. `working_memory.py` (the compact index) was DELETED 2026-08-26 — its two entrypoints had zero production callers. Uploads are reached through the file family.
 
 - **Traceable**: Every inference output ends with a `<!-- inference-meta: {...} -->` HTML comment recording target, timestamp, and source provenance (chat text, document filenames, URLs). Frontend can parse this to show "Last updated from: 2 documents + 1 URL · 2h ago" captions on the Identity/Brand surfaces.
 
@@ -514,7 +514,7 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | Task type registry | `api/services/task_types.py` |
 | Primitive registry | `api/services/primitives/registry.py` |
 | Workspace abstraction | `api/services/workspace.py` |
-| Working memory (YARNNN context) | `api/services/working_memory.py` |
+| Working memory (YARNNN context) | DELETED 2026-08-26 — zero production callers |
 | Delivery | `api/services/delivery.py` |
 | Scheduler | `api/jobs/unified_scheduler.py` |
 | Outcome reconciliation | `api/services/back_office/outcome_reconciliation.py` + `api/services/outcomes/` |

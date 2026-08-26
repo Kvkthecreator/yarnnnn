@@ -146,9 +146,8 @@ export default function AdminDashboardPage() {
 
       {/* Overview Stats */}
       {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <StatCard label="Users" value={overview.total_users} trend={overview.users_7d} trendLabel="7d" icon={Users} />
-          <StatCard label="Agents" value={overview.total_agents} icon={Bot} />
           <StatCard label="Tasks" value={overview.total_tasks} trend={overview.tasks_7d} trendLabel="7d" icon={ListTodo} />
           <StatCard label="Sessions" value={overview.total_sessions} trend={overview.sessions_7d} trendLabel="7d" icon={MessageSquare} />
           <StatCard label="Messages" value={overview.total_messages} icon={MessageSquare} />
@@ -178,19 +177,9 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Run summary + daily spend guard status */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Runs (24h)</p>
-                <p className="text-xl font-semibold">{execStats.total_runs_24h}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Runs (7d)</p>
-                <p className="text-xl font-semibold">{execStats.total_runs_7d}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Runs (30d)</p>
-                <p className="text-xl font-semibold">{execStats.total_runs_30d}</p>
-              </div>
+            {/* The three Runs (24h/7d/30d) counters are DELETED (2026-08-26) —
+                they counted `agent_runs`, the retired model's EMPTY ledger. */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground">Today's Spend</p>
                 <p className={`text-xl font-semibold ${
@@ -209,57 +198,10 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Per-task table */}
-            {execStats.tasks.length > 0 && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Per-Task Breakdown (30d) — cost from execution_events</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Task</th>
-                        <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Agent</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Runs</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">7d</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Cost (30d)</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Failed</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Avg Input</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Last Run</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {execStats.tasks.map((task, i) => (
-                        <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                          <td className="py-1.5 px-2 font-mono text-xs">{task.task_slug}</td>
-                          <td className="py-1.5 px-2">
-                            <span className="text-xs">{task.agent_title}</span>
-                            <span className="text-[10px] text-muted-foreground ml-1">({task.agent_role})</span>
-                          </td>
-                          <td className="py-1.5 px-2 text-right tabular-nums font-medium">{task.runs_total}</td>
-                          <td className="py-1.5 px-2 text-right tabular-nums">{task.runs_7d}</td>
-                          <td className="py-1.5 px-2 text-right tabular-nums font-medium">
-                            {task.cost_usd_total != null
-                              ? <span className={task.cost_usd_total > 5 ? "text-red-600" : ""}>${task.cost_usd_total.toFixed(2)}</span>
-                              : <span className="text-muted-foreground text-xs">—</span>}
-                          </td>
-                          <td className="py-1.5 px-2 text-right tabular-nums">
-                            {task.failed_count > 0
-                              ? <span className="text-red-600 font-medium">{task.failed_count}</span>
-                              : <span className="text-muted-foreground">0</span>}
-                            {task.skipped_count > 0 &&
-                              <span className="text-yellow-600 text-xs ml-1">+{task.skipped_count}s</span>}
-                          </td>
-                          <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(task.avg_input_tokens)}</td>
-                          <td className="py-1.5 px-2 text-right text-muted-foreground text-xs">
-                            {task.last_run_at ? formatDate(task.last_run_at) : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            {/* The Per-Task Breakdown table is DELETED (2026-08-26). Every
+                column came from `agent_runs` + `agents`, the retired agent
+                model's EMPTY tables, so it rendered blank forever. Spend and
+                the scheduler heartbeat above are live (execution_events). */}
           </CardContent>
         </Card>
       )}
@@ -294,7 +236,6 @@ export default function AdminDashboardPage() {
                 <tr className="border-b">
                   <th className="text-left py-2 px-2 font-medium text-muted-foreground">Email</th>
                   <th className="text-left py-2 px-2 font-medium text-muted-foreground">Tier</th>
-                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">Agents</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Tasks</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Sessions</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Spend (mo)</th>
@@ -324,7 +265,6 @@ export default function AdminDashboardPage() {
                           {user.tier}
                         </span>
                       </td>
-                      <td className="py-2 px-2 text-right">{user.agent_count}</td>
                       <td className="py-2 px-2 text-right">{user.task_count}</td>
                       <td className="py-2 px-2 text-right">{user.session_count}</td>
                       <td className="py-2 px-2 text-right">${user.spend_usd?.toFixed(2) ?? "—"}</td>

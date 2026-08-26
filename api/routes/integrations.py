@@ -118,18 +118,9 @@ class IntegrationListResponse(BaseModel):
     integrations: list[IntegrationResponse]
 
 
-class ExportRequest(BaseModel):
-    """Request to export content."""
-    agent_run_id: str
-    destination: dict[str, Any]  # Provider-specific (channel_id, page_id, etc.)
-
-
-class ExportResponse(BaseModel):
-    """Result of an export operation."""
-    status: str
-    external_id: Optional[str] = None
-    external_url: Optional[str] = None
-    error_message: Optional[str] = None
+# ExportRequest / ExportResponse DELETED 2026-08-26 with the endpoint they
+# served (POST /integrations/{provider}/export — see below). ExportRequest was
+# keyed on `agent_run_id`, a row id from the retired agent model.
 
 
 # =============================================================================
@@ -209,8 +200,12 @@ class PlatformSummary(BaseModel):
     connected_at: datetime
     resource_count: int = 0
     resource_type: str = ""  # channels, labels, pages
-    agent_count: int = 0
-    activity_7d: int = 0  # messages/emails/updates in last 7 days
+    # 2026-08-26 — `agent_count` and `activity_7d` REMOVED. Both were
+    # structurally always 0: agent_count counted the retired model's EMPTY
+    # `agents` table, and activity_7d had been a hardcoded `return 0` since
+    # ADR-153 sunset platform_content. A card field that can only ever say 0
+    # is a confident claim about nothing — the same defect this file's own
+    # `target` comment above records (a declared field that never emitted).
 
 
 class IntegrationsSummaryResponse(BaseModel):
@@ -220,11 +215,8 @@ class IntegrationsSummaryResponse(BaseModel):
     Provides aggregated stats for each connected platform:
     - Connection status
     - Resource counts (channels, labels, pages)
-    - Agent counts targeting this platform
-    - Recent activity from ephemeral context
     """
     platforms: list[PlatformSummary]
-    total_agents: int = 0
 
 
 @router.get("/integrations/summary")
@@ -244,7 +236,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         ).eq(*account_scope_filter(user_id)).execute()
 
         if not integrations_result.data:
-            return IntegrationsSummaryResponse(platforms=[], total_agents=0)
+            return IntegrationsSummaryResponse(platforms=[])
 
         platforms: list[PlatformSummary] = []
         from datetime import timedelta
@@ -280,20 +272,6 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 integration,
             )
 
-        def _count_agents(provider: str) -> int:
-            # ADR-138: destination column dropped. Count all active agents instead.
-            # Task-level delivery config will be in TASK.md (Phase 3+).
-            result = auth.client.table("agents").select(
-                "id", count="exact"
-            ).eq(*substrate_scope_filter(user_id)).neq(
-                "status", "archived"
-            ).execute()
-            return result.count or 0
-
-        def _count_activity(provider: str) -> int:
-            # ADR-153: platform_content sunset — return 0, activity tracked via tasks now
-            return 0
-
         def _resource_count_for(provider: str, integration: dict[str, Any]) -> int:
             landscape = integration.get("landscape", {}) or {}
             selected_sources = landscape.get("selected_sources", []) or []
@@ -317,8 +295,6 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 connected_at=integration["created_at"],
                 resource_count=_resource_count_for(provider, integration),
                 resource_type=resource_type,
-                agent_count=_count_agents(provider),
-                activity_7d=_count_activity(provider),
             )
 
         # Emit platform summaries in stable order.
@@ -336,16 +312,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             if integration:
                 platforms.append(_to_summary(provider, integration))
 
-        # Total agents count
-        total_result = auth.client.table("agents").select(
-            "id", count="exact"
-        ).eq(*substrate_scope_filter(user_id)).execute()
-        total_agents = total_result.count or 0
-
-        return IntegrationsSummaryResponse(
-            platforms=platforms,
-            total_agents=total_agents
-        )
+        return IntegrationsSummaryResponse(platforms=platforms)
 
     except Exception as e:
         logger.error(f"[INTEGRATIONS] Failed to get summary for {user_id}: {e}")
@@ -650,183 +617,17 @@ async def disconnect_integration(
 
 
 # =============================================================================
-# Export to Provider
+# POST /integrations/{provider}/export DELETED (2026-08-26)
 # =============================================================================
+#
+# It exported an "agent version" — it looked up `agent_runs` by
+# `request.agent_run_id` and raised 404 "Agent version not found" when the
+# row was absent. With `agent_runs` empty, EVERY call 404'd at step two,
+# before the exporter ever ran; and the frontend has no client method for it.
+#
+# The exporter registry it called (integrations/exporters) is untouched —
+# it is reached by the live delivery paths, not by this door.
 
-@router.post("/integrations/{provider}/export")
-async def export_to_provider(
-    provider: str,
-    request: ExportRequest,
-    auth: UserClient
-) -> ExportResponse:
-    """
-    Export an agent version to a provider.
-
-    ADR-028: Uses the unified DestinationExporter infrastructure.
-
-    The destination format depends on the provider:
-    - Slack: { "channel_id": "C123..." } or { "target": "C123..." }
-    - Notion: { "page_id": "..." } or { "target": "..." }
-    - Download: {} (no destination needed)
-    """
-    from integrations.exporters import get_exporter_registry, ExporterContext
-
-    user_id = auth.user_id
-    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
-    registry = get_exporter_registry()
-
-    # Get exporter for this platform
-    exporter = registry.get(provider)
-    if not exporter:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported provider: {provider}. Available: {registry.list_platforms()}"
-        )
-
-    try:
-        # 1. Get auth context if needed
-        context = None
-        integration_id = None
-
-        if exporter.requires_auth:
-            integration_row = None
-            for p in providers_to_try:
-                _result = auth.client.table("platform_connections").select(
-                    "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
-                ).eq(*account_scope_filter(user_id)).eq("platform", p).limit(1).execute()
-                if _result.data:
-                    integration_row = _result.data[0]
-                    break
-
-            if not integration_row:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"No {provider} integration found. Please connect first."
-                )
-
-            if integration_row["status"] != IntegrationStatus.ACTIVE.value:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{provider} integration is {integration_row['status']}. Please reconnect."
-                )
-
-            integration_id = integration_row["id"]
-            token_manager = get_token_manager()
-
-            # Decrypt tokens
-            access_token = token_manager.decrypt(integration_row["credentials_encrypted"])
-            refresh_token = token_manager.decrypt(integration_row["refresh_token_encrypted"]) if integration_row.get("refresh_token_encrypted") else None
-
-            metadata = integration_row.get("metadata", {}) or {}
-
-            context = ExporterContext(
-                user_id=user_id,
-                access_token=access_token,
-                refresh_token=refresh_token,
-                metadata=metadata
-            )
-        else:
-            # Non-auth exporters (download)
-            context = ExporterContext(
-                user_id=user_id,
-                access_token="",
-                metadata={}
-            )
-
-        # 2. Get agent version content
-        version = auth.client.table("agent_runs").select(
-            "id, final_content, draft_content, agent_id"
-        ).eq("id", request.agent_run_id).limit(1).execute()
-
-        if not version.data:
-            raise HTTPException(status_code=404, detail="Agent version not found")
-
-        # Get agent title
-        agent = auth.client.table("agents").select(
-            "title"
-        ).eq("id", version.data[0]["agent_id"]).limit(1).execute()
-
-        content = version.data[0].get("final_content") or version.data[0].get("draft_content", "")
-        title = agent.data[0]["title"] if agent.data else "YARNNN Export"
-
-        # 3. Normalize destination format for exporters
-        # Support both legacy format (channel_id, page_id) and new format (target)
-        destination = _normalize_destination(provider, request.destination)
-
-        # Validate destination
-        if not exporter.validate_destination(destination):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid destination for {provider}"
-            )
-
-        # 4. Deliver via exporter
-        result = await exporter.deliver(
-            destination=destination,
-            content=content,
-            title=title,
-            metadata={
-                "agent_run_id": request.agent_run_id,
-                "agent_id": version.data[0]["agent_id"]
-            },
-            context=context
-        )
-
-        # 5. Log the export
-        log_entry = {
-            "agent_run_id": request.agent_run_id,
-            "user_id": user_id,
-            "provider": provider,
-            "destination": destination,
-            "status": result.status.value,
-            "error_message": result.error_message,
-            "external_id": result.external_id,
-            "external_url": result.external_url,
-            "completed_at": datetime.utcnow().isoformat() if result.status == ExportStatus.SUCCESS else None
-        }
-        auth.client.table("export_log").insert(log_entry).execute()
-
-        # 6. Update last_synced_at for auth integrations (ADR-058: column renamed)
-        if integration_id:
-            auth.client.table("platform_connections").update({
-                "updated_at": datetime.utcnow().isoformat()
-            }).eq("id", integration_id).execute()
-
-        logger.info(f"[INTEGRATIONS] User {user_id} exported to {provider}: {result.status.value}")
-
-        return ExportResponse(
-            status=result.status.value,
-            external_id=result.external_id,
-            external_url=result.external_url,
-            error_message=result.error_message
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Export to {provider} failed for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
-
-
-def _normalize_destination(provider: str, destination: dict[str, Any]) -> dict[str, Any]:
-    """
-    Validate and normalize destination format (ADR-028).
-
-    Expected format: { "platform": "slack", "target": "C123", "format": "message" }
-    """
-    if "platform" not in destination or "target" not in destination:
-        raise ValueError("Destination must include 'platform' and 'target' fields")
-
-    return {
-        "platform": destination["platform"],
-        "target": destination["target"],
-        "format": destination.get("format", "default"),
-        "options": destination.get("options", {})
-    }
-
-
-# =============================================================================
-# OAuth Flow - Initiate
 # =============================================================================
 
 @router.get("/integrations/{provider}/authorize")

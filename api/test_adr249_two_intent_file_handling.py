@@ -5,10 +5,10 @@ Verifies:
 1. No live code references to filesystem_documents or filesystem_chunks
 2. No live code references to deleted types (Document, DocumentUploadResponse, etc.)
 3. documents.py uses write_revision (workspace path) not chunk inserts
-4. working_memory uses workspace_files for upload listing
+4. (retired — working_memory.py deleted 2026-08-26)
 5. context_inference reads from workspace_files
 6. primitives/refs.py uses workspace_files for document enrichment
-7. primitives/search.py uses workspace_files for document search
+7. primitives/search.py is deleted (SearchEntities retired 2026-08-26)
 8. useDocuments.ts does not exist
 9. FileAttachment + /chat/attach endpoint exist in chat.py
 10. Migration 166 drops both tables
@@ -102,20 +102,11 @@ check(
     '.table("filesystem_chunks")' not in doc_service and ".table('filesystem_chunks')" not in doc_service,
 )
 
-# 4. working_memory reads workspace_files for uploads
-wm = read(os.path.join(API_ROOT, "services", "working_memory.py"))
-check(
-    "working_memory._get_workspace_uploads_sync reads workspace_files",
-    "_get_workspace_uploads_sync" in wm and "workspace_files" in wm,
-)
-check(
-    "working_memory compact index says 'read via ReadFile' not 'consider offering'",
-    "read via ReadFile" in wm,
-)
-check(
-    "working_memory does not read filesystem_documents for uploads",
-    "filesystem_documents" not in wm,
-)
+# 4. (was: working_memory reads workspace_files for uploads)
+# services/working_memory.py was DELETED 2026-08-26 — its two public entry
+# points had zero production callers. The invariant these three checks guarded
+# (uploads are read from workspace_files, never filesystem_documents) is still
+# held by sections 3 and 5, which cover the modules that actually run.
 
 # 5. context_inference reads workspace_files
 ci = read(os.path.join(API_ROOT, "services", "context_inference.py"))
@@ -132,12 +123,13 @@ check(
     "async def _enrich_document_with_content" not in refs and "filesystem_chunks" not in refs,
 )
 
-# 7. primitives/search.py: document search moved to the file family (ADR-322).
-#    SearchEntities(scope='document') + _search_document_content DELETED.
-search = read(os.path.join(API_ROOT, "services", "primitives", "search.py"))
+# 7. ADR-322 removed document search from the entity layer. The whole
+#    SearchEntities primitive is now DELETED (2026-08-26) — its scope enum was
+#    only agent|version|all, all backed by the retired model's empty tables —
+#    so the strongest form of this check is that the module is gone.
 check(
-    "primitives/search.py: document search removed from entity layer (ADR-322), no filesystem_chunks",
-    "async def _search_document_content" not in search and "filesystem_chunks" not in search,
+    "primitives/search.py is deleted (SearchEntities retired with the agent model)",
+    not os.path.exists(os.path.join(API_ROOT, "services", "primitives", "search.py")),
 )
 
 # 8. useDocuments.ts does not exist

@@ -2347,18 +2347,20 @@ export const api = {
     getDangerZoneStats: () =>
       request<{
         workspace_files: number;
-        agents: number;
+        // 2026-08-26 — `agents` + `agent_runs` REMOVED (migration 248 drops
+        // both tables). `work_history_files` counts what L1 actually clears,
+        // and is what the card is gated on.
+        work_history_files: number;
         tasks: number;
         chat_sessions: number;
         platform_connections: number;
-        agent_runs: number;
         // ADR-194 Reviewer queue — pending proposals surfaced for L2/L4 confirmation copy
         action_proposals: number;
       }>("/api/account/danger-zone/stats"),
 
     // L1: Clear work history (docs/features/data-privacy.md). Lightest
-    // layer — wipes past run records + task output folders only. Tasks,
-    // agents, identity, accumulated context, chat sessions all preserved.
+    // layer — wipes dated output folders + per-run logs only. Tasks,
+    // identity, accumulated context, chat sessions all preserved.
     clearWorkHistory: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/work-history",
@@ -2475,10 +2477,8 @@ export const api = {
           connected_at: string;
           resource_count: number;
           resource_type: string;
-          agent_count: number;
-          activity_7d: number;
+
         }>;
-        total_agents: number;
       }>("/api/integrations/summary"),
 
     // ADR-396: usage + subscription tier. Per-role split (2026-07-29): the

@@ -63,7 +63,10 @@ router = APIRouter()
 
 class AdminOverviewStats(BaseModel):
     total_users: int
-    total_agents: int
+    # `total_agents` REMOVED 2026-08-26 — it counted the retired agent model's
+    # EMPTY table, so the "Agents" stat card could only ever read 0. This file's
+    # own tombstone at the top warns about exactly this failure mode (a deleted
+    # endpoint that "rendered a confident $0.00 over tables nothing writes").
     total_tasks: int
     total_sessions: int
     total_messages: int
@@ -73,28 +76,20 @@ class AdminOverviewStats(BaseModel):
     sessions_7d: int
 
 
-class TaskExecutionRow(BaseModel):
-    """Per-task execution stats."""
-    task_slug: str
-    agent_title: str
-    agent_role: str
-    runs_total: int
-    runs_7d: int
-    avg_input_tokens: int
-    avg_output_tokens: int
-    last_run_at: Optional[str]
-    # ADR-250 Phase 4 — from execution_events
-    cost_usd_total: Optional[float] = None
-    failed_count: int = 0
-    skipped_count: int = 0
+# TaskExecutionRow DELETED 2026-08-26 with the per-task breakdown it typed —
+# every field came from `agent_runs` + `agents` (both EMPTY), so the row could
+# never be constructed.
 
 
 class AdminExecutionStats(BaseModel):
-    """Task execution & scheduler health."""
-    # Execution summary
-    total_runs_24h: int
-    total_runs_7d: int
-    total_runs_30d: int
+    """Scheduler health + spend.
+
+    2026-08-26 — `total_runs_24h/7d/30d` and the per-task `tasks` breakdown are
+    REMOVED. Every one was derived from `agent_runs`, the retired agent model's
+    EMPTY ledger, so the counters read 0 and the table rendered empty. Spend and
+    the scheduler heartbeat below are LIVE — they come from `execution_events`
+    and `activity_log`, which are the real ledgers.
+    """
     # Spend
     spend_usd_this_month: float
     spend_usd_limit: float
@@ -103,8 +98,6 @@ class AdminExecutionStats(BaseModel):
     # Scheduler
     last_scheduler_heartbeat: Optional[str]
     heartbeats_24h: int
-    # Per-task breakdown
-    tasks: list[TaskExecutionRow]
 
 
 class AdminUserRow(BaseModel):
@@ -112,7 +105,6 @@ class AdminUserRow(BaseModel):
     email: str
     created_at: str
     tier: str
-    agent_count: int
     task_count: int
     session_count: int
     spend_usd: float
@@ -269,10 +261,6 @@ async def get_overview_stats(admin: AdminAuth):
             .gte("created_at", seven_days_ago).execute()
         users_7d = users_7d_result.count or 0
 
-        # Total agents
-        agents_result = client.table("agents").select("id", count="exact").execute()
-        total_agents = agents_result.count or 0
-
         # Total tasks
         tasks_result = client.table("tasks").select("id", count="exact").execute()
         total_tasks = tasks_result.count or 0
@@ -297,7 +285,6 @@ async def get_overview_stats(admin: AdminAuth):
 
         return AdminOverviewStats(
             total_users=total_users,
-            total_agents=total_agents,
             total_tasks=total_tasks,
             total_sessions=total_sessions,
             total_messages=total_messages,
@@ -323,14 +310,6 @@ async def get_execution_stats(admin: AdminAuth):
         cutoff_7d = (now - timedelta(days=7)).isoformat()
         cutoff_30d = (now - timedelta(days=30)).isoformat()
 
-        # Run counts
-        runs_24h = client.table("agent_runs").select("id", count="exact")\
-            .gte("created_at", cutoff_24h).execute()
-        runs_7d = client.table("agent_runs").select("id", count="exact")\
-            .gte("created_at", cutoff_7d).execute()
-        runs_30d = client.table("agent_runs").select("id", count="exact")\
-            .gte("created_at", cutoff_30d).execute()
-
         # Spend this month (ADR-291: execution_events is canonical cost ledger)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
         spend_result = client.table("execution_events")\
@@ -355,108 +334,35 @@ async def get_execution_stats(admin: AdminAuth):
             .eq("event_type", "scheduler_heartbeat")\
             .gte("created_at", cutoff_24h).execute()
 
-        # Per-task breakdown from agent_runs
-        # Get recent runs with agent + task metadata
-        recent_runs = client.table("agent_runs")\
-            .select("agent_id, created_at, metadata")\
-            .gte("created_at", cutoff_30d)\
-            .order("created_at", desc=True)\
-            .limit(2000)\
-            .execute()
-
-        # Get agent info for display
-        agents_result = client.table("agents")\
-            .select("id, title, role")\
-            .execute()
-        agent_map = {a["id"]: a for a in (agents_result.data or [])}
-
-        # Aggregate per task_slug
-        task_stats: dict[str, dict] = {}
-        for run in (recent_runs.data or []):
-            meta = run.get("metadata") or {}
-            task_slug = meta.get("task_slug", "unknown")
-            agent_id = run["agent_id"]
-            agent_info = agent_map.get(agent_id, {})
-
-            if task_slug not in task_stats:
-                task_stats[task_slug] = {
-                    "agent_title": agent_info.get("title", "Unknown"),
-                    "agent_role": agent_info.get("role", "unknown"),
-                    "runs_total": 0,
-                    "runs_7d": 0,
-                    "input_tokens": [],
-                    "output_tokens": [],
-                    "last_run_at": None,
-                }
-
-            ts = task_stats[task_slug]
-            ts["runs_total"] += 1
-            if run["created_at"] >= cutoff_7d:
-                ts["runs_7d"] += 1
-            if not ts["last_run_at"] or run["created_at"] > ts["last_run_at"]:
-                ts["last_run_at"] = run["created_at"]
-
-            input_t = meta.get("input_tokens", 0) or 0
-            output_t = meta.get("output_tokens", 0) or 0
-            if input_t:
-                ts["input_tokens"].append(input_t)
-            if output_t:
-                ts["output_tokens"].append(output_t)
+# The per-task breakdown (recent_runs -> agent_map -> task_stats) is DELETED
+# 2026-08-26. It read `agent_runs` + `agents`, both EMPTY, so task_stats was
+# always {} and the rendered table always blank. The execution_events pass
+# below SURVIVES — it computes daily_spend_today, which is live.
 
         # ADR-250 Phase 4: enrich with execution_events (cost + failure counts per slug)
         today_utc = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         daily_spend_today = 0.0
-        ee_cost_map: dict[str, float] = {}
-        ee_failed_map: dict[str, int] = {}
-        ee_skipped_map: dict[str, int] = {}
+        # The per-slug cost / failed / skipped maps went with the per-task table
+        # they fed (2026-08-26). What remains is today's spend, which is live.
         try:
             ee_result = client.table("execution_events")\
-                .select("slug, status, cost_usd, created_at")\
+                .select("cost_usd, created_at")\
                 .gte("created_at", cutoff_30d)\
                 .execute()
             for ee in (ee_result.data or []):
-                s = ee.get("slug", "unknown")
-                cost = float(ee.get("cost_usd") or 0)
-                ee_cost_map[s] = ee_cost_map.get(s, 0.0) + cost
-                if ee.get("status") == "failed":
-                    ee_failed_map[s] = ee_failed_map.get(s, 0) + 1
-                if ee.get("status") == "skipped":
-                    ee_skipped_map[s] = ee_skipped_map.get(s, 0) + 1
                 if ee.get("created_at", "") >= today_utc:
-                    daily_spend_today += cost
+                    daily_spend_today += float(ee.get("cost_usd") or 0)
         except Exception as e:
             logger.warning("[ADMIN] execution_events enrichment failed (non-fatal): %s", e)
 
-        tasks = []
-        for slug, ts in sorted(task_stats.items(), key=lambda x: x[1]["runs_total"], reverse=True):
-            avg_in = int(sum(ts["input_tokens"]) / len(ts["input_tokens"])) if ts["input_tokens"] else 0
-            avg_out = int(sum(ts["output_tokens"]) / len(ts["output_tokens"])) if ts["output_tokens"] else 0
-            tasks.append(TaskExecutionRow(
-                task_slug=slug,
-                agent_title=ts["agent_title"],
-                agent_role=ts["agent_role"],
-                runs_total=ts["runs_total"],
-                runs_7d=ts["runs_7d"],
-                avg_input_tokens=avg_in,
-                avg_output_tokens=avg_out,
-                last_run_at=ts["last_run_at"],
-                cost_usd_total=round(ee_cost_map.get(slug, 0.0), 4) or None,
-                failed_count=ee_failed_map.get(slug, 0),
-                skipped_count=ee_skipped_map.get(slug, 0),
-            ))
-
         import os as _os
         return AdminExecutionStats(
-            total_runs_24h=runs_24h.count or 0,
-            total_runs_7d=runs_7d.count or 0,
-            total_runs_30d=runs_30d.count or 0,
             spend_usd_this_month=spend_usd_this_month,
             spend_usd_limit=spend_usd_limit,
             daily_spend_today=round(daily_spend_today, 4),
             daily_spend_ceiling=float(_os.getenv("DAILY_SPEND_CEILING_USD", "10.0")),
             last_scheduler_heartbeat=last_heartbeat,
             heartbeats_24h=hb_24h.count or 0,
-            tasks=tasks,
         )
 
     except Exception as e:
@@ -493,11 +399,6 @@ async def list_users(admin: AdminAuth):
             workspace_id = workspace.get("id")
             billing_exempt = bool(workspace.get("billing_exempt", False))
 
-            # Agent count
-            agents = client.table("agents")\
-                .select("id", count="exact")\
-                .eq("user_id", user_id).execute()
-
             # Task count
             tasks = client.table("tasks")\
                 .select("id", count="exact")\
@@ -529,7 +430,6 @@ async def list_users(admin: AdminAuth):
                 email=email,
                 created_at=workspace["created_at"],
                 tier=tier,
-                agent_count=agents.count or 0,
                 task_count=tasks.count or 0,
                 session_count=sessions.count or 0,
                 spend_usd=spend_usd,
@@ -924,7 +824,7 @@ async def export_users_excel(admin: AdminAuth):
             top=Side(style="thin"), bottom=Side(style="thin"),
         )
 
-        headers = ["Email", "Tier", "Agents", "Tasks", "Sessions", "Spend (mo)", "Last Active", "Joined"]
+        headers = ["Email", "Tier", "Tasks", "Sessions", "Spend (mo)", "Last Active", "Joined"]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = header_font
@@ -934,14 +834,13 @@ async def export_users_excel(admin: AdminAuth):
         for row, user in enumerate(users, 2):
             ws.cell(row=row, column=1, value=user.email).border = thin_border
             ws.cell(row=row, column=2, value=user.tier).border = thin_border
-            ws.cell(row=row, column=3, value=user.agent_count).border = thin_border
-            ws.cell(row=row, column=4, value=user.task_count).border = thin_border
-            ws.cell(row=row, column=5, value=user.session_count).border = thin_border
-            ws.cell(row=row, column=6, value=user.spend_usd).border = thin_border
-            ws.cell(row=row, column=7, value=user.last_activity or "—").border = thin_border
+            ws.cell(row=row, column=3, value=user.task_count).border = thin_border
+            ws.cell(row=row, column=4, value=user.session_count).border = thin_border
+            ws.cell(row=row, column=5, value=user.spend_usd).border = thin_border
+            ws.cell(row=row, column=6, value=user.last_activity or "—").border = thin_border
             ws.cell(row=row, column=8, value=user.created_at).border = thin_border
 
-        widths = [35, 8, 8, 8, 10, 10, 25, 25]
+        widths = [35, 8, 8, 10, 10, 25, 25]  # 7 cols since the Agents column left
         for col, width in enumerate(widths, 1):
             ws.column_dimensions[get_column_letter(col)].width = width
         ws.freeze_panes = "A2"
@@ -1048,17 +947,17 @@ async def export_full_report(admin: AdminAuth):
 
         # --- Users Sheet ---
         ws_users = wb.create_sheet("Users")
-        headers = ["Email", "Tier", "Agents", "Tasks", "Sessions", "Credits", "Last Active", "Joined"]
+        headers = ["Email", "Tier", "Tasks", "Sessions", "Credits", "Last Active", "Joined"]
         for col, h in enumerate(headers, 1):
             cell = ws_users.cell(row=1, column=col, value=h)
             cell.font = header_font
             cell.fill = header_fill
             cell.border = thin_border
         for r, u in enumerate(users, 2):
-            for c, v in enumerate([u.email, u.tier, u.agent_count, u.task_count,
+            for c, v in enumerate([u.email, u.tier, u.task_count,
                                    u.session_count, u.spend_usd, u.last_activity or "—", u.created_at], 1):
                 ws_users.cell(row=r, column=c, value=v).border = thin_border
-        for col, w in enumerate([35, 8, 8, 8, 10, 10, 25, 25], 1):
+        for col, w in enumerate([35, 8, 8, 10, 10, 25, 25], 1):
             ws_users.column_dimensions[get_column_letter(col)].width = w
         ws_users.freeze_panes = "A2"
 

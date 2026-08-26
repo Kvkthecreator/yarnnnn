@@ -60,57 +60,6 @@ def record(name: str, passed: bool, detail: str = ""):
 # Commit 1: Sparse context surfacing (0a7c9cc)
 # =============================================================================
 
-def test_classify_richness():
-    """_classify_richness returns empty/sparse/rich correctly."""
-    from services.working_memory import _classify_richness
-
-    # Empty cases
-    record("richness: None → empty", _classify_richness(None) == "empty")
-    record("richness: '' → empty", _classify_richness("") == "empty")
-    record("richness: whitespace → empty", _classify_richness("   \n  ") == "empty")
-
-    # Sparse cases — short content or few lines
-    record("richness: short text → sparse", _classify_richness("Hi I'm John") == "sparse")
-    record("richness: heading only → sparse", _classify_richness("# Identity\nJohn Doe") == "sparse")
-    record("richness: <100 chars → sparse", _classify_richness("x" * 50) == "sparse")
-
-    # Rich cases — substantial content
-    rich_content = "\n".join([f"Line {i}: Some meaningful content here." for i in range(10)])
-    record("richness: 10 lines → rich", _classify_richness(rich_content) == "rich")
-    # Must be >= 100 chars AND >= 3 newlines (after strip)
-    multi_line_content = "\n".join([f"This is a meaningful content line number {i} with enough text" for i in range(6)])
-    record("richness: 6 long lines → rich",
-           _classify_richness(multi_line_content) == "rich")
-
-
-def test_compact_index_surfaces_identity_gaps():
-    """format_compact_index surfaces sparse/empty identity/brand with guidance."""
-    from services.working_memory import format_compact_index
-
-    wm_sparse = {
-        "workspace_state": {
-            "identity": "sparse",
-            "brand": "empty",
-            "documents": 0,
-            "tasks_active": 0,
-            "tasks_stale": 0,
-            "context_domains": 0,
-            "balance_usd": 3.0,
-            "balance_exhausted": False,
-            "agents_flagged": [],
-        },
-        "active_tasks": [],
-        "context_domains": [],
-    }
-
-    formatted = format_compact_index(wm_sparse)
-
-    record("sparse identity surfaces in compact index",
-           "identity" in formatted.lower() and "sparse" in formatted.lower())
-    record("empty brand gap signal in compact index",
-           "identity empty" in formatted.lower() or "brand" in formatted.lower())
-
-
 def test_user_context_renders_brand():
     """_load_user_context renders brand as ## Brand Guidelines section."""
     from services.task_pipeline import build_task_execution_prompt
@@ -652,7 +601,6 @@ def main():
 
     sections = [
         ("Commit 1: Sparse Context Surfacing (0a7c9cc)", [
-            test_classify_richness,
             test_sparse_context_in_format,
             test_sparse_vs_empty_differentiation,
         ]),

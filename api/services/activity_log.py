@@ -15,7 +15,7 @@ Write points (all non-fatal — callers continue regardless of log failure):
   - unified_scheduler.py: 'scheduler_heartbeat' on hourly heartbeat writes
 
 Read points:
-  - working_memory.py: get_recent_activity() → injected as "Recent activity" block
+  - (was working_memory.py — module deleted 2026-08-26, zero prod callers)
     in TP system prompt (~300 tokens, last 10 events, 7-day window)
   - system_state.py: Aggregates operational state for TP GetSystemState primitive
 """

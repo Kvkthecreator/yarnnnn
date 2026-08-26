@@ -115,66 +115,21 @@ except Exception:
 check("close_supabase_client: best-effort — never raises on a broken client", not _raised)
 
 
-# ── 2. build_working_memory closes EVERY client it opens ────────────────────
-# Spy on create_client: every client handed out must end up with both pools closed.
-import services.working_memory as wm  # noqa: E402
-
-handed_out: list[_FakeClient] = []
-
-
-def _spy_create_client(*_a, **_k) -> _FakeClient:
-    c = _FakeClient()
-    handed_out.append(c)
-    return c
-
-
-# Each _*_sync helper just returns an inert value; we only care about lifecycle.
-# Patch create_client at both the supabase module (used by close path import site)
-# and the working_memory alias used to construct clients.
-with mock.patch.object(wm, "_create_supabase_client", _spy_create_client), \
-     mock.patch("services.bundle_reader.bundles_active_for_workspace", lambda *_a, **_k: []):
-    # Replace every sync DB helper with an inert stub so no network is touched.
-    sync_names = [n for n in dir(wm) if n.endswith("_sync") and callable(getattr(wm, n))]
-
-    def _make_stub(name):
-        # Return a shape that downstream formatting tolerates: dict-ish/list-ish.
-        def _stub(*args):
-            # last arg is the client; helpers that return dict/list/int all OK as {}
-            return {}
-        return _stub
-
-    patches = [mock.patch.object(wm, n, _make_stub(n)) for n in sync_names]
-    for p in patches:
-        p.start()
-    try:
-        result = asyncio.run(wm.build_working_memory("user-123", client=None))
-    finally:
-        for p in patches:
-            p.stop()
-
-check("build_working_memory: opened at least 20 clients (the parallel-read fan-out)", len(handed_out) >= 20)
-check(
-    f"build_working_memory: closes EVERY client it opens ({sum(c.both_closed for c in handed_out)}/{len(handed_out)})",
-    len(handed_out) > 0 and all(c.both_closed for c in handed_out),
-)
-
+# ── 2. (was: build_working_memory closes EVERY client it opens) ─────────────
+# services/working_memory.py was DELETED 2026-08-26 — its two public entry
+# points had zero production callers. The fan-out it guarded no longer exists.
+# Sections 1, 3 and 4 below still guard LIVE lifecycle code and stay.
 
 # ── 3. Source contract — the leak pattern is gone ───────────────────────────
-wm_src = (Path(__file__).resolve().parent / "services" / "working_memory.py").read_text()
 sb_src = (Path(__file__).resolve().parent / "services" / "supabase.py").read_text()
 
+# The three working_memory source checks are gone with the module. The
+# relocated `classify_activation_state` keeps the same close-in-finally shape,
+# asserted here against its new home so the lifecycle contract still has a gate.
+br_src = (Path(__file__).resolve().parent / "services" / "bundle_reader.py").read_text()
 check(
-    "working_memory: legacy _make_client() pass-through pattern deleted",
-    "_make_client()" not in wm_src,
-)
-check(
-    "working_memory: _run_sync_with_client wrapper present (per-thread create+close)",
-    "_run_sync_with_client" in wm_src and "close_supabase_client(client)" in wm_src,
-)
-check(
-    "working_memory: _classify_activation_state closes its own client in finally",
-    "finally:\n            close_supabase_client(client)" in wm_src
-    or "close_supabase_client(client)" in wm_src,
+    "bundle_reader: classify_activation_state closes its own client in finally",
+    "close_supabase_client(client)" in br_src and "finally:" in br_src,
 )
 check(
     "supabase: get_user_client routes teardown through close_supabase_client",

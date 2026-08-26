@@ -52,12 +52,12 @@ import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceM
 
 interface DangerZoneStats {
   workspace_files: number;
-  agents: number;
   tasks: number;
   chat_sessions: number;
   platform_connections: number;
-  // Phase 3 (L1): count of past task runs — drives the "Clear Work History" card.
-  agent_runs: number;
+  // 2026-08-26 — `agents` + `agent_runs` REMOVED with the retired agent model
+  // (migration 248 drops both tables). `work_history_files` is what L1 clears.
+  work_history_files: number;
   // ADR-194 Reviewer queue — pending proposals; surfaced so L2/L4 confirmation
   // copy can tell the user what gets discarded.
   action_proposals: number;
@@ -303,7 +303,7 @@ export default function SettingsPage() {
                 </p>
                 <ul className="list-disc list-inside text-sm space-y-1">
                   <li>{dangerStats?.workspace_files} workspace files</li>
-                  <li>{dangerStats?.agents} agents and all scheduled work</li>
+                  <li>All scheduled work</li>
                   <li>{dangerStats?.platform_connections} platform connections</li>
                   <li>{dangerStats?.chat_sessions} chat sessions</li>
                   <li>All memories, documents, activity, and sync data</li>

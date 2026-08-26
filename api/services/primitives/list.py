@@ -7,7 +7,6 @@ abstraction via typed refs, NOT on the filesystem.
 Distinct from ListFiles (file layer, path-based, agent-scoped).
 
 Usage:
-  ListEntities(pattern="agent:*")
   ListEntities(pattern="platform:*")
   ListEntities(pattern="session:*")
 """
@@ -24,14 +23,12 @@ LIST_ENTITIES_TOOL = {
 This is the ENTITY LAYER primitive — it enumerates database-backed entities
 by typed pattern. For filesystem listings, use ListFiles.
 
-Examples (ADR-322 /proc core — agent, platform, session, version):
-- ListEntities(pattern="agent:*") - all agents
-- ListEntities(pattern="agent:?status=active") - active agents
+Examples (the /proc core — platform, session):
 - ListEntities(pattern="platform:*") - all connected platforms
 - ListEntities(pattern="session:*") - chat sessions
 
 NOT entities: documents (files — use ListFiles(path='uploads/')), tasks/recurrences
-(use ListFiles + Schedule).
+(use ListFiles + Schedule), agents (a being is kernel data, not a workspace row).
 
 Pattern format: <type>:<identifier|*>[?<filters>]""",
     "input_schema": {
@@ -39,7 +36,7 @@ Pattern format: <type>:<identifier|*>[?<filters>]""",
         "properties": {
             "pattern": {
                 "type": "string",
-                "description": "Pattern to match (e.g., 'agent:*')"
+                "description": "Pattern to match (e.g., 'platform:*')"
             },
             "limit": {
                 "type": "integer",
@@ -143,18 +140,12 @@ def _format_list_message(entity_type: str, items: list) -> str:
         return f"No {entity_type}s found"
 
     # Provide summary based on type
-    if entity_type == "agent":
-        active = sum(1 for i in items if i.get("status") == "active")
-        return f"Found {count} agent(s) ({active} active)"
-
-    elif entity_type == "platform":
+    if entity_type == "platform":
         connected = sum(1 for i in items if i.get("status") == "active")
         return f"Found {count} platform(s) ({connected} connected)"
 
     # ADR-196: memory list branch removed (user_memory dropped).
-
-    elif entity_type == "task":
-        active = sum(1 for i in items if i.get("status") == "active")
-        return f"Found {count} task(s) ({active} active)"
+    # ADR-322: the `task` branch is removed too — `task` stopped being an
+    # entity type there, so the branch was unreachable (swept 2026-08-26).
 
     return f"Found {count} {entity_type}(s)"

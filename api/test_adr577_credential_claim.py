@@ -232,7 +232,6 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
     "services/primitives/registry.py",  # list_integrations (ADR-535: see != reach)
     "services/primitives/system_state.py",
     "services/primitives/track_universe.py",
-    "services/working_memory.py",
     "routes/system.py",
     "services/capture/lane.py",         # capability gate: existence, not token
     # -- capability probe: a HUMAN's availability question (ADR-577 §1e) --
@@ -265,7 +264,6 @@ ENUMERATION_ONLY = {
     "services/freddie_envelope.py",
     "services/primitives/registry.py",
     "services/primitives/system_state.py",
-    "services/working_memory.py",
     "services/capture/lane.py",
     "routes/system.py",
     "routes/workspace.py",

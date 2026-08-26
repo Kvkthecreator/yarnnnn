@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 from .read import LOOKUP_ENTITY_TOOL, handle_lookup_entity
 from .edit import EDIT_ENTITY_TOOL, handle_edit_entity
-from .search import SEARCH_ENTITIES_TOOL, handle_search_entities
 from .list import LIST_ENTITIES_TOOL, handle_list_entities
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 # ADR-568 D3: the second kernel-resolved capability (see capabilities.py).
@@ -66,8 +65,6 @@ from .workspace import (
     SEARCH_FILES_TOOL, handle_search_files,
     QUERY_KNOWLEDGE_TOOL, handle_query_knowledge,
     LIST_FILES_TOOL, handle_list_files,
-    DISCOVER_AGENTS_TOOL, handle_discover_agents,
-    READ_AGENT_FILE_TOOL, handle_read_agent_file,
 )
 # ADR-337 amended (2026-08-21) — the FOLDER verbs: the fan-out half of the
 # working-tree analogy. Declared in their own module because they bind a
@@ -281,7 +278,12 @@ CHAT_PRIMITIVES = [
     # Entity layer (4) + Introspection (1)
     LOOKUP_ENTITY_TOOL,
     LIST_ENTITIES_TOOL,
-    SEARCH_ENTITIES_TOOL,
+    # SearchEntities DELETED 2026-08-26. Its scope enum was only
+    # agent|version|all (and "all" meant agents), and SEARCH_FIELDS carried
+    # no other type — so every scope it accepted was backed by the two EMPTY
+    # tables of the retired agent model. It answered "Found 0 result(s)" to
+    # every possible query while occupying tool-surface budget. `platform`
+    # and `session` were never searchable, so nothing is left to search.
     EDIT_ENTITY_TOOL,
     GET_SYSTEM_STATE_TOOL,
     # File layer (4) — ADR-234 Chat File Layer Reach
@@ -359,7 +361,6 @@ HEADLESS_PRIMITIVES = [
     # Entity layer (3) + Introspection (1)
     LOOKUP_ENTITY_TOOL,
     LIST_ENTITIES_TOOL,
-    SEARCH_ENTITIES_TOOL,
     GET_SYSTEM_STATE_TOOL,
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
@@ -385,9 +386,11 @@ HEADLESS_PRIMITIVES = [
     LIST_FILES_TOOL,
     # ADR-325: Embed — specialists may make accumulated context AI-ready.
     EMBED_TOOL,
-    # Inter-agent (2)
-    DISCOVER_AGENTS_TOOL,
-    READ_AGENT_FILE_TOOL,
+    # Inter-agent (DiscoverAgents + ReadAgentFile) DELETED 2026-08-26. They
+    # read the retired model's EMPTY `agents` table: DiscoverAgents returned
+    # `{"count": 0, "agents": []}` universally, and ReadAgentFile could only
+    # ever answer `agent_not_found` — its own description said "use after
+    # DiscoverAgents", so the pair died together.
     # ManageAgent DELETED 2026-08-26 (see the chat roster above).
     # ADR-235 D1.c: ManageRecurrence — agents may pause/resume/update their
     # own declarations on outcome signals. Chat parity.
@@ -464,7 +467,6 @@ FREDDIE_PRIMITIVES = [
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
     GET_SYSTEM_STATE_TOOL,
-    SEARCH_ENTITIES_TOOL,
     LOOKUP_ENTITY_TOOL,
     LIST_ENTITIES_TOOL,
     LIST_INTEGRATIONS_TOOL,
@@ -554,7 +556,6 @@ HANDLERS: dict[str, Callable] = {
     # Entity layer (ADR-168 Commit 4: renamed from Read/List/Search/Edit)
     "LookupEntity": handle_lookup_entity,
     "EditEntity": handle_edit_entity,
-    "SearchEntities": handle_search_entities,
     "ListEntities": handle_list_entities,
     # "Execute": DELETED (ADR-168 Commit 2 — finish ADR-146 Phase 3)
     # "RefreshPlatformContent": DELETED (ADR-153)
@@ -633,8 +634,6 @@ HANDLERS: dict[str, Callable] = {
     "ListFiles": handle_list_files,
     # ADR-325: Embed — explicit make-AI-ready (consequential, gate-queueable).
     "Embed": handle_embed,
-    "DiscoverAgents": handle_discover_agents,
-    "ReadAgentFile": handle_read_agent_file,
     # ADR-193: Approval loop
     "ProposeAction": handle_propose_action,
     "ExecuteProposal": handle_execute_proposal,
