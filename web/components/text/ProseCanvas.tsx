@@ -1267,6 +1267,15 @@ export interface ProseCanvasHandle {
   deleteRange: (from: number, to: number) => void;
   /** Viewport coordinates of a source offset, for anchoring the palette. */
   coordsAt: (pos: number) => { left: number; top: number; bottom: number } | null;
+  /** The live selection's bounding box in viewport coords, plus its END
+   *  line — null when nothing is selected (ADR-612 D1 revised). */
+  selectionRect: () => {
+    left: number; right: number; top: number; bottom: number;
+    endLeft: number; endTop: number; endBottom: number;
+  } | null;
+  /** Select a source range and scroll it to the CENTRE of the viewport —
+   *  how the member is put back where they were working (ADR-612 D5). */
+  scrollRangeIntoView: (from: number, to: number) => void;
 }
 
 /**
@@ -1501,6 +1510,33 @@ export function ProseCanvas({
       coordsAt: (pos) => {
         const c = view.coordsAtPos(pos);
         return c ? { left: c.left, top: c.top, bottom: c.bottom } : null;
+      },
+      selectionRect: () => {
+        const sel = view.state.selection.main;
+        if (sel.empty) return null;
+        const a = view.coordsAtPos(sel.from);
+        const b = view.coordsAtPos(sel.to);
+        if (!a || !b) return null;
+        // The union of the two ends. A multi-line selection's `to` sits at the
+        // LAST line's x — often far left, mid-paragraph — so anchoring to that
+        // point alone puts the door over the prose below it. The rect lets the
+        // caller place the door against the selection as a whole.
+        return {
+          left: Math.min(a.left, b.left),
+          right: Math.max(a.left, b.left),
+          top: Math.min(a.top, b.top),
+          bottom: Math.max(a.bottom, b.bottom),
+          endLeft: b.left,
+          endTop: b.top,
+          endBottom: b.bottom,
+        };
+      },
+      scrollRangeIntoView: (from, to) => {
+        const clamp = (n: number) => Math.max(0, Math.min(view.state.doc.length, n));
+        view.dispatch({
+          selection: { anchor: clamp(from), head: clamp(to) },
+          effects: EditorView.scrollIntoView(clamp(from), { y: 'center' }),
+        });
       },
     };
     handleRef?.(handle);

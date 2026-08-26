@@ -71,6 +71,16 @@ failure modes the refusal was written about.** Anchoring to the selection is
 immune to both. The refusal section is amended to say so, so a future session
 does not read "no mouse-following" and re-refuse this feature.
 
+**Revised after driving it (2026-08-26).** The first cut anchored to the
+selection's END POINT. That reads wrong: a multi-line selection ends at the
+LAST line's x — often far left and mid-paragraph — so the door landed on the
+prose BELOW the selection, covering what the member was reading, and sat inside
+the reading column where the eye is. It now hangs in the MARGIN beside the
+selection (right, else left), level with the selection's end, falling back to
+below-the-end only when there is no margin to hang in. **The selection is
+already highlighted; the door does not need to point at it, it needs to not
+cover it.**
+
 ### D2 — The chip names the grain, and the chip is the contract
 
 A unified affordance must answer a question the two media answer differently:
@@ -99,6 +109,39 @@ The judged verb never joins it. That component is markdown verbs — bold,
 heading, list — every one mechanical and free. Putting a metered act in that
 row would blur the one boundary the member can currently trust by position.
 
+### D4 — The act says it is working, and cannot get stuck saying so
+
+Clicking Rewrite used to be the end of the visible story on the canvas: the
+door vanished, the turn ran unseen, and the document later replaced itself. The
+door now STAYS through the turn and reads "Rewriting…", disabled against a
+second click. A turn that answers WITHOUT writing — a refusal, a question back,
+an error — releases the state on a generous ceiling: it is a stuck-state
+release, not a timeout on the turn, because expiring an in-flight turn early
+would be the worse lie.
+
+### D5 — When the write lands, the member is put back ON the work
+
+The defect this closes is the one the operator named: *"the loading to refresh
+is confusing because once the document is updated we should show clearly exact
+location where we were working."* The lane's write triggered a full refetch, the
+document silently replaced itself, and the member had to hunt for what changed.
+
+The canvas already preserved the caret across an external write — by holding
+its offset from the END of the document. That heuristic is **exactly wrong for
+a rewrite that lands in the middle**: text above the caret shifts, so the
+anchor drifts by the length delta.
+
+So the landing re-finds the passage **by CONTENT, not by offset**: the
+rewritten passage is a different length, so the old span no longer describes
+it. The unchanged prefix pins the new start, the unchanged suffix pins the end,
+and the range is selected and scrolled to the viewport's centre. It fires when
+the reloaded text REACHES the canvas (a frame after the effect), not when the
+write is announced — at announce time the document has not arrived yet.
+
+Both ends are best-effort by construction. A rewrite that also restructured its
+surroundings simply lands on the whole changed region — still the right
+neighbourhood, and never a wrong claim about where the member's passage went.
+
 ## 4. Refused, and recorded
 
 - **Merging Update and Rewrite into one door.** §1's structural reason: they
@@ -113,8 +156,23 @@ row would blur the one boundary the member can currently trust by position.
 
 `api/test_adr612_judged_gesture.py`. Defends: one gesture producer in Text (the
 header button is GONE, not duplicated), the affordance anchors to the selection
-rect and never to a pointer/hover event, the chip's grain matches the anchor
-that ships, and the deterministic toolbar carries no metered verb.
+RECT and never to a pointer/hover event, the margin preference over covering
+prose, the chip's grain matching the anchor that ships, the deterministic
+toolbar carrying no metered verb, the pending state and its stuck-state
+release, and the landing (by content, fired when the text arrives).
+
+Falsified against real breaks: the header button restored · pointer tracking
+re-entering the affordance · the anchor drifting off the selection · the label
+diverging from the chip's noun · a metered verb in the deterministic toolbar ·
+the margin preference removed · the landing firing before the document arrives ·
+the stuck-state release removed.
+
+The landing algorithm is separately driven over 10 cases — shorter/longer
+middle rewrites, at-start, at-end, multi-paragraph, repeated surrounding text
+(the ambiguity trap), and four degenerate ones (full restructure, an overreach
+that changed more than asked, no change at all, an emptied document). None
+produce an inverted or wrong span; the overreach case correctly lands on the
+whole changed region, which is the honest answer.
 
 ## 6. OWED — the Slides half
 

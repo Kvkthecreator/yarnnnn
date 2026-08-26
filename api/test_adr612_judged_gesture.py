@@ -36,6 +36,7 @@ gesture = read("components/authoring/SelectionGesture.tsx")
 editor = read("components/text/TextEditor.tsx")
 toolbar = read("components/text/MarkdownToolbar.tsx")
 lane_panel = read("components/chat-surface/LanePanel.tsx")
+canvas = read("components/text/ProseCanvas.tsx")
 
 # ── D1: the affordance exists, and it anchors to the SELECTION ─────────────
 check("D1 the shared affordance exists", bool(gesture),
@@ -52,8 +53,8 @@ for banned in ("onMouseMove", "onMouseOver", "onHover", "mousemove", "clientX", 
           banned not in gesture,
           "lane-frame §6: hover is transit, not commitment — and does not exist on touch")
 
-check("D1 Text anchors the gesture at the selection's END",
-      "coordsAt(focusPoint.range.end)" in editor,
+check("D1 Text derives the anchor from the SELECTION, never a pointer",
+      "focusPoint.range ? canvasRef.current?.selectionRect()" in editor,
       "the anchor must be derived from the selection the member made")
 check("D1 the anchor is null when nothing is selected",
       re.search(r"focusPoint\.range\s*\n?\s*\?", editor) is not None
@@ -76,6 +77,50 @@ check("D2 Text's gesture label matches the chip's noun for that seed",
       "whatever the chip names is what gets anchored (ADR-612 D2)")
 check("D2 the seed Text sends is the selection grain",
       re.search(r"label:\s*'selection'", editor) is not None)
+
+# ── D1 (revised): the door hangs in the MARGIN, off the reading column ─────
+# The first cut anchored to the selection's END POINT. Driven, that reads
+# wrong: a multi-line selection ends at the LAST line's x — often far left,
+# mid-paragraph — so the door landed on the prose BELOW the selection, covering
+# what the member was reading.
+check("D1 the affordance takes the selection's RECT, not one point",
+      "endLeft" in gesture and "right: number" in gesture,
+      "a single end point cannot tell the door where the column edge is")
+check("D1 the canvas reports the selection rect",
+      "selectionRect" in canvas and "Math.min(a.left, b.left)" in canvas)
+check("D1 the door prefers a margin over covering prose",
+      "anchor.right + GAP + DOOR_W < vw" in gesture
+      and "anchor.left - GAP - DOOR_W > 0" in gesture,
+      "right margin, then left, then the clamped fallback")
+check("D1 Text reads the rect (not the old end-point anchor)",
+      "selectionRect()" in editor and "coordsAt(focusPoint.range.end)" not in editor,
+      "the end-point anchor is superseded, not kept beside the rect")
+
+# ── D4: the act says it is working, and cannot get stuck saying so ─────────
+check("D4 the door has a pending state", "pending" in gesture and "Rewriting" in gesture,
+      "vanishing at the click made the act feel like it went nowhere")
+check("D4 the pending door refuses a second click",
+      "disabled={pending}" in gesture and "pending ? undefined : onClick" in gesture)
+check("D4 Text drives the pending state from a real in-flight rewrite",
+      "pending={pendingRewrite !== null}" in editor)
+check("D4 a turn that never writes releases the stuck state",
+      "setPendingRewrite(null), 180_000" in editor
+      or re.search(r"setTimeout\(\(\) => setPendingRewrite\(null\), 180_000\)", editor)
+      is not None,
+      "a refusal or an error must not leave the door saying Rewriting… forever")
+
+# ── D5: the member is put back ON the work when the write lands ────────────
+check("D5 the canvas can scroll a range to centre",
+      "scrollRangeIntoView" in canvas and "y: 'center'" in canvas)
+check("D5 the landing re-finds the passage by CONTENT, not by offset",
+      "landOnRewrite" in editor and "preWriteRef" in editor,
+      "the rewritten passage is a different length — the old span no longer describes it")
+check("D5 the landing fires when the reloaded text ARRIVES, not at write time",
+      "requestAnimationFrame(() => landOnRewriteRef.current" in editor,
+      "the document has not reached the canvas yet when onArtifactWrite fires")
+check("D5 the pre-write text is captured before the refetch",
+      "preWriteRef.current = textRef.current;" in editor)
+
 
 # ── D3: ONE producer — the header button is DELETED, not kept beside it ────
 # The whole point of the ADR. Two entrances to one act, one of them far from

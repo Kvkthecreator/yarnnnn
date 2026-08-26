@@ -152,6 +152,14 @@ export function TextEditor({
   const [conflict, setConflict] = useState<ConflictState | null>(null);
   const baseHead = useRef<string | null>(null);
   const canvasRef = useRef<ProseCanvasHandle | null>(null);
+  // ADR-612 D5 — the landing's three inputs, held as refs because the effect
+  // that consumes them runs above their declarations and must not close over
+  // a stale render's copy.
+  const preWriteRef = useRef<string | null>(null);
+  const pendingRewriteRef = useRef<{ start: number; end: number; excerpt: string } | null>(null);
+  const landOnRewriteRef = useRef<
+    (before: string, after: string, span: { start: number; end: number }) => void
+  >(() => {});
 
   // ── View state (ADR-572 D2) — zoom only; it never touches the file.
   const [zoom, setZoom] = useState(1);
@@ -181,6 +189,18 @@ export function TextEditor({
     setBaseline(content);
     baseHead.current = file.head_version_id ?? null;
     setConflict(null);
+    // ADR-612 D5 — a lane write just landed and the member asked for it on a
+    // specific passage. Put them back on it, once, after the canvas has taken
+    // the new document (a frame later — the effect runs before the value
+    // reaches the view).
+    const pending = pendingRewriteRef.current;
+    const before = preWriteRef.current;
+    if (pending && before !== null && before !== content) {
+      pendingRewriteRef.current = null;
+      preWriteRef.current = null;
+      setPendingRewrite(null);
+      requestAnimationFrame(() => landOnRewriteRef.current(before, content, pending));
+    }
   }, [file]);
 
   const dirty = text !== baseline;
@@ -817,17 +837,29 @@ export function TextEditor({
   // where a pointer has none, so this is the anchor that survives both media
   // (lane-frame §6, amended).
   const selectionAnchor = useMemo(
-    () =>
-      focusPoint.range
-        ? canvasRef.current?.coordsAt(focusPoint.range.end) ?? null
-        : null,
+    () => (focusPoint.range ? canvasRef.current?.selectionRect() ?? null : null),
     // `text` is a dep so the anchor re-reads as the line moves underneath —
     // the same reason slashCoords carries it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [focusPoint.range, text],
   );
+  // ── ADR-612 D4/D5 — the act has a LIFETIME, and it ends somewhere ─────
+  // Clicking Rewrite used to be the end of the visible story: the door
+  // vanished the moment the selection moved, the turn ran unseen, and the
+  // document then silently replaced itself under the member — who had to hunt
+  // for what changed. Two facts were missing and both are held here: that a
+  // turn is IN FLIGHT for this selection, and WHERE it was, so the member can
+  // be put back on it when the write lands.
+  const [pendingRewrite, setPendingRewrite] = useState<{
+    start: number;
+    end: number;
+    /** The selected text at click time — how the landed range is re-found
+     *  when the rewrite changed the document's length. */
+    excerpt: string;
+  } | null>(null);
   const rewriteSelection = useCallback(() => {
     if (!focusPoint.selection || !focusPoint.range) return;
+    setPendingRewrite({ ...focusPoint.range, excerpt: focusPoint.selection });
     setSeed((s) => ({
       text: 'Rewrite the selection: ',
       nonce: (s?.nonce ?? 0) + 1,
@@ -843,6 +875,53 @@ export function TextEditor({
     }));
     setRightTab('chat');
   }, [focusPoint, path]);
+
+  // ADR-612 D5 — land the member back on the work. When the lane's write
+  // arrives, the document has already replaced itself; without this the member
+  // is left wherever the canvas happened to put them (the caret is preserved
+  // by an offset-from-the-END heuristic, which is exactly wrong when the
+  // rewrite landed in the MIDDLE — text above it shifts and the anchor drifts).
+  //
+  // Re-find by CONTENT, not by offset: the rewritten passage is a different
+  // length, so the old span no longer describes it. The prefix before the
+  // selection is the stable part, so its end is where the new passage starts;
+  // the following text locates its end. Both are best-effort — a rewrite that
+  // also restructured the surroundings simply scrolls to the start, which is
+  // still the right neighbourhood and never a wrong claim.
+  const landOnRewrite = useCallback(
+    (before: string, after: string, span: { start: number; end: number }) => {
+      const head = before.slice(0, span.start);
+      const tail = before.slice(span.end);
+      // The unchanged prefix pins the start.
+      let start = 0;
+      while (start < head.length && start < after.length && head[start] === after[start]) start++;
+      // The unchanged suffix pins the end, walked from the far side.
+      let back = 0;
+      while (
+        back < tail.length &&
+        back < after.length - start &&
+        tail[tail.length - 1 - back] === after[after.length - 1 - back]
+      ) back++;
+      const end = after.length - back;
+      canvasRef.current?.scrollRangeIntoView(start, Math.max(start, end));
+    },
+    [],
+  );
+
+  pendingRewriteRef.current = pendingRewrite;
+  landOnRewriteRef.current = landOnRewrite;
+
+  // A pending rewrite is cleared by the write landing (D5). A turn that
+  // answers WITHOUT writing — a refusal, a question back, an error — would
+  // otherwise leave the door saying "Rewriting…" for the rest of the session.
+  // The ceiling is generous on purpose: it is a stuck-state release, not a
+  // timeout on the turn, and expiring an in-flight turn early would be the
+  // worse lie.
+  useEffect(() => {
+    if (!pendingRewrite) return;
+    const t = setTimeout(() => setPendingRewrite(null), 180_000);
+    return () => clearTimeout(t);
+  }, [pendingRewrite]);
 
   const name = documentName(path);
   // On the single-pane rung the rail becomes a tabbed pane; above it, an
@@ -1196,6 +1275,7 @@ export function TextEditor({
                   anchor={selectionAnchor}
                   label="the selection"
                   onClick={rewriteSelection}
+                  pending={pendingRewrite !== null}
                 />
               )}
             </>
@@ -1390,7 +1470,12 @@ export function TextEditor({
                 modelLabel={modelLabel}
                 speakerLabel={speakerLabel}
                 artifactWrite="none"
-                onArtifactWrite={() => setReloadKey((n) => n + 1)}
+                onArtifactWrite={() => {
+                  // Hold the text as it stands BEFORE the refetch: the landing
+                  // is computed by diffing it against what arrives (D5).
+                  preWriteRef.current = textRef.current;
+                  setReloadKey((n) => n + 1);
+                }}
                 suggestions={SUGGESTIONS}
               composerSeed={seed}
                 emptyState={
