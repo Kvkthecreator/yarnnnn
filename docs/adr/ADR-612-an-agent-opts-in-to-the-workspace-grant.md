@@ -1,6 +1,6 @@
 # ADR-612: An agent opts in to the workspace's grant
 
-**Status**: Ratified 2026-08-26 (operator thesis: *"workspace level connectors are more like workspace level grants and permissions handling — then an agent can opt in to use that connector explicitly … so a user can explicitly scope a connector for an agent, which changes its context scope"*). Phase 1 implemented same day.
+**Status**: Ratified 2026-08-26; **D5/D6 added same day** after the operator asked the question that exposed the gap — *"can the Text app and its Editor agent utilize a connected scope?"* The answer was NO, and D1–D4 alone left the control near-inert. (Operator thesis: *"workspace level connectors are more like workspace level grants and permissions handling — then an agent can opt in to use that connector explicitly … so a user can explicitly scope a connector for an agent, which changes its context scope"*). Phase 1 implemented same day.
 
 **Builds on**: ADR-405 (permission is a grant) · ADR-577 (the credential is a HUMAN's; an agent caller is refused) · ADR-582 (connection = consent + credential + aperture) · ADR-585 (turn reach — the read-only platform surface) · ADR-596 D1/D2 (authority lives on grants and declarations, never on a being) · ADR-601 D1 (capability at the app).
 
@@ -32,7 +32,7 @@ Two further consequences keep ADR-577 intact:
 
 ### What a being is told today — all of it
 
-`turn_has_reach(app, artifact_path, derive_recipe)` derives reach from the turn's SHAPE alone, and when a turn has reach the frame says *"list_integrations tells you which platforms the member has CONNECTED (Notion, Slack, GitHub)"* — **every connected platform, for every being**. There is no per-being narrowing anywhere in the frame, the tool set, or the allowlist. "Scope a connector for an agent" is genuinely absent, not merely coarse.
+Before this ADR, `turn_has_reach(app, artifact_path, derive_recipe)` derived reach from the turn's SHAPE alone (D5/D6 replace it), and when a turn had reach the frame said *"list_integrations tells you which platforms the member has CONNECTED (Notion, Slack, GitHub)"* — **every connected platform, for every being**. There is no per-being narrowing anywhere in the frame, the tool set, or the allowlist. "Scope a connector for an agent" is genuinely absent, not merely coarse.
 
 ## Decision
 
@@ -57,6 +57,8 @@ This is the half that makes the feature real. When a turn has reach, the being's
 - **the tool set** — `turn_reach_tool_names()` / `turn_reach_tool_defs()` gain the allowed platforms, so an un-opted platform's tools are not declared, not dispatchable, and not in the allowlist;
 - **the frame prose** — the connector section names the being's OWN platforms rather than every connected one.
 
+Since D5 the same resolution also answers *whether* the turn reaches at all, so both live in one function (`resolve_turn_reach`) rather than two.
+
 Both derive from the SAME resolved set, which is the ADR-585 rule the Scout bug taught: the declared payload, the execution allowlist and the prose must be computed once, or they disagree and ship a lie.
 
 ### D4 — The workspace GRANT layer is named, and stays account-level for now
@@ -64,6 +66,26 @@ Both derive from the SAME resolved set, which is the ADR-585 rule the Scout bug 
 The operator's model calls layer 1 a workspace grant. Today `platform_connections` is keyed `user_id` under a single `USING (user_id = auth.uid())` policy — the re-key ADR-611 D4 priced. **This ADR does not take it.** The opt-in is built against the account-level connections that exist, and the re-key later changes *what is grantable* without changing the opt-in's shape — which is why this order is safe rather than merely expedient.
 
 Stated plainly so the sequencing is not mistaken for a claim: **"workspace level" is aspirational at Phase 1.** The opt-in is workspace-scoped (it lives in `member_state`); the GRANT it narrows is still account-level.
+
+### D5 — A desk turn reaches when the member scoped that being (amends ADR-585 D1)
+
+ADR-585 confined turn reach to the OPEN CHAT turn: *"App lanes and derive turns are workspace-disciplined (landed files only), the same as agents."* That confinement was correct **for the world it was written in** — there was no way to say WHICH connector an agent may use, so it was all-or-nothing and nothing was the safe default.
+
+The opt-in is that missing expression. So the rule becomes: **a turn carries reach when it is the open chat (unchanged) OR when the member has explicitly scoped this being.** The caution survives; only the all-or-nothing that forced it goes.
+
+Three properties keep this inside the boundaries ADR-585 was protecting, and none of them is a promise — each is structural:
+
+- **Not an agent holding a credential.** A desk lane stamps `member:{id} via {model}` — a human's hands — so ADR-577's `is_agent_caller` refusal correctly does not trip. Unchanged by this ADR; it simply never applied to lane turns.
+- **Still TRANSIENT** (intake-pipeline §5). Fetched content lives in the turn and dies with it; keeping it is an ordinary attributed write, exactly as in chat. The durable-intake pipeline is untouched.
+- **Unattended standing runs cannot reach this at all.** They execute through `derive_turn.run_bounded_derive_turn`, which is *toolless by construction* ("No tools, one user message") and never calls `lane_tools_openai`. A scoped being does not gain live reach in its unattended runs — that would be a clock plus a credential, which is the combination ADR-596 D2 houses on grants and declarations, not here.
+
+**Default-closed**: no opt-in recorded → no desk reach, exactly as before this ADR. A member must ask, per being.
+
+**Scoped-to-nothing wins everywhere**, including open chat: if a member says a being reads through no connection, that is honoured even where the turn would otherwise have reached. `(True, ())` is unrepresentable — a being with nothing to reach does not carry the surface at all.
+
+### D6 — `turn_has_reach` is DELETED, not kept beside its successor
+
+It answered "does this turn reach?" from the turn's SHAPE alone, which stopped being the whole question the moment an opt-in could unlock a desk turn. `resolve_turn_reach` returns both halves from ONE lookup — resolving them separately would read the same row twice and could disagree between the reads, which is the precise shape of the Scout bug ADR-585 §5 exists to prevent.
 
 ## Consequences
 

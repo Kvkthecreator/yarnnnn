@@ -116,20 +116,102 @@ check("a narrowed set is a subset of the full set",
       set(_slack_only) <= set(_all_tools))
 
 _lr = (ROOT / "services" / "lane_runner.py").read_text()
-check("there is ONE resolver for the turn's platforms",
-      "def reach_platforms_for(" in _lr)
+check("there is ONE resolver for the turn's reach AND its platforms",
+      "def resolve_turn_reach(" in _lr)
 # ADR-585's rule: all three consumers read the SAME value. If the prose
 # derived its own set independently, it could claim tools the payload lacks —
 # the Scout bug, mirrored.
 check("the payload narrows", "lane_tools_openai(_reach, _reach_plats)" in _lr)
 check("the execution allowlist narrows", "lane_tool_names(_reach, _reach_plats)" in _lr)
-check("the frame prose narrows from the same resolver",
-      _lr.count("reach_platforms_for(") >= 3)
+check("all three consumers derive from the same resolver (payload, allowlist, prose)",
+      _lr.count("resolve_turn_reach(") >= 4)
 # The prose must not claim a scoping that was never set.
 check("unscoped prose does NOT claim the member scoped anything",
       "_reach_plats is None" in _lr)
 check("scoped-to-none has its OWN prose branch (not the no-reach one)",
       "_reach_plats is not None and not _reach_plats" in _lr)
+
+# ---------------------------------------------------------------------------
+print("5. D5 — the opt-in UNLOCKS a desk turn, default-closed")
+# ---------------------------------------------------------------------------
+import os  # noqa: E402
+from services.lane_runner import resolve_turn_reach  # noqa: E402
+
+_lr_src = (ROOT / "services" / "lane_runner.py").read_text()
+
+# D6 — one function, not two answering the same question.
+check("`turn_has_reach` is DELETED, not kept beside its successor",
+      "def turn_has_reach(" not in _lr_src)
+check("resolve_turn_reach returns BOTH halves from one lookup",
+      "def resolve_turn_reach(" in _lr_src
+      and "tuple[bool, Optional[tuple]]" in _lr_src)
+
+os.environ["TURN_REACH_ENABLED"] = "true"
+try:
+    def _r(app, art, rec, agent=None, client=None):
+        return resolve_turn_reach(client, "u", None, app=app,
+                                  artifact_path=art, derive_recipe=rec,
+                                  agent=agent)
+
+    # Default-closed is the whole safety property of D5: unlocking must
+    # require an explicit member act, never merely naming an agent.
+    check("a desk turn with an agent but NO opt-in does not reach",
+          _r("text", "/w/x.md", None, agent="editor")[0] is False)
+    check("open chat still reaches with no opt-in (ADR-585 D1 unchanged)",
+          _r(None, None, None)[0] is True)
+    # A lookup that RAISES must not grant reach — fails toward the pre-D5
+    # world, never toward reach the member did not scope.
+    #
+    # ⭐ This drives the exception path for real. The first version passed
+    # `client=None` and asserted False — but `effective_workspace_id` returns
+    # None there, so the lookup was SKIPPED and the handler never ran: the
+    # check passed for the wrong reason, and a break that made the handler
+    # grant reach went undetected (falsifier F2). A raising double, plus a
+    # patched workspace resolver, is the only way the branch is observed.
+    # Patch on the MODULES the resolver imports from — it does its imports
+    # inside the function, so it re-reads the module attribute each call
+    # (patching a local alias would silently miss, which is a second way this
+    # check can pass without observing anything).
+    import services.workspace_context as _wc
+    import services.agent_connectors as _ac
+
+    class _Boom:
+        def table(self, *a, **k):
+            raise RuntimeError("connection lost")
+
+    def _raiser(*a, **k):
+        raise RuntimeError("opt-in store unavailable")
+
+    _real_eff = _wc.effective_workspace_id
+    _real_opt = _ac.opt_in_for
+    _wc.effective_workspace_id = lambda *a, **k: "ws-1"
+    _ac.opt_in_for = _raiser
+    try:
+        _raised = _r("slides", "/w/d.html", None, agent="editor", client=_Boom())
+        check("a RAISING opt-in lookup grants NO desk reach (fails closed)",
+              _raised[0] is False and _raised[1] is None,
+              f"got {_raised}")
+        # ...and open chat still works when the lookup dies: a broken store
+        # must not take away reach the member already had.
+        check("a raising lookup leaves open chat's reach intact",
+              _r(None, None, None, agent="editor", client=_Boom())[0] is True)
+    finally:
+        _wc.effective_workspace_id = _real_eff
+        _ac.opt_in_for = _real_opt
+finally:
+    os.environ.pop("TURN_REACH_ENABLED", None)
+
+# The unattended standing path must remain structurally unreachable: a scoped
+# being does not gain live credential reach in its cron-fired runs. That is a
+# clock PLUS a credential, which ADR-596 D2 houses on grants, not here.
+_derive_src = (ROOT / "services" / "derive_turn.py").read_text()
+check("the standing/derive path is toolless by construction",
+      "No tools" in _derive_src
+      and "lane_tools_openai" not in _derive_src)
+_strings_src = (ROOT / "services" / "strings.py").read_text()
+check("a strings run goes through the toolless derive path, not the lane",
+      "run_bounded_derive_turn" in _strings_src
+      and "lane_tools_openai" not in _strings_src)
 
 # ---------------------------------------------------------------------------
 print("4. the door fails closed")

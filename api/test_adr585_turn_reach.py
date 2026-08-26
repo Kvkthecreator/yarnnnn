@@ -77,7 +77,7 @@ from services.lane_runner import (  # noqa: E402
     lane_caller_identity,
     lane_tool_names,
     lane_tools_openai,
-    turn_has_reach,
+    resolve_turn_reach,
 )
 
 base = lane_tool_names()
@@ -98,19 +98,39 @@ check("2d the reach payload matches the reach allowlist (the D4 agreement)",
 print("§3 the principal-presence cut line")
 # ═════════════════════════════════════════════════════════════════════════════
 
+# ADR-612 D6 — `turn_has_reach` is deleted; `resolve_turn_reach` answers both
+# halves from one lookup. These checks keep their INTENT (the cut line: an app
+# binding does not reach BY DEFAULT) and are re-anchored to the live function.
+# `_reach_only` drives it with no agent, which is the shape-only question the
+# old function asked.
+def _reach_only(app, artifact_path, derive_recipe, agent=None):
+    return resolve_turn_reach(None, "u", None, app=app,
+                              artifact_path=artifact_path,
+                              derive_recipe=derive_recipe, agent=agent)[0]
+
+
 check("3a flag OFF → no reach even for the open chat turn",
-      not turn_has_reach(None, None, None))
+      not _reach_only(None, None, None))
 
 os.environ["TURN_REACH_ENABLED"] = "true"
 try:
     check("3b flag ON + open chat turn → reach",
-          turn_has_reach(None, None, None))
-    check("3c an app binding kills reach (apps are workspace-disciplined)",
-          not turn_has_reach("docs", None, None))
-    check("3d a bound artifact kills reach (Studio is an app surface)",
-          not turn_has_reach(None, "Documents/deck.html", None))
-    check("3e a derive recipe kills reach",
-          not turn_has_reach(None, None, "context-brief"))
+          _reach_only(None, None, None))
+    check("3c an app binding does not reach BY DEFAULT (unscoped)",
+          not _reach_only("docs", None, None))
+    check("3d a bound artifact does not reach BY DEFAULT (Studio is an app surface)",
+          not _reach_only(None, "Documents/deck.html", None))
+    check("3e a derive recipe does not reach BY DEFAULT",
+          not _reach_only(None, None, "context-brief"))
+    # ADR-612 D5 — the cut line MOVED, and the move is default-closed: a desk
+    # turn with an agent but NO recorded opt-in still does not reach. Only an
+    # explicit member scoping unlocks it (proven in test_adr612 against a real
+    # store; here the client is None, so the lookup fails closed — which is
+    # itself the property worth pinning: a broken lookup grants nothing).
+    check("3f D5: a desk turn with an agent but no opt-in still does not reach",
+          not _reach_only("text", "Documents/x.md", None, agent="editor"))
+    check("3g D5: a failed opt-in lookup grants no desk reach (fails closed)",
+          not _reach_only("slides", "d.html", None, agent="editor"))
 finally:
     os.environ.pop("TURN_REACH_ENABLED", None)
 
@@ -159,7 +179,7 @@ def _fn(name):
 for variant in ("run_lane_turn", "run_lane_turn_stream"):
     body = _fn(variant)
     src = ast.unparse(body)
-    # Re-anchored 2026-08-26 (ADR-612): both consumers still derive from the
+    # Re-anchored 2026-08-26 (ADR-612 D3, then D6): both consumers still derive from the
     # SAME `_reach` fact — that is the D4 invariant — but they now also carry
     # the per-being platform narrowing, resolved ONCE beside it. Pinning the
     # bare `(_reach)` spelling would have pinned the un-narrowed call and read
@@ -169,8 +189,8 @@ for variant in ("run_lane_turn", "run_lane_turn_stream"):
     # the declared-but-undispatchable bug this section exists to prevent).
     _payload = re.search(r"lane_tools_openai\(([^)]*)\)", src)
     _allow = re.search(r"lane_tool_names\(([^)]*)\)", src)
-    check(f"5a {variant}: tools + allowlist both derive from turn_has_reach",
-          "turn_has_reach(app, artifact_path, derive_recipe)" in src
+    check(f"5a {variant}: tools + allowlist both derive from ONE reach resolution",
+          "resolve_turn_reach(" in src
           and _payload is not None and _allow is not None
           and _payload.group(1).strip().startswith("_reach")
           and _allow.group(1).strip().startswith("_reach"))

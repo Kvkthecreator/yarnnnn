@@ -494,57 +494,83 @@ def _anthropic_to_openai_tool(tool: dict) -> dict:
     }
 
 
-def turn_has_reach(app: Optional[str], artifact_path: Optional[str],
-                   derive_recipe: Optional[str]) -> bool:
-    """Whether THIS turn carries the member's turn-reach surface (ADR-585).
+# `turn_has_reach` is DELETED (ADR-612 D5). It answered "does this turn reach?"
+# from the turn's SHAPE alone, which stopped being the whole question the
+# moment a member's opt-in could unlock a desk turn. Keeping it beside
+# `resolve_turn_reach` would leave two functions answering one question with
+# different answers — the Singular Implementation rule, and the precise shape
+# of the Scout bug this file's §5 discipline exists to prevent.
+#
+# `resolve_turn_reach` below returns BOTH halves from one lookup.
 
-    The principal-presence cut line, derived from the turn's own shape: only
-    the OPEN chat turn — no app binding, no bound artifact, no derive recipe —
-    is the member present, driving, wielding their own connections. App lanes
-    and derive turns are workspace-disciplined (landed files only), the same
-    as agents. Pure; both the tool assembly and the frame prose derive from
-    it with the same arguments, so they cannot disagree.
+
+def resolve_turn_reach(
+    client: Any,
+    user_id: str,
+    workspace_id: Optional[str],
+    *,
+    app: Optional[str],
+    artifact_path: Optional[str],
+    derive_recipe: Optional[str],
+    agent: Optional[str],
+) -> tuple[bool, Optional[tuple]]:
+    """The turn's WHOLE reach decision: (has_reach, platforms).
+
+    ADR-612 D3 + D5. ONE lookup answering both halves, because since D5 they
+    are the same question — the opt-in is what UNLOCKS a desk turn's reach, so
+    resolving "does this turn reach?" separately from "what may it reach?"
+    would read the same row twice and could disagree between the reads.
+
+    Returns:
+      (False, None)          — no reach at all.
+      (True,  None)          — reach, not scoped: every reachable platform.
+                               Open chat's behaviour, unchanged.
+      (True,  ("slack",))    — reach, scoped to exactly those.
+
+    `(True, ())` is unreachable and deliberately so: a being scoped to NO
+    platform has nothing to reach, so the turn does not carry the surface at
+    all rather than carrying an empty one. One state, not two.
+
+    Never raises. A lookup failure degrades to the PRE-D5 behaviour (open chat
+    reaches, desks do not) — never to a scope the member did not set, and
+    never to reach they did not grant.
     """
     from services.turn_reach import is_turn_reach_enabled
 
-    return (is_turn_reach_enabled()
-            and not app and not artifact_path and not derive_recipe)
+    if not is_turn_reach_enabled():
+        return (False, None)
 
+    is_open_chat = not app and not artifact_path and not derive_recipe
 
-def reach_platforms_for(client: Any, user_id: str, workspace_id: Optional[str],
-                        agent: Optional[str], turn_reach: bool) -> Optional[tuple]:
-    """The platforms THIS turn may reach, narrowed by the being's opt-in.
+    opt_in: Optional[list] = None
+    if agent:
+        try:
+            from services.agent_connectors import opt_in_for
+            from services.workspace_context import effective_workspace_id
 
-    ADR-612 D3. None = not scoped (every reachable platform) — the load-bearing
-    default: an opt-in that defaulted to "nothing" would silently strip tools
-    from every existing lane the day it deployed.
+            ws = effective_workspace_id(user_id, workspace_id)
+            if ws:
+                opt_in = opt_in_for(client, ws, user_id, agent)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[LANE] reach opt-in lookup failed for %s: %s",
+                           agent, exc)
+            opt_in = None
 
-    Resolved ONCE per turn and handed to the payload, the allowlist and the
-    frame prose, because ADR-585's rule is that all three derive from one
-    computation or they disagree and ship a lie (the Scout bug).
+    if opt_in is None:
+        # Not scoped. Open chat keeps its reach (ADR-585 D1); a desk turn has
+        # none — the default stays closed, and a member must ASK per being.
+        return (is_open_chat, None)
 
-    Never raises: a lookup failure degrades to "not scoped", never to
-    "nothing allowed" — a transient DB error must not look like a scope the
-    member never set.
-    """
-    if not turn_reach or not agent:
-        return None
-    try:
-        from services.agent_connectors import allowed_platforms, opt_in_for
-        from services.turn_reach import TURN_REACH_PLATFORMS
-        from services.workspace_context import effective_workspace_id
+    from services.agent_connectors import allowed_platforms
+    from services.turn_reach import TURN_REACH_PLATFORMS
 
-        ws = effective_workspace_id(user_id, workspace_id)
-        if not ws:
-            return None
-        opt_in = opt_in_for(client, ws, user_id, agent)
-        if opt_in is None:
-            return None
-        return allowed_platforms(TURN_REACH_PLATFORMS, opt_in)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[LANE] reach opt-in lookup failed for %s: %s",
-                       agent, exc)
-        return None
+    plats = allowed_platforms(TURN_REACH_PLATFORMS, opt_in)
+    if not plats:
+        # Scoped to nothing: no surface, in chat or at a desk. The member said
+        # this being reads through no connection, and that is honoured even
+        # where the turn would otherwise have reached.
+        return (False, ())
+    return (True, plats)
 
 
 def lane_tool_names(turn_reach: bool = False,
@@ -560,7 +586,7 @@ def lane_tool_names(turn_reach: bool = False,
     when the set varied per Agent, the variance itself was the bug surface
     (ADR-467 §1). This is the one computation all three read.
 
-    ADR-585: `turn_reach` (the `turn_has_reach` fact, derived per turn from
+    ADR-585: `turn_reach` (the reach fact from `resolve_turn_reach`, per turn
     the turn's own shape — never per Agent) appends the member's read-only
     platform reach surface. All three consumers derive it from the same
     turn facts, so the D4 agreement holds with the flag on or off.
@@ -966,12 +992,14 @@ def build_lane_conventions(
     # allowlist read, so the prose can never claim a surface the model wasn't
     # handed (the Scout bug's prose half). ADR-585: the reach fact re-derives
     # here from the SAME arguments run_lane_turn passed.
-    _reach = turn_has_reach(app, artifact_path, derive_recipe)
-    # ADR-612 D3 — the SAME narrowing the payload and allowlist got. Re-derived
-    # from the same arguments rather than passed, which is the ADR-585 rule
-    # this file already follows for `_reach` itself: two derivations from one
+    # ADR-612 D3/D5 — the SAME decision the payload and allowlist got,
+    # re-derived from the same arguments rather than passed: the ADR-585 rule
+    # this file already followed for `_reach`. Two derivations from one
     # function agree; two hand-maintained values drift (the Scout bug).
-    _reach_plats = reach_platforms_for(client, user_id, None, agent, _reach)
+    _reach, _reach_plats = resolve_turn_reach(
+        client, user_id, None,
+        app=app, artifact_path=artifact_path, derive_recipe=derive_recipe,
+        agent=agent)
     tools_line = " · ".join(lane_tool_names(_reach, _reach_plats))
 
     # ADR-585 / ADR-535 D3 — the connector edge, stated affirmatively either
@@ -1234,12 +1262,13 @@ async def run_lane_turn(
     # the declared-but-undispatchable bug class is unrepresentable.
     # ADR-585: the reach fact derives from the turn's own shape; the frame
     # prose re-derives it from the SAME arguments inside build_lane_conventions.
-    _reach = turn_has_reach(app, artifact_path, derive_recipe)
-    # ADR-612 D3 — resolved ONCE and handed to all three consumers below
-    # (payload, allowlist, and the frame prose via build_lane_conventions).
-    _reach_plats = reach_platforms_for(
+    # ADR-612 D3/D5 — ONE resolution of the turn's whole reach decision,
+    # handed to all three consumers below (payload, allowlist, and the frame
+    # prose via build_lane_conventions).
+    _reach, _reach_plats = resolve_turn_reach(
         auth.client, auth.user_id, getattr(auth, "workspace_id", None),
-        agent, _reach)
+        app=app, artifact_path=artifact_path, derive_recipe=derive_recipe,
+        agent=agent)
     tools = lane_tools_openai(_reach, _reach_plats)
     _allowed = lane_tool_names(_reach, _reach_plats)
     system = build_lane_conventions(
@@ -1456,12 +1485,13 @@ async def run_lane_turn_stream(
     # the declared-but-undispatchable bug class is unrepresentable.
     # ADR-585: the reach fact derives from the turn's own shape; the frame
     # prose re-derives it from the SAME arguments inside build_lane_conventions.
-    _reach = turn_has_reach(app, artifact_path, derive_recipe)
-    # ADR-612 D3 — resolved ONCE and handed to all three consumers below
-    # (payload, allowlist, and the frame prose via build_lane_conventions).
-    _reach_plats = reach_platforms_for(
+    # ADR-612 D3/D5 — ONE resolution of the turn's whole reach decision,
+    # handed to all three consumers below (payload, allowlist, and the frame
+    # prose via build_lane_conventions).
+    _reach, _reach_plats = resolve_turn_reach(
         auth.client, auth.user_id, getattr(auth, "workspace_id", None),
-        agent, _reach)
+        app=app, artifact_path=artifact_path, derive_recipe=derive_recipe,
+        agent=agent)
     tools = lane_tools_openai(_reach, _reach_plats)
     _allowed = lane_tool_names(_reach, _reach_plats)
     system = build_lane_conventions(
