@@ -50,12 +50,31 @@ function materializeFragment(doc: Document, fragment: string): Element | null {
   tpl.innerHTML = fragment.trim();
   const root = tpl.content.firstElementChild;
   if (!root) return null;
+  // Re-stamp what already carries identity. A copy that arrives WITHOUT it
+  // (a backgrounded page written before the pass-C narrowing in
+  // `normalizeStructure`) is not special-cased here: `serialize` runs that
+  // seam on the way out of every op, so both the original and the copy are
+  // stamped by the one mechanism that stamps every other page. A second
+  // minting site here would be a second answer to "who gives a page its id".
   const annotated = [
     ...(root.hasAttribute('data-block-id') ? [root] : []),
     ...Array.from(root.querySelectorAll('[data-block-id]')),
   ];
   annotated.forEach((el) => el.setAttribute('data-block-id', freshBlockId(doc)));
   return doc.importNode(root, true) as Element;
+}
+
+/** Is this element a citation ISLAND — an element whose identity IS the thing
+ *  it cites (a figure, a table, a chart)?
+ *
+ *  The one definition, because `data-ref` alone does not answer it. ADR-456 W3
+ *  put `data-ref` + `data-ref-kind="background"` on a PAGE to give it a cited
+ *  backdrop; that page is not an island, it is a page that happens to cite. An
+ *  island is never re-minted or restructured (ADR-511 D5 pass C, and the
+ *  ADR-448 reference edge lifts from `data-ref` untouched) — a backgrounded
+ *  page must be stamped like any other page. */
+function isCitationIsland(el: Element): boolean {
+  return el.hasAttribute('data-ref') && el.getAttribute('data-ref-kind') !== 'background';
 }
 
 /** ADR-511 Phase 2 — structural containers of a page, document order: divs
@@ -317,8 +336,10 @@ export function editBlockText(
  *    C. ID DISCIPLINE — unchanged from ADR-480 D3: a surviving id keeps its
  *       element; a duplicated id (native split) is kept by the FIRST in
  *       document order, later ones re-minted; an absent id is minted fresh;
- *       a citation island (`data-ref`) is never re-minted or restructured
- *       (the ADR-448 reference edge lifts from data-ref, untouched).
+ *       a citation ISLAND is never re-minted or restructured (the ADR-448
+ *       reference edge lifts from data-ref, untouched). An island is an
+ *       element whose identity IS its citation — see `isCitationIsland`; a
+ *       PAGE that merely cites a background is stamped like any other page.
  *
  *  Idempotent; content is never dropped; mutates `doc` in place. Returns the
  *  number of ids minted (0 = fully annotated already, the common case). */
@@ -423,7 +444,19 @@ export function normalizeStructure(doc: Document): number {
   // Document order matters for first-wins dedup; re-sort the merged set.
   subjects.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
   for (const el of subjects) {
-    if (el.hasAttribute('data-ref')) {
+    // A citation ISLAND keeps its identity in the citation — never re-minted.
+    // But `data-ref` says two different things since ADR-456 W3 gave a PAGE a
+    // cited background: on a block it means "this element IS the citation"; on
+    // a page it means "this page cites an image for its backdrop". Only the
+    // first is an island. Read the citation's KIND, not merely its presence.
+    //
+    // Un-narrowed, this skip made a backgrounded slide permanently unstampable
+    // — pages joined this pass at ADR-519 and inherited a rule written for
+    // blocks. An id-less page falls through `arrangedPageAt` to INDEX
+    // addressing, so every page op on it addressed a position rather than a
+    // slide, and `materializeFragment` (which re-stamps only what already has
+    // an id) propagated the condition to every duplicate.
+    if (isCitationIsland(el)) {
       const kept = el.getAttribute('data-block-id');
       if (kept) seen.add(kept);
       continue;
