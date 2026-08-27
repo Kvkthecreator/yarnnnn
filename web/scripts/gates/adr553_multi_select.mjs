@@ -251,6 +251,127 @@ t(
   (page.match(/const paths = selection;/g) || []).length >= 2,
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// D2 (EXTENDED 2026-08-27) — EVERY set-eligible verb takes the set.
+//
+// THE DEFECT THIS GATE EXISTS FOR, stated plainly: Move took the set and Move
+// to Trash did not. Right-clicking inside a nine-file selection and choosing
+// "Move to Trash" trashed the ONE row under the cursor and left the other eight
+// ringed. Operator-observed on a two-folder selection reading "(1 item)".
+//
+// Why the assertions below are DERIVED rather than a hand-spelled list of
+// verbs: a hand-kept list is exactly how this diverged in the first place. Move
+// got the branch in D2, Trash was never added, and nothing was watching the
+// GAP. So the check reads the verb bundle, partitions it into set-eligible and
+// single-only with a STATED reason for every exclusion, and requires each
+// set-eligible verb to consult the selection. A verb added tomorrow lands in
+// one bucket or the other and cannot be silently forgotten.
+const bundle = page.match(/const fileVerbs = useMemo\(\(\) => \(\{([\s\S]*?)\n  \}\), \[/);
+t('the verb bundle is readable', !!bundle);
+if (bundle) {
+  const body = bundle[1];
+  // The verbs that COULD act on a set, and the ones that provably cannot —
+  // each exclusion carrying its own reason, because "it doesn't take the set"
+  // is a claim that has to be justified per verb, not assumed.
+  const SET_ELIGIBLE = ['onMove', 'onDelete'];
+  const SINGLE_ONLY = {
+    onOpen: 'opening N files is N surfaces; the anchor opens',
+    onProperties: 'Properties reads ONE node by construction',
+    onRename: 'a set has no single new leaf',
+    onShare: 'ADR-529 D1 — the dialog names one artifact',
+    onDuplicate: 'an open scope decision (naming + attribution per copy)',
+    downloadFor: 'ADR-417 — no zip builder; the export door is the bulk lane',
+    onNewFolder: 'creates INSIDE one folder',
+    onOpenWith: 'a handler opens one file',
+    handlersFor: 'resolves one file kind',
+    extraItemsFor: 'the desk designates one leaf',
+    blastRadiusFor: 'a resolver, not a verb — asserted separately below',
+  };
+  // Every key in the bundle must be classified. An unclassified key is a verb
+  // nobody decided about, which is the state Trash was in.
+  const keys = [...body.matchAll(/^\s{4}(\w+)[:,]/gm)].map((m) => m[1]);
+  const unclassified = keys.filter(
+    (k) => !SET_ELIGIBLE.includes(k) && !(k in SINGLE_ONLY),
+  );
+  t(
+    'D2 [FALSIFIER]: every verb in the bundle is classified set-eligible or single-only',
+    keys.length > 0 && unclassified.length === 0,
+  );
+  if (unclassified.length) console.log('        unclassified: ' + unclassified.join(', '));
+
+  // The scope rule itself, per set-eligible verb. Asserted on the CONDITION —
+  // `selection.length > 1 && selection.includes(t.path)` — because that is the
+  // OS rule made executable: act on the set only when the row you hit is IN it.
+  for (const verb of SET_ELIGIBLE) {
+    const decl = body.match(
+      new RegExp(`${verb}: (?:async )?\\([^)]*\\)(?::[^=]*)? =>[\\s\\S]*?(?=\\n    \\w+[:,]|$)`),
+    );
+    t(
+      `D2 [FALSIFIER]: ${verb} consults the selection (the OS scope rule)`,
+      !!decl &&
+        /selection\.length > 1 && selection\.includes\(t\.path\)/.test(decl[0]),
+    );
+  }
+}
+
+// The set-taking Trash must exist as its own path in the hook — the peer of
+// commitMoveMany. Asserted on the same three properties D2 demands of the
+// mover, because a looping trash that lied about a partial would be the
+// incorrect-success shape the mover's own gate guards against.
+const trashMany = hook.match(/const commitTrashMany = useCallback\([\s\S]*?\n  \);/);
+t('D2: the set-taking Trash exists', !!trashMany);
+if (trashMany) {
+  t(
+    'D2 [FALSIFIER]: it reports which half landed (trashed AND failed)',
+    /trashed/.test(trashMany[0]) && /failed/.test(trashMany[0]),
+  );
+  t(
+    'D2 [FALSIFIER]: it is SEQUENTIAL — concurrent archives race the same way moves do',
+    /for \(const/.test(trashMany[0]) && !/Promise\.all/.test(trashMany[0]),
+  );
+  // ONE confirm for the whole set. Nine members must not raise nine modals —
+  // and the confirm must come BEFORE the loop, or it is a report, not a choice.
+  const confirmIdx = trashMany[0].indexOf('await confirm({\n        title: `Move ${eligible.length}');
+  const loopIdx = trashMany[0].indexOf('for (const t of eligible) {\n        try {');
+  t(
+    'D2 [FALSIFIER]: ONE confirm for the set, asked BEFORE anything moves',
+    confirmIdx > -1 && loopIdx > -1 && confirmIdx < loopIdx,
+  );
+  // The carve is NAMED before consent (the onDeleteFolder rule, applied to the
+  // set) and carried SEPARATELY from failures — a refused member did not fail.
+  t(
+    'D2 [FALSIFIER]: the carve is named before consent and is not reported as failure',
+    /locked/.test(trashMany[0]) &&
+      /managed by the system/.test(trashMany[0]) &&
+      /operatorCanOrganize/.test(trashMany[0]),
+  );
+  // onAfterMutate ONCE, at the end. Per-member it would clear the selection
+  // mid-loop (the surface's own EXIT-4 wiring) and reload the explorer N times.
+  t(
+    'D2 [FALSIFIER]: onAfterMutate fires ONCE, after the loop — not per member',
+    (trashMany[0].match(/onAfterMutate\?\.\(/g) || []).length === 1 &&
+      trashMany[0].lastIndexOf('onAfterMutate?.(') > loopIdx,
+  );
+}
+
+// The LABEL must count the act that will actually run. The defect the operator
+// saw was here: two folders selected, the label read "(1 item)" because the
+// resolver took ONE target. The label and the act agreed; both disagreed with
+// the highlight.
+const blast = page.match(/blastRadiusFor: async \([\s\S]*?\n    \},/);
+t('the blast-radius resolver exists', !!blast);
+if (blast) {
+  t(
+    'D2 [FALSIFIER]: the label counts the SET when the row is in one',
+    /selection\.length > 1 && selection\.includes\(t\.path\)/.test(blast[0]) &&
+      /for \(const p of selection\)/.test(blast[0]),
+  );
+  t(
+    'D2 [FALSIFIER]: a folder member is counted by its SUBTREE, not as one row',
+    /folderPreflight/.test(blast[0]),
+  );
+}
+
 // The set must be VISIBLE — a set the member cannot see they are in is the
 // ADR-541 D4 computed-never-mounted shape.
 //

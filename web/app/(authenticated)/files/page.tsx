@@ -1287,6 +1287,39 @@ export default function ContextPage() {
     [selection, organizeVerbs, clearSelection, toast],
   );
 
+  // TRASH THE GROUP — the reporting half of the set-taking Trash, and the peer
+  // of the drag-a-group / modal-Move reporting above (2026-08-27).
+  //
+  // The hook asks the one confirm and performs the loop; this composes the
+  // sentence, because the honest partial is the surface's to say and saying it
+  // in two places from the same numbers is how they drift. `locked` is carried
+  // separately from `failed`: a carved member did not FAIL, it was refused by
+  // design, and reporting it as a failure would read as a defect.
+  const trashSet = useCallback(
+    async (targets: { path: string; name: string; isFolder: boolean }[]) => {
+      const { trashed, failed, locked } = await organizeVerbs.commitTrashMany(targets);
+      if (!trashed.length && !failed.length) return; // declined at the confirm
+      clearSelection();
+      const lockedLine = locked
+        ? ` ${locked} managed by the system stayed where ${locked === 1 ? 'it is' : 'they are'}.`
+        : '';
+      if (failed.length) {
+        toast({
+          kind: 'error',
+          message: trashed.length
+            ? `Moved ${trashed.length} of ${targets.length} to Trash. ${failed.length} could not be moved.${lockedLine}`
+            : `Could not move ${failed.length} item${failed.length === 1 ? '' : 's'} to Trash.`,
+        });
+      } else {
+        toast({
+          kind: 'success',
+          message: `Moved ${trashed.length} item${trashed.length === 1 ? '' : 's'} to Trash.${lockedLine}`,
+        });
+      }
+    },
+    [organizeVerbs, clearSelection, toast],
+  );
+
   // ADR-529 D1: share OPENS THE DIALOG — it no longer mints on click.
   //
   // This used to be a one-click mint-and-copy with NO role parameter, so every
@@ -1343,8 +1376,37 @@ export default function ContextPage() {
       }
       openMove({ path: t.path, name: t.name, isFolder: !t.isFile });
     },
-    onDelete: (t: { path: string; name: string; isFile: boolean }) =>
-      handleTreeDelete({ path: t.path, name: t.name, isFolder: !t.isFile }),
+    // MOVE TO TRASH — the same scope rule as Move, and for the same reason
+    // (2026-08-27). Until this branch existed, Move took the set and Trash did
+    // not: right-clicking inside a nine-file selection trashed the ONE row
+    // under the cursor and left the other eight ringed. The set-taking Move's
+    // own comment states the principle in general terms — "verbs that ignore
+    // the set make the highlight decorative" — and it was applied to exactly
+    // one verb.
+    //
+    // The KIND travels per member, because a set can hold both and the two are
+    // different acts (a folder member is a fan-out over its subtree, a file
+    // member is one archive). Resolved from the tree, with the same synthetic
+    // fallback the rest of the surface uses for paths the virtual tree does not
+    // hold — except for the right-clicked row itself, which carries its own
+    // authoritative kind and must not be re-derived from its path shape (an
+    // extensionless FILE would otherwise be mistaken for a folder).
+    onDelete: (t: { path: string; name: string; isFile: boolean }) => {
+      if (selection.length > 1 && selection.includes(t.path)) {
+        const targets = selection.map((p) => {
+          if (p === t.path) return { path: p, name: t.name, isFolder: !t.isFile };
+          const n = resolveNodeByPath(virtualRoot, p) ?? syntheticNodeForPath(p);
+          return {
+            path: p,
+            name: n?.name ?? p.split('/').filter(Boolean).pop() ?? p,
+            isFolder: n?.type === 'folder',
+          };
+        });
+        void trashSet(targets);
+        return;
+      }
+      handleTreeDelete({ path: t.path, name: t.name, isFolder: !t.isFile });
+    },
     onShare: handleShare,
     // DOWNLOAD — save to the operator's computer (2026-08-20). It left the
     // preview header (`FileActions`) for the right-click menu, the
@@ -1418,14 +1480,43 @@ export default function ContextPage() {
     //
     // Same server-side enumeration the act performs (`enumerate_subtree`), so
     // the shown number and the performed number cannot drift.
-    blastRadiusFor: async (t: { path: string; isFile: boolean }) => {
-      if (t.isFile) return null;
-      try {
-        const r = await api.documents.folderPreflight(t.path);
-        return r.count;
-      } catch {
-        return null;
+    // THE SET COUNTS TOO (2026-08-27). When the right-clicked row is part of a
+    // multi-selection the label must name the act that will actually run — the
+    // whole set, folder members expanded to their subtrees. Before this it took
+    // ONE target, so two selected folders read "Move to Trash (1 item)": the
+    // label and the act agreed with each other and both disagreed with the
+    // highlight. Worse, the number was in a different UNIT than it looked —
+    // "(40 items)" was one folder's subtree while a second selected folder went
+    // uncounted.
+    //
+    // Sequential like the act itself, and best-effort throughout: a member
+    // whose preflight fails counts as 1 rather than collapsing the label, since
+    // the label is additive and never gates the verb.
+    blastRadiusFor: async (t: { path: string; name: string; isFile: boolean }) => {
+      const inSet = selection.length > 1 && selection.includes(t.path);
+      if (!inSet) {
+        if (t.isFile) return null; // one file is one item; "(1 item)" is noise
+        try {
+          const r = await api.documents.folderPreflight(t.path);
+          return r.count;
+        } catch {
+          return null;
+        }
       }
+      let total = 0;
+      for (const p of selection) {
+        const isFolder = p === t.path
+          ? !t.isFile
+          : (resolveNodeByPath(virtualRoot, p) ?? syntheticNodeForPath(p))?.type === 'folder';
+        if (!isFolder) { total += 1; continue; }
+        try {
+          const r = await api.documents.folderPreflight(p);
+          total += r.count;
+        } catch {
+          total += 1;
+        }
+      }
+      return total;
     },
     // ADR-514 D1: derive a sibling copy — the kernel names it and records the
     // derived_from edge, so trace on the copy walks back to this file.
@@ -1457,7 +1548,8 @@ export default function ContextPage() {
       }];
     },
   }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs,
-       handlersFor, openWith, openNewFolder, navigateToSurface, selection]);
+       handlersFor, openWith, openNewFolder, navigateToSurface, selection,
+       trashSet, virtualRoot, syntheticNodeForPath]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
   // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND

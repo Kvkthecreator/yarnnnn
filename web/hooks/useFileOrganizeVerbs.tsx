@@ -96,6 +96,15 @@ export interface FileOrganizeVerbs {
     fromPaths: string[],
     destFolder: string,
   ) => Promise<{ moved: string[]; failed: string[] }>;
+  /**
+   * Move a SET to Trash — the peer of `commitMoveMany` (ADR-553 D2, extended
+   * 2026-08-27). Confirms ONCE for the whole set, then reports which half
+   * landed. Takes the targets with their KIND, because the set can hold both
+   * and a folder member is a fan-out while a file member is one act.
+   */
+  commitTrashMany: (
+    targets: FileOrganizeTarget[],
+  ) => Promise<{ trashed: string[]; failed: string[]; locked: number }>;
 }
 
 export function useFileOrganizeVerbs(
@@ -381,6 +390,110 @@ export function useFileOrganizeVerbs(
     [carveGuard, confirm, runAction, onAfterMutate, onDeleteFolder],
   );
 
+  /**
+   * Move a SET to Trash (2026-08-27) — the peer `commitMoveMany` has had since
+   * ADR-553 D2, and the verb that was missing when Move got it.
+   *
+   * Until this existed, right-clicking inside a multi-selection and choosing
+   * "Move to Trash" trashed ONE file — the row under the cursor — while the
+   * other members stayed ringed. Move took the set and Trash did not, which is
+   * the "verbs that ignore the set make the highlight decorative" failure the
+   * Move path names in its own comment.
+   *
+   * A loop, deliberately, for the same reason `commitMoveMany` is one: the
+   * substrate has no bulk trash. `trash_folder` fans over a path PREFIX
+   * (ADR-588's folder shape), not an arbitrary set, so a set spanning two
+   * folders cannot be one call. What this adds over the loop is the three
+   * things a set owes the operator:
+   *
+   *   ONE CONFIRM, NOT N. Nine members must not raise nine modals. The confirm
+   *   is asked once, before anything moves, and it names the TRUE total — the
+   *   fan-out counts included, so selecting two folders holding 40 files says
+   *   40, not 2.
+   *
+   *   THE CARVE, NAMED BEFORE CONSENT. Same reasoning as `onDeleteFolder`: if
+   *   members are managed by the system they stay put, and the operator must
+   *   know that BEFORE agreeing rather than discovering a folder that is still
+   *   there afterwards.
+   *
+   *   THE HONEST PARTIAL. Trash is non-transactional per file, so a set can
+   *   half-land and the member must be told which half.
+   *
+   * Sequential, not parallel — N concurrent archive writes against one subtree
+   * race the same way the mover's do, and the loser's error would read as a
+   * random failure.
+   */
+  const commitTrashMany = useCallback(
+    async (targets: FileOrganizeTarget[]) => {
+      const trashed: string[] = [];
+      const failed: string[] = [];
+
+      // The carve, pre-empted for the SET rather than per member: a blocked
+      // member is dropped from the act and counted, never a modal per file.
+      const eligible = targets.filter((t) => operatorCanOrganize(t.path));
+      let locked = targets.length - eligible.length;
+      if (!eligible.length) {
+        const { title, body } = organizeBlockedReason(targets[0]?.path ?? '');
+        await confirm({ title, body, confirmLabel: 'OK', cancelLabel: '' });
+        return { trashed, failed, locked };
+      }
+
+      // The TRUE size of the act. A folder member contributes its subtree, not
+      // itself — the same server-side enumeration the act performs, so the
+      // number consented to is the number performed.
+      let total = 0;
+      let tooLarge: string | null = null;
+      for (const t of eligible) {
+        if (!t.isFolder) { total += 1; continue; }
+        try {
+          const pre = await api.documents.folderPreflight(t.path);
+          if (pre.too_large) { tooLarge = t.name; break; }
+          total += pre.count;
+          locked += pre.locked.length;
+        } catch {
+          total += 1; // the backend stays authoritative; consent is best-effort
+        }
+      }
+      if (tooLarge) {
+        await confirm({
+          title: `“${tooLarge}” is too large to move at once`,
+          body: 'This folder holds more items than a single action can move. Move some of its contents first.',
+          confirmLabel: 'OK',
+          cancelLabel: '',
+        });
+        return { trashed, failed, locked };
+      }
+
+      const lockedLine = locked
+        ? ` ${locked} item${locked === 1 ? ' is' : 's are'} managed by the system and will stay where ${locked === 1 ? 'it is' : 'they are'}.`
+        : '';
+      const ok = await confirm({
+        title: `Move ${eligible.length} item${eligible.length === 1 ? '' : 's'} to Trash?`,
+        body:
+          `${total} file${total === 1 ? '' : 's'} will move. `
+          + `They stay recoverable — you can restore them from Trash.${lockedLine}`,
+        confirmLabel: 'Move to Trash',
+        danger: true,
+      });
+      if (!ok) return { trashed, failed, locked };
+
+      for (const t of eligible) {
+        try {
+          if (t.isFolder) await api.documents.trashFolder(t.path);
+          else await api.documents.delete(t.path);
+          trashed.push(t.path);
+        } catch {
+          failed.push(t.name);
+        }
+      }
+      // ONCE, at the end — calling it per member would clear the selection
+      // mid-loop and reload the explorer N times.
+      if (trashed.length) onAfterMutate?.(null, trashed[0]);
+      return { trashed, failed, locked };
+    },
+    [confirm, onAfterMutate],
+  );
+
   const modals = (
     <>
       <MoveToFolderModal
@@ -408,5 +521,8 @@ export function useFileOrganizeVerbs(
     </>
   );
 
-  return { verbs: { onRename, onMove, onDelete, onDuplicate, commitMove, commitMoveMany }, modals };
+  return {
+    verbs: { onRename, onMove, onDelete, onDuplicate, commitMove, commitMoveMany, commitTrashMany },
+    modals,
+  };
 }
