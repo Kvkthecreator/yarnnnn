@@ -81,6 +81,26 @@ below-the-end only when there is no margin to hang in. **The selection is
 already highlighted; the door does not need to point at it, it needs to not
 cover it.**
 
+**Corrected again after the click-pass (2026-08-27) — the rule was right and
+its MEASUREMENT was wrong.** The margin test asked whether the door fits between
+the selection and the VIEWPORT edge. A viewport is far wider than a reading
+column, so that is true almost always — including when the space to the right is
+the rest of the member's own sentence. A short MID-LINE selection ("rewrite
+these three words", the commonest case) therefore placed the door *inside* the
+content every time: driven in production it covered "italic and code." in Text
+and the word "thesis" in Slides.
+
+The margin is the space outside the **CONTENT**, so the caller declares it —
+`contentLeft`/`contentRight` on the anchor, from the reading column (Text) and
+the artifact's own box (Slides). **Absent bounds the door claims NO margin** and
+goes below the selection: guessing is how it landed on the prose.
+
+Note this is the SAME defect as the paragraph above, rotated 90°. That fix
+corrected the selection's *box*; this one corrects what the box is *compared
+against*. Their passing cases overlap on a full-column selection, which is why
+the first read as complete. Detail:
+[the click-pass finding](../evaluations/2026-08-27-judged-gesture-click-pass-FINDING.md).
+
 ### D2 — The chip names the grain, and the chip is the contract
 
 A unified affordance must answer a question the two media answer differently:
@@ -183,4 +203,6 @@ place once the metered act leaves it. That is real deletion and wants its own
 scope, not a tail on this one. The reusable piece — the positioned
 selection-affordance — lands here so Slides adopts rather than re-invents it.
 
-Also owed: the browser click-pass of this Text half.
+Also owed: the browser click-pass of this Text half. **DONE 2026-08-27** — it
+confirmed D4 (the door claims no turn until Send) and D5 (the write lands only
+on the selection) live, and found the D1 margin defect corrected above.

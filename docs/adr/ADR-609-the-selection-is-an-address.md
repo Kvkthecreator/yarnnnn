@@ -119,9 +119,14 @@ describing the SECOND cut while implying the text ended at the first.
 
 ## 4. What is still owed
 
-- **A production receipt.** This is verified by gates and a clean build, not by
-  driving a Rewrite in the browser. The click-pass is owed, and per the eval
-  discipline it is what converts this from a read of the code to evidence.
+- ~~**A production receipt.**~~ **DONE 2026-08-27.** A Rewrite was driven end to
+  end on a real document: the anchored edit landed on the selected span alone
+  (`"A paragraph with bold,"` → `"A short paragraph with bold,"`) and left the
+  rest of the line untouched — D1's confinement, observed rather than argued.
+  The click-pass also falsified this ADR's own gate and found that D3's
+  anchor-handover checks were SOURCE GREPS that survive dead code; they are now
+  driven. See
+  [the finding](../evaluations/2026-08-27-judged-gesture-click-pass-FINDING.md).
 - **The ADR-579 D7 receipt turn** (diff/History) and the artifact-grain plan
   turn remain named-but-unbuilt: a judged artifact-wide update still lands with
   no preview or consent while ADR-589's page-grain re-arrange gets the ADR-479

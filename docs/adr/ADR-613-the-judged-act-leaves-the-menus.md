@@ -126,8 +126,30 @@ Green: 612 · 609 · 589 26/26 · 586 35/35 · 579 17/17 · 606 · 522 · 571 ·
 ratchets; `next build` exit 0. ADR-462's 4 remaining failures are **pre-existing
 at HEAD** (arrangement carry + frame labels), measured before and after.
 
-## 5. OWED
+## 5. The click-pass (2026-08-27) — DONE, and what it found
 
-The browser click-pass of this half — the Text half's two defects (a spinner
-claiming a turn that had not started, and a landing that never fired) were both
-found by driving, not by gates.
+Driven in production for the first time. **D1, D2, D4 and D5 all hold live**:
+the judged verbs are gone from the block menu, no `AI` badge survives there, the
+second-menu route reads like every other rung, and D4's noun/anchor agreement
+works exactly as specified — a BLOCK selection says *"Rewrite the heading
+block"* while a text RANGE inside that same block says *"Rewrite the
+selection"*. That is the ADR-373 D6 case this ADR set out to close, and it is
+closed.
+
+Three defects, none of them in the decisions above, all found by driving:
+
+1. **The gesture had no pending state in this app.** ADR-612 D4 was built for
+   Text and not carried here, so a member who clicked Rewrite and pressed Send
+   watched the door read "Rewrite" through the whole turn. Now wired the same
+   way — the click ARMS, the lane's `onSeededTurn` promotes armed → pending,
+   same guarded stuck-state release.
+2. **The door could open onto nothing.** It was mounted on `selRect` alone,
+   while `gestureTarget` (and `rewriteSelection`) need the rect AND the
+   selection — so a rect without a selection rendered a door wearing a fallback
+   noun that did nothing when clicked. The mount now requires the target, and
+   the fallback noun is deleted: it was the tell.
+3. **The door covered the text it was about to rewrite** — the shared ADR-612
+   D1 margin defect, corrected there and recorded in that ADR.
+
+Full record:
+[the click-pass finding](../evaluations/2026-08-27-judged-gesture-click-pass-FINDING.md).

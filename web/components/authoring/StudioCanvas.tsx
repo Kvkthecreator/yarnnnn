@@ -212,7 +212,14 @@ interface StudioCanvasProps {
    *  so this offsets by the iframe's page position with NO zoom multiply — the
    *  same mapping the context-menu bridge below explains at length. */
   onSelectionRect?: (
-    rect: { left: number; top: number; right: number; bottom: number } | null,
+    rect: {
+      left: number; top: number; right: number; bottom: number;
+      /** The ARTIFACT's horizontal bounds (the iframe's own box), so the door
+       *  can tell a margin from the middle of a heading. Measuring against the
+       *  viewport instead put the door on the word being rewritten — the
+       *  2026-08-27 driven fix; see SelectionGesture's header note. */
+      contentLeft: number; contentRight: number;
+    } | null,
     grain: string | null,
   ) => void;
   onSlashOpen?: (
@@ -731,6 +738,10 @@ export function StudioCanvas({
               top: (f?.top ?? 0) + (Number(r.top) || 0),
               right: (f?.left ?? 0) + (Number(r.right) || 0),
               bottom: (f?.top ?? 0) + (Number(r.bottom) || 0),
+              // The artifact's own box is the content bound. Same offset
+              // mapping, same no-zoom-multiply rule (ADR-613 D3).
+              contentLeft: f?.left ?? 0,
+              contentRight: f?.right ?? 0,
             },
             typeof d.grain === 'string' ? d.grain : null,
           );

@@ -1272,6 +1272,8 @@ export interface ProseCanvasHandle {
   selectionRect: () => {
     left: number; right: number; top: number; bottom: number;
     endLeft: number; endTop: number; endBottom: number;
+    /** The reading column's bounds — what "the margin" is measured against. */
+    contentLeft: number; contentRight: number;
   } | null;
   /** Select a source range and scroll it to the CENTRE of the viewport —
    *  how the member is put back where they were working (ADR-612 D5). */
@@ -1543,11 +1545,18 @@ export function ProseCanvas({
             // keeps the caret-union — narrower, never wrong.
           }
         }
+        // The READING COLUMN, so the door can tell a margin from the middle
+        // of a sentence. Without it a short mid-line selection reads as
+        // "there is room to the right" — and the room is the rest of the
+        // member's own line (ADR-612 D1, the 2026-08-27 driven fix).
+        const col = view.contentDOM.getBoundingClientRect();
         return {
           left, right, top, bottom,
           endLeft: b.left,
           endTop: b.top,
           endBottom: b.bottom,
+          contentLeft: col.left,
+          contentRight: col.right,
         };
       },
       scrollRangeIntoView: (from, to) => {

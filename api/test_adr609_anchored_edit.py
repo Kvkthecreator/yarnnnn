@@ -184,12 +184,36 @@ check("D2 LaneSeedRange is defined before use",
 
 # ── D3: the frame hands over the ADDRESS, not just the name ────────────────
 runner = read(API / "services" / "lane_runner.py")
+# DRIVEN, not grepped. The first version of these two checks searched the
+# module for the f-string SOURCE — which survives intact when the code around
+# it is dead. Falsified 2026-08-27: an early `return line` placed above the
+# whole D3 clause left both greps matching their own comments while no seed
+# line ever carried an anchor. Render the line and read what it SAYS.
+_seed_src = read(API / "services" / "lane_runner.py")
+_s0 = _seed_src.find("def _seed_line(")
+_s1 = _seed_src.find("\ndef ", _s0 + 1)
+check("D3 _seed_line is locatable", _s0 != -1 and _s1 > _s0,
+      "re-anchor this gate — the function moved or was renamed")
+_seed_ns: Dict[str, Any] = {"Optional": Optional, "Any": Any, "Dict": Dict}
+exec(compile(_seed_src[_s0:_s1], "lane_runner_seed_line", "exec"), _seed_ns)
+_seed_line = _seed_ns["_seed_line"]
+
+_ranged = _seed_line({"verb": "rewrite", "label": "selection",
+                      "excerpt": "A paragraph with bold,",
+                      "range": {"start": 22, "end": 44}})
 check("D3 a ranged gesture names its anchor",
-      "'start': {rng['start']}" in runner and "anchor=" in runner,
-      "the seed line must tell the colleague HOW to act on the target")
+      "anchor={'start': 22, 'end': 44}" in _ranged,
+      f"rendered: {_ranged!r}")
+_block = _seed_line({"verb": "rewrite", "label": "heading", "block_id": "b7",
+                     "excerpt": "The one-line thesis"})
 check("D3 a block gesture names its anchor",
-      "'block_id': '{bid}'" in runner,
-      "Slides' address must be actionable too")
+      "anchor={'block_id': 'b7'}" in _block,
+      f"rendered: {_block!r}")
+# The anchor is an ADDITION to the target sentence, never a replacement for it:
+# a colleague told only the address loses the noun it is acting on.
+check("D3 the anchor rides BESIDE the named target",
+      "this turn's target" in _ranged and "this turn's target" in _block,
+      "the address is handed over in addition to the gesture, not instead of it")
 
 authoring = read(API / "services" / "authoring.py")
 _DECK = '<html data-template="deck"><body><h1>T</h1></body></html>'

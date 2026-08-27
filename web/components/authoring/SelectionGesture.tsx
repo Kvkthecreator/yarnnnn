@@ -36,6 +36,27 @@
  * margin to hang in (a narrow viewport). The selection is highlighted; the
  * door does not need to point at it, it needs to not cover it.
  *
+ * ## What "the margin" is measured AGAINST (2026-08-27, driven)
+ *
+ * The rule above was right and its measurement was wrong. The first
+ * implementation asked whether the door fits between the selection's right
+ * edge and the VIEWPORT edge — which is true almost always, because a viewport
+ * is much wider than a reading column. So for a SHORT, MID-LINE selection (the
+ * commonest case: "rewrite these three words") the door was placed at
+ * `selection.right + gap` — squarely on the rest of the sentence.
+ *
+ * Driven in production it covered "italic and code." in Text and the word
+ * "thesis" in Slides. Same defect as the one this section already records,
+ * rotated 90°: the earlier fix corrected the selection's BOX, this one corrects
+ * what the box is compared against.
+ *
+ * The margin is the space outside the CONTENT — the reading column in Text, the
+ * slide's rendered box in Slides — so the caller passes `contentLeft` /
+ * `contentRight`. Without them the door has no way to tell a margin from the
+ * middle of a paragraph, and it must not guess: absent bounds it goes BELOW the
+ * selection rather than beside it, which covers a line the member is not
+ * reading instead of the one they are.
+ *
  * It renders and REPORTS. The mount owns what the gesture means.
  */
 
@@ -53,6 +74,14 @@ export interface SelectionAnchor {
   endLeft: number;
   endTop: number;
   endBottom: number;
+  /** The CONTENT's horizontal bounds in viewport coordinates — the reading
+   *  column (Text) or the rendered slide (Slides). The margin is measured
+   *  against THESE, never against the viewport: a viewport is far wider than a
+   *  column, so "it fits before the window edge" is true even when the space
+   *  is the rest of the member's own sentence. Omitted → no margin is claimed
+   *  and the door goes below the selection (see the header note). */
+  contentLeft?: number;
+  contentRight?: number;
 }
 
 /** Width reserved for the door when deciding whether the margin fits it. */
@@ -91,16 +120,28 @@ export function SelectionGesture({
     // a selection running off-screen still shows its door.
     const top = Math.max(GAP, Math.min(anchor.endTop, vh - DOOR_H - GAP));
 
-    // Preferred: the right margin, clear of the reading column.
-    if (anchor.right + GAP + DOOR_W < vw) {
-      return { left: anchor.right + GAP, top };
+    // The margin is OUTSIDE the content, not merely inside the window. A door
+    // that clears the viewport edge can still sit on the rest of the sentence
+    // — that was the defect (see the header note), and the content bounds are
+    // what tell the two apart. No bounds → claim no margin.
+    const cRight = anchor.contentRight;
+    const cLeft = anchor.contentLeft;
+    const haveBounds = typeof cRight === 'number' && typeof cLeft === 'number';
+
+    if (haveBounds) {
+      // Preferred: the right margin — beyond where the content ends, and only
+      // if the window still has room for the door there.
+      const right = Math.max(anchor.right, cRight as number) + GAP;
+      if (right + DOOR_W < vw) return { left: right, top };
+      // Then the left margin, on the far side of the content.
+      const left = Math.min(anchor.left, cLeft as number) - GAP - DOOR_W;
+      if (left > 0) return { left, top };
     }
-    // Then the left margin.
-    if (anchor.left - GAP - DOOR_W > 0) {
-      return { left: anchor.left - GAP - DOOR_W, top };
-    }
-    // No margin (narrow viewport): fall back to below the selection's end,
-    // clamped — it covers prose, but an unreachable door is worse.
+    // No margin to hang in (a narrow viewport, or a caller that declared no
+    // content bounds): fall back to below the selection's end, clamped. That
+    // covers a line, but it is a line BELOW what the member is reading rather
+    // than the remainder of their own sentence — and an unreachable door is
+    // worse than either.
     const below = anchor.endBottom + GAP;
     const flip = below + DOOR_H > vh;
     return {

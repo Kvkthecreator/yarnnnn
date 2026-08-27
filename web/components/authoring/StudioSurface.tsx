@@ -2449,12 +2449,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // pointer POINT (which ADR-612 D1 refuses) or nothing. The runtime posts the
   // visual box; StudioCanvas maps it to parent-page coordinates.
   const [selRect, setSelRect] = useState<{
-    rect: { left: number; top: number; right: number; bottom: number };
+    rect: {
+      left: number; top: number; right: number; bottom: number;
+      contentLeft: number; contentRight: number;
+    };
     grain: string | null;
   } | null>(null);
   const onSelectionRect = useCallback(
     (
-      rect: { left: number; top: number; right: number; bottom: number } | null,
+      rect: {
+        left: number; top: number; right: number; bottom: number;
+        contentLeft: number; contentRight: number;
+      } | null,
       grain: string | null,
     ) => setSelRect(rect ? { rect, grain } : null),
     [],
@@ -2482,8 +2488,29 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     };
   }, [selRect, selection]);
 
+  // ADR-612 D4 in THIS medium — the act says it is working, and cannot get
+  // stuck saying so. Slides shipped the gesture without this, so a member who
+  // clicked Rewrite and pressed Send watched the door sit there reading
+  // "Rewrite" while a turn ran unseen; the Text half had already established
+  // that vanishing (or silence) at the click makes the act feel like it went
+  // nowhere. The click only ARMS — a seed is not a turn (the member may still
+  // edit the intent, dismiss the chip, or never send) — and the lane's
+  // `onSeededTurn` is what promotes armed → pending.
+  const armedRewriteRef = useRef(false);
+  const [pendingRewrite, setPendingRewrite] = useState(false);
+  useEffect(() => {
+    if (!pendingRewrite) return;
+    // A turn that answers WITHOUT writing (a refusal, a question back, an
+    // error) must not leave the door saying "Rewriting…" for the session. The
+    // ceiling is generous on purpose: a stuck-state release, never a timeout
+    // on the turn itself.
+    const t = setTimeout(() => setPendingRewrite(false), 180_000);
+    return () => clearTimeout(t);
+  }, [pendingRewrite]);
+
   const rewriteSelection = useCallback(() => {
     if (!gestureTarget) return;
+    armedRewriteRef.current = true;
     seedComposer(`Rewrite ${gestureTarget.noun}: `, {
       verb: 'rewrite',
       path: artifactPath ? relPath(artifactPath) : null,
@@ -3796,11 +3823,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   every other floating door on this canvas: they all anchor off
                   the same surface, and two doors at one selection is a
                   collision, not a choice (the Text mount's rule). */}
-              {!slash && !citePicker && !updateMenu && !ctxMenu && (
+              {/* `gestureTarget` (not `selRect` alone) is the condition: it
+                  needs BOTH the rect and the selection, and `rewriteSelection`
+                  early-returns without it. Keyed on the rect alone the door
+                  rendered with a fallback label and did NOTHING when clicked —
+                  a door that opens onto nothing. */}
+              {!slash && !citePicker && !updateMenu && !ctxMenu && gestureTarget && (
                 <SelectionGesture
+                  pending={pendingRewrite}
                   anchor={
                     selRect
                       ? {
+                          // `...rect` carries contentLeft/contentRight too —
+                          // the door hangs beside the ARTIFACT, never on the
+                          // heading it is about to rewrite.
                           ...selRect.rect,
                           endLeft: selRect.rect.left,
                           endTop: selRect.rect.top,
@@ -3808,7 +3844,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                         }
                       : null
                   }
-                  label={gestureTarget?.noun ?? 'the selection'}
+                  label={gestureTarget.noun}
                   onClick={rewriteSelection}
                 />
               )}
@@ -4057,6 +4093,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 speakerLabel={laneLabel}
                 onArtifactWrite={onArtifactWrite}
                 composerSeed={seed}
+                // ADR-612 D4 — only the lane knows a SEEDED turn actually went
+                // up; the click cannot infer it (see armedRewriteRef above).
+                onSeededTurn={(running) => {
+                  if (running) {
+                    if (!armedRewriteRef.current) return;
+                    setPendingRewrite(true);
+                    armedRewriteRef.current = false;
+                  } else {
+                    setPendingRewrite(false);
+                  }
+                }}
                 // ADR-443: the canvas (center) IS the artifact view — suppress
                 // the transcript's inline ArtifactCard so the lane doesn't render
                 // the very thing we're looking at twice. The authoring trail lives
