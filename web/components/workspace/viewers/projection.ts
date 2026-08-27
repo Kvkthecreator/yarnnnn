@@ -1691,8 +1691,29 @@ const POINTER_SCRIPT = `
     var t = e.target;
     if (t && t.closest && t.closest('.yarnnn-fmt')) return;
     var id = blk.getAttribute('data-block-id');
-    if (!id) return;
     var mod = e.metaKey || e.ctrlKey;
+
+    // A selected PAGE is a subject too. The click ladder's miss-branch and the
+    // Esc-walk both select a page, and the parent has had the verb for it all
+    // along (handlePageVerb -> deletePage) — but the only entrance was the
+    // Design tab, and this handler returned early on the missing block id. So
+    // a member who framed a slide and pressed Delete got SILENCE: the object
+    // grain refused a subject it had genuinely selected.
+    //
+    // The page is addressed the way every page op addresses one — by index,
+    // via the same slideIndexOf/pageIndexOf the pointer already reports — so
+    // this is a door to the existing verb, never a second delete path.
+    if (!mod && (e.key === 'Delete' || e.key === 'Backspace') && blk.matches(PAGE_SEL)) {
+      e.preventDefault();
+      parent.postMessage({
+        type: 'yarnnn-key-verb',
+        verb: 'delete',
+        slideIndex: slideIndexOf(blk),
+        pageIndex: pageIndexOf(blk),
+      }, '*');
+      return;
+    }
+    if (!id) return;
 
     // Delete / Backspace on a SELECTED block removes it. With a live caret in
     // a block that still has text, caretOwnsKeyIn() has already handed the key

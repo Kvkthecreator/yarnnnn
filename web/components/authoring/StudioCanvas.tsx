@@ -176,6 +176,14 @@ interface StudioCanvasProps {
    *  sandboxed iframe — keys land in its document or nowhere — so the runtime
    *  hears them and posts an existing verb out. Never a new op. */
   onKeyVerb?: (verb: 'copy' | 'paste' | 'duplicate' | 'delete' | 'up' | 'down', blockId: string) => void;
+  /** The PAGE grain's keyboard. A selected page carries no block id — it is
+   *  addressed by index, the way every page op addresses one — so it cannot
+   *  ride `onKeyVerb`. Routes to the page verb the pane already calls. */
+  onPageKeyVerb?: (
+    verb: 'delete',
+    slideIndex: number | null,
+    pageIndex: number | null,
+  ) => void;
   /** ⌘Z / ⌘⇧Z from the runtime (fired only when no text caret is live — see
    *  projection.ts). The parent owns the snapshot stack; these just ask. */
   onUndo?: () => void;
@@ -322,6 +330,7 @@ export function StudioCanvas({
   onGroup,
   onContextMenu,
   onKeyVerb,
+  onPageKeyVerb,
   onUndo,
   onRedo,
   onSplitBlock,
@@ -682,6 +691,15 @@ export function StudioCanvas({
         onGroup?.((d.blockIds as unknown[]).filter((b): b is string => typeof b === 'string'));
       } else if (d.type === 'yarnnn-key-verb' && typeof d.blockId === 'string') {
         onKeyVerb?.(d.verb as 'copy' | 'paste' | 'duplicate' | 'delete' | 'up' | 'down', d.blockId);
+      } else if (d.type === 'yarnnn-key-verb' && d.blockId === undefined) {
+        // The PAGE grain carries no block id — a page is addressed by index,
+        // the way every page op addresses one. Same message, same verb, the
+        // existing page verb on the other side (never a second delete path).
+        onPageKeyVerb?.(
+          d.verb as 'delete',
+          typeof d.slideIndex === 'number' ? d.slideIndex : null,
+          typeof d.pageIndex === 'number' ? d.pageIndex : null,
+        );
       } else if (d.type === 'yarnnn-undo') {
         onUndo?.();
       } else if (d.type === 'yarnnn-redo') {

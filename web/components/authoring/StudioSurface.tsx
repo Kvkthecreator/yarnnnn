@@ -2205,6 +2205,32 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [applyOp, anchor, template, onPointClear],
   );
+  // The PAGE grain's keyboard — a third entrance to `deletePage`, never a
+  // second implementation (the ADR-511 D5 shape the block verbs already use).
+  //
+  // The gap this closes: the click ladder's miss-branch and the Esc-walk both
+  // SELECT a page, but the runtime's key handler returned early on the missing
+  // block id, and the parent's only entrance to the page verb was the Design
+  // tab. So a member who framed a slide and pressed Delete got silence — the
+  // gesture the medium advertises, refused without a word.
+  //
+  // Takes the indices the runtime REPORTED rather than reading the ambient
+  // anchor: the anchor is the same page today, but a verb that addresses "the
+  // page the keystroke was about" must say so, not infer it from surrounding
+  // state that another gesture could move first.
+  const handlePageKeyVerb = useCallback(
+    (verb: 'delete', slideIndex: number | null, pageIndex: number | null) => {
+      if (verb !== 'delete') return;
+      if (slideIndex == null && pageIndex == null) return;
+      const noun = template === 'deck' ? 'slide' : 'section';
+      void applyOp(
+        (html) => deletePage(html, { blockId: null, slideIndex, pageIndex }),
+        `${app.label}: delete ${noun}`,
+      );
+      onPointClear();
+    },
+    [applyOp, template, onPointClear],
+  );
   // The design-system Apply/Remove (ADR-449 D5 homed): resolve the composed
   // MARKED skin element server-side, land it as ONE mechanical revision.
   const handleApplyDesignSystem = useCallback(
@@ -3775,6 +3801,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   setCtxMenu(t);
                 }}
                 onKeyVerb={handleKeyVerb}
+                onPageKeyVerb={handlePageKeyVerb}
                 onUndo={handleUndo}
                 onRedo={handleRedo}
                 onSplitBlock={handleSplitBlock}
