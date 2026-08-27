@@ -41,6 +41,14 @@ export function SpotlightCard({
   // Disable the spotlight on touch devices (no hover, wastes cycles) and under
   // prefers-reduced-motion (the card then renders as a calm static surface — per the
   // interaction design spec §2, motion degrades to its final state).
+  // This read runs during RENDER and is therefore false on the server and
+  // (often) true on the client — the same shape as the ShaderCanvas hydration
+  // bug of 2026-08-27. It is safe here for exactly one reason: `isTouchDevice`
+  // only ever picks `undefined` vs a handler for the three mouse props below,
+  // and event props emit no HTML, so React reconciles the difference silently.
+  // The moment it reaches a className, a style, or a conditional element, it
+  // becomes React #418 on every marketing route this card appears on — move it
+  // into a mount effect first.
   const isTouchDevice =
     typeof window !== "undefined" &&
     (window.matchMedia("(pointer: coarse)").matches ||
