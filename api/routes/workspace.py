@@ -685,7 +685,9 @@ async def get_workspace_tree(
         result = (
             auth.client.table("workspace_files")
             .select(
-                "path, updated_at, summary, content_type, "
+                # head_version_id rides along so an image child can have its
+                # serving URL MINTED below (ADR-427 D4 — never stored).
+                "path, updated_at, summary, content_type, head_version_id, "
                 "workspace_file_versions!head_version_id(authored_by, created_at)"
             )
             .eq(*_substrate_scope_filter(auth))
@@ -741,6 +743,29 @@ async def get_workspace_tree(
                 row["revision_at"] = embed["created_at"]
             else:
                 row["revision_at"] = row.get("updated_at")
+
+        # Thumbnails for the folder LISTING (2026-08-27). Until now a file tile
+        # in the folder view could never draw a real preview — the tile's
+        # thumbnail path was complete but the tree served no `content_url`, so
+        # every photo fell to the format glyph even when its bytes were healthy.
+        # (`content_url` on the row is NULL for CAS-backed binaries by contract:
+        # ADR-427 D4 mints the capability at read and never stores it.)
+        #
+        # SCOPED TO THE IMMEDIATE CHILDREN, deliberately. This endpoint serves a
+        # whole subtree (up to 500 rows) and the Files explorer fetches several
+        # roots in parallel, so minting every image underneath would sign
+        # hundreds of URLs the operator never looks at — a real cost on every
+        # root load, paid for pixels nobody sees. The listing draws one folder's
+        # direct children; those are what get a URL.
+        depth = len(root.rstrip("/").split("/"))
+        direct = [
+            r for r in rows
+            if len(r.get("path", "").rstrip("/").split("/")) == depth + 1
+        ]
+        for path, url in mint_thumb_urls(auth.client, direct).items():
+            by_path_row = next((r for r in rows if r.get("path") == path), None)
+            if by_path_row is not None:
+                by_path_row["content_url"] = url
 
         # Build tree from flat paths
         tree = _build_tree(rows, root)
@@ -2488,6 +2513,72 @@ def _is_authored_substrate_path(path: str) -> bool:
     return True
 
 
+def mint_thumb_urls(client, rows: list[dict]) -> dict[str, str]:
+    """Mint serving URLs for the IMAGE rows in `rows`, keyed by path.
+
+    ADR-427 D4: a binary's serving capability is MINTED AT READ, never stored —
+    so `workspace_files.content_url` is NULL for every CAS-backed image and a
+    listing that just forwards the column can never draw a thumbnail. The
+    per-file door (`GET /workspace/file`) already mints; a LISTING has to do the
+    same thing for many rows, which is what this is.
+
+    Two round-trips regardless of how many files (never N+1): one to join the
+    head revisions to their blobs, one mint per distinct sha. Restricted to
+    IMAGES — the only kind a tile can actually draw, so a listing of 30 PDFs
+    mints nothing.
+
+    Best-effort by contract: a failure returns fewer entries and the tile falls
+    to its format glyph. A preview is an enrichment; it must never be able to
+    fail a listing.
+    """
+    want = {
+        r["path"]: r["head_version_id"]
+        for r in rows
+        if r.get("head_version_id")
+        and (r.get("content_type") or "").startswith("image/")
+        # SVG markup lives in the text column and is drawn inline by the tile —
+        # it has no blob to mint (and `svg_text` already carries it).
+        and r.get("content_type") != "image/svg+xml"
+    }
+    if not want:
+        return {}
+    try:
+        blobs = (
+            client.table("workspace_file_versions")
+            .select("id, blob_sha, workspace_blobs(storage_key)")
+            .in_("id", list(want.values()))
+            .execute()
+        ).data or []
+        sha_by_id = {
+            b["id"]: b["blob_sha"]
+            for b in blobs
+            if isinstance(b.get("workspace_blobs") or {}, dict)
+            and (b.get("workspace_blobs") or {}).get("storage_key")
+        }
+        if not sha_by_id:
+            return {}
+        from services.storage_backend import get_storage_backend
+        from services.supabase import get_service_client
+
+        backend = get_storage_backend(get_service_client())
+        # One mint per DISTINCT sha — the CAS is content-addressed, so the same
+        # image at two paths is one blob and must not be signed twice.
+        minted: dict[str, Optional[str]] = {}
+        out: dict[str, str] = {}
+        for path, head_id in want.items():
+            sha = sha_by_id.get(head_id)
+            if not sha:
+                continue
+            if sha not in minted:
+                minted[sha] = backend.mint_serving_url(sha, expires_in=3600)
+            if minted[sha]:
+                out[path] = minted[sha]
+        return out
+    except Exception as exc:  # noqa: BLE001 — a preview never fails a listing
+        logger.warning("[WORKSPACE_API] thumbnail mint failed: %s", exc)
+        return {}
+
+
 def _thumb_preview(path: str, summary: Optional[str], content: Optional[str]) -> Optional[str]:
     """A short text snippet for an Explorer icon-view text tile (2026-07-02).
 
@@ -2584,6 +2675,10 @@ async def get_recent_revisions(
         # the Explorer icon view renders real content, not a generic glyph.
         candidate_paths = list(latest_by_path.keys())
         live: dict[str, dict] = {}
+        # Initialized BESIDE `live`, not inside the branch that fills it: an
+        # empty workspace skips that branch entirely, and a name defined only
+        # under the `if` would NameError on the emit loop below.
+        thumb_urls: dict[str, str] = {}
         if candidate_paths:
             # A file in Trash KEEPS its `workspace_files` row (delete is a
             # lifecycle transition, ADR-337 D2), so "the revision resolves a
@@ -2594,13 +2689,25 @@ async def get_recent_revisions(
             existing = (
                 live_files_filter(
                     auth.client.table("workspace_files")
-                    .select("path, content_url, content_type, summary, content")
+                    .select(
+                        "path, content_url, content_type, summary, content, "
+                        # head_version_id rides along so the image rows can have
+                        # a serving URL MINTED (ADR-427 D4 — never stored, so
+                        # content_url is NULL for every CAS-backed image and
+                        # forwarding it alone drew a glyph for every photo).
+                        "head_version_id"
+                    )
                 )
                 .eq(*_substrate_scope_filter(auth))
                 .in_("path", candidate_paths)
                 .execute()
             )
             live = {r["path"]: r for r in (existing.data or [])}
+            # The image rows get a freshly-minted, TTL'd serving URL. Without
+            # this every photo in Recents rendered as the generic format glyph
+            # while its bytes sat in the CAS — the tile's thumbnail path was
+            # complete and simply never fed (operator-observed, 2026-08-27).
+            thumb_urls = mint_thumb_urls(auth.client, list(live.values()))
 
         # Emit in recency order (dict preserves insertion = created_at desc),
         # live files only, trimmed to limit.
@@ -2622,7 +2729,7 @@ async def get_recent_revisions(
                     authored_by=row.get("authored_by"),
                     message=row.get("message"),
                     created_at=row.get("created_at"),
-                    content_url=f.get("content_url"),
+                    content_url=thumb_urls.get(path) or f.get("content_url"),
                     content_type=f.get("content_type"),
                     preview=_thumb_preview(path, f.get("summary"), content_val),
                     svg_text=svg_text,
@@ -3185,6 +3292,14 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
             "updated_at": row.get("revision_at") or row.get("updated_at"),
             "summary": row.get("summary"),
             "authored_by": row.get("authored_by"),
+            # Preview material for the icon-view tile (2026-08-27). Both fields
+            # or neither: the tile picks its lane by `content_type` and draws
+            # from `content_url`, so serving the URL without the type leaves the
+            # thumbnail unreachable. `content_url` is None for everything the
+            # tree did not mint (text, folders, an unminted binary) — the tile
+            # falls to its format glyph exactly as before.
+            "content_type": row.get("content_type"),
+            "content_url": row.get("content_url"),
         })
 
     # Build parent→children relationships
