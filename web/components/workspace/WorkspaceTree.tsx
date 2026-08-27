@@ -27,9 +27,15 @@
  * The consequence is deliberate and correct: THE TREE CAN NO LONGER OPEN A
  * FILE AT ALL. The centre pane is the only route to a document.
  *
- * The one highlight this pane draws follows `viewPath` — whichever folder the
- * centre pane is currently showing. It is a "you are here", not a selection;
- * nothing here is pickable, so there is nothing for a second treatment to say.
+ * The one highlight this pane draws follows the centre pane — whichever folder
+ * it is currently standing in. It is a "you are here", not a selection; nothing
+ * here is pickable, so there is nothing for a second treatment to say.
+ *
+ * "Standing in" is the load-bearing phrase, and it is NOT `viewPath` verbatim:
+ * the centre pane can be showing a FILE, and this pane has no file rows. The
+ * incoming path is resolved to its containing folder ONCE (`containingFolder`)
+ * and the highlight + the auto-expand both read that one answer — see the note
+ * there for the defect that made it necessary.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -49,7 +55,13 @@ interface WorkspaceTreeProps {
    * would take folders' file children away from those consumers too.
    */
   nodes: WorkspaceTreeNode[];
-  /** What the centre pane is SHOWING — rendered as the "you are here" row. */
+  /**
+   * What the centre pane is SHOWING — a folder OR A FILE. Both are accepted
+   * deliberately: the caller holds one `viewPath` for both kinds, and making it
+   * pre-resolve the folder would put the tree's own rendering rule in the
+   * surface. This pane resolves it (`containingFolder`) and points at the
+   * folder that path lives in.
+   */
   viewPath?: string;
   /**
    * Navigate the centre pane to this folder. No event, no modifiers: a tree
@@ -108,8 +120,42 @@ function foldersOnly(nodes: WorkspaceTreeNode[] | undefined): WorkspaceTreeNode[
     .map((n) => ({ ...n, children: foldersOnly(n.children) }));
 }
 
+/**
+ * The FOLDER the tree should point at, for any `viewPath` (2026-08-27).
+ *
+ * `viewPath` is whatever the centre pane is showing — a folder OR A FILE. This
+ * pane renders folders only, so a file path matched no node, and BOTH halves of
+ * "you are here" silently went false: the row stopped highlighting AND the
+ * branch stopped revealing itself. Open a file and the tree forgot where you
+ * were standing (operator-observed: "sometimes its highlight, other times its
+ * not").
+ *
+ * Resolved ONCE, here, so the highlight and the auto-expand cannot answer that
+ * question differently again — they were already inconsistent (`===` vs an
+ * ancestor walk), which is how one pane came to hold two ideas of where it was.
+ *
+ * A folder path resolves to itself: `/w/a/b` has no live row at `/w/a/b` unless
+ * it is a file, and the tree's own nodes are the authority on which it is. So
+ * the trim happens only when the path is NOT a folder in this tree.
+ */
+function containingFolder(
+  nodes: WorkspaceTreeNode[],
+  viewPath: string | undefined,
+): string | undefined {
+  if (!viewPath) return undefined;
+  if (findNodeByPath(nodes, viewPath)) return viewPath; // already a folder here
+  const parent = viewPath.slice(0, viewPath.lastIndexOf('/'));
+  return parent || undefined;
+}
+
 export function WorkspaceTree({ nodes, viewPath, onNavigate, verbs, onMoveByDrag, onDropFiles, canOrganize }: WorkspaceTreeProps) {
   const folderNodes = useMemo(() => foldersOnly(nodes), [nodes]);
+  // What the tree points at: the folder the centre pane is standing in, which
+  // is the containing folder when the pane is showing a FILE.
+  const shownFolder = useMemo(
+    () => containingFolder(folderNodes, viewPath),
+    [folderNodes, viewPath],
+  );
   // ADR-400 Wave B: which folder path is the current drag-over drop target
   // (for the highlight). Lifted here so only one row highlights at a time.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -176,7 +222,7 @@ export function WorkspaceTree({ nodes, viewPath, onNavigate, verbs, onMoveByDrag
           key={node.path}
           node={node}
           depth={0}
-          viewPath={viewPath}
+          shownFolder={shownFolder}
           onNavigate={onNavigate}
           onContextMenu={onNodeContextMenu}
           dnd={dnd}
@@ -200,7 +246,9 @@ interface DndBundle {
 interface TreeItemProps {
   node: WorkspaceTreeNode;
   depth: number;
-  viewPath?: string;
+  /** The FOLDER the centre pane is standing in — already resolved from a
+   *  file path by `containingFolder`, so this is always a folder or absent. */
+  shownFolder?: string;
   onNavigate: (node: WorkspaceTreeNode) => void;
   onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
   dnd?: DndBundle;
@@ -219,14 +267,14 @@ const DRAG_MIME = TILE_DRAG_MIME;
 // Files page (a virtual /explorer/ handle).
 const SYSTEM_FILES_NODE_PATH = '/explorer/system-files';
 
-function TreeItem({ node, depth, viewPath, onNavigate, onContextMenu, dnd }: TreeItemProps) {
+function TreeItem({ node, depth, shownFolder, onNavigate, onContextMenu, dnd }: TreeItemProps) {
   // Auto-expand the first level — EXCEPT the "System files" fold, which stays
   // collapsed (it's the hidden residue; the operator opens it deliberately).
   const [expanded, setExpanded] = useState(
     depth < 1 && node.path !== SYSTEM_FILES_NODE_PATH,
   );
   // The ONE state this pane draws: is the centre pane standing in this folder.
-  const isShown = viewPath === node.path;
+  const isShown = shownFolder === node.path;
   // A folder with only file children has no branch to unfold — draw no
   // disclosure chevron for it, so the affordance never promises a fold that
   // isn't there.
@@ -277,13 +325,13 @@ function TreeItem({ node, depth, viewPath, onNavigate, onContextMenu, dnd }: Tre
     : {};
 
   // Reveal the branch that holds what the pane is showing — a deep-link, an
-  // upload landing, a just-created folder. Keyed on `viewPath`: the tree
+  // upload landing, a just-created folder. Keyed on the RESOLVED folder: the tree
   // follows the centre pane, which is the whole relationship between the two.
   useEffect(() => {
-    if (viewPath && nodeContainsPath(node, viewPath)) {
+    if (shownFolder && nodeContainsPath(node, shownFolder)) {
       setExpanded(true);
     }
-  }, [node, viewPath]);
+  }, [node, shownFolder]);
 
   // ONE GESTURE, ONE MEANING. A single click on a folder row NAVIGATES the
   // centre pane to that folder AND unfolds its branch. Both, always, from the
@@ -335,7 +383,7 @@ function TreeItem({ node, depth, viewPath, onNavigate, onContextMenu, dnd }: Tre
               key={child.path}
               node={child}
               depth={depth + 1}
-              viewPath={viewPath}
+              shownFolder={shownFolder}
               onNavigate={onNavigate}
               onContextMenu={onContextMenu}
               dnd={dnd}

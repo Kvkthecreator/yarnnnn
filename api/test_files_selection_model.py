@@ -402,6 +402,92 @@ def run() -> int:
         "source === 'tree'" not in page and "'tree' | 'listing'" not in page,
     )
 
+    # 10f. "YOU ARE HERE" SURVIVES OPENING A FILE (2026-08-27).
+    #
+    # THE DEFECT: `viewPath` is whatever the centre pane shows — a folder OR A
+    # FILE — and this pane renders folders only. The highlight was `viewPath ===
+    # node.path`, so a file path matched nothing and the row stopped
+    # highlighting; the auto-expand walked tree nodes for the same path and also
+    # went false, so the branch stopped revealing itself too. Open a file and
+    # the tree forgot where you were standing (operator-observed: "sometimes its
+    # highlight, other times its not").
+    #
+    # DRIVEN, NOT GREPPED. The invariant is behavioural — a file and its folder
+    # must produce the SAME tree state — and a grep for `containingFolder`
+    # passes whether or not the function is correct. So the real functions are
+    # lifted out of the source and executed. (A prior gate in this codebase
+    # passed vacuously for exactly this reason; the executing form is the fix.)
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+
+    if shutil.which("node"):
+        fns = []
+        for name in ("foldersOnly", "findNodeByPath", "containingFolder", "nodeContainsPath"):
+            m = re.search(
+                rf"^function {name}\(.*?^\}}", tree, re.DOTALL | re.MULTILINE
+            )
+            if m:
+                fns.append(m.group(0))
+        # Transpiled by the REAL COMPILER, not by stripping types with a regex.
+        # Two hand-rolled strips were tried here and both mangled the source: a
+        # per-type list stopped matching the moment a signature changed, and a
+        # general `: Type` pattern ate the object literal `children:
+        # foldersOnly(...)` — a property colon is not a type annotation, and a
+        # regex cannot tell them apart. A probe that fails to PARSE reports as a
+        # product defect, which is worse than no probe.
+        src = "\n".join(fns)
+        probe = src + """
+const raw=[{name:'m',path:'/w/m',type:'folder',children:[
+  {name:'assets',path:'/w/m/assets',type:'folder',children:[
+    {name:'a.png',path:'/w/m/assets/a.png',type:'file',children:[]}]}]}];
+const t=foldersOnly(raw);
+const state=(vp)=>{const sf=containingFolder(t,vp);const hi=[],ex=[];
+  const walk=(ns)=>ns.forEach(n=>{if(sf===n.path)hi.push(n.path);
+    if(sf&&nodeContainsPath(n,sf))ex.push(n.path);walk(n.children||[]);});
+  walk(t);return {hi,ex};};
+console.log(JSON.stringify({
+  folder: state('/w/m/assets'),
+  file:   state('/w/m/assets/a.png'),
+  none:   state(undefined),
+}));
+"""
+        tsc = os.path.join(_WEB, "node_modules", ".bin", "tsc")
+        with tempfile.TemporaryDirectory() as td:
+            ts_path = os.path.join(td, "probe.ts")
+            with open(ts_path, "w") as fh:
+                fh.write("type WorkspaceTreeNode = any;\n" + probe)
+            subprocess.run(
+                [tsc, "--target", "es2020", "--module", "esnext",
+                 "--moduleResolution", "bundler", ts_path],
+                capture_output=True, text=True, timeout=90,
+            )
+            js_path = os.path.join(td, "probe.js")
+            out = subprocess.run(
+                ["node", js_path], capture_output=True, text=True, timeout=30
+            )
+        got = json.loads(out.stdout or "{}") if out.returncode == 0 else {}
+        passed &= _check(
+            "10f. opening a FILE points the tree at its folder (highlight AND expand)",
+            bool(got)
+            and got["file"]["hi"] == ["/w/m/assets"]
+            and got["file"]["ex"] == ["/w/m", "/w/m/assets"],
+            f"file-case state={got.get('file')} (stderr={out.stderr[:120]})",
+        )
+        # The two must not diverge again: a file and its folder are the same
+        # place, so they must produce a byte-identical tree state.
+        passed &= _check(
+            "10f. a file and its folder produce the SAME tree state",
+            bool(got) and got["file"] == got["folder"],
+            f"file={got.get('file')} folder={got.get('folder')}",
+        )
+        # And nothing is pointed at when the pane shows nothing.
+        passed &= _check(
+            "10f. no viewPath points at no row",
+            bool(got) and got["none"] == {"hi": [], "ex": []},
+        )
+
     # ── 11. THE SELECTION TOOLBAR IS GONE; the verbs live in the MENU ─────
     #
     # A selection should LOOK selected. It does not need a chip announcing
