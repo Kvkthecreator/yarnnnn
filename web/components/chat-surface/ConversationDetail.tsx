@@ -51,7 +51,14 @@ export interface DetailPersonChoice {
 interface ConversationDetailProps {
   laneId: string;
   laneName: string;
+  /** ⭐ TWO ROSTERS, TWO QUESTIONS (2026-08-27). `agents` is who may be
+   *  INVITED (`offered`) and is EMPTY today — nobody is offered (ADR-599 D1).
+   *  It cannot also answer "what is this participant CALLED", which is why the
+   *  pane rendered the raw slug `editor` under AGENTS once ADR-614 let a chat
+   *  start with a colleague. `beings` is every being that EXISTS (ADR-601 D4),
+   *  and naming reads from it. One prop answering both is the conflation. */
   agents: DetailAgentChoice[];
+  beings?: DetailAgentChoice[];
   people: DetailPersonChoice[];
   viewerId?: string | null;
   initialParticipants?: Participant[];
@@ -74,6 +81,7 @@ export function ConversationDetail({
   laneId,
   laneName,
   agents,
+  beings,
   people,
   viewerId,
   initialParticipants,
@@ -120,9 +128,12 @@ export function ConversationDetail({
     };
   }, [adding]);
 
+  // NAMING reads `beings` (every being), never `agents` (the invite roster).
+  // Falls back to `agents` so an older envelope without `beings` degrades to
+  // the previous behaviour rather than losing every name.
   const agentBySlug = useMemo(
-    () => new Map(agents.map((a) => [a.slug, a])),
-    [agents],
+    () => new Map((beings?.length ? beings : agents).map((a) => [a.slug, a])),
+    [beings, agents],
   );
   const personById = useMemo(
     () => new Map(people.map((p) => [p.principal_id, p])),

@@ -90,7 +90,16 @@ interface LaneData {
    *  reading only that one would tell the member they have no colleagues while
    *  Editor is mid-conversation with them. This is what the new-chat door
    *  lists. */
-  beings?: Array<{ slug: string; name: string; blurb: string; icon: string }>;
+  /** ⚠️ SAME SHAPE as `agents` deliberately, so ONE resolver can serve both
+   *  and the ten naming sites need no branch on which roster answered. The
+   *  server sends a SUBSET of these keys for a kernel being (slug · name ·
+   *  blurb · icon · offered · kernel · homes · home_titles · desks); the rest
+   *  — `avatar_url`, `engine`, `role`, `tone`, `based_on`, `color` — were the
+   *  MEMBER-agent shape ADR-599 D2/D3 deleted, are emitted by nothing, and
+   *  resolve to undefined. The existing fallbacks (the initial for a face, the
+   *  engine label for a subtitle) are then what render, which is their
+   *  documented behaviour rather than a degradation. */
+  beings?: LaneData['agents'];
   /** The CHOOSER — the OFFERED roster only (retired engines leave the door,
    *  ADR-559 D2). ⚠️ This comment used to claim "every model stays routable"
    *  is served here; it is not, and reading it that way is what let a lane on a
@@ -230,18 +239,39 @@ export function ChatSurface() {
     [data],
   );
 
-  // ADR-558 D3 — `lane.agent` is a BOUND lane's resident (Studio · Docs ·
-  // IMAGES pin a colleague, ADR-467 D1). A CHAT lane never carries one: the
-  // server refuses it at creation, so this resolves to null for every
-  // conversation on this surface and the engine label answers instead.
+  // ⭐ THE ONE PLACE A SLUG BECOMES A COLLEAGUE (2026-08-27, ADR-614 follow-up).
   //
-  // Kept, not deleted, because bound lanes DO reach a few of these helpers
-  // (they have no participant rows to name themselves from). Deleting it would
-  // make a Studio lane render as an engine where it should render as Designer.
-  const laneAgent = useCallback(
-    (lane: { agent?: string | null }) =>
-      (lane.agent && data?.agents?.find((a) => a.slug === lane.agent)) || null,
+  // THE DEFECT THIS CLOSES, operator-observed on the deployed surface: a chat
+  // started with Editor rendered "Claude Sonnet 5" in the header and the list,
+  // and the Details pane showed the raw slug `editor` under AGENTS. The cast
+  // was CORRECT — the row said `editor`, and the turn was answered by Editor.
+  // Only the NAMING was wrong, in ten places at once.
+  //
+  // The cause: every site resolved against `data.agents`, which is the INVITE
+  // roster (`offered`) — and `offered` is FALSE for all three beings today
+  // (ADR-599 D1/ADR-600), so that array is EMPTY and every lookup returned
+  // undefined. The fallbacks then did exactly what they were written to do:
+  // the header fell through to the engine label, the pane fell through to the
+  // slug. Latent until now, because before ADR-614 a chat lane had no agent in
+  // its cast and there was nothing to name.
+  //
+  // `beings` is the right table — every being that EXISTS, not the subset a
+  // member may invite (ADR-601 D4's whole reason for serving both). Resolved
+  // through ONE function so a future roster question has one answer: ten call
+  // sites reading a roster directly is how all ten were wrong together.
+  const beingBySlug = useCallback(
+    (slug?: string | null) =>
+      (slug && data?.beings?.find((b) => b.slug === slug)) || null,
     [data],
+  );
+
+  // ADR-597 D1 — `lane.agent` is the lane's DERIVED resident (a bound lane's
+  // app declares it; a chat lane started from the door has one too). Named
+  // through the same resolver as every cast row, so a lane and its cast can
+  // never disagree about what to call the same being.
+  const laneAgent = useCallback(
+    (lane: { agent?: string | null }) => beingBySlug(lane.agent),
+    [beingBySlug],
   );
   // Direct conversations (2+ humans, no agent in the cast): the conversation
   // is WITH the other humans, so it is labeled by THEM — never by the dormant
@@ -286,9 +316,7 @@ export function ChatSurface() {
         .filter((p) => !(p.member_kind === 'human' && p.principal_id === userId))
         .map((p) =>
           p.member_kind === 'agent'
-            ? data?.agents?.find((a) => a.slug === p.agent_slug)?.name ||
-              p.agent_slug ||
-              'agent'
+            ? beingBySlug(p.agent_slug)?.name || p.agent_slug || 'agent'
             : people.find((x) => x.principal_id === p.principal_id)?.label ||
               'A member',
         );
@@ -325,7 +353,7 @@ export function ChatSurface() {
       const agents = (lane.participants ?? []).filter((p) => p.member_kind === 'agent');
       if (agents.length === 1) {
         return (
-          data?.agents?.find((a) => a.slug === agents[0].agent_slug)?.name ||
+          beingBySlug(agents[0].agent_slug)?.name ||
           agents[0].agent_slug ||
           undefined
         );
@@ -343,7 +371,7 @@ export function ChatSurface() {
     (lane: { agent?: string | null; participants?: Participant[] }) => {
       const agents = (lane.participants ?? []).filter((p) => p.member_kind === 'agent');
       if (agents.length === 1) {
-        return data?.agents?.find((a) => a.slug === agents[0].agent_slug)?.avatar_url;
+        return beingBySlug(agents[0].agent_slug)?.avatar_url;
       }
       // Pre-cast (Studio/derive) lanes have no participant rows — their
       // resident is the counterpart.
@@ -386,7 +414,7 @@ export function ChatSurface() {
     (lane: { agent?: string | null; model: string; participants?: Participant[] }) => {
       const responder = (lane.participants ?? []).find((p) => p.member_kind === 'agent');
       const a = responder
-        ? data?.agents?.find((x) => x.slug === responder.agent_slug)
+        ? beingBySlug(responder.agent_slug)
         : laneAgent(lane);
       return a?.engine || modelLabel(lane.model);
     },
@@ -433,7 +461,7 @@ export function ChatSurface() {
       // that colleague — `role · engine`, the ADR-463 §3 shape (the technical
       // fact stays visible, never the headline).
       const joined = others.length === 1 && others[0].member_kind === 'agent'
-        ? data?.agents?.find((x) => x.slug === others[0].agent_slug)
+        ? beingBySlug(others[0].agent_slug)
         : null;
       // …and a lane with nobody else in it IS its engine. That is the ADR-558
       // default state of every new chat, so it is the honest label, not a gap:
@@ -500,7 +528,7 @@ export function ChatSurface() {
     const faces: HeaderFace[] = [];
     for (const p of cast) {
       if (p.member_kind === 'agent') {
-        const a = data?.agents?.find((x) => x.slug === p.agent_slug);
+        const a = beingBySlug(p.agent_slug);
         faces.push({ name: a?.name || p.agent_slug || 'agent', avatarUrl: a?.avatar_url });
       } else if (p.principal_id && p.principal_id !== userId) {
         faces.push({
@@ -986,6 +1014,7 @@ export function ChatSurface() {
             laneId={activeLane.id}
             laneName={activeLane.name}
             agents={data?.agents ?? []}
+            beings={data?.beings ?? []}
             people={people}
             viewerId={userId}
             initialParticipants={activeLane.participants}
@@ -1107,7 +1136,7 @@ export function ChatSurface() {
               // the conversation still renders with its name and face — the
               // transcript is a historical record, not a live membership view.
               agentFaces={Object.fromEntries(
-                (data?.agents ?? []).map((a) => [
+                (data?.beings ?? []).map((a) => [
                   a.slug,
                   { name: a.name, avatarUrl: a.avatar_url },
                 ]),
@@ -1123,7 +1152,7 @@ export function ChatSurface() {
                 .filter((p) => !(p.member_kind === 'human' && p.principal_id === userId))
                 .map((p) => {
                   if (p.member_kind === 'agent') {
-                    const a = data?.agents?.find((x) => x.slug === p.agent_slug);
+                    const a = beingBySlug(p.agent_slug);
                     return {
                       kind: 'agent' as const,
                       handle: a?.name?.replace(/\s+/g, '') || p.agent_slug || '',

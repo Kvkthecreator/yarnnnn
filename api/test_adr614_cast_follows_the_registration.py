@@ -186,6 +186,50 @@ _assert("agent" not in _lm,
 _assert(_lm.get("model") == "anthropic/claude-sonnet-5",
         f"the being's own engine is persisted as the lane's fact ({_lm.get('model')})")
 
+print("6. a slug becomes a NAME through the beings roster, never the invite one")
+
+# THE DEFECT, operator-observed on the deployed surface the hour ADR-614 shipped:
+# a chat started with Editor rendered "Claude Sonnet 5" in the header and the
+# list, and the Details pane showed the raw slug `editor` under AGENTS. The cast
+# was CORRECT and the turn was answered by Editor — only the NAMING was wrong,
+# in ten places at once, because every site resolved against `data.agents`.
+#
+# `agents` is the INVITE roster (`offered`), and offered is False for every
+# being today — so it is EMPTY and every lookup returned undefined. Latent
+# until ADR-614, because before it a chat lane had no agent in its cast.
+from services.agents_registry import AGENTS, list_agents  # noqa: E402
+
+_offered = [a["slug"] for a in list_agents()]
+_assert(_offered == [],
+        f"the invite roster is EMPTY today — the premise of the defect ({_offered})")
+_assert(len(AGENTS) >= 3,
+        f"...while beings EXIST, so naming must not read the invite roster ({list(AGENTS)})")
+
+_chat = (API.parent / "web" / "components" / "chat-surface" / "ChatSurface.tsx").read_text()
+_detail = (API.parent / "web" / "components" / "chat-surface" / "ConversationDetail.tsx").read_text()
+
+# ONE resolver, and every naming site goes through it. Counted rather than
+# spot-checked: ten sites were wrong TOGETHER, so the assertion that matters is
+# that none is left reading the roster directly.
+_assert("const beingBySlug" in _chat,
+        "ChatSurface resolves a slug through ONE function")
+_direct = _chat.count("data?.agents?.find")
+_assert(_direct == 0,
+        f"no naming site reads the invite roster directly ({_direct} left)")
+_assert("(data?.beings ?? []).map" in _chat,
+        "the transcript's agentFaces are named from `beings`")
+_assert("beings={data?.beings ?? []}" in _chat,
+        "the Details pane is given the beings roster")
+
+# The pane's two rosters answer two questions and must stay separate: naming
+# from `beings`, inviting from `agents`. One prop doing both IS the defect.
+_assert("beings?: DetailAgentChoice[]" in _detail,
+        "the pane takes `beings` alongside `agents`")
+_assert("(beings?.length ? beings : agents)" in _detail,
+        "the pane NAMES from beings (degrading to agents on an older envelope)")
+_assert("const invitableAgents = agents.filter" in _detail,
+        "...and still INVITES from the offered roster — the two stay separate")
+
 print()
 if FAILURES:
     print(f"ADR-614 gate RED — {len(FAILURES)} failing:")
