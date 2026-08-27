@@ -337,10 +337,36 @@ def _lane_agent(lane_meta: dict) -> Optional[str]:
     return lane_meta.get("agent") or None
 
 
-def _lane_row_to_dict(row: dict) -> dict:
+def _lane_row_to_dict(row: dict, participants: Optional[list[dict]] = None) -> dict:
+    """One lane, FE-shaped. EVERY producer returns the SAME KEYS.
+
+    ⭐ `participants` is always present — a list, never absent. The renderers
+    read the cast to name a conversation (`laneOthers` → the header, the list
+    row, the speaker chip), and they fall back to the ENGINE label when it is
+    empty. So a producer that omits the key does not render "unknown": it
+    renders "Claude Sonnet 5" where a colleague's name belongs, which is the
+    ADR-373 D6 incorrect-success shape — a confident wrong answer, not a gap.
+
+    Operator-observed 2026-08-27: a chat started with Supervisor showed
+    "Claude Sonnet 5" in its header while the reply bubble correctly said
+    "Supervisor". The cast row WAS seeded and `beings` DID serve the being;
+    only `create_lane`'s response omitted the key, so the freshly-created lane
+    took the engine fallback until the next list refetch healed it.
+
+    This is NOT the ADR-614 naming defect (`a732ccf`), which was fixed by
+    routing ten lookups through one resolver. The naming was right here. The
+    divergence is in the PAYLOAD SHAPE: one endpoint handed the FE a lane the
+    renderers read differently from another's. Passing the cast through this
+    one function is what keeps a future producer from re-opening it — the same
+    reasoning as the by-id keying below, extended to the create path.
+    """
     lane_meta = (row.get("context_metadata") or {}).get("lane") or {}
     return {
         "id": row["id"],
+        # ADR-495 D1 — the cast rides on every lane payload, from every
+        # producer. `[]` is a real state (a lane with nobody joined yet);
+        # ABSENT is not a state at all, and the fallback makes it invisible.
+        "participants": participants if participants is not None else [],
         "name": lane_meta.get("name") or "Lane",
         "model": lane_meta.get("model") or "",
         # ADR-597 D1 — WHO this lane talks to, derived from the registration
@@ -900,7 +926,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # tell the difference — which is the point: presence is a cast row, at
     # every door. A bound lane seeds its app's resident for the same reason it
     # always did (the app's job is that colleague's job).
-    from services.conversation_cast import add_participant
+    from services.conversation_cast import add_participant, list_participants
 
     add_participant(
         created["id"], workspace_id=ws, member_kind="human",
@@ -912,7 +938,12 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
             agent_slug=agent_slug, invited_by=auth.user_id, visible_from_sequence=0,
         )
     logger.info("[LANE] created lane=%s model=%s ws=%s", created["id"][:8], model, (ws or "-")[:8])
-    return _lane_row_to_dict(created)
+    # The cast is READ BACK rather than reconstructed from the two calls above:
+    # `list_participants` is the same source the list path serves, so the lane
+    # the creator receives and the lane they refetch a second later cannot
+    # disagree about who is in the room. Without it the header named the ENGINE
+    # until the next refetch (see `_lane_row_to_dict`).
+    return _lane_row_to_dict(created, list_participants(created["id"]))
 
 
 @router.get("/lanes/{lane_id}/messages")
@@ -1812,7 +1843,12 @@ async def patch_lane(lane_id: str, req: LanePatchRequest, auth: UserClient) -> d
             {"context_metadata": merged}
         ).eq("id", lane_id).execute()
         lane = {**lane, "context_metadata": merged}
-    return _lane_row_to_dict(lane)
+    # Same cast, same source as the list and the create path: a rename must not
+    # hand back a lane that renders its header differently from the one the
+    # member was just looking at.
+    from services.conversation_cast import list_participants
+
+    return _lane_row_to_dict(lane, list_participants(lane_id))
 
 
 @router.get("/lanes/search")
