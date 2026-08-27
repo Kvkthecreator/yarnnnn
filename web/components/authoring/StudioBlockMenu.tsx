@@ -348,13 +348,18 @@ export function StudioBlockMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tierDeps is the guarded projection
   }, [target.x, target.y, turnIntoKinds.length, tierDeps]);
 
-  // First paint uses the raw point (with the old conservative guard) so the menu
-  // never flashes at 0,0; the layout effect corrects it before the browser
-  // paints, then again whenever the submenu changes the height.
-  const left = clamped?.left
-    ?? (typeof window !== 'undefined' ? Math.min(target.x, window.innerWidth - 250) : target.x);
-  const top = clamped?.top
-    ?? (typeof window !== 'undefined' ? Math.min(target.y, window.innerHeight - 330) : target.y);
+  // First paint uses the RAW POINT so the menu never flashes at 0,0; the layout
+  // effect corrects it before the browser paints, then again whenever the
+  // submenu changes the height.
+  //
+  // The old fallback pre-clamped with `innerWidth - 250` / `innerHeight - 330`
+  // — the very guessed constants the comment above rejects, kept as a
+  // "conservative guard" on a path that is never visible (useLayoutEffect runs
+  // before paint). Dropped 2026-08-27: a guess nobody sees is still the
+  // constant the next reader copies, and two sibling menus had already copied
+  // it. The measurement is the answer; the seed is just the point.
+  const left = clamped?.left ?? target.x;
+  const top = clamped?.top ?? target.y;
 
   // ADR-482 D9: a menu with no acts is not a menu — an empty bordered box that
   // appears, says nothing, and must be dismissed. The rule stands; what counts

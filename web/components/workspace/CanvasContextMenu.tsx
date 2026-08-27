@@ -15,6 +15,7 @@
  */
 
 import { useEffect } from 'react';
+import { useViewportClamp } from '@/hooks/useViewportClamp';
 import { FolderPlus, Upload, XSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -54,15 +55,17 @@ export function CanvasContextMenu({ x, y, onClose, onNewFolder, onAddFiles, onDe
     };
   }, [onClose]);
 
-  // Clamp within the viewport so a right-click near the edge stays visible.
-  const left = typeof window !== 'undefined' ? Math.min(x, window.innerWidth - 200) : x;
-  const top = typeof window !== 'undefined' ? Math.min(y, window.innerHeight - 120) : y;
+  // Keep the whole menu on screen — MEASURED, not guessed (2026-08-27). This
+  // was `innerHeight - 120`, a third hand-picked constant for the same
+  // question its two siblings also answered by guessing. Shared hook now.
+  const { ref: boxRef, left, top } = useViewportClamp<HTMLDivElement>(x, y);
 
   const run = (fn: () => void) => { fn(); onClose(); };
 
   return (
     <div
-      className="fixed z-50 min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md"
+      ref={boxRef}
+      className="fixed z-50 min-w-[180px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md"
       style={{ left, top }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}

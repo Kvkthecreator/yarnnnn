@@ -33,7 +33,8 @@
  *     not render.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useViewportClamp } from '@/hooks/useViewportClamp';
 import { Info, ExternalLink, Pencil, FolderInput, FolderPlus, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
@@ -216,13 +217,26 @@ export function FileContextMenu({
   const run = (fn?: (t: FileMenuTarget) => void) => { fn?.(target); onClose(); };
   const isFile = target.isFile;
 
-  // Clamp within the viewport so a right-click near the edge stays visible.
-  const left = typeof window !== 'undefined' ? Math.min(x, window.innerWidth - 200) : x;
-  const top = typeof window !== 'undefined' ? Math.min(y, window.innerHeight - 240) : y;
+  // Keep the whole menu on screen — MEASURED, not guessed (2026-08-27).
+  //
+  // This was `innerHeight - 240`, a static guess at the box's own height. The
+  // box reaches ~380px on a folder (Open · Properties · Share · Keep current ·
+  // New Folder · Rename · Move · Duplicate · Delete), so a right-click in the
+  // lower half of the window ran the last verbs off the bottom of the screen —
+  // in the DOM, invisible and unreachable (operator-observed KVK 2026-08-27).
+  // The rows are conditional on the target, so no constant can be right for
+  // every shape this one menu takes.
+  //
+  // The submenu ("Open with") is a FLYOUT beside the box, not inline, so the
+  // parent's height is fixed once rendered: no re-clamp deps, per ADR-586 D4
+  // (re-clamping on flyout open is what moves the menu out from under the
+  // pointer). The flyout clamps itself — see OpenWithSubmenu.
+  const { ref: boxRef, left, top } = useViewportClamp<HTMLDivElement>(x, y);
 
   return (
     <div
-      className="fixed z-50 min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md"
+      ref={boxRef}
+      className="fixed z-50 min-w-[180px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md"
       style={{ left, top }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
@@ -343,6 +357,26 @@ function OpenWithItem({
   onPick: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Which way the flyout opens, decided from the real box on the tick it
+  // appears. `open` is the only dep: the handler list cannot change while it
+  // is showing.
+  const flyoutRef = useRef<HTMLDivElement | null>(null);
+  const [flip, setFlip] = useState({ x: false, y: false });
+  useLayoutEffect(() => {
+    const el = flyoutRef.current;
+    if (!open || !el) return;
+    const r = el.getBoundingClientRect();
+    const MARGIN = 8;
+    setFlip({
+      // Compare against the position it is ALREADY in, so the test is "does
+      // the box as rendered overflow", not a prediction of where it would go.
+      x: r.right > window.innerWidth - MARGIN,
+      y: r.bottom > window.innerHeight - MARGIN,
+    });
+  }, [open]);
+  // Re-measuring after the flip would fight itself (the flipped box no longer
+  // overflows, so it would flip back). One decision per open.
+  useLayoutEffect(() => { if (!open) setFlip({ x: false, y: false }); }, [open]);
   return (
     <div
       className="relative"
@@ -359,7 +393,20 @@ function OpenWithItem({
         <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
       </button>
       {open && (
-        <div className="absolute left-full top-0 -mt-1 ml-px min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md">
+        <div
+          ref={flyoutRef}
+          className={cn(
+            'absolute -mt-1 min-w-[180px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md',
+            // A FLYOUT is positioned against its PARENT, not the viewport, so
+            // it FLIPS rather than clamps: sliding it would detach it from the
+            // row it belongs to. Right edge → open leftward; bottom edge →
+            // hang upward from the row. Both measured on open (2026-08-27);
+            // before this it was always `left-full top-0`, so near the right
+            // edge the handler names were simply off-screen.
+            flip.x ? 'right-full mr-px' : 'left-full ml-px',
+            flip.y ? 'bottom-0' : 'top-0',
+          )}
+        >
           {handlers.map((h, i) => (
             <button
               key={h.id}
