@@ -512,6 +512,18 @@ export interface WorkspaceTreeNode {
   // buildRootNodes so WorkspaceTree renders the kernel-named glyph instead of
   // a hardcoded path-string guess. Undefined on non-root nodes.
   icon_name?: string;
+  // Preview material for the icon-view tile (2026-08-27). Served for the
+  // DIRECT CHILDREN of the requested node only — the tree endpoint scopes the
+  // mint and the SVG-body fetch to what the listing actually draws, rather
+  // than to every file in the subtree.
+  //   content_type — the tile picks its lane from this
+  //   content_url  — a minted, TTL'd serving URL for a raster image
+  //   svg_text     — inline SVG markup (a vector has no blob to mint)
+  // All optional: absent means "no material", and the tile draws its format
+  // glyph exactly as before.
+  content_type?: string | null;
+  content_url?: string | null;
+  svg_text?: string | null;
 }
 
 /**

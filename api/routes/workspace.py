@@ -762,10 +762,38 @@ async def get_workspace_tree(
             r for r in rows
             if len(r.get("path", "").rstrip("/").split("/")) == depth + 1
         ]
+        by_path = {r.get("path"): r for r in rows}
         for path, url in mint_thumb_urls(auth.client, direct).items():
-            by_path_row = next((r for r in rows if r.get("path") == path), None)
-            if by_path_row is not None:
-                by_path_row["content_url"] = url
+            if path in by_path:
+                by_path[path]["content_url"] = url
+
+        # INLINE SVG has no blob to mint — its markup lives in the text column,
+        # and the tile draws the vector from that. So it needs the BODY, not a
+        # URL, which is why it is a second fetch rather than part of the mint.
+        #
+        # Restricted to the direct children AND to .svg, deliberately: `content`
+        # is deliberately absent from this endpoint's select, because hauling
+        # every file body across a 500-row subtree (× several roots in parallel)
+        # to draw one folder's tiles is the cost this endpoint is shaped to
+        # avoid. A handful of vector bodies is not that.
+        svg_paths = [
+            r["path"] for r in direct if r.get("path", "").lower().endswith(".svg")
+        ]
+        if svg_paths:
+            try:
+                bodies = (
+                    auth.client.table("workspace_files")
+                    .select("path, content")
+                    .eq(*_substrate_scope_filter(auth))
+                    .in_("path", svg_paths)
+                    .execute()
+                ).data or []
+                for b in bodies:
+                    row = by_path.get(b.get("path"))
+                    if row is not None and (b.get("content") or "").strip():
+                        row["svg_text"] = b["content"]
+            except Exception as exc:  # noqa: BLE001 — a preview never fails a listing
+                logger.warning("[WORKSPACE_API] svg body fetch failed: %s", exc)
 
         # Build tree from flat paths
         tree = _build_tree(rows, root)
@@ -3300,6 +3328,10 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
             # falls to its format glyph exactly as before.
             "content_type": row.get("content_type"),
             "content_url": row.get("content_url"),
+            # Inline SVG markup — the vector lane. Set only for the direct
+            # children the listing draws (see the tree endpoint); None means
+            # "no vector body here", and the tile falls to its glyph.
+            "svg_text": row.get("svg_text"),
         })
 
     # Build parent→children relationships

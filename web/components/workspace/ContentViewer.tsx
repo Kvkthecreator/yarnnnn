@@ -378,6 +378,22 @@ function DirectoryView({
               onContextMenu={rowContext(child)}
               actions={rowKebab(child)}
               subtext={workspaceRelPath(child.path)}
+              // THE TILE GETS ITS MATERIAL (2026-08-27). This prop was absent,
+              // so a folder-listing tile could only ever draw the format glyph
+              // — the reason every image in a folder looked like a generic
+              // icon while the identical file in Recents drew a thumbnail.
+              //
+              // Both halves had to move: the tree endpoint now MINTS a serving
+              // URL for its direct children (a binary's content_url is NULL by
+              // contract — ADR-427 D4 mints at read, never stores) and ships
+              // inline SVG markup; this passes it on. Feeding the API without
+              // wiring the component leaves the fix invisible, which is exactly
+              // where it stood until now.
+              thumb={{
+                content_url: child.content_url,
+                content_type: child.content_type,
+                svgText: child.svg_text,
+              }}
             />
           ))}
         </div>

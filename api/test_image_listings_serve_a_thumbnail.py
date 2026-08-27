@@ -152,6 +152,13 @@ if _tree_node:
         '"content_url"' in node and '"content_type"' in node,
         "one without the other renders nothing but reads as done",
     )
+    # The VECTOR lane. An SVG has no blob to mint — its markup is the preview —
+    # so a listing that only mints serves rasters and glyphs every vector.
+    check(
+        "[FALSIFIER] the tree's file node carries svg_text (the vector lane)",
+        '"svg_text"' in node,
+        "an SVG has no blob; minting alone leaves every vector a glyph",
+    )
 
 # Recents' response model must expose the field at all.
 _model = re.search(r"class RecentRevision\(.*?(?=\nclass )", _src, re.DOTALL)
@@ -160,6 +167,50 @@ check(
     _model is not None
     and "content_url" in _model.group(0)
     and "content_type" in _model.group(0),
+)
+
+print("\n── the COMPONENT is wired, not just the API ──")
+
+# THE HALF THAT WAS MISSING. The first cut of this fix fed both endpoints and
+# shipped — and folder tiles still drew glyphs, because `ContentViewer` never
+# passed `thumb` to `FileTile` at all. Feeding an API without wiring the
+# component leaves the fix invisible, and every API-side assertion above stayed
+# green while the surface was unchanged.
+#
+# So the gate follows the material all the way to the tile.
+_viewer = (_API.parent / "web" / "components" / "workspace" / "ContentViewer.tsx").read_text()
+_tile_call = re.search(r"<FileTile\b(.*?)/>", _viewer, re.DOTALL)
+check("the folder listing's FileTile call is readable", _tile_call is not None)
+if _tile_call:
+    call = _tile_call.group(1)
+    check(
+        "[FALSIFIER] the folder listing PASSES thumb material to the tile",
+        "thumb={{" in call,
+        "the API can mint all it likes; an unwired tile draws the glyph",
+    )
+    # All three, because the tile has two lanes and picks between them: a raster
+    # draws from content_url, a vector from svgText, and content_type is how the
+    # lane is chosen. Any one missing silently disables a lane.
+    for field in ("content_url", "content_type", "svgText"):
+        check(
+            f"[FALSIFIER] the tile receives {field}",
+            field in call,
+        )
+
+# And the type that carries it across the wire — a field the API serves but the
+# FE type omits is dropped at the boundary with no error anywhere.
+_types = (_API.parent / "web" / "types" / "index.ts").read_text()
+_node = re.search(r"interface WorkspaceTreeNode \{(.*?)\n\}", _types, re.DOTALL)
+# Asserted on the DECLARATIONS, not on "the name appears in the block". The
+# loose form passed vacuously when the field was deleted, because the comment
+# ABOVE it still named `svg_text` — prose satisfying a check, which is the exact
+# thing the API-side `code_only()` strip exists to prevent. TS comments needed
+# the same treatment.
+_decls = re.sub(r"//[^\n]*", "", _node.group(1)) if _node else ""
+check(
+    "[FALSIFIER] WorkspaceTreeNode declares the preview fields",
+    _node is not None
+    and all(f"{f}?:" in _decls for f in ("content_url", "content_type", "svg_text")),
 )
 
 print("\n" + ("thumbnail-listing gate GREEN" if _passed else "thumbnail-listing gate RED"))
