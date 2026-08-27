@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Shader } from "shaders/react";
 
 // One-shot probe: try to acquire a WebGL2 (preferred) or WebGL context on
@@ -29,7 +29,15 @@ export function ShaderCanvas({
   className?: string;
   children: ReactNode;
 }) {
-  const [supported] = useState(probeWebGLSupport);
+  // The probe can only run in the browser, so it MUST NOT decide the first
+  // render: the server renders null, and a lazy useState initialiser would
+  // make the client's first render disagree with it — React #418/#423 on
+  // every WebGL-capable visitor. Probing in an effect keeps hydration
+  // byte-identical to SSR and mounts the shader on the commit after.
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported(probeWebGLSupport());
+  }, []);
   if (!supported) return null;
   return <Shader className={className}>{children}</Shader>;
 }
