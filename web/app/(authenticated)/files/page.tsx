@@ -27,17 +27,37 @@
  *               moved to natural-home paths in ADR-231 Phase 3.7.
  *   Uploads   — user-contributed source material (/workspace/uploads/).
  *
- * Deep-link params (ARRIVAL ONLY, per ADR-297 D19.2):
- *   ?files.domain={key}  — open a context domain folder
- *   ?files.path={path}   — open any workspace path
+ * Surface params — THE ADDRESS OF WHERE YOU STAND (2026-08-27):
+ *   ?files.domain={key}  — open a context domain folder (arrival spelling)
+ *   ?files.path={path}   — the workspace path the surface is showing
  *
- * These are how a deep-link ARRIVES (a shared link, or a cross-surface jump via
- * navigateToSurface('files', {path})). One handler consumes them — the arrival
- * effect — which opens the path and then DRAINS the param; see "THE ONE ARRIVAL
- * DOOR". They are inbound transport only: in-surface file/folder clicks DO NOT
- * write the URL, because selection is component state. Writing `/files?files.path=…`
- * on every click flipped pathname away from /desktop and disrupted the
- * launcher/topbar (operator-observed KVK 2026-06-12).
+ * `files.path` is BOTH how a deep-link arrives (a shared link, or a
+ * cross-surface jump via navigateToSurface('files', {path})) AND what the
+ * surface writes as you browse. It names where you stand, so a refresh returns
+ * you there and the address bar can be copied to hand someone the folder you
+ * are looking at.
+ *
+ * Two doors, one each way — the funnel discipline this file keeps everywhere:
+ *   openPath   opens a path and WRITES the param (at its `showInline`
+ *              terminal, so a path routing away to another surface does not
+ *              claim the Files address bar).
+ *   leavePath  stops standing anywhere (Recents, Trash, crumb drill-out, a
+ *              delete that clears the viewer) and RETRACTS it.
+ * The arrival effect ("THE ONE ARRIVAL DOOR") honours an inbound param only
+ * when it names somewhere we are not already showing — that guard, not a
+ * drain, is what keeps the surface's own writes from re-entering.
+ *
+ * HISTORY — why this file long said "ARRIVAL ONLY". Writing the URL on every
+ * click once flipped pathname away from /desktop and disrupted the
+ * launcher/topbar (operator-observed KVK 2026-06-12). The flip was the bug.
+ * ADR-297 D19.6 — filed the same day, from that same report — is its
+ * sanctioned repair: setSurfaceParams writes via history.replaceState and
+ * preserves url.pathname verbatim, which is what Settings has used for its
+ * own in-surface `?settings.connector=` writes ever since. Files was the last
+ * surface still treating the whole mechanism as forbidden. What remains
+ * forbidden is the PATHNAME FLIP (`router.push('/files?…')`), not the query
+ * write; and SELECTION is still component state — only the OPEN location is
+ * addressable.
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -469,6 +489,12 @@ export default function ContextPage() {
   // into an app). A plain click is now inert, so plain-click-to-select is safe,
   // expected, and the way every file browser works. That carve is withdrawn.
   const [viewPath, setViewPath] = useState<string | null>(null);
+  // Read by the arrival effect to answer "are we already there?" WITHOUT
+  // joining its dep array — keyed on viewPath, the effect would re-fire on
+  // every navigation and fight the browsing it is meant to serve. A ref reads
+  // the current value without making the effect depend on it.
+  const viewPathRef = useRef<string | null>(null);
+  viewPathRef.current = viewPath;
   const [selection, setSelection] = useState<string[]>([]);
   // The shift-range anchor — the last item picked by a plain or ⌘ click. A
   // range is taken FROM it, and taking one does not move it (so successive
@@ -537,6 +563,9 @@ export default function ContextPage() {
   // the shell renders no parallel back row.
   const activateBodyRef = useRef<() => void>(() => {});
   const drillOutRef = useRef<() => void>(() => {});
+  // leavePath (the counterpart to openPath) is declared below the crumb that
+  // calls it; same forward-ref idiom as the two above.
+  const leavePathRef = useRef<() => void>(() => {});
   // A ref mirror of the openPath funnel (defined below), so the earlier-declared
   // loadExplorer + the post-mount deep-link effect can route a `?files.path=`
   // through the ONE open door without a definition-order / stale-closure cycle.
@@ -544,6 +573,12 @@ export default function ContextPage() {
   // one). Assigned once openPath exists; a deep-link that lands before that tick
   // is impossible (openPath is defined in the same render).
   const openPathRef = useRef<(path: string) => void>(() => {});
+  // `fp.set` reached from inside openPath WITHOUT joining its dep array —
+  // openPath is mirrored into openPathRef and closed over by many handlers, so
+  // re-creating it on every param change would churn them all. The setter is
+  // stable in practice; the ref makes that independent of the hook's identity.
+  const fpRef = useRef(fp);
+  fpRef.current = fp;
   // Object URLs minted for TEXT downloads (2026-08-21). A `URL.createObjectURL`
   // blob is held by the document until it is explicitly revoked — never GC'd
   // while the page lives — so a member browsing a folder and right-clicking
@@ -681,7 +716,7 @@ export default function ContextPage() {
       ? [{
           label: viewNode.name,
           kind: 'context',
-          onClick: () => { setViewPath(null); clearSelection(); drillOutRef.current(); },
+          onClick: () => { leavePathRef.current(); clearSelection(); drillOutRef.current(); },
         }]
       : []
   );
@@ -738,6 +773,20 @@ export default function ContextPage() {
   // real signal are worse than the staleness they prevent.
   useEffect(() => {
     if (!pathParam && !domainParam) return;
+    // THE PARAM IS NOW THE LOCATION, NOT A ONE-SHOT TOKEN (2026-08-27).
+    //
+    // It is no longer drained, so this effect re-runs on the surface's OWN
+    // writes (openPath → fp.set). Draining was what made re-entry impossible;
+    // with it gone, the guard has to be the real question instead:
+    //
+    //   does this param name somewhere we are NOT already showing?
+    //
+    // If it names where we already stand, the write came from openPath and
+    // there is nothing to arrive at — returning here is what breaks the loop.
+    // Compared against the RESOLVED path, since that is what openPath wrote
+    // and what `viewPath` holds; the raw param may be a handle or bare form.
+    const resolved = pathParam ? toWorkspacePath(pathParam) : null;
+    if (resolved && resolved === viewPathRef.current) return;
     // Through the ONE open door (openPathRef) — a deep-link to an artifact
     // opens its app, folders/unclaimed types fall through to inline. The path
     // need not be in the virtual tree: syntheticNodeForPath resolves the
@@ -759,24 +808,32 @@ export default function ContextPage() {
       // ADR-388 D1: domains nest under the literal operation/ root.
       openPathRef.current(`/workspace/operation/${domainParam}`);
     }
-    // Drain — the param has done its one job. `viewPath` is what the surface
-    // shows from here on; the URL is not the source of truth once open.
+    // NO DRAIN (2026-08-27). The param is the surface's location, so it stays
+    // in the address bar: a refresh returns you where you stood, and the bar
+    // can be copied to hand someone the folder you are looking at. Draining it
+    // was what made both impossible — the app emitted an address it erased.
+    //
+    // openPath REWRITES it on arrival (via the `domain` branch, which resolves
+    // to a path), so the bar ends up naming the resolved location rather than
+    // whichever spelling arrived.
     //
     // ARRIVING AT A PATH IS AN OPEN, NOT A SELECT. A deep-link is someone
     // handing you a document, so it goes through the ONE open door and lands
     // rendered — the select/open split below governs in-surface GESTURES only.
-    fp.set({ path: null, domain: null });
-    // fp.set stable; keyed on the param values so a new jump re-fires but a
-    // tree refetch does not. eslint-disable-next-line react-hooks/exhaustive-deps
+    // Keyed on the param values; the already-there guard above stops the
+    // surface's own writes re-entering. eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathParam, domainParam]);
 
-  // ADR-297 D19.2: in-surface selection is component state, NOT a URL write.
-  // The Files surface runs as a window on the Desktop (pathname `/desktop`);
-  // writing `/files?files.path=…` on every click flipped pathname → /files, which
+  // ADR-297 D19.2 — SELECTION is component state, NOT a URL write. That half
+  // stands: what you have PICKED is not addressable. What you have OPEN now is
+  // (2026-08-27) — openPath writes it, leavePath retracts it.
+  //
+  // The Files surface runs as a window on the Desktop (pathname `/desktop`),
+  // and the 2026-06-12 regression was a PATHNAME FLIP: `/files?files.path=…`
   // tripped AuthenticatedLayout's pathname→foreground effect + SurfaceViewport's
-  // pathnameSlug resolution, disrupting the launcher/topbar (operator-observed
-  // KVK 2026-06-12). `?path=` survives only as an inbound ARRIVAL param
-  // (opened + drained above) — it is never written from intra-surface clicks.
+  // pathnameSlug resolution, disrupting the launcher/topbar. D19.6 repaired
+  // exactly that by writing the query through history.replaceState with the
+  // pathname held verbatim. The flip stays forbidden; the query write does not.
   // Path-based open — a path string, not a TreeNode. The file may not be in
   // the visible tree (e.g. a folder-Details revision row deep-links into a
   // `_`-prefixed file hidden from the explorer); syntheticNodeForPath resolves
@@ -820,6 +877,19 @@ export default function ContextPage() {
     const showInline = (isFolder: boolean) => {
       setShowTrash(false);
       setViewPath(path);
+      // THE ADDRESS BAR FOLLOWS WHAT THE SURFACE SHOWS (2026-08-27).
+      //
+      // Written HERE, at the terminal that keeps the path in THIS surface —
+      // not at every call site, and not for a path that routes AWAY via
+      // navigateToSurface (that surface owns the address bar from there).
+      //
+      // This is `fp.set` → setSurfaceParams → history.replaceState, which
+      // preserves `url.pathname` verbatim (ADR-297 D19.6). The 2026-06-12
+      // regression this file long prohibited was a PATHNAME FLIP off
+      // /desktop, and D19.6 — filed the same day, from the same report — is
+      // its sanctioned repair. `router.push('/files?…')` would still be the
+      // bug; the query write is not.
+      fpRef.current.set({ path, domain: null });
       // Opening a FILE also PICKS it — the OS rule: whatever you just launched
       // is the highlighted item. Opening a FOLDER is NAVIGATION, so it clears:
       // you have arrived somewhere new and nothing in the new listing is
@@ -967,6 +1037,26 @@ export default function ContextPage() {
   // Mirror into the ref so the earlier loadExplorer + post-mount effect route
   // deep-links through this exact funnel (see openPathRef declaration).
   openPathRef.current = openPath;
+
+  // ── leavePath — THE ONE DOOR that LEAVES a location ────────────────────
+  //
+  // openPath's counterpart (2026-08-27). Now that the address bar names where
+  // the surface stands, every act that stops standing anywhere — Recents,
+  // Trash, the crumb drill-out, a delete that clears the viewer — has to
+  // retract the param too, or the bar keeps naming a place we left and a
+  // refresh returns there.
+  //
+  // A door rather than four hand-patched call sites, for the reason this file
+  // already records twice: per-site duties get forgotten one site at a time,
+  // and "same bug three times" is the signature of a missing funnel. Leaving
+  // is now as singular as arriving.
+  const leavePath = useCallback(() => {
+    setViewPath(null);
+    fpRef.current.set({ path: null, domain: null });
+  }, []);
+  // Reached from the crumb, which is declared ABOVE this point — the same
+  // idiom as activateBodyRef/drillOutRef for the same ordering reason.
+  leavePathRef.current = leavePath;
 
   // ── TWO PANES, TWO GRAMMARS ────────────────────────────────────────────
   //
@@ -1693,7 +1783,7 @@ export default function ContextPage() {
         ) : treeNodes.length > 0 ? (
           <div className="p-2">
             <button
-              onClick={() => { setShowTrash(false); setViewPath(null); clearSelection(); activateBodyRef.current(); }}
+              onClick={() => { setShowTrash(false); leavePath(); clearSelection(); activateBodyRef.current(); }}
               aria-current={viewPath === null && !showTrash ? 'page' : undefined}
               className={cn(
                 'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
@@ -1708,7 +1798,7 @@ export default function ContextPage() {
             </button>
             {/* ADR-400 D4: Trash — the reversible home of the delete verb. */}
             <button
-              onClick={() => { setShowTrash(true); setViewPath(null); clearSelection(); activateBodyRef.current(); }}
+              onClick={() => { setShowTrash(true); leavePath(); clearSelection(); activateBodyRef.current(); }}
               aria-current={showTrash ? 'page' : undefined}
               className={cn(
                 'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
@@ -1831,7 +1921,7 @@ export default function ContextPage() {
               // ADR-329: file archived — clear selection + refresh the
               // tree (the archived file self-filters out server-side).
               // D19.2: selection is component state, never a URL write.
-              setViewPath(null);
+              leavePath();
               clearSelection();
               loadExplorer();
             }}

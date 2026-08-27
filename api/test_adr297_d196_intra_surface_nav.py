@@ -116,14 +116,40 @@ def test_activity_migrated() -> None:
 
 
 def test_files_off_url() -> None:
-    print("\n[files] selection is component state, off the URL entirely")
+    print("\n[files] the OPEN location is addressable; SELECTION is not")
     src = _read("app/(authenticated)/files/page.tsx")
+    # THE INVARIANT IS THE PATHNAME, NOT THE WRITE (re-cut 2026-08-27).
+    #
+    # This block used to assert `setSurfaceParams not in src` — banning the
+    # whole mechanism. That over-shot: the operator-observed 2026-06-12 bug was
+    # a PATHNAME FLIP off /desktop, and D19.6 (filed the same day, same report)
+    # repairs it by writing the query through history.replaceState with the
+    # pathname held verbatim. Banning the repair alongside the bug is why Files
+    # could not remember where you stood for two months: browse into a folder,
+    # refresh, and you were back at the default view, with nothing in the
+    # address bar to copy. Settings has written its own params this way
+    # throughout, with no shell breakage.
+    #
+    # So the ban is replaced by the real thing it was standing in for.
     check("no router.replace('/files?path= write", "router.replace(`/files?path=" not in src)
-    check("no useRouter import (selection is component state)", "useRouter" not in src)
-    # Files uses selectedPath component state, NOT setSurfaceParams — its param
-    # was redundant, not source-of-truth. Cold-load ?path= read survives.
-    check("does NOT use setSurfaceParams (its param was redundant)",
-          "setSurfaceParams" not in src)
+    check("no router.push('/files? write (the pathname flip IS the bug)",
+          "router.push(`/files?" not in src)
+    check("no useRouter import (the surface never navigates itself)", "useRouter" not in src)
+    # The param is written through the namespaced hook, whose setter is
+    # setSurfaceParams → replaceState. Asserted POSITIVELY: the location must
+    # actually be addressable, so a silent revert to a drained one-shot param
+    # fails here rather than passing by absence.
+    check("the open location IS written to the URL (fp.set via useSurfaceParam)",
+          "fpRef.current.set({ path" in src)
+    check("and RETRACTED when the surface leaves it (leavePath)",
+          "fpRef.current.set({ path: null" in src)
+    # The drain is what made a refresh lose your place; its return would be the
+    # regression. The arrival effect guards re-entry by comparing against where
+    # we already stand instead.
+    check("the arrival param is NOT drained after use",
+          "fp.set({ path: null, domain: null });" not in src)
+    check("re-entry is guarded by an already-there check, not a drain",
+          "viewPathRef.current" in src)
     # Repointed 2026-07-07: the cold-load seed read moved to the namespaced
     # surface-param hook (useSurfaceParam('files').get('path')) — the D6
     # namespacing this gate's sibling requires; the raw searchParams read
