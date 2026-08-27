@@ -123,6 +123,34 @@ for (the six-spellings problem ADR-592 ended; the two `hidden` readers). A
 door that is a second entrance to the SAME op is legitimate (ADR-462 D1); a
 second SPELLING of the same door is not.
 
+### D6 — One gesture, one target, one turn (2026-08-27, operator-reported)
+
+Two defects with one root, both visible in a single production screenshot: the
+composer read **"Rewrite the selection: Rewrite the selection:"**.
+
+**(a) Nothing stopped a SECOND gesture while one was held.** The composer seed
+APPENDS when the input is non-empty, so a second click did not re-arm the
+target — it concatenated. The door now **withdraws** while a gesture is held
+(click → Send, or ✕), in both apps. The lane owns that fact and reports it as
+`onSeedHeld`, distinct from `onSeededTurn`: together the two cover one act's
+whole life — HELD spans click → Send, RUNNING spans Send → settle, and the door
+needs the first. It is reported off the STATE rather than from each setter,
+because `pendingSeed` is cleared in three places and a missed clear would
+withdraw the door forever.
+
+**(b) The prefill restated the chip.** The chip already says *"Rewrite · the
+selection — …"*, and the typed seed carries the whole instruction to the server
+(`_seed_line` renders the verb, the target AND the anchor per D3 of ADR-609).
+Writing `"Rewrite the selection: "` into the composer as well was a second,
+weaker spelling of both — and it spent the real estate the member types their
+actual intent into. The prefill is DELETED in both apps; the placeholder becomes
+*"How should the selection read?"*, which asks for the intent instead of
+restating the target.
+
+**The composer is for the member's INTENT; the chip is the TARGET.** Send still
+requires typed text — a held chip with an empty composer does not fire, which
+keeps one send path rather than adding a second.
+
 ### D4 — `MarkdownToolbar` stays deterministic
 
 The judged verb never joins it. That component is markdown verbs — bold,

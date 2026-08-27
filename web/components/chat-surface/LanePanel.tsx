@@ -314,6 +314,15 @@ export interface LaneMountSlots {
    *  Fires `true` when a seeded turn actually goes up, and `false` when it
    *  settles — however it settles, including an error or a stop. */
   onSeededTurn?: (running: boolean) => void;
+  /** A gesture target is HELD in the composer — armed but not yet sent.
+   *
+   *  Distinct from `onSeededTurn`, and the two together cover the whole life
+   *  of one judged act: HELD spans click → Send (or ✕), RUNNING spans Send →
+   *  settle. The mount needs the first to withdraw its door: with a chip
+   *  already waiting, a second click cannot start a second rewrite — it would
+   *  append to the same composer, which is how "Rewrite the selection: Rewrite
+   *  the selection:" reached production. One gesture, one target, one turn. */
+  onSeedHeld?: (held: boolean) => void;
   /** How this mount renders an assistant turn's artifact writes (ADR-443):
    *   - `'card'` (default): the full ArtifactCard preview — the mount has no
    *     other view of the artifact (/chat).
@@ -421,6 +430,7 @@ export function LanePanel({
   onDefaultResponderChange,
   onArtifactWrite,
   onSeededTurn,
+  onSeedHeld,
   emptyState,
   suggestions,
   composerSeed,
@@ -767,11 +777,28 @@ export function LanePanel({
   // clears it (a fresh gesture replaces the last, and a plain seed is not a
   // gesture).
   useEffect(() => {
-    if (!composerSeed?.text) return;
-    setInput((cur) => (cur.trim() ? `${cur.replace(/\s*$/, ' ')}${composerSeed.text}` : composerSeed.text));
+    if (!composerSeed) return;
+    // A TARGET-ONLY seed (no text) is the judged gesture: the chip below names
+    // the target and the typed seed carries the instruction to the server, so
+    // writing a restatement into the composer would be a second, weaker
+    // spelling of both. Only a text-carrying seed touches the input.
+    if (composerSeed.text) {
+      setInput((cur) => (cur.trim() ? `${cur.replace(/\s*$/, ' ')}${composerSeed.text}` : composerSeed.text));
+    } else if (!composerSeed.target) {
+      return; // neither text nor target: nothing to seed
+    }
     setPendingSeed(composerSeed.target ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerSeed?.nonce]);
+
+  // Reported off the STATE, never from each setter. `pendingSeed` is cleared
+  // by the ✕, by send, and by a text-only seed replacing it; a call at each
+  // site is three chances to miss one, and a missed clear leaves the mount's
+  // door withdrawn forever.
+  useEffect(() => {
+    onSeedHeld?.(pendingSeed !== null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSeed]);
 
   /** The one streaming-turn runner — send, edit-and-resend, and regenerate
    *  share it (Phase-A turn controls). Optimistic transcript surgery up
@@ -1660,11 +1687,17 @@ export function LanePanel({
             placeholder={
               editing
                 ? 'Edit your message…'
-                : floorName
-                  ? `Message ${floorName}…`
-                  : speakerLabel
-                    ? `Message ${speakerLabel}…`
-                    : 'Write a message…'
+                : // A held gesture makes the composer's job specific: the chip
+                  // above already says WHAT is being acted on, so the input
+                  // asks only for the member's intent. This replaces the
+                  // prefill that used to restate the chip.
+                  pendingSeed
+                  ? `How should ${seedTargetNoun(pendingSeed)} read?`
+                  : floorName
+                    ? `Message ${floorName}…`
+                    : speakerLabel
+                      ? `Message ${speakerLabel}…`
+                      : 'Write a message…'
             }
             rows={1}
             style={{ maxHeight: COMPOSER_MAX_PX }}

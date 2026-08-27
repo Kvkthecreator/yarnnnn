@@ -159,6 +159,11 @@ export function TextEditor({
    *  sends (or abandons it). Armed is not pending: a seeded composer is an
    *  intent being written, not a turn in flight. */
   const armedRewriteRef = useRef<{ start: number; end: number; excerpt: string } | null>(null);
+  /** A gesture target is waiting in the composer (clicked, not yet sent). The
+   *  door withdraws while it is: a second click cannot start a second rewrite,
+   *  it only appends to the same composer. Reported by the lane, because the
+   *  chip's life (dismiss, send, replace) is the lane's to know. */
+  const [seedHeld, setSeedHeld] = useState(false);
   /** ADR-612 D5 — the span the LANDING will re-find, held separately from the
    *  spinner's state. The turn settles (`onSeededTurn(false)`) as soon as the
    *  stream closes, which is often BEFORE the refetch resolves — reading the
@@ -873,7 +878,14 @@ export function TextEditor({
     // the lane reports a seeded turn actually going up.
     armedRewriteRef.current = { ...focusPoint.range, excerpt: focusPoint.selection };
     setSeed((s) => ({
-      text: 'Rewrite the selection: ',
+      // NO prefill. The chip already says "Rewrite · the selection — …", and
+      // the typed seed carries the whole instruction to the server
+      // (`_seed_line` renders the verb, the target AND the anchor). Writing it
+      // into the composer as well was a second, weaker spelling of both —
+      // observed in production as a literal "Rewrite the selection: Rewrite
+      // the selection:" once the append path ran twice. The composer is for
+      // the member's intent; the chip is the target.
+      text: '',
       nonce: (s?.nonce ?? 0) + 1,
       target: {
         verb: 'rewrite',
@@ -1280,8 +1292,15 @@ export function TextEditor({
               {/* ADR-612 D1 — the judged act, at the thing it acts on. Yields
                   to the slash palette: both anchor off the same canvas, and
                   two floating doors at one caret is a collision, not a
-                  choice. */}
-              {!slashOpen && (
+                  choice.
+
+                  It also withdraws while a gesture is HELD (`seedHeld`): with
+                  a chip already waiting, a second click cannot start a second
+                  rewrite — it appends to the same composer, which is how
+                  "Rewrite the selection: Rewrite the selection:" reached
+                  production. One gesture, one target, one turn. The door
+                  returns when the member sends or dismisses the chip. */}
+              {!slashOpen && !seedHeld && (
                 <SelectionGesture
                   anchor={selectionAnchor}
                   label="the selection"
@@ -1481,6 +1500,7 @@ export function TextEditor({
                 modelLabel={modelLabel}
                 speakerLabel={speakerLabel}
                 artifactWrite="none"
+                onSeedHeld={setSeedHeld}
                 onSeededTurn={(running) => {
                   // ADR-612 D4 — the ONE moment the act becomes real: a turn
                   // carrying this desk's gesture has gone up. `false` settles

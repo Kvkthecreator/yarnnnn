@@ -21,8 +21,12 @@ name. The Slides half had never been driven at all.
 | **613** Slides has a pending state | **FAIL** — never built; the door claimed nothing, ever |
 | **613** the door needs a subject | **FAIL** — rendered on the rect alone; clicking did nothing |
 | (incidental) every gated steward write | **FAIL** — `execution_error`, unrelated to this arc |
+| **612 D6** one gesture at a time | **FAIL** — a second click appended; operator-reported (§5) |
+| **612 D6** the chip is the target, not the prefill | **FAIL** — restated in the composer; operator-reported (§5) |
 
-Four defects, all found by DRIVING. The gates were green over every one of them.
+Six defects. Four found by DRIVING, two by the operator reading a screenshot the
+pass had already taken and not interrogated (§5). The gates were green over
+every one of them.
 
 ---
 
@@ -150,6 +154,33 @@ rule (measured against content, both callers must supply bounds) and would fail
 on the shipped code. New Slides D4 assertions added. Falsified 15×: 14 red, and
 the one that stayed green (deleting the interface fields) is caught by `tsc`,
 which was confirmed rather than assumed.
+
+## 5. Operator-reported after the pass: one gesture, one target, one turn
+
+Reviewing the shipped Text half, the operator caught two things the pass had
+looked straight past — both visible in one screenshot where the composer read
+**"Rewrite the selection: Rewrite the selection:"**:
+
+> *"when a rewrite is selected on the chat pane, shouldn't we prevent a second
+> rewrite? … and separately, if the yellow chat rewrite is highlighted,
+> shouldn't we NOT need the text 'Rewrite the selection'? i feel like it takes
+> up un-needed real estate."*
+
+Both are right, and they share a root. The seed effect APPENDS when the
+composer is non-empty, so a second click did not re-arm the target — it
+concatenated, which is the doubled text. And the prefill was a second, weaker
+spelling of what the chip and the typed seed already carry.
+
+Worth recording that **the click-pass produced the evidence and missed the
+reading**: I drove exactly one Rewrite per document, so the append path never
+ran twice in front of me, and I photographed the doubled prefill's single-click
+form (`Rewrite the selection:`) without asking what it was FOR. A screenshot is
+not an observation until someone interrogates it.
+
+Fixed per ADR-612 D6: the door withdraws while a gesture is held (reported off
+the lane's state as `onSeedHeld`, distinct from `onSeededTurn`), and the prefill
+is deleted in both apps in favour of a placeholder that asks for the intent.
+Send still requires typed text — one send path, not two.
 
 ## Not covered
 

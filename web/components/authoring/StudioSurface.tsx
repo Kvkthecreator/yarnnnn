@@ -2498,6 +2498,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // `onSeededTurn` is what promotes armed → pending.
   const armedRewriteRef = useRef(false);
   const [pendingRewrite, setPendingRewrite] = useState(false);
+  /** A gesture target is waiting in the composer (clicked, not yet sent) — the
+   *  door withdraws while it is. Same rule as Text's, same reason: a second
+   *  click appends to one composer rather than starting a second rewrite. */
+  const [seedHeld, setSeedHeld] = useState(false);
   useEffect(() => {
     if (!pendingRewrite) return;
     // A turn that answers WITHOUT writing (a refusal, a question back, an
@@ -2511,7 +2515,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const rewriteSelection = useCallback(() => {
     if (!gestureTarget) return;
     armedRewriteRef.current = true;
-    seedComposer(`Rewrite ${gestureTarget.noun}: `, {
+    // No prefill — the chip names the target and the typed seed carries the
+    // instruction; see the note at Text's `rewriteSelection`.
+    seedComposer('', {
       verb: 'rewrite',
       path: artifactPath ? relPath(artifactPath) : null,
       blockId: gestureTarget.blockId,
@@ -3828,7 +3834,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   early-returns without it. Keyed on the rect alone the door
                   rendered with a fallback label and did NOTHING when clicked —
                   a door that opens onto nothing. */}
-              {!slash && !citePicker && !updateMenu && !ctxMenu && gestureTarget && (
+              {/* ...and withdraws while a gesture is HELD: one gesture, one
+                  target, one turn (see Text's mount for the defect). */}
+              {!slash && !citePicker && !updateMenu && !ctxMenu && !seedHeld && gestureTarget && (
                 <SelectionGesture
                   pending={pendingRewrite}
                   anchor={
@@ -4095,6 +4103,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 composerSeed={seed}
                 // ADR-612 D4 — only the lane knows a SEEDED turn actually went
                 // up; the click cannot infer it (see armedRewriteRef above).
+                onSeedHeld={setSeedHeld}
                 onSeededTurn={(running) => {
                   if (running) {
                     if (!armedRewriteRef.current) return;

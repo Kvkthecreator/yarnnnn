@@ -24,6 +24,13 @@ def check(label: str, cond: bool, detail: str = "") -> None:
         failures.append(f"{label}{(': ' + detail) if detail else ''}")
 
 
+def surface_src() -> str:
+    """StudioSurface, read on demand — the module-level `surface` binding is
+    established further down, and reaching forward to it would make these
+    checks depend on statement order rather than on the file."""
+    return read("components/authoring/StudioSurface.tsx")
+
+
 def read(rel: str) -> str:
     p = WEB / rel
     if not p.exists():
@@ -155,6 +162,51 @@ check("D4 the click ARMS a target and claims no turn",
       "armedRewriteRef.current = {" in editor
       and "setPendingRewrite({ ...focusPoint.range" not in editor,
       "the click must not set the pending/working state")
+# ── ONE GESTURE, ONE TARGET, ONE TURN (2026-08-27, operator-reported) ─────
+#
+# Two defects with one root, both visible in a single production screenshot:
+# the composer read "Rewrite the selection: Rewrite the selection:".
+#
+#   (1) Nothing stopped a SECOND gesture while one was already held. The seed
+#       effect APPENDS when the composer is non-empty, so a second click did
+#       not re-arm — it concatenated.
+#   (2) The prefill restated the chip. The chip says "Rewrite · the selection
+#       — …" and the typed seed carries the whole instruction to the server
+#       (`_seed_line` renders verb, target AND anchor). Writing it into the
+#       composer too was a second, weaker spelling of both, and it cost the
+#       member the real estate they type their actual intent into.
+#
+# The composer is for the member's INTENT; the chip is the TARGET.
+check("no gesture writes a restatement into the composer",
+      "'Rewrite the selection: '" not in editor
+      and "`Rewrite ${gestureTarget.noun}: `" not in surface_src(),
+      "the chip already names the target; the seed already carries the verb")
+check("the lane arms the chip from a TARGET-ONLY seed",
+      "} else if (!composerSeed.target) {" in lane_panel,
+      "with the prefill gone the seed carries no text — an early return on "
+      "empty text would leave the chip unarmed and the gesture inert")
+check("a held gesture asks for the INTENT, not the target",
+      "How should ${seedTargetNoun(pendingSeed)} read?" in lane_panel,
+      "the placeholder replaces the prefill; it must not restate the chip")
+# The withdrawal. Reported off the STATE (one place), consumed by both mounts.
+# Pinned to the DECLARATION, not the bare name: deleting the prop type left
+# `onSeedHeld` present at its other three uses, so a substring test passed on
+# a component that no longer accepts it (falsified 2026-08-27).
+check("the lane reports a HELD gesture, distinct from a running turn",
+      "onSeedHeld?: (held: boolean) => void;" in lane_panel,
+      "held spans click → Send; running spans Send → settle. One act, two "
+      "spans, and the door needs the first")
+check("held is reported off the state, not from each setter",
+      re.search(r"useEffect\(\(\) => \{\s*onSeedHeld\?\.\(pendingSeed !== null\);",
+                lane_panel) is not None,
+      "pendingSeed is cleared by ✕, by send, and by a replacing seed — a call "
+      "at each site is three chances to miss one, and a missed clear leaves "
+      "the door withdrawn forever")
+check("Text withdraws its door while a gesture is held",
+      "!slashOpen && !seedHeld && (" in editor and "onSeedHeld={setSeedHeld}" in editor,
+      "a second click appends to the same composer; it does not start a "
+      "second rewrite")
+
 check("D4 the lane reports when a SEEDED turn actually goes up",
       "onSeededTurn" in lane_panel
       and "if (seed) onSeededTurn?.(true);" in lane_panel,
@@ -296,6 +348,11 @@ check("613 the gesture yields to every other floating door",
 # selection. So a rect arriving without a selection rendered a door wearing a
 # fallback label that did NOTHING when clicked: a door onto nothing, the
 # ADR-373 D6 incorrect-success shape at the affordance layer.
+check("613 Slides withdraws its door while a gesture is held",
+      "!seedHeld && gestureTarget && (" in surface
+      and "onSeedHeld={setSeedHeld}" in surface,
+      "the same one-gesture rule as Text, in the medium that shares the "
+      "component")
 check("613 the door renders only when the act HAS a subject",
       "&& gestureTarget && (" in surface,
       "keyed on the rect alone, the door opens onto nothing")
