@@ -932,7 +932,6 @@ async def invoke_freddie(
         caller_identity=f"freddie:{FREDDIE_MODEL_IDENTITY}",
         freddie_caller=True,
         agent=None,
-        agent_slug=None,
         task_slug=None,
         recurrence_options=recurrence_options,
     )

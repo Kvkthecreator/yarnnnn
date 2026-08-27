@@ -247,6 +247,88 @@ def main() -> int:
                 f"migration 248 drops {tbl}.{col}",
             )
 
+    # 6. NO LIVE WRITER STILL SENDS A DROPPED COLUMN.
+    #
+    # The gap this closes, found by DRIVING production (2026-08-27): §5 proved
+    # migration 248 DROPS `action_proposals.agent_slug`, and every check passed
+    # — while `_insert_proposal_row` still put `"agent_slug": …` in its insert
+    # dict. PostgREST refuses the WHOLE statement on an unknown column, so every
+    # gated substrate write funnelling through that one path returned
+    # `execution_error`, and a member's Rewrite silently could not land.
+    #
+    # "0 non-null rows" (what 248 measured) says nothing about whether a WRITER
+    # still names the column. A dropped column needs BOTH halves asserted: the
+    # DDL removes it, and no live payload mentions it.
+    #
+    # DRIVEN, not grepped: the row builder is executed and its KEYS inspected.
+    # A grep over the module would pass on a renamed local or a commented line;
+    # only the dict that actually reaches `.insert()` is the column set.
+    _dropped_cols = {
+        "chat_sessions": "agent_id",
+        "execution_events": "agent_run_id",
+        "export_log": "agent_run_id",
+        "action_proposals": "agent_slug",
+        "session_messages": "thread_agent_id",
+    }
+    try:
+        import asyncio
+        from types import SimpleNamespace
+
+        import services.primitives.propose_action as _pa
+
+        _captured: dict = {}
+
+        class _Table:
+            def __init__(self, name): self.name = name
+            def insert(self, row):
+                _captured["table"] = self.name
+                _captured["row"] = dict(row)
+                raise _Stop()
+
+        class _Stop(Exception):
+            pass
+
+        class _Client:
+            def table(self, name): return _Table(name)
+
+        _auth = SimpleNamespace(user_id="00000000-0000-0000-0000-000000000000",
+                                client=_Client())
+        try:
+            asyncio.new_event_loop().run_until_complete(
+                _pa.enqueue_gated_action(
+                    _auth, primitive="EditFile", inputs={}, family="substrate",
+                    decision_context={}, source=None, task_slug=None, ttl_hours=1,
+                )
+            )
+        except _Stop:
+            pass
+
+        _row = _captured.get("row")
+        check(_row is not None, "the proposal row builder (enqueue_gated_action) was driven")
+        check(_captured.get("table") == "action_proposals",
+              f"it inserts into action_proposals (got {_captured.get('table')!r})")
+        if _row is not None:
+            _bad = sorted(
+                k for k, v in _dropped_cols.items()
+                if _captured.get("table") == k and v in _row
+            ) or ([_dropped_cols["action_proposals"]]
+                  if "agent_slug" in _row else [])
+            check(
+                not _bad,
+                "the action_proposals insert names no DROPPED column "
+                f"(offending keys: {_bad}; row keys={sorted(_row)})",
+            )
+    except Exception as exc:  # noqa: BLE001
+        check(False, f"could not drive the proposal row builder ({exc!r})")
+
+    # The dead auth field goes with the column — 0 readers, and a field that
+    # only ever fed a dropped column is not "unused", it is retired.
+    _fa = (ROOT / "agents" / "freddie_agent.py")
+    check(
+        "agent_slug" not in _fa.read_text(encoding="utf-8"),
+        "freddie_agent.py carries no agent_slug on the auth namespace",
+    )
+
     print()
     print("=" * 66)
     print(f"agent-model retirement gate: {_passed} passed, {_failed} failed")

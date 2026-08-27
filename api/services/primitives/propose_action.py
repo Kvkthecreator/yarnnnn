@@ -162,7 +162,6 @@ Args:
   reversibility: "reversible" | "soft-reversible" | "irreversible"
   risk_warnings: optional list of warning strings (usually from risk_gate output)
   task_slug: optional — link proposal to originating task
-  agent_slug: optional — link proposal to originating agent
   expires_in_hours: override default TTL (reversible=24, soft-reversible=6, irreversible=1)""",
     "input_schema": {
         "type": "object",
@@ -193,7 +192,6 @@ Args:
                 "description": "Optional warnings (e.g., from risk_gate).",
             },
             "task_slug": {"type": "string"},
-            "agent_slug": {"type": "string"},
             "expires_in_hours": {
                 "type": "integer",
                 "description": "Override default TTL by reversibility.",
@@ -213,7 +211,6 @@ async def enqueue_gated_action(
     decision_context: dict,
     source: Optional[str] = None,
     task_slug: Optional[str] = None,
-    agent_slug: Optional[str] = None,
     ttl_hours: int = 24,
 ) -> dict:
     """ADR-307 D4: insert a generic gated-action queue row.
@@ -229,6 +226,15 @@ async def enqueue_gated_action(
     them (closes the self-wake loop).
     """
     expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
+    # This dict IS the column set. `action_proposals.agent_slug` was dropped by
+    # migration 248 with the rest of the pre-ADR-596 agent model, but the key
+    # stayed here — so PostgREST refused the WHOLE insert ("Could not find the
+    # 'agent_slug' column ... in the schema cache") and every gated substrate
+    # write funnelling through this one path died as `execution_error`. Found by
+    # DRIVING a Rewrite in production, not by a gate: the column was measured at
+    # 0 non-null rows, which said nothing about whether a WRITER still sent it.
+    # Keep this row a subset of the live table; a stale key here is not a stale
+    # value, it is a rejected statement.
     row = {
         "user_id": auth.user_id,
         "primitive": primitive,
@@ -236,7 +242,6 @@ async def enqueue_gated_action(
         "family": family,
         "decision_context": decision_context or {},
         "task_slug": task_slug,
-        "agent_slug": agent_slug,
         "expires_at": expires_at.isoformat(),
         "status": "pending",
         "source": source or None,
@@ -376,7 +381,6 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
             decision_context=decision_context,
             source=input.get("source"),
             task_slug=input.get("task_slug"),
-            agent_slug=input.get("agent_slug"),
             ttl_hours=ttl_hours,
         )
         if not enq.get("success"):
