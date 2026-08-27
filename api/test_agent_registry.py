@@ -508,7 +508,13 @@ _check("the registry module has no write path", not _writes)
 # showed the fallback glyph with nothing anywhere going red.
 # Derived from the register, never a hand-kept list — a hand-kept copy is the
 # same drift one level up.
-_icon_map_block = _surface.split("const ICONS", 1)[-1].split("};", 1)[0]
+# The map moved to its OWN module (ADR-614): the new-chat door lists beings
+# too, and a second copy of this map beside it would be the very drift these
+# two checks exist to catch. Read from the one home; `BEING_ICONS` is the
+# exported name, so a rename that forgot this gate reads as an EMPTY map and
+# fails loudly here rather than silently passing on a missing split.
+_icon_src = (API.parent / "web" / "components" / "agents" / "BeingIcon.tsx").read_text()
+_icon_map_block = _icon_src.split("BEING_ICONS", 1)[-1].split("};", 1)[0]
 _missing_icons = sorted(
     {row["icon"] for row in AGENTS.values() if row.get("icon")}
     - {

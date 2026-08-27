@@ -581,8 +581,14 @@ export const api = {
        *  app's own declaration (`services/apps/*`); the client never names a
        *  colleague. Bound lanes only — passing it unbound is a 422 (ADR-558). */
       app?: string;
-      /** The engine directly — a chat lane binds one and never picks a
-       *  character (who replies is the cast's answer, ADR-495). */
+      /** ADR-614 D1 — the colleague the member picked at the door. Chat lanes
+       *  only: it SEEDS THE CAST (the same act as adding them from CastBar),
+       *  and the engine is resolved from the being server-side. A bound lane's
+       *  colleague is its app's resident and is never sent from here. */
+      agent?: string;
+      /** The engine directly. Optional when `agent` is given — the engine
+       *  rides behind the name — and still the whole answer for a member who
+       *  came for a raw engine. */
       model?: string;
       artifact_path?: string;
       /** ADR-450 D3 — the derive binding (pass both or neither). */

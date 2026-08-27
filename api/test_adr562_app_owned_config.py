@@ -155,8 +155,14 @@ _lanes = (ROOT / "api" / "routes" / "lanes.py").read_text()
 _create = _lanes[_lanes.index("async def create_lane("):]
 _create = _create[: _create.index("\n@router.")]
 
-check("the request carries `app`, never `agent`",
-      "app: Optional[str] = None" in _lanes and "agent: Optional[str] = None" not in _lanes)
+# ADR-614 D1 — a CHAT lane may name a colleague again (it seeds the cast).
+# ADR-562's invariant is narrower and UNCHANGED: a BOUND lane's resident is
+# the APP's declaration, never the client's assertion. The gate now asserts
+# that invariant directly rather than the absence of the field, which was only
+# ever a proxy for it — and a proxy that would now read as a regression.
+check("the request carries `app`", "app: Optional[str] = None" in _lanes)
+check("a BOUND lane refuses a client-named colleague (the real invariant)",
+      "chat_agent and is_bound" in _create)
 
 check("the resident is resolved from the app's declaration",
       "resident_for_app(app_slug)" in _create)
@@ -169,15 +175,59 @@ check("a canvas-less derive lane takes the RECIPE's colleague",
 # resident and re-introduce the exact defect this ADR removes.
 import routes.lanes as L  # noqa: E402
 
-check("a stale `agent` field is REFUSED, not silently dropped",
+check("an unknown field is REFUSED, not silently dropped",
       L.CreateLaneRequest.model_config.get("extra") == "forbid")
 
-_refused = False
+# DRIVEN, not inferred from the model's shape: `agent` + a binding now passes
+# validation and must be refused by the HANDLER. Asserting the constructor
+# raises would pass for the wrong reason (Pydantic on an unknown field) and
+# would go green even if the handler's guard were deleted.
+import asyncio  # noqa: E402
+import os  # noqa: E402
+
+from fastapi import HTTPException  # noqa: E402
+
+os.environ.setdefault("MODEL_ROUTER_ENABLED", "true")
+os.environ.setdefault("LANES_ENABLED", "true")
+
+
+class _A:
+    user_id = "u"
+    workspace_id = None
+    principal_id = "u"
+
+    class client:  # noqa: N801
+        @staticmethod
+        def table(_n):
+            class Q:
+                def select(s, *a, **k): return s
+                def eq(s, *a, **k): return s
+                def like(s, *a, **k): return s
+                def limit(s, *a, **k): return s
+                def order(s, *a, **k): return s
+
+                def execute(s):
+                    class R:
+                        data: list = []
+                    return R()
+            return Q()
+
+
+_status, _detail = None, ""
 try:
-    L.CreateLaneRequest(agent="designer", artifact_path="/workspace/x.html")
-except Exception:
-    _refused = True
-check("…proven by construction (the model rejects it)", _refused)
+    asyncio.run(L.create_lane(
+        L.CreateLaneRequest(agent="designer", artifact_path="/workspace/x.html"), _A()))
+except HTTPException as _e:
+    _status, _detail = _e.status_code, str(_e.detail)
+except Exception:  # noqa: BLE001
+    _status = "reached-db"
+# ⚠️ THE REASON, NOT JUST THE STATUS. On a machine with no provider key the
+# ADR-559 availability gate ALSO returns 422 ("… isn't connected on this
+# deployment yet") — so `_status == 422` alone passes with this guard deleted.
+# Observed doing exactly that while writing this check.
+check("…proven by DRIVING the handler (a bound lane refuses a client colleague)",
+      _status == 422 and "resident" in _detail.lower(),
+      f"got {_status} | {_detail!r}")
 
 # And the legitimate shapes still construct.
 for kw in ({"model": "anthropic/claude-sonnet-5"},

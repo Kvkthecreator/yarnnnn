@@ -84,6 +84,13 @@ interface LaneData {
     /** kernel = a built-in capability; false = one the member hired + named. */
     kernel?: boolean;
   }>;
+  /** ADR-601 D4 / ADR-614 D1 — every being that EXISTS, with provenance and
+   *  the desks it serves. Distinct from `agents` above, which is the INVITE
+   *  roster (`offered`) and is empty today because nobody is offered: a door
+   *  reading only that one would tell the member they have no colleagues while
+   *  Editor is mid-conversation with them. This is what the new-chat door
+   *  lists. */
+  beings?: Array<{ slug: string; name: string; blurb: string; icon: string }>;
   /** The CHOOSER — the OFFERED roster only (retired engines leave the door,
    *  ADR-559 D2). ⚠️ This comment used to claim "every model stays routable"
    *  is served here; it is not, and reading it that way is what let a lane on a
@@ -571,17 +578,20 @@ export function ChatSurface() {
   // because there the drilled-in lane genuinely hides the list.
   useSelfLocatedSurface('chat', !(isNarrow && activeLane));
 
-  // ADR-558 D1 — ONE create path, and it sends an ENGINE. The two paths this
-  // replaces (`createLane(agentSlug)` and `createConversationWithPerson`) were
-  // the same act wearing two different first questions; the server now refuses
-  // `agent` on an unbound lane, so there is nothing to keep. Adding a colleague
-  // or a teammate is the CAST's job, done from inside the conversation.
+  // ADR-614 D1 — ONE create path, and it sends WHO or WHICH ENGINE. It stays
+  // one path: the door answers a single question with two kinds of answer, and
+  // naming a colleague resolves to a cast row + their engine SERVER-side, so
+  // the client assembles no persona and no model of its own. Inviting a
+  // teammate remains the CAST's job, from inside the conversation (ADR-495).
   //
   // No name: a lane auto-names from its first message (Phase-A hygiene).
-  const createLane = useCallback(async (engineId: string) => {
-    if (!engineId) return;
+  const createLane = useCallback(async (choice: { agent?: string; model?: string }) => {
+    if (!choice.agent && !choice.model) return;
     try {
-      const lane = await api.lanes.create({ model: engineId });
+      // ADR-614 D1 — the door sends WHO or WHICH ENGINE. Naming a colleague
+      // seeds the cast server-side and resolves their engine there; the client
+      // never names a model on the member's behalf, and never both.
+      const lane = await api.lanes.create(choice);
       const info: LaneInfo = {
         id: lane.id,
         name: lane.name,
@@ -677,14 +687,16 @@ export function ChatSurface() {
     );
   }
 
-  // The new-chat flow is a MODAL (NewChatModal) — ADR-558 D1: it asks WHICH
-  // ENGINE. People and colleagues join through the CAST, from inside the
-  // conversation, which is why neither is passed here any more.
+  // The new-chat flow is a MODAL (NewChatModal) — ADR-614 D1: it leads with
+  // COLLEAGUES and keeps engines a click behind. People still join through the
+  // CAST, from inside the conversation (ADR-495), which is why no human roster
+  // is passed here.
 
   return (
     <div ref={setPaneNode} className="h-full flex min-h-0">
       {creating && (
         <NewChatModal
+          beings={data?.beings ?? []}
           engines={data?.models ?? []}
           onPick={createLane}
           onClose={() => setCreating(false)}

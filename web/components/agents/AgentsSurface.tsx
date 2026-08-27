@@ -44,28 +44,12 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Bot, ClipboardList, Palette, PenTool } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
-
-// The registry's `icon` is a kebab-case lucide name (ADR-460 row shape).
-// Mapped explicitly rather than resolved dynamically: lucide's dynamic import
-// pulls the whole icon set into the bundle, and a being whose icon is missing
-// should render the neutral fallback, not crash the surface. `AgentIcon` is
-// NOT reused — it keys off the pre-ADR-596 ROLE taxonomy, not a being's slug.
-// One entry per `icon` value in api/services/agents_registry.AGENTS. A being
-// whose icon is missing here renders the fallback Bot glyph — silently, and
-// looking like every other unmapped being. Supervisor did exactly that until
-// 2026-08-26: the registry said `clipboard-list`, this map had three keys.
-// A being's glyph is part of how the member tells one desk from another, so a
-// miss is a real defect, not a cosmetic one. Add the row when the registry does.
-const ICONS: Record<string, React.ElementType> = {
-  'pen-tool': PenTool,             // authoring — decks and prose (ADR-602 D4)
-  palette: Palette,                // generation — the metered pipeline
-  'clipboard-list': ClipboardList, // the standing declaration — Supervisor's desk
-};
+import { BeingIcon } from './BeingIcon';
 
 // Provenance, rendered from the field. A member-authored being simply lacks
 // the mark — there is no "yours" badge, because the member already knows.
@@ -119,11 +103,6 @@ function DeskChips({ being }: { being: Being }) {
   return (
     <span className="text-[11px] text-muted-foreground">in {names.join(', ')}</span>
   );
-}
-
-function BeingIcon({ icon }: { icon: string }) {
-  const Glyph = ICONS[icon] ?? Bot;
-  return <Glyph className="h-4 w-4 text-muted-foreground" />;
 }
 
 type Being = {

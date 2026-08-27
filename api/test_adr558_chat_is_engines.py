@@ -1,15 +1,25 @@
-"""ADR-558 — chat is the engine surface; Agents are personified. The ratchet.
+"""ADR-558 (as amended by ADR-614 D1) — the chat door, and the one authority.
 
 Run: python3 test_adr558_chat_is_engines.py   (from api/)
 
-What this defends: **a chat conversation is created with an ENGINE and has no
-birth-persona; who replies is the cast's answer.** Apps keep their residents.
+What this defends, and the line ADR-614 moved:
 
-The dual approach this closes (recorded verbatim at routes/lanes.py:788-793):
+  ADR-558 D1 said the chat door asks WHICH ENGINE. **ADR-614 D1 reverses that
+  centring** — the door leads with colleagues, engines a click behind — so the
+  assertions that pinned "no agent at this door" are GONE, deliberately. They
+  described a UI ordering, not an invariant.
+
+  ADR-558 D3 said the CAST is the single authority on who replies, and that a
+  lane carries NO birth-persona scalar. **That is untouched and is what this
+  gate now defends.** Naming a colleague at the door adds a CAST ROW — the same
+  act as CastBar — and writes nothing to `lane_meta`.
+
+The dual approach this still closes (recorded verbatim at routes/lanes.py):
 `lane_meta["agent"]` was a creation-time scalar ADR-495 D3 had already retired
 into the cast. Two authorities for "who replies" produced a live bug — an Agent
 added via CastBar never replied, because the cast said yes and lane_meta said
-nobody.
+nobody. A colleague picked at the door must therefore be INDISTINGUISHABLE
+downstream from one added a second later, which is exactly what a cast row is.
 
 The handler is EXECUTED, not grepped: a 422 that exists in source but never
 fires is the failure mode this codebase keeps hitting.
@@ -82,26 +92,48 @@ def _create(**kw):
         return ("other", type(exc).__name__, None)
 
 
-print("1. D1/D3 — a CHAT lane is created with an engine, never a persona")
+print("1. the chat door — a colleague OR an engine (ADR-614 D1)")
 
-# ADR-562 D3: the client names the APP, never the colleague — so the D3 rule is
-# now driven through `app=`. (`agent=` is gone from the request model entirely;
-# asserting on it here would pass for the WRONG reason — Pydantic refusing an
-# unknown field, not this rule refusing a persona at the chat door.)
+# An APP is a BINDING, not a colleague. `app` without one is still refused —
+# `register_app` answers "who works this desk", which is meaningless with no
+# desk. What CHANGED is the reason: it is no longer "a chat lane may not name
+# a colleague", because now it may.
 kind, status, detail = _create(app="studio")
-check("a residency WITHOUT a binding is refused", kind == "http" and status == 422,
+check("an app WITHOUT a binding is refused", kind == "http" and status == 422,
       f"got {kind}/{status}")
-check("...and the refusal says why (engine, not colleague)",
-      bool(detail) and "engine" in detail.lower() and "cast" in detail.lower(),
+check("...and the refusal names the binding, not a banned persona",
+      bool(detail) and "binding" in detail.lower(),
       f"detail={detail!r}")
 
-# The removal itself, asserted as BEHAVIOUR: a client that still sends `agent`
-# must not quietly get a lane. Pydantic's default would IGNORE an unknown field,
-# which would let a stale client keep asserting identity and be silently obeyed
-# by nothing — the failure mode ADR-562 exists to end.
-check("the request model no longer carries `agent` (identity is server-derived)",
-      "agent" not in L.CreateLaneRequest.model_fields,
+# ADR-614 D1 — the door accepts a colleague again. The engine rides behind the
+# name, so no `model` is needed: getting PAST validation into the fake DB is
+# the proof it was accepted.
+check("the request model carries `agent` again (the door may name a colleague)",
+      "agent" in L.CreateLaneRequest.model_fields,
       f"fields={sorted(L.CreateLaneRequest.model_fields)}")
+
+# The engine rides behind the name: `agent` alone must resolve to the being's
+# OWN engine rather than tripping "model is required". In an environment with
+# no provider key the ADR-559 availability gate then refuses THAT engine — a
+# different, correct refusal, and the proof resolution happened. Asserting
+# `kind == "other"` here would pass only on a machine with the key, which is
+# how a gate becomes environment-dependent.
+kind, status, detail = _create(agent="editor")
+_resolved = kind == "other" or (
+    kind == "http" and status == 422 and "required" not in (detail or "").lower()
+)
+check("a colleague alone RESOLVES to its own engine (never 'model is required')",
+      _resolved, f"got {kind}/{status} {detail!r}")
+
+kind, status, detail = _create(agent="nobody-here")
+check("an unknown colleague is refused, never degraded to a default",
+      kind == "http" and status == 422, f"got {kind}/{status}")
+
+# ADR-562 D3 survives: a BOUND lane's colleague is its app's, never the
+# client's. Both authorities in one request is a caller bug.
+kind, status, detail = _create(agent="editor", artifact_path="operation/deck.html")
+check("a BOUND lane refuses a client-named colleague (ADR-562 D3 intact)",
+      kind == "http" and status == 422, f"got {kind}/{status}")
 
 kind, status, detail = _create()
 check("no engine at all is refused", kind == "http" and status == 422, f"got {kind}/{status}")
@@ -180,23 +212,39 @@ check("`models` is served (the chat chooser)", '"models"' in env or "'models'" i
 check("`agents` is still served (the CAST's roster, not the door)",
       '"agents"' in env or "'agents'" in env)
 
-print("\n5. FE — the door asks for an engine")
+print("\n5. FE — the door leads with colleagues, engines a click behind (ADR-614)")
 
 web = pathlib.Path("../web")
 modal = (web / "components/chat-surface/NewChatModal.tsx").read_text()
-check("modal takes engines, not agents", "engines" in modal and "agents:" not in modal)
+check("modal takes BOTH — colleagues and engines", "beings" in modal and "engines" in modal)
 check("modal no longer asks 'who do you want to talk to'",
       "Who do you want to talk to" not in modal)
 check("modal carries the provider brand mark (D5)", "engineBrandIcon" in modal)
-check("modal remembers the last engine (sticky)", "rememberEngine" in modal)
+check("modal remembers the last START — colleague or engine, ONE key",
+      "rememberStart" in modal and "lastStart" in modal
+      and "rememberEngine" not in modal,
+      "a second sticky key would let the door claim two 'last used' marks")
+# The ordering IS the decision: beings must render BEFORE engines in source.
+# Without this the whole ADR is a comment — a modal listing engines first with
+# a `beings` prop it renders below would pass every other check here.
+check("colleagues render BEFORE engines in the door",
+      "beings.map" in modal and "engines.map" in modal
+      and modal.index("beings.map") < modal.index("engines.map"),
+      "engines lead the door — ADR-614 D1 reverses exactly this")
+check("the being glyph comes from the ONE shared map, not a local copy",
+      "BeingIcon" in modal and "ICONS" not in modal)
+# No commentary (operator ruling): the door states choices, not instructions.
+check("the door carries no restated instructions",
+      "Add people or agents once the chat is open" not in modal
+      and "Manage your agents" not in modal)
 
 chat = (web / "components/chat-surface/ChatSurface.tsx").read_text()
 check("the person-create path is DELETED (one create, not two)",
       "createConversationWithPerson" not in chat.replace(
           "`createLane(agentSlug)` and `createConversationWithPerson`", ""),
       "a second create path survived")
-check("createLane sends model, never agent",
-      "api.lanes.create({ model: engineId })" in chat)
+check("createLane passes the door's choice through, assembling nothing",
+      "api.lanes.create(choice)" in chat)
 
 brand = (web / "lib/ai-providers/brand-icons.tsx").read_text()
 check("engine brand mapping lives beside the host-id one (one home)",

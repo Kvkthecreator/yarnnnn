@@ -127,6 +127,65 @@ _assert("list_lanes" in callers,
 _assert(any("turn" in c or "message" in c or "_core" in c for c in callers),
         f"the TURN path reconciles (callers: {callers})")
 
+print("5. the door SEEDS THE CAST — it does not write a birth-persona")
+
+# THE LOAD-BEARING CLAIM of ADR-614 D1, driven rather than asserted in prose.
+# If naming a colleague at the door wrote `lane_meta["agent"]`, ADR-558 D3's
+# dual-authority bug would return: the cast would say one thing and the scalar
+# another, which is exactly the CastBar defect D3 records.
+import asyncio  # noqa: E402
+import os  # noqa: E402
+
+os.environ.setdefault("MODEL_ROUTER_ENABLED", "true")
+os.environ.setdefault("LANES_ENABLED", "true")
+import routes.lanes as L  # noqa: E402
+import services.conversation_cast as CC  # noqa: E402
+import services.lane_runner as LR  # noqa: E402
+
+_WRITES: list[dict] = []
+_ROW: dict = {}
+CC.add_participant = lambda conv, **kw: _WRITES.append(kw)
+LR.lane_model_availability = lambda m: (True, None)  # no provider key in CI
+
+
+class _Auth:
+    user_id = "u-1"
+    workspace_id = "w-1"
+    principal_id = "u-1"
+
+    class client:  # noqa: N801
+        @staticmethod
+        def table(_n):
+            class Q:
+                def select(s, *a, **k): return s
+                def eq(s, *a, **k): return s
+                def like(s, *a, **k): return s
+                def limit(s, *a, **k): return s
+                def order(s, *a, **k): return s
+                def insert(s, row, *a, **k): _ROW.update(row); return s
+
+                def execute(s):
+                    class R:
+                        data = [{"id": "lane-1", "workspace_id": "w-1", **_ROW}]
+                    return R()
+            return Q()
+
+
+try:
+    asyncio.run(L.create_lane(L.CreateLaneRequest(agent="editor"), _Auth()))
+except Exception:  # noqa: BLE001 — the fake DB ends the handler; the writes stand
+    pass
+
+_kinds = [(w.get("member_kind"), w.get("agent_slug")) for w in _WRITES]
+_assert(("human", None) in _kinds, f"the creator is seeded into the cast ({_kinds})")
+_assert(("agent", "editor") in _kinds,
+        f"the NAMED COLLEAGUE is seeded as a cast row ({_kinds})")
+_lm = (_ROW.get("context_metadata") or {}).get("lane") or {}
+_assert("agent" not in _lm,
+        f"NO birth-persona scalar is written to lane_meta (ADR-558 D3 intact): {_lm}")
+_assert(_lm.get("model") == "anthropic/claude-sonnet-5",
+        f"the being's own engine is persisted as the lane's fact ({_lm.get('model')})")
+
 print()
 if FAILURES:
     print(f"ADR-614 gate RED — {len(FAILURES)} failing:")

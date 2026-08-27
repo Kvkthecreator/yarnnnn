@@ -58,13 +58,25 @@ class CreateLaneRequest(BaseModel):
     # created with an ENGINE; it has no birth-persona. Who REPLIES is the cast's
     # answer (ADR-495), joined after creation, never chosen at the door.
     #
-    # `agent` survives for BOUND lanes only — Studio/Docs/IMAGES pin a resident
-    # (ADR-467 D1: an app has one job, so it pins one colleague). Passing
-    # `agent` without a binding is now a 422: it was the creation-time scalar
-    # ADR-495 D3 already retired into the cast, and keeping both authorities
-    # produced a live bug (an Agent added via CastBar never replied — the cast
-    # said yes, lane_meta said nobody). One authority per surface.
+    # A BOUND lane never takes `agent` from the client — its resident is a fact
+    # about the APP, resolved server-side from `register_app` (ADR-562 D3).
+    # An UNBOUND (chat) lane may name one, and it becomes a CAST ROW, never a
+    # scalar on the lane (ADR-614 D1). One authority per surface, still.
     model: Optional[str] = None
+    # ADR-614 D1 — A CHAT LANE MAY NAME A COLLEAGUE, AND IT SEEDS THE CAST.
+    #
+    # ADR-558 D1 centred this door on the ENGINE. That centring is REVERSED
+    # (D1 amended): the member picks a colleague first, an engine second. What
+    # ADR-558 D3 actually forbade is UNCHANGED and still enforced — no
+    # birth-persona SCALAR is written to `lane_meta`, because two authorities
+    # on who replies is what produced the CastBar bug it records.
+    #
+    # The distinction is the whole decision: naming a being here ADDS A CAST
+    # ROW — the identical act the member would perform via CastBar one second
+    # later. The cast remains the single authority (ADR-495 D1); this door
+    # only moves WHEN that row is written, never WHERE the answer lives.
+    # Presence is a cast row; it is not a property of the lane.
+    agent: Optional[str] = None
     # ADR-562 D3 — THE APP ASKS, THE SERVER ANSWERS WHO. A bound lane names the
     # APP creating it (`studio` | `docs` | `images`); the resident is resolved
     # server-side from that app's own registration
@@ -683,25 +695,45 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         or (req.derive_source or "").strip()
     )
     if app_slug and not is_bound:
-        # THE ADR-558 D3 LINE, unchanged in substance: a chat lane has no
-        # birth-persona: who replies is the cast's answer, joined after
-        # creation. Refused loudly rather than ignored — a silently-dropped
-        # residency would read as supported and become a bug report (the
-        # ADR-460 strict-key precedent).
+        # An APP is a BINDING, not a colleague. `app` still requires one:
+        # `register_app` answers "who works this desk", which is meaningless
+        # without a desk. A member naming a colleague sends `agent` (below).
+        # Refused loudly rather than ignored — a silently-dropped field reads
+        # as supported and becomes a bug report (the ADR-460 strict-key
+        # precedent).
         raise HTTPException(
             status_code=422,
             detail=(
-                "A chat conversation is created with an engine, not a colleague "
-                "(ADR-558). Create it with `model`, then add the colleague to "
-                "the cast."
+                "`app` names a binding, not a colleague. Send `artifact_path` "
+                "(or a derive binding) with it, or send `agent` to start a "
+                "chat with a colleague."
             ),
         )
+    # ADR-614 D1 — the member named a colleague at the door. Resolve it here,
+    # server-side, for the same reason the app path does: the client names WHO,
+    # never the engine behind them. A being that does not resolve is a caller
+    # bug, refused rather than degraded to a plausible default (ADR-548).
+    chat_agent = (req.agent or "").strip()
+    if chat_agent and is_bound:
+        # A bound lane's resident is the APP's declaration; letting the client
+        # override it is the drift ADR-562 D3 closed. One authority per lane.
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A bound lane's colleague is its app's resident, resolved from "
+                "the app's own registration — it is not sent by the client."
+            ),
+        )
+    # The engine rides BEHIND the name (ADR-460 D4): resolution + the "unknown
+    # agent" refusal happen at the ONE `if agent_slug:` block below, shared with
+    # the app and recipe paths. Resolving here too would be a second spelling of
+    # the same lookup, and the two could drift.
     # ADR-562 D3 — the resident is DERIVED from the app's own declaration, never
     # taken from the client. An unregistered app is a caller bug (the ADR-450
     # precedent: an unknown recipe is a caller bug, not a lane), and refusing
     # beats a plausible default — ADR-548's lesson, that a fallback degrading to
     # a plausible value is worse than one that fails.
-    agent_slug = ""
+    agent_slug = chat_agent
     if app_slug:
         # The package import IS the registration (services/apps/__init__.py) —
         # load-bearing, never prune it as unused. Without it this resolution
@@ -734,7 +766,11 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         if not agent:
             # The ADR-450 precedent: an unknown recipe is a caller bug, not a lane.
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
-        model = agent["model"]
+        # A BOUND lane's engine always follows its resident. A CHAT lane's
+        # follows the colleague too, unless the member also named an engine —
+        # the two questions stay separable (ADR-558's surviving insight), so
+        # "Editor, on GPT-5" is expressible rather than silently overridden.
+        model = model if (chat_agent and model) else agent["model"]
     if not model:
         raise HTTPException(status_code=422, detail="model is required")
     if model not in LANE_MODELS:
@@ -858,11 +894,12 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # ADR-495 D1 — the cast is born with the conversation: the creator, always.
     # Window 0 (they see everything from turn one — nothing prior to withhold).
     #
-    # ADR-558 D3: a CHAT lane's cast is born with ONE member — the creator. No
-    # agent, because a chat conversation has no birth-persona; the member adds
-    # a colleague when they want one. `agent_slug` here is only ever an app's
-    # resident (bound lanes), which IS invited, because the app's job is that
-    # colleague's job.
+    # ADR-614 D1 — a chat lane's cast is born with the creator, plus the
+    # colleague they named at the door (if any). That second row is the SAME
+    # act as adding them from CastBar a second later, so nothing downstream can
+    # tell the difference — which is the point: presence is a cast row, at
+    # every door. A bound lane seeds its app's resident for the same reason it
+    # always did (the app's job is that colleague's job).
     from services.conversation_cast import add_participant
 
     add_participant(
