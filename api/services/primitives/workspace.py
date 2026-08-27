@@ -1799,7 +1799,7 @@ async def handle_move_file(auth: Any, input: dict) -> dict:
 
     rows = (
         auth.client.table("workspace_files")
-        .select("path, content")
+        .select("path, content, head_version_id, content_type")
         .eq(*_scope_filter(auth))
         .in_("path", [abs_src, abs_dst])
         .execute()
@@ -1811,20 +1811,37 @@ async def handle_move_file(auth: Any, input: dict) -> dict:
         return {"success": False, "error": "destination_exists",
                 "message": f"{abs_dst} already exists. DeleteFile it first if replacement is intended."}
 
-    content = by_path[abs_src].get("content") or ""
     resolved_author, base_message = _resolved_author_and_message(
         auth, input, f"move {abs_src} -> {abs_dst}"
     )
 
-    # Step 1 — revision at destination. Route through UserMemory.write so
-    # workspace-scope moves keep activity/lifecycle semantics; agent scope
-    # writes through the same authored-substrate path via absolute write.
-    from services.authored_substrate import write_revision
+    # Step 1 — revision at destination, RE-REFERENCING THE HEAD BLOB.
+    #
+    # 2026-08-27: this used to carry the file forward as `content=<the text
+    # denorm>`, which DESTROYED THE BYTES OF EVERY BINARY FILE IT MOVED.
+    # A binary file's text denorm is `''` by contract (ADR-427 D4 — the bytes
+    # live in the CAS, addressed by the head revision's `blob_sha`), so moving
+    # a .png wrote an empty-string revision at the head of a binary chain and
+    # the image was gone. Observed in production: two images were emptied by a
+    # RENAME, and the emptiness then rode a second move a week later.
+    #
+    # `_head_content_form` is the canonical fix and already existed — archive
+    # and restore adopted it, its docstring names this exact hazard ("would put
+    # an empty TEXT revision at the head of a binary chain"), and
+    # `handle_duplicate_file` 70 lines above solves it the same way. The mover
+    # was the one lifecycle verb that never adopted it, and it is the verb with
+    # the widest reach: the browser's move/rename door, the Studio artifact
+    # rename, the MCP `move` verb, and the whole folder fan-out all funnel here,
+    # so ONE folder drag could empty every binary beneath it.
+    #
+    # Text is unaffected — `content_ref` round-trips both lanes, which is why
+    # this is the singular form rather than a binary special case.
+    from services.authored_substrate import _head_content_form, write_revision
     write_revision(
         auth.client,
         user_id=auth.user_id,
         path=abs_dst,
-        content=content,
+        **_head_content_form(auth.client, by_path[abs_src]),
         authored_by=resolved_author,
         message=f"MoveFile: from {abs_src} — {base_message}",
         summary=f"Moved from {abs_src}",
@@ -1892,6 +1909,19 @@ def _move_projection_sibling(
     if src_proj not in by_path or dst_proj in by_path:
         return None  # nothing to carry, or the destination is already taken
 
+    # THE TEXT LANE IS CORRECT HERE, and it is the one place in this file that
+    # is (2026-08-27). The raw's move re-references its head blob because
+    # re-writing a binary's empty text denorm destroys it; this sibling does the
+    # OPPOSITE on purpose — it must REWRITE the body to re-point the citation,
+    # so it needs the text, and `content_ref` (which copies a blob verbatim)
+    # could not change a byte of it.
+    #
+    # It is safe because a projection is text BY CONSTRUCTION: `.extracted.md`
+    # is what the derive primitive writes, and `upload_projection_path` returns
+    # the source unchanged for anything that is not a raw-with-projection (the
+    # guard above). If a non-text projection is ever introduced, this becomes
+    # the same data-loss bug the raw's move just had — carry the blob and
+    # re-point the citation some other way.
     content = by_path[src_proj].get("content") or ""
     # Re-point the citation at the raw's new home. Head-anchored, matching the
     # `derived_from:` frontmatter convention the write door already parses.

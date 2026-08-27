@@ -1033,6 +1033,29 @@ def _head_content_form(db_client: Any, row: dict) -> dict:
                 return {"content_ref": head[0]["blob_sha"]}
         except Exception as exc:  # noqa: BLE001 — fall back to the denorm
             logger.warning("[AUTHORED_SUBSTRATE] head blob lookup failed: %s", exc)
+    # THE FALLBACK REFUSES FOR A BINARY ROW (2026-08-27). Falling through to the
+    # denorm is right for a legacy row that predates the chain — its text IS its
+    # content. It is CATASTROPHIC for a binary one: the denorm is `''`, so a
+    # transient lookup failure would quietly convert into permanent data loss,
+    # writing an empty revision at the head of a binary chain. That is the exact
+    # failure this helper exists to prevent, surviving inside the helper's own
+    # error path.
+    #
+    # A binary row is identifiable without the blob: its stored `content_type`
+    # is non-text (the type is DERIVED at write time, ADR-427 D5). Raising keeps
+    # the act atomic — the caller reports a failed move/restore and the file is
+    # untouched, which is always recoverable. A silent empty write is not.
+    content_type = row.get("content_type") or ""
+    is_texty = (
+        not content_type
+        or content_type.startswith("text/")
+        or content_type in ("application/json", "image/svg+xml")
+    )
+    if not is_texty and not (row.get("content") or ""):
+        raise RuntimeError(
+            f"refusing to carry a binary file forward by its empty text denorm "
+            f"(content_type={content_type!r}); the head blob could not be read"
+        )
     return {"content": row.get("content", "") or ""}
 
 
@@ -1088,7 +1111,10 @@ def archive_live_file(
     live = (
         _substrate_scope(
             db_client.table("workspace_files").select(
-                "id, content, lifecycle, head_version_id"
+                # content_type rides along so `_head_content_form` can REFUSE
+                # rather than silently empty a binary file when the head blob
+                # lookup fails (2026-08-27).
+                "id, content, lifecycle, head_version_id, content_type"
             ),
             user_id,
             workspace_id,
@@ -1155,7 +1181,10 @@ def restore_live_file(
     rows = (
         _substrate_scope(
             db_client.table("workspace_files").select(
-                "id, content, lifecycle, head_version_id"
+                # content_type rides along so `_head_content_form` can REFUSE
+                # rather than silently empty a binary file when the head blob
+                # lookup fails (2026-08-27).
+                "id, content, lifecycle, head_version_id, content_type"
             ),
             user_id,
             workspace_id,
