@@ -2730,8 +2730,10 @@ const EDIT_SCRIPT = `
     fmtBar.style.top = Math.max(4, (rect.top + window.scrollY) / fz - 36) + 'px';
     // ADR-613 — the same rect, reported for the parent-side judged gesture.
     // The RANGE grain: the member has text selected inside a block, so the
-    // target is the range, not the block that holds it.
-    if (window.__yarnnnPostSelRect) window.__yarnnnPostSelRect(rect, 'range');
+    // target is the range, not the block that holds it. ancEl is passed as
+    // the SUBJECT so the reported content box is the stage this text sits on
+    // — the range's own rect cannot name the margin it must hang outside of.
+    if (window.__yarnnnPostSelRect) window.__yarnnnPostSelRect(rect, 'range', ancEl);
   });
 
   // ── ADR-521 D4: ⌘B/⌘I are the bar's op behind a key ───────────────────
@@ -4336,16 +4338,38 @@ const OBJECT_SCRIPT = `
   // that is only correct for body-appended chrome inside the zoomed document
   // (the format bar), and dividing would put the door at ~37% of the offset on
   // a deck.
+  // The CONTENT the selection sits in — the box the door must hang OUTSIDE of.
+  //
+  // The parent cannot compute this. Its only handle is the iframe element,
+  // which is w-full h-full and so spans the whole canvas column; a staged
+  // artifact (a deck slide, an image template) is letterboxed inside it at
+  // fitScale. Measuring the margin against the IFRAME therefore places the
+  // door past the canvas entirely, on top of the properties pane — the defect
+  // this reports its way out of. Only the runtime knows where the stage
+  // actually is, so the runtime is what says so.
+  //
+  // Same iframe-viewport space and the same no-zoom rule as the selection rect
+  // itself: the parent adds the iframe's page offset and multiplies nothing.
+  // Falls back to the document element for a fluid artifact, where the content
+  // genuinely does fill the frame.
+  function contentBox(el) {
+    var stage = el && el.closest ? el.closest('.slide, [data-stage]') : null;
+    var host = stage || document.documentElement;
+    return host.getBoundingClientRect();
+  }
+
   var lastSelRectKey = '';
-  function postSelectionRect(rect, grain) {
+  function postSelectionRect(rect, grain, subject) {
     if (!rect || (rect.width === 0 && rect.height === 0)) {
       if (lastSelRectKey === '') return;
       lastSelRectKey = '';
       parent.postMessage({ type: 'yarnnn-selection-rect', rect: null }, '*');
       return;
     }
+    var c = contentBox(subject);
     var key = grain + ':' + Math.round(rect.left) + ',' + Math.round(rect.top)
-      + ',' + Math.round(rect.right) + ',' + Math.round(rect.bottom);
+      + ',' + Math.round(rect.right) + ',' + Math.round(rect.bottom)
+      + '|' + Math.round(c.left) + ',' + Math.round(c.right);
     if (key === lastSelRectKey) return;
     lastSelRectKey = key;
     parent.postMessage({
@@ -4354,6 +4378,7 @@ const OBJECT_SCRIPT = `
       rect: {
         left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
       },
+      content: { left: c.left, right: c.right },
     }, '*');
   }
   window.__yarnnnPostSelRect = postSelectionRect;
@@ -4368,7 +4393,7 @@ const OBJECT_SCRIPT = `
     box.style.top = ((r.top + window.scrollY) / z - 1) + 'px';
     box.style.width = (r.width / z + 2) + 'px';
     box.style.height = (r.height / z + 2) + 'px';
-    postSelectionRect(r, 'object');
+    postSelectionRect(r, 'object', block);
     // The band is honest about inertness: no move cursor where no move exists.
     if (isContainerEl(block)) {
       // ADR-520 D2: a STAGED container is adjustable — handles live, move

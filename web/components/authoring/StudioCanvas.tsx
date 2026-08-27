@@ -732,16 +732,23 @@ export function StudioCanvas({
         } else {
           const f = iframeRef.current?.getBoundingClientRect();
           const r = d.rect as Record<string, number>;
+          // The CONTENT box comes from the RUNTIME, not from this element.
+          // The iframe is `w-full h-full`, so it spans the whole canvas
+          // column, while a staged artifact (a deck slide) is letterboxed
+          // inside it at fitScale — measuring the margin against the frame
+          // put the door past the canvas, on top of the properties pane.
+          // Only the runtime knows where the stage is; it reports it.
+          const c = (d.content ?? null) as Record<string, number> | null;
+          const fx = f?.left ?? 0;
           onSelectionRect?.(
             {
-              left: (f?.left ?? 0) + (Number(r.left) || 0),
+              left: fx + (Number(r.left) || 0),
               top: (f?.top ?? 0) + (Number(r.top) || 0),
-              right: (f?.left ?? 0) + (Number(r.right) || 0),
+              right: fx + (Number(r.right) || 0),
               bottom: (f?.top ?? 0) + (Number(r.bottom) || 0),
-              // The artifact's own box is the content bound. Same offset
-              // mapping, same no-zoom-multiply rule (ADR-613 D3).
-              contentLeft: f?.left ?? 0,
-              contentRight: f?.right ?? 0,
+              // Same offset mapping, same no-zoom-multiply rule (ADR-613 D3).
+              contentLeft: fx + (Number(c?.left) || 0),
+              contentRight: fx + (Number(c?.right) || 0),
             },
             typeof d.grain === 'string' ? d.grain : null,
           );

@@ -139,10 +139,34 @@ check("D1 Text reports its reading column",
       "contentLeft: col.left" in _prose and "contentRight: col.right" in _prose,
       "ProseCanvas.selectionRect must carry the column with the rect")
 _studio_canvas = read("components/authoring/StudioCanvas.tsx")
-check("D1 Slides reports the artifact's box",
-      "contentLeft: f?.left" in _studio_canvas
-      and "contentRight: f?.right" in _studio_canvas,
-      "the iframe's own rect is this medium's content bound")
+# CORRECTED 2026-08-27. This assertion used to REQUIRE `contentLeft: f?.left`
+# — it pinned the defect as the contract. `f` is the IFRAME, which is
+# `w-full h-full` and spans the whole canvas column, while a deck slide is
+# letterboxed inside it at fitScale. So the margin was measured against the
+# frame and the door landed 8px past the canvas, on top of the properties
+# pane — the operator-reported "rewrite button is all over the place".
+#
+# The parent cannot compute the stage's box; only the runtime knows it. So the
+# bound must ARRIVE in the message and be offset like the rect beside it.
+check("D1 Slides reports the STAGE's box, not the iframe's",
+      "d.content" in _studio_canvas
+      and "contentLeft: fx + (Number(c?.left) || 0)" in _studio_canvas
+      and "contentRight: fx + (Number(c?.right) || 0)" in _studio_canvas,
+      "the iframe spans the column; the stage is letterboxed inside it")
+check("D1 [FALSIFIER] the iframe's own edges are NOT the content bound",
+      "contentLeft: f?.left" not in _studio_canvas
+      and "contentRight: f?.right" not in _studio_canvas,
+      "measuring the margin against the frame puts the door on the pane")
+_projection = read("components/workspace/viewers/projection.ts")
+check("D1 the runtime is what names the stage (the parent has no handle on it)",
+      "function contentBox" in _projection
+      and "closest('.slide, [data-stage]')" in _projection
+      and "content: { left: c.left, right: c.right }" in _projection,
+      "reported in the same iframe-viewport space as the rect, no zoom applied")
+check("D1 [FALSIFIER] both grains name their SUBJECT, or the box is the wrong one",
+      "postSelectionRect(r, 'object', block)" in _projection
+      and "__yarnnnPostSelRect(rect, 'range', ancEl)" in _projection,
+      "a range's own rect cannot name the margin it must hang outside of")
 check("D1 Text reads the rect (not the old end-point anchor)",
       "selectionRect()" in editor and "coordsAt(focusPoint.range.end)" not in editor,
       "the end-point anchor is superseded, not kept beside the rect")
@@ -314,9 +338,10 @@ check("613 Slides mounts the SHARED gesture (not a second implementation)",
 check("613 the runtime reports a selection RECT, not a pointer point",
       "yarnnn-selection-rect" in projection and "postSelectionRect" in projection)
 check("613 the rect is the visual box of what is SELECTED",
-      "postSelectionRect(r, 'object')" in projection
-      and "__yarnnnPostSelRect(rect, 'range')" in projection,
-      "both grains report; neither reads the cursor")
+      "postSelectionRect(r, 'object'" in projection
+      and "__yarnnnPostSelRect(rect, 'range'" in projection,
+      "both grains report; neither reads the cursor. The SUBJECT argument "
+      "each also passes is asserted once, at the D1 content-bound checks")
 check("613 no subject, no door — the rect retracts",
       "postSelectionRect(null, null)" in projection)
 # The zoom trap: dividing by the zoom factor is correct ONLY for body-appended
