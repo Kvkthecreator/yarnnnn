@@ -225,35 +225,25 @@ function ConnectorScope({
             - UNSCOPED reads identical to "all switched on", but behaves
               differently — it follows connections added later.
             - SCOPED TO NOTHING is all-off, which could be misread as an
-              unsaved state rather than a deliberate choice. */}
+              unsaved state rather than a deliberate choice.
+
+          ⚠️ THE RESET LINK IS DELETED (operator ruling, 2026-08-27), and with
+          it the only caller of `save(null)`. UNSCOPED is therefore no longer
+          REACHABLE from this surface once a member scopes a being: the toggles
+          always send an array, so every later state is an explicit list.
+          `null` remains meaningful in the API and the store — ADR-612 D2's
+          absent≠empty is unchanged, and it is still what every being starts
+          as — but the member cannot return to it here. Accepted knowingly as
+          the price of a surface that states only what it must. */}
       {!scoped ? (
         <p className="text-[11px] text-muted-foreground">
           Following your connections — including any you add later.
         </p>
       ) : (optIn ?? []).length === 0 ? (
         <p className="text-[11px] text-muted-foreground">
-          Reads through no connection.{' '}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void save(null)}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Follow my connections instead
-          </button>
+          Reads through no connection.
         </p>
-      ) : (
-        <p className="text-[11px] text-muted-foreground">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void save(null)}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Follow my connections instead
-          </button>
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -335,14 +325,12 @@ function BeingDetail({
             />
           </dd>
         </div>
-        <div className="flex gap-3">
-          <dt className="w-24 shrink-0 text-muted-foreground">Editing</dt>
-          <dd>
-            {being.kernel
-              ? 'Comes with yarnnn — this one can\u2019t be changed.'
-              : 'Yours — you can change this one.'}
-          </dd>
-        </div>
+        {/* The "Editing" row is DELETED (operator ruling, 2026-08-27): the
+            `yarnnn` badge beside the name already states provenance, and the
+            controls being live or absent already shows what may be changed.
+            A row that restates two things the surface shows is the same
+            tautology the scope summary was cut for. `assert_editable`
+            (ADR-601 D3) remains the enforcement — this was only the telling. */}
       </dl>
 
     </div>

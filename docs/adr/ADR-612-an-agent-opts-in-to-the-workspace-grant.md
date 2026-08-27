@@ -50,6 +50,8 @@ A being with no opt-in recorded reaches everything the member's connections carr
 
 `{}` (an explicit empty list) is therefore meaningfully different from absence: it means *this being reaches no platform*, and is a choice the member made.
 
+> **Amended 2026-08-27 (operator ruling) — absence is no longer REACHABLE from the surface.** The pane's "Follow my connections instead" link was the only caller of `set(slug, null)`; the toggles always send an array. It is deleted along with the "Editing" row, as part of a pass removing lines the surface states twice. **The distinction itself is unchanged** — `opt_in_for` still returns `None` for absence, callers still must not collapse it with `or []`, and every being still *starts* absent, which is the state the paragraph above exists to protect. What changed is only that a member who scopes a being cannot return it to "follows my connections" from this pane. Recorded rather than quietly absorbed, because it makes D2's default a one-way door in the UI while leaving it intact in the model — and the API path stays live, so restoring a control is a UI change with nothing to rebuild underneath.
+
 ### D3 — The opt-in narrows the CONTEXT SCOPE, not just a display
 
 This is the half that makes the feature real. When a turn has reach, the being's opt-in filters, at one derivation point each:

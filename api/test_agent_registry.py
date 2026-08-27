@@ -476,8 +476,16 @@ _check("a being's page exists (list/detail)",
        "function BeingDetail" in _surface_code and "<BeingDetail" in _surface_code)
 _check("depth moves via setSurfaceParams, never a pathname flip",
        "setSurfaceParams" in _surface_code and "router.push" not in _surface_code)
-_check("the page STATES editability rather than leaving it implied",
-       "Editing" in _surface_code)
+# The "Editing" ROW is deleted (operator ruling, 2026-08-27): it restated two
+# things the surface already shows — the `yarnnn` badge beside the name, and
+# whether the controls are live. What must survive is the PROVENANCE MARK, so
+# a member can still tell a yarnnn being from one of their own; the enforcement
+# was never this row's job (`assert_editable`, ADR-601 D3) and is asserted
+# above. Pinning the deleted row would pin the tautology.
+_check("provenance is still MARKED on a being's page (the yarnnn badge)",
+       "KernelMark" in _surface_code and "being.kernel &&" in _surface_code)
+_check("...and the editability tautology is gone (no restating row)",
+       "Editing" not in _surface_code)
 # ADR-602 D5 — plain language. An ADR number is an internal address; a member
 # reading one learns nothing they can act on.
 _check("no ADR number is shown to a member on this surface",
