@@ -123,23 +123,21 @@ def test_a_stale_fallback_is_ignored():
 # 4. The frame — the layer that made the denial TRUE
 # ---------------------------------------------------------------------------
 
-#: Lisa is a MEMBER-authored Agent (an `_agent.yaml` folder), not a kernel row
-#: — which is exactly what the prod cast held. Stubbed here so the frame tests
-#: resolve her display name the way `find_member_agents` does live.
-LISA = {"slug": "lisa", "name": "Lisa", "blurb": "Runs the deal desk.",
-        "model": "anthropic/claude-sonnet-5", "kernel": False}
-
-
-def _member_agents(monkeypatch, agents=(LISA,)):
-    import services.agents_registry as AR
-    monkeypatch.setattr(AR, "find_member_agents", lambda c, u: list(agents))
+#: Lisa WAS a member-authored Agent. ADR-599 D2/D3 deleted that machinery
+#: whole (`find_member_agents`, `_agent.yaml`, `based_on`), so the roster is
+#: kernel-only and a deleted colleague's cast row falls back to its slug —
+#: honestly, which is the behaviour `_build_cast_section` documents and these
+#: tests now assert. The old `_member_agents` monkeypatch fixture is DELETED,
+#: not repaired: it patched a symbol that no longer exists, so every test
+#: using it errored at setup and asserted nothing (4 of them, standing red).
+#: `test_agent_registry.py` §2 independently asserts the symbol stays gone.
+LISA_SLUG = "lisa"
 
 
 def test_the_frame_names_the_room(monkeypatch):
     """The composed system prompt must name the other cast members. Asserted on
     the COMPOSED OUTPUT, not on the template: a section that exists but is
     never formatted in is exactly the shape that shipped."""
-    _member_agents(monkeypatch)
     import services.lane_runner as LR
     monkeypatch.setattr(LR, "_read_workspace_file", lambda c, u, p: "")
 
@@ -149,14 +147,13 @@ def test_the_frame_names_the_room(monkeypatch):
         agent="sonnet", cast=CAST, responder_reason="addressed",
     )
     assert "Who else is here" in full
-    assert "Lisa" in full, "the cast-mate the Agent denied must be named"
+    assert LISA_SLUG in full, "the cast-mate the Agent denied must be named"
     assert "One reply per turn" in full
 
 
 def test_a_solo_conversation_is_unchanged(monkeypatch):
     """The overwhelmingly common case must be byte-identical to before —
     a cast of one gets no section at all."""
-    _member_agents(monkeypatch)
     import services.lane_runner as LR
     monkeypatch.setattr(LR, "_read_workspace_file", lambda c, u, p: "")
 
@@ -174,19 +171,26 @@ def test_a_solo_conversation_is_unchanged(monkeypatch):
 
 
 def test_the_speaker_is_never_listed_as_its_own_cast_mate(monkeypatch):
-    _member_agents(monkeypatch)
     from services.lane_runner import _build_cast_section
     section = _build_cast_section(None, "u-1", CAST, responder="sonnet", reason="addressed")
-    assert "Lisa" in section
+    assert LISA_SLUG in section
     assert "Thinker" not in section
 
 
 def test_the_roster_degrades_never_raises(monkeypatch):
-    """A conversation must never fail to run because the roster was unreadable."""
+    """A conversation must never fail to run because the roster was unreadable.
+
+    Patched at the LIVE seam (`resolve_agent`, the kernel lookup
+    `_build_cast_section` actually calls) rather than at the deleted
+    member-agent reader — a degrade test aimed at a symbol that no longer
+    exists proves nothing about the path that runs.
+    """
     import services.agents_registry as AR
-    def boom(c, u):
+
+    def boom(slug):
         raise RuntimeError("roster down")
-    monkeypatch.setattr(AR, "find_member_agents", boom)
+
+    monkeypatch.setattr(AR, "resolve_agent", boom)
     from services.lane_runner import _build_cast_section
     assert _build_cast_section(None, "u-1", CAST, responder="sonnet") == ""
 

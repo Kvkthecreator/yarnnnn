@@ -640,8 +640,22 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
             by_conv: dict[str, list[dict]] = {}
             for c in casts:
                 by_conv.setdefault(c["conversation_id"], []).append(c)
+            # Keyed by id, never zipped: `lanes` is built one-to-one from
+            # `rows` today, but a future filter between them would misalign
+            # positionally and hand each lane its neighbour's derivation —
+            # silently, since both are dicts of the same shape.
+            meta_by_id = {
+                r["id"]: (r.get("context_metadata") or {}).get("lane") or {}
+                for r in rows
+            }
             for ln in lanes:
-                ln["participants"] = by_conv.get(ln["id"], [])
+                # Same reconciliation as the turn path, so the roster a member
+                # READS names the being that will actually ANSWER. Serving the
+                # raw row here while the turn re-seats would rebuild the
+                # label-vs-responder split this closes, on the other side.
+                ln["participants"] = _reconcile_cast_agent(
+                    by_conv.get(ln["id"], []), meta_by_id.get(ln["id"], {}),
+                )
 
     return _lane_envelope(auth, enabled, lanes)
 
@@ -893,6 +907,69 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
             if r.get("role") in ("user", "assistant")
         ]
     }
+
+
+def _reconcile_cast_agent(cast: list[dict], lane_meta: dict) -> list[dict]:
+    """The cast, with a SOLE stale agent re-seated onto the lane's derived resident.
+
+    THE DEFECT THIS CLOSES (measured 2026-08-27, 40 of 78 live conversations).
+    ADR-597 D1 made a bound lane's resident DERIVED at read time, and ADR-602
+    then re-registered `slides`/`text` onto `editor`. Derivation followed in the
+    same commit — but `conversation_members.agent_slug` did not, because ADR-602
+    reasoned only about RESOLUTION ("designer stays a live being, so nothing
+    orphans") and not about ROUTING. `select_responder`'s `sole_agent` rung
+    reads the CAST, so 39 authoring desks rendered "Editor" in the header and
+    were answered by Designer's "maker of visuals" posture. The one `keeper`
+    row is worse: ADR-610 DELETED that being, so `build_agent_posture` returned
+    "" and the turn ran with no character at all.
+
+    WHY DERIVATION WINS, AND ONLY HERE. The lane's resident follows the app's
+    live registration; the cast row records a membership EVENT (who was invited,
+    ADR-597 D3). When a desk's registration moves, the event is history and the
+    registration is the present tense — so the present tense answers "who
+    replies". This is the ADR-559 `retired`-row lesson in the cast's own terms:
+    the historical row keeps its meaning, and the door reads the live roster.
+
+    WHY NOT A slug→slug SUCCESSION MAP. `designer` is NOT retired — it still
+    holds IMAGES (ADR-602 D2). A blanket `designer → editor` would re-seat
+    IMAGES lanes onto a prose voice, trading one wrong character for another.
+    Reconciling against the lane's OWN derivation is context-correct by
+    construction: a slides lane derives `editor`, an IMAGES lane derives
+    `designer`, a strings lane derives `supervisor` — one rule, no table to
+    keep in sync with the next rename.
+
+    DELIBERATELY NARROW — three conditions, each load-bearing:
+      * SOLE agent only. With two Agents present the member has been addressing
+        them by name (ADR-495 D3); silently swapping one would break `@mention`
+        and `last_responder` continuity. A multi-agent cast is left exactly as
+        joined.
+      * Only when the lane HAS a derivable resident. An unbound chat lane
+        derives None and its cast is untouched — ADR-558's "the cast is the
+        only authority" is unchanged for chat, which is the surface that rule
+        was written about.
+      * READ-ONLY. No row is rewritten. `add_participant` still records what
+        the member did, and re-deriving costs nothing at the next read — the
+        ADR-460 D4 now-fact rule that ADR-597 established for the label,
+        applied to the responder it already governs.
+    """
+    resident = _lane_agent(lane_meta or {})
+    if not resident:
+        return cast
+    agents = [p for p in cast if p.get("member_kind") == "agent" and p.get("agent_slug")]
+    if len(agents) != 1:
+        return cast
+    stale = agents[0]
+    if stale.get("agent_slug") == resident:
+        return cast
+    logger.info(
+        "[CAST] re-seating sole agent %s -> %s (lane resident)",
+        stale.get("agent_slug"), resident,
+    )
+    return [
+        {**p, "agent_slug": resident}
+        if p is stale else p
+        for p in cast
+    ]
 
 
 def _cast_roster(auth: UserClient, slugs: list[str]) -> dict[str, dict]:
@@ -1239,6 +1316,12 @@ def _turn_stream_response(
         cast = list_participants(lane_id)
     except Exception:  # noqa: BLE001 — cast unreadable → the lane's own Agent
         cast = []
+    # A sole agent stranded on a superseded registration answers as the
+    # live resident (see `_reconcile_cast_agent`). Applied BEFORE
+    # `agent_slugs`, so addressing, the roster, the frame and the turn's
+    # `agent_slug` stamp all speak of the same being — reconciling after
+    # would leave the responder right and the room's roster wrong.
+    cast = _reconcile_cast_agent(cast, lane_meta)
     # ADR-605 mentions are NOT handled here — the stamp + attention routing
     # live at the ONE conversation-write chokepoint (`write_narrative_entry`
     # → `services/mentions.stamp_and_route_mentions`), so every writer of a
