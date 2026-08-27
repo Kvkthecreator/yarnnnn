@@ -16,7 +16,7 @@
  * (no scripts); selecting a page is a parent click on the card, not in-frame.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
@@ -46,6 +46,13 @@ const SLIDE_H = DECK_STAGE_FALLBACK_H;
 
 interface SlidePreview {
   index: number;
+  /** The page's own id (ADR-519's page identity). The card keys on THIS, not
+   *  on the index: an index key makes React reuse a card across a reorder, so
+   *  a moved slide inherits the previous occupant's iframe and shows stale
+   *  pixels. Falls back to the index for a page not yet stamped — the seam
+   *  stamps on the next write (migration-by-use), and until then position is
+   *  genuinely all the identity there is. */
+  id: string;
   /** A deck slide (16:9 box) vs a page section (natural height). */
   isSlide: boolean;
   arrange: string | null;
@@ -116,6 +123,7 @@ async function buildPagePreviews(html: string, artifactPath: string): Promise<Sl
       `<style>${sizing}</style></head><body>${body}</body></html>`;
     return {
       index,
+      id: page.getAttribute('data-block-id') || `@${index}`,
       isSlide,
       arrange: page.getAttribute('data-arrange'),
       title:
@@ -133,7 +141,15 @@ async function buildPagePreviews(html: string, artifactPath: string): Promise<Sl
  *  drives the height (the old code set height FROM the measured width, a loop
  *  that could settle small); the scale only sizes the iframe INSIDE a box that
  *  is already the right shape. */
-function SlideThumb({ doc, index, isSlide }: { doc: string; index: number; isSlide: boolean }) {
+const SlideThumb = memo(function SlideThumb({
+  doc,
+  index,
+  isSlide,
+}: {
+  doc: string;
+  index: number;
+  isSlide: boolean;
+}) {
   const boxRef = useRef<HTMLSpanElement>(null);
   const [scale, setScale] = useState(0);
   useEffect(() => {
@@ -179,7 +195,7 @@ function SlideThumb({ doc, index, isSlide }: { doc: string; index: number; isSli
       )}
     </span>
   );
-}
+});
 
 interface PagedNavigatorProps {
   /** The artifact's layout slug — names the page noun (deck → slides,
@@ -522,7 +538,7 @@ export function PagedNavigator({
       </div>
       <ul ref={listRef} className="relative w-full space-y-2">
         {(previews ?? []).map((s) => (
-          <li key={s.index} data-slide-card className="relative">
+          <li key={s.id} data-slide-card className="relative">
             {/* The drop-line: a prediction of where the dragged page will
                 land (above this card when the gap === this index). */}
             {dragIndex != null && dropAt === s.index && (

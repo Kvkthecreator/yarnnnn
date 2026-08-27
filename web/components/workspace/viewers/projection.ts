@@ -200,9 +200,51 @@ const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
  *  already fetchable, used as-is. blobUrl() REJECTS absolute URLs by design
  *  (no storage_path param), so without this fork every CAS-lane citation
  *  silently fell to the catch and the asset never rendered. */
+/** A citation's two reads, deduped for the length of one projection burst.
+ *
+ *  An artifact is projected by more than one consumer at a time — the canvas
+ *  and the navigator rail both resolve the SAME citations, and the rail
+ *  reprojects whenever the content changes. Uncached, a deck with M cited
+ *  images issued 2M requests per edit, each image costing a file read plus a
+ *  signed-URL round trip. The pixels are identical every time; only the
+ *  request count grew.
+ *
+ *  Keyed by what is asked for, held briefly, and cleared on a timer rather
+ *  than kept: a citation's target CAN change (a new revision of the cited
+ *  file, an expiring signed URL), so this must be a burst dedup and never a
+ *  session cache. The TTL is short enough that a member who replaces an image
+ *  sees it on their next projection, and long enough that the two consumers
+ *  of one edit share one request.
+ *
+ *  Failures are not cached — a transient error must not pin a broken citation
+ *  for the whole window. */
+const RESOLVE_TTL_MS = 3_000;
+const resolveCache = new Map<string, { at: number; value: Promise<unknown> }>();
+
+function burstDedup<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const hit = resolveCache.get(key);
+  if (hit && now - hit.at < RESOLVE_TTL_MS) return hit.value as Promise<T>;
+  const value = run().catch((err) => {
+    resolveCache.delete(key);
+    throw err;
+  });
+  resolveCache.set(key, { at: now, value });
+  // Opportunistic sweep — the map holds one artifact's citations, not a
+  // session's, so it never needs an eviction policy beyond expiry.
+  if (resolveCache.size > 64) {
+    resolveCache.forEach((v, k) => {
+      if (now - v.at >= RESOLVE_TTL_MS) resolveCache.delete(k);
+    });
+  }
+  return value;
+}
+
 async function servingUrl(contentUrl: string): Promise<string> {
   if (/^(https?:|data:|blob:)/i.test(contentUrl)) return contentUrl;
-  const { url } = await api.documents.blobUrl(contentUrl);
+  const { url } = await burstDedup(`blob:${contentUrl}`, () =>
+    api.documents.blobUrl(contentUrl),
+  );
   return url;
 }
 
@@ -278,7 +320,7 @@ async function resolveOne(el: Element, artifactPath: string): Promise<void> {
   const path = resolveRefPath(ref, artifactPath);
 
   try {
-    const file = await api.workspace.getFile(path);
+    const file = await burstDedup(`file:${path}`, () => api.workspace.getFile(path));
     const isImg = el.tagName === 'IMG';
 
     if (isImg && path.toLowerCase().endsWith('.svg') && file.content) {
