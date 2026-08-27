@@ -751,19 +751,25 @@ async def get_workspace_tree(
         # (`content_url` on the row is NULL for CAS-backed binaries by contract:
         # ADR-427 D4 mints the capability at read and never stores it.)
         #
-        # SCOPED TO THE IMMEDIATE CHILDREN, deliberately. This endpoint serves a
-        # whole subtree (up to 500 rows) and the Files explorer fetches several
-        # roots in parallel, so minting every image underneath would sign
-        # hundreds of URLs the operator never looks at — a real cost on every
-        # root load, paid for pixels nobody sees. The listing draws one folder's
-        # direct children; those are what get a URL.
-        depth = len(root.rstrip("/").split("/"))
-        direct = [
-            r for r in rows
-            if len(r.get("path", "").rstrip("/").split("/")) == depth + 1
-        ]
+        # THE WHOLE SUBTREE, not the direct children.
+        #
+        # The first cut scoped this to `depth + 1` to avoid signing URLs nobody
+        # looks at. That reasoning was sound and the premise was WRONG: the Files
+        # explorer does NOT fetch the folder you open. It calls getTree once per
+        # ROOT (`/workspace/marketing`), preloads the entire subtree into
+        # `node.children`, and then navigates CLIENT-SIDE — `ContentViewer`
+        # re-fetches only for a synthetic node with no preloaded children
+        # (`hasPreloadedChildren`). So opening `marketing/assets` renders rows
+        # that arrived with the `/workspace/marketing` response, two levels
+        # above where the mint was looking, and every one of them drew a glyph.
+        #
+        # An optimization keyed on which call the client makes has to be keyed
+        # on the call it ACTUALLY makes. The bound that matters is already here
+        # and is the honest one: this query is `.limit(500)`, and only IMAGE
+        # rows are minted, so the ceiling is 500 images per root — in practice a
+        # handful, and one mint per DISTINCT sha regardless.
         by_path = {r.get("path"): r for r in rows}
-        for path, url in mint_thumb_urls(auth.client, direct).items():
+        for path, url in mint_thumb_urls(auth.client, rows).items():
             if path in by_path:
                 by_path[path]["content_url"] = url
 
@@ -771,13 +777,15 @@ async def get_workspace_tree(
         # and the tile draws the vector from that. So it needs the BODY, not a
         # URL, which is why it is a second fetch rather than part of the mint.
         #
-        # Restricted to the direct children AND to .svg, deliberately: `content`
-        # is deliberately absent from this endpoint's select, because hauling
-        # every file body across a 500-row subtree (× several roots in parallel)
-        # to draw one folder's tiles is the cost this endpoint is shaped to
-        # avoid. A handful of vector bodies is not that.
+        # Restricted to .svg — and to that ALONE, for the same reason the mint
+        # above covers the whole subtree: the client preloads a root's entire
+        # tree and navigates inside it, so a nested vector is exactly the case
+        # that must work. `content` stays out of this endpoint's main select
+        # because hauling EVERY file body across a 500-row subtree is a real
+        # cost; the vector bodies are a narrow slice of that (5 files in this
+        # whole workspace) and they are the only ones a tile can draw.
         svg_paths = [
-            r["path"] for r in direct if r.get("path", "").lower().endswith(".svg")
+            r["path"] for r in rows if r.get("path", "").lower().endswith(".svg")
         ]
         if svg_paths:
             try:

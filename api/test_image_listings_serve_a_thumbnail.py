@@ -53,6 +53,7 @@ def code_only(src: str) -> str:
 
 
 _src = code_only((_API / "routes" / "workspace.py").read_text())
+_viewer = (_API.parent / "web" / "components" / "workspace" / "ContentViewer.tsx").read_text()
 
 print("\n── the mint exists and is the ONE implementation ──")
 
@@ -169,6 +170,53 @@ check(
     and "content_type" in _model.group(0),
 )
 
+print("\n── the tree covers the SUBTREE, because that is what the client fetches ──")
+
+# THE DEFECT THIS SECTION EXISTS FOR, and the reason the gate above went green
+# over a broken feature twice.
+#
+# The first cut scoped the mint to the requested node's DIRECT CHILDREN, to
+# avoid signing URLs nobody looks at. Sound reasoning, wrong premise: the Files
+# explorer does not fetch the folder you open. It calls getTree once per ROOT,
+# preloads the whole subtree into `node.children`, and navigates CLIENT-SIDE.
+# So `marketing/assets` renders rows that arrived with the `/workspace/marketing`
+# response — two levels above where the mint was looking — and every tile drew a
+# glyph while every API-side assertion stayed green.
+#
+# An assertion about "the listing is fed" is worthless unless it is keyed on the
+# call the CLIENT ACTUALLY MAKES. So: no depth filter in the tree handler, and
+# the client's own fetch shape is pinned in the surface that performs it.
+_tree = re.search(r"async def get_workspace_tree\(.*?(?=\n@router|\ndef |\Z)", _src, re.DOTALL)
+if _tree:
+    tbody = _tree.group(0)
+    check(
+        "[FALSIFIER] the tree does NOT depth-filter what it feeds",
+        "depth + 1" not in tbody and "depth+1" not in tbody,
+        "a nested image is exactly the case the client renders from a root fetch",
+    )
+    check(
+        "[FALSIFIER] the SVG body fetch spans the subtree too",
+        re.search(r"svg_paths = \[\s*r\[.path.\] for r in rows", tbody) is not None,
+        "scoping the vector lane to direct children glyphs every nested SVG",
+    )
+
+# And the premise itself, pinned where it lives: the explorer fetches per ROOT,
+# and the listing reuses preloaded children rather than re-fetching. If either
+# ever changes, the scoping decision above has to be revisited — so the gate
+# names the two facts it depends on rather than leaving them as a memory.
+_page = (_API.parent / "web" / "app" / "(authenticated)" / "files" / "page.tsx").read_text()
+check(
+    "[FALSIFIER] the explorer still fetches getTree PER ROOT (the mint's premise)",
+    re.search(r"roots\.map\(async \(r\) => \{[\s\S]{0,400}?getTree\(r\.path\)", _page)
+    is not None,
+    "if the explorer starts fetching per FOLDER, re-scope the mint",
+)
+check(
+    "[FALSIFIER] the listing reuses PRELOADED children (the other half of it)",
+    "hasPreloadedChildren" in _viewer,
+    "if the listing always re-fetched, a direct-children scope would be correct",
+)
+
 print("\n── the COMPONENT is wired, not just the API ──")
 
 # THE HALF THAT WAS MISSING. The first cut of this fix fed both endpoints and
@@ -178,7 +226,6 @@ print("\n── the COMPONENT is wired, not just the API ──")
 # green while the surface was unchanged.
 #
 # So the gate follows the material all the way to the tile.
-_viewer = (_API.parent / "web" / "components" / "workspace" / "ContentViewer.tsx").read_text()
 _tile_call = re.search(r"<FileTile\b(.*?)/>", _viewer, re.DOTALL)
 check("the folder listing's FileTile call is readable", _tile_call is not None)
 if _tile_call:
