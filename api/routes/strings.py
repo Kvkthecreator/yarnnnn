@@ -592,6 +592,27 @@ async def run_string_now(topic: str, auth: UserClient) -> dict:
     if decl.problem is not None:
         raise HTTPException(status_code=422, detail=f"the string cannot run: {decl.problem}")
 
+    # ── The manual fire takes the SAME CAS CLAIM the scheduled drain takes
+    #    (ADR-618). Without it, Run-now racing a tick executes the string
+    #    TWICE — two derives, two writes, two charges — and then both callers
+    #    call `record_string_run`, so the schedule anchor is rewritten twice
+    #    from two different "now"s. "Exactly one scheduled run's body" (this
+    #    route's own docstring) has to mean the claim too, or it is only the
+    #    body and not the run.
+    #
+    #    Losing the claim is a SUCCESSFUL no-op, not an error: the string IS
+    #    running, just not on this caller's thread. 409 would tell the operator
+    #    something went wrong when nothing did.
+    from services.strings import claim_string_run, read_string_task_row
+
+    _row = read_string_task_row(auth.client, actor, decl.slug)
+    _claimed = claim_string_run(
+        auth.client, actor, decl.slug, (_row or {}).get("next_run_at"),
+    )
+    if _row is not None and not _claimed:
+        return {"success": True, "slug": decl.slug, "no_change": True,
+                "detail": "already running — a scheduled run claimed this string"}
+
     result = await run_string_sweep(auth.client, actor, decl)
     try:
         record_string_run(auth.client, actor, decl,

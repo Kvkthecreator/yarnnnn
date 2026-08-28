@@ -483,6 +483,31 @@ async def materialize_string_index(
     return touched
 
 
+def read_string_task_row(client, user_id: str, slug: str) -> Optional[dict]:
+    """This string's index row, or None when it has never been materialized.
+
+    ADR-618 — the manual door needs the CURRENT `next_run_at` to take the same
+    CAS claim the drain takes; the drain already holds it from its due-scan.
+    None means "not indexed yet" (a string declared since the last tick), which
+    the caller must treat as claimable rather than as a lost race — there is no
+    scheduled run to collide with.
+    """
+    try:
+        rows = (
+            client.table("tasks")
+            .select("id, slug, next_run_at, last_run_at")
+            .eq("user_id", user_id)
+            .eq("slug", slug)
+            .eq("kind", STRING_KIND)
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STRINGS] task-row read failed for %s: %s", slug, e)
+        return None
+    return rows[0] if rows else None
+
+
 def claim_string_run(client, user_id: str, slug: str, original_next_run: Optional[str],
                      *, sentinel_hours: int = 2) -> bool:
     """CAS atomic claim, kind-scoped (the radar/capture mechanism verbatim)."""
@@ -966,6 +991,53 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
     if decl.problem is not None or decl.format is None:
         return {"success": False, "slug": decl.slug,
                 "error_reason": decl.problem or "unsupported_format"}
+
+    # ── 0. THE BALANCE GATE (ADR-618) ────────────────────────────────────────
+    # A prose string's derive is METERED JUDGMENT SPEND, and until now the only
+    # thing standing between a declared string and an operator's balance was
+    # `AGENT_ENABLED` — which defaults ON. That is precisely the property the
+    # scheduler cites for DELETING radar rather than hiding it ("a dormant
+    # spend lane is precisely the ambiguity a future session would have to
+    # re-derive", unified_scheduler.py), and the comment there calls this lane
+    # radar's "sibling, same posture". It inherited the posture without the
+    # guard.
+    #
+    # ⭐ `check_balance`, NOT `check_draw`. Standing work attributes to the
+    # OWNER, who is never member-capped — `check_draw`'s second half would be a
+    # no-op here, and reaching for it would imply a per-member bound this lane
+    # does not have. This is the pool hard-stop the wake lane already uses
+    # (`wake.py`), which is the established convention for unattended spend and
+    # is stated as such in `check_draw`'s own docstring.
+    #
+    # Placed BEFORE the fetch, not just before the derive. The fetch is $0 in
+    # model terms but it writes retained observations and reaches connectors —
+    # work whose only purpose is to feed a derive that cannot run. A gate that
+    # lets the pointless half proceed is a half-gate.
+    #
+    # ⚠️ Fail-OPEN on a read error, deliberately, matching `wake.py` exactly: a
+    # DB hiccup must not silently stop an operator's standing work. The
+    # hard-stop backstops at the next tick, and `check_balance` itself already
+    # returns 0.0 → blocked on a balance-read failure, so the fail-open here
+    # covers only the case where the CHECK could not run at all.
+    try:
+        from services.platform_limits import check_balance
+        _balance_ok, _balance = check_balance(client, user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STRINGS] balance check failed for %s (proceeding): %s",
+                       topic, e)
+        _balance_ok = True
+    if not _balance_ok:
+        # A refusal is a RECORDED run, not a silent skip: the desk must be able
+        # to say why nothing moved, and the drainer records either way.
+        record_execution_event(
+            client, user_id=user_id, slug=f"string-sweep:{topic}",
+            mode="mechanical", trigger_type="scheduled",
+            status="failed", error_reason="balance_exhausted",
+            error_detail="workspace balance is exhausted — the string did not run",
+            duration_ms=0, funnel_decision="string",
+        )
+        return {"success": False, "slug": decl.slug,
+                "error_reason": "balance_exhausted"}
 
     # ── 1. fetch (mechanical, $0) — HTTP pull, raws retained; OR a connector
     #       source: REACH WITH A RECEIPT (ADR-594 D2) — invoke the one capture
