@@ -251,7 +251,7 @@ export default function StringsSurface() {
           scope: 'document',
           id: null,
           pageIndex: null,
-          label: view?.target ?? targetParam ?? topic,
+          label: view?.target || targetParam || topic,
           excerpt: null,
           viewport: null,
         }
@@ -334,10 +334,15 @@ export default function StringsSurface() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ⚠️ `targetParam` IS a dependency. It arrives on the same navigation as
+  // `topic` but is not always set in the same commit (Files delivers the
+  // file, the drain converts it to topic+target), so omitting it read a
+  // stale null and the desk lost the designation-in-flight — the leaf showed
+  // as "no file designated" on a desk the member had just picked one for.
   useEffect(() => {
     if (topic) void loadDesk(topic, targetParam);
     else setDesk({ phase: 'idle' });
-  }, [topic, loadDesk]);
+  }, [topic, targetParam, loadDesk]);
 
   // The aperture chips (ADR-595 D4) — what this member's connections make
   // available to pull from. Loaded once for an UNDECLARED desk, where they
@@ -462,7 +467,13 @@ export default function StringsSurface() {
                 <>
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <h1 className="truncate text-lg font-semibold">
-                    {view?.target ?? targetParam ?? topic.split('/').join(' / ')}
+                    {/* ⚠️ `||` not `??`: since the undeclared desk is SERVED,
+                        `view.target` is now the empty STRING rather than
+                        undefined, and `??` only falls through on null — so
+                        the title rendered blank on exactly the desk this
+                        amendment added. An empty target means "not
+                        designated", which must fall through like absence. */}
+                    {view?.target || targetParam || topic.split('/').join(' / ')}
                   </h1>
                 </>
               )}
@@ -829,7 +840,7 @@ export default function StringsSurface() {
       subject={topic}
       artifactPath={artifactPath}
       laneReady={desk.phase !== 'idle' && desk.phase !== 'loading'}
-      laneName={topic ? `Keep: ${view?.target ?? targetParam ?? topic}` : ''}
+      laneName={topic ? `Keep: ${view?.target || targetParam || topic}` : ''}
       laneTabLabel="Supervisor"
       suggestions={setupIncomplete ? SETUP_SUGGESTIONS : TUNE_SUGGESTIONS}
       laneFallbackLabel={

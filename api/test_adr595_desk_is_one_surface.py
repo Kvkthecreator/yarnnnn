@@ -197,6 +197,23 @@ check("3f Run now is disabled-with-a-reason, not absent, when undeclared",
       "!declared || view.problem != null" in _code
       and "Nothing to run yet" in _FE)
 
+# ⚠️ THE AMENDMENT'S OWN FOOTGUN. Before it, an unconfigured desk had NO
+# `view`, so `view?.target` was `undefined` and `??` fell through to the
+# in-flight param. Now the desk is SERVED, so an undesignated target is the
+# empty STRING — which `??` does NOT fall through on. Every such fallback had
+# to become `||`, or the title, the focus label and the lane name render
+# blank on exactly the desk this amendment added.
+_bad = re.findall(r"\.target \?\? ", _code)
+check("3g an empty target falls through (|| not ??), on every fallback",
+      not _bad, f"{len(_bad)} nullish fallback(s) left on .target")
+
+# And the load must re-run when the designation arrives: `targetParam` lands
+# on the same navigation as `topic` but not always in the same commit.
+_load = _between(_code, "if (topic) void loadDesk(topic, targetParam);", "// The aperture chips")
+check("3h the desk reloads when the in-flight target arrives",
+      "[topic, targetParam, loadDesk]" in _code,
+      "targetParam is not a dependency of the load effect")
+
 print()
 print(f"{PASS}/{PASS + FAIL} ADR-595-amendment assertions pass")
 sys.exit(1 if FAIL else 0)
