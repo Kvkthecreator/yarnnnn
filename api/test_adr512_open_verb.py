@@ -18,6 +18,11 @@ Asserts:
      attributed memory") for the workspace framing, and teach every verb.
   5. The ADR-543 file-native surface is registered in full
      (open/list/search/save/history/share) and the memory verbs are gone.
+  6. (ADR-574 §2b, closed 2026-08-28) `open` REACHES THE BODY: the marked
+     machine-composed stylesheets are elided, the unmarked layout style
+     survives, and offset/next_offset page a large file to its end. DRIVEN
+     against a real-shaped artifact — the defect was an incorrect success
+     (`found: true` over a CSS-only payload), which no source-text check sees.
 """
 
 import sys
@@ -91,6 +96,118 @@ def main():
             for v in ("list_files", "search", "history"))
         and not any(f"async def {v}(" in server_src
                     for v in ("remember", "recall", "trace"))))
+
+    # ── 6. The body is REACHABLE (ADR-574 §2b closed) ───────────────────
+    # DRIVEN, not grepped. The defect was an incorrect success: `open` returned
+    # `found: true` with a payload holding zero authored content, because a
+    # Studio artifact inlines ~31KB of kernel CSS ahead of <body> and the cap
+    # landed mid-stylesheet. A source-text check cannot see that; only running
+    # the composer against an artifact shaped like the real one can.
+    import asyncio
+
+    # Imported DEFENSIVELY. A bare `from … import elide_presentation_css`
+    # raises when the helper is absent, and an ImportError here would abort
+    # main() and hide every assertion below it — the crashing-gate trap
+    # (a gate that dies on the defect it guards reports nothing). Absent
+    # helper → each §6 row fails on its own merits, which is the whole point.
+    elide_presentation_css = getattr(
+        __import__("services.machine_projection", fromlist=["x"]),
+        "elide_presentation_css", None,
+    ) or (lambda markup: (markup, 0))
+
+    KERNEL = '<style data-kernel="true" data-kernel-v="19">' + ("/*k*/" * 6000) + "</style>"
+    SKIN = '<style data-skin="true">' + ("/*s*/" * 500) + "</style>"
+    LAYOUT = "<style>.layout{color:red}</style>"
+    BODY = "<p>FIRST-AUTHORED-WORD</p>" + ("<p>filler</p>" * 3000) + "<p>LAST-AUTHORED-WORD</p>"
+    ARTIFACT = ("<!doctype html><html><head>" + LAYOUT + KERNEL + SKIN
+                + "</head><body>" + BODY + "</body></html>")
+
+    class _Q:
+        def __init__(self, rows): self._rows = rows
+        def __getattr__(self, _n): return lambda *a, **k: self
+        def execute(self):
+            return type("R", (), {"data": self._rows})()
+
+    class _Auth:
+        user_id = "u"; workspace_id = "w"
+        def __init__(self, rows):
+            self.client = type("C", (), {"table": lambda _s, _n: _Q(rows)})()
+
+    auth = _Auth([{"path": "/workspace/probe.html", "content": ARTIFACT,
+                   "updated_at": "t", "content_type": "text/html"}])
+    page1 = asyncio.get_event_loop().run_until_complete(
+        m.compose_open(auth, "probe.html"))
+
+    results.append(_check(
+        "6a the FIRST authored word is in the FIRST page — the ADR-574 §2b "
+        "incorrect success (CSS-only payload under found:true) is closed",
+        "FIRST-AUTHORED-WORD" in (page1.get("content") or "")))
+    results.append(_check(
+        "6b the machine-composed sheets are elided from the read",
+        "/*k*/" not in (page1.get("content") or "")
+        and "/*s*/" not in (page1.get("content") or "")))
+    results.append(_check(
+        "6c the UNMARKED layout style SURVIVES — it is baked once and never "
+        "retrofitted, so it is the one sheet that can hold an authored edit",
+        ".layout{color:red}" in (page1.get("content") or "")))
+
+    # The continuation `list` has carried since ADR-545 D3. Without it a file
+    # past the cap has no path to its own tail: `search` returns an excerpt and
+    # points back at `open`, and `history` carries messages, not body text.
+    # Called through a shim for the same reason the import above is defensive:
+    # pre-continuation, `offset` is an unexpected kwarg and the TypeError would
+    # abort the run and hide every row below. A verb with no continuation must
+    # FAIL these rows, not silence them.
+    def _open(off=0):
+        try:
+            return asyncio.get_event_loop().run_until_complete(
+                m.compose_open(auth, "probe.html", offset=off))
+        except TypeError:
+            return {"unsupported": True, "content": "", "truncated": False}
+
+    seen, off, pages = "", 0, 0
+    while True:
+        r = _open(off)
+        seen += r.get("content") or ""
+        pages += 1
+        if not r.get("truncated") or pages > 25:
+            break
+        off = r["next_offset"]
+    results.append(_check(
+        "6d paging REACHES THE END — offset/next_offset walk the whole file",
+        "LAST-AUTHORED-WORD" in seen, f"({pages} pages)"))
+    results.append(_check(
+        "6e no character is lost or duplicated across page boundaries",
+        len(seen) == page1.get("content_chars"),
+        f"walked={len(seen)} total={page1.get('content_chars')}"))
+    results.append(_check(
+        "6f a truncated page ALWAYS carries next_offset (a dead-end "
+        "`truncated: true` is what made the cap unescapable)",
+        all(not _open(o).get("truncated") or "next_offset" in _open(o)
+            for o in (0, 24000, 48000))
+        and not _open(0).get("unsupported")))
+    past = _open(10 ** 9)
+    results.append(_check(
+        "6g an offset past the end is an honest empty read, not a crash",
+        past.get("found") and past.get("content") == ""
+        and not past.get("truncated") and "past its end" in past.get("explanation", "")))
+
+    # The elision is a READ-path act. If it ever reached a write door the
+    # ADR-453 D2 retrofit contract would be silently undone on the next save.
+    from services import authoring as _authoring
+    results.append(_check(
+        "6h the elision never reaches a write door (read path only)",
+        "elide_presentation_css" not in _authoring.__dict__
+        and elide_presentation_css(ARTIFACT)[1] > 0))
+
+    # The cap's own comment used to promise an escape hatch that did not
+    # exist ("history/search stay available for the rest"). That sentence is
+    # what made the dead end look intentional.
+    _cap_src = open("services/mcp_composition.py", encoding="utf-8").read()
+    results.append(_check(
+        "6i the cap no longer claims history/search reach the rest",
+        "history/search stay\n#: available" not in _cap_src
+        and "next_offset" in _cap_src))
 
     ok = all(results)
     print(f"\n{'ALL PASS' if ok else 'FAILURES'} — {sum(results)}/{len(results)}")

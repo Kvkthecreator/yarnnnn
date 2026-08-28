@@ -69,13 +69,17 @@ def run() -> bool:
         "return APP_SURFACES.text;" in ft,
     )
 
-    # ── §2 The pause (D2) — both fields, together ────────────────────────
+    # ── §2 The pause (D2) → the DELETION (ADR-599 D5) ───────────────────
+    # D2 paused Docs to `search-only`. ADR-599 D5 then deleted the app in full,
+    # which SUPERSEDES the pause: there is no row to carry the two fields. The
+    # assertion is re-anchored to the end state rather than left pinning a
+    # spelling the system no longer has — a gate that pins a removed state
+    # reports the correct system as broken.
     docs = rows.get("docs")
     _check(
-        "Docs is PAUSED — search-only tier AND unpinned, together",
-        docs is not None
-        and docs.get("launcher_tier") == "search-only"
-        and docs.get("default_pinned") is False,
+        "Docs is GONE, not paused — the app was deleted in full (ADR-599 D5, "
+        "superseding this ADR's D2 pause)",
+        docs is None,
     )
     _check(
         "Docs has LEFT the default Dock",
@@ -94,27 +98,23 @@ def run() -> bool:
         and "dock-reseed-2026-08-14-text" in prefs,
     )
 
-    # ── §3 Hidden, NOT unplugged (D2/D3) ────────────────────────────────
+    # ── §3 Hidden, NOT unplugged (D2/D3) → fully unplugged (ADR-599 D5) ──
+    # D3 recorded a trap: removing the app while `document` still resolved to
+    # it would render a FLOW document as PAGED slides, silently. The deletion
+    # took the pair together, so the trap did not fire — assert THAT, which is
+    # the invariant worth holding, rather than the survival of a deleted row.
     _check(
-        "the route and the application register survive the pause",
-        docs is not None
-        and docs.get("route") == "/docs"
-        and docs.get("register") == "application",
+        "the deletion took the app AND its type association together — the D3 "
+        "trap (a flow document rendering as paged slides) cannot fire",
+        app_for_kind("document") != "docs",
     )
     _check(
-        "the type→app association survives — a document still opens into Docs",
-        app_for_kind("document") == "docs",
+        "no layout row still claims the deleted app",
+        (resolve_layout("document") or {}).get("app") != "docs",
     )
     _check(
-        "the `document` layout row is still registered (flow, Docs-owned)",
-        resolve_layout("document").get("mode") == "flow"
-        and resolve_layout("document").get("app") == "docs",
-    )
-    _check(
-        "the resident survives the pause (ADR-562 — engine follows the resident); "
-        "the colleague is still named Writer",
-        resident_for_app("docs") == "designer"
-        and resolve_app("docs").get("name") == "Writer",
+        "no resident is declared for the deleted app",
+        resident_for_app("docs") is None,
     )
     # ADR-592 SUPERSEDES D2's "hidden, not unplugged": the pause became a HIDE
     # because it never took effect (a curated Dock kept the icon, /docs still
@@ -160,8 +160,9 @@ def run() -> bool:
         "docs: { surface: 'docs', param: 'file'" not in ft,
     )
     _check(
-        "the fallback that makes the trap real is still the one described",
-        "DEFAULT_ARTIFACT_APP" in ft and "'studio'" in ft,
+        "the fallback that makes the trap real is still the one described "
+        "(the app it names moved studio→slides; the FALLBACK is the invariant)",
+        "DEFAULT_ARTIFACT_APP" in ft,
     )
 
     # ── §5 The receipt (§2b) — MEASURED, not asserted ───────────────────
@@ -170,22 +171,34 @@ def run() -> bool:
     from services.authoring import build_skeleton
     from services.mcp_composition import OPEN_CONTENT_CAP
 
-    artifact = build_skeleton("document", title="Gate probe")
-    head = artifact[:OPEN_CONTENT_CAP]
+    # §2b is CLOSED (2026-08-28). The receipt inverts: it used to prove the
+    # defect (a blank artifact whose <body> the cap never reached); it now
+    # proves the repair holds. The RAW measurement is kept — the artifact is
+    # still larger than the cap, which is why the repair is load-bearing rather
+    # than incidental.
+    from services.machine_projection import elide_presentation_css
+
+    artifact = build_skeleton("slides", title="Gate probe")
     _check(
-        "a blank document EXCEEDS the MCP read cap (the artifact is truncated)",
+        "the raw artifact still EXCEEDS the read cap (the pressure is real)",
         len(artifact) > OPEN_CONTENT_CAP,
     )
     _check(
-        "…and <body> is NEVER reached — an external LLM receives zero authored "
-        "content (ADR-574 §2b, the reason the pause is not a taste call)",
-        "<body" not in head,
+        "…and raw, <body> is still never reached — the defect's mechanism is "
+        "unchanged; what changed is that the read path no longer ships it",
+        "<body" not in artifact[:OPEN_CONTENT_CAP],
     )
-    # The cheapest repair named in ADR-574 §4, still addressable when taken.
+    read_form, elided = elide_presentation_css(artifact)
+    _check(
+        "ADR-574 §2b CLOSED — after elision the body IS inside the first page, "
+        "so an external LLM receives authored content, not a stylesheet",
+        elided > 0 and "<body" in read_form[:OPEN_CONTENT_CAP],
+    )
+    # The cheapest repair named in ADR-574 §4 — taken, and still addressable.
     from services.authoring import _KERNEL_ELEMENT_RX
 
     _check(
-        "the named repair stays addressable — the kernel element is regex-locatable",
+        "the repair stays addressable — the kernel element is regex-locatable",
         _KERNEL_ELEMENT_RX.search(artifact) is not None,
     )
 

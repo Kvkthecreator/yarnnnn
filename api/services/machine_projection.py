@@ -120,6 +120,54 @@ def extract_text_from_html(markup: str) -> str:
     return out.strip()
 
 
+#: The MARKED presentation elements (ADR-449 D2 skin / ADR-453 D2 kernel). Both
+#: are machine-composed and re-stamped on every write, so neither can carry a
+#: byte a member authored. The UNMARKED layout `<style>` is deliberately absent:
+#: it is baked once at `build_skeleton` and never retrofitted, making it the one
+#: sheet that could hold a per-artifact edit. Mirrors of `_KERNEL_ELEMENT_RX`
+#: (authoring) and `_SKIN_ELEMENT_RX` (design_systems) — matched by their MARK,
+#: never by size or position, so a moved or re-versioned element still matches.
+_MARKED_STYLE_RX = re.compile(
+    r'<style\s+[^>]*data-(?:kernel|skin)="true"[^>]*>.*?</style>',
+    re.DOTALL | re.IGNORECASE,
+)
+
+#: Left in place of an elided sheet, so a reader sees that a presentation layer
+#: was REMOVED rather than that the artifact never had one.
+_ELIDED_NOTE = '<!-- {n} chars of machine-composed stylesheet elided for reading -->'
+
+
+def elide_presentation_css(markup: str) -> tuple[str, int]:
+    """Drop the machine-composed stylesheets from markup read AS MARKUP.
+
+    The second projection a machine can need. `extract_text_from_html` answers
+    "what does this document SAY" and destroys every tag to do it — right for a
+    share view or an index, wrong for a caller that must hand the content back
+    through `edit`/`save`, where a `find` string has to match the stored bytes.
+    This keeps the artifact editable and removes only the layers no one authored.
+
+    The live defect (ADR-574 §2b, measured 2026-08-28): a Studio deck inlines a
+    ~31KB kernel sheet plus a skin ahead of `<body>`, so an MCP `open` capped at
+    24,000 chars returned CSS and ZERO authored content — under `success: true,
+    found: true`. `deck.html` reached its first slide at char 39,118, 15,118 past
+    the cap. Eliding the marked sheets brings the body inside the first window.
+
+    Returns `(markup, chars_elided)`. **Read path only** — never a write door,
+    or the ADR-453 D2 retrofit contract would be silently undone on the next save.
+    """
+    if not markup or "<style" not in markup:
+        return markup or "", 0
+    elided = 0
+
+    def _sub(m: "re.Match") -> str:
+        nonlocal elided
+        n = len(m.group(0))
+        elided += n
+        return _ELIDED_NOTE.format(n=f"{n:,}")
+
+    return _MARKED_STYLE_RX.sub(_sub, markup), elided
+
+
 def project_for_machine(
     *,
     path: str,

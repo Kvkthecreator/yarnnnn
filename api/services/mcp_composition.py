@@ -754,10 +754,17 @@ async def _embed_revision_diffs(
 #: revision; carries no authorization (reach is always the caller's grant).
 YARNNN_REF_SCHEME = "yarnnn://workspace/"
 
-#: `open` returns at most this much content; larger files are truncated with an
-#: honest flag (a consumer host's context is finite; history/search stay
-#: available for the rest). Generous enough for every prose artifact in live
-#: workspaces.
+#: `open` returns at most this much content PER CALL; a larger file is paged
+#: with an honest flag and a `next_offset` to continue from (a consumer host's
+#: context is finite — but finite per call, not per file).
+#:
+#: ⚠️ The cap used to say "history/search stay available for the rest". They
+#: are NOT: `search` returns a short excerpt and tells the caller to `open` for
+#: the content, and `history` carries revision messages, not body text. The
+#: promised escape hatch pointed back at the verb that could not reach the
+#: content, so a file past the cap had NO path to its own tail. `offset` is
+#: that path, and it is the same continuation `list` has carried since ADR-545
+#: D3 — `open` was simply the verb that never got it.
 OPEN_CONTENT_CAP = 24_000
 
 #: What an EXTERNAL client reads when something inside yarnnn broke.
@@ -831,6 +838,7 @@ async def compose_open(
     auth: Any,
     reference: str,
     revisions: int = 5,
+    offset: int = 0,
 ) -> dict:
     """Drive `open` — the deterministic path/handle read (ADR-512 D4).
 
@@ -838,6 +846,11 @@ async def compose_open(
     content + head attribution + the recent revision summary in one round. A
     miss is a miss: `open` never falls back to search (that is `search`'s
     contract — keeping the two verbs' guarantees distinct is the point).
+
+    Content is paged: `offset` continues a read past `OPEN_CONTENT_CAP`, and a
+    truncated result carries `next_offset` — the ADR-545 D3 continuation `list`
+    already had. Offsets index the content AS RETURNED (after the ADR-574 §4
+    elision below), so `next_offset` is always a valid cursor for the next call.
     """
     from services.primitives.registry import execute_primitive
 
@@ -919,9 +932,23 @@ async def compose_open(
         }
 
     content = rows[0].get("content") or ""
-    truncated = len(content) > OPEN_CONTENT_CAP
-    if truncated:
-        content = content[:OPEN_CONTENT_CAP]
+
+    # ADR-574 §4 — THE CHEAPEST REPAIR, TAKEN. A Studio artifact inlines its
+    # kernel stylesheet (~20-31KB) and its skin ahead of <body>, so the cap
+    # landed mid-CSS and an external caller received a presentation layer and
+    # ZERO authored content, under `success: true, found: true` — the ADR-373
+    # D6 incorrect-success class the ADR recorded as a standing defect. Both
+    # elided sheets are machine-composed and re-stamped on every write, so no
+    # authored byte is lost. Read path only — never a write door (ADR-453 D2).
+    from services.machine_projection import elide_presentation_css
+    content, elided = elide_presentation_css(content)
+
+    total = len(content)
+    start = max(0, int(offset or 0))
+    window = content[start:start + OPEN_CONTENT_CAP]
+    truncated = (start + len(window)) < total
+    next_offset = start + len(window) if truncated else None
+    content = window
 
     # The recent revision summary — attribution riding the read (ADR-311 D3:
     # riders are the fields the substrate already carries). Best-effort: a
@@ -951,23 +978,53 @@ async def compose_open(
         logger.debug("[MCP] open revision summary failed (non-fatal): %s", exc)
 
     head_author = history[0].get("authored_by") if history else None
-    return {
+
+    # Name the window, not just the fact of a cut. "truncated: true" alone told
+    # a caller that SOMETHING was missing but never how much or how to reach it
+    # — which is how a read returning zero authored content still read as a
+    # success. The sentence states the span, the total, and the next call.
+    past_end = bool(total) and start >= total
+    if past_end:
+        span = (
+            f"`{rel}` has {total:,} characters — offset {start:,} is past its end, "
+            "so no content is returned."
+        )
+    else:
+        span = (
+            f"Characters {start:,}–{start + len(content):,} of {total:,} from `{rel}`"
+            + (f", last revised by {head_author}" if head_author else "")
+            + "."
+        )
+    out = {
         "success": True, "found": True,
         "reference": format_file_reference(rel),
         "path": abs_path,
         "content": content,
         "truncated": truncated,
+        "offset": start,
+        "content_chars": total,
         "authored_by": head_author,
         "last_updated": rows[0].get("updated_at"),
         "history": history,
         "returned": len(history),
         "explanation": (
-            f"The exact current content of `{rel}`"
-            + (f", last revised by {head_author}" if head_author else "")
-            + f" — with its {len(history)} most recent attributed revision(s). "
-            "Use `history` for the full chain with diffs."
+            span
+            + (f" Continue with offset={next_offset} to read on."
+               if truncated else
+               " This is the end of the file."
+               if not past_end and (start or total > OPEN_CONTENT_CAP) else "")
+            # Only on the first page — repeating it every page would read as a
+            # fresh elision each time.
+            + (f" ({elided:,} characters of machine-composed stylesheet were "
+               "elided — presentation, not authored content.)"
+               if elided and not start else "")
+            + f" With its {len(history)} most recent attributed revision(s); "
+            "use `history` for the full chain with diffs."
         ),
     }
+    if truncated:
+        out["next_offset"] = next_offset
+    return out
 
 
 #: `list` returns at most this many entries; larger subtrees are truncated with
@@ -1390,11 +1447,13 @@ async def compose_save(
 
     head = head_rows[0] if head_rows else None
 
-    # ADR-545 D4 — the honest save (truncation guard). `open` caps content at
-    # OPEN_CONTENT_CAP; a whole-file save over a file LARGER than that cap is
-    # the read-truncated/save-back data-loss shape. Deterministic refusal
-    # unless intent is stated: `edit` is the right tool for targeted changes
-    # to a file the caller could not fully read.
+    # ADR-545 D4 — the honest save (truncation guard). A whole-file save over a
+    # file larger than one `open` page is the read-truncated/save-back data-loss
+    # shape. The guard STAYS now that `open` pages: paging makes a full read
+    # POSSIBLE, not certain — a caller that read one page and saved would lose
+    # the rest exactly as before, and the server cannot tell the two apart.
+    # What changed is the remedy the refusal names: the caller can now actually
+    # finish the read (offset), rather than only being told to use `edit`.
     if head and not confirm_full_replace:
         try:
             size_row = (
@@ -1412,11 +1471,12 @@ async def compose_save(
             return {
                 "success": False, "error": "large_file_overwrite",
                 "message": (
-                    f"`{rel}` is {existing_bytes} bytes — larger than open's "
-                    f"{OPEN_CONTENT_CAP}-byte cap, so any open of it was "
-                    "truncated and a whole-file save risks silently deleting "
-                    "the part you never saw. Use `edit` for targeted changes; "
-                    "to intentionally replace the whole file, pass "
+                    f"`{rel}` is {existing_bytes} bytes — more than one "
+                    f"{OPEN_CONTENT_CAP}-character `open` page, so a whole-file "
+                    "save risks silently deleting a part you may not have read. "
+                    "Either page through it first (`open` with offset=next_offset "
+                    "until truncated is false), or use `edit` for targeted "
+                    "changes. To replace the whole file deliberately, pass "
                     "confirm_full_replace=true."
                 ),
                 "reference": format_file_reference(rel),

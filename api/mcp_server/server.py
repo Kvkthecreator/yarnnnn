@@ -977,6 +977,7 @@ async def open_file(
     ctx: Context,
     reference: str,
     revisions: int = 5,
+    offset: int = 0,
 ) -> dict:
     """Open an EXACT file from the user's yarnnn workspace by its reference.
 
@@ -990,12 +991,18 @@ async def open_file(
     `open` never searches or guesses: an unknown path returns `found: false`.
     When you only know the topic (not the path), use `search`; to see what
     exists, use `list`; for the full revision chain with diffs, use `history`.
-    Large files return truncated with `truncated: true`.
+
+    A large file is PAGED, not lost: `truncated: true` comes with `next_offset`
+    — call again with `offset=next_offset` to read on. `content_chars` is the
+    file's full length, so you always know how much remains. Read to the end
+    before summarizing a long file, and before any whole-file `save`.
 
     Args:
         reference: The file reference — yarnnn://workspace/{path}, /workspace/{path},
             or a bare workspace-relative path. Required.
         revisions: How many recent revisions to summarize (default 5, max 10).
+        offset: Character offset to read from (default 0). Pass `next_offset`
+            from a truncated call to continue.
     """
     auth = resolve_request_client(verb="open")
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -1004,7 +1011,7 @@ async def open_file(
             getattr(ctx.request_context, "request", None)
         )
     result = await mcp_composition.compose_open(
-        auth=auth, reference=reference, revisions=revisions,
+        auth=auth, reference=reference, revisions=revisions, offset=offset,
     )
     found = bool(result.get("found"))
     _emit_mcp_narrative(
@@ -1532,8 +1539,11 @@ _OUTPUT_SCHEMAS = {
             "found": {"type": "boolean", "description": "false = no file at that exact reference (open never searches — use search or list)"},
             "reference": {"type": "string", "description": "the canonical yarnnn://workspace/… handle for this file (ADR-512 D5)"},
             "path": {"type": ["string", "null"], "description": "the ledger's absolute path (/workspace/…)"},
-            "content": {"type": ["string", "null"], "description": "the file's exact current content (capped; see truncated)"},
-            "truncated": {"type": "boolean", "description": "true when content was cut at the cap"},
+            "content": {"type": ["string", "null"], "description": "the file's content from `offset` (one page; see truncated). Machine-composed stylesheets are elided — authored content is never removed"},
+            "truncated": {"type": "boolean", "description": "true when content remains — continue from next_offset"},
+            "next_offset": {"type": "integer", "description": "pass as offset to read the next page (present when truncated)"},
+            "offset": {"type": "integer", "description": "the character offset this page started at"},
+            "content_chars": {"type": "integer", "description": "the file's full length in characters, after elision"},
             "authored_by": {"type": ["string", "null"], "description": "who made the most recent revision"},
             "last_updated": {"type": ["string", "null"]},
             "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "recent revisions, newest first (no diffs — history has those)"},

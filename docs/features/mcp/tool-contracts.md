@@ -131,14 +131,36 @@ is in the model's next sentence, not in an iframe the human looks at.
 open(
     reference: str,      # yarnnn://workspace/{path} | /workspace/{path} | relative
     revisions: int = 5,  # recent revisions to summarize (max 10)
+    offset: int = 0,     # character offset — pass next_offset to read on
 ) -> dict
 ```
 
 Returns `found`, the canonical `reference` handle (ADR-512 D5), `path`,
-`content` (capped; `truncated: true` when cut), `authored_by` (head),
+`content` (one page from `offset`), `truncated` + `next_offset`, `offset`,
+`content_chars` (the file's full length), `authored_by` (head),
 `last_updated`, and `history` (recent revisions, newest first, no diffs —
 `history` the verb has those). A miss is a miss: `found: false`, never a
 search fallback.
+
+**A large file is paged, not lost.** `truncated: true` always carries
+`next_offset`; call again until it is false. This is the same continuation
+`list` has had since ADR-545 D3 — `open` simply never got it, and the cap's
+comment wrongly promised that "history/search stay available for the rest"
+(`search` returns an excerpt and points back at `open`; `history` carries
+revision messages, not body text). A file past the cap had **no path to its
+own tail**.
+
+**An artifact is read as its content, not its stylesheet** (ADR-574 §2b,
+closed 2026-08-28). A Studio artifact inlines a versioned kernel sheet
+(~20–31KB) and a design skin ahead of `<body>`, so the cap used to land
+mid-CSS: `open` returned styling and **zero authored content**, under
+`success: true, found: true`. Both MARKED sheets (`data-kernel` / `data-skin`)
+are now elided on read — they are machine-composed and re-stamped on every
+write, so no authored byte is lost, and the explanation says how much was
+elided. The **unmarked layout `<style>` survives**: it is baked once at
+creation and never retrofitted, so it is the one sheet that could hold an
+authored edit. Elision is read-only — the stored file is untouched, and a
+round-trip through `edit`/`save` still matches the stored bytes.
 
 ## `list` — the enumeration + the change feed (ADR-543 / ADR-545 D3)
 
@@ -198,12 +220,14 @@ Read-before-write is the contract (ADR-512 §8a): an existing file requires
 `base_revision` only to create. Returns the new head `revision_id` so a
 follow-up save can chain.
 
-**The honest save (ADR-545 D4)**: a save over an existing file LARGER than
-open's content cap is refused (`large_file_overwrite`) unless the caller
-passes `confirm_full_replace=true` — any open of such a file was truncated,
-so a whole-file save risks silently deleting the part the caller never saw.
-`edit` is the right verb for targeted changes; the flag states wholesale
-intent.
+**The honest save (ADR-545 D4)**: a save over an existing file LARGER than one
+`open` page is refused (`large_file_overwrite`) unless the caller passes
+`confirm_full_replace=true`. The guard **stays now that `open` pages**: paging
+makes a full read *possible*, not certain, and the server cannot tell a caller
+who paged to the end from one who read page 1 and saved. What changed is the
+remedy the refusal names — page through it (`offset=next_offset` until
+`truncated` is false), or use `edit` for targeted changes; the flag states
+wholesale intent.
 
 ## `edit` — the anchored write (ADR-545 D1, binds `EditFile`)
 

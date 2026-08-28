@@ -272,6 +272,40 @@ lead, not because the list is ordered by tier.
   artifact read path. Pausing Docs reduces its blast radius; it does not repair it, and
   Studio's `deck`/`web` artifacts still carry it.
 
+> **RESOLVED 2026-08-28 — §2b is CLOSED.** The repair named here was taken, by the
+> session that next touched the artifact read path. Two changes, both in
+> `compose_open`:
+>
+> 1. **The marked stylesheets are elided on read.** `elide_presentation_css()` lives in
+>    `services/machine_projection.py` — the ADR-530/DP34 "one seam" for what a machine
+>    may read — NOT in a new module. It removes only `data-kernel` / `data-skin`, which
+>    are machine-composed and re-stamped on every write and so cannot hold an authored
+>    byte; the **unmarked layout `<style>` survives**, because it is baked once at
+>    `build_skeleton` and never retrofitted, making it the one sheet that could carry a
+>    per-artifact edit. It is a READ-path act only — reaching a write door would
+>    silently undo the ADR-453 D2 retrofit contract.
+> 2. **`open` gained the continuation `list` has had since ADR-545 D3** (`offset` /
+>    `next_offset` / `content_chars`). This was the deeper half: the cap's own comment
+>    claimed "history/search stay available for the rest", and **they do not** —
+>    `search` returns a short excerpt and points back at `open`, and `history` carries
+>    revision messages, not body text. A file past the cap had no path to its own tail.
+>
+> Measured on the live artifact that surfaced it (`operation/yarrnnnn-decl/deck.html`):
+> 48,323 chars, first slide markup at 39,118 — **15,118 past the 24,000 cap**, so an
+> `open` returned CSS and zero authored content under `success: true, found: true`.
+> After elision the whole deck is 14,609 chars: **all 9 slides in a single page.**
+> Across the workspace the kernel sheet was **72.7% of all artifact bytes** (18 of 19
+> HTML artifacts, ~20,380 bytes each).
+>
+> Not done, deliberately: **the sheet is still inlined per artifact.** De-duplicating it
+> would break self-containment and the versioned in-place retrofit (`data-kernel-v`)
+> that ADR-453 D2 depends on — the storage cost is the price of an artifact that is one
+> portable file. Elision is a read-path concern and stays there.
+>
+> Receipt: `test_adr512_open_verb.py` §6 (9 rows, driven against a real-shaped
+> artifact; 8 falsified red against the pre-fix code). §5 of this ADR's own gate is
+> inverted — it proved the defect, it now proves the repair.
+
 ## 5. Reopening checklist (the ADR-488 §3 pattern)
 
 Re-unveiling Docs — or superseding it with Publish — is a **deliberate decision
@@ -279,8 +313,9 @@ recorded against this ADR**, not a flag flip:
 
 1. The D4 condition is met: an outbound publishing capability exists, or its ADR is
    ratified with the `web` carve.
-2. The §2b prerequisite is met: a server-side projection resolves `data-ref` citations,
-   and an artifact `open` through MCP returns authored content rather than CSS.
+2. The §2b prerequisite is met: a server-side projection resolves `data-ref` citations.
+   (The second half — an artifact `open` returning authored content rather than CSS —
+   is **met as of 2026-08-28**; see §4.)
 3. Registry: `search-only` → `primary`, `default_pinned` → `True`.
 4. `DEFAULT_KEPT_SURFACES` re-adds the app **plus a new reseed generation** whose
    `previous` is the then-current default — the D2 ladder pattern.
@@ -297,8 +332,8 @@ The flow editor is mothballed under live gates rather than discarded. The Publis
 question stays open with a *motive* attached, rather than as a taste observation.
 
 **Costs, stated.** The flow editor — the system's only one — is unadvertised work that
-now accrues no traffic. The §2b artifact invisibility is unrepaired and still affects
-Studio. `document` remains a type with no leading app, which is a slightly odd shape and
+now accrues no traffic. The §2b artifact invisibility was unrepaired at ratification and
+still affected Studio; it is **closed as of 2026-08-28** (see §4). `document` remains a type with no leading app, which is a slightly odd shape and
 is the honest cost of pausing rather than removing.
 
 **Reversibility.** Total. Two registry fields, one dock generation, one gate section.
