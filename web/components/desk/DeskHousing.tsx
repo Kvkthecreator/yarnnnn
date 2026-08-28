@@ -158,13 +158,30 @@ export function DeskHousing({
     void refreshLanes();
   }, [refreshLanes]);
 
+  // ⭐ The binding is (APP, PATH) — never the path alone. Two desks may
+  // legitimately bind the SAME file: a `.md` is both Text's document and
+  // Strings' maintained file, and each opens its own lane with its own
+  // resident (Editor / Supervisor). Matching on path alone let whichever lane
+  // sorted first win, so the Strings desk adopted the Text lane and rendered
+  // "Editor" where Supervisor belonged — operator-observed 2026-08-28 on
+  // `operation/fundraising/application-copy-bank.md`, which really does carry
+  // one lane of each.
+  //
+  // Legacy tolerance: a lane created before ADR-567 D4 carries no `app`
+  // stamp. Adopting one is better than orphaning a live thread, so an
+  // unstamped lane still matches — but only when no correctly-stamped lane
+  // exists for this desk, so the stamped one always wins.
   const boundLane = useMemo(() => {
     if (!artifactPath) return null;
+    const onPath = lanes.filter(
+      (l) => l.status === 'active' && l.artifact_path === artifactPath,
+    );
     return (
-      lanes.find((l) => l.status === 'active' && l.artifact_path === artifactPath) ??
+      onPath.find((l) => (l.app ?? '') === app) ??
+      onPath.find((l) => !l.app) ??
       null
     );
-  }, [lanes, artifactPath]);
+  }, [lanes, artifactPath, app]);
 
   const [creatingLane, setCreatingLane] = useState(false);
   useEffect(() => {

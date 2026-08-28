@@ -555,6 +555,13 @@ export const api = {
           pinned?: boolean;
           /** ADR-440 D3 — the Studio binding (null for plain chat lanes). */
           artifact_path?: string | null;
+          /** ADR-567 D4 — WHICH APP this lane belongs to. Served since 567 but
+           *  absent from this type until 2026-08-28, so `DeskHousing` could
+           *  only match a bound lane on its PATH — and two desks may legitimately
+           *  bind the same file (a .md is both Text's document and Strings'
+           *  maintained file). The Strings desk then adopted the Text lane and
+           *  showed Editor where Supervisor belonged. */
+          app?: string | null;
           /** ADR-450 D3 — the derive binding (null for plain chat lanes). */
           derive_recipe?: string | null;
           derive_source?: string | null;

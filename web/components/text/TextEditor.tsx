@@ -710,10 +710,22 @@ export function TextEditor({
 
   useEffect(() => { void refreshLanes(); }, [refreshLanes]);
 
-  const boundLane = useMemo(
-    () => lanes.find((l) => l.status === 'active' && l.artifact_path === path) ?? null,
-    [lanes, path],
-  );
+  // ⭐ The binding is (APP, PATH) — the same rule DeskHousing holds, and for
+  // the same reason: a `.md` is both Text's document and Strings' maintained
+  // file, so one path can carry two lanes with two residents. Matching on path
+  // alone let this editor adopt the Strings lane (Supervisor) and vice versa.
+  // Unstamped pre-ADR-567 lanes still match, but only after a correctly
+  // stamped one fails to.
+  const boundLane = useMemo(() => {
+    const onPath = lanes.filter(
+      (l) => l.status === 'active' && l.artifact_path === path,
+    );
+    return (
+      onPath.find((l) => (l.app ?? '') === 'text') ??
+      onPath.find((l) => !l.app) ??
+      null
+    );
+  }, [lanes, path]);
 
   useEffect(() => {
     if (!path || !lanesEnabled || boundLane || creatingLane) return;
