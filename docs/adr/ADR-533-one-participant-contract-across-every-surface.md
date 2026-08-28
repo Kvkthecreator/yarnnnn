@@ -251,6 +251,26 @@ while correcting its *scope* (a write-capable participant is owed the etiquette)
 explicitly not ported: lane posture overlays (agent · studio · design-system · derive),
 the member/model interpolation, and anything at Altitude 1.
 
+> **AMENDED 2026-08-28 by [ADR-617](ADR-617-an-external-principal-is-taught-the-document-it-can-write.md) D2.**
+> The MANDATE ruling above is **unchanged**. What ADR-617 splits is the "lane posture
+> overlays" item, which covered two different things on the wrong axis:
+>
+> - a posture's **turn state** (the live outline, an inlined `_string.yaml` +
+>   `CONTRACT.md`, the design-system roster) — workspace-specific and turn-scoped;
+>   **stays withheld**, exactly as this section intends;
+> - a posture's **format grammar** — how a document of that type is structured. This is
+>   not intent at all. By D6's own test (*"how the workspace works"* vs *"what this
+>   workspace is for"*) it is the first, and it is the same class as
+>   `PARTICIPANT_FILESYSTEM_MODEL`, which always ported.
+>
+> The measured cost of withholding it: an external principal that can `save` an `.html`
+> artifact had never been taught that a `data-ref` element is a live projection — so it
+> read an empty cited block as an empty slide (the ADR-373 D6 incorrect-success class),
+> and could paste a cited file's bytes into a document where the renderer silently
+> overwrites them. `PARTICIPANT_ARTIFACT_CITATION_RULE` now crosses as a **kernel
+> constant both surfaces compose** — never by calling a lane posture builder from the
+> connector, which would leak exactly the turn state this section protects.
+
 > **Open framing debt (operator, 2026-08-07, at ratification)**: the vocabulary this
 > section leans on — **MANDATE** as the workspace's declared intent, and **Freddie** as
 > the wake-spine occupant (§9) — is **outdated concept-work pending its own discourse**.

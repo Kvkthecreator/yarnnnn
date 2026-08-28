@@ -471,9 +471,19 @@ def _build_interop_instructions() -> str:
     kernel-universal, therefore shared. The mandate is WHAT THIS WORKSPACE IS
     FOR — workspace-specific intent that would leave the system into a
     third-party host's context window on every connection, for a benefit no verb
-    requires. Also not ported: lane posture overlays, member/model interpolation.
+    requires. Also not ported: member/model interpolation.
+
+    ADR-617 D2 AMENDS that list. "Lane posture overlays" was one item covering
+    two different things, and the split matters: a posture's TURN STATE (the
+    live outline, an inlined `_string.yaml`, the design-system roster) is
+    workspace-specific and stays withheld — it is also turn-scoped and would
+    cost a DB read per call. A posture's FORMAT GRAMMAR is not intent at all;
+    it is the same class as PARTICIPANT_FILESYSTEM_MODEL, which always ported.
+    The artifact citation rule crosses on that basis, as a kernel constant both
+    surfaces compose — never by calling a lane posture builder from here.
     """
     from services.workspace_paths import (
+        PARTICIPANT_ARTIFACT_CITATION_RULE,
         PARTICIPANT_ATTRIBUTION_RULE,
         PARTICIPANT_CITATION_RULE,
         PARTICIPANT_COMMONS_CONTRACT,
@@ -499,6 +509,10 @@ def _build_interop_instructions() -> str:
         f"- {PARTICIPANT_CITATION_RULE}\n"
         f"- {PARTICIPANT_FORMAT_DISCIPLINE}\n\n"
         f"{PARTICIPANT_FILESYSTEM_MODEL}\n\n"
+        # ADR-617 D2 — amends ADR-533 D6. Withheld until 2026-08-28 as a "lane
+        # posture overlay"; it is not intent, it is how an artifact works, and a
+        # surface that can `save` one must be taught it.
+        f"## Documents that cite other files\n{PARTICIPANT_ARTIFACT_CITATION_RULE}\n\n"
         "## Your verbs\n"
         f"{verbs}\n\n"
         "Use these proactively — the workspace is supposed to be ambient. When "
@@ -996,6 +1010,12 @@ async def open_file(
     — call again with `offset=next_offset` to read on. `content_chars` is the
     file's full length, so you always know how much remains. Read to the end
     before summarizing a long file, and before any whole-file `save`.
+
+    `citations` lists the workspace files an artifact CITES. Their content is
+    projected from the source when the document renders, so a cited element is
+    usually EMPTY in what you read here — that is a working citation, not
+    missing content. Open a cited file to learn what it shows, and never write
+    content inside a citation: it is overwritten on the next render.
 
     Args:
         reference: The file reference — yarnnn://workspace/{path}, /workspace/{path},
@@ -1544,6 +1564,7 @@ _OUTPUT_SCHEMAS = {
             "next_offset": {"type": "integer", "description": "pass as offset to read the next page (present when truncated)"},
             "offset": {"type": "integer", "description": "the character offset this page started at"},
             "content_chars": {"type": "integer", "description": "the file's full length in characters, after elision"},
+            "citations": {"type": "array", "items": {"type": "object"}, "description": "workspace files this document CITES (path, kind, pinned, projected). A projected citation renders EMPTY here — its content comes from the cited file, so open that file to read it; never write content into a citation"},
             "authored_by": {"type": ["string", "null"], "description": "who made the most recent revision"},
             "last_updated": {"type": ["string", "null"]},
             "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "recent revisions, newest first (no diffs — history has those)"},

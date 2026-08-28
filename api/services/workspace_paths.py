@@ -431,6 +431,49 @@ Prose documents are .md. Machine config is _*.yaml (don't author these unless
 asked)."""
 
 
+#: The IN-DOCUMENT citation grammar (ADR-440 D5 / ADR-443 / ADR-617 D2).
+#:
+#: ⚠️ Distinct from PARTICIPANT_CITATION_RULE, and both are needed. That one is
+#: `derived_from` — provenance BETWEEN files, recorded on the write. This one is
+#: `data-ref` — a live projection INSIDE a document: the artifact holds the
+#: reference, and the cited object's content is rendered from its source every
+#: time it is read. Confusing them is how a participant "helpfully" pastes a
+#: CSV's rows into a deck and produces bytes that look right and are dead.
+#:
+#: ADR-617 D2 — this ports to EVERY write-capable surface. ADR-533 D6 withheld
+#: "lane posture overlays" from the connector wholesale; the mandate half of
+#: that ruling stands (workspace-specific intent does not leave the system), but
+#: this clause is not intent — it is HOW AN ARTIFACT WORKS, kernel-universal on
+#: the same axis as PARTICIPANT_FILESYSTEM_MODEL, which always ported. An
+#: external principal that can `save` an artifact and has never been taught this
+#: is a door onto a rule it cannot see (measured: the gap that let a session read
+#: an empty cited block as an empty slide).
+#:
+#: The surface appends its own verb names — a lane says ReadFile/WriteFile, the
+#: connector says open/save — so this stem names no verb.
+PARTICIPANT_ARTIFACT_CITATION_RULE = """\
+Some documents (.html artifacts — decks, canvases, pages) CITE workspace files
+rather than containing them. A citation is an element carrying
+`data-ref="<the cited file's path>"` (plus `data-ref-kind` for how to draw it,
+and `data-ref-rev` — the cited file's head revision — as its pin):
+
+  <div data-ref="operation/metrics/q3.csv" data-ref-kind="table"></div>
+
+Three consequences, and they are the whole point of the form:
+- The element is usually EMPTY in the stored file. Its content is projected
+  from the cited file when the document is rendered. An empty cited element is
+  a working citation, NOT missing content — to know what it shows, read the
+  file it names.
+- NEVER copy a cited file's bytes into the document, and never edit a cited
+  object's content inside the document. The source file is authoritative: what
+  you write inside a citation is overwritten the next time it renders. To
+  change what a citation shows, edit the CITED FILE.
+- Keep a citation whole. Preserve `data-ref`, `data-ref-kind` and
+  `data-ref-rev` when you edit around one; an unpinned citation
+  (`data-ref-rev=""`) is one that can only ever dangle if its source moves."""
+
+
+
 # =============================================================================
 # governance/ — the GRANT: authority + spend the agent runs under (locked-always)
 # =============================================================================

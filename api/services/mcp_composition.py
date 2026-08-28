@@ -834,6 +834,149 @@ def format_file_reference(path: str) -> str:
     return f"{YARNNN_REF_SCHEME}{rel}"
 
 
+async def _refuse_citation_loss_on_save(
+    auth: Any, abs_path: str, rel: str, incoming: str
+) -> Optional[dict]:
+    """Refuse a whole-file save that drops or fills a citation (ADR-617 D4).
+
+    Two failures, both invisible to the caller and both permanent in the ledger:
+      · a citation the head carried is GONE from the new content — the document
+        loses a live projection and keeps rendering as if nothing happened;
+      · a citation is kept but its body has been FILLED IN — the classic
+        helpful-paste. Those bytes are dead on arrival: the renderer overwrites
+        the island from its source on the next read, so the file and every
+        screen disagree, silently and forever.
+
+    Only for `.html` (the artifact form). Degrades OPEN on any read failure —
+    a guard that cannot read must not block a legitimate save.
+    """
+    from services.authored_substrate import citation_islands
+
+    try:
+        row = (
+            live_files_filter(auth.client.table("workspace_files").select("content"))
+            .eq(*_substrate_scope(auth)).eq("path", abs_path).limit(1).execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP] citation guard read failed (non-fatal): %s", exc)
+        return None
+    if not row:
+        return None
+    head_islands = [i for i in citation_islands(row[0].get("content") or "")
+                    if i["tag"] != "style"]
+    if not head_islands:
+        return None
+
+    new_islands = {i["ref"]: i for i in citation_islands(incoming or "")
+                   if i["tag"] != "style"}
+    dropped = [i["ref"] for i in head_islands if i["ref"] not in new_islands]
+    # "Was empty in the head, has a body now" — the paste. A citation the head
+    # already carried content for is left alone: this door refuses NEW damage,
+    # it does not demand the caller repair pre-existing state.
+    filled = [
+        i["ref"] for i in head_islands
+        if not i["inner"].strip()
+        and i["ref"] in new_islands
+        and new_islands[i["ref"]]["inner"].strip()
+    ]
+    if not dropped and not filled:
+        return None
+
+    parts = []
+    if dropped:
+        parts.append(
+            "removes " + ", ".join(f"`{p}`" for p in dropped[:5])
+        )
+    if filled:
+        parts.append(
+            "writes content inside " + ", ".join(f"`{p}`" for p in filled[:5])
+        )
+    return {
+        "success": False, "error": "citation_damage",
+        "message": (
+            f"This save {' and '.join(parts)} in `{rel}`. A cited file's content "
+            "is projected from its source when the document renders — writing it "
+            "into the document produces bytes that are overwritten on the next "
+            "render, and dropping the citation silently ends a live projection. "
+            "Keep each citation element as it stands (its data-ref, data-ref-kind "
+            "and data-ref-rev, with an empty body); to change what one SHOWS, "
+            "save the cited file instead."
+        ),
+        "reference": format_file_reference(rel),
+        "citations": sorted(set(dropped + filled)),
+    }
+
+
+def _refuse_citation_damage(old: str, new: str, rel: str) -> Optional[dict]:
+    """Refuse an edit that would damage a citation (ADR-617 D4). None = allow.
+
+    The rule ported: *a cited object's content is projected from its source; it
+    is never authored inside the artifact* (ADR-440 D5). Two shapes are caught
+    without reading the file, so this stays free and honest on a verb whose
+    whole contract is that it never carries content the caller did not read:
+
+      · a citation present in `old` and absent from `new` — the edit deletes or
+        un-cites it (the "a data-ref can't be halved" refusal the canvas makes);
+      · an OPENING citation tag in `old` whose element is not whole — the
+        anchor starts or ends inside an island's body.
+
+    What it deliberately cannot catch: an `old` that lies entirely INSIDE an
+    island's inner content and mentions no `data-ref` at all. That needs the
+    file, which this verb never fetches — and it is the case `compose_save`
+    covers span-aware. Stated so the gap is known rather than assumed absent.
+    """
+    if "data-ref" not in (old or ""):
+        return None
+    from services.authored_substrate import citation_islands
+
+    before = {i["ref"] for i in citation_islands(old) if i["tag"] != "style"}
+    after = {i["ref"] for i in citation_islands(new or "") if i["tag"] != "style"}
+    lost = sorted(before - after)
+    if not lost:
+        return None
+    return {
+        "success": False, "error": "citation_damage",
+        "message": (
+            f"This edit would remove or alter a citation in `{rel}`: "
+            + ", ".join(f"`{p}`" for p in lost[:5])
+            + ". A cited file's content is projected from its source when the "
+            "document renders — it is not authored inside the document, and "
+            "anything written in its place is overwritten on the next render. "
+            "To change what a citation SHOWS, edit the cited file itself. To "
+            "keep the citation and edit around it, include the whole citation "
+            "element unchanged in both `old` and `new`."
+        ),
+        "reference": format_file_reference(rel),
+        "citations": lost,
+    }
+
+
+def _describe_citations(citations: list[dict]) -> str:
+    """The citation rider, as a sentence (ADR-617 D3).
+
+    Named separately from the field because a host that renders only
+    `explanation` would otherwise show a document with holes in it and no
+    account of them — the incorrect-success shape this ADR exists to close.
+    """
+    n = len(citations)
+    projected = [c for c in citations if c["projected"]]
+    unpinned = [c for c in citations if not c["pinned"]]
+    out = (
+        f" This document CITES {n} workspace file(s) — their content is "
+        "projected from the source when it renders, so it is not in the markup "
+        "above: " + ", ".join(f"`{c['path']}`" for c in citations[:8])
+        + ("…" if n > 8 else "") + "."
+    )
+    if projected:
+        out += (
+            f" {len(projected)} of them render as EMPTY elements here; open the "
+            "cited file(s) to read what they show."
+        )
+    if unpinned:
+        out += f" {len(unpinned)} carry no revision pin."
+    return out
+
+
 async def compose_open(
     auth: Any,
     reference: str,
@@ -943,6 +1086,33 @@ async def compose_open(
     from services.machine_projection import elide_presentation_css
     content, elided = elide_presentation_css(content)
 
+    # ADR-617 D3 — THE CITATIONS ARE NAMED. An artifact's cited blocks are
+    # usually EMPTY in storage (their content is projected from the source at
+    # render), so a reader that sees only the markup reads a working citation
+    # as an empty block — and cannot tell that from a genuinely empty one. The
+    # rider says what this document cites and whether each is pinned, so the
+    # caller knows what it has NOT seen. Paths only: resolving them here would
+    # re-copy the bytes the citation form exists to avoid.
+    citations: list[dict] = []
+    if "data-ref" in content:
+        from services.authored_substrate import citation_islands
+        seen_refs: set[str] = set()
+        for isl in citation_islands(content):
+            # A marked <style> wears data-ref as an EDGE (trace/dependents), not
+            # a projection — its CSS is already composed in place, and the
+            # renderer refuses to resolve "into" one (projection.ts, ADR-456 W3).
+            # Listing it as a citation would tell the caller to go read a
+            # stylesheet manifest to understand the document.
+            if isl["tag"] == "style" or isl["ref"] in seen_refs:
+                continue
+            seen_refs.add(isl["ref"])
+            citations.append({
+                "path": isl["ref"],
+                "kind": isl["kind"] or None,
+                "pinned": bool(isl["rev"]),
+                "projected": not isl["inner"].strip(),
+            })
+
     total = len(content)
     start = max(0, int(offset or 0))
     window = content[start:start + OPEN_CONTENT_CAP]
@@ -1003,6 +1173,7 @@ async def compose_open(
         "truncated": truncated,
         "offset": start,
         "content_chars": total,
+        "citations": citations,
         "authored_by": head_author,
         "last_updated": rows[0].get("updated_at"),
         "history": history,
@@ -1018,6 +1189,9 @@ async def compose_open(
             + (f" ({elided:,} characters of machine-composed stylesheet were "
                "elided — presentation, not authored content.)"
                if elided and not start else "")
+            # ADR-617 D3 — an unresolved citation is invisible in the markup.
+            # Say so in the sentence, not only in a field a host may not render.
+            + (_describe_citations(citations) if citations and not start else "")
             + f" With its {len(history)} most recent attributed revision(s); "
             "use `history` for the full chain with diffs."
         ),
@@ -1198,6 +1372,17 @@ async def compose_edit(
                 "or a yarnnn://workspace/… handle."
             ),
         }
+    # ADR-617 D4 — THE CITATION RULING REACHES THIS DOOR. The Studio UI
+    # enforces it in three client-side layers (islands are contenteditable
+    # =false, the caret is fenced out, and the commit serializer restores them
+    # from data-src-html); MCP is the door built after that ruling and had
+    # none of them. Content-free, matching this verb's contract that content
+    # the client never read is never in the payload: a citation appearing in
+    # `old` but not `new` is the anchor cutting through an island.
+    refused = _refuse_citation_damage(old, new, rel)
+    if refused:
+        return refused
+
     result = await execute_primitive(auth, "EditFile", {
         "scope": "workspace",
         "path": rel,
@@ -1481,6 +1666,15 @@ async def compose_save(
                 ),
                 "reference": format_file_reference(rel),
             }
+
+    # ADR-617 D4 — the same ruling, span-aware, on the whole-file door. `edit`
+    # checks its anchors without the file; `save` REPLACES the file, so the
+    # honest question is whether the head's citations survive the new content.
+    # Reads the head only when the head actually cites something.
+    if head and "html" in (rel.rsplit(".", 1)[-1] or "").lower():
+        refused = await _refuse_citation_loss_on_save(auth, abs_path, rel, content)
+        if refused:
+            return refused
 
     if head and not base_revision:
         return {

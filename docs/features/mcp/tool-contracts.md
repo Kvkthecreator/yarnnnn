@@ -150,6 +150,17 @@ comment wrongly promised that "history/search stay available for the rest"
 revision messages, not body text). A file past the cap had **no path to its
 own tail**.
 
+**An artifact NAMES WHAT IT CITES** (ADR-617 D3). Some documents (`.html`
+artifacts) cite workspace files rather than containing them: an element carrying
+`data-ref="<path>"` (+ `data-ref-kind`, and `data-ref-rev` as its pin). The cited
+content is **projected from the source at render**, so the element is usually
+EMPTY in what `open` returns — a working citation, not missing content. The
+`citations` rider names each one (`path`, `kind`, `pinned`, `projected`) and the
+explanation says so in prose, so a caller knows what it has NOT seen and can
+`open` the cited file. Paths only: resolving them server-side would re-copy the
+bytes the citation form exists to avoid. A marked `<style>` wearing `data-ref`
+is excluded — it carries the attribute as a trace edge, not a projection.
+
 **An artifact is read as its content, not its stylesheet** (ADR-574 §2b,
 closed 2026-08-28). A Studio artifact inlines a versioned kernel sheet
 (~20–31KB) and a design skin ahead of `<body>`, so the cap used to land
@@ -219,6 +230,19 @@ Read-before-write is the contract (ADR-512 §8a): an existing file requires
 `stale_write` with who holds the head — re-open, merge, save again. Omit
 `base_revision` only to create. Returns the new head `revision_id` so a
 follow-up save can chain.
+
+**The citation ruling reaches the write doors (ADR-617 D4).** *A cited object's
+content is projected from its source; it is never authored inside the document*
+(ADR-440 D5) — a rule the Studio UI enforces in three client-side layers, so a
+human literally cannot break it. MCP is the door built after that ruling, and now
+carries it: `edit` refuses an anchor that removes or halves a citation
+(content-free, from `old`/`new` alone), and `save` refuses a whole-file write that
+DROPS a head citation or FILLS an empty one (the helpful-paste — those bytes are
+overwritten at the next render, so the file and every screen disagree silently).
+Both return `citation_damage` naming the remedy: to change what a citation shows,
+**edit the cited file**. Stated limits: `edit` cannot see an anchor lying wholly
+inside an island, and neither door repairs artifacts that already carry inlined
+citation content.
 
 **The honest save (ADR-545 D4)**: a save over an existing file LARGER than one
 `open` page is refused (`large_file_overwrite`) unless the caller passes

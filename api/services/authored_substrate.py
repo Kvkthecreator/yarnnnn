@@ -321,6 +321,88 @@ def extract_data_ref_paths(content: Optional[str]) -> list[str]:
     return out
 
 
+#: A citation ISLAND's opening tag — the element that wears `data-ref`. Span-aware
+#: (unlike `_DATA_REF_RX`, which finds the attribute and not its element), because
+#: the guard below must know where an island STARTS and ENDS, not merely that one
+#: exists. Void elements (`<img …>`) are islands with no inner content; container
+#: elements (`<div …>`, `<figure …>`) carry theirs between the tags.
+_CITATION_OPEN_RX = re.compile(
+    r"<(?P<tag>[a-zA-Z][a-zA-Z0-9]*)\b(?P<attrs>[^>]*\bdata-ref=\"(?P<ref>[^\"]+)\"[^>]*)>",
+    re.IGNORECASE,
+)
+#: The citation's companions, read off the SAME opening tag (never the document)
+#: so a kind/pin is only ever attributed to the element that actually wears it.
+_REF_KIND_RX = re.compile(r'data-ref-kind="([^"]*)"', re.IGNORECASE)
+_REF_REV_RX = re.compile(r'data-ref-rev="([^"]*)"', re.IGNORECASE)
+
+#: Elements that never have inner content, so an "island body" is meaningless.
+_VOID_TAGS = frozenset({"img", "br", "hr", "input", "source", "embed", "meta", "link"})
+
+
+def _attr(rx: "re.Pattern", m: "re.Match") -> str:
+    """One attribute off a citation's OWN opening tag (never the document)."""
+    found = rx.search(m.group("attrs") or "")
+    return found.group(1) if found else ""
+
+
+def citation_islands(content: Optional[str]) -> list[dict]:
+    """Every citation island in an artifact, with the span of its INNER content.
+
+    ADR-617 D3 — the read half of the ruling ADR-440 D5 states and the Studio
+    UI enforces in three client-side layers: *a cited object's content is
+    projected from its source at render; it is never authored inside the
+    artifact.* A server-side door needs the island's BOUNDS to enforce that,
+    which `extract_data_ref_paths` (paths only) cannot give.
+
+    Returns, per island, ``{"ref", "kind", "rev", "tag", "outer_start",
+    "inner_start", "inner_end", "inner"}``. A void element (``<img data-ref=…>``) reports
+    ``inner_start == inner_end`` and an empty ``inner`` — it has no body to
+    protect, and a caller must not treat that as an unclosed element.
+
+    Deliberately NOT an HTML parser. `lxml` would be the obvious tool and is
+    NOT in `requirements.txt` (it is importable in the dev venv only, which is
+    exactly how a serving path acquires an undeclared dependency). A depth
+    counter over same-tag opens/closes is enough for the one question asked
+    here — does an edit fall inside an island — and it degrades honestly: an
+    island whose close tag is absent reports its inner span to the end of the
+    content, which makes the guard MORE conservative, never less.
+    """
+    if not content or "data-ref" not in content:
+        return []
+    out: list[dict] = []
+    for m in _CITATION_OPEN_RX.finditer(content):
+        tag = m.group("tag").lower()
+        inner_start = m.end()
+        if tag in _VOID_TAGS or m.group(0).rstrip().endswith("/>"):
+            out.append({
+                "ref": m.group("ref"), "tag": tag, "outer_start": m.start(),
+                "inner_start": inner_start, "inner_end": inner_start, "inner": "",
+                "kind": _attr(_REF_KIND_RX, m), "rev": _attr(_REF_REV_RX, m),
+            })
+            continue
+        # Walk same-tag opens/closes so a nested <div> inside the island does
+        # not end it early (a component island legitimately contains divs).
+        depth = 1
+        pos = inner_start
+        tag_rx = re.compile(rf"<(/?){re.escape(tag)}\b[^>]*>", re.IGNORECASE)
+        inner_end = len(content)
+        while depth:
+            t = tag_rx.search(content, pos)
+            if not t:
+                break  # unclosed — conservative: island runs to the end
+            depth += -1 if t.group(1) else 1
+            pos = t.end()
+            if not depth:
+                inner_end = t.start()
+        out.append({
+            "ref": m.group("ref"), "tag": tag, "outer_start": m.start(),
+            "inner_start": inner_start, "inner_end": inner_end,
+            "inner": content[inner_start:inner_end],
+            "kind": _attr(_REF_KIND_RX, m), "rev": _attr(_REF_REV_RX, m),
+        })
+    return out
+
+
 def _plausible_edge(abs_ref: str) -> bool:
     """Junk-filter for LIFTED edges: prose like `derived_from: the meeting`
     never becomes an edge. A real citation has path structure (a slash beyond
