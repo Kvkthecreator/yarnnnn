@@ -433,7 +433,32 @@ def record_execution_event(
         except Exception:  # fail-open: never lose the ledger row over scoping
             pass
 
-        result = client.table("execution_events").insert(row).execute()
+        # ⭐⭐⭐ THE LEDGER WRITES WITH THE SERVICE CLIENT, NOT THE CALLER'S
+        # (ADR-618). `execution_events` is service-role-only for INSERT, so a
+        # caller holding a USER client has its row refused by RLS — code 42501,
+        # caught below and logged as [LEDGER-DROP] UNRECORDED spend. Because
+        # this function never raises (correctly — telemetry must not fail a
+        # run), the caller sees success and the spend simply vanishes.
+        #
+        # Observed live 2026-08-28: the strings lane's MANUAL door
+        # (`POST /strings/{topic}/run`) passes `auth.client`, so every Run-now
+        # recorded nothing, while the SAME sweep fired from the scheduler —
+        # which holds a service client — would have recorded fine. An
+        # asymmetry between two doors into one body is exactly what a caller-
+        # supplied client makes possible.
+        #
+        # So the client is resolved HERE. A ledger that only records when the
+        # caller remembered the right client is not a ledger; the ADR-396
+        # one-ledger invariant has to hold at the writer. Same shape as
+        # `agent_connectors._read_map` (ADR-615) and for the same reason.
+        # The caller's client is still used for the READ paths above, which are
+        # legitimately member-scoped.
+        try:
+            from services.supabase import get_service_client
+            _ledger = get_service_client()
+        except Exception:  # noqa: BLE001 — no service client: try the caller's
+            _ledger = client
+        result = _ledger.table("execution_events").insert(row).execute()
         # Supabase returns the inserted row(s) in result.data when the client
         # is configured with default representation. ADR-289 callers rely on
         # this id to stamp metadata.invocation_id on narrative rows.

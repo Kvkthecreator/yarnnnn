@@ -40,6 +40,20 @@ The route's own docstring already promised *"exactly one scheduled run's body."*
 
 **A never-indexed string stays claimable.** A string declared since the last tick has no index row; reading that `None` as a lost race would make a brand-new string permanently un-fireable by hand.
 
+### D3 — The ledger writes with the service client, not the caller's
+
+The live test exposed a second defect **behind** the first, and the first had to be fixed before the second became visible.
+
+`execution_events` is service-role-only for INSERT. `record_execution_event` never raises — correctly, since telemetry must not fail a run — so a caller holding a USER client has its row refused by RLS (42501), logs `[LEDGER-DROP] … UNRECORDED spend`, and returns `None`. The caller sees success and the spend vanishes.
+
+The strings **manual** door passes `auth.client`, so every Run-now recorded nothing; the **scheduled** path holds a service client and would have recorded fine. **An asymmetry between two doors into one body is exactly what a caller-supplied client makes possible** — and it is why the first run looked perfectly healthy: file updated, schedule advanced, desk saying "Ran — the file was updated."
+
+So the client is resolved at the writer. A ledger that only records when the caller remembered the right client is not a ledger; the ADR-396 one-ledger invariant has to hold where the row is written. The caller's client still serves the READ paths, which are legitimately member-scoped.
+
+This is the same shape as ADR-615's opt-in defect, found the same day: **a service-role-only table handed the turn's user client, failing silently rather than loudly.** Two instances in one session is a pattern, not a coincidence — any reader or writer of a service-role-only table should resolve its own client rather than trust a caller.
+
+**Two stacked defects, discovered in order.** Migration 249 (the missing `funnel_decision='string'`) was necessary but not sufficient: fixing the constraint revealed the RLS refusal underneath. Neither alone explains the symptom, and the first masked the second — which is why the constraint fix appeared not to work and the cause was initially misread as a stale schema cache.
+
 ## Consequences
 
 - Standing work can no longer overdraw a workspace. The lane keeps its own convention (pool hard-stop, owner-attributed) rather than borrowing the member-facing one.

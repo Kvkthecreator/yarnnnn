@@ -141,6 +141,73 @@ check("1f a check that cannot RUN fails open (never strands standing work)",
       _outE.get("error_reason") != "balance_exhausted", f"got {_outE}")
 
 # ═════════════════════════════════════════════════════════════════════════════
+print("§1b the ledger records regardless of the caller's client")
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ⭐⭐⭐ FOUND BY DRIVING. `execution_events` is service-role-only for INSERT, so
+# a caller holding a USER client has its row refused by RLS (42501). Because
+# `record_execution_event` never raises (correctly — telemetry must not fail a
+# run), the caller sees success and the spend VANISHES. Live: the strings
+# manual door passes `auth.client`, so every Run-now recorded nothing, while
+# the same sweep from the scheduler (service client) recorded fine — an
+# asymmetry between two doors into one body.
+#
+# Behavioural, not a source check: "does it import get_service_client" would
+# pass against a version that imports it and then inserts with the caller's.
+import services.telemetry as _tel  # noqa: E402
+
+_ins: list = []
+
+
+class _RlsRefusingClient:
+    """A client whose INSERT is refused by RLS — what a user-role client does
+    against a service-role-only table. It RAISES (PostgREST surfaces 42501 as
+    an APIError), which is the shape the writer must not simply swallow."""
+
+    def table(self, _n):
+        return self
+
+    def insert(self, row):
+        self._row = row
+        return self
+
+    def execute(self):
+        raise RuntimeError('new row violates row-level security policy')
+
+
+class _SvcDouble:
+    def table(self, _n):
+        return self
+
+    def insert(self, row):
+        _ins.append(row)
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+        return SimpleNamespace(data=[{"id": "row-1"}])
+
+
+import services.supabase as _sb  # noqa: E402
+
+_real_svc = _sb.get_service_client
+_sb.get_service_client = lambda *a, **k: _SvcDouble()
+try:
+    _rid = _tel.record_execution_event(
+        _RlsRefusingClient(), user_id="u-1", slug="string-sweep:probe",
+        mode="mechanical", trigger_type="scheduled", status="success",
+        duration_ms=1, funnel_decision="string",
+    )
+    check("1g an RLS-refusing caller still lands the ledger row",
+          _rid is not None and len(_ins) == 1,
+          f"rid={_rid!r} inserts={len(_ins)}")
+    check("1h the row keeps its lane marker through the swap",
+          bool(_ins) and _ins[0].get("funnel_decision") == "string",
+          f"row={_ins[0] if _ins else None}")
+finally:
+    _sb.get_service_client = _real_svc
+
+# ═════════════════════════════════════════════════════════════════════════════
 print("§2 the manual fire takes the same claim as the scheduled drain")
 # ═════════════════════════════════════════════════════════════════════════════
 
