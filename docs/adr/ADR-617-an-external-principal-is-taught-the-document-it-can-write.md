@@ -137,6 +137,18 @@ shaped by what each verb honestly knows:
   failure — a guard that cannot read must not block a legitimate save. It refuses *new*
   damage only, and does not demand a caller repair pre-existing state.
 
+  ⚠️ **It sits BEHIND the ADR-545 D4 size guard, which fires first on essentially every
+  real artifact.** Measured 2026-08-28: 12 of 20 live `.html` artifacts exceed
+  `OPEN_CONTENT_CAP`, smallest over-cap 25,862 bytes — and since the kernel sheet alone
+  is ~31KB, any artifact carrying it is over. So a whole-file `save` on an artifact
+  returns `large_file_overwrite` first, and the citation guard is only reached once the
+  caller passes `confirm_full_replace=true`. That ordering is correct (the size risk is
+  the broader one, and the flag states intent about SIZE, not permission to destroy a
+  citation — verified: the guard still refuses with the flag set). But it means D4's
+  `save` half guards the *deliberate* whole-file replace, while the *accidental* one is
+  already stopped one gate earlier. Stated so a reader does not infer a reach the door
+  does not have.
+
 Both return the module's standard refusal shape (`success: false`, `error:
 "citation_damage"`, a message naming the remedy — *edit the cited file*).
 
@@ -159,8 +171,19 @@ Slides is taught because HTML-with-citations is not self-describing.
 **Costs, stated.** The connector instructions grow by ~1.4KB — paid once per connection,
 against a class of silent corruption. `open` gains a regex pass over content already in
 memory. And **the guards are not complete**: `edit` cannot see an anchor wholly inside an
-island, and neither door repairs artifacts that already carry inlined citation content
-(the live deck is one). Those are stated gaps, not assumed absences.
+island, and neither door repairs artifacts that already carry inlined citation content.
+Those are stated gaps, not assumed absences.
+
+**Click-passed live (2026-08-28)**, driven through the deployed connector against the real
+workspace: `open` returns the deck whole (14,607 chars, 8 slides) with its 4 citations
+named and 2 marked projected; the cited CSV opens and reads; `edit` refuses the Amazon
+`1994`→`1995` change inside the cited table and allows an ordinary prose edit; `save`
+refuses both the dropped citation and the filled island (with and without
+`confirm_full_replace`) and allows a rewrite that preserves the citation; and the
+SANCTIONED path works — editing `downturn-outcomes.csv` changed what slide 8's chart shows
+without touching the deck. The one pre-existing casualty found in §2 was repaired in the
+same pass: slide 7's table carried 704 characters of inlined CSV rows (dead bytes,
+overwritten at every render) and now projects from its source like the chart beside it.
 
 **Not done.** No `app_for_path` in Python. The `.md`→Text and `_string.yaml`→Strings claims
 live only in `web/lib/file-types/index.ts`; the HTML derivation (`extract_template` →
