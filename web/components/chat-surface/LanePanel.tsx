@@ -144,7 +144,7 @@ interface LaneArtifact {
  *  vocabulary; `verb` names the door. Never authority — the server renders it
  *  into the frame and stamps it on the row; the binding still decides reach. */
 export interface SeedTarget {
-  verb: 'ask' | 'rewrite' | 'check';
+  verb: 'ask' | 'rewrite' | 'check' | 'compose';
   path: string | null;
   blockId: string | null;
   label: string | null;
@@ -160,6 +160,19 @@ export interface SeedTarget {
    *  Half-open `[start, end)`. Null on every non-prose gesture — a Slides
    *  block has `blockId`, which is the same address in that medium's terms. */
   range: { start: number; end: number } | null;
+  /** ADR-620 D4 — the compose chip's body. Present ONLY on `verb: 'compose'`:
+   *  the slide's current blocks (so the member sees what they are composing
+   *  over, without the canvas being covered) and the D3 replace choice, which
+   *  is theirs and never the model's.
+   *
+   *  It is NOT part of the wire stamp: `blocks` is a snapshot of state the
+   *  server re-reads from the artifact anyway, and stamping it would persist a
+   *  copy that goes stale the moment the slide changes. Only `replace` rides
+   *  the plan call — as an argument, not as a stamped fact. */
+  compose?: {
+    blocks: Array<{ id: string; kind: string; text: string }>;
+    replace: boolean;
+  };
 }
 
 /** Wire form (snake_case, the focus precedent) — what goes up on Send and
@@ -174,6 +187,12 @@ function seedToWire(t: SeedTarget) {
     page_index: t.pageIndex,
     // ADR-609 D2 — the extent rides beside the prefix, never inside it.
     range: t.range ? { start: t.range.start, end: t.range.end } : null,
+    // ADR-620 D3 — the member's replace choice. It rides the wire because it
+    // is an INSTRUCTION to the colleague (may you remove what is there?), not
+    // a display detail; the frame renders it into the gesture line. The chip's
+    // `blocks` deliberately do NOT ride: the colleague re-reads the artifact,
+    // and a stamped snapshot would be a copy that goes stale.
+    compose_replace: t.compose ? t.compose.replace : null,
   };
 }
 
@@ -183,7 +202,7 @@ function seedFromMeta(raw: unknown): SeedTarget | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const s = raw as Record<string, unknown>;
   const verb = s.verb;
-  if (verb !== 'ask' && verb !== 'rewrite' && verb !== 'check') return undefined;
+  if (verb !== 'ask' && verb !== 'rewrite' && verb !== 'check' && verb !== 'compose') return undefined;
   return {
     verb,
     path: typeof s.path === 'string' ? s.path : null,
@@ -192,6 +211,12 @@ function seedFromMeta(raw: unknown): SeedTarget | undefined {
     excerpt: typeof s.excerpt === 'string' ? s.excerpt : null,
     pageIndex: typeof s.page_index === 'number' ? s.page_index : null,
     range: readRange(s.range),
+    // A persisted compose keeps its choice so the transcript reads the same
+    // after reload; the block snapshot was never stamped, so it is absent.
+    compose:
+      typeof s.compose_replace === 'boolean'
+        ? { blocks: [], replace: s.compose_replace }
+        : undefined,
   };
 }
 
@@ -209,7 +234,14 @@ function readRange(raw: unknown): { start: number; end: number } | null {
  *  transcript chip so a gesture reads identically before and after Send. */
 function seedTargetNoun(t: SeedTarget): string {
   if (t.label === 'selection') return 'the selection';
-  if (t.pageIndex != null && !t.blockId) return `${t.label || 'slide'} ${t.pageIndex + 1}`;
+  // ADR-620 — read the LABEL for the page grain, not the ABSENCE of a block
+  // id. Until compose, page grain implied no id; a composed slide carries its
+  // own (pages are stamped since ADR-519), and the old proxy would have called
+  // it "the slide block". Mirrors `_seed_line`'s noun, deliberately: the chip
+  // and the frame must read identically before and after Send.
+  if (t.pageIndex != null && (t.label === 'slide' || t.label === 'section' || !t.blockId)) {
+    return `${t.label || 'slide'} ${t.pageIndex + 1}`;
+  }
   return `the ${t.label || 'block'} block`;
 }
 
@@ -1493,6 +1525,65 @@ export function LanePanel({
                 <X className="w-3 h-3" />
               </button>
             </span>
+            {/* ADR-620 D4 — the chip GROWS A BODY for a compose; it does not
+                become a modal. A modal would cover the very slide the member
+                is describing (the ADR-606 direction, inverted) and would have
+                no transcript for a judged, metered act. Here the canvas stays
+                visible, the seed still only ARMS (ADR-612 D4), and the D3
+                choice is a control the member can see rather than a decision
+                taken inside the model. */}
+            {pendingSeed.verb === 'compose' && pendingSeed.compose && (
+              <div className="w-full rounded border border-amber-300/50 bg-amber-50/60 px-2 py-1.5 text-[11px] dark:border-amber-700/50 dark:bg-amber-950/20">
+                <div className="flex flex-wrap items-center gap-1 text-amber-900/80 dark:text-amber-200/80">
+                  {pendingSeed.compose.blocks.length === 0 ? (
+                    <span className="italic">This {pendingSeed.label || 'slide'} is empty.</span>
+                  ) : (
+                    <>
+                      <span className="mr-0.5">On it now:</span>
+                      {pendingSeed.compose.blocks.map((b) => (
+                        <span
+                          key={b.id}
+                          title={b.text || undefined}
+                          className="rounded bg-amber-200/50 px-1 py-px dark:bg-amber-800/40"
+                        >
+                          {b.kind}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                </div>
+                <div className="mt-1 flex items-center gap-1">
+                  {/* Two states, one control. Additive is the DEFAULT because
+                      the destructive reading must be chosen (D3) — and because
+                      "fill this empty slide" is the case that motivated the
+                      feature. */}
+                  {([
+                    [false, 'Fill in what’s missing'],
+                    [true, 'Replace what’s there'],
+                  ] as Array<[boolean, string]>).map(([val, copy]) => (
+                    <button
+                      key={String(val)}
+                      type="button"
+                      onClick={() =>
+                        setPendingSeed((cur) =>
+                          cur && cur.compose
+                            ? { ...cur, compose: { ...cur.compose, replace: val } }
+                            : cur,
+                        )
+                      }
+                      aria-pressed={pendingSeed.compose!.replace === val}
+                      className={`rounded px-1.5 py-px text-[10.5px] ${
+                        pendingSeed.compose!.replace === val
+                          ? 'bg-amber-600 text-white dark:bg-amber-500'
+                          : 'bg-amber-200/50 text-amber-900 hover:bg-amber-200 dark:bg-amber-800/40 dark:text-amber-100'
+                      }`}
+                    >
+                      {copy}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {/* Phase-A attachments: composer chips (uploading → ready | failed). */}

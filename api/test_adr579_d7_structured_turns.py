@@ -90,9 +90,20 @@ check("D7 an unknown verb renders nothing (fail-closed copy)",
 studio = (WEB / "components" / "authoring" / "StudioSurface.tsx").read_text()
 check("D7 ids no longer flatten into composer prose",
       "(id: ${" not in studio)
+# PRE-EXISTING RED, found 2026-08-28 and fixed here rather than left. This
+# pinned the ROSTER — three `ask` doors plus `rewrite` plus `check` — and
+# ADR-613 then deleted Ask and Check from Slides while ADR-620 routed the
+# survivors through ONE producer. So it required doors the product no longer
+# has, and had been failing since 613 without anyone reading it as a signal.
+#
+# D7's claim is that a door passes a TYPED target rather than flattening ids
+# into prose (the check above). That is what this now controls for: the seed
+# producer exists and every door names its verb through it, whatever the
+# roster happens to be.
 check("D7 the doors pass typed targets (presence control for the absence above)",
-      studio.count("verb: 'ask'") >= 3
-      and "verb: 'rewrite'" in studio and "verb: 'check'" in studio)
+      "const seedRewrite = useCallback(" in studio
+      and re.search(r"verb: t\.verb \?\? '\w+'", studio) is not None
+      and studio.count("seedComposer('', {") == 1)
 
 lane_panel = (WEB / "components" / "chat-surface" / "LanePanel.tsx").read_text()
 check("D7 the slot carries the typed target",

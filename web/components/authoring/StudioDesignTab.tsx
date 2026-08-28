@@ -57,6 +57,7 @@ import {
   Move,
   Palette,
   Pencil,
+  Sparkles,
   StretchHorizontal,
   Trash2,
   type LucideIcon,
@@ -270,6 +271,10 @@ interface StudioDesignTabProps {
   /** Page verbs (duplicate-page has no other mount; the navigator covers
    *  delete/reorder). */
   onPageVerb: (verb: StructVerb) => void;
+  /** ADR-620 D1 — seed a COMPOSE for the current page (Rewrite's sibling at
+   *  slide grain). Optional: a housing with no judged act omits it and the
+   *  button withdraws rather than appearing inert. */
+  onCompose?: (blocks: Array<{ id: string; kind: string; text: string }>) => void;
   /** ADR-616 D2 — re-lay the CURRENT page. The pane is the ONE mount since the
    *  Update door was deleted; the op is unchanged (ADR-462 D1, no new write
    *  path). Distinct from Add's gallery, which INSERTS a new page. */
@@ -1337,6 +1342,7 @@ export function StudioDesignTab({
   onDistributeMany,
   onPageVerb,
   onApplyArrangement,
+  onCompose,
   planning,
   carriedCount,
   groupCount,
@@ -1604,6 +1610,23 @@ export function StudioDesignTab({
     if (!selectedEl || (scope !== 'page' && scope !== 'container')) return [];
     return walkContents(selectedEl, labelMap, mode);
   }, [selectedEl, scope, mode]);
+  /** ADR-620 D4 — what the compose chip shows the member: this slide's blocks,
+   *  by kind, with their current words. Derived HERE because this pane already
+   *  holds the parsed document; deriving it again in the surface would be a
+   *  second answer to one question (the DP29 rule, and the ADR-616 lesson).
+   *
+   *  It is a SNAPSHOT for display — the colleague re-reads the artifact when
+   *  the turn runs, so this never has to be authoritative. */
+  const composeBlocks = useMemo(() => {
+    if (!selectedEl || scope !== 'page') return [];
+    return Array.from(selectedEl.querySelectorAll('[data-block]'))
+      .map((el) => ({
+        id: el.getAttribute('data-block-id') || '',
+        kind: el.getAttribute('data-block') || 'block',
+        text: (el.textContent || '').trim().slice(0, 160),
+      }))
+      .filter((b) => b.id);
+  }, [selectedEl, scope]);
   /** ADR-526 D2 — the outline, on FLOW only. On a paged medium the navigator IS
    *  the sequence (ADR-520 D4) and Contents carries the within-page structure;
    *  a third view there would be the "second structure tree" ADR-520 D5
@@ -2518,6 +2541,29 @@ export function StudioDesignTab({
               {pageNoun} {selection?.slideIndex != null ? selection.slideIndex + 1 : ''}
             </p>
             <VerbRow noun={pageNoun} onVerb={onPageVerb} />
+            {/* ADR-620 D1/D4 — COMPOSE, the judged act at slide grain and
+                Rewrite's sibling. It lives HERE rather than as a floating
+                sparkle because the runtime reports a selection rect for blocks
+                and ranges, never for a page — a door with no rect to hang from
+                would have to invent one. The pane is the dwell surface beside
+                the canvas (ADR-367 D3), it already holds this slide's identity
+                and contents, and it covers nothing.
+
+                It only ARMS: the click seeds the composer with a chip naming
+                this slide, and the member types the specifics (or sends empty,
+                which means "use your judgment"). Nothing fires until Send —
+                the ADR-612 D4 property, unchanged. */}
+            {onCompose && (
+              <button
+                type="button"
+                onClick={() => onCompose(composeBlocks)}
+                title={`Compose this ${pageNoun} — opens the chat with it as the target`}
+                className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-md border border-amber-300/60 bg-amber-50 px-2 py-1.5 text-[11.5px] font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Compose this {pageNoun}…
+              </button>
+            )}
             {/* ADR-520 D4 — the page's Contents: the within-page hierarchy,
                 absorbed from the navigator (whose rail is the SEQUENCE now). */}
             <ContentsRows nodes={contents} onSelect={onSelectNode} />

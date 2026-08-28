@@ -1033,3 +1033,79 @@ holds at its **10 pre-existing** failures.
   deliberately out of this scope.
 - **~18 other silent no-op guards** on the insert paths (each an early `return`
   with no feedback); only `onAddHere` was fixed here.
+
+---
+
+# Part K — ADR-620: Compose is Rewrite at slide grain (2026-08-28)
+
+Operator: *"the Add related details seem to only scaffold skeleton components…
+similar to rewrite, we could have AI related compose"* → then *"can we have a
+dedicated component… something that feels more first class and visual."*
+
+## The finding
+
+`+ Add` stamps registry fragments whose bytes are LITERAL (`42%`, `label`).
+Correct for a CATALOG gesture — the member knows the noun — and unable to serve
+an INTENT. Rewrite is judged/seeded/receipted and stops at the block.
+
+⭐⭐⭐ **Not the re-arrange re-framed** (the operator's proposal, checked and
+corrected): `applyArrangementPlan` MOVES existing nodes (`returnToFlow(b);
+target.appendChild(b)`) — a PERMUTATION, which is exactly why it can promise
+total coverage and fall back to a mechanical ladder. A compose has no such
+floor, and its planner resolves **Designer** deliberately ("machinery that
+happens to plan layout, not the desk's voice") while a member-facing slide act
+is the **Editor**. Re-arrange is the narrowest member of the family, not the
+frame for it.
+
+## ⭐⭐⭐ Built, then DELETED before shipping
+
+A first cut built `/studio/compose/plan` + a validator + `applyComposePlan` — a
+faithful mirror of ADR-479. **A second write path** (ADR-462 D1). The lane
+ALREADY has EditFile-with-anchor, the block grammar in the posture, and one
+attributed write. Deleted whole; Compose is Rewrite's machinery unchanged.
+
+## Shipped
+
+- **D1** `compose` = 4th seed verb, slide grain. Page's own id + `page_index`.
+- **D2** the colleague writes through the lane. No endpoint, no applier.
+- **D3** `remove` is the member's PERMISSION, riding the seed, rendered in the
+  frame in **BOTH** directions (an absent instruction is not a prohibition).
+- **D4** the chip GROWS A BODY (slide's blocks by kind + the D3 toggle), never
+  a modal — a modal covers the slide being described and has no transcript.
+  ⭐The DOOR is the **pane's page scope**, not a floating sparkle: the runtime
+  reports a rect for blocks and ranges, never a page.
+- **D5** `+ Add` untouched — the catalog of things that EXIST.
+- Extracted `_meter_plan` (one billing invariant, one home).
+
+## ⭐⭐ Latent defect surfaced
+
+`_seed_line` read the page grain as `page is not None and not bid` — "no block
+id" standing in for the grain, true ONLY because pre-620 nothing at page grain
+carried one. A composed slide carries the page's id (ADR-519), so it would have
+said **"the slide block"**. Fixed in the frame AND the chip (they must read
+identically before/after Send) and gated together.
+
+## Gates
+
+`test_adr620_compose_at_slide_grain.py`, falsified **5×** (additive case goes
+silent · noun proxy restored · a second producer · plan endpoint returns · chip
+noun diverges). ⭐**The gate caught my own D2 violation**: my first `composeSlide`
+called `seedComposer` directly — a second producer — and it went red.
+
+⭐⭐ `test_adr579_d7_structured_turns.py` was **PRE-EXISTING RED** (verified at
+HEAD): it pinned the door ROSTER (`3× ask` + `rewrite` + `check`) and ADR-613
+deleted Ask/Check from Slides. Failing since 613, unread. Re-anchored to D7's
+actual claim (a door passes a TYPED target).
+
+FE build green (isolated worktree); tsc clean; prompt ratchets pass.
+
+## OWED
+
+- **Click-pass** — the whole feature is undriven. Select a slide → Compose → the
+  chip shows its blocks + the toggle → Send empty (judgment) and with an intent;
+  check the slide changes in place and the transcript reads "slide N".
+- **Receipt card** — D4 names one; the transcript currently renders the composed
+  turn like any lane write (`artifactWrite="none"` in Studio, so the canvas IS
+  the receipt). Decide whether a page-grain card earns its place.
+- **Text has no Compose** — the verb is medium-agnostic but only Slides declares
+  a door. A section-grain compose in Text is the obvious sibling.

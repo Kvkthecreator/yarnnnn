@@ -161,7 +161,7 @@ class LaneSeed(BaseModel):
     still decides what the lane may write.
     """
 
-    verb: str  # ask | rewrite | check
+    verb: str  # ask | rewrite | check | compose (ADR-620 D1)
     path: Optional[str] = None
     block_id: Optional[str] = None
     label: Optional[str] = None
@@ -172,6 +172,10 @@ class LaneSeed(BaseModel):
     # A Slides gesture carries `block_id` instead — the same address, in the
     # medium that has one.
     range: Optional[LaneSeedRange] = None
+    # ADR-620 D3 — on a `compose`, whether the member permitted REMOVING what
+    # is already on the slide. Theirs to choose, never the colleague's to
+    # assume: the frame states it, and default-absent reads as additive.
+    compose_replace: Optional[bool] = None
 
 
 class LaneTurnRequest(BaseModel):

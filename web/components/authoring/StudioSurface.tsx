@@ -2529,18 +2529,28 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
    *  target. Two entrances, one write path (ADR-462 D1).
    */
   const seedRewrite = useCallback(
-    (t: { blockId: string | null; label: string; excerpt: string | null; pageIndex: number | null }) => {
+    (t: {
+      blockId: string | null;
+      label: string;
+      excerpt: string | null;
+      pageIndex: number | null;
+      /** ADR-620 D1 — the grain's verb. Defaults to the block-grain act, so
+       *  every existing caller is unchanged. */
+      verb?: SeedTarget['verb'];
+      compose?: SeedTarget['compose'];
+    }) => {
       armedRewriteRef.current = true;
       // No prefill — the chip names the target and the typed seed carries the
       // instruction; see the note at Text's `rewriteSelection`.
       seedComposer('', {
-        verb: 'rewrite',
+        verb: t.verb ?? 'rewrite',
         path: artifactPath ? relPath(artifactPath) : null,
         blockId: t.blockId,
         label: t.label,
         excerpt: t.excerpt,
         pageIndex: t.pageIndex,
         range: null,
+        compose: t.compose,
       });
       setRightTab('chat');
     },
@@ -2556,6 +2566,40 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       pageIndex: selection?.slideIndex ?? selection?.pageIndex ?? null,
     });
   }, [gestureTarget, selection, seedRewrite]);
+
+  /** ADR-620 D1 — COMPOSE, the judged act at SLIDE grain.
+   *
+   *  Rewrite's sibling, and deliberately the same machinery: it seeds the one
+   *  composer through the one producer, arms rather than sends, and the
+   *  colleague does the writing through its own EditFile — no second write
+   *  path (ADR-462 D1), no plan endpoint, no applier. An earlier cut of this
+   *  built all three and they were deleted before shipping: the lane already
+   *  holds the block grammar, the anchor mechanism and the write door, so a
+   *  parallel plan/validate/apply stack would have been a second way to
+   *  author the same substrate.
+   *
+   *  The PAGE's own block id is the address (pages carry one since ADR-519),
+   *  and `pageIndex` makes the chip and the frame read "slide N".
+   */
+  const composeSlide = useCallback(
+    (blocks: Array<{ id: string; kind: string; text: string }>) => {
+      const pageIndex = selection?.slideIndex ?? selection?.pageIndex ?? null;
+      if (pageIndex == null) return;
+      seedRewrite({
+        verb: 'compose',
+        // The PAGE's id — the grain this act takes. Null on a not-yet-stamped
+        // page (migration-by-use, ADR-519): the page_index still addresses it.
+        blockId: selection?.blockId && !selection?.blockKind ? selection.blockId : null,
+        label: template === 'deck' ? 'slide' : 'section',
+        excerpt: null,
+        pageIndex,
+        // D4 — the chip's body. Additive is the default (D3): the destructive
+        // reading must be chosen, never inherited.
+        compose: { blocks, replace: false },
+      });
+    },
+    [selection, template, seedRewrite],
+  );
 
   /** The same act, entered from the right-click menu (ADR-619 D2). It reads
    *  the MENU's target rather than the selection rect: the rect arrives from
@@ -4200,6 +4244,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               // forewarn counts ride here now; they dressed the Update button
               // until D1 deleted it.
               onApplyArrangement={handleApplyArrangement}
+              // ADR-620 D1 — the judged act at slide grain, seeded like Rewrite.
+              onCompose={composeSlide}
               planning={planning}
               carriedCount={carriedCount}
               groupCount={groupCount}

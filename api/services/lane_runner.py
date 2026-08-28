@@ -861,6 +861,10 @@ def _seed_line(seed: Optional[dict]) -> str:
         "ask": "asked about",
         "rewrite": "clicked Rewrite on",
         "check": "clicked Check on",
+        # ADR-620 D1 — the slide-grain sibling. The noun below already renders
+        # a page (`slide N` when a page_index arrives without a block id), so
+        # only the verb's phrase is new.
+        "compose": "clicked Compose on",
     }.get(verb)
     if not phrase:
         return ""
@@ -870,7 +874,12 @@ def _seed_line(seed: Optional[dict]) -> str:
     page = seed.get("page_index")
     if label == "selection":
         noun = "the selection"
-    elif page is not None and not bid:
+    # A PAGE grain reads "slide 7", not "the slide block". Pre-620 the only way
+    # to be at page grain was to carry no block id, so `not bid` stood in for
+    # the grain — then ADR-620's compose gave the page its OWN id (pages carry
+    # one since ADR-519) and that proxy started calling a slide a block. Read
+    # the LABEL, which names the grain directly.
+    elif page is not None and (label in ("slide", "section") or not bid):
         noun = f"{label or 'slide'} {page + 1}"
     else:
         noun = f"the {label or 'content'} block"
@@ -902,6 +911,29 @@ def _seed_line(seed: Optional[dict]) -> str:
         line += (
             f" To change it, pass anchor={{'block_id': '{bid}'}} to EditFile"
             " — the edit is then confined to that block."
+        )
+
+    # ADR-620 D1/D3 — a COMPOSE takes the whole slide, so the instruction is
+    # different in kind from an anchored edit: the colleague authors this
+    # slide's content, in the deck's own voice, within the block grammar the
+    # posture already teaches. The member's replace choice is stated as a
+    # PERMISSION, because it is theirs and not the colleague's to assume — and
+    # stated in BOTH directions, so the additive case is an instruction rather
+    # than the absence of one (the silence-reads-as-license failure).
+    if verb == "compose":
+        replace = seed.get("compose_replace")
+        line += (
+            " Compose it: write this "
+            f"{label or 'slide'}'s actual words — specific and concrete, in the"
+            " deck's voice, never placeholder text and never instructions to"
+            " the member. Replace the scaffold placeholders you find"
+            ' ("Slide title", "42%", "label") with real content.'
+        )
+        line += (
+            " The member allowed you to REMOVE blocks that no longer belong."
+            if replace
+            else " The member asked you to FILL IN what is missing — add and"
+            " rewrite, but do not delete blocks that are already there."
         )
     return line
 
