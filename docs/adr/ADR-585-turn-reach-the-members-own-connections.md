@@ -12,6 +12,17 @@
 > production behavior is unchanged until the flag flips.
 > Gate: `api/test_adr585_turn_reach.py`.
 >
+> ⭐ **AMENDED by [ADR-615](ADR-615-reach-follows-the-principal.md) (2026-08-28).**
+> Two halves of this ADR are superseded and a reader must not inherit them:
+> **D2's default** — the flag is now ON by default for every workspace, and
+> `TURN_REACH_ENABLED` survives only as an OFF switch; and **D1's confinement
+> to the open chat turn** — reach follows the PRINCIPAL, so every lane turn
+> (chat or desk) carries it, because all of them stamp the same
+> `member:{user_id} via {model}` embodiment. What this ADR got right and 615
+> keeps: the principal-presence rule itself, the read-only derived surface,
+> transience, and the D5 engine disclosure. The boundary D1 was really
+> protecting — nobody present — holds structurally at the unattended path.
+>
 > **Disposition (declared first, per the intake-pipeline.md §5 rule)**: this
 > is **TURN REACH** — an LLM calling a platform live inside a conversation
 > turn, transient, the result dying with the turn unless explicitly saved.

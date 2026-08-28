@@ -138,7 +138,24 @@ def connector_does(platform: str) -> Optional[dict]:
             if reach_on
             else "chat cannot reach platforms on this deployment"
         ),
-        "agents": "no direct platform access — agents read the landed capture files only",
+        # ADR-615 — reach follows the PRINCIPAL, not the surface. An agent
+        # working at its desk is the member, present and driving (the lane
+        # stamps `member:{id} via {model}`), so it reaches what the member
+        # granted and the member scoped it to. This row is flag-derived for
+        # the same reason the `chat` row above is: a hand-kept sentence here
+        # would outlive the capability it describes — as the pre-615 wording
+        # did, asserting a boundary the code stopped drawing.
+        #
+        # What stays true in BOTH branches, and is the honest half of the old
+        # sentence: an unattended standing run reaches nothing live. Those are
+        # toolless by construction (`run_bounded_derive_turn`), so a scoped
+        # being gains no reach when nobody is present.
+        "agents": (
+            f"an agent you scope to {name} reads it while you're working with it — "
+            "never on its own schedule, where it reads landed files only"
+            if reach_on
+            else "no direct platform access — agents read the landed capture files only"
+        ),
     }
 
 _DEFAULT_SELECTOR = "inbox"

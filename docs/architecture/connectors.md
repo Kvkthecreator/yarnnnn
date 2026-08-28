@@ -93,11 +93,20 @@ member-designated, contract-governed, resident-run, desk-surfaced. Its 3
 historical digest files remain ordinary attributed files. **Radar** was
 deleted with its app (ADR-592).
 
-The app-side rule: an app consumes **landed files** — never a platform API,
-never a credential. The one sanctioned reach is *through the capture writer*
-(ADR-594 D2), which is itself deterministic machinery under the aperture.
-App opt-in selects within the aperture; a declared-but-unselected selector
-gets the same honest empty as a dead feed.
+The app-side rule, stated for the **standing** path: an *unattended* run
+consumes **landed files** — never a platform API, never a credential. Its one
+sanctioned reach is *through the capture writer* (ADR-594 D2), deterministic
+machinery under the aperture. App opt-in selects within the aperture; a
+declared-but-unselected selector gets the same honest empty as a dead feed.
+
+⭐ **This is a property of ABSENCE, not of apps** (ADR-615). When the member is
+present and driving — any lane turn, chat or desk — the turn carries the
+member's own read reach, because it is the member's own principal
+(`member:{user_id} via {model}`). What stays closed is the unattended run:
+`run_bounded_derive_turn` is toolless by construction, so a clock plus a
+credential is impossible structurally rather than by policy. The old wording
+attributed to *apps* a restriction that actually belongs to *nobody being
+there*.
 
 ## 5. The operator surface
 
@@ -109,8 +118,8 @@ capture stratum.
 | Stratum | Block | What it states | Where the truth lives |
 |---|---|---|---|
 | CONNECTION | **Access** | granted OAuth scopes + the validate probe | `metadata.scope`; the probe is the only liveness signal (ADR-401 D6) |
-| CONNECTION | **What this connection does** | reads / writes / agents — capability FACTS | derived server-side: the capture binding's `reads` · the exporter registry · the ADR-577 refusal (`connector_does()`) |
-| CONNECTION | **What this connection does** → the `chat` row | whether a chat turn may read through this connection, and — when it may — that what it reads goes to the member-chosen engine (ADR-585 D5, the engine disclosure) | derived from `TURN_REACH_ENABLED` in `connector_does()`; the disclosure rides the same flag as the capability |
+| CONNECTION | **What this connection does** | reads / writes / agents — capability FACTS | derived server-side: the capture binding's `reads` · the exporter registry · the reach flag (`connector_does()`). The `agents` row is flag-derived too (ADR-615) — a hand-kept sentence outlives the capability it describes |
+| CONNECTION | **What this connection does** → the `chat` row | whether a chat turn may read through this connection, and — when it may — that what it reads goes to the member-chosen engine (ADR-585 D5, the engine disclosure) | derived from the reach flag in `connector_does()`; the disclosure rides the same flag as the capability (ADR-615: on by default, so the disclosure is too) |
 | CAPTURE | **Capture** | the aperture: the selection (consent — never auto-filled; `Suggested` badge only). Where snapshots land is a stated FACT (the fixed lane), not a dial. No cadence: captures happen when a consumer asks | selection: `landscape.selected_sources`. There is no settings door (ADR-594 D1) |
 
 Facts, not controls: there is no per-tool enforcement point on the outbound
@@ -126,8 +135,11 @@ is only ever the honest success case.
 **Turn reach** — an LLM calling a platform live inside a conversation turn
 (the conventional-MCP shape) — is the sibling disposition
 (intake-pipeline.md §5): [ADR-585](../adr/ADR-585-turn-reach-the-members-own-connections.md)
-gives the member's OWN connections to their OWN open chat turn, transient,
-excluded from every app path by construction. A string is the *standing*
+gives the member's OWN connections to their OWN turn, transient;
+[ADR-615](../adr/ADR-615-reach-follows-the-principal.md) lit it by default and
+extended it to every surface the member works in, since a desk turn is the
+same principal as a chat turn. It remains excluded from **unattended** runs by
+construction. A string is the *standing*
 disposition and lands receipts precisely because nobody is present. Any
 proposal touching platform reach declares its disposition in its first
 paragraph.

@@ -132,7 +132,7 @@ check("scoped-to-none has its OWN prose branch (not the no-reach one)",
       "_reach_plats is not None and not _reach_plats" in _lr)
 
 # ---------------------------------------------------------------------------
-print("5. D5 — the opt-in UNLOCKS a desk turn, default-closed")
+print("5. D5 (as amended by ADR-615) — reach follows the principal; the opt-in NARROWS")
 # ---------------------------------------------------------------------------
 import os  # noqa: E402
 from services.lane_runner import resolve_turn_reach  # noqa: E402
@@ -148,17 +148,24 @@ check("resolve_turn_reach returns BOTH halves from one lookup",
 
 os.environ["TURN_REACH_ENABLED"] = "true"
 try:
-    def _r(app, art, rec, agent=None, client=None):
-        return resolve_turn_reach(client, "u", None, app=app,
-                                  artifact_path=art, derive_recipe=rec,
-                                  agent=agent)
+    # ADR-615 — the turn's SHAPE no longer enters the decision, so `_r` takes
+    # only what still matters. The old positional shape args are gone from the
+    # signature entirely (asserted in test_adr585 §3a).
+    def _r(agent=None, client=None):
+        return resolve_turn_reach(client, "u", None, agent=agent)
 
-    # Default-closed is the whole safety property of D5: unlocking must
-    # require an explicit member act, never merely naming an agent.
-    check("a desk turn with an agent but NO opt-in does not reach",
-          _r("text", "/w/x.md", None, agent="editor")[0] is False)
+    # ⭐ AMENDED BY ADR-615. D5 made a desk turn default-CLOSED; 615 found that
+    # rested on a surface/permission conflation — a desk turn and an open chat
+    # turn are the SAME principal (`member:{id} via {model}`), resolving the
+    # same grants. So absence means everything granted at BOTH, and the opt-in
+    # is purely subtractive. What D5 was protecting is protected structurally
+    # instead: unattended runs are toolless (asserted below).
+    check("a desk turn with no opt-in reaches — same principal as chat",
+          _r(agent="editor")[0] is True)
     check("open chat still reaches with no opt-in (ADR-585 D1 unchanged)",
-          _r(None, None, None)[0] is True)
+          _r()[0] is True)
+    check("desk and chat never disagree (the pre-615 asymmetry is the defect)",
+          _r(agent="editor") == _r())
     # A lookup that RAISES must not grant reach — fails toward the pre-D5
     # world, never toward reach the member did not scope.
     #
@@ -187,14 +194,17 @@ try:
     _wc.effective_workspace_id = lambda *a, **k: "ws-1"
     _ac.opt_in_for = _raiser
     try:
-        _raised = _r("slides", "/w/d.html", None, agent="editor", client=_Boom())
-        check("a RAISING opt-in lookup grants NO desk reach (fails closed)",
-              _raised[0] is False and _raised[1] is None,
-              f"got {_raised}")
-        # ...and open chat still works when the lookup dies: a broken store
-        # must not take away reach the member already had.
+        # ADR-615: "fails closed" now means fails to NOT-SCOPED — the same
+        # state as a member who never scoped this being. It cannot over-grant:
+        # `allowed_platforms` intersects against actually-connected platforms
+        # downstream, so absence never exceeds the workspace's own grant. The
+        # property still worth pinning is that a broken store never invents a
+        # SCOPE the member did not set.
+        _raised = _r(agent="editor", client=_Boom())
+        check("a RAISING opt-in lookup invents no scope (degrades to unscoped)",
+              _raised == (True, None), f"got {_raised}")
         check("a raising lookup leaves open chat's reach intact",
-              _r(None, None, None, agent="editor", client=_Boom())[0] is True)
+              _r(agent="editor", client=_Boom())[0] is True)
     finally:
         _wc.effective_workspace_id = _real_eff
         _ac.opt_in_for = _real_opt

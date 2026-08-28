@@ -509,38 +509,46 @@ def resolve_turn_reach(
     user_id: str,
     workspace_id: Optional[str],
     *,
-    app: Optional[str],
-    artifact_path: Optional[str],
-    derive_recipe: Optional[str],
     agent: Optional[str],
 ) -> tuple[bool, Optional[tuple]]:
     """The turn's WHOLE reach decision: (has_reach, platforms).
 
-    ADR-612 D3 + D5. ONE lookup answering both halves, because since D5 they
-    are the same question — the opt-in is what UNLOCKS a desk turn's reach, so
-    resolving "does this turn reach?" separately from "what may it reach?"
-    would read the same row twice and could disagree between the reads.
+    ADR-615, amending ADR-612 D3/D5. ONE lookup answering both halves.
 
-    Returns:
-      (False, None)          — no reach at all.
-      (True,  None)          — reach, not scoped: every reachable platform.
-                               Open chat's behaviour, unchanged.
-      (True,  ("slack",))    — reach, scoped to exactly those.
+    ⭐ REACH FOLLOWS THE PRINCIPAL, NOT THE SURFACE. Every lane turn — open
+    chat, a Text desk, a Slides desk — is the same member, embodied the same
+    way (`lane_caller_identity` → `member:{user_id} via {model}`), resolving
+    grants against the same principal_id. So the turn's SHAPE no longer
+    enters this decision at all: `app` / `artifact_path` / `derive_recipe`
+    were parameters of the pre-615 cut line and are GONE rather than kept and
+    ignored, so no caller can believe they still steer the answer.
 
-    `(True, ())` is unreachable and deliberately so: a being scoped to NO
+    The only question left is the member's own narrowing:
+
+      (True,  None)          — no opt-in recorded: every granted platform.
+      (True,  ("slack",))    — scoped to exactly those.
+      (False, ())            — scoped to NOTHING: an explicit member choice,
+                               honoured at every surface.
+      (False, None)          — the deployment is darkened (the OFF switch).
+
+    `(True, ())` is unreachable and deliberately so: a being scoped to no
     platform has nothing to reach, so the turn does not carry the surface at
     all rather than carrying an empty one. One state, not two.
 
-    Never raises. A lookup failure degrades to the PRE-D5 behaviour (open chat
-    reaches, desks do not) — never to a scope the member did not set, and
-    never to reach they did not grant.
+    Never raises. A lookup failure degrades to "no opt-in recorded" — the
+    same state as a member who never scoped this being, never to a scope the
+    member did not set. It cannot degrade to reach they did not grant: the
+    opt-in is intersected against platforms actually connected downstream
+    (`allowed_platforms`), so absence widens nothing beyond the grant.
+
+    ⚠️ Unattended standing runs never reach this function — they execute via
+    `run_bounded_derive_turn`, toolless by construction. A clock plus a
+    credential stays impossible structurally, not by a default here.
     """
     from services.turn_reach import is_turn_reach_enabled
 
     if not is_turn_reach_enabled():
         return (False, None)
-
-    is_open_chat = not app and not artifact_path and not derive_recipe
 
     opt_in: Optional[list] = None
     if agent:
@@ -557,9 +565,33 @@ def resolve_turn_reach(
             opt_in = None
 
     if opt_in is None:
-        # Not scoped. Open chat keeps its reach (ADR-585 D1); a desk turn has
-        # none — the default stays closed, and a member must ASK per being.
-        return (is_open_chat, None)
+        # ⭐ ADR-615 — NOT SCOPED means EVERYTHING GRANTED, at every surface.
+        #
+        # ADR-612 D5 made a desk turn default-CLOSED: reach was unlocked only
+        # by an explicit per-being opt-in. That caution was written while the
+        # flag was dark, before any desk turn had ever carried the surface.
+        #
+        # It rested on a distinction that does not survive inspection. A desk
+        # turn and an open chat turn are THE SAME PRINCIPAL — both stamp
+        # `member:{user_id} via {model}` (`lane_caller_identity`), both resolve
+        # grants by that member's own principal_id, both have the human
+        # present and driving. "Which pane is open" is a SURFACE fact; it was
+        # standing in for a PERMISSION fact it never actually carried. A
+        # connection the member granted was reachable when they typed in chat
+        # and invisible when they typed in Text — one principal, one grant,
+        # two answers.
+        #
+        # So absence now means what ADR-612 D2 already says it means one layer
+        # up: everything granted. The opt-in stays purely SUBTRACTIVE — the
+        # cliff test (ADR-596 D1) is unchanged and in fact strengthened, since
+        # a field that only ever narrows is now the ONLY thing the toggles do.
+        #
+        # What does NOT follow the principal, and must not: an unattended
+        # standing run. Those execute through `run_bounded_derive_turn`, which
+        # is toolless by construction — so a being gains no live reach when
+        # nobody is present. That boundary (a clock plus a credential) stays
+        # closed STRUCTURALLY, not by this default.
+        return (True, None)
 
     from services.agent_connectors import allowed_platforms
     from services.turn_reach import TURN_REACH_PLATFORMS
@@ -990,16 +1022,13 @@ def build_lane_conventions(
     # The tool line names the lane surface (ADR-467 D4). Derived from the same
     # `lane_tool_names` + the same turn facts the payload and the loop's
     # allowlist read, so the prose can never claim a surface the model wasn't
-    # handed (the Scout bug's prose half). ADR-585: the reach fact re-derives
-    # here from the SAME arguments run_lane_turn passed.
-    # ADR-612 D3/D5 — the SAME decision the payload and allowlist got,
-    # re-derived from the same arguments rather than passed: the ADR-585 rule
-    # this file already followed for `_reach`. Two derivations from one
-    # function agree; two hand-maintained values drift (the Scout bug).
+    # handed (the Scout bug's prose half). ADR-585 / ADR-615: the reach fact
+    # re-derives here from the SAME arguments run_lane_turn passed — the
+    # member and the being, which since ADR-615 is the whole input (the turn's
+    # shape no longer enters the decision). Two derivations from one function
+    # agree; two hand-maintained values drift (the Scout bug).
     _reach, _reach_plats = resolve_turn_reach(
-        client, user_id, None,
-        app=app, artifact_path=artifact_path, derive_recipe=derive_recipe,
-        agent=agent)
+        client, user_id, None, agent=agent)
     tools_line = " · ".join(lane_tool_names(_reach, _reach_plats))
 
     # ADR-585 / ADR-535 D3 — the connector edge, stated affirmatively either
@@ -1267,7 +1296,6 @@ async def run_lane_turn(
     # prose via build_lane_conventions).
     _reach, _reach_plats = resolve_turn_reach(
         auth.client, auth.user_id, getattr(auth, "workspace_id", None),
-        app=app, artifact_path=artifact_path, derive_recipe=derive_recipe,
         agent=agent)
     tools = lane_tools_openai(_reach, _reach_plats)
     _allowed = lane_tool_names(_reach, _reach_plats)
@@ -1490,7 +1518,6 @@ async def run_lane_turn_stream(
     # prose via build_lane_conventions).
     _reach, _reach_plats = resolve_turn_reach(
         auth.client, auth.user_id, getattr(auth, "workspace_id", None),
-        app=app, artifact_path=artifact_path, derive_recipe=derive_recipe,
         agent=agent)
     tools = lane_tools_openai(_reach, _reach_plats)
     _allowed = lane_tool_names(_reach, _reach_plats)

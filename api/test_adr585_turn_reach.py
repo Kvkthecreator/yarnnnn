@@ -50,7 +50,29 @@ from services.turn_reach import (  # noqa: E402
 )
 from services.platform_tools import PLATFORM_TOOLS_BY_CAPABILITY  # noqa: E402
 
-check("1a the flag defaults OFF", not is_turn_reach_enabled())
+# ADR-615 — the default INVERTED. Unset means ON, so every workspace carries
+# the capability; the variable survives only as a deliberate OFF switch. Both
+# directions are pinned: an unset env must not darken a workspace, and an
+# explicit falsey value must still darken a deployment.
+check("1a the flag defaults ON when unset (ADR-615)", is_turn_reach_enabled())
+for _falsey in ("0", "false", "no", "off", "FALSE", " Off "):
+    os.environ["TURN_REACH_ENABLED"] = _falsey
+    import importlib as _il
+    import services.turn_reach as _trm
+    _il.reload(_trm)
+    check(f"1a-off {_falsey!r} darkens the deployment",
+          not _trm.is_turn_reach_enabled())
+# A typo must read as ON, never silently strip a capability every workspace
+# is meant to have — the inverse of the old default, and why this is not a
+# plain truthiness check.
+os.environ["TURN_REACH_ENABLED"] = "ttrue"
+import importlib as _il
+import services.turn_reach as _trm
+_il.reload(_trm)
+check("1a-typo an unrecognised value reads as ON, not OFF",
+      _trm.is_turn_reach_enabled())
+os.environ.pop("TURN_REACH_ENABLED", None)
+_il.reload(_trm)
 
 names = turn_reach_tool_names()
 expected = tuple(
@@ -95,44 +117,83 @@ check("2d the reach payload matches the reach allowlist (the D4 agreement)",
       payload_names == list(with_reach))
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§3 the principal-presence cut line")
+print("§3 reach follows the PRINCIPAL, not the surface (ADR-615)")
 # ═════════════════════════════════════════════════════════════════════════════
 
-# ADR-612 D6 — `turn_has_reach` is deleted; `resolve_turn_reach` answers both
-# halves from one lookup. These checks keep their INTENT (the cut line: an app
-# binding does not reach BY DEFAULT) and are re-anchored to the live function.
-# `_reach_only` drives it with no agent, which is the shape-only question the
-# old function asked.
-def _reach_only(app, artifact_path, derive_recipe, agent=None):
-    return resolve_turn_reach(None, "u", None, app=app,
-                              artifact_path=artifact_path,
-                              derive_recipe=derive_recipe, agent=agent)[0]
+# ADR-615 amends ADR-612 D5. The pre-615 cut line asked the turn's SHAPE
+# (app / artifact_path / derive_recipe) and gave a desk turn no reach without
+# an explicit opt-in. That distinction did not survive inspection: a desk turn
+# and an open chat turn are the SAME principal, embodied identically
+# (`member:{user_id} via {model}`), resolving grants against the same
+# principal_id. So the shape parameters are DELETED from the signature, not
+# kept and ignored — the check below is what makes that structural rather than
+# conventional.
+import inspect as _inspect  # noqa: E402
+
+_sig = _inspect.signature(resolve_turn_reach)
+check("3a the turn's SHAPE no longer enters the decision (params deleted)",
+      not ({"app", "artifact_path", "derive_recipe"} & set(_sig.parameters)),
+      f"stale shape params: {sorted(set(_sig.parameters))}")
 
 
-check("3a flag OFF → no reach even for the open chat turn",
-      not _reach_only(None, None, None))
+def _reach_only(agent=None, client=None, ws=None):
+    return resolve_turn_reach(client, "u", ws, agent=agent)[0]
 
-os.environ["TURN_REACH_ENABLED"] = "true"
+
+os.environ["TURN_REACH_ENABLED"] = "0"
 try:
-    check("3b flag ON + open chat turn → reach",
-          _reach_only(None, None, None))
-    check("3c an app binding does not reach BY DEFAULT (unscoped)",
-          not _reach_only("docs", None, None))
-    check("3d a bound artifact does not reach BY DEFAULT (Studio is an app surface)",
-          not _reach_only(None, "Documents/deck.html", None))
-    check("3e a derive recipe does not reach BY DEFAULT",
-          not _reach_only(None, None, "context-brief"))
-    # ADR-612 D5 — the cut line MOVED, and the move is default-closed: a desk
-    # turn with an agent but NO recorded opt-in still does not reach. Only an
-    # explicit member scoping unlocks it (proven in test_adr612 against a real
-    # store; here the client is None, so the lookup fails closed — which is
-    # itself the property worth pinning: a broken lookup grants nothing).
-    check("3f D5: a desk turn with an agent but no opt-in still does not reach",
-          not _reach_only("text", "Documents/x.md", None, agent="editor"))
-    check("3g D5: a failed opt-in lookup grants no desk reach (fails closed)",
-          not _reach_only("slides", "d.html", None, agent="editor"))
+    check("3b the OFF switch darkens every surface",
+          not _reach_only() and not _reach_only(agent="editor"))
 finally:
     os.environ.pop("TURN_REACH_ENABLED", None)
+
+# Unset = ON (ADR-615). No env manipulation here: the DEFAULT is the contract.
+check("3c open chat reaches", _reach_only())
+check("3d a desk turn reaches too — same principal, same grant",
+      _reach_only(agent="editor"))
+check("3e every desk reaches identically (no per-surface answer)",
+      _reach_only(agent="editor") == _reach_only(agent="supervisor")
+      == _reach_only())
+
+# The failure mode this replaces: a lookup that cannot read the opt-in store
+# must degrade to "no opt-in recorded" (everything GRANTED), never to a scope
+# the member did not set. It cannot over-grant: `allowed_platforms` intersects
+# against actually-connected platforms downstream.
+check("3f a failed opt-in lookup degrades to 'not scoped', not to a scope",
+      resolve_turn_reach(None, "u", None, agent="editor") == (True, None))
+
+# ⚠️ REGRESSION GUARD. If the pre-615 default-closed behaviour returns — by a
+# revert, or by someone re-deriving reach from the turn's shape — a desk turn
+# stops reaching while open chat still does. That asymmetry IS the defect, so
+# it is asserted as an asymmetry rather than as two separate facts.
+check("3g REGRESSION: desk and chat never disagree about reach",
+      _reach_only(agent="editor") == _reach_only(),
+      "a desk turn answered differently from open chat — the pre-615 cut line")
+
+# The member's own narrowing still applies, and is the ONLY thing that does.
+# Driven against a stubbed store so the subtractive path is proven, not
+# assumed (the D3 states live in test_adr612 against the real store).
+import services.lane_runner as _lr  # noqa: E402
+import services.agent_connectors as _ac  # noqa: E402
+import services.workspace_context as _wc  # noqa: E402
+
+_orig_opt, _orig_ws = _ac.opt_in_for, _wc.effective_workspace_id
+try:
+    _ac.opt_in_for = lambda c, w, u, slug: {
+        "editor": ["slack"], "designer": [], "supervisor": None
+    }.get(slug)
+    _wc.effective_workspace_id = lambda u, w: "ws-1"
+    check("3h an opt-in NARROWS (subtractive, the cliff test)",
+          _lr.resolve_turn_reach(object(), "u", "ws-1", agent="editor")
+          == (True, ("slack",)))
+    check("3i scoped-to-nothing is honoured at a desk",
+          _lr.resolve_turn_reach(object(), "u", "ws-1", agent="designer")
+          == (False, ()))
+    check("3j absent means everything granted",
+          _lr.resolve_turn_reach(object(), "u", "ws-1", agent="supervisor")
+          == (True, None))
+finally:
+    _ac.opt_in_for, _wc.effective_workspace_id = _orig_opt, _orig_ws
 
 # ═════════════════════════════════════════════════════════════════════════════
 print("§4 presence at the chokepoint — lane auth is human hands; steward closed")
@@ -236,10 +297,10 @@ import services.connectors as _conn  # noqa: E402
 
 
 def _chat_row(flag: bool) -> str:
-    if flag:
-        os.environ["TURN_REACH_ENABLED"] = "1"
-    else:
-        os.environ.pop("TURN_REACH_ENABLED", None)
+    # ADR-615 — "off" is now an EXPLICIT falsey value, not an absent one:
+    # unset means ON. Popping the var here (the pre-615 way to get the dark
+    # state) would silently test the LIT state against the dark expectation.
+    os.environ["TURN_REACH_ENABLED"] = "1" if flag else "0"
     import services.turn_reach as _tr
     importlib.reload(_tr)
     importlib.reload(_conn)
@@ -248,7 +309,10 @@ def _chat_row(flag: bool) -> str:
 
 _off = _chat_row(False)
 _on = _chat_row(True)
+# Restore the DEFAULT (unset = ON, ADR-615) so later sections see production
+# resting state rather than a leftover override.
 os.environ.pop("TURN_REACH_ENABLED", None)
+importlib.reload(_tr_mod := __import__("services.turn_reach", fromlist=["x"]))
 importlib.reload(_conn)
 
 # The disclosure is a CLAIM about where content goes, so anchor on the claim's

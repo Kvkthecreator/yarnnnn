@@ -15,9 +15,15 @@ substrate write (the mcp-lane precedent — no derive step, no auto-landing).
 
 The surface is READ-ONLY and derived from the capability registry's own
 read rosters (`PLATFORM_TOOLS_BY_CAPABILITY["read_{platform}"]`) — never a
-hand-kept list that could drift into a write tool. Dormant behind
-``TURN_REACH_ENABLED`` (default OFF — the ADR-404 D2 pattern: built whole,
-lit deliberately).
+hand-kept list that could drift into a write tool.
+
+⭐ ON BY DEFAULT (ADR-615, amending ADR-585 D2). The flag shipped default-OFF
+under the ADR-404 D2 pattern — built whole, lit deliberately — and that was
+the right posture for an unlit capability. It is now lit for every workspace,
+present and future, so the default inverts: ``TURN_REACH_ENABLED`` unset means
+ON. The variable survives as an OFF SWITCH (set it falsey to darken a
+deployment), not as an opt-in a workspace must discover. A capability that
+every workspace is meant to have is not a flag anyone should have to find.
 """
 
 from __future__ import annotations
@@ -33,8 +39,20 @@ TURN_REACH_PLATFORMS: tuple = ("slack", "notion", "github")
 
 
 def is_turn_reach_enabled() -> bool:
-    """Deploy-level gate (ADR-585 D2). Default OFF."""
-    return os.getenv("TURN_REACH_ENABLED", "").strip().lower() in ("1", "true", "yes")
+    """Deploy-level gate. **Default ON** (ADR-615, amending ADR-585 D2).
+
+    Unset = enabled, so every workspace carries the capability without an
+    operator finding a switch. The variable remains as a deliberate OFF
+    switch for a deployment that must darken it; only an explicitly falsey
+    value disables. An unrecognised value reads as ON rather than OFF — a
+    typo must not silently strip a capability every workspace is meant to
+    have (the inverse of the old default, and the reason this is not a
+    plain truthiness check).
+    """
+    raw = os.getenv("TURN_REACH_ENABLED")
+    if raw is None:
+        return True
+    return raw.strip().lower() not in ("0", "false", "no", "off")
 
 
 def turn_reach_tool_names(platforms: Optional[tuple] = None) -> tuple:

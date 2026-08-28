@@ -71,6 +71,8 @@ Stated plainly so the sequencing is not mistaken for a claim: **"workspace level
 
 ### D5 — A desk turn reaches when the member scoped that being (amends ADR-585 D1)
 
+> ⭐ **AMENDED by [ADR-615](ADR-615-reach-follows-the-principal.md) (2026-08-28) — this decision's DEFAULT is superseded.** D5 made a desk turn default-CLOSED, unlocked only by an explicit opt-in. ADR-615 found that posture rested on the turn's SHAPE standing in for the presence of a principal, which does not survive inspection: a desk turn and a chat turn are the same member, embodied identically. **Absence of an opt-in now means everything granted, at every surface** — matching D2 above, one layer up. The opt-in becomes purely subtractive, which strengthens rather than weakens the D1 cliff test. The boundary D5 was protecting is preserved structurally: unattended runs are toolless by construction. **D1–D4 below are unchanged.**
+
 ADR-585 confined turn reach to the OPEN CHAT turn: *"App lanes and derive turns are workspace-disciplined (landed files only), the same as agents."* That confinement was correct **for the world it was written in** — there was no way to say WHICH connector an agent may use, so it was all-or-nothing and nothing was the safe default.
 
 The opt-in is that missing expression. So the rule becomes: **a turn carries reach when it is the open chat (unchanged) OR when the member has explicitly scoped this being.** The caution survives; only the all-or-nothing that forced it goes.

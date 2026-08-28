@@ -126,9 +126,13 @@ type Being = {
   model?: string;
 };
 
-// The connector scoping control (ADR-612). Three states a member can express,
-// and they must stay distinguishable:
+// The connector scoping control (ADR-612, defaults settled by ADR-615). Three
+// states a member can express, and they must stay distinguishable:
 //   not scoped (absent)  — reaches every connected platform. The DEFAULT.
+// ADR-615: that default now holds at EVERY surface the member works in — a
+// desk turn is the same principal as a chat turn, so these toggles are purely
+// SUBTRACTIVE. What they narrow is the member's own grant, never a being's
+// authority (the ADR-596 D1 cliff test).
 //   a subset             — reaches only those.
 //   scoped to none ([])  — reaches nothing, deliberately.
 // "Not scoped" is NOT the same as "all boxes ticked": ticking every box is a

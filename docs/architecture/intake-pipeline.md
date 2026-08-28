@@ -197,24 +197,38 @@ the operator re-hit the ambiguity that produced four parallel reach
 implementations. The line between them is the line between this architecture
 and "conventional MCP connectors" on other platforms:
 
-| | **Intake** (this document) | **Turn reach** (NOT built) |
+| | **Intake** (this document) | **Turn reach** (live — ADR-585/615) |
 |---|---|---|
 | The question | "the workspace **stays current** with the platform" | "ask the platform something **now**" |
 | Shape | standing: retain → distil → signal → read | a tool call inside one conversation turn |
 | Where the result lives | the commons — attributed, versioned, compounding | the turn's context — **dies with the turn** |
-| Who drives | the scheduler; no human in the loop | a member, conversationally |
+| Who drives | the scheduler; no human in the loop | a member, conversationally — at **any** surface they work in (ADR-615) |
 | Cost bound | the pace law (new-raw gate + floor) | per-turn; unbounded unless designed |
-| Credentials | deterministic capture machinery only — no LLM turn ever holds one | needs its own ADR-577-compatible answer |
-| Status | **live**, consumer-invoked (ADR-591 deleted the scheduler walk and its flag; the caller is a named seam) | **built** — ADR-585 turn reach, behind `TURN_REACH_ENABLED` |
+| Credentials | deterministic capture machinery only — no LLM turn ever holds one | the member's OWN, resolved by the turn's principal; ADR-577's agent refusal composes rather than bends |
+| Status | **live**, consumer-invoked (ADR-591 deleted the scheduler walk and its flag; the caller is a named seam) | **live, on by default** — ADR-585 built it dormant; ADR-615 lit it for every workspace (`TURN_REACH_ENABLED` survives only as an OFF switch) |
 
 Conventional MCP connectors elsewhere are **turn reach** — that is the
 industry norm, and YARNNN's divergence from it is deliberate: an autonomous
 agent has no member-driven turn to put transient context into, and only intake
 feeds the record. The two dispositions share one transport
-(`handle_platform_tool` — capture literally calls it) and can coexist; turn
-reach can be **added** beside intake later, but the attributed record cannot be
-recovered retroactively if intake wasn't running — the asymmetry that makes
-intake the default and turn reach the opt-in.
+(`handle_platform_tool` — capture literally calls it) and now **both run**:
+ADR-615 lit turn reach for every workspace. The asymmetry that made intake the
+default is unchanged and is why it stays the default — turn reach could be
+added later, but the attributed record cannot be recovered retroactively if
+intake wasn't running.
+
+**What turn reach does NOT dissolve.** The two dispositions stay distinct
+where it counts: a turn's read is transient and dies with the turn, so nothing
+it touches enters the record unless someone writes it. An **unattended**
+standing run reaches nothing live — those execute toolless by construction
+(`run_bounded_derive_turn`), so a clock plus a credential remains structurally
+impossible. Intake is still the only thing that compounds.
+
+**Reach follows the PRINCIPAL, not the surface** (ADR-615). Every lane turn —
+open chat, a Text desk, a Slides desk — is the same member embodied the same
+way (`member:{user_id} via {model}`), so a connection the member granted is
+reachable wherever they are working. Which pane is open is a surface fact and
+was never a permission one.
 
 **The rule**: any proposal touching platform reach declares its disposition in
 its first paragraph. A proposal that cannot say which it serves is both at
@@ -224,8 +238,6 @@ once, and is re-running the conflation.
 
 ## 6. What this does not decide
 
-- **Whether to open the turn-reach seam** (§5). Its surface, its ADR-577
-  answer, and its cost bound are a future ADR's subject.
 - **Which lanes exist.** By §2, deliberately.
 - **The connector derive step itself** — built by
   [ADR-580](../adr/ADR-580-the-connector-derive-step.md) against this

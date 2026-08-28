@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.28.1] - ADR-615: reach follows the principal, not the surface
+
+### Changed
+- `services/turn_reach.py`: `is_turn_reach_enabled()` defaults **ON** when
+  `TURN_REACH_ENABLED` is unset (was OFF). The variable survives as an OFF
+  switch; an unrecognised value reads as ON, so a typo cannot silently strip a
+  capability every workspace is meant to have.
+- `services/lane_runner.py` (`resolve_turn_reach`): the turn's SHAPE
+  (`app` / `artifact_path` / `derive_recipe`) is **deleted from the
+  signature**. Reach is decided by the member and the being alone. Absence of
+  an opt-in now means everything granted at every surface, matching ADR-612 D2
+  one layer up.
+- `services/connectors.py` (`connector_does`): the `agents` capability row is
+  flag-derived rather than hard-coded. The old sentence asserted a boundary the
+  code did not draw (headless agents DO get capability-scoped `platform_*`
+  tools; the ADR-577 refusal is what made the claim true downstream).
+
+### Expected behavior
+- **A desk turn now holds the 9 read-only `platform_*` tools.** Previously only
+  an open chat turn did, so an Editor at a Text desk correctly reported it had
+  no tool to read a repo even with every connector toggled ON. The frame prose,
+  the declared payload and the execution allowlist all change together — they
+  derive from one `resolve_turn_reach` call (the ADR-585 §5 rule).
+- Per-being toggles become purely **subtractive**: `["slack"]` narrows to
+  Slack, `[]` means the being reaches nothing (honoured at every surface), and
+  absence means everything the member granted.
+- **Unattended runs are unchanged and reach nothing live** —
+  `run_bounded_derive_turn` is toolless by construction. A clock plus a
+  credential stays structurally impossible.
+- A darkened deployment (`TURN_REACH_ENABLED=0`) restores pre-585 prose in both
+  the frame and the connector capability rows.
+
 ## [2026.08.26.2] - ADR-609: the member's selection is an address the colleague can act on
 
 ### Changed
