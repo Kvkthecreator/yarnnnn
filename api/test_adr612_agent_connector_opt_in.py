@@ -132,6 +132,93 @@ check("scoped-to-none has its OWN prose branch (not the no-reach one)",
       "_reach_plats is not None and not _reach_plats" in _lr)
 
 # ---------------------------------------------------------------------------
+print("4b. the opt-in READS under the turn's own client (RLS reality)")
+# ---------------------------------------------------------------------------
+# ⭐⭐⭐ FOUND BY DRIVING, NOT BY READING. `member_state` is service-role-only
+# (migration 202), so under a USER client the select returns ZERO ROWS — not an
+# error. `opt_in_for` then reports "absent", which since ADR-615 means
+# EVERYTHING GRANTED. Observed live: an Editor scoped to NO connections still
+# fetched a GitHub README, because `lane_runner` hands the turn's `auth.client`.
+#
+# Pre-615 this was INVISIBLE — absent meant "no desk reach", so the wrong
+# client failed CLOSED and looked correct. Flipping the default is what turned
+# a latent wrong-client bug into an open door, which is why this gate belongs
+# with the default, not with the store.
+#
+# The assertion is behavioural: the SAME recorded opt-in must resolve the same
+# way through a non-service client as through a service one. A source check
+# ("does it call get_service_client") would pass against a version that called
+# it and then discarded the result.
+import services.agent_connectors as _ac_rls  # noqa: E402
+
+
+class _RlsBlindClient:
+    """A client whose select is silently filtered to zero rows — exactly what
+    a user-role client does against a service-role-only table. NOT an error:
+    that is the whole trap."""
+
+    def table(self, _name):
+        return self
+
+    def select(self, *_a, **_k):
+        return self
+
+    def eq(self, *_a, **_k):
+        return self
+
+    def limit(self, *_a, **_k):
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+        return SimpleNamespace(data=[])
+
+
+_recorded = {"editor": [], "supervisor": ["github"]}
+_svc_calls = []
+
+
+class _FakeSvc:
+    def table(self, _name):
+        return self
+
+    def select(self, *_a, **_k):
+        return self
+
+    def eq(self, *_a, **_k):
+        return self
+
+    def limit(self, *_a, **_k):
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+        _svc_calls.append(1)
+        return SimpleNamespace(data=[{"value": _recorded}])
+
+
+import services.supabase as _sb  # noqa: E402
+
+_real_get_svc = _sb.get_service_client
+_sb.get_service_client = lambda *a, **k: _FakeSvc()
+try:
+    _blind = _ac_rls.opt_in_for(_RlsBlindClient(), "ws-1", "p-1", "editor")
+    check("an RLS-blind caller still reads the RECORDED opt-in (not 'absent')",
+          _blind == [], f"got {_blind!r} — expected [] (scoped to nothing)")
+    check("the reader reached the service client, not the caller's",
+          len(_svc_calls) >= 1)
+    # The discriminating case: [] and None must not be confused here, because
+    # [] means "reaches nothing" and None means "reaches everything".
+    _sup = _ac_rls.opt_in_for(_RlsBlindClient(), "ws-1", "p-1", "supervisor")
+    check("a scoped being reads its real subset through an RLS-blind caller",
+          _sup == ["github"], f"got {_sup!r}")
+    _absent = _ac_rls.opt_in_for(_RlsBlindClient(), "ws-1", "p-1", "nobody")
+    check("a genuinely unscoped being still reads as None (absent)",
+          _absent is None, f"got {_absent!r}")
+finally:
+    _sb.get_service_client = _real_get_svc
+
+# ---------------------------------------------------------------------------
 print("5. D5 (as amended by ADR-615) — reach follows the principal; the opt-in NARROWS")
 # ---------------------------------------------------------------------------
 import os  # noqa: E402

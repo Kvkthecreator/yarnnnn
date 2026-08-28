@@ -77,6 +77,21 @@ This is the boundary ADR-612 D5's caution was really protecting, and it is **str
 
 Also unchanged: ADR-577 (no being holds a credential; the opt-in selects among the member's own) · the intake pipeline and capture writer · ADR-563 scopes and ADR-573 binding on the inbound MCP side.
 
+## 4b. What the click-pass found (2026-08-28, same day)
+
+Driving the real surface produced a PASS on the headline claim and one defect the gates could not see.
+
+**PASS** — an Editor at a Text desk fetched a GitHub README live (receipt: `read a GitHub README`, first heading `# YARNNN`), the exact capability it lacked the day before. It also correctly refused a repo outside the declared aperture, named the in-scope repo, and offered both remedies.
+
+**DEFECT — the opt-in was read with the wrong client, so narrowing did nothing.** With Editor scoped to NO connections, it still fetched the README. `member_state` is service-role-only by RLS (migration 202), and a USER client's select against it returns **zero rows, not an error**. `opt_in_for` therefore reported *absent* — which under D2 means **everything granted**. `lane_runner` was passing the turn's `auth.client`.
+
+Two things make this worth recording rather than quietly fixing:
+
+- **This ADR is what made it dangerous.** Pre-615, absent meant *no desk reach*, so the wrong client failed CLOSED and looked correct. Flipping the default turned a latent wrong-client bug into an open door. A default inversion re-grades every fail-open path that was previously masked — that is the class, not this instance.
+- **No source-reading gate could catch it.** Every layer read correct in isolation; the store held the right value and the resolver computed the right answer *when handed the right client*. Only driving the surface, then querying the store, separated "computed correctly" from "computed on what the turn actually had".
+
+**Fix**: `_read_map` resolves the service client ITSELF rather than trusting the caller — the write path already did. The caller's client is accepted and ignored (`_client`), because a reader that can be handed the wrong client is a door that only works when every call site remembers. Gate: `test_adr612` §4b, behavioural (an RLS-blind double must still read the recorded opt-in), falsified 3-red against the pre-fix reader.
+
 ## 5. Consequences
 
 - A member connects once, toggles per being, and it works wherever that being is accessible — chat and desk alike. The seam that made toggles look broken is gone.

@@ -42,14 +42,42 @@ logger = logging.getLogger(__name__)
 MEMBER_STATE_KEY = "agent_connectors"
 
 
-def _read_map(client: Any, workspace_id: str, principal_id: str) -> dict:
+def _read_map(_client: Any, workspace_id: str, principal_id: str) -> dict:
     """The raw opt-in map, or {} — never raises.
 
     A read failure must degrade to "no opt-in recorded" (= everything granted,
     per the module docstring), NOT to "nothing allowed": a transient DB error
     that silently stripped a being's tools would look exactly like a working
     scope the member never set.
+
+    ⭐⭐⭐ THE CLIENT MUST BE SERVICE-ROLE. `member_state` is service-role-only
+    by RLS (migration 202): under a USER client the select returns ZERO ROWS —
+    not an error — so a real, recorded opt-in reads back as "absent". Since
+    ADR-615 absent means EVERYTHING GRANTED, so the wrong client does not
+    degrade safely; it silently hands a being every platform the member
+    connected, which is the exact scope the member was trying to narrow.
+    (Pre-615 this was invisible: absent meant no desk reach, so passing a user
+    client failed CLOSED and looked correct.)
+
+    So the client is resolved HERE rather than trusted from the caller — the
+    write path already used `get_service_client()`, and a reader that can be
+    handed the wrong client is a door that only works when every call site
+    remembers. Observed live: an Editor scoped to NO connections still fetched
+    a GitHub README, because `lane_runner` passed the turn's `auth.client`.
+
+    `_client` is therefore accepted and IGNORED. The parameter stays so the
+    ~5 call sites (and the route's own service client) keep one signature, but
+    the underscore says at a glance that the caller cannot get this wrong.
     """
+    try:
+        from services.supabase import get_service_client
+        client = get_service_client()
+    except Exception as exc:  # noqa: BLE001
+        # No service client (misconfigured env). Degrade to "no opt-in
+        # recorded" — the same state as a member who never scoped, never to a
+        # scope they did not set.
+        logger.warning("[AGENT_CONNECTORS] no service client: %s", exc)
+        return {}
     try:
         rows = (
             client.table("member_state")
