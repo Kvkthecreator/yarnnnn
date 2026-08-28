@@ -137,6 +137,32 @@ _MARKED_STYLE_RX = re.compile(
 _ELIDED_NOTE = '<!-- {n} chars of machine-composed stylesheet elided for reading -->'
 
 
+#: The marker's stable prefix — enough to recognise an elided view without
+#: pinning the character count, which varies per artifact.
+_ELIDED_MARK = "chars of machine-composed stylesheet elided for reading"
+
+
+def carries_elision_marker(markup: str) -> bool:
+    """Is this content a READ VIEW rather than a file?
+
+    ⭐ The marker is the one unforgeable trace that `elide_presentation_css`
+    touched this content. A caller that read an artifact, edited a sentence,
+    and handed the result to a whole-file write is holding a view — saving it
+    would delete the kernel sheet and the skin with no error and no sign in
+    the revision log.
+
+    Detection, not trust: `open` can also SAY the view is incomplete
+    (`complete_for_write: false`), but a write door cannot rely on a caller
+    having read a field. The marker travels IN the content, so the guard works
+    on any path that reaches a save, including ones that never called `open`.
+
+    Lives here beside the eliding function on purpose: the two are one
+    contract, and splitting them is how the note's spelling and the guard's
+    pattern would drift apart.
+    """
+    return bool(markup) and _ELIDED_MARK in markup
+
+
 def elide_presentation_css(markup: str) -> tuple[str, int]:
     """Drop the machine-composed stylesheets from markup read AS MARKUP.
 

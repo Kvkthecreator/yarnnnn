@@ -1084,6 +1084,7 @@ async def compose_open(
     # elided sheets are machine-composed and re-stamped on every write, so no
     # authored byte is lost. Read path only — never a write door (ADR-453 D2).
     from services.machine_projection import elide_presentation_css
+    stored_chars = len(content)
     content, elided = elide_presentation_css(content)
 
     # ADR-617 D3 — THE CITATIONS ARE NAMED. An artifact's cited blocks are
@@ -1172,7 +1173,24 @@ async def compose_open(
         "content": content,
         "truncated": truncated,
         "offset": start,
+        # ⭐⭐⭐ THE VIEW IS NOT THE FILE, AND THE PAYLOAD MUST SAY WHICH IS WHICH.
+        # `content_chars` paginates the VIEW (it is the bound `truncated` and
+        # `next_offset` are computed against), so it must keep meaning that or
+        # paging breaks. `stored_chars` is the FILE. When they differ, this
+        # read is not a whole-file read no matter how many pages the caller
+        # takes — which is exactly what `complete_for_write` says.
+        #
+        # Why this is not a cosmetic rename: `truncated: false` +
+        # `content_chars == len(content)` is the signature every caller uses
+        # for "I now hold the whole file", and after elision that signature
+        # was TRUE while 33,855 characters were missing. The honest description
+        # lived in `explanation` — prose, for a human — while every
+        # machine-readable field said the content was whole. A save built on
+        # that read deletes the kernel sheet and the skin, no error, and the
+        # revision log records the edit the caller meant to make.
         "content_chars": total,
+        "stored_chars": stored_chars,
+        "complete_for_write": (not truncated) and elided == 0,
         "citations": citations,
         "authored_by": head_author,
         "last_updated": rows[0].get("updated_at"),
@@ -1632,6 +1650,41 @@ async def compose_save(
 
     head = head_rows[0] if head_rows else None
 
+    # ⭐⭐⭐ A READ VIEW IS NOT A FILE, AND MUST NOT BE SAVED AS ONE.
+    #
+    # `open` elides the machine-composed stylesheets so an artifact's authored
+    # content fits the first page. That made reading correct and writing
+    # hazardous: the elided view carries a marker comment where ~31KB of
+    # kernel sheet used to be, and a whole-file save of that view DELETES the
+    # kernel and the skin — silently, with the revision log recording whatever
+    # small change the caller actually intended.
+    #
+    # This is checked BEFORE the size guard below because it is the stricter
+    # fact. The size guard asks "did you read enough?" and can be answered by
+    # paging; this one asks "is what you hold even the file?" and paging
+    # cannot fix it — every page of an elided read is elided.
+    #
+    # ⚠️ NOT overridable by `confirm_full_replace`. That flag means "I mean to
+    # replace the whole file", which is a statement about INTENT. This is a
+    # statement about the CONTENT: it is missing bytes the caller never saw
+    # and cannot have meant to delete. Letting intent override it would make
+    # the flag a way to confirm a mistake.
+    from services.machine_projection import carries_elision_marker
+    if head and carries_elision_marker(content):
+        return {
+            "success": False, "error": "elided_content_save",
+            "message": (
+                f"This content came from a READ of `{rel}` with its machine-"
+                "composed stylesheets elided (the marker comment is still in "
+                "it), so saving it would delete the artifact's styling. Use "
+                "`edit` to change part of the file — its anchors match the "
+                "stored bytes, so it is unaffected by elision. If you must "
+                "replace the whole file, author the replacement rather than "
+                "editing a read view."
+            ),
+            "reference": format_file_reference(rel),
+        }
+
     # ADR-545 D4 — the honest save (truncation guard). A whole-file save over a
     # file larger than one `open` page is the read-truncated/save-back data-loss
     # shape. The guard STAYS now that `open` pages: paging makes a full read
@@ -1660,9 +1713,9 @@ async def compose_save(
                     f"{OPEN_CONTENT_CAP}-character `open` page, so a whole-file "
                     "save risks silently deleting a part you may not have read. "
                     "Either page through it first (`open` with offset=next_offset "
-                    "until truncated is false), or use `edit` for targeted "
-                    "changes. To replace the whole file deliberately, pass "
-                    "confirm_full_replace=true."
+                    "until complete_for_write is true), or use `edit` for "
+                    "targeted changes. To replace the whole file deliberately, "
+                    "pass confirm_full_replace=true."
                 ),
                 "reference": format_file_reference(rel),
             }

@@ -297,6 +297,56 @@ lead, not because the list is ordered by tier.
 > Across the workspace the kernel sheet was **72.7% of all artifact bytes** (18 of 19
 > HTML artifacts, ~20,380 bytes each).
 >
+> **FOLLOW-ON 2026-08-28 (same day) — the fix made READING correct and WRITING hazardous.**
+> Operator, on the deployed surface: *"open's output is not a valid input to save… every
+> machine-readable signal says I have the complete file. I do not."*
+>
+> The elided view is ~31KB short of the artifact, and `save` is a whole-file overwrite.
+> Nothing in the payload said so: `truncated: false` with
+> `content_chars == len(content)` is the signature a caller uses for *"I hold the whole
+> file"*, and it was TRUE while a third of the bytes were missing. The one honest
+> sentence lived in `explanation` — prose, for a human — while every field a program
+> checks reported the content whole. A save built on that read deletes the kernel and
+> the skin, with **no error**, and the revision log records whatever small change the
+> caller actually intended.
+>
+> ⭐ **The root cause was a field answering a question other than its name.**
+> `content_chars` was computed AFTER elision, so it measured the VIEW while its own
+> schema promised *"the file's full length… before any whole-file `save`."* The two
+> descriptions of that field contradicted each other in the same file. Nothing was
+> missing from the contract; one number was being asked to answer two questions.
+>
+> **Three changes, in the order they bind:**
+>
+> 1. **The payload distinguishes the view from the file.** `content_chars` keeps
+>    paginating the VIEW (it is the bound `truncated`/`next_offset` are computed
+>    against, and changing it would break paging); `stored_chars` reports the FILE; and
+>    **`complete_for_write`** — `(not truncated) and elided == 0` — answers the only
+>    question a write path needs. It requires BOTH halves: `not truncated` alone was the
+>    old lie, and `elided == 0` alone would call a truncated read complete.
+> 2. **`save` refuses content still carrying the elision marker**, naming `edit` as the
+>    remedy that works (its anchors match stored bytes, so it is unaffected by elision).
+>    Detection, not trust: the marker travels IN the content, so the guard holds on any
+>    path that reaches a save — including one that never called `open` and never saw the
+>    flag. ⚠️ **`confirm_full_replace` cannot override it.** That flag states INTENT
+>    ("I mean to replace the whole file"); the marker states a fact about the CONTENT
+>    (it is missing bytes the caller never saw). Letting intent override it would make
+>    the flag a way to confirm a mistake.
+> 3. **The `large_file_overwrite` remedy was STALE and is corrected.** It told callers
+>    to page *"until truncated is false"* — written when a complete read was reachable.
+>    After elision it no longer is, so the guard was instructing callers to perform a
+>    ritual that produces an incomplete artifact and then hands them
+>    `confirm_full_replace` with false confidence. It now names `complete_for_write`.
+>
+> **The class, worth carrying past this instance:** a projection that makes a resource
+> *readable* creates a second object, and every field describing "the resource" must
+> then say WHICH object it describes. The failure is not that the view is lossy — that
+> is the point of it — but that the payload described the view in the vocabulary of the
+> file. Driven end-to-end on the live 53,935-byte deck: paging to `truncated: false`
+> still reports `complete_for_write: false`, and the round-trip save is refused with the
+> file untouched. Gate: `api/test_adr574_view_is_not_the_file.py` (16 assertions,
+> falsified 6-red).
+>
 > Not done, deliberately: **the sheet is still inlined per artifact.** De-duplicating it
 > would break self-containment and the versioned in-place retrofit (`data-kernel-v`)
 > that ADR-453 D2 depends on — the storage cost is the price of an artifact that is one

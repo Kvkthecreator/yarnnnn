@@ -1008,8 +1008,15 @@ async def open_file(
 
     A large file is PAGED, not lost: `truncated: true` comes with `next_offset`
     — call again with `offset=next_offset` to read on. `content_chars` is the
-    file's full length, so you always know how much remains. Read to the end
-    before summarizing a long file, and before any whole-file `save`.
+    length of the READABLE VIEW, so you always know how much remains to read.
+    Read to the end before summarizing a long file.
+
+    ⚠️ Reading to the end is NOT the same as holding the file. A Studio
+    artifact's machine-composed stylesheets are elided from the view, so
+    `stored_chars` exceeds `content_chars` and no amount of paging closes the
+    gap. **`complete_for_write` is the only field that answers "may I `save`
+    this back".** When it is false, use `edit` — its anchors match the stored
+    bytes and are unaffected by elision.
 
     `citations` lists the workspace files an artifact CITES. Their content is
     projected from the source when the document renders, so a cited element is
@@ -1563,7 +1570,9 @@ _OUTPUT_SCHEMAS = {
             "truncated": {"type": "boolean", "description": "true when content remains — continue from next_offset"},
             "next_offset": {"type": "integer", "description": "pass as offset to read the next page (present when truncated)"},
             "offset": {"type": "integer", "description": "the character offset this page started at"},
-            "content_chars": {"type": "integer", "description": "the file's full length in characters, after elision"},
+            "content_chars": {"type": "integer", "description": "length of the READABLE VIEW in characters — what offset/next_offset paginate over. Not the file's size when stylesheets were elided; compare stored_chars"},
+            "stored_chars": {"type": "integer", "description": "the file's actual stored length in characters. Greater than content_chars when machine-composed stylesheets were elided from the view"},
+            "complete_for_write": {"type": "boolean", "description": "TRUE only when this content IS the file — nothing truncated and nothing elided. FALSE means you hold a VIEW: safe to read and to `edit` against, never safe to `save` back as a whole file"},
             "citations": {"type": "array", "items": {"type": "object"}, "description": "workspace files this document CITES (path, kind, pinned, projected). A projected citation renders EMPTY here — its content comes from the cited file, so open that file to read it; never write content into a citation"},
             "authored_by": {"type": ["string", "null"], "description": "who made the most recent revision"},
             "last_updated": {"type": ["string", "null"]},
