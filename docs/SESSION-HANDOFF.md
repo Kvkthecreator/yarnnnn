@@ -949,3 +949,87 @@ superseded with the reason.
   artifact scope from a live selection. The state stays reachable (empty-canvas
   click, `onPointClear`) and the pane names what to do there; if the operator
   wants it labelled, that is a pane-side crumb, not a door.
+
+---
+
+# Part J — the "+ Add" that did nothing, and the menu's families (2026-08-28)
+
+Operator: *"when i created a new slide, the +Add like section was created, but
+then the +Add doesn't work at all… most likely mismatch in implementation."*
+Right on both counts.
+
+## The dead "+ Add" — one attribute, three layers
+
+ADR-544 D2 migrated the region grain `data-slot` → `data-area`. D7 states the
+rule the migration left: **every consumer reads BOTH**. Every consumer did —
+except `normalizeStructure`'s container predicate (`artifactOps.ts` Pass B),
+which tested `data-slot` alone and **predated the migration** (written
+2026-08-09; the rest of that file learned `data-area` on 08-19).
+
+⭐⭐⭐ That straggler was **the pass that MINTS IDS**. So it did not mis-label —
+it decided whether a region could be ADDRESSED:
+- kernel emits only `data-area` → every **EMPTY** Area went unstamped;
+- a **FILLED** region was caught by the other clause and worked — which is why
+  it read as "new slides are broken" rather than as one attribute;
+- the runtime draws "+ Add" **only inside an empty region** — exactly the
+  unstamped set;
+- `onAddHere` then returned **silently** for want of a `containerId`, never
+  reaching `applyOp`'s honest shared error.
+
+⭐⭐⭐ **An existing gate REQUIRED the defect**: `test_adr466_mode_native.py`
+asserted the literal `"el.hasAttribute('data-slot')" in ops` under the label
+*"an EMPTY declared region still gets identity"* — enforcing the bug and
+blocking the fix, while reading GREEN. Re-anchored to the invariant.
+
+**Shipped**: `REGION_SEL` in `structureLabels.ts` (one spelling); Pass B and
+`countGroupsOnPage` (a 2nd straggler — Areas counted as authored groups, so the
+carry note promised a false ungrouping) both read it; 4 hand-spelled pairs
+converged; the runtime draws the BUTTON only where an id exists (bounds stay
+wider — a button that does nothing is worse than no button); `onAddHere`
+reports instead of returning bare.
+
+## ADR-619 — the menu's families (operator, mid-turn)
+
+Copy nests with Duplicate/Delete (it was stranded above Paste, whose subject is
+the CLIPBOARD not the block). `Update ▸` deleted in full — three unrelated
+families (Turn into · Move · Bring) under a verb naming none, each already
+self-gated, now flat. Rewrite added as a **second entrance** to the floating
+gesture's identical workflow; `seedRewrite` is the ONE producer, the menu reads
+its own context target (never the rect — a rect-keyed row is inert on message
+timing, the same silent class as above).
+
+⭐⭐ Two gates had pinned SPELLINGS: 586's `<Flyout open={` **>= 3** (with a
+comment citing the ADR-584 lesson against hand-kept counts — then failing on the
+2nd correct deletion), and 612's `"Rewrite…" not in block_menu`. Both
+re-anchored to invariants, not relaxed.
+
+⭐ **ADR-618 was claimed by a peer lane mid-session** — renumbered to 619.
+
+## Gates
+
+`test_region_grain_is_one_selector.py` (falsified 5×) ·
+`test_adr619_menu_families.py` (falsified 5×). ⭐Two of my own assertions were
+too weak and were caught BY falsifying: a substring check that the guard's own
+attribute-setter satisfied, and an ordering check against a mention that moved
+with the guard (fixed by asserting the guard appears exactly once).
+
+FE build green (isolated worktree, HEAD + 5 files); tsc clean; `test_adr466`
+holds at its **10 pre-existing** failures.
+
+## OWED
+
+- **Click-pass**: create a slide → "+ Add" in an empty region inserts text;
+  a MEDIA region still routes to the picker; right-click shows Copy/Duplicate/
+  Delete together, flat Turn into/Move/Bring, and Rewrite seeding the composer
+  identically to the sparkle.
+- **The Add surface is NOT one mechanism** (mapped, not fixed): 5 doors, 6
+  terminal ops, 4 target-resolution schemes, 2 taxonomies of one vocabulary
+  (`categorizeBlockRows` for toolbar+right-click vs `groupBlockRows` for slash).
+  ⭐**New-slide rail uses `anchor` (selection only) while the block rails beside
+  it use `resolveInsertTarget()` (with viewport fallback)** — same popover, two
+  answers to "where": on a deck paged to slide 2 with nothing selected, a block
+  lands on slide 2 and a New slide lands at the END. ⭐**Paste ignores
+  page/slide anchoring** and lands on the last slide. Both are real, both
+  deliberately out of this scope.
+- **~18 other silent no-op guards** on the insert paths (each an early `return`
+  with no feedback); only `onAddHere` was fixed here.

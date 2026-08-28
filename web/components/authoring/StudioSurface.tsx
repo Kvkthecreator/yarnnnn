@@ -2519,22 +2519,60 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     return () => clearTimeout(t);
   }, [pendingRewrite]);
 
+  /** The judged act, from whichever door named the target.
+   *
+   *  ADR-619 D2 — the floating gesture and the right-click row are the SAME
+   *  workflow, deliberately: a member who opens the menu and then decides to
+   *  rewrite must not find a different act there. So the seed is composed
+   *  ONCE, here, and each door supplies only the target it can see — the
+   *  gesture from the live selection rect, the menu from its own context
+   *  target. Two entrances, one write path (ADR-462 D1).
+   */
+  const seedRewrite = useCallback(
+    (t: { blockId: string | null; label: string; excerpt: string | null; pageIndex: number | null }) => {
+      armedRewriteRef.current = true;
+      // No prefill — the chip names the target and the typed seed carries the
+      // instruction; see the note at Text's `rewriteSelection`.
+      seedComposer('', {
+        verb: 'rewrite',
+        path: artifactPath ? relPath(artifactPath) : null,
+        blockId: t.blockId,
+        label: t.label,
+        excerpt: t.excerpt,
+        pageIndex: t.pageIndex,
+        range: null,
+      });
+      setRightTab('chat');
+    },
+    [seedComposer, artifactPath],
+  );
+
   const rewriteSelection = useCallback(() => {
     if (!gestureTarget) return;
-    armedRewriteRef.current = true;
-    // No prefill — the chip names the target and the typed seed carries the
-    // instruction; see the note at Text's `rewriteSelection`.
-    seedComposer('', {
-      verb: 'rewrite',
-      path: artifactPath ? relPath(artifactPath) : null,
+    seedRewrite({
       blockId: gestureTarget.blockId,
       label: gestureTarget.label,
       excerpt: selection?.text || null,
       pageIndex: selection?.slideIndex ?? selection?.pageIndex ?? null,
-      range: null,
     });
-    setRightTab('chat');
-  }, [gestureTarget, selection, seedComposer, artifactPath]);
+  }, [gestureTarget, selection, seedRewrite]);
+
+  /** The same act, entered from the right-click menu (ADR-619 D2). It reads
+   *  the MENU's target rather than the selection rect: the rect arrives from
+   *  the runtime asynchronously, and a row that is sometimes inert depending
+   *  on message timing is the silent no-op class this session already fixed
+   *  once. The context target is present by construction — the menu cannot
+   *  open without it. */
+  const menuRewrite = useCallback(() => {
+    const m = ctxMenu;
+    if (!m) return;
+    seedRewrite({
+      blockId: m.blockId,
+      label: m.blockKind ?? 'content',
+      excerpt: m.text || null,
+      pageIndex: m.slideIndex ?? m.pageIndex ?? null,
+    });
+  }, [ctxMenu, seedRewrite]);
 
   const onSlashOpen = useCallback(
     (blockId: string, empty: boolean, rect: { left: number; top: number; bottom: number }) => {
@@ -3355,7 +3393,21 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       arrange: string | null,
       containerId: string | null,
     ) => {
-      if (!containerId) return; // an unaddressed region cannot take an op
+      // An unaddressed region cannot take an op — but a button the member
+      // just clicked must never do NOTHING (2026-08-28). This returned silently
+      // for every empty Area on every new slide, because `normalizeStructure`'s
+      // container predicate still tested the retired `data-slot` and so minted
+      // no id for them. The predicate is fixed; this stays as the honest floor,
+      // because the runtime draws this button from the DOM and the surface
+      // cannot promise the id survived every path that produced it.
+      //
+      // Says WHAT happened and offers the recovery that always applies — the
+      // same shape and the same reason as `applyOp`'s shared guard, which this
+      // path never reached.
+      if (!containerId) {
+        setOpError('That spot could not be addressed yet. Reload and try again.');
+        return;
+      }
       const role = vocabulary?.arrangements?.[template]
         ?.find((a) => a.slug === arrange)
         ?.areas.find((s) => s.name === slot)?.role;
@@ -3919,6 +3971,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   onPaste={menuPaste}
                   onDuplicate={() => handleBlockVerb('duplicate')}
                   onDelete={() => handleBlockVerb('delete')}
+                  // ADR-619 D2 — the same act the floating gesture runs, seeded
+                  // from this menu's own target rather than the selection rect.
+                  onRewrite={menuRewrite}
                   onTurnInto={menuTurnInto}
                   blocks={vocabulary?.blocks}
                   headingRungs={vocabulary?.heading_rungs}

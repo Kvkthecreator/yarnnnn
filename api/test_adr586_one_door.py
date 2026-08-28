@@ -127,10 +127,14 @@ t("the tiers are the categories (one module, second mount)",
 # holds still.
 t("ONE flyout mechanism serves every tier (no per-tier housing)",
   BLOCKMENU_NC.count("function Flyout(") == 1
-  # NOT a pinned count: ADR-613 deleted the Ask tier, and a hand-kept number
-  # reads a deletion as a violation (the ADR-584 lesson). The invariant is that
-  # every tier's housing IS this one component.
-  and BLOCKMENU_NC.count("<Flyout open={") >= 3)
+  # NOT a pinned count: ADR-613 deleted the Ask tier and ADR-619 D1 deleted the
+  # Update tier, and a hand-kept number reads a deletion as a violation (the
+  # ADR-584 lesson — which the >= 3 written here then went on to prove, by
+  # failing when the second deletion landed). The invariant is that every tier
+  # that EXISTS is housed by this one component, so tie the floor to the tiers
+  # the menu still has: the insert categories and Turn into.
+  and BLOCKMENU_NC.count("<Flyout open={") >= 2
+  and "function Flyout(" in BLOCKMENU_NC)
 t("the flyout FLIPS horizontally off its own measured width",
   re.search(r"width \+ MARGIN > window\.innerWidth \?[^:]*r\.left - width", BLOCKMENU_NC)
   is not None)
@@ -142,10 +146,17 @@ t("the parent does NOT re-clamp on tier open (that jump WAS the defect)",
   re.search(r"\}, \[target\.x, target\.y[^\]]*\]\);", BLOCKMENU_NC) is not None
   and not re.search(r"\}, \[target\.x, target\.y[^\]]*(insertOpen|updateOpen|askOpen)[^\]]*\]\);",
                     BLOCKMENU_NC))
+# The tier state rides ONE scalar dep so the inline housing re-clamps when a
+# tier grows the box. Pinned as "every live tier is in the key", never as a
+# fixed list of names: `askOpen` left with ADR-613 and `updateOpen` with
+# ADR-619 D1, and a spelled-out list turns each correct deletion red.
+_tier_key = re.search(r"inlineTiers\s*\?\s*`([^`]*)`", BLOCKMENU_NC)
 t("...but the INLINE housing still re-clamps (it really does grow the box)",
-  re.search(r"inlineTiers\s*\?\s*`\$\{turnOpen\}\|\$\{insertOpen\}\|\$\{updateOpen\}`",
-            BLOCKMENU_NC) is not None
-  and "askOpen" not in BLOCKMENU_NC)
+  _tier_key is not None
+  and "${turnOpen}" in _tier_key.group(1)
+  and "${insertOpen}" in _tier_key.group(1)
+  and "askOpen" not in BLOCKMENU_NC
+  and "updateOpen" not in BLOCKMENU_NC)
 t("narrow screens keep the INLINE tier (a flyout needs a pointer)",
   "window.innerWidth < 640" in BLOCKMENU_NC
   and re.search(r"inline=\{inlineTiers\}", BLOCKMENU_NC) is not None)
@@ -181,9 +192,15 @@ t("the second-menu route is still deleted whole (surface and menu)",
   "openBlockActs" not in SURFACE_NC
   and "initialOpen" not in BLOCKMENU_NC
   and "ctxInitialOpen" not in SURFACE_NC)
-t("the metered seam left this menu with the judged act (ADR-613)",
-  "meter" not in BLOCKMENU_NC.replace("metered", "").replace("MECHANICAL", "")
-  and "Rewrite" not in BLOCKMENU_NC)
+# ADR-619 D2 RETURNS Rewrite to this menu — as a second ENTRANCE to the
+# floating gesture's identical workflow, at the operator's direction ("the
+# rewrite button on floating and the right menu's workflow itself can be
+# identical"). What ADR-613 actually removed and must stay removed is the
+# `meter` DISCRIMINATOR (D2: nothing left to discriminate) and the second-menu
+# route — not the act's reachability. The one-write-path rule is what makes the
+# return safe, and it is gated in test_adr619_menu_families.py.
+t("the metered DISCRIMINATOR stays deleted (ADR-613 D2)",
+  "meter" not in BLOCKMENU_NC.replace("metered", "").replace("MECHANICAL", ""))
 
 print("=== 7. D7 — the library in the gallery ===")
 

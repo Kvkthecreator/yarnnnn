@@ -427,9 +427,16 @@ def run() -> bool:
         "ADR-511: a MEDIA region keeps the image picker (container scope, registry role)",
         "slotRole === 'media'" in tab and "onInsertImageInSlot" in tab,
     )
+    # 2026-08-28 — this pinned the SPELLING (`el.hasAttribute('data-slot')`) and
+    # so enforced the defect: ADR-544 D2 retired `data-slot`, the kernel emits
+    # only `data-area`, and the literal it required matched nothing. Every empty
+    # Area on every new slide went unstamped, and the in-canvas "+ Add" drawn
+    # inside one posted a message the surface dropped for want of an id — while
+    # this assertion read GREEN, because the wrong test was present as written.
+    # Re-anchored to the INVARIANT it names: the region grain, however spelled.
     _check(
         "ADR-511: an EMPTY declared region still gets identity (the picker's target)",
-        "el.hasAttribute('data-slot')" in ops,
+        "REGION_SEL" in ops and "el.matches(REGION_SEL)" in ops,
     )
     _check(
         "ADR-511: container layout is BOUNDED plain CSS (never a raw CSS pane)",

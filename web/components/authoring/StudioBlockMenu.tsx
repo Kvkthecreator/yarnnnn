@@ -24,7 +24,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Copy, ClipboardPaste, CopyPlus, Plus, Trash2, Type,
-  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, MessageSquare, PenLine, Sparkles, SearchCheck, Link2, History,
+  ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, Sparkles, Link2, History,
 } from 'lucide-react';
 import type { StudioContextTarget } from './StudioCanvas';
 import { isConvertible, turnIntoTargets } from './StudioDesignTab';
@@ -40,6 +40,13 @@ export interface StudioBlockMenuProps {
   onPaste: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  /** ADR-619 D2 — the judged act, entered from this menu. The SAME workflow as
+   *  the floating gesture (ADR-612/613): the surface composes one seed for
+   *  both doors, so a member who opens the menu and then decides to rewrite
+   *  gets exactly the act the sparkle would have given them. Optional: a
+   *  housing that offers no judged act simply omits it, and the row withdraws
+   *  rather than appearing inert. */
+  onRewrite?: () => void;
   /** ADR-479 D5 — Turn into is BLOCK-scoped, so unlike Re-arrange it belongs in
    *  this menu; it was merely wired lazily (it opened the Design tab and left
    *  the member to find the picker). Now it offers the legal kinds inline, in
@@ -215,14 +222,13 @@ const SEP = <div className="my-1 h-px bg-border" />;
 const ICO = 'h-3.5 w-3.5';
 
 export function StudioBlockMenu({
-  target, onClose, onCopy, onPaste, onDuplicate, onDelete, setCount,
+  target, onClose, onCopy, onPaste, onDuplicate, onDelete, onRewrite, setCount,
   onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward,
   onCopyLink, onHistory, onInsertKind, mode, hasClipboard,
 }: StudioBlockMenuProps) {
   const [turnOpen, setTurnOpen] = useState(false);
   // ADR-579 D5 two-tier — the verb tiers (one open at a time). ADR-586 D6:
   // the toolbar's contextual Update mounts this menu with its tier expanded.
-  const [updateOpen, setUpdateOpen] = useState(false);
   // ADR-586 D4 — the located insert tiers are the CATEGORIES (one open at a
   // time), replacing the ADR-579 New ▸/Add ▸ provenance pair.
   const [insertOpen, setInsertOpen] = useState<BlockCategory | null>(null);
@@ -327,7 +333,7 @@ export function StudioBlockMenu({
   // box's height (the inline housing). On a pointer screen it is a constant,
   // so opening a flyout never re-clamps the parent.
   const tierDeps = inlineTiers
-    ? `${turnOpen}|${insertOpen}|${updateOpen}`
+    ? `${turnOpen}|${insertOpen}`
     : '';
   useLayoutEffect(() => {
     const el = boxRef.current;
@@ -396,7 +402,6 @@ export function StudioBlockMenu({
             const opened = insertOpen === g.key;
             const toggle = () => {
               setInsertOpen((v) => (v === g.key ? null : g.key));
-              setUpdateOpen(false);
             };
             return (
               <div
@@ -407,7 +412,7 @@ export function StudioBlockMenu({
                 // route when tiers are inline. Hover never CLOSES: leaving
                 // toward the panel would dismiss what you are reaching for.
                 onMouseEnter={inlineTiers ? undefined : () => {
-                  setInsertOpen(g.key); setUpdateOpen(false);
+                  setInsertOpen(g.key);
                 }}
               >
                 <button
@@ -443,9 +448,6 @@ export function StudioBlockMenu({
           {(hasBlock || hasClipboard) && SEP}
         </>
       )}
-      {hasBlock && (
-        <Row icon={<Copy className={ICO} />} onClick={() => run(onCopy)} shortcut="⌘C">Copy</Row>
-      )}
       {/* ADR-482 D9: Paste here was the ONE ungated row, so a right-click on
           empty canvas produced a one-item menu offering to paste a block
           clipboard that is usually empty — the operator saw it "a lot of the
@@ -463,9 +465,20 @@ export function StudioBlockMenu({
           {/* ADR-525 D5 — the unit verbs are withheld on the text tier: on flow
               a paragraph is an annotation, not an enclosure, and ⌘D/⌫ already
               belong to the platform there (ADR-521 D6). Objects keep them. */}
+          {/* ADR-619 D1 — Copy sits WITH Duplicate and Delete. The three are
+              one family: each takes the block as a whole and does something to
+              a copy of it or to it. Copy was stranded above Paste, which reads
+              as a clipboard PAIR — but Paste's subject is the clipboard, not
+              this block, and pairing them put the odd one in.
+
+              Copy is NOT withheld on the text tier the way Duplicate/Delete
+              are (ADR-525 D5): those two are enclosure verbs the platform owns
+              on flow, while copying a paragraph is always meaningful. It
+              therefore renders just above the tier-gated pair. */}
+          {SEP}
+          <Row icon={<Copy className={ICO} />} onClick={() => run(onCopy)} shortcut="⌘C">Copy</Row>
           {!isTextTier && (
             <>
-              {SEP}
               {/* ADR-541 D4 — over a live set these rows take the WHOLE set
                   (the surface's handlers expand to one N-block revision), so
                   the row says the count instead of implying one block. */}
@@ -482,100 +495,93 @@ export function StudioBlockMenu({
             </>
           )}
           {SEP}
-          {/* ADR-579 D5, two-tier (operator-ratified): the verb rows ARE the
-              menu's top tier — Update and Ask expand inline (the same pattern
-              the convert submenu uses), so the flat menu stays short and the
-              triad reads at a glance. Every wired handler is unchanged: a
-              tier is chrome, never a second write path (ADR-462 D1). The seam
-              inside each verb is WHO — the badge marks the colleague's paid
-              acts (ADR-462 D4); plumbing above stays unlabeled. */}
-          <div
-            className="relative"
-            onMouseEnter={inlineTiers ? undefined : () => {
-              setUpdateOpen(true); setInsertOpen(null);
-            }}
-          >
-          <button
-            type="button"
-            onClick={() => { setUpdateOpen((v) => !v); setInsertOpen(null); }}
-            className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${updateOpen && !inlineTiers ? 'bg-accent' : ''}`}
-          >
-            <span className="text-muted-foreground"><PenLine className={ICO} /></span>
-            <span className="truncate">Update</span>
-            <ChevronRight
-              className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${updateOpen && inlineTiers ? 'rotate-90' : ''}`}
-            />
-          </button>
-          <Flyout open={updateOpen} inline={inlineTiers}>
-            <div className={inlineTiers ? '' : 'min-w-[196px]'}>
-              {/* ADR-479 D5 — Turn into, in one gesture. Shown only when the
-                  conversion is LEGAL: a text kind, and never a citation (a
-                  figure or table wears data-ref on its own root, and
-                  flattening it would bake a live reference into prose — the
-                  op refuses, so the menu must not offer). */}
-              {turnIntoKinds.length > 0 && (
-                <div
-                  className="relative"
-                  onMouseEnter={inlineTiers ? undefined : () => setTurnOpen(true)}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setTurnOpen((v) => !v)}
-                    className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${turnOpen && !inlineTiers ? 'bg-accent' : ''}`}
-                  >
-                    <span className="text-muted-foreground"><Type className={ICO} /></span>
-                    <span className="truncate">Turn into</span>
-                    <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
-                  </button>
-                  <Flyout open={turnOpen} inline={inlineTiers}>
-                    <div className={inlineTiers ? '' : 'min-w-[160px]'}>
-                      {turnIntoKinds.map((b) => (
-                        <button
-                          key={b.key}
-                          type="button"
-                          onClick={() => run(() => onTurnInto(b.kind, b.label, b.fragment))}
-                          className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
-                        >
-                          <span className="truncate">{b.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </Flyout>
+          {/* ADR-619 D2 — REWRITE, the judged act, reachable from the menu too.
+              The floating gesture (ADR-612/613) stays the primary door; this is
+              a second ENTRANCE to the identical workflow, for the member who
+              opened the menu and then decided to rewrite. Both call one
+              `seedRewrite` on the surface, so they cannot drift into two acts
+              wearing one name (ADR-462 D1: a door is never a second write
+              path). It leads the mechanical rows because it is the only row
+              here that spends — the ADR-462 D4 free/metered line, drawn by
+              position now that the tier that used to draw it is gone. */}
+          {onRewrite && !inSet && (
+            <Row icon={<Sparkles className={ICO} />} onClick={() => run(onRewrite)}>
+              Rewrite…
+            </Row>
+          )}
+          {/* ADR-619 D1 — the UPDATE tier is DELETED. It was a submenu holding
+              Turn into, Move up/down and Bring forward/backward — three
+              unrelated families under one verb that named none of them, and a
+              hop every one of its rows had to pay. ADR-616 deleted the toolbar
+              door of the same name for the same reason; keeping a submenu
+              spelled "Update" here would have left the word alive in the one
+              place it was least meaningful.
+
+              Its rows are FLAT now. They were never a tier's worth of
+              cohesion: Turn into changes what a block IS, Move changes
+              document order, Bring changes z-order. Each is already gated by
+              its own honest condition, so flattening costs no clarity and
+              removes a hop. */}
+          {turnIntoKinds.length > 0 && (
+            <div
+              className="relative"
+              onMouseEnter={inlineTiers ? undefined : () => setTurnOpen(true)}
+            >
+              <button
+                type="button"
+                onClick={() => setTurnOpen((v) => !v)}
+                className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${turnOpen && !inlineTiers ? 'bg-accent' : ''}`}
+              >
+                <span className="text-muted-foreground"><Type className={ICO} /></span>
+                <span className="truncate">Turn into</span>
+                <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
+              </button>
+              <Flyout open={turnOpen} inline={inlineTiers}>
+                <div className={inlineTiers ? '' : 'min-w-[160px]'}>
+                  {turnIntoKinds.map((b) => (
+                    <button
+                      key={b.key}
+                      type="button"
+                      onClick={() => run(() => onTurnInto(b.kind, b.label, b.fragment))}
+                      className="flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent"
+                    >
+                      <span className="truncate">{b.label}</span>
+                    </button>
+                  ))}
                 </div>
-              )}
-              {/* Move up/down is DOCUMENT order; Bring forward/backward is
-                  Z-ORDER on a POSITIONED block (ADR-471 D-d). PAGED only for
-                  reordering (ADR-482 D5 — on flow a block is an annotation,
-                  not an enclosure). ADR-541 D4: the single-subject rows
-                  withdraw over a set and SAY so once. */}
-              {inSet && (isPaged || target.positioned) && (
-                <p className="px-2 py-[5px] text-[10px] leading-snug text-muted-foreground">
-                  Move and stacking act on one block at a time ({setCount} selected).
-                </p>
-              )}
-              {isPaged && !inSet && (
-                <>
-                  <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
-                    Move up
-                  </Row>
-                  <Row icon={<ArrowDown className={ICO} />} onClick={() => run(onMoveDown)}>
-                    Move down
-                  </Row>
-                </>
-              )}
-              {target.positioned && !inSet && (
-                <>
-                  <Row icon={<ChevronsUp className={ICO} />} onClick={() => run(onBringForward)}>
-                    Bring forward
-                  </Row>
-                  <Row icon={<ChevronsDown className={ICO} />} onClick={() => run(onBringBackward)}>
-                    Bring backward
-                  </Row>
-                </>
-              )}
+              </Flyout>
             </div>
-          </Flyout>
-          </div>
+          )}
+          {/* Move up/down is DOCUMENT order; Bring forward/backward is Z-ORDER
+              on a POSITIONED block (ADR-471 D-d). PAGED only for reordering
+              (ADR-482 D5 — on flow a block is an annotation, not an
+              enclosure). ADR-541 D4: the single-subject rows withdraw over a
+              set and SAY so once. */}
+          {inSet && (isPaged || target.positioned) && (
+            <p className="px-2 py-[5px] text-[10px] leading-snug text-muted-foreground">
+              Move and stacking act on one block at a time ({setCount} selected).
+            </p>
+          )}
+          {isPaged && !inSet && (
+            <>
+              <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
+                Move up
+              </Row>
+              <Row icon={<ArrowDown className={ICO} />} onClick={() => run(onMoveDown)}>
+                Move down
+              </Row>
+            </>
+          )}
+          {target.positioned && !inSet && (
+            <>
+              <Row icon={<ChevronsUp className={ICO} />} onClick={() => run(onBringForward)}>
+                Bring forward
+              </Row>
+              <Row icon={<ChevronsDown className={ICO} />} onClick={() => run(onBringBackward)}>
+                Bring backward
+              </Row>
+            </>
+          )}
           {SEP}
           <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
             This block

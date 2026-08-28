@@ -1799,8 +1799,11 @@ const ADD_HERE_SCRIPT = `
   }
   function decorate() {
     // ADR-511 Phase 2 — STRUCTURAL: any empty LEAF container earns the
-    // placeholder (imported HTML included), not just a [data-slot]-named one.
-    // Same container predicate as the pointer runtime and normalizeStructure.
+    // dashed PLACEHOLDER (imported HTML included), not just a named region.
+    // The BUTTON is narrower: it needs an addressable region (see below).
+    // This comment used to claim the same predicate as normalizeStructure and
+    // was wrong in both directions — normalize tested a retired attribute, and
+    // this drew a button wherever bounds appeared.
     var divs = document.querySelectorAll('div');
     var slots = [];
     for (var d = 0; d < divs.length; d++) {
@@ -1825,6 +1828,18 @@ const ADD_HERE_SCRIPT = `
       // (the PowerPoint placeholder grammar) — the class is styling-only.
       slot.classList.add('yarnnn-slot-open');
       if (slot.querySelector('.yarnnn-add-here')) continue;
+      // The BUTTON needs more than the bounds do: an op lands by
+      // data-block-id, so a region without one cannot take an insert and a
+      // button there is a promise the surface must break (it did — silently,
+      // for every empty Area on every new slide, until the id-minting
+      // predicate was taught the ADR-544 D2 region grain on 2026-08-28).
+      //
+      // The two predicates must agree, and this is the half that can be
+      // conservative safely: bounds with no button reads as "nothing here
+      // yet", while a button that does nothing reads as broken. The comment
+      // above this function claimed they were already the same predicate;
+      // stating the id requirement here is what makes that true.
+      if (!slot.getAttribute('data-block-id')) continue;
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'yarnnn-add-here';

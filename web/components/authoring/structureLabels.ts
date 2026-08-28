@@ -42,6 +42,22 @@
  *  so indices always agree. */
 export const STRUCTURAL_PAGE_SEL = 'section.slide, :is(body, main, article) > section';
 
+/** The REGION grain — an Area (`data-area`) or an un-healed legacy region
+ *  (`data-slot`, retired by ADR-544 D2 and still present in older documents).
+ *
+ *  ADR-544 D7 states the rule this constant makes enforceable: every consumer
+ *  of the region grain reads BOTH. It was true of the projection's payload and
+ *  climb, of `applyArrangement`'s mapping, and of the label ladder — and false
+ *  in exactly one place, `normalizeStructure`'s container predicate, which
+ *  tested `data-slot` alone. That pass MINTS IDS, so the one divergent reader
+ *  was the one that decided whether a region could be addressed at all: every
+ *  empty Area on every new slide went unstamped, and the "+ Add" the runtime
+ *  drew inside it posted a message the surface dropped for want of an id.
+ *
+ *  Spelled once, here, so the pair cannot drift again (the 2026-08-28 audit;
+ *  the predicate predated the `data-area` migration and was never swept). */
+export const REGION_SEL = '[data-area], [data-slot]';
+
 /** ADR-544 D2 — the Area roles, as the operator reads them. A raw
  *  `data-area` name is never a display word; the ROLE is the Area's identity
  *  and this is where it becomes English. `place` disambiguates same-role

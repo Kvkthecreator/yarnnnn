@@ -14,7 +14,7 @@
  * new arrangement's first [data-slot].
  */
 
-import { STRUCTURAL_PAGE_SEL } from './structureLabels';
+import { REGION_SEL, STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { DEEPEST_RUNG, OUT_OF_RUNG_TAGS } from '../workspace/viewers/projection';
 
 function parse(html: string): Document {
@@ -405,15 +405,26 @@ export function normalizeStructure(doc: Document): number {
   }
 
   // Pass B — container identity: divs that enclose blocks, outside any block.
-  // A DECLARED region (data-slot) is structure even while empty — the media
-  // picker's "+ Add here" selects it before it holds anything.
+  // A DECLARED region is structure EVEN WHILE EMPTY — the in-canvas "+ Add"
+  // and the media picker both address it before it holds anything.
+  //
+  // `REGION_SEL`, not `data-slot` alone (2026-08-28). This predicate predated
+  // the ADR-544 D2 migration to `data-area` and was the one region reader the
+  // sweep missed — every other consumer already read the pair (D7). Because
+  // this pass MINTS IDS, the divergence decided whether a region could be
+  // ADDRESSED at all: the kernel emits only `data-area`, so every empty Area
+  // on every new slide went unstamped, and the "+ Add" the runtime draws
+  // inside an empty region posted a message the surface dropped for want of a
+  // containerId. A FILLED region was stamped by the first clause and worked,
+  // which is why this read as "new slides are broken" rather than as one
+  // attribute name.
   const containers = Array.from(root.querySelectorAll('div')).filter(
     (el) =>
       !el.hasAttribute('data-block') &&
       !el.hasAttribute('data-ref') &&
       !insideOwned(el) &&
       !isPage(el) &&
-      (!!el.querySelector('[data-block]') || el.hasAttribute('data-slot')),
+      (!!el.querySelector('[data-block]') || el.matches(REGION_SEL)),
   );
 
   // Pass B2 — PAGE identity (ADR-519 §5 Q1, resolved YES at ratification;
@@ -1572,7 +1583,7 @@ export function applyArrangement(
   // ADR-544 D2 — an Area is the region element. `[data-slot]` is kept as a
   // READ-side fallback so a pre-544 document (or one an older lane authored)
   // still re-lays instead of refusing.
-  const targetSlots = Array.from(el.querySelectorAll('[data-area], [data-slot]'));
+  const targetSlots = Array.from(el.querySelectorAll(REGION_SEL));
 
   if (carried.length && !targetSlots.length) return null; // refuse, never delete
 
@@ -1590,7 +1601,7 @@ export function applyArrangement(
     // The SOURCE block's Area role, by the same ladder — a pre-544 page has no
     // inline role, so the served map answers for it.
     const sourceRole = (b: Element) => {
-      const from = b.closest('[data-area], [data-slot]');
+      const from = b.closest(REGION_SEL);
       if (!from) return null;
       return roleOfEl(from);
     };
@@ -1612,7 +1623,7 @@ export function applyArrangement(
     const receiving = new Set<Element>();
     carried.forEach((b) => {
       const kind = b.getAttribute('data-block');
-      const from = b.closest('[data-area], [data-slot]');
+      const from = b.closest(REGION_SEL);
       const fromName = from ? nameOf(from) : null;
       // A picture seeks a media Area regardless of where it sat (ADR-466 D5).
       const isMedia = kind === 'figure' || kind === 'gallery';
@@ -1693,7 +1704,7 @@ export function applyArrangementPlan(
   // re-arrange degraded silently to the mechanical ladder, which looks exactly
   // like "the router is off". `[data-slot]` stays as the legacy read for a
   // document authored before the heal.
-  const targetSlots = Array.from(el.querySelectorAll('[data-area], [data-slot]'));
+  const targetSlots = Array.from(el.querySelectorAll(REGION_SEL));
   if (carried.length && !targetSlots.length) return null; // nowhere to put it
 
   const nameOf = (s: Element) => s.getAttribute('data-area') ?? s.getAttribute('data-slot');
@@ -1790,7 +1801,12 @@ export function countGroupsOnPage(html: string, anchor: OpAnchor): number | null
   if (!page) return null;
   return Array.from(page.querySelectorAll('div[data-block-id]:not([data-block])')).filter(
     (el) =>
-      !el.hasAttribute('data-slot') && // a DECLARED region, not an authored group
+      // A DECLARED region is not an authored group. Same 2026-08-28 straggler
+      // as Pass B's predicate: `data-slot` alone matches nothing the kernel
+      // emits, so every Area on the page counted as a group the member had
+      // made — and the ADR-519 D2.1 carry note promised to "ungroup" regions
+      // that a re-arrange simply replaces.
+      !el.matches(REGION_SEL) &&
       !(el.getAttribute('style') || '').trim() && // layout declared → a frame, not a group
       !!el.querySelector('[data-block]'),
   ).length;

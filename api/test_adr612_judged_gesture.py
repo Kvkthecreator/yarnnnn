@@ -413,10 +413,20 @@ check("613 a Slides turn that never writes releases the stuck state",
       "same release as Text — guarded effect, real ceiling, cleaned up")
 
 # The deletion — stated as an invariant, not a count.
-check("613 the judged verbs left the block menu",
-      "Rewrite…" not in block_menu
-      and "Check this…" not in block_menu
+#
+# ADR-619 D2 AMENDS this: Rewrite returns to the menu as a second ENTRANCE to
+# the gesture's identical workflow (operator: "the rewrite button on floating
+# and the right menu's workflow itself can be identical"). ADR-613's substance
+# survives whole, because what it removed was never "the act is reachable from
+# a menu" — it was the four-hop LADDER, the metered discriminator, and the
+# second-menu route. Check and Ask stay deleted: Check left with the meter, and
+# Ask was deleted outright by operator ruling (D1), rebuildable if wanted.
+check("613 Check and Ask stay deleted from the block menu",
+      "Check this…" not in block_menu
       and "Ask about this…" not in block_menu)
+check("619 D2 Rewrite is a second entrance, never a second write path",
+      ("Rewrite" not in block_menu) or ("onRewrite" in block_menu),
+      "the menu may offer it only by calling the surface's one seed producer")
 check("613 the Ask tier went with its rows (every row in it was judged)",
       "askOpen" not in block_menu
       and '<span className="truncate">Ask</span>' not in block_menu)
@@ -424,10 +434,18 @@ _bm_code = re.sub(r"/\*[\s\S]*?\*/|//[^\n]*", "", block_menu)
 check("613 the meter discriminator is DELETED, not left latent",
       "meter" not in _bm_code,
       "a discriminator with nothing to discriminate is a second spelling waiting")
-check("613 the surface's judged seed producers are gone",
-      "menuRewrite" not in surface
+# ADR-619 D2 — `menuRewrite` returns, but as a THIN caller of the one
+# `seedRewrite` the floating gesture also uses; it composes no seed of its own.
+# That is the distinction ADR-613 was drawing and this now states directly: a
+# second producer is the defect, a second entrance is not.
+check("613/619 the surface has ONE judged seed producer, not several",
+      surface.count("seedComposer('', {") <= 1
       and "menuCheck" not in surface
-      and "askAboutSelection" not in surface)
+      and "askAboutSelection" not in surface,
+      "both doors must compose the seed at one site")
+check("619 D2 both doors route through that one site",
+      ("menuRewrite" not in surface)
+      or ("seedRewrite" in surface and "const seedRewrite" in surface))
 check("613 the second-menu route is deleted whole",
       "openBlockActs" not in surface
       and "ctxInitialOpen" not in surface
