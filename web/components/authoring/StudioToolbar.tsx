@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { LayoutTemplate, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 /** An arrangement (ADR-447) — the composition shape of a page/slide.
  *
@@ -152,43 +152,6 @@ export interface StudioSelection {
   tier?: 'text' | 'object' | 'structure' | null;
 }
 
-/** ADR-466 D5 — the galleries forewarn instead of post-failing: a slotless
- *  arrangement applied to a page that holds content MOVES that content to a
- *  new content page (the handler's resolution). The note says so where the
- *  choice is made. Shared by the toolbar's Layout gallery and the Properties
- *  page scope's Re-arrange gallery. */
-export function arrangementCarryNote(
-  a: Pick<StudioArrangement, 'areas'>,
-  carriedCount: number | null,
-  pageNoun: string,
-  /** ADR-519 D2.1 — does this page hold an authored GROUP? Re-arranging
-   *  dissolves it, and the member is owed that sentence BEFORE the gesture. */
-  groupCount?: number | null,
-): string | null {
-  const n = carriedCount ?? 0;
-  const g = groupCount ?? 0;
-  // ADR-519 D2.1 — the debt the dissolve rule carries. `applyArrangement` ends
-  // in `page.replaceWith(el)`, so a group wrapper dies with the page that held
-  // it: never orphaned, no cleanup pass, but also never announced. A group
-  // vanishing silently is the defect the rule must not produce, and this is
-  // where the choice is made — the same place ADR-466 D5 warns about carried
-  // content, for the same reason.
-  //
-  // Ordered FIRST: a slotless arrangement moves content AND dissolves groups,
-  // and the dissolve is the less recoverable of the two (content lands on a
-  // new page; a group is gone). Say the surprising thing.
-  if (g > 0) {
-    const groups = g === 1 ? 'group' : 'groups';
-    return n > 0 && a.areas.length === 0
-      ? `ungroups ${g} ${groups} · content → new ${pageNoun}`
-      : `ungroups ${g} ${groups}`;
-  }
-  if (n > 0 && a.areas.length === 0) {
-    return `content → new ${pageNoun}`;
-  }
-  return null;
-}
-
 interface StudioToolbarProps {
   vocabulary: StudioVocabulary | null;
   /** The artifact's current layout slug — selects the arrangement set + noun. */
@@ -207,26 +170,12 @@ interface StudioToolbarProps {
    *  the ADR-579 verb split retired from the toolbar). Carries the button's
    *  own rect so the door drops from it. One list, one write path. */
   onInsert: (at: { x: number; y: number }) => void;
-  /** ADR-586 D6 — a BLOCK is selected, so Update's contents are the block's
-   *  acts. The surface opens the one block-acts menu (the same definition the
-   *  right-click renders) at this point, Update tier expanded. */
-  hasBlockSelection?: boolean;
-  onUpdateBlock?: (at: { x: number; y: number }) => void;
-  /** EXECUTE: add a new page (slide/section) from the gallery. */
-  /** EXECUTE: re-lay the CURRENT page (ADR-466 D5 — the PowerPoint pair: Layout
-   *  beside New slide; same gallery as the Properties page scope, two mounts). */
-  /** ADR-479 D1: a re-arrangement asks a judgment where each block belongs
-   *  before it applies, so the button says it is thinking (~2-4s). */
-  planning?: boolean;
-  /** Blocks the anchored page would carry through an arrangement change —
-   *  drives the carry note on slotless thumbs. */
-  /** ADR-519 D2.1 — authored groups the anchored page holds. A re-arrange
-   *  DISSOLVES them (`page.replaceWith`), so the gallery says so BEFORE the
-   *  gesture, beside the carry note and for the same reason. */
-  /** The anchored page's current arrangement slug (highlighted in Layout). */
-  /** Whether a page can be resolved from the selection — Layout disables
-   *  (with a teaching title) when nothing anchors it. */
-  hasPageAnchor: boolean;
+  /* ADR-616 D1 — `hasBlockSelection`, `onUpdateBlock`, `planning` and
+     `hasPageAnchor` are DELETED with the Update button. Each existed only to
+     dress or gate it; the re-arrange they described now states its own carry
+     note and its own "Refining…" beside the gallery in the Properties pane,
+     where the act lives (D2). The orphaned doc-comments they had accumulated
+     went with them. */
   /** COMPACT (2026-08-12): the verbs drop their text labels and keep their
    *  glyphs, so the row fits its box instead of escaping it.
    *
@@ -247,10 +196,6 @@ export function StudioToolbar({
   layout,
   mode,
   onInsert,
-  hasBlockSelection = false,
-  onUpdateBlock,
-  planning,
-  hasPageAnchor,
   compact = false,
   coarsePointer = false,
 }: StudioToolbarProps) {
@@ -269,9 +214,10 @@ export function StudioToolbar({
 
   // The toolbar's own click-away/Escape effect is DELETED with the layout
   // panel (ADR-589 D3): this component no longer owns a panel to dismiss.
-  // Both doors it opens carry their own dismissal, including the iframe
+  // The one door it opens carries its own dismissal, including the iframe
   // bridge (`yarnnn-canvas-press`) this effect existed to handle —
-  // StudioBlockInsertMenu and StudioUpdateMenu each listen for it.
+  // StudioBlockInsertMenu listens for it. (Update was the second door until
+  // ADR-616 D1 deleted it; Add is the only one this toolbar opens now.)
 
 
   // shrink-0 + whitespace-nowrap: a flex child is shrinkable BY DEFAULT, so
@@ -335,43 +281,14 @@ export function StudioToolbar({
         {!compact && ' Add'}
       </button>
 
-      {/* UPDATE — it exists; change it. ADR-589: ONE DOOR over the selection
-          matrix, never a fork. It is ALWAYS present and never disabled,
-          because the ladder's top rung is the ARTIFACT and an artifact is
-          always there to shape — the old gating hid the button (or disabled
-          it) exactly when nothing was selected, which is when `document`
-          scope is the whole point.
-
-          This is still the door where mechanical change and metered judgment
-          FUSE; the meter badge inside is the only spelling of that
-          distinction (ADR-579 D3), and Refining… still rides the button
-          (ADR-479/524 D4). */}
-      {onUpdateBlock && (
-        <button
-          type="button"
-          className={btn}
-          disabled={!!planning}
-          title={
-            hasBlockSelection
-              ? 'Update the selected block — or step out to the page or artifact'
-              : hasPageAnchor
-                ? `Update this ${pageNoun} — or step out to the artifact`
-                : 'Update this artifact — typography, palette, design system'
-          }
-          aria-label={compact ? 'Update' : undefined}
-          onClick={(e) => {
-            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            onUpdateBlock({ x: r.left, y: r.bottom + 4 });
-          }}
-        >
-          {/* ADR-524 D4: the page has ALREADY re-arranged mechanically by the
-              time this shows — the judgment is refining that placement, not
-              producing the first one. Compact keeps the SPINNING state legible
-              without the word: the glyph pulses. */}
-          <LayoutTemplate className={`h-3 w-3 ${compact && planning ? 'animate-pulse' : ''}`} />
-          {!compact && (planning ? 'Refining…' : 'Update')}
-        </button>
-      )}
+      {/* UPDATE is DELETED (ADR-616 D1). Six of its seven rows were one
+          action — `onOpenPane`, whose scope argument the mount discarded — and
+          the seventh, the re-arrange gallery, went home to the Properties
+          pane's page scope (D2), taking `planning`/"Refining…" with it. The
+          ladder that disambiguated targets outlived the acts needing
+          disambiguation: ADR-613 took the judged verbs out, and every row left
+          led to the same place. A door whose every row is the same row is a
+          button, and this one no longer named the act it carried. */}
 
       {/* The selection chip is DELETED (2026-07-15). ADR-453 D3 gave it one
           job — "the acknowledgment" — for a world where every affordance was
@@ -396,17 +313,14 @@ export function StudioToolbar({
           pageSection), so New is one door with two grains — never a dropdown
           hopping to a second menu. */}
 
-      {/* The Layout gallery is DELETED from the toolbar (ADR-589 D3). It was
-          the no-selection branch of the old Update fork, and it made ONE grain
-          — the page — stand in for all five: with nothing selected the door
-          showed slide arrangements, so the artifact's own typography, palette
-          and design system had no entrance at all. Re-arrange now lives on the
-          door's PAGE rung, reached by selecting a page or picking that rung,
-          and `document` is the ladder's always-present top. The gallery
-          itself (ArrangementThumb + arrangementCarryNote) moved, not copied:
-          StudioUpdateMenu renders it, and `arrangementCarryNote` is still
-          exported from here for that one consumer. */}
-
+      {/* The Layout gallery left this toolbar in ADR-589 D3 and left the
+          Update door in ADR-616 D2. It is now in the Properties pane's PAGE
+          scope — the one home, which is the same sentence the 2026-07-21 note
+          wrote when it removed the pane's copy, now pointing the other way
+          because the toolbar copy is what no longer exists.
+          `arrangementCarryNote` went with it: a helper follows its one
+          consumer, and leaving it exported from here would be a second home
+          for a function with no caller in this file. */}
 
       {/* The standalone Insert button is DELETED (ADR-579 D6): its two
           halves re-homed under the verb doors above — the from-the-workspace

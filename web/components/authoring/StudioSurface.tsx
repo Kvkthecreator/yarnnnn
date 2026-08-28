@@ -78,9 +78,7 @@ import {
 // pinned copy), so a parent-side reach and the pane consult one declaration.
 import { StudioDesignTab, kindTier, type StructVerb } from './StudioDesignTab';
 // ADR-541 D2 — the one selection algebra (the pane reads the same two).
-import { arityOf, scopeOf, spanShapeOf, unify, type PaneScope, type SpanShape } from './selection';
-import { StudioUpdateMenu } from './StudioUpdateMenu';
-import type { LadderRung } from './updateLadder';
+import { arityOf, scopeOf, spanShapeOf, unify, type SpanShape } from './selection';
 import { StudioShareExport } from './StudioShareExport';
 import { PagedNavigator } from './PagedNavigator';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
@@ -737,46 +735,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // exists — a second entrance, never a second write path (D1).
   const [ctxMenu, setCtxMenu] = useState<StudioContextTarget | null>(null);
   // ADR-586 D6 — which tier the mount opens expanded. Set ONLY by the
-  // toolbar's contextual [Update]; a right-click opens collapsed (null).
-  // The toolbar's contextual Update: synthesize the menu's target from the
-  // live selection and mount the SAME menu the right-click renders — one
-  // definition of the block acts, two mounts (the blockRows discipline).
-  // Conservative DOM facts (positioned/framed false): the toolbar cannot see
-  // the projected DOM, so the geometry rows simply don't render from this
-  // mount; the right-click keeps the full answer.
-  // ADR-589 — the Update DOOR replaces the old selection FORK (block →
-  // block-acts menu, otherwise → a slide-arrangement gallery). That fork's
-  // no-selection branch silently assumed the target was the page, which left
-  // `document` scope — the artifact's own typography, palette and design
-  // system — with no entrance anywhere in the door named Update.
-  const [updateMenu, setUpdateMenu] = useState<{ x: number; y: number } | null>(null);
-  const openUpdateDoor = useCallback((at: { x: number; y: number }) => {
-    setUpdateMenu({ x: at.x, y: at.y });
-  }, []);
-
-  /** ADR-589 D1 — picking a rung RE-TARGETS. Setting selection IS the
-   *  mechanism: StudioCanvas re-commands the runtime with
-   *  `yarnnn-select-block` whenever `selectedBlockId` changes, so the canvas
-   *  box follows without a second message. A document rung clears the
-   *  selection, which is exactly what that scope means. */
-  const retargetToRung = useCallback((rung: LadderRung) => {
-    setEditingBlockId(null);
-    if (rung.scope === 'document') {
-      setSelection(null);
-      return;
-    }
-    setSelection((prev) => ({
-      blockId: rung.blockId,
-      blockKind: rung.blockId && rung.blockId === prev?.blockId ? (prev?.blockKind ?? null) : null,
-      slideIndex: prev?.slideIndex ?? null,
-      pageIndex: prev?.pageIndex ?? null,
-      slot: rung.blockId && rung.blockId === prev?.blockId ? (prev?.slot ?? null) : null,
-      arrange: prev?.arrange ?? null,
-      text: '',
-      label: rung.label,
-      tier: rung.scope === 'container' ? 'structure' : (prev?.tier ?? null),
-    }));
-  }, []);
+  // ADR-616 D1 — the Update door's state, opener and rung re-targeter are
+  // DELETED with the door. Re-targeting survives as the gestures that always
+  // carried it: the breadcrumb's ancestor crumbs, the navigator, canvas click
+  // and ⇧-click, the Esc-walk, and `onPointClear` for artifact scope. The rung
+  // rail was a labelled second spelling of those, kept alive for rows that all
+  // led to one place.
   // Copy/paste is a BLOCK clipboard, not the OS text one: the unit is a block's
   // source HTML, so a paste can reconstruct it whole (kind + tokens + citations)
   // rather than smearing its text into another block. Session-scoped by design —
@@ -3640,18 +3604,6 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 layout={template}
                 mode={resolvedMode}
                 onInsert={onInsertPressed}
-                // ADR-586 D6 — Update at the SELECTION'S grain: a selected
-                // block opens the one block-acts menu (the same definition
-                // the right-click renders), Update tier expanded.
-                hasBlockSelection={!!selection?.blockId && !!selection?.blockKind}
-                onUpdateBlock={openUpdateDoor}
-                planning={planning}
-                hasPageAnchor={
-                  !!selection &&
-                  (selection.blockId != null ||
-                    selection.slideIndex != null ||
-                    selection.pageIndex != null)
-                }
                 compact={!fullLabels}
                 coarsePointer={coarsePointer}
               />
@@ -3880,7 +3832,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   a door that opens onto nothing. */}
               {/* ...and withdraws while a gesture is HELD: one gesture, one
                   target, one turn (see Text's mount for the defect). */}
-              {!slash && !citePicker && !updateMenu && !ctxMenu && !seedHeld && gestureTarget && (
+              {!slash && !citePicker && !ctxMenu && !seedHeld && gestureTarget && (
                 <SelectionGesture
                   pending={pendingRewrite}
                   anchor={
@@ -3893,6 +3845,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                           endLeft: selRect.rect.left,
                           endTop: selRect.rect.top,
                           endBottom: selRect.rect.bottom,
+                          // ADR-616 D4 — the room to hang in is the CANVAS
+                          // column's, not the window's. The door is `fixed`,
+                          // so these are viewport coordinates (the same frame
+                          // `selRect` already arrives in) and nothing clips it
+                          // for us. Read at render, never cached: the column
+                          // resizes when the pane opens, closes or is dragged,
+                          // which is exactly when the answer changes.
+                          ...(() => {
+                            const r = canvasWrapRef.current?.getBoundingClientRect();
+                            return r
+                              ? { hostLeft: r.left, hostRight: r.right }
+                              : {};
+                          })(),
                         }
                       : null
                   }
@@ -3934,39 +3899,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   that rung's acts. `document` is always the top rung, so the
                   artifact's typography/palette/design-system have an entrance
                   for the first time. */}
-              {updateMenu && (
-                <StudioUpdateMenu
-                  x={updateMenu.x}
-                  y={updateMenu.y}
-                  selection={selection}
-                  scope={scopeOf(
-                    unify(selection, rangeBlockIds, groupIds),
-                    resolvedMode === 'paged' ? 'paged' : 'flow',
-                    selection?.tier ?? null,
-                  )}
-                  // The container rung comes from the SLOT the runtime already
-                  // reports (ADR-511 D3's region). The surface holds no parsed
-                  // DOM, and deriving a second chain here would be a second
-                  // answer to what `climbChain` already answers in the pane.
-                  ancestors={
-                    selection?.slot && selection?.blockId
-                      ? [{ blockId: selection.blockId, label: selection.slot }]
-                      : []
-                  }
-                  mode={resolvedMode === 'paged' ? 'paged' : 'flow'}
-                  pageNoun={template === 'deck' ? 'slide' : 'section'}
-                  artifactLabel={artifactDisplayName}
-                  setCount={unify(selection, rangeBlockIds, groupIds).set.length}
-                  arrangements={vocabulary?.arrangements?.[template] ?? []}
-                  currentArrange={selection?.arrange ?? null}
-                  carriedCount={carriedCount}
-                  groupCount={groupCount}
-                  onApplyArrangement={handleApplyArrangement}
-                  onRetarget={retargetToRung}
-                  onOpenPane={(sc: PaneScope) => { void sc; setRightTab('design'); }}
-                  onClose={() => setUpdateMenu(null)}
-                />
-              )}
+              {/* The Update door's mount is DELETED (ADR-616 D1). Its one real
+                  act — the re-arrange gallery — is in the Properties pane's
+                  page scope; its six other rows were `setRightTab('design')`
+                  with the scope argument discarded. */}
               {ctxMenu && (
                 <StudioBlockMenu
                   target={ctxMenu}
@@ -4205,6 +4141,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               onAlignMany={handleAlignMany}
               onDistributeMany={handleDistributeMany}
               onPageVerb={handlePageVerb}
+              // ADR-616 D2 — the re-arrange's one mount. `planning` and the two
+              // forewarn counts ride here now; they dressed the Update button
+              // until D1 deleted it.
+              onApplyArrangement={handleApplyArrangement}
+              planning={planning}
+              carriedCount={carriedCount}
+              groupCount={groupCount}
               // ADR-519 D3 — the spine's Identity verb row at container + block
               // scope: the SAME id-addressed handler the right-click menu and
               // the block keyboard use (one implementation, a third entrance).

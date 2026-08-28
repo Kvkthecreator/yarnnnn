@@ -1,8 +1,9 @@
 """ADR-612 — the judged act is ONE gesture, and it lives at the selection.
 
 Defends the CONSOLIDATION. The judged (metered) act left the mechanical door
-and became one selection-triggered affordance; the ADR-589 ladder keeps the
-mechanical acts. The failure this guards against is the one this codebase keeps
+and became one selection-triggered affordance. (The ADR-589 ladder kept the
+mechanical acts until ADR-616 deleted it — every row that outlived the judged
+verbs led to the same place.) The failure this guards against is the one this codebase keeps
 paying for: a second SPELLING of one door surviving beside the first (ADR-592's
 six spellings; the two `hidden` readers).
 
@@ -363,8 +364,13 @@ check("613 the chip noun and the anchor are decided together",
       "gestureTarget" in surface
       and "selRect.grain === 'range'" in surface,
       "the grain the runtime reported picks the noun AND the label")
+# The ROSTER shrank when ADR-616 deleted the Update door — `!updateMenu` went
+# with the state it guarded. The INVARIANT is unchanged, so this asserts the
+# rule rather than one spelling of the list: every floating door that can share
+# this selection suppresses the gesture, and the deleted one is not resurrected.
 check("613 the gesture yields to every other floating door",
-      "!slash && !citePicker && !updateMenu && !ctxMenu" in surface,
+      "!slash && !citePicker && !ctxMenu && !seedHeld && gestureTarget" in surface
+      and "updateMenu" not in surface,
       "two doors at one selection is a collision, not a choice")
 # ADDED 2026-08-27 after driving the Slides half for the first time.
 #
@@ -428,11 +434,18 @@ check("613 the second-menu route is deleted whole",
       and "initialOpen" not in block_menu)
 
 
-# ── The mechanical door is UNTOUCHED (ADR-589 keeps the ladder) ────────────
-studio_menu = read("components/authoring/StudioUpdateMenu.tsx")
-check("ADR-589's ladder survives — this ADR does not merge the two doors",
-      "SELECTION LADDER" in studio_menu,
-      "the mechanical door answers a different question (ADR-612 §1)")
+# ── The two doors were never merged — and the mechanical one is now GONE ───
+# ADR-612 §1's claim was that the judged act needs no target-ladder because the
+# selection already IS the target. That claim is what let ADR-616 delete the
+# mechanical door outright once its remaining rows proved to be one action.
+# This ADR still must not have merged them: the judged gesture is asserted
+# above, and what is checked here is that it did not absorb the ladder on its
+# way out (a merged door would carry rung vocabulary into the gesture).
+check("ADR-616 deleted the mechanical door; the gesture did not absorb it",
+      not (WEB / "components/authoring/StudioUpdateMenu.tsx").exists()
+      and not (WEB / "components/authoring/updateLadder.ts").exists()
+      and "SELECTION LADDER" not in read("components/authoring/SelectionGesture.tsx"),
+      "the judged act answers a different question (ADR-612 §1)")
 
 if failures:
     print(f"\nADR-612 FAILED ({len(failures)}):")

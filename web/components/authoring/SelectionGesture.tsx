@@ -82,6 +82,18 @@ export interface SelectionAnchor {
    *  and the door goes below the selection (see the header note). */
   contentLeft?: number;
   contentRight?: number;
+  /** ADR-616 D4 — the HOUSING's horizontal bounds: the canvas column the
+   *  artifact is rendered in, in viewport coordinates. `contentLeft/Right` say
+   *  where the artifact ends; these say where the space to hang in ends. With
+   *  a Properties pane open, the room to the right of a letterboxed deck stage
+   *  belongs to the PANE, and the door is `position: fixed` so nothing clips
+   *  it — measuring the fit against `window.innerWidth` put it on top of the
+   *  pane. This is the outer half of the defect `5abdce9` fixed on the inside
+   *  (it taught the runtime to report the content box, because measuring
+   *  against the IFRAME put the door past the canvas for the same reason).
+   *  Omitted → the viewport, exactly as before. */
+  hostLeft?: number;
+  hostRight?: number;
 }
 
 /** Width reserved for the door when deciding whether the margin fits it. */
@@ -113,7 +125,9 @@ export function SelectionGesture({
     if (!anchor) return undefined;
     if (typeof window === 'undefined') return { left: anchor.right + GAP, top: anchor.endTop };
 
-    const vw = window.innerWidth;
+    // The room available is the HOUSING's, not the window's (D4).
+    const vw = typeof anchor.hostRight === 'number' ? anchor.hostRight : window.innerWidth;
+    const vLeft = typeof anchor.hostLeft === 'number' ? anchor.hostLeft : 0;
     const vh = window.innerHeight;
 
     // Vertically: level with the selection's END, clamped into the viewport so
@@ -135,7 +149,7 @@ export function SelectionGesture({
       if (right + DOOR_W < vw) return { left: right, top };
       // Then the left margin, on the far side of the content.
       const left = Math.min(anchor.left, cLeft as number) - GAP - DOOR_W;
-      if (left > 0) return { left, top };
+      if (left > vLeft) return { left, top };
     }
     // No margin to hang in (a narrow viewport, or a caller that declared no
     // content bounds): fall back to below the selection's end, clamped. That
@@ -145,7 +159,7 @@ export function SelectionGesture({
     const below = anchor.endBottom + GAP;
     const flip = below + DOOR_H > vh;
     return {
-      left: Math.min(Math.max(anchor.endLeft, GAP), vw - DOOR_W - GAP),
+      left: Math.min(Math.max(anchor.endLeft, vLeft + GAP), vw - DOOR_W - GAP),
       ...(flip
         ? { bottom: `calc(100vh - ${anchor.endTop}px + ${GAP}px)` }
         : { top: below }),

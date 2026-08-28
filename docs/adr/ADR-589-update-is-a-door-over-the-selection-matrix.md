@@ -1,6 +1,18 @@
 # ADR-589 — Update is a door over the selection matrix
 
-**Status**: Implemented (2026-08-20, `d4f2645`)
+**Status**: **SUPERSEDED by [ADR-616](ADR-616-the-update-door-is-deleted-the-re-arrange-comes-home.md)** (2026-08-28). Implemented 2026-08-20 (`d4f2645`); the door it built is deleted.
+
+> **Why it did not survive.** This ADR's §1 defect was real and is now fixed by a
+> different route: the artifact's typography, palette and design system are
+> reached from the Properties pane, which renders them at `document` scope
+> whenever nothing is selected. What the door added on top was a five-rung
+> ladder whose answer nothing read — the mount discarded the scope (`void sc`)
+> and all six of its non-gallery rows resolved to "switch to Properties". Once
+> ADR-613 took the judged verbs out, no row left needed a target disambiguated.
+> The one act the door genuinely carried, the page re-arrange, went home to the
+> pane. D6's cited cell (`edit source · swap citation · refresh pin`) was never
+> built and remains unbuilt — it is owed against the pane now, not this door.
+
 **Supersedes**: nothing. **Completes** [ADR-586](ADR-586-one-insert-door-categories-galleries-contextual-update.md) D6, which decided the contents follow the selection grain and shipped two of the five grains it named.
 **Related**: [ADR-519](ADR-519-the-object-hierarchy-and-the-pane-grammar.md) D4.1 (the set is STATE, not a scope — inherited whole, see D4) · [ADR-541](ADR-541-the-selection-algebra-a-ranges-subjects-are-its-covered-blocks.md) (`scopeOf`/`arityOf` — the ladder this reads) · [ADR-506](ADR-506-the-insert-door.md) D3 (ordering never subsetting) · [ADR-462](ADR-462-the-block-context-menu-and-the-metered-badge.md) D1 (a door is a second entrance, never a second write path) · [ADR-367](ADR-367-home-as-operating-cockpit.md) D3 (fast path vs dwell)
 

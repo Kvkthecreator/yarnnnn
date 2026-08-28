@@ -158,29 +158,29 @@ t("the same component renders a bottom sheet under the narrow breakpoint",
 t("the sheet is a HOUSING, not a second list (one rail/gallery pair, class fork only)",
   MENU_NC.count("rail.map((r) =>") == 1 and MENU_NC.count("categorizeBlockRows(") == 1)
 
-print("=== 6. D6 — Update goes contextual ===")
+print("=== 6. D6 — Update is DELETED (ADR-616) ===")
 
-# ADR-589 SUPERSEDES the fork these two checks pinned. D6's claim — Update's
-# contents follow the selection GRAIN — survives and is fulfilled more fully:
-# the toolbar opens ONE door whose rail is the selection ladder, and the door
-# routes the object rung to this same block-acts menu. Pinning the fork's
-# mechanism would read that completion as a violation.
-t("the toolbar Update opens ONE door, ungated by selection (ADR-589 D1/D3)",
-  "onUpdateBlock({ x: r.left, y: r.bottom + 4 })" in TOOLBAR_NC
-  and "hasBlockSelection && onUpdateBlock" not in TOOLBAR_NC)
-# ADR-613 SUPERSEDES D6's second-menu route. The toolbar's [Update] opened this
-# menu with its Update tier pre-expanded, reached via `openBlockActs`; that
-# whole chain is deleted, because the door's object rung now reads like every
-# other rung (one row -> the dwell pane) and the judged act it was carrying
-# left for the gesture. What survives from D6 is the door itself, asserted
-# above; what is gated here is that the route is gone WHOLE, not half-removed.
-t("the second-menu route is deleted whole (surface, door and menu prop)",
+# ADR-616 SUPERSEDES D6's contextual-update half. D6 claimed Update's contents
+# follow the selection GRAIN; ADR-589 built the ladder that did so; ADR-616
+# deleted both, because five of the ladder's six rows resolved to one action
+# whose scope argument the mount discarded. D6's OTHER half — one insert door —
+# stands and is gated above.
+#
+# Re-anchored, not dropped: the three checks below read StudioUpdateMenu.tsx,
+# so once the file is gone a `read_text()` either raises or (if guarded) passes
+# for the wrong reason. Absence is now asserted DIRECTLY.
+t("the Update door is deleted whole (module, ladder, button, state)",
+  not (WEB / "StudioUpdateMenu.tsx").exists()
+  and not (WEB / "updateLadder.ts").exists()
+  and "onUpdateBlock" not in TOOLBAR_NC
+  and "updateMenu" not in SURFACE_NC)
+# ADR-613's second-menu route stays deleted — the chain that reached the
+# block-acts menu with its Update tier pre-expanded. Its door-side half is now
+# moot (no door), so what remains assertable is the surface and menu halves.
+t("the second-menu route is still deleted whole (surface and menu)",
   "openBlockActs" not in SURFACE_NC
-  and "onBlockActs" not in (WEB / "StudioUpdateMenu.tsx").read_text()
   and "initialOpen" not in BLOCKMENU_NC
   and "ctxInitialOpen" not in SURFACE_NC)
-t("the object rung keeps its dwell row (the rung did not go empty)",
-  "Align, position" in (WEB / "StudioUpdateMenu.tsx").read_text())
 t("the metered seam left this menu with the judged act (ADR-613)",
   "meter" not in BLOCKMENU_NC.replace("metered", "").replace("MECHANICAL", "")
   and "Rewrite" not in BLOCKMENU_NC)

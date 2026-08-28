@@ -64,11 +64,13 @@ import {
 import { api } from '@/lib/api/client';
 import { PANE_HEADING, PANE_SECTION } from '@/lib/authoring/pane-spine';
 import {
+  type StudioArrangement,
   type StudioMeasure,
   type StudioSelection,
   type StudioToken,
   type StudioVocabulary,
 } from './StudioToolbar';
+import { ArrangementThumb } from './ArrangementThumb';
 import { studioShapeStyle } from './studioShapes';
 // ADR-541 D2 — the one selection algebra; this pane derives nothing itself.
 import {
@@ -192,6 +194,48 @@ function baseName(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
+/** ADR-466 D5 — the galleries forewarn instead of post-failing: a slotless
+ *  arrangement applied to a page that holds content MOVES that content to a
+ *  new content page (the handler's resolution). The note says so where the
+ *  choice is made.
+ *
+ *  ADR-616 D2 — re-homed from StudioToolbar with its ONE consumer, the page
+ *  scope's Re-arrange gallery below. It was exported from the toolbar for a
+ *  gallery that lived first there, then in the Update door; with the door
+ *  deleted, a helper exported from a file that no longer calls it is a second
+ *  home waiting to drift. Moved, never re-derived. */
+function arrangementCarryNote(
+  a: Pick<StudioArrangement, 'areas'>,
+  carriedCount: number | null,
+  pageNoun: string,
+  /** ADR-519 D2.1 — does this page hold an authored GROUP? Re-arranging
+   *  dissolves it, and the member is owed that sentence BEFORE the gesture. */
+  groupCount?: number | null,
+): string | null {
+  const n = carriedCount ?? 0;
+  const g = groupCount ?? 0;
+  // ADR-519 D2.1 — the debt the dissolve rule carries. `applyArrangement` ends
+  // in `page.replaceWith(el)`, so a group wrapper dies with the page that held
+  // it: never orphaned, no cleanup pass, but also never announced. A group
+  // vanishing silently is the defect the rule must not produce, and this is
+  // where the choice is made — the same place ADR-466 D5 warns about carried
+  // content, for the same reason.
+  //
+  // Ordered FIRST: a slotless arrangement moves content AND dissolves groups,
+  // and the dissolve is the less recoverable of the two (content lands on a
+  // new page; a group is gone). Say the surprising thing.
+  if (g > 0) {
+    const groups = g === 1 ? 'group' : 'groups';
+    return n > 0 && a.areas.length === 0
+      ? `ungroups ${g} ${groups} · content → new ${pageNoun}`
+      : `ungroups ${g} ${groups}`;
+  }
+  if (n > 0 && a.areas.length === 0) {
+    return `content → new ${pageNoun}`;
+  }
+  return null;
+}
+
 interface StudioDesignTabProps {
   vocabulary: StudioVocabulary | null;
   /** The artifact's layout slug (document/deck/article). */
@@ -226,6 +270,18 @@ interface StudioDesignTabProps {
   /** Page verbs (duplicate-page has no other mount; the navigator covers
    *  delete/reorder). */
   onPageVerb: (verb: StructVerb) => void;
+  /** ADR-616 D2 — re-lay the CURRENT page. The pane is the ONE mount since the
+   *  Update door was deleted; the op is unchanged (ADR-462 D1, no new write
+   *  path). Distinct from Add's gallery, which INSERTS a new page. */
+  onApplyArrangement: (a: StudioArrangement) => void;
+  /** ADR-479 D1 — the placement judgment is in flight (~2-4s). The gallery
+   *  says so where the gesture was made; it rode the Update button until D1. */
+  planning?: boolean;
+  /** ADR-466 D5 / ADR-519 D2.1 — what a re-arrange would carry to a new page,
+   *  and how many authored groups it would dissolve. The member is owed both
+   *  BEFORE the gesture, so they ride into the note beside each thumb. */
+  carriedCount?: number | null;
+  groupCount?: number | null;
   /** ADR-519 D3 — the Identity verb row at container + block scope. The same
    *  id-addressed handler the right-click menu and the block keyboard use
    *  (one implementation, a third entrance); ADR-511 D5 made the ops work on
@@ -1280,6 +1336,10 @@ export function StudioDesignTab({
   onAlignMany,
   onDistributeMany,
   onPageVerb,
+  onApplyArrangement,
+  planning,
+  carriedCount,
+  groupCount,
   onElementVerb,
   onTurnInto,
   onReturnToFlow,
@@ -2462,6 +2522,64 @@ export function StudioDesignTab({
                 absorbed from the navigator (whose rail is the SEQUENCE now). */}
             <ContentsRows nodes={contents} onSelect={onSelectNode} />
           </div>
+          {/* ADR-616 D2 — RE-ARRANGE comes home. It lived here until
+              2026-07-21, when it was removed as a duplicate of the toolbar's
+              gallery ("two mounts of the same act is exactly the redundancy
+              DP29 names"). ADR-589 then moved that toolbar copy into the
+              Update door, and ADR-616 deleted the door. With no second mount
+              left, the July sentence now argues for this one: the pane is the
+              one home.
+
+              It sits ABOVE Layout deliberately — re-arranging replaces the
+              page's whole slot structure, so the rows below it are about
+              whatever the arrangement leaves. Choosing the shape before
+              adjusting it is the reading order.
+
+              This is DWELL, not a fast path (ADR-367 D3): it forewarns a cost,
+              asks a placement judgment (ADR-479 D1) and shows "Refining…"
+              while it settles. */}
+          {arrangements.length > 0 && (
+            <div className={SECTION}>
+              <p className={HEADING}>
+                Change this {pageNoun} to
+                {planning && (
+                  <span className="ml-1.5 font-normal text-muted-foreground">
+                    Refining…
+                  </span>
+                )}
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {arrangements.map((a) => {
+                  const note = arrangementCarryNote(a, carriedCount ?? null, pageNoun, groupCount);
+                  const current = (selection?.arrange ?? null) === a.slug;
+                  return (
+                    <button
+                      key={a.slug}
+                      type="button"
+                      disabled={!!planning}
+                      title={
+                        note
+                          ? `${a.description} — this ${pageNoun}'s content moves to a new content ${pageNoun} after it.`
+                          : a.description
+                      }
+                      onClick={() => onApplyArrangement(a)}
+                      className={`flex flex-col gap-1 rounded-md border p-1.5 text-left hover:bg-muted/20 disabled:opacity-50 ${
+                        current ? 'border-indigo-400' : 'border-transparent hover:border-border'
+                      }`}
+                    >
+                      <ArrangementThumb areas={a.areas} fragment={a.fragment} />
+                      <span className="truncate text-[11px]">{a.label}</span>
+                      {note && (
+                        <span className="truncate text-[9px] leading-tight text-amber-600 dark:text-amber-500">
+                          {note}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {/* ADR-516 D3 — the page IS a container: layout rows in the same
               language as container scope (bounded CSS presets, one op). The
               legacy valign/pad tokens read as pressed-state fallback only;

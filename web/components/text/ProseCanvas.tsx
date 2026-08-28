@@ -1274,6 +1274,9 @@ export interface ProseCanvasHandle {
     endLeft: number; endTop: number; endBottom: number;
     /** The reading column's bounds — what "the margin" is measured against. */
     contentLeft: number; contentRight: number;
+    /** The editor's own box (ADR-616 D4) — where the room runs out, which is
+     *  the pane's edge and not the window's. */
+    hostLeft: number; hostRight: number;
   } | null;
   /** Select a source range and scroll it to the CENTRE of the viewport —
    *  how the member is put back where they were working (ADR-612 D5). */
@@ -1550,6 +1553,12 @@ export function ProseCanvas({
         // "there is room to the right" — and the room is the rest of the
         // member's own line (ADR-612 D1, the 2026-08-27 driven fix).
         const col = view.contentDOM.getBoundingClientRect();
+        // ADR-616 D4 — and the HOUSING, so the door can tell a margin from the
+        // room that belongs to the pane beside it. `contentDOM` is the reading
+        // column; `scrollDOM` is the editor's own box, which ends where the
+        // rail begins. A `fixed` door measured against the window fits by
+        // arithmetic and lands on the pane.
+        const host = view.scrollDOM.getBoundingClientRect();
         return {
           left, right, top, bottom,
           endLeft: b.left,
@@ -1557,6 +1566,8 @@ export function ProseCanvas({
           endBottom: b.bottom,
           contentLeft: col.left,
           contentRight: col.right,
+          hostLeft: host.left,
+          hostRight: host.right,
         };
       },
       scrollRangeIntoView: (from, to) => {

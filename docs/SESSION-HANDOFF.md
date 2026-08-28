@@ -874,3 +874,78 @@ not the change.
   grain, yet pages carry `data-block-id` since ADR-519. The one grain that gets a
   number gets no stable address — the same position-vs-identity failure
   `3abfe20` closed inside `artifactOps`.
+
+---
+
+# Part I — the Update door is deleted; the re-arrange comes home (2026-08-28)
+
+**ADR-616.** Operator: *"completely delete the update button and its subfeatures.
+any absorption required… streamlined and singular implementation discipline."*
+
+## What the audit found before cutting
+
+Update rendered **six act rows** over five rungs. Five were `onOpenPane(scope)` —
+and the mount was `{ void sc; setRightTab('design'); }`. **A five-rung ladder
+whose answer nothing read.** `StudioDesignTab` derives its own scope
+(`scopeOf`, :1417), so those rows were one action wearing six labels.
+
+⭐⭐⭐ **ADR-589's premise had expired.** Its §1 defect ("typography/palette/design
+system have no entrance") became false independently: the pane renders them at
+`document` scope whenever nothing is selected. It built a second door to a room
+that already had one; ADR-613 then removed the judged verbs, leaving a
+target-disambiguator for acts with nothing to disambiguate.
+
+⭐⭐⭐ **The one row that could NOT go**: `handleApplyArrangement` had exactly one
+caller and had already moved twice (out of the pane 2026-07-21, out of the
+toolbar by ADR-589 D3). Add's gallery is a **different verb** — `onPick` →
+`insertArrangement` (new page) vs re-lay this one, carrying content, dissolving
+groups, running the ADR-479 placement judgment. Deleting blind would have taken
+slide re-arrangement out of the product with nothing failing at build time.
+
+## Shipped
+
+- **D1** — `StudioUpdateMenu.tsx` + `updateLadder.ts` deleted; button, `onUpdateBlock`,
+  `hasBlockSelection`, `hasPageAnchor`, `planning`, `updateMenu` state,
+  `openUpdateDoor`, `retargetToRung` and the gesture's `!updateMenu` clause gone.
+  `PaneScope`/`selection.ts` **survive** — the pane always derived its own.
+- **D2** — the gallery is home in the pane's PAGE scope, above Layout.
+  `arrangementCarryNote` **moved** with its one consumer (un-exported).
+  `planning`/"Refining…" followed the act it describes.
+- **D4** — the sparkle measures the **canvas column**, not `window.innerWidth`.
+  This is the OUTER half of what `5abdce9` fixed on the inside. Both hosts
+  supply it (Slides: `canvasWrapRef`; Text: `view.scrollDOM`).
+
+## Gates
+
+`test_adr616_update_door_deleted.py` — falsified **5 ways**: the act loses its
+mount · the sparkle reverts to window arithmetic · the carry-note is left in two
+homes · a row discards its scope again (`void sc`) · a second mount appears.
+The one-mount check **globs the whole authoring tree** — a site-specific check
+cannot see a second mount reappear elsewhere.
+
+⭐⭐⭐ `test_adr589_update_matrix.py` **deleted with its subject**. Two dependent
+gates read `StudioUpdateMenu.tsx` and would have passed **vacuously** (or
+crashed) once the file was gone — `test_adr586_one_door.py` and
+`test_adr612_judged_gesture.py` now assert the absence directly. ADR-612's gate
+caught a real break: it pinned the suppression string `!slash && !citePicker &&
+!updateMenu && !ctxMenu`; the roster shrank, so it now asserts the RULE plus
+`"updateMenu" not in surface`.
+
+FE build green (isolated worktree, HEAD + 7 files); tsc clean; ADR-589 marked
+superseded with the reason.
+
+## OWED
+
+- **Click-pass** — not driven. Check: re-arrange from the pane (incl. a slotless
+  arrangement's carry note and the "Refining…" state); the sparkle beside a deck
+  selection with the pane OPEN, and again with it CLOSED; Text's sparkle at the
+  right margin of the reading column.
+- **Right-click menu clean-up** — operator-scoped as sequential, deliberately
+  not bundled here.
+- **ADR-589 D6's cited cell** (`edit source · swap citation · refresh pin`) was
+  never built and is still unbuilt. It is owed against the PANE now, not the
+  deleted door.
+- **`document` rung's affordance** — the rail was the only *labelled* route to
+  artifact scope from a live selection. The state stays reachable (empty-canvas
+  click, `onPointClear`) and the pane names what to do there; if the operator
+  wants it labelled, that is a pane-side crumb, not a door.
