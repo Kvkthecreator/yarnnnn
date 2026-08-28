@@ -1099,11 +1099,32 @@ actual claim (a door passes a TYPED target).
 
 FE build green (isolated worktree); tsc clean; prompt ratchets pass.
 
-## OWED
+## ✅ CLICK-PASSED live (2026-08-28, prod, isolated Chrome profile)
 
-- **Click-pass** — the whole feature is undriven. Select a slide → Compose → the
-  chip shows its blocks + the toggle → Send empty (judgment) and with an intent;
-  check the slide changes in place and the transcript reads "slide N".
+Driven end to end on `operation/yarnnnn-decl/deck.html`, slide 1:
+
+| Claim | Observed |
+|---|---|
+| D4 door in the pane's page scope | `SLIDE 1` → **"Compose this slide…"** |
+| D4 chip grew a body | `Compose · slide 1 · AI` + **"On it now: figure, heading, heading, heading, prose"** |
+| D3 additive is the DEFAULT | `Fill in what's missing: aria-pressed=true` |
+| D3 toggle works both ways | flipped to Replace and back, `aria-pressed` tracked |
+| §5 the noun fix | reads **"slide 1"**, never "the slide block" — the live proof of the page-grain fix |
+| D1 the seed crosses | transcript stamp reads **`Compose · slide 1`** on the member's row |
+| D2 the colleague writes via the lane | Editor: *"The subtitle is t3"* → `read a file · revised a file` |
+| D3 additive HELD | subtitle rewritten; **all 5 blocks survived** (nothing removed) |
+
+Result: *"Why the founders who stay in a contraction end up owning the next
+cycle."* → *"Founders who stay in the contraction own the next cycle."*
+
+⭐ Harness notes: your Chrome runs a shared profile and is UNATTACHABLE — launch
+an own-profile instance (`--user-data-dir`) and drive raw CDP; never kill
+theirs. Chrome 152 needs `"--remote-allow-origins=*"` (quote it — zsh globs the
+`*`). A rail-card click NAVIGATES but does not select; the pane reaches page
+scope only from a canvas click. `Enter` must go through
+`Input.dispatchKeyEvent`, not a synthetic `KeyboardEvent`.
+
+## OWED
 - **Receipt card** — D4 names one; the transcript currently renders the composed
   turn like any lane write (`artifactWrite="none"` in Studio, so the canvas IS
   the receipt). Decide whether a page-grain card earns its place.
