@@ -25,7 +25,7 @@
  *
  * The desk's identity is the `strings.topic` param (the folder — one string
  * per folder, v1). `strings.target` carries a designation-in-flight's leaf so
- * a refresh resumes the unconfigured desk with its lane intact; the desk
+ * a refresh resumes an undeclared desk with its lane intact; the desk
  * promotes itself the moment the declaration parses (the substrate is
  * the state machine, ADR-567 D3). `strings.file` is inbound transport from
  * Files ("Keep this current…"), drained on the param VALUE (the 3f44a8f
@@ -92,17 +92,25 @@ function fmtWhen(iso?: string | null): string {
 const kebab = (s: string) =>
   s.trim().toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/^-+|-+$/g, '');
 
-/** What the desk knows about the selected folder. The substrate is the state
- *  machine: `unconfigured` = no declaration YET (a fresh designation, or one
- *  setup is mid-flight on); `repair` = the declaration exists and fails to
- *  parse (the loud state — ADR-567 D6 / ADR-569 D3). A PARSEABLE declaration
- *  in trouble (problem / refused write) arrives as `ready` and renders its
- *  own loud cards. */
+/** What the desk knows about the selected folder.
+ *
+ *  ⭐ There is NO `unconfigured` phase (ADR-595 D1 as amended, 2026-08-28).
+ *  A folder with no `_string.yaml` is served as a NORMAL `ready` view whose
+ *  declaration is empty (`declared: false`, no sources, no schedule, no
+ *  runs) — so "not set up yet" is a fact in the DATA, rendered by the same
+ *  tabs with the empty states they already had, under a loud line. It used
+ *  to be a phase that swapped in an entirely different page, which meant the
+ *  declaration landing MOVED things the member was looking at.
+ *
+ *  `repair` survives as a phase because it is a different failure: the
+ *  declaration EXISTS and cannot be parsed, so there is no view to render
+ *  (ADR-567 D6 / ADR-569 D3). A PARSEABLE declaration in trouble (problem /
+ *  refused write) arrives as `ready` and renders its own loud cards — the
+ *  layering this amendment extends to the undeclared case. */
 type DeskState =
   | { phase: 'idle' }
   | { phase: 'loading' }
   | { phase: 'ready'; view: StringView }
-  | { phase: 'unconfigured'; contract: string | null }
   | { phase: 'repair'; detail: string }
   | { phase: 'error'; detail: string };
 
@@ -217,6 +225,12 @@ export default function StringsSurface() {
 
   const view = desk.phase === 'ready' ? desk.view : null;
 
+  // ⭐ `declared` is the SERVED fact (ADR-595 D1 amended), not a phase. An
+  // undeclared desk is a normal `ready` view whose declaration is empty, so
+  // "is this set up?" is a question about the DATA, and the phase machine no
+  // longer answers it.
+  const declared = desk.phase !== 'ready' || desk.view.declared !== false;
+
   // The lane's binding leaf: the declared target once it parses, else the
   // designation-in-flight's picked leaf (the `target` param) — so the
   // unconfigured desk still seats the desk voice (Supervisor, ADR-604).
@@ -255,23 +269,19 @@ export default function StringsSurface() {
     }
   }, []);
 
-  const loadDesk = useCallback(async (t: string) => {
+  // ⭐ ONE load, one shape. The server serves an UNDECLARED desk as itself
+  // (`declared: false`, empty sources/schedule/runs) rather than 404-ing —
+  // ADR-595 D1 as amended. There is no second page to route to, so there is
+  // no 404 branch here. The in-flight `target` rides along because a picked-
+  // but-unwritten leaf is a real sub-state only the client knows.
+  const loadDesk = useCallback(async (t: string, inFlight?: string | null) => {
     setDesk((d) => (d.phase === 'ready' ? d : { phase: 'loading' }));
     try {
-      const v = await api.strings.get(t);
+      const v = await api.strings.get(t, inFlight ?? null);
       setDesk({ phase: 'ready', view: v });
     } catch (e) {
       const status = (e as { status?: number })?.status;
-      if (status === 404) {
-        // No declaration yet — the unconfigured desk. Show the contract if
-        // the lane has already authored one (setup lands file by file).
-        let contract: string | null = null;
-        try {
-          const f = await api.workspace.getFile(`${WORKSPACE_ROOT}/${t}/CONTRACT.md`);
-          contract = f?.content ?? null;
-        } catch { /* not written yet */ }
-        setDesk({ phase: 'unconfigured', contract });
-      } else if (status === 422) {
+      if (status === 422) {
         // The declaration exists and fails to parse — the loud repair state.
         setDesk({
           phase: 'repair',
@@ -325,15 +335,17 @@ export default function StringsSurface() {
   }, []);
 
   useEffect(() => {
-    if (topic) void loadDesk(topic);
+    if (topic) void loadDesk(topic, targetParam);
     else setDesk({ phase: 'idle' });
   }, [topic, loadDesk]);
 
-  // The setup pane's aperture chips (ADR-595 D4) — loaded once, on first
-  // entering the unconfigured state. Best-effort per provider: an
-  // unconnected platform simply contributes no chips.
+  // The aperture chips (ADR-595 D4) — what this member's connections make
+  // available to pull from. Loaded once for an UNDECLARED desk, where they
+  // are the Sources tab's whole content; a declared desk reads its aperture
+  // per-source (`in_aperture`) and does not need the roster.
+  // Best-effort per provider: an unconnected platform contributes no chips.
   useEffect(() => {
-    if (desk.phase !== 'unconfigured' || apertureSlices !== null) return;
+    if (declared || apertureSlices !== null) return;
     void (async () => {
       const results = await Promise.all(
         FRESHNESS_PROVIDERS.map(async (p) => {
@@ -351,7 +363,7 @@ export default function StringsSurface() {
       );
       setApertureSlices(results.flat());
     })();
-  }, [desk.phase, apertureSlices]);
+  }, [declared, apertureSlices]);
 
   const selectTopic = useCallback((t: string, target?: string | null) => {
     param.set({ topic: t, target: target ?? null, file: null });
@@ -373,7 +385,7 @@ export default function StringsSurface() {
   }, [navigateToSurface]);
 
   const refreshDesk = useCallback(() => {
-    if (topic) void loadDesk(topic);
+    if (topic) void loadDesk(topic, targetParam);
     void loadStrings();
     setActivityNonce((n) => n + 1);
   }, [topic, loadDesk, loadStrings]);
@@ -403,8 +415,18 @@ export default function StringsSurface() {
     refreshDesk();
   }, [refreshDesk]);
 
+  // What the declaration is still missing, in the order the member supplies
+  // it. This is the ONE thing the deleted setup ladder carried that the tabs
+  // do not — and it collapses to a phrase, not a page. Deliberately says
+  // nothing about the FILE: the desk cannot exist without one.
+  const missingParts = !view || declared ? [] : [
+    ...(view.contract ? [] : ['a contract']),
+    ...(view.sources.length ? [] : ['a source']),
+    ...(view.schedule ? [] : ['a cadence']),
+  ];
+
   const setupIncomplete =
-    desk.phase === 'unconfigured' || desk.phase === 'repair' ||
+    !declared || desk.phase === 'repair' ||
     (desk.phase === 'ready' && desk.view.problem != null);
 
   // Freshness/staleness (D7.1): the last successful write is the "as of";
@@ -455,13 +477,21 @@ export default function StringsSurface() {
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
+                {/* ⭐ Disabled WITH A REASON, never absent (ADR-595 D1
+                    amended). Controls that appear from nowhere the moment a
+                    declaration lands read as a different page; a greyed
+                    control that says why is the same page, not yet ready.
+                    This reuses the `problem` disabled path that already
+                    existed one state over. */}
                 <button
                   type="button"
                   onClick={() => void runNow()}
-                  disabled={running || view.problem != null}
-                  title={view.problem != null
-                    ? 'The string cannot run until its declaration is repaired'
-                    : 'Fetch the sources and update the file now'}
+                  disabled={running || !declared || view.problem != null}
+                  title={!declared
+                    ? 'Nothing to run yet — tell Supervisor what keeps this file current'
+                    : view.problem != null
+                      ? 'The string cannot run until its declaration is repaired'
+                      : 'Fetch the sources and update the file now'}
                   className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
                 >
                   {running
@@ -471,7 +501,11 @@ export default function StringsSurface() {
                 <button
                   type="button"
                   onClick={() => void togglePause()}
-                  className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted"
+                  disabled={!declared}
+                  title={!declared
+                    ? 'Nothing runs yet, so there is nothing to pause'
+                    : undefined}
+                  className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
                 >
                   {view.paused
                     ? (<><Play className="h-3.5 w-3.5" /> Resume</>)
@@ -482,14 +516,16 @@ export default function StringsSurface() {
           </div>
           <p className="text-xs text-muted-foreground">
             {desk.phase === 'ready' && view && (
-              <>
-                {view.paused ? 'Paused' : 'Kept current'}
-                {' · as of '}{fmtWhen(lastGoodWrite ?? view.last_run_at)}
-                {' · next '}{view.paused ? '—' : fmtWhen(view.next_run_at)}
-              </>
+              declared ? (
+                <>
+                  {view.paused ? 'Paused' : 'Kept current'}
+                  {' · as of '}{fmtWhen(lastGoodWrite ?? view.last_run_at)}
+                  {' · next '}{view.paused ? '—' : fmtWhen(view.next_run_at)}
+                </>
+              ) : (
+                'Not kept yet — Supervisor sets it up in the conversation.'
+              )
             )}
-            {desk.phase === 'unconfigured' &&
-              'Not kept yet — Supervisor sets it up in the conversation.'}
             {desk.phase === 'loading' && 'Loading…'}
             {deskRoot && (
               <>
@@ -570,23 +606,28 @@ export default function StringsSurface() {
           />
         )}
 
-        {/* ── Unconfigured — SETUP IS FIRST-CLASS (ADR-595 D4): the pane IS
-            the setup surface. The string's anatomy renders as numbered
-            slots; each act is a precise seed into Supervisor's lane; the slots
-            fill live as the files land (the substrate is the state machine),
-            and the desk promotes to the tabs the moment the declaration
-            parses. Authorship stays conversational — the one direct gesture
-            is still the file pick. ── */}
-        {desk.phase === 'unconfigured' && (
-          <SetupPanel
-            targetParam={targetParam}
-            topic={topic}
-            contract={desk.contract}
-            slices={apertureSlices}
-            lanesEnabled={lanesEnabled}
-            seedChat={seedChat}
-            onPick={() => setAttachOpen(true)}
-          />
+        {/* ── Not kept yet — the SAME layering as the two states above:
+            a loud line over intact tabs, never a different page (ADR-595 D1
+            as amended). The seeds live in the TAB that owns each thing —
+            sources in Sources, contract in Contract, cadence in Overview —
+            so nothing moves when the declaration lands. ── */}
+        {view && !declared && (
+          <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2.5 text-xs">
+            <p className="font-medium text-foreground/80">
+              Not kept current yet
+              {missingParts.length > 0 && (
+                <span className="font-normal text-muted-foreground">
+                  {' · '}still needed: {missingParts.join(' · ')}
+                </span>
+              )}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Say what this file must stay true to and where its currency
+              comes from — Supervisor writes the contract and the declaration
+              into the folder, and its standing runs take it from there. Each
+              tab below carries the ask for its own part.
+            </p>
+          </div>
         )}
 
         {/* ── The tabs (ADR-595 D2) — loud states stay ABOVE, never behind ── */}
@@ -618,6 +659,7 @@ export default function StringsSurface() {
                   lastGoodWrite={lastGoodWrite}
                   fetchBroken={fetchBroken}
                   onOpenFile={() => view.target_path && openInFiles(view.target_path)}
+                  onPickFile={() => setAttachOpen(true)}
                 />
                 <FlowStrip
                   view={view}
@@ -658,6 +700,7 @@ export default function StringsSurface() {
                 lanesEnabled={lanesEnabled}
                 seedChat={seedChat}
                 openInFiles={openInFiles}
+                slices={apertureSlices}
               />
             )}
 
@@ -689,10 +732,21 @@ export default function StringsSurface() {
                 <div className="rounded-md border">
                   <div className="flex items-center justify-between border-b px-4 py-2">
                     <span className="text-xs font-medium">What this file must stay true to</span>
+                    {/* ⭐ The ask matches the state: there is nothing to
+                        "refine" before a contract exists. This is the deleted
+                        ladder's step ②, at the contract. */}
                     {lanesEnabled && (
-                      <SeedButton onClick={() => seedChat('Refine the contract: ')}>
-                        refine in chat
-                      </SeedButton>
+                      view.contract ? (
+                        <SeedButton onClick={() => seedChat('Refine the contract: ')}>
+                          refine in chat
+                        </SeedButton>
+                      ) : (
+                        <SeedButton
+                          onClick={() => seedChat('This file must stay true to: ')}
+                        >
+                          This file must stay true to…
+                        </SeedButton>
+                      )
                     )}
                   </div>
                   <div className="px-4 py-3">
@@ -721,9 +775,23 @@ export default function StringsSurface() {
                     </span>
                   </div>
                   {lanesEnabled && (
-                    <SeedButton onClick={() => seedChat('Change the cadence: ')}>
-                      change in chat
-                    </SeedButton>
+                    view.schedule ? (
+                      <SeedButton onClick={() => seedChat('Change the cadence: ')}>
+                        change in chat
+                      </SeedButton>
+                    ) : (
+                      /* ⭐ The cadence presets, at the cadence row. They were
+                         the deleted ladder's step ④; here they sit beside the
+                         `—` they fill in, so choosing one does not move the
+                         thing it changed. */
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {CADENCE_PRESETS.map((c) => (
+                          <SeedButton key={c.label} onClick={() => seedChat(c.seed)}>
+                            {c.label}
+                          </SeedButton>
+                        ))}
+                      </div>
+                    )
                   )}
                 </div>
 
@@ -840,171 +908,6 @@ export default function StringsSurface() {
     </DeskHousing>
   );
 }
-
-// ── Setup — first-class (ADR-595 D4): the anatomy as numbered slots ─────────
-
-function SetupSlot({
-  n, title, done, children,
-}: {
-  n: number;
-  title: React.ReactNode;
-  done?: boolean;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-md border">
-      <div className="flex items-center gap-2.5 border-b px-4 py-2.5">
-        <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-            done
-              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-              : 'bg-muted text-muted-foreground'
-          }`}
-        >
-          {done ? '✓' : n}
-        </span>
-        <span className="text-xs font-medium">{title}</span>
-      </div>
-      {children && <div className="px-4 py-3">{children}</div>}
-    </div>
-  );
-}
-
-function SetupPanel({
-  targetParam, topic, contract, slices, lanesEnabled, seedChat, onPick,
-}: {
-  targetParam: string | null;
-  topic: string | null;
-  contract: string | null;
-  slices: ApertureSlice[] | null;
-  lanesEnabled: boolean | null;
-  seedChat: (text: string) => void;
-  onPick: () => void;
-}) {
-  const seeds = lanesEnabled !== false;
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Four things make a string. Say each one to Supervisor — it writes the
-        contract and the declaration into the folder, attributed and
-        revisable, and this desk becomes the file&apos;s tending surface the
-        moment the declaration lands.
-      </p>
-      {lanesEnabled === false && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          Setting up happens in conversation with Supervisor, which isn&apos;t
-          enabled on this workspace yet — so this file can&apos;t be
-          designated from here right now.
-        </p>
-      )}
-
-      {/* ① The file — the one direct gesture */}
-      <SetupSlot n={1} title="The file" done={!!targetParam}>
-        {targetParam ? (
-          <p className="text-xs">
-            <code>{targetParam}</code>
-            <span className="text-muted-foreground"> in {topic}</span>
-          </p>
-        ) : (
-          <button
-            type="button"
-            onClick={onPick}
-            disabled={!seeds}
-            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-40"
-          >
-            <Plus className="h-3.5 w-3.5" /> Pick the file to keep current
-          </button>
-        )}
-      </SetupSlot>
-
-      {/* ② The contract — fills live once CONTRACT.md lands */}
-      <SetupSlot n={2} title="The contract — what must it stay true to?" done={!!contract}>
-        {contract ? (
-          <MarkdownRenderer content={contract} compact />
-        ) : seeds ? (
-          <SeedButton onClick={() => seedChat('This file must stay true to: ')}>
-            This file must stay true to…
-          </SeedButton>
-        ) : (
-          <p className="text-xs text-muted-foreground">Not declared yet.</p>
-        )}
-      </SetupSlot>
-
-      {/* ③ The sources — the aperture surfaced where it matters */}
-      <SetupSlot n={3} title="The sources — where does currency come from?">
-        <div className="space-y-2.5">
-          {slices === null ? (
-            <p className="text-xs text-muted-foreground">Checking your connections…</p>
-          ) : slices.length > 0 ? (
-            <div>
-              <p className="mb-1.5 text-[11px] text-muted-foreground">
-                From your connections — already in your selection, ready to pull:
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {slices.map((s) => (
-                  <button
-                    key={`${s.provider}:${s.id}`}
-                    type="button"
-                    disabled={!seeds}
-                    onClick={() =>
-                      seedChat(
-                        `Pull from the ${s.provider} slice '${s.name ?? s.id}' (${s.id}). `,
-                      )}
-                    className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-40"
-                  >
-                    <Cable className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="font-medium">{s.provider}</span>
-                    <span className="max-w-40 truncate text-muted-foreground">
-                      {s.name ?? s.id}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-[11px] text-muted-foreground">
-              No connection slices selected yet — connect a platform and select
-              what it may read, or pull from an address instead.
-            </p>
-          )}
-          {seeds && (
-            <div className="flex items-center gap-1.5">
-              <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
-              <SeedButton onClick={() => seedChat('Pull from this source: ')}>
-                Pull from an address (URL)…
-              </SeedButton>
-            </div>
-          )}
-        </div>
-      </SetupSlot>
-
-      {/* ④ The cadence */}
-      <SetupSlot n={4} title="The cadence — how often?">
-        {seeds ? (
-          <div className="flex flex-wrap gap-1.5">
-            {CADENCE_PRESETS.map((c) => (
-              <SeedButton key={c.label} onClick={() => seedChat(c.seed)}>
-                {c.label}
-              </SeedButton>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Not declared yet.</p>
-        )}
-      </SetupSlot>
-
-      {contract && (
-        <p className="text-xs text-muted-foreground">
-          The declaration is still pending — Supervisor finishes it in the
-          conversation, and the standing loop begins on the next tick
-          (~5&nbsp;minutes). Your own edits to the file are corrections, and
-          they compound into every future run.
-        </p>
-      )}
-    </div>
-  );
-}
-
 function fmtBytes(n?: number | null): string | null {
   if (n == null) return null;
   if (n < 1024) return `${n} B`;
@@ -1020,13 +923,35 @@ function sourceKindLine(s: StringSource): string {
 // ── Overview: the status card — file FACTS, never the file (ADR-595 D1) ────
 
 function StatusCard({
-  view, lastGoodWrite, fetchBroken, onOpenFile,
+  view, lastGoodWrite, fetchBroken, onOpenFile, onPickFile,
 }: {
   view: StringView;
   lastGoodWrite: string | null;
   fetchBroken: boolean;
   onOpenFile: () => void;
+  /** The one DIRECT gesture on this desk (everything else is conversational,
+   *  ADR-595 D4). Shown only when no leaf is designated yet. */
+  onPickFile: () => void;
 }) {
+  // ⭐ No leaf designated: the desk exists (it is a FOLDER) but has no file
+  // to keep current. This is the deleted ladder's step ① — the one act that
+  // is a direct gesture rather than a sentence to Supervisor.
+  if (!view.target) {
+    return (
+      <div className="rounded-md border border-dashed p-6 text-center">
+        <p className="text-xs text-muted-foreground">
+          No file designated yet — pick the one this desk keeps current.
+        </p>
+        <button
+          type="button"
+          onClick={onPickFile}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+        >
+          <Plus className="h-3.5 w-3.5" /> Pick the file to keep current
+        </button>
+      </div>
+    );
+  }
   const facts = [
     view.format?.toUpperCase(),
     view.head_lines != null
@@ -1139,12 +1064,17 @@ function FlowStrip({
 // ── Sources: each source as a PARTY — standing · receipts · contribution ────
 
 function SourcesPanel({
-  view, lanesEnabled, seedChat, openInFiles,
+  view, lanesEnabled, seedChat, openInFiles, slices,
 }: {
   view: StringView;
   lanesEnabled: boolean | null;
   seedChat: (text: string) => void;
   openInFiles: (path: string) => void;
+  /** ADR-595 D4 — the member's aperture: what their connections make
+   *  available to pull from. `null` while loading, `[]` when nothing is
+   *  selected. Served here rather than on a separate setup page, because
+   *  "where could currency come from" is the Sources question. */
+  slices: ApertureSlice[] | null;
 }) {
   const n = view.sources.length;
   const arity = view.format === 'md'
@@ -1162,9 +1092,54 @@ function SourcesPanel({
         )}
       </div>
       {n === 0 ? (
-        <p className="rounded-md border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
-          No sources declared yet — tell Supervisor where currency comes from.
-        </p>
+        <div className="space-y-3 rounded-md border border-dashed px-4 py-5 text-xs">
+          <p className="text-center text-muted-foreground">
+            No sources declared yet — tell Supervisor where currency comes from.
+          </p>
+          {/* ⭐ The aperture, at the question it answers. These chips used to
+              live on a separate setup page, which meant a DECLARED desk could
+              never see "what else could I pull from" — the roster was fetched
+              only in the unconfigured state. Same chips, same seeds, now in
+              the tab that owns sources. */}
+          {slices === null ? (
+            <p className="text-center text-muted-foreground">
+              Checking your connections…
+            </p>
+          ) : slices.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-center text-[11px] text-muted-foreground">
+                From your connections — already in your selection, ready to pull:
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {slices.map((sl) => (
+                  <button
+                    key={`${sl.provider}:${sl.id}`}
+                    type="button"
+                    disabled={!lanesEnabled}
+                    onClick={() =>
+                      seedChat(
+                        `Pull from the ${sl.provider} slice '${sl.name ?? sl.id}' (${sl.id}). `,
+                      )}
+                    className="inline-flex items-center gap-1.5 rounded border bg-background px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-40"
+                  >
+                    <Cable className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="font-medium">{sl.provider}</span>
+                    <span className="max-w-40 truncate text-muted-foreground">
+                      {sl.name ?? sl.id}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {lanesEnabled && (
+            <div className="flex justify-center">
+              <SeedButton onClick={() => seedChat('Pull from this address (URL): ')}>
+                Pull from an address (URL)…
+              </SeedButton>
+            </div>
+          )}
+        </div>
       ) : (
         view.sources.map((s) => (
           <div key={s.id} className="rounded-md border">

@@ -111,6 +111,32 @@ in prose and failing later as out-of-selection. Authorship stays
 conversational throughout — the slots sharpen the seeds; they are not a
 form.
 
+### D4 amended — one surface, not two (2026-08-28, operator-directed)
+
+> **D4's diagnosis stands; its remedy is superseded.** The placard genuinely was a placard, the anatomy genuinely is four things, and the aperture genuinely belongs at designation. What was wrong is that all of it went onto a **separate page**.
+
+The operator, looking at both states side by side: *"the non-finished set-up screen difference is actually confusing... maybe just showing the actual as if completed information (and thus handling the empty states) is preferred."*
+
+They were right, and the reason is structural. D4 produced **two pages for one object**: a numbered ladder for `unconfigured`, four tabs for `ready`. Sources and contract appeared in **both**, in different shapes and different places. So the declaration landing did not *fill* the desk — it **swapped** it, and things the member was looking at moved.
+
+**The desk already knew how to render absence.** Every empty state the undeclared view needs was already built and simply unreachable behind a 404: *"No sources declared yet"*, *"No contract declared"*, *"no sources declared"* in the flow strip, *"No version yet"*, *"Nothing cites this file yet"*. The 404 was a policy choice, never a data limitation — every `StringSummary` field but `topic`/`declaration_path` already carries a safe empty default.
+
+**And this surface already had the right pattern one state over.** A declaration that parses but cannot run (`problem`) and one whose last write was refused (`repair`) both arrive as a **normal view with a loud card layered above intact tabs**. `unconfigured` was the single state that substituted a different page instead of layering. The amendment puts it back under the rule the file already followed.
+
+So:
+
+- **`GET /strings/{topic}` serves the undeclared desk** rather than 404-ing, with `declared: false` and honest empties. A `target` query param carries a *designation-in-flight* — the leaf picked before anything was written, which only the client knows. It is read on the undeclared path only, so it can never re-point a live string, and a malformed value is dropped rather than refused (it is a URL param on a read).
+- **`SetupPanel`, `SetupSlot`, and the `unconfigured` phase are DELETED**, not hidden. Keeping the ladder beside the tabs would leave two authorities on "is this set up?" — precisely the [ADR-532](ADR-532-the-access-pane-shows-the-grant-that-exists.md) §3a failure, where the honest state was bolted onto the editor built for the model it replaced (*"preserving the legacy approach while accommodating the discipline"*).
+- **Each ask moves into the tab that owns it**, so nothing relocates when the declaration lands: the aperture chips into **Sources**, the contract seed into **Contract**, the cadence presets beside the `—` in the **cadence row**, the file pick into the Overview card when no leaf is designated. The one direct gesture (D4, ADR-567 D3) survives exactly where the thing it designates is shown.
+- **Header controls are disabled-with-a-reason, never absent.** A control that appears from nowhere reads as a different page; a greyed one that says why is the same page, not yet ready. This reuses the disabled path `Run now` already had for `problem`.
+- **A "not kept current yet" line** sits above the tabs naming what is still needed — the one thing the ladder carried that the tabs do not, collapsed to a phrase rather than a page.
+
+**A defect the ladder had, worth recording**: slots ③ and ④ carried **no `done` flag at all**, so the checklist never ticked its last two boxes even when satisfied. It promised progress tracking it did not deliver — an argument against preserving its ordering, not for it.
+
+**A capability this gains**: the aperture roster was fetched *only* in the unconfigured state, so a **declared** desk could never show "what else could I pull from". In Sources it now serves both.
+
+Gate: `api/test_adr595_desk_is_one_surface.py` (19 assertions, falsified 10-red).
+
 ## 3. What this ADR does NOT do
 
 - **No change to the string's mechanics** — declaration grammar, run body,

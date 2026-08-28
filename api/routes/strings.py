@@ -116,6 +116,13 @@ class StringSummary(BaseModel):
     #: The parseable-but-cannot-run states (missing_target | invalid_target |
     #: unsupported_format | sources_invalid) — served, never swallowed (D3).
     problem: Optional[str] = None
+    #: ADR-595 D1 as amended (2026-08-28) — FALSE while no `_string.yaml`
+    #: exists in the folder. The desk is one surface in both states: an
+    #: undeclared desk is served as itself (empty sources, no schedule, no
+    #: runs) rather than 404'd into a separate configuration page. The FE
+    #: renders the same tabs and layers a "not kept yet" line above them, the
+    #: way `problem`/`repair` already layer above intact tabs.
+    declared: bool = True
 
 
 class RunEvent(BaseModel):
@@ -211,6 +218,60 @@ def compose_string_yaml(
     )
     return header + _yaml.safe_dump(payload, sort_keys=False, allow_unicode=True,
                                     default_flow_style=False)
+
+
+def _undeclared_decl(topic: str, target: Optional[str]):
+    """A StringDecl standing for a desk with no `_string.yaml` yet.
+
+    ADR-595 D1 amended. Everything the desk shows before declaration derives
+    from the FOLDER and the picked leaf — `StringDecl` already computes
+    `root`, `target_path` and `contract_path` from exactly those two, so the
+    undeclared view needs no parallel type.
+
+    A bad `target` is DROPPED rather than refused: it is a URL param on a
+    read, and a member who lands on a malformed link should see the folder's
+    desk, not an error. The declared path never reaches here, so nothing a
+    caller passes can touch a live string.
+    """
+    from services.strings import StringDecl
+
+    leaf = (target or "").strip().strip("/")
+    if "/" in leaf or leaf in ("", ".", ".."):
+        leaf = ""
+    return StringDecl(topic=topic, slug=f"string:{topic}", target=leaf)
+
+
+def _head_facts(client, user_id: str, topic: str, decl) -> dict:
+    """Head FACTS, never the head (ADR-595 D1) — the pane is the tending
+    surface; the document is read at its own surface through the Open door.
+
+    Extracted so the declared and undeclared paths compute them ONE way. A
+    picked-but-not-yet-declared leaf that already exists is a real thing to
+    show, and duplicating this probe is how the two paths would drift.
+    """
+    out = {"head_updated_at": None, "head_lines": None, "head_bytes": None}
+    if not decl.target:
+        return out
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("content, updated_at")
+            .eq("user_id", user_id)
+            .eq("path", decl.target_path)
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STRINGS] head-fact probe failed for %s: %s", topic, e)
+        return out
+    if rows and rows[0].get("content") is not None:
+        body = rows[0]["content"]
+        out["head_updated_at"] = rows[0].get("updated_at")
+        out["head_lines"] = body.count("\n") + (
+            0 if body.endswith("\n") or not body else 1
+        )
+        out["head_bytes"] = len(body.encode("utf-8"))
+    return out
 
 
 def _summarize(client, user_id: str, decl, index_row: Optional[dict]) -> StringSummary:
@@ -458,13 +519,64 @@ async def list_strings(auth: UserClient) -> list[StringSummary]:
 
 
 @router.get("/strings/{topic:path}")
-async def get_string(topic: str, auth: UserClient) -> StringView:
-    """The composed desk view, projected at read time (never stored)."""
+async def get_string(
+    topic: str, auth: UserClient, target: Optional[str] = None,
+) -> StringView:
+    """The composed desk view, projected at read time (never stored).
+
+    `target` is the DESIGNATION-IN-FLIGHT: the leaf the member picked before
+    anything was written. Only read on the undeclared path — a declared desk
+    takes its target from its own `_string.yaml`, never from the caller, so
+    this cannot be used to point a live string at another file.
+    """
     actor = _acting_owner(auth)
     topic = _validate_topic(topic)
     content = _read_declaration(auth.client, actor, topic)
+
+    # ── The UNDECLARED desk is served as itself, not refused ──────────────
+    # ADR-595 D1 amended (2026-08-28). This route used to 404 when no
+    # `_string.yaml` existed, which forced the FE to invent a SECOND page —
+    # a numbered setup ladder rendering the same four facts (file, contract,
+    # sources, cadence) in a different shape and a different place from the
+    # tabs. The declaration landing then SWAPPED the page instead of filling
+    # it, and things the member was looking at moved.
+    #
+    # ⭐ The desk already knew how to render absence. Every empty state the
+    # undeclared view needs was ALREADY BUILT and simply unreachable behind
+    # this 404: "No sources declared yet", "No contract declared", "no
+    # sources declared" in the flow strip, "No version yet", "Nothing cites
+    # this file yet". The 404 was a policy choice, never a data limitation —
+    # every StringSummary field but `topic`/`declaration_path` already
+    # carries a safe empty default.
+    #
+    # ⭐⭐ And this surface already had the right pattern one state over:
+    # `problem` (parses, cannot run) and `repair` (last write refused) both
+    # arrive as a NORMAL view with a loud card layered ABOVE intact tabs.
+    # `unconfigured` was the one state that substituted a different page
+    # instead. Serving it here puts it back under the same rule.
+    #
+    # `target` comes from the caller because a designation-in-flight (the
+    # file picked, nothing written yet) is a real sub-state the member can
+    # see — the FE has it from its own URL and the server cannot know it.
     if content is None:
-        raise HTTPException(status_code=404, detail=f"no string in '{topic}'")
+        undeclared = _undeclared_decl(topic, target)
+        summary = _summarize(
+            auth.client, actor, undeclared,
+            _index_row(auth.client, actor, topic),
+        )
+        summary.declared = False
+        # An undeclared desk has no schedule and no run history by
+        # construction: nothing has been declared to run. Said explicitly so
+        # a future reader does not mistake the empties for a failed read.
+        summary.problem = None
+        return StringView(
+            **summary.model_dump(),
+            shape={},
+            recent_runs=[],
+            repair=None,
+            consumers=[],
+            **_head_facts(auth.client, actor, topic, undeclared),
+        )
 
     decl = _parse_or_none(content, topic, actor)
     if decl is None:
@@ -486,29 +598,7 @@ async def get_string(topic: str, auth: UserClient) -> StringView:
                         ("slug", "status", "created_at", "error_reason")})
             for e in events]
 
-    # Head FACTS, never the head (ADR-595 D1) — the pane is the tending
-    # surface; the document is read at its own surface through the Open door.
-    head_updated_at = None
-    head_lines = None
-    head_bytes = None
-    if decl.target:
-        try:
-            head_rows = (
-                auth.client.table("workspace_files")
-                .select("content, updated_at")
-                .eq("user_id", actor)
-                .eq("path", decl.target_path)
-                .limit(1)
-                .execute()
-            ).data or []
-        except Exception as e:
-            logger.warning("[STRINGS] head-fact probe failed for %s: %s", topic, e)
-            head_rows = []
-        if head_rows and head_rows[0].get("content") is not None:
-            body = head_rows[0]["content"]
-            head_updated_at = head_rows[0].get("updated_at")
-            head_lines = body.count("\n") + (0 if body.endswith("\n") or not body else 1)
-            head_bytes = len(body.encode("utf-8"))
+    _hf = _head_facts(auth.client, actor, topic, decl)
 
     view = StringView(
         **summary.model_dump(),
@@ -516,9 +606,7 @@ async def get_string(topic: str, auth: UserClient) -> StringView:
         recent_runs=runs,
         repair=_compose_repair(runs),
         consumers=_consumers(auth.client, actor, decl),
-        head_updated_at=head_updated_at,
-        head_lines=head_lines,
-        head_bytes=head_bytes,
+        **_hf,
     )
     _enrich_sources(auth.client, actor, view.sources,
                     decl.target_path if decl.target else None)

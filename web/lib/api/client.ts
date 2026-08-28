@@ -473,6 +473,13 @@ export interface StringSummary {
   /** Parseable-but-cannot-run (D3, served loudly): missing_target |
    *  invalid_target | unsupported_format | sources_invalid. */
   problem?: string | null;
+  /** ADR-595 D1 as amended (2026-08-28) — FALSE while the folder holds no
+   *  `_string.yaml`. The desk is ONE surface in both states: an undeclared
+   *  desk renders the same tabs with their existing empty states and a "not
+   *  kept yet" line above them, the way `problem`/`repair` already layer
+   *  above intact tabs. Optional so a pre-amendment payload reads as
+   *  declared, which is what every payload that omits it is. */
+  declared?: boolean;
 }
 
 export interface StringView extends StringSummary {
@@ -743,8 +750,16 @@ export const api = {
   // these are the projections the desk reads plus the direct switches.
   strings: {
     list: () => request<StringSummary[]>("/api/strings"),
-    get: (topic: string) =>
-      request<StringView>(`/api/strings/${encodeTopic(topic)}`),
+    /** The desk view. Served for an UNDECLARED folder too (`declared: false`,
+     *  empty sources/schedule/runs) — ADR-595 D1 as amended: one surface in
+     *  both states, never a separate setup page. `target` carries a
+     *  designation-in-flight (the leaf picked before anything was written);
+     *  it is read only on the undeclared path. */
+    get: (topic: string, target?: string | null) =>
+      request<StringView>(
+        `/api/strings/${encodeTopic(topic)}` +
+          (target ? `?target=${encodeURIComponent(target)}` : ""),
+      ),
     update: (topic: string, data: { paused?: boolean }) =>
       request<StringSummary>(`/api/strings/${encodeTopic(topic)}`, {
         method: "PATCH",
