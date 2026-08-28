@@ -1527,6 +1527,11 @@ const POINTER_SCRIPT = `
           }
         }
         if (!restored && typeof d.y === 'number') window.scrollTo(0, d.y);
+        // Report where the restore LANDED. stageShow already reports, but the
+        // scrollIntoView/scrollTo branches rely on a scroll event that does not
+        // fire when the restored position equals the current one — leaving the
+        // parent's viewport reading stale across a structural reload.
+        reportScroll();
       } catch (err) {}
     }
   });
@@ -1570,6 +1575,19 @@ const POINTER_SCRIPT = `
       reportScroll(); // trailing: capture where the scroll actually settled
     }, 120);
   }, true);
+  // The position on ARRIVAL, not only on change (2026-08-28, found by auditing
+  // a live turn). Until this call the ONLY reports were the scroll listener
+  // above and stageShow — so a deck the member never scrolled reported nothing,
+  // the parent's viewportPage stayed null, and StudioSurface's focus fell
+  // through to document scope: "nothing finer than the artifact" while a slide
+  // filled the screen. The Editor was then told nothing about the member's
+  // place and counted slides out of the raw markup by hand — naming slide 6 for
+  // the slide the member was standing on. A restored scroll position has the
+  // same shape: a restore moves the document with no member gesture.
+  //
+  // Deferred a frame: currentSlideIndex measures getBoundingClientRect, which
+  // is meaningless until the deck has laid out and taken its fit-scale.
+  setTimeout(reportScroll, 0);
   // ── Keyboard verbs (ADR-482 D2, relocated from the gutter script) ──────
   //
   // Injected in BOTH grains, because the menu that advertises these keys is

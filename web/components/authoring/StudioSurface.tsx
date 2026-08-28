@@ -986,7 +986,24 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       };
     }
     // Page grain — a selected slide/section, or (D3) merely the one on screen.
-    const pageIdx = s?.slideIndex ?? s?.pageIndex ?? viewportPage;
+    //
+    // On a KNOWN-paged artifact the page grain is the floor, not a branch we
+    // may fall past: a slide is always on screen, so `document` scope ("nothing
+    // finer than the artifact") would be false rather than merely quiet — and
+    // build_focus_line renders it as SILENCE, so the colleague is told nothing
+    // and counts slides out of the raw markup by hand (2026-08-28: the Editor
+    // named slide 6 for the slide the member was standing on). The runtime now
+    // reports its position on arrival, so `viewportPage` is normally set; index
+    // 0 is the honest floor for the frames before that first report lands.
+    //
+    // `resolvedMode`, never `layoutMode`: the latter defaults to 'flow' until
+    // the vocabulary answers, and this must not assert a page grain for an
+    // artifact not yet known to have one (the ADR-480 reasoning, same seam).
+    const pageIdx =
+      s?.slideIndex ??
+      s?.pageIndex ??
+      viewportPage ??
+      (resolvedMode === 'paged' ? 0 : null);
     if (pageIdx != null) {
       return {
         ...base,
@@ -1006,7 +1023,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       label: template || null,
       excerpt: null,
     };
-  }, [artifactPath, app.slug, selection, viewportPage, template, layoutMode]);
+  }, [artifactPath, app.slug, selection, viewportPage, template, layoutMode, resolvedMode]);
 
   useDeclareFocus(app.slug, focus);
   // One payload, two lifetimes — and that was the bug (ADR-462 D12). Blocks /

@@ -801,3 +801,76 @@ green against an unprotected `/docs` until a falsifier caught it.
 - **Staging envs** — discussed, not started. Separate ADR; needs a call on
   Supabase branching vs. a second project.
 - `kind='radar'` rows in `tasks` are inert; harmless, could be swept later.
+
+---
+
+# Part H — a paged surface always names the page (2026-08-28)
+
+Audit of a live turn: the Editor was asked to split "this slide", said **slide
+6** for the slide the member was standing on (7), and then made the **right
+edit anyway**. Both halves have one cause — it was never told where the member
+was standing, so the number was narration and `data-block-id` was the operation.
+
+## What shipped
+
+Three layers had to line up for the silence; the fix holds each.
+
+| Layer | Defect | Fix |
+|---|---|---|
+| Runtime | `reportScroll` bound to the `scroll` event + `stageShow` only — a deck the member never scrolled reported **nothing** | report on ARRIVAL (`setTimeout(reportScroll, 0)`) + after a restore |
+| Declaration | with no selection and no viewport, StudioSurface fell to `document` scope — false on a paged artifact, not merely quiet | page grain is the FLOOR when `resolvedMode === 'paged'` |
+| Renderer | `build_focus_line` renders `document` as `""` | **unchanged — correct**, and what makes the layer above load-bearing |
+
+Judgment taken: **incident, not re-architecture.** ADR-522's declare-don't-scrape
+contract is sound — Text and Strings hardcode `viewport: null` because they have
+no page unit, and their `document` scope is truthful silence. Studio is the only
+surface that can be silently wrong. The alternatives were all worse: enumerating
+slides into the posture puts deck structure in the kernel (ADR-222); scraping the
+viewport is the ADR-398 D2 locator ADR-522 replaced; storing slide ordinals is a
+second source of truth against DOM order, walking back `3abfe20`.
+
+`resolvedMode`, never `layoutMode` — the latter defaults to `'flow'` until the
+vocabulary answers, so it would assert a page grain for an artifact not yet known
+to have one (the ADR-480 reasoning at the same seam).
+
+## The gate the old one couldn't be
+
+`test_paged_focus_is_never_silent.py` — falsified **5 ways**, each red on its own
+assertion: drop the arrival report · drop the restore report · revert the paged
+floor (reproduces the original defect) · read `layoutMode` instead of
+`resolvedMode` · drop `resolvedMode` from the dep array.
+
+⭐⭐⭐ **`test_adr522_focus_declaration.py` certified the defect's own shape.** Its
+assertion `"D5 document scope renders nothing (no finer grain to report)"` is
+true for Text/Strings and **false for a deck** — and every focus dict it builds
+already has `page_index` set, so it never exercised the state the incident was.
+Rationale corrected in place; the renderer assertion stays (it pins the RENDERER,
+and the declaration's obligation is now gated separately).
+
+⭐ Two gate defects found in the writing: a 2000-char lookback window
+false-flagged the restore call (proximity ≠ scope — now brace depth); and the
+runtime region is **inside a template literal**, so backticks in my comment
+terminated the string and broke the build. FE build green in an isolated
+worktree (HEAD + my 2 files); the first "failure" was a missing `.env.local`,
+not the change.
+
+## OWED
+
+- **Click-pass** (not driven in a browser): open a deck scrolled to a mid slide
+  WITHOUT scrolling, ask "split this slide", confirm the Editor names the right
+  one. The mechanism is gated; the browser path is not.
+- **Two index spaces feed one `page_index`** — `currentSlideIndex()` counts
+  `section.slide`; the pointer runtime's `pageIndexOf` counts
+  `STRUCTURAL_PAGE_SEL` (`'section.slide, :is(body, main, article) > section'`).
+  They agree on a pure deck and diverge on one bare `<section>` — so "slide 7"
+  could mean different slides depending on whether the member clicked or
+  scrolled. The rail uses the wide selector, the in-canvas `7 / 7` counter the
+  narrow one. Deliberately NOT bundled here: collapsing them touches the rail,
+  the stage counter and `arrangedPageAt`'s fallback ladder — a measured change.
+- **Block scope drops the slide** — `build_focus_line`'s block branch names the
+  block and never mentions `page_index`, though the FE populates it. A real gap,
+  but a grain-composition question, not this viewport one.
+- **Page scope sends no id** — `StudioSurface.tsx` hardcodes `id: null` for page
+  grain, yet pages carry `data-block-id` since ADR-519. The one grain that gets a
+  number gets no stable address — the same position-vs-identity failure
+  `3abfe20` closed inside `artifactOps`.

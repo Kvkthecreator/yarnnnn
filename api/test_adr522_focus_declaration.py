@@ -57,7 +57,13 @@ check("D5 empty declaration renders nothing",
       build_focus_line(None, "deck") == ""
       and _compose_focus_section("operation/q3/deck.html", DECK, None) == "")
 check(
-    "D5 document scope renders nothing (no finer grain to report)",
+    # The rationale is TRUE for a surface with no page unit (Text's flow
+    # document, a Strings desk — both hardcode viewport: null) and FALSE for a
+    # paged one, where a slide is always on screen. This assertion pins the
+    # RENDERER's behaviour only; that a paged surface must never REACH this
+    # scope is the declaration's obligation, gated in
+    # test_paged_focus_is_never_silent.py.
+    "D5 document scope renders nothing (the declarer had no finer grain)",
     build_focus_line({"scope": "document", "label": "deck"}, "deck") == "",
 )
 # ── 1b. ADR-606 D2 — on a bound lane the BINDING is the authority ───────────
