@@ -102,6 +102,15 @@ if isinstance(msg, dict):
     check("1c the text part NAMES the file (an unlabelled image is ambiguous "
           "when a turn read several)",
           "photo.png" in msg["content"][0]["text"])
+    # ⭐ FROM THE 2026-08-31 CLICK-PASS. The model described the picture
+    # correctly and then thanked the member for "pasting the render through" —
+    # nobody had pasted anything. An image part on a `user` message reads as
+    # something the HUMAN handed over, because that is the only way one ever
+    # arrived before this ADR. The label must name the TOOL as its source or
+    # the model's account of its own turn is false.
+    check("1c2 the label says the image came from the READ, not from the member",
+          "ReadFile" in msg["content"][0]["text"]
+          and "not something the member attached" in msg["content"][0]["text"])
     check("1d the image rides a URL, never base64 in the payload",
           msg["content"][1]["image_url"]["url"] == _MINTED
           and "base64" not in str(msg))

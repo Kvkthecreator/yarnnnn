@@ -1322,7 +1322,19 @@ def image_part_for_tool_result(auth: Any, model: str, name: str, result: Any) ->
             # Name the file in the same breath as the pixels. Without this the
             # model holds an unlabelled image and, in a turn that read several,
             # cannot say which one it is looking at.
-            {"type": "text", "text": f"[Contents of {leaf} — the file you just read]"},
+            #
+            # ⚠️ AND SAY WHERE IT CAME FROM. The 2026-08-31 click-pass caught the
+            # cost of leaving that implicit: the model described the picture
+            # correctly and thanked the member for "pasting the render through"
+            # — nobody had pasted anything. An image part arriving on a `user`
+            # message reads as something the HUMAN handed over, because that is
+            # the only way one ever arrived before. Naming the tool as the
+            # source keeps the model's account of the turn true.
+            {"type": "text", "text": (
+                f"[{leaf} — rendered from the workspace file your ReadFile call "
+                "just returned. This is the file's own content, not something "
+                "the member attached.]"
+            )},
             {"type": "image_url", "image_url": {"url": url}},
         ],
     }
