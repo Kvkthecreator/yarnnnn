@@ -142,6 +142,17 @@ Returns `found`, the canonical `reference` handle (ADR-512 D5), `path`,
 `history` the verb has those). A miss is a miss: `found: false`, never a
 search fallback.
 
+**A binary file is not an empty file** (ADR-621 D1). An image, PDF, video or
+font stores bytes in the CAS and `''` in the text denorm, so before ADR-621
+`open` answered a 902,508-byte PNG with `content: ""`, `content_chars: 0` and
+`complete_for_write: true` — indistinguishable from an empty file, and a
+data-loss door into `save`. Now it answers `found: true` **plus `binary: true`**,
+`content: null`, `content_type`, `byte_size`, `complete_for_write: false`, and a
+short-lived object-scoped `content_url` (ADR-427 D4, ~1h) that serves the actual
+bytes. `found` is `true` deliberately — the file exists and is addressable; it is
+simply not readable *as text*. Attribution and `history` ride the binary answer
+exactly as they do for text.
+
 **A large file is paged, not lost.** `truncated: true` always carries
 `next_offset`; call again until it is false. This is the same continuation
 `list` has had since ADR-545 D3 — `open` simply never got it, and the cap's
@@ -186,7 +197,11 @@ list(
 
 Returns `files` — every matching file, ordered by path, each with `path`
 (workspace-relative), `reference` (open-able handle), `bytes`, `last_updated`,
-and the resolved head author. `since` is the CHANGE FEED: "what moved since I
+and the resolved head author. A binary row additionally carries `binary: true` +
+`content_type`, and its `bytes` is the **blob's** size — before ADR-621 D4 it
+reported the empty text denorm's `0`, which is where a caller chooses which file
+to open. The head's blob is joined into the one listing query, never probed per
+row (ADR-339). `since` is the CHANGE FEED: "what moved since I
 was last here" in one call — the asynchronous multi-principal coordination
 primitive. `truncated: true` + `next_offset` page the rest. The listing is
 real enumeration, not inference; reads are workspace-scoped, so a member or
@@ -230,6 +245,16 @@ Read-before-write is the contract (ADR-512 §8a): an existing file requires
 `stale_write` with who holds the head — re-open, merge, save again. Omit
 `base_revision` only to create. Returns the new head `revision_id` so a
 follow-up save can chain.
+
+**`save` writes TEXT, and refuses a binary head** (ADR-621 D3). Writing text over
+an image/PDF/video replaces its bytes with text and destroys the file, so it
+returns `binary_file_not_writable` naming the type and size. **`confirm_full_replace`
+cannot override this** — that flag states *intent* ("I mean to replace the whole
+file"), while this refusal is about *capability*: the text lane cannot represent
+those bytes, so no version of the write preserves them, and an intent flag must
+never confirm an impossibility. Replacing a binary file is an **upload**, which is
+the workspace file surface's job; binary write through MCP is closed on the
+medium (ADR-621 D5 — base64 through a token stream is measured to corrupt).
 
 **The citation ruling reaches the write doors (ADR-617 D4).** *A cited object's
 content is projected from its source; it is never authored inside the document*

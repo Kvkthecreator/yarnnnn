@@ -394,7 +394,12 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
         "read an EXACT file when you have its reference (a yarnnn://workspace/… "
         "handle or a workspace-relative path, e.g. one the user pasted). Returns "
         "the current content + who last changed it + recent attributed "
-        "revisions. Exact means exact: open never guesses — use search or list.",
+        "revisions. Exact means exact: open never guesses — use search or list. "
+        # ADR-621 D1 — the caller is TOLD the binary case, so it never has to
+        # infer it from an empty body (which is what it used to receive).
+        "A binary file (image, PDF, video, font) answers `binary: true` with its "
+        "type, size and a short-lived `content_url` instead of text — it has "
+        "bytes, not content, and it is never empty.",
     ),
     (
         "list",
@@ -416,7 +421,12 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
         "creating, or rewriting wholesale. Read-before-write: pass "
         "base_revision from open; a stale_write means someone changed it since "
         "— re-open, merge, save again. Cite sources with derived_from. For a "
-        "targeted change to an existing file, prefer edit.",
+        "targeted change to an existing file, prefer edit. "
+        # ADR-621 D3 — say it at the door. `save` writes TEXT; a caller that
+        # learns this only from a refusal has already composed the write.
+        "save writes text: it cannot create or replace a binary file (image, "
+        "PDF, video), and writing over one is refused rather than destroying "
+        "its bytes.",
     ),
     (
         "edit",

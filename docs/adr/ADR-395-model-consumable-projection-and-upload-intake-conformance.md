@@ -83,6 +83,31 @@ Today the upload writes **extracted text** to `/workspace/uploads/{slug}.md` and
 
 **NEW in C**: the `can_fetch_signed_urls` flag + helper, the `resource_link` assembly in `_present`, and surfacing `content_url` through recall/trace. **All host-gated and text-safe by default — a host that fails the gate is unaffected.** (The service-level `create_signed_url_for_storage_path` helper C planned for was **already built in Phase 1** — Piece A's stable blob route reuses it — so C's remaining scope shrank.)
 
+### ⚠️ Piece C is CLOSED (2026-08-31, ADR-621) — read this before the deferral below
+
+**The deferral rationale that follows is preserved as written, but Piece C is no
+longer open.** [ADR-621](ADR-621-a-binary-file-is-not-an-empty-file.md) resolves
+it in both directions:
+
+- **Read side — SHIPPED, in a better shape than C specified.** C proposed a
+  host-gated `resource_link` in `_present()`. That shape is refused: Anthropic's
+  MCP connector throws `UnsupportedMCPValueError` on resource links, and
+  `ImageContent` requires base64. The raw reference ships instead as a plain
+  `content_url` field on `open` (ADR-621 D2) — **ungated**, because plain JSON
+  needs no host capability, which is what C's `can_fetch_signed_urls` flag
+  existed to negotiate. **The `HostProfile` flag is NOT built and should not be:
+  there is nothing left for it to gate.**
+- **Write side — CLOSED on the medium.** C's unblock condition was reason 4
+  below: *"a live fetch-and-auth test against a real host"*. That test has now
+  been run publicly — Box shipped base64-over-MCP, measured it corrupting a file
+  at 175 KB and failing outright at 20 MB, and replaced it with signed URLs. The
+  condition is met with a NEGATIVE result. Reason 3 ("no demonstrated demand")
+  has since been retired by a real operator need, but reason 4 is the stronger
+  one and does not expire.
+
+The reserved successor is a presigned **upload** handshake (ADR-621 §8) — its own
+ADR, not a revival of C.
+
 ### Piece C is DEFERRED — the explicit rationale (2026-07-01)
 
 C is **named-but-not-built**, and deliberately so — recorded here so it is not picked up prematurely:

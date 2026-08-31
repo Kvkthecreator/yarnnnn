@@ -786,6 +786,99 @@ INTERNAL_FAILURE_MESSAGE = (
 )
 
 
+def resolve_binary_head(auth: Any, abs_path: str) -> Optional[dict]:
+    """The binary fact about a path's head, or None when it is text (ADR-621 D1).
+
+    A binary revision's TEXT denorm is `''` BY CONTRACT (ADR-427 D4 — the bytes
+    live in the CAS, addressed by `blob_sha`). Every text-shaped reader that
+    does not ask this question therefore reports a 902KB PNG as an empty file:
+    `content: ''`, `content_chars: 0`, `success: true`. That is the ADR-373 D6
+    incorrect-success class — the caller cannot tell "empty file" from "bytes I
+    did not represent", which is the one distinction it needs to act correctly.
+
+    ⭐ ONE resolver, both doors. `open` needs it to answer honestly and `save`
+    needs it to REFUSE (a whole-file text save over a binary head writes an
+    empty text revision at the head of a binary chain — the corruption class
+    ADR-427's own implementation notes record as already fixed once, in
+    `routes/documents.py`). Two readers of one fact must share one resolver, or
+    they drift and only one door stays honest.
+
+    This is the interop twin of `primitives/workspace._binary_file_notice` (the
+    kernel's ReadFile answer). It is deliberately NOT a call into that one: the
+    kernel notice composes a ReadFile RESULT (its own scope filter, its own
+    envelope), while this returns the raw FACT for two different envelopes to
+    dress. Same question, same substrate columns, different answers owed.
+
+    Returns `{content_type, byte_size, blob_sha}` for a binary head, else None.
+    Never raises — legibility must not be able to break a read.
+    """
+    try:
+        rows = (
+            auth.client.table("workspace_files")
+            .select("content_type, head_version_id")
+            .eq(*_substrate_scope(auth))
+            .eq("path", abs_path)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not rows or not rows[0].get("head_version_id"):
+            return None
+        head = (
+            auth.client.table("workspace_file_versions")
+            .select("blob_sha, workspace_blobs(storage_key, byte_size)")
+            .eq("id", rows[0]["head_version_id"])
+            .limit(1)
+            .execute()
+        ).data or []
+        if not head:
+            return None
+        blob = head[0].get("workspace_blobs") or {}
+        # `storage_key` IS the discriminator: the CAS lane sets it, the inline
+        # text lane leaves it NULL. Not `content == ''` — a genuinely empty text
+        # file is a real thing and must stay a real thing.
+        if not isinstance(blob, dict) or not blob.get("storage_key"):
+            return None
+        return {
+            "content_type": rows[0].get("content_type") or "application/octet-stream",
+            "byte_size": blob.get("byte_size"),
+            "blob_sha": head[0].get("blob_sha"),
+        }
+    except Exception as exc:  # noqa: BLE001 — never break a read to describe it
+        logger.debug("[MCP] binary-head probe failed for %s: %s", abs_path, exc)
+        return None
+
+
+def mint_binary_url(auth: Any, blob_sha: Optional[str]) -> Optional[str]:
+    """A short-lived, object-scoped URL for a binary head's bytes (ADR-621 D2).
+
+    ADR-427 D4: the serving URL is a MINTED CAPABILITY, never stored state — its
+    authority, expiry and object-scope are computed per request. This is the
+    same `mint_serving_url` the browser file surface and lane vision attachments
+    already redeem; the interop surface is simply the third caller.
+
+    Why a URL and not the bytes: base64 through a token stream is measured to
+    corrupt (Box, at 175KB), inflates ~33%, and the MCP control plane is not a
+    data plane (ADR-427 §4a). The bytes go around the wire, never through it.
+
+    Returns None when the driver serves no out-of-band URL, or on any failure —
+    the caller still gets an honest binary answer, just without the fetch.
+    """
+    if not blob_sha:
+        return None
+    try:
+        from services.storage_backend import get_storage_backend
+        from services.supabase import get_service_client
+
+        return get_storage_backend(get_service_client()).mint_serving_url(
+            blob_sha,
+            expires_in=3600,
+            workspace_id=getattr(auth, "workspace_id", None),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[MCP] serving-URL mint failed: %s", exc)
+        return None
+
+
 def parse_file_reference(reference: Optional[str]) -> Optional[str]:
     """Normalize a cross-boundary file reference to a workspace-relative path.
 
@@ -1074,6 +1167,85 @@ async def compose_open(
             ),
         }
 
+    # ADR-621 D1 — A BINARY FILE IS NOT AN EMPTY FILE.
+    #
+    # The text denorm is `''` by contract for a CAS-backed head (ADR-427 D4), so
+    # without this branch `open` answered a 902,508-byte PNG with
+    # `content: '', content_chars: 0, complete_for_write: true` — success, found,
+    # and every machine-readable field saying the file is empty. Measured live
+    # against `marketing/assets/chatgpt-image-aug-20-2026-…png` before the fix.
+    #
+    # `found: true` is CORRECT here and deliberate (unlike the folder branch
+    # above, which returns found: false because a folder is not a file at all).
+    # The file exists, it is readable, and the caller can act on it — it simply
+    # is not readable AS TEXT. Saying found:false would trade one wrong answer
+    # for another, and would send a caller hunting for a file that is right there.
+    #
+    # `complete_for_write: false` is the load-bearing field: it is the signature
+    # a caller uses for "I hold the whole file", and answering true over bytes
+    # never sent is what made `save` a data-loss door (`compose_save` refuses
+    # this case outright now — the guard, not this notice, is what protects it).
+    binary = resolve_binary_head(auth, abs_path)
+    if binary:
+        url = mint_binary_url(auth, binary.get("blob_sha"))
+        size = binary.get("byte_size")
+        out = {
+            "success": True, "found": True, "binary": True,
+            "reference": format_file_reference(rel), "path": abs_path,
+            "content": None,
+            "content_type": binary["content_type"],
+            "byte_size": size,
+            "content_chars": 0,
+            "stored_chars": 0,
+            "truncated": False,
+            "complete_for_write": False,
+            "citations": [],
+            "last_updated": rows[0].get("updated_at"),
+            "explanation": (
+                f"`{rel}` is a binary file ({binary['content_type']}"
+                + (f", {size:,} bytes" if size else "")
+                + ") — its bytes are stored in the workspace, not its text, so "
+                "there is nothing to read as text. This is NOT an empty file. "
+                + (
+                    "Fetch the bytes from `content_url` below (a short-lived "
+                    "link, ~1 hour); it is the file itself, not a preview. "
+                    if url else
+                    "Its bytes are served through the workspace file surface. "
+                )
+                + "`save` cannot write this file — a text write would destroy "
+                "the bytes, and is refused. You can still move, rename, delete "
+                "and read the history of it."
+            ),
+        }
+        if url:
+            out["content_url"] = url
+        # Attribution rides the read exactly as it does for text (ADR-311 D3) —
+        # a binary file has authorship and history like any other file, and the
+        # provenance is the thing a plain storage connector cannot show.
+        try:
+            lr = await execute_primitive(
+                auth, "ListRevisions",
+                {"path": abs_path, "limit": max(1, min(int(revisions or 5), 10))},
+            )
+            revs = lr.get("revisions") or []
+            from services.principal_display import classify_author
+            names = _display_authors(auth, revs)
+            out["history"] = [
+                {
+                    "authored_by": names[i],
+                    "author_class": classify_author(rev.get("authored_by")),
+                    "when": rev.get("created_at"),
+                    "change": rev.get("message"),
+                    "revision_id": rev.get("id"),
+                }
+                for i, rev in enumerate(revs)
+            ]
+            out["returned"] = len(out["history"])
+            out["authored_by"] = out["history"][0]["authored_by"] if out["history"] else None
+        except Exception as exc:  # noqa: BLE001 — history never breaks the read
+            logger.debug("[MCP] binary revision summary failed (non-fatal): %s", exc)
+        return out
+
     content = rows[0].get("content") or ""
 
     # ADR-574 §4 — THE CHEAPEST REPAIR, TAKEN. A Studio artifact inlines its
@@ -1275,8 +1447,14 @@ async def compose_list(
         q = (
             auth.client.table("workspace_files")
             .select(
+                # ADR-621 D1: the head's blob carries `storage_key` (the binary
+                # discriminator) + the true `byte_size`. Joined here rather than
+                # probed per row — a listing is N files and must stay ONE round
+                # trip (the ADR-339 perception-economics rule).
                 "path, content_bytes, updated_at, content_type, "
-                "workspace_file_versions!head_version_id(authored_by, author_identity_uuid, created_at)"
+                "workspace_file_versions!head_version_id("
+                "authored_by, author_identity_uuid, created_at, "
+                "workspace_blobs(storage_key, byte_size))"
             )
             .eq(*_substrate_scope(auth))
             .like("path", f"{abs_prefix}%")
@@ -1313,14 +1491,25 @@ async def compose_list(
         head = heads[i]
         p = r.get("path") or ""
         rel_path = p[len("/workspace/"):] if p.startswith("/workspace/") else p
-        files.append({
+        # ADR-621 D1 — a binary row reported `bytes: 0` here, the same lie
+        # `open` told: the text denorm is empty by contract while the blob holds
+        # the real size. A listing is where a caller decides WHICH file to open,
+        # so an unmarked 0 sends it to open a file it cannot read as text and
+        # cannot tell apart from an empty one. Mark it, and give it its size.
+        blob = (head.get("workspace_blobs") or {}) if isinstance(head, dict) else {}
+        is_binary = bool(isinstance(blob, dict) and blob.get("storage_key"))
+        entry = {
             "path": rel_path,
             "reference": format_file_reference(rel_path),
-            "bytes": r.get("content_bytes"),
+            "bytes": (blob.get("byte_size") if is_binary else r.get("content_bytes")),
             "last_updated": head.get("created_at") or r.get("updated_at"),
             "authored_by": author_display[i] if head else None,
             "author_class": classify_author(head.get("authored_by")) if head else None,
-        })
+        }
+        if is_binary:
+            entry["binary"] = True
+            entry["content_type"] = r.get("content_type") or "application/octet-stream"
+        files.append(entry)
 
     # ADR-588 D2, display half: the participant was TOLD "Documents"/"Downloads"
     # — answer in the vocabulary we taught, not the kernel root. Prose only; the
@@ -1684,6 +1873,52 @@ async def compose_save(
             ),
             "reference": format_file_reference(rel),
         }
+
+    # ⭐⭐⭐ ADR-621 D3 — A TEXT SAVE OVER BINARY BYTES IS DESTRUCTION, NOT AN EDIT.
+    #
+    # This is the live data-loss path the ADR-621 audit found, and it is checked
+    # FIRST because it is the only refusal here that prevents an irreversible
+    # loss of content the caller never held.
+    #
+    # Every other guard on this door was blind to it: the ADR-545 D4 size guard
+    # reads `content_bytes`, which is 0 for a CAS-backed head (the bytes are in
+    # the blob, not the denorm), so `0 > OPEN_CONTENT_CAP` is False and it waves
+    # the write through. The elision guard keys on a marker only artifacts carry.
+    # And before ADR-621 D1, `open` reported `complete_for_write: true` on that
+    # same file — so a caller following the documented read-before-write contract
+    # exactly would arrive here holding `''` and believing it held the file.
+    #
+    # ⚠️ NOT overridable by `confirm_full_replace`. That flag says "I mean to
+    # replace the whole file" — a statement of INTENT. This is a statement about
+    # CAPABILITY: the text lane cannot represent these bytes at all, so there is
+    # no version of this write that preserves them. An intent flag must never be
+    # able to confirm an impossibility. (Same reasoning as the elision guard
+    # above, one step stronger: that one is unreadable content, this one is
+    # unrepresentable content.)
+    #
+    # Replacing a binary file is a real thing an operator may want — it is an
+    # UPLOAD, which is the browser file surface's job today, not a text verb's.
+    if head:
+        binary_head = resolve_binary_head(auth, abs_path)
+        if binary_head:
+            size = binary_head.get("byte_size")
+            return {
+                "success": False, "error": "binary_file_not_writable",
+                "message": (
+                    f"`{rel}` is a binary file ({binary_head['content_type']}"
+                    + (f", {size:,} bytes" if size else "")
+                    + ") — `save` writes text, so saving would replace its bytes "
+                    "with text and destroy the file. This is refused, and "
+                    "confirm_full_replace cannot override it. Open it to read its "
+                    "type, size and history; move, rename or delete it if that is "
+                    "what you meant. To replace the bytes, the file has to be "
+                    "uploaded through the workspace file surface."
+                ),
+                "reference": format_file_reference(rel),
+                "binary": True,
+                "content_type": binary_head["content_type"],
+                "byte_size": size,
+            }
 
     # ADR-545 D4 — the honest save (truncation guard). A whole-file save over a
     # file larger than one `open` page is the read-truncated/save-back data-loss

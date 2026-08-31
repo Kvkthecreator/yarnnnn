@@ -54,20 +54,30 @@ CLASSIFICATION: dict[str, str] = {
     "services/primitives/workspace.py": "binary-aware",     # ReadFile answers with the binary notice; exact-search snippets '' harmlessly
     "routes/workspace.py": "binary-aware",                  # GET /file mints the serving URL for a binary head (D4)
     "routes/documents.py": "binary-aware",                  # the ADR-395 raw lane; raw rows always had '' content
+    "routes/shares.py": "binary-aware",                     # project_for_machine (ADR-530 D1) decides readability; a non-text share is never emitted as text
+    # ⭐⭐⭐ ADR-621 — RECLASSIFIED from "safe-on-empty", which was true when
+    # written and became false without anyone editing this line. The reason then
+    # ("recall/compose: an empty body contributes nothing") described a file that
+    # composed SUPPORTING context. ADR-543/545 rebuilt it into `open` — the
+    # primary EXTERNAL READ DOOR — where an empty body does not contribute
+    # nothing, it IS the whole answer. The classification never moved with the
+    # file's job, so a 902,508-byte PNG read back as `content: '', success: true`
+    # for every connected LLM. The lesson generalizes: this map classifies what a
+    # reader DOES, and a reader whose job changes must be re-asked, not inherited.
+    "services/mcp_composition.py": "binary-aware",          # resolve_binary_head: open answers + save REFUSES (ADR-621 D1/D3)
     # -- safe-on-empty --
     "services/workspace.py": "safe-on-empty",               # generic read layer returns ''; the primitive layer adds the notice
-    "services/mcp_composition.py": "safe-on-empty",         # recall/compose: an empty body contributes nothing
     "services/wake.py": "safe-on-empty",                    # embed sweep: is_embed_eligible rejects empty
     "services/wake_sources/substrate_event.py": "safe-on-empty",  # parent-content diff guard; ''→'' fires no transition
     "services/primitives/embed.py": "safe-on-empty",        # eligibility rejects empty content
     "routes/feed.py": "safe-on-empty",                      # workspace read renders ''; session_messages selects are non-substrate
     "routes/studio.py": "safe-on-empty",                    # opens .html artifacts; a binary head renders empty, never crashes
     "routes/images.py": "safe-on-empty",                    # compose/render read the stage .html; '' fails the data-template check → 422, never a crash or a silent bad compose
-    "services/connector_retention.py": "safe-on-empty",     # citation scan of capture files; '' has no citations
     "services/design_systems.py": "safe-on-empty",          # css/html text sources; '' skipped
+    "services/folder_organize.py": "safe-on-empty",         # fan-out moves rows by PATH; content rides along untouched, never parsed
     # -- text-only-by-contract (fixed authored-text paths) --
-    "services/agents_registry.py": "text-only-by-contract",     # agents/*.md roster files
-    "services/working_memory.py": "text-only-by-contract",      # compact-index md; session/agent_runs selects are non-substrate
+    "services/strings.py": "text-only-by-contract",             # _string.yaml + contract leaves — declaration files, path-pinned
+    "routes/strings.py": "text-only-by-contract",               # the same declaration + contract leaves, read for the desk
     "services/review_policy.py": "text-only-by-contract",       # governance yaml
     "services/budget.py": "text-only-by-contract",              # governance/_budget.yaml
     "services/risk_gate.py": "text-only-by-contract",           # trader governance yaml
@@ -97,7 +107,6 @@ CLASSIFICATION: dict[str, str] = {
     "services/outcomes/operator.py": "text-only-by-contract",
     "routes/alpha_trader.py": "text-only-by-contract",          # trader md/yaml
     "routes/sources.py": "text-only-by-contract",               # _watch.yaml
-    "routes/agents.py": "text-only-by-contract",                # agent md files
     # -- non-substrate --
     "routes/lanes.py": "non-substrate",                         # session_messages content
 }
