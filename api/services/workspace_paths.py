@@ -322,8 +322,21 @@ WORKSPACE_ROOTS: dict[str, dict] = {
     "agents": {
         "display_name": "Agents",
         "semantic_class": "agents",
+        # ⚠️ `group: "system"` folds this root under the explorer's collapsed
+        # "System files" disclosure, so a being's home is not visible in the
+        # Files spine until that is expanded. Correct while the root held only
+        # ADR-414 kernel residue; QUESTIONABLE since ADR-624 D1 made
+        # `agents/{slug}/memory/` a place the member is invited to read and
+        # correct (the being's page says exactly that). The being's page links
+        # straight in, so the door works — but a member BROWSING Files will not
+        # find it. Left as-is deliberately: regrouping changes the explorer
+        # spine for every workspace and interacts with the grant sidecars in
+        # the same folder (which ARE machine config and arguably belong
+        # hidden), so it is a scoped Files-taxonomy decision, not an ADR-624
+        # side effect. Driven + recorded:
+        # docs/evaluations/2026-08-31-adr624-agents-memory-click-pass-FINDING.md
         "group": "system",
-        "description": "Per-agent homes (the Rung-2 judgment seats, when present).",
+        "description": "Each agent's home — what it has learned, and the dials it runs under.",
         "icon": "users",
         "order": 54,
     },
