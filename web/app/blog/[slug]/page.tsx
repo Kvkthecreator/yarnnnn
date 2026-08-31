@@ -9,6 +9,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { ThemeShaderBackground } from "@/components/landing/ThemeShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getPostBySlug, getPostSlugs, getRelatedPosts, getSeriesPosts } from "@/lib/blog";
+import { BlogEmbed, splitPostContent } from "@/lib/blog-embeds";
 import { getBlogCategoryLabel } from "@/lib/blog-categories";
 import { BRAND } from "@/lib/metadata";
 
@@ -100,6 +101,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
   const authorName = getDisplayAuthor(post.author);
   const categoryLabel = getBlogCategoryLabel(post.category);
   const sectionHeadings = extractSectionHeadings(post.content);
+  const contentBlocks = splitPostContent(post.content);
   const relatedPosts = getRelatedPosts(post.slug, 3);
   const seriesPosts = post.series ? getSeriesPosts(post.series) : [];
   const seriesUrl = post.series ? `${BRAND.url}/blog` : undefined;
@@ -235,9 +237,23 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
               )}
             </section>
 
-            {/* Post content */}
-            <div className="prose prose-neutral dark:prose-invert prose-lg max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content}</ReactMarkdown>
+            {/* Post content — markdown runs, with landing proof components
+                interleaved wherever the body carries an `<!-- embed:Name -->`
+                sentinel (see lib/blog-embeds.tsx). A post with no sentinel
+                renders as one markdown run, exactly as before. */}
+            <div>
+              {contentBlocks.map((block, index) =>
+                block.type === "markdown" ? (
+                  <div
+                    key={index}
+                    className="prose prose-neutral dark:prose-invert prose-lg max-w-none"
+                  >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.value}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <BlogEmbed key={index} name={block.name} />
+                )
+              )}
             </div>
 
             {seriesPosts.length > 1 && (
