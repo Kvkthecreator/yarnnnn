@@ -2,6 +2,8 @@ import React from "react";
 import { Composition } from "remotion";
 import { ProductDemo } from "./compositions/ProductDemo";
 import { SocialClip } from "./compositions/SocialClip";
+import { CarouselFiles } from "./compositions/CarouselFiles";
+import { CarouselHub } from "./compositions/CarouselHub";
 import {
   Ad_WorksWhileYouSleep,
   Ad_FirstAIEmployee,
@@ -37,6 +39,23 @@ export const RemotionRoot: React.FC = () => {
         durationInFrames={12 * FPS}
         fps={FPS}
         {...PORTRAIT}
+      />
+
+      {/* ── Carousel proof slides (square, 8s) — composed product replicas ── */}
+      <Composition
+        id="carousel-files"
+        component={CarouselFiles}
+        durationInFrames={8 * FPS}
+        fps={FPS}
+        {...SQUARE}
+      />
+
+      <Composition
+        id="carousel-hub"
+        component={CarouselHub}
+        durationInFrames={6 * FPS}
+        fps={FPS}
+        {...SQUARE}
       />
 
       {/* ── Ad Spots (square, 6s each — match existing Frame assets) ── */}
