@@ -134,9 +134,16 @@ def test_kernel_surfaces_module() -> None:
         # KERNEL_SURFACE_SLUGS allowlist, where it protected its own route by
         # accident; both were corrected together (it is hand-listed in the
         # middleware stub block, where every other row-less stub lives).
-        "mandate",
-        "principles",
-        "identity",
+        # `mandate` / `principles` / `identity` DELETED (ADR-624 D5,
+        # 2026-08-31) together with `expected-output`. They were the four
+        # PER-AGENT reservations: routeless document rows carrying "dormant
+        # until the per-agent FE (ADR-382)" since 2026-07-08, describing the
+        # ADR-414 hired agent — a model with zero instances. ADR-624 D1 decided
+        # those concepts do not live on a being at all (purpose and clock are
+        # declarations, judgment rules are gates plus the app's job overlay,
+        # character is the register's `posture`), so the rows are deleted
+        # rather than left reserved. The redirect stubs and their middleware
+        # entries survive, so bookmarks still land.
         # ADR-309: `brand` deleted — Identity surface owns Brand.
         "files",
         "agents",
@@ -181,6 +188,18 @@ def test_kernel_surfaces_module() -> None:
         "chat-composer" not in slugs,
         "D16: `chat-composer` kernel surface absent (replaced by `chat-drawer`)",
     )
+    # ADR-624 D5: the four PER-AGENT reservations stay deleted. Inverted guard,
+    # following this file's own precedent for every other retired slug (`dock`,
+    # `pace`, `chat-composer`): re-adding a routeless row for a surface ADR-624
+    # declined to build should have to argue with a red gate rather than arrive
+    # as a registry addition.
+    for _retired in ("identity", "mandate", "principles", "expected-output"):
+        _assert(
+            _retired not in slugs,
+            f"ADR-624 D5: `{_retired}` kernel surface absent "
+            "(a per-agent reservation, not a surface)",
+        )
+
     actual = set(slugs)
     missing = expected_slugs - actual
     _assert(

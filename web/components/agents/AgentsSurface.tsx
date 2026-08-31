@@ -124,6 +124,10 @@ type Being = {
   /** The engine behind the name (ADR-460 D4). Served so the page can say what
    *  actually runs this being rather than implying it. */
   model?: string;
+  /** ADR-624 D4 — WHERE what this being knows lives. An ADDRESS, never the
+   *  contents: memory is ordinary substrate, so the page opens the Files door
+   *  rather than hosting a second reading face (ADR-595 D1, one surface out). */
+  memory_path?: string;
 };
 
 // The connector scoping control (ADR-612, defaults settled by ADR-615). Three
@@ -267,6 +271,12 @@ function BeingDetail({
   onScope: (slug: string, platforms: string[] | null) => Promise<void>;
   onBack: () => void;
 }) {
+  // The Files door for the Memory row — the SAME `navigateToSurface('files',
+  // { path })` the Strings desk opens its subject with, so a being's memory
+  // lands in the one place files are read.
+  const { navigateToSurface } = useSurfacePreferences();
+  // Bound outside the closure so the narrowing survives into the handler.
+  const memoryPath = being.memory_path ?? '';
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <button
@@ -316,6 +326,28 @@ function BeingDetail({
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 text-muted-foreground">Runs on</dt>
             <dd className="break-all">{being.model}</dd>
+          </div>
+        )}
+        {/* ADR-624 D4 — what this being has learned. The row is an ADDRESS and
+            a DOOR, never a viewer: memory is ordinary substrate, so it opens in
+            Files like any other folder. A private renderer here would be the
+            second reading face ADR-595 D1 deleted a canvas to avoid. */}
+        {being.memory_path && (
+          <div className="flex gap-3">
+            <dt className="w-24 shrink-0 text-muted-foreground">Memory</dt>
+            <dd className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => navigateToSurface('files', { path: memoryPath })}
+                className="text-left underline underline-offset-2 hover:text-foreground"
+              >
+                What {being.name} has learned
+              </button>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                Kept as ordinary files in the workspace — attributed, versioned,
+                and yours to read or correct.
+              </p>
+            </dd>
           </div>
         )}
         <div className="flex gap-3">

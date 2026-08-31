@@ -132,7 +132,17 @@ _CLASSES = ["operator", "freddie", "mcp", "agent", "system"]
 
 def test_fallback_identity_no_grant_row_is_byte_identical(monkeypatch):
     """No grant row at all → _is_path_locked_for_principal == _is_path_locked
-    for every caller-class × path. This is the pre-consult world, unchanged."""
+    for every caller-class × path. This is the pre-consult world, unchanged.
+
+    ONE declared exception, added by ADR-624 D3 (2026-08-31): a being writes
+    freely in its OWN home and nowhere else under `agents/`. Confinement is a
+    property of the PRINCIPAL (which being is calling), so it can only live in
+    the principal-aware gate — `_is_path_locked` takes a caller CLASS and
+    cannot express it. Byte-identity therefore holds everywhere EXCEPT an
+    agent-class caller reaching a foreign agent home, and the exception is
+    asserted below rather than papered over: the invariant is still exact, it
+    simply now has a named carve with a test of its own.
+    """
     _patch_grant(monkeypatch, [])  # zero rows
     for klass in _CLASSES:
         ci = {
@@ -147,10 +157,48 @@ def test_fallback_identity_no_grant_row_is_byte_identical(monkeypatch):
         for path in _SAMPLE_PATHS:
             expected = _is_path_locked(klass, path)
             actual = _is_path_locked_for_principal(auth, path)
+            # The ADR-624 D3 carve: `agent:research` is not `x`, so the foreign
+            # home is locked for the PRINCIPAL while the CLASS table (which
+            # has no agents/ prefix) says otherwise.
+            if klass == "agent" and path.startswith("agents/") and not expected:
+                assert actual is True, (
+                    f"ADR-624 D3: a being must be confined to its own home "
+                    f"(path={path} was not locked for a foreign agent caller)"
+                )
+                continue
             assert actual == expected, (
                 f"BYTE-IDENTITY VIOLATION (no-grant): class={klass} path={path} "
                 f"expected={expected} actual={actual}"
             )
+
+
+def test_adr624_confinement_is_the_only_byte_identity_carve(monkeypatch):
+    """The ADR-624 D3 carve is EXACTLY one shape, and it is not a widening.
+
+    Pins the carve so it cannot quietly grow: an agent-class caller in its OWN
+    home still matches the class table byte-for-byte, and every non-agent class
+    is untouched under `agents/` — only the foreign-home case diverges.
+    """
+    _patch_grant(monkeypatch, [])
+    own = _auth(caller_identity="agent:research")
+    own_path = "agents/research/memory/notes.md"
+    assert _is_path_locked_for_principal(own, own_path) == _is_path_locked("agent", own_path), (
+        "a being in its OWN home must still match the class table — the carve "
+        "is for FOREIGN homes only"
+    )
+
+    foreign = "agents/other/memory/notes.md"
+    for klass, ci in (
+        ("operator", "operator"),
+        ("freddie", "freddie:ai:test"),
+        ("mcp", "yarnnn:mcp:claude.ai"),
+        ("system", "system:reconciler"),
+    ):
+        auth = _auth(caller_identity=ci, freddie_caller=(klass == "freddie"))
+        assert _is_path_locked_for_principal(auth, foreign) == _is_path_locked(klass, foreign), (
+            f"ADR-624 D3 must not reach the {klass} class — confinement is an "
+            "agent-class rule only"
+        )
 
 
 def test_fallback_identity_null_scopes_is_byte_identical(monkeypatch):

@@ -92,8 +92,8 @@ The altitude table drew three real distinctions. They survive — as **recurring
 | Fact-cluster | Cardinality | Path shape |
 |---|---|---|
 | System agent (Freddie) | one per workspace | **No persona path** — kernel constants + `governance/_autonomy.yaml` + `governance/_budget.yaml` (ADR-414 D2) |
-| Judgment agent / domain Agent | zero-to-many | `agents/{slug}/` — home carries the full ADR-383 file set (+ `skills/*.md`, ADR-464) |
-| Member hands — base agents | the kernel beings (ADR-600: ONE register, `agents_registry.AGENTS`; `KERNEL_AGENTS` is deleted) | **kernel constants** — not member-owned |
+| A BEING's home (ADR-624) | one per being | `agents/{slug}/` — **exactly two things**: `memory/` (what it KNOWS — freely writable by that being, ordinary substrate) and the grant sidecars `_autonomy.yaml` + `_budget.yaml` (locked). ⚠️ The ADR-414 twelve-file set (IDENTITY/MANDATE/principles/_expected_output/standing_intent/…) is **DELETED, not dormant** — ten of those put authority, a clock, purpose or per-desk judgment on a being, which ADR-596 D1 forbids and ADR-601's many-to-one breaks (one MANDATE cannot hold Editor's purpose at both Slides and Text). |
+| Member hands — base agents | the kernel beings (ADR-600: ONE register, `agents_registry.AGENTS`; `KERNEL_AGENTS` is deleted) | **kernel constants** — identity ⊕ character ⊕ engine. A being's home (above) holds what it LEARNS; the register holds what it IS. |
 | Member hands — named instances | **machinery DELETED (ADR-599 D2/D3)** — `based_on`, the manifests, and the make-one door are gone; a future member-authored being is `kernel: False` in the one register (ADR-601 D2) | (historical: `agents/{slug}/_agent.yaml`) |
 | Member hands — lanes | zero-to-many per member | none — transcripts are member-experience scope (`chat_sessions`); work lands in the commons |
 | Orchestration | n/a | `system/` accumulation only; never Identity-bearing |

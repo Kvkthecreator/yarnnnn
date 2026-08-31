@@ -42,10 +42,13 @@ IS the permission taxonomy — `access(2)` for the agent OS (Derived Principle 1
             _recent_execution.md.
             OS analog: /var/lib/{service} + /tmp.
 
-Plus agent substrate at `/workspace/agents/{slug}/`, ephemeral `/workspace/working/`,
+Plus per-being homes at `/workspace/agents/{slug}/`, ephemeral `/workspace/working/`,
 and user uploads at `/workspace/uploads/` — unchanged by ADR-320 (not part of the
-constitution/operation/governance cut; agents/ is per-agent, working/ ephemeral,
-uploads/ user-contributed reference material).
+constitution/operation/governance cut; agents/ is per-PRINCIPAL, working/ ephemeral,
+uploads/ user-contributed reference material). A being's home holds what it KNOWS
+(`memory/`, freely writable by that being) and the GRANTS it runs under (the locked
+sidecars) — nothing else (ADR-624 D1). Confinement is enforced at `_is_path_locked`
+alongside the sidecar rule, never at call sites.
 
 constitution/ + persona/ are the semantic-class roots for a workspace-level
 constitution — BUT under ADR-414 (pure genesis) + ADR-419 they are NO LONGER
@@ -92,30 +95,42 @@ UPLOADS_ROOT = "uploads/"
 
 
 # =============================================================================
-# Per-agent homes (ADR-414 D5/D6 — program-as-hire, the Altitude-3 substrate)
+# Per-agent homes (ADR-624 — the being's home; re-cutting ADR-414 D5/D6)
 # =============================================================================
-# A hired agent's file set lives in agents/{slug}/ — its persona, purpose,
-# rules, dials, contract, and working trail. The workspace-root seat paths
-# (persona/, constitution/, contract/) are the LEGACY steward-era layout: they
-# survive as the steward's interim working set (standing_intent/judgment_log
-# on a no-hire workspace) and on pre-ADR-414 workspaces; a hire never writes
-# them. Layout (ADR-414 §9a):
+# A being's home is a PRINCIPAL HOME, not a semantic root: the five roots above
+# answer *what a file MEANS*, this answers *whose it IS*. It holds exactly two
+# things (ADR-624 D1):
 #
 #   agents/{slug}/
-#     IDENTITY.md          — the persona
-#     MANDATE.md           — the agent's purpose (ADR-207 gate, per-agent)
-#     principles.md        — rules of judgment (prose)
-#     _principles.yaml     — machine thresholds
-#     AUTONOMY.md          — witness-dial prose
-#     _autonomy.yaml       — witness dial (GRANT SIDECAR — locked, ADR-366 per-agent)
-#     _budget.yaml         — ADR-391 allocation (GRANT SIDECAR — reserved, not yet shipped)
-#     _preferences.yaml    — deliverable-cadence preferences
-#     _expected_output.yaml— output contract (ADR-345)
-#     standing_intent.md   — forward working state
-#     judgment_log.md      — judgment lineage
-#     reflection.md        — interpreted learning
+#     memory/          — what the being has LEARNED. Freely writable BY THAT
+#                        BEING (ADR-624 D3), ordinary markdown, appended in the
+#                        moment of learning exactly as ADR-156 already has the
+#                        workspace write memory/notes.md. No parser, no schema:
+#                        it is substrate, so write_revision gives it append-only
+#                        history, attribution, revertibility and a reading face
+#                        for free. A dossier would have been a second home for
+#                        the thing the filesystem already is.
+#     _autonomy.yaml   — the witness dial it runs under.  GRANT SIDECAR — locked.
+#     _budget.yaml     — its allocation (reserved).        GRANT SIDECAR — locked.
 #
-# No OCCUPANT.md: the occupant fact is kernel data (ADR-414 D2).
+# THE RULE, whole: a being's home holds what it KNOWS (free) and the GRANTS it
+# runs under (locked). Nothing else.
+#
+# ⚠️ The ADR-414 twelve-file layout (IDENTITY/MANDATE/principles/_principles/
+# AUTONOMY/_preferences/_expected_output/standing_intent/judgment_log/
+# reflection) is DELETED, not dormant — ADR-624 D1. Ten of those files put
+# AUTHORITY, a CLOCK, PURPOSE or per-desk JUDGMENT on a being, which ADR-596 D1
+# forbids and ADR-601's many-to-one breaks (one MANDATE.md cannot hold Editor's
+# purpose at both Slides and Text). Each has a live home already: purpose and
+# clock in DECLARATIONS (app-named, so they survive a re-pairing), judgment
+# rules in GATES and the app's job overlay (agent-composition.md §3.2.1),
+# character in the register's `posture`, authority in GRANTS. IDENTITY.md went
+# as REDUNDANT rather than misplaced — the being already has a character, and
+# two homes for one fact is the ADR-562 drift. Do not reintroduce them here.
+#
+# The steward-era roots (persona/, constitution/, contract/) are untouched:
+# substrate is never deleted by a surface's retirement, and pre-ADR-414
+# workspaces keep reading them through Files.
 
 #: Grant-sidecar leaves within an agent home — the per-agent dials the agent
 #: itself must never author (a grant the grantee can rewrite is not a grant —
@@ -123,10 +138,27 @@ UPLOADS_ROOT = "uploads/"
 #: services/primitives/workspace.py enforces this for freddie/mcp/agent callers.
 AGENT_GRANT_SIDECAR_LEAVES = ("_autonomy.yaml", "_budget.yaml")
 
+#: The freely-writable subtree within a being's own home (ADR-624 D1/D2). Flat
+#: — NOT desk-scoped: a being serving several desks accumulates one memory, and
+#: it may subdivide its own folder without a schema change the day per-desk
+#: blur actually appears. Guessing that structure before the evidence is how
+#: the wrong axis gets abstracted.
+AGENT_MEMORY_DIRNAME = "memory/"
+
 
 def agent_home(slug: str) -> str:
-    """The hired agent's substrate home prefix (workspace-relative)."""
+    """The being's substrate home prefix (workspace-relative). ADR-624 D1."""
     return f"{AGENTS_ROOT}{slug}/"
+
+
+def agent_memory_root(slug: str) -> str:
+    """The being's freely-writable memory prefix (workspace-relative).
+
+    ADR-624 D1/D2 — what the being has learned. Ordinary substrate: no parser,
+    no schema, no bespoke writer. `WriteFile(mode="append")` reaches it exactly
+    as it reaches every other file.
+    """
+    return f"{agent_home(slug)}{AGENT_MEMORY_DIRNAME}"
 
 
 def is_agent_grant_sidecar(path: str) -> bool:
@@ -139,6 +171,29 @@ def is_agent_grant_sidecar(path: str) -> bool:
         return False
     leaf = rel.rsplit("/", 1)[-1]
     return leaf in AGENT_GRANT_SIDECAR_LEAVES
+
+
+def agent_home_owner(path: str) -> Optional[str]:
+    """The slug whose home `path` sits in, or None if it is not under agents/.
+
+    ADR-624 D3 — the read behind the confinement rule: a being writes freely in
+    its OWN home and nowhere else under `agents/`. Returns the slug so the gate
+    can compare it against the caller's; a bare `agents/` or a malformed path
+    yields None, which the gate treats as NOT-a-home rather than as everyone's.
+    """
+    rel = path.strip().lstrip("/")
+    if rel.startswith("workspace/"):
+        rel = rel[len("workspace/"):]
+    if not rel.startswith(AGENTS_ROOT):
+        return None
+    remainder = rel[len(AGENTS_ROOT):]
+    slug, sep, _rest = remainder.partition("/")
+    # `agents/editor` (no trailing segment) names no home — a file directly in
+    # agents/ is not inside anyone's. Requiring the separator keeps the rule
+    # exact rather than letting a stray leaf read as a home.
+    if not sep or not slug:
+        return None
+    return slug
 # The RAW intake lane (ADR-376 / FOUNDATIONS DP32 — the ledger-intake axiom).
 # Machine/external contributions land here as IMMUTABLE attributed raw
 # observations: inbound/{lane}/{selector}/{stamp}.{ext} — see

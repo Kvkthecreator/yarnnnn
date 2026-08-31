@@ -2540,6 +2540,59 @@ def _is_path_locked(caller_class: str, path: str) -> bool:
     return any(candidate.startswith(prefix) for prefix in locked_prefixes)
 
 
+def _caller_agent_slug(auth: Any) -> Optional[str]:
+    """The being's slug behind an `agent`-class caller, or None. ADR-624 D3.
+
+    Deliberately SEPARATE from `_caller_class`, which keeps its signature and
+    its five return values: the class answers *what kind of caller*, this
+    answers *which being* — merging them would make a five-value enum carry an
+    open set of slugs.
+
+    Reads the same `caller_identity` the class resolver reads
+    (`agent:{slug}` / `specialist:{slug}`). Returns None when the identity
+    carries no slug, which the confinement rule below treats as
+    LOCKED-EVERYWHERE rather than as unconfined (fail closed).
+    """
+    caller_identity = getattr(auth, "caller_identity", "") or ""
+    for prefix in ("agent:", "specialist:"):
+        if caller_identity.startswith(prefix):
+            slug = caller_identity[len(prefix):].strip()
+            # `agent:` with nothing after it names no being.
+            return slug or None
+    return None
+
+
+def _is_foreign_agent_home(auth: Any, caller_class: str, path: str) -> bool:
+    """True iff an agent-class caller is reaching into ANOTHER being's home.
+
+    ADR-624 D3 — a being writes freely in its OWN home and nowhere else under
+    `agents/`. Enforced HERE, at the same chokepoint as the sidecar rule, never
+    at call sites (the ADR-563 lesson).
+
+    Fails CLOSED: an agent-class caller whose slug cannot be resolved is locked
+    out of EVERY agent home rather than admitted to all of them — the safer
+    polarity, since the unresolvable case is a misconfigured identity, not a
+    privileged one.
+
+    ⚠️ Binds almost nothing today, and that is not a reason to skip it: a
+    lane's caller_identity is `member:{user_id} via {model}`, which
+    `_caller_class` maps to `operator` (ADR-411 D4 — a lane writes under the
+    MEMBER's grant). So a being writing its own memory is, today, a write the
+    MEMBER makes. Built before the writer for the ADR-601 D3 reason its sibling
+    `assert_editable` was: a protection written alongside the feature it
+    constrains is one that feature's author may forget.
+    """
+    if caller_class != "agent":
+        return False
+
+    from services.workspace_paths import agent_home_owner
+
+    owner = agent_home_owner(path)
+    if owner is None:  # not inside anyone's home — the root table decides.
+        return False
+    return owner != _caller_agent_slug(auth)
+
+
 # ---------------------------------------------------------------------------
 # ADR-373 D2/D3 — the per-principal grant-consult (2026-06-29)
 # ---------------------------------------------------------------------------
@@ -2803,6 +2856,18 @@ def _is_path_locked_for_principal(auth: Any, path: str) -> bool:
         if klass == "operator" and axes and axes.get("role"):
             from services.principals import role_class
             klass = role_class(axes.get("role")) or klass
+    else:
+        klass = _caller_class(auth)
+
+    # ADR-624 D3 — a being writes freely in its OWN home and nowhere else under
+    # agents/. Checked BEFORE the scope branch below, deliberately: a grant's
+    # write scopes NARROW a class (ADR-373 D3 polarity), and one naming
+    # `agents/` must not become the one way to reach another being's home.
+    # Confinement is a property of the PRINCIPAL, not of its region list.
+    if _is_foreign_agent_home(auth, klass, path):
+        return True
+
+    if write_scopes is None:
         return _is_path_locked(klass, path)
     # Explicit allow-list ([] = deny-all handled by the matcher: nothing matches).
     return not path_under_scopes(path, write_scopes)

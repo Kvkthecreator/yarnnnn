@@ -537,8 +537,19 @@ export const api = {
          *  this is who EXISTS. `kernel` = yarnnn authored it (rendered from
          *  the FIELD, never inferred from absence). `homes` is a LIST —
          *  many-to-one is ordinary, and empty means it serves no desk. */
+        /*  ADR-624: `home_titles`, `desks` and `memory_path` were SERVED but
+         *  undeclared here — the surface re-declared them locally, so one shape
+         *  had two homes and the client type was the stale one. Declared once,
+         *  here, where every consumer reads it. */
         beings?: Array<{ slug: string; name: string; blurb: string; icon: string;
-          offered: boolean; kernel: boolean; homes: string[]; model?: string }>;
+          offered: boolean; kernel: boolean; homes: string[]; model?: string;
+          /** The desks as the member READS them (the app's declared title). */
+          home_titles?: string[];
+          /** The desks as the APP's identity — the mark the Dock shows. */
+          desks?: Array<{ slug: string; title: string; icon_key: string; route: string }>;
+          /** ADR-624 D4 — WHERE what this being knows lives. An address into
+           *  the ordinary substrate, never the contents. */
+          memory_path?: string }>;
         models: Array<{ id: string; label: string; vision?: boolean;
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */

@@ -509,6 +509,7 @@ def _beings_payload() -> list[dict]:
         homes_for_agent,
         is_promoted,
     )
+    from services.workspace_paths import agent_memory_root
 
     # ADR-602 D3 — a being whose only desk is unpromoted waits with it. Filtered
     # SERVER-side: the pane asks "who works here", and a being the member cannot
@@ -537,6 +538,12 @@ def _beings_payload() -> list[dict]:
             # rather than implying it. Already public on the lane envelope
             # (`model_names`); no new disclosure.
             "model": r.get("model") or "",
+            # ADR-624 D4 — WHERE what this being knows lives. An ADDRESS, not
+            # the contents: memory is ordinary substrate, so the page hands the
+            # member a door into Files rather than hosting a second reading
+            # face (the ADR-595 D1 law, one surface out). Absolute, because
+            # that is the form the Files door takes.
+            "memory_path": f"/workspace/{agent_memory_root(r['slug'])}",
         }
         for r in AGENTS.values()
         if is_promoted(r["slug"])

@@ -545,101 +545,23 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # by review_policy.py; it simply has no operator surface. Autonomy re-homes
     # to the agent detail (ADR-414 D6's per-agent sidecar) when ADR-382 builds
     # the roster. The /autonomy + /delegation routes stay as redirect stubs.
-    {
-        # ADR-348 (2026-06-19) — Expected Output, operator-facing. ADR-345
-        # shipped the concept + contract/_expected_output.yaml referent +
-        # wake-envelope wiring backend-only; this is the FE the operator
-        # sees + sets. The third Contract-group member (Rhythm · Witness ·
-        # Expected Output). Governance-region: operator authors, Reviewer
-        # reads-not-authors (ADR-345 / ADR-320). A floor-gated delivery
-        # cadence, NEVER a quota (ADR-345 Goodhart guard).
-        "slug": "expected-output",
-        # ADR-418 — dormant: routeless, so no launcher_tier (the P3 gate treats a
-        # routeless entry as chrome, which must carry no tier). Returns with the
-        # per-agent contract FE (ADR-382 / ADR-414 §9b).
-        "register": "os-config",  # governance-region machine config (like budget/autonomy)
-        # ADR-387 §6.4 — Expected Output is the contract/ CONTRACT (what the
-        # operator declares the agent owes, ADR-345/366).
-        # ADR-412 D5 (2026-07-06): re-homed pane_of agents → workspace-settings (System Agent group).
-        # ADR-418 (2026-07-08): DORMANT. Post ADR-414 D2/D6 the output contract is
-        # a HIRED Altitude-3 agent's concern (ADR-408 D2 / ADR-382 §3), not the
-        # steward's — and unlike identity/principles it has no constitution-band
-        # door, so nothing else needs it reachable at Rung 1. The row stays in the
-        # registry (so the surface concept survives + flat search still knows it),
-        # but drops `route` + `pane_of` + `pane_group`: routeless (non-navigable,
-        # like chrome), off the FE allowlist (desk.ts), stub neutralized. It
-        # returns when the per-agent contract pane is built (ADR-382 / ADR-414 §9b
-        # per-agent FE). No `_route_status` route: dormant by design.
-        "title": "Expected Output",
-        "archetype": "document",
-        "substrate_paths": [
-            "/workspace/contract/_expected_output.yaml",
-        ],
-        "icon_key": "target",
-        "default_pinned": False,
-        "route": "",  # ADR-418 — dormant: non-navigable until the per-agent FE (ADR-382)
-        "summary": "What the operation owes when it works — the output contract (kind + delivery-cadence + bar). A floor-gated cadence, never a quota. (Dormant per ADR-418 until the hired-agent contract pane is built.)",
-    },
-    {
-        "slug": "mandate",
-        # ADR-421 (2026-07-08): DORMANT. A workspace has NO constitution of its
-        # own — a mandate is a hired Altitude-3 agent's declared intent (ADR-414
-        # D6), read from agents/{slug}/MANDATE.md and surfaced on the agent
-        # detail (AgentConstitutionBlock, ADR-419). The workspace-level Mandate
-        # pane + its Home-band link + its route are removed; the surface concept
-        # survives in the registry (flat search) but is non-navigable. The Home
-        # HEADER still reads MANDATE.md content directly via the home-bundle
-        # (independent of this surface) until the ADR-414 §9b Home recompose.
-        "register": "intent",
-        "title": "Mandate",
-        "archetype": "document",
-        "substrate_paths": [
-            "/workspace/constitution/MANDATE.md",
-        ],
-        "icon_key": "target",
-        "default_pinned": False,
-        "route": "",  # ADR-421 — dormant: non-navigable (mandate is per-agent)
-        "summary": "A hired agent's declared intent — its Primary Action. Not a workspace-level concept (ADR-421); surfaced on the agent detail. (Dormant.)",
-    },
-    {
-        "slug": "principles",
-        # ADR-421 (2026-07-08): DORMANT. A workspace has no principles of its
-        # own — a judgment framework belongs to whoever holds the seat: the
-        # steward (kernel constant, ADR-414 D2) or a hired agent (agents/{slug}/
-        # principles.md, surfaced on the agent detail). The workspace-level pane
-        # + Home-band link + route are removed. (ADR-419 had re-homed it to the
-        # Constitution group as an interim; ADR-421 removes the workspace surface.)
-        "register": "intent",
-        "title": "Principles",
-        "archetype": "document",
-        "substrate_paths": [
-            "/workspace/persona/principles.md",
-            "/workspace/persona/_principles.yaml",
-        ],
-        "icon_key": "scale",
-        "default_pinned": False,
-        "route": "",  # ADR-421 — dormant: non-navigable (principles are per-agent)
-        "summary": "A hired agent's judgment framework and decision thresholds. Not a workspace-level concept (ADR-421); surfaced on the agent detail. (Dormant.)",
-    },
-    {
-        "slug": "identity",
-        # ADR-421 (2026-07-08): DORMANT. A workspace has no persona of its own —
-        # a reasoning-character belongs to the steward (kernel constant, ADR-414
-        # D2) or a hired agent (agents/{slug}/IDENTITY.md, surfaced on the agent
-        # detail). The workspace-level pane + Home-band link + route are removed.
-        # (ADR-419 had re-homed it to the Constitution group as an interim;
-        # ADR-421 removes the workspace surface.)
-        "register": "intent",
-        "title": "Identity",
-        "archetype": "document",
-        "substrate_paths": [
-            "/workspace/persona/IDENTITY.md",
-        ],
-        "icon_key": "user-circle",
-        "default_pinned": False,
-        "route": "",  # ADR-421 — dormant: non-navigable (persona is per-agent)
-        "summary": "A hired agent's persona — voice, role, reasoning-character. Not a workspace-level concept (ADR-421); surfaced on the agent detail. (Dormant.)",
-    },
+    # ADR-624 D5 (2026-08-31): the four PER-AGENT reservations —
+    # `expected-output` · `mandate` · `principles` · `identity` — are DELETED.
+    # They carried `route: ""` and "dormant until the per-agent FE (ADR-382)"
+    # since 2026-07-08, describing the ADR-414 HIRED AGENT: a model with zero
+    # instances. ADR-624 D1 decided those four concepts do not live on a being
+    # at all — purpose and clock are DECLARATIONS (app-named, so they survive a
+    # re-pairing), judgment rules are GATES plus the app's job overlay, and
+    # character is the register's `posture`. A row reserved for a surface that
+    # ADR-624 declined to build is the ADR-592 inert-field shape: a declaration
+    # nobody honours, waiting to be misread as intent.
+    #
+    # The steward-era SUBSTRATE they pointed at (persona/, constitution/,
+    # contract/) is UNTOUCHED — substrate is never deleted by a surface's
+    # retirement (ADR-599 D5), and pre-ADR-414 workspaces keep reading those
+    # files through Files. `StandingBand` still reads contract/_expected_output
+    # .yaml + persona/standing_intent.md and is unaffected.
+    # Do not reintroduce these rows.
     # ADR-309 (2026-06-01): the `brand` kernel surface is DELETED. Brand is
     # not a standalone surface — the Identity Settings pane (IdentityBrandCard)
     # co-renders BRAND.md alongside IDENTITY.md. /brand is a server redirect →
@@ -1064,18 +986,25 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
 # out of the surface registry. Backend-driven nav → zero FE change. The
 # keepers (ledger + membrane + constitution mirrors + structural chrome)
 # always render: files, channels (the perception+principal surface, ADR-385;
-# was context), connectors/sources, settings/workspace-settings,
-# identity/mandate/principles, home (substrate-forward empty state per
-# ADR-374), budget, top-bar/launcher/chat-drawer/setup.
+# was context), connectors/sources, settings/workspace-settings, home
+# (substrate-forward empty state per ADR-374), budget,
+# top-bar/launcher/chat-drawer/setup.
+#
+# ADR-624 D5: `expected-output` left this set with its row — and the sweep it
+# prompted found THREE more slugs naming rows that no longer exist:
+# `autonomy` (deleted by ADR-551 D4) and `activity` + `recurrence` (deleted by
+# ADR-603 D5). A filter set is a roster of slugs to REMOVE, so a slug naming no
+# row filters nothing: it reads as coverage while doing nothing, which is how a
+# stale entry outlives the thing it named. All four are gone; the ADR-624 gate
+# now asserts every member of this set names a live row, so the next surface
+# deletion cannot leave one behind silently.
+# (`identity`/`mandate`/`principles` were never here — they were named in the
+# keeper prose above, now corrected.)
 STEWARD_SURFACE_SLUGS: frozenset[str] = frozenset({
     "agents",
     "queue",
     "notifications",
-    "autonomy",
     "program",
-    "recurrence",
-    "expected-output",
-    "activity",
     # ADR-426 — the Freddie System Agent door. When AGENT_ENABLED is off the
     # system agent has no dials to tune, so its door filters out with the rest
     # of the steward-coupled surfaces. (budget is intentionally NOT here — it is
