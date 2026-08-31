@@ -32,9 +32,32 @@ WHAT IS GATED
   5. ONE path→URL resolver at the seam — three spellings had already drifted
      (two passed `workspace_id` to the mint, one did not).
   6. The ReadFile notice no longer ends in a dead end.
+  7. The pixels are HELD until every tool_result in the round has landed —
+     appending them inside the per-call loop splits the tool_use/tool_result
+     run and kills the turn (see clause 7 below).
+
+⭐⭐⭐ THE SECOND DEFECT, observed live 2026-08-31 (clause 7). ADR-623 shipped
+promoting the pixels INSIDE the per-tool-call loop:
+
+    for tc in routed.tool_calls:
+        messages.append({"role": "tool", ...})     # this call's result
+        if vision_msg: messages.append(vision_msg) # ← a USER message, mid-run
+
+The Anthropic contract is that every `tool_use` in the assistant message is
+answered by its `tool_result` in the IMMEDIATELY following message. With ONE
+tool call that holds. With TWO — and a non-final one an image — the injected
+user message splits the run, and the turn dies at the provider:
+
+    "messages.14: `tool_use` ids were found without `tool_result` blocks
+     immediately after: toolu_019vxRxDVjeocBHq9YeHaVc8"
+
+⭐ A single-call read could never surface it, which is exactly how it passed a
+click-pass AND this gate: clause 1 asserts WHICH results promote, and never
+once looked at the resulting message SEQUENCE. Clause 7 is that missing check.
 
 Falsified: promotion removed · a non-vision engine promoted anyway · the history
-re-mint reverted · the resolver re-duplicated.
+re-mint reverted · the resolver re-duplicated · the pixels moved back inside the
+loop (clause 7 goes red).
 
 Usage:  cd api && python3 test_adr623_the_lane_can_see.py
 """
@@ -188,6 +211,56 @@ check("6c and it is CONDITIONAL on the engine (a blind lane is not promised pixe
 check("6d the viewable set is imported from the lane, never re-spelled",
       "from services.lane_runner import VISION_IMAGE_TYPES" in prim_src
       and '"image/png"' not in prim_src)
+
+# --- 7. the pixels never split a tool_use/tool_result run ---------------------
+# The defect this clause exists for is an ORDERING defect, so assert on order,
+# not on presence. Both loops are twins (clause 3) — check both.
+check("7a both tool loops hold the pixels in a pending list, never appending "
+      "a user message mid-run",
+      runner_src.count("pending_vision.append(vision_msg)") == 2
+      and runner_src.count("messages.append(vision_msg)") == 0)
+check("7b the held pixels are flushed after the whole tool run",
+      runner_src.count("messages.extend(pending_vision)") == 2)
+check("7c the pending list is reset per ROUND (a stale carry would re-send "
+      "last round's pixels)",
+      runner_src.count("pending_vision: list[dict] = []") == 2)
+
+# The ordering invariant itself, driven — not grepped. Mirrors the loop body's
+# append order for a round of N calls and asserts the provider contract holds.
+def _simulate(n_calls: int, image_at: set[int]) -> list[str]:
+    msgs = [("assistant", [f"toolu_{i}" for i in range(n_calls)])]
+    pending = []
+    for i in range(n_calls):
+        msgs.append(("tool", f"toolu_{i}"))
+        if i in image_at:
+            pending.append(("user", "<image>"))
+    msgs.extend(pending)
+    return msgs
+
+def _violates(msgs) -> bool:
+    """True if any tool_use lacks its tool_result in the immediately
+    following run of tool messages."""
+    for i, (role, payload) in enumerate(msgs):
+        if role != "assistant":
+            continue
+        got, j = [], i + 1
+        while j < len(msgs) and msgs[j][0] == "tool":
+            got.append(msgs[j][1])
+            j += 1
+        if any(x not in got for x in payload):
+            return True
+    return False
+
+check("7d two calls, the FIRST an image — the reported break — orders validly",
+      not _violates(_simulate(2, {0})))
+check("7e three calls, the MIDDLE an image, orders validly",
+      not _violates(_simulate(3, {1})))
+check("7f every call an image: all pixels still delivered, order still valid",
+      not _violates(_simulate(3, {0, 1, 2}))
+      and sum(1 for r, _ in _simulate(3, {0, 1, 2}) if r == "user") == 3)
+check("7g the single-call case that used to pass still passes "
+      "(the fix is not a regression)",
+      not _violates(_simulate(1, {0})))
 
 print()
 print("=" * 62)

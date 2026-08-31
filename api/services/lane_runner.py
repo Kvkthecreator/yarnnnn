@@ -1513,6 +1513,9 @@ async def run_lane_turn(
             routed.raw_assistant_message
             or {"role": "assistant", "content": routed.text or ""}
         )
+        # Pixels for image reads in THIS round, appended only after every
+        # tool_result has landed (see the ADR-623 note in the loop body).
+        pending_vision: list[dict] = []
         for tc in routed.tool_calls:
             name = tc["name"]
             tools_called.append(name)
@@ -1546,9 +1549,18 @@ async def run_lane_turn(
             # a user message, the one shape the content-parts protocol lets
             # carry them. None when the file is not a viewable image, the read
             # failed, or the engine cannot see.
+            #
+            # HELD, not appended here: every tool_use in the round must be
+            # answered by its tool_result in the IMMEDIATELY following message.
+            # Appending the pixels inside this loop splits that run the moment a
+            # round carries two calls and a non-final one is an image —
+            # "tool_use ids were found without tool_result blocks immediately
+            # after", and the turn dies. One call could never show it, which is
+            # how it shipped. The pixels go after the whole run instead.
             vision_msg = image_part_for_tool_result(tool_auth, model, name, result)
             if vision_msg is not None:
-                messages.append(vision_msg)
+                pending_vision.append(vision_msg)
+        messages.extend(pending_vision)
     else:
         # 2026-08-31 — a member-legible sentence, not a bracketed internal
         # note. The observed shape: a truncated WriteFile arrives with an
@@ -1759,6 +1771,9 @@ async def run_lane_turn_stream(
             routed.raw_assistant_message
             or {"role": "assistant", "content": routed.text or ""}
         )
+        # Pixels for image reads in THIS round, appended only after every
+        # tool_result has landed (see the ADR-623 note in the loop body).
+        pending_vision: list[dict] = []
         for tc in routed.tool_calls:
             name = tc["name"]
             tools_called.append(name)
@@ -1801,9 +1816,18 @@ async def run_lane_turn_stream(
             # a user message, the one shape the content-parts protocol lets
             # carry them. None when the file is not a viewable image, the read
             # failed, or the engine cannot see.
+            #
+            # HELD, not appended here: every tool_use in the round must be
+            # answered by its tool_result in the IMMEDIATELY following message.
+            # Appending the pixels inside this loop splits that run the moment a
+            # round carries two calls and a non-final one is an image —
+            # "tool_use ids were found without tool_result blocks immediately
+            # after", and the turn dies. One call could never show it, which is
+            # how it shipped. The pixels go after the whole run instead.
             vision_msg = image_part_for_tool_result(tool_auth, model, name, result)
             if vision_msg is not None:
-                messages.append(vision_msg)
+                pending_vision.append(vision_msg)
+        messages.extend(pending_vision)
     else:
         # 2026-08-31 — a member-legible sentence, not a bracketed internal
         # note. The observed shape: a truncated WriteFile arrives with an
