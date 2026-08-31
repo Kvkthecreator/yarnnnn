@@ -246,7 +246,8 @@ Read-before-write is the contract (ADR-512 §8a): an existing file requires
 `base_revision` only to create. Returns the new head `revision_id` so a
 follow-up save can chain.
 
-**`save` writes TEXT, and refuses a binary head** (ADR-621 D3). Writing text over
+**`save` writes TEXT, and refuses a binary head** (ADR-621 D3; the refusal names
+`request_upload` as the remedy — see below). Writing text over
 an image/PDF/video replaces its bytes with text and destroys the file, so it
 returns `binary_file_not_writable` naming the type and size. **`confirm_full_replace`
 cannot override this** — that flag states *intent* ("I mean to replace the whole
@@ -277,6 +278,49 @@ who paged to the end from one who read page 1 and saved. What changed is the
 remedy the refusal names — page through it (`offset=next_offset` until
 `truncated` is false), or use `edit` for targeted changes; the flag states
 wholesale intent.
+
+## `request_upload` — the handshake for bytes (ADR-622)
+
+```python
+request_upload(
+    filename: str,                # bare name WITH extension — not a path
+    destination: Optional[str],   # workspace-relative folder; omitted → Downloads
+    size_bytes: Optional[int],    # refuse an over-cap file before the transfer
+) -> dict
+```
+
+`save` writes text. This is the door for everything else — an image, PDF, video,
+audio file, spreadsheet, font, archive. Returns a short-lived (**1 hour**),
+**single-use** `upload_url`, plus a ready-to-run `curl` command, `expires_at`,
+and the resolved `destination`.
+
+**The bytes never travel through the conversation.** Base64 through a model's
+context is measured to corrupt — Box observed a file corrupted at 175 KB and
+failing outright at 20 MB, cause named as *"non-deterministic LLM inference can
+subtly alter characters within the base64 data"* — and MCP tool INPUTS have no
+blob type at all. The control channel carries the capability; a separate
+authenticated HTTPS channel carries the bytes, which is the shape Box, Notion,
+Dropbox, S3 and Graph all converge on.
+
+**Who redeems it.** A host that can execute shell runs the `curl` itself; a
+chat-only host hands it to the user. The answer says so explicitly rather than
+letting a model claim an upload it cannot perform. A CLI or plain `curl` redeems
+the same ticket with no MCP involved.
+
+**What the ticket can do, and only that.** Authorization happens at MINT — the
+destination is checked against the same `operator_can_organize` gate the browser
+upload uses — and is then **frozen into the ticket**. The redeemer supplies bytes
+and nothing else: filename, destination and owner all come from the ticket row,
+so a leaked ticket is bounded to exactly the one write its minter was already
+allowed to make. Redemption (`POST /api/uploads/{token}`) takes **no session** —
+the ticket *is* the authorization — and flows through the ONE upload pipeline, so
+the type is derived from the bytes (never the declared type), the caps apply, and
+the file lands as an attributed revision with its ADR-395 text projection.
+
+Scoped `files:write`: minting touches no file, but the capability's purpose is to
+land a revision, and gating it below the write it authorizes would be a door
+around the write scope. Single-use is enforced by a compare-and-set on the
+ticket row, and the ticket is spent by the **attempt**, not the success.
 
 ## `edit` — the anchored write (ADR-545 D1, binds `EditFile`)
 

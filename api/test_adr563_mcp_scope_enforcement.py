@@ -102,7 +102,11 @@ def run() -> int:
     # ── D2. Every bound verb is classified ──────────────────────────────────
     # Derived from the roster, so a NEW verb that lands without a scope fails
     # here rather than silently defaulting to reachable.
-    roster = set(re.findall(r'^\s{4}\(\s*\n\s{8}"([a-z]+)",', server_src, re.M))
+    # ⚠️ [a-z]+ silently DROPPED any verb with an underscore, so a new verb
+    # like `request_upload` (ADR-622) was invisible to this gate rather than
+    # unclassified — the gate would have passed while the verb was ungated.
+    # \w matches the roster's real grammar.
+    roster = set(re.findall(r'^\s{4}\(\s*\n\s{8}"(\w+)",', server_src, re.M))
     # The parse must find SOMETHING — a regex that silently matches nothing
     # would make the set-equality below vacuously true against an empty roster.
     # It deliberately does NOT pin a count: the roster grows (ADR-584 added a
@@ -186,7 +190,7 @@ def run() -> int:
 
     # Every handler passes its verb — the enforcement is only real if reached.
     server_code = "\n".join(l.split("#", 1)[0] for l in server_src.splitlines())
-    calls = re.findall(r"resolve_request_client\(verb=\"([a-z]+)\"\)", server_code)
+    calls = re.findall(r"resolve_request_client\(verb=\"(\w+)\"\)", server_code)
     # EVERY classified verb has a handler that passes it — set equality, not a
     # count. Equality is the stronger claim in both directions: a new verb whose
     # handler forgets `verb=` is missing from `calls`, and a stale `verb=` for a

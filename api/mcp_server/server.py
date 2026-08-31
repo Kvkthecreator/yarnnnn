@@ -453,6 +453,15 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
         "a tombstone pointing at the new one.",
     ),
     (
+        "request_upload",
+        "get a link for putting a FILE THAT IS NOT TEXT into the workspace — an "
+        "image, PDF, video, spreadsheet, font, anything whose bytes you cannot "
+        "type out. `save` writes text and cannot do this. Returns a short-lived "
+        "single-use upload URL plus a ready-to-run curl command: run it if you "
+        "can execute shell, otherwise hand it to the user. The bytes never "
+        "travel through this conversation — they would be corrupted if they did.",
+    ),
+    (
         "history",
         "show how one EXACT file changed over time (who changed it, when, what "
         "the change was, with diffs and cited sources) — the attributed "
@@ -1159,6 +1168,85 @@ async def save(
         extra_metadata={"outcome": outcome, "revision_id": result.get("revision_id")},
     )
     return _present("save", result, client_name=client_name)
+
+
+@mcp.tool(
+    # ADR-622 — the handshake's control half. Mints a capability; writes no file
+    # itself, so it is not destructive — but it is emphatically not read-only
+    # either, which is why it carries SCOPE_WRITE (mcp_scopes: gating the ticket
+    # below the write it authorizes would be a door around files:write).
+    annotations=ToolAnnotations(
+        title="Request upload",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def request_upload(
+    ctx: Context,
+    filename: str,
+    destination: Optional[str] = None,
+    size_bytes: Optional[int] = None,
+) -> dict:
+    """Get a link for putting a NON-TEXT file into the user's yarnnn workspace.
+
+    Use this for anything whose content is bytes rather than characters — an
+    image, PDF, video, audio file, spreadsheet, font, archive. `save` writes
+    text and will refuse a binary file; this is the door for the other case.
+
+    HOW IT WORKS. You get back a short-lived, single-use `upload_url` and a
+    ready-to-run `curl` command. The bytes go straight to that URL over plain
+    HTTPS — they never pass through this conversation, because binary sent
+    through a model's context gets corrupted (it is not a size limit; the
+    characters themselves change). No credentials are needed to redeem it: the
+    ticket IS the authorization, and it can only write the one file you named,
+    to the one place you named.
+
+    ⚠️ WHO RUNS THE COMMAND. If you can execute shell commands, run the `curl`
+    yourself. If you cannot, say so plainly and give the command to the user —
+    do not claim the file was uploaded, and do not attempt to send the bytes in
+    a message. The ticket expires in an hour.
+
+    WHERE IT LANDS. Pass `destination` as the workspace folder it belongs in,
+    chosen by MEANING like any other path (e.g. `marketing/assets`). Omit it and
+    the file arrives in Downloads, the arrivals folder. Once it lands it is an
+    ordinary workspace file: attributed to the user, versioned, searchable, and
+    readable by every member.
+
+    Args:
+        filename: The bare filename WITH its extension (e.g. `promo-cut.mp4`).
+            Not a path — the folder is `destination`.
+        destination: Optional workspace-relative folder (no leading slash).
+        size_bytes: Optional size, so an over-limit file is refused now rather
+            than after the transfer.
+    """
+    auth = resolve_request_client(verb="request_upload")
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_request_upload(
+        auth=auth, filename=filename, destination=destination, size_bytes=size_bytes,
+    )
+    # ⭐ The narrative records the MINT, not an upload — nothing has landed yet,
+    # and the redemption writes its own attributed revision when (if) it happens.
+    # Saying "uploaded" here would put a file on the timeline that may never
+    # arrive.
+    outcome = "requested an upload link for" if result.get("success") else (
+        result.get("error") or "failed")
+    _emit_mcp_narrative(
+        auth, tool="request_upload", weight="routine",
+        summary=f"{client_name} {outcome}: {filename}",
+        body=(
+            f"filename: {filename}\ndestination: {destination or '(Downloads)'}\n"
+            f"outcome: {outcome}"
+        ),
+        client_name=client_name,
+        extra_metadata={"outcome": outcome, "filename": filename},
+    )
+    return _present("request_upload", result, client_name=client_name)
 
 
 @mcp.tool(

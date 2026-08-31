@@ -75,6 +75,18 @@ TEXT_ONLY: dict[str, str] = {
         "verbatim. A widget for a URL is ceremony: it adds an iframe the user "
         "must look at to read something the sentence already said."
     ),
+    # ADR-622 — the answer's job is to get a COMMAND run, by the model if it
+    # executes code and by the human otherwise. A widget renders for the human
+    # and is invisible to the model, which is backwards for a result whose first
+    # reader may need to act on it; and the human's half is a curl line they
+    # copy, which is text. Same reasoning as `whoami` and `share` above.
+    "request_upload": (
+        "The result is an upload URL plus a ready-to-run curl command. Its "
+        "value is in being RUN — by the model where it can execute shell, by "
+        "the user otherwise — so it must be text both can read and copy, not "
+        "an iframe. A widget would also imply the host can perform the upload, "
+        "which is exactly the thing it cannot do."
+    ),
     "list": (
         "The result is a file tree — paths the host itself renders better as "
         "text the model can quote and open. An iframe listing would trap the "

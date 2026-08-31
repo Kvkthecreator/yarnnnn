@@ -5,8 +5,13 @@ ADR-249: Two-Intent File Handling — Ephemeral vs Persistent.
 ADR-395: persistent uploads retain the RAW blob + derive a text projection (DP34).
 ADR-127: User-shared file staging (TP-level)
 
+ADR-622: the upload TICKET — a principal that cannot carry bytes (the MCP
+connector) mints a single-use capability; the holder of the bytes redeems it
+here, through this same pipeline.
+
 Endpoints:
 - POST /documents/upload  - Persistent upload → inbound/uploads/{principal}/{slug}.{ext} raw + .extracted.md projection (ADR-395)
+- POST /uploads/{token}   - Redeem an ADR-622 upload ticket (no session; the ticket IS the auth)
 - GET /documents/blob     - Resolve a raw blob's content_url to a fresh signed URL (ADR-395)
 - POST /share             - Share a file to global user_shared/ (ADR-127)
 - GET /documents          - List workspace uploads (reads workspace_files)
@@ -378,6 +383,107 @@ async def upload_documents(
         results=results,
         succeeded=succeeded,
         failed=len(results) - succeeded,
+    )
+
+
+# =============================================================================
+# ADR-622 — REDEEM AN UPLOAD TICKET (the data-plane half of the handshake)
+# =============================================================================
+
+class TicketRedemptionResponse(BaseModel):
+    success: bool
+    path: Optional[str] = None
+    bytes_written: Optional[int] = None
+    message: str
+
+
+@router.post("/uploads/{token}", response_model=TicketRedemptionResponse)
+async def redeem_upload_ticket(
+    token: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+):
+    """Redeem an ADR-622 upload ticket: carry the bytes the connector could not.
+
+    ⭐⭐⭐ THIS ENDPOINT TAKES NO SESSION, AND THAT IS THE DESIGN. The whole
+    point of the handshake is that the party holding the bytes (a CLI, a
+    code-executing host, `curl`) is not the party holding the workspace
+    credential. The TICKET is the authorization: minted for one file, by an
+    already-authorized principal, into an already-authorized destination,
+    single-use, and short-lived.
+
+    ⭐⭐ THE REDEEMER SUPPLIES BYTES AND NOTHING ELSE. Path, destination and
+    owner all come from the ticket row — not from this request. A redeemer
+    cannot retarget the write, so a leaked ticket is bounded to exactly the one
+    write its minter was already allowed to make. (Had the destination been a
+    request parameter, a leaked ticket would be a general write door — the
+    ADR-555 "caller-supplied destination needs an authorization" finding, which
+    ADR-622 answers by authorizing at MINT and freezing the result.)
+
+    The bytes then flow through `_process_single_upload` — the SAME path the
+    browser upload uses. Type is derived from the bytes (ADR-427 D5), size is
+    capped, the raw lands as an attributed CAS revision, and the ADR-395 text
+    projection makes it searchable. There is no second intake.
+    """
+    from services.upload_tickets import (
+        TicketError,
+        claim_upload_ticket,
+        record_ticket_result,
+    )
+
+    service = get_service_client()
+
+    # Claim FIRST — a ticket is spent by the attempt, not by the success. A
+    # claim-on-success would leave a failed-midway upload replayable, which is
+    # the window single-use exists to close.
+    try:
+        ticket = claim_upload_ticket(service, token)
+    except TicketError as e:
+        # 404 for an unknown ticket (do not confirm that a token shape exists);
+        # 409 for spent/expired — the caller CAN act on those (mint a new one).
+        status = 404 if e.code == "unknown_ticket" else 409
+        raise HTTPException(status_code=status, detail=e.message)
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="No bytes received. The ticket is now spent — mint a new one and retry.",
+        )
+
+    item, to_embed = await _process_single_upload(
+        content=content,
+        content_type=file.content_type or "",
+        # The ticket's filename wins: it is what the minting principal named and
+        # authorized. A redeemer renaming the file at redemption would put bytes
+        # at a path nobody approved.
+        filename=ticket["filename"],
+        user_id=ticket["user_id"],
+        service=service,
+        destination=ticket.get("destination"),
+    )
+
+    if not item.success:
+        # The ticket stays spent. The refusal is the pipeline's own verdict
+        # (unsupported type, too large) and re-running it with the same bytes
+        # would refuse identically — so a fresh ticket is honest advice, not a
+        # retry loop.
+        record_ticket_result(service, ticket["id"], None)
+        raise HTTPException(status_code=422, detail=item.error or "Upload failed.")
+
+    record_ticket_result(service, ticket["id"], item.workspace_path)
+    if to_embed:
+        background_tasks.add_task(_embed_projection_deferred, ticket["user_id"], to_embed)
+
+    return TicketRedemptionResponse(
+        success=True,
+        path=item.workspace_path,
+        bytes_written=len(content),
+        message=(
+            f"Uploaded {len(content):,} bytes to `{item.workspace_path}` as an "
+            "attributed revision. It is versioned, searchable, and visible to "
+            "every member on the workspace timeline."
+        ),
     )
 
 

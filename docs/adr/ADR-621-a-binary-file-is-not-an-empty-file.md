@@ -3,7 +3,7 @@
 > **Status**: **Accepted + Implemented** (2026-08-31). Drafted by KVK + Claude.
 > **Date**: 2026-08-31
 > **Dimension**: **Channel** (Axiom 6 — how the substrate is served to a foreign principal) primary; **Substrate** (Axiom 1 — what persists) secondary, and unchanged: this ADR adds no storage capability.
-> **Relates to**: [ADR-427](ADR-427-binary-native-substrate-and-the-storage-seam.md) (binary-native substrate — §8's read-side rule is what this enforces; D4's minted URL is what it serves), [ADR-543](ADR-543-the-interop-surface-speaks-the-kernel-verbs.md) / [ADR-545](ADR-545-the-interop-binding-completes-edit-delete-move-changes-honest-save.md) (the file-native verb surface this repairs), [ADR-373](ADR-373-workspace-as-binding-unit.md) D6 (the incorrect-success class), [ADR-574](ADR-574-the-view-is-not-the-file.md) (`complete_for_write`, the field this ADR stops lying), [ADR-510](ADR-510-one-binary-lane-and-the-portability-export.md) (one binary lane), [ADR-395](ADR-395-model-consumable-projection-and-upload-intake-conformance.md) (Piece C — amended here).
+> **Relates to**: [ADR-427](ADR-427-binary-native-substrate-and-the-storage-seam.md) (binary-native substrate — §8's read-side rule is what this enforces; D4's minted URL is what it serves), [ADR-543](ADR-543-the-interop-surface-speaks-the-kernel-verbs.md) / [ADR-545](ADR-545-the-interop-binding-completes-edit-delete-move-changes-honest-save.md) (the file-native verb surface this repairs), [ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md) D6 (the incorrect-success class), [ADR-574](ADR-574-the-prose-currency-leads-text-is-the-text-app-docs-pauses.md) (`complete_for_write`, the field this ADR stops lying), [ADR-510](ADR-510-one-binary-lane-and-the-portability-export.md) (one binary lane), [ADR-395](ADR-395-model-consumable-projection-and-upload-intake-conformance.md) (Piece C — amended here).
 > **Amends**: ADR-395 Piece C (the deferral's rationale is re-grounded on measured evidence and the piece is CLOSED, not merely deferred).
 
 ---
@@ -26,7 +26,7 @@ The file holds **902,508 bytes** in the CAS (`cas/38/38e0a34e…`,
 `content_type: image/png`, byte-verified by fetching the blob). The substrate was
 entirely correct. The **read** was not: every machine-readable field said "empty
 file", and the caller had no way to tell "empty" from "bytes I cannot
-represent". That is the [ADR-373](ADR-373-workspace-as-binding-unit.md) D6
+represent". That is the [ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md) D6
 incorrect-success class, on the primary external read door.
 
 Census at the time of the audit: **32 live binary files**, every one answering

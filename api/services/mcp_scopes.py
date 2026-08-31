@@ -70,6 +70,12 @@ VERB_SCOPES: Dict[str, str] = {
     "edit": SCOPE_WRITE,
     "delete": SCOPE_WRITE,
     "move": SCOPE_WRITE,
+    # ADR-622: minting an upload ticket IS a write — it creates a capability
+    # that lands an attributed revision. It is scoped with the write verbs and
+    # not below them, even though the mint itself touches no file: the ticket's
+    # whole purpose is to add one, so gating the ticket more weakly than the
+    # write it authorizes would be a door around `files:write`.
+    "request_upload": SCOPE_WRITE,
     # widens who can reach the workspace at all: 'member' grants full access to
     # whoever opens the link. Its own tier because granting reach is a
     # different act from changing content — a token that may write need not be

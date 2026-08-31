@@ -1911,8 +1911,9 @@ async def compose_save(
                     "with text and destroy the file. This is refused, and "
                     "confirm_full_replace cannot override it. Open it to read its "
                     "type, size and history; move, rename or delete it if that is "
-                    "what you meant. To replace the bytes, the file has to be "
-                    "uploaded through the workspace file surface."
+                    "what you meant. To put new bytes at this path, use "
+                    "`request_upload` — it returns a link to send the file to "
+                    "(ADR-622); bytes cannot travel through this conversation."
                 ),
                 "reference": format_file_reference(rel),
                 "binary": True,
@@ -2058,6 +2059,90 @@ async def compose_save(
     if cited:
         out["derived_from"] = cited
     return out
+
+
+def _api_base_url() -> str:
+    """The API's public origin — where an upload ticket is redeemed.
+
+    Same env var + same default as `integrations/core/oauth.py` (the other place
+    that has to hand an external party an absolute yarnnn URL). The MCP server
+    is a SEPARATE Render service from the API, so this must never be derived
+    from the request host: the ticket is redeemed against the API, not against
+    the MCP server that minted it.
+    """
+    import os
+
+    return os.getenv("API_BASE_URL", "https://yarnnn-api.onrender.com").rstrip("/")
+
+
+async def compose_request_upload(
+    auth: Any,
+    filename: str,
+    destination: Optional[str] = None,
+    size_bytes: Optional[int] = None,
+) -> dict:
+    """Drive `request_upload` — mint the ADR-622 capability to add bytes.
+
+    The connector speaks text; `save` writes text (ADR-621 D3). This is the
+    other half: a caller that HOLDS bytes it cannot send gets a short-lived,
+    single-use URL to send them to, out of band. The control channel carries the
+    capability; a separate authenticated HTTP channel carries the bytes — the
+    shape Box, Notion, Dropbox and SEP-2631 all converge on, and the only one
+    that works for a REMOTE MCP server that cannot read the caller's disk.
+
+    ⚠️ THE MODEL CANNOT REDEEM THIS ITSELF unless it can execute code. That is a
+    property of the medium, not a defect here, and the answer says so plainly
+    rather than letting the caller discover it by failing: a chat-only host must
+    hand the command to the human. Box ships its equivalent gated to agentic
+    hosts for exactly this reason.
+    """
+    from services.supabase import get_service_client
+    from services.upload_tickets import (
+        TICKET_TTL_SECONDS,
+        TicketError,
+        mint_upload_ticket,
+    )
+
+    principal = f"yarnnn:mcp:{derive_client_name_from_token(auth)}"
+    try:
+        ticket = mint_upload_ticket(
+            get_service_client(),
+            user_id=auth.user_id,
+            workspace_id=getattr(auth, "workspace_id", None),
+            filename=filename,
+            minted_by=principal,
+            destination=destination,
+            declared_bytes=size_bytes,
+        )
+    except TicketError as e:
+        return {"success": False, "error": e.code, "message": e.message}
+
+    base = _api_base_url()
+    upload_url = f"{base}/api/uploads/{ticket['token']}"
+    where = ticket["destination"] or "Downloads (the arrivals folder)"
+    return {
+        "success": True,
+        "upload_url": upload_url,
+        "filename": ticket["filename"],
+        "destination": ticket["destination"],
+        "expires_at": ticket["expires_at"].isoformat(),
+        "expires_in_seconds": TICKET_TTL_SECONDS,
+        # The exact command, ready to run. A caller that has to compose curl
+        # from prose gets the form field name wrong, and the failure surfaces as
+        # a 422 it cannot interpret.
+        "curl": f"curl -X POST '{upload_url}' -F 'file=@/path/to/{ticket['filename']}'",
+        "explanation": (
+            f"Upload ticket for `{ticket['filename']}` → {where}. POST the file "
+            f"to `upload_url` as multipart form field `file` within "
+            f"{TICKET_TTL_SECONDS // 60} minutes. It is SINGLE-USE and needs no "
+            "credentials — the ticket is the authorization, and it can only "
+            "write this one file to this one place. "
+            "⚠️ You cannot send the bytes through this conversation: if you can "
+            "run shell commands, run the `curl` above; otherwise give it to the "
+            "user to run. Once it lands, the file is an attributed revision — "
+            "versioned, searchable, and visible to every member."
+        ),
+    }
 
 
 # =============================================================================
