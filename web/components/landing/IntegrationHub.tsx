@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
+import {
+  ClaudeIcon as ClaudeMark,
+  ChatGPTIcon as ChatGPTMark,
+} from "@/components/ui/PlatformIcons";
 
 /**
  * Animated Beam Integration Hub
@@ -25,9 +29,32 @@ interface NodeDef {
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
-const ChatIcon = () => (
+// Agents — lucide `bot`, the mark the product's own nav uses for the
+// Agents surface (ADR-602). Was a generic chat bubble, which read as Chat.
+const AgentsIcon = () => (
   <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    <path d="M12 8V4H8" />
+    <rect width="16" height="12" x="4" y="8" rx="2" />
+    <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+  </svg>
+);
+
+// History — lucide `history`, matching the clock-arrow the Files surface
+// uses for its revision panel. Was a bare ↺ character.
+const HistoryIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+    <path d="M3 3v5h5M12 7v5l4 2" />
+  </svg>
+);
+
+// Documents — a stacked-pages mark, distinct from Files' single sheet.
+// Was a bare ◇ lozenge, which named nothing.
+const DocumentsIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6z" />
+    <polyline points="16 2 16 6 20 6" />
+    <path d="M4 6v14a2 2 0 0 0 2 2h10" />
   </svg>
 );
 
@@ -52,13 +79,11 @@ const NotionIcon = () => (
   </svg>
 );
 
-// Simple letter/glyph badge for the memory-side nodes.
-const Glyph = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-xs font-bold leading-none">{children}</span>
-);
-
-const ClaudeIcon = () => <Glyph>C</Glyph>;
-const ChatGptIcon = () => <Glyph>G</Glyph>;
+// The vendor marks come from components/ui/PlatformIcons.tsx — the single
+// home for the artwork. These were letter glyphs ("C" / "G") standing in for
+// marks the stack already had.
+const ClaudeIcon = () => <ClaudeMark className="w-[18px] h-[18px]" />;
+const ChatGptIcon = () => <ChatGPTMark className="w-[18px] h-[18px]" />;
 
 // Brand color: #1a1a1a — all nodes use this with slight opacity variation
 const BEAM_COLOR = "#1a1a1a";
@@ -74,9 +99,9 @@ const nodes: NodeDef[] = [
   { id: "notion", label: "Notion", icon: <NotionIcon />, side: "left" },
   // What accumulates — the one workspace you own (right)
   { id: "files", label: "Files", icon: <DocsIcon />, side: "right" },
-  { id: "documents", label: "Documents", icon: <Glyph>◇</Glyph>, side: "right" },
-  { id: "agents", label: "Agents", icon: <ChatIcon />, side: "right" },
-  { id: "history", label: "History", icon: <Glyph>↺</Glyph>, side: "right" },
+  { id: "documents", label: "Documents", icon: <DocumentsIcon />, side: "right" },
+  { id: "agents", label: "Agents", icon: <AgentsIcon />, side: "right" },
+  { id: "history", label: "History", icon: <HistoryIcon />, side: "right" },
 ];
 
 const leftNodes = nodes.filter((n) => n.side === "left");
