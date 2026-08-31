@@ -71,7 +71,16 @@ def run() -> bool:
     empty_posture = build_studio_posture("/workspace/operation/x/deck.html", "")
     _check("posture: empty artifact still postures (create-at-path)",
            "empty or missing" in empty_posture)
-    _check("authoring token profile > chat profile", STUDIO_LANE_MAX_TOKENS > 2048)
+    # 2026-08-31 — a floor that reflects a DOCUMENT-SIZED WRITE, not merely
+    # "more than chat". The old assertion (> 2048) passed at 8192, the value at
+    # which a bound deck lane could not complete a turn at all: Sonnet 5 thinks
+    # by default, thinking bills against this ceiling, and a truncated tool call
+    # arrives with `content` dropped — so every WriteFile was refused as empty.
+    # Measured worst case: 14,580 thinking tokens + a 17,674-char document
+    # (~4,900 tok) ≈ 19.5K. A ceiling that must hold a thinking run AND a
+    # document cannot be defended by a constant that a starving value satisfies.
+    _check("authoring token profile holds thinking + a document (>= 24576)",
+           STUDIO_LANE_MAX_TOKENS >= 24576)
     _check("artifact region is operation/ (no app namespace)",
            STUDIO_ARTIFACT_REGION == "/workspace/operation/")
 

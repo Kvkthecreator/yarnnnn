@@ -6,6 +6,49 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.08.31.1] - The authoring budget must hold a thinking run AND a document
+
+### Changed
+- `services/authoring.py`: `STUDIO_LANE_MAX_TOKENS` **8192 → 32000**, with the
+  measurement table inline. This ceiling is shared by EVERY bound lane
+  (slides · text · images · derive recipes) via `lane_runner._studio_max_tokens`.
+- `services/lane_runner.py`: `_LANE_TIMEOUT_S` raised to match the larger
+  budget — a bigger ceiling means longer generations, and the old 120s cut them
+  off mid-stream (observed as a socket read timeout on the first real drive).
+- `services/lane_runner.py`: the round-exhaustion fallback is now a
+  member-legible sentence that says the document is UNCHANGED, replacing
+  `[lane turn exhausted its round budget without a final reply]` at both the
+  streaming and non-streaming sites.
+- `test_adr440_studio.py`: the token-profile check is re-anchored from
+  `> 2048` to `>= 24576`.
+- `probe_studio_deck_quality.py`: two harness defects fixed (see below).
+
+### Expected behavior
+- **A bound deck lane can complete "make me a deck" again.** It could not:
+  Sonnet 5 thinks by default and thinking bills against this same ceiling, so
+  at 8192 the response was cut mid-JSON. Per the write guard's own note,
+  truncation "drops `content`, keeps `path`" — so `empty_content_blocked`
+  correctly refused every write and the model retried into the 8-round cap.
+  The member saw a bracketed internal note and an untouched document.
+- Measured (max_tokens → thinking → document chars): `8192 → 8,191 → 0`
+  (max_tokens, thinking ate the whole budget) · `16384 → 10,342 → 0` (still
+  fails ~1 in 3) · `24576` 5/5 OK · `32000 → 14,580 → 14,544` OK. Thinking
+  ranged **1,783–14,580 tokens on identical prompts**, so no ceiling derived
+  from a mean is safe; worst-observed thinking + the largest document ≈ 19.5K.
+- **This is a cap, not a spend** — a turn bills its actual output, and the
+  measured runs finished at 8–21K.
+- The prompt envelope itself was found CORRECT and is unchanged: given
+  headroom the model obeys the containment law, uses only registry
+  arrangements and known block kinds, writes no inline styles and no raw
+  colours (ADR-583 D1), and fabricates no citations.
+- The probe no longer certifies its own fixture (it now reports `NO WRITE`
+  when the artifact is byte-identical to the skeleton — previously it scored
+  that as `PARTIAL`), and its id check no longer fails correct decks (it
+  counted ids globally, but since ADR-519 a slide carries `data-block-id`
+  without `data-block`; a well-formed deck scored `25/19` and FAILED).
+
+---
+
 ## [2026.08.28.1] - ADR-615: reach follows the principal, not the surface
 
 ### Changed

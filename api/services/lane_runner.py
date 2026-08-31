@@ -147,7 +147,17 @@ _LANE_MAX_ROUNDS = 8       # cost ceiling, not behavior (ADR-402 posture)
 #: The budget HOLDS on evidence; if felt truncation arrives, x1.39 says the
 #: parity raise is ~5700, not a guess.
 _LANE_MAX_TOKENS = 4096
-_LANE_TIMEOUT_S = 120.0
+
+#: ⭐ 2026-08-31 — 120.0 → 420.0. THE TIMEOUT MUST OUTLAST THE BUDGET IT GUARDS.
+#: Raising STUDIO_LANE_MAX_TOKENS to 32000 (see services/authoring.py for the
+#: thinking measurements) made this the NEXT wall: the first real drive of a
+#: bound deck lane at the new ceiling died on a socket read timeout, not on the
+#: model. Measured on the real posture: 19,272 output tokens took 172.6s
+#: (~112 tok/s), so a full 32000-token turn needs ~287s — more than double the
+#: old ceiling. 420s carries that with ~1.5x margin for a slower moment.
+#: This bounds a HUNG call, so it must sit above the slowest HONEST one; it is
+#: not a spend knob (a turn bills its tokens, never its seconds).
+_LANE_TIMEOUT_S = 420.0
 
 
 def _studio_max_tokens() -> int:
@@ -1449,7 +1459,17 @@ async def run_lane_turn(
                 "content": _stringify_tool_result(result),
             })
     else:
-        final_text = final_text or "[lane turn exhausted its round budget without a final reply]"
+        # 2026-08-31 — a member-legible sentence, not a bracketed internal
+        # note. The observed shape: a truncated WriteFile arrives with an
+        # empty `content` key, `empty_content_blocked` correctly refuses it,
+        # the model retries, and the round cap ends the turn. The member had
+        # no way to tell that from a hang, and nothing told them their
+        # document was untouched — which is the fact that matters most.
+        final_text = final_text or (
+            "I ran out of steps on this turn and did not finish — your"
+            " document is unchanged. Asking for a smaller piece at a time"
+            " (a few slides, or one section) usually gets there."
+        )
 
     logger.info(
         "[LANE] model=%s rounds=%d tokens=%d/%d tools=%d artifacts=%d",
@@ -1686,7 +1706,17 @@ async def run_lane_turn_stream(
                 "content": _stringify_tool_result(result),
             })
     else:
-        final_text = final_text or "[lane turn exhausted its round budget without a final reply]"
+        # 2026-08-31 — a member-legible sentence, not a bracketed internal
+        # note. The observed shape: a truncated WriteFile arrives with an
+        # empty `content` key, `empty_content_blocked` correctly refuses it,
+        # the model retries, and the round cap ends the turn. The member had
+        # no way to tell that from a hang, and nothing told them their
+        # document was untouched — which is the fact that matters most.
+        final_text = final_text or (
+            "I ran out of steps on this turn and did not finish — your"
+            " document is unchanged. Asking for a smaller piece at a time"
+            " (a few slides, or one section) usually gets there."
+        )
 
     logger.info(
         "[LANE stream] model=%s rounds=%d tokens=%d/%d tools=%d artifacts=%d",

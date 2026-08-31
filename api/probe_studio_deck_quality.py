@@ -61,9 +61,15 @@ def measure(html: str) -> dict:
     """
     from services.authoring import STUDIO_ARRANGEMENTS, STUDIO_BLOCKS
 
-    # The artifact's own skin, kept for the aspect-ratio check…
-    artifact_css = re.search(r"<style>(.*?)</style>", html, re.S)
-    css = artifact_css.group(1) if artifact_css else ""
+    # Criterion 3 ("the deck skin survives — aspect-ratio 16/9") is a fact
+    # about the WHOLE document, so read every stylesheet. It used to read only
+    # the FIRST unmarked <style>, but the 16:9 stage rule lives in the MARKED
+    # <style data-kernel="true"> block — the one the posture forbids touching.
+    # So the check reported "the lane invented slide CSS" on decks whose skin
+    # was perfectly intact, including build_skeleton's own output: the probe
+    # printed `aspect-ratio=False` on the kernel's pristine skeleton and still
+    # called it a lane defect (observed 2026-08-31).
+    css = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", html, re.S))
     # …then EVERY stylesheet leaves the body before anything is counted.
     body = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.S)
 
@@ -74,8 +80,20 @@ def measure(html: str) -> dict:
     arranges = re.findall(r'data-arrange="([^"]+)"', body)
     known = set(STUDIO_ARRANGEMENTS.get("deck", {}).keys())
     blocks = re.findall(r'data-block="([^"]+)"', body)
-    ids = re.findall(r'data-block-id="([^"]+)"', body)
     refs = re.findall(r'data-ref="([^"]*)"', body)
+
+    # Criterion 2 is PER BLOCK: "every content unit carries data-block AND
+    # data-block-id". A global id count cannot express that — and since
+    # ADR-519 a SLIDE carries a data-block-id without a data-block, so
+    # `n_ids == n_blocks` reads a CORRECT deck as broken (observed
+    # 2026-08-31: a well-formed 6-slide deck scored "25/19 carry an id" and
+    # FAILED). Count ids on the block-bearing elements themselves.
+    block_tags = re.findall(r"<\w+([^>]*\bdata-block=\"[^\"]*\"[^>]*)>", body)
+    ids = [
+        re.search(r'data-block-id="([^"]+)"', attrs).group(1)
+        for attrs in block_tags
+        if re.search(r'data-block-id="([^"]+)"', attrs)
+    ]
 
     return {
         "slides": len(slides),
@@ -88,7 +106,11 @@ def measure(html: str) -> dict:
         "n_ids": len(ids),
         "dup_ids": [i for i, c in Counter(ids).items() if c > 1],
         "has_aspect": "aspect-ratio" in css or not css,
-        "invented_vh": bool(re.search(r"\.slide\s*\{[^}]*\bvh\b", css)),
+        # `\bvh\b` could NEVER match a real CSS length: there is no word
+        # boundary between a digit and a letter, so "92vh" never matched and
+        # this check was dead from the day it was written (observed
+        # 2026-08-31 — a deliberately vh-sized .slide still scored PASS).
+        "invented_vh": bool(re.search(r"\.slide\s*\{[^}]*\d+vh", css)),
         "refs": refs,
         "bytes": len(html),
     }
@@ -187,6 +209,26 @@ async def main() -> int:
         .eq("path", path).limit(1).execute()
     )
     html = (row.data or [{}])[0].get("content", "")
+
+    # THE ARTIFACT MUST HAVE CHANGED (2026-08-31). Observed: every WriteFile
+    # the lane issued was refused (`empty_content_blocked`, the max_tokens
+    # truncation shape), so the file still held the probe's own skeleton — and
+    # the verdict scored THAT and reported "PARTIAL (operable, wrong skin)".
+    # A probe that certifies its own fixture is an ADR-373 D6 incorrect
+    # success: the harness answered a question the lane never got to.
+    if html == skeleton:
+        print()
+        print("── RESULT ──────────────────────────────────────────────────────────")
+        print("VERDICT: NO WRITE — the artifact is byte-identical to the skeleton.")
+        print("  The lane never landed a revision, so there is nothing to score.")
+        print(f"  rounds={res.get('rounds')} tools={res.get('tools_called')}")
+        print(f"  text: {str(res.get('text'))[:200]}")
+        if not args.write:
+            client.table("workspace_files").delete().eq(
+                "user_id", args.user).eq("path", path).execute()
+            print("\n(probe artifact removed; --write to keep it)")
+        return 1
+
     m = measure(html)
     v, notes = verdict(m)
 

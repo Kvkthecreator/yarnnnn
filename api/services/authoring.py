@@ -32,7 +32,39 @@ from typing import Any, Callable, Optional
 
 # Authoring turns rewrite/patch real documents — the chat-sized 2048 ceiling
 # starves them. Applied by the lane runner when a lane is bound (ADR-440 D3).
-STUDIO_LANE_MAX_TOKENS = 8192
+#
+# ⭐ 2026-08-31 — 8192 → 32000. THE BUDGET MUST HOLD A THINKING RUN *AND* A
+# DOCUMENT, and the first is not ours to bound.
+#
+# Observed failure (deterministic, reproduced): a bound deck lane on
+# `anthropic/claude-sonnet-5` could not complete "make me a deck" AT ALL. It
+# read the artifact, then issued WriteFile with an EMPTY `content` key six
+# times until the 8-round cap ended the turn. Cause: Sonnet 5 THINKS BY
+# DEFAULT, and thinking is billed against this same ceiling. The response is
+# cut mid-JSON; per the guard's own note (primitives/workspace.py) truncation
+# "drops `content`, keeps `path`", so `empty_content_blocked` correctly
+# refuses the write and the model retries into the cap.
+#
+# Measured on the real posture + real asks (max_tokens → thinking_tokens →
+# document chars):
+#     8192  → 1,783 →  9,726  OK        8192  →  6,102 →    102  TRUNCATED
+#     8192  → 8,191 →      0  max_tokens (thinking consumed the WHOLE budget)
+#    16384  → 10,342 →     0  max_tokens (still fails ~1 in 3)
+#    16384  →  3,552 → 17,674  OK
+#    32000  → 14,580 → 14,544  OK
+#
+# Thinking ranged 1,783–14,580 tokens on IDENTICAL prompts, so no ceiling
+# derived from a mean is safe: worst-observed thinking (14,580) + the largest
+# document (17,674 chars ≈ 4,900 tok) ≈ 19.5K. 32000 clears that with headroom;
+# 16384 is measurably insufficient. This is the ADR-306/DP22 evidence bar —
+# a repeated, observed, reproduced failure, not speculation.
+#
+# This ceiling is a CAP, not a spend: a turn bills its actual output, and the
+# measured runs finished at 8–21K. The 8192 figure was set against Sonnet 4.6,
+# whose thinking was not on by default — the engine moved and the budget did
+# not. If a future engine bounds thinking explicitly (a `thinking` budget the
+# router can pass through), that is the better fix and this can come back down.
+STUDIO_LANE_MAX_TOKENS = 32000
 
 # Paths a Studio artifact may be created at (ADR-440 D6: meaning-placed under
 # the member write region — never an app-named root; the Studio owns no
