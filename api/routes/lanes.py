@@ -1119,7 +1119,9 @@ def _fetch_history(
     """
     q = (
         auth.client.table("session_messages")
-        .select("role, content, sequence_number")
+        # ADR-623 — `metadata` joins the select so an attached image survives
+        # its own turn. See the re-mint below.
+        .select("role, content, sequence_number, metadata")
         .eq("session_id", lane_id)
         .gte("sequence_number", visible_from)
         .order("sequence_number", desc=True)
@@ -1128,11 +1130,44 @@ def _fetch_history(
     if before_sequence is not None:
         q = q.lt("sequence_number", before_sequence)
     hist_res = q.execute()
-    return [
-        {"role": r["role"], "content": r["content"] or ""}
-        for r in reversed(hist_res.data or [])
-        if r.get("role") in ("user", "assistant") and (r.get("content") or "").strip()
-    ]
+    out: list[dict] = []
+    for r in reversed(hist_res.data or []):
+        if r.get("role") not in ("user", "assistant"):
+            continue
+        text = r.get("content") or ""
+        if not text.strip():
+            continue
+        # ⭐⭐⭐ ADR-623 — VISION WAS SINGLE-TURN, AND SILENTLY SO. The parts
+        # array is deliberately NOT persisted (a signed URL has a 1h TTL, so
+        # storing one would rot), and the replay dropped the attachment
+        # metadata too — so a member who attached an image on turn 1 got an
+        # answer about it, then on turn 5 the model had no trace it ever
+        # existed. Not even the FILENAME survived, so the model could not know
+        # it had forgotten: it would answer from the surrounding text as if it
+        # had seen the picture.
+        #
+        # The path is durable; the URL is not. So re-mint from the stored path
+        # at replay — the capability is minted per-request either way (ADR-427
+        # D4), which is exactly why nothing durable should hold one.
+        atts = ((r.get("metadata") or {}).get("attachments") or []) if isinstance(r.get("metadata"), dict) else []
+        images = [a for a in atts if isinstance(a, dict) and a.get("kind") == "image" and a.get("path")]
+        if images and r["role"] == "user":
+            parts: list[dict] = [{"type": "text", "text": text}]
+            for a in images:
+                url = _mint_cas_url_for_path(auth, a["path"])
+                if url:
+                    parts.append({"type": "image_url", "image_url": {"url": url}})
+                else:
+                    # The file moved or was deleted since. Say so in words
+                    # rather than dropping it: "I can no longer see it" is a
+                    # different answer from never having been shown it.
+                    parts[0] = {"type": "text", "text": (
+                        f"{text}\n[an image attached earlier ({a.get('name') or a['path']}) "
+                        "is no longer available in the workspace]")}
+            out.append({"role": "user", "content": parts if len(parts) > 1 else text})
+        else:
+            out.append({"role": r["role"], "content": text})
+    return out
 
 
 def _delete_transcript_tail(auth: UserClient, lane_id: str, from_sequence: int) -> None:
@@ -1179,44 +1214,17 @@ def _resolve_blob_storage_path(auth: UserClient, path: str) -> Optional[str]:
 
 
 def _mint_cas_url_for_path(auth: UserClient, path: str) -> Optional[str]:
-    """Mint a serving URL for a CAS-backed binary file (ADR-427 Phase 3).
+    """Mint a serving URL for a CAS-backed binary at a workspace path.
 
-    Resolves the file's head revision → blob sha → the seam's minted, TTL'd
-    signed URL (D4 — capability minted per-request, never stored). Returns
-    None when the path has no binary head (the caller 404s)."""
-    from services.storage_backend import get_storage_backend
-    from services.supabase import get_service_client
-    from services.workspace_context import substrate_scope_filter
+    ADR-623: the walk itself now lives at the seam
+    (`storage_backend.mint_serving_url_for_path`) — three callers had grown
+    three spellings of it and had already drifted (two passed `workspace_id`
+    to the mint, one did not). This stays as the attachment door's name for
+    that one resolver.
+    """
+    from services.storage_backend import mint_serving_url_for_path
 
-    try:
-        row = (
-            auth.client.table("workspace_files")
-            .select("head_version_id")
-            # PASSED, not inferred — see `_resolve_blob_storage_path` above.
-            .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
-            .eq("path", path)
-            .limit(1)
-            .execute()
-        ).data
-        head_id = (row or [{}])[0].get("head_version_id")
-        if not head_id:
-            return None
-        head = (
-            auth.client.table("workspace_file_versions")
-            .select("blob_sha")
-            .eq("id", head_id)
-            .limit(1)
-            .execute()
-        ).data
-        if not head:
-            return None
-        return get_storage_backend(get_service_client()).mint_serving_url(
-            head[0]["blob_sha"], expires_in=3600
-        )
-    except Exception as exc:  # noqa: BLE001 — the caller surfaces a 404
-        logger.warning("[LANE] CAS mint failed for %s: %s", path, exc)
-        return None
-
+    return mint_serving_url_for_path(auth, path)
 
 def _build_turn_message(
     auth: UserClient,

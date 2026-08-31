@@ -244,7 +244,16 @@ def test_round_budget_is_bounded():
     result, calls = _run_turn([looping])  # same tool-call response forever
     assert result["success"]
     assert result["rounds"] == lr._LANE_MAX_ROUNDS
-    assert "exhausted" in result["text"]
+    # ⚠️ Anchored to the BEHAVIOUR, not a spelling. This pinned the word
+    # "exhausted" from the original bracketed internal note; the 2026-08-31
+    # rewrite made the cap message member-legible ("I ran out of steps … your
+    # document is unchanged") and the gate went red for a copy change, which is
+    # how a red gate stops being read. What must hold is that the turn ENDS at
+    # the cap and SAYS SO in words the member can act on.
+    text = (result["text"] or "").lower()
+    assert text.strip(), "the capped turn must say something, never end silent"
+    assert any(k in text for k in ("ran out of steps", "did not finish", "exhausted")), \
+        f"the round cap must be stated in member-legible words, got: {result['text']!r}"
 
 
 # ---------------------------------------------------------------------------

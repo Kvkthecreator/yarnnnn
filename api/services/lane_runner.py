@@ -1257,6 +1257,77 @@ def _stringify_tool_result(result: Any) -> str:
         return str(result)
 
 
+#: Image types a vision engine can actually be handed. Derived from the intake
+#: conformance set, NOT invented here: a workspace file only reaches this code
+#: if it passed `_intake_verdict` (ADR-427 D5), and these are the raster types
+#: every frontier vision engine accepts. A `.svg` is deliberately ABSENT — it is
+#: text, so `ReadFile` returns its source, which is strictly more useful to a
+#: model than a rasterization it cannot edit.
+VISION_IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp", "image/gif")
+
+
+def image_part_for_tool_result(auth: Any, model: str, name: str, result: Any) -> Optional[dict]:
+    """A vision message carrying the bytes a text tool could only describe.
+
+    ⭐⭐⭐ WHY THIS EXISTS. `ReadFile` on a binary answers honestly (ADR-427 §8):
+    "Binary file (image/png, 2585846 bytes). Its bytes are served out-of-band."
+    Honest, and a DEAD END — it names a minted URL and hands the model no way to
+    obtain one, and the lane surface has no fetch verb, so a URL in the tool
+    result would be one more step to nowhere. The agent could describe the file
+    it was looking at and never see it.
+
+    The asymmetry that made this urgent: after ADR-621 an EXTERNAL agent over
+    MCP gets `content_url` on `open` and can fetch the bytes, while the
+    FIRST-PARTY lane agent — on a vision-capable engine, in our own product —
+    could not. External must never be better than internal.
+
+    ⭐⭐ WHY A `user` MESSAGE AND NOT THE TOOL RESULT. The content-parts protocol
+    carries images on user/assistant turns; a `tool` message takes a string.
+    Stuffing a data URI into that string is the base64-through-the-context shape
+    ADR-621 D2 refuses on measured evidence (Box: corrupted at 175KB). So the
+    tool result stays the honest text notice, and the pixels arrive beside it as
+    the one message shape that can hold them — the SAME `image_url` part the
+    member's own attachment produces (`routes/lanes.py::_build_turn_message`),
+    minted through the SAME seam. One mechanism, two entrances.
+
+    Returns None whenever anything does not line up — not an image, engine
+    cannot see, mint failed. A turn that cannot show the picture proceeds with
+    the honest notice it already had; vision is an enrichment, never a
+    precondition.
+    """
+    if name != "ReadFile" or not isinstance(result, dict):
+        return None
+    if not (result.get("binary") and result.get("success")):
+        return None
+    ctype = (result.get("content_type") or "").lower()
+    if ctype not in VISION_IMAGE_TYPES:
+        return None
+    # The engine's own declaration — the same field the attachment door checks,
+    # so a non-vision lane never receives a part it cannot read.
+    if not LANE_MODELS.get(model, {}).get("vision", False):
+        return None
+
+    path = result.get("path") or ""
+    abs_path = path if path.startswith("/workspace/") else f"/workspace/{path.lstrip('/')}"
+    from services.storage_backend import mint_serving_url_for_path
+
+    url = mint_serving_url_for_path(auth, abs_path)
+    if not url:
+        return None
+
+    leaf = abs_path.rsplit("/", 1)[-1]
+    return {
+        "role": "user",
+        "content": [
+            # Name the file in the same breath as the pixels. Without this the
+            # model holds an unlabelled image and, in a turn that read several,
+            # cannot say which one it is looking at.
+            {"type": "text", "text": f"[Contents of {leaf} — the file you just read]"},
+            {"type": "image_url", "image_url": {"url": url}},
+        ],
+    }
+
+
 async def run_lane_turn(
     auth: Any,
     *,
@@ -1458,6 +1529,14 @@ async def run_lane_turn(
                 "tool_call_id": tc["id"],
                 "content": _stringify_tool_result(result),
             })
+            # ADR-623 — a read of an image ENDS IN SEEING IT. The tool result
+            # above stays the honest binary notice; the pixels ride beside it as
+            # a user message, the one shape the content-parts protocol lets
+            # carry them. None when the file is not a viewable image, the read
+            # failed, or the engine cannot see.
+            vision_msg = image_part_for_tool_result(tool_auth, model, name, result)
+            if vision_msg is not None:
+                messages.append(vision_msg)
     else:
         # 2026-08-31 — a member-legible sentence, not a bracketed internal
         # note. The observed shape: a truncated WriteFile arrives with an
@@ -1705,6 +1784,14 @@ async def run_lane_turn_stream(
                 "tool_call_id": tc["id"],
                 "content": _stringify_tool_result(result),
             })
+            # ADR-623 — a read of an image ENDS IN SEEING IT. The tool result
+            # above stays the honest binary notice; the pixels ride beside it as
+            # a user message, the one shape the content-parts protocol lets
+            # carry them. None when the file is not a viewable image, the read
+            # failed, or the engine cannot see.
+            vision_msg = image_part_for_tool_result(tool_auth, model, name, result)
+            if vision_msg is not None:
+                messages.append(vision_msg)
     else:
         # 2026-08-31 — a member-legible sentence, not a bracketed internal
         # note. The observed shape: a truncated WriteFile arrives with an

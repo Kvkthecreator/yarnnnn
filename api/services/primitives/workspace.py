@@ -592,6 +592,15 @@ async def _log_cross_agent_reference(auth: Any, referenced_agent_ids: list[str])
         logger.debug(f"[WORKSPACE] Reference logging failed (non-fatal): {e}")
 
 
+#: Image types the lane promotes into a vision message (ADR-623). Imported from
+#: the lane's own declaration so the NOTICE and the PROMOTION can never disagree
+#: — a notice that promises pixels the lane will not send is the dead end this
+#: ADR removed, re-created one layer up.
+def _VIEWABLE() -> tuple:
+    from services.lane_runner import VISION_IMAGE_TYPES
+    return VISION_IMAGE_TYPES
+
+
 def _binary_file_notice(auth: Any, abs_path: str, scope: str, rel_path: str) -> Optional[dict]:
     """ADR-427 §8: the legible binary answer for a text-shaped read.
 
@@ -634,10 +643,26 @@ def _binary_file_notice(auth: Any, abs_path: str, scope: str, rel_path: str) -> 
             "content": None,
             "content_type": content_type,
             "byte_size": byte_size,
+            # ⚠️ ADR-623 — THIS SENTENCE USED TO END IN A DEAD END. It said the
+            # bytes "are served out-of-band … via a minted URL" and gave the
+            # caller no way to obtain one, so a vision-capable agent read it,
+            # correctly concluded it was stuck, and asked the member to re-attach
+            # a file that was already in the workspace. For a VIEWABLE image the
+            # lane now appends the pixels as a vision message right after this
+            # result (`lane_runner.image_part_for_tool_result`), so the honest
+            # thing to say is that it is coming — not that it is unreachable.
             "message": (
-                f"Binary file ({content_type}, {byte_size or '?'} bytes). "
-                "Its bytes are served out-of-band — text tools cannot read them. "
-                "The file surface/viewer serves it via a minted URL."
+                f"Binary file ({content_type}, {byte_size or '?'} bytes) — it has "
+                "bytes, not text, so there is nothing to read here. This is NOT an "
+                "empty file."
+                + (
+                    " If your engine can see images, the picture itself follows "
+                    "in the next message — look at it there rather than asking "
+                    "for it to be attached."
+                    if (content_type or "").lower() in _VIEWABLE() else
+                    " To work with its contents, open it in the workspace file "
+                    "viewer; text tools cannot read this format."
+                )
             ),
         }
     except Exception as exc:  # noqa: BLE001 — legibility must never break a read

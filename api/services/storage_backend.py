@@ -501,3 +501,59 @@ def get_storage_backend(db_client: Any) -> StorageBackend:
     deployment config — the single switch that makes the fork a driver swap.
     """
     return PostgresObjectStoreBackend(db_client)
+
+
+# ---------------------------------------------------------------------------
+# Path → serving URL (ADR-623 — the ONE resolver)
+# ---------------------------------------------------------------------------
+
+def mint_serving_url_for_path(auth: Any, abs_path: str) -> Optional[str]:
+    """Mint a serving URL for the binary head at a workspace path, or None.
+
+    ⭐ THE SINGLE PATH→URL RESOLVER. Three callers had grown three spellings of
+    this same walk (path → head revision → blob sha → the seam's minted URL):
+    `routes/lanes.py::_mint_cas_url_for_path` for the member's attachment,
+    `services/mcp_composition.py::mint_binary_url` for the interop `open`, and
+    ADR-623's lane vision. They had already drifted — two passed `workspace_id`
+    to the mint and one did not — which is how three spellings of one fact
+    always end. One resolver, three callers.
+
+    Authorization is the SCOPE FILTER on the path read: a caller only resolves
+    files its own `(user_id, workspace_id)` scope reaches. `workspace_id` is
+    then passed to the mint as defence in depth, narrowing the blob lookup to
+    the same workspace the path was read from.
+
+    Never raises — a URL is an enrichment, and a failure to mint one must never
+    break the read that asked for it.
+    """
+    from services.supabase import get_service_client
+    from services.workspace_context import substrate_scope_filter
+
+    workspace_id = getattr(auth, "workspace_id", None)
+    try:
+        rows = (
+            auth.client.table("workspace_files")
+            .select("head_version_id")
+            .eq(*substrate_scope_filter(auth.user_id, workspace_id))
+            .eq("path", abs_path)
+            .limit(1)
+            .execute()
+        ).data or []
+        head_id = rows[0].get("head_version_id") if rows else None
+        if not head_id:
+            return None
+        head = (
+            auth.client.table("workspace_file_versions")
+            .select("blob_sha")
+            .eq("id", head_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not head:
+            return None
+        return get_storage_backend(get_service_client()).mint_serving_url(
+            head[0]["blob_sha"], expires_in=3600, workspace_id=workspace_id,
+        )
+    except Exception as exc:  # noqa: BLE001 — never break a read to enrich it
+        logger.warning("[STORAGE] path mint failed for %s: %s", abs_path, exc)
+        return None
