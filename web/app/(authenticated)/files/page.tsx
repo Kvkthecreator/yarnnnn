@@ -106,6 +106,7 @@ import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { PropertiesModal } from '@/components/workspace/PropertiesModal';
 import { FilesViewToggle } from '@/components/workspace/FilesViewToggle';
 import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
+import { resolveDownload } from '@/lib/workspace/download';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
@@ -400,36 +401,6 @@ function formatNodeTimestamp(value: string): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-/**
- * The MIME type a TEXT file downloads as (2026-08-21).
- *
- * A text file's bytes live in the `content` column, not the blob store, so the
- * browser is handed a Blob we construct — and a Blob with no type saves as
- * `application/octet-stream`, which the OS shows as a nameless binary even when
- * the extension is right. The type has to be stated.
- *
- * Deliberately NARROW: the extensions the substrate's text lane actually holds
- * (`.md/.csv/.yaml/.html/.txt/.json`), mirroring `_EXT_MIMES` in
- * `api/services/content_types.py` for exactly those rows. NOT a second general
- * type registry — the backend's `derive_content_type` remains the authority for
- * every stored file, and anything else here falls back to `text/plain`, which
- * is true of every file that reaches this function (a binary never does: it has
- * a `content_url` and takes the signed-URL lane).
- */
-function textDownloadMime(filename: string): string {
-  const ext = filename.includes('.') ? filename.split('.').pop()!.toLowerCase() : '';
-  switch (ext) {
-    case 'md':
-    case 'markdown': return 'text/markdown';
-    case 'csv': return 'text/csv';
-    case 'html': return 'text/html';
-    case 'json': return 'application/json';
-    case 'yaml':
-    case 'yml': return 'application/yaml';
-    default: return 'text/plain';
-  }
 }
 
 // =============================================================================
@@ -1503,25 +1474,17 @@ export default function ContextPage() {
     // cloud-provider convention (Dropbox / Drive / OneDrive) and where the
     // operator actually looks for it.
     //
-    // TWO LANES, because the substrate stores bytes two ways (ADR-427):
+    // The resolution moved OUT of this page (2026-08-31) into
+    // `lib/workspace/download.ts`, because Properties now offers the same verb
+    // and two copies would be two chances to reproduce the bug that motivated
+    // the move: this resolver built the download from `getFile().content_url`
+    // + `blobUrl()`, which cannot span the CAS binary lane and silently
+    // returned null — no url, so NO MENU ENTRY, for all 39 live binaries. The
+    // server answers it now (`GET /workspace/file/download`), one call for both
+    // lanes. See the module for the full account.
     //
-    //   BINARY — the bytes live in the content-addressed blob store, reached by
-    //   a SIGNED URL. Preserved exactly as shipped in 1069fe3: `download` must
-    //   carry the file's own leaf name, because the CAS is keyed by CONTENT
-    //   ADDRESS and a bare `download` attribute saved the blob as its 64-char
-    //   SHA with no extension ("Kind: Document", generic icon, no preview).
-    //
-    //   TEXT (.md/.csv/.yaml/.html/.txt) — the bytes ARE the `content` column;
-    //   these files have NO `content_url` at all. Until 2026-08-21 that made
-    //   `downloadFor` return null for every text file, so right-clicking a
-    //   `.md` offered no Download and nothing explained why — an affordance
-    //   ABSENT rather than refused, which is the incorrect-success shape: the
-    //   operator concludes the product cannot do it. It can; the content is
-    //   already in the payload we just fetched. So mint an object URL from a
-    //   Blob with the right MIME type and hand it over.
-    //
-    // NEITHER LANE FIRES FOR A FOLDER, and no zip builder is coming. Dropbox /
-    // Drive / OneDrive all zip a folder server-side; we deliberately do not:
+    // NO FOLDER LANE, and no zip builder is coming. Dropbox / Drive / OneDrive
+    // all zip a folder server-side; we deliberately do not:
     //   - ADR-417 — generation is rented, not owned. yarnnn hosts no
     //     generation/rendering engine, and a zip builder sits near enough that
     //     boundary to need its own decision, not a side effect of a menu fix.
@@ -1531,32 +1494,11 @@ export default function ContextPage() {
     // So the entry does not render for a folder — no dead affordance, no
     // disabled-looking row. (The same is true of a multi-selection, which never
     // reaches here: this resolver takes ONE target.)
-    downloadFor: async (t: { path: string; name: string; isFile: boolean }) => {
-      if (!t.isFile) return null;
-      const filename = t.path.split('/').pop() || t.name;
-      try {
-        const file = await api.workspace.getFile(t.path);
-        // BINARY: resolve the stored reference to a fresh signed URL.
-        if (file.content_url) {
-          const r = await api.documents.blobUrl(file.content_url);
-          return { href: r.url, filename };
-        }
-        // TEXT: the content IS the file. A null content is a genuinely empty
-        // body, not a missing one — it still downloads (as an empty file),
-        // which is what the substrate holds. `undefined` means the payload had
-        // no content field at all, and there is nothing honest to save.
-        if (file.content === undefined) return null;
-        const href = URL.createObjectURL(
-          new Blob([file.content ?? ''], { type: textDownloadMime(filename) }),
-        );
-        // Collected for revocation on unmount (`objectUrlsRef`). Revoking here
-        // would invalidate the href before the browser ever followed it.
-        objectUrlsRef.current.push(href);
-        return { href, filename };
-      } catch {
-        return null;
-      }
-    },
+    downloadFor: (t: { path: string; name: string; isFile: boolean }) =>
+      // The object URL (text lane only) is collected for revocation on unmount.
+      // Revoking at resolve time would invalidate the href before the browser
+      // ever followed it.
+      resolveDownload(t, (href) => objectUrlsRef.current.push(href)),
     // BLAST RADIUS — resolve the Move-to-Trash count so the menu label can name
     // it BEFORE the click ("Move to Trash (40 items)"). Folders only: a file is
     // one item and "(1 item)" is noise.

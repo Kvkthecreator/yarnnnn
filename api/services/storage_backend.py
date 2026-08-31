@@ -197,10 +197,23 @@ class StorageBackend(ABC):
         expires_in: int = 3600,
         *,
         workspace_id: Optional[str] = None,
+        download_name: Optional[str] = None,
     ) -> Optional[str]:
         """Mint a short-lived, object-scoped URL for a blob's bytes, or None
         when the driver serves no out-of-band URLs (e.g. inline text — callers
-        read those through the seam). The LFS-batch `href`+`expires_at` shape."""
+        read those through the seam). The LFS-batch `href`+`expires_at` shape.
+
+        `download_name` asks the driver to serve the bytes as an ATTACHMENT
+        under that filename. It exists because the object store is keyed by
+        CONTENT ADDRESS: a blob's key is `cas/e7/e78c…` and carries no trace of
+        the file's name or extension, so a URL minted for VIEWING is the wrong
+        URL to SAVE — the browser names the saved file after the key and the
+        operator gets a 64-hex blob with no extension that no application will
+        open. The file's name is Category-1 state on `workspace_files.path`,
+        which the blob layer cannot see; only the caller holds it, so only the
+        caller can pass it. None = the viewing URL (inline), which is what
+        every `<img>`/`<iframe>` src wants.
+        """
         return None
 
 
@@ -459,10 +472,19 @@ class PostgresObjectStoreBackend(StorageBackend):
         expires_in: int = 3600,
         *,
         workspace_id: Optional[str] = None,
+        download_name: Optional[str] = None,
     ) -> Optional[str]:
         """Per-request, TTL'd signed URL for a binary blob (ADR-427 D4 — a
         capability is minted, never stored). Inline text blobs return None —
-        they are read through the seam, not served out-of-band."""
+        they are read through the seam, not served out-of-band.
+
+        With `download_name`, Supabase serves the object as
+        `Content-Disposition: attachment; filename="…"`, which is what makes a
+        SAVE land under the file's real name rather than its content address
+        (see the base-class contract). The bucket object's stored content-type
+        is `application/octet-stream` for every blob — deliberately, since the
+        writer sees only bytes — so the disposition is what carries the name
+        AND the extension the operator's OS types the file by."""
         query = (
             self._db.table("workspace_blobs")
             .select("storage_key")
@@ -479,7 +501,9 @@ class PostgresObjectStoreBackend(StorageBackend):
         try:
             signed = (
                 self._db.storage.from_(CAS_BUCKET).create_signed_url(
-                    storage_key, expires_in
+                    storage_key,
+                    expires_in,
+                    {"download": download_name} if download_name else None,
                 )
                 or {}
             )
@@ -507,8 +531,18 @@ def get_storage_backend(db_client: Any) -> StorageBackend:
 # Path → serving URL (ADR-623 — the ONE resolver)
 # ---------------------------------------------------------------------------
 
-def mint_serving_url_for_path(auth: Any, abs_path: str) -> Optional[str]:
+def mint_serving_url_for_path(
+    auth: Any, abs_path: str, *, as_download: bool = False
+) -> Optional[str]:
     """Mint a serving URL for the binary head at a workspace path, or None.
+
+    `as_download=True` mints the SAVE form — the bytes served as an attachment
+    named after the file. This resolver is the natural home for that choice
+    because it is the one layer that holds BOTH halves: the path (hence the
+    name and its extension) and the sha (hence the bytes). Below it the blob
+    layer knows only a content address; above it a caller would have to
+    re-derive the name from the path it already handed in. Default False keeps
+    every existing caller byte-identical — a viewer wants the inline URL.
 
     ⭐ THE SINGLE PATH→URL RESOLVER. Three callers had grown three spellings of
     this same walk (path → head revision → blob sha → the seam's minted URL):
@@ -552,7 +586,13 @@ def mint_serving_url_for_path(auth: Any, abs_path: str) -> Optional[str]:
         if not head:
             return None
         return get_storage_backend(get_service_client()).mint_serving_url(
-            head[0]["blob_sha"], expires_in=3600, workspace_id=workspace_id,
+            head[0]["blob_sha"],
+            expires_in=3600,
+            workspace_id=workspace_id,
+            # The name comes off the PATH, never off a caller-supplied string:
+            # the path is the substrate's own answer to "what is this file
+            # called", so the saved name cannot drift from the file's identity.
+            download_name=abs_path.rsplit("/", 1)[-1] if as_download else None,
         )
     except Exception as exc:  # noqa: BLE001 — never break a read to enrich it
         logger.warning("[STORAGE] path mint failed for %s: %s", abs_path, exc)

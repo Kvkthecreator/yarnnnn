@@ -29,8 +29,8 @@
  * is selected).
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, FileText, Folder } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, FileText, Folder, Download } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
@@ -44,6 +44,7 @@ import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legib
 import { resolveHandlers } from '@/lib/file-types/handlers';
 import { CopyField } from '@/components/workspace/CopyField';
 import { relPath } from '@/lib/interop/fileHandle';
+import { resolveDownload } from '@/lib/workspace/download';
 import { ensureKindApps, extractTemplate, knownKind, rememberKind } from '@/lib/file-types';
 import type { WorkspaceTreeNode } from '@/types';
 
@@ -351,6 +352,7 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
         <div className="space-y-3">
           <FileProperties node={node} />
           <FileOpensWith path={node.path} />
+          <FileDownload node={node} />
           {/* The share list + revoke moved into the ShareDialog (ADR-529 D1/D4).
               `FileReach` followed it (ADR-537 D2): "who can reach this file" is
               the STATE the share sheet must show before it offers to change
@@ -360,6 +362,68 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
           <RevisionHistoryPanel path={node.path} onRevert={onRevert} />
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ── Download — "give me a copy of this file" (2026-08-31) ──────────────────
+//
+// Properties is where an operator goes to ask "what IS this file", and
+// "…and give me a copy" is the same question's second half. It was reachable
+// ONLY from the right-click menu, which is the discoverable place for a verb
+// but not the only place an operator looks for one — and Properties is the
+// surface that already answers Kind · Path · Modified · Contributors, i.e. the
+// whole rest of the file's identity. The operator asked for it here by name.
+//
+// SAME resolver as the menu (`lib/workspace/download.ts`), deliberately: the
+// defect this ships alongside was a download built inline from the wrong pair
+// of APIs, and a second inline copy here would be a second chance to
+// reproduce it.
+//
+// An ANCHOR, not a button — the browser's own save path, so the signed URL is
+// followed by the navigation rather than fetched by us. It renders only once
+// resolved: a Download that does nothing when clicked would be the same defect
+// at a different address. Folders never resolve (there is no folder download —
+// `GET /api/workspace/export` is the bulk door), so the row simply does not
+// appear for one, which is also why this component is mounted on the FILE
+// branch only.
+
+function FileDownload({ node }: { node: WorkspaceTreeNode }) {
+  const [dl, setDl] = useState<{ href: string; filename: string } | null>(null);
+  // Object URLs minted for the text lane are revoked on unmount. Revoking any
+  // earlier would invalidate the href before the browser could follow it.
+  const objectUrls = useRef<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDl(null);
+    void resolveDownload(
+      { path: node.path, name: node.name, isFile: node.type !== 'folder' },
+      (href) => objectUrls.current.push(href),
+    ).then((d) => { if (!cancelled) setDl(d); });
+    return () => { cancelled = true; };
+  }, [node.path, node.name, node.type]);
+
+  useEffect(() => () => {
+    for (const u of objectUrls.current) URL.revokeObjectURL(u);
+    objectUrls.current = [];
+  }, []);
+
+  if (!dl) return null;
+
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
+      <PropRow label="Download">
+        <a
+          href={dl.href}
+          download={dl.filename}
+          className="inline-flex items-center gap-1.5 text-[11px] text-foreground/80 underline-offset-2 hover:underline"
+        >
+          <Download className="h-3.5 w-3.5 text-muted-foreground" />
+          Save to your computer
+        </a>
+      </PropRow>
     </div>
   );
 }

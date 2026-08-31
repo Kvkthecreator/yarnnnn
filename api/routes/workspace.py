@@ -1028,6 +1028,105 @@ async def get_workspace_file(
 
 
 # =============================================================================
+# GET /workspace/file/download — "save this file to my computer"
+# =============================================================================
+# THE SAVE DOOR, and the one place that answers it for BOTH content lanes.
+#
+# Why it exists at all. `GET /workspace/file` answers "what is this file" and
+# mints a VIEWING url for a binary head — an absolute, TTL'd signed URL an
+# `<img>` can point at. The FE's Download entry was reaching for that url and
+# then handing it to `/documents/blob?storage_path=…`, the ADR-395 resolver for
+# the OTHER (legacy `documents`-bucket) lane, which cannot parse an absolute
+# CAS url and rejects. The reject was caught, the resolver returned null, and a
+# null download means the menu entry DOES NOT RENDER: every one of the 39 live
+# CAS-backed binaries in production offered no Download at all, silently. An
+# affordance ABSENT rather than refused is the ADR-373 D6 incorrect-success
+# shape — the operator concludes the product cannot save a file, and stops
+# asking.
+#
+# Why a SEPARATE url from the viewing one, rather than reusing it. The bucket
+# object is keyed by CONTENT ADDRESS (`cas/e7/e78c…`) and stored as
+# `application/octet-stream`. Followed by a browser save — the entry's anchor,
+# or the operator's own right-click → "Save image as" — that url names the
+# saved file after the key: a 64-hex blob, no extension, which the OS types as
+# unknown and no application opens (operator-observed, 2026-08-31: "neanderthal2",
+# unopenable). So the save url is minted with the file's real name as a
+# `Content-Disposition: attachment` — the same bytes, correctly named. This is
+# the whole reason the door takes a PATH and not a sha: the name is Category-1
+# state on `workspace_files.path`, and the blob layer cannot see it.
+#
+# TEXT is served INLINE in the response, not as a url, because there is no
+# object to sign — a text file's bytes are its `content` column. The FE mints a
+# Blob from it. One call, two lanes, and the caller does not branch on which.
+
+class FileDownloadResponse(BaseModel):
+    """The save form of a file. Exactly one of `url` / `content` is non-null:
+    `url` for a blob-backed binary (follow it), `content` for text (mint a
+    Blob). `filename` is authoritative for BOTH — it is the file's own name,
+    and the anchor's `download` attribute must use it."""
+    path: str
+    filename: str
+    content_type: str
+    url: Optional[str] = None
+    content: Optional[str] = None
+
+
+@router.get("/workspace/file/download", response_model=FileDownloadResponse)
+async def get_workspace_file_download(
+    auth: UserClient,
+    path: str = Query(..., description="File path — workspace-relative or absolute."),
+) -> FileDownloadResponse:
+    normalized_path = path if path.startswith("/") else f"/workspace/{path}"
+
+    result = (
+        auth.client.table("workspace_files")
+        .select("path, content, content_type, head_version_id")
+        .eq(*_substrate_scope_filter(auth))
+        .eq("path", normalized_path)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"File not found: {path} (looked up as {normalized_path})",
+        )
+    row = rows[0]
+    filename = row["path"].rsplit("/", 1)[-1]
+    # A FOLDER MARKER is not a file and has nothing to save (ADR-588: an empty
+    # folder is a trailing-slash marker row). Refuse it here rather than serve
+    # an empty body under a blank name.
+    if not filename:
+        raise HTTPException(status_code=400, detail="A folder cannot be downloaded")
+    content_type = row.get("content_type") or "application/octet-stream"
+
+    # BINARY: mint the SAVE url — attachment-dispositioned under `filename`.
+    # The empty-text denorm is how a binary head reads (ADR-427 D4: content ''
+    # is a Category-2 text cache, meaningless for binary), so an empty content
+    # column plus a head revision is the signal to try the blob lane.
+    if not (row.get("content") or "").strip() and row.get("head_version_id"):
+        from services.storage_backend import mint_serving_url_for_path
+
+        url = mint_serving_url_for_path(auth, normalized_path, as_download=True)
+        if url:
+            return FileDownloadResponse(
+                path=row["path"], filename=filename,
+                content_type=content_type, url=url,
+            )
+
+    # TEXT: the content IS the file. A null content is a genuinely EMPTY body,
+    # not a missing one — it saves as an empty file, which is what the substrate
+    # holds. Falling through here (rather than 404ing) is deliberate: a binary
+    # whose blob failed to mint still saves its text projection rather than
+    # offering nothing.
+    return FileDownloadResponse(
+        path=row["path"], filename=filename,
+        content_type=content_type, content=row.get("content") or "",
+    )
+
+
+# =============================================================================
 # GET /workspace/file/dependents — the reference edge, read outward (ADR-448)
 # =============================================================================
 # The legibility register: which files' HEAD revision was made FROM this path

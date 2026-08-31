@@ -1117,6 +1117,30 @@ export const api = {
       return request<{ url: string; expires_in: number }>(`/api/documents/blob${qs}`);
     },
 
+    // THE SAVE DOOR — "give me this file as a download" (2026-08-31).
+    //
+    // ONE call for BOTH content lanes, which is the point: the caller does not
+    // branch on whether a file is blob-backed or text. The response carries
+    // `url` (a binary's attachment-dispositioned signed URL — follow it) OR
+    // `content` (text — mint a Blob), plus the authoritative `filename`.
+    //
+    // Do NOT reach for `getFile().content_url` + `blobUrl()` to build a
+    // download. That was the previous shape and it silently offered NO
+    // download for every CAS-backed binary: `getFile` mints an ABSOLUTE
+    // viewing URL for a binary head, `blobUrl` only parses the legacy
+    // `?storage_path=` form, so it rejected locally and the null propagated to
+    // "no menu entry". The two are different lanes and only this door spans
+    // them. `blobUrl` remains correct for what it is — resolving a stored
+    // `documents`-bucket reference for an `<img>` src.
+    fileDownload: (path: string) =>
+      request<{
+        path: string;
+        filename: string;
+        content_type: string;
+        url: string | null;
+        content: string | null;
+      }>(`/api/workspace/file/download?path=${encodeURIComponent(path)}`),
+
     // ADR-448: the reference edge, read outward — which files' head revision
     // was made FROM this path. Serves the delete-confirm "N other files were
     // made from this one" line. Best-effort: the backend returns {count: 0}
