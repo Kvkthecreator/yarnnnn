@@ -57,8 +57,13 @@ t(
     callable(getattr(st, "blocks_for_app", None)),
 )
 t(
+    # Re-anchored 2026-09-01 (red since ADR-599 renamed studio→slides and
+    # deleted docs; unrun): the read-back holds for the live rows, and the
+    # retired outward slugs resolve THROUGH the alias to blogger (ADR-627).
     "D5: app_for_layout reads ADR-473 D2's `app` back off the row",
-    st.app_for_layout("document") == "docs" and st.app_for_layout("deck") == "studio",
+    st.app_for_layout("deck") == "slides"
+    and st.app_for_layout("post") == "blogger"
+    and st.app_for_layout("article") == "blogger",
 )
 t(
     "D5: an unknown slug yields no app (callers treat it as no filtering)",

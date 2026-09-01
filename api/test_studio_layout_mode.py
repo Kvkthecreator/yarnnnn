@@ -47,7 +47,12 @@ def run() -> bool:
     web = root / "web"
     sys.path.insert(0, str(root / "api"))
 
-    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
+    # Re-anchored 2026-09-01: this gate imported `services.apps.docs`, deleted
+    # by ADR-599 D5, so it ERRORED at import (red, unrun) from that commit
+    # until ADR-627 resurrected the outward medium as blogger's `post`. The
+    # seam it defends (flow vs paged; paged-without-geometry) is unchanged.
+    import services.apps  # noqa: F401 — registers every app's rows (ADR-562)
+    from services.apps.blogger import BLOGGER_LAYOUTS, POST_SLUG
     from services.authoring import (
         RETIRED_LAYOUT_SLUGS,
         STUDIO_ARRANGEMENTS,
@@ -79,49 +84,54 @@ def run() -> bool:
         "every declared mode is a known one",
         all(l["mode"] in STUDIO_LAYOUT_MODES for l in STUDIO_LAYOUTS.values()),
     )
-    # ADR-505 D1/D2: the type set is THREE — document (flow) · deck (paged) ·
-    # web (paged). `article` + `page` merged into `web`; `canvas` belongs to
-    # IMAGES and is not a Studio layout at all.
+    # ADR-505 D1/D2 → ADR-599 D5 → ADR-627: `document` (flow) left with Docs
+    # (capture prose is the Text app's medium, not a Studio layout — its
+    # legacy artifacts render via the FE's flow default); the outward type
+    # returned as blogger's `post` (paged). `canvas` belongs to IMAGES.
     _check(
         "the seam matches the registry's own shape: container-native = paged",
         STUDIO_LAYOUTS["deck"]["mode"] == "paged"
-        and STUDIO_LAYOUTS["web"]["mode"] == "paged"
-        and all_layouts()["document"]["mode"] == "flow",
+        and BLOGGER_LAYOUTS[POST_SLUG]["mode"] == "paged",
     )
     _check(
-        # ADR-518 D1: the type SET is still ADR-505's three, housed across two
-        # apps — Studio's table carries its own two; Docs registers document.
-        "the media are three, housed two-and-one (ADR-505 D1 via ADR-518)",
-        set(STUDIO_LAYOUTS) == {"deck", "web"}
-        and set(all_layouts()) >= {"document", "deck", "web"},
+        # ADR-599 D5: Studio's own table carries the deck alone; the outward
+        # medium is registered by the blogger module (the app boundary is the
+        # MODULE, ADR-473 D2). `document` stays UNREGISTERED — creation
+        # stopped with Docs, reading did not.
+        "the media are housed one-and-one; document stays unregistered",
+        set(STUDIO_LAYOUTS) == {"deck"}
+        and set(all_layouts()) >= {"deck", POST_SLUG}
+        and "document" not in all_layouts(),
     )
     _check(
-        "the retired slugs resolve to `web` but are never OFFERED (ADR-505 D2)",
-        canonical_layout_slug("article") == "web"
-        and canonical_layout_slug("page") == "web"
+        "the retired slugs resolve to `post` but are never OFFERED (ADR-627 D1)",
+        canonical_layout_slug("article") == "post"
+        and canonical_layout_slug("page") == "post"
+        and canonical_layout_slug("web") == "post"
         and "article" not in all_layouts()
-        and "page" not in all_layouts(),
+        and "page" not in all_layouts()
+        and "web" not in all_layouts(),
     )
     _check(
         "`canvas` is NOT a Studio layout — it left for IMAGES (ADR-472 D1)",
         "canvas" not in STUDIO_LAYOUTS and "canvas" not in RETIRED_LAYOUT_SLUGS,
     )
     _check(
-        "mode is NOT the geometry seam: web is paged yet reaches no x/y/z",
+        "mode is NOT the geometry seam: post is paged yet reaches no x/y/z",
         # Position gates on a FRAME grain, not on mode — which is exactly why
-        # `web` can share `paged` with `deck` and still have no coordinate space
-        # (ADR-505 D3 / ADR-461 D4: a page has a viewport).
+        # `post` can share `paged` with `deck` and still have no coordinate
+        # space (ADR-505 D3 / ADR-461 D4: a page has a viewport).
         #
         # ADR-544 D3 narrowed that grain from `staged` (either frame) to
         # `artboard` (IMAGES only), so the claim this gate defends is now TRUE
         # OF DECKS TOO — a deck block holds a place in its Area, not a
-        # coordinate. What must not regress is web reaching position at all.
+        # coordinate. What must not regress is a band medium reaching position.
         all(
             "artboard" in STUDIO_MEASURES[m]["grains"]
             for m in ("x", "y", "z")
         )
-        and "section[data-arrange]" in STUDIO_LAYOUTS["web"]["skin"]
-        and ".slide" not in STUDIO_LAYOUTS["web"]["skin"],
+        and "section[data-arrange]" in BLOGGER_LAYOUTS[POST_SLUG]["skin"]
+        and ".slide" not in BLOGGER_LAYOUTS[POST_SLUG]["skin"],
     )
     _check(
         "the vocabulary endpoint serves mode (so the FE never hardcodes a slug)",
@@ -142,26 +152,32 @@ def run() -> bool:
         "the navigator column is PAGED-only",
         "{isPaged && (" in surface and "<PagedNavigator" in surface,
     )
+    # (Re-anchored 2026-09-01 with the import fix: the strip's state moved to
+    # the shared pane-slot machinery — `usePaneSlot` in lib/shell/pane-layout —
+    # while this gate was unrunnable. The invariants survive; the spellings
+    # moved with their owner.)
     _check(
         "the navigator toggle is PAGED-only (it would toggle nothing in flow)",
-        bool(re.search(r"\{isPaged && \(\s*\n\s*<button[^>]*\n\s*type=\"button\"\s*\n\s*onClick=\{toggleNav\}", surface)),
+        "onClick={toggleNav}" in surface
+        and re.search(r"\{isPaged && threeColumn && \(", surface) is not None,
     )
     _check(
         "the nav default derives from mode, not from template === 'deck'",
-        "setNavCollapsed(!isPaged);" in surface and "template !== 'deck'" not in surface,
+        "defaultShown: !!file?.content && isPaged" in surface
+        and "template !== 'deck'" not in surface,
     )
     # ── 2a2. the strip is RESIZABLE (drag its divider), width persisted ──────
+    pane_layout = (web / "lib/shell/pane-layout.ts").read_text()
     _check(
-        "the strip width is state-driven + clamped + persisted (not a fixed w-56)",
-        "const [navWidth, setNavWidth] = useState(224)" in surface
-        and "localStorage.setItem('studio.navWidth'" in surface
-        and "Math.min(NAV_MAX, Math.max(NAV_MIN," in surface,
+        "the strip width is slot-driven + clamped + persisted (one shared module)",
+        "{ width: rail.width }" in surface
+        and "localStorage" in pane_layout
+        and "clamp" in pane_layout,
     )
     _check(
-        "a resize divider drives it (cursor-col-resize, window pointer listeners)",
+        "a resize divider drives it (cursor-col-resize on the slot's own handle)",
         "cursor-col-resize" in surface
-        and "onPointerDown={startNavResize}" in surface
-        and "window.addEventListener('pointermove', onMove)" in surface,
+        and "onPointerDown={rail.startResize}" in surface,
     )
 
     # ── 2b. the slide thumbnail is RESPONSIVE (fixed 2026-07-20) ─────────────
@@ -216,8 +232,11 @@ def run() -> bool:
         and "insertAdjacentElement('afterend', moving)" in _fn(ops, "movePageTo"),
     )
     _check(
-        "New ‹noun› is PAGED-only (flow has no page unit to offer)",
-        "{isPaged && arrangements.length > 0 && (" in toolbar,
+        # Re-anchored 2026-09-01: ADR-586 folded the page-unit entrance into
+        # the one Add door; the seam survives as the door naming the page
+        # noun ONLY when the medium is paged.
+        "the Add door names the page unit only when PAGED (flow has none)",
+        "isPaged\n            ? `Add — a ${pageNoun}" in toolbar,
     )
     # ADR-506 D2 — the toolbar takes the TRI-STATE mode, not a boolean. The
     # boolean was derived with `?? 'flow'`, so it could not tell "this is a

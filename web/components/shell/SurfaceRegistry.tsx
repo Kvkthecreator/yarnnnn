@@ -37,6 +37,7 @@ import ChatPage from '@/app/(authenticated)/chat/page';
 // after ADR-436's viewer renderers). Window-grade, launcher-primary; a bound
 // lane (left) + the live artifact canvas (right).
 import SlidesPage from '@/app/(authenticated)/slides/page';
+import BloggerPage from '@/app/(authenticated)/blogger/page';
 import ImagesPage from '@/app/(authenticated)/images/page';
 // ADR-592 — Docs is HIDDEN IN FULL (`stage: internal`). Its implementation is
 // intact (Studio parameterized), but nothing may mount it: /docs is an ADR-308
@@ -101,6 +102,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   chat: ChatPage,  // ADR-412 D3 — the lanes workbench; ADR-435 — the dock anchor (Home deleted)
   text: TextPage,      // ADR-571 — the prose app (md · txt), Editor beside the canvas
   slides: SlidesPage,  // ADR-440 Studio → ADR-599 — the dedicated deck app
+  blogger: BloggerPage, // ADR-627 — the publish medium's desk (Studio-parameterized)
   images: ImagesPage,  // ADR-472 — the second authoring app (stages → rendered rasters)
   strings: StringsPage,  // ADR-569 — the maintained file, kept under contract
   // ADR-603 D5 — `recurrence` left the registry (window deleted; stub route).

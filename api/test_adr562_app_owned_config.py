@@ -56,10 +56,11 @@ APPS = all_apps()
 # Re-anchored for ADR-599: `studio` renamed `slides` (the full evolve, D4);
 # `docs` DELETED with its app (D5 — was `stage: internal`); `radar` deleted
 # by ADR-592. ADR-604 D3 DELETED the `supervisor` app — Supervisor's desk is
-# strings. Pinned deliberately: a new app is an ADR decision, and this line
+# strings. ADR-627 — `blogger` joins (the publish medium returns as a desk).
+# Pinned deliberately: a new app is an ADR decision, and this line
 # is where its arrival gets noticed rather than absorbed silently.
-check("every live app is registered (slides · images · text · strings)",
-      set(APPS) == {"slides", "images", "text", "strings"},
+check("every live app is registered (slides · images · text · strings · blogger)",
+      set(APPS) == {"slides", "images", "text", "strings", "blogger"},
       f"registered={sorted(APPS)}")
 check("the deleted apps are NOT registered (radar — ADR-592; docs, studio — "
       "ADR-599; supervisor — ADR-604 D3)",

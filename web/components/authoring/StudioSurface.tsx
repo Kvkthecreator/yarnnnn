@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, PanelRight, Plus, Presentation, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Newspaper, Palette, PanelLeft, PanelRight, Plus, Presentation, Upload } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -301,7 +301,7 @@ export interface AuthoringApp {
    *  the app identity the kernel's type→app association keys on (ADR-473 D2).
    *  Which shapes this app offers and which artifacts are its own are both
    *  DERIVED from that association — never listed here (ADR-473 D3). */
-  slug: 'slides' | 'images';
+  slug: 'slides' | 'images' | 'blogger';
   /** Operator-readable app name — the one fact the chrome shows (ADR-518 D7
    *  retired the per-site slug ternaries in favor of this declaration). */
   label: string;
@@ -342,6 +342,15 @@ export const IMAGES_APP: AuthoringApp = {
     'Pick a size, name it, then describe the image in plain words — it renders live on the canvas.',
   icon: ImageIcon,
   dimensionsFirst: true,
+};
+// ADR-627 — the publish medium's desk: the outward type (ADR-505 D2's merged
+// article/page, deleted by ADR-599 D5) returns as `post` under its own app.
+export const BLOGGER_APP: AuthoringApp = {
+  slug: 'blogger',
+  label: 'Blogger',
+  tagline:
+    'Name a post, then describe the piece in plain words — it takes shape live as bands of published prose, pulling in your files, images, and data as it goes.',
+  icon: Newspaper,
 };
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {

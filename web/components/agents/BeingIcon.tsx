@@ -21,13 +21,14 @@
  * Add the row when the registry does.
  */
 
-import { Bot, ClipboardList, Palette, PenTool } from 'lucide-react';
+import { Bot, ClipboardList, Feather, Palette, PenTool } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const BEING_ICONS: Record<string, React.ElementType> = {
   'pen-tool': PenTool,             // authoring — decks and prose (ADR-602 D4)
   palette: Palette,                // generation — the metered pipeline
   'clipboard-list': ClipboardList, // the standing declaration — Supervisor's desk
+  feather: Feather,                // published prose — Blogger's desk (ADR-627)
 };
 
 export function BeingIcon({ icon, className }: { icon: string; className?: string }) {

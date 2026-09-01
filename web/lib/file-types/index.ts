@@ -175,6 +175,7 @@ const APP_SURFACES: Record<string, SurfaceApplication> = {
   // (Slides), which still renders it — the kernel CSS survives the type
   // registry (creation stopped; reading did not).
   slides: { surface: 'slides', param: 'file', label: 'Slides' }, // ADR-599 — Studio's full evolve
+  blogger: { surface: 'blogger', param: 'file', label: 'Blogger' }, // ADR-627 — the publish medium (`post`)
   images: { surface: 'images', param: 'file', label: 'Images' },
   text: { surface: 'text', param: 'file', label: 'Text' }, // ADR-571 — the prose app
 };

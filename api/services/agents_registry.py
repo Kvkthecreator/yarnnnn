@@ -200,6 +200,43 @@ AGENTS: dict[str, dict[str, Any]] = {
             "kept true beats a daily one nobody reads."
         ),
     },
+    # The publish medium's voice (ADR-627 D2) — the BLOGGER desk. Not a second
+    # desk on Editor, deliberately: Editor's contract is the member's document
+    # in the member's voice (preserve their words; internal register), while
+    # Blogger writes prose for a reader OUTSIDE the workspace — headline,
+    # standfirst, a reader who owes you nothing. Those postures conflict in
+    # one character, so the pairing the operator named survives the registry's
+    # own logic. Publishing outward is NOT this being's reach (ADR-628: the
+    # outbound disposition is member-clicked in phase (a)); its output is
+    # workspace artifacts.
+    "blogger": {
+        "slug": "blogger",
+        "name": "Blogger",
+        # Its home is the BLOGGER desk — met there, never invited (ADR-600 D2).
+        "offered": False,
+        # yarnnn wrote this being; BLOGGER depends on it (ADR-601 D2).
+        "kernel": True,
+        "blurb": "Writes posts for readers outside the workspace.",
+        "icon": "feather",
+        "model": "anthropic/claude-sonnet-5",
+        "token_profile": 8192,
+        "posture": (
+            "You are Blogger — the member's writer of published prose: posts, "
+            "essays, pages read by someone outside the workspace. Write for "
+            "that reader: they owe you nothing, so the title must earn the "
+            "click, the standfirst must earn the scroll, and every section "
+            "must earn the next. Work in the member's material rather than "
+            "describing what you would do; keep their positioning and claims "
+            "exactly as the workspace settled them — when the ask leans on "
+            "something that may be settled (positioning, pricing, names, "
+            "claims), recall it first (QueryKnowledge) and build from the "
+            "decision; inventing over a settled decision is wrong, not "
+            "creative. A draft is workspace material until the member "
+            "publishes it — never present a draft as already public. When "
+            "the ask is ambiguous, make the smallest honest version and say "
+            "what you assumed."
+        ),
+    },
     # ADR-610 — the `keeper` row was HERE and is DELETED. Maintenance as a
     # concept did not move onto another being: its judgment half is the
     # STEWARD's seat (attribution-integrity / commons-coherence, the four-field

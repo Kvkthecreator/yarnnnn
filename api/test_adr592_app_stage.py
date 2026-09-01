@@ -134,12 +134,24 @@ _declared = [e for e in KERNEL_SURFACES if e.get("stage") in STAGES]
 check("the declared set is non-empty (the identity check has subjects)",
       len(_declared) >= 8, f"declared={len(_declared)}")
 
-# Coherence, derived rather than hand-kept (the ADR-297 invariant).
+# Coherence, derived rather than hand-kept (the ADR-297 invariant, re-cut for
+# the stage ladder). `pinned == primary tier` was true only while no served
+# row sat at `beta` — this ADR's own §"beta" is a tile WITHOUT a Dock icon,
+# so the honest invariant splits: a pin needs a launcher home (⊆), and the
+# pinned set is exactly the stage-`primary` rows. Re-anchored 2026-09-01 when
+# ADR-627's blogger became the first beta app and exposed the latent pin.
 _served = kernel_surface_entries()
 _prim = {s["slug"] for s in _served if s.get("launcher_tier") == "primary"}
 _pin = {s["slug"] for s in _served if s.get("default_pinned")}
-check("served pinned set == served primary tier (ADR-297 coherence, derived)",
-      _prim == _pin, f"primary={sorted(_prim)} pinned={sorted(_pin)}")
+_stage_prim = {
+    s["slug"] for s in _served
+    if s.get("stage") == "primary" and s.get("launcher_tier") == "primary"
+}
+check("every pinned surface has a launcher home (pinned ⊆ primary tier)",
+      _pin <= _prim, f"primary={sorted(_prim)} pinned={sorted(_pin)}")
+check("served pinned set == stage-primary rows (beta is a tile, never a pin)",
+      _pin == _stage_prim,
+      f"pinned={sorted(_pin)} stage-primary={sorted(_stage_prim)}")
 
 # ⭐ The Dock's client-side seed must equal the derived pinned set.
 # `DEFAULT_KEPT_SURFACES` is a hand-kept copy of a truth the backend derives —

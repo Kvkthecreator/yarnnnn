@@ -53,8 +53,10 @@ def test_the_rule():
     # and the derivation is EXECUTOR-first. ADR-610 dissolved the executor
     # BEING, so strings' executor now derives its resident — the rule is
     # unchanged, only its value moved.
+    # ADR-627 — blogger joins (the publish medium's desk, its own voice); a
+    # declaration naming it derives Blogger, the "second kind" ADR-603 owed.
     _RATIFIED = {"slides": "editor", "text": "editor", "images": "designer",
-                 "strings": "supervisor"}
+                 "strings": "supervisor", "blogger": "blogger"}
     apps = all_apps()
     _assert(set(apps) == set(_RATIFIED),
             f"the registered apps are exactly the ratified set ({sorted(apps)})")

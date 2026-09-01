@@ -268,9 +268,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
     },
     # The Docs surface row was DELETED by ADR-599 D5 with the app (it had been
-    # `stage: internal` since ADR-592; the operator has since named its future
-    # — a blogger app + agent pairing — as a separate arc). /docs remains a
-    # redirect stub to /text, hand-listed in the FE middleware.
+    # `stage: internal` since ADR-592; the operator named its future — a
+    # blogger app + agent pairing — as a separate arc, LANDED as ADR-627: the
+    # blogger row below). /docs remains a redirect stub to /text, hand-listed
+    # in the FE middleware.
     {
         # ADR-440 (2026-07-10) — the Studio, the first AUTHORING app (the
         # second app class after ADR-436's viewer renderers). One surface ↔
@@ -293,6 +294,33 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
         "route": "/slides",
         "summary": "Build slide decks as living artifacts: Designer drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
+    },
+    {
+        # ADR-627 (2026-09-01) — BLOGGER, the publish medium's desk. The
+        # outward type ADR-505 D2 merged (article + page → one band-first
+        # `web` type) and ADR-599 D5 deleted returns as `post`, under the app
+        # whose future that deletion named. Studio-parameterized like Slides
+        # (same authoring kernel, same bound lane); resident is the `blogger`
+        # being (ADR-627 D2). Stage `beta` (D3): reachable and auth-gated via
+        # the roster-derived SURFACE_PREFIXES, a launcher tile, no Dock icon —
+        # usable at ship, unveil deferred until it earns polish parity
+        # (the ADR-488 lesson). Publishing outward is ADR-628's, phased,
+        # unbuilt — this surface composes workspace artifacts only.
+        "slug": "blogger",
+        "stage": "beta",
+        # Tier + pin are DERIVED from the stage at serve (beta → tile, no Dock
+        # icon); declared here because only rows carrying a tier get a derived
+        # one — a tierless row is chrome (nothing to promote) and would serve
+        # without a launcher tile.
+        "launcher_tier": "primary",
+        "default_pinned": False,
+        "register": "application",
+        "title": "Blogger",
+        "archetype": "document",
+        "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
+        "icon_key": "newspaper",
+        "route": "/blogger",
+        "summary": "Write posts, essays, and pages for readers outside the workspace: Blogger drafts band-first published prose as living artifacts — every claim recalled from what the workspace settled, every edit an attributed revision.",
     },
     {
         # ADR-472 (2026-07-20) — IMAGES, the SECOND authoring app. Carved out

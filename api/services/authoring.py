@@ -2168,12 +2168,17 @@ def register_layouts(layouts: dict[str, dict], arrangements: dict[str, dict] | N
 #: READ time and the source is never rewritten (the ADR-481 D5 discipline:
 #: legacy renders, never migrates; it converges when the member next edits).
 #:
-#: This is an alias, NOT a dual implementation: there is one `web` row and one
-#: `web` arrangement roster. Nothing may be ADDED here — a new retirement earns
-#: a row, and a slug that never shipped is simply unknown.
+#: This is an alias, NOT a dual implementation: there is one `post` row and one
+#: `post` arrangement roster (ADR-627 D1 — the outward type returns under the
+#: Blogger app; `web` itself retired with ADR-599 D5 and now aliases forward).
+#: Nothing may be ADDED here — a new retirement earns a row, and a slug that
+#: never shipped is simply unknown. Aliases are SINGLE-HOP (`canonical_layout_
+#: slug` does one lookup), so every retired slug names the LIVE successor
+#: directly — never a chain through another retired slug.
 RETIRED_LAYOUT_SLUGS: dict[str, str] = {
-    "article": "web",
-    "page": "web",
+    "article": "post",
+    "page": "post",
+    "web": "post",
 }
 
 

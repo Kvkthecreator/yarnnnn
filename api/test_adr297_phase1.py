@@ -248,19 +248,30 @@ def test_kernel_surfaces_module() -> None:
     # Live contract (2026-07-22): the primary apps ship in the Dock (five at
     # first; Images left per ADR-488, Radar joined per ADR-486 — both
     # 2026-07-28), and
-    # the pinned set must equal the primary tier exactly — the invariant worth
-    # gating is not "how many" but the COHERENCE of the two fields: a primary
-    # app the operator never sees is invisible product, and a pinned surface
-    # that isn't primary is a Dock icon with no launcher home. Order is the
-    # frontend's (DEFAULT_KEPT_SURFACES), so compare as sets.
+    # the invariant worth gating is not "how many" but the COHERENCE of the
+    # fields: a pinned surface that isn't primary-tier is a Dock icon with no
+    # launcher home, and the declared pin must equal what the stage DERIVES
+    # (ADR-592 — `is_default_pinned` is the one derivation; this gate guards
+    # it, per app_stage.py's own docstring). Re-anchored 2026-09-01: the old
+    # `pinned == primary tier` identity held only while no row sat at `beta`
+    # — ADR-592's beta is BY DESIGN a tile without a Dock icon, and ADR-627's
+    # blogger is the first such row. Order is the frontend's
+    # (DEFAULT_KEPT_SURFACES), so compare as sets.
+    from services.app_stage import is_default_pinned as _derived_pin
     pinned_by_default = {s["slug"] for s in KERNEL_SURFACES if s["default_pinned"]}
     primary_tier = {
         s["slug"] for s in KERNEL_SURFACES if s.get("launcher_tier") == "primary"
     }
     _assert(
-        pinned_by_default == primary_tier,
-        f"default_pinned == the primary tier (pinned={sorted(pinned_by_default)}, "
+        pinned_by_default <= primary_tier,
+        f"every pinned surface has a launcher home (pinned={sorted(pinned_by_default)}, "
         f"primary={sorted(primary_tier)})",
+    )
+    derived_pinned = {s["slug"] for s in KERNEL_SURFACES if _derived_pin(s)}
+    _assert(
+        pinned_by_default == derived_pinned,
+        f"declared pins == the stage derivation (declared={sorted(pinned_by_default)}, "
+        f"derived={sorted(derived_pinned)})",
     )
 
     # Two-register coherence (ADR-309; cleaved by ADR-312 D5). Every

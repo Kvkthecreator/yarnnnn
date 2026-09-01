@@ -31,6 +31,7 @@ import {
   Inbox,
   Link2,
   MessageCircle,
+  Newspaper,
   Package,
   Presentation,
   Rocket,
@@ -138,6 +139,8 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   rocket: Rocket,
   // ADR-338 D4.1: rss glyph for the /sources standing-watch surface.
   rss: Rss,
+  // ADR-627: the Blogger desk — the publish medium.
+  newspaper: Newspaper,
   scale: Scale,
   // 2026-08-20: the `scroll-text` mapping is DELETED. ADR-297 D18.2 registered
   // it for the Feed surface (dissolved by ADR-415); ADR-571's Text app was its

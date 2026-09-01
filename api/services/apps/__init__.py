@@ -60,6 +60,12 @@ declaration per app and that every registered app names a resolvable resident.
 # (a blogger app + agent pairing, its own arc), which made Docs dormant
 # machinery with no successor claim. Its 11 live flow-family artifacts remain
 # as files; /docs still redirects to /text.
+#
+# blogger (ADR-627) — that named arc, landed. The outward type (article +
+# page, merged by ADR-505 D2, deleted by ADR-599 D5) returns as `post` under
+# its own app with its own being. NOT Docs restored: `document` (capture
+# prose) stays with Text; Blogger owns only the PUBLISH medium.
+from services.apps import blogger as blogger  # noqa: F401,E402  (registration side-effect)
 from services.apps import images as images  # noqa: F401,E402  (registration side-effect)
 # text (ADR-571) — the prose-currency app. Registers itself in its own module
 # (the Docs shape), because `services/apps/text.py` also holds the lane's job

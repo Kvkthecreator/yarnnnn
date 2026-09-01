@@ -132,11 +132,12 @@ for r in AGENTS.values():
            r["model"] in LANE_MODELS and not unpriced_lane_model(r["model"]))
     _check(f"model_for_agent('{r['slug']}') answers",
            model_for_agent(r["slug"]) == r["model"])
-# ADR-603 — Supervisor joins. The set is pinned deliberately (a new being is
-# an ADR decision, not a drive-by), and it is EDITED here when one lands —
-# which is the point: this line is where the roster's growth gets noticed.
-_check("the expected beings are exactly {designer, editor, supervisor}",
-       set(AGENTS) == {"designer", "editor", "supervisor"})
+# ADR-603 — Supervisor joins. ADR-627 — Blogger joins (the publish medium's
+# voice). The set is pinned deliberately (a new being is an ADR decision, not
+# a drive-by), and it is EDITED here when one lands — which is the point:
+# this line is where the roster's growth gets noticed.
+_check("the expected beings are exactly {blogger, designer, editor, supervisor}",
+       set(AGENTS) == {"blogger", "designer", "editor", "supervisor"})
 # ADR-610 — `keeper` is DELETED and must not return. Maintenance is the
 # steward's seat (judgment) and daemon work (mechanics); a being for it would
 # be authority on a being, the ADR-460 D3.a cliff.
@@ -146,6 +147,11 @@ _check("Editor serves BOTH authoring desks (slides + text)",
        set(homes_for_agent("editor")) == {"slides", "text"})
 _check("Designer keeps generation only (images)",
        homes_for_agent("designer") == ["images"])
+# ADR-627 D2 — the publish medium's voice is its OWN being, not a third desk
+# on Editor: outward prose (a reader who owes you nothing) conflicts with
+# Editor's preserve-the-member's-voice contract in one character.
+_check("Blogger serves the blogger desk only",
+       homes_for_agent("blogger") == ["blogger"])
 _check("each being's icon is distinct (the crafts read apart at a glance)",
        len({r["icon"] for r in AGENTS.values()}) == len(AGENTS))
 
@@ -273,6 +279,9 @@ _check("IMAGES is unpromoted today (the fact this derivation reads)",
 _check("Designer waits with its only desk", not is_promoted("designer"))
 _check("Editor is promoted (slides + text are both primary)", is_promoted("editor"))
 _check("Supervisor is promoted (strings is primary)", is_promoted("supervisor"))
+# ADR-627 D3 — beta is a launcher tile, so a member meets the desk in the
+# product's normal course; the being is promoted with it (derived).
+_check("Blogger is promoted (its desk is a beta tile)", is_promoted("blogger"))
 # The derivation must FOLLOW the registry, not a copy of it: promoting the app
 # must promote the being with NO edit here. Proven by moving the app's stage.
 #
