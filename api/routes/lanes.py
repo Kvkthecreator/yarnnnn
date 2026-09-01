@@ -2072,29 +2072,34 @@ async def add_conversation_participant(
     elif kind == "agent":
         if not req.agent_slug:
             raise HTTPException(status_code=422, detail="An agent needs agent_slug")
-        # ADR-600 D3 — the door asks the FIELD, not mere resolvability. Before
-        # this, it gated on `resolve_agent`, which resolves EVERY being: a
-        # desk's resident was accepted into any chat lane's cast while the
-        # roster offered nobody, so the API contradicted its own surface (the
-        # ADR-373 D6 incorrect-success class). `offered` is the same question
-        # `list_agents` answers, asked at the door.
+        # ADR-625 — resolvability is the gate; `offered` is NOT asked here.
+        #
+        # ADR-600 D3 put an `offered` check here, reasoning that the API must
+        # not accept into a cast someone the roster does not offer. The
+        # reasoning was right and the premise MOVED: ADR-614 D1 made the New
+        # chat door lead with COLLEAGUES, seeding the cast with the being the
+        # member names — and it never asked `offered`, because `create_lane`
+        # gates on `resolve_agent` alone. So the two doors performed the SAME
+        # act (ADR-614 D1's own words: "the SAME act as adding them from
+        # CastBar a second later") and gave OPPOSITE answers.
+        #
+        # Measured in production 2026-09-01 before this change: 74 agent cast
+        # rows across the workspace, every one an `offered: False` being
+        # (editor 36 · designer 33 · supervisor 5). Members chat with residents
+        # constantly. The refusal was not protecting an invariant — it was
+        # contradicting the live product, and it was UNREACHABLE from the UI
+        # besides (the add door listed `agents`, the offered roster, which is
+        # empty per ADR-599 D1, so it rendered no rows to refuse).
+        #
+        # `offered` keeps its meaning and its OTHER readers: it still answers
+        # "is this being on the roster a member picks from" (`list_agents`,
+        # `is_promoted`'s no-desk clause). It is a PRESENTATION question, and
+        # this door is not a presentation.
         from services.agents_registry import resolve_agent
 
         _being = resolve_agent(req.agent_slug)
         if _being is None:
             raise HTTPException(status_code=422, detail=f"No agent called '{req.agent_slug}'")
-        if not _being.get("offered"):
-            # Refused with the REASON — a resident is not missing, it is
-            # housed. The generic "no agent called…" would read as a typo and
-            # send the member looking for a different spelling.
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"{_being.get('name') or req.agent_slug} works at a desk — "
-                    "you meet them in their app, not by inviting them to a "
-                    "conversation."
-                ),
-            )
     else:
         raise HTTPException(status_code=422, detail=f"Unknown participant kind: {req.kind}")
 

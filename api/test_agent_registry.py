@@ -192,13 +192,29 @@ for _py in list((API / "services").rglob("*.py")) + list((API / "routes").rglob(
 _check(f"no module subscripts the register or names a deleted container "
        f"(found: {_offenders or 'none'})", not _offenders)
 
-print("6. the cast door gates on `offered`, not on resolvability (ADR-600 D3)")
+print("6. the two cast doors ask the SAME question (ADR-625, superseding ADR-600 D3)")
+# INVERTED, deliberately. ADR-600 D3 made this door gate on `offered`; ADR-614
+# D1 then made the New chat door seed the cast with a named colleague WITHOUT
+# asking `offered` (create_lane gates on `resolve_agent` alone). Two doors, one
+# act, opposite answers — and the measured reality sided with the open one:
+# 74 agent cast rows in production on 2026-09-01, every one an `offered: False`
+# being. Re-adding an `offered` check here should have to argue with a red gate.
 _add_door = _lanes_src[_lanes_src.index('elif kind == "agent":'):]
 _add_door = _add_door[:_add_door.index("result = add_participant")]
-_check("the door reads `offered` before admitting a being",
-       '.get("offered")' in _add_door)
-_check("a housed being is refused with its reason, not a generic miss",
-       "works at a desk" in _add_door)
+_check("the add door does NOT gate on `offered` (it matches create_lane)",
+       '.get("offered")' not in _add_door)
+_check("the desk-refusal copy is gone with the check it explained",
+       "works at a desk" not in _add_door)
+_check("an unresolvable slug is still refused (resolvability IS the gate)",
+       "No agent called" in _add_door)
+
+# The symmetry, asserted on the OTHER door rather than assumed: create_lane
+# must not grow an `offered` check either, or the pair diverges again in the
+# opposite direction.
+_create = _lanes_src[_lanes_src.index("async def create_lane"):]
+_create = _create[:_create.index("@router.get(\"/lanes/{lane_id}/messages\")")]
+_check("create_lane does not gate on `offered` either",
+       '.get("offered")' not in _create)
 
 print("7. provenance is a field, and the edit door is a GATE (ADR-601 D2/D3)")
 _check("every being today is kernel-authored (no member beings yet)",

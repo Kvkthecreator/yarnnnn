@@ -152,7 +152,16 @@ export function ConversationDetail({
     [participants],
   );
 
-  const invitableAgents = agents.filter((a) => !inCast.agents.has(a.slug));
+  // ADR-625 — the ADD door offers the SAME set the New chat door does:
+  // `beings` (every being that exists), not `agents` (the `offered` roster,
+  // which is EMPTY per ADR-599 D1). Starting a chat with a colleague and
+  // adding one to a chat you are already in are the same act — ADR-614 D1
+  // says so outright ("the SAME act as adding them from CastBar a second
+  // later") — so a door that offered nobody while the other offered everybody
+  // was two answers to one question. Falls back to `agents` for an older
+  // envelope, the same degradation the naming map above uses.
+  const invitableAgents = (beings?.length ? beings : agents)
+    .filter((a) => !inCast.agents.has(a.slug));
   const invitablePeople = people.filter((p) => !inCast.humans.has(p.principal_id));
 
   const commit = useCallback(

@@ -316,11 +316,7 @@ function BeingDetail({
         </div>
         <div className="flex gap-3">
           <dt className="w-24 shrink-0 text-muted-foreground">Add to a chat</dt>
-          <dd>
-            {being.offered
-              ? 'Yes — bring them into any conversation.'
-              : 'No — you find them in their app.'}
-          </dd>
+          <dd>Yes — start a chat with them, or add them to one you are in.</dd>
         </div>
         {being.model && (
           <div className="flex gap-3">
