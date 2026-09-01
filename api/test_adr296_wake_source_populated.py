@@ -26,7 +26,7 @@ Checkpoint 1 scope: Reviewer-wake telemetry sites in wake.py
 (11 record_execution_event calls) + routes/feed.py (2 calls) all carry
 wake_source + funnel_decision. Non-wake LLM-cost-ledger sites (anthropic.py,
 session_continuity.py, recurrence_prompt_inference.py, primitives/infer_*.py,
-primitives/dispatch_specialist.py, primitives/web_search.py) are sub-LLM-call
+primitives/web_search.py) are sub-LLM-call
 cost rows per ADR-291; they correctly stamp neither field (NULL).
 
 Run: python api/test_adr296_wake_source_populated.py
@@ -270,7 +270,7 @@ def test_non_wake_sites_do_not_stamp_wake_source() -> None:
         "services/recurrence_prompt_inference.py",
         # ADR-314 D4: infer_workspace.py deleted (first-act scaffold dissolved).
         "services/primitives/infer_context.py",
-        "services/primitives/dispatch_specialist.py",
+        # dispatch_specialist.py DELETED by ADR-626 D4.b.
         "services/primitives/web_search.py",
     ]
     for rel in non_wake_files:

@@ -7,7 +7,7 @@ the resolver's SHAPE and none DROVE an agent through it. This gate drives.
 Asserts:
   1. A human auth resolves the account store (keyed user_id).
   2. An AGENT auth is REFUSED — driven through the real resolver.
-  2b. A real `HeadlessAuth` (not a stand-in) is refused.
+  2b. Every AGENT-SHAPED caller identity is refused (ADR-626 D4.b re-cut).
   2c. A member's LANE is NOT refused — it is the member's hands.
   3. The withdrawn two-store symbols are absent.
   4. No route serves /integrations/workspace-credentials.
@@ -129,31 +129,66 @@ def _test_resolution():
 
 
 def _test_real_headless_auth():
-    """2b — drive the REAL HeadlessAuth, not a stand-in.
+    """2b — every AGENT-SHAPED caller is refused, at the shapes it can take.
 
-    The pre-577 defect lived precisely in the gap between what a test's fake
-    auth carried and what `HeadlessAuth` actually carries.
+    ⭐ RE-CUT 2026-09-01 (ADR-626 D4.b deleted the headless-dispatch stack).
+    This drove the REAL `HeadlessAuth`, and its reason was right: *"the pre-577
+    defect lived precisely in the gap between what a test's fake auth carried
+    and what HeadlessAuth actually carries."* That class is now deleted, so the
+    literal check is unrunnable — but the LESSON is not, and re-cutting it to a
+    loose stand-in would re-open the gap the sentence names.
+
+    So this pins the SHAPES rather than the class. `HeadlessAuth` stamped
+    exactly two caller identities and one flag:
+
+        headless = True
+        caller_identity = f"specialist:{role}"   (agent dict carried a role)
+        caller_identity = "specialist:unknown"   (no role — the tripwire)
+
+    Both spellings, and the flag, are asserted below. If a future headless
+    caller is built it must stamp one of these — `_AGENT_CALLER_PREFIXES` in
+    `platform_credentials.py` is keyed on the PREFIX (ADR-577 D1.a), which is
+    live vocabulary in four modules and outlived the class that stamped it.
+
+    The `unknown` case is the load-bearing one: it is the FAIL-TOWARD-REFUSAL
+    path, and it must stay refused even though nothing legible identifies the
+    caller.
     """
-    from services.primitives.registry import HeadlessAuth
     from services.platform_credentials import resolve_platform_credential, is_agent_caller
 
     out = []
-    sink = {}
-    auth = HeadlessAuth(_Client(sink), "owner-uuid", agent={"role": "researcher"})
+    # The two identities the deleted class emitted, verbatim.
+    for label, identity in (
+        ("2b role-stamped", "specialist:researcher"),
+        ("2b2 role-less tripwire", "specialist:unknown"),
+    ):
+        auth = _Auth(user_id="owner-uuid", caller_identity=identity, headless=True)
+        out.append(_check(
+            f"{label} ({identity}) classifies as an agent caller",
+            is_agent_caller(auth), f"caller_identity={identity}"))
+        out.append(_check(
+            f"{label} ({identity}) is REFUSED a credential",
+            resolve_platform_credential(auth, "slack") is None))
+        out.append(_check(
+            f"{label} ({identity}) never touched the table",
+            "table" not in auth.sink, f"sink={auth.sink}"))
 
+    # 2b3 — the deepest case: a headless auth whose identity is UNREADABLE.
+    # `is_agent_caller` falls back to the `headless` flag, so this must refuse
+    # even with no prefix at all to key on.
+    faceless = _Auth(user_id="owner-uuid", headless=True)
     out.append(_check(
-        "2b the real HeadlessAuth classifies as an agent caller",
-        is_agent_caller(auth), f"caller_identity={getattr(auth,'caller_identity',None)}"))
-    out.append(_check(
-        "2b2 the real HeadlessAuth is REFUSED a credential",
-        resolve_platform_credential(auth, "slack") is None))
+        "2b3 a headless auth with NO identity is refused (fails toward refusal)",
+        resolve_platform_credential(faceless, "slack") is None,
+        f"caller_identity={getattr(faceless,'caller_identity',None)}"))
 
-    # A HeadlessAuth with no agent role still must not reach a human's token.
-    bare = HeadlessAuth(_Client({}), "owner-uuid")
+    # 2b4 — the deleted class must not come back without an ADR. Its return
+    # would mean role-keyed dispatch returned too, which ADR-626 D4.b refused.
+    import services.primitives.registry as _reg
     out.append(_check(
-        "2b3 a role-less HeadlessAuth is also refused (fails toward refusal)",
-        resolve_platform_credential(bare, "slack") is None,
-        f"caller_identity={getattr(bare,'caller_identity',None)}"))
+        "2b4 HeadlessAuth stays deleted (ADR-626 D4.b)",
+        not hasattr(_reg, "HeadlessAuth"),
+        "re-adding it re-opens role-keyed dispatch — argue with this gate first"))
 
     return out
 

@@ -97,6 +97,20 @@ def assert_attr_absent(module_path: str, attr: str) -> None:
     _ok(f"{module_path}.{attr} absent (as required)")
 
 
+def assert_module_absent(module_path: str) -> None:
+    """The whole MODULE must be gone — not merely stripped of an attribute.
+
+    Added by ADR-626 D4.b: a deleted primitive's re-appearance is a module
+    import, so the absent-assertion has to be at that grain.
+    """
+    try:
+        importlib.import_module(module_path)
+    except ImportError:
+        _ok(f"{module_path} absent (as required)")
+        return
+    _fail(f"{module_path} should be DELETED")
+
+
 def main() -> None:
     print()
     print("=" * 70)
@@ -278,11 +292,15 @@ def main() -> None:
     # the consumption boundary, never pushed at session-close. The ADR-262 D4
     # present-assertion is superseded by an absent-assertion.
     assert_attr_absent("services.wake", "_maybe_auto_compose")
-    assert_attr_present("services.primitives.dispatch_specialist", "handle_dispatch_specialist")
-    assert_attr_present("services.primitives.dispatch_specialist", "DISPATCH_SPECIALIST_TOOL")
-    assert_attr_present("services.primitives.dispatch_specialist", "VALID_SPECIALIST_ROLES")
+    # ⭐ INVERTED 2026-09-01 (ADR-626 D4.b). This section asserted the module
+    # EXISTS and is registered on four rosters. ADR-417's follow-on had already
+    # removed it from every roster, so the registration half had been RED for
+    # months — a gate describing a world that ended. ADR-626 D4.b then deleted
+    # the module: role-keyed dispatch ("who does this work?" answered by a role
+    # ON A BEING) is the shape ADR-596→610 dismantled, and capability lives at
+    # the APP instead. Re-adding it must argue with this gate.
+    assert_module_absent("services.primitives.dispatch_specialist")
 
-    # DispatchSpecialist registered in CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES, HANDLERS
     from services.primitives.registry import (
         CHAT_PRIMITIVES,
         HEADLESS_PRIMITIVES,
@@ -293,25 +311,26 @@ def main() -> None:
     headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
     reviewer_names = {t["name"] for t in FREDDIE_PRIMITIVES}
 
-    if "DispatchSpecialist" not in chat_names:
-        _fail("DispatchSpecialist missing from CHAT_PRIMITIVES")
-    _ok("DispatchSpecialist registered in CHAT_PRIMITIVES")
-    if "DispatchSpecialist" not in headless_names:
-        _fail("DispatchSpecialist missing from HEADLESS_PRIMITIVES")
-    _ok("DispatchSpecialist registered in HEADLESS_PRIMITIVES")
-    if "DispatchSpecialist" not in reviewer_names:
-        _fail("DispatchSpecialist missing from FREDDIE_PRIMITIVES (ADR-261 D7)")
-    _ok("DispatchSpecialist registered in FREDDIE_PRIMITIVES")
-    if "DispatchSpecialist" not in HANDLERS:
-        _fail("DispatchSpecialist handler not registered")
-    _ok("DispatchSpecialist handler registered in HANDLERS")
+    for _roster, _names in (
+        ("CHAT_PRIMITIVES", chat_names),
+        ("HEADLESS_PRIMITIVES", headless_names),
+        ("FREDDIE_PRIMITIVES", reviewer_names),
+        ("HANDLERS", set(HANDLERS)),
+    ):
+        if "DispatchSpecialist" in _names:
+            _fail(f"DispatchSpecialist back in {_roster} — ADR-626 D4.b deleted it")
+        _ok(f"DispatchSpecialist absent from {_roster} (ADR-626 D4.b)")
 
     # Reviewer roster has Schedule + Compose + DispatchSpecialist + ProposeAction.
     # ADR-296 v2 D3: FireInvocation REMOVED from FREDDIE_PRIMITIVES — Reviewer
     # does not self-invoke. Cadence is authored via Schedule; standing intent
     # via WriteFile. FireInvocation remains in CHAT_PRIMITIVES for operator-
     # initiated manual fire (operator presence is itself a wake-warrant).
-    expected_reviewer_authority = {"Schedule", "Compose", "DispatchSpecialist", "ProposeAction"}
+    # ADR-626 D4.b — DispatchSpecialist dropped from the expected set with the
+    # primitive itself. The Reviewer's direction authority is unchanged in
+    # substance: it schedules, composes and proposes; it never dispatched a
+    # specialist in practice (zero valid roles since ADR-417's follow-on).
+    expected_reviewer_authority = {"Schedule", "Compose", "ProposeAction"}
     missing = expected_reviewer_authority - reviewer_names
     if missing:
         _fail(f"FREDDIE_PRIMITIVES missing authority tools: {missing}")
@@ -324,11 +343,11 @@ def main() -> None:
 
     # All three primitive handlers conform to the (auth, input) contract
     import inspect
-    for handler_name in ["handle_schedule", "handle_fire_invocation", "handle_dispatch_specialist", "handle_compose"]:
+    for handler_name in ["handle_schedule", "handle_fire_invocation", "handle_compose"]:
         for module_name in [
             "services.primitives.schedule",
             "services.primitives.fire_invocation",
-            "services.primitives.dispatch_specialist",
+            # dispatch_specialist DELETED by ADR-626 D4.b.
             "services.primitives.compose",
         ]:
             try:

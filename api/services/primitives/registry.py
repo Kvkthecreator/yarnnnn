@@ -972,141 +972,39 @@ def get_tools_for_mode(mode: str) -> list[dict]:
         return list(CHAT_PRIMITIVES)  # Default to chat
 
 
-class HeadlessAuth:
-    """Minimal auth context for headless execution.
-
-    ADR-288 D1: ``caller_identity`` carries the ADR-209 attribution string
-    for substrate writes performed through this auth. Headless callers are
-    direct sub-LLM dispatches under a role.
-
-    ⚠️ ADR-626 D4.b (2026-09-01) — THIS WHOLE STACK IS DORMANT, and the
-    docstring used to hide it. The example named ``harvest.py`` dispatching
-    ``role="researcher"``; **that file is DELETED**. Traced further: this
-    class's only two builders (``get_headless_tools_for_agent``,
-    ``create_headless_executor``) have exactly ONE caller each, and both are
-    inside ``primitives/dispatch_specialist.py`` — itself a fossil whose
-    ``VALID_SPECIALIST_ROLES`` is the empty set. So the headless-dispatch stack
-    is dead END TO END, not merely missing one example.
-    Left in place (not deleted) as the seam a future specialist re-enters
-    through, exactly as ADR-417's follow-on decided for the primitive — but
-    recorded honestly, because a docstring citing a live-sounding caller is how
-    530 dormant lines get mistaken for a head start.
-    ⭐ For mid-task delegation, ADR-626 D4.b names
-    ``services/derive_turn.py::run_bounded_derive_turn`` instead.
-
-    caller_identity defaults to ``f"specialist:{role}"``
-    when an agent context with a role is available, else ``"specialist:unknown"``
-    as a telemetry tripwire (logged by the substrate primitive on use). Note:
-    specialist writes that the primitive itself asserts (e.g., output-folder
-    writes carrying a more specific authored_by) override this default.
-    """
-
-    def __init__(
-        self,
-        client,
-        user_id,
-        agent_sources=None,
-        coordinator_agent_id=None,
-        agent=None,
-        task_slug=None,
-    ):
-        self.client = client
-        self.user_id = user_id
-        self.headless = True
-        self.agent_sources = agent_sources
-        self.coordinator_agent_id = coordinator_agent_id
-        self.agent = agent
-        self.task_slug = task_slug
-        if agent:
-            from services.workspace import get_agent_slug
-            self.agent_slug = get_agent_slug(agent)
-        else:
-            self.agent_slug = None
-
-        # ADR-288 D1: caller_identity derived from agent role when present.
-        role = (agent or {}).get("role") if isinstance(agent, dict) else None
-        self.caller_identity = f"specialist:{role}" if role else "specialist:unknown"
-
-
-async def get_headless_tools_for_agent(
-    client: Any,
-    user_id: str,
-    agent: Optional[dict] = None,
-    agent_sources: Optional[list] = None,
-    coordinator_agent_id: Optional[str] = None,
-    task_required_capabilities: Optional[list[str]] = None,
-) -> list[dict]:
-    """
-    Resolve the full headless tool surface for an agent.
-
-    Headless execution always gets the base primitive registry. Platform tools
-    are added dynamically when, and only when:
-    1. the agent's role bundle grants them, OR (per ADR-227) the recurrence's
-       `required_capabilities:` block declares them (YAML recurrence body per
-        ADR-231 / ADR-261), AND
-    2. the user has the provider connected.
-
-    The two sources merge: roles declare universal identity (ADR-176),
-    recurrences declare ICP-specific needs (ADR-188 + ADR-207 P4b). Without
-    the merge, universal-role agents on program-specific recurrences never
-    receive program-specific platform tools.
-    """
-    tools = list(HEADLESS_PRIMITIVES)
-    if not client or not user_id or not agent:
-        return tools
-
-    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
-    platform_tools = await get_platform_tools_for_agent(
-        auth, agent, task_required_capabilities=task_required_capabilities,
-    )
-    if platform_tools:
-        tools.extend(platform_tools)
-    return tools
-
-
-def create_headless_executor(
-    client: Any,
-    user_id: str,
-    agent_sources: Optional[list] = None,
-    coordinator_agent_id: Optional[str] = None,
-    agent: Optional[dict] = None,
-    dynamic_tools: Optional[list[dict]] = None,
-    task_slug: Optional[str] = None,
-):
-    """
-    Create a tool executor function for headless mode.
-
-    Returns an async callable (tool_name, tool_input) -> result_dict
-    that dispatches to primitive handlers with headless-appropriate
-    error handling (log + return error dict, never raise).
-    """
-    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent, task_slug=task_slug)
-    allowed_tool_names = set(_HEADLESS_TOOL_NAMES)
-    if dynamic_tools:
-        allowed_tool_names.update(tool["name"] for tool in dynamic_tools if tool.get("name"))
-
-    async def executor(tool_name: str, tool_input: dict) -> dict:
-        # Headless execution gets the base registry plus capability-scoped
-        # platform tools resolved for this agent.
-        if tool_name not in allowed_tool_names:
-            logger.warning(
-                f"[HEADLESS] Tool {tool_name} not available in headless mode, skipping"
-            )
-            return {
-                "success": False,
-                "error": "not_available",
-                "message": f"Tool {tool_name} is not available in headless mode",
-            }
-
-        try:
-            return await execute_primitive(auth, tool_name, tool_input)
-        except Exception as e:
-            logger.error(f"[HEADLESS] Tool {tool_name} failed: {e}")
-            return {
-                "success": False,
-                "error": "execution_error",
-                "message": f"Tool execution failed: {e}",
-            }
-
-    executor.auth = auth  # type: ignore[attr-defined]
-    return executor
+# ─────────────────────────────────────────────────────────────────────────
+# ADR-626 D4.b (2026-09-01) — THE HEADLESS-DISPATCH STACK IS DELETED.
+# ─────────────────────────────────────────────────────────────────────────
+# `HeadlessAuth`, `get_headless_tools_for_agent` and `create_headless_executor`
+# lived here (~138 lines) and are gone, with `primitives/dispatch_specialist.py`
+# (~545 lines), their only caller.
+#
+# NOT decayed — SUPERSEDED. The mechanism answered "who does this work?" with a
+# ROLE ON A BEING (`role="designer"` / `role="researcher"`), the exact shape
+# ADR-596→610 spent five ADRs dismantling. The live answer: capability lives at
+# the APP, a declaration names the app (ADR-601, ADR-603 D2), and the being is
+# DERIVED — never summoned. ADR-272 narrowed the roles to one, ADR-417's
+# follow-on removed that one, `services/harvest.py` (the last direct dispatcher)
+# was deleted, and `VALID_SPECIALIST_ROLES` was left the EMPTY SET — so the
+# primitive refused on every input.
+#
+# ⭐ THE TELL, and why this is a delete rather than an evolve: every live
+# unattended lane grew its OWN narrow auth instead of reaching for the general
+# one sitting right here — strings runs a plain service client through
+# `run_bounded_derive_turn`, capture on `_CaptureAuth`, kernel mirrors on
+# `_MirrorAuth`. Three independent lanes voted against the abstraction.
+#
+# ⭐ UNATTENDED WORK IS AXIOMATIC (ADR-603 D1's standing declaration); THIS
+# MECHANISM WAS NOT. If mid-task delegation is ever built, extend
+# `services/derive_turn.py::run_bounded_derive_turn` — already bounded,
+# tool-less, routed, and the path standing work actually runs on.
+#
+# ⭐⭐ The `specialist:` ATTRIBUTION PREFIX SURVIVES, untouched: live vocabulary
+# in `authored_substrate.py`, `narrative.py`, `supabase.py` and
+# `platform_credentials.py` (ADR-577 D1.a's agent-caller guard, which keys on
+# the PREFIX). A prefix is a VOCABULARY; the class that stamped it was a
+# MECHANISM. Only the second went. The two identities it emitted
+# (`specialist:{role}` and the `specialist:unknown` tripwire) are pinned by
+# `test_adr577_credential_claim.py` §2b, so a future headless caller must stamp
+# one of them to be refused a human's token.
+# Gates: test_adr626_the_room_is_multi_party.py §6 · test_adr577 §2b4.

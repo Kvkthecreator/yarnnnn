@@ -234,11 +234,46 @@ mechanism:** `services/primitives/dispatch_specialist.py` (530 lines) is
 **end to end**, and `HeadlessAuth`'s own docstring was citing `harvest.py` as
 evidence the path was still exercised. Both comments are corrected in place.
 
-So the module is a fossil describing a world that is gone. It is **not** the
-seam for this, and a future session must not read this ADR as blessing it.
-The code is left standing (ADR-417's follow-on decided that) but is now
-**labelled at every layer**, because 530 dormant lines with confident comments
-are exactly what gets mistaken for a head start.
+So the module was a fossil describing a world that is gone.
+
+**DELETED 2026-09-01** (operator ruling, after testing whether headless dispatch
+is axiomatic: *"is this feature a axiomatic feature… if not, i'm leaning towards
+delete"*). **Unattended work IS axiomatic** — it is ADR-603 D1's standing
+declaration. **This mechanism was not.** It answered *"who does this work?"* with
+a ROLE ON A BEING, the shape ADR-596→610 dismantled across five ADRs; the live
+answer is capability-at-the-app with the being DERIVED.
+
+⭐ **The tell that settled evolve-vs-delete**: every live unattended lane grew its
+OWN narrow auth rather than reaching for the general one sitting right there —
+strings runs a plain service client through `run_bounded_derive_turn`, capture on
+`_CaptureAuth`, kernel mirrors on `_MirrorAuth`. Three independent lanes voted
+against the abstraction. It did not decay; it was superseded.
+
+Removed: `primitives/dispatch_specialist.py` (545 lines) + `HeadlessAuth`,
+`get_headless_tools_for_agent`, `create_headless_executor` (138 lines) — the
+whole stack, since the class's only callers were inside the primitive.
+**Net −1,120 / +299 across 15 files**, `HANDLERS` unchanged at 41.
+
+⭐⭐ **What SURVIVES, deliberately: the `specialist:` attribution prefix.** It is
+live vocabulary in `authored_substrate.py`, `narrative.py`, `supabase.py` and
+`platform_credentials.py`, where ADR-577 D1.a's credential guard keys on it. **A
+prefix is a VOCABULARY; the class that stamped it was a MECHANISM.** Only the
+second went. The two identities the class emitted (`specialist:{role}` and the
+`specialist:unknown` tripwire) are now pinned by `test_adr577` §2b, so a future
+headless caller must stamp one of them to be refused a human's token.
+
+⭐ **The one gate that made this delicate**, recorded because it constrains any
+future cleanup of this shape: `test_adr577_credential_claim.py` §2b drove the
+REAL `HeadlessAuth` on purpose — *"the pre-577 defect lived precisely in the gap
+between what a test's fake auth carried and what HeadlessAuth actually
+carries."* Re-cutting it to a loose stand-in would re-open the gap that sentence
+names, so it was re-cut to pin the two SHAPES instead, plus an inverted check
+that the class stays deleted. It now runs 20/21 (was 15/16) — more coverage, same
+single pre-existing failure.
+
+Eleven other gate files were re-anchored; every one returned to its measured
+baseline, and three that had been RED on stale assertions (`test_adr261_phaseB`
+asserted the primitive was REGISTERED — a world ADR-417 ended) came back green.
 
 If the mid-task case earns a build, the live mechanism to extend is
 `run_bounded_derive_turn` — already bounded, tool-less, routed, and used by

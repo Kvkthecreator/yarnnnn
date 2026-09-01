@@ -51,7 +51,7 @@ ZERO_COST_ALLOWLIST: dict[str, str] = {
 # names the exact file rather than only moving a count.
 COSTED_SITES = [
     ("services/wake.py", "the recurrence/wake judgment lane (largest cost source)"),
-    ("services/primitives/dispatch_specialist.py", "specialist sub-LLM calls"),
+    # dispatch_specialist.py DELETED by ADR-626 D4.b.
     ("services/primitives/web_search.py", "web search"),
     ("services/harvest.py", "harvest"),
     ("services/context_inference.py", "identity/brand authoring"),
@@ -169,7 +169,7 @@ def test_allowlist_holds_no_costed_site() -> None:
 def test_resolver_is_the_canonical_path() -> None:
     print("\n[canon] auth-bearing sites resolve via resolve_principal_id")
     for rel in ("services/primitives/web_search.py",
-                "services/primitives/dispatch_specialist.py",
+                # dispatch_specialist.py DELETED by ADR-626 D4.b.
                 "services/harvest.py"):
         src = Path(rel).read_text()
         check(f"{rel} uses resolve_principal_id", "resolve_principal_id" in src,

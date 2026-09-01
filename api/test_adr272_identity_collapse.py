@@ -64,11 +64,21 @@ def assert_true(cond, msg):
 
 
 def test_valid_specialist_roles_narrowed():
-    """ADR-417 follow-on: VALID_SPECIALIST_ROLES is empty (designer removed)."""
-    from services.primitives.dispatch_specialist import VALID_SPECIALIST_ROLES
-    assert_eq(
-        VALID_SPECIALIST_ROLES, set(),
-        "VALID_SPECIALIST_ROLES is empty (designer removed — ADR-417 follow-on)",
+    """ADR-626 D4.b: the module holding VALID_SPECIALIST_ROLES is DELETED.
+
+    INVERTED. This asserted the set was EMPTY — the end state of ADR-272's
+    narrowing (designer removed by ADR-417's follow-on). An empty role set means
+    the primitive refused on every input, so the deletion is the stronger form
+    of the same claim, not a reversal of it.
+    """
+    import importlib
+    try:
+        importlib.import_module("services.primitives.dispatch_specialist")
+    except ImportError:
+        return  # deleted, as required
+    raise AssertionError(
+        "services/primitives/dispatch_specialist.py is back — ADR-626 D4.b "
+        "deleted it (role-keyed dispatch; capability lives at the APP)"
     )
 
 
@@ -312,18 +322,26 @@ def test_legacy_agents_router_deleted():
 
 
 def test_dispatch_specialist_tool_enum_narrowed():
-    """ADR-417 follow-on: the role enum reflects the empty VALID_SPECIALIST_ROLES."""
-    from services.primitives.dispatch_specialist import DISPATCH_SPECIALIST_TOOL
-    role_enum = (
-        DISPATCH_SPECIALIST_TOOL.get("input_schema", {})
-        .get("properties", {})
-        .get("role", {})
-        .get("enum", [])
+    """ADR-626 D4.b: the tool definition is DELETED with its module.
+
+    INVERTED, same reason as `test_valid_specialist_roles_narrowed` above: an
+    empty role enum was the dormant end-state; deletion is its completion.
+    Asserted on the ROSTERS (the observable fact) rather than on an import, so
+    a re-added module that nothing registers still reads as absent here and is
+    caught by the import check above instead.
+    """
+    from services.primitives.registry import (
+        CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES, HANDLERS,
     )
-    assert_eq(
-        list(role_enum), [],
-        "DispatchSpecialist tool schema's role enum is empty (dormant — ADR-417 follow-on)",
-    )
+    for roster, rows in (
+        ("CHAT_PRIMITIVES", {t["name"] for t in CHAT_PRIMITIVES}),
+        ("HEADLESS_PRIMITIVES", {t["name"] for t in HEADLESS_PRIMITIVES}),
+        ("FREDDIE_PRIMITIVES", {t["name"] for t in FREDDIE_PRIMITIVES}),
+        ("HANDLERS", set(HANDLERS)),
+    ):
+        assert "DispatchSpecialist" not in rows, (
+            f"DispatchSpecialist is back in {roster} — ADR-626 D4.b deleted it"
+        )
 
 
 def main():

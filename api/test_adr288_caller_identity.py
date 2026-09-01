@@ -113,27 +113,43 @@ def test_mechanical_auth_sets_caller_identity():
 
 
 def test_headless_auth_sets_caller_identity():
-    """ADR-288 D1: HeadlessAuth derives caller_identity from agent role."""
-    from services.primitives.registry import HeadlessAuth
+    """ADR-626 D4.b: HeadlessAuth is DELETED; its two identities are the contract.
 
-    # With agent role
-    auth_with_role = HeadlessAuth(
-        client=MagicMock(),
-        user_id="uid",
-        agent={"role": "researcher"},
-    )
-    assert auth_with_role.caller_identity == "specialist:researcher", (
-        "HeadlessAuth with agent role must set caller_identity="
-        "f'specialist:{role}' per ADR-288 D1."
-    )
+    INVERTED. This drove the real class and asserted it stamped
+    `specialist:{role}` and the `specialist:unknown` tripwire. ADR-626 D4.b
+    deleted the class (role-keyed dispatch, superseded by capability-at-the-app),
+    so the class check is unrunnable — but the IDENTITIES it emitted are live
+    vocabulary that outlived it: `_AGENT_CALLER_PREFIXES` in
+    `platform_credentials.py` keys ADR-577 D1.a's credential refusal on the
+    `specialist:` prefix, and `supabase.py` resolves a principal from it.
 
-    # Without agent (tripwire fallback)
-    auth_no_agent = HeadlessAuth(client=MagicMock(), user_id="uid")
-    assert auth_no_agent.caller_identity == "specialist:unknown", (
-        "HeadlessAuth without agent must fall back to 'specialist:unknown' "
-        "(telemetry tripwire) per ADR-288 D1."
+    So the ADR-288 D1 contract is asserted where it is now ENFORCED. Any future
+    headless caller must stamp one of these two spellings to be recognised.
+    """
+    import services.primitives.registry as _reg
+    assert not hasattr(_reg, "HeadlessAuth"), (
+        "HeadlessAuth is back — ADR-626 D4.b deleted it with the "
+        "headless-dispatch stack; re-adding it re-opens role-keyed dispatch."
     )
 
+    from services.platform_credentials import is_agent_caller
+
+    class _A:
+        def __init__(self, ci, headless=True):
+            self.caller_identity, self.headless = ci, headless
+
+    assert is_agent_caller(_A("specialist:researcher")), (
+        "`specialist:{role}` must still read as an agent caller (ADR-288 D1 "
+        "vocabulary, enforced at ADR-577 D1.a's guard)."
+    )
+    assert is_agent_caller(_A("specialist:unknown")), (
+        "the `specialist:unknown` tripwire must still read as an agent caller "
+        "— it is the fail-toward-refusal path."
+    )
+    assert not is_agent_caller(_A("member:u1 via anthropic/claude-sonnet-5")), (
+        "a member's LANE is the member's hands (ADR-411 D4) and must NOT read "
+        "as an agent caller."
+    )
 
 def test_write_file_default_resolves_from_caller_identity():
     """ADR-288 D2: handle_write_file defaults authored_by from auth.caller_identity.
@@ -476,14 +492,14 @@ def test_stale_performance_md_in_docstrings_updated():
     path `_performance.md`.
 
     Phase 2 scope: non-prompt docstrings (narrative.py, execution_router.py,
-    primitives/dispatch_specialist.py, primitives/revisions.py,
+    primitives/revisions.py,
     outcomes/reconciler.py). Phase 3 scope: kernel prompt content in
     orchestration.py + cockpit_awareness.py + tools_core.py.
     """
     targets = [
         ("services", "narrative.py"),
         ("services", "execution_router.py"),
-        ("services", "primitives", "dispatch_specialist.py"),
+        # dispatch_specialist.py DELETED by ADR-626 D4.b.
         ("services", "primitives", "revisions.py"),
         ("services", "outcomes", "reconciler.py"),
     ]

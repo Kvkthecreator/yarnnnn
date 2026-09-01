@@ -164,7 +164,7 @@ EXPECTED_CALLERS = [
     # ADR-324: infer_context.py deleted (InferContext dissolved); the
     # identity/brand cost-ledger write moved to context_inference.author_identity.
     "services/context_inference.py",
-    "services/primitives/dispatch_specialist.py",
+    # dispatch_specialist.py DELETED by ADR-626 D4.b.
     "services/primitives/web_search.py",
 ]
 

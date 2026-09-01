@@ -472,19 +472,29 @@ def test_get_tools_for_mode():
 
 
 def test_headless_executor_blocks_chat_only_tools():
-    """Headless executor rejects tools not in HEADLESS_PRIMITIVES."""
-    from services.primitives.registry import create_headless_executor
+    """ADR-626 D4.b: the headless executor is DELETED; the SPLIT it enforced stays.
 
-    executor = create_headless_executor(None, "fake-user-id")
-
-    async def _test():
-        result = await executor("EditEntity", {"path": "/test"})
-        record("headless blocks EditEntity", not result["success"] and result.get("error") == "not_available")
-
-        result = await executor("Clarify", {"question": "test"})
-        record("headless blocks Clarify", not result["success"] and result.get("error") == "not_available")
-
-    asyncio.get_event_loop().run_until_complete(_test())
+    INVERTED. This drove `create_headless_executor` and asserted it refused
+    chat-only tools. That executor is gone with the headless-dispatch stack
+    (role-keyed dispatch, superseded by capability-at-the-app). What it was
+    protecting — that CHAT_PRIMITIVES and HEADLESS_PRIMITIVES are genuinely
+    different surfaces, so a chat-only verb cannot leak into an unattended
+    path — is a property of the ROSTERS and is asserted directly.
+    """
+    from services.primitives.registry import (
+        CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, HANDLERS,
+    )
+    chat = {t["name"] for t in CHAT_PRIMITIVES}
+    headless = {t["name"] for t in HEADLESS_PRIMITIVES}
+    chat_only = chat - headless
+    record("the two surfaces are not identical (a split still exists)", bool(chat_only))
+    for verb in ("EditEntity", "Clarify"):
+        record(f"{verb} is chat-only (absent from HEADLESS_PRIMITIVES)",
+               verb in chat or verb not in headless)
+    record("HeadlessAuth stays deleted (ADR-626 D4.b)",
+           not hasattr(__import__("services.primitives.registry", fromlist=["x"]),
+                       "HeadlessAuth"))
+    record("every roster name has a handler", chat.union(headless).issubset(set(HANDLERS)))
 
 
 def test_no_dangling_imports():
@@ -579,7 +589,6 @@ def test_primitives_init_exports():
         HEADLESS_PRIMITIVES,
         HANDLERS,
         get_tools_for_mode,
-        create_headless_executor,
     )
     record("PRIMITIVES exported from __init__", isinstance(PRIMITIVES, list))
     record("execute_primitive exported from __init__", callable(execute_primitive))
@@ -587,7 +596,7 @@ def test_primitives_init_exports():
     record("HEADLESS_PRIMITIVES exported from registry", isinstance(HEADLESS_PRIMITIVES, list))
     record("HANDLERS exported from registry", isinstance(HANDLERS, dict))
     record("get_tools_for_mode exported from registry", callable(get_tools_for_mode))
-    record("create_headless_executor exported from registry", callable(create_headless_executor))
+    # `create_headless_executor` was asserted here; DELETED by ADR-626 D4.b.
 
 
 # =============================================================================

@@ -243,16 +243,31 @@ check("the cast reaches _fetch_history", "cast=cast," in _lanes_src,
       "without it `_speaker_tags` always sees None and nothing is ever tagged")
 
 # ---------------------------------------------------------------------------
-print("\n§6 — DispatchSpecialist is a FOSSIL, not a seam (ADR-626 D4.b)")
+print("\n§6 — the headless-dispatch stack is DELETED (ADR-626 D4.b)")
 # ---------------------------------------------------------------------------
-# ADR-626 D4.b nearly cited this module as the ready-made mechanism for
-# mid-task delegation. It is dormant and structurally UNCALLABLE. Asserted by
-# EXECUTION over every roster rather than by reading its comments — the module's
-# own comments point at `harvest.py`, which is deleted.
+# This section used to assert the module was DORMANT. ADR-626 D4.b deleted it:
+# role-keyed dispatch ("who does this work?" answered by a role ON A BEING) is
+# the shape ADR-596→610 dismantled, and capability lives at the APP instead.
+# The absent-assertions are the stronger form of the dormancy ones.
+import importlib  # noqa: E402
 from services.primitives import registry as _R  # noqa: E402
-from services.primitives.dispatch_specialist import (  # noqa: E402
-    VALID_SPECIALIST_ROLES,
-)
+
+
+def _gone(mod):
+    try:
+        importlib.import_module(mod)
+        return False
+    except ImportError:
+        return True
+
+
+check("primitives/dispatch_specialist.py is DELETED",
+      _gone("services.primitives.dispatch_specialist"),
+      "re-adding it re-opens role-keyed dispatch — argue with this gate")
+
+for _sym in ("HeadlessAuth", "get_headless_tools_for_agent", "create_headless_executor"):
+    check(f"registry no longer exports {_sym}", not hasattr(_R, _sym),
+          "the whole headless-dispatch stack went together")
 
 _names = lambda rows: {t["name"] for t in rows}  # noqa: E731
 for _roster, _rows in (
@@ -262,38 +277,28 @@ for _roster, _rows in (
     ("FREDDIE_PRIMITIVES", _R.FREDDIE_PRIMITIVES),
     ("PRIMITIVES", _R.PRIMITIVES),
 ):
-    _present = (
-        "DispatchSpecialist" in _R.HANDLERS if _rows is None
-        else "DispatchSpecialist" in _names(_rows)
-    )
-    check(f"DispatchSpecialist is absent from {_roster}", not _present,
-          "re-registering it needs an ADR — D4.b names run_bounded_derive_turn instead")
+    _present = ("DispatchSpecialist" in _R.HANDLERS if _rows is None
+                else "DispatchSpecialist" in _names(_rows))
+    check(f"DispatchSpecialist absent from {_roster}", not _present)
 
-check("VALID_SPECIALIST_ROLES is EMPTY (uncallable on any input)",
-      VALID_SPECIALIST_ROLES == set(),
-      "ADR-272 narrowed it to `designer`; the ADR-417 follow-on removed that")
+# ⭐ The `specialist:` ATTRIBUTION PREFIX must SURVIVE the deletion. A prefix is
+# a vocabulary; the class that stamped it was a mechanism. ADR-577 D1.a's
+# credential guard keys on this prefix, so losing it would silently open the
+# owner-token fallthrough that ADR refuses.
+from services.platform_credentials import is_agent_caller  # noqa: E402
 
-# The rot goes one layer deeper: HeadlessAuth's builders are called ONLY from
-# inside the fossil, so the headless-dispatch stack is dead end to end. Pinned
-# so a future reader does not re-derive `HeadlessAuth` as live infrastructure.
-_reg_src = open(os.path.join(os.path.dirname(__file__),
-                             "services/primitives/registry.py")).read()
-_ds_src = open(os.path.join(os.path.dirname(__file__),
-                            "services/primitives/dispatch_specialist.py")).read()
-for _builder in ("get_headless_tools_for_agent", "create_headless_executor"):
-    check(f"{_builder} is called only from the fossil",
-          f"{_builder}(" in _ds_src,
-          "if a live caller appears, the stack is no longer dormant — re-audit")
 
-# Both stale comments must stay corrected: each cited a deleted caller, which is
-# how dormant code reads as live.
-check("dispatch_specialist no longer cites the deleted harvest.py as live",
-      "ADR-626 D4.b" in _ds_src)
-check("HeadlessAuth's docstring records the stack is dormant",
-      "dead END TO END" in _reg_src)
+class _AgentAuth:
+    def __init__(self, ci):
+        self.caller_identity, self.headless = ci, True
 
-# The live mechanism D4.b points at must actually exist, or the ADR names a
-# second ghost.
+
+for _identity in ("specialist:researcher", "specialist:unknown"):
+    check(f"`{_identity}` still reads as an agent caller (ADR-577 D1.a)",
+          is_agent_caller(_AgentAuth(_identity)),
+          "the prefix outlived the class that stamped it — it must keep working")
+
+# The live mechanism D4.b names must exist, or the ADR points at a ghost.
 from services.derive_turn import run_bounded_derive_turn  # noqa: E402
 check("the live bounded-turn mechanism exists (run_bounded_derive_turn)",
       callable(run_bounded_derive_turn))

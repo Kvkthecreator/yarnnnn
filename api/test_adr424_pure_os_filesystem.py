@@ -67,10 +67,11 @@ def run() -> int:
     ok &= _check("D4 WriteFile scope param dropped 'five-root'",
                  "five-root" not in scope_desc and "five roots" not in scope_desc)
 
-    # dispatch_specialist frame — the "never invent paths" absolute is softened
-    from services.primitives.dispatch_specialist import _SPECIALIST_FRAME
-    ok &= _check("D4 specialist frame no longer says 'never invent paths'",
-                 "never invent paths" not in _SPECIALIST_FRAME)
+    # The dispatch_specialist frame check is DELETED with its module (ADR-626
+    # D4.b). It asserted the "never invent paths" absolute had been softened in
+    # a frame that no longer exists — role-keyed dispatch was superseded by
+    # capability-at-the-app. The same D4 softening is still asserted above on
+    # WRITE_FILE_TOOL and below on _CONVENTIONS_FRAME, which are live.
 
     # ── D2: the 'never invent directories' rule is removed (it forbade peers) ──
     ok &= _check("D2 lane frame removed 'Never invent new top-level directories'",

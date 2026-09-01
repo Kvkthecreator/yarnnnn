@@ -119,7 +119,8 @@ MIGRATED = [
     "services/context_inference.py",
     "services/recurrence_prompt_inference.py",
     "services/primitives/web_search.py",
-    "services/primitives/dispatch_specialist.py",
+    # `primitives/dispatch_specialist.py` was here; DELETED by ADR-626 D4.b
+    # (role-keyed dispatch, superseded by capability-at-the-app).
     "services/memory.py",
     "services/session_continuity.py",
 ]
