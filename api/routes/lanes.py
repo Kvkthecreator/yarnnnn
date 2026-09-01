@@ -1111,9 +1111,46 @@ def _last_responder(auth: UserClient, lane_id: str, cast_agents: list[str]) -> O
     return None
 
 
+def _speaker_tags(cast: Optional[list[dict]]) -> tuple[bool, bool]:
+    """Should human / assistant turns carry a speaker tag? ADR-626 D1.
+
+    Two INDEPENDENT questions, because the ambiguities are independent: a room
+    with three humans and one agent needs its `user` turns told apart and its
+    `assistant` turns do not, and vice versa.
+
+    Returns `(tag_humans, tag_agents)`. Both False — the overwhelmingly common
+    one-human-one-agent room — means the transcript is byte-identical to the
+    pre-ADR-626 shape. The tag is a function of the ROOM, so nothing changes
+    until the room does.
+    """
+    rows = cast or []
+    humans = sum(1 for p in rows if p.get("member_kind") == "human")
+    agents = sum(1 for p in rows if p.get("member_kind") == "agent")
+    return humans > 1, agents > 1
+
+
+def _speaker_label(
+    row: dict,
+    *,
+    human_names: dict[str, str],
+    agent_names: dict[str, str],
+) -> Optional[str]:
+    """The display name of whoever authored this transcript row, or None.
+
+    Reads the SAME metadata the FE renders faces from (`author_principal_id`
+    for a person, `agent_slug` for a being) — the fact was always on the row;
+    only the replay dropped it.
+    """
+    meta = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    meta = meta or {}
+    if row.get("role") == "user":
+        return human_names.get(meta.get("author_principal_id") or "")
+    return agent_names.get(meta.get("agent_slug") or "")
+
+
 def _fetch_history(
     auth: UserClient, lane_id: str, *, before_sequence: Optional[int] = None,
-    visible_from: int = 0,
+    visible_from: int = 0, cast: Optional[list[dict]] = None,
 ) -> list[dict]:
     """History window: user/assistant text only — tool traffic is per-turn
     working state, never persisted (the transcript is not shared memory,
@@ -1123,6 +1160,23 @@ def _fetch_history(
     participant may read. Without it, a participant joined at "from now" could
     address an Agent and receive an answer conditioned on turns they cannot
     see — the window would be cosmetic. 0 is a no-op.
+
+    ⭐⭐⭐ ADR-626 D1 — THE TRANSCRIPT CARRIES ITS SPEAKERS. This function used
+    to emit `{"role": …, "content": text}` and drop the authorship it had
+    already selected, so in a multi-agent room agent A read agent B's replies
+    as its OWN prior turns (both are bare `assistant`), and in a multi-human
+    room every person's message arrived as one undifferentiated `user` under a
+    frame that says "you are {member}'s hands". The system prompt tried to
+    compensate ("must not answer as them or invent what they said") — which is
+    asking the model to distinguish something the input does not encode.
+
+    The Messages API has NO `name` field on a message, and the transport is
+    litellm across several providers, so identity must live in the CONTENT as
+    provider-neutral text: one leading `Name: ` line.
+
+    ONLY when it disambiguates (`_speaker_tags`), and the responder tags ITSELF
+    too — a transcript where only the others are named would imply the untagged
+    turns are its own, which is the same ambiguity one level in.
     """
     q = (
         auth.client.table("session_messages")
@@ -1137,6 +1191,34 @@ def _fetch_history(
     if before_sequence is not None:
         q = q.lt("sequence_number", before_sequence)
     hist_res = q.execute()
+
+    # ADR-626 D1 — resolved ONCE for the window, not per row. Both maps stay
+    # empty when the room does not need tagging, so the per-row lookup below
+    # misses and the content is untouched.
+    tag_humans, tag_agents = _speaker_tags(cast)
+    human_names: dict[str, str] = {}
+    agent_names: dict[str, str] = {}
+    if tag_humans:
+        # THE ONE resolver — the same source the FE roster and the mention
+        # parser read, so a person has one handle everywhere (ADR-626 D2).
+        try:
+            from services.principal_display import resolve_member_names
+            from services.supabase import get_service_client
+            human_names = resolve_member_names(
+                get_service_client(),
+                [p.get("principal_id") for p in (cast or [])
+                 if p.get("member_kind") == "human" and p.get("principal_id")],
+            ) or {}
+        except Exception as exc:  # noqa: BLE001 — a label never fails a turn
+            logger.warning("[LANE] speaker labels unavailable: %s", exc)
+    if tag_agents:
+        from services.agents_registry import resolve_agent
+        for p in (cast or []):
+            slug = p.get("agent_slug")
+            if p.get("member_kind") == "agent" and slug:
+                # A deleted slug (ADR-599) falls back to itself, honestly.
+                agent_names[slug] = (resolve_agent(slug) or {}).get("name") or slug
+
     out: list[dict] = []
     for r in reversed(hist_res.data or []):
         if r.get("role") not in ("user", "assistant"):
@@ -1144,6 +1226,17 @@ def _fetch_history(
         text = r.get("content") or ""
         if not text.strip():
             continue
+        if (tag_humans and r.get("role") == "user") or (
+            tag_agents and r.get("role") == "assistant"
+        ):
+            speaker = _speaker_label(
+                r, human_names=human_names, agent_names=agent_names,
+            )
+            # An unresolvable author is left UNTAGGED rather than labelled
+            # "unknown": a wrong name is worse than an absent one, and the
+            # cast section still says who is in the room.
+            if speaker:
+                text = f"{speaker}: {text}"
         # ⭐⭐⭐ ADR-623 — VISION WAS SINGLE-TURN, AND SILENTLY SO. The parts
         # array is deliberately NOT persisted (a signed URL has a 1h TTL, so
         # storing one would rot), and the replay dropped the attachment
@@ -1401,8 +1494,24 @@ def _turn_stream_response(
 
     try:
         cast = list_participants(lane_id)
+        # ⭐ ADR-626 D2 — the humans get their NAMES here. `conversation_members`
+        # stores no label, and `_build_cast_section` renders `display_name` or
+        # falls back to "another person"; the enricher that attaches it existed
+        # with ONE caller — the mentions WRITE chokepoint — so on the turn path
+        # an agent in a room with two people could count them and name neither.
+        # Reuses the one resolver the FE roster and the mention parser read, so
+        # a person has one handle everywhere.
     except Exception:  # noqa: BLE001 — cast unreadable → the lane's own Agent
         cast = []
+    try:
+        from services.mentions import enrich_cast_labels
+        cast = enrich_cast_labels(cast)
+    except Exception as exc:  # noqa: BLE001 — labels are best-effort
+        # Its OWN try, deliberately: folding this into the read above would let
+        # a label failure zero the whole CAST — turning a cosmetic degradation
+        # ("another person") into a lost roster, a lost responder and a lost
+        # window. A narrower blast radius than the fault it guards.
+        logger.warning("[LANE] cast labels unavailable: %s", exc)
     # A sole agent stranded on a superseded registration answers as the
     # live resident (see `_reconcile_cast_agent`). Applied BEFORE
     # `agent_slugs`, so addressing, the roster, the frame and the turn's
@@ -1535,10 +1644,30 @@ def _turn_stream_response(
 
     # ADR-495 D2 — the acting participant's window clamps the model's context,
     # so an answer is never conditioned on turns the asker cannot see.
+    #
+    # ⭐ ADR-626 D3 — and so does the RESPONDER's. `visibility_floor` was
+    # already species-blind (it takes a principal_id and reads the same column
+    # for both kinds) but had exactly one caller, always with a human: an agent
+    # added "from now" still read everything the sender could. This is the
+    # missing invocation, not a new mechanism.
+    #
+    # MAX, deliberately: the human's floor is an AUTHORIZATION boundary (what
+    # they may see), and an agent acting in a lane must never become a way to
+    # read past it. The agent's floor can only narrow further.
+    _floor = int(lane.get("_visible_from_sequence") or 0)
+    if responder:
+        try:
+            from services.conversation_cast import visibility_floor
+            _agent_floor = visibility_floor(lane_id, agent_slug=responder)
+            if _agent_floor is not None:
+                _floor = max(_floor, int(_agent_floor))
+        except Exception as exc:  # noqa: BLE001 — a window never fails a turn
+            logger.warning("[LANE] responder window unavailable: %s", exc)
     history = _fetch_history(
         auth, lane_id,
         before_sequence=history_before_sequence,
-        visible_from=int(lane.get("_visible_from_sequence") or 0),
+        visible_from=_floor,
+        cast=cast,
     )
 
     # The member's message was persisted above — ONE write for every cast

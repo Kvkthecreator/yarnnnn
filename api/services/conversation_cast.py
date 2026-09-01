@@ -108,14 +108,33 @@ def find_participant(conversation_id: str,
     return rows[0] if rows else None
 
 
-def visibility_floor(conversation_id: str, principal_id: str) -> Optional[int]:
-    """From which turn ordinal may this principal read? None = not in the cast.
+def visibility_floor(
+    conversation_id: str,
+    principal_id: Optional[str] = None,
+    *,
+    agent_slug: Optional[str] = None,
+) -> Optional[int]:
+    """From which turn ordinal may this member read? None = not in the cast.
 
     THIS IS THE AUTHORIZATION PRIMITIVE. Membership is read permission; the
-    window is how much. No species check: the same call answers for a human
-    member and (via `agent_slug`) for a named hand.
+    window is how much.
+
+    ⭐ ADR-626 D3 — the species-blindness this docstring CLAIMED is now real.
+    It said the same call answers "for a human member and (via `agent_slug`)
+    for a named hand", but it only ever passed `principal_id`, so an agent slug
+    was matched against the `principal_id` COLUMN and could only ever return
+    None. The claim was untestable because the function had exactly one caller
+    and that caller always passed a human. Both selectors are now explicit and
+    routed to the column that holds them.
+
+    `principal_id` stays POSITIONAL so the ~1 existing human call site is
+    unchanged.
     """
-    row = find_participant(conversation_id, principal_id=principal_id)
+    if bool(principal_id) == bool(agent_slug):
+        raise ValueError("give exactly one of principal_id / agent_slug")
+    row = find_participant(
+        conversation_id, principal_id=principal_id, agent_slug=agent_slug,
+    )
     if row is None:
         return None
     return int(row.get("visible_from_sequence") or 0)
