@@ -371,7 +371,20 @@ async def run_unified_scheduler():
             from services.strings import drain_due_string_runs
             s_found, s_succeeded, s_failed = await drain_due_string_runs(supabase)
             if s_found > 0:
-                logger.info(
+                # ⭐ A FAILING LANE MUST NOT LOG LIKE A HEALTHY ONE (ADR-618's
+                # named-but-unassigned gap). This line was INFO regardless of
+                # outcome, so "0/1 succeeded, 1 failed" read exactly like a
+                # clean tick — and the ONLY string in production sat
+                # `router_disabled` for four days, every run, in plain sight.
+                # The scheduler never had MODEL_ROUTER_ENABLED (the CLAUDE.md
+                # §5 env-drift class); the manual /run door is served by the
+                # API, which does, so the lane looked alive from the surface.
+                # Severity now follows the outcome. The per-run REASON is
+                # logged by the drain itself, at the failure branch that
+                # already holds it — a count alone cannot say WHY, and that is
+                # what cost the four days.
+                level = logger.info if s_failed == 0 else logger.error
+                level(
                     f"[SCHED] strings: {s_succeeded}/{s_found} run(s) succeeded, "
                     f"{s_failed} failed"
                 )

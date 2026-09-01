@@ -27,6 +27,7 @@ user_id via ``_acting_owner`` — the radar seam verbatim.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any, Optional
@@ -341,7 +342,14 @@ def _consumers(client, user_id: str, decl) -> list[str]:
             client.table("workspace_file_versions")
             .select("path")
             .eq("user_id", user_id)
-            .contains("derived_from", [target])
+            # JSONB containment (@>): the value must be a JSON literal. A
+            # Python list serializes to a Postgres ARRAY literal `{...}`, and
+            # any `/` in the path then fails the ::jsonb cast at PostgREST
+            # (22P02, `Token "/" is invalid`) — so EVERY probe raised and the
+            # tab under-reported consumers to zero on the edge half. The one
+            # other reader of this column already had it right
+            # (authored_substrate.list_referencing_paths).
+            .contains("derived_from", json.dumps([target]))
             .order("created_at", desc=True)
             .limit(200)
             .execute()

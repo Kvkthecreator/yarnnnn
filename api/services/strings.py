@@ -1282,6 +1282,15 @@ async def drain_due_string_runs(client) -> tuple[int, int, int]:
                 succeeded += 1
             else:
                 failed += 1
+                # ⭐ The reason was RIGHT HERE and thrown away. A failed run
+                # incremented a counter and logged nothing, so the tick's only
+                # trace was a count — and a count cannot say `router_disabled`.
+                # That is what let production's one string fail four days
+                # running while every log line looked ordinary.
+                logger.error(
+                    "[STRINGS] run failed for %s/%s: %s",
+                    uid[:8], decl.slug, result.get("error_reason") or "unknown",
+                )
         except Exception as e:
             failed += 1
             logger.exception("[STRINGS] run raised for %s/%s: %s", uid[:8], decl.slug, e)
