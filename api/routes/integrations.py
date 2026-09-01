@@ -625,8 +625,10 @@ async def disconnect_integration(
 # row was absent. With `agent_runs` empty, EVERY call 404'd at step two,
 # before the exporter ever ran; and the frontend has no client method for it.
 #
-# The exporter registry it called (integrations/exporters) is untouched —
-# it is reached by the live delivery paths, not by this door.
+# The exporter registry it called (integrations/exporters) claimed to be
+# "reached by the live delivery paths" — it was not (zero .deliver() callers
+# after this deletion) and was DELETED by the ADR-628 build. The outbound
+# write path is services/publish.py, reached by routes/publish.py.
 
 # =============================================================================
 

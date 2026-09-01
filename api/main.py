@@ -75,6 +75,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from routes import images, memory, feed, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions
 from routes import agent_connectors
+from routes import publish  # ADR-628 phase (a) — the member-clicked outbound door
 
 app = FastAPI(
     title="YARNNN API",
@@ -238,6 +239,7 @@ app.include_router(agent_connectors.router, prefix="/api", tags=["agent-connecto
 app.include_router(strings.router, prefix="/api", tags=["strings"])  # ADR-569 maintained files
 app.include_router(studio.router, prefix="/api", tags=["studio"])  # ADR-440 the Studio
 app.include_router(images.router, prefix="/api", tags=["images"])  # ADR-474 IMAGES compose
+app.include_router(publish.router, prefix="/api", tags=["publish"])  # ADR-628 outbound
 
 # ADR-219 Commit 4: narrative filter-over-substrate for /work list view
 # routes/narrative.py DELETED with it (task-grouped narrative slices — its one

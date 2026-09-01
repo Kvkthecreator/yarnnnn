@@ -1,9 +1,50 @@
 # ADR-628: The outbound disposition — a post leaves the workspace
 
-**Status**: Ratified 2026-09-01 (design; operator-aligned). **Phased — nothing
-in this ADR is built yet.** Phase (a) is member-clicked publish; automation is
-phase (b), gated on phase (a)'s track record. This ADR exists so the Blogger
-arc (ADR-627) cannot drift into growing an unstated publish path.
+**Status**: Ratified 2026-09-01 (design; operator-aligned). **Phase (a) BUILT
+same day** (amendment below): WordPress is the first tenant. Phase (b)
+automation stays gated on phase (a)'s track record.
+
+## Amendment — 2026-09-01: phase (a) built, WordPress the first tenant
+
+Operator ruling (same day): lock WordPress. The reasoning, recorded: it is the
+only candidate high on all four axes the objective needs — layman-attractive
+(largest installed base of people who *have* a blog), layman-connectable
+(WordPress.com's OAuth2 flow is the same one-click connector gesture as
+Slack/Notion), long-standing (a decade-stable REST write contract, backed by
+open source — the anti-Medium property), and wide (one client covers
+wordpress.com + Jetpack-connected sites). Substack is the more attractive
+*brand* and has **no write API** (its new Publisher API is read/analytics —
+noted as a strings opportunity, not a publish target); Ghost is the better API
+with the smaller base (second connector); Dev.to/Hashnode are the wrong
+audience.
+
+**The three-state connect story** (a member does NOT need a pre-existing
+site — but WordPress always publishes TO a site):
+
+1. has a site → OAuth connect, pick it at publish time, done;
+2. has a WordPress.com login, no site → a free `name.wordpress.com` site is
+   ~2 clicks on their side, once — after which they never manage anything;
+3. has nothing → the authorize page doubles as signup, which lands them in
+   state 2.
+
+The fully-invisible upgrade (yarnnn mints the site during connect via the
+undocumented `sites/new`) is historically whitelisted to Automattic's own
+clients — confirm with Automattic before designing around it; do not promise
+it. And the refusal that pairs with this: **yarnnn never hosts blogs**
+(`yarnnn.com/@user` is owning a publishing platform — the ADR-417 class);
+the state-zero fallback is the already-shipped Share link.
+
+**What the build found**: `integrations/exporters/` (the ADR-028
+DestinationExporter ABC + Slack/Notion/Download exporters) was a FOSSIL —
+its one `.deliver()` caller was deleted 2026-08-26 with a comment claiming
+"live delivery paths" that do not exist, and `connector_does` was citing it
+to print member-facing copy promising an export capability no route could
+perform. Deleted whole; the copy now tells the truth. The phase (a) seam is
+**`services/publish.py`** — new, narrow, ADR-628-shaped — with
+`integrations/core/wordpress_client.py` beneath it and
+`POST /api/publish/wordpress` as the one member-clicked door. The receipt is
+a `_publish.yaml` sidecar beside the post (machine format per ADR-254),
+written through `write_revision` as the member's own act.
 
 **Builds on** `docs/architecture/intake-pipeline.md` §5 (a reach proposal must
 declare its disposition in its first paragraph) · ADR-577 (the credential
@@ -96,6 +137,7 @@ the operator holds; this ADR deliberately does not pick.
 
 ## Gate
 
-None yet — nothing is built. The gate arrives with phase (a)
-(`test_adr628_outbound_publish.py`), and its first assertion is D5's: no
-module under `api/` performs an outbound platform write outside the seam.
+`test_adr628_outbound_publish.py` (arrived with phase (a), per the original
+plan). Its first assertion is D5's: no module under `api/` performs an
+outbound platform write outside the `services/publish.py` seam — which now
+also pins the exporter fossil's grave.

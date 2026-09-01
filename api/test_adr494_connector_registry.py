@@ -93,7 +93,10 @@ check(
 
 check("commerce is retired", CONNECTOR_REGISTRY.get("commerce") == "retired")
 check("trading is retired", CONNECTOR_REGISTRY.get("trading") == "retired")
-check("slack/notion/github are live", OFFERED_PROVIDERS == ("slack", "notion", "github"),
+# ADR-628 — wordpress joins as the first OUTBOUND connector (a publish
+# target, no capture binding).
+check("slack/notion/github/wordpress are live",
+      OFFERED_PROVIDERS == ("slack", "notion", "github", "wordpress"),
       f"offered={OFFERED_PROVIDERS}")
 check("is_offered() is False for retired", not is_offered("commerce") and not is_offered("trading"))
 check("is_offered() is True for live", all(is_offered(p) for p in OFFERED_PROVIDERS))

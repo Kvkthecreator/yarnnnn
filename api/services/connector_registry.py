@@ -45,10 +45,16 @@ ConnectorStatus = Literal["live", "retired"]
 # `CONNECTOR_CAPTURE_BINDINGS` (so neither ever had a connector-lane reader);
 # trading's only capture path is the alpha-trader bundle's SyncPlatformState
 # mirrors, gated behind a hire with no operator surface (ADR-414 D5).
+#
+# ADR-628 — `wordpress` joins as the first OUTBOUND connector: a real connect
+# path and a PUBLISH target (services/publish.py), no capture binding. "Live"
+# therefore reads "a connect path AND a consumer" — the consumer may be a
+# capture binding (inbound) or a publish target (outbound).
 CONNECTOR_REGISTRY: dict[str, ConnectorStatus] = {
     "slack": "live",
     "notion": "live",
     "github": "live",
+    "wordpress": "live",
     "commerce": "retired",
     "trading": "retired",
 }

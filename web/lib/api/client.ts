@@ -517,6 +517,24 @@ export const api = {
   // a Conversation is participants + turns, and the participant verbs live on
   // `lanes` below (`participants` / `addParticipant` / `removeParticipant`).
 
+  // ADR-628 phase (a) — the member-clicked outbound door. WordPress is the
+  // first tenant; the site is chosen AT THE ACT (never stored on the
+  // connection, ADR-594 D1) and the receipt lands as a _publish.yaml sidecar.
+  publish: {
+    wordpressSites: () =>
+      request<{
+        connected: boolean;
+        sites: Array<{ id: string; name: string; url: string }>;
+      }>("/api/publish/wordpress/sites"),
+    wordpress: (data: { path: string; site_id: string; status: "publish" | "draft" }) =>
+      request<{
+        success: boolean;
+        url: string;
+        post_id: string;
+        status: string;
+      }>("/api/publish/wordpress", { method: "POST", body: JSON.stringify(data) }),
+  },
+
   lanes: {
     /** `includeBound` (2026-07-16): bound (Studio) lanes leave the /chat list —
      *  /chat is Think; a bound lane is Make-work with a text interface and

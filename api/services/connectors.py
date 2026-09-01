@@ -78,32 +78,41 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
     },
 }
 
-_PLATFORM_DISPLAY = {"slack": "Slack", "notion": "Notion", "github": "GitHub"}
+_PLATFORM_DISPLAY = {
+    "slack": "Slack",
+    "notion": "Notion",
+    "github": "GitHub",
+    "wordpress": "WordPress",  # ADR-628 — the first outbound connector
+}
 
 
 def connector_does(platform: str) -> Optional[dict]:
     """The three capability facts the detail page states — DERIVED from the
     machinery that enacts them, never a parallel copy that can drift:
 
-      reads  — the capture binding's own statement of its read tool
-      writes — whether an exporter is registered for the platform (the only
-               write path; operator-initiated, never scheduled)
+      reads  — the capture binding's own statement of its read tool (or the
+               honest "nothing" for an outbound-only connector)
+      writes — whether the platform is an ADR-628 PUBLISH TARGET (the only
+               write path; member-clicked, never scheduled). The exporter
+               registry this used to consult was a FOSSIL: its one caller was
+               deleted 2026-08-26, so the old copy promised an export no
+               route could perform. Deleted with the ADR-628 build; the fact
+               now derives from the seam that actually publishes.
       agents — the ADR-577 refusal: agents hold no platform credential and
                the lane allowlists exclude platform tools; consumers read
                LANDED files only (ADR-582 D6)
 
     Facts, not controls — there is no per-tool enforcement point on the
     outbound side to bind dials to (the OAuth scope is the platform's
-    control; ours is species-level). None for an unbound platform."""
+    control; ours is species-level). None for a platform with neither a
+    capture binding nor a publish target."""
     plat = (platform or "").strip().lower()
     binding = CONNECTOR_CAPTURE_BINDINGS.get(plat)
-    if binding is None:
+    from services.publish import PUBLISH_TARGETS
+
+    can_export = plat in PUBLISH_TARGETS
+    if binding is None and not can_export:
         return None
-    try:
-        from integrations.exporters import get_exporter_registry
-        can_export = get_exporter_registry().get(plat) is not None
-    except Exception:  # noqa: BLE001 — a registry hiccup must not claim a write path
-        can_export = False
     name = _PLATFORM_DISPLAY.get(plat, plat)
     try:
         from services.turn_reach import is_turn_reach_enabled
@@ -111,9 +120,16 @@ def connector_does(platform: str) -> Optional[dict]:
     except Exception:  # noqa: BLE001
         reach_on = False
     return {
-        "reads": binding["reads"],
+        # An outbound-only connector (no capture binding) reads NOTHING —
+        # stated, not omitted: an absent row would read as an oversight
+        # (the ADR-572 §3.1 lesson — a deliberate absence must say so).
+        "reads": (
+            binding["reads"]
+            if binding is not None
+            else f"nothing — yarnnn never captures from {name}"
+        ),
         "writes": (
-            f"only when you export a document to {name} — your action, never scheduled"
+            f"only when you publish to {name} — your action, never scheduled"
             if can_export
             else f"nothing — yarnnn never writes to {name}"
         ),
@@ -131,12 +147,18 @@ def connector_does(platform: str) -> Optional[dict]:
         # connection sends its content there — the same exposure as pasting,
         # which is the comparison that makes it legible.
         "chat": (
-            f"your chat can read {name} through your own connection — "
-            "read-only, in the turn, nothing saved unless you ask. "
-            "What it reads goes to the engine you picked for that chat, "
-            "the same as pasting it in"
-            if reach_on
-            else "chat cannot reach platforms on this deployment"
+            # Outbound-only: there is no read tool to reach, whatever the
+            # turn-reach flag says — the fact derives from the binding.
+            f"chat does not read {name} — this connection only publishes, on your click"
+            if binding is None
+            else (
+                f"your chat can read {name} through your own connection — "
+                "read-only, in the turn, nothing saved unless you ask. "
+                "What it reads goes to the engine you picked for that chat, "
+                "the same as pasting it in"
+                if reach_on
+                else "chat cannot reach platforms on this deployment"
+            )
         ),
         # ADR-615 — reach follows the PRINCIPAL, not the surface. An agent
         # working at its desk is the member, present and driving (the lane
@@ -151,10 +173,17 @@ def connector_does(platform: str) -> Optional[dict]:
         # toolless by construction (`run_bounded_derive_turn`), so a scoped
         # being gains no reach when nobody is present.
         "agents": (
-            f"an agent you scope to {name} reads it while you're working with it — "
-            "never on its own schedule, where it reads landed files only"
-            if reach_on
-            else "no direct platform access — agents read the landed capture files only"
+            # ADR-628 D5 — agents cannot publish, structurally: the credential
+            # path refuses agent callers (ADR-577) and the publish door is a
+            # member surface act. Stated where the connection is granted.
+            f"agents never publish to {name} — publishing is your click, with your credential"
+            if binding is None
+            else (
+                f"an agent you scope to {name} reads it while you're working with it — "
+                "never on its own schedule, where it reads landed files only"
+                if reach_on
+                else "no direct platform access — agents read the landed capture files only"
+            )
         ),
     }
 

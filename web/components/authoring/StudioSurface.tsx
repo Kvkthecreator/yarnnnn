@@ -80,6 +80,7 @@ import { StudioDesignTab, kindTier, type StructVerb } from './StudioDesignTab';
 // ADR-541 D2 — the one selection algebra (the pane reads the same two).
 import { arityOf, scopeOf, spanShapeOf, unify, type SpanShape } from './selection';
 import { StudioShareExport } from './StudioShareExport';
+import { StudioPublish } from './StudioPublish';
 import { PagedNavigator } from './PagedNavigator';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
 import {
@@ -3746,6 +3747,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 grammar). The Properties sections are deleted, not mirrored.
                 ADR-529 D1: Share is now a trigger for the shared dialog — the
                 popover it used to open is deleted; Export keeps its panel. */}
+            {/* ADR-628 phase (a) — the Blogger desk's third boundary act.
+                App-scoped by MOUNT (the exportPng precedent), not by fork:
+                only the publish medium's desk carries an outbound door. */}
+            {app.slug === 'blogger' && artifactPath && (
+              <StudioPublish
+                artifactPath={artifactPath}
+                compact={!fullLabels}
+                coarsePointer={coarsePointer}
+              />
+            )}
             <StudioShareExport
               share={shareArtifact}
               print={() => void exportPrint()}

@@ -455,17 +455,26 @@ check("7m does.reads comes from the binding row itself (one home)",
       _slack_does.get("reads") == CONNECTOR_CAPTURE_BINDINGS["slack"]["reads"]
       and all("reads" in b for b in CONNECTOR_CAPTURE_BINDINGS.values()))
 
-# Driven against the real exporter registry: slack HAS an exporter, github
-# does not — the writes fact must follow the registry, not a hand-kept list.
-from integrations.exporters import get_exporter_registry  # noqa: E402
+# Re-anchored 2026-09-01 (ADR-628): the exporter registry this drove was a
+# FOSSIL — its one .deliver() caller was deleted 2026-08-26, so `slack
+# exports` was copy promising a write no route performed. The writes fact
+# now derives from the ADR-628 publish seam: wordpress publishes; slack and
+# github never write.
+from services.publish import PUBLISH_TARGETS  # noqa: E402
 
-check("7n does.writes follows the exporter registry (slack exports, github "
-      "never writes)",
-      get_exporter_registry().get("slack") is not None
-      and get_exporter_registry().get("github") is None
-      and "export" in _slack_does.get("writes", "")
+_wp_does = connector_does("wordpress") or {}
+check("7n does.writes follows the publish seam (wordpress publishes; "
+      "slack + github never write)",
+      "wordpress" in PUBLISH_TARGETS
+      and "slack" not in PUBLISH_TARGETS
+      and "publish" in _wp_does.get("writes", "")
+      and "never writes" in _slack_does.get("writes", "")
       and "never writes" in _gh_does.get("writes", ""),
-      f"slack={_slack_does.get('writes')!r} github={_gh_does.get('writes')!r}")
+      f"wp={_wp_does.get('writes')!r} slack={_slack_does.get('writes')!r}")
+check("7n2 an outbound-only connector states its non-capture (never omits it)",
+      "never captures" in _wp_does.get("reads", "")
+      and "your click" in _wp_does.get("agents", ""),
+      f"reads={_wp_does.get('reads')!r}")
 check("7o does is None for an unbound platform (no fabricated facts)",
       connector_does("commerce") is None and connector_does("") is None)
 

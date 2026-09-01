@@ -217,7 +217,16 @@ default is unchanged and is why it stays the default — turn reach could be
 added later, but the attributed record cannot be recovered retroactively if
 intake wasn't running.
 
-**What turn reach does NOT dissolve.** The two dispositions stay distinct
+**A third disposition exists since 2026-09-01 — OUTBOUND** (content leaving
+the workspace for an external platform; ADR-628, canonical home
+[connectors.md §6](connectors.md)). It is neither of the two above: not
+standing, not transient-inward — a **member-clicked, receipted, irrevocable**
+act through the one seam `services/publish.py` (WordPress first tenant,
+Blogger's Publish door). Named here so the first-paragraph declaration rule
+covers all three; the detail lives with the connectors canon, not this
+pipeline (intake remains inbound-only).
+
+**What turn reach does NOT dissolve.** The two inbound dispositions stay distinct
 where it counts: a turn's read is transient and dies with the turn, so nothing
 it touches enters the record unless someone writes it. An **unattended**
 standing run reaches nothing live — those execute toolless by construction

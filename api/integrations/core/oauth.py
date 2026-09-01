@@ -136,6 +136,21 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         ],
         redirect_path="/api/integrations/reddit/callback",
     ),
+    # ADR-628 phase (a): WordPress.com — the first OUTBOUND tenant (ADR-627's
+    # Blogger publishes through it). `global` is WordPress.com's account-wide
+    # scope: the token can list the member's sites and post to the one they
+    # pick AT THE PUBLISH ACT (the site is never stored on the connection —
+    # ADR-594 D1). Tokens are long-lived; WordPress.com issues no refresh
+    # token. Covers wordpress.com sites AND Jetpack-connected self-hosted.
+    "wordpress": OAuthConfig(
+        provider="wordpress",
+        client_id_env="WORDPRESS_CLIENT_ID",
+        client_secret_env="WORDPRESS_CLIENT_SECRET",
+        authorize_url="https://public-api.wordpress.com/oauth2/authorize",
+        token_url="https://public-api.wordpress.com/oauth2/token",
+        scopes=["global"],
+        redirect_path="/api/integrations/wordpress/callback",
+    ),
     # ADR-131: Gmail and Calendar OAuth configs removed (sunset)
 }
 
@@ -183,6 +198,12 @@ WRITE_SCOPE_MARKERS: dict[str, Optional[list[str]]] = {
     "github": None,
     "notion": None,   # write authority set at the Notion app level, not per-OAuth
     "reddit": ["submit"],
+    # ADR-628 — WordPress's write authority is exercised by the MEMBER-CLICKED
+    # publish seam (services/publish.py), never by a write_wordpress agent
+    # capability (agents cannot publish — ADR-628 D5). Exempt like notion:
+    # the authority exists but is not expressed as an agent capability, so
+    # there is no capability↔scope pair for the D1.a invariant to bind.
+    "wordpress": None,
 }
 
 
@@ -397,6 +418,16 @@ def get_authorization_url(provider: str, user_id: str, redirect_to: Optional[str
             "redirect_uri": config.redirect_uri,
             "duration": "permanent",
             "scope": " ".join(config.scopes),
+        }
+    elif provider == "wordpress":
+        # ADR-628: standard OAuth2 code flow; `scope=global` (account-wide —
+        # the member picks WHICH site at each publish act, ADR-594 D1).
+        params = {
+            "client_id": config.client_id,
+            "redirect_uri": config.redirect_uri,
+            "response_type": "code",
+            "scope": " ".join(config.scopes),
+            "state": state,
         }
     else:
         raise ValueError(f"Unsupported provider: {provider}")
@@ -616,6 +647,56 @@ async def exchange_code_for_token(
                     "scope": data.get("scope"),
                     "token_type": data.get("token_type"),
                     "expires_in": data.get("expires_in"),
+                },
+                "status": IntegrationStatus.ACTIVE.value,
+                "redirect_to": redirect_to,
+            }
+
+        elif provider == "wordpress":
+            # ADR-628: WordPress.com token exchange — form-encoded code grant.
+            # Response carries access_token (+ blog_id/blog_url of the primary
+            # blog); no refresh token (WordPress.com tokens are long-lived).
+            response = await client.post(
+                config.token_url,
+                data={
+                    "client_id": config.client_id,
+                    "client_secret": config.client_secret,
+                    "code": code,
+                    "redirect_uri": config.redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+            )
+            data = response.json()
+            if "error" in data or "access_token" not in data:
+                raise ValueError(
+                    f"WordPress OAuth error: {data.get('error_description', data.get('error', 'no access_token'))}"
+                )
+
+            token_manager = get_token_manager()
+
+            # WHO connected — one /me read so `connection_target` can label
+            # the row (`account_label` is in its key ladder).
+            account_label = ""
+            try:
+                from integrations.core import wordpress_client as _wp
+
+                me = await _wp.get_me(data["access_token"])
+                account_label = (
+                    me.get("display_name") or me.get("username") or ""
+                ).strip()
+            except Exception:  # noqa: BLE001 — a label miss must not fail the connect
+                pass
+
+            return {
+                "user_id": user_id,
+                "platform": provider,
+                "credentials_encrypted": token_manager.encrypt(data["access_token"]),
+                "refresh_token_encrypted": None,  # WordPress.com issues none
+                "metadata": {
+                    "account_label": account_label,
+                    "primary_blog_id": data.get("blog_id"),
+                    "primary_blog_url": data.get("blog_url"),
+                    "scope": data.get("scope"),
                 },
                 "status": IntegrationStatus.ACTIVE.value,
                 "redirect_to": redirect_to,

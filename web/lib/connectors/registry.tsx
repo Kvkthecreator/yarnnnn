@@ -89,6 +89,12 @@ const GithubIcon = (
   </svg>
 );
 
+const WordPressIcon = (
+  <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zM1.211 12c0-1.564.335-3.05.935-4.39l5.15 14.108C3.703 19.955 1.211 16.271 1.211 12zm10.789 10.789c-1.059 0-2.081-.153-3.048-.437l3.237-9.406 3.315 9.087c.022.053.048.101.077.147-1.129.394-2.34.609-3.581.609zm1.485-15.85c.649-.034 1.234-.102 1.234-.102.581-.069.512-.923-.069-.889 0 0-1.746.137-2.874.137-1.059 0-2.84-.137-2.84-.137-.581-.034-.649.854-.068.889 0 0 .55.068 1.131.102l1.68 4.603-2.361 7.078-3.928-11.681c.65-.034 1.235-.102 1.235-.102.58-.069.512-.923-.07-.889 0 0-1.745.137-2.873.137-.202 0-.441-.005-.695-.013C4.911 3.15 8.235 1.211 12 1.211c2.809 0 5.365 1.074 7.286 2.833-.046-.003-.091-.009-.139-.009-1.059 0-1.81.923-1.81 1.914 0 .889.512 1.641 1.059 2.53.41.72.889 1.641.889 2.977 0 .923-.355 1.994-.82 3.486l-1.075 3.585-3.895-11.588zm3.937 14.327 3.288-9.508c.615-1.535.82-2.762.82-3.854 0-.396-.026-.764-.073-1.107 1.407 2.564 1.53 5.667.156 8.377-1.058 2.089-2.517 3.936-4.191 6.092zM22.789 12c0 3.964-2.15 7.423-5.345 9.284l3.297-9.532c.615-1.54.821-2.771.821-3.864 0-.397-.027-.765-.075-1.109C22.343 8.64 22.789 10.27 22.789 12z" />
+  </svg>
+);
+
 const CommerceIcon = (
   <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
@@ -137,6 +143,17 @@ export const CONNECTOR_REGISTRY: ConnectorMeta[] = [
     resourceNoun: "repos",
     supportsSelection: true,
     brand: { chipClass: "bg-gray-900 dark:bg-white", icon: GithubIcon },
+  },
+  // ADR-628 phase (a) — the first OUTBOUND connector: no capture, no
+  // selection panel (nothing to select — the site is chosen at each publish
+  // act, ADR-594 D1). Blogger's Publish door is its one consumer.
+  {
+    provider: "wordpress",
+    displayName: "WordPress",
+    tagline: "Publish your posts to your own blog",
+    authKind: "oauth",
+    status: "live",
+    brand: { chipClass: "bg-[#21759B]", connectTextClass: "text-white", icon: WordPressIcon },
   },
   // ADR-494 D2 — RETIRED. Receipted 2026-07-29: zero commerce and zero trading
   // rows have ever existed in `platform_connections` (prod: only slack=1,

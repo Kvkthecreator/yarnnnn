@@ -144,6 +144,21 @@ disposition and lands receipts precisely because nobody is present. Any
 proposal touching platform reach declares its disposition in its first
 paragraph.
 
+**Outbound** — content leaving the workspace for an external platform — is
+the THIRD disposition ([ADR-628](../adr/ADR-628-the-outbound-disposition.md)),
+and it is not a mirror of intake: an outbound act is irrevocable in the
+world. Phase (a) is live with WordPress as the first tenant: the publish is
+**member-clicked** (Blogger's Publish door), the credential is the member's
+own (`platform_credentials`, which refuses agents — ADR-577), the site is
+chosen **at the act** (never stored on the connection — no per-connection
+settings survives here too), and every act appends a `_publish.yaml` receipt
+beside the post. **The seam is `services/publish.py`** — every outbound
+platform write crosses it, gate-pinned. An outbound-only connector (no
+capture binding) states its non-capture on the surface rather than omitting
+it. Phase (b) — a standing declaration publishing without a click — is NOT
+built; it begins on phase (a)'s receipts, via ADR amendment, with its own
+narrow non-agent identity.
+
 ## 7. Gates
 
 `test_adr582_connectors.py` (the writer's contract + the narrowing, driven) ·
@@ -151,4 +166,5 @@ paragraph.
 `test_adr569_strings.py` §7 (reach with a receipt, driven) ·
 `test_adr580_connector_derive.py` (the supersession + the shared turn) ·
 `test_adr576_github_connector.py` (the aperture) ·
-`test_intake_pipeline_contract.py` (the cross-lane grammar + observation law).
+`test_intake_pipeline_contract.py` (the cross-lane grammar + observation law) ·
+`test_adr628_outbound_publish.py` (the outbound seam, driven — one seam, member-clicked, receipted).
