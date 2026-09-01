@@ -90,12 +90,13 @@ export const DEFAULT_KEPT_SURFACES: string[] = [
   // Hidden, not unplugged — /docs still routes and a document still opens
   // there. Reopening is ADR-574 §5, and only as a Publish surface (D4).
   'slides', // ADR-599 D4 — Studio's full evolve (deck-only; `studio` aliases here)
+  'blogger', // ADR-629 — full placement, badged beta (the publish medium, ADR-627)
+  'images', // ADR-629 — ADR-488's unveil hold closed by operator ruling; badged beta
   // 'radar' — DELETED 2026-08-21 (ADR-592): the app is gone, not paused. A
   // persisted pin is dropped via DOCK_RETIRED_SLUGS so it renders no ghost icon.
   'strings', // ADR-569 unveil (2026-08-14, operator decision) — the maintained file
   'files',
   'agents',
-  // 'images' — removed 2026-07-28 (ADR-488): the app went internal pre-beta.
 ];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;

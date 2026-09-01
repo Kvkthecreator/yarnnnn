@@ -274,9 +274,11 @@ from services.app_stage import launcher_tier_for  # noqa: E402
 import services.kernel_surfaces as _ks  # noqa: E402
 
 _tier = {e["slug"]: launcher_tier_for(e) for e in _ks.KERNEL_SURFACES if e.get("slug")}
-_check("IMAGES is unpromoted today (the fact this derivation reads)",
-       _tier.get("images") != "primary")
-_check("Designer waits with its only desk", not is_promoted("designer"))
+# ADR-629 closed ADR-488's unveil hold: IMAGES is fully placed (badged beta),
+# and Designer's promotion followed by derivation — the ADR-602 D3 dividend.
+_check("IMAGES is promoted today (ADR-629; the fact this derivation reads)",
+       _tier.get("images") == "primary")
+_check("Designer rises with its only desk (ADR-629)", is_promoted("designer"))
 _check("Editor is promoted (slides + text are both primary)", is_promoted("editor"))
 _check("Supervisor is promoted (strings is primary)", is_promoted("supervisor"))
 # ADR-627 D3 — beta is a launcher tile, so a member meets the desk in the
@@ -290,27 +292,30 @@ _check("Blogger is promoted (its desk is a beta tile)", is_promoted("blogger"))
 # WINS over the pair, so the mutation was silently ignored and the check read
 # "promoting the app does not promote its being". Move the STAGE, which is now
 # the single declaration (ADR-592); the pair is derived FROM it.
+# ⚠️ Re-anchored 2026-09-01 (ADR-629): IMAGES is primary at rest now, so the
+# probe mutates DOWNWARD — demoting the app must withhold its being with no
+# registry edit, which is the same derivation read from the other side.
 _img = next(e for e in _ks.KERNEL_SURFACES if e.get("slug") == "images")
 _saved = _img.get("stage")
-_img["stage"] = "primary"
+_img["stage"] = "search-only"
 try:
-    _follows = is_promoted("designer")
+    _follows = not is_promoted("designer")
 finally:
     if _saved is None:
         _img.pop("stage", None)
     else:
         _img["stage"] = _saved
-_check("promoting the app promotes its being (derived, not copied)", _follows)
-_check("...and the restore held (designer is withheld again)",
-       not is_promoted("designer"))
+_check("demoting the app withholds its being (derived, not copied)", _follows)
+_check("...and the restore held (designer is promoted again)",
+       is_promoted("designer"))
 # Presentation only — the cliff is untouched.
 _check("promotion never gates resolution (the being still answers)",
        resolve_agent("designer") is not None)
 # The payload is what the pane reads: an unpromoted being must not be served.
 import routes.lanes as _L  # noqa: E402
 _served = {b["slug"] for b in _L._beings_payload()}
-_check("the payload withholds an unpromoted being",
-       "designer" not in _served and {"editor", "supervisor"} <= _served)
+_check("the payload serves every promoted being (all four since ADR-629)",
+       {"blogger", "designer", "editor", "supervisor"} <= _served)
 # Fail CLOSED on the unhoused (ADR-602 D3 as amended 2026-08-24): a NON-offered
 # being with no desk is unreachable everywhere — a deleted app REGISTRATION
 # must withhold its orphaned resident, never leak it onto the pane. An OFFERED

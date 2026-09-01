@@ -100,16 +100,22 @@ check("the retired outward slugs alias to `post`, single-hop, never offered",
       all(canonical_layout_slug(s) == "post" for s in ("article", "page", "web"))
       and not ({"article", "page", "web"} & set(all_layouts())))
 
-print("4. the exposure (ADR-627 D3 via ADR-592)")
-from services.app_stage import launcher_tier_for, resolve_stage  # noqa: E402
+print("4. the exposure (ADR-627 D3 as amended by ADR-629)")
+from services.app_stage import is_default_pinned, launcher_tier_for, resolve_stage  # noqa: E402
 from services.kernel_surfaces import KERNEL_SURFACES, kernel_surface_slugs  # noqa: E402
 row = next((e for e in KERNEL_SURFACES if e.get("slug") == "blogger"), None)
-check("the surface row exists and DECLARES stage beta",
-      bool(row) and row.get("stage") == "beta")
-check("beta serves: on the roster, a launcher tile, never pinned",
+check("the surface row exists and DECLARES stage primary (ADR-629 D2)",
+      bool(row) and row.get("stage") == "primary")
+check("full placement: on the roster, a launcher tile, a default Dock pin",
       "blogger" in kernel_surface_slugs()
       and bool(row) and launcher_tier_for(row) == "primary"
-      and resolve_stage(row) == "beta")
+      and resolve_stage(row) == "primary" and is_default_pinned(row))
+check("…wearing the beta badge — presentation only (ADR-629 D1)",
+      bool(row) and row.get("badge") == "beta")
+imgrow = next((e for e in KERNEL_SURFACES if e.get("slug") == "images"), None)
+check("IMAGES joins full placement, badged (ADR-629 D2/D3 close ADR-488's hold)",
+      bool(imgrow) and resolve_stage(imgrow) == "primary"
+      and imgrow.get("badge") == "beta" and is_default_pinned(imgrow))
 check("the being's promotion derives from the desk (ADR-602 D3)",
       is_promoted("blogger"))
 check("the route is /blogger", bool(row) and row.get("route") == "/blogger")

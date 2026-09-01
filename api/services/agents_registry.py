@@ -298,8 +298,9 @@ def is_promoted(slug: str) -> bool:
     `is_exposed`: exposure asks *does this surface reach the served roster*
     (true even for `search-only`, which is reachable-but-unpromoted), while the
     pane's question is *would a member meet this being in the normal course of
-    using the product*. IMAGES is `search-only` — off the Dock, not in the
-    product's front door — so Designer waits with it.
+    using the product*. (IMAGES sat at `search-only` until ADR-629 promoted
+    it, and Designer waited with it — the derivation is why promoting the app
+    was the whole edit.)
 
     DERIVED, never a column on the being: the surface registry already
     declares the stage (ADR-592), and a second copy here is the ADR-562

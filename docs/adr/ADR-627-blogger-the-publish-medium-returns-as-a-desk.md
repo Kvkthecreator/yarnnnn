@@ -76,7 +76,7 @@ No authority, no clock, no mandate — the ADR-460 D3.a cliff holds untouched.
 The being's home (`agents/blogger/`, ADR-624) needs no seeding: memory is
 written lazily, grants are absent until granted.
 
-### D3 — Stage `beta`
+### D3 — Stage `beta` **(AMENDED same day by ADR-629: stage `primary` + `badge: "beta"` — full placement, the tag carried as presentation)**
 
 Reachable (launcher tile, auth-gated via the roster-derived
 `SURFACE_PREFIXES`), not on the default Dock. `beta` rather than `internal`

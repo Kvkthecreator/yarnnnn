@@ -301,19 +301,22 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # `web` type) and ADR-599 D5 deleted returns as `post`, under the app
         # whose future that deletion named. Studio-parameterized like Slides
         # (same authoring kernel, same bound lane); resident is the `blogger`
-        # being (ADR-627 D2). Stage `beta` (D3): reachable and auth-gated via
-        # the roster-derived SURFACE_PREFIXES, a launcher tile, no Dock icon —
-        # usable at ship, unveil deferred until it earns polish parity
-        # (the ADR-488 lesson). Publishing outward is ADR-628's, phased,
+        # being (ADR-627 D2). Auth cover rides the roster-derived
+        # SURFACE_PREFIXES. Publishing outward is ADR-628's, phased,
         # unbuilt — this surface composes workspace artifacts only.
         "slug": "blogger",
-        "stage": "beta",
-        # Tier + pin are DERIVED from the stage at serve (beta → tile, no Dock
-        # icon); declared here because only rows carrying a tier get a derived
-        # one — a tierless row is chrome (nothing to promote) and would serve
+        # ADR-629 (ADR-627 D3 amended same day, operator ruling): full
+        # placement — tile + default Dock icon — wearing the `badge` as the
+        # honesty mechanism instead of a withheld stage (the Claude Design
+        # shape: fully placed, tagged Beta).
+        "stage": "primary",
+        "badge": "beta",  # ADR-629 D1 — presentation ONLY; gates nothing
+        # Tier + pin are DERIVED from the stage at serve; declared here
+        # because only rows carrying the keys get a derived value — a
+        # tierless row is chrome (nothing to promote) and would serve
         # without a launcher tile.
         "launcher_tier": "primary",
-        "default_pinned": False,
+        "default_pinned": True,
         "register": "application",
         "title": "Blogger",
         "archetype": "document",
@@ -346,17 +349,20 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # app is unpromoted, not unplugged. Dock re-unveil = a deliberate
         # ADR-488 §5 decision, not a flag flip.
         "slug": "images",
-        # ADR-488's "hidden, not unplugged" posture, now SPELLED ONCE. Images is
-        # functionally complete but held from the front door pending polish
-        # parity; it still opens when a composition routes to it.
-        "stage": "search-only",  # ADR-592 declared 2026-08-26 (was implied)
-        "launcher_tier": "search-only",  # ADR-488 — unveil held for polish parity
+        # ADR-488 held the unveil for "polish parity"; ADR-629 D3 closes that
+        # hold by operator ruling (2026-09-01): full placement, with the
+        # `badge` as the honesty mechanism — the desk says "beta" where
+        # ADR-488 said "withhold". Designer's /agents promotion follows by
+        # derivation (ADR-602 D3), no registry edit.
+        "stage": "primary",
+        "badge": "beta",  # ADR-629 D1 — presentation ONLY; gates nothing
+        "launcher_tier": "primary",  # derived from stage at serve (marker key)
         "register": "application",
         "title": "Images",
         "archetype": "document",
         "substrate_paths": [],  # compositions are meaning-placed, like artifacts
         "icon_key": "image",
-        "default_pinned": False,  # ADR-488 — left the default Dock (was True, 2026-07-22)
+        "default_pinned": True,  # derived from stage at serve (marker key)
         "route": "/images",
         "summary": "Compose visuals on a sized stage — layered objects, positioned and stacked. The composition is the source and the rendered image is a derivation of it, so every export stays traceable to the stage, the citations, and the revision that produced it.",
     },

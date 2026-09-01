@@ -256,8 +256,10 @@ export function TopBarSurface() {
           type="button"
           onClick={handleClick}
           onContextMenu={handleContextMenu}
-          title={surface.title}
-          aria-label={surface.title}
+          // ADR-629 D1 — the badge is presentation only; on a 9×9 Dock icon
+          // the tooltip is the one place a tag fits without chrome noise.
+          title={surface.badge ? `${surface.title} (${surface.badge})` : surface.title}
+          aria-label={surface.badge ? `${surface.title} (${surface.badge})` : surface.title}
           aria-current={isForegrounded ? 'page' : undefined}
           className={cn(
             'flex h-9 w-9 items-center justify-center rounded-md transition-colors',

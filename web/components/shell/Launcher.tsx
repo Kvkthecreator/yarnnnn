@@ -370,6 +370,13 @@ export function Launcher({
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium">
                           {surface.title}
+                          {surface.badge && (
+                            // ADR-629 D1 — presentation only: the tag beside
+                            // the name (Claude Design's Beta chip shape).
+                            <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                              {surface.badge}
+                            </span>
+                          )}
                           {surface.pane_of && (
                             // ADR-341: label by the parent door's title —
                             // panes now belong to System Settings,
@@ -413,7 +420,15 @@ export function Launcher({
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium">{surface.title}</div>
+                        <div className="text-sm font-medium">
+                          {surface.title}
+                          {surface.badge && (
+                            // ADR-629 D1 — presentation only.
+                            <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                              {surface.badge}
+                            </span>
+                          )}
+                        </div>
                         <div className="truncate text-xs text-muted-foreground">
                           {surface.summary}
                         </div>

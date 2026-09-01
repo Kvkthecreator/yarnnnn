@@ -286,6 +286,12 @@ export interface Surface {
     | 'utilities'
     | 'search-only';
   title: string;
+  /**
+   * ADR-629 D1 — presentation-only tag rendered beside the app's name
+   * (launcher chip, Dock tooltip). `"beta"` today. Gates NOTHING: the moment
+   * a badge branches behavior it has become a second stage field.
+   */
+  badge?: string;
   archetype: Archetype;
   substrate_paths: string[];
   icon_key: string;
