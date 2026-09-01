@@ -133,14 +133,119 @@ read past it. The agent's floor is an additional narrowing, never a widening.
 ### D4 — What is NOT built, and why
 
 **An agent still cannot initiate a turn.** Both entry points require a human
-caller; there is no wake, no agent-to-agent handoff, no round-robin. This is
-deliberate and stays: a being that could summon another being is authority over
-a being (ADR-460 D3.a), and a being that could speak unprompted is a clock on a
-being (ADR-596 D1). Two agents in a room take turns *through* the member, and
-the frame already says so.
+caller; there is no wake, no agent-to-agent handoff, no round-robin. Two agents
+in a room take turns *through* the member, and the frame already says so.
 
 This ADR makes the room **legible**, not autonomous. Those are different
 questions and only the first one was a defect.
+
+> **⚠️ Citation corrected 2026-09-01 (amendment, same day).** This paragraph
+> first justified the refusal with **ADR-460 D3.a**, and that citation is
+> WRONG — corrected here rather than left standing, because an imprecise reason
+> in ratified canon is what later blocks a legitimate feature or gets worked
+> around for the wrong one. D3.a says *"the kernel Agent registry row shape has
+> NO field for consequential authority… the authority is not omitted from the
+> row — it is unrepresentable in it."* That is about **consequential external
+> action** and is enforced by the row shape. Routing a turn is not that, and an
+> agent suggesting a colleague answer is not authority over that colleague —
+> the frame already invites it (*"you may suggest it when their question is
+> better aimed elsewhere"*).
+>
+> ADR-603 D3 carries the same imprecision (*"'Supervisor hires Editor' —
+> authority over a BEING. Violates ADR-460 D3.a"*). Its **conclusion is right
+> and its own better argument sits two lines below it**: authority attaches to
+> declarations, never to beings. Noted here; not rewritten there — a ratified
+> ADR is a record of what was decided.
+
+**The three real reasons, stated so they can be reasoned from:**
+
+1. **Spend without a witness.** Every agent turn costs the member money. Today
+   every turn traces to a human act — you sent a message, one reply came back:
+   a bounded, consented unit of spend. If agent A can trigger agent B, spend
+   becomes SELF-SUSTAINING and the system can bill for a conversation nobody
+   asked to continue. That is the property ADR-592 deleted an app for and
+   ADR-618 spent an arc bounding. A runaway loop is the acute case; the chronic
+   case is a room that costs money while the member sleeps, and neither is
+   bounded today.
+2. **A clock on a being** (ADR-596 D1) — this one holds exactly. A being that
+   speaks unprompted has acquired a clock by construction rather than by
+   declaration.
+3. **No contract, so "did it work?" is unanswerable** — ADR-603 D1's own
+   argument. Unattended work without a contract is precisely what the standing
+   declaration exists to replace.
+
+**Consequence for a future build:** agent-to-agent turn initiation is
+**scoped and buildable**, not a cliff. It needs what standing work already has —
+a balance check before the fanned turn, a bound on depth, and a receipt. That is
+an ordinary ADR. What stays refused is an agent triggering a turn in a room the
+member is not in: that is standing work wearing a chat room, and it belongs in a
+declaration.
+
+### D4.a — Orchestration is declaration-mediated, not conversation-mediated
+
+Asked directly whether chat rooms should be the first-class route for
+long-standing agent orchestration, the answer is **no, and the canon already
+ruled** (ADR-603 D3): *"Editor arrives at a declaration because the **app**
+derives it, never because Supervisor summoned it."*
+
+The shape, already built and running:
+
+```
+Supervisor writes a declaration → names an APP → the app derives its resident
+                                → run_bounded_derive_turn (bounded, toolless,
+                                   contract-checked, with a receipt)
+```
+
+**Agents do not orchestrate agents; declarations do.** A being names what must
+stay true; the app derives who does it; nobody commands anybody. This is why it
+scales without an authority model — and why a chat room would be the worse
+route even setting spend aside: a conversation has no contract, so it cannot
+answer "did it work?"
+
+Note the execution path is genuinely different, not a chat turn wearing another
+name: standing work runs `run_bounded_derive_turn` (`services/derive_turn.py`),
+which is tool-less and bounded by construction.
+
+### D4.b — The mid-task case, and the fossil that does NOT serve it
+
+One case the declaration model does not cover: **A needs B's craft mid-task and
+needs the result back** (Editor drafting a deck that needs an image). That is
+neither standing work (no schedule, no contract) nor a chat handoff (nobody
+wants a second speaker). It is **delegation with a return value**.
+
+**Audited 2026-09-01, because this ADR nearly cited it as the ready-made
+mechanism:** `services/primitives/dispatch_specialist.py` (530 lines) is
+**dormant and structurally uncallable**, not merely unregistered —
+
+- absent from **every** roster: `HANDLERS`, `CHAT_PRIMITIVES`,
+  `HEADLESS_PRIMITIVES`, `FREDDIE_PRIMITIVES`, `PRIMITIVES` (verified by
+  execution, not grep);
+- `VALID_SPECIALIST_ROLES` is the **empty set** — ADR-272 narrowed it to one
+  role (`designer`) and the ADR-417 follow-on removed that, so a call would
+  refuse on any input;
+- its own comment points at a survivor that no longer exists: *"harvest.py
+  dispatches `role='researcher'` via HeadlessAuth, a separate mechanism"* —
+  `services/harvest.py` is **deleted**.
+
+**And the rot goes one layer deeper than the module.** Tracing that comment:
+`HeadlessAuth`'s two builders (`get_headless_tools_for_agent`,
+`create_headless_executor`) have exactly **one caller each, both inside
+`dispatch_specialist.py`** — the fossil. So the headless-dispatch stack is dead
+**end to end**, and `HeadlessAuth`'s own docstring was citing `harvest.py` as
+evidence the path was still exercised. Both comments are corrected in place.
+
+So the module is a fossil describing a world that is gone. It is **not** the
+seam for this, and a future session must not read this ADR as blessing it.
+The code is left standing (ADR-417's follow-on decided that) but is now
+**labelled at every layer**, because 530 dormant lines with confident comments
+are exactly what gets mistaken for a head start.
+
+If the mid-task case earns a build, the live mechanism to extend is
+`run_bounded_derive_turn` — already bounded, tool-less, routed, and used by
+standing work — not the dormant primitive. **Deliberately not built here**:
+production holds zero rooms with two agents doing anything, so building either
+mechanism now would abstract from no instances, which is the error ADR-603 D6
+refuses by name.
 
 **No add-door for an out-of-cast agent by mention.** Typing `@editor` where
 Editor is not in the room resolves to nobody, while `@dana` offers an

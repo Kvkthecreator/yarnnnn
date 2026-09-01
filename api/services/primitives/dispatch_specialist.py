@@ -59,8 +59,23 @@ _SPECIALIST_MAX_ROUNDS = 5  # specialist sub-calls are bounded; ADR-260 D8 round
 # removed from the LLM tool registry (CHAT/HEADLESS/FREDDIE), and this module +
 # handler are retained DORMANT as the seam a future specialist role re-enters
 # through (ADR-272's structural Survival Test still gates any re-addition).
-# NOTE: this does NOT touch the direct headless-dispatch path — harvest.py
-# dispatches `role="researcher"` via HeadlessAuth, a separate mechanism.
+# ⚠️ ADR-626 D4.b (2026-09-01) — THE LINE BELOW THIS ONE USED TO NAME A
+# SURVIVOR THAT NO LONGER EXISTS. It read: "this does NOT touch the direct
+# headless-dispatch path — harvest.py dispatches role='researcher' via
+# HeadlessAuth, a separate mechanism." `services/harvest.py` is DELETED, so the
+# comment described a world that is gone and made this module look half-live.
+#
+# The honest status, verified by execution (not by reading these comments):
+# absent from HANDLERS / CHAT_PRIMITIVES / HEADLESS_PRIMITIVES /
+# FREDDIE_PRIMITIVES / PRIMITIVES, and `VALID_SPECIALIST_ROLES` is EMPTY — so a
+# call refuses on any input. This is a FOSSIL, not a seam.
+#
+# ⭐ If mid-task delegation (agent A needs agent B's craft and needs the result
+# back) is ever built, the mechanism to extend is
+# `services/derive_turn.py::run_bounded_derive_turn` — already bounded,
+# tool-less, routed, and the path standing work runs on — NOT this module.
+# ADR-626 D4.b says so explicitly so a future session does not mistake 530
+# dormant lines for a head start. Gate: test_adr626_the_room_is_multi_party.py §6.
 VALID_SPECIALIST_ROLES: set[str] = set()
 
 

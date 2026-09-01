@@ -977,9 +977,24 @@ class HeadlessAuth:
 
     ADR-288 D1: ``caller_identity`` carries the ADR-209 attribution string
     for substrate writes performed through this auth. Headless callers are
-    direct sub-LLM dispatches under a role (e.g. harvest.py dispatches
-    ``role="researcher"``; ADR-417 follow-on removed the DispatchSpecialist
-    primitive path). caller_identity defaults to ``f"specialist:{role}"``
+    direct sub-LLM dispatches under a role.
+
+    ⚠️ ADR-626 D4.b (2026-09-01) — THIS WHOLE STACK IS DORMANT, and the
+    docstring used to hide it. The example named ``harvest.py`` dispatching
+    ``role="researcher"``; **that file is DELETED**. Traced further: this
+    class's only two builders (``get_headless_tools_for_agent``,
+    ``create_headless_executor``) have exactly ONE caller each, and both are
+    inside ``primitives/dispatch_specialist.py`` — itself a fossil whose
+    ``VALID_SPECIALIST_ROLES`` is the empty set. So the headless-dispatch stack
+    is dead END TO END, not merely missing one example.
+    Left in place (not deleted) as the seam a future specialist re-enters
+    through, exactly as ADR-417's follow-on decided for the primitive — but
+    recorded honestly, because a docstring citing a live-sounding caller is how
+    530 dormant lines get mistaken for a head start.
+    ⭐ For mid-task delegation, ADR-626 D4.b names
+    ``services/derive_turn.py::run_bounded_derive_turn`` instead.
+
+    caller_identity defaults to ``f"specialist:{role}"``
     when an agent context with a role is available, else ``"specialist:unknown"``
     as a telemetry tripwire (logged by the substrate primitive on use). Note:
     specialist writes that the primitive itself asserts (e.g., output-folder

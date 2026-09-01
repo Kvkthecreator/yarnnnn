@@ -243,6 +243,62 @@ check("the cast reaches _fetch_history", "cast=cast," in _lanes_src,
       "without it `_speaker_tags` always sees None and nothing is ever tagged")
 
 # ---------------------------------------------------------------------------
+print("\n§6 — DispatchSpecialist is a FOSSIL, not a seam (ADR-626 D4.b)")
+# ---------------------------------------------------------------------------
+# ADR-626 D4.b nearly cited this module as the ready-made mechanism for
+# mid-task delegation. It is dormant and structurally UNCALLABLE. Asserted by
+# EXECUTION over every roster rather than by reading its comments — the module's
+# own comments point at `harvest.py`, which is deleted.
+from services.primitives import registry as _R  # noqa: E402
+from services.primitives.dispatch_specialist import (  # noqa: E402
+    VALID_SPECIALIST_ROLES,
+)
+
+_names = lambda rows: {t["name"] for t in rows}  # noqa: E731
+for _roster, _rows in (
+    ("HANDLERS", None),
+    ("CHAT_PRIMITIVES", _R.CHAT_PRIMITIVES),
+    ("HEADLESS_PRIMITIVES", _R.HEADLESS_PRIMITIVES),
+    ("FREDDIE_PRIMITIVES", _R.FREDDIE_PRIMITIVES),
+    ("PRIMITIVES", _R.PRIMITIVES),
+):
+    _present = (
+        "DispatchSpecialist" in _R.HANDLERS if _rows is None
+        else "DispatchSpecialist" in _names(_rows)
+    )
+    check(f"DispatchSpecialist is absent from {_roster}", not _present,
+          "re-registering it needs an ADR — D4.b names run_bounded_derive_turn instead")
+
+check("VALID_SPECIALIST_ROLES is EMPTY (uncallable on any input)",
+      VALID_SPECIALIST_ROLES == set(),
+      "ADR-272 narrowed it to `designer`; the ADR-417 follow-on removed that")
+
+# The rot goes one layer deeper: HeadlessAuth's builders are called ONLY from
+# inside the fossil, so the headless-dispatch stack is dead end to end. Pinned
+# so a future reader does not re-derive `HeadlessAuth` as live infrastructure.
+_reg_src = open(os.path.join(os.path.dirname(__file__),
+                             "services/primitives/registry.py")).read()
+_ds_src = open(os.path.join(os.path.dirname(__file__),
+                            "services/primitives/dispatch_specialist.py")).read()
+for _builder in ("get_headless_tools_for_agent", "create_headless_executor"):
+    check(f"{_builder} is called only from the fossil",
+          f"{_builder}(" in _ds_src,
+          "if a live caller appears, the stack is no longer dormant — re-audit")
+
+# Both stale comments must stay corrected: each cited a deleted caller, which is
+# how dormant code reads as live.
+check("dispatch_specialist no longer cites the deleted harvest.py as live",
+      "ADR-626 D4.b" in _ds_src)
+check("HeadlessAuth's docstring records the stack is dormant",
+      "dead END TO END" in _reg_src)
+
+# The live mechanism D4.b points at must actually exist, or the ADR names a
+# second ghost.
+from services.derive_turn import run_bounded_derive_turn  # noqa: E402
+check("the live bounded-turn mechanism exists (run_bounded_derive_turn)",
+      callable(run_bounded_derive_turn))
+
+# ---------------------------------------------------------------------------
 print("\n" + "=" * 68)
 if failures:
     print(f"RED — {len(failures)} failing assertion(s):")
