@@ -28,7 +28,11 @@ Version control is the ledger. No semver, no lockfile, no per-workspace enable l
 
 ### D3 — Discovery is the index; the body loads on demand
 
-Every lane's frame carries a `## Skills` section: one line per skill — path and description — kernel from code, member from one bounded query (`MEMBER_INDEX_CAP`, then "ListFiles skills/"). The body enters a turn only when the agent reads it. The kernel index has a byte ceiling (`INDEX_CEILING`, gated); raising it needs the same evidence as adding a prompt instruction.
+Every lane's frame carries a `## Skills` section: one line per skill — path and description — kernel from code, member from one bounded query (`MEMBER_INDEX_CAP`). The body enters a turn only when the agent reads it.
+
+The index is bounded in BYTES by two budgets, because it is composed every turn and a description is written for discovery (~330 bytes, not a word). `INDEX_CEILING` ratchets the kernel lines — ours, held by the gate; raising it needs the same evidence as adding a prompt instruction, so a longer description displaces another. `MEMBER_INDEX_ALLOWANCE` bounds the member lines at composition, and the lines that do not fit are named as a count the agent follows with `ListFiles skills/` — the same progressive disclosure the index gives skill bodies. Two numbers, not one, because they answer different questions: one ratchets prose we write, the other bounds prose we do not control.
+
+**Amendment (2026-09-02).** As shipped, the ceiling was asserted in the gate but never enforced at composition, and it was measured against the kernel index alone — while `MEMBER_INDEX_CAP` bounded member LINES, nothing bounded member BYTES. The gate passed because its member fixture used one-character descriptions. Measured: the kernel index is 2,968 bytes of a 3,000 ceiling, so a single realistic member skill reached 3,228 and twenty-four reached 9,222, in every turn of that workspace's lanes. Production held zero member skills, so the defect was latent — it would have fired on the first use of `creating-skills`. Now enforced at composition, with the gate measuring bytes against discovery-grade descriptions.
 
 ### D4 — Three doors, one content
 

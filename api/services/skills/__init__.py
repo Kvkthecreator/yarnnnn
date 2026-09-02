@@ -33,8 +33,10 @@ demand through ReadFile. Progressive disclosure — the ADR-464 D4 cost lesson
 
 MANAGEMENT DISCIPLINE: every `SKILL.md` here is LLM-facing content — an edit
 gets an api/prompts/CHANGELOG.md entry (prompt change protocol), and a skill
-earns a Hat-B eval probe as it matures. The kernel index has a byte ceiling
-(`INDEX_CEILING`, gated) so the set cannot grow the frame silently.
+earns a Hat-B eval probe as it matures. The index is bounded by TWO budgets,
+both in bytes: `INDEX_CEILING` ratchets the kernel lines (ours, gated), and
+`MEMBER_INDEX_ALLOWANCE` bounds the member lines at composition — so neither
+the prose we write nor the prose members write can grow the frame silently.
 """
 
 from __future__ import annotations
@@ -61,11 +63,23 @@ MEMBER_SKILLS_PREFIX = "skills/"
 #: mirrored, so the per-load check is one small row, never eight reads.
 KERNEL_MANIFEST_PATH = f"{KERNEL_SKILLS_PREFIX}_manifest.yaml"
 KERNEL_SKILLS_AUTHOR = "system:kernel-skills"
-#: The frame index's ceiling — kernel lines only. Raising it needs the same
-#: evidence as adding a prompt instruction (DP22 / ADR-306).
+#: The KERNEL index's ceiling — our eight lines plus the head, and nothing
+#: else. It sits ~30 bytes under today's cost on purpose: this is the ratchet
+#: on OUR prose, so a longer description has to displace another one.
+#: Raising it needs the same evidence as adding a prompt instruction
+#: (DP22 / ADR-306).
 INDEX_CEILING = 3_000
-#: Member skills listed in the frame, at most. Beyond it the frame says so and
-#: the agent searches — progressive disclosure one level up.
+#: The MEMBER index's allowance, enforced at composition. A separate number
+#: because it answers a different question: the kernel ceiling ratchets prose
+#: we write, this bounds prose members write. Sized for ~8 discovery-grade
+#: descriptions (~330 bytes each) — enough that a workspace's real working set
+#: is visible, bounded so the frame cannot grow without limit on the one axis
+#: we do not control. Beyond it the frame names the count and the agent runs
+#: ListFiles — the same progressive disclosure the index gives skill BODIES.
+MEMBER_INDEX_ALLOWANCE = 2_700
+#: Member skills READ for the index, at most — a bound on the query so a
+#: workspace with hundreds cannot make the read unbounded. The allowance above
+#: decides how many of them survive into the frame.
 MEMBER_INDEX_CAP = 24
 
 _FM_RX = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
@@ -167,20 +181,47 @@ How-to files for kinds of work. Before doing work one names, read it
 under skills/, and any member may add one (system/skills/creating-skills/SKILL.md)."""
 
 
+def _overflow_line(n: int) -> str:
+    return (
+        f"- …and {n} more under skills/ — ListFiles skills/ to see them."
+    )
+
+
 def skills_index_section(member_skills: Optional[list[dict]] = None) -> str:
     """The frame's index: one line per skill, kernel first. Descriptions only —
-    the body never enters the frame (DP22)."""
+    the body never enters the frame (DP22).
+
+Two budgets, enforced at composition.
+
+    Kernel lines are the floor — ours, ratcheted by INDEX_CEILING in the gate.
+    Member lines are admitted while they fit MEMBER_INDEX_ALLOWANCE, and the
+    ones that do not are named as a count the agent can follow with ListFiles
+    — progressive disclosure one level up, the same answer the index itself
+    gives for skill BODIES.
+    """
     lines = [_INDEX_HEAD]
-    for slug, s in _load_kernel().items():
-        lines.append(f"- {s['path']} — {s['description']}")
-    members = list(member_skills or [])
-    for m in members[:MEMBER_INDEX_CAP]:
-        lines.append(f"- {m['path']} — {m['description']}")
-    if len(members) > MEMBER_INDEX_CAP:
-        lines.append(
-            f"- …and {len(members) - MEMBER_INDEX_CAP} more under skills/ — "
-            "ListFiles skills/ to see them."
-        )
+    for slug, meta in _load_kernel().items():
+        lines.append(f"- {meta['path']} — {meta['description']}")
+
+    members = list(member_skills or [])[:MEMBER_INDEX_CAP]
+    if not members:
+        return "\n".join(lines)
+
+    used = 0
+    shown = 0
+    for m in members:
+        line = f"- {m['path']} — {m['description']}"
+        # Reserve room for the overflow line this admission might force, so
+        # the escape hatch can always be written.
+        reserve = len(_overflow_line(len(members) - shown - 1).encode()) + 1
+        if used + len(line.encode()) + 1 + reserve > MEMBER_INDEX_ALLOWANCE:
+            break
+        lines.append(line)
+        used += len(line.encode()) + 1
+        shown += 1
+
+    if shown < len(members):
+        lines.append(_overflow_line(len(members) - shown))
     return "\n".join(lines)
 
 
@@ -362,7 +403,8 @@ def mirror_kernel_skills_for_all_workspaces(client: Any) -> dict:
 
 __all__ = [
     "KERNEL_SKILLS_PREFIX", "MEMBER_SKILLS_PREFIX", "KERNEL_MANIFEST_PATH",
-    "KERNEL_SKILLS_AUTHOR", "INDEX_CEILING", "MEMBER_INDEX_CAP",
+    "KERNEL_SKILLS_AUTHOR", "INDEX_CEILING", "MEMBER_INDEX_ALLOWANCE",
+    "MEMBER_INDEX_CAP",
     "parse_skill", "list_skills", "get_skill", "kernel_skill_path", "kernel_manifest",
     "skills_index_section", "read_member_skills", "build_skill_section",
     "ensure_kernel_skills", "mirror_kernel_skills_for_all_workspaces",

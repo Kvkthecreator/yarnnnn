@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.02.3] - The skills index is bounded in bytes, not lines (ADR-630 amendment)
+
+### Changed
+- `services/skills/__init__.py` — `skills_index_section` now enforces its budget at composition. `INDEX_CEILING` (3,000) is restated as the KERNEL ratchet; new `MEMBER_INDEX_ALLOWANCE` (2,700) bounds member lines in bytes, admitting them while they fit and naming the remainder as a count the agent follows with `ListFiles skills/`. `MEMBER_INDEX_CAP` is now documented as a bound on the QUERY, not on the frame.
+- Why: the ceiling was gated but never enforced, and was measured against the kernel index alone. The kernel sits at 2,968/3,000, so ONE realistic member skill produced a 3,228-byte index and twenty-four produced 9,222 — composed into every turn of every lane in that workspace. The gate passed because its member fixture used one-character descriptions; a description written for discovery is ~330 bytes. Production held zero member skills, so this was latent and would have fired on first use of `creating-skills`.
+- Expected behavior: no change for workspaces without their own skills (the kernel index is byte-identical at 2,968). A workspace with member skills gets up to ~8 of them in the frame and a "…and N more under skills/" line for the rest, instead of an unbounded index.
+- Gate: `test_adr630_skills.py` 91/91 — the member checks now measure BYTES with a discovery-grade description, assert the truncation count, and falsify both ways (400 skills cost the same as 10; one member skill is admitted, not dropped).
+
+---
+
 ## [2026.09.02.2] - The steward's prompt layer retires (ADR-632)
 
 ### Changed

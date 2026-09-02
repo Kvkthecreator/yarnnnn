@@ -61,12 +61,34 @@ _check("parses name/description/metadata/title/body", good["title"] == "Title he
 
 print("§3 the frame carries the INDEX, bounded, and the body only on demand")
 idx = sk.skills_index_section()
-_check("index under its ceiling", len(idx) <= sk.INDEX_CEILING, f"{len(idx)} > {sk.INDEX_CEILING}")
+_kernel_bytes = len(idx.encode())
+_check("kernel index under its ceiling", _kernel_bytes <= sk.INDEX_CEILING, f"{_kernel_bytes} > {sk.INDEX_CEILING} — tighten a description, do not raise the ceiling (DP22)")
 _check("index lists every kernel path", all(sk.kernel_skill_path(s) in idx for s in K))
 _check("index carries descriptions, never bodies", "## Steps" not in idx and "Quality bar" not in idx)
-many = [{"path": f"skills/s{i}/SKILL.md", "description": "d", "title": "t"} for i in range(sk.MEMBER_INDEX_CAP + 3)]
+# A member description is written FOR DISCOVERY (the kernel's average is ~330
+# bytes and creating-skills tells members to write the same way), so the index
+# must be measured with one. Measuring with "d" is how an unbounded index
+# passed a ceiling check: the cap bounded LINES, nothing bounded BYTES.
+_REAL_DESC = (
+    "Writes the monthly board update in our house shape (metrics table, "
+    "narrative, asks) from the workspace financials and the prior month, never "
+    "inventing a number. Use when asked for the board update, the investor "
+    "update, or the monthly."
+)
+many = [{"path": f"skills/s{i}/SKILL.md", "description": _REAL_DESC, "title": "t"} for i in range(sk.MEMBER_INDEX_CAP + 3)]
 idx2 = sk.skills_index_section(many)
-_check("member index caps and says so", idx2.count("\n- skills/s") == sk.MEMBER_INDEX_CAP and "more under skills/" in idx2)
+_member_bytes = len(idx2.encode()) - len(idx.encode())
+_check("member lines stay inside their allowance", _member_bytes <= sk.MEMBER_INDEX_ALLOWANCE, f"{_member_bytes} > {sk.MEMBER_INDEX_ALLOWANCE}")
+_check("member index truncates and says so", 0 < idx2.count("\n- skills/s") < sk.MEMBER_INDEX_CAP and "more under skills/" in idx2)
+_check("the overflow count is what was dropped", f"and {sk.MEMBER_INDEX_CAP - idx2.count(chr(10) + '- skills/s')} more" in idx2)
+# Falsification: a workspace with hundreds of skills costs the same as one at
+# the allowance — the bound is on BYTES, not on how many rows the query saw.
+_flood = sk.skills_index_section([{"path": f"skills/f{i}/SKILL.md", "description": _REAL_DESC, "title": "t"} for i in range(400)])
+_check("an unbounded skill count is a bounded frame", len(_flood.encode()) == len(idx2.encode()))
+# Falsification: one realistic member skill would have broken a single shared
+# ceiling — which is why the member allowance is its own number.
+_one = sk.skills_index_section([{"path": "skills/s0/SKILL.md", "description": _REAL_DESC, "title": "t"}])
+_check("one member skill is admitted, not dropped", "\n- skills/s0/SKILL.md" in _one)
 lr = _read("api/services/lane_runner.py")
 _check("the conventions frame has the skills slot", "{skills_section}" in lr and "skills_section=skills_section" in lr)
 _check("lane_runner composes the index every turn", "skills_index_section(read_member_skills(client, user_id))" in lr)
