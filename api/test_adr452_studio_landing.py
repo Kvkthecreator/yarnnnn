@@ -21,7 +21,7 @@ Asserts:
    6. The studio flow creates ONE lane with BOTH bindings (artifact_path +
       derive_recipe/derive_source); design-system routes to chat.
    7. The derive-bound lane leads with its Learn-from starter chip.
-   8. Backend: the deck recipe exists; build_derive_section takes
+   8. Backend: the deck skill exists; build_skill_section takes
       artifact_path; lane_runner passes it (the studio override reaches the
       posture).
 """
@@ -321,9 +321,9 @@ def run() -> int:
     passed &= _check(
         "LEARN_TARGETS: the three studio-shaped targets",
         "LEARN_TARGETS" in studio
-        and "recipe: 'prd'" in studio
-        and "recipe: 'deck'" in studio
-        and "recipe: 'design-system'" in studio,
+        and "skill: 'writing-a-spec'" in studio
+        and "skill: 'presenting-from-sources'" in studio
+        and "skill: 'deriving-a-design-system'" in studio,
     )
     # v2: ONE creation grid — type cards + Learn-from as peers; details nest in
     # focused modals (scratch → name-it; learn-from → source-first flow with
@@ -354,7 +354,7 @@ def run() -> int:
     passed &= _check(
         "studio flow: one lane, both bindings",
         "artifact_path: res.path" in studio
-        and "derive_recipe: target.recipe" in studio
+        and "skill: target.skill" in studio
         and "derive_source: source.path" in studio,
     )
     passed &= _check(
@@ -371,19 +371,19 @@ def run() -> int:
     # ── 8. backend ────────────────────────────────────────────────────────
     import inspect
 
-    from services.derive_recipes import DERIVE_RECIPES, build_derive_section
+    from services.skills import build_skill_section, get_skill
 
-    passed &= _check("deck recipe registered", "deck" in DERIVE_RECIPES)
+    passed &= _check("the deck skill exists (ADR-630: presenting-from-sources)", get_skill("presenting-from-sources") is not None)
     passed &= _check(
-        "build_derive_section takes artifact_path",
-        "artifact_path" in inspect.signature(build_derive_section).parameters,
+        "build_skill_section takes artifact_path",
+        "artifact_path" in inspect.signature(build_skill_section).parameters,
     )
     from services import lane_runner
 
     conv_src = inspect.getsource(lane_runner.build_lane_conventions)
     passed &= _check(
-        "lane_runner threads artifact_path into the derive section",
-        "build_derive_section(" in conv_src and "artifact_path=artifact_path" in conv_src,
+        "lane_runner threads artifact_path into the skill section",
+        "build_skill_section(" in conv_src and "artifact_path=artifact_path" in conv_src,
     )
 
     return 0 if passed else 1

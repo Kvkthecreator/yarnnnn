@@ -67,12 +67,10 @@ def test_derivation_behavior():
             "a deleted app's desk falls back to the stored stamp")
     _assert(_lane_agent({"app": "radar"}) is None,
             "a deleted app's desk with no stamp resolves None (engine label — honest)")
-    # Recipe lanes derive from the recipe registry.
-    from services.derive_recipes import DERIVE_RECIPES
-    slug = next(iter(DERIVE_RECIPES))
-    want = DERIVE_RECIPES[slug].get("resident")
-    _assert(_lane_agent({"derive_recipe": slug}) == want,
-            f"a derive lane resolves the recipe's resident ({slug}→{want})")
+    # ADR-630: a skill never names an agent — a skill-bound, canvas-less lane
+    # has no resident of its own (the cast answers, ADR-495).
+    _assert(_lane_agent({"skill": "presenting-from-sources"}) is None,
+            "a skill lane has no resident of its own (ADR-630)")
     _assert(_lane_agent({}) is None, "a plain chat lane has no resident")
 
     # ADR-602 D7 — THE PRE-567 GAP (operator-observed on a live deck). A bound

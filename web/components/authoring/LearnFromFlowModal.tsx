@@ -21,7 +21,7 @@ import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { api } from '@/lib/api/client';
 
 export interface LearnTarget {
-  recipe: string;
+  skill: string;
   template: 'document' | 'deck' | null;
   label: string;
   description: string;
@@ -254,13 +254,13 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
           <div className="mt-1.5 grid grid-cols-3 gap-2">
             {targets.map((t) => (
               <button
-                key={t.recipe}
+                key={t.skill}
                 type="button"
                 disabled={!source}
                 onClick={() => setTarget(t)}
                 className={cn(
                   'rounded-lg border p-2.5 text-left transition-colors disabled:opacity-40',
-                  target?.recipe === t.recipe
+                  target?.skill === t.skill
                     ? 'border-primary bg-primary/5'
                     : 'border-border hover:bg-muted/20',
                 )}

@@ -38,7 +38,7 @@ def _check(label: str, cond: bool) -> None:
 
 
 def run() -> bool:
-    from services.derive_recipes import DERIVE_RECIPES
+    from services.skills import get_skill
     from services.authoring import (
         STUDIO_ARRANGEMENTS,
         STUDIO_KERNEL_CSS,
@@ -100,8 +100,8 @@ def run() -> bool:
     _check("kernel chrome consumes --radius (with fallbacks)",
            "var(--radius, 6px)" in STUDIO_KERNEL_CSS
            and "var(--radius, 4px)" in STUDIO_KERNEL_CSS)
-    _check("the design-system recipe names the five contract variables",
-           all(v in DERIVE_RECIPES["design-system"]["instructions"]
+    _check("the design-system skill names the five contract variables",
+           all(v in get_skill("deriving-a-design-system")["body"]
                for v in ("--ink", "--paper", "--muted", "--accent", "--radius")))
     design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     _check("Design tab: the read-only theme panel parses the applied skin's vars",

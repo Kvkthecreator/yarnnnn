@@ -62,8 +62,8 @@ interface LaneInfo {
   pinned?: boolean;
   updated_at?: string;
   created_at?: string;
-  /** ADR-450 D3 — the derive binding (null/absent for plain chat lanes). */
-  derive_recipe?: string | null;
+  /** ADR-450 D3 / ADR-630 — the skill binding (null/absent for plain chat lanes). */
+  skill?: string | null;
   derive_source?: string | null;
   /** ADR-495 D1 — the cast, seeded from the list so the bar paints at once. */
   participants?: Participant[];
@@ -96,8 +96,8 @@ interface LaneData {
   /** id → label for EVERY engine, retired included. The NAMING table (see
    *  `modelLabel`). Optional so an older envelope degrades, never crashes. */
   model_names?: Record<string, string>;
-  /** ADR-450 D5 — kernel recipes (the Learn-from chooser payload). */
-  recipes?: Array<{ slug: string; label: string; description: string }>;
+  /** ADR-450 D5 / ADR-630 — yarnnn's skills (the Learn-from chooser payload). */
+  skills?: Array<{ slug: string; title: string; description: string; path: string }>;
   lanes: LaneInfo[];
 }
 
@@ -531,13 +531,13 @@ export function ChatSurface() {
 
   // ADR-450 D5: a derive-bound lane arrives with ONE starter chip — the
   // suggested ask in the member's words (click fills the composer, the member
-  // sends — never auto-sent, the ADR-446 lesson). The recipe section on the
+  // sends — never auto-sent, the ADR-446 lesson). The skill section on the
   // lane's turns does the heavy lifting; the chip is just the door handle.
   const deriveSuggestions = useMemo(() => {
-    if (!activeLane?.derive_recipe || !activeLane?.derive_source) return undefined;
+    if (!activeLane?.skill || !activeLane?.derive_source) return undefined;
     const label =
-      data?.recipes?.find((r) => r.slug === activeLane.derive_recipe)?.label ??
-      activeLane.derive_recipe;
+      data?.skills?.find((r) => r.slug === activeLane.skill)?.title ??
+      activeLane.skill;
     const leaf = activeLane.derive_source.slice(activeLane.derive_source.lastIndexOf('/') + 1);
     return [`Learn from ${leaf} — create the ${label.toLowerCase()}.`];
   }, [activeLane, data]);
@@ -989,7 +989,7 @@ export function ChatSurface() {
           isNarrow && !activeLane ? 'hidden' : 'flex',
         )}
       >
-        {activeLane && showDetail && !activeLane.derive_recipe ? (
+        {activeLane && showDetail && !activeLane.skill ? (
           /* The participants drill-in OWNS the pane while open — one screen at a
              time, on every width (ADR-297 D15). A side-by-side split would put
              the cast back in competition with the transcript, which is the

@@ -121,7 +121,7 @@ print("§3 reach follows the PRINCIPAL, not the surface (ADR-615)")
 # ═════════════════════════════════════════════════════════════════════════════
 
 # ADR-615 amends ADR-612 D5. The pre-615 cut line asked the turn's SHAPE
-# (app / artifact_path / derive_recipe) and gave a desk turn no reach without
+# (app / artifact_path / skill) and gave a desk turn no reach without
 # an explicit opt-in. That distinction did not survive inspection: a desk turn
 # and an open chat turn are the SAME principal, embodied identically
 # (`member:{user_id} via {model}`), resolving grants against the same
@@ -132,7 +132,7 @@ import inspect as _inspect  # noqa: E402
 
 _sig = _inspect.signature(resolve_turn_reach)
 check("3a the turn's SHAPE no longer enters the decision (params deleted)",
-      not ({"app", "artifact_path", "derive_recipe"} & set(_sig.parameters)),
+      not ({"app", "artifact_path", "skill"} & set(_sig.parameters)),
       f"stale shape params: {sorted(set(_sig.parameters))}")
 
 

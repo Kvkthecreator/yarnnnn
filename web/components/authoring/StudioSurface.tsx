@@ -174,7 +174,7 @@ interface LaneInfo {
   agent?: string | null;
   artifact_path?: string | null;
   /** ADR-450/452 — the derive binding (a "Learn from" lane). */
-  derive_recipe?: string | null;
+  skill?: string | null;
   derive_source?: string | null;
   status: string;
 }
@@ -4354,25 +4354,25 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
  *  `recipe` names the kernel DERIVE_RECIPES row; `template` the artifact
  *  skeleton (null → the target is a folder, not a canvas → chat lane). */
 const LEARN_TARGETS: Array<{
-  recipe: string;
+  skill: string;
   template: 'document' | 'deck' | null;
   label: string;
   description: string;
 }> = [
   {
-    recipe: 'prd',
+    skill: 'writing-a-spec',
     template: 'document',
     label: 'Document',
     description: 'A grounded document (PRD-style) derived from the source.',
   },
   {
-    recipe: 'deck',
+    skill: 'presenting-from-sources',
     template: 'deck',
     label: 'Deck',
     description: 'Slides that argue the source’s claims, evidence cited.',
   },
   {
-    recipe: 'design-system',
+    skill: 'deriving-a-design-system',
     template: null,
     label: 'Design system',
     description: 'Tokens-first CSS + manifest your artifacts can wear.',
@@ -4639,7 +4639,7 @@ function StudioStart({
         // app's own module (ADR-562 D3, re-homing ADR-467 D1).
         app: app.slug,
         artifact_path: res.path,
-        derive_recipe: target.recipe,
+        skill: target.skill,
         derive_source: source.path,
       });
       setLearnOpen(false);
@@ -4648,10 +4648,10 @@ function StudioStart({
       const lane = await api.lanes.create({
         name: `Learn: ${source.name}`.slice(0, 60),
         // No canvas — it lands in /chat as an ordinary conversation. The
-        // colleague comes from the RECIPE's own declaration (ADR-562 D4); the
+        // cast answers (ADR-495) — a skill never names an agent (ADR-630); the
         // `agent: 'scout'` literal that lived here was the same client-asserted
         // identity the app registry removed, surviving one rung down.
-        derive_recipe: target.recipe,
+        skill: target.skill,
         derive_source: source.path,
       });
       setLearnOpen(false);
@@ -4671,8 +4671,8 @@ function StudioStart({
   const deriveNewSystem = async (source: { path: string; name: string }) => {
     const lane = await api.lanes.create({
       name: `Design system: ${source.name}`.slice(0, 60),
-      // The colleague is the recipe's, declared server-side (ADR-562 D4).
-      derive_recipe: 'design-system',
+      // No resident of its own — a skill never names an agent (ADR-630).
+      skill: 'deriving-a-design-system',
       derive_source: source.path,
     });
     setNewSystemOpen(false);

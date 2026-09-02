@@ -572,8 +572,9 @@ export const api = {
          *  Two audiences, two fields (ADR-559 D2). Optional: an older envelope
          *  must degrade to the previous behaviour, not crash. */
         model_names?: Record<string, string>;
-        /** ADR-450 D5 — the Learn-from chooser payload (kernel recipes). */
-        recipes: Array<{ slug: string; label: string; description: string; accepts: string[] }>;
+        /** ADR-450 D5 / ADR-630 — the Learn-from chooser payload: yarnnn's
+         *  skills (`system/skills/{slug}/SKILL.md`), served from the code. */
+        skills: Array<{ slug: string; title: string; description: string; path: string }>;
         lanes: Array<{
           id: string;
           name: string;
@@ -592,8 +593,8 @@ export const api = {
            *  maintained file). The Strings pane then adopted the Text lane and
            *  showed Editor where Supervisor belonged. */
           app?: string | null;
-          /** ADR-450 D3 — the derive binding (null for plain chat lanes). */
-          derive_recipe?: string | null;
+          /** ADR-450 D3 / ADR-630 — the skill binding (null for plain chat lanes). */
+          skill?: string | null;
           derive_source?: string | null;
           status: string;
           created_at: string;
@@ -628,8 +629,8 @@ export const api = {
        *  came for a raw engine. */
       model?: string;
       artifact_path?: string;
-      /** ADR-450 D3 — the derive binding (pass both or neither). */
-      derive_recipe?: string;
+      /** ADR-450 D3 / ADR-630 — the skill binding (pass both or neither). */
+      skill?: string;
       derive_source?: string;
     }) =>
       request<{

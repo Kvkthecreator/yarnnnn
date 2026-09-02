@@ -33,8 +33,6 @@ Structure (post-Commit B registry split):
    integration" under LAYER-MAPPING is the union of platform-gated
    capabilities sharing a connection.
 4. RUNTIMES — infrastructure registry (where compute happens).
-5. PLAYBOOK_METADATA + TASK_OUTPUT_PLAYBOOK_ROUTING — which playbooks
-   apply to which (role × output_kind) combinations.
 6. Capability-gate helpers — capability_available() etc.
 
 ALL_ROLES — union of SYSTEMIC_AGENTS + PRODUCTION_ROLES. Used for
@@ -251,7 +249,6 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
             "output summarizing what you observed and any actions taken. "
             "You never produce domain content (reports, briefs, analyses)."
         ),
-        "methodology": {},
     },
 }
 
@@ -1616,106 +1613,6 @@ def unavailable_capabilities(
 # =============================================================================
 # Playbook Metadata — description + tags for selective loading
 # =============================================================================
-# Tags determine which playbooks are loaded for a given task type.
-# Index (descriptions) is always in the prompt; full content only for matches.
-
-PLAYBOOK_METADATA: dict[str, dict[str, str]] = {
-    "_playbook-outputs.md": {
-        "description": "Report, presentation, and document structure — quality criteria and format patterns",
-        "tags": "synthesis,formatting,context",
-    },
-    "_playbook-research.md": {
-        "description": "Investigation depth, source evaluation, evidence citation, cross-reference strategy",
-        "tags": "research,context,investigation",
-    },
-    "_playbook-formats.md": {
-        "description": "Format selection heuristics, tone calibration, structural patterns (pyramid, contrast, narrative)",
-        "tags": "synthesis,formatting",
-    },
-    "_playbook-visual.md": {
-        "description": "Image and video generation by output context — prompt construction, asset re-use, quality gate",
-        "tags": "visual,synthesis",
-    },
-    "_playbook-rendering.md": {
-        "description": "HTML output rendering — typography, color roles, layout, chart styling, existing asset usage",
-        "tags": "synthesis,rendering",
-    },
-}
-
-# ADR-166: task output_kind → which playbook tags to load in full
-# (playbooks not matching any tag still appear in the index)
-TASK_OUTPUT_PLAYBOOK_ROUTING: dict[str, list[str]] = {
-    # accumulates_context: research + tracking methodology
-    "accumulates_context": ["research", "context"],
-    # produces_deliverable: synthesis + format + visual + rendering
-    "produces_deliverable": ["synthesis", "formatting", "visual", "rendering"],
-    # external_action: light synthesis (drafting platform messages)
-    "external_action": ["synthesis", "formatting"],
-    # system_maintenance: deterministic, no LLM playbooks needed
-    "system_maintenance": [],
-}
-
-
-def get_type_playbook(agent_type: str) -> dict[str, str]:
-    """Return playbook file seeds for an agent type.
-
-    ADR-143: Returns dict of {filename: content} for playbook files
-    to be written to the agent's memory/ directory at creation.
-    """
-    resolved = resolve_role(agent_type)
-    type_def = ALL_ROLES.get(resolved)
-    if not type_def:
-        return {}
-    return type_def.get("methodology", {})
-
-
-def get_playbook_index(agent_type: str) -> str:
-    """Build a short index of available playbooks for the system prompt.
-
-    Returns a compact list of playbook names + one-line descriptions.
-    This is always injected — lightweight, ~100-200 tokens.
-    """
-    playbooks = get_type_playbook(agent_type)
-    if not playbooks:
-        return ""
-    lines = ["## Available Playbooks"]
-    for filename in playbooks:
-        meta = PLAYBOOK_METADATA.get(filename, {})
-        desc = meta.get("description", filename.replace("_playbook-", "").replace(".md", ""))
-        name = filename.replace("_playbook-", "").replace(".md", "").replace("-", " ").title()
-        lines.append(f"- **{name}**: {desc}")
-    return "\n".join(lines)
-
-
-def get_relevant_playbooks(agent_type: str, output_kind: str | None = None) -> dict[str, str]:
-    """Return only the playbooks relevant to the current task's output_kind (ADR-166).
-
-    Args:
-        agent_type: Agent type key
-        output_kind: One of accumulates_context | produces_deliverable |
-                     external_action | system_maintenance.
-
-    Returns:
-        {filename: content} for playbooks whose tags match the output_kind routing.
-        If no output_kind provided, returns all playbooks (fallback).
-        If output_kind is system_maintenance, returns {} (no LLM, no playbooks needed).
-    """
-    all_playbooks = get_type_playbook(agent_type)
-    if not output_kind or output_kind not in TASK_OUTPUT_PLAYBOOK_ROUTING:
-        return all_playbooks  # fallback: load all
-
-    relevant_tags = set(TASK_OUTPUT_PLAYBOOK_ROUTING[output_kind])
-    if not relevant_tags:
-        return {}  # system_maintenance: no playbooks
-    result = {}
-    for filename, content in all_playbooks.items():
-        meta = PLAYBOOK_METADATA.get(filename, {})
-        playbook_tags = set(meta.get("tags", "").split(","))
-        if relevant_tags & playbook_tags:  # any tag matches
-            result[filename] = content
-    return result
-
-
 def get_type_display(agent_type: str) -> dict[str, str]:
     """Return display_name and tagline for a type. Used by frontend + TP prompt.
 

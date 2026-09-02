@@ -100,10 +100,10 @@ class CreateLaneRequest(BaseModel):
     # A lane with a binding is a Studio lane; its turns carry the authoring
     # posture + token profile. Optional; plain chat lanes never set it.
     artifact_path: Optional[str] = None
-    # ADR-450 D3 — the derive binding (the "Learn from" verb): a kernel recipe
+    # ADR-450 D3 / ADR-630 — the skill binding (the "Learn from" verb): a kernel skill
     # slug + the workspace source path this lane derives from. Same lane_meta
-    # mechanism as the Studio binding; turns compose the recipe section.
-    derive_recipe: Optional[str] = None
+    # mechanism as the Studio binding; turns compose the skill section.
+    skill: Optional[str] = None
     derive_source: Optional[str] = None
 
 
@@ -308,7 +308,7 @@ def _lane_agent(lane_meta: dict) -> Optional[str]:
     a now-fact is derived, never stored). Persisting it was what stranded
     every live pane on yesterday's registration ("Claude Sonnet" in Studio).
 
-    Precedence: the app's registration → the derive recipe's declaration →
+    Precedence: the app's registration →
     the legacy stored stamp (pre-597 rows; a registration that has since left
     the roster) → None. A lane with none of these shows its engine, which is
     honest — that IS what such a lane is.
@@ -331,13 +331,10 @@ def _lane_agent(lane_meta: dict) -> Optional[str]:
         derived = resident_for_app(app)
         if derived:
             return derived
-    recipe = (lane_meta.get("derive_recipe") or "").strip()
-    if recipe:
-        from services.derive_recipes import resident_for_recipe
-
-        derived = resident_for_recipe(recipe)
-        if derived:
-            return derived
+    # ADR-630 — a SKILL never names an agent (it is craft, not identity —
+    # ADR-596 D2's housing test). A skill-bound lane with no app takes no
+    # resident of its own; the cast answers (ADR-495). ADR-562 D4's
+    # recipe-resident is retired with the recipe registry.
     return lane_meta.get("agent") or None
 
 
@@ -384,8 +381,8 @@ def _lane_row_to_dict(row: dict, participants: Optional[list[dict]] = None) -> d
         "artifact_path": lane_meta.get("artifact_path"),
         # ADR-567 D4 — the binding app (None for plain chat + pre-567 lanes).
         "app": lane_meta.get("app"),
-        # ADR-450 D3 — the derive binding (None for plain chat lanes).
-        "derive_recipe": lane_meta.get("derive_recipe"),
+        # ADR-450 D3 / ADR-630 — the skill binding (None for plain chat lanes).
+        "skill": lane_meta.get("skill"),
         "derive_source": lane_meta.get("derive_source"),
         "status": row.get("status"),
         "created_at": row.get("created_at"),
@@ -542,7 +539,7 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
     """The capability envelope around the conversation list. Extracted so the
     empty-cast early return serves the identical shape (one envelope, one
     definition — the FE must never see two payload shapes for one endpoint)."""
-    from services.derive_recipes import list_recipes
+    from services.skills import list_skills
     from services.lane_runner import (
         LANE_MODELS,
         lane_model_availability,
@@ -603,9 +600,9 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # roster: `offered` rides each row, so the door that lists candidates
         # filters it rather than reading a second key.
         "agents": _agents_payload(),
-        # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
-        # on the capability envelope (no new endpoint, no FE duplication).
-        "recipes": list_recipes(),
+        # ADR-450 D5 / ADR-630: the Learn-from chooser payload — yarnnn's
+        # skills, served on the capability envelope (no new endpoint).
+        "skills": list_skills(),
         "lanes": lanes,
     }
 
@@ -713,7 +710,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # A BINDING is what makes a lane an app's, and only an app pins a colleague.
     is_bound = bool(
         (req.artifact_path or "").strip()
-        or (req.derive_recipe or "").strip()
+        or (req.skill or "").strip()
         or (req.derive_source or "").strip()
     )
     if app_slug and not is_bound:
@@ -748,11 +745,11 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         )
     # The engine rides BEHIND the name (ADR-460 D4): resolution + the "unknown
     # agent" refusal happen at the ONE `if agent_slug:` block below, shared with
-    # the app and recipe paths. Resolving here too would be a second spelling of
+    # the app path. Resolving here too would be a second spelling of
     # the same lookup, and the two could drift.
     # ADR-562 D3 — the resident is DERIVED from the app's own declaration, never
     # taken from the client. An unregistered app is a caller bug (the ADR-450
-    # precedent: an unknown recipe is a caller bug, not a lane), and refusing
+    # precedent: an unknown skill is a caller bug, not a lane), and refusing
     # beats a plausible default — ADR-548's lesson, that a fallback degrading to
     # a plausible value is worse than one that fails.
     agent_slug = chat_agent
@@ -773,20 +770,11 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
                     "its own module (services/apps/*, ADR-562)."
                 ),
             )
-    elif (req.derive_recipe or "").strip():
-        # ADR-562 D4 — a canvas-less derive lane (it lands in /chat, so no app
-        # speaks for it) takes the RECIPE's declared colleague. The app wins
-        # when both apply: a derive INTO a canvas is that app's lane, and the
-        # recipe is the job it does there (the lane_runner's character-then-job
-        # order, resolved one layer up).
-        from services.derive_recipes import resident_for_recipe
-
-        agent_slug = resident_for_recipe(req.derive_recipe) or ""
     if agent_slug:
         # Member-first: their named colleagues, then the kernel set.
         agent = resolve_agent(agent_slug)
         if not agent:
-            # The ADR-450 precedent: an unknown recipe is a caller bug, not a lane.
+            # The ADR-450 precedent: an unknown skill is a caller bug, not a lane.
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
         # A BOUND lane's engine always follows its resident. A CHAT lane's
         # follows the colleague too, unless the member also named an engine —
@@ -875,24 +863,24 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     if artifact_path:
         lane_meta["artifact_path"] = artifact_path
 
-    # ADR-450 D3 — the derive binding: validated against the kernel registry
-    # (an unknown recipe is a caller bug, not a lane), source normalized to
-    # the absolute form the posture + citations use.
-    derive_recipe = (req.derive_recipe or "").strip()
+    # ADR-450 D3 / ADR-630 — the skill binding: validated against the kernel
+    # skills (an unknown skill is a caller bug, not a lane), source normalized
+    # to the absolute form the posture + citations use.
+    skill = (req.skill or "").strip()
     derive_source = (req.derive_source or "").strip()
-    if derive_recipe or derive_source:
-        from services.derive_recipes import get_recipe
+    if skill or derive_source:
+        from services.skills import get_skill
 
-        if not (derive_recipe and derive_source):
+        if not (skill and derive_source):
             raise HTTPException(
                 status_code=422,
-                detail="derive_recipe and derive_source must be passed together",
+                detail="skill and derive_source must be passed together",
             )
-        if not get_recipe(derive_recipe):
-            raise HTTPException(status_code=422, detail=f"Unknown derive recipe: {derive_recipe}")
+        if not get_skill(skill):
+            raise HTTPException(status_code=422, detail=f"Unknown skill: {skill}")
         if not derive_source.startswith("/workspace/"):
             derive_source = "/workspace/" + derive_source.lstrip("/")
-        lane_meta["derive_recipe"] = derive_recipe
+        lane_meta["skill"] = skill
         lane_meta["derive_source"] = derive_source
 
     row = {
@@ -1729,8 +1717,8 @@ def _turn_stream_response(
                 # (radar → the pane posture).
                 artifact_path=lane_meta.get("artifact_path"),
                 app=lane_meta.get("app"),
-                # ADR-450 D3 — a derive-bound lane's turns carry the recipe.
-                derive_recipe=lane_meta.get("derive_recipe"),
+                # ADR-450 D3 / ADR-630 — a skill-bound lane's turns carry it.
+                skill=lane_meta.get("skill"),
                 derive_source=lane_meta.get("derive_source"),
                 # ADR-522 — WHERE the member is standing, this turn. Read off
                 # the request (transient), never off `lane_meta` (durable):

@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.02.1] - Skills are files (ADR-630): the frame gains an index, the recipes become SKILL.md
+
+### Changed
+- `services/skills/{slug}/SKILL.md` (new, 8): `summarizing-sources` · `writing-updates` · `writing-a-spec` (was the `prd` recipe, body verbatim) · `presenting-from-sources` (was `deck`, body verbatim + one craft line: numbers on a slide are cited data) · `reviewing-drafts` · `comparing-options` · `deriving-a-design-system` (was `design-system`, body verbatim) · `creating-skills`. Every description is third-person, what + when, ≤300 chars.
+- `services/lane_runner.py`: every lane's frame gains `## Skills` — one index line per skill (kernel from code, member from one bounded query). Bodies never enter the frame; the agent reads a skill on demand. Kernel index ceilinged at `INDEX_CEILING` (3,200 chars; measured 3,0xx at ship).
+- `services/skills.build_skill_section` replaces `derive_recipes.build_derive_section` — same shape; the write's `derived_from` now names the skill path beside the source, so an output cites the craft it was made under.
+- `services/derive_recipes.py` DELETED.
+- Expected behavior: a lane at any pane can find and follow a kind-of-work skill without a binding; a Learn-from lane composes the same body it did before; the ledger can answer "which files were made under this skill".
+- Falsification: index over ceiling → gate red; a body in the index → red; a skill naming a resident → red.
+
+---
+
 ## [2026.08.31.1] - The authoring budget must hold a thinking run AND a document
 
 ### Changed

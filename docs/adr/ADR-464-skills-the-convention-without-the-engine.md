@@ -1,5 +1,7 @@
 # ADR-464 — Skills: the convention, without the engine that killed it
 
+> **Superseded in part by [ADR-630](ADR-630-skills-are-files.md) (2026-09-02)**: skills return at WORKSPACE level (`skills/{name}/SKILL.md`), never per agent (many-to-one — ADR-601 — makes a skill on an agent either too broad or mis-homed), and are read ON DEMAND from a frame index rather than composed into every turn (D4's cost argument, answered by not composing). §3 (prose is not permission) stands and is this ADR's whole safety argument; §4's "the kernel's copy is code" stands — the code is mirrored as read-only files.
+
 > **Status**: **Accepted + Implemented** (2026-07-16, operator-ratified). Skills only; connections are named and deferred (§6).
 > **Date**: 2026-07-16
 > **Authors**: KVK (operator) + Claude (collaborator)

@@ -1,5 +1,7 @@
 # ADR-254: File Format Discipline — Prose vs. Structured Data
 
+> **Amended by [ADR-630](ADR-630-skills-are-files.md) (2026-09-02)**: `SKILL.md` — a folder's how-to file with `name` + `description` frontmatter (the Agent Skills convention) — is a **named exception** to the no-new-frontmatter rule. The LLM reads the whole file; the kernel reads two fields through the one sanctioned regex + `yaml.safe_load` (`services/skills.parse_skill`). No other new mixed-format file.
+
 > **Status**: **Implemented** (2026-05-07 — Commits 1–7; all decisions landed; workspaces purged and re-activated)
 > **Date**: 2026-05-07
 > **Authors**: KVK, Claude

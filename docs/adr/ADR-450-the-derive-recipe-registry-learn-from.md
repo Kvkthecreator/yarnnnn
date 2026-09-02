@@ -1,5 +1,7 @@
 # ADR-450: The Derive-Recipe Registry — "Learn From" as a Kernel Verb with Kernel Recipes
 
+> **Superseded in mechanism by [ADR-630](ADR-630-skills-are-files.md) (2026-09-02)**: the recipe registry is now the skills folder (`api/services/skills/{slug}/SKILL.md`), mirrored into every workspace at `system/skills/`; D1's "never written to workspace substrate" is retired (kernel skills are code mirrored as files, read-only by topology); the binding is `skill` + `derive_source`; `deck` → `presenting-from-sources`, `prd` → `writing-a-spec`, `design-system` → `deriving-a-design-system`. D3 (consumption is a lane binding) and the studio override stand.
+
 **Status**: Accepted (2026-07-13, operator-aligned across the 448/449 discourse — "select the
 highest-leverage wins while ensuring we can actually pull it off"). The operator-facing face of the
 ADR-448 derive step. Derivation: the [load-bearing-files note](../analysis/load-bearing-files-are-a-graph-fact-the-reference-edge-derive-step-and-design-system-2026-07-12.md) §4

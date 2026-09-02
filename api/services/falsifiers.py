@@ -77,7 +77,7 @@ def classify_surface(session_row: Optional[dict]) -> str:
     lane = (session_row.get("context_metadata") or {}).get("lane") or {}
     # Order matters: a derive lane is bound to an artifact too (ADR-450 D3
     # composes with the ADR-440 binding), so derive is tested FIRST.
-    if lane.get("derive_recipe"):
+    if lane.get("skill"):
         return SURFACE_DERIVE
     if lane.get("artifact_path"):
         return SURFACE_MAKE

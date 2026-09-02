@@ -81,7 +81,8 @@ below it is inferred — see §6.
      recency fallback renders as silence).
    - *Unbound lane*: the default-target line ("The member is looking at: … they
      mean THIS one — edit it in place").
-7. **Derive section** (ADR-450 D3) when the lane carries a derive binding.
+7. **Skill section** (ADR-450 D3 / ADR-630) when the lane carries a skill binding — the skill's body, the source, the citation mechanics.
+7b. **Skills index** (ADR-630) — every lane: one line per skill (path + description), kernel from code, member from one bounded query. Bodies never; the agent reads a skill when the index matches.
 8. **Cast section** (ADR-495 D3) — a fact about the conversation, composed in the
    frame, species-blind.
 

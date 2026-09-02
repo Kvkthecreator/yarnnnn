@@ -158,13 +158,14 @@ _check(
     'the "repurpose" system-call row is gone — control: web_search_continuation present',
     '"repurpose"' not in syscalls and '"web_search_continuation"' in syscalls,
 )
-recipes = (API / "services/derive_recipes.py").read_text()
+# ADR-630: the recipe registry is the skills folder. D9's reversal condition
+# ("re-add the brief WITH its door") is met — `summarizing-sources` exists and
+# the index line in every frame is its door — and no `context-brief` survives.
+_skills = {p.name for p in (API / "services/skills").iterdir() if p.is_dir()}
 _check(
-    "context-brief recipe is gone — control: design-system/prd/deck present",
-    "context-brief" not in recipes
-    and '"design-system"' in recipes
-    and '"prd"' in recipes
-    and '"deck"' in recipes,
+    "context-brief is gone; the brief returned as summarizing-sources with its door",
+    "context-brief" not in _skills and "summarizing-sources" in _skills
+    and {"deriving-a-design-system", "writing-a-spec", "presenting-from-sources"} <= _skills,
 )
 
 print()

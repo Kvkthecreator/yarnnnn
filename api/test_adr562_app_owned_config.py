@@ -48,7 +48,7 @@ from services.authoring import (
     resident_for_app,
     resolve_app,
 )
-from services.derive_recipes import DERIVE_RECIPES, resident_for_recipe  # noqa: E402
+from services.skills import _load_kernel as _load_skills  # noqa: E402
 
 print("\n── 1. one declaration per app ──")
 
@@ -143,12 +143,11 @@ for slug, row in sorted(APPS.items()):
     check(f"{slug} names a resolvable kernel character ({row['resident']})",
           row["resident"] in _characters)
 
-# A recipe may declare its own colleague (the canvas-less derive lanes). Same
-# rule: declared, resolvable, never client-asserted.
-for slug in sorted(DERIVE_RECIPES):
-    r = resident_for_recipe(slug)
-    check(f"recipe {slug}: resident is absent or resolvable ({r or '—'})",
-          r is None or r in _characters)
+# ADR-630 supersedes D4: a SKILL never names an agent (craft, not identity —
+# ADR-596 D2's housing test). No skill frontmatter carries a resident.
+for slug, sk in sorted(_load_skills().items()):
+    check(f"skill {slug}: names no agent",
+          "resident" not in sk["raw"].split("---")[1])
 
 print("\n── 4. create_lane DERIVES the colleague ──")
 
@@ -168,8 +167,8 @@ check("a BOUND lane refuses a client-named colleague (the real invariant)",
 check("the resident is resolved from the app's declaration",
       "resident_for_app(app_slug)" in _create)
 
-check("a canvas-less derive lane takes the RECIPE's colleague",
-      "resident_for_recipe(" in _create)
+check("a canvas-less skill lane takes NO resident of its own (ADR-630; the cast answers)",
+      "resident_for_recipe(" not in _create and "resident_for_skill(" not in _create)
 
 # A stale client (cached bundle → new API) must be REFUSED, never silently
 # obeyed-by-nothing: dropping `agent` would create a bound lane with no
@@ -233,7 +232,7 @@ check("…proven by DRIVING the handler (a bound lane refuses a client colleague
 # And the legitimate shapes still construct.
 for kw in ({"model": "anthropic/claude-sonnet-5"},
            {"app": "slides", "artifact_path": "/workspace/x.html"},
-           {"derive_recipe": "design-system", "derive_source": "/workspace/s.md"}):
+           {"skill": "deriving-a-design-system", "derive_source": "/workspace/s.md"}):
     _ok = True
     try:
         L.CreateLaneRequest(**kw)

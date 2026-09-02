@@ -1,5 +1,7 @@
 # ADR-579 — Three verbs that write, one act that doesn't: ADD · NEW · UPDATE, and ASK
 
+> **D9's reversal condition met by [ADR-630](ADR-630-skills-are-files.md) (2026-09-02)**: the brief returns as the `summarizing-sources` skill WITH its door — the index line in every lane's frame.
+
 > **Status**: **Accepted** (2026-08-18); D4/D5/D9 **Implemented** same day; **D5.a/D6 Implemented same day** after the operator's click-pass follow-up (*"these also get replaced, swapped in full with the triad… while right click menu triad perhaps becomes 2 tier, nested"*); **D7 seed-turn spine Implemented 2026-08-25** (the typed seed: the three gesture doors pass a `SeedTarget` instead of flattening ids into composer prose; the pane holds it as a named, metered, dismissible chip; Send stamps it on the message row — the ADR-605 shape — and the kernel renders the gesture line at the ADR-606 one-site, binding-guarded; the transcript renders the stamp back. The **receipt turn is satisfied by the ADR-411 artifact card** (verb + author line + Open); its diff/History deepening is named polish, not built. The **plan turn stays phased** — artifact-grain consent is the ADR-479 generalization and earns its own arc. Gate: `test_adr579_d7_structured_turns.py`, falsified 4×); D8 phased.
 > Operator-ratified through the insert-model discourse: *"the top buttons than gets
 > stremline towards ADD, NEW, UPDATE … that consistency applies to the center buttons,

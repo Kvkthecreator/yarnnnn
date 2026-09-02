@@ -3681,6 +3681,19 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         logger.error(f"[WORKSPACE_STATE] Lazy scaffold failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+    # ADR-630 — yarnnn's skills are mirrored into system/skills/ as
+    # `system:kernel-skills` revisions. Manifest-cheap: one small read when
+    # the deploy has not changed, writes only on a kernel change. Best-effort
+    # here (the scheduler tick mirrors every workspace too); a failure never
+    # blocks the state read.
+    try:
+        from services.skills import ensure_kernel_skills
+        ensure_kernel_skills(
+            auth.client, auth.user_id, workspace_id=getattr(auth, "workspace_id", None)
+        )
+    except Exception as e:
+        logger.warning(f"[WORKSPACE_STATE] kernel skills mirror failed: {e}")
+
     # ─── Step 2: activation state + active program slug ─────────────────
     # Active-program derivation and activation-state classification are
     # independent reads; keep them in separate try-blocks so a failure in

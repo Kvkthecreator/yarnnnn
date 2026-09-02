@@ -302,6 +302,35 @@ async def run_unified_scheduler():
     from services.agent_gating import is_agent_enabled
     found, succeeded, failed = 0, 0, 0
 
+    # ADR-630 — kernel skills mirror: every workspace, every tick, manifest-
+
+    # cheap (one small read per workspace when nothing changed). Outside the
+
+    # steward gate on purpose: skills are files every principal reads, not
+
+    # steward spend.
+
+    try:
+
+        from services.skills import mirror_kernel_skills_for_all_workspaces
+
+        _sk = mirror_kernel_skills_for_all_workspaces(supabase)
+
+        if _sk.get("written") or _sk.get("failed"):
+
+            logger.info(
+
+                f"[SCHED] kernel skills: {_sk['written']} written across "
+
+                f"{_sk['workspaces']} workspace(s), {_sk['failed']} failed"
+
+            )
+
+    except Exception as exc:
+
+        logger.warning("[SCHED] kernel skills mirror raised: %s", exc)
+
+
     if is_agent_enabled():
         # ---------------------------------------------------------------------
         # ADR-231 Phase 3.3: dispatch due invocations from YAML declarations

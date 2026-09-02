@@ -414,24 +414,6 @@ class AgentWorkspace:
                 )
             logger.info(f"[WORKSPACE] Seeded workspace from DB columns: {self._slug}")
 
-        # ADR-157: Seed any missing playbooks from type registry
-        # This handles retroactive playbook additions (new playbook added to
-        # agent_framework.py after agent was created). Idempotent — skips existing.
-        role = agent.get("role", "")
-        if role:
-            from services.orchestration import get_type_playbook
-            playbooks = get_type_playbook(role)
-            for filename, content in playbooks.items():
-                existing = await self.read(f"system/{filename}")
-                if not existing:
-                    await self.write(
-                        f"system/{filename}",
-                        content,
-                        summary=f"Playbook seed: {filename}",
-                        authored_by="system:playbook-seed",
-                        message=f"seed playbook {filename} for role={role}",
-                    )
-                    logger.info(f"[WORKSPACE] Seeded missing playbook: {self._slug}/memory/{filename}")
 
     # =========================================================================
     # =========================================================================
@@ -522,46 +504,6 @@ class AgentWorkspace:
         if feedback and feedback.strip():
             parts.append(f"## Agent Feedback (cross-task)\n{feedback}")
 
-        # Playbook index — referential, not full content (Claude Code pattern)
-        from services.orchestration import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING
-
-        memory_files = await self.list("system/")
-        playbook_files = [
-            f for f in memory_files
-            if not f.endswith("/") and (f.startswith("_playbook") or f.startswith("methodology-"))
-        ]
-
-        if playbook_files:
-            # ADR-166: route by output_kind
-            relevant_tags = None
-            if output_kind and output_kind in TASK_OUTPUT_PLAYBOOK_ROUTING:
-                relevant_tags = set(TASK_OUTPUT_PLAYBOOK_ROUTING[output_kind])
-
-            index_lines = [
-                "## Agent Methodology",
-                "Your playbooks are in memory/. Read them via ReadFile when making methodology decisions.",
-            ]
-            for filename in playbook_files:
-                meta = PLAYBOOK_METADATA.get(filename, {})
-                desc = meta.get("description", filename.replace("_playbook-", "").replace(".md", ""))
-                name = filename.replace("_playbook-", "").replace(".md", "").replace("-", " ").title()
-
-                # Mark relevant playbooks
-                is_relevant = True
-                if relevant_tags is not None:
-                    playbook_tags = set(meta.get("tags", "").split(","))
-                    is_relevant = bool(relevant_tags & playbook_tags)
-
-                marker = " ← relevant" if is_relevant else ""
-                index_lines.append(f"- **{name}** (memory/{filename}): {desc}{marker}")
-
-            # Critical rules — always apply, extracted from playbooks
-            index_lines.append("")
-            index_lines.append("**Always apply:**")
-            index_lines.append("- Check domain assets/ folder for existing visuals before generating new")
-            index_lines.append("- Every visual must carry information — no decorative filler")
-
-            parts.append("\n".join(index_lines))
 
         return "\n\n---\n\n".join(parts) if parts else ""
 

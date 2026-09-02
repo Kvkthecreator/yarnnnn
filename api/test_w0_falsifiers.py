@@ -58,9 +58,9 @@ def run() -> bool:
         == SURFACE_MAKE,
     )
     _check(
-        "a derive lane (derive_recipe) → derive (ADR-450 D3)",
+        "a derive lane (skill) → derive (ADR-450 D3)",
         classify_surface(
-            _lane(model="m", derive_recipe="prd", derive_source="/workspace/a.md")
+            _lane(model="m", skill="prd", derive_source="/workspace/a.md")
         )
         == SURFACE_DERIVE,
     )
@@ -71,7 +71,7 @@ def run() -> bool:
         "a derive lane that ALSO carries artifact_path → derive, not make",
         classify_surface(
             _lane(model="m", artifact_path="/workspace/out.html",
-                  derive_recipe="prd", derive_source="/workspace/a.md")
+                  skill="prd", derive_source="/workspace/a.md")
         )
         == SURFACE_DERIVE,
     )

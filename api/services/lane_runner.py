@@ -529,7 +529,7 @@ def resolve_turn_reach(
     chat, a Text pane, a Slides pane — is the same member, embodied the same
     way (`lane_caller_identity` → `member:{user_id} via {model}`), resolving
     grants against the same principal_id. So the turn's SHAPE no longer
-    enters this decision at all: `app` / `artifact_path` / `derive_recipe`
+    enters this decision at all: `app` / `artifact_path` / `skill`
     were parameters of the pre-615 cut line and are GONE rather than kept and
     ignored, so no caller can believe they still steer the answer.
 
@@ -757,7 +757,9 @@ write only to the commons.
 
 ## Format discipline
 {format_discipline}
-{cast_section}{mandate_section}{posture_section}"""
+{cast_section}{mandate_section}{posture_section}
+
+{skills_section}"""
 
 
 #: ADR-495 D3 — WHO ELSE is in this conversation. Absent before 2026-08-13, and
@@ -1017,7 +1019,7 @@ def build_lane_conventions(
     model: str,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
-    derive_recipe: Optional[str] = None,
+    skill: Optional[str] = None,
     derive_source: Optional[str] = None,
     agent: Optional[str] = None,
     focus: Optional[dict] = None,
@@ -1038,10 +1040,11 @@ def build_lane_conventions(
     read fresh here (derived, never stored) and ``services.authoring`` composes
     the overlay purely.
 
-    ADR-450 D3: a DERIVE-bound lane (``derive_recipe`` + ``derive_source``
-    set — a "Learn from" lane) gains the kernel recipe as an additive section.
+    ADR-450 D3 / ADR-630: a SKILL-bound lane (``skill`` + ``derive_source``
+    set — a "Learn from" lane) gains the skill's body as an additive section.
     The two bindings may coexist; both are per-turn overlays over the same
-    conventions frame.
+    conventions frame. Every lane gains the skills INDEX (descriptions only —
+    the bodies load on demand through ReadFile; DP22).
     """
     # ADR-533 D1: the commons-contract clauses are kernel data composed here —
     # this frame never restates one inline (ratcheted by
@@ -1207,17 +1210,24 @@ def build_lane_conventions(
     # Strings declaring focus the server dropped and Text never rendering any.
     posture_section += _compose_focus_section(artifact_path, artifact, focus, seed)
 
-    # ADR-450 D3 — the derive binding's recipe section (the "Learn from"
-    # lane's job description; pure composition from the kernel registry).
-    # ADR-452 D3: a lane carrying BOTH bindings (the studio learn-from flow)
-    # gets the target-override — derive INTO the bound artifact.
-    if derive_recipe and derive_source:
-        from services.derive_recipes import build_derive_section
-        derive_section = build_derive_section(
-            derive_recipe, derive_source, artifact_path=artifact_path
+    # ADR-450 D3 / ADR-630 — the skill binding's job section (the "Learn
+    # from" lane's job; pure composition from the kernel skills). ADR-452 D3:
+    # a lane carrying BOTH bindings (the studio learn-from flow) gets the
+    # target-override — derive INTO the bound artifact.
+    if skill and derive_source:
+        from services.skills import build_skill_section
+        skill_section = build_skill_section(
+            skill, derive_source, artifact_path=artifact_path
         )
-        if derive_section:
-            posture_section += "\n" + derive_section + "\n"
+        if skill_section:
+            posture_section += "\n" + skill_section + "\n"
+
+    # ADR-630 — the skills INDEX, every lane: yarnnn's from code, the
+    # workspace's own from one bounded query. Descriptions only; a body
+    # enters the turn when the agent reads it (DP22 — the frame carries the
+    # door, never the room).
+    from services.skills import read_member_skills, skills_index_section
+    skills_section = skills_index_section(read_member_skills(client, user_id))
 
     # ADR-495 D3 — the room, named. Composed here (not in the posture) because
     # it is a fact about the CONVERSATION, not about the character wearing the
@@ -1241,6 +1251,7 @@ def build_lane_conventions(
         connector_reach_section=connector_reach_section,
         mandate_section=mandate_section,
         posture_section=posture_section,
+        skills_section=skills_section,
     )
 
 
@@ -1350,7 +1361,7 @@ async def run_lane_turn(
     user_message: Any,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
-    derive_recipe: Optional[str] = None,
+    skill: Optional[str] = None,
     derive_source: Optional[str] = None,
     # ADR-522 — what the member is looking at THIS turn (transient; never
     # persisted). Threaded straight to the posture; None → byte-identical.
@@ -1427,7 +1438,7 @@ async def run_lane_turn(
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
-        derive_recipe=derive_recipe, derive_source=derive_source,
+        skill=skill, derive_source=derive_source,
         agent=agent,
         focus=focus,
         seed=seed,
@@ -1436,7 +1447,7 @@ async def run_lane_turn(
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
     max_tokens = (
-        _studio_max_tokens() if (artifact_path or derive_recipe) else _LANE_MAX_TOKENS
+        _studio_max_tokens() if (artifact_path or skill) else _LANE_MAX_TOKENS
     )
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
@@ -1600,7 +1611,7 @@ async def run_lane_turn_stream(
     user_message: Any,
     member_label: Optional[str] = None,
     artifact_path: Optional[str] = None,
-    derive_recipe: Optional[str] = None,
+    skill: Optional[str] = None,
     derive_source: Optional[str] = None,
     # ADR-522 — the focus declaration; see ``run_lane_turn``.
     focus: Optional[dict] = None,
@@ -1679,7 +1690,7 @@ async def run_lane_turn_stream(
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         artifact_path=artifact_path,
-        derive_recipe=derive_recipe, derive_source=derive_source,
+        skill=skill, derive_source=derive_source,
         agent=agent,
         focus=focus,
         seed=seed,
@@ -1690,7 +1701,7 @@ async def run_lane_turn_stream(
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
     max_tokens = (
-        _studio_max_tokens() if (artifact_path or derive_recipe) else _LANE_MAX_TOKENS
+        _studio_max_tokens() if (artifact_path or skill) else _LANE_MAX_TOKENS
     )
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]

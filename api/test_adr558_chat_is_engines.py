@@ -168,7 +168,7 @@ print("\n2. D3 — an APP still pins its resident (ADR-467 D1 untouched)")
 
 for binding in (
     {"artifact_path": "/workspace/operation/x/deck.html"},
-    {"derive_recipe": "summary", "derive_source": "/workspace/x.md"},
+    {"skill": "summary", "derive_source": "/workspace/x.md"},
 ):
     kind, status, detail = _create(agent="designer", **binding)
     refused_by_d3 = kind == "http" and status == 422 and "cast" in (detail or "").lower()
@@ -185,7 +185,7 @@ body = ast.unparse(fn)
 
 # The guard must key on the BINDING, not on a hardcoded surface name.
 check("create_lane derives boundness from the binding fields",
-      "is_bound" in body and "artifact_path" in body and "derive_recipe" in body)
+      "is_bound" in body and "artifact_path" in body and "skill" in body)
 
 # ⚠️ RE-ANCHORED 2026-08-24 (ADR-597 D1). The old pair pinned the STAMP
 # (`lane_meta["agent"] = agent_slug`, "bound lanes need it") — retired: a
@@ -198,7 +198,7 @@ check("create_lane derives boundness from the binding fields",
 check("the resident is never stamped — it derives from the registration",
       'lane_meta["agent"] = agent_slug' not in src and "def _lane_agent(" in src)
 check("...and the derivation keys on the BINDING (app/recipe), never the client",
-      'lane_meta.get("app")' in src and 'lane_meta.get("derive_recipe")' in src)
+      'lane_meta.get("app")' in src and 'lane_meta.get("skill")' in src)
 
 print("\n4. the envelope leads with engines (the chat chooser)")
 
