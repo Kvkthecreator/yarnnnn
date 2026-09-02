@@ -103,9 +103,22 @@ class OperationResult(BaseModel):
 
 
 def _count_rows(client, table: str, user_id: str, *, user_column: str = "user_id", optional: bool = False) -> int:
-    """Count rows in a user-scoped table."""
+    """Count rows in a user-scoped table.
+
+    ⭐ HEAD-COUNT, NOT A FETCH. Selecting every column alongside an exact
+    count ships every matching row's FULL BODY over the wire — including `workspace_files.content`
+    — and then reads only `.count`. Selecting a single narrow column and taking
+    a zero-length range asks PostgREST for the count alone, which is the only
+    thing this function returns.
+    """
     try:
-        result = client.table(table).select("*", count="exact").eq(user_column, user_id).execute()
+        result = (
+            client.table(table)
+            .select("id", count="exact")
+            .eq(user_column, user_id)
+            .limit(1)
+            .execute()
+        )
         return result.count or 0
     except Exception:
         if optional:
@@ -168,13 +181,16 @@ def _count_workspace_pattern(
     count must include every member's outputs, not only the caller's.
     """
     try:
+        # Head-count: `select("*")` here would stream every matching file's
+        # full `content` just to produce an integer (see _count_rows).
         result = (
             _purge_scope(
-                client.table("workspace_files").select("*", count="exact"),
+                client.table("workspace_files").select("id", count="exact"),
                 user_id,
                 workspace_id,
             )
             .like("path", like_pattern)
+            .limit(1)
             .execute()
         )
         return result.count or 0
@@ -263,9 +279,12 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
 
         def _count_ws(table: str, *, optional: bool = False) -> int:
             try:
+                # Head-count (see _count_rows): counting must not fetch bodies.
                 result = (
                     _purge_scope(
-                        client.table(table).select("*", count="exact"), user_id, ws
+                        client.table(table).select("id", count="exact").limit(1),
+                        user_id,
+                        ws,
                     ).execute()
                 )
                 return result.count or 0

@@ -137,7 +137,9 @@ def _delete_rows(
     """
     scoped = workspace_id is not None and user_column == "user_id"
     try:
-        base = client.table(table).select("*", count="exact")
+        # Head-count before the delete: `select("*")` would stream every row
+        # about to be DELETED across the wire purely to size the report.
+        base = client.table(table).select("id", count="exact").limit(1)
         count_result = (
             _purge_scope(base, user_id, workspace_id)
             if scoped
@@ -173,8 +175,10 @@ def _delete_workspace_files(
     purging user's.
     """
     try:
+        # Head-count (see _delete_rows): the bodies are about to be deleted;
+        # fetching them first to count them is pure egress.
         query = _purge_scope(
-            client.table("workspace_files").select("*", count="exact"),
+            client.table("workspace_files").select("id", count="exact").limit(1),
             user_id,
             workspace_id,
         )

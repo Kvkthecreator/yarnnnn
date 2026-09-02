@@ -72,7 +72,12 @@ export function RecentlyAuthored({ onSelectPath, selectedPath }: RecentlyAuthore
   useEffect(() => {
     load();
     // Refresh on the same cadence as the explorer tree (30s) + on focus.
-    const interval = setInterval(load, 30000);
+    // A HIDDEN TAB MUST NOT POLL — see the note in files/page.tsx: an
+    // unconditional interval bills read traffic to a surface nobody is
+    // looking at.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 30000);
     const onFocus = () => { if (document.visibilityState === 'visible') load(); };
     document.addEventListener('visibilitychange', onFocus);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };

@@ -692,7 +692,12 @@ export function LanePanel({
   // could ever answer and only a human could ever be the other party.
   useEffect(() => {
     if (!canReceiveOutOfBandTurns || sending) return;
-    const t = setInterval(() => void resyncMessages(), 15_000);
+    // Hidden tabs do not poll: an out-of-band turn is only worth fetching
+    // for a reader who is present, and this is the fastest interval in the
+    // app (15s) so it is the costliest one to leave running unattended.
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void resyncMessages();
+    }, 15_000);
     return () => clearInterval(t);
   }, [canReceiveOutOfBandTurns, sending, resyncMessages]);
 

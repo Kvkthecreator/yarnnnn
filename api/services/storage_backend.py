@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -49,6 +50,59 @@ CAS_BUCKET = "workspace-cas"
 # git's loose-object layout: cas/<sha[0:2]>/<sha>
 def cas_key(sha: str) -> str:
     return f"cas/{sha[:2]}/{sha}"
+
+
+# ---------------------------------------------------------------------------
+# Signed-URL reuse (egress)
+# ---------------------------------------------------------------------------
+# ⭐⭐⭐ A FRESH MINT IS A FRESH CACHE KEY. `create_signed_url` POSTs to
+# /object/sign and returns a NEW JWT in the query string every call, so two
+# mints of the SAME blob are two different URLs — and every consumer that
+# caches by URL (the browser, and the model provider fetching an `image_url`)
+# treats the second as an object it has never seen and re-downloads the bytes.
+#
+# That turned ADR-623's "vision survives the turn" into per-turn re-download:
+# history replay re-mints every image on EVERY turn, so an image in a 10-turn
+# conversation was fetched from storage 10 times instead of once. Measured
+# cost: 5.7GB of egress on 2026-08-31 against a 165MB database, from a single
+# operator — the whole database ~35x over, in one day.
+#
+# The fix is to hand back the SAME url while it is still comfortably valid, so
+# a repeat send is a cache HIT rather than a new object. Keyed by the exact
+# (storage_key, expires_in, download_name) triple, because a different
+# disposition is a genuinely different URL (viewing vs saving, ADR-621).
+#
+# Correctness: an entry is reused only while it has ample TTL left
+# (_MINT_REUSE_S << expires_in), never near expiry. The cache holds
+# CAPABILITIES, so it is process-local and never persisted — ADR-427 D4's
+# "minted, never stored" is about durable storage; reusing one in-process for
+# minutes is the same capability, not a second one.
+_MINT_CACHE: "dict[tuple, tuple[float, str]]" = {}
+_MINT_CACHE_MAX = 512
+# Reuse a minted URL for 10 minutes of its 60-minute life. Long enough that a
+# conversation's turns share one URL; short enough that it stays far from the
+# expiry cliff, and that a re-uploaded blob at the same key is picked up.
+_MINT_REUSE_S = 600.0
+
+
+def _mint_cache_get(key: tuple) -> Optional[str]:
+    hit = _MINT_CACHE.get(key)
+    if not hit:
+        return None
+    minted_at, url = hit
+    if (time.monotonic() - minted_at) >= _MINT_REUSE_S:
+        _MINT_CACHE.pop(key, None)
+        return None
+    return url
+
+
+def _mint_cache_put(key: tuple, url: str) -> None:
+    # Bounded, cheapest possible eviction: when full, drop the oldest half.
+    # A signed URL is disposable — losing one costs a re-mint, never data.
+    if len(_MINT_CACHE) >= _MINT_CACHE_MAX:
+        for stale in sorted(_MINT_CACHE, key=lambda k: _MINT_CACHE[k][0])[: _MINT_CACHE_MAX // 2]:
+            _MINT_CACHE.pop(stale, None)
+    _MINT_CACHE[key] = (time.monotonic(), url)
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +552,13 @@ class PostgresObjectStoreBackend(StorageBackend):
         storage_key = result.data[0].get("storage_key")
         if not storage_key:
             return None
+        # Reuse a still-fresh mint for this exact capability (see _MINT_CACHE):
+        # a second mint would be a second cache key, and the bytes would be
+        # fetched again by whoever holds the URL.
+        cache_key = (storage_key, expires_in, download_name)
+        cached = _mint_cache_get(cache_key)
+        if cached:
+            return cached
         try:
             signed = (
                 self._db.storage.from_(CAS_BUCKET).create_signed_url(
@@ -507,7 +568,10 @@ class PostgresObjectStoreBackend(StorageBackend):
                 )
                 or {}
             )
-            return signed.get("signedURL") or signed.get("signedUrl")
+            url = signed.get("signedURL") or signed.get("signedUrl")
+            if url:
+                _mint_cache_put(cache_key, url)
+            return url
         except Exception as exc:  # noqa: BLE001
             logger.error("[STORAGE] signed-URL mint failed for %s: %s", sha, exc)
             return None

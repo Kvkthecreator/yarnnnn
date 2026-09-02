@@ -183,7 +183,14 @@ export function RecentsView({
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 30000);
+    // A HIDDEN TAB MUST NOT POLL. This interval used to run regardless of
+    // visibility, so a background tab left open overnight issued ~2,880
+    // requests nobody was looking at — read traffic (and egress) with no
+    // reader. Poll only while visible; refetch once on becoming visible so
+    // the surface is never stale when it is actually on screen.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 30000);
     const onFocus = () => { if (document.visibilityState === 'visible') load(); };
     document.addEventListener('visibilitychange', onFocus);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
