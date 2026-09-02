@@ -41,7 +41,7 @@
  */
 
 import { Loader2 } from 'lucide-react';
-import type { TPMessage, MessageBlock } from '@/types/desk';
+import type { TPMessage, MessageBlock } from '@/types/surface';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { FreddieCard } from './FreddieCard';
 import { MessageBlocks } from './InlineToolCall';

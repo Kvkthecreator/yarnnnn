@@ -35,7 +35,7 @@ const isProsePath = (p: string) => /\.(md|markdown|txt)$/i.test(p);
  *  HTML-authoring apps. A prose app (ADR-571) has no row there and scopes by
  *  the type registry alone. */
 // ADR-599: `docs` deleted with its app; `studio` renamed `slides`.
-// ADR-627: `blogger` joins — the publish medium's desk.
+// ADR-627: `blogger` joins — the publish medium's pane.
 const SERVED_INDEX_APPS = new Set(['slides', 'blogger', 'images']);
 
 interface OpenArtifactModalProps {

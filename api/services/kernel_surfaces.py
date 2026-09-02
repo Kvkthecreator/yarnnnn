@@ -296,7 +296,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Build slide decks as living artifacts: Designer drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
     },
     {
-        # ADR-627 (2026-09-01) — BLOGGER, the publish medium's desk. The
+        # ADR-627 (2026-09-01) — BLOGGER, the publish medium's pane. The
         # outward type ADR-505 D2 merged (article + page → one band-first
         # `web` type) and ADR-599 D5 deleted returns as `post`, under the app
         # whose future that deletion named. Studio-parameterized like Slides
@@ -351,7 +351,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "images",
         # ADR-488 held the unveil for "polish parity"; ADR-629 D3 closes that
         # hold by operator ruling (2026-09-01): full placement, with the
-        # `badge` as the honesty mechanism — the desk says "beta" where
+        # `badge` as the honesty mechanism — the app says "beta" where
         # ADR-488 said "withhold". Designer's /agents promotion follows by
         # derivation (ADR-602 D3), no registry edit.
         "stage": "primary",
@@ -386,7 +386,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     #
     # Reopening is a new decision recorded against ADR-592, not a tier flip.
     # The dedicated `supervisor` surface row is DELETED (ADR-604 D3,
-    # superseding ADR-603 D4): Supervisor's desk IS strings, below — a second
+    # superseding ADR-603 D4): Supervisor's pane IS strings, below — a second
     # window over the same declarations is the ADR-562 second-home drift. It
     # never had a route, so no middleware obligation to discharge.
     {
@@ -395,12 +395,12 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # ({folder}/_string.yaml), and the standing loop keeps the head
         # current while member corrections compound (ADR-384 D4). The write
         # is confined to the designated leaf ONLY — un-designated files are
-        # never a standing writer's target (the D1 law). Shared desk housing
+        # never a standing writer's target (the D1 law). Shared pane housing
         # (D6, the ADR-518 move): string roster + the composed view (file
         # canvas by format · what changed · setup · consumers), projected at
         # read time.
         #
-        # ADR-604 — this desk is SUPERVISOR'S: the conversation is about
+        # ADR-604 — this app is SUPERVISOR'S: the conversation is about
         # standing work, so the bound lane carries the `supervisor` resident.
         # ADR-610 — and so do the RUNS: `standing_executor` is undeclared and
         # derives the resident. One surface, one colleague, one contract.
@@ -583,7 +583,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # `expected-output` · `mandate` · `principles` · `identity` — are DELETED.
     # They carried `route: ""` and "dormant until the per-agent FE (ADR-382)"
     # since 2026-07-08, describing the ADR-414 HIRED AGENT: a model with zero
-    # instances. ADR-624 D1 decided those four concepts do not live on a being
+    # instances. ADR-624 D1 decided those four concepts do not live on an agent
     # at all — purpose and clock are DECLARATIONS (app-named, so they survive a
     # re-pairing), judgment rules are GATES plus the app's job overlay, and
     # character is the register's `posture`. A row reserved for a surface that
@@ -657,7 +657,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # broke the family) → `users-round` (2026-07-20) → `bot` (ADR-602 D4).
         # The `users-round` rationale — "a pair of ROUNDED people = the
         # colleagues you've hired and named" — EXPIRED with ADR-596: agents are
-        # BEINGS, the roster is app residents rather than hires, and a
+        # AGENTS, the roster is app residents rather than hires, and a
         # people-glyph now names the wrong noun. That is the same fault the
         # note records `users` being replaced for. `bot` is object-like and
         # sits in the concrete family (Chat bubble · Files folder · deck).

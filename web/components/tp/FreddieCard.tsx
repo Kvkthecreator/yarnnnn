@@ -18,7 +18,7 @@ import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { CheckCircle2, XCircle, PauseCircle, Eye, Zap, Loader2 } from 'lucide-react';
 import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import type { FreddieCardData } from '@/types/desk';
+import type { FreddieCardData } from '@/types/surface';
 import { cn } from '@/lib/utils';
 import { formatAbsolute } from '@/lib/formatting';
 

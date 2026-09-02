@@ -26,7 +26,7 @@ WEB_DISPATCH = REPO_ROOT / "web" / "components" / "tp" / "MessageDispatch.tsx"
 WEB_ROW = REPO_ROOT / "web" / "components" / "tp" / "MessageRow.tsx"
 WEB_TPMESSAGES_LEGACY = REPO_ROOT / "web" / "components" / "tp" / "TPMessages.tsx"
 WEB_CHAT_PANEL = REPO_ROOT / "web" / "components" / "tp" / "ChatPanel.tsx"
-WEB_DESK_TYPES = REPO_ROOT / "web" / "types" / "desk.ts"
+WEB_DESK_TYPES = REPO_ROOT / "web" / "types" / "surface.ts"
 
 
 def _read(p: Path) -> str:
@@ -106,11 +106,11 @@ def test_chat_panel_no_inline_role_dispatch():
 
 def test_dispatch_handles_all_six_roles_exhaustively():
     """Assertion #6: resolveMessageShape in MessageDispatch.tsx
-    references every role value declared in web/types/desk.ts. New
+    references every role value declared in web/types/surface.ts. New
     role values that bypass MessageDispatch's exhaustive switch
     fail this assertion."""
     dispatch_src = _read(WEB_DISPATCH)
-    # The six values per web/types/desk.ts:117
+    # The six values per web/types/surface.ts:117
     expected_roles = ["user", "assistant", "system", "freddie", "agent", "external"]
     for role in expected_roles:
         # Look for a role-string literal in the dispatcher

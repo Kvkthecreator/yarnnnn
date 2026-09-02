@@ -5,12 +5,12 @@
  * TP Chip utilities - human-readable labels for TP state indicators
  */
 
-import { DeskSurface } from '@/types/desk';
+import { NarrativeSurface } from '@/types/surface';
 
 /**
  * Get human-readable label for a surface
  */
-export function getSurfaceLabel(surface: DeskSurface): string {
+export function getSurfaceLabel(surface: NarrativeSurface): string {
   switch (surface.type) {
     case 'idle':
       return 'Agent';
@@ -40,7 +40,7 @@ export function getSurfaceLabel(surface: DeskSurface): string {
 /**
  * Get icon name for a surface (for lucide-react)
  */
-export function getSurfaceIcon(surface: DeskSurface): string {
+export function getSurfaceIcon(surface: NarrativeSurface): string {
   switch (surface.type) {
     case 'idle':
       return 'LayoutDashboard';
@@ -75,7 +75,7 @@ export type ContextScope =
  * Get context scope from surface
  * Context is automatically scoped when viewing an agent
  */
-export function getContextScope(surface: DeskSurface): ContextScope {
+export function getContextScope(surface: NarrativeSurface): ContextScope {
   switch (surface.type) {
     case 'agent-review':
     case 'agent-detail':
@@ -120,7 +120,7 @@ export interface TPStateIndicators {
 /**
  * Get all TP state indicators from current surface
  */
-export function getTPStateIndicators(surface: DeskSurface): TPStateIndicators {
+export function getTPStateIndicators(surface: NarrativeSurface): TPStateIndicators {
   const surfaceLabel = getSurfaceLabel(surface);
   const surfaceIcon = getSurfaceIcon(surface);
   const context = getContextScope(surface);

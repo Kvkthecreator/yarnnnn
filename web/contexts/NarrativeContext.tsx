@@ -9,7 +9,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotification, mapToolActionToSurface, DeskSurface, Todo, MessageBlock, SystemCardType } from '@/types/desk';
+import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotification, mapToolActionToSurface, NarrativeSurface, Todo, MessageBlock, SystemCardType } from '@/types/surface';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
 import type { FocusWire } from '@/lib/shell/useSurfaceFocus';
@@ -191,7 +191,7 @@ interface NarrativeContextValue {
   sendMessage: (
     content: string,
     context?: {
-      surface?: DeskSurface;
+      surface?: NarrativeSurface;
       /** ADR-607: the operator's typed focus (the ADR-522 wire shape). */
       focus?: FocusWire;
       images?: TPImageAttachment[];
@@ -202,7 +202,7 @@ interface NarrativeContextValue {
   clearMessages: () => void;
   clearClarification: () => void;
   respondToClarification: (answer: string) => void;
-  onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
+  onSurfaceChange?: (surface: NarrativeSurface, handoffMessage?: string) => void;
   /** ADR-087 Phase 3 / ADR-138: Load history scoped to agent, task, or global */
   loadScopedHistory: (agentId?: string, taskSlug?: string) => Promise<void>;
 }
@@ -216,7 +216,7 @@ const NarrativeContext = createContext<NarrativeContextValue | null>(null);
 interface NarrativeProviderProps {
   children: ReactNode;
   /** Called when TP navigates to a surface. Optional handoffMessage for context continuity. */
-  onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
+  onSurfaceChange?: (surface: NarrativeSurface, handoffMessage?: string) => void;
 }
 
 export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProviderProps) {
@@ -566,7 +566,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
     async (
       content: string,
       context?: {
-        surface?: DeskSurface;
+        surface?: NarrativeSurface;
         focus?: FocusWire;
         images?: TPImageAttachment[];
         targetAgentId?: string;
@@ -684,7 +684,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         let assistantContent = '';
         const toolResults: TPToolResult[] = [];
         const blocks: MessageBlock[] = [];
-        let pendingSurface: DeskSurface | null = null;
+        let pendingSurface: NarrativeSurface | null = null;
         let pendingHandoff: string | null = null;
         let clarifyWasCalled = false;
         // Track pending tool calls by ID for updating status

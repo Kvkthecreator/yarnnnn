@@ -197,9 +197,9 @@ print("6. a slug becomes a NAME through the beings roster, never the invite one"
 # `agents` is the INVITE roster (`offered`), and offered is False for every
 # being today — so it is EMPTY and every lookup returned undefined. Latent
 # until ADR-614, because before it a chat lane had no agent in its cast.
-from services.agents_registry import AGENTS, list_agents  # noqa: E402
+from services.agents_registry import AGENTS  # noqa: E402
 
-_offered = [a["slug"] for a in list_agents()]
+_offered = [a["slug"] for a in AGENTS.values() if a.get("offered")]
 _assert(_offered == [],
         f"the invite roster is EMPTY today — the premise of the defect ({_offered})")
 _assert(len(AGENTS) >= 3,
@@ -211,24 +211,27 @@ _detail = (API.parent / "web" / "components" / "chat-surface" / "ConversationDet
 # ONE resolver, and every naming site goes through it. Counted rather than
 # spot-checked: ten sites were wrong TOGETHER, so the assertion that matters is
 # that none is left reading the roster directly.
-_assert("const beingBySlug" in _chat,
+_assert("const agentBySlug" in _chat,
         "ChatSurface resolves a slug through ONE function")
+# ADR-631: ONE roster. The resolver itself is the one site that reads it;
+# every naming site goes through the resolver.
 _direct = _chat.count("data?.agents?.find")
-_assert(_direct == 0,
-        f"no naming site reads the invite roster directly ({_direct} left)")
-_assert("(data?.beings ?? []).map" in _chat,
-        "the transcript's agentFaces are named from `beings`")
-_assert("beings={data?.beings ?? []}" in _chat,
-        "the Details pane is given the beings roster")
+_assert(_direct == 1,
+        f"exactly the resolver reads the roster directly ({_direct} sites)")
+_assert("(data?.agents ?? []).map" in _chat,
+        "the transcript's agentFaces are named from the one roster")
+_assert("agents={data?.agents ?? []}" in _chat,
+        "the Details pane is given the one roster")
 
-# The pane's two rosters answer two questions and must stay separate: naming
-# from `beings`, inviting from `agents`. One prop doing both IS the defect.
-_assert("beings?: DetailAgentChoice[]" in _detail,
-        "the pane takes `beings` alongside `agents`")
-_assert("(beings?.length ? beings : agents)" in _detail,
-        "the pane NAMES from beings (degrading to agents on an older envelope)")
+# ADR-631 — ONE roster, ONE prop: `offered` is a FIELD on the row, so the
+# invitable subset is a filter, never a second prop (the pre-631 pane held an
+# always-empty `agents` beside `beings` and named from whichever was non-empty).
+_assert("agents: DetailAgentChoice[]" in _detail and "beings" not in _detail,
+        "the pane takes ONE roster prop")
+_assert("new Map(agents.map(" in _detail,
+        "the pane NAMES from the one roster")
 _assert("const invitableAgents = agents.filter" in _detail,
-        "...and still INVITES from the offered roster — the two stay separate")
+        "...and INVITES from the same roster minus the cast (ADR-625)")
 
 print()
 if FAILURES:

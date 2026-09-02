@@ -42,11 +42,11 @@ IS the permission taxonomy — `access(2)` for the agent OS (Derived Principle 1
             _recent_execution.md.
             OS analog: /var/lib/{service} + /tmp.
 
-Plus per-being homes at `/workspace/agents/{slug}/`, ephemeral `/workspace/working/`,
+Plus per-agent homes at `/workspace/agents/{slug}/`, ephemeral `/workspace/working/`,
 and user uploads at `/workspace/uploads/` — unchanged by ADR-320 (not part of the
 constitution/operation/governance cut; agents/ is per-PRINCIPAL, working/ ephemeral,
-uploads/ user-contributed reference material). A being's home holds what it KNOWS
-(`memory/`, freely writable by that being) and the GRANTS it runs under (the locked
+uploads/ user-contributed reference material). A agent's home holds what it KNOWS
+(`memory/`, freely writable by that agent) and the GRANTS it runs under (the locked
 sidecars) — nothing else (ADR-624 D1). Confinement is enforced at `_is_path_locked`
 alongside the sidecar rule, never at call sites.
 
@@ -95,15 +95,15 @@ UPLOADS_ROOT = "uploads/"
 
 
 # =============================================================================
-# Per-agent homes (ADR-624 — the being's home; re-cutting ADR-414 D5/D6)
+# Per-agent homes (ADR-624 — the agent's home; re-cutting ADR-414 D5/D6)
 # =============================================================================
-# A being's home is a PRINCIPAL HOME, not a semantic root: the five roots above
+# A agent's home is a PRINCIPAL HOME, not a semantic root: the five roots above
 # answer *what a file MEANS*, this answers *whose it IS*. It holds exactly two
 # things (ADR-624 D1):
 #
 #   agents/{slug}/
-#     memory/          — what the being has LEARNED. Freely writable BY THAT
-#                        BEING (ADR-624 D3), ordinary markdown, appended in the
+#     memory/          — what the agent has LEARNED. Freely writable BY THAT
+#                        AGENT (ADR-624 D3), ordinary markdown, appended in the
 #                        moment of learning exactly as ADR-156 already has the
 #                        workspace write memory/notes.md. No parser, no schema:
 #                        it is substrate, so write_revision gives it append-only
@@ -113,19 +113,19 @@ UPLOADS_ROOT = "uploads/"
 #     _autonomy.yaml   — the witness dial it runs under.  GRANT SIDECAR — locked.
 #     _budget.yaml     — its allocation (reserved).        GRANT SIDECAR — locked.
 #
-# THE RULE, whole: a being's home holds what it KNOWS (free) and the GRANTS it
+# THE RULE, whole: a agent's home holds what it KNOWS (free) and the GRANTS it
 # runs under (locked). Nothing else.
 #
 # ⚠️ The ADR-414 twelve-file layout (IDENTITY/MANDATE/principles/_principles/
 # AUTONOMY/_preferences/_expected_output/standing_intent/judgment_log/
 # reflection) is DELETED, not dormant — ADR-624 D1. Ten of those files put
-# AUTHORITY, a CLOCK, PURPOSE or per-desk JUDGMENT on a being, which ADR-596 D1
+# AUTHORITY, a CLOCK, PURPOSE or per-pane JUDGMENT on an agent, which ADR-596 D1
 # forbids and ADR-601's many-to-one breaks (one MANDATE.md cannot hold Editor's
 # purpose at both Slides and Text). Each has a live home already: purpose and
 # clock in DECLARATIONS (app-named, so they survive a re-pairing), judgment
 # rules in GATES and the app's job overlay (agent-composition.md §3.2.1),
 # character in the register's `posture`, authority in GRANTS. IDENTITY.md went
-# as REDUNDANT rather than misplaced — the being already has a character, and
+# as REDUNDANT rather than misplaced — the agent already has a character, and
 # two homes for one fact is the ADR-562 drift. Do not reintroduce them here.
 #
 # The steward-era roots (persona/, constitution/, contract/) are untouched:
@@ -138,23 +138,23 @@ UPLOADS_ROOT = "uploads/"
 #: services/primitives/workspace.py enforces this for freddie/mcp/agent callers.
 AGENT_GRANT_SIDECAR_LEAVES = ("_autonomy.yaml", "_budget.yaml")
 
-#: The freely-writable subtree within a being's own home (ADR-624 D1/D2). Flat
-#: — NOT desk-scoped: a being serving several desks accumulates one memory, and
-#: it may subdivide its own folder without a schema change the day per-desk
+#: The freely-writable subtree within a agent's own home (ADR-624 D1/D2). Flat
+#: — NOT pane-scoped: an agent serving several apps accumulates one memory, and
+#: it may subdivide its own folder without a schema change the day per-pane
 #: blur actually appears. Guessing that structure before the evidence is how
 #: the wrong axis gets abstracted.
 AGENT_MEMORY_DIRNAME = "memory/"
 
 
 def agent_home(slug: str) -> str:
-    """The being's substrate home prefix (workspace-relative). ADR-624 D1."""
+    """The agent's substrate home prefix (workspace-relative). ADR-624 D1."""
     return f"{AGENTS_ROOT}{slug}/"
 
 
 def agent_memory_root(slug: str) -> str:
-    """The being's freely-writable memory prefix (workspace-relative).
+    """The agent's freely-writable memory prefix (workspace-relative).
 
-    ADR-624 D1/D2 — what the being has learned. Ordinary substrate: no parser,
+    ADR-624 D1/D2 — what the agent has learned. Ordinary substrate: no parser,
     no schema, no bespoke writer. `WriteFile(mode="append")` reaches it exactly
     as it reaches every other file.
     """
@@ -176,7 +176,7 @@ def is_agent_grant_sidecar(path: str) -> bool:
 def agent_home_owner(path: str) -> Optional[str]:
     """The slug whose home `path` sits in, or None if it is not under agents/.
 
-    ADR-624 D3 — the read behind the confinement rule: a being writes freely in
+    ADR-624 D3 — the read behind the confinement rule: an agent writes freely in
     its OWN home and nowhere else under `agents/`. Returns the slug so the gate
     can compare it against the caller's; a bare `agents/` or a malformed path
     yields None, which the gate treats as NOT-a-home rather than as everyone's.
@@ -323,11 +323,11 @@ WORKSPACE_ROOTS: dict[str, dict] = {
         "display_name": "Agents",
         "semantic_class": "agents",
         # ⚠️ `group: "system"` folds this root under the explorer's collapsed
-        # "System files" disclosure, so a being's home is not visible in the
+        # "System files" disclosure, so a agent's home is not visible in the
         # Files spine until that is expanded. Correct while the root held only
         # ADR-414 kernel residue; QUESTIONABLE since ADR-624 D1 made
         # `agents/{slug}/memory/` a place the member is invited to read and
-        # correct (the being's page says exactly that). The being's page links
+        # correct (the agent's page says exactly that). The agent's page links
         # straight in, so the door works — but a member BROWSING Files will not
         # find it. Left as-is deliberately: regrouping changes the explorer
         # spine for every workspace and interacts with the grant sidecars in

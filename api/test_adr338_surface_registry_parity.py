@@ -84,7 +84,7 @@ def _backend_navigable_slugs() -> set[str]:
 
 
 def _fe_allowlist_slugs() -> set[str]:
-    ts = _read("types/desk.ts")
+    ts = _read("types/surface.ts")
     m = re.search(r"KERNEL_SURFACE_SLUGS.*?=\s*\[(.*?)\]\s*as const", ts, re.DOTALL)
     if not m:
         return set()

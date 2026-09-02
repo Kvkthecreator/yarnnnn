@@ -269,7 +269,7 @@ check("the api.radar namespace is gone", "api/radar/hubs" not in _client)
 check("the Radar hub types are gone",
       "RadarHubSummary" not in _client and "RadarHubView" not in _client)
 
-_desk = code_only(read("types/desk.ts"))
+_desk = code_only(read("types/surface.ts"))
 _slug_arr = re.search(r"KERNEL_SURFACE_SLUGS.*?=\s*\[(.*?)\]\s*as const", _desk, re.DOTALL)
 check("radar left the FE slug allowlist",
       bool(_slug_arr) and "'radar'" not in _slug_arr.group(1))

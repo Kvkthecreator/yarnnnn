@@ -54,7 +54,7 @@ def test_channels_page_component_deleted():
 
 
 def test_channels_removed_from_fe_union_and_registry():
-    desk = _read_web("types/desk.ts")
+    desk = _read_web("types/surface.ts")
     # No quoted 'channels' slug literal in the union or the slug array.
     assert "'channels'" not in desk, "channels must be removed from the KernelSurfaceSlug union + array"
     registry = _read_web("components/shell/SurfaceRegistry.tsx")

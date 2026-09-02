@@ -114,7 +114,7 @@ def test_kernel_registry_row() -> None:
 
 def test_fe_registration() -> None:
     print("\n[b2] FE registration — union, registry, page")
-    src = _read("web/types/desk.ts")
+    src = _read("web/types/surface.ts")
     union = src.split("export type KernelSurfaceSlug =", 1)[1].split(";", 1)[0]
     _assert("'chat'" in union, "`chat` in the KernelSurfaceSlug union")
 

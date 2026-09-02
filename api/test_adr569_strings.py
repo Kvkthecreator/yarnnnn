@@ -17,7 +17,7 @@ falsified by construction — remove the mechanism and the check goes red:
      conforming one, and the route's repair composer turns the ledger's
      refusal into the desk's repair state (cleared by a later success).
   4. POSTURE SELECTION (D6, the ADR-567 D4 mechanism) — build_lane_conventions
-     executed two ways: app='strings' → THE STANDING-WORK DESK (role-neutral
+     executed two ways: app='strings' → THE STANDING-WORK PANE (role-neutral
      since ADR-604/610 — Supervisor both speaks and executes); (app='radar' was
      deleted with the app, ADR-592);
      THE RESEARCHER'S DESK; app-less bound → studio. Extends test_adr567's
@@ -228,8 +228,8 @@ sdesk = build_lane_conventions(
                 f"{ROOT}/CONTRACT.md": "Monthly KPI table; mrr in USD."}),
     "u1", model=model, artifact_path=TARGET, app="strings",
 )
-check("a strings-bound lane gets THE STANDING-WORK DESK (role-neutral, ADR-604)",
-      "THE STANDING-WORK DESK" in sdesk and "KEEPER'S DESK" not in sdesk)
+check("a strings-bound lane gets THE STANDING-WORK PANE (role-neutral, ADR-604)",
+      "THE STANDING-WORK PANE" in sdesk and "KEEPER'S DESK" not in sdesk)
 check("…which teaches the D1 law and the strict grammar",
       "only the DESIGNATED target" in sdesk and "READ IT BACK" in sdesk
       and "NEVER invent source URLs" in sdesk)
@@ -257,21 +257,21 @@ check("an app-less bound lane still gets the studio posture (byte-compatible)",
 # ADR-606 D3: the target's head is a PARAMETER now — the lane kernel reads
 # the bound artifact once per turn and hands it in; the builder's own reads
 # are the desk files only (declaration + contract).
-from services.strings import build_strings_desk_posture
-empty = build_strings_desk_posture(FakeClient({}), "u1", TARGET, "")
+from services.strings import build_strings_pane_posture
+empty = build_strings_pane_posture(FakeClient({}), "u1", TARGET, "")
 check("no declaration → the SETTING UP branch, naming the picked leaf",
       "NO DECLARATION YET" in empty and "metrics.csv" in empty)
-broken = build_strings_desk_posture(
+broken = build_strings_pane_posture(
     FakeClient({f"{ROOT}/_string.yaml": "x: [unclosed\n y"}), "u1", TARGET, "")
 check("unparseable declaration → the loud repair line", "DOES NOT PARSE" in broken)
-prob = build_strings_desk_posture(
+prob = build_strings_pane_posture(
     FakeClient({f"{ROOT}/_string.yaml":
                 "target: deck.html\nsources:\n  - id: a\n    url: https://a.b/c\n"}),
     "u1", TARGET, "")
 check("parseable-but-cannot-run → named in the state block",
       "CANNOT RUN (unsupported_format)" in prob)
 check("a handed-in head is DESCRIBED, never re-read (ADR-606 D3)",
-      "2 lines" in build_strings_desk_posture(FakeClient({}), "u1", TARGET, "a\nb"))
+      "2 lines" in build_strings_pane_posture(FakeClient({}), "u1", TARGET, "a\nb"))
 
 # ---------------------------------------------------------------------------
 print("5. the resident (ADR-562) — supervisor, a posture, priced")

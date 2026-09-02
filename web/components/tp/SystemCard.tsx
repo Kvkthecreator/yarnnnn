@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Layers, ListCollapse } from 'lucide-react';
-import type { SystemCardType } from '@/types/desk';
+import type { SystemCardType } from '@/types/surface';
 import { formatMessageTime, formatAbsolute } from '@/lib/formatting';
 
 interface WorkspaceInitCompleteData {

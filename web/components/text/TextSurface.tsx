@@ -10,7 +10,7 @@
  * the medium and only the medium: plain markdown, a textarea, no block
  * grammar (ADR-456 D1's grade constraint).
  *
- * It deliberately does NOT ride `DeskHousing` — that is the DASHBOARD
+ * It deliberately does NOT ride `PaneHousing` — that is the DASHBOARD
  * housing (Radar/Strings: a rail of subjects over a projected view). A
  * document app's shape is the one StudioSurface already established, and
  * copying the wrong housing is what made the first cut read as "lazily

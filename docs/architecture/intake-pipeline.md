@@ -234,7 +234,7 @@ standing run reaches nothing live — those execute toolless by construction
 impossible. Intake is still the only thing that compounds.
 
 **Reach follows the PRINCIPAL, not the surface** (ADR-615). Every lane turn —
-open chat, a Text desk, a Slides desk — is the same member embodied the same
+open chat, the Text pane, the Slides pane — is the same member embodied the same
 way (`member:{user_id} via {model}`), so a connection the member granted is
 reachable wherever they are working. Which pane is open is a surface fact and
 was never a permission one.

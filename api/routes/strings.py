@@ -4,17 +4,17 @@ The composed view is a LAZY PROJECTION over the string's folder + the ledgers
 (the radar R2 pattern, ADR-486 D5 — derived-never-stored): declaration +
 contract + the maintained leaf's head + run health from execution_events +
 the CONSUMERS list (D5 — which files cite this leaf, derived at read time),
-composed per request. Nothing here stores desk state.
+composed per request. Nothing here stores pane state.
 
-Creation is CONVERSATIONAL (D7): the desk's colleague authors CONTRACT.md +
+Creation is CONVERSATIONAL (D7): the app's colleague authors CONTRACT.md +
 _string.yaml through its lane; the tick discovers. There is deliberately NO create route —
 the two doors (the app's picker, Files' "Keep this current…") both open the
-desk on a folder and hand the gesture to the conversation. The routes here
-are the direct switches (Pause/Resume, Run now) and the projections the desk
+pane on a folder and hand the gesture to the conversation. The routes here
+are the direct switches (Pause/Resume, Run now) and the projections the app
 reads.
 
 Repair states, all LOUD (D3 / ADR-567 D6):
-  404          — no declaration (the undesignated/unconfigured desk)
+  404          — no declaration (the undesignated/unconfigured pane)
   422 on GET   — the declaration exists and fails to parse
   problem      — the declaration parses but cannot run (missing/invalid/
                  unsupported target, invalid sources) — served on the view
@@ -73,12 +73,12 @@ class StringSource(BaseModel):
     """One declared source — either shape (ADR-582 D6 / ADR-594 D4): an HTTP
     pull (`url`) or a connector slice (`connector` + `selector`). The
     projection serves BOTH — filtering on `url` silently hid connector
-    sources from the very desk that manages them (the ADR-594 audit's
+    sources from the very pane that manages them (the ADR-594 audit's
     finding).
 
     The trailing fields are the ADR-595 D3 enrichment — the source as a
     PARTY to the string (standing · receipts · contribution), derived at
-    read time on the DESK VIEW only; the roster list leaves them None."""
+    read time on the PANE VIEW only; the roster list leaves them None."""
 
     id: str
     url: Optional[str] = None
@@ -96,7 +96,7 @@ class StringSource(BaseModel):
 
 class UpdateStringRequest(BaseModel):
     """The direct switches (D7). Everything else is the conversation's —
-    target/sources/shape/contract revisions land through the desk's lane, and a
+    target/sources/shape/contract revisions land through the app's lane, and a
     silently-widened PATCH here would rebuild the form ADR-567 D3 replaced."""
 
     paused: Optional[bool] = None
@@ -118,8 +118,8 @@ class StringSummary(BaseModel):
     #: unsupported_format | sources_invalid) — served, never swallowed (D3).
     problem: Optional[str] = None
     #: ADR-595 D1 as amended (2026-08-28) — FALSE while no `_string.yaml`
-    #: exists in the folder. The desk is one surface in both states: an
-    #: undeclared desk is served as itself (empty sources, no schedule, no
+    #: exists in the folder. The app is one surface in both states: an
+    #: undeclared pane is served as itself (empty sources, no schedule, no
     #: runs) rather than 404'd into a separate configuration page. The FE
     #: renders the same tabs and layers a "not kept yet" line above them, the
     #: way `problem`/`repair` already layer above intact tabs.
@@ -143,7 +143,7 @@ class RepairState(BaseModel):
 
 
 class StringView(StringSummary):
-    """The desk view — ADR-595 D1: the tending surface NEVER serves the
+    """The app view — ADR-595 D1: the tending surface NEVER serves the
     maintained file's contents. Head FACTS ride instead (enough for the
     glance, not the document); reading happens at the file's own surface."""
 
@@ -222,16 +222,16 @@ def compose_string_yaml(
 
 
 def _undeclared_decl(topic: str, target: Optional[str]):
-    """A StringDecl standing for a desk with no `_string.yaml` yet.
+    """A StringDecl standing for an app with no `_string.yaml` yet.
 
-    ADR-595 D1 amended. Everything the desk shows before declaration derives
+    ADR-595 D1 amended. Everything the app shows before declaration derives
     from the FOLDER and the picked leaf — `StringDecl` already computes
     `root`, `target_path` and `contract_path` from exactly those two, so the
     undeclared view needs no parallel type.
 
     A bad `target` is DROPPED rather than refused: it is a URL param on a
     read, and a member who lands on a malformed link should see the folder's
-    desk, not an error. The declared path never reaches here, so nothing a
+    pane, not an error. The declared path never reaches here, so nothing a
     caller passes can touch a live string.
     """
     from services.strings import StringDecl
@@ -307,7 +307,7 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict]) -> StringS
     )
 
 
-#: Write refusals the desk names as a repair state (vs weather like a failed
+#: Write refusals the app names as a repair state (vs weather like a failed
 #: fetch, which the run events already narrate).
 _REPAIR_REASONS = {"shape_violation", "unsupported_format", "derive_raised"}
 
@@ -530,10 +530,10 @@ async def list_strings(auth: UserClient) -> list[StringSummary]:
 async def get_string(
     topic: str, auth: UserClient, target: Optional[str] = None,
 ) -> StringView:
-    """The composed desk view, projected at read time (never stored).
+    """The composed pane view, projected at read time (never stored).
 
     `target` is the DESIGNATION-IN-FLIGHT: the leaf the member picked before
-    anything was written. Only read on the undeclared path — a declared desk
+    anything was written. Only read on the undeclared path — a declared pane
     takes its target from its own `_string.yaml`, never from the caller, so
     this cannot be used to point a live string at another file.
     """
@@ -541,7 +541,7 @@ async def get_string(
     topic = _validate_topic(topic)
     content = _read_declaration(auth.client, actor, topic)
 
-    # ── The UNDECLARED desk is served as itself, not refused ──────────────
+    # ── The UNDECLARED pane is served as itself, not refused ──────────────
     # ADR-595 D1 amended (2026-08-28). This route used to 404 when no
     # `_string.yaml` existed, which forced the FE to invent a SECOND page —
     # a numbered setup ladder rendering the same four facts (file, contract,
@@ -549,7 +549,7 @@ async def get_string(
     # tabs. The declaration landing then SWAPPED the page instead of filling
     # it, and things the member was looking at moved.
     #
-    # ⭐ The desk already knew how to render absence. Every empty state the
+    # ⭐ The app already knew how to render absence. Every empty state the
     # undeclared view needs was ALREADY BUILT and simply unreachable behind
     # this 404: "No sources declared yet", "No contract declared", "no
     # sources declared" in the flow strip, "No version yet", "Nothing cites
@@ -573,7 +573,7 @@ async def get_string(
             _index_row(auth.client, actor, topic),
         )
         summary.declared = False
-        # An undeclared desk has no schedule and no run history by
+        # An undeclared pane has no schedule and no run history by
         # construction: nothing has been declared to run. Said explicitly so
         # a future reader does not mistake the empties for a failed read.
         summary.problem = None

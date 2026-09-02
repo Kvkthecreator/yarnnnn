@@ -2450,7 +2450,7 @@ async def handle_list_files(auth: Any, input: dict) -> dict:
 #
 # There is no successor. "Which agents exist" is now answered by the kernel
 # register (`services/agents_registry.AGENTS`), which is static data an LLM
-# does not need a tool to query — the beings are named in the frame itself.
+# does not need a tool to query — the agents are named in the frame itself.
 
 
 # ADR-146: WriteAgentFeedback and WriteTaskFeedback deleted.
@@ -2541,11 +2541,11 @@ def _is_path_locked(caller_class: str, path: str) -> bool:
 
 
 def _caller_agent_slug(auth: Any) -> Optional[str]:
-    """The being's slug behind an `agent`-class caller, or None. ADR-624 D3.
+    """The agent's slug behind an `agent`-class caller, or None. ADR-624 D3.
 
     Deliberately SEPARATE from `_caller_class`, which keeps its signature and
     its five return values: the class answers *what kind of caller*, this
-    answers *which being* — merging them would make a five-value enum carry an
+    answers *which agent* — merging them would make a five-value enum carry an
     open set of slugs.
 
     Reads the same `caller_identity` the class resolver reads
@@ -2557,15 +2557,15 @@ def _caller_agent_slug(auth: Any) -> Optional[str]:
     for prefix in ("agent:", "specialist:"):
         if caller_identity.startswith(prefix):
             slug = caller_identity[len(prefix):].strip()
-            # `agent:` with nothing after it names no being.
+            # `agent:` with nothing after it names no agent.
             return slug or None
     return None
 
 
 def _is_foreign_agent_home(auth: Any, caller_class: str, path: str) -> bool:
-    """True iff an agent-class caller is reaching into ANOTHER being's home.
+    """True iff an agent-class caller is reaching into ANOTHER agent's home.
 
-    ADR-624 D3 — a being writes freely in its OWN home and nowhere else under
+    ADR-624 D3 — an agent writes freely in its OWN home and nowhere else under
     `agents/`. Enforced HERE, at the same chokepoint as the sidecar rule, never
     at call sites (the ADR-563 lesson).
 
@@ -2577,7 +2577,7 @@ def _is_foreign_agent_home(auth: Any, caller_class: str, path: str) -> bool:
     ⚠️ Binds almost nothing today, and that is not a reason to skip it: a
     lane's caller_identity is `member:{user_id} via {model}`, which
     `_caller_class` maps to `operator` (ADR-411 D4 — a lane writes under the
-    MEMBER's grant). So a being writing its own memory is, today, a write the
+    MEMBER's grant). So an agent writing its own memory is, today, a write the
     MEMBER makes. Built before the writer for the ADR-601 D3 reason its sibling
     `assert_editable` was: a protection written alongside the feature it
     constrains is one that feature's author may forget.
@@ -2859,10 +2859,10 @@ def _is_path_locked_for_principal(auth: Any, path: str) -> bool:
     else:
         klass = _caller_class(auth)
 
-    # ADR-624 D3 — a being writes freely in its OWN home and nowhere else under
+    # ADR-624 D3 — an agent writes freely in its OWN home and nowhere else under
     # agents/. Checked BEFORE the scope branch below, deliberately: a grant's
     # write scopes NARROW a class (ADR-373 D3 polarity), and one naming
-    # `agents/` must not become the one way to reach another being's home.
+    # `agents/` must not become the one way to reach another agent's home.
     # Confinement is a property of the PRINCIPAL, not of its region list.
     if _is_foreign_agent_home(auth, klass, path):
         return True

@@ -33,7 +33,7 @@
  * input ordering.
  */
 
-import type { TPMessage, NarrativePulse } from '@/types/desk';
+import type { TPMessage, NarrativePulse } from '@/types/surface';
 
 // ---------------------------------------------------------------------------
 // Render unit types

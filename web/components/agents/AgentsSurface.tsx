@@ -1,21 +1,21 @@
 'use client';
 
 /**
- * AgentsSurface — the beings that exist, sectioned by where they live
+ * AgentsSurface — the agents that exist, sectioned by where they live
  * (ADR-600 D6, 2026-08-24).
  *
  * The predecessor rendered a single empty state: "No agents to hire yet". That
  * was true about the ROSTER and false about the member's day — Designer had
  * answered them in Slides an hour earlier. ADR-600 collapsed the register
- * split, so "is this being hireable?" is a field (`offered`), and the honest
- * surface shows every being with the desk it speaks for:
+ * split, so "is this agent hireable?" is a field (`offered`), and the honest
+ * surface shows every agent with the app it speaks for:
  *
- *   - AT A DESK   — `offered: false`. Met in its app, never invited.
+ *   - AT A PANE   — `offered: false`. Met in its app, never invited.
  *   - TO WORK WITH — `offered: true`. Empty today (ADR-599 D1 left nobody
  *     offered); that section carries the empty state, which is the one the
  *     operator actually ruled on.
  *
- * ADR-602 D6 — LIST/DETAIL. `?agents.agent={slug}` opens one being's page:
+ * ADR-602 D6 — LIST/DETAIL. `?agents.agent={slug}` opens one agent's page:
  * who they are, where they work, what runs them, and whether you can change
  * them. The param is already sanctioned (`SURFACE_PARAM_KEYS.agents`) and
  * already EPHEMERAL (`SURFACE_EPHEMERAL_PARAM_KEYS`) — a roster's point is
@@ -23,22 +23,22 @@
  * via `setSurfaceParams`, never a pathname flip (the shell effects branch on
  * the `/desktop` baseline).
  *
- * A kernel being's page is READ-ONLY, and says so plainly. Editability is
+ * A kernel agent's page is READ-ONLY, and says so plainly. Editability is
  * `assert_editable`'s to enforce server-side (ADR-601 D3) — this surface
  * states it, and must never be the only thing that does.
  *
  * ADR-601 D4 — two facts are rendered from FIELDS the server sends, never
- * inferred: `kernel` (yarnnn authored this being, so its character is not
+ * inferred: `kernel` (yarnnn authored this agent, so its character is not
  * editable — shown so the distinction is legible before the first
- * member-authored being exists) and `homes` (a LIST — one being may serve
- * several desks since ADR-601 D1, so "Editor — Text, Blogger" reads directly
- * instead of one-to-one being inferred from silence).
+ * member-authored agent exists) and `apps` (a LIST — one agent may serve
+ * several apps since ADR-601 D1, so "Editor — Text, Blogger" reads directly
+ * instead of one-to-one agent inferred from silence).
  *
- * Server-driven, deliberately: the roster comes from `lanes.list().beings`,
+ * Server-driven, deliberately: the roster comes from `lanes.list().agents`,
  * which the API builds from the SAME registry the prompt uses. The previous
  * version hardcoded "Designer in Slides, Editor in Text, Keeper in Strings"
  * (a roster that has since moved twice — ADR-602, ADR-610 — which is the point)
- * in prose — a fourth being would silently never have appeared (the ADR-562
+ * in prose — a fourth agent would silently never have appeared (the ADR-562
  * second-home failure, in copy rather than in code).
  */
 
@@ -49,9 +49,9 @@ import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
-import { BeingIcon } from './BeingIcon';
+import { AgentIcon } from './AgentIcon';
 
-// Provenance, rendered from the field. A member-authored being simply lacks
+// Provenance, rendered from the field. A member-authored agent simply lacks
 // the mark — there is no "yours" badge, because the member already knows.
 function KernelMark() {
   return (
@@ -64,67 +64,49 @@ function KernelMark() {
   );
 }
 
-// The desks a being works at, in the member's vocabulary. Prefers the served
-// titles and falls back to the slugs, so a backend that predates `home_titles`
-// still renders a being's desks rather than an empty line.
-function homeNames(being: { homes: string[]; home_titles?: string[] }): string[] {
-  return being.home_titles?.length ? being.home_titles : being.homes;
-}
-
 // An app, shown as the member already knows it: the Dock's own mark and name.
 // The icon resolves through `resolveSurfaceIcon` — the SAME resolver the Dock
 // and Launcher use (ADR-297) — so an app has one look everywhere and a re-icon
-// moves every rendering at once. A desk that predates the `desks` payload has
+// moves every rendering at once. An app that predates the `apps` payload has
 // no icon_key; the chip still renders, named, rather than disappearing.
-function DeskChip({ desk }: { desk: { slug: string; title: string; icon_key: string } }) {
-  const Icon = desk.icon_key ? resolveSurfaceIcon(desk.icon_key) : null;
+function AppChip({ app }: { app: { slug: string; title: string; icon_key: string } }) {
+  const Icon = app.icon_key ? resolveSurfaceIcon(app.icon_key) : null;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[11px] font-medium text-foreground/80">
       {Icon ? <Icon className="h-3.5 w-3.5 text-muted-foreground" /> : null}
-      {desk.title}
+      {app.title}
     </span>
   );
 }
 
-// The desk row for a being, chips where the payload carries them and the plain
-// titles otherwise — the same fallback ladder as `homeNames`, one level richer.
-function DeskChips({ being }: { being: Being }) {
-  if (being.desks?.length) {
-    return (
-      <span className="flex flex-wrap items-center gap-1.5">
-        {being.desks.map((d) => (
-          <DeskChip key={d.slug} desk={d} />
-        ))}
-      </span>
-    );
-  }
-  const names = homeNames(being);
-  if (!names.length) return null;
+// The apps an agent works in, as chips carrying the Dock's own mark (ADR-631:
+// one served relation, `apps`).
+function AppChips({ agent }: { agent: AgentRow }) {
+  if (!agent.apps?.length) return null;
   return (
-    <span className="text-[11px] text-muted-foreground">in {names.join(', ')}</span>
+    <span className="flex flex-wrap items-center gap-1.5">
+      {agent.apps.map((a) => (
+        <AppChip key={a.slug} app={a} />
+      ))}
+    </span>
   );
 }
 
-type Being = {
+type AgentRow = {
   slug: string;
   name: string;
   blurb: string;
   icon: string;
   offered: boolean;
   kernel: boolean;
-  /** The desks this being works at, as ROUTING KEYS. Kept for addressing. */
-  homes: string[];
-  /** The same desks as the member READS them — the app's declared title.
-   *  Kept as the text fallback when the richer `desks` shape is absent. */
-  home_titles?: string[];
-  /** The desks as the APP's own identity — title + `icon_key` + route, served
-   *  from the surface rows. Rendered as chips carrying the SAME mark the Dock
-   *  shows, so a member recognises the app rather than reading its name. */
-  desks?: { slug: string; title: string; icon_key: string; route: string }[];
+  /** The apps this agent works in, as the APP's own identity — title +
+   *  `icon_key` + route, served from the surface rows (ADR-631: one relation).
+   *  Rendered as chips carrying the SAME mark the Dock shows. */
+  apps: { slug: string; title: string; icon_key: string; route: string }[];
   /** The engine behind the name (ADR-460 D4). Served so the page can say what
-   *  actually runs this being rather than implying it. */
+   *  actually runs this agent rather than implying it. */
   model?: string;
-  /** ADR-624 D4 — WHERE what this being knows lives. An ADDRESS, never the
+  /** ADR-624 D4 — WHERE what this agent knows lives. An ADDRESS, never the
    *  contents: memory is ordinary substrate, so the page opens the Files door
    *  rather than hosting a second reading face (ADR-595 D1, one surface out). */
   memory_path?: string;
@@ -134,8 +116,8 @@ type Being = {
 // states a member can express, and they must stay distinguishable:
 //   not scoped (absent)  — reaches every connected platform. The DEFAULT.
 // ADR-615: that default now holds at EVERY surface the member works in — a
-// desk turn is the same principal as a chat turn, so these toggles are purely
-// SUBTRACTIVE. What they narrow is the member's own grant, never a being's
+// pane turn is the same principal as a chat turn, so these toggles are purely
+// SUBTRACTIVE. What they narrow is the member's own grant, never a agent's
 // authority (the ADR-596 D1 cliff test).
 //   a subset             — reaches only those.
 //   scoped to none ([])  — reaches nothing, deliberately.
@@ -237,10 +219,10 @@ function ConnectorScope({
 
           ⚠️ THE RESET LINK IS DELETED (operator ruling, 2026-08-27), and with
           it the only caller of `save(null)`. UNSCOPED is therefore no longer
-          REACHABLE from this surface once a member scopes a being: the toggles
+          REACHABLE from this surface once a member scopes an agent: the toggles
           always send an array, so every later state is an explicit list.
           `null` remains meaningful in the API and the store — ADR-612 D2's
-          absent≠empty is unchanged, and it is still what every being starts
+          absent≠empty is unchanged, and it is still what every agent starts
           as — but the member cannot return to it here. Accepted knowingly as
           the price of a surface that states only what it must. */}
       {!scoped ? (
@@ -256,27 +238,27 @@ function ConnectorScope({
   );
 }
 
-/** One being's page. Read-only for a kernel being — stated, not merely
+/** One agent's page. Read-only for a kernel agent — stated, not merely
  *  unbuilt (ADR-601 D3's chokepoint is the enforcement; this is the telling). */
-function BeingDetail({
-  being,
+function AgentDetail({
+  agent,
   available,
   optIn,
   onScope,
   onBack,
 }: {
-  being: Being;
+  agent: AgentRow;
   available: string[];
   optIn: Record<string, string[]>;
   onScope: (slug: string, platforms: string[] | null) => Promise<void>;
   onBack: () => void;
 }) {
   // The Files door for the Memory row — the SAME `navigateToSurface('files',
-  // { path })` the Strings desk opens its subject with, so a being's memory
+  // { path })` the Strings pane opens its subject with, so a agent's memory
   // lands in the one place files are read.
   const { navigateToSurface } = useSurfacePreferences();
   // Bound outside the closure so the narrowing survives into the handler.
-  const memoryPath = being.memory_path ?? '';
+  const memoryPath = agent.memory_path ?? '';
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <button
@@ -290,15 +272,15 @@ function BeingDetail({
 
       <header className="flex items-start gap-3">
         <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-muted">
-          <BeingIcon icon={being.icon} />
+          <AgentIcon icon={agent.icon} />
         </div>
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h1 className="text-sm font-medium">{being.name}</h1>
-            {being.kernel && <KernelMark />}
+            <h1 className="text-sm font-medium">{agent.name}</h1>
+            {agent.kernel && <KernelMark />}
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            {being.blurb}
+            {agent.blurb}
           </p>
         </div>
       </header>
@@ -307,8 +289,8 @@ function BeingDetail({
         <div className="flex gap-3">
           <dt className="w-24 shrink-0 text-muted-foreground">Works in</dt>
           <dd>
-            {homeNames(being).length ? (
-              <DeskChips being={being} />
+            {agent.apps.length ? (
+              <AppChips agent={agent} />
             ) : (
               'Anywhere you invite them'
             )}
@@ -318,17 +300,17 @@ function BeingDetail({
           <dt className="w-24 shrink-0 text-muted-foreground">Add to a chat</dt>
           <dd>Yes — start a chat with them, or add them to one you are in.</dd>
         </div>
-        {being.model && (
+        {agent.model && (
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 text-muted-foreground">Runs on</dt>
-            <dd className="break-all">{being.model}</dd>
+            <dd className="break-all">{agent.model}</dd>
           </div>
         )}
-        {/* ADR-624 D4 — what this being has learned. The row is an ADDRESS and
+        {/* ADR-624 D4 — what this agent has learned. The row is an ADDRESS and
             a DOOR, never a viewer: memory is ordinary substrate, so it opens in
             Files like any other folder. A private renderer here would be the
             second reading face ADR-595 D1 deleted a canvas to avoid. */}
-        {being.memory_path && (
+        {agent.memory_path && (
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 text-muted-foreground">Memory</dt>
             <dd className="min-w-0 flex-1">
@@ -337,7 +319,7 @@ function BeingDetail({
                 onClick={() => navigateToSurface('files', { path: memoryPath })}
                 className="text-left underline underline-offset-2 hover:text-foreground"
               >
-                What {being.name} has learned
+                What {agent.name} has learned
               </button>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
                 Kept as ordinary files in the workspace — attributed, versioned,
@@ -350,10 +332,10 @@ function BeingDetail({
           <dt className="w-24 shrink-0 text-muted-foreground">Connections</dt>
           <dd className="min-w-0 flex-1">
             <ConnectorScope
-              slug={being.slug}
+              slug={agent.slug}
               available={available}
-              optIn={optIn[being.slug]}
-              onChange={(platforms) => onScope(being.slug, platforms)}
+              optIn={optIn[agent.slug]}
+              onChange={(platforms) => onScope(agent.slug, platforms)}
             />
           </dd>
         </div>
@@ -372,9 +354,9 @@ function BeingDetail({
 export function AgentsSurface() {
   const params = useSearchParams();
   const { setSurfaceParams } = useSurfacePreferences();
-  const [beings, setBeings] = useState<Being[] | null>(null);
+  const [agents, setAgents] = useState<AgentRow[] | null>(null);
   // ADR-612 — the member's connector scoping. `available` is what there is to
-  // opt into (the grant side); `optIn` is per being. A being ABSENT from the
+  // opt into (the grant side); `optIn` is per agent. An agent ABSENT from the
   // map is not scoped and reaches everything granted — absence must never be
   // read as "nothing", which is the whole default this feature rests on.
   const [available, setAvailable] = useState<string[]>([]);
@@ -383,7 +365,7 @@ export function AgentsSurface() {
   // and out (surface-preferences), and a surface reads its own key plainly —
   // the SettingsPaneShell `tab` precedent.
   const selectedSlug = params.get('agent') || '';
-  const selected = (beings ?? []).find((b) => b.slug === selectedSlug) ?? null;
+  const selected = (agents ?? []).find((b) => b.slug === selectedSlug) ?? null;
 
   // The crumb follows the depth, so the address bar and the trail agree.
   useWindowCrumb('agents', selected ? [{ label: selected.name }] : []);
@@ -408,11 +390,11 @@ export function AgentsSurface() {
       .list(true)
       .then((res) => {
         if (!alive) return;
-        setBeings((res.beings ?? []) as Being[]);
+        setAgents((res.agents ?? []) as AgentRow[]);
       })
       // A failed read must not render as "you have nobody" — that is the exact
       // false statement this surface exists to stop telling.
-      .catch(() => alive && setBeings(null));
+      .catch(() => alive && setAgents(null));
     api.agentConnectors
       .get()
       .then((res) => {
@@ -428,14 +410,14 @@ export function AgentsSurface() {
     };
   }, []);
 
-  const housed = (beings ?? []).filter((b) => !b.offered);
-  const offered = (beings ?? []).filter((b) => b.offered);
+  const housed = (agents ?? []).filter((b) => !b.offered);
+  const offered = (agents ?? []).filter((b) => b.offered);
 
   if (selected) {
     return (
       <div className="h-full overflow-y-auto px-6 py-8">
-        <BeingDetail
-          being={selected}
+        <AgentDetail
+          agent={selected}
           available={available}
           optIn={optIn}
           onScope={scopeConnectors}
@@ -465,7 +447,7 @@ export function AgentsSurface() {
           </h2>
           {housed.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              {beings === null
+              {agents === null
                 ? 'Could not load this.'
                 : 'None yet.'}
             </p>
@@ -479,7 +461,7 @@ export function AgentsSurface() {
                     className="flex w-full items-start gap-3 rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
                   >
                   <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
-                    <BeingIcon icon={b.icon} />
+                    <AgentIcon icon={b.icon} />
                   </div>
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -489,7 +471,7 @@ export function AgentsSurface() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {b.blurb}
                     </p>
-                    <DeskChips being={b} />
+                    <AppChips agent={b} />
                     </div>
                   </button>
                 </li>
@@ -498,13 +480,13 @@ export function AgentsSurface() {
           )}
         </section>
 
-        {/* "To work with" — the OFFERED beings. Rendered only when there ARE
+        {/* "To work with" — the OFFERED agents. Rendered only when there ARE
             any: nobody is offered today (ADR-599 D1) and member-authored
             agents are ruled out for MVP 1.0, so the section could only ever
             show an empty box promising a feature that is not coming yet. A
             standing promise a member cannot act on is worse than silence.
             The `offered` FIELD is untouched — it still gates the cast door —
-            and the moment a being carries it, this section appears with no
+            and the moment an agent carries it, this section appears with no
             edit here. Deleting the branch, not the capability. */}
         {offered.length > 0 && (
         <section className="space-y-3">
@@ -521,7 +503,7 @@ export function AgentsSurface() {
                     className="flex w-full items-start gap-3 rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
                   >
                   <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
-                    <BeingIcon icon={b.icon} />
+                    <AgentIcon icon={b.icon} />
                   </div>
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">

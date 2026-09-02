@@ -23,7 +23,7 @@ different mechanisms with four different lifetimes:
 | What it knows | Mechanism | Lifetime | Decided by |
 |---|---|---|---|
 | **Who it is** (character) | `build_agent_posture` from the ONE register (`agents_registry.AGENTS`) | derived per turn | the app's `resident` declaration (ADR-562/597) |
-| **What its job is** (the desk) | the app's **declared posture** — `register_app(posture=…)` | derived per turn | the app's own module (ADR-606 D3) |
+| **What its job is** (the app's pane) | the app's **declared posture** — `register_app(posture=…)` | derived per turn | the app's own module (ADR-606 D3) |
 | **What object it is working on** | the durable lane↔artifact **binding**; the artifact's current head is read once per turn by the kernel and handed to the posture | binding: durable · content: per-turn | lane creation (ADR-440 D3) |
 | **Where the member stands** | the **focus declaration** — typed, transient, app-declared, riding each turn's request | per turn, never persisted | the surface (ADR-522/606) |
 
@@ -37,9 +37,9 @@ Plus the frame-level facts that belong to no app: the commons contract clauses
 
 - **The OBJECT comes from the substrate.** The pane's canvas and the colleague's
   posture are both projections of the same workspace files — the bound artifact's
-  head, and (for Strings) the desk files beside it. They converge because they
+  head, and (for Strings) the pane files beside it. They converge because they
   share a source of truth, not because anyone serialized a screen. This is why the
-  Strings pane's setup checklist and `build_strings_desk_posture`'s state block
+  Strings pane's setup checklist and `build_strings_pane_posture`'s state block
   agree without any wire between them.
 - **The PLACE comes from a typed declaration.** `SurfaceFocus`
   (`web/lib/shell/useSurfaceFocus.tsx`): `{app, path, scope:
@@ -162,5 +162,5 @@ if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
 | `api/test_adr606_pane_sees_the_member.py` | the pane roster + focus-story obligation, the Text declaration wiring |
 | `api/test_adr562_app_owned_config.py` | one registration per app; every app declares resident + posture |
 | `api/test_adr609_anchored_edit.py` | the anchor resolves + CONFINES; the extent on the wire; Text's door; one clip marker |
-| `api/test_adr612_judged_gesture.py` | ONE judged-gesture producer per desk; the selection anchor (no pointer); chip/label agreement |
+| `api/test_adr612_judged_gesture.py` | ONE judged-gesture producer per app; the selection anchor (no pointer); chip/label agreement |
 | `api/test_adr571_text_app.py` §2 | the registry dispatch mechanism; text's declared posture IS its builder |

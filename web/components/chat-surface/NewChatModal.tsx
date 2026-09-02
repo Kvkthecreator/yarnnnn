@@ -42,7 +42,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
-import { BeingIcon } from '@/components/agents/BeingIcon';
+import { AgentIcon } from '@/components/agents/AgentIcon';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
 
@@ -67,9 +67,9 @@ const UNAVAILABLE_COPY: Record<string, string> = {
 };
 
 /** A colleague the member can start a conversation with. The slice of the
- *  served `beings` row this door needs — copying the whole row would be a
+ *  served `agents` row this door needs — copying the whole row would be a
  *  second home for a shape the envelope already carries. */
-export interface ChatBeingChoice {
+export interface ChatAgentChoice {
   slug: string;
   name: string;
   blurb: string;
@@ -103,7 +103,7 @@ export function rememberStart(id: string): void {
 
 interface NewChatModalProps {
   /** The colleagues on offer — the PRIMARY answer (ADR-614 D1). */
-  beings: ChatBeingChoice[];
+  agents: ChatAgentChoice[];
   engines: ChatEngineChoice[];
   /** Exactly one of the two is given. The caller turns that into the right
    *  create call; this door never assembles a request body itself. */
@@ -111,7 +111,7 @@ interface NewChatModalProps {
   onClose: () => void;
 }
 
-export function NewChatModal({ beings, engines, onPick, onClose }: NewChatModalProps) {
+export function NewChatModal({ agents, engines, onPick, onClose }: NewChatModalProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<string | null>(null);
@@ -186,7 +186,7 @@ export function NewChatModal({ beings, engines, onPick, onClose }: NewChatModalP
               runs on, and printing it would hand them the spec sheet ADR-460
               removed for exactly that reason. */}
           <div className="mt-3 space-y-1">
-            {beings.map((b) => (
+            {agents.map((b) => (
               <button
                 key={b.slug}
                 type="button"
@@ -195,7 +195,7 @@ export function NewChatModal({ beings, engines, onPick, onClose }: NewChatModalP
                 className="w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors hover:bg-muted disabled:opacity-50"
               >
                 <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <BeingIcon icon={b.icon} />
+                  <AgentIcon icon={b.icon} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm">{b.name}</span>

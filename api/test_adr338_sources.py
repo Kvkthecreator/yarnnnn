@@ -253,7 +253,7 @@ def test_registration_coherence() -> None:
     check("kernel surface 'sources' declared", '"slug": "sources"' in ksrc)
     check("sources in os-config register", 'os-config' in ksrc and '"slug": "sources"' in ksrc)
     # FE slug union + array
-    desk = _read("types/desk.ts")
+    desk = _read("types/surface.ts")
     check("FE KernelSurfaceSlug includes 'sources'", "'sources'" in desk)
     # ADR-340 P2: sources is PANE-GRADE — no window component. It renders
     # as a Perception & transports pane inside System Settings; /sources

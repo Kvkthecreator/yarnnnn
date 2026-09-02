@@ -161,7 +161,7 @@ def test_shared_shell_singular_impl() -> None:
     check("System Settings mounts the shell", "SettingsPaneShell" in sys_src)
     check("Workspace Settings mounts the shell", "SettingsPaneShell" in ws_src)
     # FE allowlist + registry cover workspace-settings (else the door can't open).
-    desk = _read("types/desk.ts")
+    desk = _read("types/surface.ts")
     check("desk.ts union includes 'workspace-settings'", "'workspace-settings'" in desk)
     reg = _read("components/shell/SurfaceRegistry.tsx")
     check("SurfaceRegistry maps workspace-settings", "'workspace-settings':" in reg and "WorkspaceSettingsPage" in reg)

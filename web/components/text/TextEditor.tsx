@@ -685,12 +685,11 @@ export function TextEditor({
   //    server-side (ADR-562) and the Text job posture (ADR-571 D4).
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
   const [lanes, setLanes] = useState<LaneRow[]>([]);
-  const [agents, setAgents] = useState<LanesEnv['agents']>([]);
   const [apps, setApps] = useState<NonNullable<LanesEnv['apps']>>([]);
-  // ADR-602 — the BEINGS roster. See StudioSurface: `agents` is the HIRE
+  // ADR-602 — the AGENTS roster. See StudioSurface: `agents` is the HIRE
   // roster (empty since ADR-599), so a resident's name was never found there
   // and the composer addressed the ENGINE instead of Editor.
-  const [beings, setBeings] = useState<NonNullable<LanesEnv['beings']>>([]);
+  const [agents, setAgents] = useState<LanesEnv['agents']>([]);
   const [models, setModels] = useState<LanesEnv['models']>([]);
   const [creatingLane, setCreatingLane] = useState(false);
 
@@ -699,9 +698,8 @@ export function TextEditor({
       const env = await api.lanes.list(true);
       setLanesEnabled(env.enabled);
       setLanes(env.lanes ?? []);
-      setAgents(env.agents ?? []);
       setApps(env.apps ?? []);
-      setBeings(env.beings ?? []);
+      setAgents(env.agents ?? []);
       setModels(env.models ?? []);
     } catch {
       setLanesEnabled(false);
@@ -710,7 +708,7 @@ export function TextEditor({
 
   useEffect(() => { void refreshLanes(); }, [refreshLanes]);
 
-  // ⭐ The binding is (APP, PATH) — the same rule DeskHousing holds, and for
+  // ⭐ The binding is (APP, PATH) — the same rule PaneHousing holds, and for
   // the same reason: a `.md` is both Text's document and Strings' maintained
   // file, so one path can carry two lanes with two residents. Matching on path
   // alone let this editor adopt the Strings lane (Supervisor) and vice versa.
@@ -751,13 +749,11 @@ export function TextEditor({
     if (slug) {
       const appName = apps.find((a) => a.slug === 'text')?.name;
       if (appName) return appName;
-      const being = beings.find((b) => b.slug === slug)?.name;
-      if (being) return being;
       const named = agents.find((a) => a.slug === slug)?.name;
       if (named) return named;
     }
     return modelLabel;
-  }, [agents, apps, beings, boundLane, modelLabel]);
+  }, [agents, apps, boundLane, modelLabel]);
 
   const words = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/).length : 0),
@@ -765,10 +761,10 @@ export function TextEditor({
   );
   const outline = useMemo(() => parseOutline(text), [text]);
 
-  // ── ADR-606 D4 — the desk declares where the member stands (ADR-522) ──
+  // ── ADR-606 D4 — the app declares where the member stands (ADR-522) ──
   // The declaration ADR-522's own acceptance case named ("caret under a
   // heading, ask 'rewrite this section'") — Docs carried it, the Docs→Text
-  // transition dropped it, and until now this desk's colleague knew the
+  // transition dropped it, and until now this app's colleague knew the
   // document but never the place. The canvas reports offsets; the surface
   // derives the commitment: a held selection (the member's own text, the
   // truest grain), else the nearest h1/h2 at or above the caret (D4's
@@ -844,7 +840,7 @@ export function TextEditor({
   }, [focusPoint, path]);
   useDeclareFocus('text', focus);
 
-  // ── ADR-609 D2 — the gesture door this desk never had ─────────────────
+  // ── ADR-609 D2 — the gesture door this app never had ─────────────────
   // The whole SeedTarget protocol (ADR-579 D7) existed and Text produced no
   // seeds, so its strongest targeting sentence ("that is this turn's target")
   // was unreachable here: the only way to ask for a change was free prose
@@ -1515,7 +1511,7 @@ export function TextEditor({
                 onSeedHeld={setSeedHeld}
                 onSeededTurn={(running) => {
                   // ADR-612 D4 — the ONE moment the act becomes real: a turn
-                  // carrying this desk's gesture has gone up. `false` settles
+                  // carrying this app's gesture has gone up. `false` settles
                   // it however it ended (reply, refusal, error, stop) — the
                   // write-landing path clears it first when there was one.
                   if (running) {

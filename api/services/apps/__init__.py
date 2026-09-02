@@ -63,7 +63,7 @@ declaration per app and that every registered app names a resolvable resident.
 #
 # blogger (ADR-627) — that named arc, landed. The outward type (article +
 # page, merged by ADR-505 D2, deleted by ADR-599 D5) returns as `post` under
-# its own app with its own being. NOT Docs restored: `document` (capture
+# its own app with its own agent. NOT Docs restored: `document` (capture
 # prose) stays with Text; Blogger owns only the PUBLISH medium.
 from services.apps import blogger as blogger  # noqa: F401,E402  (registration side-effect)
 from services.apps import images as images  # noqa: F401,E402  (registration side-effect)
@@ -82,23 +82,23 @@ from services.authoring import register_app as _register_app  # noqa: E402
 # as radar's row: `services/strings.py` deliberately carries no module-level
 # `services.*` imports (cycle-free), and every app's residency reads in one
 # list. The resident is IDENTITY only (ADR-562): the engine follows the
-# being's row in `agents_registry.AGENTS`, never a caller-supplied model.
-# ADR-604 D1 — Strings is SUPERVISOR'S desk: the conversation is about
+# agent's row in `agents_registry.AGENTS`, never a caller-supplied model.
+# ADR-604 D1 — Strings is SUPERVISOR'S pane: the conversation is about
 # standing work (what runs, on what cadence, to keep what true).
 # ADR-610 — and the RUNS are Supervisor's too. `standing_executor` is left
 # UNDECLARED, so it derives the resident exactly as every other app does; the
-# `keeper` executor being is dissolved (maintenance is the steward's seat and
-# daemon work, never a being). The field itself survives deliberately — the
+# `keeper` executor agent is dissolved (maintenance is the steward's seat and
+# daemon work, never an agent). The field itself survives deliberately — the
 # voice/executor seam is real, and a mechanism is not wrong because its first
-# filling was. One desk, one contract, one name.
-# ADR-606 D3 — the desk's pane job overlay, declared here (not in the kernel
+# filling was. One pane, one contract, one name.
+# ADR-606 D3 — the app's pane job overlay, declared here (not in the kernel
 # chain this door replaced) with a lazy body: `services/strings.py` stays
 # cycle-free of module-level `services.*` imports, so the import happens at
 # turn time, exactly where the lane kernel used to do it.
 def _strings_pane_posture(client, user_id, artifact_path, artifact):
-    from services.strings import build_strings_desk_posture
+    from services.strings import build_strings_pane_posture
 
-    return build_strings_desk_posture(client, user_id, artifact_path, artifact)
+    return build_strings_pane_posture(client, user_id, artifact_path, artifact)
 
 
 _register_app(
@@ -108,5 +108,5 @@ _register_app(
 )
 
 # The dedicated `supervisor` app is DELETED (ADR-604 D3, superseding ADR-603
-# D4): Supervisor's desk IS strings — a second app whose lens shows the same
+# D4): Supervisor's pane IS strings — a second app whose lens shows the same
 # declarations would be the ADR-562 second-home drift. Do not re-register it.

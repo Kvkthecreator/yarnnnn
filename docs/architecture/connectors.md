@@ -89,7 +89,7 @@ The connector never knows who reads its files. Current consumers:
 
 The **digest** (ADR-580) is SUPERSEDED (ADR-594 D3): a prose leaf kept
 current from connector raws is exactly an md string with connector sources —
-member-designated, contract-governed, resident-run, desk-surfaced. Its 3
+member-designated, contract-governed, resident-run, pane-surfaced. Its 3
 historical digest files remain ordinary attributed files. **Radar** was
 deleted with its app (ADR-592).
 
@@ -100,7 +100,7 @@ machinery under the aperture. App opt-in selects within the aperture; a
 declared-but-unselected selector gets the same honest empty as a dead feed.
 
 ⭐ **This is a property of ABSENCE, not of apps** (ADR-615). When the member is
-present and driving — any lane turn, chat or desk — the turn carries the
+present and driving — any lane turn, chat or pane — the turn carries the
 member's own read reach, because it is the member's own principal
 (`member:{user_id} via {model}`). What stays closed is the unattended run:
 `run_bounded_derive_turn` is toolless by construction, so a clock plus a
@@ -137,7 +137,7 @@ is only ever the honest success case.
 (intake-pipeline.md §5): [ADR-585](../adr/ADR-585-turn-reach-the-members-own-connections.md)
 gives the member's OWN connections to their OWN turn, transient;
 [ADR-615](../adr/ADR-615-reach-follows-the-principal.md) lit it by default and
-extended it to every surface the member works in, since a desk turn is the
+extended it to every surface the member works in, since a pane turn is the
 same principal as a chat turn. It remains excluded from **unattended** runs by
 construction. A string is the *standing*
 disposition and lands receipts precisely because nobody is present. Any

@@ -51,14 +51,10 @@ export interface DetailPersonChoice {
 interface ConversationDetailProps {
   laneId: string;
   laneName: string;
-  /** ⭐ TWO ROSTERS, TWO QUESTIONS (2026-08-27). `agents` is who may be
-   *  INVITED (`offered`) and is EMPTY today — nobody is offered (ADR-599 D1).
-   *  It cannot also answer "what is this participant CALLED", which is why the
-   *  pane rendered the raw slug `editor` under AGENTS once ADR-614 let a chat
-   *  start with a colleague. `beings` is every being that EXISTS (ADR-601 D4),
-   *  and naming reads from it. One prop answering both is the conflation. */
+  /** Every agent that exists (ADR-601 D4; ONE roster since ADR-631 — the
+   *  invitable subset is the `offered` FIELD, never a second prop). Naming
+   *  and the Add door both read this. */
   agents: DetailAgentChoice[];
-  beings?: DetailAgentChoice[];
   people: DetailPersonChoice[];
   viewerId?: string | null;
   initialParticipants?: Participant[];
@@ -81,7 +77,6 @@ export function ConversationDetail({
   laneId,
   laneName,
   agents,
-  beings,
   people,
   viewerId,
   initialParticipants,
@@ -128,12 +123,10 @@ export function ConversationDetail({
     };
   }, [adding]);
 
-  // NAMING reads `beings` (every being), never `agents` (the invite roster).
-  // Falls back to `agents` so an older envelope without `beings` degrades to
-  // the previous behaviour rather than losing every name.
+  // NAMING reads the one roster (every agent, ADR-631).
   const agentBySlug = useMemo(
-    () => new Map((beings?.length ? beings : agents).map((a) => [a.slug, a])),
-    [beings, agents],
+    () => new Map(agents.map((a) => [a.slug, a])),
+    [agents],
   );
   const personById = useMemo(
     () => new Map(people.map((p) => [p.principal_id, p])),
@@ -152,16 +145,10 @@ export function ConversationDetail({
     [participants],
   );
 
-  // ADR-625 — the ADD door offers the SAME set the New chat door does:
-  // `beings` (every being that exists), not `agents` (the `offered` roster,
-  // which is EMPTY per ADR-599 D1). Starting a chat with a colleague and
-  // adding one to a chat you are already in are the same act — ADR-614 D1
-  // says so outright ("the SAME act as adding them from CastBar a second
-  // later") — so a door that offered nobody while the other offered everybody
-  // was two answers to one question. Falls back to `agents` for an older
-  // envelope, the same degradation the naming map above uses.
-  const invitableAgents = (beings?.length ? beings : agents)
-    .filter((a) => !inCast.agents.has(a.slug));
+  // ADR-625 — the ADD door offers the SAME set the New chat door does: every
+  // agent that exists, minus the cast. Starting a chat with a colleague and
+  // adding one to a chat you are already in are the same act (ADR-614 D1).
+  const invitableAgents = agents.filter((a) => !inCast.agents.has(a.slug));
   const invitablePeople = people.filter((p) => !inCast.humans.has(p.principal_id));
 
   const commit = useCallback(

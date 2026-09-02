@@ -37,7 +37,7 @@ import {
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { NotificationCard } from '@/components/tp/NotificationCard';
 import { SystemCard } from '@/components/tp/SystemCard';
-import { MessageBlock } from '@/types/desk';
+import { MessageBlock } from '@/types/surface';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 

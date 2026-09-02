@@ -128,7 +128,7 @@ def test_registry_and_parity() -> None:
     reg = _read("components/shell/SurfaceRegistry.tsx")
     check("SurfaceRegistry maps notifications → NotificationsPage",
           "notifications: NotificationsPage" in reg and "NotificationsPage" in reg)
-    desk = _read("types/desk.ts")
+    desk = _read("types/surface.ts")
     check("notifications in KernelSurfaceSlug union", "'notifications'" in desk)
     check("notifications in KERNEL_SURFACE_SLUGS array", "'notifications'" in desk and "KERNEL_SURFACE_SLUGS" in desk)
     # /operation is an ADR-308 redirect stub → /notifications (bookmark safety).

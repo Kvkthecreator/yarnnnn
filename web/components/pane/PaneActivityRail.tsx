@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * DeskActivityRail — a desk folder's ONE lifecycle rail (ADR-565 D1 +
+ * PaneActivityRail — an app folder's ONE lifecycle rail (ADR-565 D1 +
  * ADR-567 D2.3, housing-extracted for ADR-569 D6).
  *
  * ADR-565 D1: "the revision history is the delta rail; the diff is the delta."
- * This rail is that history, generalized to the folder a desk manages: one
+ * This rail is that history, generalized to the folder an app manages: one
  * merged, attributed, newest-first list of
  *
  *   - every revision under the folder subtree (the maintained artifact, its
@@ -19,11 +19,11 @@
  * the row (one happening, one row).
  *
  * A revision row expands to the diff against its PARENT — "what this change
- * did" — and rows the consuming desk declares revertable offer restore (a
+ * did" — and rows the consuming pane declares revertable offer restore (a
  * revert is a new revision, conditional on the head the panel loaded;
  * ADR-406 D2).
  *
- * The rail is app-agnostic (ADR-518's housing move): each desk passes its own
+ * The rail is app-agnostic (ADR-518's housing move): each app passes its own
  * vocabulary — author labels for its standing writer, operator words for its
  * folder's files, which paths are machine noise, which are revertable, and how
  * a run event reads. The defaults are the shared attribution vocabulary and
@@ -80,8 +80,8 @@ function defaultEventLine(e: RailEvent): string {
   return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
 }
 
-export function DeskActivityRail({
-  deskRoot,
+export function PaneActivityRail({
+  paneRoot,
   events,
   refreshNonce,
   onReverted,
@@ -93,9 +93,9 @@ export function DeskActivityRail({
   canRevert,
   eventLine,
 }: {
-  /** Absolute workspace path of the desk's folder. */
-  deskRoot: string;
-  /** The desk's recent ledger events (success rows are folded into their
+  /** Absolute workspace path of the app's folder. */
+  paneRoot: string;
+  /** The app's recent ledger events (success rows are folded into their
    *  revisions; only non-success rows render as events). */
   events: RailEvent[];
   /** Bump to refetch (a lane write landed, the member hit refresh). */
@@ -103,13 +103,13 @@ export function DeskActivityRail({
   /** A revert landed — the parent should re-read the files it projects. */
   onReverted?: () => void;
   className?: string;
-  /** The desk's word for an author (its standing writer's mechanism actor →
+  /** The app's word for an author (its standing writer's mechanism actor →
    *  the colleague's name). Return undefined to fall back to the shared
    *  attribution vocabulary. */
   authorLabel?: (authoredBy: string) => string | undefined;
   /** Chip classes to pair with `authorLabel`; undefined → shared vocabulary. */
   authorChip?: (authoredBy: string) => string | undefined;
-  /** Operator words for the folder's own files, keyed on the deskRoot-relative
+  /** Operator words for the folder's own files, keyed on the paneRoot-relative
    *  path. Return undefined to show the leaf as-is. */
   fileLabel?: (relPath: string) => string | undefined;
   /** Machine noise the rail should not show (distilled signals, legacy
@@ -117,7 +117,7 @@ export function DeskActivityRail({
   hideRevision?: (path: string) => boolean;
   /** Which paths offer "restore this version". Default: none. */
   canRevert?: (path: string) => boolean;
-  /** The desk's sentence for a non-success ledger event. */
+  /** The app's sentence for a non-success ledger event. */
   eventLine?: (e: RailEvent) => string;
 }) {
   const [revisions, setRevisions] = useState<RailRevision[] | null>(null);
@@ -132,7 +132,7 @@ export function DeskActivityRail({
     let alive = true;
     setError(null);
     api.workspace
-      .listRevisions({ pathPrefix: deskRoot }, 30)
+      .listRevisions({ pathPrefix: paneRoot }, 30)
       .then((res) => {
         if (!alive) return;
         const rows = (res.revisions || [])
@@ -157,7 +157,7 @@ export function DeskActivityRail({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deskRoot, refreshNonce]);
+  }, [paneRoot, refreshNonce]);
 
   const rows: RailRow[] = [
     ...(revisions ?? []).map<RailRow>((rev) => ({ kind: 'revision', at: rev.created_at, rev })),
@@ -267,8 +267,8 @@ export function DeskActivityRail({
           );
         }
         const { rev } = row;
-        const rel = rev.path.startsWith(`${deskRoot}/`)
-          ? rev.path.slice(deskRoot.length + 1)
+        const rel = rev.path.startsWith(`${paneRoot}/`)
+          ? rev.path.slice(paneRoot.length + 1)
           : rev.path;
         const chipLabel = fileLabel?.(rel) ?? rel;
         const revertable = canRevert?.(rev.path) ?? false;

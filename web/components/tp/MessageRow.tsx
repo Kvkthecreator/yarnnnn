@@ -24,7 +24,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { Zap } from 'lucide-react';
-import type { TPMessage } from '@/types/desk';
+import type { TPMessage } from '@/types/surface';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';

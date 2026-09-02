@@ -447,7 +447,7 @@ export interface StringSource {
   /** A connector slice (ADR-582 D6 / ADR-594): reach with a receipt. */
   connector?: string | null;
   selector?: string | null;
-  /** ADR-595 D3 enrichment — the source as a party (desk view only; the
+  /** ADR-595 D3 enrichment — the source as a party (pane view only; the
    *  roster list leaves these unset). */
   last_landed_at?: string | null;
   last_landed_path?: string | null;
@@ -474,8 +474,8 @@ export interface StringSummary {
    *  invalid_target | unsupported_format | sources_invalid. */
   problem?: string | null;
   /** ADR-595 D1 as amended (2026-08-28) — FALSE while the folder holds no
-   *  `_string.yaml`. The desk is ONE surface in both states: an undeclared
-   *  desk renders the same tabs with their existing empty states and a "not
+   *  `_string.yaml`. The app is ONE surface in both states: an undeclared
+   *  pane renders the same tabs with their existing empty states and a "not
    *  kept yet" line above them, the way `problem`/`repair` already layer
    *  above intact tabs. Optional so a pre-amendment payload reads as
    *  declared, which is what every payload that omits it is. */
@@ -542,30 +542,24 @@ export const api = {
     list: (includeBound = false) =>
       request<{
         enabled: boolean;
-        /** ADR-460 D4 — the chooser: named colleagues, not a spec sheet. */
-        agents: Array<{ slug: string; name: string; blurb: string; icon: string }>;
         /** ADR-562 — the app registry, served from the app's own declaration
          *  (`services/apps/*` → `register_app`). `name` is the app's label for
          *  its resident ("Writer" in Docs), empty when it did not rename one.
          *  Served rather than mirrored here: a TS copy is the second home
          *  ADR-562 deleted. */
         apps?: Array<{ slug: string; resident: string; name: string }>;
-        /** ADR-600 D6 / ADR-601 D4 — every being, with provenance and the
-         *  desks it serves. `agents` above is who may be INVITED (`offered`);
-         *  this is who EXISTS. `kernel` = yarnnn authored it (rendered from
-         *  the FIELD, never inferred from absence). `homes` is a LIST —
-         *  many-to-one is ordinary, and empty means it serves no desk. */
-        /*  ADR-624: `home_titles`, `desks` and `memory_path` were SERVED but
-         *  undeclared here — the surface re-declared them locally, so one shape
-         *  had two homes and the client type was the stale one. Declared once,
-         *  here, where every consumer reads it. */
-        beings?: Array<{ slug: string; name: string; blurb: string; icon: string;
-          offered: boolean; kernel: boolean; homes: string[]; model?: string;
-          /** The desks as the member READS them (the app's declared title). */
-          home_titles?: string[];
-          /** The desks as the APP's identity — the mark the Dock shows. */
-          desks?: Array<{ slug: string; title: string; icon_key: string; route: string }>;
-          /** ADR-624 D4 — WHERE what this being knows lives. An address into
+        /** ADR-600 D6 / ADR-601 D4 / ADR-631 — every agent, with provenance and
+         *  the apps it works in. ONE roster: `offered` (may a member invite it
+         *  into a conversation) rides each row, so a door that lists candidates
+         *  filters it rather than reading a second key. `kernel` = yarnnn
+         *  authored it (rendered from the FIELD, never inferred from absence).
+         *  `apps` is a LIST of the apps it works in as the APP's own identity —
+         *  the mark the Dock shows — empty when it serves none. */
+        agents: Array<{ slug: string; name: string; blurb: string; icon: string;
+          offered: boolean; kernel: boolean;
+          apps: Array<{ slug: string; title: string; icon_key: string; route: string }>;
+          model?: string;
+          /** ADR-624 D4 — WHERE what this agent knows lives. An address into
            *  the ordinary substrate, never the contents. */
           memory_path?: string }>;
         models: Array<{ id: string; label: string; vision?: boolean;
@@ -592,10 +586,10 @@ export const api = {
           /** ADR-440 D3 — the Studio binding (null for plain chat lanes). */
           artifact_path?: string | null;
           /** ADR-567 D4 — WHICH APP this lane belongs to. Served since 567 but
-           *  absent from this type until 2026-08-28, so `DeskHousing` could
-           *  only match a bound lane on its PATH — and two desks may legitimately
+           *  absent from this type until 2026-08-28, so `PaneHousing` could
+           *  only match a bound lane on its PATH — and two apps may legitimately
            *  bind the same file (a .md is both Text's document and Strings'
-           *  maintained file). The Strings desk then adopted the Text lane and
+           *  maintained file). The Strings pane then adopted the Text lane and
            *  showed Editor where Supervisor belonged. */
           app?: string | null;
           /** ADR-450 D3 — the derive binding (null for plain chat lanes). */
@@ -626,7 +620,7 @@ export const api = {
       app?: string;
       /** ADR-614 D1 — the colleague the member picked at the door. Chat lanes
        *  only: it SEEDS THE CAST (the same act as adding them from CastBar),
-       *  and the engine is resolved from the being server-side. A bound lane's
+       *  and the engine is resolved from the agent server-side. A bound lane's
        *  colleague is its app's resident and is never sent from here. */
       agent?: string;
       /** The engine directly. Optional when `agent` is given — the engine
@@ -753,11 +747,11 @@ export const api = {
     },
   },
 
-  // ADR-612 — which of the member's granted connectors a being works against.
-  // NOT an edit to the being (its row is kernel data, ADR-460 D3.a): this is
+  // ADR-612 — which of the member's granted connectors an agent works against.
+  // NOT an edit to the agent (its row is kernel data, ADR-460 D3.a): this is
   // the member's own preference, keyed (workspace, principal).
   agentConnectors: {
-    /** Every being's opt-in, plus the platforms there are to opt INTO. A being
+    /** Every agent's opt-in, plus the platforms there are to opt INTO. An agent
      *  absent from `opt_in` is NOT scoped — it reaches everything granted. */
     get: () =>
       request<{
@@ -774,12 +768,12 @@ export const api = {
   },
 
   // ADR-569 — strings, the maintained file kept under contract. Declarations
-  // are conversational (the desk's colleague authors them through its lane —
+  // are conversational (the app's colleague authors them through its lane —
   // no create route);
-  // these are the projections the desk reads plus the direct switches.
+  // these are the projections the app reads plus the direct switches.
   strings: {
     list: () => request<StringSummary[]>("/api/strings"),
-    /** The desk view. Served for an UNDECLARED folder too (`declared: false`,
+    /** The app view. Served for an UNDECLARED folder too (`declared: false`,
      *  empty sources/schedule/runs) — ADR-595 D1 as amended: one surface in
      *  both states, never a separate setup page. `target` carries a
      *  designation-in-flight (the leaf picked before anything was written);
@@ -1547,8 +1541,8 @@ export const api = {
   // pre-ADR-596 agent model at /api/agents — ADR-109 Scope x Role x Trigger
   // over the `agents` + `agent_runs` tables. Both tables were EMPTY in
   // production and every method here had ZERO call sites. The router is
-  // deleted server-side; what an agent IS now is a BEING, served on the lane
-  // envelope as `beings` and rendered by components/agents/AgentsSurface.tsx.
+  // deleted server-side; what an agent IS now is a AGENT, served on the lane
+  // envelope as `agents` and rendered by components/agents/AgentsSurface.tsx.
 
 
   // ADR-225 + ADR-240: Programs — composition surfaces (ADR-225) +

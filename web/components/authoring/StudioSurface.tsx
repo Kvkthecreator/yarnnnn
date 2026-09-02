@@ -183,11 +183,6 @@ interface LaneInfo {
  *  Studio DISCARDED this array until ADR-562: it created a lane pinning a
  *  resident, then rendered the engine label because it never read the roster
  *  back. The join is the whole fix. */
-interface AgentInfo {
-  slug: string;
-  name: string;
-}
-
 interface TemplateInfo {
   slug: string;
   label: string;
@@ -331,7 +326,7 @@ export const STUDIO_APP: AuthoringApp = {
   // presentation`, kernel_surfaces). The landing had kept `Palette` from
   // before ADR-599 D4's icon pass, so the app wore two different faces
   // depending on where a member met it; `palette` is now Designer's glyph,
-  // which would have read as the wrong being's mark on the Slides door.
+  // which would have read as the wrong agent's mark on the Slides door.
   // (`Palette` the import STAYS — the design-system picker uses it, which is
   // a different noun and a correct use.)
   icon: Presentation,
@@ -344,7 +339,7 @@ export const IMAGES_APP: AuthoringApp = {
   icon: ImageIcon,
   dimensionsFirst: true,
 };
-// ADR-627 — the publish medium's desk: the outward type (ADR-505 D2's merged
+// ADR-627 — the publish medium's pane: the outward type (ADR-505 D2's merged
 // article/page, deleted by ADR-599 D5) returns as `post` under its own app.
 export const BLOGGER_APP: AuthoringApp = {
   slug: 'blogger',
@@ -397,15 +392,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // and drops retired rows, so a bound lane pinned to one would name itself by
   // its RAW ID (ADR-559 D2 — one dict, two audiences).
   const [modelNames, setModelNames] = useState<Record<string, string>>({});
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
   /** ADR-562 D6 — the served app registry (slug → its name for its resident). */
   const [apps, setApps] = useState<Array<{ slug: string; resident: string; name: string }>>([]);
-  // ADR-602 — the BEINGS roster. `agents` is the HIRE roster and is empty by
+  // ADR-602 — the AGENTS roster. `agents` is the HIRE roster and is empty by
   // ADR-599 (nobody is `offered`), so resolving a resident's name through it
   // always missed and fell through to the ENGINE label: the bound lane read
   // "Message Claude Sonnet 4.6…" when Editor was answering. A resident is not
   // a hire, so it was never going to be there.
-  const [beings, setBeings] = useState<Array<{ slug: string; name: string }>>([]);
+  const [agents, setAgents] = useState<Array<{ slug: string; name: string }>>([]);
   const [lanes, setLanes] = useState<LaneInfo[]>([]);
   const [laneError, setLaneError] = useState<string | null>(null);
 
@@ -418,9 +412,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       setModelNames(res.model_names ?? {});
       // ADR-562 D5 — keep the roster. Dropping it here is what made the panel
       // say "Claude Sonnet is working…" in a lane whose resident is Designer.
-      setAgents((res.agents ?? []) as AgentInfo[]);
       setApps(res.apps ?? []);
-      setBeings((res.beings ?? []) as Array<{ slug: string; name: string }>);
+      setAgents((res.agents ?? []) as Array<{ slug: string; name: string }>);
       setLanes(res.lanes as LaneInfo[]);
     } catch {
       setLanesEnabled(false);
@@ -792,17 +785,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // disagree about who the member is talking to.
       const appName = apps.find((a) => a.slug === app.slug)?.name;
       if (appName) return appName;
-      // The being's OWN name — served from the same registry the prompt reads.
-      // Checked before `agents` because `agents` is the hire roster: a desk's
-      // resident is never on it (ADR-598), which is why this fell through to
-      // the engine label until ADR-602.
-      const being = beings.find((b) => b.slug === slug)?.name;
-      if (being) return being;
+      // The agent's OWN name — served from the same registry the prompt reads
+      // (ADR-602; ONE roster since ADR-631).
       const named = agents.find((a) => a.slug === slug)?.name;
       if (named) return named;
     }
     return modelLabel;
-  }, [agents, apps, beings, app.slug, boundLane, modelLabel]);
+  }, [agents, apps, app.slug, boundLane, modelLabel]);
 
   // ── The served kernel vocabulary (ADR-443 R4 + ADR-444 + ADR-447): blocks +
   // arrangements — the toolbar EXECUTES from it, the posture teaches from the
@@ -1412,7 +1401,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const replay = useCallback(
     (entry: HistoryEntry, verb: 'undo' | 'redo', onto: HistoryEntry[]) => {
       const current = liveRef.current?.content ?? '';
-      // The counterpart entry mirrors the one being replayed: same lineage
+      // The counterpart entry mirrors the one agent replayed: same lineage
       // facts, so a redo blinks exactly as much (or as little) as its undo did.
       onto.push({
         content: current,
@@ -3144,7 +3133,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // The workbench measures ITS OWN container, not the window: a surface can be
   // narrow inside a roomy window (a 320px window on a 1440px monitor), and the
   // shell's viewport-wide `isMobile` cannot see that. `usePaneLadder` is the ONE
-  // measured-container answer — Studio, Text, Desk and Chat all read it — and it
+  // measured-container answer — Studio, Text, Pane and Chat all read it — and it
   // holds the ONE spelling of the
   // thresholds (lib/shell/surface-preferences.ts), which raw `md:` class strings
   // had been silently disagreeing with — measured live: at 820px the toolbar
@@ -3747,9 +3736,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 grammar). The Properties sections are deleted, not mirrored.
                 ADR-529 D1: Share is now a trigger for the shared dialog — the
                 popover it used to open is deleted; Export keeps its panel. */}
-            {/* ADR-628 phase (a) — the Blogger desk's third boundary act.
+            {/* ADR-628 phase (a) — the Blogger app's third boundary act.
                 App-scoped by MOUNT (the exportPng precedent), not by fork:
-                only the publish medium's desk carries an outbound door. */}
+                only the publish medium's pane carries an outbound door. */}
             {app.slug === 'blogger' && artifactPath && (
               <StudioPublish
                 artifactPath={artifactPath}

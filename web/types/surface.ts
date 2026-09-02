@@ -95,7 +95,7 @@ export type KernelSurfaceSlug =
   // not written as a quoted literal here — the parity gate reads the union up to
   // the first semicolon.)
 
-export type DeskSurface =
+export type NarrativeSurface =
   // ADR-297: atomic kernel surface — slug identifies which surface
   // component to mount; params carry optional deep-link state
   // (e.g. `task` slug on recurrence, `agent` slug on agents).
@@ -353,9 +353,9 @@ export type TPAction =
 // =============================================================================
 
 /**
- * Map TP tool ui_action to DeskSurface
+ * Map TP tool ui_action to NarrativeSurface
  */
-export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
+export function mapToolActionToSurface(action: TPUIAction): NarrativeSurface | null {
   const { surface, data } = action;
 
   switch (surface) {

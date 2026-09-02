@@ -122,7 +122,7 @@ def test_authored_by_strings_match_attribution_classes():
 # ---- 4. the FE registry + wire consume authored_by --------------------------
 
 def test_fe_narrative_envelope_carries_authored_by():
-    desk = _read_web("types/desk.ts")
+    desk = _read_web("types/surface.ts")
     assert "authoredBy?: string" in desk
     client = _read_web("lib/api/client.ts")
     assert "authored_by?: string" in client

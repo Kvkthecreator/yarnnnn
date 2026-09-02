@@ -50,12 +50,16 @@ from services.agents_registry import (  # noqa: E402
     AGENTS,
     NotEditable,
     assert_editable,
-    homes_for_agent,
+    apps_for_agent,
     is_promoted,
-    list_agents,
     model_for_agent,
     resolve_agent,
 )
+
+
+# ADR-631 — ONE relation: the slugs are taken off the rich rows.
+def _homes(slug):
+    return [a["slug"] for a in apps_for_agent(slug)]
 from services.lane_runner import LANE_MODELS, unpriced_lane_model  # noqa: E402
 
 PASS = 0
@@ -77,10 +81,10 @@ import services.agents_registry as _reg  # noqa: E402
 for _dead in ("KERNEL_AGENTS", "KERNEL_POSTURES", "APP_RESIDENTS",
               "RESIDENT_ROW_KEYS", "POSTURE_ROW_KEYS", "_kernel_character"):
     _check(f"{_dead} is deleted, not aliased", not hasattr(_reg, _dead))
-_check("the roster is a FILTER over the one register, not a second namespace",
-       list_agents() == [r for r in AGENTS.values() if r.get("offered")])
+_check("the roster is the FIELD, not a second function (ADR-631 deleted list_agents)",
+       not hasattr(_reg, "list_agents"))
 _check("nobody is offered today (ADR-599 D1, unreopened)",
-       list_agents() == [])
+       [r for r in AGENTS.values() if r.get("offered")] == [])
 _check("a deleted colleague slug resolves None (honest, not aliased)",
        resolve_agent("sonnet") is None and resolve_agent("scout") is None
        and resolve_agent("critic") is None)
@@ -144,14 +148,14 @@ _check("the expected beings are exactly {blogger, designer, editor, supervisor}"
 _check("the dissolved `keeper` being is not resurrected", "keeper" not in AGENTS)
 # ADR-602 D1/D2 — the craft split, asserted as the RELATION not a spelling.
 _check("Editor serves BOTH authoring desks (slides + text)",
-       set(homes_for_agent("editor")) == {"slides", "text"})
+       set(_homes("editor")) == {"slides", "text"})
 _check("Designer keeps generation only (images)",
-       homes_for_agent("designer") == ["images"])
+       _homes("designer") == ["images"])
 # ADR-627 D2 — the publish medium's voice is its OWN being, not a third desk
 # on Editor: outward prose (a reader who owes you nothing) conflicts with
 # Editor's preserve-the-member's-voice contract in one character.
 _check("Blogger serves the blogger desk only",
-       homes_for_agent("blogger") == ["blogger"])
+       _homes("blogger") == ["blogger"])
 _check("each being's icon is distinct (the crafts read apart at a glance)",
        len({r["icon"] for r in AGENTS.values()}) == len(AGENTS))
 
@@ -260,13 +264,13 @@ _check("provenance gates the WRITE only (resolve_agent still answers)",
        all(resolve_agent(s) is not None for s in AGENTS))
 
 # ADR-601 D1 — homes is a LIST, resolved from the registrations.
-_check("homes_for_agent returns a list per being",
-       all(isinstance(homes_for_agent(s), list) for s in AGENTS))
+_check("_homes returns a list per agent",
+       all(isinstance(_homes(s), list) for s in AGENTS))
 # Asserted as the RELATION, never a named being: which being serves two desks
 # is a product decision that moves (it was designer until ADR-602, now editor),
 # and a gate pinning the name reports an ordinary re-pairing as a violation.
 _check("many-to-one is live in the data (some being serves >1 desk)",
-       any(len(homes_for_agent(s)) > 1 for s in AGENTS))
+       any(len(_homes(s)) > 1 for s in AGENTS))
 
 print("8. promotion is derived from the desks a being serves (ADR-602 D3)")
 import services.apps  # noqa: E402,F401  (registration side-effect)
@@ -313,7 +317,7 @@ _check("promotion never gates resolution (the being still answers)",
        resolve_agent("designer") is not None)
 # The payload is what the pane reads: an unpromoted being must not be served.
 import routes.lanes as _L  # noqa: E402
-_served = {b["slug"] for b in _L._beings_payload()}
+_served = {b["slug"] for b in _L._agents_payload()}
 _check("the payload serves every promoted being (all four since ADR-629)",
        {"blogger", "designer", "editor", "supervisor"} <= _served)
 # Fail CLOSED on the unhoused (ADR-602 D3 as amended 2026-08-24): a NON-offered
@@ -348,24 +352,23 @@ _check("no `supervisor` app survives to serve (ADR-604 D3 — strings is its des
 
 print("8b. the desk's roles resolve to ONE being (ADR-604 seam, ADR-610 value)")
 _check("supervisor's home is strings — the voice (ADR-604 D1)",
-       homes_for_agent("supervisor") == ["strings"])
-_served2 = {b["slug"] for b in _L._beings_payload()}
+       _homes("supervisor") == ["strings"])
+_served2 = {b["slug"] for b in _L._agents_payload()}
 _check("the desk serves exactly one being", {"supervisor"} <= _served2)
 
 # The desks payload — the app's OWN identity, so the pane can render the mark
 # the Dock renders. Derived from the surface rows: assert the icon_key and
 # route actually RESOLVE, because a chip whose icon_key is empty silently
 # degrades to a text label and looks like a styling choice, not a break.
-from services.agents_registry import desks_for_agent  # noqa: E402
-_desks = {slug: desks_for_agent(slug) for slug in AGENTS}
+_desks = {slug: apps_for_agent(slug) for slug in AGENTS}
 _thin = {
     slug: [d for d in ds if not (d.get("icon_key") and d.get("route") and d.get("title"))]
     for slug, ds in _desks.items()
 }
 _thin = {k: v for k, v in _thin.items() if v}
 _check(f"every desk carries title + icon_key + route (thin: {_thin or 'none'})", not _thin)
-_check("the desks match the homes, one for one",
-       all(len(_desks[s]) == len(homes_for_agent(s)) for s in AGENTS))
+_check("the apps rows and their slugs agree, one for one",
+       all(len(_desks[s]) == len(_homes(s)) for s in AGENTS))
 # The icon_key must be one the FE resolver actually knows, or the chip falls
 # back to a generic Box and the app stops being recognisable.
 _icons_tsx = (API.parent / "web" / "lib" / "shell" / "surface-icons.tsx").read_text()
@@ -405,20 +408,20 @@ print("9. a bound lane names its RESIDENT, not its engine (ADR-602 D5)")
 # ENGINE label. A member working with Editor read "Message Claude Sonnet 4.6…".
 # A resident is not a hire; it was never going to be on that roster.
 _WEB = API.parent / "web" / "components"
-# EVERY speaker-resolution surface, not a hand-picked pair: DeskHousing mounts
+# EVERY speaker-resolution surface, not a hand-picked pair: PaneHousing mounts
 # the Strings + Text desks and carried this exact defect unexamined until the
 # 2026-08-24 audit — a coverage set that is hand-spelled is the ADR-559
 # vacuity class one layer up. A new desk chrome that resolves a speaker gets a
 # row HERE in the commit that adds it.
 for _rel, _what in (("authoring/StudioSurface.tsx", "Slides"),
                     ("text/TextEditor.tsx", "Text"),
-                    ("desk/DeskHousing.tsx", "Desk housing (Strings/Text)")):
+                    ("pane/PaneHousing.tsx", "Pane housing (Strings/Text)")):
     _src = (_WEB / _rel).read_text()
-    _check(f"{_what} reads the beings roster for its speaker label",
-           "res.beings" in _src or "env.beings" in _src)
+    _check(f"{_what} reads the agents roster for its speaker label",
+           "res.agents" in _src or "env.agents" in _src)
     # `.index` raises when the lookup is gone — a CRASH is not a clean red, and
     # a gate that traps instead of reporting hides which check failed.
-    _lookup, _fallback = _src.find("beings.find"), _src.find("return modelLabel")
+    _lookup, _fallback = _src.find("agents.find"), _src.find("return modelLabel")
     _check(f"{_what} resolves the being BEFORE falling back to the engine",
            _lookup != -1 and _fallback != -1 and _lookup < _fallback)
     # ADR-602 D7 — the surface resolves from ITS OWN app first. A pre-567 lane
@@ -452,7 +455,7 @@ _surface_code = "\n".join(
     if not l.lstrip().startswith(("*", "/*", "//"))
 )
 _check("the roster is read from the server, not hardcoded in copy",
-       "res.beings" in _surface_code and "api.lanes" in _surface_code)
+       "res.agents" in _surface_code and "api.lanes" in _surface_code)
 # Every being's display name, FROM the register — a literal tuple here missed
 # Supervisor the day it landed (audited 2026-08-24).
 for _name in sorted({_b["name"] for _b in AGENTS.values()}):
@@ -469,11 +472,11 @@ _check("the surface renders provenance from the served field",
 # `b.homes` spelling would have pinned the ADDRESS being shown to a person —
 # the very thing that change fixed. Assert the plural SOURCE and the absence of
 # a singular spelling, not one call site's text.
-_check("the surface renders the desk LIST, not a single home",
-       ("b.homes" in _surface_code or "homeNames(" in _surface_code)
-       # `(?!s)` — any bare `b.home` spelling (`b.home}`, `b.home?`) trips it;
-       # the old trailing-space match let those through.
-       and not _re.search(r"\bb\.home(?!s|_titles|Names)", _surface_code))
+# Re-anchored 2026-09-02 (ADR-631): the relation is served ONCE as `apps`
+# and rendered as chips; no `home`/`homes`/`desks` spelling survives.
+_check("the surface renders the app LIST, not a single home",
+       "AppChips" in _surface_code and "agent.apps" in _surface_code
+       and not _re.search(r"\b(b|agent|being)\.(home|homes|home_titles|desks)\b", _surface_code))
 # The titles are PREFERRED but never required — a payload predating
 # `home_titles` must still render the desks rather than an empty line.
 #
@@ -482,19 +485,20 @@ _check("the surface renders the desk LIST, not a single home",
 # never exercised by real data, and an unparenthesised and/or chain made the
 # last clause sufficient on its own. DRIVE the resolver with a desk that has
 # no surface row — the only way the fallback is actually observed.
-_check("the surface prefers the served titles, falling back to `homes`",
-       "home_titles?.length" in _surface_code and "being.homes" in _surface_code)
+_check("the surface renders the one served relation (`apps` chips)",
+       "agent.apps" in _surface_code and "AppChips" in _surface_code)
 
-import services.agents_registry as _ar  # noqa: E402
-_real_homes = _ar.homes_for_agent
+# An app with no surface row still returns, titled by its slug — probed LIVE
+# with a registration that has no KERNEL_SURFACES row.
+import services.authoring as _authoring  # noqa: E402
+_authoring.register_app("_probe-no-surface-row", resident="editor")
 try:
-    _ar.homes_for_agent = lambda _slug: ["slides", "a-desk-with-no-surface-row"]
-    _fallback = _ar.home_titles_for_agent("editor")
+    _fallback = [a for a in apps_for_agent("editor") if a["slug"] == "_probe-no-surface-row"]
 finally:
-    _ar.homes_for_agent = _real_homes
+    _authoring._APP_REGISTRY.pop("_probe-no-surface-row", None)
 _check(
-    f"an unlisted desk falls back to its slug, never None ({_fallback})",
-    _fallback == ["Slides", "a-desk-with-no-surface-row"],
+    f"an app with no surface row falls back to its slug as its title, never None ({_fallback})",
+    len(_fallback) == 1 and _fallback[0]["title"] == "_probe-no-surface-row" and _fallback[0]["route"] == "",
 )
 # ADR-602 D6 — the per-being page. Depth rides the SANCTIONED param and moves
 # via setSurfaceParams (a pathname flip trips the shell's foreground effects).
@@ -502,8 +506,8 @@ _check(
 # usage passed when the definition was renamed away (falsifier F1) — a call
 # site to a missing symbol is a build error, but the gate should not depend on
 # the compiler to notice a deleted feature.
-_check("a being's page exists (list/detail)",
-       "function BeingDetail" in _surface_code and "<BeingDetail" in _surface_code)
+_check("an agent's page exists (list/detail)",
+       "function AgentDetail" in _surface_code and "<AgentDetail" in _surface_code)
 _check("depth moves via setSurfaceParams, never a pathname flip",
        "setSurfaceParams" in _surface_code and "router.push" not in _surface_code)
 # The "Editing" ROW is deleted (operator ruling, 2026-08-27): it restated two
@@ -513,7 +517,7 @@ _check("depth moves via setSurfaceParams, never a pathname flip",
 # was never this row's job (`assert_editable`, ADR-601 D3) and is asserted
 # above. Pinning the deleted row would pin the tautology.
 _check("provenance is still MARKED on a being's page (the yarnnn badge)",
-       "KernelMark" in _surface_code and "being.kernel &&" in _surface_code)
+       "KernelMark" in _surface_code and "agent.kernel &&" in _surface_code)
 _check("...and the editability tautology is gone (no restating row)",
        "Editing" not in _surface_code)
 # ADR-602 D5 — plain language. An ADR number is an internal address; a member
@@ -540,7 +544,7 @@ _writes = [
 _check("the registry module has no write path", not _writes)
 
 # Every icon the register declares must exist in the surface's ICONS map.
-# A missing key does NOT error — BeingIcon falls back to `Bot`, so the being
+# A missing key does NOT error — AgentIcon falls back to `Bot`, so the being
 # renders looking like an unmapped generic. Supervisor shipped that way:
 # the register said `clipboard-list`, the map had three keys, and the pane
 # showed the fallback glyph with nothing anywhere going red.
@@ -551,7 +555,7 @@ _check("the registry module has no write path", not _writes)
 # two checks exist to catch. Read from the one home; `BEING_ICONS` is the
 # exported name, so a rename that forgot this gate reads as an EMPTY map and
 # fails loudly here rather than silently passing on a missing split.
-_icon_src = (API.parent / "web" / "components" / "agents" / "BeingIcon.tsx").read_text()
+_icon_src = (API.parent / "web" / "components" / "agents" / "AgentIcon.tsx").read_text()
 _icon_map_block = _icon_src.split("BEING_ICONS", 1)[-1].split("};", 1)[0]
 _missing_icons = sorted(
     {row["icon"] for row in AGENTS.values() if row.get("icon")}

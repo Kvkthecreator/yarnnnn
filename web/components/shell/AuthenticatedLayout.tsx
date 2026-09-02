@@ -16,7 +16,7 @@
  *     ADR-297 Phase 3 — the window manager (SurfacePreferencesProvider)
  *     is the sole surface-state source of truth.
  *   - The NarrativeContext.onSurfaceChange handoff machinery, which maps
- *     TP-emitted DeskSurface kinds to navigateToSurface (window-opening).
+ *     TP-emitted NarrativeSurface kinds to navigateToSurface (window-opening).
  *   - Pathname → foreground surface tracking (D13) — when the URL
  *     deep-links to an atomic surface, the shell foregrounds it in the
  *     open-surfaces registry. Replaces the pre-D13 recordVisit/
@@ -36,7 +36,7 @@ import { createClient } from '@/lib/supabase/client';
 import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import { FeedbackProvider } from '@/contexts/FeedbackContext';
-import type { DeskSurface } from '@/types/desk';
+import type { NarrativeSurface } from '@/types/surface';
 import { ShellCompositor } from './ShellCompositor';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { useComposition } from '@/lib/compositor/useComposition';
@@ -187,16 +187,16 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Handle surface change from TP tool results (NarrativeContext handoff
   // machinery — when the agent says "I opened Cadence for you", it emits
-  // a DeskSurface here).
+  // a NarrativeSurface here).
   //
-  // ADR-297 D19.5 (navigation enactment): the legacy DeskSurface kinds
+  // ADR-297 D19.5 (navigation enactment): the legacy NarrativeSurface kinds
   // map to atomic kernel surfaces via navigateToSurface — window-opening,
   // not router.push route-replacement. The task-detail → 'recurrence' slug
   // corrects the prior wrong mapping (it pushed to /agents, a relic from
   // before /work dissolved into the Recurrence surface per ADR-297 D1;
   // surface renamed Cadence → Recurrence 2026-06-03).
   const handleSurfaceChange = useCallback(
-    (newSurface: DeskSurface, handoffMessage?: string) => {
+    (newSurface: NarrativeSurface, handoffMessage?: string) => {
       switch (newSurface.type) {
         case 'agent-list':
           navigateToSurface('agents');

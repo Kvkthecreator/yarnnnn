@@ -161,7 +161,9 @@ def test_supervisor_row():
 def test_desk_is_strings():
     print("4. Supervisor's desk IS strings (ADR-604) — promoted, derived")
     import services.apps  # noqa: F401
-    from services.agents_registry import homes_for_agent, is_promoted, resolve_agent
+    from services.agents_registry import apps_for_agent, is_promoted, resolve_agent
+    def homes_for_agent(slug):
+        return [a["slug"] for a in apps_for_agent(slug)]
     from services.authoring import resolve_app
     from services.kernel_surfaces import KERNEL_SURFACES
 
@@ -183,7 +185,7 @@ def test_desk_is_strings():
     _assert(resolve_agent("supervisor") is not None,
             "promotion is presentation — resolution unchanged")
     import routes.lanes as L
-    _served = {b["slug"] for b in L._beings_payload()}
+    _served = {b["slug"] for b in L._agents_payload()}
     _assert("supervisor" in _served and "keeper" not in _served,
             "the pane serves the desk's one being, and not the dissolved one")
 

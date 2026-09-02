@@ -49,7 +49,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react';
-import type { KernelSurfaceSlug } from '@/types/desk';
+import type { KernelSurfaceSlug } from '@/types/surface';
 
 export interface BreadcrumbSegment {
   label: string;

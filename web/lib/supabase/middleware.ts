@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
-import { KERNEL_SURFACE_SLUGS } from "@/types/desk";
+import { KERNEL_SURFACE_SLUGS } from "@/types/surface";
 
 // ADR-205 F1 + ADR-214 + ADR-259 cockpit nav + ADR-297 D17 boot model:
 //   HOME_ROUTE = /desktop (ADR-297 D17, 2026-05-22). Pre-D17 was /feed.

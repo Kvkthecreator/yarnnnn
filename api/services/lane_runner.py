@@ -506,7 +506,7 @@ def _anthropic_to_openai_tool(tool: dict) -> dict:
 
 # `turn_has_reach` is DELETED (ADR-612 D5). It answered "does this turn reach?"
 # from the turn's SHAPE alone, which stopped being the whole question the
-# moment a member's opt-in could unlock a desk turn. Keeping it beside
+# moment a member's opt-in could unlock an app turn. Keeping it beside
 # `resolve_turn_reach` would leave two functions answering one question with
 # different answers — the Singular Implementation rule, and the precise shape
 # of the Scout bug this file's §5 discipline exists to prevent.
@@ -526,7 +526,7 @@ def resolve_turn_reach(
     ADR-615, amending ADR-612 D3/D5. ONE lookup answering both halves.
 
     ⭐ REACH FOLLOWS THE PRINCIPAL, NOT THE SURFACE. Every lane turn — open
-    chat, a Text desk, a Slides desk — is the same member, embodied the same
+    chat, a Text pane, a Slides pane — is the same member, embodied the same
     way (`lane_caller_identity` → `member:{user_id} via {model}`), resolving
     grants against the same principal_id. So the turn's SHAPE no longer
     enters this decision at all: `app` / `artifact_path` / `derive_recipe`
@@ -541,12 +541,12 @@ def resolve_turn_reach(
                                honoured at every surface.
       (False, None)          — the deployment is darkened (the OFF switch).
 
-    `(True, ())` is unreachable and deliberately so: a being scoped to no
+    `(True, ())` is unreachable and deliberately so: an agent scoped to no
     platform has nothing to reach, so the turn does not carry the surface at
     all rather than carrying an empty one. One state, not two.
 
     Never raises. A lookup failure degrades to "no opt-in recorded" — the
-    same state as a member who never scoped this being, never to a scope the
+    same state as a member who never scoped this agent, never to a scope the
     member did not set. It cannot degrade to reach they did not grant: the
     opt-in is intersected against platforms actually connected downstream
     (`allowed_platforms`), so absence widens nothing beyond the grant.
@@ -577,11 +577,11 @@ def resolve_turn_reach(
     if opt_in is None:
         # ⭐ ADR-615 — NOT SCOPED means EVERYTHING GRANTED, at every surface.
         #
-        # ADR-612 D5 made a desk turn default-CLOSED: reach was unlocked only
-        # by an explicit per-being opt-in. That caution was written while the
-        # flag was dark, before any desk turn had ever carried the surface.
+        # ADR-612 D5 made an app turn default-CLOSED: reach was unlocked only
+        # by an explicit per-agent opt-in. That caution was written while the
+        # flag was dark, before any pane turn had ever carried the surface.
         #
-        # It rested on a distinction that does not survive inspection. A desk
+        # It rested on a distinction that does not survive inspection. An app
         # turn and an open chat turn are THE SAME PRINCIPAL — both stamp
         # `member:{user_id} via {model}` (`lane_caller_identity`), both resolve
         # grants by that member's own principal_id, both have the human
@@ -598,7 +598,7 @@ def resolve_turn_reach(
         #
         # What does NOT follow the principal, and must not: an unattended
         # standing run. Those execute through `run_bounded_derive_turn`, which
-        # is toolless by construction — so a being gains no live reach when
+        # is toolless by construction — so an agent gains no live reach when
         # nobody is present. That boundary (a clock plus a credential) stays
         # closed STRUCTURALLY, not by this default.
         return (True, None)
@@ -608,8 +608,8 @@ def resolve_turn_reach(
 
     plats = allowed_platforms(TURN_REACH_PLATFORMS, opt_in)
     if not plats:
-        # Scoped to nothing: no surface, in chat or at a desk. The member said
-        # this being reads through no connection, and that is honoured even
+        # Scoped to nothing: no surface, in chat or at an app. The member said
+        # this agent reads through no connection, and that is honoured even
         # where the turn would otherwise have reached.
         return (False, ())
     return (True, plats)
@@ -960,9 +960,9 @@ def _compose_focus_section(
 
     BOUND lane: the ADR-522 grain line — but only when the declaration names
     the bound artifact or names nothing (ADR-606 D2). The binding is the
-    authority on what this desk is about; a focus carried in by the shell's
+    authority on what this app is about; a focus carried in by the shell's
     recency fallback that names a DIFFERENT file renders as silence, because
-    narrating another file's selection into this desk's frame would aim the
+    narrating another file's selection into this app's frame would aim the
     colleague at the wrong object.
 
     UNBOUND lane: the situational default-target line, verbatim from the
@@ -1066,7 +1066,7 @@ def build_lane_conventions(
     # allowlist read, so the prose can never claim a surface the model wasn't
     # handed (the Scout bug's prose half). ADR-585 / ADR-615: the reach fact
     # re-derives here from the SAME arguments run_lane_turn passed — the
-    # member and the being, which since ADR-615 is the whole input (the turn's
+    # member and the agent, which since ADR-615 is the whole input (the turn's
     # shape no longer enters the decision). Two derivations from one function
     # agree; two hand-maintained values drift (the Scout bug).
     _reach, _reach_plats = resolve_turn_reach(
@@ -1375,7 +1375,7 @@ async def run_lane_turn(
     # rooms, session_id is the conversation id.
     ledger_slug: str = "lane",
     # ADR-567 D4 — the lane's binding app (lane_meta["app"]), selecting the
-    # JOB overlay only (strings → the standing-work desk posture). None →
+    # JOB overlay only (strings → the standing-work pane posture). None →
     # byte-identical.
     app: Optional[str] = None,
 ) -> dict:

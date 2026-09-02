@@ -18,7 +18,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import type { TPImageAttachment } from '@/types/desk';
+import type { TPImageAttachment } from '@/types/surface';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;  // 5MB — Claude API limit for images
 const MAX_DOC_SIZE = 20 * 1024 * 1024;   // 20MB — Anthropic Files API limit

@@ -1,4 +1,4 @@
-"""Agent connector opt-in — which granted connectors a being works against.
+"""Agent connector opt-in — which granted connectors an agent works against.
 
 ADR-612. Three layers, each narrowing the one above:
 
@@ -12,11 +12,11 @@ that is enforced rather than asserted: `allowed_platforms` intersects the
 opt-in against the platforms actually reachable, so an opt-in naming a platform
 the member never connected yields nothing. **There is no value of this field
 that widens anything** — which is the whole difference between a preference
-about a being and power granted to one.
+about an agent and power granted to one.
 
-⭐ WHY member_state AND NOT the being's row. The registry row is KERNEL code and
+⭐ WHY member_state AND NOT the agent's row. The registry row is KERNEL code and
 its `AGENT_ROW_KEYS` whitelist deliberately admits no reach-shaped key. A
-member's preference about a kernel being is not a property of the being; it is
+member's preference about a kernel agent is not a property of the agent; it is
 member data, and `member_state` is its established home (the ADR-489 D5
 notification-prefs precedent): workspace-scoped by primary key, service-role
 RLS with the API mediating authorization, already swept by the purge paths.
@@ -36,8 +36,8 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 #: The `member_state.key` this lives under. One key holding the whole map
-#: (`{slug: [platform, ...]}`) rather than a key per being: the pane reads and
-#: writes every being's setting in one round-trip, and a per-being key would
+#: (`{slug: [platform, ...]}`) rather than a key per agent: the pane reads and
+#: writes every agent's setting in one round-trip, and a per-agent key would
 #: make "what is scoped where" an N-read question.
 MEMBER_STATE_KEY = "agent_connectors"
 
@@ -47,16 +47,16 @@ def _read_map(_client: Any, workspace_id: str, principal_id: str) -> dict:
 
     A read failure must degrade to "no opt-in recorded" (= everything granted,
     per the module docstring), NOT to "nothing allowed": a transient DB error
-    that silently stripped a being's tools would look exactly like a working
+    that silently stripped a agent's tools would look exactly like a working
     scope the member never set.
 
     ⭐⭐⭐ THE CLIENT MUST BE SERVICE-ROLE. `member_state` is service-role-only
     by RLS (migration 202): under a USER client the select returns ZERO ROWS —
     not an error — so a real, recorded opt-in reads back as "absent". Since
     ADR-615 absent means EVERYTHING GRANTED, so the wrong client does not
-    degrade safely; it silently hands a being every platform the member
+    degrade safely; it silently hands an agent every platform the member
     connected, which is the exact scope the member was trying to narrow.
-    (Pre-615 this was invisible: absent meant no desk reach, so passing a user
+    (Pre-615 this was invisible: absent meant no app reach, so passing a user
     client failed CLOSED and looked correct.)
 
     So the client is resolved HERE rather than trusted from the caller — the
@@ -104,7 +104,7 @@ def opt_in_for(
     principal_id: str,
     agent_slug: Optional[str],
 ) -> Optional[list[str]]:
-    """This being's declared opt-in, or None when it has none.
+    """This agent's declared opt-in, or None when it has none.
 
     None (absent) and [] (explicitly empty) are DIFFERENT — see the module
     docstring. Callers must not collapse them with `or []`.
@@ -121,10 +121,10 @@ def allowed_platforms(
     reachable: tuple | list,
     opt_in: Optional[list[str]],
 ) -> tuple:
-    """The platforms a being may work against — the NARROWING, pure.
+    """The platforms an agent may work against — the NARROWING, pure.
 
     `reachable` is what the turn could otherwise reach (the grant side).
-    `opt_in` is the being's declaration, or None for "not scoped".
+    `opt_in` is the agent's declaration, or None for "not scoped".
 
     This is the function that makes the cliff test hold: the result is always
     a SUBSET of `reachable`, so an opt-in naming something ungranted adds
@@ -144,7 +144,7 @@ def set_opt_in(
     agent_slug: str,
     platforms: Optional[list[str]],
 ) -> dict:
-    """Record (or clear) one being's opt-in; returns the whole updated map.
+    """Record (or clear) one agent's opt-in; returns the whole updated map.
 
     `platforms=None` DELETES the entry — back to "not scoped" (everything
     granted), which is a real state a member must be able to return to and is
@@ -171,7 +171,7 @@ def set_opt_in(
 
 
 def read_all(client: Any, workspace_id: str, principal_id: str) -> dict:
-    """Every being's opt-in in this workspace, for the pane. Never raises."""
+    """Every agent's opt-in in this workspace, for the pane. Never raises."""
     return _read_map(client, workspace_id, principal_id)
 
 

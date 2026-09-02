@@ -144,7 +144,7 @@ STUDIO_BLOCKS: dict[str, dict[str, str]] = {
     },
     # ADR-528 D5 — NOT offered by Docs. A callout is prose in a container
     # (<aside>) with its own caret, and Google Docs has no equivalent; it sits
-    # in TEXT_BLOCK_KINDS while BEING a container, which is one of the two
+    # in TEXT_BLOCK_KINDS while AGENT a container, which is one of the two
     # rows that most muddied the text/object line the ADR carves. Studio keeps
     # it: a deck or a landing page is a composed surface where an offset aside
     # is an authored object, and ADR-487 D2's variant system (note/success/
@@ -2293,21 +2293,21 @@ def register_app(
     so Docs may present "Writer" over the same resident without minting an
     agent (the per-app naming ADR-467 D3 deferred as demand-gated).
 
-    ``standing_executor`` (ADR-604 D2) — a desk has a VOICE and its standing
+    ``standing_executor`` (ADR-604 D2) — an app has a VOICE and its standing
     work has an EXECUTOR, and `resident` was answering both questions with one
-    value. When declared, the app's unattended runs resolve THIS being's
+    value. When declared, the app's unattended runs resolve THIS agent's
     model + posture (and wear its face on receipts) while `resident` stays the
     conversation. Undeclared → the resident executes, so every app that does
     not need the split is unchanged by construction. Today exactly one app
-    declares it today: NONE. ADR-610 dissolved the one executor being that
+    declares it today: NONE. ADR-610 dissolved the one executor agent that
     filled it (strings → keeper), so strings derives its resident like every
-    other app. The FIELD stays: the seam is real — a being that executed a
-    desk's runs without speaking there would still be met on every receipt —
+    other app. The FIELD stays: the seam is real — an agent that executed a
+    app's runs without speaking there would still be met on every receipt —
     and a mechanism is not wrong because its first filling was.
 
     ``posture`` (ADR-606 D3) — the app's JOB overlay for its bound pane: a
     callable ``(client, user_id, artifact_path, artifact) -> str`` composing
-    the desk section of the lane frame from the artifact head the kernel
+    the pane section of the lane frame from the artifact head the kernel
     already read once this turn. Declared here so the kernel never hand-
     branches per app (the ADR-567 D4 / ADR-569 D6 / ADR-571 D4 branches this
     replaces); absent → the kernel's studio fallback postures the binding.
@@ -2355,7 +2355,7 @@ def resident_for_app(slug: str | None) -> str | None:
 
 
 def standing_executor_for_app(slug: str | None) -> str | None:
-    """The being that executes this app's STANDING runs. None if unregistered.
+    """The agent that executes this app's STANDING runs. None if unregistered.
 
     ADR-604 D2 — the voice/executor split. The declared `standing_executor`
     when the app names one, else the resident: an app that never declared the
@@ -2383,7 +2383,7 @@ def posture_for_app(slug: str | None) -> Optional[Callable[..., str]]:
 def studio_pane_posture(
     client: Any, user_id: str, artifact_path: str, artifact: str
 ) -> str:
-    """The studio desks' job overlay, in the ADR-606 D3 builder shape.
+    """The studio apps' job overlay, in the ADR-606 D3 builder shape.
 
     Registered by slides + images, and the kernel's fallback for a bound lane
     whose app declared no posture. Composes the pure authoring posture plus,

@@ -216,7 +216,7 @@ print("\n5. FE — the door leads with colleagues, engines a click behind (ADR-6
 
 web = pathlib.Path("../web")
 modal = (web / "components/chat-surface/NewChatModal.tsx").read_text()
-check("modal takes BOTH — colleagues and engines", "beings" in modal and "engines" in modal)
+check("modal takes BOTH — colleagues and engines", "agents" in modal and "engines" in modal)
 check("modal no longer asks 'who do you want to talk to'",
       "Who do you want to talk to" not in modal)
 check("modal carries the provider brand mark (D5)", "engineBrandIcon" in modal)
@@ -228,11 +228,11 @@ check("modal remembers the last START — colleague or engine, ONE key",
 # Without this the whole ADR is a comment — a modal listing engines first with
 # a `beings` prop it renders below would pass every other check here.
 check("colleagues render BEFORE engines in the door",
-      "beings.map" in modal and "engines.map" in modal
-      and modal.index("beings.map") < modal.index("engines.map"),
+      "agents.map" in modal and "engines.map" in modal
+      and modal.index("agents.map") < modal.index("engines.map"),
       "engines lead the door — ADR-614 D1 reverses exactly this")
 check("the being glyph comes from the ONE shared map, not a local copy",
-      "BeingIcon" in modal and "ICONS" not in modal)
+      "AgentIcon" in modal and "ICONS" not in modal)
 # No commentary (operator ruling): the door states choices, not instructions.
 check("the door carries no restated instructions",
       "Add people or agents once the chat is open" not in modal

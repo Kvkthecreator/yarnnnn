@@ -14,7 +14,7 @@ Two banned classes:
      `useDesk`, `DeskProvider`, and the dead desk types
      (`DeskState`/`DeskAction`/`AttentionItem`/`surfaceToParams`/
      `paramsToSurface`) were deleted in Phase 3. There is one window
-     manager: `useSurfacePreferences`. (The `DeskSurface` *type* and
+     manager: `useSurfacePreferences`. (The `NarrativeSurface` *type* and
      `mapToolActionToSurface` survive as the TP-handoff payload + producer
      — they are NOT banned.)
 
@@ -126,23 +126,23 @@ def test_legacy_desk_system_deleted() -> None:
         f"(found: {code_hits or 'none'})",
     )
 
-    # The dead desk types stay removed from types/desk.ts.
-    desk_types = (WEB / "types" / "desk.ts").read_text()
+    # The dead desk types stay removed from types/surface.ts.
+    desk_types = (WEB / "types" / "surface.ts").read_text()
     for dead in ("export interface DeskState", "export type DeskAction",
                  "export interface AttentionItem", "export function surfaceToParams",
                  "export function paramsToSurface"):
         _assert(
             dead not in desk_types,
-            f"types/desk.ts no longer exports '{dead.split()[-1]}'",
+            f"types/surface.ts no longer exports '{dead.split()[-1]}'",
         )
     # The live handoff payload + producer survive.
     _assert(
-        "export type DeskSurface" in desk_types,
-        "types/desk.ts still exports DeskSurface (TP-handoff payload — not banned)",
+        "export type NarrativeSurface" in desk_types,
+        "types/surface.ts still exports NarrativeSurface (TP-handoff payload — not banned)",
     )
     _assert(
         "export function mapToolActionToSurface" in desk_types,
-        "types/desk.ts still exports mapToolActionToSurface (handoff producer)",
+        "types/surface.ts still exports mapToolActionToSurface (handoff producer)",
     )
 
 
@@ -391,8 +391,8 @@ def test_no_dead_nav_targets() -> None:
 #
 # The navigable kernel surfaces are declared in THREE places that must agree:
 #   1. BE: api/services/kernel_surfaces.py — KERNEL_SURFACES with route != "".
-#   2. FE: web/types/desk.ts — the `KernelSurfaceSlug` TYPE UNION.
-#   3. FE: web/types/desk.ts — the `KERNEL_SURFACE_SLUGS` RUNTIME ARRAY
+#   2. FE: web/types/surface.ts — the `KernelSurfaceSlug` TYPE UNION.
+#   3. FE: web/types/surface.ts — the `KERNEL_SURFACE_SLUGS` RUNTIME ARRAY
 #          (what isKernelSurfaceSlug() checks; drives the pathname watcher).
 #
 # Chrome surfaces (route == "" — top-bar/launcher/chat-drawer) are
@@ -436,8 +436,8 @@ def _strip_line_comments(text: str) -> str:
 
 
 def _fe_slug_union() -> set[str]:
-    """FE `KernelSurfaceSlug` type union members from types/desk.ts."""
-    src = _strip_line_comments((WEB / "types" / "desk.ts").read_text())
+    """FE `KernelSurfaceSlug` type union members from types/surface.ts."""
+    src = _strip_line_comments((WEB / "types" / "surface.ts").read_text())
     m = re.search(
         r"export type KernelSurfaceSlug\s*=\s*(.*?);", src, re.DOTALL
     )
@@ -445,8 +445,8 @@ def _fe_slug_union() -> set[str]:
 
 
 def _fe_slug_array() -> set[str]:
-    """FE `KERNEL_SURFACE_SLUGS` runtime array from types/desk.ts."""
-    src = _strip_line_comments((WEB / "types" / "desk.ts").read_text())
+    """FE `KERNEL_SURFACE_SLUGS` runtime array from types/surface.ts."""
+    src = _strip_line_comments((WEB / "types" / "surface.ts").read_text())
     m = re.search(
         r"export const KERNEL_SURFACE_SLUGS[^=]*=\s*\[(.*?)\]", src, re.DOTALL
     )

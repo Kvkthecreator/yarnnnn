@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WEB = REPO_ROOT / "web"
 MIDDLEWARE = WEB / "lib" / "supabase" / "middleware.ts"
-DESK = WEB / "types" / "desk.ts"
+DESK = WEB / "types" / "surface.ts"
 LAYOUT = WEB / "app" / "(authenticated)" / "layout.tsx"
 
 _passed = 0
@@ -58,7 +58,7 @@ def _assert(cond: bool, msg: str) -> None:
 
 
 def _fe_slugs() -> set[str]:
-    """Parse KERNEL_SURFACE_SLUGS out of types/desk.ts (comments stripped —
+    """Parse KERNEL_SURFACE_SLUGS out of types/surface.ts (comments stripped —
     the array is comment-heavy and a quoted slug inside a comment is not a
     member; a gate that counted those would be reading its own prose)."""
     src = DESK.read_text()
@@ -75,7 +75,7 @@ def _fe_slugs() -> set[str]:
 def _resolved_protected_prefixes() -> set[str]:
     """Compute the prefix set the middleware ACTUALLY gates on.
 
-    Not "is the slug in types/desk.ts" — that question passes even when the
+    Not "is the slug in types/surface.ts" — that question passes even when the
     middleware ignores the roster entirely (the pre-fix state). This resolves
     both halves of the union the way the module does:
 
@@ -138,7 +138,7 @@ def test_every_roster_surface_is_gated() -> None:
 
     # RESOLVE the prefix set the middleware actually computes, rather than
     # asking the FE roster whether a slug exists. Those are different
-    # questions: the slug can be present in types/desk.ts while the middleware
+    # questions: the slug can be present in types/surface.ts while the middleware
     # never derives from it — which is precisely the pre-fix state, and a
     # check that reads the roster would have passed all through the outage.
     protected = _resolved_protected_prefixes()

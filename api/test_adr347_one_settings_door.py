@@ -187,7 +187,7 @@ def test_expected_output_registered() -> None:
     check("expected-output still reads _expected_output.yaml",
           any("_expected_output.yaml" in p for p in eo.get("substrate_paths", [])))
     check("expected-output is dormant (routeless)", not eo.get("route"))
-    desk = _read("types/desk.ts")
+    desk = _read("types/surface.ts")
     check("desk.ts allowlist DROPS 'expected-output' (dormant, ADR-418)",
           "'expected-output'" not in desk)
 

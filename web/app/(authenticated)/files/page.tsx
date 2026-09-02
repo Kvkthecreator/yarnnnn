@@ -75,7 +75,7 @@ import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
-import type { DeskSurface } from '@/types/desk';
+import type { NarrativeSurface } from '@/types/surface';
 import { api, APIError } from '@/lib/api/client';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFeedback } from '@/contexts/FeedbackContext';
@@ -704,7 +704,7 @@ export default function ContextPage() {
     selection.length === 1
       ? (resolveNodeByPath(virtualRoot, selection[0]) ?? syntheticNodeForPath(selection[0]))
       : viewNode;
-  const effectiveSurface: DeskSurface = focusNode
+  const effectiveSurface: NarrativeSurface = focusNode
     ? { type: 'workspace-explorer', path: focusNode.path, navigation_type: focusNode.type }
     : { type: 'atomic', slug: 'files' };
 

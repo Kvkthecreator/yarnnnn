@@ -68,7 +68,7 @@ def _protected_prefixes() -> tuple[set[str], set[str]]:
     block = mw.split("LEGACY_AND_STUB_PREFIXES")[1].split("];")[0]
     stubs = set(re.findall(r'"(/[a-z0-9-]+)"', block))
 
-    desk = open(os.path.join(_WEB, "types", "desk.ts"), encoding="utf-8").read()
+    desk = open(os.path.join(_WEB, "types", "surface.ts"), encoding="utf-8").read()
     arr = desk.split("KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [")[1].split("] as const")[0]
     surfaces = {"/" + s for s in re.findall(r"'([a-z0-9-]+)'", arr)}
     return surfaces, stubs
@@ -80,7 +80,7 @@ def main() -> int:
     protected = surfaces | stubs
 
     check(len(routes) > 20, f"found {len(routes)} authenticated pages to check")
-    check(len(surfaces) > 5, f"parsed {len(surfaces)} surface slugs from desk.ts")
+    check(len(surfaces) > 5, f"parsed {len(surfaces)} surface slugs from surface.ts")
     check(len(stubs) > 5, f"parsed {len(stubs)} stub prefixes from middleware.ts")
 
     uncovered = sorted(

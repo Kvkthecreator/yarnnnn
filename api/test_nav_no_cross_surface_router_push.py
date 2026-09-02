@@ -47,7 +47,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# The kernel surface SLUGS (== their routes; web/types/desk.ts KERNEL_SURFACE_SLUGS).
+# The kernel surface SLUGS (== their routes; web/types/surface.ts KERNEL_SURFACE_SLUGS).
 # A cross-surface jump targets one of these as `/{slug}` (optionally `?query`).
 SURFACE_SLUGS = [
     "feed", "home", "recurrence", "budget", "autonomy", "expected-output",

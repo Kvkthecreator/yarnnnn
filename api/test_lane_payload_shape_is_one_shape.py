@@ -5,7 +5,7 @@ Script-style (run: cd api && python3 test_lane_payload_shape_is_one_shape.py).
 THE DEFECT (operator-observed in production 2026-08-27): a chat started with
 Supervisor rendered "Claude Sonnet 5" in its header while the reply bubble
 correctly said "Supervisor". Everything upstream was right — the cast row was
-seeded (`member_kind='agent'`, `agent_slug='supervisor'`), `_beings_payload`
+seeded (`member_kind='agent'`, `agent_slug='supervisor'`), `_agents_payload`
 served the being (`is_promoted('supervisor')` is True), and `beingBySlug`
 resolved it. Only `create_lane`'s RESPONSE omitted the `participants` key.
 

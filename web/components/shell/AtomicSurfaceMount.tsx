@@ -20,7 +20,7 @@
  * now a thin SurfaceViewport host kept for route-file ergonomics.
  */
 
-import type { KernelSurfaceSlug } from '@/types/desk';
+import type { KernelSurfaceSlug } from '@/types/surface';
 import { SurfaceViewport } from './SurfaceViewport';
 
 interface AtomicSurfaceMountProps {

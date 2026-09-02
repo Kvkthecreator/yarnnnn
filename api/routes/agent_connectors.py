@@ -1,13 +1,13 @@
 """Agent connector opt-in routes — ADR-612.
 
-Which of the member's granted connectors a being works against. The store and
+Which of the member's granted connectors an agent works against. The store and
 the narrowing live in `services/agent_connectors.py`; this is the door.
 
 ⭐ NOT an `/agents` router. The pre-ADR-596 agent model's router was deleted
-whole (commit 083d25d) and has NO successor verb — authority over a being is
-unrepresentable (ADR-460 D3.a). Nothing here edits a being: the opt-in is the
-MEMBER's preference about which of THEIR OWN connections a being may work
-against, stored per (workspace, principal). The being's row is untouched, and
+whole (commit 083d25d) and has NO successor verb — authority over an agent is
+unrepresentable (ADR-460 D3.a). Nothing here edits an agent: the opt-in is the
+MEMBER's preference about which of THEIR OWN connections an agent may work
+against, stored per (workspace, principal). The agent's row is untouched, and
 `AGENT_ROW_KEYS` gains nothing — which is the check that this stayed on the
 right side of the cliff.
 """
@@ -36,10 +36,10 @@ def _scope(auth: UserClient) -> tuple[str, str]:
 
 @router.get("/agent-connectors")
 async def get_agent_connectors(auth: UserClient) -> dict:
-    """Every being's opt-in in this workspace, plus what there is to opt into.
+    """Every agent's opt-in in this workspace, plus what there is to opt into.
 
     Serves the GRANT side too (`available`) so the pane never has to guess
-    what is connected — the same reason `_beings_payload` serves `desks`
+    what is connected — the same reason `_agents_payload` serves `apps`
     rather than letting the client rebuild them.
     """
     from services.agent_connectors import read_all
@@ -66,12 +66,12 @@ async def get_agent_connectors(auth: UserClient) -> dict:
         logger.warning("[AGENT_CONNECTORS] connection read failed", exc_info=True)
 
     return {
-        # What a being COULD be scoped to: the reach-capable platforms this
+        # What an agent COULD be scoped to: the reach-capable platforms this
         # member has actually connected. Scoping to something ungranted is
         # meaningless (`allowed_platforms` intersects), so the door does not
         # offer it.
         "available": connected,
-        # Per being: the recorded opt-in. A being ABSENT from this map is not
+        # Per being: the recorded opt-in. An agent ABSENT from this map is not
         # scoped — it reaches everything granted (ADR-612 D2). The client must
         # not read absence as "nothing".
         "opt_in": read_all(svc, ws, principal),
@@ -84,17 +84,17 @@ async def put_agent_connectors(
     auth: UserClient,
     platforms: Optional[list[str]] = Body(default=None, embed=True),
 ) -> dict:
-    """Scope one being, or clear its scoping.
+    """Scope one agent, or clear its scoping.
 
     `platforms: null` CLEARS (back to "not scoped" — everything granted).
-    `platforms: []` is a real, different choice: this being reaches nothing.
+    `platforms: []` is a real, different choice: this agent reaches nothing.
     The two must stay distinguishable or the member cannot undo a scoping.
     """
     from services.agent_connectors import set_opt_in
     from services.agents_registry import resolve_agent
     from services.turn_reach import TURN_REACH_PLATFORMS
 
-    # The being must EXIST. Fails closed on an unknown slug rather than
+    # The agent must EXIST. Fails closed on an unknown slug rather than
     # recording a preference for nobody, which would accumulate silently and
     # read as a working scope.
     if resolve_agent(agent_slug) is None:

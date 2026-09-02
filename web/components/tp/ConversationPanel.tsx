@@ -41,7 +41,7 @@ import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageRow } from '@/components/tp/MessageRow';
-import type { TPMessage } from '@/types/desk';
+import type { TPMessage } from '@/types/surface';
 import { filterAddressedMessages } from '@/lib/feed-grouping';
 
 

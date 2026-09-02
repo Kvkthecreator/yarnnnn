@@ -158,7 +158,7 @@ def test_d5_the_pane() -> None:
             and "settings.pane=notification-settings" in stub.read_text(),
             "the route is an ADR-308 server redirect stub into the pane")
 
-    desk = _read("web/types/desk.ts")
+    desk = _read("web/types/surface.ts")
     _assert("'notification-settings'" in desk,
             "the slug joins the FE union (auth gate derives from it)")
 

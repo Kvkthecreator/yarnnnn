@@ -67,7 +67,7 @@ import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
-import { isKernelSurfaceSlug } from '@/types/desk';
+import { isKernelSurfaceSlug } from '@/types/surface';
 import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
 import { AttentionCenter } from '../AttentionCenter';

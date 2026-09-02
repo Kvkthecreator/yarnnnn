@@ -39,7 +39,7 @@ FOCUS_STORIES: dict[str, dict] = {
     "components/text/TextEditor.tsx": {
         "declares": "components/text/TextEditor.tsx",
     },
-    "components/desk/DeskHousing.tsx": {
+    "components/pane/PaneHousing.tsx": {
         # The desk housing is a frame; the strings SURFACE above it owns the
         # object in view and declares document-grain focus (ADR-522).
         "declares": "components/strings/StringsSurface.tsx",

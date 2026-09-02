@@ -125,7 +125,7 @@ check(
     (_row or {}).get("launcher_tier") == "primary" and (_row or {}).get("default_pinned") is True,
 )
 
-_desk = (WEB / "types" / "desk.ts").read_text()
+_desk = (WEB / "types" / "surface.ts").read_text()
 check("3d the FE union carries the slug", "| 'text'" in _desk)
 check("3e the FE runtime array carries the slug", "'text'," in _desk)
 check(
@@ -222,7 +222,7 @@ def _strip_comments(src: str) -> str:
     """Code only. An assertion that reads comments can match its own
     explanatory prose — the trap this repo keeps re-learning, and which
     check 5k hit while being written (the header says "does NOT ride
-    DeskHousing" and a whole-file grep read that as the violation)."""
+    PaneHousing" and a whole-file grep read that as the violation)."""
     src = re.sub(r"/\*[\s\S]*?\*/", "", src)
     return re.sub(r"^\s*//.*$", "", src, flags=re.MULTILINE)
 
@@ -256,8 +256,8 @@ check("5i the rail is reachable at narrow rungs (never an inescapable state)",
 check("5j exactly ONE <main> landmark (the nested-main defect that clipped "
       "the rail when Text rode the dashboard housing)",
       _editor.count("<main") == 1 and _landing.count("<main") == 0)
-check("5k Text does NOT ride DeskHousing (that is the DASHBOARD housing)",
-      "DeskHousing" not in _landing and "DeskHousing" not in _editor)
+check("5k Text does NOT ride PaneHousing (that is the DASHBOARD housing)",
+      "PaneHousing" not in _landing and "PaneHousing" not in _editor)
 check("5l the superseded canvas is deleted (no dual approach)",
       not (_TEXT / "TextCanvas.tsx").exists())
 

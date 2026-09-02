@@ -16,7 +16,7 @@
  */
 
 import { CheckCircle2, XCircle, FileText, Plus, Pencil, List, Search, Play, ListTodo } from 'lucide-react';
-import { TPToolResult } from '@/types/desk';
+import { TPToolResult } from '@/types/surface';
 import { cn } from '@/lib/utils';
 import { ProposalCard } from './ProposalCard';
 

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * StudioPublish — the Blogger desk's boundary act (ADR-628 phase (a)).
+ * StudioPublish — the Blogger app's boundary act (ADR-628 phase (a)).
  *
  * A third header verb beside Share/Export, mounted ONLY on the blogger app
  * (the exportPng precedent: an app-scoped affordance is an optional mount,

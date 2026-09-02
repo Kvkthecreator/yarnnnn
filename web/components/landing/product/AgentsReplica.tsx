@@ -9,11 +9,11 @@
  * "Lisa", a Thinker/Researcher/Designer roster — that ADR-599 deleted in
  * full. A replica of a deleted surface is fiction on the homepage.
  *
- * Faithful to the live pane (ADR-600 D6 / ADR-602 / ADR-610): beings
+ * Faithful to the live pane (ADR-600 D6 / ADR-602 / ADR-610): agents
  * sectioned by where they live — "In an app" (Editor across the authoring
- * desks, Supervisor over standing work), the honest "To work with" empty
+ * apps, Supervisor over standing work), the honest "To work with" empty
  * state, and the
- * attribution promise footer. Animation: the beings reveal one by one, then
+ * attribution promise footer. Animation: the agents reveal one by one, then
  * the footer — met where they work, not hired.
  */
 
@@ -21,20 +21,20 @@ import { Sparkles } from "lucide-react";
 import { ProductWindow, FaceCircle } from "./ProductWindow";
 import { useStagedLoop, reveal } from "./useStagedLoop";
 
-// The served beings (agents_registry blurbs, verbatim) with the desks the
+// The served agents (agents_registry blurbs, verbatim) with the apps the
 // pane names beside them.
-const BEINGS = [
+const AGENTS = [
   {
     initial: "E",
     name: "Editor",
     blurb: "Writes with you — decks and documents.",
-    homes: "In Slides, Text",
+    apps: "In Slides, Text",
   },
   {
     initial: "S",
     name: "Supervisor",
     blurb: "Looks after standing work — what runs, and when.",
-    homes: "In Strings",
+    apps: "In Strings",
   },
 ];
 
@@ -45,11 +45,11 @@ export function AgentsReplica({ className = "" }: { className?: string }) {
     <ProductWindow title="Agents" className={className}>
       <div className="h-[340px] overflow-hidden p-4">
         <div className="mx-auto max-w-sm space-y-4">
-          {/* In an app — the beings that come with the desks */}
+          {/* In an app — the agents that come with the apps */}
           <div>
             <span className="text-sm font-medium text-foreground">In an app</span>
             <div className="mt-1.5 space-y-1.5">
-              {BEINGS.map((b, i) => (
+              {AGENTS.map((b, i) => (
                 <div
                   key={b.name}
                   className={`flex items-center gap-3 rounded-md border border-border px-3 py-2 ${
@@ -63,7 +63,7 @@ export function AgentsReplica({ className = "" }: { className?: string }) {
                       {b.blurb}
                     </p>
                     <p className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">
-                      {b.homes}
+                      {b.apps}
                     </p>
                   </div>
                 </div>

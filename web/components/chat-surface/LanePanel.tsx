@@ -1244,7 +1244,7 @@ export function LanePanel({
                   gated on `!m.content`. A tool called after the reply began
                   narrating used to be invisible until the turn settled; the
                   steps now stay put and keep accruing under the narration.
-                  The last one spins while the turn runs (`sending` + this being
+                  The last one spins while the turn runs (`sending` + this agent
                   the trailing row); when it settles they all read as done. */}
               {m.role === 'assistant' && m.steps && m.steps.length > 0 && (
                 <StreamSteps

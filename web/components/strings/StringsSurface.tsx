@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * StringsSurface — Supervisor's desk over the maintained file (ADR-569 →
+ * StringsSurface — Supervisor's pane over the maintained file (ADR-569 →
  * ADR-604/610): Supervisor is the conversation about standing work AND
  * the standing executor whose face is on every run receipt.
  *
@@ -13,19 +13,19 @@
  * THE TENDING SURFACE (ADR-595): this pane shows the file's SITUATION —
  * currency, provenance, governance, audience — and never the file's
  * contents. Reading and correcting happen at the file's own surface (the
- * Open door); the desk view doesn't even carry the head (D1 — enforced at
+ * Open door); the app view doesn't even carry the head (D1 — enforced at
  * the API). Four tabs (D2): Overview (status + the N→1 flow strip) ·
  * Sources (each source as a PARTY: standing, receipts, contribution) ·
  * Activity (the attributed rail) · Contract (the terms). Loud states render
  * ABOVE the tabs — a repair is never hidden behind one.
  *
- * The chrome is the shared `DeskHousing` (ADR-569 D6 — the second tenant;
+ * The chrome is the shared `PaneHousing` (ADR-569 D6 — the second tenant;
  * radar was the first). This file keeps what is STRINGS': the string state
  * machine, the params, the format renderers, and every operator word.
  *
- * The desk's identity is the `strings.topic` param (the folder — one string
+ * The app's identity is the `strings.topic` param (the folder — one string
  * per folder, v1). `strings.target` carries a designation-in-flight's leaf so
- * a refresh resumes an undeclared desk with its lane intact; the desk
+ * a refresh resumes an undeclared pane with its lane intact; the app
  * promotes itself the moment the declaration parses (the substrate is
  * the state machine, ADR-567 D3). `strings.file` is inbound transport from
  * Files ("Keep this current…"), drained on the param VALUE (the 3f44a8f
@@ -52,10 +52,10 @@ import {
 import { useDeclareFocus } from '@/lib/shell/useSurfaceFocus';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { WorkspacePickerBody } from '@/components/workspace/WorkspacePicker';
-import { DeskHousing, type DeskContext } from '@/components/desk/DeskHousing';
+import { PaneHousing, type DeskContext } from '@/components/pane/PaneHousing';
 import {
-  DeskActivityRail, type RailEvent,
-} from '@/components/desk/DeskActivityRail';
+  PaneActivityRail, type RailEvent,
+} from '@/components/pane/PaneActivityRail';
 import { FRESHNESS_PROVIDERS } from '@/lib/connectors/registry';
 import type { WorkspaceTreeNode } from '@/types';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
@@ -92,7 +92,7 @@ function fmtWhen(iso?: string | null): string {
 const kebab = (s: string) =>
   s.trim().toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/^-+|-+$/g, '');
 
-/** What the desk knows about the selected folder.
+/** What the app knows about the selected folder.
  *
  *  ⭐ There is NO `unconfigured` phase (ADR-595 D1 as amended, 2026-08-28).
  *  A folder with no `_string.yaml` is served as a NORMAL `ready` view whose
@@ -200,7 +200,7 @@ export default function StringsSurface() {
 
   const topic = param.get('topic');
   const targetParam = param.get('target');
-  const deskRoot = topic ? `${WORKSPACE_ROOT}/${topic}` : null;
+  const paneRoot = topic ? `${WORKSPACE_ROOT}/${topic}` : null;
 
   // The tab (ADR-595 D2) — remembered posture; 'overview' is the unset default.
   const tabRaw = param.get('tab');
@@ -213,7 +213,7 @@ export default function StringsSurface() {
   );
 
   const [strings, setStrings] = useState<StringSummary[] | null>(null);
-  const [desk, setDesk] = useState<DeskState>({ phase: 'idle' });
+  const [pane, setDesk] = useState<DeskState>({ phase: 'idle' });
   //: The aperture chips for the setup pane — selected slices across the
   //: member's connections. null = not loaded; [] = loaded, none selected.
   const [apertureSlices, setApertureSlices] = useState<ApertureSlice[] | null>(null);
@@ -223,31 +223,31 @@ export default function StringsSurface() {
   const [running, setRunning] = useState(false);
   const [runNote, setRunNote] = useState<string | null>(null);
 
-  const view = desk.phase === 'ready' ? desk.view : null;
+  const view = pane.phase === 'ready' ? pane.view : null;
 
   // ⭐ `declared` is the SERVED fact (ADR-595 D1 amended), not a phase. An
-  // undeclared desk is a normal `ready` view whose declaration is empty, so
+  // undeclared pane is a normal `ready` view whose declaration is empty, so
   // "is this set up?" is a question about the DATA, and the phase machine no
   // longer answers it.
-  const declared = desk.phase !== 'ready' || desk.view.declared !== false;
+  const declared = pane.phase !== 'ready' || pane.view.declared !== false;
 
   // The lane's binding leaf: the declared target once it parses, else the
   // designation-in-flight's picked leaf (the `target` param) — so the
-  // unconfigured desk still seats the desk voice (Supervisor, ADR-604).
+  // unconfigured pane still seats the app voice (Supervisor, ADR-604).
   const artifactPath =
-    view?.target && deskRoot
-      ? `${deskRoot}/${view.target}`
-      : targetParam && deskRoot
-        ? `${deskRoot}/${targetParam}`
+    view?.target && paneRoot
+      ? `${paneRoot}/${view.target}`
+      : targetParam && paneRoot
+        ? `${paneRoot}/${targetParam}`
         : null;
 
-  // ADR-522 — the desk declares its focus: the maintained file is the unit.
+  // ADR-522 — the app declares its focus: the maintained file is the unit.
   useDeclareFocus(
     'strings',
     topic
       ? {
           app: 'strings',
-          path: artifactPath ?? (deskRoot ? `${deskRoot}/_string.yaml` : null),
+          path: artifactPath ?? (paneRoot ? `${paneRoot}/_string.yaml` : null),
           scope: 'document',
           id: null,
           pageIndex: null,
@@ -269,7 +269,7 @@ export default function StringsSurface() {
     }
   }, []);
 
-  // ⭐ ONE load, one shape. The server serves an UNDECLARED desk as itself
+  // ⭐ ONE load, one shape. The server serves an UNDECLARED pane as itself
   // (`declared: false`, empty sources/schedule/runs) rather than 404-ing —
   // ADR-595 D1 as amended. There is no second page to route to, so there is
   // no 404 branch here. The in-flight `target` rides along because a picked-
@@ -337,16 +337,16 @@ export default function StringsSurface() {
   // ⚠️ `targetParam` IS a dependency. It arrives on the same navigation as
   // `topic` but is not always set in the same commit (Files delivers the
   // file, the drain converts it to topic+target), so omitting it read a
-  // stale null and the desk lost the designation-in-flight — the leaf showed
-  // as "no file designated" on a desk the member had just picked one for.
+  // stale null and the app lost the designation-in-flight — the leaf showed
+  // as "no file designated" on an app the member had just picked one for.
   useEffect(() => {
     if (topic) void loadDesk(topic, targetParam);
     else setDesk({ phase: 'idle' });
   }, [topic, targetParam, loadDesk]);
 
   // The aperture chips (ADR-595 D4) — what this member's connections make
-  // available to pull from. Loaded once for an UNDECLARED desk, where they
-  // are the Sources tab's whole content; a declared desk reads its aperture
+  // available to pull from. Loaded once for an UNDECLARED pane, where they
+  // are the Sources tab's whole content; a declared pane reads its aperture
   // per-source (`in_aperture`) and does not need the roster.
   // Best-effort per provider: an unconnected platform contributes no chips.
   useEffect(() => {
@@ -389,7 +389,7 @@ export default function StringsSurface() {
     navigateToSurface('files', { path });
   }, [navigateToSurface]);
 
-  const refreshDesk = useCallback(() => {
+  const refreshPane = useCallback(() => {
     if (topic) void loadDesk(topic, targetParam);
     void loadStrings();
     setActivityNonce((n) => n + 1);
@@ -412,18 +412,18 @@ export default function StringsSurface() {
       setRunNote(`Run failed (${e instanceof Error ? e.message : String(e)}).`);
     } finally {
       setRunning(false);
-      refreshDesk();
+      refreshPane();
     }
-  }, [view, running, refreshDesk]);
+  }, [view, running, refreshPane]);
 
   const onLaneWrite = useCallback(() => {
-    refreshDesk();
-  }, [refreshDesk]);
+    refreshPane();
+  }, [refreshPane]);
 
   // What the declaration is still missing, in the order the member supplies
   // it. This is the ONE thing the deleted setup ladder carried that the tabs
   // do not — and it collapses to a phrase, not a page. Deliberately says
-  // nothing about the FILE: the desk cannot exist without one.
+  // nothing about the FILE: the app cannot exist without one.
   const missingParts = !view || declared ? [] : [
     ...(view.contract ? [] : ['a contract']),
     ...(view.sources.length ? [] : ['a source']),
@@ -431,8 +431,8 @@ export default function StringsSurface() {
   ];
 
   const setupIncomplete =
-    !declared || desk.phase === 'repair' ||
-    (desk.phase === 'ready' && desk.view.problem != null);
+    !declared || pane.phase === 'repair' ||
+    (pane.phase === 'ready' && pane.view.problem != null);
 
   // Freshness/staleness (D7.1): the last successful write is the "as of";
   // a failed latest fetch is stated plainly — the head is the last good
@@ -449,7 +449,7 @@ export default function StringsSurface() {
     const { lanesEnabled, seedChat, showRailColumn } = ctx;
     return (
       <div className="mx-auto max-w-3xl space-y-8 p-6">
-        {/* ── The file — what this desk keeps ── */}
+        {/* ── The file — what this app keeps ── */}
         <header className="space-y-1.5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-2">
@@ -467,10 +467,10 @@ export default function StringsSurface() {
                 <>
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <h1 className="truncate text-lg font-semibold">
-                    {/* ⚠️ `||` not `??`: since the undeclared desk is SERVED,
+                    {/* ⚠️ `||` not `??`: since the undeclared pane is SERVED,
                         `view.target` is now the empty STRING rather than
                         undefined, and `??` only falls through on null — so
-                        the title rendered blank on exactly the desk this
+                        the title rendered blank on exactly the app this
                         amendment added. An empty target means "not
                         designated", which must fall through like absence. */}
                     {view?.target || targetParam || topic.split('/').join(' / ')}
@@ -482,7 +482,7 @@ export default function StringsSurface() {
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
-                  onClick={refreshDesk}
+                  onClick={refreshPane}
                   title="Refresh"
                   className="rounded border p-1.5 hover:bg-muted"
                 >
@@ -526,7 +526,7 @@ export default function StringsSurface() {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {desk.phase === 'ready' && view && (
+            {pane.phase === 'ready' && view && (
               declared ? (
                 <>
                   {view.paused ? 'Paused' : 'Kept current'}
@@ -537,14 +537,14 @@ export default function StringsSurface() {
                 'Not kept yet — Supervisor sets it up in the conversation.'
               )
             )}
-            {desk.phase === 'loading' && 'Loading…'}
-            {deskRoot && (
+            {pane.phase === 'loading' && 'Loading…'}
+            {paneRoot && (
               <>
                 {' · '}
                 <button
                   type="button"
                   className="underline-offset-2 hover:underline"
-                  onClick={() => openInFiles(deskRoot)}
+                  onClick={() => openInFiles(paneRoot)}
                   title="The folder in Files — the file, its contract and its setup live there as ordinary files"
                 >
                   open folder
@@ -558,12 +558,12 @@ export default function StringsSurface() {
         </header>
 
         {/* ── Transient read failure — retry, never fake repair ── */}
-        {desk.phase === 'error' && (
+        {pane.phase === 'error' && (
           <div className="rounded-md border bg-muted/30 p-4 text-sm">
-            <p>This folder could not be read right now ({desk.detail}).</p>
+            <p>This folder could not be read right now ({pane.detail}).</p>
             <button
               type="button"
-              onClick={refreshDesk}
+              onClick={refreshPane}
               className="mt-2 inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs hover:bg-muted"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Retry
@@ -572,12 +572,12 @@ export default function StringsSurface() {
         )}
 
         {/* ── Repair — an unparseable declaration is LOUD (D3) ── */}
-        {desk.phase === 'repair' && (
+        {pane.phase === 'repair' && (
           <RepairCard
             title="The string declaration can't be read."
             body={
               <>
-                <code>_string.yaml</code> failed to parse ({desk.detail}).
+                <code>_string.yaml</code> failed to parse ({pane.detail}).
                 The standing loop is dark until it&apos;s repaired — nothing
                 is being kept current.
               </>
@@ -642,7 +642,7 @@ export default function StringsSurface() {
         )}
 
         {/* ── The tabs (ADR-595 D2) — loud states stay ABOVE, never behind ── */}
-        {desk.phase === 'ready' && view && (
+        {pane.phase === 'ready' && view && (
           <>
             <nav className="flex gap-1 border-b" aria-label="String tabs">
               {STRINGS_TABS.map((t) => (
@@ -715,13 +715,13 @@ export default function StringsSurface() {
               />
             )}
 
-            {tab === 'activity' && deskRoot && (
+            {tab === 'activity' && paneRoot && (
               <section>
-                <DeskActivityRail
-                  deskRoot={deskRoot}
+                <PaneActivityRail
+                  paneRoot={paneRoot}
                   events={view.recent_runs}
                   refreshNonce={activityNonce}
-                  onReverted={refreshDesk}
+                  onReverted={refreshPane}
                   authorLabel={stringsAuthorLabel}
                   authorChip={stringsAuthorChip}
                   fileLabel={(rel) => {
@@ -731,8 +731,8 @@ export default function StringsSurface() {
                     return undefined;
                   }}
                   canRevert={(p) =>
-                    (view.target != null && p === `${deskRoot}/${view.target}`) ||
-                    p === `${deskRoot}/CONTRACT.md`}
+                    (view.target != null && p === `${paneRoot}/${view.target}`) ||
+                    p === `${paneRoot}/CONTRACT.md`}
                   eventLine={runStatusLine}
                 />
               </section>
@@ -835,11 +835,11 @@ export default function StringsSurface() {
 
   // ── Render — the shared housing, wearing the standing-work vocabulary ───
   return (
-    <DeskHousing
+    <PaneHousing
       app="strings"
       subject={topic}
       artifactPath={artifactPath}
-      laneReady={desk.phase !== 'idle' && desk.phase !== 'loading'}
+      laneReady={pane.phase !== 'idle' && pane.phase !== 'loading'}
       laneName={topic ? `Keep: ${view?.target || targetParam || topic}` : ''}
       laneTabLabel="Supervisor"
       suggestions={setupIncomplete ? SETUP_SUGGESTIONS : TUNE_SUGGESTIONS}
@@ -854,7 +854,7 @@ export default function StringsSurface() {
           <p className="text-sm font-medium text-foreground/80">
             {setupIncomplete
               ? 'Tell Supervisor what this file must stay true to.'
-              : 'This file is on the standing-work desk.'}
+              : 'This file is on the standing-work pane.'}
           </p>
           <p>
             Say what the file means and where currency comes from — Supervisor
@@ -916,7 +916,7 @@ export default function StringsSurface() {
       )}
     >
       {renderCenter}
-    </DeskHousing>
+    </PaneHousing>
   );
 }
 function fmtBytes(n?: number | null): string | null {
@@ -940,18 +940,18 @@ function StatusCard({
   lastGoodWrite: string | null;
   fetchBroken: boolean;
   onOpenFile: () => void;
-  /** The one DIRECT gesture on this desk (everything else is conversational,
+  /** The one DIRECT gesture on this app (everything else is conversational,
    *  ADR-595 D4). Shown only when no leaf is designated yet. */
   onPickFile: () => void;
 }) {
-  // ⭐ No leaf designated: the desk exists (it is a FOLDER) but has no file
+  // ⭐ No leaf designated: the app exists (it is a FOLDER) but has no file
   // to keep current. This is the deleted ladder's step ① — the one act that
   // is a direct gesture rather than a sentence to Supervisor.
   if (!view.target) {
     return (
       <div className="rounded-md border border-dashed p-6 text-center">
         <p className="text-xs text-muted-foreground">
-          No file designated yet — pick the one this desk keeps current.
+          No file designated yet — pick the one this app keeps current.
         </p>
         <button
           type="button"
@@ -1108,7 +1108,7 @@ function SourcesPanel({
             No sources declared yet — tell Supervisor where currency comes from.
           </p>
           {/* ⭐ The aperture, at the question it answers. These chips used to
-              live on a separate setup page, which meant a DECLARED desk could
+              live on a separate setup page, which meant a DECLARED pane could
               never see "what else could I pull from" — the roster was fetched
               only in the unconfigured state. Same chips, same seeds, now in
               the tab that owns sources. */}
@@ -1618,9 +1618,9 @@ function DesignateFileModal({
                 {invalidName
                   ? 'The name needs an md, csv, json or txt extension.'
                   : collides
-                    ? `This folder already keeps ${held?.target || 'a file'} current — one per folder. This opens its desk.`
+                    ? `This folder already keeps ${held?.target || 'a file'} current — one per folder. This opens its app.`
                     : sameFile
-                      ? `${target} is already kept — this opens its desk.`
+                      ? `${target} is already kept — this opens its app.`
                       : topic && target
                         ? `Will keep: ${topic}/${target}`
                         : mode === 'existing'
@@ -1633,7 +1633,7 @@ function DesignateFileModal({
                 onClick={() => topic && onDesignate(topic, collides || sameFile ? null : target)}
                 className="shrink-0 rounded-md border bg-foreground px-3 py-1.5 text-sm text-background disabled:opacity-50"
               >
-                {collides || sameFile ? 'Open desk' : 'Designate'}
+                {collides || sameFile ? 'Open pane' : 'Designate'}
               </button>
             </div>
           </div>

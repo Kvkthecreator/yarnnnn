@@ -202,9 +202,9 @@ app.include_router(subscription.webhook_router, prefix="/api", tags=["subscripti
 # routes/agents.py DELETED (2026-08-26). It served the pre-ADR-596 agent model
 # — ADR-109's Scope x Role x Trigger over the `agents` + `agent_runs` tables —
 # and by the time it was removed production held 0 rows in both, with 0 callers
-# for all 12 endpoints. What an agent IS now is a BEING (ADR-596), one row in
+# for all 12 endpoints. What an agent IS now is a AGENT (ADR-596), one row in
 # `services/agents_registry.AGENTS`, served to the /agents surface by
-# `routes/lanes.py::_beings_payload`. Two models for one word is the ambiguity
+# `routes/lanes.py::_agents_payload`. Two models for one word is the ambiguity
 # Singular Implementation exists to prevent; the retired one is gone, not
 # shimmed. Gate: test_adr272_identity_collapse.py::test_legacy_agents_router_deleted.
 

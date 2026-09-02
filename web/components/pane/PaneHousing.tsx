@@ -1,25 +1,25 @@
 'use client';
 
 /**
- * DeskHousing — the shared desk chrome (ADR-569 D6, the ADR-518 housing move).
+ * PaneHousing — the shared pane chrome (ADR-569 D6, the ADR-518 housing move).
  *
- * A desk app (Radar's watched folder, Strings' maintained file) is a rail of
+ * An app (Radar's watched folder, Strings' maintained file) is a rail of
  * subjects · a center lifecycle pane · a bound colleague lane, on the
- * authoring width ladder. The chrome is identical across desks; only the
+ * authoring width ladder. The chrome is identical across apps; only the
  * vocabulary and the center's content differ — so the chrome extracts into
- * ONE parameterized component with an app door per desk (`StudioSurface`'s
- * move, ADR-518), and folding two desks into one later stays a door change
+ * ONE parameterized component with an app door per app (`StudioSurface`'s
+ * move, ADR-518), and folding two apps into one later stays a door change
  * (ADR-565 D8 held open, deliberately cheap).
  *
  * What the housing owns:
  *   - the pane container + `usePaneLadder` (docs/design/PANES.md — width rides
- *     the desk's own container, never the viewport):
+ *     the app's own container, never the viewport):
  *       full/condensed → three columns;
  *       two-pane       → the rail folds (the app renders a header switcher);
- *       single-pane    → one pane + a Desk/{colleague} tab bar;
+ *       single-pane    → one pane + a Pane/{colleague} tab bar;
  *   - the bound lane: find-or-create keyed on `artifact_path` with the app's
  *     own slug (`create_lane(app=…)` — the resident resolves SERVER-side from
- *     the app's registration, ADR-562 D3; `lane_meta.app` selects the desk
+ *     the app's registration, ADR-562 D3; `lane_meta.app` selects the app
  *     posture, ADR-567 D4), mounted through `LanePanel`'s named
  *     `LaneMountSlots` only — never a forked panel;
  *   - WHO the member reads (ADR-562 D5): the app's name for its resident,
@@ -27,7 +27,7 @@
  *     the wire, never asserted here;
  *   - the refine-in-chat seed mechanism (jumps to the lane pane on phones).
  *
- * What stays in each desk app: the subject param + state machine, the rail's
+ * What stays in each app: the subject param + state machine, the rail's
  * rows, the center pane's sections, the attach gesture, and every operator
  * word. The housing renders structure; the app renders meaning.
  */
@@ -47,7 +47,7 @@ type LaneRow = LanesEnv['lanes'][number];
 
 /** What the housing hands its render slots. */
 export interface DeskContext {
-  /** The workbench-width ladder read on the desk's own container. */
+  /** The workbench-width ladder read on the app's own container. */
   wb: ReturnType<typeof usePaneLadder>[1];
   /** Three-column rung → the rail renders as its own column; below it the
    *  app folds the roster into a header switcher. */
@@ -57,20 +57,20 @@ export interface DeskContext {
   /** Seed the colleague's composer (jumps to the lane pane on phones). */
   seedChat: (text: string) => void;
   /** single-pane only: which pane the tab bar shows. */
-  setActivePane: (pane: 'desk' | 'lane') => void;
+  setActivePane: (pane: 'pane' | 'lane') => void;
 }
 
-export interface DeskHousingProps {
+export interface PaneHousingProps {
   /** The app slug the lane binds under (`create_lane(app=…)`) — also the
    *  ADR-562 D5 speaker-label lookup key. */
   app: string;
-  /** The selected subject (the desk's identity param), or null for the
+  /** The selected subject (the app's identity param), or null for the
    *  front door. */
   subject: string | null;
   /** The bound artifact leaf for the current subject (`{root}/report.md`,
    *  `{folder}/{target-leaf}`), or null when no subject. */
   artifactPath: string | null;
-  /** Gate for lane creation: false while the desk's state is still unknown
+  /** Gate for lane creation: false while the app's state is still unknown
    *  (idle/loading), so a lane is never created for a subject that may not
    *  resolve. */
   laneReady: boolean;
@@ -80,11 +80,11 @@ export interface DeskHousingProps {
   laneTabLabel: string;
   /** Starter chips while the lane transcript is empty. */
   suggestions: string[];
-  /** The lane's empty-state teaching, in the desk's own words. */
+  /** The lane's empty-state teaching, in the app's own words. */
   laneEmptyState: ReactNode;
   /** Shown when the lane could not be opened. */
   laneFallbackLabel: string;
-  /** A lane write landed — re-read everything the desk projects. */
+  /** A lane write landed — re-read everything the app projects. */
   onLaneWrite?: (path: string) => void;
   /** The rail column (three-column rung only — fold is the app's concern). */
   renderRail: (ctx: DeskContext) => ReactNode;
@@ -96,7 +96,7 @@ export interface DeskHousingProps {
   overlay?: (ctx: DeskContext) => ReactNode;
 }
 
-export function DeskHousing({
+export function PaneHousing({
   app,
   subject,
   artifactPath,
@@ -111,14 +111,14 @@ export function DeskHousing({
   renderFrontDoor,
   children,
   overlay,
-}: DeskHousingProps) {
+}: PaneHousingProps) {
   const [setWorkbenchNode, wb] = usePaneLadder();
 
   // single-pane: which pane the tab bar shows. Switching subject lands on the
-  // desk pane (the selectTopic behavior, hoisted with the chrome).
-  const [activePane, setActivePane] = useState<'desk' | 'lane'>('desk');
+  // pane pane (the selectTopic behavior, hoisted with the chrome).
+  const [activePane, setActivePane] = useState<'pane' | 'lane'>('pane');
   useEffect(() => {
-    setActivePane('desk');
+    setActivePane('pane');
   }, [subject]);
   // Composer seed for the refine-in-chat gestures (LaneMountSlots contract).
   const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
@@ -127,12 +127,11 @@ export function DeskHousing({
   //    create_lane(app={app}, artifact_path={subject's leaf})) ──────────────
   const [lanesEnabled, setLanesEnabled] = useState<boolean | null>(null);
   const [lanes, setLanes] = useState<LaneRow[]>([]);
-  const [agents, setAgents] = useState<LanesEnv['agents']>([]);
   const [apps, setApps] = useState<NonNullable<LanesEnv['apps']>>([]);
-  // ADR-602 — the BEINGS roster. `agents` is the HIRE roster (empty since
+  // ADR-602 — the AGENTS roster. `agents` is the HIRE roster (empty since
   // ADR-599), so a resident's name was never found there and this housing
-  // addressed the ENGINE instead of the desk's colleague.
-  const [beings, setBeings] = useState<NonNullable<LanesEnv['beings']>>([]);
+  // addressed the ENGINE instead of the app's colleague.
+  const [agents, setAgents] = useState<LanesEnv['agents']>([]);
   const [models, setModels] = useState<LanesEnv['models']>([]);
   // The NAMING table (every engine, retired included). `models` is the CHOOSER
   // and drops retired rows, so a bound lane pinned to one would name itself by
@@ -144,9 +143,8 @@ export function DeskHousing({
       const res = await api.lanes.list(true);
       setLanesEnabled(res.enabled);
       setLanes(res.lanes);
-      setAgents(res.agents ?? []);
       setApps(res.apps ?? []);
-      setBeings(res.beings ?? []);
+      setAgents(res.agents ?? []);
       setModels(res.models ?? []);
       setModelNames(res.model_names ?? {});
     } catch {
@@ -158,11 +156,11 @@ export function DeskHousing({
     void refreshLanes();
   }, [refreshLanes]);
 
-  // ⭐ The binding is (APP, PATH) — never the path alone. Two desks may
+  // ⭐ The binding is (APP, PATH) — never the path alone. Two apps may
   // legitimately bind the SAME file: a `.md` is both Text's document and
   // Strings' maintained file, and each opens its own lane with its own
   // resident (Editor / Supervisor). Matching on path alone let whichever lane
-  // sorted first win, so the Strings desk adopted the Text lane and rendered
+  // sorted first win, so the Strings pane adopted the Text lane and rendered
   // "Editor" where Supervisor belonged — operator-observed 2026-08-28 on
   // `operation/fundraising/application-copy-bank.md`, which really does carry
   // one lane of each.
@@ -170,7 +168,7 @@ export function DeskHousing({
   // Legacy tolerance: a lane created before ADR-567 D4 carries no `app`
   // stamp. Adopting one is better than orphaning a live thread, so an
   // unstamped lane still matches — but only when no correctly-stamped lane
-  // exists for this desk, so the stamped one always wins.
+  // exists for this app, so the stamped one always wins.
   const boundLane = useMemo(() => {
     if (!artifactPath) return null;
     const onPath = lanes.filter(
@@ -193,7 +191,7 @@ export function DeskHousing({
         name: laneName.slice(0, 60),
         // ADR-562 D3/ADR-567 D4 — the surface names WHICH APP is asking; the
         // resident resolves server-side from the app's own registration, and
-        // lane_meta.app selects the desk posture.
+        // lane_meta.app selects the pane posture.
         app,
         artifact_path: artifactPath,
       })
@@ -222,13 +220,11 @@ export function DeskHousing({
     if (slug) {
       const appName = apps.find((a) => a.slug === app)?.name;
       if (appName) return appName;
-      const being = beings.find((b) => b.slug === slug)?.name;
-      if (being) return being;
       const named = agents.find((a) => a.slug === slug)?.name;
       if (named) return named;
     }
     return modelLabel;
-  }, [agents, apps, beings, boundLane, modelLabel, app]);
+  }, [agents, apps, boundLane, modelLabel, app]);
 
   const seedChat = useCallback((text: string) => {
     setSeed({ text, nonce: Date.now() });
@@ -260,7 +256,7 @@ export function DeskHousing({
 
         {subject ? (
           <>
-            {(!wb.singlePane || activePane === 'desk') && (
+            {(!wb.singlePane || activePane === 'pane') && (
               <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                 {children(ctx)}
               </main>
@@ -299,10 +295,10 @@ export function DeskHousing({
         )}
       </div>
 
-      {/* ── single-pane: the Desk/{colleague} tab bar ── */}
+      {/* ── single-pane: the Pane/{colleague} tab bar ── */}
       {wb.singlePane && subject && lanesEnabled && (
         <nav className="flex shrink-0 border-t">
-          {([['desk', 'Desk'], ['lane', laneTabLabel]] as const).map(([pane, label]) => (
+          {([['pane', 'Pane'], ['lane', laneTabLabel]] as const).map(([pane, label]) => (
             <button
               key={pane}
               type="button"

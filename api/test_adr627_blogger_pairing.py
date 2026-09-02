@@ -44,7 +44,7 @@ def check(label: str, cond: bool, detail: str = "") -> None:
 import services.apps  # noqa: F401,E402  (registration side-effect)
 from services.agents_registry import (  # noqa: E402
     AGENT_ROW_KEYS,
-    homes_for_agent,
+    apps_for_agent,
     is_promoted,
     resolve_agent,
 )
@@ -70,7 +70,7 @@ check("its engine is routable and priced",
       bool(being) and being["model"] in LANE_MODELS
       and not unpriced_lane_model(being["model"]))
 check("its home is the blogger desk alone",
-      homes_for_agent("blogger") == ["blogger"])
+      [a["slug"] for a in apps_for_agent("blogger")] == ["blogger"])
 
 print("2. the app (ADR-627 D1 via ADR-562)")
 check("the app pins the being as resident",
@@ -122,7 +122,7 @@ check("the route is /blogger", bool(row) and row.get("route") == "/blogger")
 
 print("5. the FE seams (roster-derived auth cover + the app wrapper)")
 WEB = ROOT / "web"
-desk_ts = (WEB / "types" / "desk.ts").read_text()
+desk_ts = (WEB / "types" / "surface.ts").read_text()
 check("desk.ts lists the slug (SURFACE_PREFIXES derives the auth gate from it)",
       "'blogger'" in desk_ts.split("KernelSurfaceSlug[] = [")[1].split("] as const")[0])
 check("the union carries it (window-grade slug)",
@@ -139,8 +139,8 @@ check("the type→app association carries blogger (artifacts open at the desk)",
       "blogger: { surface: 'blogger'" in (WEB / "lib" / "file-types" / "index.ts").read_text())
 check("the launcher glyph resolves (icon_key mapped)",
       "newspaper: Newspaper" in (WEB / "lib" / "shell" / "surface-icons.tsx").read_text())
-check("the being's glyph resolves (BeingIcon mapped)",
-      "feather: Feather" in (WEB / "components" / "agents" / "BeingIcon.tsx").read_text())
+check("the being's glyph resolves (AgentIcon mapped)",
+      "feather: Feather" in (WEB / "components" / "agents" / "AgentIcon.tsx").read_text())
 
 print("6. what is REFUSED (ADR-627 D5 / ADR-628 — no outbound reach)")
 blogger_src = (ROOT / "api" / "services" / "apps" / "blogger.py").read_text()

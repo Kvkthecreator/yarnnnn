@@ -50,9 +50,9 @@ demands (D4):
                the full revised document or the exact token NO_CHANGE
     validate — the machine-checkable half of the contract (``shape``). A
                violating write is REFUSED into a LOUD repair state (D3 — the
-               ADR-567 D6 shape): no silent bad numbers, the desk says so,
+               ADR-567 D6 shape): no silent bad numbers, the app says so,
                the lane repairs. Metered ``status='failed',
-               error_reason='shape_violation'`` — the desk reads the ledger.
+               error_reason='shape_violation'`` — the app reads the ledger.
     write    — CONFINED to the declared leaf ONLY (stricter than radar's
                subtree rule — the ``_assert_hub_write`` shape, D3), via
                write_revision(revision_kind='derivation',
@@ -70,7 +70,7 @@ declarations, materializes the slice (``preserve_due_commitment`` applies by
 construction — b8ac1c7), claims via CAS, runs, records.
 
 The topic is the folder path relative to ``/workspace/`` (any meaning-folder
-— the designated file lives where it lives; the desk's identity param and the
+— the designated file lives where it lives; the app's identity param and the
 Files association both carry it).
 
 Attribution: raws as ``system:strings`` observations; the leaf write as
@@ -78,12 +78,12 @@ Attribution: raws as ``system:strings`` observations; the leaf write as
 reads "Supervisor"; authored_by stays the mechanism). This module deliberately
 carries no module-level ``services.*`` imports (the radar cycle-free property).
 
-ADR-604 opened the voice/executor split; ADR-610 closes it for this desk.
+ADR-604 opened the voice/executor split; ADR-610 closes it for this app.
 Strings is Supervisor's WHOLE: the bound-lane conversation about standing work
 AND the unattended runs. The runs still resolve the app's
 ``standing_executor``, which is undeclared and therefore derives the resident —
-the seam survives, its second being does not (maintenance is the steward's
-seat and daemon work, never a being). Declared on the one registration in
+the seam survives, its second agent does not (maintenance is the steward's
+seat and daemon work, never an agent). Declared on the one registration in
 ``services/apps/__init__.py`` (ADR-562).
 """
 
@@ -560,16 +560,16 @@ def record_string_run(client, user_id: str, decl: StringDecl, *, last_run_at: da
 def resolve_strings_resident() -> tuple[str, str]:
     """The standing writer's EXECUTOR — Supervisor today, derived, never assumed.
 
-    ADR-604 D2 — the voice/executor split: the strings desk's RESIDENT is
+    ADR-604 D2 — the voice/executor split: the strings app's RESIDENT is
     Supervisor (the conversation about standing work), but the unattended
-    runs resolve the app's ``standing_executor`` — the being whose model +
+    runs resolve the app's ``standing_executor`` — the agent whose model +
     posture power the writer and whose face the receipts wear (attribution
     stays ``system:strings``, the ADR-596 D1 machinery-in-costume form).
-    Model + character come from the being's row in the ONE register
+    Model + character come from the agent's row in the ONE register
     (ADR-600). Returns ``(model, posture)``.
 
     No plausible-default fallback: a strings app with no registered executor
-    is a bug that raises, not a reason to quietly pick a being (the ADR-548
+    is a bug that raises, not a reason to quietly pick an agent (the ADR-548
     lesson `resident_for_declaration` already states).
     """
     import services.apps  # noqa: F401  (registration side-effect — ADR-562)
@@ -617,7 +617,7 @@ async def _reach_connector_sources(
     which lands attributed observations at the fixed intake lane. The
     effective set is the intersection with the connection's aperture — a
     string narrows the operator's consent, never widens it. Failure degrades
-    to the newest landed snapshot (stale-but-honest; the desk states
+    to the newest landed snapshot (stale-but-honest; the app states
     staleness); never raises."""
     from services.connectors import (
         connection_row,
@@ -789,7 +789,7 @@ def map_structured(raw: str, *, fmt: str, shape: dict) -> str:
 #: second — the lane_runner order). The CONTRACT rides the user message,
 #: exactly as radar's criterion does.
 #:
-#: ADR-610 — named for the JOB, not for a being. The `keeper` being is
+#: ADR-610 — named for the JOB, not for an agent. The `keeper` being is
 #: dissolved; what was load-bearing in its character was job instruction all
 #: along (§3.2.1: rules of judgment belong to the contract and the job layer,
 #: never to a persona frame) and lives here.
@@ -831,9 +831,9 @@ def build_standing_run_posture(decl: StringDecl) -> str:
     return _STANDING_RUN_POSTURE.format(target=decl.target, root=decl.root)
 
 
-#: The DESK posture (ADR-569 D6, via ADR-567 D4's mechanism) — the job
+#: The PANE posture (ADR-569 D6, via ADR-567 D4's mechanism) — the job
 #: overlay for a lane bound to a maintained file's target leaf. The member
-#: and the desk's VOICE run the string's lifecycle in conversation, and the
+#: and the app's VOICE run the string's lifecycle in conversation, and the
 #: voice works by writing the folder's files. ROLE-NEUTRAL deliberately
 #: (ADR-604): the job layer teaches the JOB and never claims an identity —
 #: the character layer names who speaks (Supervisor, ADR-604 D1). Since
@@ -842,12 +842,12 @@ def build_standing_run_posture(decl: StringDecl) -> str:
 #: other. Composed fresh per turn
 #: (derived-never-stored); the state block keeps the conversation honest
 #: against the substrate.
-_STANDING_DESK_FRAME = """THE STANDING-WORK DESK — you tend the maintained file in {root} with the member.
+_STANDING_PANE_FRAME = """THE STANDING-WORK PANE — you tend the maintained file in {root} with the member.
 
 A string runs a standing loop: on a schedule, its declared sources are pulled
 and the DESIGNATED file is revised under its contract (mechanically for
 csv/json/txt — fetch, map to the declared shape, validate, write; as a
-bounded judgment turn for md, governed by CONTRACT.md). At this desk the
+bounded judgment turn for md, governed by CONTRACT.md). At this app the
 member talks to you about that loop — designating the file, declaring its
 contract and sources, tuning it, and correcting the file. You act by WRITING
 THE FOLDER'S FILES; the kernel reads them (the declaration is discovered
@@ -876,7 +876,7 @@ THE THREE FILES (all inside {root}/)
       # keys: [mrr, churn]   # json: required top-level keys
   NO prose, NO other keys. After writing it, READ IT BACK to confirm it
   parses as clean YAML — a malformed declaration means the file silently
-  stops being kept, and repairing it is YOUR job at this desk.
+  stops being kept, and repairing it is YOUR job at this app.
 - the target file — the standing run is its author; revise it directly only
   when the member asks for a correction (their corrections compound — the
   next run inherits the head).
@@ -902,15 +902,15 @@ THE CURRENT STATE (read fresh this turn)
 {state}"""
 
 
-def build_strings_desk_posture(
+def build_strings_pane_posture(
     client: Any, user_id: str, target_path: str, head: str
 ) -> str:
-    """The desk job overlay for a strings-bound lane (ADR-567 D4's mechanism,
+    """The pane job overlay for a strings-bound lane (ADR-567 D4's mechanism,
     ADR-569's branch). ``target_path`` is the lane's binding
     (``{root}/{target-leaf}``); the root derives from it. Reads the folder's
-    desk files fresh — the state block lets the colleague answer from
+    pane files fresh — the state block lets the colleague answer from
     substrate, not memory. ``head`` is the TARGET's current content, read once
-    by the lane kernel (ADR-606 D3) — the desk files (declaration + contract)
+    by the lane kernel (ADR-606 D3) — the pane files (declaration + contract)
     stay this builder's own reads because they are not the bound artifact."""
     root = target_path.rsplit("/", 1)[0]
     leaf = target_path.rsplit("/", 1)[-1]
@@ -954,7 +954,7 @@ def build_strings_desk_posture(
     else:
         lines.append(f"- {leaf} does not exist yet — the first run writes it.")
 
-    return _STANDING_DESK_FRAME.format(root=root, state="\n".join(lines))
+    return _STANDING_PANE_FRAME.format(root=root, state="\n".join(lines))
 
 
 def _read_file(client, user_id: str, path: str) -> Optional[str]:
@@ -987,7 +987,7 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
     started = datetime.now(timezone.utc)
     topic = decl.topic
 
-    # A declaration in a problem state never runs — the desk already says so.
+    # A declaration in a problem state never runs — the app already says so.
     if decl.problem is not None or decl.format is None:
         return {"success": False, "slug": decl.slug,
                 "error_reason": decl.problem or "unsupported_format"}
@@ -1027,7 +1027,7 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
                        topic, e)
         _balance_ok = True
     if not _balance_ok:
-        # A refusal is a RECORDED run, not a silent skip: the desk must be able
+        # A refusal is a RECORDED run, not a silent skip: the app must be able
         # to say why nothing moved, and the drainer records either way.
         record_execution_event(
             client, user_id=user_id, slug=f"string-sweep:{topic}",
@@ -1104,7 +1104,7 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
             content = map_structured(bodies[0][1], fmt=decl.format, shape=decl.shape)
         except ShapeViolation as e:
             # D3 — the LOUD repair state: the write is REFUSED, the ledger
-            # says why, the desk reads the ledger, the lane repairs. No
+            # says why, the app reads the ledger, the lane repairs. No
             # silent bad numbers.
             record_execution_event(
                 client, user_id=user_id, slug=f"string-write:{topic}",
@@ -1320,7 +1320,7 @@ __all__ = [
     "resolve_strings_resident",
     "map_structured",
     "build_standing_run_posture",
-    "build_strings_desk_posture",
+    "build_strings_pane_posture",
     "run_string_sweep",
     "drain_due_string_runs",
 ]

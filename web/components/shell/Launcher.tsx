@@ -52,7 +52,7 @@ import { FileText, Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { Z_LAUNCHER_OVERLAY } from '@/lib/shell/z-tiers';
-import { isKernelSurfaceSlug } from '@/types/desk';
+import { isKernelSurfaceSlug } from '@/types/surface';
 import { parseFileReference, toWorkspacePath } from '@/lib/interop/fileHandle';
 
 interface LauncherProps {

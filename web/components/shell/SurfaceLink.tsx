@@ -41,7 +41,7 @@
 
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from 'react';
 import { useSurfacePreferences, scopeParamKey } from '@/lib/shell/useSurfacePreferences';
-import type { KernelSurfaceSlug } from '@/types/desk';
+import type { KernelSurfaceSlug } from '@/types/surface';
 
 interface SurfaceLinkProps
   extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {

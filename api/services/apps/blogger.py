@@ -221,7 +221,7 @@ BLOGGER_ARRANGEMENTS: dict[str, dict[str, dict]] = {
 # and its AI configuration with the app registry (ADR-562 D2). The builders
 # (skeleton, posture, artifact-kind) are kernel code every authoring app
 # consumes — registration is how Blogger reaches them. The pane job overlay is
-# the shared studio posture (ADR-606 D3): the desk is Studio-parameterized, so
+# the shared studio posture (ADR-606 D3): the app is Studio-parameterized, so
 # the studio job (block grammar + design-system skin contract) IS its job.
 from services.authoring import (  # noqa: E402  (registration side-effect)
     register_app,
@@ -231,7 +231,7 @@ from services.authoring import (  # noqa: E402  (registration side-effect)
 
 register_layouts(BLOGGER_LAYOUTS, BLOGGER_ARRANGEMENTS)
 
-# ADR-627 D2 — the desk's voice is its own being, not a second desk on Editor:
+# ADR-627 D2 — the app's voice is its own agent, not a second app on Editor:
 # Editor's contract is the member's document in the member's voice; Blogger
 # writes for a reader OUTSIDE the workspace. Those postures conflict in one
 # character. `standing_executor` stays undeclared (the resident executes —

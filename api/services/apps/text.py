@@ -43,7 +43,7 @@ def build_text_posture(artifact_path: str, head: str) -> str:
     )
 
     lines: list[str] = [
-        "## Your desk — the Text app (a prose document)",
+        "## Your pane — the Text app (a prose document)",
         "",
         f"You are bound to ONE document: {rel}",
         "",
@@ -83,16 +83,16 @@ def build_text_posture(artifact_path: str, head: str) -> str:
 def text_pane_posture(client: Any, user_id: str, artifact_path: str, artifact: str) -> str:
     """The ADR-606 D3 builder shape over the pure posture. ``client`` and
     ``user_id`` are part of the shared contract and deliberately unused —
-    this desk's whole job is the one document the kernel already read."""
+    this app's whole job is the one document the kernel already read."""
     return build_text_posture(artifact_path, artifact)
 
 
 # ── ADR-562 D3: the registration, beside the code it configures ───────────
 # The resident is IDENTITY only — the engine follows Editor's own row in
 # `agents_registry.AGENTS`, never a caller-supplied model.
-# ADR-597 D2 — Text seats its OWN being. Editor is a row of its own, not
-# designer wearing a rename: one desk, one voice. ADR-600 collapsed the
-# register split, so Editor is simply a being with `offered: False` — its
-# home is this desk.
+# ADR-597 D2 — Text seats its OWN agent. Editor is a row of its own, not
+# designer wearing a rename: one app, one voice. ADR-600 collapsed the
+# register split, so Editor is simply an agent with `offered: False` — its
+# home is this app.
 # ADR-606 D3 — the job overlay is declared here, not branched in the kernel.
 register_app("text", resident="editor", posture=text_pane_posture)

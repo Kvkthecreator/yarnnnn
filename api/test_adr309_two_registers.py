@@ -116,7 +116,7 @@ def test_association_layer_singular() -> None:
 def test_brand_not_a_surface() -> None:
     print("\n[3] brand is not a kernel surface (Identity owns Brand)")
 
-    desk = (WEB / "types" / "desk.ts").read_text()
+    desk = (WEB / "types" / "surface.ts").read_text()
     # The KernelSurfaceSlug union + KERNEL_SURFACE_SLUGS array must not list brand.
     _assert(
         re.search(r"\|\s*['\"]brand['\"]", desk) is None,

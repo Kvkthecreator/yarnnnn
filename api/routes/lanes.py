@@ -71,7 +71,7 @@ class CreateLaneRequest(BaseModel):
     # birth-persona SCALAR is written to `lane_meta`, because two authorities
     # on who replies is what produced the CastBar bug it records.
     #
-    # The distinction is the whole decision: naming a being here ADDS A CAST
+    # The distinction is the whole decision: naming an agent here ADDS A CAST
     # ROW — the identical act the member would perform via CastBar one second
     # later. The cast remains the single authority (ADR-495 D1); this door
     # only moves WHEN that row is written, never WHERE the answer lives.
@@ -306,7 +306,7 @@ def _lane_agent(lane_meta: dict) -> Optional[str]:
     own declaration at read time — the same rule that already governed the
     app's rename (`as_name`, ADR-562 D6) and the posture text (ADR-460 D4:
     a now-fact is derived, never stored). Persisting it was what stranded
-    every live desk on yesterday's registration ("Claude Sonnet" in Studio).
+    every live pane on yesterday's registration ("Claude Sonnet" in Studio).
 
     Precedence: the app's registration → the derive recipe's declaration →
     the legacy stored stamp (pre-597 rows; a registration that has since left
@@ -353,7 +353,7 @@ def _lane_row_to_dict(row: dict, participants: Optional[list[dict]] = None) -> d
 
     Operator-observed 2026-08-27: a chat started with Supervisor showed
     "Claude Sonnet 5" in its header while the reply bubble correctly said
-    "Supervisor". The cast row WAS seeded and `beings` DID serve the being;
+    "Supervisor". The cast row WAS seeded and `agents` DID serve the agent;
     only `create_lane`'s response omitted the key, so the freshly-created lane
     took the engine fallback until the next list refetch healed it.
 
@@ -485,34 +485,32 @@ def _apps_payload() -> list[dict]:
     ]
 
 
-def _beings_payload() -> list[dict]:
-    """Every being, FE-shaped, with provenance and the desks it serves.
+def _agents_payload() -> list[dict]:
+    """Every agent, FE-shaped, with provenance and the apps it works in.
 
-    `agents` above is the ROSTER — who a member may INVITE (`offered`). This is
-    the fuller answer to "who exists": a housed being is real and answers in
-    its app every day, so a surface that lists only the offered ones tells the
-    member they have nobody while Designer is mid-conversation with them.
+    ADR-631 — ONE roster. Before it the envelope served two: `agents` (the
+    OFFERED subset — empty since ADR-599 D1) and `agents`
+    (everyone). Every FE consumer read `agents` and held `agents` as an
+    always-empty fallback, so the split was a second key with no reader.
+    `offered` is a FIELD on each row (ADR-600 D2): a caller that wants the
+    invitable subset filters it, and the door that lists candidates already
+    does (ADR-625).
 
     ADR-601 D4 — two facts are SERVED rather than inferred:
-      `kernel` — yarnnn authored this being (so the pane can say so from the
-                 FIELD, never from absence-from-a-list, which would have the
-                 surface asserting something the API never said).
-      `homes`  — a LIST: many-to-one is ordinary since ADR-601 D1, and a being
-                 serving no desk gets an empty array. Resolved from the same
-                 `register_app` declarations the prompt reads.
+      `kernel` — yarnnn authored this agent (so the pane can say so from the
+                 FIELD, never from absence-from-a-list).
+      `apps`   — a LIST of the apps it works in, each as the APP's own
+                 identity (slug · title · icon_key · route), resolved from the
+                 same `register_app` declarations the prompt reads; empty when
+                 it serves none. Replaces `homes` + `home_titles` + `apps` —
+                 three keys for one fact (ADR-631).
     """
     import services.apps  # noqa: F401  (registration side-effect)
-    from services.agents_registry import (
-        AGENTS,
-        desks_for_agent,
-        home_titles_for_agent,
-        homes_for_agent,
-        is_promoted,
-    )
+    from services.agents_registry import AGENTS, apps_for_agent, is_promoted
     from services.workspace_paths import agent_memory_root
 
-    # ADR-602 D3 — a being whose only desk is unpromoted waits with it. Filtered
-    # SERVER-side: the pane asks "who works here", and a being the member cannot
+    # ADR-602 D3 — an agent whose only app is unpromoted waits with it. Filtered
+    # SERVER-side: the pane asks "who works here", and an agent the member cannot
     # reach is not an answer to that. Derived from the app's own stage, so
     # promoting the app promotes its voice with no second edit.
     return [
@@ -523,22 +521,12 @@ def _beings_payload() -> list[dict]:
             "icon": r["icon"],
             "offered": bool(r.get("offered")),
             "kernel": bool(r.get("kernel")),
-            "homes": homes_for_agent(r["slug"]),
-            # The same desks, as the member reads them. `homes` stays the
-            # ADDRESS (routing keys); this is the NAME. The pane rendered
-            # "in slides, text" until 2026-08-26 — routing keys shown to a
-            # person, while the app had declared a title all along.
-            "home_titles": home_titles_for_agent(r["slug"]),
-            # The desks as the APP's own identity — title + icon_key + route,
-            # so the pane can render the same mark the Dock does rather than
-            # spelling app names as prose. Derived from the surface rows
-            # (ADR-297's icon_key), never a second table.
-            "desks": desks_for_agent(r["slug"]),
-            # ADR-602 D6 — the engine, so a being's page can SAY what runs it
+            "apps": apps_for_agent(r["slug"]),
+            # ADR-602 D6 — the engine, so an agent's page can SAY what runs it
             # rather than implying it. Already public on the lane envelope
             # (`model_names`); no new disclosure.
             "model": r.get("model") or "",
-            # ADR-624 D4 — WHERE what this being knows lives. An ADDRESS, not
+            # ADR-624 D4 — WHERE what this agent knows lives. An ADDRESS, not
             # the contents: memory is ordinary substrate, so the page hands the
             # member a door into Files rather than hosting a second reading
             # face (the ADR-595 D1 law, one surface out). Absolute, because
@@ -554,7 +542,6 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
     """The capability envelope around the conversation list. Extracted so the
     empty-cast early return serves the identical shape (one envelope, one
     definition — the FE must never see two payload shapes for one endpoint)."""
-    from services.agents_registry import list_agents
     from services.derive_recipes import list_recipes
     from services.lane_runner import (
         LANE_MODELS,
@@ -607,17 +594,15 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # who a member may ADD to a conversation (ADR-495 — a colleague is
         # joined, never chosen at the door). Personas are configured in
         # `/agents`; this is the list of who is available to invite.
-        "agents": list_agents(),
         # ADR-562 D6 — the app registry, served so the FE resolves an app's name for
         # its resident from the SAME declaration the prompt uses. Serving it
         # beats a parallel TS table: that is precisely the second home ADR-562
         # deleted, and it would drift the moment one side was edited.
         "apps": _apps_payload(),
-        # ADR-600 D6 — every being, with its desk. `agents` is who may be
-        # INVITED; this is who EXISTS, so the /agents surface can show a
-        # housed being where it lives instead of claiming the member has
-        # nobody.
-        "beings": _beings_payload(),
+        # ADR-600 D6 / ADR-631 — every agent, with the apps it works in. ONE
+        # roster: `offered` rides each row, so the door that lists candidates
+        # filters it rather than reading a second key.
+        "agents": _agents_payload(),
         # ADR-450 D5: the Learn-from chooser payload — kernel recipes, served
         # on the capability envelope (no new endpoint, no FE duplication).
         "recipes": list_recipes(),
@@ -699,7 +684,7 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
             }
             for ln in lanes:
                 # Same reconciliation as the turn path, so the roster a member
-                # READS names the being that will actually ANSWER. Serving the
+                # READS names the agent that will actually ANSWER. Serving the
                 # raw row here while the turn re-seats would rebuild the
                 # label-vs-responder split this closes, on the other side.
                 ln["participants"] = _reconcile_cast_agent(
@@ -733,8 +718,8 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     )
     if app_slug and not is_bound:
         # An APP is a BINDING, not a colleague. `app` still requires one:
-        # `register_app` answers "who works this desk", which is meaningless
-        # without a desk. A member naming a colleague sends `agent` (below).
+        # `register_app` answers "who works this app", which is meaningless
+        # without an app. A member naming a colleague sends `agent` (below).
         # Refused loudly rather than ignored — a silently-dropped field reads
         # as supported and becomes a bug report (the ADR-460 strict-key
         # precedent).
@@ -748,7 +733,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         )
     # ADR-614 D1 — the member named a colleague at the door. Resolve it here,
     # server-side, for the same reason the app path does: the client names WHO,
-    # never the engine behind them. A being that does not resolve is a caller
+    # never the engine behind them. An agent that does not resolve is a caller
     # bug, refused rather than degraded to a plausible default (ADR-548).
     chat_agent = (req.agent or "").strip()
     if chat_agent and is_bound:
@@ -873,13 +858,13 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     lane_meta: dict = {"name": name, "model": model}
     # ADR-597 D1 — the resident is NOT stamped. It is a fact about the app,
     # derived from the registration at every read (`_lane_agent`); persisting
-    # it here was what stranded live desks on yesterday's declaration. What
+    # it here was what stranded live apps on yesterday's declaration. What
     # creation legitimately records: the MODEL (a historical fact — what the
     # lane ran on, ADR-460 spec §6) below, and the CAST row (a membership
     # event — who was invited) further down. `agent_slug` remains resolved
     # above because both of those need it at creation time.
     # ADR-567 D4 — a bound lane carries its BINDING APP. The runner keys the
-    # job overlay on it (radar → the desk posture, not Studio's): the agent
+    # job overlay on it (radar → the pane posture, not Studio's): the agent
     # slug cannot name the app (Docs and Studio share designer), and radar's
     # artifact is plain markdown, so the document-derived resolution
     # (data-template) has nothing to read. Selects the JOB only — the resident
@@ -995,16 +980,16 @@ def _reconcile_cast_agent(cast: list[dict], lane_meta: dict) -> list[dict]:
     ADR-597 D1 made a bound lane's resident DERIVED at read time, and ADR-602
     then re-registered `slides`/`text` onto `editor`. Derivation followed in the
     same commit — but `conversation_members.agent_slug` did not, because ADR-602
-    reasoned only about RESOLUTION ("designer stays a live being, so nothing
+    reasoned only about RESOLUTION ("designer stays a live agent, so nothing
     orphans") and not about ROUTING. `select_responder`'s `sole_agent` rung
-    reads the CAST, so 39 authoring desks rendered "Editor" in the header and
+    reads the CAST, so 39 authoring apps rendered "Editor" in the header and
     were answered by Designer's "maker of visuals" posture. The one `keeper`
-    row is worse: ADR-610 DELETED that being, so `build_agent_posture` returned
+    row is worse: ADR-610 DELETED that agent, so `build_agent_posture` returned
     "" and the turn ran with no character at all.
 
     WHY DERIVATION WINS, AND ONLY HERE. The lane's resident follows the app's
     live registration; the cast row records a membership EVENT (who was invited,
-    ADR-597 D3). When a desk's registration moves, the event is history and the
+    ADR-597 D3). When an app's registration moves, the event is history and the
     registration is the present tense — so the present tense answers "who
     replies". This is the ADR-559 `retired`-row lesson in the cast's own terms:
     the historical row keeps its meaning, and the door reads the live roster.
@@ -1138,7 +1123,7 @@ def _speaker_label(
     """The display name of whoever authored this transcript row, or None.
 
     Reads the SAME metadata the FE renders faces from (`author_principal_id`
-    for a person, `agent_slug` for a being) — the fact was always on the row;
+    for a person, `agent_slug` for an agent) — the fact was always on the row;
     only the replay dropped it.
     """
     meta = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
@@ -1488,7 +1473,7 @@ def _turn_stream_response(
     lane_meta = (lane.get("context_metadata") or {}).get("lane") or {}
     # ADR-597 D1 — the lane's resident, derived from the registration (see
     # _lane_agent). Used as the responder fallback and as the pin-comparison
-    # baseline below, so a registration change reaches a live desk's TURN,
+    # baseline below, so a registration change reaches a live app's TURN,
     # not just its label.
     lane_agent = _lane_agent(lane_meta)
 
@@ -1515,7 +1500,7 @@ def _turn_stream_response(
     # A sole agent stranded on a superseded registration answers as the
     # live resident (see `_reconcile_cast_agent`). Applied BEFORE
     # `agent_slugs`, so addressing, the roster, the frame and the turn's
-    # `agent_slug` stamp all speak of the same being — reconciling after
+    # `agent_slug` stamp all speak of the same agent — reconciling after
     # would leave the responder right and the room's roster wrong.
     cast = _reconcile_cast_agent(cast, lane_meta)
     # ADR-605 mentions are NOT handled here — the stamp + attention routing
@@ -1741,7 +1726,7 @@ def _turn_stream_response(
                 member_label=getattr(auth, "email", None) or None,
                 # ADR-440 D3 — a bound lane's turns carry the Studio posture;
                 # ADR-567 D4 — unless its binding app declares another job
-                # (radar → the desk posture).
+                # (radar → the pane posture).
                 artifact_path=lane_meta.get("artifact_path"),
                 app=lane_meta.get("app"),
                 # ADR-450 D3 — a derive-bound lane's turns carry the recipe.
@@ -2206,14 +2191,14 @@ async def add_conversation_participant(
         # ADR-600 D3 put an `offered` check here, reasoning that the API must
         # not accept into a cast someone the roster does not offer. The
         # reasoning was right and the premise MOVED: ADR-614 D1 made the New
-        # chat door lead with COLLEAGUES, seeding the cast with the being the
+        # chat door lead with COLLEAGUES, seeding the cast with the agent the
         # member names — and it never asked `offered`, because `create_lane`
         # gates on `resolve_agent` alone. So the two doors performed the SAME
         # act (ADR-614 D1's own words: "the SAME act as adding them from
         # CastBar a second later") and gave OPPOSITE answers.
         #
         # Measured in production 2026-09-01 before this change: 74 agent cast
-        # rows across the workspace, every one an `offered: False` being
+        # rows across the workspace, every one an `offered: False` agent
         # (editor 36 · designer 33 · supervisor 5). Members chat with residents
         # constantly. The refusal was not protecting an invariant — it was
         # contradicting the live product, and it was UNREACHABLE from the UI
@@ -2221,8 +2206,8 @@ async def add_conversation_participant(
         # empty per ADR-599 D1, so it rendered no rows to refuse).
         #
         # `offered` keeps its meaning and its OTHER readers: it still answers
-        # "is this being on the roster a member picks from" (`list_agents`,
-        # `is_promoted`'s no-desk clause). It is a PRESENTATION question, and
+        # "is this agent on the roster a member picks from" (`offered`,
+        # `is_promoted`'s no-pane clause). It is a PRESENTATION question, and
         # this door is not a presentation.
         from services.agents_registry import resolve_agent
 

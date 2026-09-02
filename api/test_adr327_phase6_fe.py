@@ -73,7 +73,7 @@ def test_api_client_swap() -> None:
 
 def test_registries_swapped() -> None:
     print("\n[registry] surface + content-shape registries swapped")
-    desk = _read("types/desk.ts")
+    desk = _read("types/surface.ts")
     check("'budget' in KernelSurfaceSlug", "| 'budget'" in desk)
     check("'pace' removed from slug union", "| 'pace'" not in desk)
     surf = _read("components/shell/SurfaceRegistry.tsx")

@@ -125,7 +125,7 @@ def test_notifications_rename() -> None:
     # (search-only) — the top-bar bell is the one always-present door.
     check("notifications is search-only", n.get("launcher_tier") == "search-only")
     # FE wiring renamed.
-    desk = _read("types/desk.ts")
+    desk = _read("types/surface.ts")
     check("desk.ts slug union renamed to 'notifications'", "'notifications'" in desk and "| 'operation'" not in desk)
     reg = _read("components/shell/SurfaceRegistry.tsx")
     check("SurfaceRegistry maps notifications", "notifications: NotificationsPage" in reg)

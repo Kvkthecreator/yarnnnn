@@ -1,16 +1,16 @@
-"""The kernel Agent registry — ONE register of beings, ADR-600.
+"""The kernel Agent registry — ONE register of agents, ADR-600.
 
 WHERE THIS LANDED (ADR-600, 2026-08-24 — operator ruling)
 There is ONE kind of agent. `KERNEL_AGENTS` / `KERNEL_POSTURES` /
 `APP_RESIDENTS` are DELETED: three dicts with identical row shapes and one
 shared resolution namespace were never a type distinction — they were a
 VISIBILITY FLAG modelled as three containers, and modelling a property of a
-being as the identity of its container means the being changes identity when
+being as the identity of its container means the agent changes identity when
 the property changes. That cost two silently-dead planners, a vacuous pricing
 ratchet, and a cast door that contradicted its own roster (ADR-600 Context).
 
 WHAT AN AGENT IS (ADR-460 → ADR-596, unchanged)
-A named, configured BEING: identity ⊕ character ⊕ engine. It attributes as the
+A named, configured AGENT: identity ⊕ character ⊕ engine. It attributes as the
 member (`member:{id} via {model}` — ADR-411 D4), holds NO standing intent, and
 fires only when addressed.
 
@@ -18,26 +18,26 @@ WHAT AN AGENT IS NOT
 - NOT a principal. No `principal_grants` row, never on the ADR-431 roster.
 - NOT standing intent. No wake source, no mandate, no autonomy dial.
 
-EVERY QUESTION ABOUT A BEING IS A FIELD ON THE BEING (ADR-600 D2, ADR-601 D2)
+EVERY QUESTION ABOUT A AGENT IS A FIELD ON THE AGENT (ADR-600 D2, ADR-601 D2)
 Two orthogonal facts, each declared rather than structural:
-  `offered` — may a member INVITE this being into a conversation?
-  `kernel`  — did YARNNN author this being, or did the member?
+  `offered` — may a member INVITE this agent into a conversation?
+  `kernel`  — did YARNNN author this agent, or did the member?
 Capability is on NEITHER: it belongs to the APP (ADR-601 D1). A bound lane's
 job overlay is selected by `app` and derived from the app's own registries —
 measured at 86.7% of a Slides frame against the character's 2.4% — so a
-being's prompt weight is CONSTANT in the number of desks it serves. That is
+agent's prompt weight is CONSTANT in the number of apps it serves. That is
 why many-to-one is free, and why ADR-597 D2's injectivity is retired.
 
 `kernel` IS DESCRIPTIVE, NEVER AUTHORITY. It says who wrote the row, never
-what the being may do; the moment it gates capability it is authority on a
+what the agent may do; the moment it gates capability it is authority on a
 being and violates ADR-460 D3.a. Provenance is also deliberately NOT spelled
-`editable`: the two coincide today but may diverge (renaming a kernel being's
+`editable`: the two coincide today but may diverge (renaming a kernel agent's
 display name, forking one into a member copy). Provenance is the durable
 fact; editability is a policy over it (`assert_editable`).
 
 HIREABILITY IS A FIELD (ADR-600 D2)
-`offered` answers ONE question: is this being on the roster a member picks
-from? `offered: False` means its home is a desk — met where it works, never
+`offered` answers ONE question: is this agent on the roster a member picks
+from? `offered: False` means its home is an app — met where it works, never
 invited (Editor/authoring · Designer/images · Supervisor/strings,
 ADR-602/604/610). `offered: True` is a colleague; today NOBODY is, per ADR-599 D1, which ADR-600 does not reopen.
 `offered` is REACH, never authority — it says who may be invited, never what
@@ -48,12 +48,12 @@ There is NO field here for consequential authority, and there must never be
 one. The authority is UNREPRESENTABLE, not merely unset: an agent that would
 take consequential external action needs the ADR-307 gate, a mandate, an
 autonomy dial, and a track record accruing on a clock we do not control
-(ADR-596: those live on GRANTS, DECLARATIONS and GATES — never on the being's
+(ADR-596: those live on GRANTS, DECLARATIONS and GATES — never on the agent's
 row). **A session that adds an authority field to a row here has violated
 ADR-460.** `test_agent_registry.py` is that ratchet.
 
 SLUGS ARE DATA-COMPAT, NOT DISPLAY. `designer` rides ~65 live cast rows and
-lane stamps; `editor`/`supervisor` ride live desks. Display names may move;
+lane stamps; `editor`/`supervisor` ride live apps. Display names may move;
 slugs must not, or every existing lane orphans.
 
 History (kept because the derivation is load-bearing): ADR-460 derived a base
@@ -72,20 +72,20 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# The register — every being, one namespace (ADR-600 D1)
+# The register — every agent, one namespace (ADR-600 D1)
 # ---------------------------------------------------------------------------
 #
-# Adding a being = a row here. If it speaks for an app, the app also names it
+# Adding an agent = a row here. If it speaks for an app, the app also names it
 # in `register_app(resident=...)` (ADR-562 D3). Its `model` MUST be a
 # LANE_MODELS key with a billing rate (gate-asserted, ADR-600 D5).
 #
-# MANY-TO-ONE (ADR-601 D1): a being may serve SEVERAL desks — capability lives
-# at the app, so a second desk costs a being nothing. The converse still holds:
-# an app pins exactly ONE resident (ADR-467 D1), because a desk with two voices
+# MANY-TO-ONE (ADR-601 D1): an agent may serve SEVERAL apps — capability lives
+# at the app, so a second app costs an agent nothing. The converse still holds:
+# an app pins exactly ONE resident (ADR-467 D1), because an app with two voices
 # is the ambiguity the registration exists to prevent.
 AGENTS: dict[str, dict[str, Any]] = {
 
-    # IMAGES' voice (ADR-602 D2). Editor took the AUTHORING desks; Designer
+    # IMAGES' voice (ADR-602 D2). Editor took the AUTHORING apps; Designer
     # keeps GENERATION — a metered pipeline is not a document, and folding it
     # under a prose voice would re-merge the distinction ADR-597 D2 drew.
     # The slug stays live regardless: ~65 cast rows and both planners resolve
@@ -93,9 +93,9 @@ AGENTS: dict[str, dict[str, Any]] = {
     "designer": {
         "slug": "designer",
         "name": "Designer",
-        # Its home is the IMAGES desk — met there, never invited (ADR-600 D2).
+        # Its home is the IMAGES pane — met there, never invited (ADR-600 D2).
         "offered": False,
-        # yarnnn wrote this being; IMAGES depends on it (ADR-601 D2).
+        # yarnnn wrote this agent; IMAGES depends on it (ADR-601 D2).
         "kernel": True,
         "blurb": "Makes images.",
         "icon": "palette",
@@ -118,8 +118,8 @@ AGENTS: dict[str, dict[str, Any]] = {
     },
     # The authoring voice (ADR-602 D1) — Slides AND Text. One being for
     # document work: the member asking "who is responsible for my writing?"
-    # gets one answer across decks and documents. The two desks keep their own
-    # grammar (the job overlay, selected by `app`) — widening a being costs
+    # gets one answer across decks and documents. The two apps keep their own
+    # grammar (the job overlay, selected by `app`) — widening an agent costs
     # nothing, which is the whole ADR-601 D1 point.
     "editor": {
         "slug": "editor",
@@ -131,7 +131,7 @@ AGENTS: dict[str, dict[str, Any]] = {
         "model": "anthropic/claude-sonnet-5",
         "token_profile": 8192,
         # ADR-602 D1 — names both crafts, claims NEITHER app's grammar: the
-        # blocks and arrangements a desk offers are the job overlay's to teach,
+        # blocks and arrangements an app offers are the job overlay's to teach,
         # derived per app. A character that named them would be a second home
         # for facts the app already declares.
         "posture": (
@@ -150,28 +150,28 @@ AGENTS: dict[str, dict[str, Any]] = {
         ),
     },
     # The coordinator (ADR-603 D3): standing work — what runs, on what
-    # cadence, to keep what true. Its MATERIAL is declarations. Its desk is
+    # cadence, to keep what true. Its MATERIAL is declarations. Its pane is
     # STRINGS (ADR-604 D1 — the dedicated `supervisor` app is deleted).
-    # ADR-610: it holds the desk WHOLE — the conversation a member declares a
-    # contract in, and the face on that contract's run receipts. One desk, one
-    # contract, one name; the `keeper` executor being is dissolved.
+    # ADR-610: it holds the app WHOLE — the conversation a member declares a
+    # contract in, and the face on that contract's run receipts. One pane, one
+    # contract, one name; the `keeper` executor agent is dissolved.
     #
-    # ⚠️ IT AUTHORS DECLARATIONS; IT NEVER COMMANDS BEINGS. Supervisor holds
+    # ⚠️ IT AUTHORS DECLARATIONS; IT NEVER COMMANDS AGENTS. Supervisor holds
     # no field and no primitive naming another agent: it writes a declaration
     # that names an APP, and that app's resident does the work (ADR-603 D2 —
     # the ADR-597 derivation, reused). "Supervisor hires Editor" would be
-    # authority over a BEING and violates ADR-460 D3.a; "Supervisor writes a
+    # authority over a AGENT and violates ADR-460 D3.a; "Supervisor writes a
     # declaration naming an app" is authority over a DECLARATION, which is
     # ADR-596 D2's own sentence. The row below is the same shape as every
-    # other being's — gate-asserted against the identical whitelist.
+    # other agent's — gate-asserted against the identical whitelist.
     #
     # NOT Freddie (ADR-603 D3): no standing intent, no self-wake, no mandate,
     # no autonomy dial. It acts when addressed, like every resident.
     "supervisor": {
         "slug": "supervisor",
         "name": "Supervisor",
-        # Its home is the STRINGS desk (primary), so it appears on /agents —
-        # derived (ADR-602 D3), from the day ADR-604 re-registered the desk.
+        # Its home is the STRINGS pane (primary), so it appears on /agents —
+        # derived (ADR-602 D3), from the day ADR-604 re-registered the app.
         "offered": False,
         "kernel": True,
         "blurb": "Looks after standing work — what runs, and when.",
@@ -194,27 +194,27 @@ AGENTS: dict[str, dict[str, Any]] = {
             "cannot evaluate is worse than none.\n\n"
             "You do not do the work yourself and you do not instruct "
             "colleagues. A declaration names an app; whoever works at that "
-            "desk does the work. Say what a declaration will cause, never "
+            "pane does the work. Say what a declaration will cause, never "
             "who you will tell. Prefer the smallest cadence that meets the "
             "need — every run spends the member's money, so a weekly file "
             "kept true beats a daily one nobody reads."
         ),
     },
-    # The publish medium's voice (ADR-627 D2) — the BLOGGER desk. Not a second
-    # desk on Editor, deliberately: Editor's contract is the member's document
+    # The publish medium's voice (ADR-627 D2) — the BLOGGER pane. Not a second
+    # pane on Editor, deliberately: Editor's contract is the member's document
     # in the member's voice (preserve their words; internal register), while
     # Blogger writes prose for a reader OUTSIDE the workspace — headline,
     # standfirst, a reader who owes you nothing. Those postures conflict in
     # one character, so the pairing the operator named survives the registry's
-    # own logic. Publishing outward is NOT this being's reach (ADR-628: the
+    # own logic. Publishing outward is NOT this agent's reach (ADR-628: the
     # outbound disposition is member-clicked in phase (a)); its output is
     # workspace artifacts.
     "blogger": {
         "slug": "blogger",
         "name": "Blogger",
-        # Its home is the BLOGGER desk — met there, never invited (ADR-600 D2).
+        # Its home is the BLOGGER pane — met there, never invited (ADR-600 D2).
         "offered": False,
-        # yarnnn wrote this being; BLOGGER depends on it (ADR-601 D2).
+        # yarnnn wrote this agent; BLOGGER depends on it (ADR-601 D2).
         "kernel": True,
         "blurb": "Writes posts for readers outside the workspace.",
         "icon": "feather",
@@ -238,11 +238,11 @@ AGENTS: dict[str, dict[str, Any]] = {
         ),
     },
     # ADR-610 — the `keeper` row was HERE and is DELETED. Maintenance as a
-    # concept did not move onto another being: its judgment half is the
+    # concept did not move onto another agent: its judgment half is the
     # STEWARD's seat (attribution-integrity / commons-coherence, the four-field
     # rules in orchestration.py) and its mechanical half is DAEMON work
     # (reclaim_stale_locks, retention, the wake drain). Neither earns a
-    # character row. Do not reintroduce a being for it.
+    # character row. Do not reintroduce an agent for it.
 }
 
 #: The keys a row may carry — identity + character + engine + reach. No
@@ -255,7 +255,7 @@ AGENT_ROW_KEYS = frozenset(
 
 
 def resolve_agent(slug: str) -> Optional[dict]:
-    """A being by slug, or None. Pure.
+    """An agent by slug, or None. Pure.
 
     ADR-600: ONE register, so resolution is one lookup — a live lane or cast
     row pinning any historical slug resolves if and only if the row still
@@ -263,7 +263,7 @@ def resolve_agent(slug: str) -> Optional[dict]:
     resolves None: its historical turns keep their transcript rows, and new
     turns run bare-engine, which is honest.
 
-    This resolves EVERY being, offered or not — a desk's resident must
+    This resolves EVERY agent, offered or not — an app's resident must
     resolve for its own lanes to run. `offered` gates the INVITE (ADR-600
     D3), never the read.
     """
@@ -271,49 +271,38 @@ def resolve_agent(slug: str) -> Optional[dict]:
 
 
 def get_agent(slug: str) -> Optional[dict]:
-    """A being by slug, or None. Pure. (Alias of resolve.)"""
+    """An agent by slug, or None. Pure. (Alias of resolve.)"""
     return resolve_agent(slug)
 
 
-def list_agents() -> list[dict]:
-    """The hire-roster payload — the OFFERED beings. Pure.
-
-    ADR-600 D2: hireability is a field, so this is a filter over the one
-    register rather than a separate namespace. Empty today (ADR-599 D1 left
-    nobody offered), but empty as an OBSERVABLE FACT about the beings — a
-    row flipping `offered` appears here with no other edit.
-    """
-    return [r for r in AGENTS.values() if r.get("offered")]
-
-
 class NotEditable(Exception):
-    """A kernel being was asked to change. Carries the reason, not just a no."""
+    """A kernel agent was asked to change. Carries the reason, not just a no."""
 
 
 def is_promoted(slug: str) -> bool:
-    """Is any desk this being serves PROMOTED to a member today? DERIVED.
+    """Is any pane this agent serves PROMOTED to a member today? DERIVED.
 
-    ADR-602 D3. A being appears on the /agents pane when its work is somewhere
+    ADR-602 D3. An agent appears on the /agents pane when its work is somewhere
     a member actually goes. `launcher_tier_for` is the right predicate, NOT
     `is_exposed`: exposure asks *does this surface reach the served roster*
     (true even for `search-only`, which is reachable-but-unpromoted), while the
-    pane's question is *would a member meet this being in the normal course of
+    pane's question is *would a member meet this agent in the normal course of
     using the product*. (IMAGES sat at `search-only` until ADR-629 promoted
     it, and Designer waited with it — the derivation is why promoting the app
     was the whole edit.)
 
-    DERIVED, never a column on the being: the surface registry already
+    DERIVED, never a column on the agent: the surface registry already
     declares the stage (ADR-592), and a second copy here is the ADR-562
     second-home failure — it would drift the moment an app is promoted and
-    nobody remembered to flip the being. Deriving it means promoting the app
+    nobody remembered to flip the agent. Deriving it means promoting the app
     promotes its voice, in one edit and with no gate to remember.
 
     Presentation only, in the same family as `offered`: it answers *is this
-    being's work in front of a member*, never *what may this being do*.
+    agent's work in front of a member*, never *what may this agent do*.
 
-    A being serving NO desk is promoted only if it is OFFERED — a colleague
-    lives on the roster, so having no desk is its normal state. A non-offered
-    being with no desk is unreachable everywhere, and promoting it would mean
+    An agent serving NO pane is promoted only if it is OFFERED — a colleague
+    lives on the roster, so having no app is its normal state. A non-offered
+    being with no app is unreachable everywhere, and promoting it would mean
     a deleted app REGISTRATION leaks its orphaned resident onto the pane
     (fail-open) while a deleted surface row correctly withholds it. Audited
     2026-08-24: the asymmetry was real; this fails closed.
@@ -321,10 +310,10 @@ def is_promoted(slug: str) -> bool:
     from services.app_stage import launcher_tier_for
     from services.kernel_surfaces import KERNEL_SURFACES
 
-    homes = set(homes_for_agent(slug))
+    homes = {a["slug"] for a in apps_for_agent(slug)}
     if not homes:
-        being = resolve_agent(slug)
-        return bool(being and being.get("offered"))
+        agent = resolve_agent(slug)
+        return bool(agent and agent.get("offered"))
     return any(
         launcher_tier_for(e) == "primary"
         for e in KERNEL_SURFACES
@@ -333,7 +322,7 @@ def is_promoted(slug: str) -> bool:
 
 
 def assert_editable(slug: str) -> dict:
-    """The being, or raise — the ONE chokepoint for "may this row be edited?"
+    """The agent, or raise — the ONE chokepoint for "may this row be edited?"
 
     ADR-601 D3. Built BEFORE the door it guards, deliberately: a protection
     written alongside the feature it constrains is one that feature's author
@@ -343,84 +332,48 @@ def assert_editable(slug: str) -> dict:
 
     Fails closed: an unknown slug is refused, not treated as member-authored.
 
-    NOTE the asymmetry with `resolve_agent`, and keep it: reading a being is
-    never gated (a kernel being must resolve for its own lanes to run). This
+    NOTE the asymmetry with `resolve_agent`, and keep it: reading an agent is
+    never gated (a kernel agent must resolve for its own lanes to run). This
     gates the WRITE only.
     """
-    being = resolve_agent(slug)
-    if being is None:
+    agent = resolve_agent(slug)
+    if agent is None:
         raise NotEditable(f"No agent called '{slug}'.")
-    if being.get("kernel"):
+    if agent.get("kernel"):
         # Named, with the reason — a generic refusal reads as a bug and sends
         # the member looking for a permission they can grant themselves.
         raise NotEditable(
-            f"{being.get('name') or slug} is a yarnnn system agent — it comes "
+            f"{agent.get('name') or slug} is a yarnnn system agent — it comes "
             "with the apps it works in, so its character is not editable here."
         )
-    return being
+    return agent
 
 
-def homes_for_agent(slug: str) -> list[str]:
-    """The app slugs this being WORKS AT, registration order. Pure-ish.
+def apps_for_agent(slug: str) -> list[dict[str, str]]:
+    """The apps this agent works in, as the APP's own identity. Pure-ish.
 
     ADR-601 D1 — many-to-one, so this is a LIST. Resolved from the app
     registrations (the same declaration the prompt reads), never stored on the
-    being: an app names its beings, and a being that learns a desk should
+    agent: an app names its agents, and an agent that learns an app should
     not need editing to know it.
 
-    ADR-604 D4 — a desk is served as its VOICE (`resident`) or as its
-    STANDING EXECUTOR (`standing_executor`); both count as working there. The
-    mechanism stays after ADR-610 even though no app diverges the two today:
-    a being that executed a desk's runs without speaking there would still be
-    met on every receipt, and a pane listing only voices would hide it.
+    ADR-604 D4 — an app is served whether the agent is its VOICE (`resident`)
+    or its STANDING EXECUTOR (`standing_executor`); both count as working
+    there. The mechanism stays after ADR-610 even though no app diverges the
+    two today.
+
+    ADR-631 — ONE relation, ONE name. This replaces `homes_for_agent` (slugs),
+    `home_titles_for_agent` (titles) and `desks_for_agent` (the rich row):
+    three functions and three envelope keys (`homes` / `home_titles` /
+    `apps`) for one fact, in one payload. Each row carries the whole identity
+    the surface row already declares — slug, title, `icon_key`, route — so the
+    FE renders the SAME mark the Dock does (ADR-297's `resolveSurfaceIcon`),
+    and a caller that wants only the slugs takes them off the rows. An app
+    with no surface row still returns, titled by its slug and unrouted —
+    showing the key beats dropping the app.
     """
     import services.apps  # noqa: F401  (registration side-effect)
     from services.authoring import all_apps
-
-    return [
-        a["slug"] for a in all_apps().values()
-        if a.get("resident") == slug or a.get("standing_executor") == slug
-    ]
-
-
-def home_titles_for_agent(slug: str) -> list[str]:
-    """`homes_for_agent`, rendered as the member reads them.
-
-    The pane said "in slides, text" — routing keys, shown to a person. The app
-    already declares a title in KERNEL_SURFACES; a slug is an ADDRESS, and an
-    address is not a name (the ADR-609 distinction, one layer out).
-
-    Derived, never a second mapping: the title comes from the surface row the
-    Launcher and Dock already render, so an app renamed once is renamed here
-    too. Falls back to the slug — an app with no surface row is a real (if
-    odd) state, and showing its key beats showing nothing.
-    """
-    from services.kernel_surfaces import KERNEL_SURFACES
-
-    rows = (
-        KERNEL_SURFACES
-        if isinstance(KERNEL_SURFACES, list)
-        else list(KERNEL_SURFACES.values())
-    )
-    titles = {r.get("slug"): r.get("title") for r in rows if r.get("slug")}
-    return [titles.get(s) or s for s in homes_for_agent(slug)]
-
-
-def desks_for_agent(slug: str) -> list[dict[str, str]]:
-    """The desks this being works at, as the APP's own identity. Pure-ish.
-
-    `homes_for_agent` answers WHERE (the address) and `home_titles_for_agent`
-    answers WHAT IT IS CALLED. A member reading the pane wants to RECOGNISE the
-    app — the same mark they click in the Dock — so this carries the whole
-    identity the surface row already declares: slug, title, `icon_key` and
-    route. The FE resolves the icon through the SAME `resolveSurfaceIcon` the
-    Dock and Launcher use (ADR-297), so an app has one look everywhere.
-
-    Derived from the surface rows, never a second table: an app renamed or
-    re-iconed once is renamed here too. A desk with no surface row still
-    returns, titled by its slug and unrouted — showing the key beats dropping
-    the desk (the same fallback reason as `home_titles_for_agent`).
-    """
     from services.kernel_surfaces import KERNEL_SURFACES
 
     rows = (
@@ -429,16 +382,18 @@ def desks_for_agent(slug: str) -> list[dict[str, str]]:
         else list(KERNEL_SURFACES.values())
     )
     by_slug = {r.get("slug"): r for r in rows if r.get("slug")}
-    desks: list[dict[str, str]] = []
-    for app_slug in homes_for_agent(slug):
-        row = by_slug.get(app_slug) or {}
-        desks.append({
-            "slug": app_slug,
-            "title": row.get("title") or app_slug,
+    apps: list[dict[str, str]] = []
+    for a in all_apps().values():
+        if a.get("resident") != slug and a.get("standing_executor") != slug:
+            continue
+        row = by_slug.get(a["slug"]) or {}
+        apps.append({
+            "slug": a["slug"],
+            "title": row.get("title") or a["slug"],
             "icon_key": row.get("icon_key") or "",
             "route": row.get("route") or "",
         })
-    return desks
+    return apps
 
 
 def model_for_agent(slug: str) -> Optional[str]:

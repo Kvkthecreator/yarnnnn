@@ -247,7 +247,7 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
 // ADR-385 ghost-icon lesson. Dropping them here is what makes the hide hold for
 // an operator whose Dock was CURATED and therefore never reseeded (the reseed
 // only fires on byte-equality with the previous default — the reason ADR-574's
-// Docs pause never took effect on a real desk).
+// Docs pause never took effect on a real pane).
 const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget', 'radar', 'docs']);
 
 function normalizeSlug(slug: string): string {
@@ -362,7 +362,7 @@ const DOCK_RESEED_GENERATIONS: Array<{ keyPrefix: string; previous: string[] }> 
   // slugs are in DOCK_RETIRED_SLUGS instead, which drops them from EVERY
   // persisted Dock — curated or not — because neither reaches the served
   // roster any more. Retiring the slug is the durable spelling; a reseed
-  // generation is the one that only works on an untouched desk.
+  // generation is the one that only works on an untouched pane.
 ];
 
 function maybeReseedDock(userId: string, stored: string[]): string[] {
@@ -661,14 +661,14 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // re-route delivered `{platform}` here, which Files has never read, and the
   // unconstrained default accepted and persisted it forever.
   files: ['path', 'domain'],
-  // ADR-592 — the Researcher's desk (radar) is DELETED; its param row went
+  // ADR-592 — the Researcher's pane (radar) is DELETED; its param row went
   // with it. The 2026-08-13 lesson it carried still stands for every surface
   // below: an unregistered slug takes the unconstrained miss-case, which reads
   // as permission (the 3f44a8f lesson).
-  // The standing-work desk (ADR-569). `topic` names the string's folder;
+  // The standing-work pane (ADR-569). `topic` names the string's folder;
   // `target` carries a designation-in-flight's leaf (the picked file before the
   // declaration parses — a refresh must not lose it, or the unconfigured
-  // desk loses its lane binding). `file` is the delivered Files-association
+  // pane loses its lane binding). `file` is the delivered Files-association
   // deep-link ("Keep this current…"), consumed into topic/target. Registered
   // at birth — the unconstrained miss-case reads as permission (3f44a8f).
   strings: ['topic', 'target', 'file', 'tab'],
@@ -754,12 +754,12 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // document-identity-shaped drill-in by the test above.
   settings: ['pane', 'connector'],
   'workspace-settings': ['pane'],
-  // The desk's `topic` is deliberately RESTORED (like `chat.lane` — the desk
+  // The app's `topic` is deliberately RESTORED (like `chat.lane` — the app
   // is a place you live in, and the folder roster sits right beside it); only
   // the delivered Files-association deep-link is an open act, not a posture.
-  // Same rule for the standing-work desk (ADR-569): `topic` + `target` restore (the
+  // Same rule for the standing-work pane (ADR-569): `topic` + `target` restore (the
   // designation-in-flight is a real place — losing `target` on refresh
-  // strands the unconfigured desk without its lane); the delivered `file`
+  // strands the unconfigured pane without its lane); the delivered `file`
   // deep-link is an open act, not a posture.
   strings: ['file'],
   // ADR-572 D9 — Text's document identity, missed when ADR-571 created the app.

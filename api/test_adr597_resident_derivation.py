@@ -132,7 +132,9 @@ def test_stamp_retired_and_reads_derive():
 def test_many_to_one():
     print("3. an app pins ONE resident; a being may serve MANY desks")
     import services.apps  # noqa: F401  (registration side-effect)
-    from services.agents_registry import homes_for_agent, resolve_agent  # noqa: F811
+    from services.agents_registry import apps_for_agent, resolve_agent  # noqa: F811
+    def homes_for_agent(slug):
+        return [a["slug"] for a in apps_for_agent(slug)]
     from services.authoring import all_apps
 
     apps = all_apps()

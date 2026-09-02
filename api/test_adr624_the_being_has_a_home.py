@@ -238,9 +238,9 @@ check(
 print("\n§6 — the pane's coverage of the register (the fact behind this ADR)")
 # ---------------------------------------------------------------------------
 from services.agents_registry import AGENTS, AGENT_ROW_KEYS  # noqa: E402
-from routes.lanes import _beings_payload  # noqa: E402
+from routes.lanes import _agents_payload  # noqa: E402
 
-_payload = _beings_payload()
+_payload = _agents_payload()
 check("the register is non-empty", bool(AGENTS))
 check("some being is served to the pane", bool(_payload))
 
