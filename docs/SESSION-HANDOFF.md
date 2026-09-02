@@ -6,17 +6,29 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 # Part L — the Blogger/Designer arc: ADR-627/628/629 (2026-09-01/02) — CLOSE-OUT
 
-## ⚠️ URGENT FIRST — Supabase project RESTRICTED (found 2026-09-02 00:2x UTC)
+## ✅ RESOLVED — Supabase egress 402 (was URGENT; closed 2026-09-02)
 
-Every keyed request to `noxgqcwynkzqabljjyon.supabase.co` (REST **and** auth,
-service key included) returns **402: "Service for this project is restricted
-due to the following violations: exceed_egress_quota. The project owner must
-upgrade their plan or remove spend caps."** Production login + all data access
-are effectively DOWN. It worked during the 2026-09-01 click-pass (~04:00 UTC),
-so the trip happened within ~20h. OPERATOR-ONLY remedy (Supabase dashboard:
-plan/spend-cap); next session should then ask WHAT consumed the egress
-(candidates: workspace git-export zips, realtime subscriptions (mig 240),
-the eval browser passes) before it re-trips.
+The project was restricted with **402 exceed_egress_quota** (8.78/5GB), taking
+REST + auth down. Operator upgraded to Pro; service restored. Three fixes
+shipped in `8feb68f`, gate `api/test_egress_bounds.py` (10/10, falsified):
+
+- **Counting is not fetching.** `select("*", count="exact")` on `workspace_files`
+  transferred **7,940,121 bytes** where a head-count transfers **47**
+  (~169,000x), ~10x per Settings load. 2 of 5 sites counted rows they were
+  about to DELETE. The gate found a 3rd count site the manual sweep missed.
+- **A re-minted signed URL is a new cache key** ⇒ the provider re-fetches.
+- **4 polls** no longer run in hidden tabs.
+
+⚠️ **The 5.7GB 31-Aug spike is still UNATTRIBUTED.** Vision-replay was named,
+then MEASURED and withdrawn (7 image msgs ever · 38MB CAS total · ~46MB/export
+· 65 exec events — every path 1-2 orders too small). 31-Aug 1h log counts: API
+Gateway 8.5k · **Storage 1.0k** · Auth 32 · Postgres 24 · PostgREST 5 (errors
+only). 1k storage reqs x ~0.91MB mean binary ≈ **~900MB in ONE window** ⇒
+STORAGE is the leading suspect, not the count defect (stored SIZE 54MB ≠
+request COUNT — that is what fooled the first read). OWED: re-run the log view
+on **API Gateway + Storage, full day of 31 Aug, by path + response size** (the
+PostgREST pane is error-level, not access logs) · image downscale bound ·
+`/workspace/roots` 5k-row 30s scan @38KB/call (needs an RPC).
 
 ## What shipped (all pushed to main, all deployed)
 
@@ -51,10 +63,25 @@ test_adr577 §6 agent_connectors allowlist (1).
 
 ## OWED
 
-1. **Supabase egress** (above) — blocks everything else.
-2. **WordPress publish click-pass** — connect (consent screen), pick site,
+1. **WordPress publish click-pass** — connect (consent screen), pick site,
    publish the ADR-627 post live, verify `_publish.yaml` receipt + the post
    URL; also drive the unconnected + no-sites panel states.
+   *Verified 2026-09-02:* connected, token decrypts, `yarnnn9.wordpress.com`
+   (id 257108137) visible to the seam; no-sites panel click-passed; **no
+   reconnect needed after site creation** — global scope worked as designed.
+   Remaining: the publish act itself. **Operator decision owed:** publish the
+   ADR-627 scaffold as-is, have the session write a real body first
+   (recommended), or write it yourself.
+2. ⚠️ **`post.html` reads 0 bytes over the API while the row holds ~35KB**
+   (found 2026-09-02, NOT chased). `GET /api/workspace/file` returned 0 bytes
+   for `/workspace/operation/adr627-click-pass-post/post.html`; that row's
+   `content` is **36,410 bytes** over PostgREST (service key, verified live
+   2026-09-02). The same row carries **`content_type: "text/markdown"` on an
+   `.html` artifact** (`updated_at` 2026-09-01T03:17:26Z). Either half can
+   silently break a publish — the seam ships an empty body, or the wrong
+   medium. **Handle before or immediately after the publish click-pass.**
+   Start at `GET /api/workspace/file` and `write_revision`'s content_type
+   derivation; suspect the ADR-621 binary/empty classification seam.
 3. **First real `blogger` standing declaration** (ADR-603's owed second kind)
    — compose-only; publishing stays member-clicked until phase (b).
 4. **Phase (b)** (supervisor-scheduled publish) — begins ONLY on phase (a)
