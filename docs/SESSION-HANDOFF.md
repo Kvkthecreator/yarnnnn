@@ -47,6 +47,54 @@ cd web && node_modules/.bin/next build              # exit 0
 
 # Part L — the Blogger/Designer arc: ADR-627/628/629 (2026-09-01/02) — CLOSE-OUT
 
+## ✅ RESOLVED — a paid top-up never reached the balance (2026-09-02)
+
+Operator topped up **$25.00** and the balance did not move. Cause: the Lemon
+Squeezy store had **TWO webhooks registered for the same events** —
+`https://api.ep-0.com/webhooks/lemonsqueezy` (stale, not ours, no `/api`
+prefix) beside the live `yarnnn-api.onrender.com` one. Order **2216529** was
+routed to the stale host, which answered an HTML **503**.
+
+⭐⭐⭐ **A webhook that never arrives is invisible BY CONSTRUCTION.** No request
+in the Render access log, no row in any table, no error anywhere — the *absence*
+of a log line was the only evidence, and it reads identically to "nobody paid".
+`balance_transactions` had **never held a single `kind='topup'` row** in its
+entire history. The operator found it by noticing the number was unchanged.
+
+⭐ **Resend does not re-route.** It replays a delivery to *the endpoint that
+delivery belongs to*, so pressing it twice only hit the dead host again. Editing
+the live webhook's event list doesn't help either — the order was dispatched at
+05:00 and routing was decided then. Deleting the stale hook cannot recover an
+already-dispatched order; it can only be repaired by hand.
+
+**Three commits:**
+
+| Commit | What |
+|---|---|
+| `3553545` | `grant_balance` is **idempotent on `lemon_order_id`** — LS retries non-2xx deliveries and Resend exists; each replay used to add the money again. This is what made the hand-repair safe *while the healthy webhook stayed eligible to retry the same order*. |
+| `87a7fac` | Order credited: `37.0904 → 62.0904`, one `kind=topup` row at `07:45:39Z`. Replay asserted **on the real row** — second call moved nothing. One-shot script then deleted. |
+| `da47091` | **The silence itself, closed.** A top-up checkout now leaves a durable `topup_checkout_created` row (the promise); `_undelivered_topup` reads the gap between that and the credit it should have produced, and surfaces `undelivered_topup` on the billing card beside the seat-sync banner. Gate 25/25, falsified 6 ways. |
+
+⭐⭐ **The detector reads a GAP, not an event.** You cannot detect a missing
+webhook from the events it failed to write — so record the *promise* (the
+checkout we mint) and diff it against the *credit*. Counts by TIME, never order
+id: the undelivered order's id is exactly what we never learned.
+
+⭐ **Follows the ADR-445 seat-drift precedent exactly** — and that precedent's
+own comment names this very failure class ("rows have been landing since the
+reconciliation layer shipped and NOTHING read them; discovered only by
+hand-querying the table"). Same shape: durable row → status field → banner,
+both halves best-effort, cleared by a later success so it can't become furniture.
+
+⭐ **Trap:** `api/scripts/operator/` shadows the stdlib `operator` module — any
+script run with `api/scripts/` as cwd dies on `from operator import eq`. Run
+from `api/`.
+
+⚠️ The stale hook received **14 events to yarnnn's 7**. Since no `topup` row
+existed before this repair, any earlier orders it swallowed were also never
+credited — worth a pass over LS order history for charges that never became
+balance.
+
 ## ✅ RESOLVED — Supabase egress 402 (was URGENT; closed 2026-09-02)
 
 The project was restricted with **402 exceed_egress_quota** (8.78/5GB), taking
@@ -131,7 +179,16 @@ test_adr577 §6 agent_connectors allowlist (1).
    operator's instinct ("scheduled jobs via supervisor need headless-like
    workflows") is exactly this — do NOT reach for a general headless auth
    (three lanes voted narrow; ADR-626 D4.b).
-5. Carried from the arc: fresh-principal default-Dock observation · IMAGES
+5. **The undelivered-top-up banner is unproven in the browser** (`da47091`).
+   Mechanism is gated 25/25 + falsified 6 ways, but the banner has never
+   rendered live — and it CANNOT be seen today, because the only checkout that
+   would trip it predates the `topup_checkout_created` row it needs. To drive
+   it: mint a top-up checkout, abandon it, wait out
+   `TOPUP_DELIVERY_GRACE_MINUTES` (30), load Billing. Also worth a pass over LS
+   order history for **earlier orders the stale `api.ep-0.com` hook swallowed**
+   (it took 14 events to yarnnn's 7; no `topup` row existed before 2026-09-02,
+   so any it ate were never credited either).
+6. Carried from the arc: fresh-principal default-Dock observation · IMAGES
    compose loop post-promotion · Ghost as second connector (deferred) ·
    Substack read-side into strings (their Publisher API is read/analytics).
 
