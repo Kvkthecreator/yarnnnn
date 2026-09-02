@@ -4,6 +4,72 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part L — the Blogger/Designer arc: ADR-627/628/629 (2026-09-01/02) — CLOSE-OUT
+
+## ⚠️ URGENT FIRST — Supabase project RESTRICTED (found 2026-09-02 00:2x UTC)
+
+Every keyed request to `noxgqcwynkzqabljjyon.supabase.co` (REST **and** auth,
+service key included) returns **402: "Service for this project is restricted
+due to the following violations: exceed_egress_quota. The project owner must
+upgrade their plan or remove spend caps."** Production login + all data access
+are effectively DOWN. It worked during the 2026-09-01 click-pass (~04:00 UTC),
+so the trip happened within ~20h. OPERATOR-ONLY remedy (Supabase dashboard:
+plan/spend-cap); next session should then ask WHAT consumed the egress
+(candidates: workspace git-export zips, realtime subscriptions (mig 240),
+the eval browser passes) before it re-trips.
+
+## What shipped (all pushed to main, all deployed)
+
+| Commit | What |
+|---|---|
+| `c7d1d3d` | ADR-627 — Blogger app + being; `post` medium resurrected (band family); retired slugs article/page/web → post; gates re-anchored (2 were red-at-HEAD since ADR-599) |
+| `cad1fef` | ADR-628 ratified — the OUTBOUND disposition (third, after INTAKE + TURN REACH) |
+| `deb430a` | ADR-629 — full placement + `badge:"beta"` (presentation-only field); blogger+images → stage primary; ADR-488 hold closed; latent `pinned==tier` pin re-anchored in test_adr297+test_adr592 |
+| `557be1c` | Click-pass run record — Blogger driven live end to end (docs/evaluations/2026-09-01-adr627-629-blogger-click-pass-run1.md) |
+| `916f409` | ADR-628 phase (a) BUILT — WordPress first tenant; seam `services/publish.py`; exporter fossil DELETED (0 callers); Publish door on Blogger; net −81 lines |
+
+Operator has since: registered the WordPress.com app ("yarnnn-api",
+developer.wordpress.com) and set `WORDPRESS_CLIENT_ID`/`SECRET` on **both**
+API + Scheduler Render services (scheduler copy is inert today, forward-
+compatible with phase (b)). API redeployed 2026-09-02 00:06 (trigger:
+manual, live) — that deploy is the env-var receipt; a FUNCTIONAL probe was
+blocked by the Supabase 402 above.
+
+## Verification (the standing set — all green at `94009a4`)
+
+```
+cd api && python3 test_adr627_blogger_pairing.py      # 26/26
+cd api && python3 test_adr628_outbound_publish.py     # 28/28 (seam driven w/ stubs)
+cd api && python3 test_agent_registry.py              # 136+
+cd api && python3 test_adr592_app_stage.py            # 45/45
+cd api && python3 test_adr582_connectors.py           # re-anchored off the fossil
+cd api && python3 test_adr494_connector_registry.py   # +wordpress
+cd web && node_modules/.bin/next build                # exit 0
+```
+Pre-existing reds NOT this arc's (stash-verified): test_adr338 pane-set (1) ·
+test_adr577 §6 agent_connectors allowlist (1).
+
+## OWED
+
+1. **Supabase egress** (above) — blocks everything else.
+2. **WordPress publish click-pass** — connect (consent screen), pick site,
+   publish the ADR-627 post live, verify `_publish.yaml` receipt + the post
+   URL; also drive the unconnected + no-sites panel states.
+3. **First real `blogger` standing declaration** (ADR-603's owed second kind)
+   — compose-only; publishing stays member-clicked until phase (b).
+4. **Phase (b)** (supervisor-scheduled publish) — begins ONLY on phase (a)
+   receipts via ADR-628 amendment: a string's run + narrow non-agent identity
+   `system:publish-wordpress`, balance-checked, receipted, bounded. The
+   operator's instinct ("scheduled jobs via supervisor need headless-like
+   workflows") is exactly this — do NOT reach for a general headless auth
+   (three lanes voted narrow; ADR-626 D4.b).
+5. Carried from the arc: fresh-principal default-Dock observation · IMAGES
+   compose loop post-promotion · Ghost as second connector (deferred) ·
+   Substack read-side into strings (their Publisher API is read/analytics).
+
+---
+
+
 # Part G — the git-at-any-scale arc: ledger receipts, the export door, danger-zone cleanup (2026-08-20)
 
 ## What shipped
