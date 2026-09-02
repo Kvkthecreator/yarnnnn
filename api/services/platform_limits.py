@@ -393,8 +393,30 @@ def grant_balance(client, workspace_id: str, amount_usd: float, kind: str,
     the overage pool beneath the allowance). The monthly allowance is granted by
     grant_allowance(), NOT here — the legacy 'subscription_refill' balance-reset
     branch was removed by ADR-396 (it wiped paid top-ups).
+
+    IDEMPOTENT ON lemon_order_id. A paid order is credited AT MOST ONCE, however
+    many times its webhook is delivered. LS retries a non-2xx delivery, and the
+    dashboard offers a manual Resend — both replay the SAME order_created payload,
+    and without this check each replay added the money again. This is not
+    hypothetical: order 2216529 (2026-09-02) was delivered to a stale endpoint,
+    503'd, and had to be granted by hand while the live webhook stayed eligible to
+    receive a retry of that very order. The guard is what makes a hand-repair safe.
+    Keyed on the order id because that is what LS makes stable across a replay.
     """
     try:
+        if lemon_order_id:
+            already = client.table("balance_transactions")\
+                .select("id")\
+                .eq("lemon_order_id", lemon_order_id)\
+                .limit(1)\
+                .execute()
+            if already.data:
+                logger.info(
+                    f"[BALANCE] Order {lemon_order_id} already credited — "
+                    f"skipping duplicate {kind} grant of ${amount_usd}"
+                )
+                return
+
         workspace = client.table("workspaces")\
             .select("balance_usd")\
             .eq("id", workspace_id)\
