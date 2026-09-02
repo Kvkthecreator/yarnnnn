@@ -1226,8 +1226,17 @@ def build_lane_conventions(
     # workspace's own from one bounded query. Descriptions only; a body
     # enters the turn when the agent reads it (DP22 — the frame carries the
     # door, never the room).
+    #
+    # SCOPED BY APP: the frame already knows which app this pane runs (the
+    # posture was resolved from it above), so a skill whose target only makes
+    # sense in another app's pane is not advertised here — it stays reachable
+    # through ListFiles, which the index says. An unbound lane (open chat,
+    # `app` None) is offered everything: that is where a member goes for any
+    # kind of work.
     from services.skills import read_member_skills, skills_index_section
-    skills_section = skills_index_section(read_member_skills(client, user_id))
+    skills_section = skills_index_section(
+        read_member_skills(client, user_id), app=app
+    )
 
     # ADR-495 D3 — the room, named. Composed here (not in the posture) because
     # it is a fact about the CONVERSATION, not about the character wearing the

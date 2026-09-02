@@ -3,6 +3,7 @@ name: presenting-from-sources
 description: Turns workspace sources into a slide narrative (titles as claims, one claim per slide, evidence cited, numbers carried as cited data rather than typed prose). Use when asked for a deck, slides, a presentation, a pitch, or to make something presentable from one or more files.
 metadata:
   target: A deck artifact, slides grounded in the source, titles as claims, evidence cited.
+  apps: [slides]
 ---
 # Presenting from sources
 

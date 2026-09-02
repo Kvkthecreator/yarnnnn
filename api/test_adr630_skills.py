@@ -89,9 +89,39 @@ _check("an unbounded skill count is a bounded frame", len(_flood.encode()) == le
 # ceiling — which is why the member allowance is its own number.
 _one = sk.skills_index_section([{"path": "skills/s0/SKILL.md", "description": _REAL_DESC, "title": "t"}])
 _check("one member skill is admitted, not dropped", "\n- skills/s0/SKILL.md" in _one)
+
+print("\u00a73b the index is SCOPED BY APP \u2014 a pane is not offered another pane's craft")
+_K = sk._load_kernel()
+_scoped = {n: m for n, m in _K.items() if m.get("apps")}
+_check("some kernel skills declare their apps", len(_scoped) >= 1, "no skill declares metadata.apps \u2014 the filter would be vacuous")
+_check("presenting-from-sources is a slides skill", _K["presenting-from-sources"]["apps"] == ("slides",))
+_slides = sk.skills_index_section(app="slides")
+_images = sk.skills_index_section(app="images")
+_open = sk.skills_index_section()
+_check("a slides pane is offered the deck skill", "system/skills/presenting-from-sources/SKILL.md" in _slides)
+_check("an images pane is NOT offered the deck skill", "system/skills/presenting-from-sources/SKILL.md" not in _images)
+_check("scoping SHRINKS a bound pane's index", len(_images.encode()) < len(_open.encode()), f"{len(_images.encode())} !< {len(_open.encode())}")
+# The open surface is where a member goes for any kind of work: narrowing it
+# would hide work that has no other door.
+_check("an unbound lane is offered every skill", all(sk.kernel_skill_path(n) in _open for n in _K))
+# Hidden is never silent \u2014 the count and the way to reach them are stated.
+_check("what is hidden is named, with the way to reach it", "more under system/skills/" in _images and "ListFiles system/skills/" in _images)
+_check("the hidden count is what was actually withheld", f"and {len(_K) - _images.count(chr(10) + '- system/')} more" in _images)
+# Falsification: silence must mean UNIVERSAL, or every undeclared skill vanishes.
+_check("an undeclared skill is offered everywhere", all(sk.kernel_skill_path(n) in _slides and sk.kernel_skill_path(n) in _images for n, m in _K.items() if not m.get("apps")))
+# Falsification: a member's skill scopes the same way, or the mechanism is
+# kernel-only privilege.
+_m_scoped = [{"path": "skills/x/SKILL.md", "description": _REAL_DESC, "title": "t", "apps": ("slides",)}]
+_check("a member skill scopes to its app", "\n- skills/x/SKILL.md" in sk.skills_index_section(_m_scoped, app="slides"))
+_check("a member skill is withheld elsewhere", "\n- skills/x/SKILL.md" not in sk.skills_index_section(_m_scoped, app="images"))
+# A list in metadata must survive parsing as a LIST (the str-coercion trap).
+_parsed = sk.parse_skill("---\nname: a-b\ndescription: d\nmetadata:\n  apps: [slides, text]\n---\n\nbody\n")
+_check("metadata.apps parses as a tuple, not a string", _parsed["apps"] == ("slides", "text"), repr(_parsed["apps"]))
+_check("a bare string app is accepted", sk.parse_skill("---\nname: a-b\ndescription: d\nmetadata:\n  apps: slides\n---\n\nb\n")["apps"] == ("slides",))
+
 lr = _read("api/services/lane_runner.py")
 _check("the conventions frame has the skills slot", "{skills_section}" in lr and "skills_section=skills_section" in lr)
-_check("lane_runner composes the index every turn", "skills_index_section(read_member_skills(client, user_id))" in lr)
+_check("lane_runner composes the index every turn, scoped to the app", "read_member_skills(client, user_id), app=app" in lr)
 _check("a skill-bound lane composes the body through build_skill_section", "build_skill_section(" in lr and "artifact_path=artifact_path" in lr)
 _check("no recipe registry survives", not os.path.exists(os.path.join(API, "services/derive_recipes.py")) and "derive_recipes" not in lr)
 

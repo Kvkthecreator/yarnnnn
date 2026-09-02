@@ -13,7 +13,7 @@ A how-to file for a kind of work. It teaches craft; it never grants reach. The r
 ## Steps
 
 1. Capture intent: what work, how often, what "done" looks like. Ask for a concrete recent example.
-2. Write the frontmatter. `name` is kebab-case and equals the folder name. `description` is third person, says what the skill does AND when to use it, uses the words a member would actually say, and stays under 300 characters.
+2. Write the frontmatter. `name` is kebab-case and equals the folder name. `description` is third person, says what the skill does AND when to use it, uses the words a member would actually say, and stays under 300 characters. Optionally `metadata.apps: [slides]` (or `[text, blogger]`) names the panes the skill is for, so it is offered there and not elsewhere; leave it out and the skill is offered everywhere, which is the right default unless its output only makes sense in one pane.
 3. Write the body: What you produce · Steps · Quality bar · Anti-patterns. State what to do, not why. Under 500 lines. Long references go in sibling files, named with when to read them.
 4. Fork rather than edit a kernel skill: duplicate `system/skills/{name}/SKILL.md` to `skills/{name}/SKILL.md` and change the copy. The duplicate records what it forked from.
 5. Test by using it: open a lane, ask for the work, watch whether the agent reads the skill and whether the output meets the bar. Tighten the description if it did not trigger.

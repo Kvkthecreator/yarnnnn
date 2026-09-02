@@ -31,6 +31,15 @@ skill (kernel from code, member from a bounded query); the body loads on
 demand through ReadFile. Progressive disclosure — the ADR-464 D4 cost lesson
 ("a skill composes into every turn") answered by not composing it.
 
+SCOPED BY APP: `metadata.apps` names the panes a skill is FOR. Silence means
+EVERY app, so a skill that does not narrow itself is offered everywhere and no
+undeclared skill changes meaning. A bound pane is not advertised craft that
+belongs to another pane; an unbound lane (open chat) is offered everything,
+because that is where a member goes for any kind of work. What is withheld is
+NAMED with its count and the ListFiles that reaches it — hidden at
+PRESENTATION only, never at authorization (the ADR-395 precedent): the mirror
+still lands all eight in every workspace, and any of them reads fine.
+
 MANAGEMENT DISCIPLINE: every `SKILL.md` here is LLM-facing content — an edit
 gets an api/prompts/CHANGELOG.md entry (prompt change protocol), and a skill
 earns a Hat-B eval probe as it matures. The index is bounded by TWO budgets,
@@ -85,6 +94,25 @@ MEMBER_INDEX_CAP = 24
 _FM_RX = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
 
 
+def _parse_apps(raw: Any) -> tuple[str, ...]:
+    """`metadata.apps` — the apps whose panes this skill is FOR.
+
+    Absent or empty means EVERY app (the open case, and the default: a skill
+    that does not narrow itself is offered everywhere). A list of app slugs
+    narrows it. Accepts a bare string for one app, because a member writing
+    `apps: slides` means the obvious thing and refusing that is pedantry.
+    """
+    if raw is None:
+        return ()
+    if isinstance(raw, str):
+        items = [raw]
+    elif isinstance(raw, (list, tuple)):
+        items = list(raw)
+    else:
+        return ()
+    return tuple(sorted({str(i).strip() for i in items if str(i).strip()}))
+
+
 def parse_skill(text: str) -> dict:
     """Parse one SKILL.md: frontmatter (`name`, `description`, optional
     `metadata` map) + body. The ONE parser (CLAUDE.md §9: the sanctioned
@@ -113,7 +141,12 @@ def parse_skill(text: str) -> dict:
     return {
         "name": name,
         "description": description,
-        "metadata": {str(k): str(v) for k, v in metadata.items()},
+        # Scalars only — `apps` is the one list-valued key and is lifted out
+        # below, so a stray list elsewhere still stringifies as before.
+        "metadata": {
+            str(k): str(v) for k, v in metadata.items() if k != "apps"
+        },
+        "apps": _parse_apps(metadata.get("apps")),
         "title": title,
         "body": body,
         "raw": text,
@@ -187,7 +220,25 @@ def _overflow_line(n: int) -> str:
     )
 
 
-def skills_index_section(member_skills: Optional[list[dict]] = None) -> str:
+def _applies_to(skill: dict, app: Optional[str]) -> bool:
+    """Does this skill belong in the index of a lane running `app`?
+
+    A skill with no `apps` is universal — the default, so silence means
+    "offered everywhere" and no existing skill changes meaning. A skill that
+    NAMES apps appears only in those, and in an unbound lane (`app` None)
+    every skill is offered: open chat is where a member goes for anything, and
+    narrowing there would hide work the member cannot otherwise reach.
+    """
+    apps = skill.get("apps") or ()
+    if not apps or not app:
+        return True
+    return app in apps
+
+
+def skills_index_section(
+    member_skills: Optional[list[dict]] = None,
+    app: Optional[str] = None,
+) -> str:
     """The frame's index: one line per skill, kernel first. Descriptions only —
     the body never enters the frame (DP22).
 
@@ -200,10 +251,19 @@ Two budgets, enforced at composition.
     gives for skill BODIES.
     """
     lines = [_INDEX_HEAD]
-    for slug, meta in _load_kernel().items():
+    kernel = [m for m in _load_kernel().values() if _applies_to(m, app)]
+    for meta in kernel:
         lines.append(f"- {meta['path']} — {meta['description']}")
+    hidden = len(_load_kernel()) - len(kernel)
+    if hidden:
+        lines.append(
+            f"- …and {hidden} more under system/skills/ for other kinds of "
+            "work — ListFiles system/skills/ to see them."
+        )
 
-    members = list(member_skills or [])[:MEMBER_INDEX_CAP]
+    members = [
+        m for m in (member_skills or []) if _applies_to(m, app)
+    ][:MEMBER_INDEX_CAP]
     if not members:
         return "\n".join(lines)
 
@@ -251,7 +311,13 @@ def read_member_skills(client: Any, user_id: str) -> list[dict]:
             logger.info("[SKILLS] skipping %s: %s", row.get("path"), exc)
             continue
         rel = (row.get("path") or "").removeprefix("/workspace/")
-        out.append({"path": rel, "description": s["description"], "title": s["title"]})
+        out.append({
+            "path": rel,
+            "description": s["description"],
+            "title": s["title"],
+            # carried so a member's skill can scope itself the same way
+            "apps": s.get("apps") or (),
+        })
     return out
 
 

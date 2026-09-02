@@ -3,6 +3,7 @@ name: writing-updates
 description: Writes internal updates in the team's own shape (status reports, progress/plans/problems, leadership summaries, incident reports, FAQs, announcements) from facts in workspace files, never invented. Use whenever asked for an update, report, recap, newsletter, or what to tell someone.
 metadata:
   target: One update (.md) in the meaning-folder of the work it reports on, every fact cited.
+  apps: [text, blogger]
 ---
 # Writing updates
 

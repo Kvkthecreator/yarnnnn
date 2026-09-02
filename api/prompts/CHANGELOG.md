@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.02.4] - The skills index is scoped by app (ADR-630 amendment)
+
+### Changed
+- `services/skills/__init__.py` — `skills_index_section(..., app=)` filters the index by a new `metadata.apps` frontmatter key; `parse_skill` lifts it out as a tuple (the rest of `metadata` still stringifies, so a list there would have become `"['slides']"`). `read_member_skills` carries `apps` through, so a member's skill scopes exactly like a kernel one.
+- `services/lane_runner.py` — passes the lane's `app` (already resolved for the posture) into the index.
+- `services/skills/{presenting-from-sources,writing-a-spec,writing-updates}/SKILL.md` — declare `apps: [slides]`, `[text]`, `[text, blogger]`. The other five stay undeclared and therefore universal.
+- Why: the index was identical for every lane, so a Slides pane paid ~330 bytes to advertise `writing-a-spec` and an Images pane paid for the deck skill. The frame already knows the app.
+- Expected behavior: a bound pane's frame shrinks — 2,968 bytes open, 2,414 in Slides, 2,085 in Images (−18% to −29%). An unbound lane (open chat) is unchanged and still sees all eight. Withheld skills are named with their count plus `ListFiles system/skills/`, and the mirror is untouched: all eight still land in every workspace and any of them reads fine (presentation, not authorization — ADR-395).
+- Gate: `test_adr630_skills.py` 104/104 (was 91) — §3b falsifies both directions (a slides pane HAS the deck skill, an images pane does NOT; an undeclared skill is offered everywhere; an unbound lane is offered everything; a member skill scopes and is withheld the same way; the hidden count matches what was withheld; `apps` parses as a tuple, and a bare string is accepted).
+
+---
+
 ## [2026.09.02.3] - The skills index is bounded in bytes, not lines (ADR-630 amendment)
 
 ### Changed

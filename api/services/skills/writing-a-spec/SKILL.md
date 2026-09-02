@@ -3,6 +3,7 @@ name: writing-a-spec
 description: Writes a grounded product or feature spec (PRD shape) from workspace sources, with every requirement traceable to a source and inferences marked. Use when asked for a spec, PRD, requirements, a feature definition, or to turn notes and research into something a team could build from.
 metadata:
   target: One spec (.md) in the product's meaning-folder with the conventional sections, grounded in the source, inferences marked.
+  apps: [text]
 ---
 # Writing a spec
 
