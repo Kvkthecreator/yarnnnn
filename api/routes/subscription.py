@@ -189,6 +189,113 @@ def _record_seat_sync_failure(
         log.warning("[SEAT_SYNC] could not record sync failure for %s: %s", workspace_id, exc)
 
 
+def _record_topup_checkout(workspace_id: str, user_id: str, amount_usd: float) -> None:
+    """Record that a top-up checkout was minted (2026-09-02).
+
+    A checkout is a PROMISE that an `order_created` should follow. Until this
+    existed the promise lived only in a stdout log line, so a top-up that was
+    paid but never delivered left NO trace on our side at all — and a webhook
+    that never arrives cannot be detected from the events it failed to write.
+    This row is the other half of the pair: `_undelivered_topup` asks which
+    promises never got their order.
+
+    Deliberately best-effort — a bookkeeping failure must never stop the member
+    reaching the payment page they asked for. It is written AFTER LS accepted the
+    checkout, so a row implies a real checkout URL was handed out.
+    """
+    try:
+        from services.supabase import get_service_client
+        get_service_client().table("subscription_events").insert({
+            "workspace_id": workspace_id,
+            "event_type": "topup_checkout_created",
+            "event_source": "yarnnn",   # our own act, not reported by LS
+            "payload": {"amount_usd": amount_usd, "user_id": user_id},
+        }).execute()
+    except Exception as exc:  # noqa: BLE001 — never break a checkout to log one
+        log.warning("[TOPUP] could not record checkout for ws %s: %s", workspace_id, exc)
+
+
+# A paid top-up normally lands within seconds. This is the grace window before a
+# checkout with no order is called undelivered — wide enough to clear a slow
+# payment or a retried delivery, short enough that the member still connects the
+# banner to the payment they just made. An abandoned checkout (never paid) also
+# trips it; the copy therefore says "if you completed payment", never "we owe you".
+TOPUP_DELIVERY_GRACE_MINUTES = 30
+
+
+def _undelivered_topup(workspace_id: str) -> Optional[dict]:
+    """A top-up checkout that never became a credited order (2026-09-02).
+
+    THE FAILURE THIS EXISTS FOR. The LS store had two webhooks registered for the
+    same events — a stale `api.ep-0.com` host beside the live one. Order 2216529
+    ($25.00) was routed to the stale host, which answered an HTML 503. Nothing
+    reached the API: no request logged, no row written, no error anywhere in our
+    system. The operator discovered it only by noticing the balance had not moved,
+    and it had to be credited by hand.
+
+    A webhook that never arrives is invisible BY CONSTRUCTION — you cannot detect
+    it from the events it failed to write. So this reads the gap between two
+    things we DO record: a checkout we minted (`topup_checkout_created`) and the
+    credit it should have produced (`balance_transactions.kind='topup'`). A
+    checkout older than the grace window with no top-up credited after it is the
+    signal. Null = healthy.
+
+    Counts by TIME, not by order id: the un-delivered order's id is precisely
+    what we never learned. A later top-up credit clears the warning, matching
+    `_latest_unresolved_seat_sync_issue` — a signal that cannot resolve itself
+    becomes furniture the operator learns to ignore.
+
+    Best-effort: a read failure returns None (no banner) rather than breaking the
+    billing pane.
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+        from services.supabase import get_service_client
+        svc = get_service_client()
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(minutes=TOPUP_DELIVERY_GRACE_MINUTES)
+        ).isoformat()
+
+        checkouts = (
+            svc.table("subscription_events")
+            .select("created_at, payload")
+            .eq("workspace_id", workspace_id)
+            .eq("event_type", "topup_checkout_created")
+            .lt("created_at", cutoff)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not checkouts:
+            return None
+        latest = checkouts[0]
+
+        # Any top-up credited at or after the checkout resolves it. `.gte` on the
+        # checkout's own timestamp, not the cutoff — a credit that landed inside
+        # the grace window still means this checkout was delivered.
+        credited = (
+            svc.table("balance_transactions")
+            .select("id")
+            .eq("workspace_id", workspace_id)
+            .eq("kind", "topup")
+            .gte("created_at", latest["created_at"])
+            .limit(1)
+            .execute()
+        ).data or []
+        if credited:
+            return None
+
+        payload = latest.get("payload") or {}
+        log.warning(
+            "[TOPUP] ws %s: checkout at %s ($%s) has no credited top-up after it",
+            workspace_id, latest["created_at"], payload.get("amount_usd"),
+        )
+        return {"at": latest["created_at"], "amount_usd": payload.get("amount_usd")}
+    except Exception as exc:  # noqa: BLE001 — the pane's job is the plan, not this
+        log.warning("[TOPUP] undelivered-topup check failed for ws %s: %s", workspace_id, exc)
+        return None
+
+
 def _latest_unresolved_seat_sync_issue(workspace_id: str) -> Optional[dict]:
     """The most recent seat-sync failure that nothing has since superseded.
 
@@ -615,6 +722,13 @@ class SubscriptionStatus(BaseModel):
     # means the next invoice is wrong in a direction the operator cannot see, so
     # it belongs on the surface that talks about money. Null = healthy.
     seat_sync_issue: Optional[dict] = None
+    # ── The undelivered-top-up signal (2026-09-02) ───────────────────────────
+    # A top-up paid but never credited, because its `order_created` webhook never
+    # reached us (order 2216529 went to a stale endpoint that answered 503). The
+    # member's money left their account and the balance did not move, with no
+    # error anywhere — the one failure mode where silence costs the member
+    # directly. Same shape as `seat_sync_issue`: null = healthy.
+    undelivered_topup: Optional[dict] = None
 
 
 class PortalResponse(BaseModel):
@@ -695,6 +809,7 @@ async def get_subscription_status(auth: UserClient):
         seat_billing_active=seat_active,
         billing_exempt=exempt,
         seat_sync_issue=_latest_unresolved_seat_sync_issue(workspace_id),
+        undelivered_topup=_undelivered_topup(workspace_id),
     )
 
 
@@ -804,6 +919,8 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
 
         checkout_url = response.json()["data"]["attributes"]["url"]
         log.info(f"Created {request.checkout_type} checkout for user {auth.user_id}")
+        if request.checkout_type == "topup":
+            _record_topup_checkout(workspace_id, auth.user_id, float(custom_price_cents) / 100)
         return CheckoutResponse(checkout_url=checkout_url)
 
 

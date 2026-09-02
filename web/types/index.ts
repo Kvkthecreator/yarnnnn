@@ -147,6 +147,17 @@ export interface SubscriptionStatus {
   // wrong in a direction the operator cannot otherwise see. Cleared by a later
   // successful sync. Null = healthy.
   seat_sync_issue: SeatSyncIssue | null;
+  // 2026-09-02 — a top-up whose checkout we minted but whose credit never
+  // arrived, because the `order_created` webhook never reached us. The member
+  // paid and the balance did not move, with no error anywhere. Cleared by any
+  // later credited top-up. Null = healthy.
+  undelivered_topup: UndeliveredTopup | null;
+}
+
+/** A paid top-up that never got credited (see `undelivered_topup`). */
+export interface UndeliveredTopup {
+  at: string;                  // when the checkout was created (ISO)
+  amount_usd: number | null;   // the amount the member chose
 }
 
 /** A seat change that never reached the invoice (see `seat_sync_issue`). */

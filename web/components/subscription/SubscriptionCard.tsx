@@ -105,6 +105,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   const seatFee = status?.seat_fee_usd ?? 0;
   // A seat change that never reached the invoice (null = healthy).
   const seatSyncIssue = status?.seat_sync_issue ?? null;
+  const undeliveredTopup = status?.undelivered_topup ?? null;
   const [usage, setUsage] = useState<UsageLimits | null>(null);
   const [nextRefill, setNextRefill] = useState<string | null>(null);
   // ADR-491 D3 — the runway ("~N days at this pace") is the dissolved Budget
@@ -283,6 +284,36 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
                 })}.)</>
               )}
+            </p>
+          </div>
+        )}
+
+        {/* A top-up that was paid but never credited (2026-09-02). Its cause is
+            invisible to the member — a webhook that never arrived — so the
+            balance simply fails to move and nothing anywhere says why. The copy
+            hedges on "if you completed payment" because an ABANDONED checkout
+            trips the same signal, and telling someone we owe them money we were
+            never sent would be worse than saying nothing. */}
+        {undeliveredTopup && (
+          <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm space-y-1">
+            <p className="font-medium text-foreground">
+              A recent top-up hasn&rsquo;t been added to your balance.
+            </p>
+            <p className="text-muted-foreground">
+              You started a{" "}
+              {undeliveredTopup.amount_usd !== null
+                ? `$${undeliveredTopup.amount_usd.toFixed(2)}`
+                : ""}{" "}
+              top-up
+              {undeliveredTopup.at && (
+                <> on {new Date(undeliveredTopup.at).toLocaleString([], {
+                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                })}</>
+              )}
+              , and it hasn&rsquo;t reached your balance. If you completed
+              payment, your money is safe and nothing is lost — contact support
+              with your order number and we&rsquo;ll credit it. If you didn&rsquo;t
+              finish checking out, you can ignore this.
             </p>
           </div>
         )}
