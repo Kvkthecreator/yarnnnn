@@ -125,7 +125,7 @@ _check("second pass is a no-op (manifest match)", r2["skipped"] is True and r2["
 _check("the hooks exist: workspace state + scheduler tick",
        "ensure_kernel_skills(" in _read("api/routes/workspace.py") and "mirror_kernel_skills_for_all_workspaces(" in _read("api/jobs/unified_scheduler.py"))
 sched = _read("api/jobs/unified_scheduler.py")
-_check("the tick mirrors OUTSIDE the steward gate", sched.index("mirror_kernel_skills_for_all_workspaces(") < sched.index("if is_agent_enabled():"))
+_check("the tick has no steward gate to be inside of (ADR-632)", "is_agent_enabled" not in sched)
 
 print("§6 the doors: the lane route binds `skill`, the FE names the same slugs")
 lanes = _read("api/routes/lanes.py")

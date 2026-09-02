@@ -67,8 +67,6 @@ CLASSIFICATION: dict[str, str] = {
     "services/mcp_composition.py": "binary-aware",          # resolve_binary_head: open answers + save REFUSES (ADR-621 D1/D3)
     # -- safe-on-empty --
     "services/workspace.py": "safe-on-empty",               # generic read layer returns ''; the primitive layer adds the notice
-    "services/wake.py": "safe-on-empty",                    # embed sweep: is_embed_eligible rejects empty
-    "services/wake_sources/substrate_event.py": "safe-on-empty",  # parent-content diff guard; ''→'' fires no transition
     "services/primitives/embed.py": "safe-on-empty",        # eligibility rejects empty content
     "routes/feed.py": "safe-on-empty",                      # workspace read renders ''; session_messages selects are non-substrate
     "routes/studio.py": "safe-on-empty",                    # opens .html artifacts; a binary head renders empty, never crashes
@@ -76,6 +74,9 @@ CLASSIFICATION: dict[str, str] = {
     "services/design_systems.py": "safe-on-empty",          # css/html text sources; '' skipped
     "services/folder_organize.py": "safe-on-empty",         # fan-out moves rows by PATH; content rides along untouched, never parsed
     # -- text-only-by-contract (fixed authored-text paths) --
+    "services/judgment_log.py": "text-only-by-contract",        # judgment_log.md (was freddie_audit — ADR-632)
+    "services/publish.py": "text-only-by-contract",             # the post artifact read at publish (ADR-628)
+    "services/skills/__init__.py": "text-only-by-contract",     # SKILL.md + the kernel manifest yaml (ADR-630)
     "services/strings.py": "text-only-by-contract",             # _string.yaml + contract leaves — declaration files, path-pinned
     "routes/strings.py": "text-only-by-contract",               # the same declaration + contract leaves, read for the desk
     "services/review_policy.py": "text-only-by-contract",       # governance yaml
@@ -85,8 +86,6 @@ CLASSIFICATION: dict[str, str] = {
     "services/daily_pnl_email.py": "text-only-by-contract",     # _performance.md
     "services/lane_runner.py": "text-only-by-contract",         # lane context md
     "services/recurrence.py": "text-only-by-contract",          # _recurrences.yaml
-    "services/freddie_envelope.py": "text-only-by-contract",    # governance envelope paths
-    "services/freddie_audit.py": "text-only-by-contract",       # audit md
     "services/ask_builder.py": "text-only-by-contract",         # authored md
     "services/workspace_guide.py": "text-only-by-contract",     # _workspace_guide.md
     "services/context_inference.py": "text-only-by-contract",   # identity/brand md merge

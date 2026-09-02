@@ -95,9 +95,9 @@ def test_infer_context_in_chat():
     # ADR-324 SUPERSEDES ADR-235 D1.a: InferContext dissolved. Identity/brand
     # authoring is inline WriteFile (chat) + context_inference.author_identity
     # (MCP) — not a chat primitive. This invariant now asserts the dissolution.
-    from services.primitives.registry import CHAT_PRIMITIVES, HANDLERS
+    from services.primitives.registry import HANDLERS, PRIMITIVES
     from services import context_inference
-    names = {t["name"] for t in CHAT_PRIMITIVES}
+    names = {t["name"] for t in PRIMITIVES}
     ok = (
         "InferContext" not in names
         and "InferContext" not in HANDLERS
@@ -120,29 +120,6 @@ def test_infer_workspace_removed():
         "test_infer_workspace_removed",
         "InferWorkspace" not in names,
         f"absent={('InferWorkspace' not in names)}",
-    )
-
-
-def test_manage_recurrence_in_both_modes():
-    from services.primitives.registry import CHAT_PRIMITIVES, HEADLESS_PRIMITIVES
-    chat_names = {t["name"] for t in CHAT_PRIMITIVES}
-    headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
-    ok = "ManageRecurrence" in chat_names and "ManageRecurrence" in headless_names
-    record(
-        "test_manage_recurrence_in_both_modes",
-        ok,
-        f"chat={('ManageRecurrence' in chat_names)} headless={('ManageRecurrence' in headless_names)}",
-    )
-
-
-def test_manage_recurrence_action_enum():
-    from services.primitives.schedule import SCHEDULE_TOOL
-    actions = SCHEDULE_TOOL["input_schema"]["properties"]["action"]["enum"]
-    expected = {"create", "update", "pause", "resume", "archive"}
-    record(
-        "test_manage_recurrence_action_enum",
-        set(actions) == expected,
-        f"actions={sorted(actions)} expected={sorted(expected)}",
     )
 
 
@@ -393,8 +370,6 @@ def main():
         test_update_context_file_deleted,
         test_infer_context_in_chat,
         test_infer_workspace_removed,
-        test_manage_recurrence_in_both_modes,
-        test_manage_recurrence_action_enum,
         test_writefile_workspace_scope,
         test_writefile_activity_classifier,
         test_mcp_composition_dispatch_routes_through_new_primitives,

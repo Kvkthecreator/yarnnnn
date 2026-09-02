@@ -100,60 +100,15 @@ class RejectRequest(BaseModel):
 # =============================================================================
 
 async def _current_occupant_for_user(client: Any, user_id: str) -> dict:
-    """Read OCCUPANT.md for this user and return a compact display dict.
+    """The current verdict-giver's display dict, or {} — the documented
+    "unknown / default human" shape callers already handle.
 
-    Implements ADR-211 D7 prospective-attribution contract invariants
-    I1 (pending proposals display current occupant) and I2 (verdicts
-    display occupant identity inline). Returns the same shape whether
-    the proposal is pending or rendered, so the frontend can display
-    consistently.
-
-    Shape:
-        {
-            "occupant": "human:<id>" | "ai:<model>-<ver>" | ...,
-            "occupant_class": "human" | "ai" | "external" | "impersonated",
-            "display_label": short human-readable label
-        }
-
-    Returns an empty dict if OCCUPANT.md is missing (pre-Phase-4 workspaces);
-    callers MUST treat missing current_occupant as "unknown / default
-    human" — do NOT assume a specific occupant from absence.
+    ADR-632: the review SEAT retired with the steward (OCCUPANT.md rotation,
+    `review_rotation.py`). Until ADR-596 D3 phase (d) lands review as a grant
+    + policy declaration, the operator is the only principal who renders a
+    verdict, and the queue reads an empty occupant as exactly that.
     """
-    try:
-        from services.workspace import UserMemory
-        from services.review_rotation import read_current_occupant
-        um = UserMemory(db_client=client, user_id=user_id)
-        current = await read_current_occupant(um)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[PROPOSALS] current_occupant read failed: %s", exc)
-        return {}
-
-    occupant = current.get("occupant") or ""
-    oc = current.get("occupant_class") or ""
-    if not occupant:
-        return {}
-
-    # Display label — concise, frontend-friendly
-    if oc == "human":
-        label = "You (human occupant)"
-    elif oc == "ai":
-        # Extract model identifier from "ai:reviewer-sonnet-v1"
-        _, _, rest = occupant.partition(":")
-        label = f"AI reviewer ({rest})"
-    elif oc == "external":
-        _, _, rest = occupant.partition(":")
-        label = f"External reviewer ({rest})"
-    elif oc == "impersonated":
-        _, _, rest = occupant.partition(":")
-        label = f"Impersonated ({rest})"
-    else:
-        label = occupant
-
-    return {
-        "occupant": occupant,
-        "occupant_class": oc,
-        "display_label": label,
-    }
+    return {}
 
 
 @router.get("/proposals")

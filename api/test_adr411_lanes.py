@@ -260,13 +260,6 @@ def test_round_budget_is_bounded():
 # 5. Altitude boundary + registration
 # ---------------------------------------------------------------------------
 
-def test_steward_never_imports_lane_machinery():
-    for rel in ("agents/freddie_agent.py", "services/wake.py",
-                "services/wake_drainer.py", "services/wake_evaluation.py"):
-        src = (_API_ROOT / rel).read_text()
-        assert "lane_runner" not in src, f"{rel} touches the lane machinery"
-
-
 def test_lanes_router_registered():
     src = (_API_ROOT / "main.py").read_text()
     assert "lanes" in src

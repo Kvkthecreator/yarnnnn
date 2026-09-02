@@ -42,42 +42,12 @@ def test_write_narrative_entry_accepts_and_stamps_authored_by():
     assert 'envelope["authored_by"] = authored_by' in src
 
 
-def test_append_message_pops_authored_by_to_envelope_param():
-    # append_message (feed.py) must pop authored_by to the explicit param so a
-    # caller can add it to its metadata dict the same way it adds pulse/weight.
-    src = _read("routes/feed.py")
-    assert 'authored_by = md.pop("authored_by", None)' in src
-    assert "authored_by=authored_by," in src
-
-
-# ---- 2. each live call site stamps the right taxonomy string ----------------
-
-def test_operator_message_authored_as_operator():
-    src = _read("routes/feed.py")
-    assert '"authored_by": "operator"' in src
-
-
 def test_mcp_writes_authored_as_mcp_host():
     # The interop wedge: an external-LLM write is attributed by host so the FE
     # renders "ChatGPT (via MCP)" / "Claude (via MCP)". client_name is the
     # canonical lowercase host slug attribution.ts keys on.
     src = _read("mcp_server/server.py")
     assert 'authored_by=f"yarnnn:mcp:{client_name}"' in src
-
-
-def test_freddie_authored_as_reviewer():
-    src = _read("services/freddie_chat_surfacing.py")
-    assert 'authored_by=f"freddie:{occupant}" if occupant else "freddie:reviewer"' in src
-    # The action-narration site distinguishes the persona Clarify from the
-    # system-agent-directed action.
-    assert '"freddie:reviewer"' in src
-    assert '"system:reviewer-directed"' in src
-
-
-def test_system_agent_paths_authored_as_system():
-    src = _read("routes/feed.py")
-    assert '"authored_by": "system:execution-router"' in src
-    assert '"authored_by": "system:agent-gate"' in src
 
 
 def test_notification_authored_as_system():
@@ -121,15 +91,6 @@ def test_authored_by_strings_match_attribution_classes():
 
 # ---- 4. the FE registry + wire consume authored_by --------------------------
 
-def test_fe_narrative_envelope_carries_authored_by():
-    desk = _read_web("types/surface.ts")
-    assert "authoredBy?: string" in desk
-    client = _read_web("lib/api/client.ts")
-    assert "authored_by?: string" in client
-    loader = _read_web("contexts/NarrativeContext.tsx")
-    assert "authoredBy: m.metadata.authored_by" in loader
-
-
 def test_fe_principal_badge_extends_attribution_with_icon():
     # The badge is the visual half built ON attribution.ts (the ADR-388 seam),
     # not a parallel module — it imports the pure classifier/label.
@@ -151,7 +112,6 @@ def test_fe_surfaces_adopt_the_badge():
     # importers, was deleted by ADR-441 D5; the badge lives on in the
     # steward transcript + the attention bell.)
     for rel in (
-        "components/tp/MessageRow.tsx",
         "components/shell/AttentionCenter.tsx",
     ):
         src = _read_web(rel)

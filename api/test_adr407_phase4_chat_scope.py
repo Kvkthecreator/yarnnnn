@@ -53,15 +53,6 @@ def test_migration_shape() -> None:
 
 
 def test_callers_pass_workspace() -> None:
-    feed = (ROOT / "routes/feed.py").read_text()
-    if '"p_workspace_id": acting_ws' in feed:
-        _ok("feed: session RPC passes the acting workspace")
-    else:
-        _bad("feed: session RPC passes the acting workspace", "param missing")
-    if 'data["workspace_id"] = acting_ws' in feed:
-        _ok("feed: fallback session insert stamps the acting workspace")
-    else:
-        _bad("feed: fallback session insert stamps the acting workspace", "stamp missing")
 
     # notifications.py no longer resolves a chat session — the ADR-593/605 work
     # removed that call site, so the old "passes p_workspace_id" row asserted a
@@ -80,15 +71,6 @@ def test_callers_pass_workspace() -> None:
     # Count INVOCATIONS, not mentions: the name also appears in prose above,
     # explaining why the RPC is broken. Counting the bare name would read a
     # docstring as a call site (it did — 3 vs 1 on the first cut).
-    feed_rpc_calls = feed.count('"get_or_create_chat_session",')
-    feed_rpc_scoped = feed.count('"p_workspace_id": acting_ws')
-    if feed_rpc_calls and feed_rpc_calls == feed_rpc_scoped:
-        _ok("feed: every session-RPC call carries the acting workspace")
-    else:
-        _bad(
-            "feed: every session-RPC call carries the acting workspace",
-            f"{feed_rpc_calls} invocation(s) vs {feed_rpc_scoped} scoped",
-        )
 
     narr = (ROOT / "services/narrative.py").read_text()
     if 'query = query.eq("workspace_id", ws)' in narr:
@@ -99,8 +81,6 @@ def test_callers_pass_workspace() -> None:
     for rel, marker, name in [
         # routes/narrative.py DELETED (ADR-603 D5, 2026-08-24) — the
         # services/narrative.py check above still gates the live writer.
-        ("routes/feed.py", 'q.eq("workspace_id", _hist_ws)', "feed history: scoped (workspace, principal)"),
-        ("routes/feed.py", '_list_q.eq("workspace_id", _list_ws)', "feed session list: scoped (workspace, principal)"),
         # services/working_memory.py rows DELETED 2026-08-26 — the module went
         # with the retired agent model (commit 00e30fe, 1,690 lines / 0 callers).
         # They had been CRASHING this gate on a missing file, which hides every

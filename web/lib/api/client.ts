@@ -1324,126 +1324,6 @@ export const api = {
   },
 
   // Chat endpoints (streaming handled separately in useChat hook)
-  chat: {
-    // Commit H (2026-05-11): cooperative cancellation of an in-flight
-    // Reviewer Loop. Sets chat_sessions.cancellation_requested=true on
-    // the operator's active workspace session; the Reviewer's tool-use
-    // loop checks the flag at the top of every round and exits early
-    // with stand_down on true.
-    cancel: () =>
-      request<{ ok: boolean; applied: boolean; session_id?: string; reason?: string }>(
-        "/api/feed/cancel",
-        { method: "POST" },
-      ),
-
-    // Ephemeral file attach — ADR-249. Returns {type, file_id?, filename, mime_type?}
-    // or {type: "text_block", filename, content} for DOCX.
-    attach: async (file: File): Promise<{
-      type: "file_id" | "text_block";
-      file_id?: string;
-      filename: string;
-      mime_type?: string;
-      content?: string;
-    }> => {
-      const headers = await getAuthHeaders();
-      delete (headers as Record<string, string>)["Content-Type"];
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch(`${API_BASE_URL}/api/feed/attach`, {
-        method: "POST",
-        credentials: "include",
-        headers,
-        body: formData,
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new APIError(response.status, response.statusText, data);
-      }
-      return response.json();
-    },
-
-    // Get global chat history
-    globalHistory: (limit: number = 1, agentId?: string, taskSlug?: string) => {
-      const params = new URLSearchParams({ limit: String(limit) });
-      if (agentId) params.set('agent_id', agentId);
-      if (taskSlug) params.set('task_slug', taskSlug);
-      return request<{
-        sessions: Array<{
-          id: string;
-          created_at: string;
-          messages: Array<{
-            id: string;
-            role: string;
-            content: string;
-            sequence_number: number;
-            created_at: string;
-            metadata?: {
-              tool_history?: Array<{
-                type: string;
-                name?: string;
-                input_summary?: string;
-                result_summary?: string;
-                content?: string;
-                /** ADR-399: interim reasoning segments (type='reasoning') */
-                text?: string;
-              }>;
-              tools_used?: string[];
-              // ADR-124: Author attribution for meeting room messages
-              author_agent_id?: string;
-              author_agent_slug?: string;
-              author_role?: string;
-              // ADR-179: System event cards
-              system_card?: string;
-              agents_created?: number;
-              tasks_created?: string[];
-              task_slug?: string;
-              task_title?: string;
-              output_path?: string;
-              run_at?: string;
-              // ADR-212: Reviewer verdict cards (role === 'freddie')
-              proposal_id?: string;
-              verdict?: string;
-              occupant?: string;
-              action_type?: string;
-              // ADR-219 Commit 2: narrative envelope stamped on every
-              // session_messages row by services.narrative.write_narrative_entry.
-              // Loader pulls these into TPMessage.narrative; renderer
-              // dispatches on `weight` per ADR-219 D5.
-              summary?: string;
-              pulse?: 'periodic' | 'reactive' | 'addressed' | 'heartbeat';
-              // ADR-277: housekeeping retired (no live emission path).
-              // Pre-ADR-277 stored rows with weight='housekeeping' coerce
-              // to 'routine' on read in ConversationPanel; surfacing the
-              // legacy value in the wire type would re-leak it into the FE.
-              weight?: 'material' | 'routine';
-              invocation_id?: string;
-              // ADR-377: boundary-direction signal. `written_to` is the
-              // substrate path a foreign/inbound write landed at (MCP
-              // `remember`, connector sync, upload) — its presence marks an
-              // INBOUND crossing. `tool` is the MCP verb (remember/recall/
-              // trace) so reads can be told from writes. `outcome` is the
-              // success/failure of the boundary act. Surfaced so the Context
-              // In/Out/Flow views can derive direction FE-side.
-              written_to?: string;
-              tool?: string;
-              outcome?: string;
-              // Actor identity (2026-06-30): the ADR-209 authored_by taxonomy,
-              // stamped on every narrative row by write_narrative_entry. The FE
-              // attribution module + PrincipalBadge map it to the actor's label
-              // + icon so chat/Flow/Notifications show who acted by name.
-              authored_by?: string;
-              // ADR-219 Commit 3: narrative_digest rollup card
-              rolled_up_count?: number;
-              rolled_up_window_hours?: number;
-              rolled_up_ids?: string[];
-              counts?: { material?: number; routine?: number; housekeeping?: number };
-            };
-          }>;
-        }>;
-      }>(`/api/feed/history?${params.toString()}`);
-    },
-
-  },
 
   // Billing endpoints (Lemon Squeezy)
   // ADR-396: Type-B subscription over the metered balance. The plan tier
@@ -1767,7 +1647,6 @@ export const api = {
       window_spend_usd: number;
       remaining_usd: number;
       per_wake_ceiling_usd: number;
-      queue_depth: number;
       // ADR-338 D4.4 — runway framing (null until there's enough spend signal).
       daily_burn_usd: number | null;
       runway_days: number | null;
@@ -2487,21 +2366,6 @@ export const api = {
       ),
   },
 
-  // ADR-025: Slash commands
-  commands: {
-    // List available slash commands for autocomplete/picker
-    list: () =>
-      request<{
-        commands: Array<{
-          name: string;
-          description: string;
-          command: string;
-          tier: "core" | "beta";
-          trigger_patterns: string[];
-        }>;
-        total: number;
-      }>("/api/commands"),
-  },
 
   // ADR-026: Integrations (Slack, Notion, etc.)
   integrations: {

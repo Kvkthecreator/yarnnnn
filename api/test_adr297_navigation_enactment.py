@@ -135,15 +135,7 @@ def test_legacy_desk_system_deleted() -> None:
             dead not in desk_types,
             f"types/surface.ts no longer exports '{dead.split()[-1]}'",
         )
-    # The live handoff payload + producer survive.
-    _assert(
-        "export type NarrativeSurface" in desk_types,
-        "types/surface.ts still exports NarrativeSurface (TP-handoff payload — not banned)",
-    )
-    _assert(
-        "export function mapToolActionToSurface" in desk_types,
-        "types/surface.ts still exports mapToolActionToSurface (handoff producer)",
-    )
+    # ADR-632: NarrativeSurface + mapToolActionToSurface left with the steward's transcript.
 
 
 # =============================================================================

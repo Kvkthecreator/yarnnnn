@@ -822,55 +822,6 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Workspace Settings — what this operation is and how it runs. Program, Access (members), Billing/Usage. (ADR-426 moved the System Agent dials to their own door; ADR-425 moved Connectors to the account door + hid Sources.)",
     },
     {
-        # ADR-426 (2026-07-09) — Freddie System Agent: the system agent's own
-        # settings door. The System Agent group (ADR-412 D5 / ADR-418: Autonomy ·
-        # Budget · Capabilities · Activity) leaves Workspace Settings and becomes
-        # its own window-grade surface on the SAME launcher plane as Workspace
-        # Settings + User Settings — three sibling doors, three altitudes: the
-        # operation (workspace-settings) · the system agent (this) · the human
-        # (settings). The panes are the SAME SystemAgentPanes bodies (Singular
-        # Implementation — the group moved, not duplicated); the budget/autonomy
-        # rows re-point pane_of → system-agent (above). Its own launcher tier
-        # `system-agent-config` renders the "Freddie System Agent" group right
-        # after Workspace Settings (Launcher.tsx KERNEL_TIER_GROUPS). Steward-
-        # coupled (STEWARD_SURFACE_SLUGS): when AGENT_ENABLED is off the system
-        # agent has no dials to tune, so the door filters out (ADR-375 §6). The
-        # door carries the proper noun "Freddie System Agent" (ADR-426 D3 —
-        # reverses ADR-412 D5's role-only label ruling now that the panes have
-        # their own frame; the rail stays Freddie's conversational home, ADR-412 D1).
-        # ADR-454 D4 (2026-07-13) — the door is REVERSED (the ambient steward):
-        # the persona-fronting third settings door retires. hidden (hide-not-
-        # delete, the ADR-425 D2 sources precedent); launcher tier drops to
-        # search-only… and `hidden` keeps it out of route parity; the dials
-        # (autonomy/budget) re-home pane_of → workspace-settings ("System"
-        # group); /system-agent is a next.config redirect stub →
-        # /workspace-settings?pane=autonomy. Row retained for any re-light.
-        "slug": "system-agent",
-        # ADR-592 FOLD, 2026-08-26. This row carried `hidden: True` — a SECOND
-        # hiding mechanism ADR-592 was written to end, and one only the frontend
-        # honoured (Launcher.tsx was its single reader; `is_exposed` never knew
-        # it existed). `internal` is the same intent spelled where every
-        # consumer agrees: the row leaves the served roster, so no Dock icon, no
-        # tile, no flat-search hit, for a curated Dock too. The obligation it
-        # carries is already discharged — /system-agent is a redirect stub and
-        # is hand-listed in middleware's stub block (the slug has been out of
-        # KERNEL_SURFACE_SLUGS since ADR-454 D4).
-        "stage": "internal",
-        "launcher_tier": "search-only",  # ADR-454 D4 (was system-agent-config, ADR-426)
-        "register": "application",  # a windowed app like workspace-settings / settings
-        "title": "Freddie System Agent",
-        "archetype": "dashboard",
-        "substrate_paths": [],  # governance/_autonomy.yaml + governance/_budget.yaml (via the pane bodies)
-        # ADR-426 amendment (2026-07-09): the door wears Freddie's OWN mark — the
-        # mascot face (FreddieAvatar, the chat-rail FAB face), not the generic
-        # shield-check (which also read as the Autonomy pane glyph). The `freddie`
-        # icon_key resolves to the still mascot in resolveSurfaceIcon.
-        "icon_key": "freddie",
-        "default_pinned": False,
-        "route": "/system-agent",
-        "summary": "Freddie System Agent — how the system agent is configured. Its two operator-tunable dials (Autonomy = the witness dial, Budget = the allocation) plus its read-only legibility (Capabilities · Activity).",
-    },
-    {
         "slug": "connectors",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
@@ -1015,37 +966,6 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
 # =============================================================================
 
 
-# ADR-375 §6 chokepoint #4 — the steward-coupled surfaces. When
-# AGENT_ENABLED is off (Phase-1 interop-first deploy), these are filtered
-# out of the surface registry. Backend-driven nav → zero FE change. The
-# keepers (ledger + membrane + constitution mirrors + structural chrome)
-# always render: files, channels (the perception+principal surface, ADR-385;
-# was context), connectors/sources, settings/workspace-settings, home
-# (substrate-forward empty state per ADR-374), budget,
-# top-bar/launcher/chat-drawer/setup.
-#
-# ADR-624 D5: `expected-output` left this set with its row — and the sweep it
-# prompted found THREE more slugs naming rows that no longer exist:
-# `autonomy` (deleted by ADR-551 D4) and `activity` + `recurrence` (deleted by
-# ADR-603 D5). A filter set is a roster of slugs to REMOVE, so a slug naming no
-# row filters nothing: it reads as coverage while doing nothing, which is how a
-# stale entry outlives the thing it named. All four are gone; the ADR-624 gate
-# now asserts every member of this set names a live row, so the next surface
-# deletion cannot leave one behind silently.
-# (`identity`/`mandate`/`principles` were never here — they were named in the
-# keeper prose above, now corrected.)
-STEWARD_SURFACE_SLUGS: frozenset[str] = frozenset({
-    "agents",
-    "queue",
-    "notifications",
-    "program",
-    # ADR-426 — the Freddie System Agent door. When AGENT_ENABLED is off the
-    # system agent has no dials to tune, so its door filters out with the rest
-    # of the steward-coupled surfaces. (budget is intentionally NOT here — it is
-    # a per-principal allocation that stands even without the internal steward.)
-    "system-agent",
-})
-
 
 def kernel_surface_entries() -> list[dict[str, Any]]:
     """Return the kernel surface list with `tier: "kernel"` added.
@@ -1054,13 +974,8 @@ def kernel_surface_entries() -> list[dict[str, Any]]:
     returns a deep copy so callers can mutate freely without affecting
     the canonical declaration.
 
-    ADR-375 §6 chokepoint #4: when the internal steward is gated off
-    (`is_agent_enabled()` is False), the steward-coupled surfaces
-    (`STEWARD_SURFACE_SLUGS`) are filtered out. The nav is 100%
-    backend-driven (ADR-297), so this removes the steward tabs from the UI
-    with zero frontend change. The default is ON (ADR-375 D4), so the
-    full registry is returned unless a deploy explicitly sets
-    `AGENT_ENABLED=false`.
+    ADR-632: the steward-presence filter (ADR-375 §6 chokepoint #4) is gone
+    with the steward; the roster is the roster.
 
     ADR-592 — the SAME chokepoint, one field wider. An `internal` app is
     dropped from the roster entirely, and every served app has its
@@ -1077,14 +992,8 @@ def kernel_surface_entries() -> list[dict[str, Any]]:
         launcher_tier_for,
         resolve_stage,
     )
-    from services.agent_gating import is_agent_enabled
-
-    agent_on = is_agent_enabled()
-
     served: list[dict[str, Any]] = []
     for entry in KERNEL_SURFACES:
-        if not agent_on and entry["slug"] in STEWARD_SURFACE_SLUGS:
-            continue
         if not is_exposed(entry):
             continue  # ADR-592 — internal: not a product, not served
         row = {**deepcopy(entry), "tier": "kernel", "stage": resolve_stage(entry)}
@@ -1127,7 +1036,6 @@ def kernel_pane_slugs() -> set[str]:
 __all__ = [
     "ARCHETYPES",
     "KERNEL_SURFACES",
-    "STEWARD_SURFACE_SLUGS",
     "kernel_surface_entries",
     "kernel_surface_slugs",
     "kernel_pane_slugs",

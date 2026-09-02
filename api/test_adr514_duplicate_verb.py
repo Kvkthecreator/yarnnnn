@@ -84,15 +84,14 @@ results.append(_check(
 
 
 # ── 2. registration + the derivation contract ────────────────────────────────
-from services.primitives.registry import HANDLERS, PRIMITIVES, CHAT_PRIMITIVES  # noqa: E402
+from services.primitives.registry import HANDLERS, PRIMITIVES  # noqa: E402
 
 results.append(_check(
     "2a DuplicateFile registered in HANDLERS",
     "DuplicateFile" in HANDLERS))
 results.append(_check(
-    "2b exposed as a tool (PRIMITIVES + CHAT_PRIMITIVES)",
-    any(t["name"] == "DuplicateFile" for t in PRIMITIVES)
-    and any(t["name"] == "DuplicateFile" for t in CHAT_PRIMITIVES)))
+    "2b exposed as a tool (PRIMITIVES)",
+    any(t["name"] == "DuplicateFile" for t in PRIMITIVES)))
 
 _dup_src = inspect.getsource(HANDLERS["DuplicateFile"])
 results.append(_check(

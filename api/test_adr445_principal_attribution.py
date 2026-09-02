@@ -40,7 +40,6 @@ ZERO_COST_ALLOWLIST: dict[str, str] = {
     "services/capture/lane.py": "capture lane — mechanical, zero tokens, and DORMANT behind CAPTURE_LANE_ENABLED (ADR-404/591)",
     "services/foreign_read.py": "foreign READ — mode='mechanical', zero tokens; a read draws nothing from the pool (ADR-396 free-reads carve)",
     "services/primitives/embed.py": "embed — mechanical; the embedding COGS is absorbed by base, not metered (ADR-396)",
-    "services/wake.py": "wake.py's non-cost rows (failure/skip/stand-down paths) record no tokens; its one COSTED site is asserted explicitly below",
     "services/anthropic.py": "shared client helper — not itself a metered invocation",
     "services/platform_limits.py": "the ledger reader, not a writer of costed rows",
     "services/telemetry.py": "the recorder's own module (definition + docs)",
@@ -50,15 +49,12 @@ ZERO_COST_ALLOWLIST: dict[str, str] = {
 # The costed sites this session stamped — asserted individually so a regression
 # names the exact file rather than only moving a count.
 COSTED_SITES = [
-    ("services/wake.py", "the recurrence/wake judgment lane (largest cost source)"),
     # dispatch_specialist.py DELETED by ADR-626 D4.b.
     ("services/primitives/web_search.py", "web search"),
-    ("services/harvest.py", "harvest"),
     ("services/context_inference.py", "identity/brand authoring"),
-    ("services/recurrence_prompt_inference.py", "back-office prompt inference"),
     # Found BY this gate, not by the audit walk — it postdated the manual count.
     # Exactly what a structural check is for.
-    ("services/images/compose.py", "image generation (cost_override_usd)"),
+    ("services/apps/images/compose.py", "image generation (cost_override_usd)"),
 ]
 
 COST_MARKERS = ("input_tokens", "output_tokens", "cost_override_usd")
@@ -168,9 +164,9 @@ def test_allowlist_holds_no_costed_site() -> None:
 
 def test_resolver_is_the_canonical_path() -> None:
     print("\n[canon] auth-bearing sites resolve via resolve_principal_id")
-    for rel in ("services/primitives/web_search.py",
-                # dispatch_specialist.py DELETED by ADR-626 D4.b.
-                "services/harvest.py"):
+    for rel in ("services/primitives/web_search.py",):
+        # dispatch_specialist.py DELETED by ADR-626 D4.b; harvest.py + the wake
+        # lane DELETED by ADR-632.
         src = Path(rel).read_text()
         check(f"{rel} uses resolve_principal_id", "resolve_principal_id" in src,
               "the uniform ADR-373 D2 abstraction, not a hand-rolled id")

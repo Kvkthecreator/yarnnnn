@@ -25,10 +25,6 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 | Document | Covers |
 |----------|--------|
 | [**authored-substrate.md**](authored-substrate.md) | Content-addressed retention + parent-pointer history + authored-by attribution on every `workspace_files` mutation. Ratified by FOUNDATIONS v6.1 Axiom 1 second clause + ADR-209. |
-| [**reviewer-substrate.md**](reviewer-substrate.md) | Index (ADR-315 split) routing to the three Reviewer docs below. |
-| [**reviewer-seat-substrate.md**](reviewer-seat-substrate.md) | The Reviewer **seat** — six seat files at `/workspace/review/` plus adjacent shared delegation in `/workspace/context/_shared/AUTONOMY.md`, the prospective-attribution contract, and the calibration loop. The seat is substrate. Ratified by FOUNDATIONS v6.3 + ADR-217. |
-| [**reviewer-occupant.md**](reviewer-occupant.md) | The Reviewer **occupant** — the AI agent (`reviewer_agent.py`) that fills the seat: occupant classes, `invoke_reviewer`, model-by-trigger, persona-frame discipline. Ratified by ADR-256 + ADR-315. |
-| [**reviewer-occupant-contract.md**](reviewer-occupant-contract.md) | The published **ABI** between seat and occupant — `ReviewerContext` / `ReviewerOutput` / `invoke_reviewer` / the kernel-side envelope assembler. Defined in `api/agents/occupant_contract.py`. Ratified by ADR-315. |
 
 ### System operation
 
@@ -36,8 +32,6 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 |----------|--------|
 | [**SERVICE-MODEL.md**](SERVICE-MODEL.md) | End-to-end system description — entities, execution, services, primitives, perception |
 | [orchestration.md](orchestration.md) | Orchestration capability bundles, production roles, integrations, and dispatch metadata |
-| [agent-execution-model.md](agent-execution-model.md) | 3-layer execution model (mechanical scheduling, LLM generation, TP orchestration) |
-| [**execution-loop.md**](execution-loop.md) | The accumulation cycle — how run N feeds run N+1 (awareness, tracker, feedback, actuation) |
 | [backend-orchestration.md](../infrastructure/backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
 | [WORKSPACE.md](WORKSPACE.md) | Workspace — layers · filesystem inventory · bootstrap · autonomy threshold (paired with [design/WORKSPACE.md](../design/WORKSPACE.md)) |
 | [registry-matrix.md](registry-matrix.md) | Agent types × task types × output categories — the full registry catalog |
@@ -57,9 +51,8 @@ For someone new to the codebase:
 3. **[agent-composition.md](agent-composition.md)** — how YARNNN / Reviewer / domain Agents compose today
 4. **[FOUNDATIONS.md](FOUNDATIONS.md)** — why it works this way, axiomatically
 5. **[THESIS.md](THESIS.md)** — the philosophical claim the axioms exist to express (internal canon)
-6. **[authored-substrate.md](authored-substrate.md)** + **[reviewer-seat-substrate.md](reviewer-seat-substrate.md)** — the two sharpest architectural substrates (write path + judgment seat). The seat's occupant + ABI: [reviewer-occupant.md](reviewer-occupant.md) + [reviewer-occupant-contract.md](reviewer-occupant-contract.md) (ADR-315).
+6. **[authored-substrate.md](authored-substrate.md)** — the ledger (every write attributed, parent-pointered, revertible).
 7. **[orchestration.md](orchestration.md)** — orchestration capabilities and dispatch
-8. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
 9. **[WORKSPACE.md](WORKSPACE.md)** — workspace layers, filesystem model, bootstrap, autonomy threshold
 10. **[backend-orchestration.md](../infrastructure/backend-orchestration.md)** — how everything runs
 
@@ -86,3 +79,5 @@ Historical documents preserved for reference. Do not use for current architectur
 
 - [SCHEMA.md](../database/SCHEMA.md) — complete table definitions
 - [ACCESS.md](../database/ACCESS.md) — connection strings and psql commands
+
+> **ADR-632 (2026-09-02)**: the steward / review-seat canon (`reviewer-*.md`, `cadence-and-wakes.md`, `invocation-and-narrative.md`, `execution-loop.md`, `agent-execution-model.md`, `persona-reflection.md`, the `adr296-*` audits) is archived under [previous_versions/](previous_versions/). The live Altitude-2 canon is [lane-frame.md](lane-frame.md); standing work is the standing declaration (ADR-603); skills are files (ADR-630).

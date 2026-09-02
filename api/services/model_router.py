@@ -179,7 +179,7 @@ def ledger_model_name(model: str) -> str:
     selection; selection may not depend on transport. This name stays because
     the ledger's reason to strip is its own (it records a model, not a route).
     """
-    from services.model_selection import strip_provider
+    from services.system_calls import strip_provider
     return strip_provider(model)
 
 

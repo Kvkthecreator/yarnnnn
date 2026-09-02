@@ -73,20 +73,17 @@ READ_ONLY_PRIMITIVES: frozenset[str] = frozenset({
     "DiffRevisions",
     # Semantic-query read (ADR-151)
     "QueryKnowledge",
-    # Introspection
-    "GetSystemState",
     "DiscoverAgents",
     "list_integrations",
     # External read
     "WebSearch",
     # Narration (non-consequential — emit narrative, mutate no
-    # operator/operational substrate). ReturnVerdict closes the Reviewer turn.
+    # operator/operational substrate).
     # NOTE: `Clarify` is deliberately NOT here (ADR-352). Asking the operator to
     # choose instead of acting is the inverse of binding-without-witness, so the
     # witness dial (`_autonomy.yaml` delegation, ADR-345) governs whether asking
     # is available — exactly as it governs binding. Clarify is a gate-owned
     # primitive; the ask-gate branch in resolve_permission derives APPLY/DENY.
-    "ReturnVerdict",
 })
 
 

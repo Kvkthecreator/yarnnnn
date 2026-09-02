@@ -72,10 +72,8 @@ import {
 } from 'lucide-react';
 import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
-import { useNarrative } from '@/contexts/NarrativeContext';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
-import type { NarrativeSurface } from '@/types/surface';
 import { api, APIError } from '@/lib/api/client';
 import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFeedback } from '@/contexts/FeedbackContext';
@@ -408,7 +406,6 @@ function formatNodeTimestamp(value: string): string {
 // =============================================================================
 
 export default function ContextPage() {
-  const { loadScopedHistory, sendMessage } = useNarrative();
   // ADR-400 polish (2026-07-03): the universal action-feedback layer replaces
   // window.alert/confirm/prompt for the operator's file verbs. See
   // docs/design/ACTION-FEEDBACK.md.
@@ -692,23 +689,6 @@ export default function ContextPage() {
       : []
   );
 
-  // ADR-297 Phase 3: surface context for chat drafts derives from this
-  // surface's own identity (Files), not the deleted DeskContext. When a
-  // node is selected, overlay the explorer path so the agent knows what
-  // the operator is looking at.
-  // A single PICKED file is the sharpest statement of "what the operator is
-  // looking at" — sharper than the folder they are standing in. So one
-  // selected item scopes the chat draft; otherwise the shown object does
-  // (and with nothing shown, the bare surface).
-  const focusNode =
-    selection.length === 1
-      ? (resolveNodeByPath(virtualRoot, selection[0]) ?? syntheticNodeForPath(selection[0]))
-      : viewNode;
-  const effectiveSurface: NarrativeSurface = focusNode
-    ? { type: 'workspace-explorer', path: focusNode.path, navigation_type: focusNode.type }
-    : { type: 'atomic', slug: 'files' };
-
-  useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
   useEffect(() => {
     loadExplorer();
@@ -1865,7 +1845,6 @@ export default function ContextPage() {
               onDropPath: commitMove,
               onDropFiles: (files, folder) => openUpload(files, folder),
             }}
-            onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
             onDeleted={() => {
               // ADR-329: file archived — clear selection + refresh the
               // tree (the archived file self-filters out server-side).

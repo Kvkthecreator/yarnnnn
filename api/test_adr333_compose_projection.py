@@ -118,31 +118,6 @@ def test_composer_maps_article_surface_to_report():
 # =============================================================================
 
 
-def test_eager_auto_compose_deleted_from_wake():
-    src = (API_ROOT / "services" / "wake.py").read_text()
-    assert "_maybe_auto_compose" not in src, (
-        "the eager session-close auto-compose must be fully removed (ADR-333 D2)"
-    )
-    assert "composed_html_path" not in src, (
-        "the dispatch result must not carry composed_html_path post-D2"
-    )
-    # The render service must NOT be driven at session-close: the dispatch
-    # body imports no compose helper.
-    assert "compose_task_output_html" not in src, (
-        "wake.py dispatch must not call the composer (render is pulled, not pushed)"
-    )
-
-
-def test_wake_module_imports_clean():
-    """Sanity: the module still imports after the deletion (no dangling refs)."""
-    import importlib
-    import services.wake as wake
-    importlib.reload(wake)  # re-exec to catch import-time breakage
-    # public entry points survive the deletion
-    assert hasattr(wake, "submit_wake_proposal")
-    assert hasattr(wake, "stream_addressed_wake")
-
-
 # =============================================================================
 # D6 — the authored consumption-pull surface
 # =============================================================================

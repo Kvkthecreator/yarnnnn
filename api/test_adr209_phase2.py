@@ -247,7 +247,7 @@ def test_freddie_audit(client) -> None:
         # DECISIONS_PATH → renamed JUDGMENT_LOG_PATH (ADR-281 §5.D1 decisions.md →
         # judgment_log.md; moved to persona/ root by ADR-320). The append_decision
         # signature + reviewer:<identity> attribution invariant are unchanged.
-        from services.freddie_audit import append_decision, JUDGMENT_LOG_PATH
+        from services.judgment_log import append_decision, JUDGMENT_LOG_PATH
 
         # Clean slate for this path — workspace_files first (FK order)
         client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).eq("path", JUDGMENT_LOG_PATH).execute()

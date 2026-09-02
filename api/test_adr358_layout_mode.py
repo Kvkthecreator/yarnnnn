@@ -113,68 +113,8 @@ def main() -> None:
         "surface column renders before the chat rail (chat docks RIGHT)",
     )
 
-    # --- 4. ChatDrawer: railMode (canvas) vs overlayMode (desktop+mobile) ---
-    drawer = _read("components/shell/chrome/ChatDrawer.tsx")
-    _assert("ADR-358" in drawer, "ChatDrawer cites ADR-358")
-    _assert(
-        "useShellChrome" in drawer and "layoutMode === 'canvas'" in drawer,
-        "ChatDrawer reads layoutMode",
-    )
-    # railMode is the ONLY docked posture: canvas on a wide viewport.
-    _assert(
-        "const railMode = !isMobile && layoutMode === 'canvas'" in drawer,
-        "chat is a docked rail only in canvas on a wide viewport",
-    )
-    _assert(
-        "const overlayMode = !railMode" in drawer,
-        "everything else (desktop layout + mobile) is the summoned overlay",
-    )
-    # The overlay branch fires on overlayMode (not just isMobile) — this is
-    # what un-pins Desktop-mode chat.
-    _assert(
-        "if (overlayMode)" in drawer,
-        "the fixed-overlay branch fires on overlayMode (desktop un-pinned)",
-    )
-    # The Canvas rail docks RIGHT: border on the left edge, width measured
-    # from the viewport's right edge. (No left/right flip — one geometry.)
-    _assert(
-        "window.innerWidth - e.clientX" in drawer
-        and "dockLeft" not in drawer,
-        "the canvas rail docks RIGHT (innerWidth − clientX; no dockLeft flip)",
-    )
-    _assert(
-        "border-l border-border shadow-xl" in drawer,
-        "the right-docked rail's border is on its left edge",
-    )
-    # Chat never becomes a window (ADR-316 Alternative A stays rejected).
-    _assert(
-        "WindowFrame" not in drawer,
-        "chat is never a window — it is chrome in every mode",
-    )
-    # One width store across modes.
-    _assert(
-        drawer.count("DRAWER_WIDTH_KEY") >= 2,
-        "one width store (DRAWER_WIDTH_KEY) shared across modes",
-    )
-
-    # --- 4b. Default-open posture is mode-aware ---
-    # Rail (canvas, wide) defaults OPEN; overlay (desktop/mobile) defaults
-    # CLOSED (it would otherwise pop open over the windows). And switching
-    # mode re-derives the posture.
-    ctx_open = ctx  # re-use the ShellChromeContext source read above
-    _assert(
-        "const railMode = !isMobile && mode === 'canvas'" in ctx_open,
-        "drawer default-open is computed from railMode (canvas + wide)",
-    )
-    _assert(
-        "setDrawerOpen(railMode); // unset → open only when docked rail" in ctx_open,
-        "unset posture → open only when chat is the docked rail",
-    )
-    _assert(
-        "setLayoutMode" in ctx_open
-        and "setDrawerOpen(railMode)" in ctx_open.split("const setLayoutMode")[1],
-        "switching mode re-derives the chat posture (open canvas / close desktop)",
-    )
+    # (sections 4 + 4b — the chat drawer's dock side and default-open posture —
+    #  retired with the drawer, ADR-632)
 
     # --- 5. SurfaceViewport: canvas forces ONE full-bleed surface ---
     sv = _read("components/shell/SurfaceViewport.tsx")
@@ -240,10 +180,7 @@ def main() -> None:
     # --- 7. Singular Implementation: the binding is mode-INDEPENDENT ---
     # surfaceOverride + "Viewing: X" read `foregrounded` in BOTH modes —
     # the agent-context binding does not branch on layout mode.
-    _assert(
-        "surfaceOverride" in drawer and "foregrounded" in drawer,
-        "the surfaceOverride/Viewing binding reads foregrounded (mode-independent)",
-    )
+    # (the drawer's surfaceOverride check retired with the drawer — ADR-632)
     _assert(
         "layoutMode" not in _read("lib/shell/useSurfacePreferences.tsx"),
         "the window-manager core does NOT know about layoutMode (clean seam)",

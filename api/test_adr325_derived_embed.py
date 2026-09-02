@@ -69,7 +69,6 @@ class _Client:
 
 def main():
     results = []
-    import services.wake as wake
     from services.primitives import embed as embed_mod
 
     # ---- 1: eligibility logic is shared with the Embed primitive (Singular Impl) -
@@ -89,91 +88,10 @@ def main():
         "1 is_embed_eligible: operation/ prose YES; yaml/system/governance/inbound/short NO (ADR-325 D5)",
         elig_ok))
 
-    # ---- 2-4: the wake-time post-step is correctly targeted --------------------
-    WAKE_START = "2026-06-29T00:00:00+00:00"
-    store = {
-        "embed_calls_today": 0,
-        # versions written during the wake (created_at >= WAKE_START) + one before
-        "versions": [
-            # reviewer-derived, eligible → SHOULD embed
-            {"path": "/workspace/operation/memory/acme.md", "authored_by": "freddie:ai:freddie-sonnet-v8", "created_at": "2026-06-29T00:05:00+00:00"},
-            # reviewer-derived but yaml → INELIGIBLE
-            {"path": "/workspace/operation/competitors/_index.yaml", "authored_by": "freddie:ai:freddie-sonnet-v8", "created_at": "2026-06-29T00:06:00+00:00"},
-            # reviewer-derived but system/ → INELIGIBLE
-            {"path": "/workspace/system/_recent_execution.md", "authored_by": "system:mirror-recent-execution", "created_at": "2026-06-29T00:07:00+00:00"},
-            # the RAW dump itself (yarnnn:mcp) → NOT reviewer-authored, skip
-            {"path": "/workspace/inbound/mcp/claude/inbox.md", "authored_by": "yarnnn:mcp:Claude", "created_at": "2026-06-29T00:01:00+00:00"},
-            # reviewer-derived eligible but written BEFORE the wake → excluded by gte
-            {"path": "/workspace/operation/memory/old.md", "authored_by": "freddie:ai:freddie-sonnet-v8", "created_at": "2026-06-28T23:00:00+00:00"},
-        ],
-        "files": {
-            "/workspace/operation/memory/acme.md": "x" * 400,
-            "/workspace/operation/competitors/_index.yaml": "a: 1\n" * 50,
-            "/workspace/system/_recent_execution.md": "x" * 400,
-            "/workspace/inbound/mcp/claude/inbox.md": "x" * 400,
-            "/workspace/operation/memory/old.md": "x" * 400,
-        },
-    }
+    # Sections 2-5 (the steward's wake-time embed post-step) retired with the
+    # wake stack — ADR-632. Lanes and strings embed in their own write paths.
 
-    embedded_paths = []
-
-    async def fake_embed(client, user_id, abs_path, content):
-        embedded_paths.append(abs_path)
-
-    # stub the execution arm + the ledger marker (no network)
-    import services.primitives.workspace as wsmod
-    import services.telemetry as telemetry
-    real_ws_embed = wsmod._embed_workspace_file
-    real_rec = telemetry.record_execution_event
-    wsmod._embed_workspace_file = fake_embed
-    telemetry.record_execution_event = lambda *a, **k: None  # no-network ledger
-    try:
-        n = asyncio.run(wake._embed_derived_files(
-            _Client(store), "user-1234abcd", since_iso=WAKE_START))
-    finally:
-        wsmod._embed_workspace_file = real_ws_embed
-        telemetry.record_execution_event = real_rec
-
-    results.append(_check(
-        "2 embeds ONLY the reviewer-derived ELIGIBLE operation/ file written during the wake",
-        embedded_paths == ["/workspace/operation/memory/acme.md"] and n == 1,
-        f"embedded={embedded_paths}"))
-    results.append(_check(
-        "3 does NOT embed yaml / system/ / raw inbound dump / pre-wake files",
-        "/workspace/operation/competitors/_index.yaml" not in embedded_paths
-        and "/workspace/system/_recent_execution.md" not in embedded_paths
-        and "/workspace/inbound/mcp/claude/inbox.md" not in embedded_paths
-        and "/workspace/operation/memory/old.md" not in embedded_paths))
-
-    # ---- 5: respects the daily cost cap + never raises -------------------------
-    store_capped = dict(store)
-    store_capped["embed_calls_today"] = embed_mod._EMBED_DAILY_CAP  # at cap
-    embedded_paths.clear()
-    wsmod._embed_workspace_file = fake_embed
-    telemetry.record_execution_event = lambda *a, **k: None
-    try:
-        n_capped = asyncio.run(wake._embed_derived_files(
-            _Client(store_capped), "user-1234abcd", since_iso=WAKE_START))
-    finally:
-        wsmod._embed_workspace_file = real_ws_embed
-        telemetry.record_execution_event = real_rec
-    results.append(_check(
-        "5 honors the daily embed cap (ADR-325 D4) — embeds nothing when at cap",
-        n_capped == 0 and embedded_paths == []))
-
-    # never raises on a broken client
-    class _Boom:
-        def table(self, *a, **k): raise RuntimeError("db down")
-    try:
-        safe = asyncio.run(wake._embed_derived_files(_Boom(), "u", since_iso=WAKE_START))
-        raised = False
-    except Exception:
-        raised = True
-    results.append(_check(
-        "6 best-effort: a DB failure returns 0, never raises (must not fail the wake)",
-        not raised and safe == 0))
-
-    total, passed = len(results), sum(results)
+    passed = sum(1 for r in results if r); total = len(results)
     print(f"\n{passed}/{total} ADR-325 derived-embed assertions pass")
     if passed != total:
         sys.exit(1)

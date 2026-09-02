@@ -1,7 +1,8 @@
 """
 Primitives Architecture (ADR-146: Hardened, ADR-168: Matrix + Naming Reform)
 
-Two explicit mode registries (CHAT_PRIMITIVES, HEADLESS_PRIMITIVES).
+One dispatch table (HANDLERS) + the derived PRIMITIVES list (ADR-632: the
+steward's mode rosters are deleted; the live surfaces declare their own).
 Canonical reference: docs/architecture/primitives-matrix.md (ADR-168).
 
 Key consolidations + dissolutions:

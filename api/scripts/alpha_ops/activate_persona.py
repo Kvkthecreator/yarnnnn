@@ -405,8 +405,7 @@ def main() -> int:
     try:
         init_summary = asyncio.run(_run_kernel_init(persona))
         print(f"  OK already_initialized={init_summary.get('already_initialized', False)}, "
-              f"agents_created={init_summary.get('agents_created', [])}, "
-              f"session_bootstrapped={init_summary.get('session_bootstrapped', False)}")
+              f"agents_created={init_summary.get('agents_created', [])}, ")
     except Exception as exc:
         errors.append(f"kernel-init: {exc}")
         print(f"  FAIL kernel-init: {exc}")

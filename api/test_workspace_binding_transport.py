@@ -135,7 +135,7 @@ def test_workspace_scoped_module_caches_are_binding_keyed() -> None:
     removes the dependency between the two guarantees.
     """
     print("\nWorkspace-scoped module caches invalidate on rebind")
-    for rel in ("lib/workspace/viewer.ts", "lib/freddie-persona.ts"):
+    for rel in ("lib/workspace/viewer.ts",):
         src = _read(WEB / rel)
         _assert(
             "cacheBinding" in src and "getActiveWorkspaceId" in src,

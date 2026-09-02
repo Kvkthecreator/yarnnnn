@@ -102,7 +102,6 @@ def main() -> int:
     # ── 2. The call-site walk — every costed member entry gates ──────────────
     print("\n[coverage] every costed member-facing entry calls check_draw")
     ENTRIES = [
-        ("routes/feed.py", "the addressed steward turn"),
         ("routes/lanes.py", "lane turns + regenerate (via _turn_stream_response)"),
         ("routes/studio.py", "the arrangement plan (costed judgment)"),
         ("routes/images.py", "compose (planning + per-image engine cost)"),
@@ -122,20 +121,17 @@ def main() -> int:
     check("lanes.py gates the turn core (the file's one metered choke point)",
           len(re.findall(r"check_draw\(", lanes_src)) >= 1)
 
-    # Singular Implementation: feed.py runs the ONE gate, not the two parts.
-    feed_src = (root / "routes/feed.py").read_text()
-    check("feed.py no longer imports check_member_cap directly",
-          "check_member_cap" not in feed_src)
-    check("feed.py no longer calls check_balance directly",
-          "check_balance(" not in feed_src)
-    check("feed.py preserves both SSE payload shapes",
-          "balance_exhausted" in feed_src and "member_cap_reached" in feed_src)
+    # Singular Implementation: the live chat door (lanes.py) runs the ONE gate,
+    # not the two parts. (feed.py, the steward door, retired with it — ADR-632.)
+    lanes_src = (root / "routes/lanes.py").read_text()
+    check("lanes.py no longer imports check_member_cap directly",
+          "check_member_cap" not in lanes_src)
+    check("lanes.py no longer calls check_balance directly",
+          "check_balance(" not in lanes_src)
+    check("lanes.py surfaces the exhausted-balance reason",
+          "balance_exhausted" in lanes_src)
 
-    # The wake lane deliberately keeps its own balance check (owner-attributed,
-    # never capped) — assert it did NOT get swept into the member gate.
-    wake_src = (root / "services/wake.py").read_text()
-    check("wake keeps check_balance (owner-attributed; caps don't apply)",
-          "check_balance(" in wake_src and "check_draw(" not in wake_src)
+    # (the wake lane's own balance check retired with the steward — ADR-632)
 
     print(f"\n{'='*60}\nADR-445 §9 choke-point gate: {PASSED} passed, {FAILED} failed")
     return 1 if FAILED else 0

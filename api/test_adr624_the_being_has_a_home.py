@@ -219,20 +219,7 @@ check(
     "a reader-facing page with no route is a reservation, not a surface",
 )
 
-# Deleting a row must not leave its slug behind in a set that names rows. Found
-# by the D5 sweep: `expected-output` (this ADR) plus THREE inherited strays —
-# `autonomy` (ADR-551 D4) and `activity` + `recurrence` (ADR-603 D5). A filter
-# set is a roster of slugs to REMOVE, so a slug naming no row filters nothing:
-# it reads as coverage while doing nothing. Asserted generally, so the NEXT
-# surface deletion cannot leave one behind silently.
-from services.kernel_surfaces import STEWARD_SURFACE_SLUGS  # noqa: E402
-
-_stale = sorted(STEWARD_SURFACE_SLUGS - _slugs)
-check(
-    "every STEWARD_SURFACE_SLUGS member names a live row",
-    not _stale,
-    f"stale slugs filter nothing: {_stale}",
-)
+# (the STEWARD_SURFACE_SLUGS filter retired with the steward — ADR-632)
 
 # ---------------------------------------------------------------------------
 print("\n§6 — the pane's coverage of the register (the fact behind this ADR)")

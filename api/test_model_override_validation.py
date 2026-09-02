@@ -35,13 +35,7 @@ sys.path.insert(0, ".")
 logging.disable(logging.CRITICAL)  # the validator logs at ERROR by design
 
 from services.lane_runner import LANE_MODELS  # noqa: E402
-from services.model_selection import (  # noqa: E402
-    DEFAULT_ROUTES,
-    SHAPE_ADDRESSED,
-    accept_model_override,
-    resolve_route,
-    strip_provider,
-)
+from services.system_calls import accept_model_override, strip_provider  # noqa: E402
 from services.system_calls import SYSTEM_CALLS, resolve_system_call  # noqa: E402
 from services.telemetry import has_billing_rate  # noqa: E402
 
@@ -110,7 +104,7 @@ check(
     f"raised on: {_raised}",
 )
 
-# ---- 4. BOTH dials actually route through it ------------------------------
+# ---- 4. The syscall dial actually routes through it -----------------------
 # Behavioural, not source-shaped: set the env var and read the resolved model.
 _syscall_key = "fact_extraction"
 _declared_syscall = SYSTEM_CALLS[_syscall_key].model
@@ -128,25 +122,11 @@ try:
 finally:
     os.environ.pop("YARNNN_SYSCALL_FACT_EXTRACTION", None)
 
-_declared_route = DEFAULT_ROUTES[SHAPE_ADDRESSED].model
-os.environ["YARNNN_MODEL_ADDRESSED"] = "not-a-model"
-try:
-    check(
-        "YARNNN_MODEL_* validates (a typo resolves to the declared engine)",
-        resolve_route("addressed", False).model == _declared_route,
-    )
-    os.environ["YARNNN_MODEL_ADDRESSED"] = "openai/gpt-5"
-    check(
-        "YARNNN_MODEL_* still HONOURS a valid override (not merely disabled)",
-        resolve_route("addressed", False).model == "openai/gpt-5",
-    )
-finally:
-    os.environ.pop("YARNNN_MODEL_ADDRESSED", None)
-
+# The steward's YARNNN_MODEL_{SHAPE} dial retired with it (ADR-632); the
+# syscall dial is the one that remains.
 check(
     "with no override set, the declared model is returned untouched",
-    resolve_route("addressed", False).model == _declared_route
-    and resolve_system_call(_syscall_key).model == _declared_syscall,
+    resolve_system_call(_syscall_key).model == _declared_syscall,
 )
 
 # ---- 5. The safe floor is genuinely safe ----------------------------------
@@ -155,10 +135,6 @@ _bad_declared = [
     f"{k}={c.model}"
     for k, c in SYSTEM_CALLS.items()
     if c.model not in LANE_MODELS or not has_billing_rate(strip_provider(c.model))
-] + [
-    f"{s}={r.model}"
-    for s, r in DEFAULT_ROUTES.items()
-    if r.model not in LANE_MODELS or not has_billing_rate(strip_provider(r.model))
 ]
 check(
     "every DECLARED model would itself pass the validator (the floor is safe)",

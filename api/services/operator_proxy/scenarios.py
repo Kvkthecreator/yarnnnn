@@ -22,7 +22,6 @@ Schema (v1):
       Free-form description of what the scenario validates.
     persona: <persona-slug>
     setup:
-      - fire: <recurrence-slug>             # manual_fire a recurrence
       - write_substrate:                     # operator-voice seed write
           path: <workspace-relative>
           authored_by: operator-proxy:scenario-runner:acting-as-<persona>
@@ -38,7 +37,6 @@ Schema (v1):
           slug: <piece-slug>
           template: anti-pattern-voice      # from draft_templates.TEMPLATES
           title: "Optional override title"  # otherwise derived from template
-      - append_recurrence:                   # inject ONE recurrence into the
           slug: <recurrence-slug>            # activation-forked _recurrences.yaml
           schedule: "@every 10min during regular_hours"  # str | list | null
           mode: judgment                     # judgment | mechanical (default judgment)
@@ -73,10 +71,8 @@ Schema (v1):
       - reject_proposal:
           id: "..."
           reason: "..."
-      - fire: <recurrence-slug>             # MEASURED recurrence fire via manual_fire
         expect:                              # (operator-explicit; unconditional escalate)
           - reviewer_responded
-      - fire_cron: <recurrence-slug>        # MEASURED recurrence fire via cron_tick —
         expect:                              # the FAITHFUL unattended-scheduler path.
           - reviewer_responded               # Goes through the funnel (can min-interval-
                                              # skip / tier_2-gate), execution_event is
@@ -250,18 +246,6 @@ class ScenarioRunner:
             })
             return
 
-        if "fire" in step:
-            slug = step["fire"]
-            # Invoke manual_fire path directly via dispatch.
-            await _manual_fire(proxy.config.user_id, slug)
-            self.evaluations.append({
-                "phase": "setup",
-                "action": "fire",
-                "slug": slug,
-                "result": "dispatched",
-            })
-            return
-
         if "write_substrate" in step:
             sub = step["write_substrate"]
             path = sub["path"]
@@ -280,33 +264,6 @@ class ScenarioRunner:
                 "path": path,
                 "authored_by": authored_by,
                 "revision_id": result.get("revision_id"),
-            })
-            return
-
-        if "append_recurrence" in step:
-            # Inject ONE recurrence into the forked _recurrences.yaml without
-            # clobbering the activation-forked set (ADR-327 calibration-cadence
-            # eval). write_substrate replaces the whole file; a cadence-
-            # stewardship scenario needs the genuine recurrence set PLUS a
-            # seeded dead recurrence so Schedule(archive) is reachable. Lockstep
-            # with establish_substrate.
-            ar = step["append_recurrence"]
-            res = await _append_recurrence_entry(
-                proxy.config.user_id,
-                slug=ar["slug"],
-                schedule=ar.get("schedule"),
-                prompt=ar.get("prompt", ""),
-                mode=ar.get("mode", "judgment"),
-                options=ar.get("options"),
-                authored_by=ar.get("authored_by") or proxy.config.caller_identity,
-                message=ar.get("message") or f"Setup append_recurrence for scenario {self.scenario.slug}",
-            )
-            self.evaluations.append({
-                "phase": "setup",
-                "action": "append_recurrence",
-                "slug": res.get("slug"),
-                "path": res.get("path"),
-                "revision_id": res.get("revision_id"),
             })
             return
 
@@ -497,50 +454,6 @@ class ScenarioRunner:
                 obs["error"] = f"{type(exc).__name__}: {exc}"
             return obs
 
-        if "fire" in turn:
-            # Fire a recurrence as the MEASURED turn (not setup). This is the
-            # autonomous recurrence-fire path: manual_fire enqueues to wake_queue;
-            # the deployed scheduler drains it and runs the Reviewer with the
-            # recurrence-fire envelope (identical context shape to a real cron_tick
-            # per ADR-318). The completion gate waits for the judgment-mode
-            # manual_fire execution_event. Added 2026-06-04 — the first live
-            # trader-suite run surfaced that _execute_turn had no `fire` handler
-            # (only _execute_setup_step did), so fire-turns fell through to
-            # action="unknown" and never woke the Reviewer.
-            slug = turn["fire"]
-            obs["action"] = "fire"
-            obs["slug"] = slug
-            try:
-                await _manual_fire(proxy.config.user_id, slug)
-                obs["result"] = "dispatched"
-            except Exception as exc:
-                obs["error"] = f"{type(exc).__name__}: {exc}"
-            return obs
-
-        if "fire_cron" in turn:
-            # Fire a recurrence through the cron_tick wake source — the EXACT
-            # production scheduler path (services.wake_sources.cron_tick.
-            # dispatch_recurrence), NOT manual_fire. Use this when a scenario
-            # must prove the unattended "runs in absence" claim deterministically:
-            # the resulting execution_event is wake_source='cron_tick' (not
-            # 'manual_fire'), and the wake goes through the funnel
-            # (wake_evaluation.py) — so it can min-interval-skip or tier_2-gate
-            # exactly as a real cron tick does. For reliable back-to-back
-            # escalation, the scenario must set _budget.yaml
-            # min_interval_between_recurrence_fires_seconds: 0 and keep balance
-            # positive (else the funnel correctly skips). Added 2026-06-23 to
-            # collapse the manual-fire-vs-real-cron ambiguity into one harness.
-            slug = turn["fire_cron"]
-            obs["action"] = "fire_cron"
-            obs["slug"] = slug
-            try:
-                outcome = await _cron_fire(proxy.config.user_id, slug)
-                obs["result"] = "dispatched"
-                obs["wake_outcome"] = outcome
-            except Exception as exc:
-                obs["error"] = f"{type(exc).__name__}: {exc}"
-            return obs
-
         # Unknown turn shape — log and continue.
         obs["action"] = "unknown"
         obs["raw"] = turn
@@ -550,43 +463,6 @@ class ScenarioRunner:
 # ---------------------------------------------------------------------------
 # Setup helpers (delegate to existing services, not duplicating logic)
 # ---------------------------------------------------------------------------
-
-async def _manual_fire(user_id: str, slug: str) -> None:
-    """Fire a recurrence by slug via the manual-fire wake source (ADR-296 v2)."""
-    from services.supabase import get_service_client
-    from services.recurrence import walk_workspace_recurrences
-    from services.wake_sources.manual_fire import fire as wake_manual_fire
-
-    client = get_service_client()
-    recurrences = walk_workspace_recurrences(client, user_id)
-    target = next((r for r in recurrences if r.slug == slug), None)
-    if target is None:
-        raise ScenarioError(f"Recurrence slug={slug!r} not found in scenario user's _recurrences.yaml")
-    await wake_manual_fire(client, user_id, target, context=None)
-
-
-async def _cron_fire(user_id: str, slug: str) -> dict:
-    """Fire a recurrence by slug through the cron_tick wake source.
-
-    The EXACT production scheduler path (`cron_tick.dispatch_recurrence`),
-    identical signature to manual_fire but `source="cron_tick"` — so the wake
-    goes through the funnel (mechanical bypass | min-interval/budget skip |
-    tier_2 gate | escalate) exactly as a real scheduler tick does, and the
-    execution_event is wake_source='cron_tick'. Returns the WakeOutcome dict so
-    the scenario log records whether the funnel escalated or skipped (a skip is
-    itself an honest observation, e.g. min_interval/balance).
-    """
-    from services.supabase import get_service_client
-    from services.recurrence import walk_workspace_recurrences
-    from services.wake_sources.cron_tick import dispatch_recurrence
-
-    client = get_service_client()
-    recurrences = walk_workspace_recurrences(client, user_id)
-    target = next((r for r in recurrences if r.slug == slug), None)
-    if target is None:
-        raise ScenarioError(f"Recurrence slug={slug!r} not found in scenario user's _recurrences.yaml")
-    return await dispatch_recurrence(client, user_id, target, context=None)
-
 
 async def _emit_proposal_from_template(user_id: str, template_name: str) -> dict:
     """Emit an action_proposals row via handle_propose_action.
@@ -679,84 +555,6 @@ async def _write_substrate_with_author(
         ),
     )
     return {"revision_id": revision_id, "path": path}
-
-
-async def _append_recurrence_entry(
-    user_id: str,
-    *,
-    slug: str,
-    schedule: Any,
-    prompt: str,
-    mode: str = "judgment",
-    options: dict | None = None,
-    authored_by: str,
-    message: str,
-) -> dict:
-    """Inject ONE recurrence into the live ``/workspace/_recurrences.yaml``
-    via read-modify-write, without clobbering the activation-forked set.
-
-    Motivated by the ADR-327 calibration-cadence eval (2026-06-09): a
-    cadence-stewardship scenario must put a *real* recurrence in front of the
-    Reviewer so a ``Schedule(action="archive")`` is reachable (the primitive
-    requires the slug to exist). ``write_substrate`` *replaces* the file, which
-    would wipe the genuine forked set the eval needs the Reviewer to reason
-    over; duplicating the bundle's 340-line file into a fixture is a
-    dual-source-of-truth drift hazard. Appending one entry into the forked
-    file is the singular correct shape — the Reviewer sees the real operation
-    plus the seeded dead recurrence.
-
-    Idempotent: if ``slug`` already exists, its entry is replaced (re-runs
-    don't duplicate). Round-trips through the canonical
-    ``parse_recurrences_yaml`` / ``serialize_recurrences_yaml`` so the result
-    is structurally valid by construction; ``@now`` tokens in ``prompt``
-    resolve at the single write chokepoint (``_write_substrate_with_author``).
-    """
-    from services.recurrence import (
-        Recurrence,
-        parse_recurrences_yaml,
-        serialize_recurrences_yaml,
-    )
-    from services.supabase import get_service_client
-
-    path = "/workspace/_recurrences.yaml"
-    client = get_service_client()
-    loop = asyncio.get_running_loop()
-
-    def _read() -> str | None:
-        resp = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", path)
-            .limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        return rows[0]["content"] if rows else None
-
-    current = await loop.run_in_executor(None, _read)
-    recurrences = parse_recurrences_yaml(current or "", user_id=user_id)
-
-    new_entry = Recurrence(
-        slug=slug,
-        schedule=schedule,
-        prompt=prompt,
-        mode=mode,
-        options=options or {},
-    )
-    # Replace-or-append (idempotent across re-runs).
-    recurrences = [r for r in recurrences if r.slug != slug]
-    recurrences.append(new_entry)
-
-    serialized = serialize_recurrences_yaml(recurrences)
-    result = await _write_substrate_with_author(
-        user_id,
-        path,
-        serialized,
-        authored_by=authored_by,
-        message=message,
-    )
-    return {"path": result["path"], "revision_id": result.get("revision_id"), "slug": slug}
 
 
 async def _delete_substrate_file(user_id: str, path: str) -> bool:
@@ -1022,55 +820,6 @@ async def establish_substrate(
             # lockstep with _execute_setup_step. Expires pending proposals so the
             # eval's wake reasons about ITS situation, not a prior suite's residue.
             expired_proposals += await _clear_pending_proposals(user_id)
-        elif "append_recurrence" in step:
-            # Inject ONE recurrence into the forked _recurrences.yaml (ADR-327
-            # calibration-cadence eval). Lockstep with _execute_setup_step.
-            ar = step["append_recurrence"]
-            res = await _append_recurrence_entry(
-                user_id,
-                slug=ar["slug"],
-                schedule=ar.get("schedule"),
-                prompt=ar.get("prompt", ""),
-                mode=ar.get("mode", "judgment"),
-                options=ar.get("options"),
-                authored_by=ar.get("authored_by", authored_by),
-                message=ar.get("message", "eval-suite pre-flight append_recurrence"),
-            )
-            wrote.append({"path": res["path"], "revision_id": res.get("revision_id")})
-
-    return {"deleted": deleted, "wrote": wrote, "expired_proposals": expired_proposals}
-
-
-async def _establish_field_equals(
-    user_id: str,
-    *,
-    path: str,
-    field: str,
-    value,
-    authored_by: str,
-) -> dict | None:
-    """Set a dotted body field on a frontmatter-bearing dial file to `value`,
-    preserving the frontmatter block + all other fields, and write it as an
-    operator-proxy revision. Returns the write record, or None if the field
-    is already at `value` (idempotent — no wasted revision).
-
-    Used by establish_substrate to honor a `requires: [{field, equals}]`
-    precondition (§3.1). The frontmatter (`--- tier: ... ---`) is preserved
-    verbatim; only the YAML body is re-serialized with the field set. Comments
-    in the body are decorative on a machine-parsed dial file and are dropped on
-    rewrite — the same shape a real operator dial-edit produces.
-    """
-    import re
-    import yaml as _y
-
-    from services.review_policy import load_workspace_yaml
-    from services.supabase import get_service_client
-
-    norm = path if path.startswith("/workspace/") else f"/workspace/{path.lstrip('/')}"
-    client = get_service_client()
-    loop = asyncio.get_running_loop()
-
-    def _read() -> str | None:
         resp = (client.table("workspace_files").select("content")
                 .eq("user_id", user_id).eq("path", norm).limit(1).execute())
         rows = resp.data or []

@@ -49,7 +49,7 @@ def check(label: str, cond: bool, detail: str = "") -> None:
 
 print("1. the registry's own contract")
 
-from services.model_selection import strip_provider
+from services.system_calls import strip_provider
 from services.system_calls import (
     SYSTEM_CALLS,
     TIER_CHEAP,
@@ -105,19 +105,11 @@ check(
 )
 # Freddie has its OWN table (ADR-402, trigger-shape key + round budgets) and is
 # deliberately NOT folded in: one table per routing key.
-import services.model_selection as _ms
-
-check(
-    "the steward's table stays separate (ADR-402/463 D3)",
-    hasattr(_ms, "DEFAULT_ROUTES") and "wake_triage" not in _ms.DEFAULT_ROUTES,
-)
 
 print("\n3. no bare model literals left in migrated machinery")
 
 MIGRATED = [
-    "services/wake_evaluation.py",
     "services/context_inference.py",
-    "services/recurrence_prompt_inference.py",
     "services/primitives/web_search.py",
     # `primitives/dispatch_specialist.py` was here; DELETED by ADR-626 D4.b
     # (role-keyed dispatch, superseded by capability-at-the-app).
@@ -215,56 +207,7 @@ for rel in MIGRATED:
             "a str is not a 2-tuple",
         )
 
-print("\n5. the tier-2 triage path EXECUTES (the born-broken call)")
-
-
-def _exercise_tier_2() -> tuple:
-    import services.anthropic as A
-    import services.telemetry as T
-    import services.wake_evaluation as W
-    import services.workspace as WS
-
-    seen: dict = {}
-    rows: list[dict] = []
-
-    async def fake(messages, system, model="x", max_tokens=0):
-        seen.update(model=model, system=system, max_tokens=max_tokens)
-        return ("observe", {"input_tokens": 400, "output_tokens": 1})
-
-    class FakeMemory:
-        def __init__(self, *a, **k):
-            pass
-
-        def read(self, p):
-            return "x"
-
-    orig = (A.chat_completion_with_usage, T.record_execution_event, WS.UserMemory,
-            W.record_execution_event)
-    A.chat_completion_with_usage = fake
-    T.record_execution_event = lambda c, **kw: rows.append(kw) or "id"
-    W.record_execution_event = T.record_execution_event
-    WS.UserMemory = FakeMemory
-    os.environ.pop("WAKE_TIER_2_DISABLED", None)
-    try:
-        out = asyncio.run(W.tier_2_decision(object(), "u", "cron_tick", {}))
-    finally:
-        (A.chat_completion_with_usage, T.record_execution_event, WS.UserMemory,
-         W.record_execution_event) = orig
-    return out, seen, rows
-
-
-(decision, reason), seen, rows = _exercise_tier_2()
-
-# Before the fix this returned ("escalate", "tier_2_exception_fail_open") for
-# EVERY input — the tell that the call never ran.
-check("tier-2 returns a real verdict, not fail-open", decision == "tier_2_observe", f"got {decision}/{reason}")
-check("tier-2 runs the registry's engine", seen.get("model") == system_call_model("wake_triage"))
-check("tier-2 passes a system prompt", bool(seen.get("system")))
-check("tier-2 stays a 10-token verdict", seen.get("max_tokens") == 10)
-check("tier-2 meters exactly once (ADR-396 one ledger)", len(rows) == 1)
-if rows:
-    check("tier-2 ledger row carries the model", rows[0].get("model") == system_call_model("wake_triage"))
-    check("tier-2 ledger row carries tokens", rows[0].get("input_tokens") == 400)
+# Section 5 (the steward's tier-2 triage call) retired with it — ADR-632.
 
 print("\n6. no user-facing input reaches a systematic call (ADR-556 D3)")
 

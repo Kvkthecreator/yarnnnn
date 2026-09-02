@@ -139,21 +139,7 @@ check(
     not os.path.exists(use_docs_path),
 )
 
-# 9. FileAttachment and the attach endpoint exist in feed.py
-#    (ADR-259 renamed routes/chat.py → routes/feed.py; endpoint /chat/attach → /feed/attach).
-feed = read(os.path.join(API_ROOT, "routes", "feed.py"))
-check(
-    "feed.py defines FileAttachment model",
-    "class FileAttachment" in feed,
-)
-check(
-    "feed.py defines the attach endpoint",
-    '"/feed/attach"' in feed or "feed/attach" in feed,
-)
-check(
-    "feed.py passes file_attachments to Claude API as document blocks",
-    "file_id" in feed and '"document"' in feed,
-)
+# 9. (the feed attach endpoint left with the steward's transcript — ADR-632)
 
 # 10. Migration 166 drops both tables
 migration = read(os.path.join(ROOT, "supabase", "migrations", "166_drop_filesystem_documents_chunks.sql"))

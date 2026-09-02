@@ -1,7 +1,7 @@
 /**
  * sseEvents — THE one SSE transport loop (ADR-441 D4).
  *
- * Both live streaming readers (the steward's NarrativeContext reader on
+ * The lane streaming reader (ADR-441; the steward's reader retired with it —
  * `/api/feed` and the lane reader on `/api/lanes/{id}/messages`) share this
  * byte-level transport: read chunks, buffer on '\n', take `data: {json}`
  * lines, skip the `[DONE]` sentinel, yield parsed events. A final line that

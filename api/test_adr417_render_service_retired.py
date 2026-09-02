@@ -39,9 +39,9 @@ def _live_py_files():
 
 
 def test_runtime_dispatch_removed_from_registry():
-    from services.primitives.registry import CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, HANDLERS
+    from services.primitives.registry import HANDLERS, PRIMITIVES
 
-    names = {t["name"] for t in CHAT_PRIMITIVES} | {t["name"] for t in HEADLESS_PRIMITIVES}
+    names = {t["name"] for t in PRIMITIVES}
     assert "RuntimeDispatch" not in names, "RuntimeDispatch still in a primitive registry list"
     assert "RuntimeDispatch" not in HANDLERS, "RuntimeDispatch still in the handler map"
 

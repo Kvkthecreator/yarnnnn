@@ -18,7 +18,6 @@ import {
 import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { createClient } from "@/lib/supabase/client";
-import { useNarrative } from "@/contexts/NarrativeContext";
 // ADR-593 D5 — pref-save failures surface through the universal feedback
 // layer (ADR-400), not console.error: an optimistic toggle snapping back with
 // no explanation reads as a bug.
@@ -137,7 +136,6 @@ export default function SettingsPage() {
   const { navigateToSurface } = useSurfacePreferences();
   const accountParam = useSurfaceParam('settings');
   const searchParams = useSearchParams();
-  const { clearMessages } = useNarrative();
   const tabParam = searchParams.get("tab");
   // ADR-358 D6: the pane is the WINDOW-NAMESPACED `settings.pane` (so the
   // account door never collides with workspace-settings on a flat `?pane=`).
@@ -348,7 +346,6 @@ export default function SettingsPage() {
           success: "Account reset — a fresh workspace is ready.",
           error: "Reset failed — nothing was deleted. Try again.",
         });
-        clearMessages();
         // Backend re-scaffolds transactionally (ADR-140/151/161/164
         // invariants); this call is a harmless safety net.
         await api.workspace.getState().catch(() => null);

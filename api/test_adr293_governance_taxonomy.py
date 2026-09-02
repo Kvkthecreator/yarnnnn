@@ -226,24 +226,6 @@ def test_token_budget_module_loads_with_fallback():
         pass
 
 
-def test_scheduler_imports_token_budget_module():
-    """D7 invariant (cost governance gate on the dispatch path) PRESERVED,
-    re-homed by ADR-327: token_budget → budget. wake.py imports
-    services.budget (load_budget + window_spend); the daily-ceiling +
-    judgment-cap concepts retire into the dollar window budget."""
-    src = _read(_file("services", "wake.py"))
-    assert "from services.budget import" in src, (
-        "wake.py must import the budget module per ADR-327 (supersedes ADR-293 D7 token_budget)"
-    )
-    assert "load_budget" in src
-    assert "window_spend" in src
-    assert "seconds_since_last_fire" in src
-    # Retired concepts must be gone.
-    assert "load_token_budget" not in src
-    assert "count_judgment_fires_today" not in src
-    assert "DAILY_SPEND_CEILING_USD" not in src
-
-
 def test_workspace_init_seeds_token_budget():
     """D7 invariant (kernel-universal cost-governance scaffold) PRESERVED,
     re-homed by ADR-327: workspace_init seeds _budget.yaml (collapsed
@@ -293,65 +275,6 @@ def test_substrate_autonomy_gate_lives_at_permission_layer():
 # Bundle alpha-trader carries the token_budget governance file
 # -----------------------------------------------------------------------------
 
-def test_cockpit_awareness_prompt_envelope_aligned_with_adr293():
-    """ADR-293 write-taxonomy alignment, ADR-323 form. ADR-323 DELETED
-    `_OPERATING_POSTURE` (and `build_filesystem_block`) from cockpit_awareness —
-    per Derived Principle 22 the write-authority posture is rules-of-judgment +
-    interface, not system-prompt prose. The ADR-293 concerns this gate guarded
-    are now satisfied by deletion + relocation:
-      - stale `_locks.yaml` / operator-authorship references → absent (block gone).
-      - the write boundary (governance/ + system/ locked; everything else
-        author-able) → migrated to the MINIMAL PERSONA FRAME (freddie_agent.py),
-        in its topological ADR-320 form (which supersedes ADR-293's flat 3-file
-        taxonomy).
-    """
-    src = _read(_file("agents", "cockpit_awareness.py"))
-
-    # The deleted carriers must stay deleted (ADR-323).
-    assert "_OPERATING_POSTURE = " not in src and "def build_filesystem_block" not in src, (
-        "cockpit_awareness.py must not re-add _OPERATING_POSTURE / "
-        "build_filesystem_block (ADR-323 — DP22)."
-    )
-    # Stale lock-policy references stay absent (ADR-293 D6 + ADR-323).
-    assert "operator-authored access policy" not in src
-    assert "operator-authorship territory" not in src
-    assert "Governance / Operational taxonomy" not in src, (
-        "The ADR-293 flat taxonomy prose is gone — superseded by ADR-320 "
-        "topology, which lives in the minimal frame, not cockpit_awareness."
-    )
-    # The surviving tool block still frames not-in-surface as tool-curation.
-    assert "curated tool surface" in src.lower() or "curated for the" in src.lower()
-
-    # The write boundary now lives in the minimal persona frame, topological form.
-    frame_src = _read(_file("agents", "freddie_agent.py"))
-    assert "EXCEPT two roots" in frame_src and "governance/" in frame_src and "system/" in frame_src, (
-        "The write boundary (author everything EXCEPT governance/ + system/) must "
-        "live in the minimal persona frame post-ADR-323 (migrated up from the "
-        "deleted filesystem block, in ADR-320 topological form)."
-    )
-
-
-def test_freddie_agent_invoke_docstring_aligned():
-    """ADR-293 Work 1 follow-up: invoke_freddie's docstring previously cited
-    `operator-authored _locks.yaml` as part of the safety story. Post-Work-1
-    rewritten to cite 3-file governance lock + uniform AUTONOMY gate."""
-    src = _read(_file("agents", "freddie_agent.py"))
-    # Find the invoke_freddie docstring region
-    idx = src.find("async def invoke_freddie")
-    assert idx > -1
-    docstring_region = src[idx:idx + 3000]
-    assert "operator-authored _locks.yaml" not in docstring_region, (
-        "invoke_freddie docstring must not cite `_locks.yaml` as a live "
-        "safety-story component (deleted per ADR-293 D6)."
-    )
-    # ADR-320 made the lock root-based (governance/ root, not a 3-file
-    # enumeration); ADR-327 collapsed _token_budget + _pace into _budget.yaml.
-    assert "root-based governance lock" in docstring_region, (
-        "invoke_freddie docstring must reference the root-based governance "
-        "lock (ADR-320 + ADR-327) in its safety story."
-    )
-
-
 def test_alpha_trader_bundle_ships_token_budget():
     """Bundle reference-workspace MUST include _budget.yaml (ADR-327,
     collapsed _token_budget + _pace) so program-activated workspaces
@@ -388,13 +311,9 @@ def main() -> int:
         ("D5: never_auto action-type match", test_never_auto_action_type_match),
         ("D5: never_auto path: prefix match", test_never_auto_substrate_path_match),
         ("D7→ADR-327: budget module + old gone", test_token_budget_module_loads_with_fallback),
-        ("D7→ADR-327: wake.py imports budget", test_scheduler_imports_token_budget_module),
         ("D7→ADR-327: workspace_init seeds _budget.yaml", test_workspace_init_seeds_token_budget),
         ("D14: substrate autonomy gate at permission layer", test_substrate_autonomy_gate_lives_at_permission_layer),
         ("Bundle alpha-trader ships _budget.yaml (ADR-327)", test_alpha_trader_bundle_ships_token_budget),
-        # Work 1 follow-up — prompt envelope alignment
-        ("Work 1: cockpit_awareness.py aligned with ADR-293", test_cockpit_awareness_prompt_envelope_aligned_with_adr293),
-        ("Work 1: invoke_freddie docstring aligned", test_freddie_agent_invoke_docstring_aligned),
     ]
 
     passed = 0

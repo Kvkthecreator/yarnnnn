@@ -307,7 +307,8 @@ check(
 )
 check(
     "anthropic: the gate actually SAW the call sites (guards against a silent no-op scan)",
-    len(_ANTH_GUARDED) + len(_ANTH_BARE) >= 8,
+    # ADR-632: the steward's call sites left; measured 6 guarded + 0 bare after.
+    len(_ANTH_GUARDED) + len(_ANTH_BARE) >= 6,
 )
 
 

@@ -83,12 +83,7 @@ check(
     "3b. the original response is still returned",
     re.search(r"return\s+response\s*;", chbody) is not None,
 )
-# NarrativeContext parses its own detail off the same response.
-narr = open(os.path.join(WEB, "contexts", "NarrativeContext.tsx")).read()
-check(
-    "3c. the caller still parses the response body (so it must be unconsumed)",
-    "await response.json()" in strip_ts(narr),
-)
+# (3c — the steward's transcript reader retired with it, ADR-632)
 
 print("\n[4] One reload, not two")
 check(

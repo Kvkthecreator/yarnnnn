@@ -52,33 +52,7 @@ def check(name: str, condition: bool, detail: str = "") -> None:
         print(f"  FAIL  {name}  {detail}")
 
 
-# =============================================================================
-# 1. Reviewer dispatch loop — truncation guard + raised ceiling
-# =============================================================================
-
-reviewer_src = (API_ROOT / "agents" / "freddie_agent.py").read_text()
-
-check(
-    "reviewer loop max_tokens raised to 8192",
-    "max_tokens=8192" in reviewer_src,
-)
-check(
-    "reviewer loop no longer uses max_tokens=2048",
-    "max_tokens=2048" not in reviewer_src,
-)
-check(
-    "reviewer loop detects stop_reason == 'max_tokens'",
-    'stop_reason", None) == "max_tokens"' in reviewer_src,
-)
-check(
-    "truncated final tool call is skipped (not executed)",
-    "response_truncated and _tu_idx == len(tool_uses) - 1" in reviewer_src,
-)
-check(
-    "truncated tool call returns is_error tool_result to the model",
-    '"is_error": True' in reviewer_src and "NOT executed" in reviewer_src,
-)
-
+# Section 1 (the steward's dispatch loop) retired with it — ADR-632.
 
 # =============================================================================
 # 2. WriteFile primitive — empty-content guard (functional)

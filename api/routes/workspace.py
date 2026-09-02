@@ -3646,37 +3646,6 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
             from services.workspace_init import initialize_workspace
             init_result = await initialize_workspace(auth.client, auth.user_id)
 
-            # ADR-179: Write workspace_init_complete system card as persisted
-            # session_messages row. Zero LLM cost. TP reads as conversation
-            # history on every subsequent turn. Best-effort — workspace init
-            # already succeeded; failure to write the card is non-fatal.
-            if not init_result.get("already_initialized"):
-                try:
-                    from routes.feed import get_or_create_session, append_message
-                    session = await get_or_create_session(auth.client, auth.user_id)
-                    agents_created = init_result.get("agents_created", [])
-                    tasks_created = init_result.get("tasks_created", [])
-                    await append_message(
-                        client=auth.client,
-                        session_id=session["id"],
-                        role="assistant",
-                        content=(
-                            "Your workspace is ready. Tell me what you work on "
-                            "and I'll set up the rest."
-                        ),
-                        metadata={
-                            "system_card": "workspace_init_complete",
-                            "agents_created": len(agents_created),
-                            "tasks_created": tasks_created,
-                            "summary": "Workspace ready",
-                            "pulse": "heartbeat",
-                            "weight": "material",
-                        },
-                    )
-                except Exception as card_err:
-                    logger.warning(
-                        f"[WORKSPACE_STATE] system_card write failed: {card_err}"
-                    )
     except Exception as e:
         logger.error(f"[WORKSPACE_STATE] Lazy scaffold failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

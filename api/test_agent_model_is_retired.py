@@ -149,20 +149,13 @@ def main() -> int:
     # 3. The retired primitives are off every roster and every handler map.
     sys.path.insert(0, str(ROOT))
     try:
-        from services.primitives.registry import (  # noqa: E402
-            CHAT_PRIMITIVES,
-            FREDDIE_PRIMITIVES,
-            HANDLERS,
-            HEADLESS_PRIMITIVES,
-        )
+        from services.primitives.registry import HANDLERS, PRIMITIVES  # noqa: E402
     except Exception as exc:  # pragma: no cover - import failure is the finding
         check(False, f"primitive registry imports ({exc})")
         return 1
 
     for label, roster in (
-        ("chat", CHAT_PRIMITIVES),
-        ("headless", HEADLESS_PRIMITIVES),
-        ("freddie", FREDDIE_PRIMITIVES),
+        ("primitives", PRIMITIVES),
     ):
         names = {t["name"] for t in roster}
         present = sorted(n for n in _RETIRED_PRIMITIVES if n in names)
@@ -323,11 +316,7 @@ def main() -> int:
 
     # The dead auth field goes with the column — 0 readers, and a field that
     # only ever fed a dropped column is not "unused", it is retired.
-    _fa = (ROOT / "agents" / "freddie_agent.py")
-    check(
-        "agent_slug" not in _fa.read_text(encoding="utf-8"),
-        "freddie_agent.py carries no agent_slug on the auth namespace",
-    )
+    # (the steward's frame retired with it — ADR-632)
 
     print()
     print("=" * 66)

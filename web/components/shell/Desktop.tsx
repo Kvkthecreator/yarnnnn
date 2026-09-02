@@ -30,11 +30,8 @@
 
 import { useEffect, useRef } from 'react';
 import { LayoutGrid, FileText, MessageSquare, ArrowRight } from 'lucide-react';
-import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { Z_FAB } from '@/lib/shell/z-tiers';
-import { STEWARD_CHROME_ENABLED } from '@/lib/steward-chrome';
 import { cn } from '@/lib/utils';
 
 interface DesktopProps {
@@ -70,20 +67,9 @@ function useIsFirstTime(): boolean {
 }
 
 export function Desktop({ hasWindows, children }: DesktopProps) {
-  const { toggleDrawer, drawerOpen, layoutMode } = useShellChrome();
+  const { layoutMode } = useShellChrome();
   const { setDesktopBounds, foregrounded, navigateToSurface, hydrated } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
-  // ADR-412 amendment (2026-07-08) + ADR-447 (2026-07-12) — hide the Freddie
-  // rail FAB while a surface that OWNS its own chat is foregrounded: `chat`
-  // (Altitude 2 — the member's model-pinned helper threads) and `studio` (the
-  // authoring app's bound lane, ADR-440, now the right column). ADR-412 D1
-  // kept Freddie's rail (A1) summonable over EVERY surface; the carve is
-  // surfaces with a first-class chat of their own, where a second chat entry
-  // point (the A1 rail floating over the surface's own lane) reads as two
-  // competing "chat" affordances on one screen. The rail stays reachable from
-  // any other surface; this only suppresses the redundant summon here. Freddie
-  // stays addressable — the drawer, if already open, is unaffected.
-  const onOwnChatSurface = foregrounded === 'chat' || foregrounded === 'slides';
   const ref = useRef<HTMLDivElement>(null);
   // ADR-358 — in CANVAS the window area is NOT a desktop with a floating
   // window on wallpaper; it is ONE primary surface filling the column. So
@@ -193,62 +179,6 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
           children passed in by SurfaceViewport). */}
       {children}
 
-      {/* ADR-454 D3 (2026-07-13) — the ambient steward: the FAB (Freddie's
-          face, the persona-chrome summon) is gated off. The steward function
-          continues; its presence is the attributed ledger rows. One const
-          flip (steward-chrome.ts) re-lights this block. */}
-      {STEWARD_CHROME_ENABLED && (
-      <>
-      {/* ChatFAB — D19.5.1 (2026-05-22):
-            • Position: viewport-fixed bottom-RIGHT (was Desktop-fixed
-              bottom-center pre-D19.5.1). macOS-faithful — matches the
-              Messages compose button shape: floats at viewport-bottom-
-              right regardless of which window is foregrounded.
-            • Z-tier: Z_FAB (150) — above windows + above drawer
-              backdrop. Pre-D19.5.1 the FAB sat at z=5 inside the
-              Desktop layer and got covered by every window. Operator-
-              felt bug ("the floating chat button on the bottom
-              actually isn't floating"). Now genuinely floats.
-            • Hide-when-drawer-open: when drawer is open the FAB is
-              redundant (drawer header has its own X). Hide via
-              opacity-0 + pointer-events-none so clicks on the right
-              edge fall through to whatever's behind. Eliminates the
-              "FAB-covered-by-drawer-body" stacking awkwardness.
-            • FAB_RESERVED reserved-zone in window clamping DELETED
-              (was needed when FAB was Desktop-fixed bottom-center and
-              z=5; with viewport-fixed + z=150 the windows can extend
-              fully and the FAB still wins). Singular Implementation. */}
-      <button
-        type="button"
-        onClick={toggleDrawer}
-        aria-label={drawerOpen ? 'Close conversation' : 'Open conversation'}
-        title={drawerOpen ? 'Close conversation' : 'Ask Freddie'}
-        className={cn(
-          // The FAB is now Freddie's face (the system agent, ADR-412 —
-          // the rail is Freddie's voice). A light framed disc so the
-          // full-color mark reads (its dark-slate hair would vanish on the
-          // old black `bg-foreground` disc); ring for definition on the
-          // gray wallpaper.
-          'fixed flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95 overflow-hidden',
-          'bg-background ring-1 ring-border hover:bg-muted',
-          // Hidden while the drawer is already open (redundant with its
-          // own X) OR while a surface that owns its own chat is foregrounded
-          // (chat, studio — see onOwnChatSurface above).
-          (drawerOpen || onOwnChatSurface) && 'opacity-0 pointer-events-none',
-        )}
-        style={{
-          right: 'max(1.5rem, env(safe-area-inset-right, 0px) + 0.75rem)',
-          bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.75rem)',
-          zIndex: Z_FAB,
-        }}
-      >
-        {/* animate={false}: still at rest — motion is Freddie's working
-            tell (blink + bolt-pulse), so a resting FAB must not imply
-            Freddie is always working. */}
-        <FreddieAvatar animate={false} className="h-8 w-8" />
-      </button>
-      </>
-      )}
     </div>
   );
 }

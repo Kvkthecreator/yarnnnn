@@ -52,7 +52,7 @@ from services.lane_runner import (  # noqa: E402
     offered_lane_models,
     unpriced_lane_model,
 )
-from services.model_selection import strip_provider  # noqa: E402
+from services.system_calls import strip_provider  # noqa: E402
 from services.telemetry import _BILLING_RATES, has_billing_rate  # noqa: E402
 
 print("1. D1 — currency: every row is real, priced, and reachable")
@@ -67,13 +67,11 @@ for mid in LANE_MODELS:
 # The phantom-row defect: a rate row nothing can route to is a claim about
 # what we run that is not true.
 from services.agents_registry import AGENTS  # noqa: E402
-from services.model_selection import DEFAULT_ROUTES  # noqa: E402
 from services.system_calls import SYSTEM_CALLS  # noqa: E402
 
 _routable = (
     {strip_provider(m) for m in LANE_MODELS}
     | {strip_provider(c.model) for c in SYSTEM_CALLS.values()}
-    | {strip_provider(r.model) for r in DEFAULT_ROUTES.values()}
 )
 _orphan_rates = sorted(set(_BILLING_RATES) - _routable)
 check("no priced-but-unroutable engine", not _orphan_rates,
@@ -83,7 +81,6 @@ check("no priced-but-unroutable engine", not _orphan_rates,
 # still appear in LANE_MODELS (retired) — that is D2's job, not D1's.
 for name, ids in (
     ("SYSTEM_CALLS", [c.model for c in SYSTEM_CALLS.values()]),
-    ("DEFAULT_ROUTES", [r.model for r in DEFAULT_ROUTES.values()]),
     # ADR-600 D5 — iterate the REGISTER, never a hand-spelled list of
     # containers. The predecessor named KERNEL_AGENTS + KERNEL_POSTURES, both
     # of which ADR-599 emptied: this ratchet iterated ZERO rows and reported

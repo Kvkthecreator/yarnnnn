@@ -24,11 +24,8 @@ def _read(*parts: str) -> str:
 
 
 def test_embed_registered():
-    from services.primitives.registry import CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, HANDLERS
-    chat = {t["name"] for t in CHAT_PRIMITIVES}
-    headless = {t["name"] for t in HEADLESS_PRIMITIVES}
-    assert "Embed" in chat, "Embed must be in CHAT_PRIMITIVES (ADR-325)."
-    assert "Embed" in headless, "Embed must be in HEADLESS_PRIMITIVES (ADR-325)."
+    from services.primitives.registry import HANDLERS, PRIMITIVES
+    assert "Embed" in {t["name"] for t in PRIMITIVES}, "Embed must be a declared tool (ADR-325; rosters retired by ADR-632)."
     assert "Embed" in HANDLERS, "Embed must be in HANDLERS (ADR-325)."
 
 

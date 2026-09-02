@@ -299,7 +299,7 @@ async def _execute_web_search(
     # resident baseline for a client only ever built inside this function. The
     # rest of the codebase already defers this import (routes/feed.py,
     # services/session_continuity.py, services/memory.py, and
-    # services/recurrence_prompt_inference.py all do); this was the one
+    # the retired recurrence-prompt inference did); this was the one
     # module-scope holdout.
     from services.anthropic import get_anthropic_client
 

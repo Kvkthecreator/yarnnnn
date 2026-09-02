@@ -175,8 +175,8 @@ def _studio_max_tokens() -> int:
 #:
 #: ⭐ THE FILE-VERB SET IS ONE SET, WHOEVER HOLDS IT (2026-08-21).
 #: `DeleteFile` + `MoveFile` were added here because their ABSENCE was the
-#: anomaly, not their presence. They already shipped in CHAT_PRIMITIVES, in
-#: FREDDIE_PRIMITIVES, and — as `delete` / `move` — on the MCP interop surface
+#: anomaly, not their presence. They already shipped on the retired steward
+#: surface (ADR-632) and — as `delete` / `move` — on the MCP interop surface
 #: (ADR-543/545). So a foreign LLM connected over MCP could delete a file in
 #: the member's workspace while the member's OWN lane could not, and the lane
 #: said so out loud ("my available file tools do not include a file deletion

@@ -41,34 +41,6 @@ def _check(label, ok, detail=""):
 def main():
     results = []
 
-    # 1 — Recurrence schema has no `mode`
-    from services.recurrence import Recurrence, parse_recurrences_yaml
-    fields = set(Recurrence.__dataclass_fields__.keys())
-    results.append(_check(
-        "1. Recurrence has NO `mode` field (deleted)",
-        "mode" not in fields,
-        f"fields={sorted(fields)}",
-    ))
-
-    # 2 — recurrence parser drops a legacy mechanical entry
-    rdocs = """
-- slug: signal-evaluation
-  schedule: "0 9 * * 1-5"
-  prompt: "Evaluate signals."
-- slug: track-positions
-  schedule: "* 9-16 * * 1-5"
-  mode: mechanical
-  prompt: |
-    @primitive: SyncPlatformState(tool="platform_trading_get_positions", write_to="x")
-"""
-    recs = parse_recurrences_yaml(rdocs, user_id="u1")
-    slugs = [r.slug for r in recs]
-    results.append(_check(
-        "2. recurrence parser DROPS mode:mechanical (never reaches wake funnel)",
-        slugs == ["signal-evaluation"],
-        f"kept={slugs}",
-    ))
-
     # 3 — _captures.yaml parses
     from services.capture.declarations import (
         CaptureDeclaration, parse_captures_yaml, capture_signal_path, captures_path,
@@ -153,20 +125,6 @@ captures:
         f"nr5b={nr5b} nr5b2={nr5b2}",
     ))
 
-    # 6 — wake.py has no mechanical machinery
-    import services.wake as wake
-    ok6 = (
-        not hasattr(wake, "_dispatch_mechanical")
-        and not hasattr(wake, "_parse_primitive_directive")
-        and not hasattr(wake, "_required_platform_for_primitive")
-        and "mechanical" not in getattr(wake.FunnelDecision, "__args__", ())
-    )
-    results.append(_check(
-        "6. wake.py has no _dispatch_mechanical + FunnelDecision drops `mechanical`",
-        ok6,
-        f"FunnelDecision={getattr(wake.FunnelDecision, '__args__', ())}",
-    ))
-
     # 7 — the lane records funnel_decision="capture" (source-level assertion)
     lane_src = inspect.getsource(sys.modules["services.capture.lane"])
     results.append(_check(
@@ -184,16 +142,6 @@ captures:
         forbidden.isdisjoint(sig_params)
         and {"status", "observed_at", "items", "target", "last_error"} <= sig_params,
         f"params={sorted(sig_params)}",
-    ))
-
-    # 9 — the steward's peripheral-field fact reads the capture health signal
-    # (ADR-393 D3 — this is the freshness the fact was pointing at, + the
-    # ADR-392 Phase B data source).
-    import services.freddie_envelope as _env
-    env_src = inspect.getsource(_env)
-    results.append(_check(
-        "9. _peripheral_field_fact reads the capture health signal (ADR-393 D3)",
-        "read_capture_signal" in env_src and "_peripheral_field_fact" in env_src,
     ))
 
     # 10 — kind-isolation invariant: the capture scheduler NEVER touches a

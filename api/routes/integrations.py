@@ -1294,9 +1294,6 @@ async def get_capture_signal(
         when unconnected.
       - `does` — the capability facts {reads, writes, agents}, derived from
         the capture binding + exporter registry + the ADR-577 refusal.
-      - `agent_enabled` — the deploy-level gate (ADR-375 D4): when False,
-        captures never run regardless of cadence; the FE must say so rather
-        than imply reads are happening.
 
     Returns:
       {
@@ -1309,10 +1306,8 @@ async def get_capture_signal(
         "capture": {schedule, paused} | None,
         "settings": {destination, last_capture_at} | None,
         "does": {reads, writes, agents} | None,
-        "agent_enabled": bool,
       }
     """
-    from services.agent_gating import is_agent_enabled
     from services.capture.declarations import read_capture_signal
     from services.connectors import connector_does
 
@@ -1391,7 +1386,6 @@ async def get_capture_signal(
         # from the machinery that enacts them (binding · exporter registry ·
         # the ADR-577 refusal), so the display can never drift from the code.
         "does": connector_does(db_platform),
-        "agent_enabled": is_agent_enabled(),
         # ADR-591: there is no capture flag. Pinned False — kept only so a
         # not-yet-deployed client still reads "nothing runs on a schedule",
         # which is permanently true. Remove once no client reads it.

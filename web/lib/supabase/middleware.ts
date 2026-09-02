@@ -72,7 +72,6 @@ const LEGACY_AND_STUB_PREFIXES = [
   "/system",
   "/settings",
   "/workspace-settings", // ADR-341 — the second Settings door (the operation)
-  "/system-agent", // ADR-454 D4 — redirect stub → /workspace-settings?pane=autonomy (the ADR-426 door reversed)
   "/integrations",
   "/invite", // ADR-404 step 5 — invite-accept page (login-bounce preserves ?next)
   // "/s" REMOVED (ADR-513): the share link is a PUBLIC capability — anyone
@@ -101,14 +100,9 @@ const LEGACY_AND_STUB_PREFIXES = [
   "/mandate",         // dormant constitution row (route: "") — stub → /workspace-settings
   "/principles",      // dormant constitution row (route: "") — stub → /workspace-settings
   "/identity",        // dormant constitution row (route: "") — stub → /workspace-settings
-  "/expected-output", // ADR-418 dormant row (route: "") — stub → /workspace-settings
   "/program",         // ADR-432 D2d dormant row (no route key) — stub → /workspace-settings
   "/budget",          // ADR-491 D3 — pane dissolved into Usage; stub → /workspace-settings
   "/pace",            // stub → /budget (the pace dial re-homed)
-  "/delegation",      // stub → /autonomy (the witness dial re-homed)
-  "/autonomy",        // ADR-454 D4 — stub → /workspace-settings. Was carried in
-                      // KERNEL_SURFACE_SLUGS despite having NO KERNEL_SURFACES
-                      // row; a stub belongs here, not in the surface roster.
   "/backend",    // ADR-603 D5 — redirect stub → /notifications (was → /activity)
   "/overview",
   "/team",

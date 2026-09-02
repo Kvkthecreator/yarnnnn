@@ -2273,7 +2273,7 @@ check("19j the migration PUBLISHES the table and verifies the LIVE object — "
       and _pub_verify is not None
       and "workspace_file_versions" in _pub_verify.group(0),
       "migration 240 missing, or its publication-verify block is absent")
-_sess_rt = (WEB / "lib" / "realtime" / "use-session-messages-realtime.ts").read_text(encoding="utf-8")
+_sess_rt = _rt_src  # ADR-632: the session-messages hook retired with the steward's transcript; one realtime hook remains
 check("19L ⭐⭐⭐ THE SOCKET CARRIES THE USER'S TOKEN (`realtime.setAuth`). "
       "FOUND BY DRIVING PRODUCTION, invisible to 232 green checks. Realtime "
       "re-checks RLS per subscriber using the JWT the SOCKET carries — not the "

@@ -99,10 +99,8 @@ def write_narrative_entry(
     Args:
         client: Supabase client (user JWT or service key, caller's choice;
             session_messages RLS is permissive for the session owner).
-        session_id: target chat session row id. Required — if you don't
-            have one yet, resolve via routes.feed.get_or_create_session
-            or services.freddie_chat_surfacing._find_active_workspace_session
-            before calling.
+        session_id: target chat session row id. Required — resolve via
+            `find_active_workspace_session` before calling.
         role: Identity class of the invocation per VALID_ROLES.
         summary: one-line headline. Always required. Used for collapsed
             rendering and as `content` in session_messages (so existing

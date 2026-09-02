@@ -54,7 +54,9 @@ def test_swept_files_import_the_scope_helper():
 
 def test_scheduler_tasks_read_is_scope_filtered():
     src = _source("jobs/unified_scheduler.py")
-    assert "substrate_scope_filter" in src, (
-        "scheduler tasks-index read must go through substrate_scope_filter "
-        "(ADR-414 Phase A)"
+    # ADR-632: the scheduler no longer reads the recurrence tasks index at all —
+    # the Phase-A invariant (no unscoped read) holds by absence.
+    assert 'table("tasks")' not in src, (
+        "the scheduler must not read the retired tasks index (ADR-632); a read "
+        "that returns would need substrate_scope_filter (ADR-414 Phase A)"
     )

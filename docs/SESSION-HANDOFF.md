@@ -4,6 +4,47 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part M — the vocabulary / skills / steward-retirement arc: ADR-630/631/632 (2026-09-02)
+
+## What shipped (three commits on main)
+
+| Commit | What |
+|---|---|
+| `99a0a13` | **ADR-631** — one noun for the agent (*being* retired), one noun for the pane (*desk* retired → **pane** + **app**); ONE roster `agents` with ONE relation `apps` on the lanes envelope; `apps_for_agent` replaces three registry fns; "External Agents" → connected principals |
+| `6dd5b8d` | **ADR-630** — skills are files: `api/services/skills/{slug}/SKILL.md` (8 kernel skills at the work-verb level, mapped to Anthropic's public set), MIRRORED into every workspace at `system/skills/` (manifest-cheap, first-use), a `## Skills` index in every lane frame (byte-ceilinged), the lane binding `skill` + `derive_source`; `derive_recipes.py` + the ADR-157 playbook family DELETED; the three stored skill-bound lanes re-slugged in prod |
+| (this commit) | **ADR-632** — the steward retires in full: `agents/`, the wake stack, the review seat, the envelope, kernel mirrors, the steward's model table, `routes/feed.py`, the steward-only primitives + the three LLM rosters, the FE narrative context / transcript / drawer / mascot, 26 probes, ~60 tests, 11 canon docs archived to `previous_versions/` |
+
+## ⭐⭐⭐ Findings worth carrying
+
+- **The strings + capture lanes were NESTED inside the steward's `if is_agent_enabled():` block.** A flag meant for a dormant steward could switch off the one lane with production tenants. They now run unconditionally, each behind only its own flag.
+- **Four modules on the naive deletion manifest were not stack**: `narrative.py`, `capabilities.py`, `substrate_reapply.py`, and two symbols of `model_selection.py` (`strip_provider` + `accept_model_override` → now in `system_calls.py`). The audit-then-cut order paid for itself.
+- **A restored census gate found a real gap**: `test_adr445_principal_attribution` crashed at HEAD on a missing `harvest.py` and never reached its walk; un-crashed, it reports `services/strings.py` records a costed ledger row without `principal_id`. Not this arc's defect; see OWED.
+- **The `.next/types/` cache pins deleted routes** — a stale generated type dir fails `tsc` after a page is deleted; remove the dir (the build regenerates it).
+
+## Verification (the standing set at ship)
+
+```
+cd api && python3 test_adr632_the_seat_retires.py   # 73/73 — includes the two live frame ratchets (conventions scaffold 666/900 · studio posture 10,566/11,000)
+cd api && python3 test_adr630_skills.py             # 87/87
+cd api && python3 test_adr631_vocabulary.py         # 34/34
+cd api && python3 test_agent_registry.py            # 136/136
+cd web && node_modules/.bin/next build              # exit 0
+```
+~60 gates re-anchored (they pinned the rosters, the feed router, the wake modules, or the drawer); ~55 gates deleted whose subject was the steward. A full-suite sweep at ship: 217/374 green; the reds were baselined against a HEAD worktree (`scratchpad/full-sweep-baseline.log`) — the ADR-338/340/341/346/347/349 launcher/settings gates, the studio-drift gates, radar, docs-app and `test_claude_md_ratchet` were already red at HEAD.
+
+## OWED
+
+1. **Render env strip** (operator, dashboard): `AGENT_ENABLED`, `YARNNN_MODEL_{ADDRESSED,PROPOSAL,RECURRENCE}`, `YARNNN_ROUNDS_*` on the API + Scheduler services — no reader remains. The Render MCP can only MERGE env vars, so this is a dashboard step.
+2. **Migration**: drop `wake_queue` (15,388 rows, no reader) and the recurrence `tasks` index (0 live readers after ADR-632; `capture` rows use their own kind-scoped scheduler — verify `services/capture/scheduling.py` before dropping the table rather than the recurrence rows). `chat_sessions.cancellation_requested` is a dead column.
+3. **`services/strings.py` ledger rows carry no `principal_id`** — stamp the workspace owner (ADR-445) at the two `record_execution_event` sites, or declare why not. `test_adr445_principal_attribution` is the receipt.
+4. **ADR-596 D3 phase (d)** — review as a grant + policy declaration. The queue, `ProposeAction`/`ReturnVerdict`, and the autonomy/budget dials stand; the operator is the verdict-giver; no proposal producer exists today.
+5. **Drive the skills**: open a bound Slides lane, ask for a deck from three sources, watch whether the index makes the agent read `system/skills/presenting-from-sources/SKILL.md` and whether outputs cite it in `derived_from`. The five new skill bodies are unmeasured prose.
+6. **ADR-579 D8** "from sources…" — the click door for the skill binding.
+7. **`test_claude_md_ratchet`** was red at HEAD (52.7K > 50K) and this arc grew CLAUDE.md; the fix is moving reference rows to ADR-LEDGER, not raising the ceiling.
+8. Carried from Part L: the WordPress publish click-pass · the `post.html` 0-byte read · the 31-Aug egress spike attribution.
+
+---
+
 # Part L — the Blogger/Designer arc: ADR-627/628/629 (2026-09-01/02) — CLOSE-OUT
 
 ## ✅ RESOLVED — Supabase egress 402 (was URGENT; closed 2026-09-02)

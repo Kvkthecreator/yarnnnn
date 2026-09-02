@@ -117,34 +117,3 @@ def test_all_imports_resolve_at_every_depth():
     )
 
 
-def test_recurrence_calls_match_live_dataclass():
-    """Every `Recurrence(...)` call in every probe uses only keywords the
-    LIVE dataclass defines. This is the ADR-393 break class: 9 probes carried
-    `mode=` for 30 days import-green."""
-    import dataclasses
-    import sys
-    sys.path.insert(0, _API)
-    from services.recurrence import Recurrence
-
-    live_fields = {f.name for f in dataclasses.fields(Recurrence)}
-    problems: list[str] = []
-    for fn in _probe_files():
-        path = os.path.join(PROBE_DIR, fn)
-        tree = ast.parse(open(path, encoding="utf-8").read())
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            callee = node.func
-            name = callee.id if isinstance(callee, ast.Name) else (
-                callee.attr if isinstance(callee, ast.Attribute) else "")
-            if name != "Recurrence":
-                continue
-            for kw in node.keywords:
-                if kw.arg is not None and kw.arg not in live_fields:
-                    problems.append(
-                        f"{fn}:{node.lineno} Recurrence({kw.arg}=…) — not a "
-                        f"field of the live dataclass {sorted(live_fields)}")
-    assert not problems, (
-        "Stale Recurrence constructor kwargs in probes:\n  "
-        + "\n  ".join(problems)
-    )

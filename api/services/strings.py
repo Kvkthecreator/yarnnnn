@@ -1035,6 +1035,10 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
             status="failed", error_reason="balance_exhausted",
             error_detail="workspace balance is exhausted — the string did not run",
             duration_ms=0, funnel_decision="string",
+            # ADR-445: every ledger row names its principal — the refusal row
+            # was the one string-lane site that did not (found by the ADR-445
+            # census once ADR-632 un-crashed it).
+            principal_id=user_id,
         )
         return {"success": False, "slug": decl.slug,
                 "error_reason": "balance_exhausted"}

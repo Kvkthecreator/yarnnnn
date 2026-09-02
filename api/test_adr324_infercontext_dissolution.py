@@ -25,9 +25,9 @@ def _read(*parts: str) -> str:
 
 
 def test_infercontext_not_in_chat_primitives():
-    from services.primitives.registry import CHAT_PRIMITIVES
-    names = {t["name"] for t in CHAT_PRIMITIVES}
-    assert "InferContext" not in names, "InferContext must be removed from CHAT_PRIMITIVES (ADR-324)."
+    from services.primitives.registry import PRIMITIVES  # the rosters retired with the steward (ADR-632)
+    names = {t["name"] for t in PRIMITIVES}
+    assert "InferContext" not in names, "InferContext must be removed from the declared tools (ADR-324)."
 
 
 def test_infercontext_not_in_handlers():
@@ -76,8 +76,6 @@ def test_no_live_infercontext_dispatch():
     for parts in [
         ("services", "mcp_composition.py"),
         ("services", "primitives", "registry.py"),
-        ("routes", "feed.py"),
-        ("agents", "cockpit_awareness.py"),
     ]:
         src = _read(*parts)
         # live dispatch pattern: execute_primitive(..., "InferContext"

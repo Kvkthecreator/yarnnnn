@@ -2,7 +2,7 @@
 Primitive Registry — ADR-146: Primitive Hardening
 
 Central registry for all primitives and their handlers.
-Two explicit mode registries (P4): CHAT_PRIMITIVES and HEADLESS_PRIMITIVES.
+One dispatch table (HANDLERS); the live surfaces declare their own tool sets (ADR-632).
 
 ADR-050: Platform tools are routed via handle_platform_tool.
 ADR-080: Mode-gated primitives — chat vs. headless.
@@ -27,10 +27,8 @@ from .list import LIST_ENTITIES_TOOL, handle_list_entities
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 # ADR-568 D3: the second kernel-resolved capability (see capabilities.py).
 from .generate_image import GENERATE_IMAGE_TOOL, handle_generate_image
-from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 # ADR-231 Phase 3.7: ManageTask DELETED. Lifecycle dissolves into
 # UpdateContext(target='recurrence', ...) and FireInvocation per D5.
-from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 # ADR-235: UpdateContext DISSOLVED. Targets sort into:
 #   - Inference-merged writes → InferContext / InferWorkspace
 #   - Direct substrate writes  → WriteFile (with scope='workspace', ADR-235 Option A)
@@ -47,9 +45,6 @@ from .embed import EMBED_TOOL, handle_embed
 # InferContext survived "via MCP remember_this" — both are gone: InferContext
 # deleted per ADR-324 above; the ADR-169 intent tools deleted per ADR-368. The
 # live MCP surface is open/remember/recall/trace per ADR-512.)
-from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
-from .manage_hook import MANAGE_HOOK_TOOL, handle_manage_hook  # ADR-296 v2 D2 — substrate-event hook lifecycle
-from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping the in-API compose engine
 # ADR-417 follow-on: DispatchSpecialist NOT imported — removed from the LLM
 # registry (its only role, designer, is retired; module stays dormant as a seam).
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
@@ -93,7 +88,6 @@ from .extract_text_from_blob import EXTRACT_TEXT_FROM_BLOB_TOOL, handle_extract_
 # ADR-281: derivative-compaction substrate primitive — mirrors per-signal
 # state files into a compact summary substrate file. Mechanical-only
 # (not in any LLM tool surface); dispatched by mechanical-mode recurrences.
-from .mirror_signal_state import handle_mirror_signal_state
 # ADR-301: Reviewer pulse envelope substrate mirrors. Kernel-maintenance
 # primitives that project the workspace's `tasks` scheduling index +
 # `execution_events` ledger into compact substrate files the Reviewer
@@ -101,8 +95,6 @@ from .mirror_signal_state import handle_mirror_signal_state
 # services.kernel_mirrors (NOT via @primitive: directives — these are
 # kernel maintenance, not workspace recurrences). Registered here so the
 # canonical HANDLERS map remains the single execute-by-name surface.
-from .mirror_schedule_index import handle_mirror_schedule_index
-from .mirror_recent_execution import handle_mirror_recent_execution
 # ADR-271 Thread A: deterministic trading primitives — dispatched ONLY by the
 # mechanical-mode dispatcher via @primitive: directives. Not in CHAT/HEADLESS/
 # REVIEWER tool surfaces per ADR-264 D3 (operators don't directly invoke
@@ -153,62 +145,6 @@ from services.platform_tools import (
 # =============================================================================
 # Inline tool definitions (small enough to live here)
 # =============================================================================
-
-CLARIFY_TOOL = {
-    "name": "Clarify",
-    "description": """Surface a decision only the operator can make (ADR-352).
-
-This is the structural-gap escalation valve, NOT a way to enumerate operational
-options. Under a delegated (`autonomous`) mandate you act — pick the disciplined
-action your framework names and execute it; asking to choose is unavailable and
-will be denied. Clarify is reachable under `autonomous` ONLY for an ADR-344 (B)
-gap: the operation cannot produce what its mandate owes (a declared output with
-no organ to originate it), or a floor/mandate change only the operator can
-authorize. Set `structural_gap=true` in that case and name the missing organ.
-Under `bounded`/`manual` delegation the operator wants to witness, so asking is
-freely available.""",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "question": {
-                "type": "string",
-                "description": "The question to ask"
-            },
-            "options": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Optional list of choices"
-            },
-            "structural_gap": {
-                "type": "boolean",
-                "description": (
-                    "ADR-344 (B) marker. Set true ONLY when surfacing a "
-                    "structural gap (a declared output with no organ to "
-                    "originate it) or a floor/mandate change only the operator "
-                    "can authorize — the one ask `autonomous` permits. Never "
-                    "set true to enumerate operational options."
-                ),
-            }
-        },
-        "required": ["question"]
-    }
-}
-
-
-async def handle_clarify(auth: Any, input: dict) -> dict:
-    """Handle Clarify primitive."""
-    question = input.get("question", "")
-    options = input.get("options", [])
-    return {
-        "success": True,
-        "question": question,
-        "options": options,
-        "ui_action": {
-            "type": "CLARIFY",
-            "data": {"question": question, "options": options},
-        },
-    }
-
 
 LIST_INTEGRATIONS_TOOL = {
     "name": "list_integrations",
@@ -274,283 +210,26 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
 # =============================================================================
 
 # Chat mode: YARNNN-the-orchestration-surface in user-facing conversation.
-CHAT_PRIMITIVES = [
-    # Entity layer (4) + Introspection (1)
-    LOOKUP_ENTITY_TOOL,
-    LIST_ENTITIES_TOOL,
-    # SearchEntities DELETED 2026-08-26. Its scope enum was only
-    # agent|version|all (and "all" meant agents), and SEARCH_FIELDS carried
-    # no other type — so every scope it accepted was backed by the two EMPTY
-    # tables of the retired agent model. It answered "Found 0 result(s)" to
-    # every possible query while occupying tool-surface budget. `platform`
-    # and `session` were never searchable, so nothing is left to search.
-    EDIT_ENTITY_TOOL,
-    GET_SYSTEM_STATE_TOOL,
-    # File layer (4) — ADR-234 Chat File Layer Reach
-    # Workspace-absolute reads/writes/search/list. Chat reaches workspace_files
-    # directly so YARNNN can answer content-shape questions about substrate
-    # without delegating. Path convention (not primitive gating) keeps chat
-    # out of /agents/{slug}/ private paths — see prompts/chat/tools_core.py.
-    # QueryKnowledge stays headless-only (semantic-rank composition over
-    # context domains; chat reaches that surface via working memory + ReadFile).
-    # ReadAgentFile stays headless-only (inter-agent coordination per ADR-116).
-    READ_FILE_TOOL,
-    WRITE_FILE_TOOL,
-    # ADR-337 — working-tree verbs: surgical edit, attributed delete
-    # (revision chain retained), attributed move. Same gate semantics as
-    # WriteFile (path-addressed, governance-lock DENY).
-    EDIT_FILE_TOOL,
-    DELETE_FILE_TOOL,
-    MOVE_FILE_TOOL,
-    # ADR-514 D1: DuplicateFile — derive a sibling copy (derived_from edge).
-    DUPLICATE_FILE_TOOL,
-    # ADR-337 amended (2026-08-21) — the FOLDER grain. Same fan-out the Files
-    # surface calls; blast radius is legible in the verb, not hidden in a path.
-    DELETE_FOLDER_TOOL,
-    MOVE_FOLDER_TOOL,
-    RESTORE_TOOL,
-    SEARCH_FILES_TOOL,
-    LIST_FILES_TOOL,
-    # ADR-325: Embed — explicit make-AI-ready (consequential, autonomy-gated).
-    EMBED_TOOL,
-    # External (ADR-153: RefreshPlatformContent removed)
-    WEB_SEARCH_PRIMITIVE,
-    LIST_INTEGRATIONS_TOOL,
-    # ADR-568 D3: rented image generation, vendor chosen by the kernel.
-    GENERATE_IMAGE_TOOL,
-    # ADR-324: INFER_CONTEXT_TOOL DELETED. Identity/brand authoring is no longer
-    # a primitive — the chat LLM authors IDENTITY.md/BRAND.md inline via WriteFile
-    # (read existing → merge → write); the MCP path routes through the
-    # context_inference.author_identity workflow helper. (ADR-314 D4 had already
-    # removed INFER_WORKSPACE_TOOL.)
-    # ADR-155: Domain scaffolding (TP-driven)
-    MANAGE_DOMAINS_TOOL,
-    # ManageAgent DELETED 2026-08-26 with the pre-ADR-596 agent model: it wrote
-    # to the `agents` table, which production held EMPTY, for a concept an agent
-    # is no longer (a BEING is a registry row, not a DB row — ADR-596/600).
-    # ADR-235 D1.c: ManageRecurrence — recurrence-declaration lifecycle.
-    # Mirrors ManageAgent / ManageDomains shape.
-    SCHEDULE_TOOL,
-    # ADR-296 v2 D2: ManageHook — substrate-event hook lifecycle.
-    # Sibling to Schedule (recurrences) for the substrate-event wake source.
-    MANAGE_HOOK_TOOL,
-    # ADR-231 D5: FireInvocation — manual fire of a recurrence declaration.
-    # Replaces ManageTask(action="trigger"). All other lifecycle actions
-    # (create/update/pause/resume/archive) flow through Schedule.
-    FIRE_INVOCATION_TOOL,
-    # ADR-262 D4: Compose — callable primitive wrapping render engine.
-    # Operator/Reviewer/specialist may direct mid-session composition.
-    # Also runs as opt-out structural default at session-close (separate hook).
-    COMPOSE_TOOL,
-    # Approval loop (3) — ADR-193
-    PROPOSE_ACTION_TOOL,
-    EXECUTE_PROPOSAL_TOOL,
-    REJECT_PROPOSAL_TOOL,
-    # Interaction (1)
-    CLARIFY_TOOL,
-    # Authored Substrate — revision-aware reads (ADR-209 Phase 3)
-    LIST_REVISIONS_TOOL,
-    READ_REVISION_TOOL,
-    DIFF_REVISIONS_TOOL,
-]  # ADR-337 added EditFile/DeleteFile/MoveFile (working-tree verbs); ADR-417 removed RuntimeDispatch
+# ADR-632: the three LLM tool ROSTERS (CHAT_PRIMITIVES / HEADLESS_PRIMITIVES /
+# FREDDIE_PRIMITIVES) and `get_tools_for_mode` are DELETED with the steward —
+# they were its tool declarations. The two live LLM surfaces declare their own
+# sets from this module's tool constants: `services/lane_runner.LANE_TOOL_NAMES`
+# (+ `LANE_SURFACE_EXTRA`) and `mcp_server` (`_INTEROP_VERBS`). HANDLERS below
+# is the dispatch table `execute_primitive` reads for every surface.
 
-# Headless mode: background agent execution.
-# Base registry only. Provider-native platform tools are added dynamically per
-# agent capability bundle via `get_headless_tools_for_agent()`.
-HEADLESS_PRIMITIVES = [
-    # Entity layer (3) + Introspection (1)
-    LOOKUP_ENTITY_TOOL,
-    LIST_ENTITIES_TOOL,
-    GET_SYSTEM_STATE_TOOL,
-    # External (ADR-153: RefreshPlatformContent removed)
-    WEB_SEARCH_PRIMITIVE,
-    # ADR-264: substrate-canonical-world primitive — mirrors external state
-    # into substrate via deterministic Python. Primary surface for use in
-    # mechanical-mode recurrences (ADR-263); also LLM-callable for the rare
-    # case a specialist needs to refresh substrate before reasoning.
-    SYNC_PLATFORM_STATE_TOOL,
-    # ADR-395: ExtractTextFromBlob — derive a model-consumable text projection
-    # from a retained raw blob (upload/…), citing the raw via derived_from (DP34).
-    EXTRACT_TEXT_FROM_BLOB_TOOL,
-    # File layer (8) — ADR-337 added EditFile/DeleteFile/MoveFile
-    READ_FILE_TOOL,
-    WRITE_FILE_TOOL,
-    EDIT_FILE_TOOL,
-    DELETE_FILE_TOOL,
-    MOVE_FILE_TOOL,
-    DELETE_FOLDER_TOOL,
-    MOVE_FOLDER_TOOL,
-    RESTORE_TOOL,
-    SEARCH_FILES_TOOL,
-    QUERY_KNOWLEDGE_TOOL,
-    LIST_FILES_TOOL,
-    # ADR-325: Embed — specialists may make accumulated context AI-ready.
-    EMBED_TOOL,
-    # Inter-agent (DiscoverAgents + ReadAgentFile) DELETED 2026-08-26. They
-    # read the retired model's EMPTY `agents` table: DiscoverAgents returned
-    # `{"count": 0, "agents": []}` universally, and ReadAgentFile could only
-    # ever answer `agent_not_found` — its own description said "use after
-    # DiscoverAgents", so the pair died together.
-    # ManageAgent DELETED 2026-08-26 (see the chat roster above).
-    # ADR-235 D1.c: ManageRecurrence — agents may pause/resume/update their
-    # own declarations on outcome signals. Chat parity.
-    SCHEDULE_TOOL,
-    # ADR-296 v2 D2: ManageHook — substrate-event hook lifecycle. Chat parity.
-    MANAGE_HOOK_TOOL,
-    # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
-    FIRE_INVOCATION_TOOL,
-    # ADR-262 D4: Compose — specialists may compose mid-session for handoff.
-    COMPOSE_TOOL,
-    MANAGE_DOMAINS_TOOL,
-    # Approval loop (ADR-193) — headless agents must propose when action is
-    # soft/irreversible; autonomous execution without approval is unsafe.
-    PROPOSE_ACTION_TOOL,
-    # Authored Substrate — revision-aware reads (ADR-209 Phase 3).
-    # Agents can inspect prior revisions of their own memory, upstream
-    # context domains, or delivered outputs to track their own drift and
-    # reason about accumulated change. Chat parity.
-    LIST_REVISIONS_TOOL,
-    READ_REVISION_TOOL,
-    DIFF_REVISIONS_TOOL,
-]  # 29 static tools + dynamic platform_* — ADR-337 added EditFile/DeleteFile/MoveFile
+#: Every tool definition this module holds — the dispatch-side list the
+#: package re-exports (`services.primitives.PRIMITIVES`) and the gates read to
+#: check that every declared tool has a handler and a permission class. It is
+#: NOT an LLM surface (ADR-632: the rosters that were are deleted); the lane and
+#: interop surfaces pick their names from `lane_runner.LANE_TOOL_NAMES` and
+#: `mcp_server._INTEROP_VERBS`. Derived from the module's `*_TOOL` constants so
+#: a new tool cannot be declared and forgotten here.
+PRIMITIVES: list[dict] = list({
+    v["name"]: v
+    for k, v in list(globals().items())
+    if k.endswith("_TOOL") and isinstance(v, dict) and v.get("name")
+}.values())
 
-# Combined list — for handler registration and backwards compatibility
-PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
-
-
-# =============================================================================
-# ADR-258 (revised 2026-05-08) + ADR-296 v2 D3: FREDDIE_PRIMITIVES — curated subset
-# =============================================================================
-# The Reviewer is the operator's installed judgment character — personified
-# to act on the operator's behalf. Like a human supervisor, the Reviewer:
-#   - Reads any report directly (observation is unmediated)
-#   - Writes its own notebook (decisions, reflections, notes within /workspace/persona/)
-#   - Submits proposals for capital actions (ProposeAction)
-#   - Asks the operator when in doubt (Clarify)
-#
-# What the Reviewer does NOT do directly (operator-authorship territory —
-# requested via Clarify, surfaced as concern in reasoning, or escalated):
-#   - Restructure the operation: ManageDomains, ManageAgent (create/update/archive),
-#     InferContext, InferWorkspace
-#   - Bind execution downstream of someone else's verdict: ExecuteProposal, RejectProposal
-#     (the dispatcher executes ExecuteProposal/RejectProposal on Reviewer's verdict —
-#      Reviewer doesn't call them itself)
-#   - Mutate entity-layer rows: EditEntity (Reviewer reasons against files, not rows)
-#
-# ADR-296 v2 D3 — FireInvocation REMOVED from FREDDIE_PRIMITIVES.
-# The Reviewer's authority is over cadence preference + standing intent; not
-# over invoking itself or commissioning unit-of-work fires. When upstream
-# substrate is stale, the Reviewer authors:
-#   (a) cadence — Schedule the next mechanical mirror's run, or
-#   (b) standing intent — update /workspace/persona/standing_intent.md to
-#       declare interest in the substrate transition that would unblock it.
-# It does not dispatch its own next wake by name. FireInvocation remains in
-# CHAT_PRIMITIVES for operator-initiated manual fire (operator presence is
-# itself a wake-warrant).
-#
-# What the Reviewer DOES do that is structurally Reviewer-territory (ADR-261 D4):
-#   - Schedule its own future wake-ups via Schedule (renamed from ManageRecurrence).
-#     A recurrence is a self-scheduled future Reviewer session, so authoring one
-#     is the Reviewer's own tool. Structurally safe because every wake-up runs
-#     another bounded session that itself passes through AUTONOMY for capital gates.
-#
-# This is NOT access control — it's *role discipline*. The mechanism is
-# explicit allowlist instead of broad chat-mode access. Operator can extend
-# via _locks.yaml unlocked_paths if they want a more permissive Reviewer.
-
-FREDDIE_PRIMITIVES = [
-    # All read primitives — observation is unmediated (supervisor reads any report)
-    READ_FILE_TOOL,
-    LIST_FILES_TOOL,
-    SEARCH_FILES_TOOL,
-    LIST_REVISIONS_TOOL,
-    READ_REVISION_TOOL,
-    DIFF_REVISIONS_TOOL,
-    GET_SYSTEM_STATE_TOOL,
-    LOOKUP_ENTITY_TOOL,
-    LIST_ENTITIES_TOOL,
-    LIST_INTEGRATIONS_TOOL,
-    WEB_SEARCH_PRIMITIVE,
-    QUERY_KNOWLEDGE_TOOL,
-    # Self-substrate writes — own notebook (lock check enforces /workspace/persona/ + non-locked paths)
-    WRITE_FILE_TOOL,
-    # ADR-337 — working-tree verbs. The Reviewer is these verbs' primary
-    # customer: ADR-275 housekeeping cadence runs as Reviewer wakes, and
-    # hygiene without delete/move is a duty without hands. Same-family file
-    # verbs (not novel-surface tools like the 2026-05-25 email canary that
-    # collapsed output) — the standing soak watches post-deploy output
-    # volume per ADR-337 D5; a collapse fingerprint reverts this placement.
-    EDIT_FILE_TOOL,
-    DELETE_FILE_TOOL,
-    MOVE_FILE_TOOL,
-    # ADR-337 amended (2026-08-21) — folder-grain hygiene. The housekeeping
-    # cadence is this verb pair's primary customer, same as the file pair's.
-    DELETE_FOLDER_TOOL,
-    MOVE_FOLDER_TOOL,
-    RESTORE_TOOL,
-    # ADR-296 v2 D3: FireInvocation REMOVED. Reviewer does not self-invoke.
-    # Direction primitive (Reviewer says, System Agent executes)
-    PROPOSE_ACTION_TOOL,
-    # Self-scheduling (ADR-261 D4) — Reviewer authors its own future wake-ups
-    SCHEDULE_TOOL,
-    # ADR-296 v2 D3: ManageHook — Reviewer authors substrate-event hooks as
-    # part of its standing-intent authority. Declaring interest in a substrate
-    # transition is the substrate-event analog of authoring cadence via Schedule.
-    MANAGE_HOOK_TOOL,
-    # Composition (ADR-262 D4) — Reviewer may direct mid-session composition
-    COMPOSE_TOOL,
-    # Specialist dispatch (ADR-261 D7) — Reviewer hands focused briefs to
-    # researcher / analyst / writer / tracker / designer / reporting roles
-    # for production work the Reviewer's context shouldn't carry.
-    # ADR-299 D8 (second-pass rewrite 2026-05-27): EMAIL_SEND_TO_OPERATOR_TOOL
-    # is deliberately NOT in FREDDIE_PRIMITIVES and will not be added —
-    # this is the architectural commitment, evidence-confirmed.
-    #
-    # `platform_email_send_to_operator` is operator-addressing system
-    # infrastructure (system Resend wire, exposed via SYSTEM_INFRASTRUCTURE_TOOLS
-    # in platform_tools.py). Task-bearing agent paths (YARNNN chat, headless
-    # specialists, headless task pipeline) get it unconditionally via the
-    # SYSTEM_INFRASTRUCTURE_TOOLS merge. The Reviewer — a judgment-bearing
-    # agent — is structurally different: tool-list size is empirically
-    # corrosive to judgment quality for this surface.
-    #
-    # Evidence: 2026-05-25 v5 canary RESOLVED hypothesis A. Adding this
-    # tool to FREDDIE_PRIMITIVES (canary v4, 22-tool surface) collapsed
-    # output by ~74% vs the 21-tool baseline (v3) and produced
-    # `stand_down` with zero substrate writes. Reverting (v5) restored
-    # substantive judgment (14,615 output tokens, reject_publication
-    # verdict). See docs/evaluations/2026-05-25-042346-adr299-always-
-    # surface-resolution/RESOLUTION.md.
-    #
-    # Operator notifications tied to Reviewer verdicts should reach
-    # operators via a post-judgment dispatcher hook (reads /workspace/
-    # persona/judgment_log.md + standing_intent.md + operator
-    # _preferences.yaml, dispatches out-of-band) — same shape as
-    # services/notifications.py ADR-040 pattern. NOT here.
-    #
-    # Future tool additions to FREDDIE_PRIMITIVES: discipline per
-    # RESOLUTION.md §"Discipline lesson" — verdict-quality regression
-    # must be measured against the baseline tool surface via N≥3 canaries
-    # before any addition. Default is "no" until verdict-quality evidence
-    # supports otherwise.
-    # Substrate refresh (ADR-264) — rare mid-loop case where the Reviewer
-    # needs to refresh external state into substrate before judging.
-    # Primary use is dispatched by mechanical-mode recurrences; LLM-callable
-    # surface here is for the override case.
-    SYNC_PLATFORM_STATE_TOOL,
-    # ADR-395: ExtractTextFromBlob — derive a text projection from a raw blob.
-    # Same class as the captures (dispatcher/inline-primary; LLM-callable surface
-    # here is the rare mid-loop override, e.g. re-deriving a projection). Primary
-    # use is inline on upload arrival (the request path), zero-LLM.
-    EXTRACT_TEXT_FROM_BLOB_TOOL,
-    # Conversation
-    CLARIFY_TOOL,
-]  # 26 tools — ADR-395 added ExtractTextFromBlob (raw-blob → text projection; capture-class)
-
-
-# =============================================================================
-# Handler mapping — all unique handlers
-# =============================================================================
 
 HANDLERS: dict[str, Callable] = {
     # Entity layer (ADR-168 Commit 4: renamed from Read/List/Search/Edit)
@@ -561,22 +240,16 @@ HANDLERS: dict[str, Callable] = {
     # "RefreshPlatformContent": DELETED (ADR-153)
     "WebSearch": handle_web_search,
     "GenerateImage": handle_generate_image,
-    "GetSystemState": handle_get_system_state,
-    "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
     # "CreateTask": DELETED (ADR-168 Commit 3 — folded into ManageTask action="create")
     # "ManageTask": DELETED (ADR-231 Phase 3.7 — replaced by ManageRecurrence + FireInvocation per D5)
     # "UpdateContext": DELETED (ADR-235 — dissolved into InferContext / InferWorkspace / ManageRecurrence / WriteFile scope='workspace')
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
-    "FireInvocation": handle_fire_invocation,
     # "InferContext": DELETED (ADR-324 — dissolved; identity/brand authoring is
     # context_inference.author_identity (MCP) + inline WriteFile (chat))
     # ADR-235 D1.c: Lifecycle management for recurrence declarations
-    "Schedule": handle_schedule,
     # ADR-296 v2 D2: Substrate-event hook lifecycle
-    "ManageHook": handle_manage_hook,
     # ADR-262 D4: Compose — callable primitive wrapping render engine
-    "Compose": handle_compose,
     # ADR-264: SyncPlatformState — substrate-canonical-world primitive
     # (mirrors external state into substrate; primary surface for use in
     # mechanical-mode recurrences per ADR-263).
@@ -590,12 +263,9 @@ HANDLERS: dict[str, Callable] = {
     # so the Reviewer's wake envelope reads substrate instead of computing
     # at prompt-assembly time per Derived Principle 19). Mechanical-only;
     # not in any LLM tool surface.
-    "MirrorSignalState": handle_mirror_signal_state,
     # ADR-301: Reviewer pulse envelope mirrors. Kernel maintenance —
     # dispatched per scheduler tick via services.kernel_mirrors, not via
     # @primitive: directives. Not in any LLM tool surface.
-    "MirrorScheduleIndex": handle_mirror_schedule_index,
-    "MirrorRecentExecution": handle_mirror_recent_execution,
     # ADR-271 Thread A: trading-specific deterministic primitives.
     # Fetch-plus-compute pattern that SyncPlatformState's pure-mirror shape
     # doesn't cover (multi-bar walk + derived indicator math). ADR-264
@@ -650,8 +320,6 @@ HANDLERS: dict[str, Callable] = {
 # =============================================================================
 
 # Derived from explicit registries — no separate PRIMITIVE_MODES dict to drift
-_CHAT_TOOL_NAMES = {t["name"] for t in CHAT_PRIMITIVES}
-_HEADLESS_TOOL_NAMES = {t["name"] for t in HEADLESS_PRIMITIVES}
 
 
 def _platform_write_preview(name: str, input: dict) -> dict:
@@ -956,20 +624,6 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
             "message": str(e),
             "primitive": name,
         }
-
-
-def get_tools_for_mode(mode: str) -> list[dict]:
-    """
-    Get tool definitions for a specific mode.
-
-    ADR-146: Returns from explicit registries, not filtered from a combined list.
-    """
-    if mode == "chat":
-        return list(CHAT_PRIMITIVES)
-    elif mode == "headless":
-        return list(HEADLESS_PRIMITIVES)
-    else:
-        return list(CHAT_PRIMITIVES)  # Default to chat
 
 
 # ─────────────────────────────────────────────────────────────────────────

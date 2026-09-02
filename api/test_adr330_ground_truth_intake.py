@@ -307,48 +307,6 @@ def test_phase2_empty_import_returns_no_candidates():
 # =============================================================================
 
 
-def test_phase3_mirror_parses_ground_truth_segments():
-    """The calibration mirror extracts by_attestation + retrospective from
-    the ground-truth frontmatter, tolerating malformed input."""
-    from services.outcomes.ledger import (
-        _apply_entries,
-        _init_money_truth,
-        _render_money_truth_file,
-    )
-    from services.outcomes.trading import TradingOutcomeProvider
-    from services.primitives.mirror_calibration import _parse_ground_truth_segments
-
-    prov = TradingOutcomeProvider()
-    perf = _init_money_truth("trading")
-    now = datetime.now(timezone.utc)
-    _apply_entries(perf, [
-        {"action_type": "t", "executed_at": now, "outcome_label": "p",
-         "outcome_value_cents": 1, "context_domain": "trading",
-         "reconciliation_confidence": "high", "attestation": "platform"},
-        {"action_type": "t", "executed_at": now, "outcome_label": "p",
-         "outcome_value_cents": 2, "context_domain": "trading",
-         "reconciliation_confidence": "high", "attestation": "agent"},
-        {"action_type": "t", "executed_at": now - timedelta(days=400),
-         "outcome_label": "p", "outcome_value_cents": 3, "context_domain": "trading",
-         "reconciliation_confidence": "high", "attestation": "operator",
-         "retrospective": True},
-    ], prov)
-    rendered = _render_money_truth_file(perf)
-
-    att, retro = _parse_ground_truth_segments(rendered)
-    assert att == {"platform": 1, "agent": 1, "operator": 1}
-    assert (retro.get("totals") or {}).get("reconciled_event_count") == 1
-
-
-def test_phase3_mirror_segment_parse_is_malformed_tolerant():
-    """Bad / missing frontmatter → ({}, {}), never raises."""
-    from services.primitives.mirror_calibration import _parse_ground_truth_segments
-
-    assert _parse_ground_truth_segments("") == ({}, {})
-    assert _parse_ground_truth_segments("no frontmatter") == ({}, {})
-    assert _parse_ground_truth_segments("---\nnot json\n---\nbody") == ({}, {})
-
-
 # =============================================================================
 # Phase 4 — bundle ground-truth declarations (defense-in-depth)
 # =============================================================================

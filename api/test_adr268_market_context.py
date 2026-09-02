@@ -28,7 +28,11 @@ from zoneinfo import ZoneInfo
 _REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from services.recurrence import Recurrence, parse_recurrences_yaml  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+
+def Recurrence(**kw):  # noqa: N802 — ADR-632: the dataclass retired; the schedule math is duck-typed
+    return SimpleNamespace(paused=False, paused_until=None, options={}, **kw)
 from services.scheduling import compute_next_run_at, resolve_semantic_schedule  # noqa: E402
 from services.market_calendars import (  # noqa: E402
     CALENDARS,
@@ -233,40 +237,6 @@ def test_semantic_without_market_context_raises():
     )
 
 
-def test_singleton_list_collapses_to_string():
-    """Parser collapses ['x'] → 'x' for uniform downstream handling."""
-    yaml_content = """
-recurrences:
-  - slug: t
-    schedule:
-      - "0 7 * * *"
-    prompt: "x"
-    mode: judgment
-"""
-    parsed = parse_recurrences_yaml(yaml_content)
-    assert_true(len(parsed) == 1, "one recurrence parsed")
-    assert_eq(parsed[0].schedule, "0 7 * * *", "singleton list collapsed to string")
-
-
-def test_multi_element_list_preserved():
-    """Multi-element list stays as list."""
-    yaml_content = """
-recurrences:
-  - slug: t
-    schedule:
-      - "@market_open + 15min"
-      - "@market_open + 3h"
-    prompt: "x"
-    mode: judgment
-"""
-    parsed = parse_recurrences_yaml(yaml_content)
-    assert_true(len(parsed) == 1, "one recurrence parsed (multi-element)")
-    assert_true(
-        isinstance(parsed[0].schedule, list) and len(parsed[0].schedule) == 2,
-        "multi-element list preserved as list",
-    )
-
-
 def test_calendar_registry_has_nyse_us():
     """The NYSE US calendar is registered."""
     assert_true("nyse_us" in CALENDARS, "nyse_us calendar registered")
@@ -284,37 +254,6 @@ def test_unknown_calendar_raises():
     )
 
 
-def test_alpha_trader_bundle_recurrences_parse():
-    """The shipped alpha-trader bundle's _recurrences.yaml + _captures.yaml parse
-    cleanly with the semantic schedules intact (ADR-393 split: judgment
-    recurrences vs deterministic captures)."""
-    ref = (
-        _REPO_ROOT.parent / "docs" / "programs" / "alpha-trader" / "reference-workspace"
-    )
-    parsed = parse_recurrences_yaml((ref / "_recurrences.yaml").read_text())
-    assert_true(len(parsed) > 0, "alpha-trader bundle parses (has recurrences)")
-
-    # signal-evaluation is a judgment recurrence with a semantic schedule.
-    by_slug = {r.slug: r for r in parsed}
-    assert_true(
-        by_slug["signal-evaluation"].schedule == "@market_open + 15min",
-        "signal-evaluation uses semantic schedule",
-    )
-
-    # The mechanical mirrors moved to _captures.yaml (ADR-393). track-universe
-    # keeps its list-of-schedules there; semantic schedules parse the same way.
-    from services.capture.declarations import parse_captures_yaml
-    caps = {c.slug: c for c in parse_captures_yaml((ref / "_captures.yaml").read_text())}
-    assert_true(
-        isinstance(caps["track-universe"].schedule, list),
-        "track-universe (capture) uses list-of-schedules",
-    )
-    assert_true(
-        caps["track-positions"].schedule == "@every 1min during regular_hours",
-        "track-positions (capture) keeps its semantic schedule",
-    )
-
-
 def test_recurrence_routes_stay_deleted():
     """ADR-603 D5 (2026-08-24): routes/recurrences.py is DELETED with the
     recurrence concept (production counted 0 declarations). The two tests
@@ -323,47 +262,6 @@ def test_recurrence_routes_stay_deleted():
     the semantic-schedule RESOLUTION they leaned on stays gated above."""
     import pathlib
     assert not (pathlib.Path(__file__).parent / "routes" / "recurrences.py").exists(),         "routes/recurrences.py must stay deleted (ADR-603 D5)"
-
-def test_alpha_trader_bundle_recurrences_resolve():
-    """All semantic schedules in the alpha-trader bundle resolve cleanly."""
-    bundle_path = (
-        _REPO_ROOT.parent
-        / "docs"
-        / "programs"
-        / "alpha-trader"
-        / "reference-workspace"
-        / "_recurrences.yaml"
-    )
-    content = bundle_path.read_text()
-    parsed = parse_recurrences_yaml(content)
-    now = _utc(2026, 5, 13, 1, 30)
-
-    failures: list[str] = []
-    for rec in parsed:
-        try:
-            result = compute_next_run_at(
-                rec, last_run_at=None, now=now,
-                market_context=ALPHA_TRADER_MARKET_CONTEXT,
-            )
-            if rec.schedule is None:
-                # Reactive recurrences (trade-proposal) — None is correct
-                if result is not None:
-                    failures.append(f"{rec.slug}: expected None for reactive, got {result}")
-            elif result is None:
-                failures.append(f"{rec.slug}: scheduled but resolved to None")
-        except Exception as e:
-            failures.append(f"{rec.slug}: raised {type(e).__name__}: {e}")
-
-    assert_true(
-        not failures,
-        f"all bundle recurrences resolve: {failures}",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Runner
-# ---------------------------------------------------------------------------
-
 
 def main():
     tests = [
@@ -377,12 +275,8 @@ def main():
         test_holiday_skips_to_next_trading_day,
         test_weekend_skips_to_monday,
         test_semantic_without_market_context_raises,
-        test_singleton_list_collapses_to_string,
-        test_multi_element_list_preserved,
         test_calendar_registry_has_nyse_us,
         test_unknown_calendar_raises,
-        test_alpha_trader_bundle_recurrences_parse,
-        test_alpha_trader_bundle_recurrences_resolve,
         test_recurrence_routes_stay_deleted,
     ]
     for t in tests:

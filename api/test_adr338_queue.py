@@ -48,7 +48,7 @@ def _read(rel: str) -> str:
 
 def test_substrate_diff_null_visibility() -> None:
     print("\n[null-diff] SubstrateDiff surfaces absent + empty-content writes")
-    src = _read("components/tp/ProposalCard.tsx")
+    src = _read("components/queue/ProposalCard.tsx")  # moved with the queue (ADR-632)
     # No-diff branch now warns instead of returning null silently.
     check(
         "no-diff case renders a warning (not silent return null)",

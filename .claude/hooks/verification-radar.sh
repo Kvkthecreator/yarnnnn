@@ -17,9 +17,9 @@ LEDGER = ".claude/validation-ledger.json"
 # lane -> (pathspecs, one-line nudge)
 LANES = {
     "prompt":     (["api/agents/", "api/services/primitives/", "api/prompts/"],
-                   "prompt ratchets (test_adr383 + test_adr323 + test_envelope_scaffold_ratchet) + CHANGELOG entry"),
+                   "prompt ratchets (test_adr632 §5 + test_adr630 index ceiling) + CHANGELOG entry"),
     "api":        (["api/services/", "api/routes/", "api/jobs/", "api/mcp_server/"],
-                   "targeted pytest gates; wake-path touched -> bare-steward probe preflight; studio -> python3 gates from api/"),
+                   "targeted pytest gates; standing-work path touched -> test_adr618 + test_adr569; studio -> python3 gates from api/"),
     "web":        (["web/"],
                    "cd web && pnpm build (tsc alone is not verification); UI change -> browser click-pass (E2E lane)"),
     "migrations": (["supabase/migrations/"],

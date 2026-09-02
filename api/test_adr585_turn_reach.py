@@ -212,16 +212,15 @@ check("4a a lane turn's member-embodiment is NOT agent-shaped "
 check("4b an agent-shaped caller IS still refused",
       is_agent_caller(SimpleNamespace(caller_identity="specialist:researcher")))
 
-# The LIVE roster, not a source grep — the registry is where the steward's
-# surface is actually composed (agents/cockpit_awareness.py reads the same).
-from services.primitives.registry import FREDDIE_PRIMITIVES  # noqa: E402
+# ADR-632: the steward's roster is gone. The invariant survives one layer down —
+# no LIVE LLM surface carries a platform tool by DEFAULT; reach is added per turn
+# from the member's grant (resolve_turn_reach), never declared on a surface.
+from services.lane_runner import LANE_SURFACE_EXTRA, LANE_TOOL_NAMES  # noqa: E402
 
-_fp_names = {t.get("name") for t in FREDDIE_PRIMITIVES if isinstance(t, dict)} or {
-    str(t) for t in FREDDIE_PRIMITIVES
-}
-check("4c the steward's surface holds no platform tool (no principal present)",
-      bool(_fp_names) and not any(str(n).startswith("platform_") for n in _fp_names),
-      str(sorted(map(str, _fp_names)))[:160])
+_default_surface = set(LANE_TOOL_NAMES) | set(LANE_SURFACE_EXTRA)
+check("4c the default lane surface holds no platform tool (reach is per turn, per grant)",
+      bool(_default_surface) and not any(str(n).startswith("platform_") for n in _default_surface),
+      str(sorted(map(str, _default_surface)))[:160])
 
 # ═════════════════════════════════════════════════════════════════════════════
 print("§5 payload · allowlist · prose — one turn fact, three consumers")

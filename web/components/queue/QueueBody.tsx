@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Inbox, ShieldCheck } from 'lucide-react';
-import { useProposalModal, type ProposalData } from '@/components/tp/ProposalCard';
+import { useProposalModal, type ProposalData } from '@/components/queue/ProposalCard';
 import { api } from '@/lib/api/client';
 import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
 import { cn } from '@/lib/utils';

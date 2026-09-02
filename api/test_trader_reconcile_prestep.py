@@ -157,27 +157,5 @@ try:
 except Exception:  # noqa: BLE001
     check("lookup failure → gate False (fail-safe, never raises)", False)
 
-# ── 6. the wake pre-step is gated on the outcome-reconciliation slug ────────
-# Source-level invariant: the pre-step only fires for the reconciliation slug
-# (costs nothing for any other recurrence), mirroring the daily-pnl post-step.
-_wake_src = (Path(__file__).resolve().parent / "services" / "wake.py").read_text()
-check(
-    "wake pre-step gated on slug == 'outcome-reconciliation'",
-    'if recurrence.slug == "outcome-reconciliation":' in _wake_src,
-)
-check(
-    "wake pre-step calls has_platform_attested_provider before reconcile_user",
-    "has_platform_attested_provider(client, user_id)" in _wake_src
-    and "reconcile_user" in _wake_src,
-)
-# The pre-step must precede envelope assembly so the freshly-folded organ is in
-# the substrate the envelope reads.
-_pre = _wake_src.find("Mechanical pre-fold for platform-attested")
-_env = _wake_src.find("Build the Reviewer prompt envelope")
-check(
-    "pre-step is placed BEFORE envelope assembly",
-    _pre != -1 and _env != -1 and _pre < _env,
-)
+# (section 6, the wake pre-step, retired with the wake stack — ADR-632)
 
-print(f"\n{PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)

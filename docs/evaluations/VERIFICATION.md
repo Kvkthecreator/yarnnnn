@@ -41,20 +41,19 @@ nothing.
 
 ## prompt — `api/agents/` · `api/services/primitives/` · `api/prompts/`
 
-- **Verify**: `cd api && python3 -m pytest test_adr383_trigger_framing_recarved.py test_adr323_frame_collapse_finished.py test_envelope_scaffold_ratchet.py -q`
+- **Verify**: `cd api && python3 -m pytest test_adr632_the_seat_retires.py test_adr630_skills.py test_envelope_scaffold_ratchet.py -q`
 - **Guardrails**: Prompt Change Protocol (CLAUDE.md) — CHANGELOG entry naming the
   repeated observed failure; adding is last resort; raising any ceiling needs the
   ADR-306/DP22 evidence bar.
 - **Exit**: ratchets green + CHANGELOG entry in the same commit. Behavior-shaped
-  changes additionally: one bare-steward probe preflight
-  (`python3 -m scripts.operator.probe_freddie_bare_steward`, free) — and a funded
-  `--live` wake if judgment behavior itself changed.
+  changes additionally (ADR-632: the steward retired): a driven standing-declaration
+  run (`test_adr618` + `test_adr569`) if standing work behavior changed.
 
 ## api — `api/services/` · `api/routes/` · `api/jobs/` · `api/mcp_server/`
 
 - **Verify**: targeted pytest for the touched module's gates (grep
-  `api/test_*.py` for the module name); wake-path changes (`wake*`, `freddie*`,
-  `scheduling`, `recurrence`) → bare-steward probe preflight; studio changes →
+  `api/test_*.py` for the module name); standing-work changes (`strings`, `scheduling`, `derive_turn`) → the
+  standing-declaration gates; studio changes →
   the studio gates (`python3 <gate>.py` from `api/`, NOT pytest).
 - **Guardrails**: schema names current (SCHEMA-NOTES.md); Render parity check for
   env/infra changes (all 3 services); an app-layer scoping change is HALF a

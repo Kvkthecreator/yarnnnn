@@ -137,7 +137,6 @@ export function ManageConnectionSubsurface({
   const [grantedScopes, setGrantedScopes] = useState<string[]>([]);
   const [connection, setConnection] = useState<ConnectionFacts | null>(null);
   const [does, setDoes] = useState<ConnectorDoes | null>(null);
-  const [agentEnabled, setAgentEnabled] = useState(true);
   // ADR-404 D2: the capture lane is dormant for the commons-first launch —
   // the CAPTURE block collapses to one honest line and YIELD hides entirely.
   const [captureEnabled, setCaptureEnabled] = useState(false);
@@ -192,7 +191,6 @@ export function ManageConnectionSubsurface({
       // which case its section simply doesn't render. (`settings` is gone —
       // ADR-594 D1 fixed the landing grammar and deleted the last dial.)
       setDoes(signal?.does ?? null);
-      setAgentEnabled(signal?.agent_enabled ?? true);
       setCaptureEnabled(signal?.connector_capture_enabled ?? false);
     } catch (e) {
       setError(
@@ -663,12 +661,6 @@ export function ManageConnectionSubsurface({
                   {/* ADR-594 D1: no dials — the landing grammar is a fact,
                       stated, not configured. */}
                   <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
-                    {!agentEnabled && (
-                      <p className="text-xs text-muted-foreground">
-                        Reads are off — the agent layer is disabled on this
-                        deployment.
-                      </p>
-                    )}
                     <p className="text-xs text-muted-foreground">
                       {/* ADR-594 D1: the landing grammar is fixed — no
                           destination dial. Snapshots stay until something

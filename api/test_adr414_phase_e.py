@@ -38,17 +38,6 @@ def test_resolve_judgment_home_exists_and_keys_on_hire_grant():
     assert "agent_home" in body, "resolve_judgment_home must return the agent_home prefix"
 
 
-def test_envelope_re_points_to_judgment_home():
-    src = _src("services/freddie_envelope.py")
-    assert "resolve_judgment_home" in src, (
-        "the wake envelope must re-point the judgment load-out to the hired "
-        "agent's home (ADR-414 §9a)"
-    )
-    assert "_JUDGMENT_HOME_FILES" in src, (
-        "the envelope must carry the judgment-home file map"
-    )
-
-
 def test_occupant_fork_is_deleted():
     """§9a: `_populate_occupant_for_runtime` is deleted — the occupant fact is
     kernel data (D2), no per-agent OCCUPANT.md exists."""
@@ -63,7 +52,7 @@ def test_occupant_fork_is_deleted():
 
 
 def test_judgment_log_writer_resolves_the_home():
-    src = _src("services/freddie_audit.py")
+    src = _src("services/judgment_log.py")
     assert "_judgment_log_path" in src, (
         "the judgment-log writer must resolve the per-agent home (ADR-414 §9a)"
     )

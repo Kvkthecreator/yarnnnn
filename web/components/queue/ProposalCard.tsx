@@ -21,7 +21,6 @@ import {
 import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { proposalActionLabel, proposalQueuedByDialLine } from '@/lib/proposal-labels';
-import { useFreddiePersona } from '@/lib/freddie-persona';
 import { InteractiveModal } from './InteractiveModal';
 
 // ---------------------------------------------------------------------------
@@ -391,6 +390,11 @@ interface ProposalChipProps {
   onClick: () => void;
 }
 
+function verdictGiverLabel(identity?: string | null): string {
+  if (!identity) return 'Freddie';
+  return identity.startsWith('human:') ? 'You' : 'Freddie';
+}
+
 function ProposalChip({ proposal, agentPosture, personaName, terminalStatus, onClick }: ProposalChipProps) {
   const name = personaName ?? 'Freddie';
 
@@ -452,7 +456,9 @@ interface ProposalDetailProps {
 }
 
 function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
-  const personaName = useFreddiePersona();
+  // ADR-632: the steward retired. A verdict is the operator's (`human:`) or,
+  // on historical rows, the retired steward's.
+  const personaName = verdictGiverLabel(proposal.reviewer_identity);
   const [status, setStatus] = useState<LocalStatus>(
     proposal.status === 'executed' ? 'approved' :
     proposal.status === 'rejected' ? 'rejected' :
@@ -639,7 +645,9 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
 
 export function ProposalCard({ result }: ProposalCardProps) {
   const [open, setOpen] = useState(false);
-  const personaName = useFreddiePersona();
+  // ADR-632: the steward retired. A verdict is the operator's (`human:`) or,
+  // on historical rows, the retired steward's.
+  const personaName = verdictGiverLabel(result.proposal?.reviewer_identity);
 
   if (!result.success || !result.proposal) {
     return (

@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.02.2] - The steward's prompt layer retires (ADR-632)
+
+### Changed
+- `agents/freddie_agent.py`, `freddie_agent_sections.py`, `occupant_contract.py`, `cockpit_awareness.py`, `services/freddie_envelope.py`, `services/model_selection.py` — DELETED with the wake stack. The steward's system prompt, envelope, trigger framing, and per-shape model table no longer exist.
+- `services/primitives/registry.py` — the three LLM rosters (CHAT/HEADLESS/FREDDIE_PRIMITIVES) and the `Clarify`, `GetSystemState`, `FireInvocation`, `Schedule`, `ManageHook`, `Compose`, `Mirror*` tool definitions are deleted; `PRIMITIVES` is the derived dispatch-side list.
+- The live frame is unchanged: `services/lane_runner._CONVENTIONS_FRAME` + the app postures + the ADR-630 skills index. Its ratchets now live in `test_adr632_the_seat_retires.py` §5 (conventions scaffold 666 chars measured, ceiling 900; studio posture frame 10,566 measured, ceiling 11,000).
+- Expected behavior: no model call fires without a member's turn or a standing declaration's schedule. Chat, panes, skills, strings, capture and interop are unaffected.
+
+---
+
 ## [2026.09.02.1] - Skills are files (ADR-630): the frame gains an index, the recipes become SKILL.md
 
 ### Changed

@@ -11,7 +11,6 @@
 
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { FreddieAvatar } from '@/components/freddie/FreddieAvatar';
 import {
   Activity,
   Bot,
@@ -45,22 +44,7 @@ import {
 
 // The type the resolver returns — every call site renders `<Icon className=... />`
 // and nothing else, so a component taking only `className` is the honest contract.
-// This is wider than LucideIcon so the Freddie mascot (a custom SVG, not a lucide
-// glyph) can be a first-class surface icon. (ADR-426 amendment, 2026-07-09.)
 export type SurfaceIcon = ComponentType<{ className?: string }>;
-
-// ADR-426 amendment — the Freddie System Agent door wears Freddie's OWN mark, the
-// mascot face (FreddieAvatar), the same one on the chat rail FAB + ChatDrawer +
-// FreddieCard. In CHROME (launcher / dock / top-bar) it renders MONOCHROME
-// (mono → currentColor silhouette) so it sits in the glyph row like the lucide
-// icons and inherits the active tile's `text-background` white-on-black recolor
-// (the full-color Frankie is the BRAND mark elsewhere; on the active tile it
-// ignored the recolor and read as a heavy green block — 2026-07-09). Rendered
-// STILL (mono implies still) — motion is the "working" signal, a static tile
-// must not perpetually animate. The `freddie` icon_key resolves here.
-const FreddieSurfaceIcon: SurfaceIcon = ({ className }) => (
-  <FreddieAvatar mono className={className} />
-);
 
 const ICON_REGISTRY: Record<string, LucideIcon> = {
   activity: Activity,
@@ -170,8 +154,6 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
 };
 
 export function resolveSurfaceIcon(iconKey: string): SurfaceIcon {
-  // ADR-426 amendment — the Freddie mascot is not a lucide glyph; resolve it
   // explicitly so launcher, dock, and page header all render the same face.
-  if (iconKey === 'freddie') return FreddieSurfaceIcon;
   return ICON_REGISTRY[iconKey] ?? Box;
 }

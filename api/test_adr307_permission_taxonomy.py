@@ -64,24 +64,15 @@ def test_every_read_primitive_is_read_only():
         # semantic-query read
         "QueryKnowledge",
         # introspection
-        "GetSystemState", "DiscoverAgents", "list_integrations",
+        "DiscoverAgents", "list_integrations",
         # external read
         "WebSearch",
-        # narration — ReturnVerdict only. `Clarify` is gate-owned per ADR-352
-        # (the witness dial governs whether asking is available); it is
-        # deliberately NOT read-only.
-        "ReturnVerdict",
     ]
     for name in must_be_read_only:
         assert is_read_only(name), (
             f"{name} must be declared read_only per ADR-307 D2 "
             "(reads/narration never gate)"
         )
-    # ADR-352 — Clarify was reclassified out of read_only.
-    assert not is_read_only("Clarify"), (
-        "Clarify is gate-owned per ADR-352 — it must NOT be read_only "
-        "(the ask-gate derives APPLY/DENY from the witness dial)."
-    )
 
 
 def test_consequential_default_is_fail_closed():
@@ -225,30 +216,6 @@ def test_reconciler_select_drops_action_type():
     )
     assert "id, inputs" in src, "reconciler must still select id + inputs (round-trip)"
 
-
-def test_dispatch_source_skip_catches_reviewer_prefix():
-    """ADR-307 D6: the reactive dispatcher skips source='reviewer:<...>' rows
-    (closes the self-wake loop for Reviewer-authored substrate writes)."""
-    import inspect
-    from services import review_proposal_dispatch as rpd
-    src = inspect.getsource(rpd.on_proposal_created)
-    assert 'startswith("freddie:")' in src, (
-        "dispatcher must skip reactive Reviewer for source startswith 'reviewer:'"
-    )
-
-
-def test_substrate_family_resolves_to_verdict_path():
-    """ADR-307 risk #5: family='substrate' resolves a context_domain (not None),
-    so substrate-write proposals reach the Reviewer verdict path, not observe-only."""
-    from services.review_proposal_dispatch import _resolve_context_domain
-    assert _resolve_context_domain("WriteFile", "substrate") is not None
-    assert _resolve_context_domain("platform_trading_submit_order", "capital") == "trading"
-    assert _resolve_context_domain("platform_email_send", "capital") is None
-
-
-# ---------------------------------------------------------------------------
-# Phase 3 — complete the gate across all consequential primitives (D5)
-# ---------------------------------------------------------------------------
 
 def test_gate_covers_all_consequential_primitives():
     """ADR-307 D5: Schedule/ManageHook/ManageAgent/ManageDomains pass through

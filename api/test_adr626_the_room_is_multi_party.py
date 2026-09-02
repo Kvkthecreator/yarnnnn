@@ -272,9 +272,6 @@ for _sym in ("HeadlessAuth", "get_headless_tools_for_agent", "create_headless_ex
 _names = lambda rows: {t["name"] for t in rows}  # noqa: E731
 for _roster, _rows in (
     ("HANDLERS", None),
-    ("CHAT_PRIMITIVES", _R.CHAT_PRIMITIVES),
-    ("HEADLESS_PRIMITIVES", _R.HEADLESS_PRIMITIVES),
-    ("FREDDIE_PRIMITIVES", _R.FREDDIE_PRIMITIVES),
     ("PRIMITIVES", _R.PRIMITIVES),
 ):
     _present = ("DispatchSpecialist" in _R.HANDLERS if _rows is None

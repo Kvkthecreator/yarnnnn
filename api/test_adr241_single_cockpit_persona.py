@@ -34,7 +34,7 @@ WEB_REVIEWER_DIR = REPO_ROOT / "web" / "components" / "agents" / "reviewer"
 WEB_AGENT_ROSTER = REPO_ROOT / "web" / "components" / "agents" / "AgentRosterSurface.tsx"
 WEB_AGENTS_PAGE = REPO_ROOT / "web" / "app" / "(authenticated)" / "agents" / "page.tsx"
 WEB_AGENT_CONTENT = REPO_ROOT / "web" / "components" / "agents" / "AgentContentView.tsx"
-API_REVIEWER_AUDIT = REPO_ROOT / "api" / "services" / "freddie_audit.py"
+API_REVIEWER_AUDIT = REPO_ROOT / "api" / "services" / "judgment_log.py"
 WEB_LIB_REVIEWER = REPO_ROOT / "web" / "lib" / "content-shapes" / "decisions.ts"
 
 

@@ -280,18 +280,6 @@ async def enqueue_gated_action(
         except Exception as witness_exc:  # noqa: BLE001 — never fails the act
             logger.warning("[QUEUE] after-witness emission failed: %s", witness_exc)
 
-    # Reactive Reviewer wake on proposal arrival (ADR-296 v2 D1). The
-    # dispatcher's source-skip (ADR-252 D5) prevents self-judgment when
-    # source startswith "freddie:".
-    if proposal_id:
-        try:
-            from services.wake_sources.proposal_arrival import on_created
-            await on_created(auth.client, auth.user_id, proposal_id, created)
-        except Exception as dispatch_exc:  # noqa: BLE001
-            logger.warning(
-                "[QUEUE] reviewer dispatch failed for %s: %s",
-                proposal_id, dispatch_exc,
-            )
     return {"success": True, "proposal_id": proposal_id, "proposal": created}
 
 
@@ -461,8 +449,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
     AI Reviewer can override by passing reviewer_identity explicitly.
     """
     from services.primitives.registry import execute_primitive
-    from services.freddie_audit import append_decision
-    from services.freddie_chat_surfacing import write_freddie_message
+    from services.judgment_log import append_decision
 
     proposal_id = input.get("proposal_id")
     if not proposal_id:
@@ -623,17 +610,6 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
             reversibility=reversibility,
             outcome="executed",
         )
-        # Unified chat thread — surface verdict to operator's active session.
-        # Best-effort; decisions.md + action_proposals remain authoritative.
-        await write_freddie_message(
-            auth.client, auth.user_id,
-            content=(reviewer_reasoning or f"Approved {action_type}."),
-            proposal_id=proposal_id,
-            verdict="approve",
-            occupant=reviewer_identity,
-            action_type=action_type,
-            task_slug=proposal.get("task_slug"),
-        )
         return {
             "success": True,
             "proposal_id": proposal_id,
@@ -666,15 +642,6 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
             reasoning=downstream_msg,
             reversibility=reversibility,
             outcome="rejected_at_execution",
-        )
-        await write_freddie_message(
-            auth.client, auth.user_id,
-            content=downstream_msg,
-            proposal_id=proposal_id,
-            verdict="approve",
-            occupant=reviewer_identity,
-            action_type=action_type,
-            task_slug=proposal.get("task_slug"),
         )
         return {
             "success": False,
@@ -733,8 +700,7 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
     appends to /workspace/persona/judgment_log.md. Default reviewer_identity
     is "human:<user_id>".
     """
-    from services.freddie_audit import append_decision
-    from services.freddie_chat_surfacing import write_freddie_message
+    from services.judgment_log import append_decision
 
     proposal_id = input.get("proposal_id")
     if not proposal_id:
@@ -799,15 +765,6 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
             task_slug = proposal_row.get("task_slug")
         except Exception:
             pass
-        await write_freddie_message(
-            auth.client, auth.user_id,
-            content=(reviewer_reasoning or f"Rejected: {reason}"),
-            proposal_id=proposal_id,
-            verdict="reject",
-            occupant=reviewer_identity,
-            action_type=action_type or "unknown",
-            task_slug=task_slug,
-        )
 
         return {
             "success": True,

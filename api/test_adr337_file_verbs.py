@@ -113,40 +113,17 @@ check("MoveFile: same source and destination rejected", res.get("error") == "no_
 # 3. Registry membership — the verbs live on all three surfaces
 # =============================================================================
 
-from services.primitives.registry import (  # noqa: E402
-    CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES, HANDLERS,
-)
+from services.primitives.registry import HANDLERS, PRIMITIVES  # noqa: E402
+from services.lane_runner import LANE_TOOL_NAMES  # noqa: E402
 
+# ADR-632: the steward's three rosters are gone; the live surfaces are the lane
+# (LANE_TOOL_NAMES) and interop (`delete`/`move`/`edit` bindings). Every verb
+# must be a declared tool with a handler and on the lane surface.
+_tool_names = {t["name"] for t in PRIMITIVES}
 for verb in ("EditFile", "DeleteFile", "MoveFile"):
-    check(f"{verb} in CHAT_PRIMITIVES", any(t["name"] == verb for t in CHAT_PRIMITIVES))
-    check(f"{verb} in HEADLESS_PRIMITIVES", any(t["name"] == verb for t in HEADLESS_PRIMITIVES))
-    check(f"{verb} in FREDDIE_PRIMITIVES (ADR-337 D5)", any(t["name"] == verb for t in FREDDIE_PRIMITIVES))
+    check(f"{verb} declared as a tool", verb in _tool_names)
     check(f"{verb} in HANDLERS", verb in HANDLERS)
-
-edit_tool = next(t for t in CHAT_PRIMITIVES if t["name"] == "EditFile")
-props = edit_tool["input_schema"]["properties"]
-check(
-    "EditFile schema is the Claude Code Edit contract (borrowed prior)",
-    all(k in props for k in ("path", "old_string", "new_string", "replace_all")),
-)
-# ADR-609 D1 AMENDS the required set: `old_string` becomes optional, because an
-# ANCHORED edit may replace the member's selected span WHOLESALE — there is no
-# string to reconstruct in that case, which is the point of the anchor. The
-# borrowed prior is otherwise untouched: unanchored calls still demand
-# old_string (enforced in _apply_edit, driven by test_adr609_anchored_edit.py),
-# so the model's trained shape still works unchanged.
-check(
-    "EditFile requires path + new_string; old_string is anchor-optional (ADR-609)",
-    edit_tool["input_schema"]["required"] == ["path", "new_string"]
-    and "anchor" in props,
-)
-
-search_tool = next(t for t in CHAT_PRIMITIVES if t["name"] == "SearchFiles")
-check(
-    "SearchFiles schema declares match=semantic|exact (ADR-337 D4)",
-    search_tool["input_schema"]["properties"].get("match", {}).get("enum") == ["semantic", "exact"],
-)
-
+    check(f"{verb} on the lane surface", verb in LANE_TOOL_NAMES)
 
 # =============================================================================
 # 4. Permission gate wiring (ADR-307 × ADR-337)

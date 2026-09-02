@@ -109,11 +109,7 @@ ALL_MUTATING = {v for f in FAMILIES.values() for v in f["mutating"]}
 
 print("\n[1] every declared verb is a real kernel primitive")
 
-from services.primitives.registry import (  # noqa: E402
-    CHAT_PRIMITIVES,
-    FREDDIE_PRIMITIVES,
-    HANDLERS,
-)
+from services.primitives.registry import HANDLERS, PRIMITIVES  # noqa: E402
 
 for fam, spec in FAMILIES.items():
     missing = spec["all"] - set(HANDLERS)
@@ -148,13 +144,11 @@ check("declared payload == allowlist (ADR-467 D4 agreement)",
       f"allow∖payload={sorted(set(lane_tool_names()) - _declared)}")
 
 
-print("\n[3] the CHAT + STEWARD rosters hold every mutating verb")
+print("\n[3] the declared tool list holds every mutating verb (ADR-632: the steward rosters are gone)")
 
-for label, roster in (("CHAT_PRIMITIVES", CHAT_PRIMITIVES),
-                      ("FREDDIE_PRIMITIVES", FREDDIE_PRIMITIVES)):
-    names = {t["name"] for t in roster if t.get("name")}
-    check(f"{label} holds every mutating verb, every family",
-          ALL_MUTATING <= names, f"missing: {sorted(ALL_MUTATING - names)}")
+_names = {t["name"] for t in PRIMITIVES if t.get("name")}
+check("PRIMITIVES holds every mutating verb, every family",
+      ALL_MUTATING <= _names, f"missing: {sorted(ALL_MUTATING - _names)}")
 
 
 print("\n[4] ⚠️  THE COMPARISON — no surface is narrower than MCP")

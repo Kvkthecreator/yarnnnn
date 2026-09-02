@@ -5,7 +5,6 @@ Single FastAPI application with route groups:
 - /api/memory: Memory layer (profile, styles, entries, activity)
 - /api/knowledge: Knowledge filesystem browsing (/knowledge/* in workspace_files)
 - /api/work: Work ticket lifecycle
-- /api/feed: Feed surface (operator timeline) — multi-actor, asynchronous, ADR-259
 - /api/domains: Context domains (ADR-034)
 """
 
@@ -73,7 +72,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import images, memory, feed, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions
+from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions
 from routes import agent_connectors
 from routes import publish  # ADR-628 phase (a) — the member-clicked outbound door
 
@@ -192,7 +191,6 @@ async def health():
 
 # Mount routers
 app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
-app.include_router(feed.router, prefix="/api", tags=["feed"])
 app.include_router(documents.router, prefix="/api", tags=["documents"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

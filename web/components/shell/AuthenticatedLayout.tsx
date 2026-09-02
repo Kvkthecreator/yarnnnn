@@ -15,8 +15,6 @@
  *     · ShellChromeProvider). The legacy DeskProvider was deleted in
  *     ADR-297 Phase 3 — the window manager (SurfacePreferencesProvider)
  *     is the sole surface-state source of truth.
- *   - The NarrativeContext.onSurfaceChange handoff machinery, which maps
- *     TP-emitted NarrativeSurface kinds to navigateToSurface (window-opening).
  *   - Pathname → foreground surface tracking (D13) — when the URL
  *     deep-links to an atomic surface, the shell foregrounds it in the
  *     open-surfaces registry. Replaces the pre-D13 recordVisit/
@@ -33,10 +31,8 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import { FeedbackProvider } from '@/contexts/FeedbackContext';
-import type { NarrativeSurface } from '@/types/surface';
 import { ShellCompositor } from './ShellCompositor';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { useComposition } from '@/lib/compositor/useComposition';
@@ -185,63 +181,8 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [foregrounded, closeSurface]);
 
-  // Handle surface change from TP tool results (NarrativeContext handoff
-  // machinery — when the agent says "I opened Cadence for you", it emits
-  // a NarrativeSurface here).
-  //
-  // ADR-297 D19.5 (navigation enactment): the legacy NarrativeSurface kinds
-  // map to atomic kernel surfaces via navigateToSurface — window-opening,
-  // not router.push route-replacement. The task-detail → 'recurrence' slug
-  // corrects the prior wrong mapping (it pushed to /agents, a relic from
-  // before /work dissolved into the Recurrence surface per ADR-297 D1;
-  // surface renamed Cadence → Recurrence 2026-06-03).
-  const handleSurfaceChange = useCallback(
-    (newSurface: NarrativeSurface, handoffMessage?: string) => {
-      switch (newSurface.type) {
-        case 'agent-list':
-          navigateToSurface('agents');
-          return;
-        case 'agent-detail':
-          navigateToSurface('agents', { agent: newSurface.agentId });
-          return;
-        case 'task-detail':
-          // ADR-603 D5 — the Recurrence window is deleted; a stored legacy
-          // task chip degrades to the Activity ledger (run receipts' home).
-          navigateToSurface('notifications', { pane: 'understand' });
-          return;
-        case 'document-list':
-        case 'platform-list':
-        case 'context-browser':
-        // `platform-detail` once delivered `{platform}`, a param the Files
-        // surface has never read — inert, but persisted forever under the
-        // pre-allowlist default. It degrades to the Files surface like its
-        // document-viewer sibling below.
-        case 'platform-detail':
-          navigateToSurface('files');
-          return;
-        case 'document-viewer':
-          // ADR-518: the ADR-249 /docs/{id} upload-detail page is deleted
-          // (Files carries that job; /docs is the Docs authoring app now).
-          // A stored legacy chip degrades to the Files surface, like its
-          // document-list sibling.
-          navigateToSurface('files');
-          return;
-        case 'atomic':
-          // TP handed off an atomic surface directly — open it.
-          navigateToSurface(newSurface.slug, newSurface.params);
-          return;
-      }
-      // idle / unhandled kinds: no-op. ADR-297 Phase 3 deleted the legacy
-      // DeskState setSurface fallback — its handoff-message display sink
-      // was never read by SurfaceViewport (which renders from the window
-      // manager), so the fallback was dead. handoffMessage is dropped;
-      // the navigation itself is the live effect.
-    },
-    [navigateToSurface, router]
-  );
-
   return (
-    <NarrativeProvider onSurfaceChange={handleSurfaceChange}>
+    <>
       {/* The deploy receipt (2026-08-05): which commit built the running
           shell, readable by any probe (minified-identifier greps always
           miss; chunk hashes don't compare across build envs). Vercel
@@ -253,6 +194,6 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
         <ShellCompositor>{children}</ShellCompositor>
       </div>
 
-    </NarrativeProvider>
+    </>
   );
 }

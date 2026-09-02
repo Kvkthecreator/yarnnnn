@@ -142,10 +142,10 @@ _check(
 )
 registry = (API / "services/primitives/registry.py").read_text()
 _check(
-    "RepurposeOutput absent from the registry — control: Compose still present",
+    "RepurposeOutput absent from the registry — control: WebSearch still present",
     "RepurposeOutput" not in registry
     and "repurpose" not in registry
-    and '"Compose"' in registry,  # presence control: the file is the real registry
+    and '"WebSearch"' in registry,  # presence control: the file is the real registry (Compose's PRIMITIVE retired with the steward, ADR-632; the engine stays)
 )
 # routes/recurrences.py is DELETED outright (ADR-603 D5, 2026-08-24), which
 # subsumes "the /repurpose route is gone" — assert the deletion holds.

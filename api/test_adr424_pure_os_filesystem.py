@@ -47,14 +47,6 @@ def run() -> int:
                  "memory/ — accumulated" not in _CONVENTIONS_FRAME
                  and "The working regions" not in _CONVENTIONS_FRAME)
 
-    # freddie_agent frame
-    from agents.freddie_agent import _compute_minimal_frame
-    frame = _compute_minimal_frame()
-    ok &= _check("D4 freddie frame reframed to write-by-meaning",
-                 "write into the workspace by meaning" in frame)
-    ok &= _check("D4 freddie frame dropped the five-root recital",
-                 "EXCEPT two roots" not in frame and "governance/" not in frame)
-
     # WriteFile tool description (the most-reused)
     from services.primitives.workspace import WRITE_FILE_TOOL
     wf = WRITE_FILE_TOOL["description"]

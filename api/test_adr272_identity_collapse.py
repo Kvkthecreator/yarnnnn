@@ -159,53 +159,13 @@ def test_agent_creation_module_deleted():
     )
 
 
-def test_falsify_signals_recurrence_deleted():
-    """ADR-272 D5: falsify-signals recurrence is deleted.
-
-    Pre-ADR-275, ADR-272 absorbed falsify-signals' bootstrap-research
-    intent into morning-reflection's prompt as a precondition.
-
-    Post-ADR-275, morning-reflection itself is deleted — judgment
-    cadence is Reviewer-authored, not bundle-scaffolded. Bootstrap
-    research is the Reviewer's first-wake judgment call (informed by
-    Operating Context + _preferences.yaml + IDENTITY + principles),
-    not a precondition on a pre-scheduled morning ritual.
-
-    This test now asserts both deletions: neither falsify-signals
-    nor morning-reflection ship in the bundle. The Reviewer handles
-    bootstrap research from cold-start judgment.
-    """
-    from services.recurrence import parse_recurrences_yaml
-
-    bundle_path = (
-        _REPO_ROOT.parent / "docs" / "programs" / "alpha-trader"
-        / "reference-workspace" / "_recurrences.yaml"
-    )
-    parsed = parse_recurrences_yaml(bundle_path.read_text())
-    slugs = {r.slug for r in parsed}
-    assert_true(
-        "falsify-signals" not in slugs,
-        "alpha-trader bundle no longer declares falsify-signals recurrence",
-    )
-    assert_true(
-        "morning-reflection" not in slugs,
-        "alpha-trader bundle no longer declares morning-reflection (ADR-275)",
-    )
-
-
 def test_dispatch_specialist_primitive_preserved():
     """ADR-417 follow-on: DispatchSpecialist is REMOVED from every LLM surface
     (zero specialist roles). The module + handler stay dormant as a seam, but
     the primitive is not registered — an unusable tool must not be exposed."""
-    from services.primitives.registry import (
-        CHAT_PRIMITIVES,
-        HEADLESS_PRIMITIVES,
-        FREDDIE_PRIMITIVES,
-        HANDLERS,
-    )
-    chat_names = {t["name"] for t in CHAT_PRIMITIVES}
-    headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
-    reviewer_names = {t["name"] for t in FREDDIE_PRIMITIVES}
+    from services.primitives.registry import HANDLERS, PRIMITIVES
+    # ADR-632: the steward's rosters are gone; the one exposure list is PRIMITIVES.
+    chat_names = headless_names = reviewer_names = {t["name"] for t in PRIMITIVES}
 
     assert_true(
         "DispatchSpecialist" not in chat_names,
@@ -222,70 +182,6 @@ def test_dispatch_specialist_primitive_preserved():
     assert_true(
         "DispatchSpecialist" not in HANDLERS,
         "DispatchSpecialist handler removed from HANDLERS",
-    )
-
-
-def test_record_task_run_preserves_activation_arming_on_capability_missing():
-    """Cold-start ordering fix (2026-05-14): record_task_run must NOT
-    consume `fire_on_activation` arming when the dispatch failed with
-    error_reason='capability_missing'. Without this, operators who
-    activate-before-connect have a silent workspace until next periodic
-    cron — the flag is consumed by a failure that wasn't the work's fault.
-
-    Asserts the function signature accepts `error_reason` and the
-    source contains the preservation branch.
-    """
-    import inspect
-    from services.scheduling import record_task_run
-    sig = inspect.signature(record_task_run)
-    assert_true(
-        "error_reason" in sig.parameters,
-        "record_task_run accepts error_reason keyword",
-    )
-    source = inspect.getsource(record_task_run)
-    assert_true(
-        'capability_missing' in source,
-        "record_task_run source references capability_missing reason",
-    )
-    assert_true(
-        'fire_on_activation' in source,
-        "record_task_run source references fire_on_activation flag",
-    )
-    assert_true(
-        "preserve_activation_arming" in source or "re-arms" in source.lower(),
-        "record_task_run source documents the preservation branch (variable or comment)",
-    )
-
-
-def test_reviewer_prompt_defaults_to_inline():
-    """ADR-272 inline-default, post-ADR-306 collapse: the inline-default
-    discipline is no longer system prose (ablation §3 row 6: `production_default`
-    is DELETE-REDUNDANT / code-enforced — "the model uses the tools it has").
-    The discipline is now STRUCTURAL: the Reviewer's curated tool surface
-    (`FREDDIE_PRIMITIVES`) carries the inline production tools directly, and
-    `DispatchSpecialist`'s role enum is narrowed to `designer` (asserted by
-    the sibling test_dispatch_specialist_tool_enum_narrowed). The model
-    reaches for inline tools because those are the tools it has; designer
-    dispatch is the one narrow exception encoded in the enum.
-    """
-    from services.primitives.registry import FREDDIE_PRIMITIVES
-
-    names = {t["name"] for t in FREDDIE_PRIMITIVES}
-
-    # Inline production tools present → inline IS the default by tool surface.
-    for tool in ("WriteFile", "ReadFile", "SearchFiles", "WebSearch", "QueryKnowledge"):
-        assert_true(
-            tool in names,
-            f"FREDDIE_PRIMITIVES must carry inline production tool {tool!r} "
-            "(structural inline-default per ADR-272, replacing the deleted "
-            "production_default prose per ADR-306 D3)",
-        )
-    # ADR-417 follow-on: DispatchSpecialist is REMOVED (zero specialist roles);
-    # production work is fully inline via the tools above.
-    assert_true(
-        "DispatchSpecialist" not in names,
-        "FREDDIE_PRIMITIVES must NOT carry DispatchSpecialist (ADR-417 follow-on "
-        "— zero specialist roles; production work is inline)",
     )
 
 
@@ -330,13 +226,9 @@ def test_dispatch_specialist_tool_enum_narrowed():
     a re-added module that nothing registers still reads as absent here and is
     caught by the import check above instead.
     """
-    from services.primitives.registry import (
-        CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, FREDDIE_PRIMITIVES, HANDLERS,
-    )
+    from services.primitives.registry import HANDLERS, PRIMITIVES
     for roster, rows in (
-        ("CHAT_PRIMITIVES", {t["name"] for t in CHAT_PRIMITIVES}),
-        ("HEADLESS_PRIMITIVES", {t["name"] for t in HEADLESS_PRIMITIVES}),
-        ("FREDDIE_PRIMITIVES", {t["name"] for t in FREDDIE_PRIMITIVES}),
+        ("PRIMITIVES", {t["name"] for t in PRIMITIVES}),
         ("HANDLERS", set(HANDLERS)),
     ):
         assert "DispatchSpecialist" not in rows, (
@@ -352,12 +244,9 @@ def main():
         test_legacy_role_map_only_survivors,
         test_orchestration_prompts_deleted,
         test_agent_creation_module_deleted,
-        test_falsify_signals_recurrence_deleted,
         test_dispatch_specialist_primitive_preserved,
         test_dispatch_specialist_tool_enum_narrowed,
         test_legacy_agents_router_deleted,
-        test_reviewer_prompt_defaults_to_inline,
-        test_record_task_run_preserves_activation_arming_on_capability_missing,
     ]
 
     print("=" * 70)
