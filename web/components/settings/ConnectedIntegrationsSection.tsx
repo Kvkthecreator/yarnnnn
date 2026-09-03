@@ -354,7 +354,14 @@ export function ConnectedIntegrationsSection({
   };
 
   const attachedRows = integrations.filter((i) => isAttached(i.provider) && i.status === "active");
-  const attachedUrls = new Set(integrations.filter((i) => isAttached(i.provider)).map((i) => i.server_url ?? ""));
+  // ADR-635 — the badge and the row list must ask the SAME question. Filtering
+  // this set on the prefix alone (no status) made a `pending` row — an attach
+  // that began and never finished, which is what an abandoned or provider-
+  // refused consent leaves behind — read as "Attached": no Connect button in
+  // the directory, and no row in the list either, so the member could never
+  // retry that server. Driven 2026-09-03, after Linear's consent form refused
+  // a stale CSRF token. Derive both from `attachedRows`.
+  const attachedUrls = new Set(attachedRows.map((i) => i.server_url ?? ""));
 
   // ADR-635 — an attached connector's drill-in: its own page (the aperture).
   if (activeConnector && isAttached(activeConnector)) {
