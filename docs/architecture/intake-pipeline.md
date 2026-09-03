@@ -239,6 +239,12 @@ way (`member:{user_id} via {model}`), so a connection the member granted is
 reachable wherever they are working. Which pane is open is a surface fact and
 was never a permission one.
 
+**Attached connectors (ADR-635)** are turn reach with one addition: a member-
+attached MCP server has no roster yarnnn authors, so its bound is the member's
+own per-tool **aperture**, and a tool they mark `propose` is OUTBOUND through
+the proposal queue rather than applied. Still never intake — a standing read
+through an attached server is a member-declared watch, named and not built.
+
 **The rule**: any proposal touching platform reach declares its disposition in
 its first paragraph. A proposal that cannot say which it serves is both at
 once, and is re-running the conflation.

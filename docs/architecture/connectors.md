@@ -130,6 +130,36 @@ only on the INBOUND side, where ADR-563 scope tiers are enforced per call.)
 Discovery failures RAISE and render scoped inside Scope; an empty landscape
 is only ever the honest success case.
 
+## 5a. Attached connectors — the directory is consumed; reach attaches under the member's grant (ADR-635)
+
+The hand-authored trio and WordPress are the connectors yarnnn wrote a client
+for. Every other MCP server a member wants is an **attached connector**: found
+in the **connector directory** or pasted as a URL, attached with one generic
+OAuth 2.1 flow (RFC 9728 discovery → RFC 8414 metadata → RFC 7591 dynamic
+registration → PKCE), stored as a `platform_connections` row keyed
+`mcp:{slug}` — the human's account object, no migration — and read through the
+ONE credential path (`platform_credentials`, ADR-577), so an agent is refused
+here exactly as it is refused Slack.
+
+**Disposition**: TURN REACH (the member's credential, in the member's turn,
+transient), with consequential tools OUTBOUND THROUGH A PROPOSAL. Never intake.
+
+| Fact | Where it lives |
+|---|---|
+| The directory | `services/connector_directory.py` — the MCP registry (live, cached) merged with `connector_directory_seed.json`, **derived** from `anthropics/knowledge-work-plugins` by `scripts/refresh_connector_directory.py` and stamped with repo + commit. Consumed, never authored (DP27). A pasted URL needs neither |
+| The attach seam | `services/attached_connectors.py` (`begin_attach` / `complete_attach`); routes at `/api/connectors` (`routes/attached_connectors.py`); the callback rides the same signed state as the trio |
+| The credential | the row's `credentials_encrypted`: ONE encrypted envelope (token, DCR client, token endpoint, expiry, resource); refreshed transparently at read; a refresh failure reads as "not connected" |
+| **The aperture** | `metadata.aperture` — the member's consent, **tool by tool**: `direct` (runs in their turn) · `propose` (every call is an external-write proposal they execute from the queue) · unlisted (**DENY**, fail closed). A fresh attach exposes NOTHING (ADR-582: selection is consent, never a default). The server's `readOnlyHint` is shown as a hint and never decides |
+| The lane | `lane_tool_names` / `lane_tools_openai` / the frame compose the surface from one read; names are `mcp__{slug}__{tool}` (the ecosystem's convention, resolved not invented) |
+| The gate | one branch in `resolve_permission`, before the non-Reviewer short-circuit — the first proposal producer since the steward retired (ADR-596 D3(d)) |
+| The surface | Settings → Connectors: **Find a connector** (search the directory, or paste a URL) → the row stacks with the rest → its page is the aperture (`AttachedConnectorSubsurface`) |
+
+What it does not do: durable intake (a capture needs a selector; MCP has no
+generic "list the selectable things" — a member-declared watch shape is named,
+not built), an agent-level opt-in over the aperture (two sources for one fact),
+or per-server code. The steward-era foreign watch (`TrackForeign`,
+`foreign_read.py`, ADR-335/356) is DELETED: no live surface, zero rows.
+
 ## 6. What this is not
 
 **Turn reach** — an LLM calling a platform live inside a conversation turn

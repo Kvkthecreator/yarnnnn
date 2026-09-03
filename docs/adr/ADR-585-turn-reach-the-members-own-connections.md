@@ -10,6 +10,8 @@
 > object), not a new discipline. Built behind `TURN_REACH_ENABLED`
 > (default OFF — the ADR-404 D2 pattern: built whole, lit deliberately);
 > production behavior is unchanged until the flag flips.
+>
+> **D2/D4 AMENDED 2026-09-03 by [ADR-635](ADR-635-the-connector-directory-is-consumed-and-reach-attaches-under-the-members-grant.md)** — the READ-ONLY bound holds for the hand-authored trio (their rosters are derived, so a write tool cannot drift in). An **attached connector** (a member-attached MCP server) has no roster yarnnn authors and no annotation yarnnn may trust, so its bound is the member's own **aperture**: tool by tool, `direct` (runs in the turn) · `propose` (queued as an external-write proposal the member executes) · unlisted (DENY). The principal-presence rule (D1), transience (D3) and the engine disclosure (D5) apply unchanged.
 > Gate: `api/test_adr585_turn_reach.py`.
 >
 > ⭐ **AMENDED by [ADR-615](ADR-615-reach-follows-the-principal.md) (2026-08-28).**

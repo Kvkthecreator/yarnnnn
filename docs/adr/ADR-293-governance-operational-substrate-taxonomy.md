@@ -4,6 +4,8 @@
 
 Proposed (2026-05-19)
 
+> **D4's scoping AMENDED 2026-09-03 by [ADR-635](ADR-635-the-connector-directory-is-consumed-and-reach-attaches-under-the-members-grant.md) D6** — the uniform gate engaged consequential calls only for Reviewer-authored ones; every other caller resolved APPLY. The Reviewer is retired (ADR-632), so a `member:` lane caller's write through an **attached connector** would have applied under their credential with no proposal — the collapsed principal. `resolve_permission` now rules on attached tools for EVERY caller from the connection's aperture (`direct` → APPLY · `propose` → QUEUE · unlisted → DENY), placed before the non-Reviewer short-circuit; a `propose` call is the queue's first producer since the seat retired (ADR-596 D3(d)).
+
 ## Companion canon
 
 - **FOUNDATIONS Axiom 0 (Six Dimensions)** — Purpose dimension cleanly distinguishes governance-purpose from operational-purpose files; the taxonomy is dimensionally pure

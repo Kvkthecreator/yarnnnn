@@ -9,7 +9,7 @@
 ## ADR-059: Simplified Context Model (Current Schema)
 
 **Tables** (use these names, not legacy):
-- `platform_connections` (not `user_integrations`)
+- `platform_connections` (not `user_integrations`). **ADR-635 (2026-09-03)**: an ATTACHED connector is a row keyed `platform = 'mcp:{slug}'` — `UNIQUE(user_id, platform)` satisfied by the prefix, no migration. `credentials_encrypted` holds ONE encrypted JSON envelope (access token, DCR client id/secret, token endpoint, expiry, resource; the PKCE verifier while `status='pending'`), `refresh_token_encrypted` the refresh token, `metadata` = `{server_url, title, name, category, auth, tools[], aperture{tool: direct|propose}}`. Read only through `platform_credentials.resolve_platform_credential`. The steward-era `watch_id`-set rows (ADR-335) are gone with `TrackForeign` (measured 0 in prod).
 - `platform_content` — **DROPPED (ADR-153)**. Was unified content layer with retention (ADR-072). Platform data now flows through tasks into workspace context domains.
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)

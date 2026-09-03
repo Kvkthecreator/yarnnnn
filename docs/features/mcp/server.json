@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.yarnnn/workspace",
+  "title": "yarnnn",
+  "description": "The shared, attributed workspace where human and AI work settles: files at paths, every change signed by whoever made it, history walkable. OAuth 2.1; multi-user.",
+  "repository": {
+    "url": "https://github.com/Kvkthecreator/yarnnnn",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "websiteUrl": "https://yarnnn.com",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.yarnnn.com"
+    }
+  ]
+}

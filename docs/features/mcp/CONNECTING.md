@@ -50,6 +50,17 @@ You sign in once per LLM (a lightweight yarnnn login — same account across all
 1. Add the MCP connector with URL **`https://mcp.yarnnn.com`**.
 2. Complete the yarnnn sign-in.
 
+### Claude Code / Cowork (the plugin)
+
+yarnnn ships as a plugin — a manifest plus an `.mcp.json` pointing at the same server, no local code (ADR-635 D9):
+
+```bash
+claude plugin marketplace add Kvkthecreator/yarnnnn
+claude plugin install yarnnn@yarnnn
+```
+
+Restart the session afterwards; Claude Code captures tool schemas at start. The plugin lives at `plugin/yarnnn/` in the repo; the registry-shaped listing (`docs/features/mcp/server.json`, the `2025-12-11` schema) is the same URL for the MCP registry. Submitting the plugin to the official directory and publishing to the registry are operator acts with the operator's credentials.
+
 ### Claude Desktop (config file)
 
 Claude Desktop uses a config JSON rather than a URL field. Add:

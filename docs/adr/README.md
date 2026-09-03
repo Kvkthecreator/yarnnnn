@@ -253,7 +253,7 @@ Ground-truth substrate, the perception field, dormancy/aperture/standing-obligat
 | [353](ADR-353-composio-as-driver-backend.md) | Composio as the Driver Backend for External Hands | Accepted |
 | [354](ADR-354-recurrence-prompt-collapse-and-perception-field-discipline.md) | Recurrence-Prompt Collapse + Perception-Field Discipline | Implemented |
 | [355](ADR-355-the-agent-authors-full-autonomy-full-accountability.md) | The Agent Authors — Full Autonomy, Full Accountability | Implemented |
-| [356](ADR-356-trackforeign-repo-watch-crawl-b-increment-b.md) | TrackForeign + the Repository Watch | Implemented |
+| [356](ADR-356-trackforeign-repo-watch-crawl-b-increment-b.md) | TrackForeign + the Repository Watch | Superseded (ADR-635 D8 — deleted) |
 | [357](ADR-357-citation-binds-to-source-not-internal-path.md) | A Citation Binds a Claim to its Source | Implemented |
 
 ### Surfaces / experience / management plane (213–215, 236–246, 259, 265–266, 277, 288–289, 297, 308–309, 316, 329, 331, 337–341, 346–352, 358, 365–370, 374, 377, 385, 387–388, 398–400, 410, 415, 418–422)

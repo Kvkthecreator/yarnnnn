@@ -1,5 +1,7 @@
 # ADR-356 — TrackForeign + the Repository Watch (ADR-335 Crawl-B Increment B)
 
+> **Superseded 2026-09-03 by [ADR-635](ADR-635-the-connector-directory-is-consumed-and-reach-attaches-under-the-members-grant.md) D8 — DELETED.** `TrackForeign`, `services/foreign_read.py` and the watch-bound `platform_connections` binding are removed: after the steward retired (ADR-632) the primitive was on no live surface, and production held **zero** watch-bound rows. The one MCP binding is now the member's **attached connector** (`mcp:{slug}`), read through the ADR-577 credential path inside the member's own turn. `MCPClient` survives with that one caller.
+
 **Status**: Implemented (2026-06-22)
 **Dimensional classification**: **Substrate** (Axiom 1 §8 — the perception field) + **Trigger** (Axiom 4 — a mechanical standing watch)
 **Implements**: ADR-335 D4 (the MCP transport client) + D5 (watch binding) — the **demand-pulled Crawl-B** stage, triggered by the named trigger "alpha-author post-330 deepening" (ADR-335 §237). ADR-335 Crawl-B Increment A (the metered executor `read_foreign_tool`) was already shipped; this is Increment B (the watch executor + the first binding).

@@ -47,6 +47,8 @@
 > craft by alphabetical accident (§3b's promise: narrowing the open surface
 > hides work that has no other door).
 
+> **Amended 2026-09-03 by [ADR-635](ADR-635-the-connector-directory-is-consumed-and-reach-attaches-under-the-members-grant.md) D7.** Two additions to D3's scoping. **`metadata.needs`** names the connector CATEGORIES a skill reads through — the ecosystem's `~~category` placeholder (the knowledge-work plugins' `CONNECTORS.md`) as a declaration: offered when the member holds an **attached connector** of one of them, withheld-and-counted otherwise, silence = no need. A public skill written for "a project tracker" drops into `skills/` unchanged. **The strip is named**: `parse_skill` always dropped host-specific frontmatter (`allowed-tools`, `model`, `tools`, `argument-hint`…) silently; it now returns them as `stripped` and logs them, so an import says what it lost. Prose was never permission (ADR-464 §3); now the discard is visible.
+
 ## 1. Context — three layers filled the SKILL.md role, none of them a file
 
 Before this ADR the role Claude Code's SKILL.md plays was split across three code homes: the kernel participant constants (universal contract), the app's pane posture (per-app, derived, composed every turn — 87% of a Slides frame), and `DERIVE_RECIPES` (per-task prose, three rows, reachable only through a lane binding at a click door). ADR-464 had built member skills as files in July, per agent and composed into every turn; ADR-599 deleted them with the member-agent machinery. Only the manifests carried the authority risk; the skills left with them.

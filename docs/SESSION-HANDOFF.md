@@ -59,6 +59,35 @@ returns `"public":false`; receipt row 2 carries both new fields with
 
 ---
 
+# Part N — the connector directory + attached connectors: ADR-635 (2026-09-03)
+
+## What shipped
+
+| Commit | What |
+|---|---|
+| (docs) | **ADR-635** ratified doc-first: the connector directory is CONSUMED (the MCP registry live + a seed DERIVED from `anthropics/knowledge-work-plugins` with repo+commit provenance), never authored; an **attached connector** is a `platform_connections` row keyed `mcp:{slug}` (no migration) attached by ONE generic OAuth 2.1 flow (RFC 9728 → 8414 → 7591 DCR → PKCE S256); the **aperture** is per-tool consent on the connection (`direct` · `propose` · unlisted = DENY); a `propose` call is the proposal queue's first producer since the steward retired. Banners on ADR-420 §10 (the demand gate lifts), ADR-585 D2/D4, ADR-293 D4, ADR-630 D3, ADR-356 (superseded); connectors.md §5a; intake-pipeline §5; lane-frame §3; GLOSSARY v3.7 (three rows + the dispositions row is now THREE); ADR-LEDGER; CLAUDE.md; SCHEMA-NOTES; primitives-matrix deleted ledger. |
+| (code) | `services/attached_connectors.py` (discovery · DCR · PKCE · envelope · refresh · aperture · tool defs · dispatch) · `services/connector_directory.py` + `connector_directory_seed.json` (55 servers @ `f30dc63b`) + `scripts/refresh_connector_directory.py` · `routes/attached_connectors.py` at `/api/connectors` · the gate branch (`permission.py`, before the non-Reviewer free-pass) + the dispatch branch (`registry.py`) · `lane_runner` composes the surface into payload, allowlist, frame and the skills index from ONE read · `mcp_client` accepts header/no auth and returns annotations · `list_integrations` + the integrations list/summary emit `mcp:` rows · skills `metadata.needs` + `stripped` · Settings → Connectors: **Find a connector** (search + paste), attached rows, `AttachedConnectorSubsurface` (the aperture) · the discovery card no longer names `remember`/`recall`/`trace` · `plugin/yarnnn/` + root `.claude-plugin/marketplace.json` + `docs/features/mcp/server.json` · **DELETED**: `TrackForeign`, `services/foreign_read.py`, `scripts/mcp_crawlb_increment1.py` (no live surface; 0 watch rows in prod). |
+
+## Verification (the standing set at ship)
+
+```
+cd api && python3 test_adr635_attached_connectors.py   # 78/78 — attach flow offline (Notion shape), 3 verdicts + replay, lane agreement, seed provenance, strip, deletion, canon
+cd api && python3 test_adr585_turn_reach.py test_adr630_skills.py test_adr494_connector_registry.py test_adr612_agent_connector_opt_in.py test_adr577_credential_claim.py test_adr632_the_seat_retires.py   # all green
+cd web && node_modules/.bin/next build                  # exit 0
+```
+Live receipts (2026-09-03, `.venv-mcp`): `discover()` against mcp.notion.com → oauth, DCR, S256 · mcp.linear.app → oauth, DCR, S256, scopes read/write · mcp.context7.com → anonymous; `list_tools` on Context7 through the widened client returned `resolve-library-id`, `query-docs` with `readOnlyHint` carried.
+Pre-existing reds, NOT this arc's (verified at HEAD in a worktree): `test_adr535` §3 "states the EDGE" (the phrase lives in the no-reach branch; ADR-615 lit reach by default) · `test_adr373_rekey` under the 3.9 venv (mcp_server/auth.py is 3.10+ syntax; green under `.venv-mcp`).
+
+## OWED
+
+1. **Browser click-pass of one full attach**: Settings → Connectors → Find a connector → Linear (or Notion) → Connect → authorize → land on the connection page → set one tool DIRECT and one PROPOSE → in /chat call the DIRECT tool (expect the result) and the PROPOSE tool (expect "queued for you" + a row in the queue) → Approve from the queue → the replay runs. `API_BASE_URL` must be the API's public origin on Render (the hand-authored OAuth already reads it).
+2. **Publish**: `docs/features/mcp/server.json` to the MCP registry (`mcp-publisher`, namespace `com.yarnnn` needs DNS verification) and the plugin to the official directory (the submission form). Both are operator acts.
+3. **Seed refresh cadence**: re-run `scripts/refresh_connector_directory.py` when upstream moves; the diff is the change. Twelve seed servers carry no category (upstream's table did not name them).
+4. **Durable intake from an attached server** — named, not built (a member-declared `{server, tool, args}` watch; ADR-635 §3).
+5. The API's Python on Render: `mcp>=1.28` installs there, so it is ≥3.10; the local `api/venv` is 3.9 and cannot import the SDK — the attach seam imports it lazily and the gate holds the client rule statically under 3.9.
+
+---
+
 # Part M — the vocabulary / skills / steward-retirement arc: ADR-630/631/632 (2026-09-02)
 
 ## What shipped (three commits on main)
