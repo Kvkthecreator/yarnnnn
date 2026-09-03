@@ -296,6 +296,76 @@ The gate fails if:
 
 ---
 
+## 5a. Driven — what the first real run showed (2026-09-03)
+
+Driven on a production artboard (`operation/untitled-image/image.html`, the
+WORK DIFFERENT poster) through the Images chat pane, immediately after deploy.
+Not a gate: a member's own file, a member's own prompt, no token named in the
+ask.
+
+**The chrome shipped and works.** The rail reads **LAYERS** with
+`▼ Artboard 1  1080×1080` over nine named layers — D3 and D4 confirmed on a
+real file rather than a fixture. (Drag-to-restack remains unexercised.)
+
+**The craft loop closed.** The agent read a file and its reasoning carried
+skill-only content the 242-byte description does not contain: the type must rest
+"on solid protected ground, not in the gradient's fuzzy transition zone"
+(step 4 — check the text's OWN region), "reads at thumbnail" twice as the
+acceptance criterion (the quality bar's lead), and "3D lift against the photo
+without a visible box" — refusing an anti-pattern it was never asked about.
+It patched four layers across five revisions and NAMED the five it left alone.
+Every reported coordinate landed (`headline-main` 58% → 66%, `scrim-grad`
+45% → 35%).
+
+**⭐ The evaluation lesson.** "Did it read the skill?" is a mechanism check, not
+a craft check, and it predicts less than it appears to. The two questions that
+carry signal:
+
+1. **Did the skill change what the agent NOTICED?** Here, yes — it diagnosed
+   *where the scrim arrives relative to where the type lands*, which is not
+   obvious and is precisely what step 4 points at. Without the skill the
+   plausible response is "bigger headline, add a shadow".
+2. **Did it change what the agent REFUSED?** Also yes — the visible box. The
+   negative half of a skill is the harder half to land, and it landed.
+
+A skill is not a procedure the agent executes; it is **the set of questions the
+agent asks before deciding**. All the actual judgment was the agent's.
+
+**⭐⭐⭐ The finding: D5 shipped the chrome's half of the grammar and left the
+medium's half undone.** The agent reasoned in exactly the vocabulary the tokens
+exist for — "opacity 72% → 62%", "deepens to near-black", "32% opacity" — and
+then wrote **raw inline CSS**, using ZERO of the four new tokens
+(`data-opacity`/`blend`/`lock`/`hide` all count 0 in the landed markup).
+
+The cause is not the model and not the skill. It is this ADR: **`opacity` was
+declared an enumerable TOKEN (75/50/25) when a layer's opacity is a CONTINUOUS
+value.** The agent wanted 62% and 32%; the grammar could not say them; it fell
+out of the grammar. ADR-472 D3 had already made this exact call in the other
+direction — it DELETED the aspect slug token because "a real dimension is a
+continuous typed value, which that grammar structurally cannot express" — and
+D5 applied the wrong half of its own precedent. `blend` is genuinely a closed
+set and is correctly a token; `lock`/`hide` are presence-flags and are correct.
+`opacity` is the one that is mis-shaped.
+
+**⭐⭐ And that is the arc's one remaining problem, stated at altitude.** Every
+defect this ADR found has had a single shape: *the model of the medium is a
+document's model, worn by a compositor.* The rail (a page sequence), the noun
+(Slide), the inspector (Turn into → Bulleted list), and now the property grammar
+— enumerable steps, because a paragraph's properties are enumerable and a
+layer's are not. The chrome is fixed. The GRAMMAR is half-fixed.
+
+This is the second time the Images app has strained the ADR-461 measure/token
+boundary (ADR-472 D3 was the first). A third strain is a pattern, not a patch:
+the next pass should ask **which layer properties are continuous, and whether
+that boundary — drawn for a document grammar — holds for a compositor at all**,
+rather than widening an opacity step list.
+
+**Open, and NOT closed by this ADR:** `derived_from` does not cite the skill a
+revision followed, and no mechanism would make it (the run cited the photo it
+composed, which is content consumed — arguably the correct edge). ADR-630's
+loop is open by construction. Whether craft-applied belongs on that edge at all
+is a question for ADR-630, not this one.
+
 ## 6. The one-line statement
 
 **IMAGES stops borrowing a document's rail and a deck's nouns: the artboard gets

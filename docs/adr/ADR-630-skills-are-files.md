@@ -13,6 +13,24 @@
 > compositor defect ADR-633 fixed in the inspector. `composing-an-image` is its
 > craft; `comparing-options`, `reviewing-drafts` and `summarizing-sources` now
 > scope to the prose panes.
+> **(a2) How a skill is EVALUATED, corrected by the first driven run**
+> (2026-09-03, ADR-633 §5a). "Did the agent read the skill?" is a MECHANISM
+> check, not a craft check, and it predicts less than it appears to — a
+> discovery-grade description already carries most of the instruction, so an
+> agent can conform without opening the file (observed on this ADR's own first
+> arc, run 2). The two questions that carry signal: **did the skill change what
+> the agent NOTICED**, and **did it change what the agent REFUSED**. Both were
+> answered yes on the Images run, the second by an anti-pattern avoided
+> unprompted. Stated once here because the wrong metric was about to become
+> this ADR's convention: a skill is not a procedure the agent executes, it is
+> the set of questions the agent asks before deciding.
+>
+> **(a3) `derived_from` does not cite the skill a revision followed**, and no
+> mechanism would make it — the driven run cited the photo it composed, which
+> is content CONSUMED. Craft APPLIED may simply not belong on that edge. Open
+> question for this ADR, not a defect of the run; recorded so the next session
+> decides it rather than rediscovering it.
+>
 > **(b) The kernel index budget was declarative.** `INDEX_CEILING` was asserted
 > by the gate but ignored at composition, so the UNBOUND lane — which filters
 > nothing by construction — composed 3,239/3,000 the moment a ninth skill
