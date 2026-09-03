@@ -25,11 +25,19 @@
 > this ADR's convention: a skill is not a procedure the agent executes, it is
 > the set of questions the agent asks before deciding.
 >
-> **(a3) `derived_from` does not cite the skill a revision followed**, and no
-> mechanism would make it — the driven run cited the photo it composed, which
-> is content CONSUMED. Craft APPLIED may simply not belong on that edge. Open
-> question for this ADR, not a defect of the run; recorded so the next session
-> decides it rather than rediscovering it.
+> **(a3) `derived_from` does not cite the skill a revision followed — and it
+> SHOULD NOT. Decided, not open** (2026-09-03, on the driven run's evidence).
+> The run cited the photo it composed and nothing else. That is correct: the
+> `WriteFile` schema defines the edge as *"the workspace path(s) of the
+> source(s) this content was made FROM"* and states its consumer behaviour —
+> it "lets the workspace show 'what was made from this' and warn before a
+> load-bearing source is deleted." A skill is CRAFT APPLIED, not content
+> consumed: a poster does not contain `composing-an-image`, and deleting that
+> skill must not warn that the poster depends on it. Putting craft on the
+> provenance edge would make every skill look load-bearing to the delete guard
+> and drown the signal ADR-448 exists to carry. If following-a-skill ever needs
+> to be observable, it wants its own edge (or an execution_event), never this
+> one. **No mechanism is owed; the loop is closed by deciding it stays open.**
 >
 > **(b) The kernel index budget was declarative.** `INDEX_CEILING` was asserted
 > by the gate but ignored at composition, so the UNBOUND lane — which filters

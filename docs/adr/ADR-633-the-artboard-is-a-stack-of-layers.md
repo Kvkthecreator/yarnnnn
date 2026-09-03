@@ -331,34 +331,56 @@ carry signal:
 A skill is not a procedure the agent executes; it is **the set of questions the
 agent asks before deciding**. All the actual judgment was the agent's.
 
-**⭐⭐⭐ The finding: D5 shipped the chrome's half of the grammar and left the
-medium's half undone.** The agent reasoned in exactly the vocabulary the tokens
-exist for — "opacity 72% → 62%", "deepens to near-black", "32% opacity" — and
-then wrote **raw inline CSS**, using ZERO of the four new tokens
-(`data-opacity`/`blend`/`lock`/`hide` all count 0 in the landed markup).
+**⭐⭐⭐ On the tokens: a first reading was WRONG, and the correction is the
+more useful finding.**
 
-The cause is not the model and not the skill. It is this ADR: **`opacity` was
-declared an enumerable TOKEN (75/50/25) when a layer's opacity is a CONTINUOUS
-value.** The agent wanted 62% and 32%; the grammar could not say them; it fell
-out of the grammar. ADR-472 D3 had already made this exact call in the other
-direction — it DELETED the aspect slug token because "a real dimension is a
-continuous typed value, which that grammar structurally cannot express" — and
-D5 applied the wrong half of its own precedent. `blend` is genuinely a closed
-set and is correctly a token; `lock`/`hide` are presence-flags and are correct.
-`opacity` is the one that is mis-shaped.
+The landed markup uses **zero** of the four new tokens. The first reading of
+that (recorded here, then falsified against the substrate) was that the agent
+"fell out of the grammar into raw CSS" because `opacity`'s three steps
+(75/50/25) could not express the 62% and 32% its prose described — and that D5
+had therefore mis-shaped a continuous property as an enumerable token.
 
-**⭐⭐ And that is the arc's one remaining problem, stated at altitude.** Every
-defect this ADR found has had a single shape: *the model of the medium is a
-document's model, worn by a compositor.* The rail (a page sequence), the noun
-(Slide), the inspector (Turn into → Bulleted list), and now the property grammar
-— enumerable steps, because a paragraph's properties are enumerable and a
-layer's are not. The chrome is fixed. The GRAMMAR is half-fixed.
+**Driven against the actual bytes, that is not what happened.** In the artifact
+BODY — everything the agent authored — there are **0** `opacity:` declarations,
+**0** `mix-blend-mode:`, and **0** `data-opacity`/`data-blend`. Every one of the
+8 `opacity:` rules in the file is OUR kernel CSS (the v20 retrofit, landed
+correctly) or a pre-existing keyframe. What the agent actually wrote is **14
+`rgba()` values**, and every one of them is a COLOUR: gradient stops on the
+scrim (`rgba(10,8,5,0)` → `0.99`), a text colour on the body copy
+(`rgba(250,248,245,0.62)`), a text-shadow on the headline.
 
-This is the second time the Images app has strained the ADR-461 measure/token
-boundary (ADR-472 D3 was the first). A third strain is a pattern, not a patch:
-the next pass should ask **which layer properties are continuous, and whether
-that boundary — drawn for a document grammar — holds for a compositor at all**,
-rather than widening an opacity step list.
+**Colour-with-alpha and layer-opacity are different operations, and the agent
+picked the right one.** `data-opacity` dims a whole layer including its
+children; `rgba()` sets one channel of one colour. For a gradient scrim, rgba is
+CORRECT and `data-opacity` cannot express it at all — a gradient's stops each
+carry their own alpha. For dimming body copy against a headline, a colour is
+also the better tool: it leaves the layer's own opacity free for a later
+composition move. **The token was not reached for because the composition never
+needed a whole-layer dim.**
+
+So D5's shape is not falsified by this run — it is simply **unexercised**.
+`opacity`, `blend`, `lock` and `hide` remain plausible; none has yet been driven.
+
+**⭐⭐ The real lesson is about the evidence, not the grammar.** "Token count
+is 0" read as a design defect, and the fix it implied (re-shape `opacity` as a
+measure) would have been actively wrong: the posture teaches measures as
+*"member-authored geometry… preserve them exactly"* and never tells the agent it
+may SET one, while tokens get *"set them yourself when asked in plain words."*
+Moving `opacity` to a measure would have moved it into the category the agent is
+told to leave alone — converting an unexercised feature into an unreachable one.
+
+⭐ **A zero is not a verdict.** It says nothing was used; it does not say why,
+and the two candidate whys (the grammar could not express it · the composition
+never needed it) imply opposite fixes. Read the bytes before re-shaping the
+grammar. The same class as ADR-592's inert field and ADR-630's un-enforced
+ceiling: an aggregate that looks like a finding until you ask what produced it.
+
+**What IS still open on the grammar** — genuinely, and narrowly. `z` is a
+measure with NO inspector control (written only by menu verbs and the tree's
+drag), and the measure sections are hand-keyed by name (`m.key === 'w' || 'h'`,
+`'x' || 'y'`), so a sixth measure needs a new section rather than registering.
+`setMeasure`'s key guard is `^[a-z]{1,3}$`, which admits no long-named measure
+at all. None of that is urgent, and none of it is what this run showed.
 
 **Open, and NOT closed by this ADR:** `derived_from` does not cite the skill a
 revision followed, and no mechanism would make it (the run cited the photo it
