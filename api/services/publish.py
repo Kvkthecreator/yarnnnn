@@ -48,30 +48,97 @@ class PublishError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Payload composition — pure (gated directly)
+# Payload composition — a CONTRACT, pure (gated directly)
 # ---------------------------------------------------------------------------
+#
+# ADR-628 D6 (2026-09-03). The predecessor was three regexes with a fallback,
+# and the first real artifact broke it three independent ways: no <main> →
+# the fallback published the RAW DOCUMENT (doctype + <head> + <style>);
+# WordPress then stripped the <style> TAGS but kept their TEXT, so a
+# stylesheet published as prose with smart-quotes applied to the code; and
+# the data-* strip missed CSS attribute selectors (`[data-block="x"]`), which
+# carry no leading whitespace.
+#
+# The lesson is not "fix the pattern". It is that composition had no contract
+# to violate, so it could not refuse — every other stage of this seam either
+# receipts or refuses, and composition alone reported success on garbage.
+#
+# So: state what a publishable post IS, remove transport-hostile matter BY
+# STRUCTURE (whole elements, not attribute patterns), and REFUSE what cannot
+# be composed. A refusal is recoverable; a published post is not.
+
+#: Elements whose CONTENT must never cross — dropped whole, open tag to close.
+#: Removing the tags alone is not enough: the platform keeps the text (F2).
+_DROP_WHOLE = ("style", "script", "template", "noscript")
+
+#: The content root, in resolution order. `main` is the native `post`
+#: scaffold (ADR-627 D1); `article`/`body` cover the pre-627 outward
+#: artifacts, which ADR-627 D1 promised keep working. There is deliberately
+#: NO "else the whole document" branch — its absence IS the F1 fix.
+_CONTENT_ROOTS = ("main", "article", "body")
 
 _H1_RE = re.compile(r"<h1\b[^>]*>(.*?)</h1>", re.IGNORECASE | re.DOTALL)
-_MAIN_RE = re.compile(r"<main\b[^>]*>(.*?)</main>", re.IGNORECASE | re.DOTALL)
 _TAG_STRIP_RE = re.compile(r"<[^>]+>")
-_DATA_ATTR_RE = re.compile(r"\s+data-[a-zA-Z0-9-]+=(\"[^\"]*\"|'[^']*')")
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+#: Any `data-…="…"` occurrence — no leading-whitespace requirement (F3).
+_DATA_ATTR_RE = re.compile(r"\s*\bdata-[a-zA-Z0-9-]+=(\"[^\"]*\"|'[^']*')")
+
+
+def _strip_dropped_elements(html: str) -> str:
+    """Remove <style>/<script>/… **with their content**, and HTML comments."""
+    out = html
+    for tag in _DROP_WHOLE:
+        out = re.sub(
+            rf"<{tag}\b[^>]*>.*?</{tag}\s*>", "", out, flags=re.IGNORECASE | re.DOTALL
+        )
+        # A self-closed or unclosed instance still must not leak its open tag.
+        out = re.sub(rf"<{tag}\b[^>]*/?>", "", out, flags=re.IGNORECASE)
+    return _COMMENT_RE.sub("", out)
+
+
+def _content_root(html: str) -> Optional[str]:
+    """The publishable region's inner HTML, or None when none resolves.
+
+    Resolved AFTER the drop pass — a `<style>` body mentioning `main` or
+    `<article>` in a comment would otherwise match (it did: the first real
+    artifact's stylesheet comment contains the literal text `<article>`).
+    """
+    for tag in _CONTENT_ROOTS:
+        m = re.search(
+            rf"<{tag}\b[^>]*>(.*?)</{tag}\s*>", html, re.IGNORECASE | re.DOTALL
+        )
+        if m and m.group(1).strip():
+            return m.group(1)
+    return None
 
 
 def compose_wordpress_payload(html: str) -> dict[str, str]:
     """A post artifact's bytes → the WordPress {title, content} pair. Pure.
 
-    - `title` is the first <h1>'s text — WordPress renders the title itself,
-      so the h1 moves OUT of the body (it would otherwise print twice).
-    - `content` is <main>'s inner HTML with the h1 removed and every
-      `data-*` attribute stripped: those are yarnnn's editing grammar
-      (block ids, arrangements, citations), meaningless — and noisy — on the
-      published page. Classes stay: `.kicker`/`.standfirst` degrade to plain
-      paragraphs without our skin, which reads fine.
+    - Transport-hostile matter is dropped WHOLE first (`<style>`, `<script>`,
+      comments) — the platform keeps the text of tags it strips, so removing
+      the element is the only removal that works.
+    - `content` is the content root's inner HTML: `<main>`, else `<article>`,
+      else `<body>`. **No document-wide fallback** — an artifact with no
+      resolvable root is REFUSED, not degraded.
+    - `title` is the first <h1>'s text, moved OUT of the body (WordPress
+      renders the title itself, so it would otherwise print twice).
+    - yarnnn's editing grammar (`data-*`: block ids, arrangements, citations)
+      is stripped — meaningless, and noisy, on a published page. Classes stay:
+      `.kicker`/`.standfirst` degrade to plain paragraphs, which reads fine.
     - Everything else passes through VERBATIM. The member's material is not
       rewritten by transport (the ADR-621 D2 lesson, outbound edition).
+
+    Raises PublishError when no content root resolves (ADR-628 D6).
     """
-    main = _MAIN_RE.search(html or "")
-    body = main.group(1) if main else (html or "")
+    cleaned = _strip_dropped_elements(html or "")
+
+    body = _content_root(cleaned)
+    if body is None:
+        raise PublishError(
+            "This file has no publishable content — a post needs a <main>, "
+            "<article> or <body> section with something in it."
+        )
 
     title = ""
     h1 = _H1_RE.search(body)
@@ -80,6 +147,9 @@ def compose_wordpress_payload(html: str) -> dict[str, str]:
         body = body[: h1.start()] + body[h1.end():]
 
     body = _DATA_ATTR_RE.sub("", body).strip()
+    if not _TAG_STRIP_RE.sub("", body).strip():
+        raise PublishError("This post has no text to publish yet.")
+
     return {"title": title or "Untitled post", "content": body}
 
 
@@ -176,14 +246,27 @@ async def publish_post_to_wordpress(
             "WordPress is not connected. Connect it under Settings → Connectors."
         )
 
-    # 4. One post, one act.
+    # 4. One post, one act. Composition REFUSES a non-conforming artifact
+    # (ADR-628 D6) — the PublishError surfaces before anything leaves.
     payload = compose_wordpress_payload(html)
     result = await wordpress_client.create_post(
         token, site_id, title=payload["title"], content=payload["content"],
         status=status,
     )
 
-    # 5. The receipt — appended to the sidecar beside the post, as the
+    # 5. Would a reader actually reach it? (ADR-628 D7.) Best-effort: the
+    # post IS live either way, so a failure here must never read as a publish
+    # failure — the fact is simply absent from the receipt when unknown.
+    reachable: Optional[bool] = None
+    try:
+        for s in (await wordpress_client.list_sites(token)) or []:
+            if str(s.get("id")) == str(site_id):
+                reachable = bool(s.get("public", True))
+                break
+    except Exception:  # noqa: BLE001
+        logger.warning("[PUBLISH] site visibility unresolved for %s", site_id)
+
+    # 6. The receipt — appended to the sidecar beside the post, as the
     # member's own attributed write. `_publish.yaml` is machine-read
     # (ADR-254 underscore rule); the FE renders it back as history.
     folder = wpath.rsplit("/", 1)[0]
@@ -197,6 +280,11 @@ async def publish_post_to_wordpress(
         "at": datetime.now(timezone.utc).isoformat(),
         "path": wpath,
     }
+    if reachable is not None:
+        # Recorded only when KNOWN — an absent key is "unresolved", never a
+        # silent "fine". `status: publish` alone is true and useless when no
+        # reader can reach the post.
+        entry["publicly_readable"] = reachable
     try:
         import yaml
 
@@ -221,6 +309,12 @@ async def publish_post_to_wordpress(
             authored_by="operator",
             author_identity_uuid=user_id,
             message=f"published to WordPress ({result['status']}): {result['url']}",
+            # The receipt is MADE FROM the post (ADR-628 D8). Without this
+            # edge "what was published here?" is unanswerable at exactly the
+            # moment the act becomes irrevocable — and a standing declaration
+            # producing posts from sources will need the same edge to trace
+            # a published piece back to what it was built from.
+            derived_from=[wpath],
         )
     except Exception:  # noqa: BLE001
         # The post IS live — a receipt failure must not read as a publish

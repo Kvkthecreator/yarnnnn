@@ -108,6 +108,71 @@ check("the member's material survives (standfirst + prose intact)",
 check("a title-less body degrades honestly",
       compose_wordpress_payload("<main><p>x</p></main>")["title"] == "Untitled post")
 
+# ── ADR-628 D6 — the drive's findings, as assertions ────────────────────────
+# ⚠️ F5: the pre-D6 gate composed ONLY build_skeleton("post"), which always
+# carries <main>, so all three real defects passed clean. A probe whose only
+# input is the happy shape proves the happy shape. These use the shapes that
+# actually broke on 2026-09-03.
+
+# F1 — the LEGACY outward artifact: content in <body><article>, no <main>,
+# and 98% of the file is stylesheet. The pre-D6 fallback published the raw
+# document; the composer must find the real root instead.
+_legacy = (
+    '<!doctype html>\n<html data-template="article"><head><meta charset="utf-8">'
+    "<style>:root { --ink: #1a1a1a; }\n/* a comment mentioning <article> */\n"
+    'aside[data-block="callout"] { border-left: 3px solid red; }</style></head>'
+    "<body><article><header>"
+    '<h1 data-block="heading" data-block-id="t1">test article</h1>'
+    '<p class="byline" data-block-id="t3">Byline</p></header>'
+    # ⚠️ A <style> INSIDE the content root — the case root-extraction alone
+    # does NOT solve. Real artifacts carry per-block style this way, and a
+    # <body>-rooted legacy file puts the whole sheet inside the root. Without
+    # this, the F2 assertion passes vacuously (falsified 2026-09-03).
+    '<style>.byline[data-block="x"] { --ink: #1a1a1a; }</style>'
+    # ⚠️ `data-block` abutting the previous attribute's quote with NO leading
+    # whitespace — the shape the pre-D6 `\s+data-…` pattern could not see (F3).
+    # A fixture that only ever spaces its attributes proves nothing here.
+    '<div class="p"data-block="prose"><p>Opening paragraph.</p></div>'
+    "</article></body></html>"
+)
+_leg = compose_wordpress_payload(_legacy)
+check("F1: a legacy <article> artifact resolves its content root",
+      _leg["title"] == "test article" and "Opening paragraph." in _leg["content"],
+      repr(_leg["title"]))
+check("F1: the document chrome NEVER crosses (no doctype/<html>/<head>)",
+      not any(t in _leg["content"].lower() for t in ("doctype", "<html", "<head>")),
+      _leg["content"][:120])
+check("F2: <style> is dropped WITH ITS TEXT (the platform keeps stripped-tag text)",
+      "--ink" not in _leg["content"] and ":root" not in _leg["content"],
+      _leg["content"][:160])
+check("F3: data-* is stripped even as a CSS attribute selector (no leading space)",
+      "data-" not in _leg["content"], _leg["content"][:160])
+check("F1: composition is BOUNDED by the real content, not the file",
+      len(_leg["content"]) < len(_legacy) // 2,
+      f"{len(_legacy)} -> {len(_leg['content'])}")
+
+# D6 — REFUSAL replaces the fallback. There is no "publish the whole file"
+# branch, and its absence is the fix: a refusal is recoverable, a published
+# post is not.
+for _label, _src in (
+    ("an empty file", ""),
+    ("a stylesheet-only file", "<html><head><style>body{color:red}</style></head><body></body></html>"),
+    ("a rootless fragment", "<div><p>orphan</p></div>"),
+    ("an empty content root", "<main>   </main>"),
+):
+    try:
+        compose_wordpress_payload(_src)
+        check(f"D6: {_label} is refused", False, "composed instead of refusing")
+    except PublishError as _e:
+        check(f"D6: {_label} is refused, with a reason", bool(str(_e)), str(_e))
+
+_src_no_text = '<main><div data-block="prose"></div></main>'
+try:
+    compose_wordpress_payload(_src_no_text)
+    check("D6: a markup-only body is refused", False)
+except PublishError:
+    check("D6: a markup-only body is refused (no text to publish)", True)
+
 print("4. blogger-only + 5. receipted — the seam, driven with stubs")
 
 
@@ -169,6 +234,11 @@ async def _fake_create_post(token, site_id, *, title, content, status="publish")
     return {"post_id": "77", "url": "https://example.wordpress.com/p", "status": status}
 
 
+async def _fake_list_sites(token):
+    # The site published to is UNLAUNCHED — the D7 case the drive hit.
+    return [{"id": "9", "name": "s", "url": "https://s.wordpress.com", "public": False}]
+
+
 def _fake_write_revision(client, **kw):
     _captured.update(kw)
     return "v-receipt"
@@ -178,8 +248,10 @@ import integrations.core.wordpress_client as _wpc  # noqa: E402
 import services.authored_substrate as _sub  # noqa: E402
 
 _orig_cp, _orig_wr = _wpc.create_post, _sub.write_revision
+_orig_ls = _wpc.list_sites
 _orig_tok = _pub._decrypted_wordpress_token
 _wpc.create_post = _fake_create_post
+_wpc.list_sites = _fake_list_sites
 _sub.write_revision = _fake_write_revision
 _pub._decrypted_wordpress_token = lambda auth: "tok"
 try:
@@ -187,6 +259,7 @@ try:
         _MemberAuth(_store), path="operation/p/post.html", site_id="9", status="draft"))
 finally:
     _wpc.create_post = _orig_cp
+    _wpc.list_sites = _orig_ls
     _sub.write_revision = _orig_wr
     _pub._decrypted_wordpress_token = _orig_tok
 
@@ -202,6 +275,16 @@ check("…written as the member's own act",
       and _captured.get("author_identity_uuid") == "00000000-0000-0000-0000-000000000001")
 check("…and the body is a yaml LIST that appends (history, not overwrite)",
       (_captured.get("content") or "").lstrip().startswith("- "))
+# D7 — the receipt records what the READER gets, not only what the API said.
+check("D7: the receipt carries public reachability when known",
+      receipt.get("publicly_readable") is False, str(receipt))
+check("D7: …and the sidecar body carries it too",
+      "publicly_readable: false" in (_captured.get("content") or ""),
+      (_captured.get("content") or "")[:200])
+# D8 — the receipt CITES the post it was made from.
+check("D8: the receipt is derived_from the post (the provenance edge)",
+      _captured.get("derived_from") == ["/workspace/operation/p/post.html"],
+      str(_captured.get("derived_from")))
 
 print("6. the connect surfaces tell the truth")
 from services.connector_registry import CONNECTOR_REGISTRY  # noqa: E402

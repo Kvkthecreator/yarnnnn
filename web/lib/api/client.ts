@@ -524,7 +524,9 @@ export const api = {
     wordpressSites: () =>
       request<{
         connected: boolean;
-        sites: Array<{ id: string; name: string; url: string }>;
+        // `public` false = private or unlaunched: a post there is live on the
+        // platform but no reader can reach it (ADR-628 D7).
+        sites: Array<{ id: string; name: string; url: string; public: boolean }>;
       }>("/api/publish/wordpress/sites"),
     wordpress: (data: { path: string; site_id: string; status: "publish" | "draft" }) =>
       request<{
@@ -532,6 +534,8 @@ export const api = {
         url: string;
         post_id: string;
         status: string;
+        /** Absent = unresolved, never a silent "fine". */
+        publicly_readable?: boolean;
       }>("/api/publish/wordpress", { method: "POST", body: JSON.stringify(data) }),
   },
 

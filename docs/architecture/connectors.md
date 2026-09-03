@@ -155,9 +155,24 @@ settings survives here too), and every act appends a `_publish.yaml` receipt
 beside the post. **The seam is `services/publish.py`** — every outbound
 platform write crosses it, gate-pinned. An outbound-only connector (no
 capture binding) states its non-capture on the surface rather than omitting
-it. Phase (b) — a standing declaration publishing without a click — is NOT
-built; it begins on phase (a)'s receipts, via ADR amendment, with its own
-narrow non-agent identity.
+it.
+
+**Composition is a CONTRACT, not a transform** (ADR-628 D6, 2026-09-03 — the
+drive). The seam resolves a post's content root (`<main>` → `<article>` →
+`<body>`), drops transport-hostile matter WHOLE (`<style>`/`<script>` with
+their content — a platform strips such tags but KEEPS THEIR TEXT), and
+**refuses** an artifact it cannot compose. There is no "publish the whole
+file" fallback, and its absence is the point: a refusal is recoverable, a
+published post is not. The receipt also records whether a reader can actually
+reach the post (D7) — `status: publish` on an unlaunched site is true and
+useless — and cites the post it was made from (`derived_from`, D8).
+
+Phase (b) — a standing declaration publishing without a click — is NOT built.
+It begins on phase (a)'s receipts **and** on composition fidelity
+demonstrated by round-trip (publish → read the stored post back → diff), via
+ADR amendment, with its own narrow non-agent identity. Receipts alone are not
+the bar: the first real publish produced a perfectly honest receipt for a
+post whose body was 39KB of stylesheet.
 
 ## 7. Gates
 

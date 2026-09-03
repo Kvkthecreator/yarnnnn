@@ -49,7 +49,7 @@ export function StudioPublish({
   const [act, setAct] = useState<
     | { kind: 'idle' }
     | { kind: 'working' }
-    | { kind: 'done'; url: string; status: string }
+    | { kind: 'done'; url: string; status: string; publiclyReadable?: boolean }
     | { kind: 'error'; message: string }
   >({ kind: 'idle' });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -113,7 +113,12 @@ export function StudioPublish({
           site_id: siteId,
           status,
         });
-        setAct({ kind: 'done', url: res.url, status: res.status });
+        setAct({
+          kind: 'done',
+          url: res.url,
+          status: res.status,
+          publiclyReadable: res.publicly_readable,
+        });
       } catch (e) {
         setAct({
           kind: 'error',
@@ -256,6 +261,16 @@ export function StudioPublish({
                   >
                     {act.url}
                   </a>
+                )}
+                {/* ADR-628 D7 — the platform accepted it, but nobody can read
+                    it. Reporting plain success here is the incorrect-success
+                    class pointed outward. Shown only when KNOWN false. */}
+                {act.publiclyReadable === false && (
+                  <p className="text-[10px] leading-snug text-amber-600">
+                    {act.status === 'draft'
+                      ? 'Your site is not launched yet — launch it in WordPress when you want readers.'
+                      : 'Live on your site, but no one can read it yet — the site is private or still “coming soon”. Launch it in WordPress to make this public.'}
+                  </p>
                 )}
               </div>
             )}

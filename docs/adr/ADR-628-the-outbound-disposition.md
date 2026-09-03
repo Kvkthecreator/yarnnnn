@@ -1,8 +1,10 @@
 # ADR-628: The outbound disposition — a post leaves the workspace
 
 **Status**: Ratified 2026-09-01 (design; operator-aligned). **Phase (a) BUILT
-same day** (amendment below): WordPress is the first tenant. Phase (b)
-automation stays gated on phase (a)'s track record.
+same day**: WordPress is the first tenant. **Phase (a) DRIVEN 2026-09-03**
+(second amendment): one real post published + receipted; composition found
+unsafe and rebuilt as a contract (D6/D7). Phase (b) stays SHUT — its
+precondition is now named (D8), not merely "receipts exist".
 
 ## Amendment — 2026-09-01: phase (a) built, WordPress the first tenant
 
@@ -51,6 +53,106 @@ declare its disposition in its first paragraph) · ADR-577 (the credential
 claim: an agent caller is refused) · ADR-594 D2 (reach with a receipt: the
 seam's caller is a string's run) · ADR-591 (no clock on a connection) ·
 ADR-460 D3.a (consequential external authority is unrepresentable on a being).
+
+## Amendment — 2026-09-03: phase (a) DRIVEN. Composition is the unsafe stage.
+
+The click-pass ADR-627/628 left owed has run. A real post left the workspace
+for a real platform: `operation/test-article-2/article.html` →
+`https://yarnnn9.wordpress.com/2026/09/03/test-article/` (post_id 6,
+`status=publish`), receipted at `operation/test-article-2/_publish.yaml`, the
+first row that sidecar has ever held workspace-wide.
+
+**Transport is sound. Composition is not.** Every stage that carries a
+receipt or a refusal worked on the first attempt — the site listing resolved
+state 1 against the live API, the member's credential decrypted, the
+blogger-only guard accepted the legacy `article` through its ADR-627 D1
+alias, the platform call returned, and `write_revision` landed the sidecar
+attributed `operator`. The one stage with **neither a receipt nor a refusal**
+— turning an artifact into platform content — failed three independent ways
+and reported success.
+
+That asymmetry is the finding, and it is what gates phase (b). The other
+stages announce their failures; composition cannot, because it has no
+contract to violate. A standing declaration built on this composer would be
+a machine for reliably publishing malformed posts, each with a receipt saying
+it worked — and an outbound act is irrevocable in the world.
+
+### What the drive found
+
+**F1 — the `<main>` fallback publishes the entire document.** The composer
+read `<main>`'s inner HTML and fell back to the RAW DOCUMENT when absent.
+The legacy outward artifacts wrap their content in `<body><article>`, not
+`<main>` (the native `post` scaffold uses `<main>`; the pre-ADR-627 ones do
+not), so the fallback fired and doctype + `<head>` + `<style>` became the post
+body: 33,978 bytes in, 39,706 out. **The artifact is 98% stylesheet** — its
+real markup is 597 bytes. A fallback that degrades to "everything" is the
+ADR-548 lesson exactly: a plausible default hiding the bug it should surface.
+
+**F2 — WordPress strips `<style>` tags but KEEPS THEIR TEXT.** This is worse
+than local inspection predicted and could not have been found without a real
+platform call. The stylesheet did not vanish; it published as prose, with the
+platform's typographic filter applied to the code — `:root { --ink: #1a1a1a; }`
+as body paragraphs, `'Times New Roman'` smart-quoted to `&#8216;…&#8217;`,
+`aside[data-block="callout"]` as visible text. **A local dry run cannot
+predict what a platform does to bytes it receives.**
+
+**F3 — the `data-*` strip misses CSS attribute selectors.** The pattern
+required leading whitespace (`\s+data-…`); CSS writes `[data-block="callout"]`,
+so 220 occurrences survived. Harmless once F1 is fixed (they only appear
+inside the stylesheet that should never have crossed) — but it is the third
+independent failure of the same three-regex chain, which is the argument
+against regexes here rather than against this one pattern.
+
+**F4 — "Published ✓" while no reader can read it.** The site was in
+"coming soon" mode. The platform genuinely accepted the post and the receipt
+is honest about what the API returned — but the member's actual goal, a
+readable post, was not met, and the surface reported plain success with a
+link that shows a placeholder. The ADR-373 D6 incorrect-success class, in the
+outbound direction.
+
+**F5 — the gate certified its own fixture.** `test_adr628` composed
+`build_skeleton("post", …)`, which ALWAYS carries `<main>`, so all three
+composition defects passed clean. A probe whose only input is the happy shape
+proves the happy shape.
+
+### D6 — Composition is a contract, and a non-conforming artifact is REFUSED
+
+The three-regex chain is DELETED, not patched. In its place the composer
+states what a publishable post is — a document whose content root is
+locatable and whose transport-hostile matter (`<style>`, `<script>`, `<head>`)
+is removed by structure rather than by pattern — and **refuses** anything it
+cannot compose, with a member-readable reason. A refusal is a correct outcome
+here; an incorrect success is not, and only one of the two is recoverable
+once the post is in the world.
+
+The content root resolves `<main>` → `<article>` → `<body>`, in that order,
+covering the legacy shape ADR-627 D1 promised would keep working. When none
+resolves, the act is refused rather than degraded — there is no
+"publish the whole file" branch, and the absence of that branch is the fix.
+
+### D7 — The receipt records what the READER gets, not only what the API said
+
+A receipt that says `status: publish` while the site is private is true and
+useless. The receipt carries the site's visibility alongside the platform's
+answer, and the surface tells the member when a published post is not
+publicly reachable (F4). This is the ADR-445 seat-drift shape once more:
+record the fact, surface the gap, clear it on a later success.
+
+### D8 — Phase (b) stays SHUT, and its precondition is now named
+
+The original text gated phase (b) on "phase (a) has produced real receipts."
+It has: one. That is necessary and NOT sufficient, and this amendment
+supersedes the loose reading. Phase (b) additionally requires **composition
+fidelity demonstrated by round-trip** — publish, read the stored post back
+from the platform, and diff against what was sent. F2 is unfindable any other
+way, and unattended publishing multiplies exactly the class of defect that
+only a round-trip reveals.
+
+The `derived_from` edge is also owed before phase (b): the published post
+today cites nothing. Strings already writes `derived_from=[raws]` for its
+standing writes; a post produced from sources on a schedule must carry the
+same edge, or "what was this made from?" becomes unanswerable at the moment
+it becomes irrevocable.
 
 ## The disposition
 

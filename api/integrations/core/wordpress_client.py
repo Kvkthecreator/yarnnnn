@@ -12,6 +12,13 @@ ADR-594 D1, no per-connection settings). `create_post` is the outbound write,
 reached ONLY through the `services/publish.py` seam (ADR-628 D5; the gate
 pins this). No delete, no update, no media upload — a verb arrives when a
 member act needs it, not because the platform offers it.
+
+`list_sites` also carries each site's PUBLIC REACHABILITY (ADR-628 D7). The
+first real publish landed on an unlaunched site: the platform accepted the
+post, the receipt honestly said `status=publish`, and every reader saw
+"coming soon". Reporting plain success there is the ADR-373 D6
+incorrect-success class pointed outward — so the fact rides along on the
+same call the picker already makes, rather than as a third verb.
 """
 
 from __future__ import annotations
@@ -36,7 +43,11 @@ def _headers(access_token: str) -> dict[str, str]:
 
 
 async def list_sites(access_token: str) -> list[dict[str, Any]]:
-    """The sites this member can publish to — [{id, name, url}], possibly [].
+    """The sites this member can publish to — possibly [].
+
+    Each row is {id, name, url, public} — `public` False when the site is
+    private or still unlaunched ("coming soon"), i.e. when a published post
+    would not be readable by anyone (ADR-628 D7).
 
     An empty list is a REAL state (the three-state connect story, ADR-628
     amendment: a WordPress.com login with no site yet) — the caller renders
@@ -46,7 +57,7 @@ async def list_sites(access_token: str) -> list[dict[str, Any]]:
         resp = await client.get(
             f"{_API_BASE}/me/sites",
             headers=_headers(access_token),
-            params={"fields": "ID,name,URL"},
+            params={"fields": "ID,name,URL,is_private,is_coming_soon,launch_status"},
         )
     if resp.status_code != 200:
         raise WordPressError(f"me/sites failed ({resp.status_code}): {resp.text[:200]}")
@@ -56,10 +67,24 @@ async def list_sites(access_token: str) -> list[dict[str, Any]]:
             "id": str(s.get("ID")),
             "name": (s.get("name") or "").strip() or (s.get("URL") or ""),
             "url": s.get("URL") or "",
+            "public": _is_public(s),
         }
         for s in sites
         if s.get("ID")
     ]
+
+
+def _is_public(site: dict[str, Any]) -> bool:
+    """Would a stranger be able to read a post on this site?
+
+    Absence is treated as PUBLIC: these fields are WordPress.com-specific and
+    a Jetpack-connected self-hosted site may omit them. A missing field must
+    not manufacture a warning about a site that is in fact reachable — the
+    banner exists to catch the real unlaunched case, not to nag on silence.
+    """
+    if site.get("is_private") is True or site.get("is_coming_soon") is True:
+        return False
+    return str(site.get("launch_status") or "").lower() != "unlaunched"
 
 
 async def create_post(
