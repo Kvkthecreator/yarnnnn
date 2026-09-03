@@ -2,6 +2,7 @@
 name: comparing-options
 description: Compares two or more options, vendors, approaches, or document versions on stated criteria, with evidence from workspace files and the web, into a decision table with a recommendation and its assumptions. Use when asked X versus Y, which to pick, pros and cons, or a tradeoff.
 metadata:
+  apps: [text, blogger, slides]
   target: One comparison (.md) with a criteria-by-options table, a recommendation, and its assumptions, every cell cited.
 ---
 # Comparing options

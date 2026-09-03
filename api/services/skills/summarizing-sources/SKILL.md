@@ -2,6 +2,7 @@
 name: summarizing-sources
 description: Condenses workspace files, folders, or pages into a brief that cites its sources (key points, what changed, open questions). Use when asked to summarize, brief, recap, digest a folder, catch someone up, or synthesize notes, especially across several files.
 metadata:
+  apps: [text, blogger, slides]
   target: One brief (.md) in the sources' meaning-folder, every claim cited by path, sources named.
 ---
 # Summarizing sources

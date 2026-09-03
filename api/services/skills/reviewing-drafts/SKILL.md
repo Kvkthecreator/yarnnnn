@@ -2,6 +2,7 @@
 name: reviewing-drafts
 description: Reviews a draft, document, or plan against explicit criteria (correctness, unsupported claims, missing context, structure, house style) into findings anchored to passages, plus the questions the author should answer. Use when asked for feedback, a review, a critique, a sanity check, or readiness.
 metadata:
+  apps: [text, blogger, slides]
   target: A findings list, in the conversation or as a sibling review .md — never edits to the draft itself.
 ---
 # Reviewing drafts

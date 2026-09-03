@@ -5,6 +5,22 @@
 > **Amends**: ADR-450 (the recipe registry becomes the skills folder; D1's "kernel-internal, never substrate" is superseded — kernel skills are code MIRRORED as files) · ADR-562 D4 (a recipe may name a resident — retired: a skill is craft, not identity) · ADR-579 D9 (its reversal condition is met: the brief returns as `summarizing-sources` WITH its door) · ADR-254 (SKILL.md's frontmatter is a named exception) · ADR-464 D3/D4 (skills are workspace-level and read on demand, not per-agent and composed every turn) · ADR-157 (referential playbook injection — the dead first instance is deleted).
 > **Preserves**: ADR-601 D1 (the pane's GRAMMAR stays derived from the app's registries — a skill never restates it), ADR-533 (the kernel contract constants), ADR-464 §3 (prose is not permission), ADR-596 D2 (whoever a fact constrains must not be its unguarded author — a skill constrains craft, not reach), ADR-414 D4 (pure genesis — the mirror lands on first use, nothing is seeded at birth), ADR-209 (every mirror write is an attributed revision through the one write path).
 
+
+> **Amended 2026-09-03 by [ADR-633](ADR-633-the-artboard-is-a-stack-of-layers.md).**
+> Two things this ADR left open, closed by the ninth skill.
+> **(a) The Images pane had no craft of its own** — it was offered six skills,
+> all six document-shaped, which is the same document-native-model-over-a-
+> compositor defect ADR-633 fixed in the inspector. `composing-an-image` is its
+> craft; `comparing-options`, `reviewing-drafts` and `summarizing-sources` now
+> scope to the prose panes.
+> **(b) The kernel index budget was declarative.** `INDEX_CEILING` was asserted
+> by the gate but ignored at composition, so the UNBOUND lane — which filters
+> nothing by construction — composed 3,239/3,000 the moment a ninth skill
+> landed. It is now enforced where the member half already was, and the open
+> surface gets its own `UNBOUND_INDEX_CEILING` rather than truncating real
+> craft by alphabetical accident (§3b's promise: narrowing the open surface
+> hides work that has no other door).
+
 ## 1. Context — three layers filled the SKILL.md role, none of them a file
 
 Before this ADR the role Claude Code's SKILL.md plays was split across three code homes: the kernel participant constants (universal contract), the app's pane posture (per-app, derived, composed every turn — 87% of a Slides frame), and `DERIVE_RECIPES` (per-task prose, three rows, reachable only through a lane binding at a click door). ADR-464 had built member skills as files in July, per agent and composed into every turn; ADR-599 deleted them with the member-agent machinery. Only the manifests carried the authority risk; the skills left with them.

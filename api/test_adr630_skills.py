@@ -33,7 +33,11 @@ from services import skills as sk  # noqa: E402
 
 print("§1 the kernel set — the Agent Skills shape, name == folder, discovery-grade descriptions")
 K = sk._load_kernel()
-_check("eight kernel skills", len(K) == 8, str(sorted(K)))
+# A COUNT is not the invariant — a hand-kept number reads GROWTH as a
+# violation, which is exactly what it did when ADR-633 added the Images
+# craft (8 → 9). Assert the FLOOR and that every skill is well-formed;
+# the per-skill shape checks below are what actually hold the set honest.
+_check("the kernel set is non-trivial", len(K) >= 8, str(sorted(K)))
 _check("the migrated three are present under verb names",
        {"deriving-a-design-system", "writing-a-spec", "presenting-from-sources"} <= set(K))
 _check("the brief returned with its door (ADR-579 D9 reversal condition)", "summarizing-sources" in K)
@@ -62,7 +66,32 @@ _check("parses name/description/metadata/title/body", good["title"] == "Title he
 print("§3 the frame carries the INDEX, bounded, and the body only on demand")
 idx = sk.skills_index_section()
 _kernel_bytes = len(idx.encode())
-_check("kernel index under its ceiling", _kernel_bytes <= sk.INDEX_CEILING, f"{_kernel_bytes} > {sk.INDEX_CEILING} — tighten a description, do not raise the ceiling (DP22)")
+# TWO ceilings, both enforced at COMPOSITION (ADR-633 amendment). The bound
+# panes ratchet tight; the unbound lane carries every skill by construction and
+# gets its own, higher number rather than truncating real craft by alphabetical
+# accident. Measure each against its own — the gate previously held the unbound
+# index to the bound ceiling, which is what made a ninth skill look like a
+# prose problem when it was a missing-budget problem.
+_check("unbound index under its ceiling", _kernel_bytes <= sk.UNBOUND_INDEX_CEILING, f"{_kernel_bytes} > {sk.UNBOUND_INDEX_CEILING} — tighten a description, do not raise the ceiling (DP22)")
+for _app in ("slides", "images", "text", "blogger"):
+    _b = len(sk.skills_index_section(app=_app).encode())
+    _check(f"{_app} index under the bound ceiling", _b <= sk.INDEX_CEILING, f"{_b} > {sk.INDEX_CEILING} — tighten a description, do not raise the ceiling (DP22)")
+# The budget must be REAL, not merely asserted: a pathological kernel has to
+# self-truncate rather than compose unbounded. (The member half had this from
+# the start; the kernel half did not, and that asymmetry is the defect.)
+_fake = {f"s{i}": {"path": f"system/skills/s{i}/SKILL.md", "description": "X" * 280, "apps": None} for i in range(20)}
+_real_loader = sk._load_kernel
+try:
+    sk._load_kernel = lambda: _fake
+    _big = sk.skills_index_section()
+    _check("the kernel index self-truncates at composition", len(_big.encode()) <= sk.UNBOUND_INDEX_CEILING, f"{len(_big.encode())} bytes from 20 skills")
+    _check("what truncation withholds is named and reachable", "ListFiles system/skills/" in _big)
+    import re as _re
+    _m = _re.search(r"…and (\d+) more under system/skills/", _big)
+    _shown = _big.count("/SKILL.md —")
+    _check("the truncated count is truthful", bool(_m) and _shown + int(_m.group(1)) == 20, f"shown={_shown} +{_m.group(1) if _m else '?'} != 20")
+finally:
+    sk._load_kernel = _real_loader
 _check("index lists every kernel path", all(sk.kernel_skill_path(s) in idx for s in K))
 _check("index carries descriptions, never bodies", "## Steps" not in idx and "Quality bar" not in idx)
 # A member description is written FOR DISCOVERY (the kernel's average is ~330
@@ -170,7 +199,10 @@ try:
     r2 = sk.ensure_kernel_skills(_c, "u1", workspace_id="w1")
 finally:
     _as.write_revision = _real
-_check("first pass writes every skill + the manifest", r1["written"] == 8 and len(_c.writes) == 9)
+# DERIVED, never pinned: `== 8` read the ninth skill (ADR-633's Images craft)
+# as a violation. The invariant is "every kernel skill, plus the manifest".
+_N = len(sk._load_kernel())
+_check("first pass writes every skill + the manifest", r1["written"] == _N and len(_c.writes) == _N + 1, f"written={r1['written']} writes={len(_c.writes)} for {_N} skills")
 _check("every write is the kernel's", all(a == sk.KERNEL_SKILLS_AUTHOR for _, a in _c.writes))
 _check("lands under system/skills/ (the locked root)", all(p.startswith("/workspace/system/skills/") for p, _ in _c.writes))
 _check("second pass is a no-op (manifest match)", r2["skipped"] is True and r2["written"] == 0)

@@ -38,14 +38,19 @@ belongs to another pane; an unbound lane (open chat) is offered everything,
 because that is where a member goes for any kind of work. What is withheld is
 NAMED with its count and the ListFiles that reaches it — hidden at
 PRESENTATION only, never at authorization (the ADR-395 precedent): the mirror
-still lands all eight in every workspace, and any of them reads fine.
+still lands every skill in every workspace, and any of them reads fine.
 
 MANAGEMENT DISCIPLINE: every `SKILL.md` here is LLM-facing content — an edit
 gets an api/prompts/CHANGELOG.md entry (prompt change protocol), and a skill
 earns a Hat-B eval probe as it matures. The index is bounded by TWO budgets,
-both in bytes: `INDEX_CEILING` ratchets the kernel lines (ours, gated), and
-`MEMBER_INDEX_ALLOWANCE` bounds the member lines at composition — so neither
-the prose we write nor the prose members write can grow the frame silently.
+both in bytes and BOTH enforced at composition: `INDEX_CEILING` ratchets the
+kernel lines a BOUND pane carries (`UNBOUND_INDEX_CEILING` for open chat, which
+filters nothing and must still keep its every-kind-of-work promise), and
+`MEMBER_INDEX_ALLOWANCE` bounds the member lines — so neither the prose we
+write nor the prose members write can grow the frame silently. The kernel half
+was declarative until ADR-633 added a ninth skill and the unbound lane composed
+3,239/3,000 unchecked: a ratchet a gate asserts but composition ignores is a
+ratchet the frame can walk straight past.
 """
 
 from __future__ import annotations
@@ -78,6 +83,23 @@ KERNEL_SKILLS_AUTHOR = "system:kernel-skills"
 #: Raising it needs the same evidence as adding a prompt instruction
 #: (DP22 / ADR-306).
 INDEX_CEILING = 3_000
+#: The UNBOUND lane's ceiling — the open chat surface, which by construction
+#: filters nothing and therefore carries every kernel skill.
+#:
+#: A SECOND number, not a raised first one, because the two answer different
+#: questions. `INDEX_CEILING` ratchets a BOUND pane, where scoping already does
+#: the work and the tight bound is what keeps us honest about per-turn cost.
+#: This one bounds a surface whose whole job is that a member can ask for any
+#: kind of work — ADR-630 §3b states it directly: "the open surface is where a
+#: member goes for any kind of work: narrowing it would hide work that has no
+#: other door." Truncating it drops real skills by ALPHABETICAL ACCIDENT
+#: (at 9 skills: `writing-a-spec` and `writing-updates`), which is a worse
+#: outcome than the bytes it saves.
+#:
+#: Sized to hold today's nine with headroom for one more, so it is a real
+#: ratchet and not a blank cheque. Raising EITHER number needs the same
+#: evidence as adding a prompt instruction (DP22 / ADR-306).
+UNBOUND_INDEX_CEILING = 3_400
 #: The MEMBER index's allowance, enforced at composition. A separate number
 #: because it answers a different question: the kernel ceiling ratchets prose
 #: we write, this bounds prose members write. Sized for ~8 discovery-grade
@@ -220,6 +242,17 @@ def _overflow_line(n: int) -> str:
     )
 
 
+def _kernel_overflow_line(n: int) -> str:
+    """The kernel half's escape hatch. Named (not inlined) because the budget
+    loop must RESERVE its length before admitting a line — the same discipline
+    the member loop already followed, and the reason its budget could never
+    overflow while the kernel's could."""
+    return (
+        f"- …and {n} more under system/skills/ for other kinds of "
+        "work — ListFiles system/skills/ to see them."
+    )
+
+
 def _applies_to(skill: dict, app: Optional[str]) -> bool:
     """Does this skill belong in the index of a lane running `app`?
 
@@ -252,14 +285,43 @@ Two budgets, enforced at composition.
     """
     lines = [_INDEX_HEAD]
     kernel = [m for m in _load_kernel().values() if _applies_to(m, app)]
-    for meta in kernel:
-        lines.append(f"- {meta['path']} — {meta['description']}")
-    hidden = len(_load_kernel()) - len(kernel)
+    # Two ways a kernel line can be withheld, ONE escape hatch.
+    #
+    # (1) SCOPE — the skill declares `apps` and this lane is not one of them.
+    # (2) BUDGET — the lines that DO apply no longer fit INDEX_CEILING.
+    #
+    # (2) used to be unenforced: the ceiling was a gate-only ratchet, so a
+    # BOUND lane stayed small (its filter did the work) while the UNBOUND lane
+    # — which by definition filters nothing — composed every kernel line into
+    # every turn, unchecked. Adding the ninth skill (ADR-633's `composing-an-
+    # image`) put it at 3,239/3,000, and scoping could not fix it: `app=None`
+    # means "no filter", so an open chat sees everything by construction.
+    #
+    # This is the same lesson as the member budget one commit earlier (a count
+    # cap is not a byte cap), in the half that was left declarative. The
+    # withheld ones are NAMED with a count and a ListFiles — presentation, never
+    # authorization: the mirror still lands all nine and any of them reads fine.
+    # The bound panes ratchet tight; the open surface gets its own, higher
+    # ceiling so it can keep its promise (ADR-630 §3b).
+    ceiling = INDEX_CEILING if app else UNBOUND_INDEX_CEILING
+    kept: list[str] = []
+    used = len(_INDEX_HEAD.encode())
+    withheld_by_budget = 0
+    for i, meta in enumerate(kernel):
+        line = f"- {meta['path']} — {meta['description']}"
+        # Reserve room for the overflow line this admission might force, so the
+        # escape hatch can always be written (the member loop's discipline).
+        remaining = len(_load_kernel()) - len(kept) - 1
+        reserve = len(_kernel_overflow_line(max(remaining, 1)).encode()) + 1
+        if used + len(line.encode()) + 1 + reserve > ceiling:
+            withheld_by_budget = len(kernel) - i
+            break
+        kept.append(line)
+        used += len(line.encode()) + 1
+    lines.extend(kept)
+    hidden = (len(_load_kernel()) - len(kernel)) + withheld_by_budget
     if hidden:
-        lines.append(
-            f"- …and {hidden} more under system/skills/ for other kinds of "
-            "work — ListFiles system/skills/ to see them."
-        )
+        lines.append(_kernel_overflow_line(hidden))
 
     members = [
         m for m in (member_skills or []) if _applies_to(m, app)
@@ -469,7 +531,8 @@ def mirror_kernel_skills_for_all_workspaces(client: Any) -> dict:
 
 __all__ = [
     "KERNEL_SKILLS_PREFIX", "MEMBER_SKILLS_PREFIX", "KERNEL_MANIFEST_PATH",
-    "KERNEL_SKILLS_AUTHOR", "INDEX_CEILING", "MEMBER_INDEX_ALLOWANCE",
+    "KERNEL_SKILLS_AUTHOR", "INDEX_CEILING", "UNBOUND_INDEX_CEILING",
+    "MEMBER_INDEX_ALLOWANCE",
     "MEMBER_INDEX_CAP",
     "parse_skill", "list_skills", "get_skill", "kernel_skill_path", "kernel_manifest",
     "skills_index_section", "read_member_skills", "build_skill_section",

@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.03.2] - The Images pane gets its craft, and the kernel index gets a real budget (ADR-633)
+
+### Changed
+- `services/skills/composing-an-image/SKILL.md` — NEW, `apps: [images]`. The composition craft: build the stack bottom-up with an explicit `data-z` on every layer, place by coordinate (both `data-x` and `data-y` — one without the other is not positioned), earn legibility before styling, three type sizes not five. Quality bar leads with the THUMBNAIL TEST. Anti-patterns name the document habits that were leaking onto artboards (prose blocks, centring everything, text straight onto a busy photo).
+- `services/skills/{comparing-options,reviewing-drafts,summarizing-sources}/SKILL.md` — declare `apps: [text, blogger, slides]`. Their product is a written brief, critique or decision table; an artboard and a standing string have no use for them.
+- `services/skills/__init__.py` — the KERNEL index is now bounded at COMPOSITION, not only by a gate. Two ceilings: `INDEX_CEILING` (3,000) for a bound pane, new `UNBOUND_INDEX_CEILING` (3,400) for open chat. Withheld lines are named with a count + `ListFiles system/skills/` — the escape hatch the member half already had.
+- Why: the Images pane was offered six skills and ALL SIX were document skills (compare options, review drafts, summarize sources…). There was no skill about composing an image at all — the §1.4 document-native defect surviving in the frame after the inspector was fixed. Separately, adding a ninth skill put the unbound index at 3,239/3,000: the kernel budget was gate-asserted but composition-ignored, so the open lane could walk straight past it. A ratchet a gate asserts and composition ignores is not a ratchet.
+- Why TWO ceilings rather than one raised: ADR-630 §3b states that the open surface is where a member goes for any kind of work and narrowing it hides work with no other door. Truncating it dropped `writing-a-spec` and `writing-updates` by alphabetical accident — worse than the bytes saved. A bound pane, where scoping already does the work, keeps the tight bound.
+- Expected behavior: an Images lane now sees `composing-an-image` and no longer pays for three document skills — 2,415 → 1,390 bytes (−42%). Slides/Text/Blogger unchanged at 2,396/2,722/2,396. Open chat still lists all nine (3,239/3,400). A bound pane's frame cannot silently grow past its ceiling on either axis.
+- Gate: `test_adr630_skills.py` 117/117 (was 107) — each lane measured against ITS OWN ceiling, plus falsifiers that a pathological 20-skill kernel self-truncates, names what it withheld, and reports a truthful count.
+- Fixed in passing: two hand-pinned counts in that gate (`len(K) == 8`, `written == 8 and writes == 9`) read the ninth skill as a violation. Both now derive from the roster — a count cap pinned by hand reads GROWTH as a defect.
+
+---
+
 ## [2026.09.03.1] - The artboard is a stack of layers (ADR-633)
 
 ### Changed
