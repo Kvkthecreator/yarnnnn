@@ -79,6 +79,20 @@ The name is load-bearing: it was named IMAGES because the point is image *genera
 
 ### D2 — The object layer is EXTRACTED to a shared kernel, never forked, never left behind
 
+> **Amended 2026-09-03 by [ADR-633](ADR-633-the-artboard-is-a-stack-of-layers.md) D1
+> — the KERNEL stays shared; the CHROME does not.** This decision is not
+> reversed and must not be read as licence to fork: the `.slide` frame class,
+> the geometry measures and their kernel CSS, `artifactOps`, the selection
+> algebra, `StudioSurface`/`StudioCanvas` and the token registries remain ONE
+> implementation with two consumers, and ADR-633 F7 gates that they acquire no
+> app conditional. What ADR-633 carves is the layer this ADR never reached: the
+> RAIL (a sequence for `pages`, a layer tree for `layers`), the object NOUN
+> (Slide vs Artboard) and the inspector's artboard-grained sections. Those were
+> never *chosen* to be shared — IMAGES fell through `layout === 'deck'` onto the
+> document branch, which is why one object came to wear two wrong names. §3's
+> four-layer table already predicted this split: three layers diverge and the
+> middle one converges, and the middle one is the kernel.
+
 **This is the decision the coupling audit forced.** Canvas's whole positioning capability (`x`/`y`/`z`/`w`/`h`) is delivered under a grain literally named **`block-deck`**, with the `.slide` frame class as its boundary. A grep-for-`canvas` extraction would move the layout, the arrangement, and the aspect token, and leave IMAGES with artboards on which **nothing can be positioned**.
 
 Therefore:

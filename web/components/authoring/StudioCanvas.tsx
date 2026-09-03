@@ -24,6 +24,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { WorkspaceFile } from '@/types';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { readStageSize } from '@/components/authoring/stageGeometry';
+import type { ObjectModel } from './structureLabels';
 
 /** ADR-462 D7: a right-click's report. The runtime has already selected the
  *  block under the cursor; this carries the anchor + the grain the menu builds
@@ -139,6 +140,14 @@ interface StudioCanvasProps {
    *  substrate's `data-block` attribute. Same projection-input discipline as
    *  `measureBounds`: memoized upstream, or the frame reloads every render. */
   blockLabels?: Record<string, string>;
+  /** ADR-633 D3 — the app's object model, which NAMES the frame: an artboard
+   *  is an "Artboard", a deck's frame is a "Slide". The runtime's own chrome
+   *  (the frame label it draws in-canvas) must say the SAME word the pane's
+   *  crumb says — a canvas that labels the object "Slide" while the breadcrumb
+   *  says "Artboard" is §1.1's defect surviving in the half nobody threaded.
+   *  Same projection-input discipline as `blockLabels`: it is baked into the
+   *  injected script, so a value that lands late must re-inject. */
+  objectModel?: ObjectModel;
   /** ADR-544 D5.1 — the runtime refused a gesture (today: a ⇧-click that would
    *  build a set spanning two Areas). The surface says why; the runtime never
    *  writes operator-facing words. */
@@ -320,6 +329,7 @@ export function StudioCanvas({
   mode,
   measureBounds,
   blockLabels,
+  objectModel,
   onRefused,
   onEditExited,
   onEditEntered,
@@ -435,7 +445,7 @@ export function StudioCanvas({
     // (harmless when nothing is being edited; the runtime idles until the
     // parent commands enter). One render mode keeps the projection stable
     // across select→edit→select without reloading the frame.
-    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true, mode, measureBounds, blockLabels })
+    resolveArtifactHtml(content, artifactPath, { pointer: true, edit: true, mode, measureBounds, blockLabels, objectModel })
       .then((html) => !cancelled && setProjected(html))
       // NEVER fall back to raw content: the iframe allows scripts, and only
       // the projection pass strips artifact-authored executables. A blank
@@ -454,7 +464,7 @@ export function StudioCanvas({
     // ADR-485 D3: `measureBounds` is a projection input for the same reason —
     // it is baked into the injected script, so a vocabulary that lands after
     // the first projection must re-inject or the gesture keeps the fallback.
-  }, [content, artifactPath, mode, measureBounds, blockLabels]);
+  }, [content, artifactPath, mode, measureBounds, blockLabels, objectModel]);
 
   // Command the iframe's edit runtime when the surface's editing state changes
   // AND on every fresh load (a reload after a commit reinjects the runtime; it

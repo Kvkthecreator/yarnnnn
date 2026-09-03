@@ -25,7 +25,7 @@
  */
 
 import { useMemo } from 'react';
-import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
+import { frameNoun, labelForElement, STRUCTURAL_PAGE_SEL, type ObjectModel } from './structureLabels';
 import type { StudioSelection } from './StudioToolbar';
 
 /** The minimal element surface the climb needs — DOM in the app, stubs in
@@ -64,7 +64,20 @@ interface CrumbSegment {
   current: boolean;
 }
 
-function pageNoun(layout: string, index: number): string {
+/** The crumb's PAGE-grain segment: the frame's noun, numbered.
+ *
+ *  ADR-633 D3 — on `layers` this is the artboard, so the word comes from
+ *  `frameNoun()` (the ONE source, D6) rather than a second `layout === 'deck'`
+ *  ternary. That ternary is precisely how an artboard came to read "Slide" in
+ *  the innermost crumb rung and "Sections" in the rail: images was never NAMED
+ *  by it, it fell through onto the document branch.
+ *
+ *  `pages`/`flow` keep their exact pre-633 words — `flow` still reads
+ *  "Section N" because a document's top-level section is not a frame the app
+ *  gives its own noun, and the crumb is paged-only anyway (this component does
+ *  not mount on flow). */
+function pageNoun(layout: string, objectModel: ObjectModel, index: number): string {
+  if (objectModel === 'layers') return `${frameNoun(objectModel)} ${index + 1}`;
   return layout === 'deck' ? `Slide ${index + 1}` : `Section ${index + 1}`;
 }
 
@@ -89,6 +102,7 @@ export function sharedChain(
 export function SelectionBreadcrumb({
   html,
   layout,
+  objectModel,
   selection,
   groupIds,
   blockLabels,
@@ -98,6 +112,11 @@ export function SelectionBreadcrumb({
   /** The artifact's SOURCE html (load-normalized — containers carry identity). */
   html: string;
   layout: string;
+  /** ADR-633 D2 — the app's declared property model. The crumb names the frame
+   *  with the app's word ("Artboard" on IMAGES), never the `.slide` class's.
+   *  Required, like the field it comes from: a default here would restore the
+   *  fall-through D2 deletes. */
+  objectModel: ObjectModel;
   selection: StudioSelection;
   /** ADR-519 D4.1 — the ⇧-click set. Over a set the chain names the SHARED
    *  parent and the count, never the primary's own label: the innermost rung
@@ -128,7 +147,7 @@ export function SelectionBreadcrumb({
       return {
         pageIndex: selectedPageIndex,
         segments: [
-          { blockId: null, label: pageNoun(layout, selectedPageIndex), kind: null, current: true },
+          { blockId: null, label: pageNoun(layout, objectModel, selectedPageIndex), kind: null, current: true },
         ],
       };
     }
@@ -145,7 +164,7 @@ export function SelectionBreadcrumb({
     const chain = climbChain(el as unknown as ClimbableElement, pageEl as unknown as ClimbableElement);
     const seg = (node: Element, current: boolean): CrumbSegment => ({
       blockId: node.getAttribute('data-block-id'),
-      label: labelForElement(node, blockLabels),
+      label: labelForElement(node, blockLabels, null, objectModel),
       kind: node.getAttribute('data-block'),
       current,
     });
@@ -174,7 +193,7 @@ export function SelectionBreadcrumb({
         return {
           pageIndex: idx,
           segments: [
-            { blockId: null, label: pageNoun(layout, idx), kind: null, current: false },
+            { blockId: null, label: pageNoun(layout, objectModel, idx), kind: null, current: false },
             ...shared.map((c) => seg(c as unknown as Element, false)),
             { blockId: null, label: `${ids.length} objects`, kind: null, current: true },
           ],
@@ -185,12 +204,12 @@ export function SelectionBreadcrumb({
     return {
       pageIndex: idx,
       segments: [
-        { blockId: null, label: pageNoun(layout, idx), kind: null, current: false },
+        { blockId: null, label: pageNoun(layout, objectModel, idx), kind: null, current: false },
         ...chain.map((c) => seg(c as unknown as Element, false)),
         seg(el, true),
       ],
     };
-  }, [html, layout, groupIds, blockLabels, selection.blockId, selection.slideIndex, selection.pageIndex]);
+  }, [html, layout, objectModel, groupIds, blockLabels, selection.blockId, selection.slideIndex, selection.pageIndex]);
 
   if (!segments.length) return null;
 

@@ -86,7 +86,7 @@ import {
 // ADR-542 D2 — the one token-admittance function (scope × grains).
 import { admits } from './tokenGrammar';
 import { climbChain } from './SelectionBreadcrumb';
-import { labelForElement, STRUCTURAL_PAGE_SEL } from './structureLabels';
+import { labelForElement, STRUCTURAL_PAGE_SEL, type ObjectModel } from './structureLabels';
 // ADR-487 D9: the Design tab reads the skin only to PAINT the controls
 // (skinVarMap + resolveSkinVar). The var-LIST parse belongs to the manage panel
 // alone now — the system-as-object register. Importing it here again would
@@ -241,6 +241,11 @@ interface StudioDesignTabProps {
   vocabulary: StudioVocabulary | null;
   /** The artifact's layout slug (document/deck/article). */
   layout: string;
+  /** ADR-633 D2/D3 — the app's declared object model. Names the FRAME in the
+   *  path chain and the Contents rows ("Artboard" on a composition surface).
+   *  A prop, not a local `layout === 'image'` derivation: the whole point of
+   *  D2 is that the model is DECLARED by the app and threaded down. */
+  objectModel: ObjectModel;
   /** The artifact's SOURCE html — token values + skin ref parse from it. */
   html: string;
   selection: StudioSelection | null;
@@ -1153,6 +1158,10 @@ function walkContents(
   root: Element,
   labels: Record<string, string>,
   mode: 'flow' | 'paged',
+  // ADR-633 D3 — the frame's noun follows the app's declared model, so the
+  // Contents rows say "Artboard" on a composition surface and "Slide" on a
+  // deck. Threaded, never derived here (D2).
+  objectModel?: ObjectModel | null,
 ): StructNode[] {
   const out: StructNode[] = [];
   const walk = (el: Element, depth: number) => {
@@ -1162,7 +1171,7 @@ function walkContents(
       if (isBlock && id) {
         out.push({
           blockId: id,
-          label: labelForElement(child, labels, mode),
+          label: labelForElement(child, labels, mode, objectModel),
           kind: child.getAttribute('data-block'),
           depth,
           text: (child.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
@@ -1172,7 +1181,7 @@ function walkContents(
       if (!isBlock && id && child.tagName === 'DIV') {
         out.push({
           blockId: id,
-          label: labelForElement(child, labels, mode),
+          label: labelForElement(child, labels, mode, objectModel),
           kind: null,
           depth,
           text: '',
@@ -1331,6 +1340,7 @@ function LayoutRows({
 export function StudioDesignTab({
   vocabulary,
   layout,
+  objectModel,
   html,
   selection,
   onSetToken,
@@ -1412,6 +1422,7 @@ export function StudioDesignTab({
    *  ADR-528: hoisted above the scope computation — scope is now DERIVED from
    *  the tier, and the tier needs the medium. */
   const mode = vocabulary?.layouts.find((l) => l.slug === layout)?.mode ?? 'flow';
+
 
   /** ADR-544 D4 — the operator's words for block kinds, from the registry that
    *  already declares them. Every label this pane renders derives from here;
@@ -1496,6 +1507,21 @@ export function StudioDesignTab({
     }
     return null;
   }, [doc, selection]);
+
+  /** ADR-544 D3 / ADR-633 D5 — the ARTBOARD predicate, derived ONCE.
+   *
+   *  A block on an IMAGES stage, never a deck slide. Both wear `.slide` (the
+   *  frame class IS the staged grain, ADR-472 D2), so the two are told apart by
+   *  the LAYOUT — the only fact that distinguishes a composition surface from a
+   *  slide.
+   *
+   *  This lived inside the `applicable` memo, which was fine while the grain
+   *  gated only tokens. ADR-633 D5 gives it a second consumer (Turn into is
+   *  WITHDRAWN on an artboard — converting a composed layer to a bulleted list
+   *  is a document act offered on a compositor surface), and a predicate
+   *  spelled twice is the drift this file has paid for before. One derivation,
+   *  two readers. */
+  const isArtboardSel = !!selectedEl?.closest('.slide') && layout === 'image';
 
   const tokens = vocabulary?.tokens ?? [];
   const mediaKinds = vocabulary?.media_kinds ?? [];
@@ -1602,14 +1628,14 @@ export function StudioDesignTab({
     return climbChain(selectedEl, pageEl)
       .map((el) => ({
         blockId: el.getAttribute('data-block-id') ?? '',
-        label: labelForElement(el, labelMap, mode),
+        label: labelForElement(el, labelMap, mode, objectModel),
       }))
       .filter((c) => c.blockId);
-  }, [selectedEl, pageEl, scope, mode]);
+  }, [selectedEl, pageEl, scope, mode, labelMap, objectModel]);
   const contents = useMemo(() => {
     if (!selectedEl || (scope !== 'page' && scope !== 'container')) return [];
-    return walkContents(selectedEl, labelMap, mode);
-  }, [selectedEl, scope, mode]);
+    return walkContents(selectedEl, labelMap, mode, objectModel);
+  }, [selectedEl, scope, mode, labelMap, objectModel]);
   /** ADR-620 D4 — what the compose chip shows the member: this slide's blocks,
    *  by kind, with their current words. Derived HERE because this pane already
    *  holds the parsed document; deriving it again in the surface would be a
@@ -1751,9 +1777,16 @@ export function StudioDesignTab({
    *  A span may have no clicked primary, so every `selection` read here is
    *  optional — a null current kind just means no row is excluded as "what
    *  the block already is". */
+  /*  ADR-633 D5 — WITHDRAWN on an artboard. Turn into is a DOCUMENT act: it
+   *  re-registers a block's semantic kind (a paragraph becomes a quote, a list
+   *  becomes a checklist). On a composition surface the member is placing a
+   *  layer, and the pane was offering to convert an ad's headline into a
+   *  bulleted list — the clearest single symptom of ADR-633 §1.4, a
+   *  document-native property model rendered over a compositor. */
   const turnIntoSection =
-    (selection?.blockKind && isConvertible(vocabulary?.blocks, selection.blockKind)) ||
-    multiBlockRange ? (
+    !isArtboardSel &&
+    ((selection?.blockKind && isConvertible(vocabulary?.blocks, selection.blockKind)) ||
+      multiBlockRange) ? (
       <div className={SECTION}>
         <p className={HEADING}>Turn into</p>
         <div className="flex flex-wrap gap-1">
@@ -1813,12 +1846,13 @@ export function StudioDesignTab({
       // have rendered everywhere. Same `.slide` ancestry test, one meaning.
       const isStaged = !!selectedEl?.closest('.slide');
       // ADR-544 D3 — `artboard` is the NARROWER staged predicate: an IMAGES
-      // stage, never a deck slide. Both wear `.slide` (the frame class IS the
-      // staged grain, ADR-472 D2), so the two are told apart by the LAYOUT —
-      // the only fact that distinguishes a composition surface from a slide.
-      // Free position (x/y/z) moved to this grain when the containment law
-      // took it away from decks; SIZE still admits `staged`, i.e. both frames.
-      const isArtboard = isStaged && layout === 'image';
+      // stage, never a deck slide. Free position (x/y/z) moved to this grain
+      // when the containment law took it away from decks, and ADR-633 D5's
+      // layer essentials (opacity/blend/lock/hide) join it there; SIZE still
+      // admits `staged`, i.e. both frames.
+      // Derived ONCE above (`isArtboardSel`) — Turn into reads the same
+      // predicate, and spelling it twice is how the two would drift apart.
+      const isArtboard = isArtboardSel;
       // ADR-542 D2 — ONE admitting function; this memo only resolves the
       // predicates its scope can evaluate (the `flow` grain still means
       // "unstaged on a flow layout", exactly as the inline chain it replaces).
@@ -1845,7 +1879,7 @@ export function StudioDesignTab({
       );
     }
     return [];
-  }, [scope, tokens, mediaKinds, selection, selectedEl, arrangements, layout, mode]);
+  }, [scope, tokens, mediaKinds, selection, selectedEl, arrangements, layout, mode, isArtboardSel]);
 
 
   // ── Document scope: root-grain tokens (ADR-455) + the design-system

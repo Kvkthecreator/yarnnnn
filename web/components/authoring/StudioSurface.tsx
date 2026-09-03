@@ -76,12 +76,13 @@ import {
 } from './StudioToolbar';
 // ADR-539 D1 — kindTier reads the served tier (falling back to the runtime's
 // pinned copy), so a parent-side reach and the pane consult one declaration.
-import { StudioDesignTab, kindTier, type StructVerb } from './StudioDesignTab';
+import { StudioDesignTab, kindTier, blockLabelMap, type StructVerb } from './StudioDesignTab';
 // ADR-541 D2 — the one selection algebra (the pane reads the same two).
 import { arityOf, scopeOf, spanShapeOf, unify, type SpanShape } from './selection';
 import { StudioShareExport } from './StudioShareExport';
 import { StudioPublish } from './StudioPublish';
 import { PagedNavigator } from './PagedNavigator';
+import { LayerTree } from './LayerTree';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
 import {
   applyArrangement,
@@ -308,6 +309,29 @@ export interface AuthoringApp {
    *  (lib/shell/surface-icons), declared here so the landing never falls to
    *  another app's icon. */
   icon: LucideIcon;
+  /** ADR-633 D2 — the app's PROPERTY MODEL: what the member is composing, and
+   *  therefore which left rail mounts and which noun the chrome says.
+   *
+   *  `flow`   — a continuous document (blogger). No page unit.
+   *  `pages`  — a sequence of pages (slides). The rail is the sequence.
+   *  `layers` — a stack on an artboard (images). The rail is the stack.
+   *
+   *  DECLARED, never derived. Every consumer reads THIS field — never
+   *  `layout === 'deck'`, never the slug. That derivation is the defect this
+   *  field exists to stop: images was never NAMED by it, it fell through the
+   *  deck ternary onto the document branch, so one object read "Slide" in the
+   *  crumb and "Sections" in the rail (ADR-633 §1.1). A derivation has a
+   *  default; a declaration does not.
+   *
+   *  The precedent is ADR-518 D7, which retired the per-site slug ternaries in
+   *  favor of `label`/`tagline` for exactly this reason. The warning is
+   *  ADR-592, whose `stage` field sat INERT for five days because
+   *  `_implied_stage` back-derived it from the very pair it replaced — a
+   *  tautology. A declaration that nothing declares is not a declaration.
+   *
+   *  REQUIRED: no `?`, no default, no `?? 'pages'` at any read site. Adding one
+   *  would restore the fall-through this field deletes. */
+  objectModel: 'flow' | 'pages' | 'layers';
   /** Dimensions-first creation (ADR-472 D3) — a raster artifact is born at a
    *  size. Not derivable from ownership, so it stays an app property. */
   dimensionsFirst?: boolean;
@@ -330,6 +354,10 @@ export const STUDIO_APP: AuthoringApp = {
   // (`Palette` the import STAYS — the design-system picker uses it, which is
   // a different noun and a correct use.)
   icon: Presentation,
+  // ADR-633 D2 — a deck is a SEQUENCE of pages: the page is the unit, the rail
+  // is the sequence (PagedNavigator), the noun is Slide. Unchanged behaviour,
+  // now declared rather than derived from `layout === 'deck'`.
+  objectModel: 'pages',
 };
 export const IMAGES_APP: AuthoringApp = {
   slug: 'images',
@@ -337,6 +365,11 @@ export const IMAGES_APP: AuthoringApp = {
   tagline:
     'Pick a size, name it, then describe the image in plain words — it renders live on the canvas.',
   icon: ImageIcon,
+  // ADR-633 D2 — an artboard is a STACK: the layer is the unit, the rail is
+  // the stack (LayerTree, D4), the noun is Artboard. This is the row the
+  // derivation never named — it fell through the deck ternary onto the
+  // document branch, and nobody chose that.
+  objectModel: 'layers',
   dimensionsFirst: true,
 };
 // ADR-627 — the publish medium's pane: the outward type (ADR-505 D2's merged
@@ -347,6 +380,9 @@ export const BLOGGER_APP: AuthoringApp = {
   tagline:
     'Name a post, then describe the piece in plain words — it takes shape live as bands of published prose, pulling in your files, images, and data as it goes.',
   icon: Newspaper,
+  // ADR-633 D2 — a post is continuous prose: no page unit by derivation
+  // (ADR-546 D0), so neither rail mounts and the frame noun is Document.
+  objectModel: 'flow',
 };
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
@@ -1735,6 +1771,20 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     },
     [applyOp, anchor, rangeBlockIds, vocabulary],
   );
+  // ADR-633 D4/D5 — the layer tree's two write gestures. Both carry their OWN
+  // anchor (the row that was acted on), never the selection's: toggling a
+  // layer's visibility while a DIFFERENT layer is selected must touch the one
+  // the member clicked. Same discipline as `handleRatio` below, and the same
+  // shape — these COMPOSE the shared ops, they are not a second write path.
+  const handleLayerToken = useCallback(
+    (blockId: string, key: 'lock' | 'hide', value: 'on' | null) =>
+      applyOp(
+        (html) => setToken(html, { grain: 'block', anchor: { blockId } }, key, value),
+        value == null ? `${app.label}: clear ${key}` : `${app.label}: ${key} layer`,
+        blockId,
+      ),
+    [applyOp, app.label],
+  );
   // ADR-461 D3: the column divider landed on a STOP. It carries its OWN anchor
   // (the page it was dragged on), not the selection's — a divider drag is a
   // located gesture and must not depend on what happens to be selected. `null`
@@ -1777,6 +1827,22 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       ...(sz ? { z: spec(sz) } : {}),
     };
   }, [vocabulary]);
+  // ADR-633 D4 — restack from the layer tree: an ABSOLUTE z (the drop's
+  // depth), where the block menu's Bring forward/backward nudge by ±1. Both
+  // doors write through `setMeasure` with the same served spec, so the clamp is
+  // the registry's in both — the tree never invents a bound.
+  const handleRestack = useCallback(
+    (blockId: string, toZ: number) => {
+      const gz = geometrySpecs()?.z;
+      if (!gz) return; // no z in the served vocabulary — the path no-ops
+      void applyOp(
+        (html) => setMeasure(html, blockId, 'z', toZ, gz),
+        `${app.label}: restack layer`,
+        blockId,
+      );
+    },
+    [applyOp, app.label, geometrySpecs],
+  );
   // ADR-485 D3 — the served bounds, in the shape the projection bakes into the
   // pointer runtime. Same registry `geometrySpecs` reads: ONE source, two
   // consumers (the in-gesture preview clamp and the write clamp), so the box
@@ -3220,6 +3286,37 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     [template],
   );
 
+  /** ADR-633 D3/D4 — the layer tree's kind → member-word map. The tree names a
+   *  layer by what it SAYS; when a layer has no text it falls back to the
+   *  kind's registry LABEL, never to the raw `data-block` slug (ADR-544 D4:
+   *  the chrome says the member's word, never the substrate's). Derived from
+   *  the SAME served vocabulary the Design tab reads — one table, two readers. */
+  const layerLabels = useMemo(() => blockLabelMap(vocabulary?.blocks), [vocabulary]);
+  const layerLabelFor = useCallback(
+    (kind: string) => layerLabels[kind] ?? 'Layer',
+    [layerLabels],
+  );
+
+  /** Select a LAYER from the tree.
+   *
+   *  It RE-POINTS the live selection at this block id rather than fabricating a
+   *  StudioSelection: kind/slot/arrange can only be supplied by the canvas
+   *  runtime, and synthesizing a partial here would hand the toolbar a
+   *  malformed selection (the rule stated at the reconciliation site above).
+   *  When nothing is selected yet, the artboard is selected instead and the
+   *  canvas re-points itself on the next projection. */
+  const selectLayerFromTree = useCallback(
+    (blockId: string, artboardIndex: number) => {
+      setSelection((sel) =>
+        sel ? { ...sel, blockId } : sel,
+      );
+      setEditingBlockId(null);
+      setScrollToSlide((s) => ({ index: artboardIndex, nonce: (s?.nonce ?? 0) + 1 }));
+      setActivePane('canvas');
+    },
+    [],
+  );
+
   // Drag-to-reorder a slide in the navigator (PowerPoint). One mechanical
   // revision through the same write door as every op; the selection follows the
   // slide to its new index so the Design tab stays anchored to it.
@@ -3536,7 +3633,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         {/* PAGED only: the navigator is container navigation (a slide strip),
             which only exists where the container IS the unit. A flow artifact's
             outline was a derived table of contents wearing a navigator's
-            clothes — deleted with the mode split. */}
+            clothes — deleted with the mode split.
+
+            ADR-633 D2/D4 — WHICH rail fills this slot is DECLARED by the app,
+            never derived from the layout. A `pages` app gets the sequence
+            (PagedNavigator: which page); a `layers` app gets the stack
+            (LayerTree: which layer, at what depth). They are different
+            questions and so different organs — D6 forbids growing a second
+            mode inside PagedNavigator, which would be the dual approach
+            wearing one filename.
+
+            The SLOT is shared: its width, its clamp, its collapse and its
+            resize divider are layout chrome that both rails want, and forking
+            them would duplicate the crush-prevention ladder for no gain. */}
         {isPaged && (
           <div
             className={`relative shrink-0 flex-col border-r border-border ${
@@ -3547,20 +3656,33 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             // an 800px workbench and re-create the crush through member state.
             style={singlePane && navActive ? undefined : { width: rail.width }}
           >
-            <PagedNavigator
-              layout={template}
-              html={file?.content ?? ''}
-              artifactPath={artifactPath}
-              selectedSlide={
-                template === 'deck'
-                  ? (selection?.slideIndex ?? null)
-                  : (selection?.pageIndex ?? null)
-              }
-              onSelectSlide={selectSlideFromNavigator}
-              onReorderSlide={reorderSlideFromNavigator}
-              onReorderPages={reorderPagesFromNavigator}
-              onDeletePages={deletePagesFromNavigator}
-            />
+            {app.objectModel === 'layers' ? (
+              <LayerTree
+                html={file?.content ?? ''}
+                labelFor={layerLabelFor}
+                selectedBlockId={selection?.blockId ?? null}
+                selectedArtboard={selection?.slideIndex ?? selection?.pageIndex ?? null}
+                onSelectArtboard={selectSlideFromNavigator}
+                onSelectLayer={selectLayerFromTree}
+                onRestack={handleRestack}
+                onToggleToken={handleLayerToken}
+              />
+            ) : (
+              <PagedNavigator
+                layout={template}
+                html={file?.content ?? ''}
+                artifactPath={artifactPath}
+                selectedSlide={
+                  template === 'deck'
+                    ? (selection?.slideIndex ?? null)
+                    : (selection?.pageIndex ?? null)
+                }
+                onSelectSlide={selectSlideFromNavigator}
+                onReorderSlide={reorderSlideFromNavigator}
+                onReorderPages={reorderPagesFromNavigator}
+                onDeletePages={deletePagesFromNavigator}
+              />
+            )}
             {/* The resize divider — drag to set the strip width (persisted). A
                 hair-wide hit target over the right border. Only where the strip
                 is a real COLUMN: at the single-pane rung it is a full-width pane
@@ -3857,6 +3979,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 mode={resolvedMode}
                 measureBounds={measureBounds}
                 blockLabels={blockLabels}
+                // ADR-633 D3 — the frame's noun reaches the IN-CANVAS runtime,
+                // not just the pane. Without this hop the crumb says "Artboard"
+                // while the canvas label says "Slide": §1.1's defect surviving
+                // in the half that was never threaded.
+                objectModel={app.objectModel}
                 onRefused={handleRefused}
                 onEditExited={() => setEditingBlockId(null)}
                 onEditEntered={(id) => setEditingBlockId(id)}
@@ -3919,6 +4046,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 <SelectionBreadcrumb
                   html={file.content ?? ''}
                   layout={template}
+                  // ADR-633 D2/D3 — the crumb names the frame with the APP's
+                  // word: "Artboard" on IMAGES, "Slide" on Slides. Declared,
+                  // not derived from the layout it used to fall through.
+                  objectModel={app.objectModel}
                   selection={selection}
                   groupIds={groupIds}
                   blockLabels={blockLabels}
@@ -4241,6 +4372,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               layout={template}
               html={file?.content ?? ''}
               selection={selection}
+              objectModel={app.objectModel}
               onSetToken={handleSetToken}
               onFormat={handleFormat}
               rangeBlockIds={rangeBlockIds}

@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.03.1] - The artboard is a stack of layers (ADR-633)
+
+### Changed
+- `services/authoring.py` — four new BLOCK-scope tokens at the `artboard` grain: `opacity` (75/50/25), `blend` (multiply/screen/overlay), `lock`, `hide`. Each carries one kernel CSS rule per declared value; `normal` blend is the absence-default and is deliberately NOT declared (a declared-but-unstyled value writes an attribute that renders nothing — the ADR-461 B1 defect).
+- `services/authoring.py` — `STUDIO_KERNEL_CSS_VERSION` 19 → 20. Additive (four new attribute selectors, nothing changed or removed), but the bump is REQUIRED: a stored artifact carries its kernel style element inline, so an un-bumped version leaves every existing IMAGES stage with a pane that offers opacity and a canvas with no rule to render it.
+- Why: the IMAGES property model was entirely document-native — the whole registry is heading/prose/callout/table/figure and the tokens are size/align/indent/tone. There was not one layer-native property, on a surface whose purpose is composing overlapping objects. `figure` is a document's idea of a picture (a cited image with a `<figcaption>`), not a layer.
+- Expected behavior: the studio posture for `image` now describes opacity/blend/lock/hide to the authoring hand, so a generated composition can set a scrim to Multiply or drop a background to 50% rather than only placing opaque rectangles. The deck posture is UNCHANGED — the grain is `artboard`, so a deck block cannot acquire a layer property by grain widening (gated: ADR-633 F4). Posture length for `image` is 17,901 bytes, inside the ADR-632 §5 studio ceiling (ratchets 73/73).
+- Gate: `test_adr633_the_artboard_is_layers.py` (all checks) — asserts the narrow grain on all four rows, a kernel rule for every declared value, the absence-default convention, and that `hide` renders `display: none` (never `visibility: hidden`, which would leave the layer occupying the coordinate space a member is trying to reach through).
+
+---
+
 ## [2026.09.02.4] - The skills index is scoped by app (ADR-630 amendment)
 
 ### Changed

@@ -39,9 +39,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
 import {
+  frameNoun,
   labelForElement,
   labelForJS,
   STRUCTURAL_PAGE_SEL,
+  type ObjectModel,
 } from '@/components/authoring/structureLabels';
 import {
   DECK_STAGE_FALLBACK_H,
@@ -4689,6 +4691,15 @@ export async function resolveArtifactHtml(
      *  registry served. Omitted → labels degrade to the raw kind, which is the
      *  pre-544 behaviour and visibly wrong rather than silently plausible. */
     blockLabels?: Record<string, string>;
+    /** ADR-633 D2/D3 — the APP's declared property model. The runtime labels a
+     *  `section.slide` with the app's word ("Artboard" on IMAGES), never the
+     *  class's, so the in-canvas frame label and the pane's crumb say the same
+     *  thing about the same object. Same reasoning as `blockLabels` above: the
+     *  runtime must never invent an operator-facing word, so the parent passes
+     *  what the app declared. Omitted → "Slide", the pre-633 word — a READ
+     *  fallback for a projection with no app in scope (the file viewer's
+     *  read-only render), never an app default (D2 forbids one). */
+    objectModel?: ObjectModel;
   },
 ): Promise<string> {
   if (!html) return html;
@@ -4767,7 +4778,11 @@ export async function resolveArtifactHtml(
       if (el.hasAttribute('data-block') || el.hasAttribute('data-ref')) return;
       if (el.parentElement?.closest('[data-block], [data-ref]')) return;
       if (!el.querySelector('[data-block]') && !el.hasAttribute('data-area') && !el.hasAttribute('data-slot')) return;
-      el.setAttribute('data-yarnnn-label', labelForElement(el));
+      // ADR-633 D3 — the app's noun, threaded from the caller. This pass only
+      // ever labels DIVs (the predicate above), so the frame rung is
+      // unreachable here today; it is passed anyway because a ladder called
+      // with a partial context is how one site comes to disagree with the rest.
+      el.setAttribute('data-yarnnn-label', labelForElement(el, null, null, opts?.objectModel));
     });
   }
   if (opts?.pointer) {
@@ -4810,9 +4825,15 @@ export async function resolveArtifactHtml(
     // them. EDIT_SCRIPT is injected ahead of POINTER_SCRIPT and both inline
     // `labelForJS`, so the global cannot ride the pointer payload alone.
     const labelData = doc.createElement('script');
-    labelData.textContent = `window.__yarnnnBlockLabels = ${JSON.stringify(
-      opts?.blockLabels ?? null,
-    )};`;
+    // ADR-633 D3 — the frame's noun rides the SAME channel, and is resolved
+    // HERE by `frameNoun()` (the one source, D6). The runtime never tests the
+    // model: the two constants that inline the ladder are module-level template
+    // strings evaluated at import, so a per-projection value cannot reach them
+    // as a baked literal — the reason `blockLabels` and `measureBounds` are
+    // globals too. One derivation, injected; nothing downstream re-derives it.
+    labelData.textContent =
+      `window.__yarnnnBlockLabels = ${JSON.stringify(opts?.blockLabels ?? null)};\n` +
+      `window.__yarnnnFrameNoun = ${JSON.stringify(frameNoun(opts?.objectModel))};`;
     doc.body?.appendChild(labelData);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is

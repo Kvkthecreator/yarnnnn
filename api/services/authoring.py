@@ -1158,6 +1158,72 @@ STUDIO_TOKENS: dict[str, dict] = {
         ],
         "description": "slide numbers in the corner of every slide (deck; absence = off)",
     },
+    # ── Layer essentials (ADR-633 D5) ───────────────────────────────────────
+    # The four properties a LAYER has and a paragraph does not. All four take
+    # the `artboard` grain — the narrow one ADR-544 D3 minted for free position
+    # — so a deck block cannot acquire them by grain widening (F4).
+    #
+    # Each is a TOKEN, not a measure, because each is enumerable: a token's
+    # values must be pre-declarable as kernel selectors (ADR-461), and a
+    # continuous opacity slider is exactly the shape that forced the ADR-472 D3
+    # aspect-slug deletion. Four steps is the compositor convention (Figma's
+    # own opacity presets) and it keeps the value inside the grammar rather
+    # than inventing a second continuous-value path beside the measures.
+    "opacity": {
+        "label": "Opacity",
+        "scope": ("block",),
+        "grains": ("artboard",),
+        "values": [
+            {"value": "75", "label": "75%"},
+            {"value": "50", "label": "50%"},
+            {"value": "25", "label": "25%"},
+        ],
+        "description": "how transparent the layer sits (absence = fully opaque)",
+    },
+    # Blend is what makes a composition composite rather than a stack of
+    # opaque rectangles — a scrim over a photo, a logo knocked into a
+    # background. `normal` is the absence-default and so is NOT declared: every
+    # sibling expresses its default by omission (the ADR-461 B1 lesson, where a
+    # declared-but-unstyled `start` value wrote an attribute that rendered
+    # nothing and produced two UI states with one visual result).
+    "blend": {
+        "label": "Blend",
+        "scope": ("block",),
+        "grains": ("artboard",),
+        "values": [
+            {"value": "multiply", "label": "Multiply"},
+            {"value": "screen", "label": "Screen"},
+            {"value": "overlay", "label": "Overlay"},
+        ],
+        "description": "how the layer's colour mixes with what is behind it (absence = normal)",
+    },
+    # Lock and hide are boolean-by-presence: one value each, the attribute's
+    # presence IS the state. They are authoring affordances that must survive a
+    # round-trip (a locked layer stays locked for the next member and for the
+    # AI hand), which is why they are substrate and not client-only view state.
+    #
+    # `hide` deliberately renders `display: none` rather than `visibility:
+    # hidden` — a hidden layer must not occupy the coordinate space, or a
+    # member hiding a background to reach what is under it would still be
+    # blocked by its box.
+    "lock": {
+        "label": "Lock",
+        "scope": ("block",),
+        "grains": ("artboard",),
+        "values": [
+            {"value": "on", "label": "Locked"},
+        ],
+        "description": "the layer cannot be selected or moved on the canvas (absence = editable)",
+    },
+    "hide": {
+        "label": "Hide",
+        "scope": ("block",),
+        "grains": ("artboard",),
+        "values": [
+            {"value": "on", "label": "Hidden"},
+        ],
+        "description": "the layer is not rendered or exported (absence = visible)",
+    },
 }
 
 #: The kernel CSS that interprets tokens — carried by every artifact in the
@@ -1633,6 +1699,24 @@ section.slide, .slide .col, .slide [data-area] { position: relative; }
 /* Stacking (ADR-471 D-d) — z orders positioned blocks; on a static block
    z-index is inert by CSS, which is the fallback rule doing its job. */
 .slide [data-block][data-z] { z-index: var(--yz, auto); }
+/* Layer essentials (ADR-633 D5) — the four properties a LAYER has. Each is one
+   selector per enumerated value, which is what lets them be TOKENS at all. An
+   unknown value matches no rule and degrades to the natural look (the ADR-461
+   fallback rule), never to an invisible or unclickable layer. */
+.slide [data-block][data-opacity="75"] { opacity: 0.75; }
+.slide [data-block][data-opacity="50"] { opacity: 0.5; }
+.slide [data-block][data-opacity="25"] { opacity: 0.25; }
+.slide [data-block][data-blend="multiply"] { mix-blend-mode: multiply; }
+.slide [data-block][data-blend="screen"] { mix-blend-mode: screen; }
+.slide [data-block][data-blend="overlay"] { mix-blend-mode: overlay; }
+/* A locked layer stays VISIBLE and stays in the flow — it is only unreachable
+   by pointer. Selection through the layer tree is unaffected (the tree is
+   chrome, the lock is canvas behaviour), which is how every compositor
+   behaves: you can always select a locked object by name. */
+.slide [data-block][data-lock="on"] { pointer-events: none; }
+/* `display: none`, never `visibility: hidden` — a hidden layer must vacate the
+   coordinate space so a member can reach what sits beneath it. */
+.slide [data-block][data-hide="on"] { display: none; }
 /* Callout variants (ADR-487 D2) — the semantic trio wired. The base callout
    look (accent border + tint) lives in the baked layout skin; a variant
    overrides border + tint through the SEMANTIC slots, in the kernel so it
@@ -1928,7 +2012,15 @@ STUDIO_KERNEL_CSS = STUDIO_KERNEL_CSS.replace("__RUNG_CSS__", _rung_css()).repla
 # overrides exist because MEDIA_BLOCK_KINDS derives from `cites` and the
 # generic token rules lose to the kind-scoped base on specificity — an offered
 # control must render, or it is the ADR-461 B1 defect wearing a new kind.
-STUDIO_KERNEL_CSS_VERSION = 19
+# v20 (2026-09-03, ADR-633 D5): the layer essentials — opacity · blend · lock ·
+# hide, all at the `artboard` grain. Additive: four new attribute selectors, no
+# existing rule changed or removed, so an artifact carrying none of the new
+# attributes is byte-identical in behaviour after the retrofit. The version MUST
+# bump even though the change is additive — a stored artifact carries its kernel
+# style element inline, so an un-bumped version leaves every existing IMAGES
+# stage with a pane that OFFERS opacity and a canvas with no rule to render it
+# (the ADR-461 B1 defect: a control that writes an attribute rendering nothing).
+STUDIO_KERNEL_CSS_VERSION = 20
 
 
 def compose_kernel_style_element() -> str:

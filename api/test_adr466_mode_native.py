@@ -18,6 +18,7 @@ Run:  cd api && python3 test_adr466_mode_native.py
 Exit code is authoritative (0 = pass).
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -404,9 +405,15 @@ def run() -> bool:
         "data-slot-inert" not in proj and "data-slot-inert" not in tab,
     )
     _check(
+        # The call's ARITY is not the invariant — this pinned the exact string
+        # `labelForElement(el)` and so failed the moment ADR-633 D3 threaded the
+        # frame's noun through it, against a call that had grown STRICTLY
+        # richer. A gate that pins a spelling pins the defect: what ADR-511
+        # actually asserts is that the projection stamps the label attribute, by
+        # asking the ONE ladder, on paged media only.
         "ADR-511: the projection stamps operator-word labels (paged only)",
         "data-yarnnn-label" in proj
-        and "labelForElement(el)" in proj
+        and re.search(r"labelForElement\(\s*el\b", proj) is not None
         and "opts?.mode === 'paged'" in proj,
     )
     _check(
