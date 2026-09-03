@@ -226,6 +226,49 @@ def _normalize_usage(usage: Any) -> dict:
     }
 
 
+
+#: ADR-634 — the system prompt is CACHEABLE. The lane frame is ~16KB and is
+#: built ONCE per turn, then re-sent on every round of the tool loop (up to 5),
+#: so the same bytes were billed as fresh input five times over. Marking it
+#: ephemeral turns rounds 2..N into cache reads, priced at 0.10x by the
+#: ledger's rate table (`cache_read_mult`), which already normalized and
+#: charged these tokens long before anything requested them.
+#:
+#: Anthropic's marker is the de-facto convention LiteLLM speaks: it HOISTS the
+#: block into the top-level `system` field for Anthropic, and STRIPS
+#: `cache_control` for the OpenAI-compatible and Gemini transforms (verified
+#: against both, not assumed). `supports_prompt_caching` is defense in depth,
+#: not the load-bearing guard — a model LiteLLM does not know returns False
+#: rather than raising.
+#:
+#: Below the provider minimum a marker is pointless (Anthropic will not cache a
+#: short prefix), so a small frame stays a plain string and the payload is
+#: byte-identical to before.
+_CACHE_MIN_CHARS = 4_000
+
+
+def _system_payload(system: Optional[str], model: str) -> Any:
+    """The system prompt as LiteLLM should carry it: a cache-marked content
+    block when the model can use one, else the plain string it always was.
+
+    Pure and total — any doubt returns the string, so a caching miss is the
+    failure mode and a broken call never is.
+    """
+    if not system or len(system) < _CACHE_MIN_CHARS:
+        return system
+    try:
+        from litellm.utils import supports_prompt_caching
+        if not supports_prompt_caching(model=model):
+            return system
+    except Exception:  # unknown model, litellm shape change — degrade to plain
+        return system
+    return [{
+        "type": "text",
+        "text": system,
+        "cache_control": {"type": "ephemeral"},
+    }]
+
+
 async def route_completion(
     model: str,
     messages: list[dict],
@@ -268,7 +311,7 @@ async def route_completion(
     import litellm  # lazy: ~3s cold import must not tax API boot
 
     full_messages = (
-        [{"role": "system", "content": system}] + list(messages)
+        [{"role": "system", "content": _system_payload(system, model)}] + list(messages)
         if system else list(messages)
     )
 
@@ -401,7 +444,7 @@ async def route_completion_stream(
     import litellm  # lazy: same cold-import discipline as route_completion
 
     full_messages = (
-        [{"role": "system", "content": system}] + list(messages)
+        [{"role": "system", "content": _system_payload(system, model)}] + list(messages)
         if system else list(messages)
     )
 

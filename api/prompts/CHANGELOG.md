@@ -17,6 +17,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.03.1] - The lane frame is cacheable (ADR-634)
+
+### Changed
+- `services/model_router.py` — new `_system_payload(system, model)`; both `route_completion` and `route_completion_stream` now carry the system prompt as a cache-marked content block (`cache_control: ephemeral`) when the model supports it, else the plain string as before.
+- Why: the frame is built ONCE per turn but re-sent on EVERY round of the tool loop (up to 5), so the same ~4,400 tokens were billed as fresh input up to five times. `services/anthropic.py` had carried the prompt-caching beta header all along and no live path ever sent a marked block; the ledger already normalized and priced cache tokens.
+- Expected behavior: NO change to what any model is told — the frame text is byte-identical on the wire for every provider. Anthropic turns now report `cache_read_tokens`; a one-round turn costs ~25% more (the 1.25x write), a two-round turn wins, and the blend over 500 real production turns is a ~46% saving on frame bytes.
+- Provider safety established by execution, not by reading source: LiteLLM preserves the marker for Anthropic (hoisting it into `system`) and STRIPS it for the OpenAI-compatible and Gemini transforms, with the prompt text intact in all three.
+- Gate: `test_adr634_prompt_caching.py` 28/28 (new; run on the py3.9 venv). Falsified two ways — reverting either call site fails §3, removing the capability guard fails §1.
+
+---
+
 ## [2026.09.02.4] - The skills index is scoped by app (ADR-630 amendment)
 
 ### Changed
