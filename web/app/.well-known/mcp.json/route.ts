@@ -11,6 +11,9 @@ import { BRAND } from "@/lib/metadata";
  * yet merged into the core MCP spec as of mid-2026). It is additive — an
  * MCP-capable agent that understands it can auto-discover the connector;
  * everything else ignores it harmlessly.
+ *
+ * The registry-shaped listing (server.json, the 2025-12-11 schema) lives at
+ * docs/features/mcp/server.json — the same URL, published by the operator.
  */
 
 const MCP_URL = "https://mcp.yarnnn.com";
@@ -28,23 +31,11 @@ export async function GET() {
         authorization_metadata: `${MCP_URL}/.well-known/oauth-authorization-server`,
       },
     },
-    tools: [
-      {
-        name: "remember",
-        description:
-          "Save something worth keeping — a decision, fact, or preference. Durable, attributed, and available on the next recall.",
-      },
-      {
-        name: "recall",
-        description:
-          "Pull what the user already knows about a subject. Returns the stored material; the host AI explains it.",
-      },
-      {
-        name: "trace",
-        description:
-          "Show how a recorded fact changed over time — who changed it, when, and what changed.",
-      },
-    ],
+    // ADR-635 D9 — the card no longer enumerates tools. It advertised
+    // `remember`/`recall`/`trace` for months after ADR-543 retired them
+    // without aliases: a second copy of the verb list drifted the moment the
+    // server's changed. The server's own `tools/list` is the source of truth;
+    // a card that names the server and how to authorize is complete.
     documentation: `${BRAND.url}/how-it-works`,
   };
 

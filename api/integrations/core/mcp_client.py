@@ -8,8 +8,15 @@ perception field — the infinite set of watches YARNNN would never hand-author.
 
 This is NOT a per-platform client (contrast slack_client / notion_client /
 github_client, the hand-authored *head* drivers). It is keyed on
-`(server_url, access_token)` — any MCP server is a binding, not a code change.
+`(server_url, credential)` — any MCP server is a binding, not a code change.
 Adding a tail platform is authorizing a binding, never writing a driver.
+
+ADR-635 (2026-09-03): the binding is the member's ATTACHED CONNECTOR
+(`services/attached_connectors.py`, a `platform_connections` row keyed
+`mcp:{slug}`), reached inside the member's own turn under the aperture they
+chose. The steward-era mechanical watch (`TrackForeign` / `foreign_read`,
+ADR-335 Crawl-B) is DELETED — it was on no live surface and production held
+zero watch-bound rows.
 
 Architecture (ADR-335):
   - §6 transport-blind: this client returns raw tool output to its caller; the
@@ -77,10 +84,18 @@ class MCPClient:
     """
 
     @staticmethod
-    def _auth_headers(access_token: str) -> dict[str, str]:
-        # RFC 9728 / OAuth 2.1: bearer_methods_supported = ["header"] for the
-        # GitHub MCP server (verified via .well-known/oauth-protected-resource).
-        return {"Authorization": f"Bearer {access_token}"}
+    def _auth_headers(access_token: Optional[str] = None,
+                      headers: Optional[dict[str, str]] = None) -> dict[str, str]:
+        """RFC 9728 / OAuth 2.1 bearer by default (`bearer_methods_supported =
+        ["header"]` on every server probed). ADR-635: an attached connector
+        may instead carry its own header (an API key) or none at all (an
+        anonymous server) — explicit `headers` win, and an empty token sends
+        NO Authorization header rather than a bare "Bearer "."""
+        if headers:
+            return dict(headers)
+        if access_token:
+            return {"Authorization": f"Bearer {access_token}"}
+        return {}
 
     async def discover_resource_metadata(self, server_url: str) -> Optional[dict]:
         """
@@ -115,46 +130,62 @@ class MCPClient:
             logger.info("[MCP] resource-metadata discovery failed for %s: %s", server_url, exc)
             return None
 
-    async def list_tools(self, server_url: str, access_token: str) -> list[dict[str, Any]]:
+    async def list_tools(
+        self,
+        server_url: str,
+        access_token: Optional[str] = None,
+        *,
+        headers: Optional[dict[str, str]] = None,
+    ) -> list[dict[str, Any]]:
         """Open transport → initialize → list the server's tool surface → close.
-        Returns [{name, description, input_schema}, ...]."""
+        Returns [{name, description, input_schema, annotations}, ...].
+        `annotations` are the server's HINTS (readOnlyHint etc.) — surfaced
+        for a member to read, never for a client to decide on (ADR-635 D4)."""
         async with streamablehttp_client(
             server_url,
-            headers=self._auth_headers(access_token),
+            headers=self._auth_headers(access_token, headers),
             timeout=_MCP_TIMEOUT_SECONDS,
         ) as (read_stream, write_stream, _get_session_id):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
                 listed = await session.list_tools()
-                return [
-                    {
+                out = []
+                for t in listed.tools:
+                    ann = getattr(t, "annotations", None)
+                    out.append({
                         "name": t.name,
                         "description": t.description or "",
                         "input_schema": t.inputSchema,
-                    }
-                    for t in listed.tools
-                ]
+                        "annotations": (
+                            ann.model_dump(exclude_none=True)
+                            if ann is not None and hasattr(ann, "model_dump") else {}
+                        ),
+                    })
+                return out
 
     async def call_tool(
         self,
         server_url: str,
-        access_token: str,
-        tool_name: str,
+        access_token: Optional[str] = None,
+        tool_name: str = "",
         arguments: Optional[dict[str, Any]] = None,
+        *,
+        headers: Optional[dict[str, str]] = None,
     ) -> MCPToolResult:
         """
-        Invoke one tool. This is the ONLY call site shape ADR-335 B3 permits:
-        a bounded, deterministic, mechanical-mode read — never a foreign tool
-        injected into the Reviewer's judgment tool loop.
+        Invoke one tool and return its raw output. This module does not touch
+        substrate, does not decide trust, and does not meter cost.
 
-        Returns raw output. The caller distills + attributes (D3); this module
-        does not touch substrate, does not decide trust, does not meter cost
-        (metering is the caller's mechanical-executor responsibility per the
-        amendment's Open Question B).
+        ADR-635: the one caller is `services/attached_connectors.py`, reaching
+        a server the MEMBER attached, under the member's own credential, with
+        the gate already having ruled on the call (the aperture). The ADR-335
+        mechanical-watch caller is deleted.
         """
+        if not tool_name:
+            raise ValueError("tool_name is required")
         async with streamablehttp_client(
             server_url,
-            headers=self._auth_headers(access_token),
+            headers=self._auth_headers(access_token, headers),
             timeout=_MCP_TIMEOUT_SECONDS,
         ) as (read_stream, write_stream, _get_session_id):
             async with ClientSession(read_stream, write_stream) as session:

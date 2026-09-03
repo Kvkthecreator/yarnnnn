@@ -38,7 +38,6 @@ FAILED = 0
 # the deferral is a decision, not an oversight. A costed site may never be listed.
 ZERO_COST_ALLOWLIST: dict[str, str] = {
     "services/capture/lane.py": "capture lane — mechanical, zero tokens, and DORMANT behind CAPTURE_LANE_ENABLED (ADR-404/591)",
-    "services/foreign_read.py": "foreign READ — mode='mechanical', zero tokens; a read draws nothing from the pool (ADR-396 free-reads carve)",
     "services/primitives/embed.py": "embed — mechanical; the embedding COGS is absorbed by base, not metered (ADR-396)",
     "services/anthropic.py": "shared client helper — not itself a metered invocation",
     "services/platform_limits.py": "the ledger reader, not a writer of costed rows",

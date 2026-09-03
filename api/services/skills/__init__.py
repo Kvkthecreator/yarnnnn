@@ -40,6 +40,15 @@ NAMED with its count and the ListFiles that reaches it — hidden at
 PRESENTATION only, never at authorization (the ADR-395 precedent): the mirror
 still lands every skill in every workspace, and any of them reads fine.
 
+SCOPED BY REACH (ADR-635 D7): `metadata.needs` names the connector
+CATEGORIES a skill is for — the ecosystem's `~~category` placeholder
+convention, declared. Offered when the member holds an attached connector of
+one of them, withheld-and-counted otherwise; silence means no need. A public
+skill written for "a project tracker" drops into `skills/` unchanged and
+lights up when one is attached. Host-specific frontmatter (`allowed-tools`,
+`model`, `tools`, `argument-hint`…) is STRIPPED and the strip is NAMED
+(`stripped`): prose was never permission, and now an import says so.
+
 MANAGEMENT DISCIPLINE: every `SKILL.md` here is LLM-facing content — an edit
 gets an api/prompts/CHANGELOG.md entry (prompt change protocol), and a skill
 earns a Hat-B eval probe as it matures. The index is bounded by TWO budgets,
@@ -160,15 +169,35 @@ def parse_skill(text: str) -> dict:
     metadata = fm.get("metadata") or {}
     if not isinstance(metadata, dict):
         metadata = {}
+    # ADR-635 D7 — a host-specific field is STRIPPED, and the strip is NAMED.
+    # `allowed-tools`, `model`, `tools`, `argument-hint` and the rest describe
+    # a host that is not this one; prose was never permission here (ADR-464
+    # §3), so they were always dropped — silently. An import now says what it
+    # lost. The portable spec's own fields (`license`, `compatibility`) are
+    # kept in `metadata` as strings, since they describe the skill, not a host.
+    stripped = sorted(
+        str(k) for k in fm.keys()
+        if k not in ("name", "description", "metadata", "license", "compatibility")
+    )
+    if stripped:
+        logger.info("[SKILLS] %s: stripped host-specific frontmatter %s", name, stripped)
+    kept_meta = {
+        str(k): str(v) for k, v in metadata.items() if k not in ("apps", "needs")
+    }
+    for k in ("license", "compatibility"):
+        if fm.get(k) is not None and k not in kept_meta:
+            kept_meta[k] = str(fm[k])
     return {
         "name": name,
         "description": description,
-        # Scalars only — `apps` is the one list-valued key and is lifted out
-        # below, so a stray list elsewhere still stringifies as before.
-        "metadata": {
-            str(k): str(v) for k, v in metadata.items() if k != "apps"
-        },
+        # Scalars only — `apps` and `needs` are the list-valued keys and are
+        # lifted out below, so a stray list elsewhere still stringifies.
+        "metadata": kept_meta,
         "apps": _parse_apps(metadata.get("apps")),
+        # ADR-635 D7 — the connector CATEGORIES this skill needs (the
+        # ecosystem's `~~category` placeholder, declared). Silence = none.
+        "needs": _parse_apps(metadata.get("needs")),
+        "stripped": stripped,
         "title": title,
         "body": body,
         "raw": text,
@@ -253,24 +282,35 @@ def _kernel_overflow_line(n: int) -> str:
     )
 
 
-def _applies_to(skill: dict, app: Optional[str]) -> bool:
-    """Does this skill belong in the index of a lane running `app`?
+def _applies_to(skill: dict, app: Optional[str], reach: Optional[set] = None) -> bool:
+    """Does this skill belong in the index of a lane running `app`, whose
+    member holds attached connectors of the categories in `reach`?
 
     A skill with no `apps` is universal — the default, so silence means
     "offered everywhere" and no existing skill changes meaning. A skill that
     NAMES apps appears only in those, and in an unbound lane (`app` None)
     every skill is offered: open chat is where a member goes for anything, and
     narrowing there would hide work the member cannot otherwise reach.
+
+    ADR-635 D7 — a skill that NAMES needs (connector categories) is offered
+    only when the member holds one of them; `reach` None means the caller
+    did not look, and the skill is offered (presentation never fails closed
+    — hiding is the ADR-395 posture, never authorization). Withheld skills
+    are still counted and reachable by ListFiles, like app-scoped ones.
     """
     apps = skill.get("apps") or ()
-    if not apps or not app:
-        return True
-    return app in apps
+    if apps and app and app not in apps:
+        return False
+    needs = skill.get("needs") or ()
+    if needs and reach is not None and not (set(needs) & set(reach)):
+        return False
+    return True
 
 
 def skills_index_section(
     member_skills: Optional[list[dict]] = None,
     app: Optional[str] = None,
+    reach: Optional[set] = None,
 ) -> str:
     """The frame's index: one line per skill, kernel first. Descriptions only —
     the body never enters the frame (DP22).
@@ -284,7 +324,7 @@ Two budgets, enforced at composition.
     gives for skill BODIES.
     """
     lines = [_INDEX_HEAD]
-    kernel = [m for m in _load_kernel().values() if _applies_to(m, app)]
+    kernel = [m for m in _load_kernel().values() if _applies_to(m, app, reach)]
     # Two ways a kernel line can be withheld, ONE escape hatch.
     #
     # (1) SCOPE — the skill declares `apps` and this lane is not one of them.
@@ -324,7 +364,7 @@ Two budgets, enforced at composition.
         lines.append(_kernel_overflow_line(hidden))
 
     members = [
-        m for m in (member_skills or []) if _applies_to(m, app)
+        m for m in (member_skills or []) if _applies_to(m, app, reach)
     ][:MEMBER_INDEX_CAP]
     if not members:
         return "\n".join(lines)
@@ -379,6 +419,7 @@ def read_member_skills(client: Any, user_id: str) -> list[dict]:
             "title": s["title"],
             # carried so a member's skill can scope itself the same way
             "apps": s.get("apps") or (),
+            "needs": s.get("needs") or (),
         })
     return out
 

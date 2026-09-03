@@ -1,0 +1,13 @@
+{
+  "name": "yarnnn",
+  "version": "1.0.0",
+  "description": "Your shared, attributed workspace — the files you and your team work on with AI, reachable from Claude. Every change is signed by whoever made it, human or AI, and nothing is lost. Connects Claude Code and Cowork to yarnnn's hosted MCP server (https://mcp.yarnnn.com) over OAuth; no local install.",
+  "author": {
+    "name": "yarnnn",
+    "url": "https://yarnnn.com"
+  },
+  "homepage": "https://yarnnn.com",
+  "repository": "https://github.com/Kvkthecreator/yarnnnn",
+  "license": "MIT",
+  "keywords": ["workspace", "memory", "files", "attribution", "mcp", "collaboration"]
+}

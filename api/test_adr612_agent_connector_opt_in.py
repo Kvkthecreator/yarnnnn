@@ -121,8 +121,10 @@ check("there is ONE resolver for the turn's reach AND its platforms",
 # ADR-585's rule: all three consumers read the SAME value. If the prose
 # derived its own set independently, it could claim tools the payload lacks —
 # the Scout bug, mirrored.
-check("the payload narrows", "lane_tools_openai(_reach, _reach_plats)" in _lr)
-check("the execution allowlist narrows", "lane_tool_names(_reach, _reach_plats)" in _lr)
+# ADR-635 widened both calls by the attached surface (a third positional); the
+# reach fact still narrows them — the anchor names the pair, not the arity.
+check("the payload narrows", "lane_tools_openai(_reach, _reach_plats" in _lr)
+check("the execution allowlist narrows", "lane_tool_names(_reach, _reach_plats" in _lr)
 check("all three consumers derive from the same resolver (payload, allowlist, prose)",
       _lr.count("resolve_turn_reach(") >= 4)
 # The prose must not claim a scoping that was never set.

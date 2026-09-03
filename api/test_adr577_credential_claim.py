@@ -259,13 +259,21 @@ def _test_route_and_fe_deleted():
 PRINCIPAL_LESS_CREDENTIAL_READS = {
     # -- the member's own connector management + discovery (by definition) --
     "routes/integrations.py",
+    # ADR-612: the per-agent opt-in pane reads `platform, status` only —
+    # which connectors EXIST for the member, never a credential.
+    "routes/agent_connectors.py",
+    # ADR-635: the attach seam for the member's ATTACHED connectors — it
+    # WRITES the envelope (pending → active, refresh) and reads the row for
+    # the aperture; token USE still enters through the chokepoint
+    # (`envelope_for` calls resolve_platform_credential first, so an agent is
+    # refused before any row is read), and begin_attach / set_aperture refuse
+    # agent callers themselves.
+    "services/attached_connectors.py",
     "routes/workspace.py",              # workspace summary: platform names only
     "integrations/validation.py",       # the health probe (ADR-576 D3)
     # -- ENUMERATION only (platform/status/created_at; never the token) --
     "services/bundle_reader.py",
-    "services/freddie_envelope.py",     # the one-line peripheral field
     "services/primitives/registry.py",  # list_integrations (ADR-535: see != reach)
-    "services/primitives/system_state.py",
     "services/primitives/track_universe.py",
     "routes/system.py",
     "services/capture/lane.py",         # capability gate: existence, not token
@@ -282,7 +290,6 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
     "services/outcomes/commerce.py",
     "services/outcomes/reconciler.py",
     "services/outcomes/trading.py",
-    "services/primitives/track_foreign.py",
     "services/primitives/track_regime.py",
 }
 
@@ -296,12 +303,15 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
 ENUMERATION_ONLY = {
     "services/connectors.py",
     "services/bundle_reader.py",
-    "services/freddie_envelope.py",
+    # `services/freddie_envelope.py` + `services/primitives/system_state.py`
+    # were DELETED with the steward (ADR-632); a stale entry is a mute button.
     "services/primitives/registry.py",
-    "services/primitives/system_state.py",
     "services/capture/lane.py",
     "routes/system.py",
     "routes/workspace.py",
+    # ADR-612: the per-agent opt-in pane reads `platform, status` only —
+    # which connectors EXIST for the member, never a credential.
+    "routes/agent_connectors.py",
 }
 
 

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "yarnnn": {
+      "type": "http",
+      "url": "https://mcp.yarnnn.com"
+    }
+  }
+}

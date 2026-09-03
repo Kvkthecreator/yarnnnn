@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "yarnnn",
+  "description": "yarnnn — the shared, attributed workspace where human and AI work settles, reachable from Claude over MCP.",
+  "owner": {
+    "name": "yarnnn",
+    "url": "https://yarnnn.com"
+  },
+  "plugins": [
+    {
+      "name": "yarnnn",
+      "description": "Connect Claude to your yarnnn workspace — shared files, every change signed by whoever made it, nothing lost. Hosted MCP server over OAuth; no local install.",
+      "category": "productivity",
+      "source": "./plugin/yarnnn",
+      "homepage": "https://yarnnn.com"
+    }
+  ]
+}

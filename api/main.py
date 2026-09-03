@@ -72,7 +72,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions
+from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions, attached_connectors
 from routes import agent_connectors
 from routes import publish  # ADR-628 phase (a) — the member-clicked outbound door
 
@@ -242,6 +242,11 @@ app.include_router(publish.router, prefix="/api", tags=["publish"])  # ADR-628 o
 # ADR-219 Commit 4: narrative filter-over-substrate for /work list view
 # routes/narrative.py DELETED with it (task-grouped narrative slices — its one
 # FE consumer was the deleted /work→/recurrence list view).
+
+# ADR-635: attached connectors — the consumed directory, the attach seam,
+# the aperture. Mounted beside /api/integrations (the hand-authored trio +
+# WordPress); disconnect rides the integrations DELETE with the `mcp:` key.
+app.include_router(attached_connectors.router, prefix="/api", tags=["connectors"])
 
 # ADR-225: program composition surfaces (compositor's API-side resolver)
 app.include_router(programs.router, prefix="/api/programs", tags=["programs"])

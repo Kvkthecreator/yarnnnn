@@ -1,0 +1,659 @@
+{
+ "source_repo": "https://github.com/anthropics/knowledge-work-plugins",
+ "source_commit": "f30dc63b57654ab9b80da56ff2d1645c86f1c2de",
+ "derived_at": "2026-09-03T09:16:24+00:00",
+ "derived_by": "api/scripts/refresh_connector_directory.py",
+ "note": "DERIVED, never hand-edited (ADR-635 D1). Every server is a remote MCP endpoint Anthropic's knowledge-work plugins name; category is the plugin's own CONNECTORS.md placeholder.",
+ "skipped_no_url": [
+  "bio-research/benchling",
+  "customer-support/gmail",
+  "customer-support/google calendar",
+  "data/databricks",
+  "data/snowflake",
+  "design/gmail",
+  "design/google calendar",
+  "engineering/gmail",
+  "engineering/google calendar",
+  "enterprise-search/gmail",
+  "enterprise-search/google calendar",
+  "finance/databricks",
+  "finance/gmail",
+  "finance/google calendar",
+  "finance/snowflake",
+  "human-resources/gmail",
+  "human-resources/google calendar",
+  "legal/gmail",
+  "legal/google calendar",
+  "marketing/gmail",
+  "marketing/google calendar",
+  "operations/gmail",
+  "operations/google calendar",
+  "pdf-viewer/pdf",
+  "product-management/gmail",
+  "product-management/google calendar",
+  "productivity/gmail",
+  "productivity/google calendar",
+  "sales/gmail",
+  "sales/google calendar",
+  "small-business/gmail",
+  "small-business/google calendar",
+  "small-business/google drive"
+ ],
+ "servers": [
+  {
+   "key": "ahrefs",
+   "title": "Ahrefs",
+   "url": "https://api.ahrefs.com/mcp/mcp",
+   "category": "SEO",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "marketing"
+   ]
+  },
+  {
+   "key": "amplitude",
+   "title": "Amplitude",
+   "url": "https://mcp.amplitude.com/mcp",
+   "category": "Product analytics",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "data",
+    "marketing",
+    "product-management"
+   ]
+  },
+  {
+   "key": "amplitude-eu",
+   "title": "Amplitude Eu",
+   "url": "https://mcp.eu.amplitude.com/mcp",
+   "category": "Product analytics",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "data",
+    "marketing",
+    "product-management"
+   ]
+  },
+  {
+   "key": "apollo",
+   "title": "Apollo",
+   "url": "https://mcp.apollo.io/mcp",
+   "category": "Data enrichment",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "sales",
+    "apollo"
+   ]
+  },
+  {
+   "key": "asana",
+   "title": "Asana",
+   "url": "https://mcp.asana.com/v2/mcp",
+   "category": "Project tracker",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "design",
+    "engineering",
+    "enterprise-search",
+    "operations",
+    "product-management",
+    "productivity"
+   ]
+  },
+  {
+   "key": "atlassian",
+   "title": "Atlassian",
+   "url": "https://mcp.atlassian.com/v1/mcp",
+   "category": "Project tracker",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "customer-support",
+    "data",
+    "design",
+    "engineering",
+    "enterprise-search",
+    "human-resources",
+    "legal",
+    "operations",
+    "product-management",
+    "productivity",
+    "sales",
+    "brand-voice"
+   ]
+  },
+  {
+   "key": "bigquery",
+   "title": "Bigquery",
+   "url": "https://bigquery.googleapis.com/mcp",
+   "category": "Data warehouse",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "data",
+    "finance"
+   ]
+  },
+  {
+   "key": "biorender",
+   "title": "Biorender",
+   "url": "https://mcp.services.biorender.com/mcp",
+   "category": "Scientific illustration",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "biorxiv",
+   "title": "Biorxiv",
+   "url": "https://hcls.mcp.claude.com/biorxiv/mcp",
+   "category": "Literature",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "box",
+   "title": "Box",
+   "url": "https://mcp.box.com",
+   "category": "Cloud storage",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "legal",
+    "brand-voice"
+   ]
+  },
+  {
+   "key": "c-trials",
+   "title": "C Trials",
+   "url": "https://hcls.mcp.claude.com/clinical_trials/mcp",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "canva",
+   "title": "Canva",
+   "url": "https://mcp.canva.com/mcp",
+   "category": "Design",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "marketing",
+    "small-business"
+   ]
+  },
+  {
+   "key": "chembl",
+   "title": "Chembl",
+   "url": "https://hcls.mcp.claude.com/chembl/mcp",
+   "category": "Chemical database",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "clay",
+   "title": "Clay",
+   "url": "https://api.clay.com/v3/mcp",
+   "category": "Data enrichment",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "sales"
+   ]
+  },
+  {
+   "key": "clickup",
+   "title": "Clickup",
+   "url": "https://mcp.clickup.com/mcp",
+   "category": "Project tracker",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "product-management",
+    "productivity"
+   ]
+  },
+  {
+   "key": "close",
+   "title": "Close",
+   "url": "https://mcp.close.com/mcp",
+   "category": "CRM",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "sales"
+   ]
+  },
+  {
+   "key": "common-room",
+   "title": "Common Room",
+   "url": "https://mcp.commonroom.io/mcp",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "common-room"
+   ]
+  },
+  {
+   "key": "consensus",
+   "title": "Consensus",
+   "url": "https://mcp.consensus.app/mcp",
+   "category": "Literature",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "datadog",
+   "title": "Datadog",
+   "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+   "category": "Monitoring",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "engineering"
+   ]
+  },
+  {
+   "key": "definite",
+   "title": "Definite",
+   "url": "https://api.definite.app/v3/mcp/http",
+   "category": "Data warehouse",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "data"
+   ]
+  },
+  {
+   "key": "docusign",
+   "title": "Docusign",
+   "url": "https://mcp.docusign.com/mcp",
+   "category": "E-signature",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "legal",
+    "small-business"
+   ]
+  },
+  {
+   "key": "egnyte",
+   "title": "Egnyte",
+   "url": "https://mcp-server.egnyte.com/mcp",
+   "category": "Cloud storage",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "legal"
+   ]
+  },
+  {
+   "key": "figma",
+   "title": "Figma",
+   "url": "https://mcp.figma.com/mcp",
+   "category": "Design tool",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "design",
+    "marketing",
+    "product-management",
+    "brand-voice"
+   ]
+  },
+  {
+   "key": "fireflies",
+   "title": "Fireflies",
+   "url": "https://api.fireflies.ai/mcp",
+   "category": "Meeting transcription",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "product-management",
+    "sales"
+   ]
+  },
+  {
+   "key": "github",
+   "title": "Github",
+   "url": "https://api.githubcopilot.com/mcp/",
+   "category": "Source control",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "engineering"
+   ]
+  },
+  {
+   "key": "gong",
+   "title": "Gong",
+   "url": "https://mcp.gong.io/mcp",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "brand-voice"
+   ]
+  },
+  {
+   "key": "granola",
+   "title": "Granola",
+   "url": "https://mcp.granola.ai/mcp",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "brand-voice"
+   ]
+  },
+  {
+   "key": "guru",
+   "title": "Guru",
+   "url": "https://mcp.api.getguru.com/mcp",
+   "category": "Knowledge base",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "customer-support",
+    "enterprise-search"
+   ]
+  },
+  {
+   "key": "hex",
+   "title": "Hex",
+   "url": "https://app.hex.tech/mcp",
+   "category": "Notebook",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "data"
+   ]
+  },
+  {
+   "key": "hubspot",
+   "title": "Hubspot",
+   "url": "https://mcp.hubspot.com/anthropic",
+   "category": "CRM",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "customer-support",
+    "marketing",
+    "sales",
+    "small-business"
+   ]
+  },
+  {
+   "key": "intercom",
+   "title": "Intercom",
+   "url": "https://mcp.intercom.com/mcp",
+   "category": "Support platform",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "customer-support",
+    "design",
+    "product-management"
+   ]
+  },
+  {
+   "key": "klaviyo",
+   "title": "Klaviyo",
+   "url": "https://mcp.klaviyo.com/mcp",
+   "category": "Email marketing",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "marketing"
+   ]
+  },
+  {
+   "key": "linear",
+   "title": "Linear",
+   "url": "https://mcp.linear.app/mcp",
+   "category": "Project tracker",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "design",
+    "engineering",
+    "product-management",
+    "productivity"
+   ]
+  },
+  {
+   "key": "monday",
+   "title": "Monday",
+   "url": "https://mcp.monday.com/mcp",
+   "category": "Project tracker",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "product-management",
+    "productivity",
+    "sales"
+   ]
+  },
+  {
+   "key": "notion",
+   "title": "Notion",
+   "url": "https://mcp.notion.com/mcp",
+   "category": "Knowledge base",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "customer-support",
+    "design",
+    "engineering",
+    "enterprise-search",
+    "human-resources",
+    "marketing",
+    "operations",
+    "product-management",
+    "productivity",
+    "sales",
+    "brand-voice"
+   ]
+  },
+  {
+   "key": "ot",
+   "title": "Ot",
+   "url": "https://mcp.platform.opentargets.org/mcp",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "outreach",
+   "title": "Outreach",
+   "url": "https://api.outreach.io/mcp/",
+   "category": "Sales engagement",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "sales"
+   ]
+  },
+  {
+   "key": "owkin",
+   "title": "Owkin",
+   "url": "https://mcp.k.owkin.com/mcp",
+   "category": "AI research",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "pagerduty",
+   "title": "Pagerduty",
+   "url": "https://mcp.pagerduty.com/mcp",
+   "category": "Incident management",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "engineering"
+   ]
+  },
+  {
+   "key": "paypal",
+   "title": "Paypal",
+   "url": "https://mcp.paypal.com/sse",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "small-business"
+   ]
+  },
+  {
+   "key": "pendo",
+   "title": "Pendo",
+   "url": "https://app.pendo.io/mcp/v0/shttp",
+   "category": "Product analytics",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "product-management"
+   ]
+  },
+  {
+   "key": "pubmed",
+   "title": "Pubmed",
+   "url": "https://pubmed.mcp.claude.com/mcp",
+   "category": "Literature",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "quickbooks",
+   "title": "Quickbooks",
+   "url": "https://ai-inc.quickbooks.intuit.com/v1/mcp",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "small-business"
+   ]
+  },
+  {
+   "key": "similarweb",
+   "title": "Similarweb",
+   "url": "https://mcp.similarweb.com",
+   "category": "SEO",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "marketing"
+   ]
+  },
+  {
+   "key": "similarweb",
+   "title": "Similarweb",
+   "url": "https://mcp.similarweb.com/mcp",
+   "category": "Competitive intelligence",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "product-management",
+    "sales"
+   ]
+  },
+  {
+   "key": "slack",
+   "title": "Slack",
+   "url": "https://mcp.slack.com/mcp",
+   "category": "Chat",
+   "auth": "preregistered",
+   "plugins": [
+    "customer-support",
+    "design",
+    "engineering",
+    "enterprise-search",
+    "finance",
+    "human-resources",
+    "legal",
+    "marketing",
+    "operations",
+    "product-management",
+    "productivity",
+    "sales",
+    "small-business",
+    "slack"
+   ]
+  },
+  {
+   "key": "square",
+   "title": "Square",
+   "url": "https://mcp.squareup.com/sse",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "small-business"
+   ]
+  },
+  {
+   "key": "stripe",
+   "title": "Stripe",
+   "url": "https://mcp.stripe.com",
+   "category": null,
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "small-business"
+   ]
+  },
+  {
+   "key": "supermetrics",
+   "title": "Supermetrics",
+   "url": "https://mcp.supermetrics.com/mcp",
+   "category": "Marketing analytics",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "marketing"
+   ]
+  },
+  {
+   "key": "synapse",
+   "title": "Synapse",
+   "url": "https://mcp.synapse.org/mcp",
+   "category": "Data repository",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "wiley",
+   "title": "Wiley",
+   "url": "https://connector.scholargateway.ai/mcp",
+   "category": "Journal access",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "bio-research"
+   ]
+  },
+  {
+   "key": "zoom-docs-mcp",
+   "title": "Zoom Docs Mcp",
+   "url": "https://mcp.zoom.us/mcp/docs/streamable",
+   "category": null,
+   "auth": "header",
+   "plugins": [
+    "zoom-plugin"
+   ]
+  },
+  {
+   "key": "zoom-mcp",
+   "title": "Zoom Mcp",
+   "url": "https://mcp-us.zoom.us/mcp/zoom/streamable",
+   "category": null,
+   "auth": "header",
+   "plugins": [
+    "zoom-plugin"
+   ]
+  },
+  {
+   "key": "zoom-whiteboard-mcp",
+   "title": "Zoom Whiteboard Mcp",
+   "url": "https://mcp-us.zoom.us/mcp/whiteboard/streamable",
+   "category": null,
+   "auth": "header",
+   "plugins": [
+    "zoom-plugin"
+   ]
+  },
+  {
+   "key": "zoominfo",
+   "title": "Zoominfo",
+   "url": "https://mcp.zoominfo.com/mcp",
+   "category": "Data enrichment",
+   "auth": "oauth-or-anonymous",
+   "plugins": [
+    "sales"
+   ]
+  }
+ ]
+}

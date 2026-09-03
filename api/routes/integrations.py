@@ -111,6 +111,14 @@ class IntegrationResponse(BaseModel):
     target: Optional[str] = None
     last_used_at: Optional[datetime] = None
     created_at: datetime
+    # ADR-635 — an ATTACHED connector (`mcp:{slug}`) carries what the FE
+    # registry cannot know about it: its title, its server, and how much of
+    # it the member exposed. Absent on the hand-authored connectors.
+    kind: Optional[str] = None
+    title: Optional[str] = None
+    server_url: Optional[str] = None
+    category: Optional[str] = None
+    tools_exposed: Optional[int] = None
 
 
 class IntegrationListResponse(BaseModel):
@@ -151,10 +159,14 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
             if ts and (p not in max_synced or ts > max_synced[p]):
                 max_synced[p] = ts
 
+        from services.attached_connectors import is_attached_platform
+
         integrations = []
         for row in result.data or []:
             metadata = row.get("metadata", {}) or {}
             platform = row["platform"]
+            attached = is_attached_platform(platform)
+            aperture = (metadata.get("aperture") or {}) if attached else {}
             integrations.append(IntegrationResponse(
                 id=row["id"],
                 provider=platform,  # ADR-058: DB column is 'platform'
@@ -162,7 +174,15 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                 workspace_name=metadata.get("workspace_name"),
                 target=connection_target(platform, metadata),
                 last_used_at=max_synced.get(platform),
-                created_at=row["created_at"]
+                created_at=row["created_at"],
+                kind="attached" if attached else None,
+                title=(metadata.get("title") or metadata.get("name")) if attached else None,
+                server_url=metadata.get("server_url") if attached else None,
+                category=metadata.get("category") if attached else None,
+                tools_exposed=(
+                    sum(1 for m in aperture.values() if m in ("direct", "propose"))
+                    if attached else None
+                ),
             ))
 
         return IntegrationListResponse(integrations=integrations)
@@ -311,6 +331,26 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             integration = canonical_integrations.get(provider)
             if integration:
                 platforms.append(_to_summary(provider, integration))
+
+        # ADR-635 — attached connectors (`mcp:{slug}`) are not registry rows;
+        # they are emitted by their own key so the FE's connected/available
+        # partition sees them, one per server, resource = the exposed tools.
+        from services.attached_connectors import is_attached_platform
+        for integration in integrations_result.data:
+            provider = integration["platform"]
+            if not is_attached_platform(provider):
+                continue
+            metadata = integration.get("metadata", {}) or {}
+            aperture = metadata.get("aperture") or {}
+            platforms.append(PlatformSummary(
+                provider=provider,
+                status=integration["status"],
+                workspace_name=metadata.get("title") or metadata.get("name"),
+                target=metadata.get("server_url"),
+                connected_at=integration["created_at"],
+                resource_count=sum(1 for m in aperture.values() if m in ("direct", "propose")),
+                resource_type="tools",
+            ))
 
         return IntegrationsSummaryResponse(platforms=platforms)
 

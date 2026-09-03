@@ -94,7 +94,7 @@ captures:
     # 5 — compute_next_run_at duck-types a CaptureDeclaration
     from services.scheduling import compute_next_run_at
     now = datetime(2026, 7, 1, 10, 0, tzinfo=timezone.utc)
-    plain = CaptureDeclaration(slug="x", schedule="0 11 * * *", primitive="@primitive: TrackForeign()")
+    plain = CaptureDeclaration(slug="x", schedule="0 11 * * *", primitive="@primitive: TrackWebSources()")
     nr = compute_next_run_at(plain, last_run_at=None, now=now)
     activ = CaptureDeclaration(
         slug="y", schedule="0 11 * * *", primitive="@primitive: TrackRegime()",

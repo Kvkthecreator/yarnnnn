@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.03.3] - Attached connectors reach the lane; the strip is named (ADR-635)
+
+### Changed
+- `services/lane_runner.py` — the connector-reach section gains an ATTACHED SERVERS paragraph when the member holds attached connectors with a non-empty aperture: each server, its `mcp__{slug}__{tool}` names, and which run DIRECT versus by PROPOSE, with the rule that a PROPOSE call does not run (it is queued for the member) and must not be retried. Composed from `services/attached_connectors.frame_section`; absent when there is nothing attached, so every existing frame is byte-identical.
+- `services/attached_connectors.py` — tool DEFINITIONS carry the server's own `inputSchema`; the description is prefixed with the server's title and suffixed with the mode ("Runs directly in this turn." / "Each call is queued as a proposal the member executes.").
+- `services/skills/__init__.py` — the index withholds a skill whose `metadata.needs` names a connector category the member has not attached (counted, reachable by ListFiles — presentation only). `parse_skill` NAMES the host-specific frontmatter it strips (`allowed-tools`, `model`, `argument-hint`…) instead of dropping it silently.
+- `services/skills/creating-skills/SKILL.md` — teaches `metadata.needs` and says that a pasted host skill's `allowed-tools`/`model` are ignored here.
+- Why: a member can now attach any MCP server from the consumed directory (ADR-635). The model must know what it holds and how each tool behaves — a PROPOSE tool that "fails" is the queue working, not an error. Observed on the trio (ADR-535): a model handed an inventory infers reach it does not have; naming the edge is part of granting it.
+- Expected behavior: with nothing attached, no frame changes. With an attached server, the lane calls its DIRECT tools as it calls `platform_*` reads, and says "queued for you" on a PROPOSE tool rather than retrying. A skill needing "Project tracker" appears once Linear/Asana/Jira is attached.
+- Gate: `test_adr635_attached_connectors.py` (§6 the frame; §8 the skills); `test_adr632_the_seat_retires.py` §5 ratchets unchanged (the addition is conditional on attached rows).
+
+---
+
 ## [2026.09.03.2] - The Images pane gets its craft, and the kernel index gets a real budget (ADR-633)
 
 ### Changed

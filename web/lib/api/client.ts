@@ -239,6 +239,28 @@ export function healStaleWorkspacePin(): boolean {
   return true;
 }
 
+/** ADR-635 — an attached connector's public view (never the credential). */
+export interface AttachedConnector {
+  slug: string;
+  provider: string;
+  status: string | null;
+  title: string;
+  server_url: string | null;
+  category: string | null;
+  auth: string | null;
+  tools: Array<{
+    name: string;
+    lane_name: string;
+    description: string;
+    read_only_hint: boolean;
+    mode: "direct" | "propose" | null;
+  }>;
+  aperture: Record<string, string>;
+  exposed: number;
+  connected_at: string | null;
+  last_updated: string | null;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestOptions = {}
@@ -2372,6 +2394,50 @@ export const api = {
 
 
   // ADR-026: Integrations (Slack, Notion, etc.)
+  // ADR-635 — attached connectors: the consumed directory, the attach seam,
+  // the aperture. Disconnect rides `integrations.disconnect("mcp:{slug}")`.
+  connectors: {
+    directory: (q: string, limit = 30) =>
+      request<{
+        query: string;
+        results: Array<{
+          name: string;
+          key: string | null;
+          title: string;
+          description: string;
+          url: string;
+          category: string | null;
+          source: "official-plugins" | "registry";
+          plugins?: string[];
+        }>;
+      }>(`/api/connectors/directory?q=${encodeURIComponent(q)}&limit=${limit}`),
+    categories: () => request<{ categories: string[] }>("/api/connectors/categories"),
+    attach: (body: {
+      url: string;
+      title?: string | null;
+      key?: string | null;
+      category?: string | null;
+      header_name?: string | null;
+      header_value?: string | null;
+      redirect_to?: string | null;
+    }) =>
+      request<{ slug: string; attached: boolean; authorization_url: string | null; auth: string }>(
+        "/api/connectors/attach",
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+    get: (slug: string) => request<AttachedConnector>(`/api/connectors/${encodeURIComponent(slug)}`),
+    setAperture: (slug: string, aperture: Record<string, "direct" | "propose">) =>
+      request<{ aperture: Record<string, string>; connector: AttachedConnector | null }>(
+        `/api/connectors/${encodeURIComponent(slug)}/aperture`,
+        { method: "PUT", body: JSON.stringify({ aperture }) },
+      ),
+    refresh: (slug: string) =>
+      request<{ tools: number; connector: AttachedConnector | null }>(
+        `/api/connectors/${encodeURIComponent(slug)}/refresh`,
+        { method: "POST" },
+      ),
+  },
+
   integrations: {
     // List user's connected integrations
     list: () =>
@@ -2388,6 +2454,12 @@ export const api = {
           target?: string | null;
           last_used_at: string | null;
           created_at: string;
+          // ADR-635 — present on attached connectors (`mcp:{slug}`) only.
+          kind?: "attached" | null;
+          title?: string | null;
+          server_url?: string | null;
+          category?: string | null;
+          tools_exposed?: number | null;
         }>;
       }>("/api/integrations"),
 

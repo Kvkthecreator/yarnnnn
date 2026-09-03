@@ -105,7 +105,6 @@ from .track_regime import handle_track_regime
 from .track_web_sources import handle_track_web_sources
 # ADR-335 Crawl-B Increment B (enacts ADR-335 D4/D5): generic MCP-transport
 # standing-watch executor (the first binding reads a repo via GitHub MCP).
-from .track_foreign import handle_track_foreign
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
     EXECUTE_PROPOSAL_TOOL, handle_execute_proposal,
@@ -196,6 +195,18 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
             item["provider"] = metadata.get("provider", "")
             item["paper"] = metadata.get("paper", True)
             item["account_number"] = metadata.get("account_number", "")
+        if str(i["platform"]).startswith("mcp:"):
+            # ADR-635 — an ATTACHED connector: the inventory names the server
+            # and how much of it the member exposed. Seeing it is still not
+            # reaching it: only tools in the aperture are on the surface.
+            aperture = metadata.get("aperture") or {}
+            item["kind"] = "attached"
+            item["title"] = metadata.get("title") or metadata.get("name")
+            item["server_url"] = metadata.get("server_url")
+            item["category"] = metadata.get("category")
+            item["tools_exposed"] = sorted(
+                t for t, m in aperture.items() if m in ("direct", "propose")
+            )
         items.append(item)
 
     return {
@@ -286,7 +297,6 @@ HANDLERS: dict[str, Callable] = {
     # routes through the metered executor (read_foreign_tool). First binding:
     # repo file reads via GitHub MCP get_file_contents. Dispatcher-only; not
     # LLM-callable.
-    "TrackForeign": handle_track_foreign,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,
@@ -327,6 +337,12 @@ def _platform_write_preview(name: str, input: dict) -> dict:
     proposal's decision_context. Family-shaped (external-write): the WHO + the
     WHAT, never a file diff. Strips dispatch-layer underscore keys."""
     visible = {k: v for k, v in (input or {}).items() if not k.startswith("_")}
+    if name.startswith("mcp__"):
+        # ADR-635 — an attached connector's call: server + tool + the
+        # arguments the member is approving, in the external-write shape the
+        # queue card already renders (title + preview).
+        from services.attached_connectors import write_preview
+        return write_preview(name, input)
     if name == "platform_slack_send_to_channel":
         return {
             "channel": visible.get("channel_id") or visible.get("channel"),
@@ -350,6 +366,21 @@ def _platform_write_preview(name: str, input: dict) -> dict:
             "preview": (visible.get("body") or visible.get("text") or "")[:280],
         }
     return {k: v for k, v in visible.items()}
+
+
+def _write_effect_preview(auth: Any, name: str, input: dict) -> dict:
+    """The effect preview for an external-write proposal. An ATTACHED
+    connector's call (ADR-635) resolves the SERVER tool name through the
+    member's row, so the queue card names what will actually run — not the
+    lane's derived `mcp__…` handle."""
+    if name.startswith("mcp__"):
+        from services.attached_connectors import write_preview
+
+        return write_preview(
+            name, input,
+            client=getattr(auth, "client", None), user_id=getattr(auth, "user_id", None),
+        )
+    return _platform_write_preview(name, input)
 
 
 async def _enqueue_platform_write_proposal(
@@ -404,7 +435,7 @@ async def _enqueue_platform_write_proposal(
         ttl_hours = 1  # capital family: short TTL (matches DEFAULT_TTL_HOURS)
     else:
         decision_context = {
-            "effect": _platform_write_preview(name, input),
+            "effect": _write_effect_preview(auth, name, input),
             "gate_reason": reason,
         }
         ttl_hours = 6  # external-write: soft-reversible default window
@@ -541,6 +572,28 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     `_proposal_id`) is recognized and applied without re-gating.
     """
     from .permission import resolve_permission, PermissionDecision
+
+    # ADR-635 D6 — an attached connector's tool. The gate reads the member's
+    # aperture: DENY is a refusal the model can read, QUEUE is the existing
+    # external-write proposal (the first producer since the steward retired),
+    # APPLY reaches the server under the member's own credential.
+    from services.attached_connectors import is_attached_tool, run_attached_tool
+    if is_attached_tool(name):
+        decision, reason = await resolve_permission(auth, name, input)
+        if decision == PermissionDecision.DENY:
+            return {
+                "success": False,
+                "error": "attached_tool_denied",
+                "message": (
+                    f"{name} is not in the member's aperture for that server "
+                    f"({reason}). They choose which tools you may call in "
+                    "Settings → Connectors; say so rather than retrying."
+                ),
+                "primitive": name,
+            }
+        if decision == PermissionDecision.QUEUE:
+            return await _enqueue_platform_write_proposal(auth, name, input, reason)
+        return await run_attached_tool(auth, name, input)
 
     if is_platform_tool(name):
         # Reads + operator-addressing infra: never gate (fast path, unchanged).

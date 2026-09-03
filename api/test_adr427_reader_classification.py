@@ -100,7 +100,6 @@ CLASSIFICATION: dict[str, str] = {
     "services/primitives/mirror_schedule_index.py": "text-only-by-contract",
     "services/primitives/track_web_sources.py": "text-only-by-contract",
     "services/primitives/track_universe.py": "text-only-by-contract",
-    "services/primitives/track_foreign.py": "text-only-by-contract",
     "services/primitives/track_regime.py": "text-only-by-contract",
     "services/outcomes/ledger.py": "text-only-by-contract",
     "services/outcomes/operator.py": "text-only-by-contract",

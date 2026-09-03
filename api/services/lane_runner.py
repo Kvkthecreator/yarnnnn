@@ -616,7 +616,8 @@ def resolve_turn_reach(
 
 
 def lane_tool_names(turn_reach: bool = False,
-                    reach_platforms: Optional[tuple] = None) -> tuple:
+                    reach_platforms: Optional[tuple] = None,
+                    attached: Optional[list] = None) -> tuple:
     """THE lane's tool-name set: the file + folder verbs + the uniform reads
     (ADR-467 D4). One set, every lane, every Agent.
 
@@ -633,16 +634,25 @@ def lane_tool_names(turn_reach: bool = False,
     platform reach surface. All three consumers derive it from the same
     turn facts, so the D4 agreement holds with the flag on or off.
     """
+    names = LANE_TOOL_NAMES + LANE_SURFACE_EXTRA
     if turn_reach:
         from services.turn_reach import turn_reach_tool_names
 
-        return (LANE_TOOL_NAMES + LANE_SURFACE_EXTRA
-                + turn_reach_tool_names(reach_platforms))
-    return LANE_TOOL_NAMES + LANE_SURFACE_EXTRA
+        names = names + turn_reach_tool_names(reach_platforms)
+    if attached:
+        # ADR-635 D5 — the member's ATTACHED connectors, tool by tool as they
+        # chose (the aperture), under the ecosystem's own `mcp__{slug}__{tool}`
+        # names. The same list feeds the payload and the frame prose, so the
+        # D4 agreement holds for this surface exactly as for the trio.
+        from services.attached_connectors import attached_tool_names
+
+        names = names + attached_tool_names(attached)
+    return names
 
 
 def lane_tools_openai(turn_reach: bool = False,
-                      reach_platforms: Optional[tuple] = None) -> list[dict]:
+                      reach_platforms: Optional[tuple] = None,
+                      attached: Optional[list] = None) -> list[dict]:
     """The lane tool surface in OpenAI format, derived from the registry's
     own definitions (no parallel schemas — Singular Implementation).
 
@@ -691,7 +701,12 @@ def lane_tools_openai(turn_reach: bool = False,
 
         by_name.update({t["name"]: t
                         for t in turn_reach_tool_defs(reach_platforms)})
-    names = lane_tool_names(turn_reach, reach_platforms)
+    if attached:
+        # ADR-635 D5 — definitions are the server's own inputSchema.
+        from services.attached_connectors import attached_tool_defs
+
+        by_name.update({t["name"]: t for t in attached_tool_defs(attached)})
+    names = lane_tool_names(turn_reach, reach_platforms, attached)
     missing = [n for n in names if n not in by_name]
     if missing:
         raise ValueError(
@@ -1027,6 +1042,7 @@ def build_lane_conventions(
     app: Optional[str] = None,
     cast: Optional[list[dict]] = None,
     responder_reason: Optional[str] = None,
+    attached: Optional[list] = None,
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -1074,7 +1090,14 @@ def build_lane_conventions(
     # agree; two hand-maintained values drift (the Scout bug).
     _reach, _reach_plats = resolve_turn_reach(
         client, user_id, None, agent=agent)
-    tools_line = " · ".join(lane_tool_names(_reach, _reach_plats))
+    # ADR-635 D5 — the member's attached connectors ride the same reach fact
+    # (present member, lit deployment). run_lane_turn hands the surface it
+    # already read; any other caller derives it here from the same function.
+    if attached is None:
+        from services.attached_connectors import attached_surface
+
+        attached = attached_surface(client, user_id) if _reach else []
+    tools_line = " · ".join(lane_tool_names(_reach, _reach_plats, attached))
 
     # ADR-585 / ADR-535 D3 — the connector edge, stated affirmatively either
     # way. Without reach the model must not infer it from the inventory; with
@@ -1134,6 +1157,15 @@ def build_lane_conventions(
             "channel. If they want that content, say so plainly and offer "
             "what you can do — they can paste it, or export and drop the "
             "files into the commons, where you read them normally."
+        )
+
+    if attached:
+        # ADR-635 D5 — stated affirmatively, in the trio's register: which
+        # servers, which tools, and which run now versus by proposal.
+        from services.attached_connectors import frame_section
+
+        connector_reach_section = (
+            connector_reach_section + "\n\n" + frame_section(attached, member)
         )
 
     mandate = _read_workspace_file(client, user_id, CONSTITUTION_MANDATE_PATH)
@@ -1234,8 +1266,14 @@ def build_lane_conventions(
     # `app` None) is offered everything: that is where a member goes for any
     # kind of work.
     from services.skills import read_member_skills, skills_index_section
+    # ADR-635 D7 — a skill that NAMES needs is offered when the member holds
+    # an attached connector of that category; the categories come from the
+    # same surface the tools do.
+    from services.attached_connectors import reach_categories
+
     skills_section = skills_index_section(
-        read_member_skills(client, user_id), app=app
+        read_member_skills(client, user_id), app=app,
+        reach=set(reach_categories(attached or [])),
     )
 
     # ADR-495 D3 — the room, named. Composed here (not in the posture) because
@@ -1442,10 +1480,16 @@ async def run_lane_turn(
     _reach, _reach_plats = resolve_turn_reach(
         auth.client, auth.user_id, getattr(auth, "workspace_id", None),
         agent=agent)
-    tools = lane_tools_openai(_reach, _reach_plats)
-    _allowed = lane_tool_names(_reach, _reach_plats)
+    # ADR-635 D5 — the attached surface, read ONCE and handed to all three
+    # consumers (payload, allowlist, frame), like the reach fact itself.
+    from services.attached_connectors import attached_surface
+
+    _attached = attached_surface(auth.client, auth.user_id) if _reach else []
+    tools = lane_tools_openai(_reach, _reach_plats, _attached)
+    _allowed = lane_tool_names(_reach, _reach_plats, _attached)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
+        attached=_attached,
         artifact_path=artifact_path,
         skill=skill, derive_source=derive_source,
         agent=agent,
@@ -1694,10 +1738,16 @@ async def run_lane_turn_stream(
     _reach, _reach_plats = resolve_turn_reach(
         auth.client, auth.user_id, getattr(auth, "workspace_id", None),
         agent=agent)
-    tools = lane_tools_openai(_reach, _reach_plats)
-    _allowed = lane_tool_names(_reach, _reach_plats)
+    # ADR-635 D5 — the attached surface, read ONCE and handed to all three
+    # consumers (payload, allowlist, frame), like the reach fact itself.
+    from services.attached_connectors import attached_surface
+
+    _attached = attached_surface(auth.client, auth.user_id) if _reach else []
+    tools = lane_tools_openai(_reach, _reach_plats, _attached)
+    _allowed = lane_tool_names(_reach, _reach_plats, _attached)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
+        attached=_attached,
         artifact_path=artifact_path,
         skill=skill, derive_source=derive_source,
         agent=agent,

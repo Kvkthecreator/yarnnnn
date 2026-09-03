@@ -320,6 +320,32 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     #
     # An approved-proposal REPLAY (ExecuteProposal injects `_proposal_id`) is
     # already operator-authorized: it applies without re-gating (no loop).
+    # ADR-635 D4/D6 — an ATTACHED connector's tool (`mcp__{slug}__{tool}`):
+    # the member chose, tool by tool, whether it runs in their turn (direct
+    # → APPLY), is queued as a proposal they execute (propose → QUEUE), or is
+    # not offered at all (unlisted → DENY, fail closed). The verdict comes
+    # from the CONNECTION row (the grant side), never from the server's own
+    # annotations and never from an agent's row (ADR-596 D2). Sits with the
+    # other caller-independent branches: a `member:` lane caller must not
+    # inherit the non-Reviewer free-pass below for a foreign write — that
+    # free-pass is exactly the collapsed principal ADR-635 §1 names. An
+    # approved replay (`_proposal_id`, ExecuteProposal) applies without
+    # re-gating, as for platform writes.
+    from services.attached_connectors import aperture_mode, is_attached_tool
+    if is_attached_tool(name):
+        if input.get("_proposal_id"):
+            return PermissionDecision.APPLY, "approved_proposal_replay"
+        try:
+            mode = aperture_mode(auth.client, auth.user_id, name)
+        except Exception as exc:  # fail closed — deny rather than apply
+            logger.warning("[PERMISSION] aperture lookup failed for %s: %s — DENY", name, exc)
+            return PermissionDecision.DENY, f"aperture_error:{exc}"
+        if mode == "direct":
+            return PermissionDecision.APPLY, "attached_direct"
+        if mode == "propose":
+            return PermissionDecision.QUEUE, "attached_propose"
+        return PermissionDecision.DENY, "attached_tool_outside_aperture"
+
     from services.platform_tools import (
         is_consequential_platform_tool, consequential_platform_family,
     )
