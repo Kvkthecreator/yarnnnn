@@ -86,10 +86,23 @@ class _Q:
             return False
         return True
 
+    # The live table's NOT NULL set (migration 244 for connected_by, whose own
+    # comment says the constraint exists "so a connect door that forgets the
+    # stamp fails loudly instead of writing silent unattributable reach").
+    # A fake that accepts any payload cannot see that class of defect: the
+    # first driven attach 502'd on exactly this while the suite was 78/78
+    # green. The fake now refuses what Postgres refuses.
+    _NOT_NULL = ("user_id", "platform", "connected_by")
+
     def execute(self):
         if self.op == "insert":
             row = dict(self.payload); row.setdefault("id", f"row-{len(self.store) + 1}")
             row.setdefault("created_at", "2026-09-03T00:00:00+00:00")
+            for col in self._NOT_NULL:
+                if row.get(col) is None:
+                    raise AssertionError(
+                        f'null value in column "{col}" of relation '
+                        f'"platform_connections" violates not-null constraint')
             self.store.append(row); return _Res([row])
         if self.op == "update":
             hit = [r for r in self.store if self._match(r)]

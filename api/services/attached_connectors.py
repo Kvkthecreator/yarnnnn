@@ -393,7 +393,17 @@ def _upsert_row(client: Any, user_id: str, slug: str, fields: dict) -> dict:
         client.table("platform_connections").update(stamped).eq("id", existing["id"]).execute()
         existing.update(stamped)
         return existing
-    stamped.update({"user_id": user_id, "platform": platform_key(slug)})
+    # `connected_by` — the authorizing member (ADR-431, extended to this table
+    # by migration 244, which made it NOT NULL precisely "so a connect door
+    # that forgets the stamp fails loudly instead of writing silent
+    # unattributable reach"). For an attached connector the authorizing member
+    # IS the attaching member: they sign in to the server themselves and the
+    # envelope is theirs. Same value as `user_id`, different question.
+    stamped.update({
+        "user_id": user_id,
+        "platform": platform_key(slug),
+        "connected_by": user_id,
+    })
     res = client.table("platform_connections").insert(stamped).execute()
     rows = res.data or []
     return rows[0] if rows else stamped
