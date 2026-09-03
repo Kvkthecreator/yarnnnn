@@ -289,9 +289,18 @@ async def discover(server_url: str, *, extra_headers: Optional[dict] = None) -> 
     return out
 
 
-async def register_client(registration_endpoint: str, redirect_uri: str) -> dict:
+async def register_client(registration_endpoint: str, redirect_uri: str,
+                          scopes: Optional[list] = None) -> dict:
     """RFC 7591 dynamic registration as a PUBLIC client (PKCE carries the
-    proof). If the server issues a secret anyway, it is kept and used."""
+    proof). If the server issues a secret anyway, it is kept and used.
+
+    `scope` is OPTIONAL in RFC 7591 and we long omitted it — but a server may
+    require it, and then the refusal reads like policy when it is our request
+    that is short a field. Gong answered `invalid_client_metadata: scope is
+    required` while advertising `mcp:read mcp:write` in its own
+    `scopes_supported` (driven 2026-09-04). Discovery already knows them, so
+    send what the server asked for.
+    """
     body = {
         "client_name": "yarnnn",
         "client_uri": "https://yarnnn.com",
@@ -300,9 +309,20 @@ async def register_client(registration_endpoint: str, redirect_uri: str) -> dict
         "response_types": ["code"],
         "token_endpoint_auth_method": "none",
     }
+    if scopes:
+        body["scope"] = " ".join(str(s) for s in scopes)
     async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as http:
         r = await http.post(registration_endpoint, json=body,
                             headers={"Accept": "application/json"})
+        # A server may refuse a PUBLIC client and want a confidential one with
+        # a secret (Gong: `token_endpoint_auth_method is unsupported`, driven
+        # 2026-09-04). We already keep and use a secret when one is issued, so
+        # the preference for `none` is ours, not a requirement — drop it and
+        # let the server pick. One retry, only on that refusal.
+        if r.status_code not in (200, 201) and "token_endpoint_auth_method" in r.text:
+            retry = {k: v for k, v in body.items() if k != "token_endpoint_auth_method"}
+            r = await http.post(registration_endpoint, json=retry,
+                                headers={"Accept": "application/json"})
         if r.status_code not in (200, 201):
             raise RuntimeError(f"registration refused ({r.status_code}): {r.text[:200]}")
         data = r.json()
@@ -515,7 +535,8 @@ async def begin_attach(
             "this server does not offer dynamic client registration; a "
             "pre-registered client is not supported yet"
         )
-    client_info = await register_client(reg_endpoint, redirect_uri)
+    client_info = await register_client(reg_endpoint, redirect_uri,
+                                        found.get("scopes_supported"))
     verifier, challenge = _pkce()
     from integrations.core.oauth import generate_oauth_state
 
