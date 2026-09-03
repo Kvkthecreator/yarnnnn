@@ -138,6 +138,31 @@ answer, and the surface tells the member when a published post is not
 publicly reachable (F4). This is the ADR-445 seat-drift shape once more:
 record the fact, surface the gap, clear it on a later success.
 
+### Post-fix verification — the second drive (2026-09-03, deploy `6b3565d`)
+
+The fixed seam was driven again on the SAME artifact, as a draft (post 7):
+
+| | post 6 (before) | post 7 (after) |
+|---|---|---|
+| composed | 39,706 bytes | **216 bytes** |
+| body | doctype + `<head>` + stylesheet-as-prose | header · standfirst · byline · prose · h2 |
+| `publicly_readable` | absent | **`false`**, and the panel says so in amber |
+| `derived_from` | *(empty)* | `["…/article.html"]`, `revision_kind='derivation'` |
+
+The deployed `GET /api/publish/wordpress/sites` returns
+`{"id":"257108137","name":"yarnnn9","url":…,"public":false}` — D7 confirmed at
+the wire, not merely in a gate.
+
+⚠️ **The read-back half of D8's round-trip is NOT yet mechanized.** Post 7 is a
+draft, and an unauthenticated read returns an empty body — which reads
+identically to "clean". The authenticated read needs
+`INTEGRATION_ENCRYPTION_KEY`, which lives only on Render by design, so a local
+verifier cannot perform it. The claim "post 7 stored clean" is therefore
+**unverified at the platform**: what is verified is what was SENT (216 bytes,
+recomputed with the deployed composer) and every receipt field. Mechanizing the
+read-back — a `read_post` verb behind the seam, exercised by a canary — is
+phase (b)'s precondition and is owed before any unattended publish.
+
 ### D8 — Phase (b) stays SHUT, and its precondition is now named
 
 The original text gated phase (b) on "phase (a) has produced real receipts."

@@ -4,6 +4,61 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part N — the outbound seam DRIVEN: ADR-628 D6/D7/D8 (2026-09-03)
+
+`6b3565d` — the click-pass ADR-627/628 left owed since 09-01 ran, twice.
+
+**Drive 1 (post 6, live).** Transport sound on the first attempt: site listing,
+credential, blogger-only guard, platform call, attributed receipt — the first
+`_publish.yaml` row workspace-wide. **Composition** — the one stage with
+neither a receipt nor a refusal — failed 3 ways and reported success: 33,978
+bytes in, 39,706 out, body = doctype + `<head>` + stylesheet published AS PROSE.
+
+⭐⭐⭐ **WordPress strips `<style>` TAGS but KEEPS THEIR TEXT** — with its
+typographic filter applied to the code. A local dry run cannot predict what a
+platform does to bytes it receives; only a round-trip can.
+
+⭐⭐ **The audit question is "which stage can neither refuse nor receipt?"** —
+not "which stage is complex?". Every guarded stage worked first try.
+
+⭐ **The gate certified its own fixture**: it composed only
+`build_skeleton("post")`, which ALWAYS has `<main>`, so all three defects passed
+clean. And when I added assertions, TWO of them passed vacuously until the
+fixture carried a `<style>` INSIDE the content root and a quote-abutting
+`data-` attribute — falsify every new assertion individually.
+
+**Fix (D6/D7/D8).** The three-regex chain DELETED: content root `<main>` →
+`<article>` → `<body>`, transport-hostile elements dropped WHOLE, and a
+**refusal** where the fallback used to be. Receipt now carries
+`publicly_readable` (D7) and `derived_from` (D8).
+
+**Drive 2 (post 7, draft, post-deploy):** 216 bytes composed (was 39,706);
+amber banner renders "Your site is not launched yet…"; deployed sites endpoint
+returns `"public":false`; receipt row 2 carries both new fields with
+`revision_kind='derivation'`.
+
+## OWED
+
+1. **Delete malformed post 6** on yarnnn9 (live-but-private). The WP client has
+   no delete verb BY DESIGN — manual step in the WP dashboard.
+2. **Mechanize the read-back.** D8's round-trip is half-done: what was SENT is
+   verified, what WordPress STORED is not (a draft reads empty
+   unauthenticated; the authenticated read needs `INTEGRATION_ENCRYPTION_KEY`,
+   Render-only). A `read_post` verb + canary is phase (b)'s precondition.
+3. **`test_adr577` §6 is pre-existing RED** (confirmed at HEAD, not this arc):
+   the allowlist cites `services/freddie_envelope.py` and
+   `services/primitives/system_state.py` — both deleted by ADR-632 — and
+   `routes/agent_connectors.py` is an unlisted reader.
+4. **Next: the blogger rebuild** (operator-aligned, not started) —
+   `sources → judgment → composition → draft → publish`, with strings as
+   REFERENCE not substrate. The reason is cardinality: strings maintains ONE
+   file forever, blogger GENERATES many. ADR-569 D1's named-deferred refusal of
+   authoring artifacts was a *revision* collision and does not bind a
+   generator. Two rulings still open: is `draft` a PLACE or a STATUS FIELD, and
+   does unattended `live` belong in the target design at all?
+
+---
+
 # Part M — the vocabulary / skills / steward-retirement arc: ADR-630/631/632 (2026-09-02)
 
 ## What shipped (three commits on main)
