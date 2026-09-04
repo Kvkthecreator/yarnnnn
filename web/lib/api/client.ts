@@ -429,7 +429,25 @@ async function streamLaneTurn(
     throw err;
   }
   if (!res.ok || !res.body) {
-    handlers.onError?.(`Lane turn failed (${res.status})`);
+    // The server's own words come first. The draw gate (ADR-445 §9) writes a
+    // member-facing sentence into `detail` — "balance is exhausted, top up to
+    // continue" vs "you've reached your spend cap, ask the owner to raise it"
+    // — two different acts by two different people. Rendering `(402)` threw
+    // both away and left the member with a number they cannot act on.
+    // `errorDetailFrom` because a 402 raised in the handler body arrives as
+    // `{detail}` while anything through the envelope middleware arrives as
+    // `{error:{message}}`; a reader that knows one shape misreads the other.
+    let detail: unknown;
+    try {
+      detail = errorDetailFrom(await res.json());
+    } catch {
+      /* non-JSON body (proxy/gateway error) — fall through to the status line */
+    }
+    handlers.onError?.(
+      typeof detail === "string" && detail.trim()
+        ? detail
+        : `Lane turn failed (${res.status})`,
+    );
     return;
   }
   try {
