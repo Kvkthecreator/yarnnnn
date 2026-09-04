@@ -492,6 +492,45 @@ what was made from what and to warn before a source is deleted."""
 PARTICIPANT_READ_BEFORE_WRITE = """\
 Read before writing: check what already exists before creating or overwriting."""
 
+#: THE REGISTER CLAUSE — ADR-365 restored (2026-09-04), ADR-637.
+#:
+#: ADR-365 ratified "register follows consumer" and 365b VALIDATED a structural
+#: directive at +49-79% operator readability (LLM-judge A/B, two runs). It lived
+#: in the steward's frame and DIED with it (ADR-632) — the lane frame never
+#: carried it, so the discipline that exists for TOOL NAMES (`toolLabels.ts`) and
+#: for PATHS (PARTICIPANT_FILESYSTEM_MODEL tells every LLM "Documents" while the
+#: kernel says `operation/`) was missing for the agent's own PROSE.
+#:
+#: Measured in production before restoring (120 replies): 11 named a raw tool
+#: (`ReadFile`), 6 quoted `data-block`/`data-arrange`, 3 named block ids, and an
+#: IMAGES read-back rendered a table of `y:82% -> y:86%`, `(z:5)`, "tier
+#: separation" — the member's own screenshot. The agent is immersed in this
+#: grammar because the posture must teach it to AUTHOR; nothing told it the
+#: grammar is private to the tool.
+#:
+#: ⭐ STRUCTURE, NOT WORD-FREQUENCY. ADR-365's first attempt was a vague "write
+#: plainly" and a controlled A/B FALSIFIED it (2.72 vs 2.60 jargon/1k — noise).
+#: What worked was naming the concrete failure each rule fixes. Keep it that way:
+#: a future edit that softens these into "be clear" is re-running the falsified
+#: arm.
+#:
+#: ⭐ IT GOVERNS THE ADDRESS, NEVER THE WORK. The agent still reasons in, and
+#: writes, the real grammar — `data-block-id` in the artifact is correct and
+#: load-bearing. This constrains only the sentences aimed at the member (ADR-365
+#: D5: a forward-reasoning surface stays free).
+PARTICIPANT_REGISTER = """\
+Write for someone who has never seen this system's internals. They know
+their own work, not our machinery.
+- Name the THING, not its mechanism. "I moved the headline down and made it
+  bigger" — never "y:58% -> y:66%, z:5". "I read your notes" — never "ReadFile".
+  Attribute names (data-block, data-arrange), ids (b7), tokens, measures,
+  layouts and revision ids are ours: use them in the file, never in the reply.
+- Lead with what changed for them, then why — one or two sentences before any
+  detail. Skip the narration of what you are about to do; do it and report.
+- Their words, not ours: slides, pages, layers, images, posts, folders — the
+  nouns on their screen."""
+
+
 #: Format discipline (ADR-254). The narrow, high-value half: a participant that
 #: hand-authors machine config breaks the parsers that read it.
 PARTICIPANT_FORMAT_DISCIPLINE = """\

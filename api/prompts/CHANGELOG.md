@@ -17464,3 +17464,29 @@ The MCP gateway hit `/api/mcp/tools/slack/get_channel_history`; the Slack MCP se
 ### Removed
 - Deprecated prompt or tool
 ```
+
+## [2026.09.04.1] - ADR-637 — the agent speaks the member's language
+
+### Added
+- `services/workspace_paths.py`: `PARTICIPANT_REGISTER` — the register clause, a
+  new sibling of `PARTICIPANT_FILESYSTEM_MODEL` / `PARTICIPANT_FORMAT_DISCIPLINE`
+  (ADR-533 D1: authored once, composed per surface).
+- `services/lane_runner.py`: composed into `_CONVENTIONS_FRAME` as
+  `## Talking to {member}`. Scaffold 666 → 683 chars (ceiling 900, unchanged).
+- Expected behaviour: replies name the THING, not its mechanism ("I moved the
+  headline down and made it bigger", never `y:58% → y:66%, z:5`); lead with what
+  changed; use the member's nouns. The agent still authors the real grammar —
+  only the ADDRESS is constrained (ADR-365 D5 preserved).
+
+### Why (the observed failure — ADR-306 requires one)
+120 consecutive live assistant replies: 11 named a raw tool (`ReadFile`), 6
+quoted `data-*` grammar, 3 named block ids, 1 rendered a table of `y:82%` →
+`y:86%`, `(z:5)` — the operator's screenshot. The discipline already existed for
+tool names (`toolLabels.ts`) and paths (Documents/Downloads) but not for prose.
+ADR-365 ratified and validated this rule in June 2026; it died with the steward
+(ADR-632) and the lane frame never carried one.
+
+### Validated
+`scripts/operator/probe_adr637_register_ab.py`, 2 runs (3+6 trials/arm, Sonnet 5):
+clause present 0.00 leaks/reply and 9/9 clean; stripped 2.08 and 1/9. Replies also
+fell 177 → 63 words with no length rule asked for.

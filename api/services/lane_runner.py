@@ -772,6 +772,9 @@ write only to the commons.
 
 ## Format discipline
 {format_discipline}
+
+## Talking to {member}
+{register}
 {cast_section}{mandate_section}{posture_section}
 
 {skills_section}"""
@@ -1073,6 +1076,7 @@ def build_lane_conventions(
         PARTICIPANT_COMMONS_CONTRACT,
         PARTICIPANT_FILESYSTEM_MODEL,
         PARTICIPANT_FORMAT_DISCIPLINE,
+        PARTICIPANT_REGISTER,
         PARTICIPANT_READ_BEFORE_WRITE,
     )
 
@@ -1294,6 +1298,7 @@ def build_lane_conventions(
         read_before_write=PARTICIPANT_READ_BEFORE_WRITE,
         filesystem_model=PARTICIPANT_FILESYSTEM_MODEL,
         format_discipline=PARTICIPANT_FORMAT_DISCIPLINE,
+        register=PARTICIPANT_REGISTER,
         tools_line=tools_line,
         connector_reach_section=connector_reach_section,
         mandate_section=mandate_section,
