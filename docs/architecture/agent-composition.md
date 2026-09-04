@@ -152,6 +152,41 @@ The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces t
 
 #### 3.2.1 Partition discipline: what belongs in `principles.md` vs. persona-frame
 
+> **⚠ 2026-09-04 — THIS SECTION PREDATES SKILLS, AND CLAUDE.md POINTS HERE.**
+> CLAUDE.md's prompt-change protocol sends every session here for *"where does
+> this prose go"*. The partition below names three destinations, and one of
+> them is gone: **the persona-frame** it partitions against lived in
+> `api/agents/freddie_agent.py`, and `api/agents/` **no longer exists**
+> (ADR-632 retired the steward). `_workspace_guide.md` is still live
+> (`services/workspace_guide.py`); `/workspace/persona/principles.md` is still
+> referenced by `judgment_log.py` and `conventions.py`, so treat it as
+> vestigial-but-present rather than deleted.
+>
+> **There is also a destination this section never had, and it is the one with
+> measurements: a SKILL** (`api/services/skills/{slug}/SKILL.md`, ADR-630).
+>
+> The test that belongs beside the partition below, until this section is
+> re-cut for the post-steward frame:
+>
+> - **Grammar** (tags, attributes, the pane's vocabulary) → the app's
+>   registries, derived by the posture. Never restated in prose. (ADR-601 D1)
+> - **The participant contract** (commons, citation, attribution, filesystem
+>   model, register) → the kernel constants in `services/workspace_paths.py`.
+>   (ADR-533 D1)
+> - **Reach** → the gates. Prose is not permission. (ADR-464 §3)
+> - **Craft — how a kind of work is done well** → a **skill**, and *only when
+>   it carries a right answer the model has no prior for*: one of this
+>   workspace's own shapes. Craft a frontier model already holds measures flat
+>   in both arms of an A/B and is prose paid for in every turn.
+>   ([`analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md`](../analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md);
+>   the authoring test lives in `creating-skills/SKILL.md`.)
+>
+> ⭐ The partition below is preserved verbatim as the record of the boundary it
+> governed. **Do not derive current placement from it without reading this
+> note** — it partitions against a frame that no longer exists, and it predates
+> the destination most new craft prose now belongs in.
+
+
 > **⚠ ADR-414 amendment (2026-07-07):** the partition now applies **per altitude**. For the **system agent** (Freddie), *both sides collapse into the kernel*: its identity/mandate/principles are kernel constants (ADR-414 D2) — there is no seeded steward `principles.md` to partition against, and the persona-frame carries the steward self-model + action-grammar only. The partition below governs **Altitude-3 agents** (hired persona agents + user-authored domain Agents): *their* `agents/{slug}/principles.md` is the rule-set, *their* envelope carries the judgment load-out, and the frame stays minimal (DP22). Bundle-template edits therefore target the hired agent's home, never `/workspace/persona/`.
 
 > **This subsection is the singular enforcement home for the principles ↔ persona-frame partition.** When you are about to add content to `/workspace/persona/principles.md` (in a bundle template, in a per-workspace seed, or in a doc that prescribes principles content), this is the test. When you are about to add content to a `_compute_*` section of `api/agents/freddie_agent.py`'s persona-frame, this is the test. Other canon files (`reviewer-seat-substrate.md`, `reviewer-occupant.md`, ADR-194 v2, ADR-217, ADR-293, ADR-295, ADR-303, ADR-315) defer to this clause on the partition question — they describe the seat, the occupant, the autonomy gating, the self-amendment capability, the posture taxonomy, but the *content boundary between principles.md and the persona-frame* is governed here.

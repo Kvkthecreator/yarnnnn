@@ -80,7 +80,16 @@ below it is inferred — see §6.
    - *Unbound lane*: the default-target line ("The member is looking at: … they
      mean THIS one — edit it in place").
 7. **Skill section** (ADR-450 D3 / ADR-630) when the lane carries a skill binding — the skill's body, the source, the citation mechanics.
-7b. **Skills index** (ADR-630) — every lane: one line per skill (path + description), kernel from code, member from one bounded query. Bodies never; the agent reads a skill when the index matches.
+7b. **Skills index** (ADR-630) — every lane: one line per skill (path + description), kernel from code, member
+   from one bounded query. Bodies never; the agent reads a skill when the index matches.
+   ⭐⭐⭐ **What these ~3 KB buy, measured 2026-09-04**: a three-arm A/B (this roster · a 360-byte POINTER
+   naming no skill · nothing) put *reach* — did the agent open the skill at all — at **100 % · 58 % · 42 %**.
+   A vs pointer p=0.038; **pointer vs nothing p=0.682, i.e. indistinguishable**. The roster does not buy
+   latency or convenience; it buys the RELIABILITY of the read, and for a skill carrying one of this
+   workspace's own shapes the read IS the outcome (the pointer arm produced the contract only on the run
+   where it happened to read the skill). **A future cut is argued against reach-rate, never byte count** —
+   the receipt lives on `INDEX_CEILING`. Capture:
+   [`analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md`](../analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md).
 8. **Cast section** (ADR-495 D3) — a fact about the conversation, composed in the
    frame, species-blind.
 
