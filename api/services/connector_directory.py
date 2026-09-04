@@ -65,6 +65,30 @@ def load_seed() -> dict:
     return data
 
 
+# ADR-635 — servers that refuse dynamic registration for a REASON NO MEMBER CAN
+# RESOLVE: a partner agreement, a domain allowlist, an approved-vendor list.
+# Every other refusal is the member's to settle with the provider by signing in,
+# so it stays listed and is attempted. These three cannot be reached by anyone
+# who clicks, so listing them only manufactures a dead end.
+#
+# Driven 2026-09-04 (each refusal in the provider's own words):
+#   square    "Invalid redirect URI ... domain not in allowlist"
+#   zoominfo  "Vendor with name yarnnn was not found in approved vendors"
+#   figma     bare 403 with no body — no signed-in path observed
+#
+# Keyed by URL host so a seed refresh cannot silently re-list them under a
+# renamed key. Removing an entry here is how one comes back.
+_OPTED_OUT_HOSTS = {
+    "mcp.squareup.com",
+    "mcp.zoominfo.com",
+    "mcp.figma.com",
+}
+
+
+def _opted_out(url: str) -> bool:
+    return _host(url) in _OPTED_OUT_HOSTS
+
+
 def seed_entries() -> list[dict]:
     return [
         {
@@ -78,6 +102,7 @@ def seed_entries() -> list[dict]:
             "plugins": s.get("plugins") or [],
         }
         for s in load_seed()["servers"]
+        if not _opted_out(s["url"])
     ]
 
 
@@ -155,7 +180,7 @@ def search(q: str = "", *, limit: int = 30, include_registry: bool = True) -> li
     if include_registry and q:
         for e in registry_search(q, limit):
             h = _host(e["url"])
-            if h in seen:
+            if h in seen or _opted_out(e["url"]):
                 continue
             seen.add(h)
             out.append(e)

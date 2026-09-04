@@ -81,6 +81,12 @@ APERTURE_MODES = ("direct", "propose")
 #: OpenAI; the lane name is cut + hashed past this, and resolved by lookup.
 _MAX_TOOL_NAME = 64
 _HTTP_TIMEOUT = httpx.Timeout(15.0, connect=5.0)
+
+# ADR-635 — the client id sent when a server offers no dynamic registration and
+# the member supplied none. It identifies us honestly rather than impersonating
+# a registered app; providers that validate at the authorize step will say so
+# in their own words, which is the point.
+_UNREGISTERED_CLIENT_ID = "yarnnn"
 #: How long before expiry a token is refreshed proactively.
 _REFRESH_SKEW = timedelta(seconds=60)
 
@@ -473,6 +479,8 @@ async def begin_attach(
     category: Optional[str] = None,
     header_name: Optional[str] = None,
     header_value: Optional[str] = None,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
     redirect_to: Optional[str] = None,
 ) -> dict:
     """Start attaching one server for the acting member.
@@ -530,13 +538,34 @@ async def begin_attach(
 
     redirect_uri = callback_url()
     reg_endpoint = found.get("registration_endpoint")
-    if not reg_endpoint:
-        raise ValueError(
-            "this server does not offer dynamic client registration; a "
-            "pre-registered client is not supported yet"
-        )
-    client_info = await register_client(reg_endpoint, redirect_uri,
-                                        found.get("scopes_supported"))
+    if reg_endpoint:
+        client_info = await register_client(reg_endpoint, redirect_uri,
+                                            found.get("scopes_supported"))
+    elif client_id:
+        # The member brought their own client id (they registered yarnnn as an
+        # app at the provider). Same PKCE path from here on.
+        client_info = {"client_id": client_id.strip(),
+                       "client_secret": (client_secret or "").strip() or None,
+                       "token_endpoint_auth_method":
+                           "client_secret_post" if client_secret else "none"}
+    else:
+        # ADR-635 — NO dynamic registration, and no id supplied: TRY ANYWAY.
+        #
+        # Refusing here was a guess about what the provider would say, made on
+        # the member's behalf and always in the negative. Driven 2026-09-04
+        # against the eleven such servers in the directory, most SERVE their
+        # authorize page to an unregistered client id and defer client
+        # validation to sign-in (Asana, Box, Hubspot, Docusign each 200; Github
+        # 302s to its own login). Whether the member's account can complete it
+        # is between them and the provider — an answer we cannot compute here
+        # and should not pre-empt. Send them, and let the provider speak.
+        #
+        # The callback degrades to a readable provider error (ADR-531), which
+        # is strictly more information than our refusal carried.
+        client_info = {"client_id": _UNREGISTERED_CLIENT_ID,
+                       "client_secret": None,
+                       "token_endpoint_auth_method": "none"}
+        base_md["unregistered_client"] = True
     verifier, challenge = _pkce()
     from integrations.core.oauth import generate_oauth_state
 

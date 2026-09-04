@@ -40,6 +40,11 @@ class AttachRequest(BaseModel):
     category: Optional[str] = None
     header_name: Optional[str] = None
     header_value: Optional[str] = None
+    # ADR-635 — optional, for a server with no dynamic registration where the
+    # member registered yarnnn as an app themselves. Absent, the attach is
+    # attempted with an unregistered client and the provider gets to answer.
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
     redirect_to: Optional[str] = None
 
 
@@ -74,6 +79,7 @@ async def attach(req: AttachRequest, auth: UserClient) -> dict:
             slug=req.key or (seed or {}).get("key"),
             category=req.category or (seed or {}).get("category"),
             header_name=req.header_name, header_value=req.header_value,
+            client_id=req.client_id, client_secret=req.client_secret,
             redirect_to=req.redirect_to,
         )
     except PermissionError as exc:

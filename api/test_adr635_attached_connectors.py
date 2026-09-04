@@ -463,5 +463,77 @@ for f, needle in (
         path = os.path.join(ROOT, os.path.dirname(f), cands[0]) if cands else path
     _check(f"11b {os.path.basename(path)} carries the amendment", os.path.exists(path) and needle in open(path, encoding="utf-8").read())
 
+# ═══════════════════════════════════════════════════════════════════════════
+print("§12 no dynamic registration is not a dead end (ADR-635, 2026-09-04)")
+# ═══════════════════════════════════════════════════════════════════════════
+# Eleven directory servers publish working authorize + token endpoints but NO
+# registration_endpoint. begin_attach used to raise ("a pre-registered client
+# is not supported yet") — a guess about what the provider would say, made on
+# the member's behalf and always in the negative. Driven against those servers,
+# most serve their authorize page to an unregistered client and defer client
+# validation to sign-in. So: attempt it, and let the provider answer.
+
+
+class _NoDCRHTTP(_FakeHTTP):
+    async def get(self, url, **k):
+        _FakeHTTP.calls.append(("get", url))
+        if url == "https://mcp.notion.com/.well-known/oauth-protected-resource/mcp":
+            return _Resp(200, {"resource": "https://mcp.notion.com/mcp",
+                               "authorization_servers": ["https://mcp.notion.com"],
+                               "scopes_supported": ["default"]})
+        if url == "https://mcp.notion.com/.well-known/oauth-authorization-server":
+            # Same server, minus the registration endpoint — the NO_DCR shape.
+            return _Resp(200, {"issuer": "https://mcp.notion.com",
+                               "authorization_endpoint": "https://mcp.notion.com/authorize",
+                               "token_endpoint": "https://mcp.notion.com/token",
+                               "code_challenge_methods_supported": ["S256"]})
+        return _Resp(404)
+
+
+ac.httpx.AsyncClient = _NoDCRHTTP  # type: ignore[attr-defined]
+
+_c12 = _Client(); _a12 = _Auth(_c12)
+# Caught, not propagated: the behaviour under test is precisely a REFUSAL, and
+# an uncaught one aborts the run — every later check silently skipped, which
+# reads as "not failing" rather than "never ran".
+try:
+    nodcr = _run(ac.begin_attach(_a12, "https://mcp.notion.com/mcp", title="Notion", slug="notion"))
+except Exception as _exc:  # noqa: BLE001
+    nodcr = {"attached": None, "authorization_url": "", "_refused": repr(_exc)}
+_check("12a a server with no DCR still yields an authorize URL (no refusal)",
+       nodcr["attached"] is False and nodcr["authorization_url"].startswith("https://mcp.notion.com/authorize?"),
+       str(nodcr)[:200])
+_check("12b it carries PKCE S256 like any other attach",
+       "code_challenge_method=S256" in nodcr["authorization_url"])
+_check("12c the unregistered client names US, it does not impersonate an app",
+       f"client_id={ac._UNREGISTERED_CLIENT_ID}" in nodcr["authorization_url"],
+       nodcr["authorization_url"][:160])
+_row12 = ac.load_row(_c12, "u1", "notion")
+_check("12d the row records that the client was unregistered",
+       _row12["metadata"].get("unregistered_client") is True)
+
+_c12b = _Client(); _a12b = _Auth(_c12b)
+byo = _run(ac.begin_attach(_a12b, "https://mcp.notion.com/mcp", slug="notion",
+                           client_id="member-own-id", client_secret="shh"))
+_check("12e a member-supplied client id is used verbatim",
+       "client_id=member-own-id" in byo["authorization_url"], byo["authorization_url"][:160])
+_check("12f and the secret rides the pending envelope, never the URL",
+       "shh" not in byo["authorization_url"]
+       and ac._decrypt(ac.load_row(_c12b, "u1", "notion")["credentials_encrypted"]).get("client_secret") == "shh")
+
+# The opt-out: a refusal NO member can resolve (partner agreement, domain
+# allowlist, approved-vendor list) is the one case where listing manufactures a
+# dead end. Everything else stays listed and is attempted.
+from services import connector_directory as _cd  # noqa: E402
+
+_listed = {e["url"] for e in _cd.search("", limit=300)}
+for _hostname in ("mcp.squareup.com", "mcp.zoominfo.com", "mcp.figma.com"):
+    _check(f"12g {_hostname} is opted out of the directory",
+           not any(_hostname in u for u in _listed))
+_check("12h a server that merely needs sign-in is still listed (slack, gong)",
+       any("slack" in u for u in _listed) and any("gong" in u for u in _listed))
+_check("12i the opt-out is keyed by HOST, so a renamed seed key cannot re-list it",
+       _cd._opted_out("https://mcp.figma.com/anything") and not _cd._opted_out("https://mcp.linear.app/mcp"))
+
 print(f"\n{_p} passed, {_f} failed")
 sys.exit(1 if _f else 0)
