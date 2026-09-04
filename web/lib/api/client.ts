@@ -240,6 +240,24 @@ export function healStaleWorkspacePin(): boolean {
 }
 
 /** ADR-635 — an attached connector's public view (never the credential). */
+/**
+ * ADR-635 — one hit from the CONSUMED connector directory (the MCP registry
+ * live, merged with a seed derived from Anthropic's knowledge-work plugins).
+ * Exported because the settings list and the Find-a-connector modal must agree
+ * on its shape; it used to be declared privately in the section, which is how
+ * the modal ended up inventing a `plugins` field the section did not have.
+ */
+export interface DirectoryEntry {
+  name: string;
+  key: string | null;
+  title: string;
+  description: string;
+  url: string;
+  category: string | null;
+  source: "official-plugins" | "registry";
+  plugins?: string[];
+}
+
 export interface AttachedConnector {
   slug: string;
   provider: string;
@@ -2398,19 +2416,9 @@ export const api = {
   // the aperture. Disconnect rides `integrations.disconnect("mcp:{slug}")`.
   connectors: {
     directory: (q: string, limit = 30) =>
-      request<{
-        query: string;
-        results: Array<{
-          name: string;
-          key: string | null;
-          title: string;
-          description: string;
-          url: string;
-          category: string | null;
-          source: "official-plugins" | "registry";
-          plugins?: string[];
-        }>;
-      }>(`/api/connectors/directory?q=${encodeURIComponent(q)}&limit=${limit}`),
+      request<{ query: string; results: DirectoryEntry[] }>(
+        `/api/connectors/directory?q=${encodeURIComponent(q)}&limit=${limit}`,
+      ),
     categories: () => request<{ categories: string[] }>("/api/connectors/categories"),
     attach: (body: {
       url: string;
@@ -2419,6 +2427,11 @@ export const api = {
       category?: string | null;
       header_name?: string | null;
       header_value?: string | null;
+      // ADR-635 — only for a server that offers no dynamic registration and
+      // where the member registered yarnnn as an app themselves. Omitted, the
+      // attach is attempted with an unregistered client and the provider answers.
+      client_id?: string | null;
+      client_secret?: string | null;
       redirect_to?: string | null;
     }) =>
       request<{ slug: string; attached: boolean; authorization_url: string | null; auth: string }>(

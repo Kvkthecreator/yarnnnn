@@ -24,6 +24,7 @@ import {
 import { ConnectorCard } from "./ConnectorCard";
 import { ManageConnectionSubsurface } from "./ManageConnectionSubsurface";
 import { AttachedConnectorSubsurface } from "./AttachedConnectorSubsurface";
+import { FindConnectorModal } from "./FindConnectorModal";
 
 interface Integration {
   id: string;
@@ -41,17 +42,6 @@ interface Integration {
   server_url?: string | null;
   category?: string | null;
   tools_exposed?: number | null;
-}
-
-/** ADR-635 — one hit from the consumed connector directory. */
-interface DirectoryEntry {
-  name: string;
-  key: string | null;
-  title: string;
-  description: string;
-  url: string;
-  category: string | null;
-  source: "official-plugins" | "registry";
 }
 
 const ATTACHED_PREFIX = "mcp:";
@@ -302,56 +292,7 @@ export function ConnectedIntegrationsSection({
   // ADR-635 — the directory: search (seed + registry), pick, connect. A pasted
   // URL is the same act without the search. Attaching stores a credential and
   // nothing more: the member picks the aperture on the connection's own page.
-  const [dirQuery, setDirQuery] = useState("");
-  const [dirResults, setDirResults] = useState<DirectoryEntry[]>([]);
-  const [dirLoading, setDirLoading] = useState(false);
-  const [dirError, setDirError] = useState<string | null>(null);
-  const [pasteUrl, setPasteUrl] = useState("");
-  const [attachingUrl, setAttachingUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const handle = setTimeout(async () => {
-      setDirLoading(true);
-      setDirError(null);
-      try {
-        const res = await api.connectors.directory(dirQuery.trim(), 24);
-        if (!cancelled) setDirResults(res.results);
-      } catch (e) {
-        if (!cancelled) setDirError(e instanceof Error ? e.message : "Could not search the directory.");
-      } finally {
-        if (!cancelled) setDirLoading(false);
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [dirQuery]);
-
-  const handleAttach = async (entry: Partial<DirectoryEntry> & { url: string }) => {
-    setAttachingUrl(entry.url);
-    setDirError(null);
-    try {
-      const res = await api.connectors.attach({
-        url: entry.url,
-        key: entry.key ?? null,
-        title: entry.title ?? null,
-        category: entry.category ?? null,
-        redirect_to: redirectTo ?? "/settings?settings.pane=connectors",
-      });
-      if (res.authorization_url) {
-        window.location.href = res.authorization_url;
-        return;
-      }
-      await loadIntegrations();
-      onManageConnection?.(`${ATTACHED_PREFIX}${res.slug}`);
-    } catch (e) {
-      setDirError(e instanceof Error ? e.message : "Could not attach that server.");
-    } finally {
-      setAttachingUrl(null);
-    }
-  };
+  const [finderOpen, setFinderOpen] = useState(false);
 
   const attachedRows = integrations.filter((i) => isAttached(i.provider) && i.status === "active");
   // ADR-635 — the badge and the row list must ask the SAME question. Filtering
@@ -615,9 +556,10 @@ export function ConnectedIntegrationsSection({
 
           {/* ADR-635 — Find a connector. The directory is CONSUMED (the MCP
               registry + the endpoints Anthropic's own plugins name), never a
-              list yarnnn maintains; a pasted URL is the same act. Attaching
-              stores a credential in your account and offers NOTHING until you
-              choose, tool by tool, on the connection's page. */}
+              list yarnnn maintains. The act moved into a MODAL: search, pick,
+              and a per-server second step (nothing · sign in · an API key · a
+              client id the member registered) is a flow, not a row — and it
+              had outgrown the slot it was rendered into. */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Search className="h-4 w-4 text-muted-foreground" />
@@ -628,100 +570,26 @@ export function ConnectedIntegrationsSection({
               public registry. You sign in to the server yourself; nothing is offered to a
               conversation until you choose which of its tools may run.
             </p>
-            <input
-              type="search"
-              value={dirQuery}
-              onChange={(e) => setDirQuery(e.target.value)}
-              placeholder="Search — e.g. linear, hubspot, snowflake, docs"
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-            />
-            {dirError && (
-              <p role="alert" className="text-xs text-destructive">
-                {dirError}
-              </p>
-            )}
-            <div className="max-h-80 space-y-1 overflow-y-auto">
-              {dirLoading && dirResults.length === 0 ? (
-                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Searching…
-                </div>
-              ) : (
-                dirResults.map((entry) => {
-                  const already = attachedUrls.has(entry.url);
-                  return (
-                    <div
-                      key={entry.url}
-                      className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{entry.title}</span>
-                          {entry.category && (
-                            <span className="text-[11px] text-muted-foreground">{entry.category}</span>
-                          )}
-                          <span
-                            className="text-[10px] uppercase tracking-wider text-muted-foreground"
-                            title={
-                              entry.source === "official-plugins"
-                                ? "An endpoint Anthropic's knowledge-work plugins name"
-                                : "Listed in the public MCP registry"
-                            }
-                          >
-                            {entry.source === "official-plugins" ? "official" : "registry"}
-                          </span>
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {entry.description || entry.url.replace(/^https?:\/\//, "")}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={already || attachingUrl === entry.url}
-                        onClick={() => void handleAttach(entry)}
-                        className="shrink-0 rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
-                      >
-                        {attachingUrl === entry.url ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : already ? (
-                          "Attached"
-                        ) : (
-                          "Connect"
-                        )}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-              {!dirLoading && dirQuery.trim() && dirResults.length === 0 && (
-                <p className="py-2 text-xs text-muted-foreground">
-                  Nothing matched. Paste the server&apos;s URL below.
-                </p>
-              )}
-            </div>
-            <form
-              className="flex items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const url = pasteUrl.trim();
-                if (url) void handleAttach({ url });
-              }}
+            <button
+              type="button"
+              onClick={() => setFinderOpen(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
             >
-              <input
-                type="url"
-                value={pasteUrl}
-                onChange={(e) => setPasteUrl(e.target.value)}
-                placeholder="…or paste a server URL (https://…)"
-                className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-              <button
-                type="submit"
-                disabled={!pasteUrl.trim() || attachingUrl === pasteUrl.trim()}
-                className="rounded-md border border-border px-3 py-2 text-xs hover:bg-muted disabled:opacity-50"
-              >
-                Connect
-              </button>
-            </form>
+              <Search className="h-3.5 w-3.5" />
+              Browse connectors
+            </button>
           </div>
+
+          <FindConnectorModal
+            open={finderOpen}
+            onClose={() => setFinderOpen(false)}
+            attachedUrls={attachedUrls}
+            redirectTo={redirectTo ?? "/settings?settings.pane=connectors"}
+            onAttached={(slug) => {
+              void loadIntegrations();
+              onManageConnection?.(`${ATTACHED_PREFIX}${slug}`);
+            }}
+          />
 
           {children}
         </div>
