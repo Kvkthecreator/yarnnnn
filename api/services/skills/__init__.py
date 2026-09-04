@@ -4,8 +4,40 @@ Skills — how-to files for kinds of work (ADR-630).
 A skill is CRAFT: the steps, quality bar and anti-patterns for one kind of
 work, written for any agent that does that work. It is never grammar (the
 pane posture derives that from the app's registries — DP29, ADR-601), never
-contract (the kernel participant constants — ADR-533), never reach (the
+the participant contract (the kernel constants — ADR-533), never reach (the
 gates decide what a caller may do — ADR-464 §3: prose is not permission).
+
+WHICH SKILLS ACTUALLY EARN THEIR BYTES (measured 2026-09-04, A/B against live
+production with the index composed vs suppressed — see
+docs/analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md):
+
+A skill pays when it carries a right answer THE MODEL HAS NO PRIOR FOR — one
+of THIS workspace's own shapes. It does not measurably pay when it teaches
+craft a frontier model already has.
+
+  earns it   `writing-a-spec` (7/7 prescribed sections vs 1/0/2, p=0.100 —
+             the exact-permutation floor at n=3) · `deriving-a-design-system`
+             (15/18/17 kernel CSS variables vs 7/0, p=0.100, and without
+             `_design.yaml` the folder is invisible to `design_systems.py`,
+             which discovers BY that manifest) · `presenting-from-sources`
+             (the CSV beside the deck)
+  measures   `reviewing-drafts` · `writing-updates` · `comparing-options` ·
+  null       `summarizing-sources` · `keeping-a-file-current` ·
+             `declaring-standing-work` — all flat, both arms
+
+⭐⭐⭐ THE FAILURE IS SILENT. In every case that separates, the unaided output
+LOOKS FINE: a design system with no manifest is a plausible folder of CSS; an
+artboard whose layers carry no `data-z` is valid HTML that ADR-633 then sorts
+by document order. Nothing errors; the artifact simply does not work with the
+system meant to consume it. So a skill CANNOT be pruned on a quality score —
+the ones worth keeping are precisely the ones whose absence a reader cannot
+see. Prune on "does a frontier model already know this", never on "did the
+output look worse".
+
+⚠️ A skill that DEFERS to the pane posture (`composing-an-image`: *"the pane
+posture owns the token grammar"*) cannot be evaluated in an unbound lane — it
+was given craft rules pointing at a grammar the turn never carried, and
+correctly refused to invent one. Bind the lane before measuring it.
 
 Two homes, one file shape (the Agent Skills convention: a folder holding
 `SKILL.md` with `name` + `description` frontmatter; ADR-254 names it as an
@@ -91,6 +123,27 @@ KERNEL_SKILLS_AUTHOR = "system:kernel-skills"
 #: pane's cost on purpose: this is the ratchet on OUR prose, so a longer
 #: description has to displace another one. Raising it needs the same
 #: evidence as adding a prompt instruction (DP22 / ADR-306).
+#:
+#: ⭐⭐⭐ WHAT THESE BYTES BUY, MEASURED (2026-09-04). A three-arm A/B — the full
+#: roster vs a 360-byte POINTER ("list system/skills/ and read the one that
+#: matches", naming no skill) vs nothing — over four skills × three trials:
+#:
+#:     arm            index    reached the skill    writing-a-spec sections
+#:     A  roster      3,312 B        100 %           7/7 · 7/7 · 7/7
+#:     T  pointer       360 B         58 %           1/7 · 0/7 · 7/7
+#:     B  nothing         0 B         42 %           0/7 · 0/7 · 0/7
+#:
+#: A vs T reached p=0.038; **T vs B p=0.682** — the pointer is statistically
+#: INDISTINGUISHABLE FROM NOTHING. The roster does not buy latency or
+#: convenience; it buys the RELIABILITY of the read, and on a skill carrying
+#: one of this workspace's own shapes the read IS the outcome (ARM T produces
+#: the contract exactly when it happens to read the skill).
+#:
+#: So a future CUT is argued against reach-rate, never against byte count —
+#: trading 3,000 bytes for 100 % → 58 % contract compliance is the trade this
+#: measurement exists to refuse. (The tempting evidence pointed the other way:
+#: an unaided arm really does find a skill by listing the folder, but only when
+#: the ask names the skill's own subject.)
 #:
 #: RAISED 3,000 → 3,400 by ADR-639 (2026-09-04), with the receipt: a Text
 #: pane now applies NINE skills (the two standing-work skills join it), at

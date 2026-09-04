@@ -10,6 +10,12 @@ metadata:
 
 A how-to file for a kind of work. It teaches craft; it never grants reach. The runtime's gates decide what any agent may do, and a skill that claims otherwise is ignored. yarnnn's own skills live under `system/skills/` and are read-only. A workspace's own live under `skills/{name}/SKILL.md` as ordinary files: attributed, versioned, revertible. Every agent's frame lists both by description, so the description is the door.
 
+## What makes a skill worth writing
+
+Write the skill for what an agent could not work out on its own. A capable model already knows how to review a draft, summarise a folder, or cite a source; a skill that restates good practice costs a line in every frame and changes nothing. What it cannot know is **this workspace's own shapes** — the file a tool looks for by name, the attribute a renderer reads, the sections a reader here expects, where a number has to live so two copies cannot drift.
+
+Those are the skills that pay, and their failure is quiet: the work comes back looking finished, and the thing meant to consume it does not recognise it. So before writing, ask what specifically goes wrong without this file. If the answer is "the output is a bit worse", the skill is optional. If it is "the output looks right and does not work", write it, and say the exact name, attribute or shape in the steps.
+
 ## Steps
 
 1. Capture intent: what work, how often, what "done" looks like. Ask for a concrete recent example.

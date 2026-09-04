@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.04.3] - What a skill is FOR: contract, not craft (measured)
+
+### Changed
+- `services/skills/creating-skills/SKILL.md` — NEW section "What makes a skill worth writing", between "What a skill is here" and "Steps". Tells an author to write for what a capable model could not work out on its own — this workspace's own shapes (the file a tool looks for by name, the attribute a renderer reads, where a number must live) — and names the test: *if the answer to "what goes wrong without this" is "the output is a bit worse", the skill is optional; if it is "the output looks right and does not work", write it.* The `description` frontmatter is UNCHANGED (296 B), so every index ceiling is byte-identical (unbound 3,947/4,000 · text 3,101 · slides 2,762 · images 1,750 · blogger 2,762).
+- `services/skills/__init__.py` — module docstring gains the measurement and its consequence; the `INDEX_CEILING` comment gains the three-arm receipt.
+
+### Why
+An A/B against live production (index composed vs suppressed, one pre-registered measure per skill taken from its own SKILL.md before any data existed) split the eleven kernel skills cleanly:
+- **Separate**: `writing-a-spec` (7/7/7 prescribed sections vs 1/0/2, p=0.100 — the exact-permutation floor at n=3) · `deriving-a-design-system` (15/18/17 kernel CSS variables vs 7/0, p=0.100) · `presenting-from-sources` (CSV beside the deck).
+- **Null**: `reviewing-drafts`, `writing-updates`, `comparing-options`, and the three measured earlier (`summarizing-sources`, `keeping-a-file-current`, `declaring-standing-work`).
+
+The separating skills all carry a shape the model has no prior for, and their failure is SILENT: `design_systems.py` discovers a system BY `_design.yaml`, so a folder without it is invisible while looking like a plausible folder of CSS. A skill therefore cannot be pruned on a quality score.
+
+A second A/B tested replacing the ~3.3 KB per-skill roster with a 360-byte pointer ("list `system/skills/` and read the one that matches"). Reach fell 100% → 58% (p=0.038) and the pointer proved **indistinguishable from no index at all** (p=0.682); ARM T produced the contract only on the run where it happened to read the skill. The roster stays.
+
+### Expected behavior
+No change to any composed frame. This edit changes what a member or agent is told when they AUTHOR a skill, and records why the ceilings are set where they are (a future cut is argued against reach-rate, never byte count).
+
+Capture: `docs/analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md`.
+
+---
+
 ## [2026.09.04.2] - Standing work is a kernel lane: the standing run composes through the lane module; craft is a skill (ADR-639)
 
 ### Changed
