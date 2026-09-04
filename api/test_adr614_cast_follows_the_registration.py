@@ -55,10 +55,14 @@ from routes.lanes import _lane_agent, _reconcile_cast_agent  # noqa: E402
 print("1. the reconciliation EXECUTES and re-seats a sole stale agent")
 
 # The 39-lane shape: a slides deck, cast frozen on `designer` by ADR-602.
+# ADR-636 §9 — the artifact's own `data-template` names the app; the `.html`
+# extension cannot, because Slides, IMAGES and Blogger all author it.
+_DECK_HTML = '<div data-template="deck">'
+_IMAGE_HTML = '<div data-template="image">'
 SLIDES = {"artifact_path": "operation/deck.html"}
-_assert(_lane_agent(SLIDES) == "editor",
+_assert(_lane_agent(SLIDES, _DECK_HTML) == "editor",
         "a slides-shaped lane derives `editor` (ADR-602 D1)")
-out = _reconcile_cast_agent([HUMAN, _agent("designer")], SLIDES)
+out = _reconcile_cast_agent([HUMAN, _agent("designer")], SLIDES, _DECK_HTML)
 _assert([p.get("agent_slug") for p in out if p.get("member_kind") == "agent"] == ["editor"],
         "a sole `designer` on a slides desk answers as Editor")
 _assert(any(p.get("member_kind") == "human" for p in out),
@@ -95,6 +99,20 @@ _assert(_reconcile_cast_agent([HUMAN], SLIDES) == [HUMAN],
         "a cast with no agent at all is untouched")
 
 print("3. the context-dependence a slug map would get WRONG")
+
+# ⭐ ADR-636 §9 — THE CASE NEITHER GATE TESTED, and the defect it hid.
+# Both fixtures below carry an `app` STAMP. Production's images lanes do not:
+# 56 bound `.html` lanes carry no stamp, so `app_for_lane` fell to its
+# `.html -> slides` guess and the member read `?agent=designer` in the URL
+# while every reply was signed **Editor** (operator-observed 2026-09-04).
+# A fixture that stamps what production leaves blank cannot see that.
+UNSTAMPED_IMAGE = {"agent": "designer", "artifact_path": "operation/untitled-image/image.html"}
+_assert(_lane_agent(UNSTAMPED_IMAGE, _IMAGE_HTML) == "designer",
+        "an UNSTAMPED image lane derives Designer from its artifact, not Editor")
+_assert([p.get("agent_slug") for p in
+         _reconcile_cast_agent([HUMAN, _agent("editor")], UNSTAMPED_IMAGE, _IMAGE_HTML)
+         if p.get("member_kind") == "agent"] == ["designer"],
+        "…and a cast stranded on Editor is re-seated onto Designer")
 
 IMAGES = {"app": "images", "artifact_path": "operation/art.html"}
 _assert(_lane_agent(IMAGES) == "designer",

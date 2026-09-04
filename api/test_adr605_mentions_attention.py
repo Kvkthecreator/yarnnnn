@@ -4,8 +4,8 @@ Run script-style from api/:  python3 test_adr605_mentions_attention.py
 
 What it defends, per decision:
   D1  the stamp is WIRED at the turn route (both row kinds, author excluded)
-  D2  the derivation core resolves by reply/Done, respects the window,
-      and never clears by scroll-by; the resolution cursor is monotonic
+  D2  the derivation core keys on ONE read cursor (ADR-637), respects the
+      window, and the cursor is monotonic
   D3  the kind is wired through the one chokepoint, with recipient dedupe
       and ledger-derived email suppression that fails SUPPRESSING
   FE  people are live @ targets, the bell and workbench mount the source,
@@ -179,7 +179,7 @@ def test_stamp_wired_at_the_chokepoint() -> None:
 # ---------------------------------------------------------------------------
 
 def test_derivation_core() -> None:
-    print("\n[D2] the pure derivation core")
+    print("\n[D2] the pure derivation core (ADR-637: one cursor)")
     from services.mentions import unresolved_from
 
     rows = [
@@ -191,23 +191,88 @@ def test_derivation_core() -> None:
     live = unresolved_from(
         rows,
         floors={"c1": 0, "c2": 4, "c3": 0},
-        reply_floors={"c1": 5},
-        resolutions={"c3": 7},
+        read_cursors={"c1": 5, "c3": 7},
     )
     _assert(live == [{"session_id": "c1", "sequence_number": 8}],
-            "reply resolves up to it; the window hides c2; Done resolves c3")
-    _assert(unresolved_from(rows, floors={}, reply_floors={}, resolutions={}) == [],
+            "the cursor clears what it covers; the window hides c2; c3 is read")
+    _assert(unresolved_from(rows, floors={}, read_cursors={}) == [],
             "no cast membership → nothing derives (the read floor is the cast)")
     live2 = unresolved_from(
         [{"session_id": "c1", "sequence_number": 8}],
-        floors={"c1": 0}, reply_floors={}, resolutions={},
+        floors={"c1": 0}, read_cursors={},
     )
     _assert(live2 != [],
-            "an unreplied, undismissed mention STAYS — it never clears by scroll-by")
+            "an unread mention STAYS until something advances the cursor")
+
+    # ADR-637's collapse, asserted as a FACT and not as a spelling: there is
+    # exactly ONE floor parameter besides the visibility window. A revived
+    # reply-floor (or any third rival cursor) fails here.
+    import inspect
+    params = set(inspect.signature(unresolved_from).parameters) - {"rows"}
+    _assert(params == {"floors", "read_cursors"},
+            f"one cursor decides membership, not two or three (got {sorted(params)})")
 
 
-def test_resolution_cursor_is_monotonic() -> None:
-    print("\n[D2] the resolution cursor max-merges (server-side)")
+def test_visiting_is_reading() -> None:
+    """ADR-637 D1 — the lane read advances the cursor.
+
+    AST-anchored on the wired call, because the defect this closes was a
+    discharge path that existed only in a surface nobody visited. The seam
+    must be reachable from the READ, not from an FE ping.
+    """
+    print("\n[D2] visiting a conversation discharges its mentions")
+    src = _read("api/routes/lanes.py")
+    tree = ast.parse(src)
+    fn = next(
+        (n for n in ast.walk(tree)
+         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+         and n.name == "lane_messages"),
+        None,
+    )
+    _assert(fn is not None, "the lane read endpoint exists")
+    called = {
+        n.func.id for n in ast.walk(fn)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    }
+    _assert("_mark_visited" in called,
+            "the lane read calls the visit seam (not an FE-initiated ping)")
+
+    helper = next(
+        (n for n in ast.walk(tree)
+         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+         and n.name == "_mark_visited"),
+        None,
+    )
+    _assert(helper is not None, "the visit seam is defined")
+    attrs = {
+        n.func.attr for n in ast.walk(helper)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+    }
+    names = {
+        n.id for n in ast.walk(helper) if isinstance(n, ast.Name)
+    }
+    _assert("mark_read_up_to" in names,
+            "the visit seam advances the ONE cursor (the same act Dismiss uses)")
+
+    # The cursor can only be right if the read actually SELECTS the column the
+    # seam reads off the rows. The first cut of this change did not — the
+    # helper was wired, the column absent, and every advance a silent no-op.
+    # Assert the select() argument itself, not the surrounding slice: the
+    # nearby .gte("sequence_number", floor) makes a substring check pass
+    # vacuously (falsified — it did).
+    selects = [
+        n.args[0].value
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "select" and n.args
+        and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str)
+    ]
+    _assert(any("sequence_number" in sel for sel in selects),
+            f"the lane read SELECTS sequence_number — the cursor reads it (got {selects})")
+
+
+def test_read_cursor_is_monotonic() -> None:
+    print("\n[D2] the read cursor max-merges (server-side)")
     import services.mentions as m
 
     captured: dict = {}
@@ -240,11 +305,12 @@ def test_resolution_cursor_is_monotonic() -> None:
     real = m._svc
     try:
         m._svc = lambda: _FakeSvc({"c1": 9, "c2": 2})
-        merged = m.resolve_mentions_up_to("ws", "u", "c1", 4)
+        merged = m.mark_read_up_to("ws", "u", "c1", 4)
     finally:
         m._svc = real
     _assert(merged["c1"] == 9,
-            "resolving an OLDER mention never rewinds a newer explicit act")
+            "marking an OLDER point read never rewinds a newer act "
+            "(the fire-and-forget visit write races the dismiss safely)")
     _assert(merged["c2"] == 2 and captured["row"]["value"]["c1"] == 9,
             "other conversations' cursors survive the merge, and the merge is what's stored")
 
@@ -324,16 +390,17 @@ def test_routes() -> None:
     src = _read("api/routes/mentions.py")
     tree = ast.parse(src)
     get_fns = [n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "list_my_mentions"]
-    post_fns = [n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "resolve_mention"]
-    _assert(bool(get_fns) and bool(post_fns), "GET /mentions + POST /mentions/resolve exist")
+    post_fns = [n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "mark_mentions_read"]
+    _assert(bool(get_fns) and bool(post_fns), "GET /mentions + POST /mentions/read exist")
     if get_fns:
         seg = ast.get_source_segment(src, get_fns[0]) or ""
         _assert("list_mentions" in seg, "the GET calls the derivation (wired)")
     if post_fns:
         seg = ast.get_source_segment(src, post_fns[0]) or ""
-        _assert("resolve_mentions_up_to" in seg, "the POST advances the cursor (wired)")
+        _assert("mark_read_up_to" in seg,
+                "the POST advances the SAME cursor the visit does (one act, two doors)")
     _assert('extra = "forbid"' in src,
-            "the resolve payload refuses unknown fields")
+            "the mark-read payload refuses unknown fields")
     main_src = _strip_comments_py(_read("api/main.py"))
     _assert("mentions.router" in main_src, "the router is mounted")
 
@@ -356,16 +423,25 @@ def test_fe_wiring() -> None:
     bell = _read("web/components/shell/AttentionCenter.tsx")
     _assert("api.mentions.list" in bell, "the bell fetches the mention derivation")
     _assert("unseenMentions.length" in bell and "badgeCount" in bell,
-            "the badge counts unseen mentions (cursor), distinct from membership")
+            "the badge counts unseen mentions (recency), distinct from membership")
+    # ADR-637 — the bell row's click IS the visit, so the row must not
+    # survive it locally until the next 60s derive.
+    _assert("setMentions((prev) =>" in bell,
+            "clicking a bell mention drops the row (the visit discharges it)")
 
     queue = _read("web/components/notifications/MentionQueue.tsx")
-    _assert("api.mentions.resolve" in queue, "Done advances the resolution cursor")
+    _assert("api.mentions.markRead" in queue,
+            "Dismiss advances the read cursor (clear without opening)")
+    _assert("api.mentions.resolve" not in queue,
+            "the retired resolve door is gone from the queue")
     page = _read("web/app/(authenticated)/notifications/page.tsx")
     _assert("<MentionQueue" in page, "the workbench To-do pane mounts the queue")
 
     client = _read("web/lib/api/client.ts")
-    _assert("/api/mentions" in client and "mentions/resolve" in client,
+    _assert("/api/mentions" in client and "mentions/read" in client,
             "the client speaks both endpoints")
+    _assert("mentions/resolve" not in client,
+            "the retired resolve endpoint has no client caller left")
 
     settings = _read("web/app/(authenticated)/settings/page.tsx")
     _assert('"mentions"' in settings,
@@ -445,7 +521,8 @@ if __name__ == "__main__":
         test_kind_wired,
         test_stamp_wired_at_the_chokepoint,
         test_derivation_core,
-        test_resolution_cursor_is_monotonic,
+        test_visiting_is_reading,
+        test_read_cursor_is_monotonic,
         test_suppression_and_dedupe,
         test_routes,
         test_fe_wiring,

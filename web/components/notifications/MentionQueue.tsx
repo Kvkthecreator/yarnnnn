@@ -5,12 +5,12 @@
  * To-do second source, workbench mount).
  *
  * Derived, never stored: the rows come from `GET /api/mentions` (cast ∩
- * visibility window ∩ the write-time stamp on the message row). Membership
- * here keys on RESOLUTION, not on having been seen — a mention is discharged
- * by replying in the conversation, or by the explicit Done act below (which
- * advances the per-conversation resolution cursor, monotonic, server-merged).
- * The bell's badge quiets on the read cursor independently (ADR-492 §7's
- * two-facts rule).
+ * visibility window ∩ the write-time stamp on the message row). ADR-637:
+ * membership keys on ONE per-conversation READ cursor, and VISITING the
+ * conversation advances it server-side — so "Open conversation" below IS the
+ * discharge, no second call needed. "Dismiss" is the same cursor for the
+ * mention you know you needn't read; it is an alternative to visiting, never
+ * the only way out (the pre-637 shape, which stranded rows for a week).
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -51,12 +51,12 @@ export function MentionQueue() {
     load();
   }, [load]);
 
-  const markDone = useCallback(
+  const dismiss = useCallback(
     async (m: MentionRow) => {
       const key = `${m.conversation_id}:${m.sequence}`;
       setResolving(key);
       try {
-        await api.mentions.resolve(m.conversation_id, m.sequence);
+        await api.mentions.markRead(m.conversation_id, m.sequence);
         // Optimistic local clear of everything the cursor now covers.
         setRows((prev) =>
           prev.filter(
@@ -64,8 +64,8 @@ export function MentionQueue() {
           ),
         );
       } catch {
-        // Leave the row — an unresolved mention that failed to resolve is
-        // still unresolved; the next load re-derives the truth.
+        // Leave the row — a mention whose cursor failed to advance is still
+        // unread; the next load re-derives the truth.
       } finally {
         setResolving(null);
       }
@@ -118,10 +118,11 @@ export function MentionQueue() {
                 <button
                   type="button"
                   disabled={resolving === key}
-                  onClick={() => markDone(m)}
+                  onClick={() => dismiss(m)}
+                  title="Clear without opening"
                   className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
                 >
-                  Done
+                  Dismiss
                 </button>
               </div>
             </div>

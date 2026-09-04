@@ -84,9 +84,9 @@ interface PendingProposal {
 
 /** ADR-605 — one unresolved mention of the viewer (the To-do second source,
  * ADR-492 D3). Derived server-side from the conversation substrate — cast ∩
- * visibility window ∩ the write-time stamp; membership keys on RESOLUTION
- * (dealt-with), while the badge keys on the read cursor, so a mention never
- * silently clears by scroll-by. */
+ * visibility window ∩ the write-time stamp. ADR-637: membership keys on the
+ * per-conversation READ cursor, which visiting the conversation advances —
+ * so this list and the badge below can no longer disagree. */
 interface MentionRow {
   conversation_id: string;
   conversation_name: string;
@@ -315,10 +315,11 @@ export function AttentionCenter() {
     ({ e }) => !lastSeen || e.created_at > lastSeen,
   );
 
-  // ADR-492 §7 — two facts, kept distinct: the LIST is unresolved mentions
-  // (they stay until dealt with); the BADGE counts only the unseen ones
-  // (the cursor), so opening the bell quiets the count without discharging
-  // the ask.
+  // ADR-637 — the LIST is the mentions still wanting the viewer (nothing has
+  // read past them). The badge counts the ones that also arrived since the
+  // bell was last opened, so a glance quiets the count while the ask itself
+  // stays until a visit discharges it. One cursor decides membership; this
+  // second filter is presentation of recency, never a rival definition.
   const unseenMentions = mentions.filter(
     (m) => !lastSeen || (m.at != null && m.at > lastSeen),
   );
@@ -444,15 +445,23 @@ export function AttentionCenter() {
                   To do
                 </div>
                 {/* ADR-605 — mentions lead the section: the most personal ask
-                    there is. Clicking lands IN the conversation (the mention
-                    resolves by being dealt with there, or via Done in the
-                    Notifications window — never by this click alone). */}
+                    there is. ADR-637: clicking lands IN the conversation, and
+                    the lane read discharges the mention server-side — the
+                    click IS the visit. Dropped locally on click so the row
+                    does not linger until the next derive. */}
                 {mentions.slice(0, MAX_ROWS_PER_SECTION).map((m) => (
                   <button
                     key={`mention-${m.conversation_id}-${m.sequence}`}
                     type="button"
                     onClick={() => {
                       setIsOpen(false);
+                      setMentions((prev) =>
+                        prev.filter(
+                          (r) =>
+                            r.conversation_id !== m.conversation_id ||
+                            r.sequence > m.sequence,
+                        ),
+                      );
                       navigateToSurface('chat', { lane: m.conversation_id });
                     }}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"

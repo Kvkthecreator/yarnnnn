@@ -19,13 +19,21 @@ STORAGE MODEL (the DP29 line this module holds):
   `agent_slug`/`responder_reason` already do. It is not a second store: the
   message IS the substrate.
 - The attention surface is DERIVED per viewer at read time. No mention inbox
-  table, no per-mention read flags (ADR-492 D3). Two facts stay distinct
-  (ADR-492 §7): the BADGE keys on the attention cursor ("unseen"); TO-DO
-  MEMBERSHIP keys on RESOLUTION — a mention never silently clears by
-  scroll-by. Resolution is derivable (the viewer spoke in that conversation
-  after the mention) or explicit (a "Done" act advancing the per-conversation
-  resolution cursor in `member_state['mention_resolutions']` — viewer
-  presentation state, the ADR-407 cursor precedent, never authorization).
+  table, no per-mention read flags (ADR-492 D3). ONE cursor decides
+  membership (ADR-637, superseding ADR-492 §7's two-facts split): the
+  per-conversation READ cursor in `member_state['mention_resolutions']`,
+  advanced by VISITING the conversation. Opening the lane is the discharge —
+  the Slack partition, where an explicit gesture makes attention PERSIST
+  (Later / saved) and never what makes it go away.
+
+  The badge and the list therefore agree by construction. The pre-ADR-637
+  design had THREE clearing paths (a reply floor, an explicit Done, and a
+  separate `member_state['attention']` badge cursor) which disagreed with
+  each other: a mention could sit in the list for a week while the viewer
+  had the conversation open and had authored turns into it through a
+  connector. The reply floor is DELETED — a reply is a visit, so the visit
+  cursor already covers it. `Done` survives as DISMISS-WITHOUT-VISITING
+  (the same act, from the queue), never as the only way out.
 
 WHO IS STAMPED: mentioned humans in the CAST, minus the acting member (they
 are present — being told what they just did or just watched violates ADR-405
@@ -49,8 +57,10 @@ from typing import Any, Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
-#: member_state key holding {conversation_id: resolved_up_to_sequence} — the
-#: viewer's explicit "dealt with it" floor, per (workspace, principal).
+#: member_state key holding {conversation_id: read_up_to_sequence} — the
+#: viewer's per-conversation READ cursor, per (workspace, principal). ADR-637:
+#: advanced by VISITING the conversation (the lane read) and by the explicit
+#: dismiss act; it is the ONE thing that decides To-do membership.
 MENTION_RESOLUTIONS_KEY = "mention_resolutions"
 
 #: At most one mention email per (recipient, conversation) per this window —
@@ -329,15 +339,19 @@ def unresolved_from(
     rows: list[dict],
     *,
     floors: dict,
-    reply_floors: dict,
-    resolutions: dict,
+    read_cursors: dict,
 ) -> list[dict]:
     """PURE core: which mention rows still want the viewer.
 
-    A mention is resolved when the viewer SPOKE in that conversation after it
-    (a reply is dealing with it) or explicitly marked it done (the resolution
-    cursor). It is invisible when it predates the viewer's visibility window
-    (ADR-495 D2 — the window is the read floor, asked of every participant).
+    ONE cursor decides (ADR-637). A mention is discharged when the viewer has
+    READ past it — which visiting the conversation makes true, and which the
+    explicit dismiss act also makes true without a visit. It is invisible when
+    it predates the viewer's visibility window (ADR-495 D2 — the window is the
+    read floor, asked of every participant).
+
+    The pre-637 `reply_floors` parameter is DELETED, not defaulted: a reply is
+    a visit, so the read cursor already covers it, and a second floor that
+    could disagree with the first is the defect this collapses.
     """
     out: list[dict] = []
     for r in rows:
@@ -349,10 +363,8 @@ def unresolved_from(
         floor = floors.get(conv)
         if floor is None or seq < int(floor):
             continue  # not in the cast, or before their window
-        if seq <= int(reply_floors.get(conv, -1)):
-            continue  # they spoke after it
-        if seq <= int(resolutions.get(conv, -1)):
-            continue  # they marked it done
+        if seq <= int(read_cursors.get(conv, -1)):
+            continue  # they have read past it
         out.append(r)
     return out
 
@@ -429,26 +441,15 @@ def list_mentions(workspace_id: str, viewer_id: str, *, limit: int = 20) -> list
     if not rows:
         return []
 
-    candidate_convs = sorted({r["session_id"] for r in rows})
-    reply_rows = (
-        svc.table("session_messages")
-        .select("session_id, sequence_number")
-        .in_("session_id", candidate_convs)
-        .eq("metadata->>author_principal_id", viewer_id)
-        .order("sequence_number", desc=True)
-        .limit(_SCAN_LIMIT)
-        .execute()
-    ).data or []
-    reply_floors: dict = {}
-    for r in reply_rows:
-        conv = r["session_id"]
-        if conv not in reply_floors:
-            reply_floors[conv] = int(r["sequence_number"])
-
-    resolutions = load_resolutions(workspace_id, viewer_id)
-
+    # ADR-637 — ONE cursor. The pre-637 reply-floor query (a second
+    # `session_messages` scan keyed on `metadata->>author_principal_id`) is
+    # DELETED: a reply is a visit, so the read cursor subsumes it, and that
+    # scan could never see a visit that produced no message — the week-long
+    # stale row it was meant to prevent.
     live = unresolved_from(
-        rows, floors=floors, reply_floors=reply_floors, resolutions=resolutions
+        rows,
+        floors=floors,
+        read_cursors=load_read_cursors(workspace_id, viewer_id),
     )[: max(1, int(limit))]
     if not live:
         return []
@@ -502,8 +503,8 @@ def list_mentions(workspace_id: str, viewer_id: str, *, limit: int = 20) -> list
     return out
 
 
-def load_resolutions(workspace_id: str, viewer_id: str) -> dict:
-    """The viewer's {conversation_id: resolved_up_to_sequence} map."""
+def load_read_cursors(workspace_id: str, viewer_id: str) -> dict:
+    """The viewer's {conversation_id: read_up_to_sequence} map."""
     try:
         rows = (
             _svc().table("member_state")
@@ -521,16 +522,18 @@ def load_resolutions(workspace_id: str, viewer_id: str) -> dict:
         return {}
 
 
-def resolve_mentions_up_to(
+def mark_read_up_to(
     workspace_id: str, viewer_id: str, conversation_id: str, sequence: int
 ) -> dict:
-    """Advance the viewer's resolution cursor for one conversation.
+    """Advance the viewer's read cursor for one conversation (ADR-637).
 
-    Monotonic (max-merge): resolving an older mention never un-resolves a
-    newer explicit act. Server-side read-modify-write so the FE never owns
-    the merge. Returns the stored map.
+    TWO callers, one act: the lane read (visiting IS reading) and the explicit
+    dismiss from the To-do queue (reading without visiting). Monotonic
+    (max-merge), so an older act never un-reads a newer one and the
+    fire-and-forget visit write is safe to race. Server-side
+    read-modify-write so no caller owns the merge. Returns the stored map.
     """
-    current = load_resolutions(workspace_id, viewer_id)
+    current = load_read_cursors(workspace_id, viewer_id)
     merged = dict(current)
     merged[conversation_id] = max(int(current.get(conversation_id, -1)), int(sequence))
     _svc().table("member_state").upsert(
@@ -555,6 +558,6 @@ __all__ = [
     "notify_mentioned",
     "unresolved_from",
     "list_mentions",
-    "load_resolutions",
-    "resolve_mentions_up_to",
+    "load_read_cursors",
+    "mark_read_up_to",
 ]

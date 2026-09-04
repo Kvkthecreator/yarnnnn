@@ -230,7 +230,7 @@ app.include_router(shares.router, prefix="/api", tags=["shares"])
 app.include_router(proposals.router, prefix="/api", tags=["proposals"])
 # ADR-407 Phase 3: member-experience home (shell state, read cursor, prefs)
 app.include_router(member_state.router, prefix="/api", tags=["member-state"])
-# ADR-605: mentions — the To-do second source (derived) + the resolution cursor
+# ADR-605: mentions — the To-do second source (derived); ADR-637: one read cursor
 app.include_router(mentions.router, prefix="/api", tags=["mentions"])
 app.include_router(lanes.router, prefix="/api", tags=["lanes"])  # ADR-411 chat lanes
 app.include_router(agent_connectors.router, prefix="/api", tags=["agent-connectors"])

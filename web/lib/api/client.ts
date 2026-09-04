@@ -3021,9 +3021,10 @@ export const api = {
 
   // ADR-605 — mentions: the To-do second source (ADR-492 D3). `list` is a
   // per-viewer DERIVATION over the conversation substrate (cast ∩ visibility
-  // window ∩ the write-time stamp) — no inbox table. `resolve` advances the
-  // viewer's per-conversation resolution cursor (monotonic, server-merged),
-  // so a mention clears by being dealt with, never by scroll-by.
+  // window ∩ the write-time stamp) — no inbox table. ADR-637: VISITING a
+  // conversation discharges its mentions (the lane read advances the cursor
+  // server-side — no FE call); `markRead` is the dismiss-without-visiting
+  // act, the same cursor, monotonic and server-merged.
   mentions: {
     list: (limit = 20) =>
       request<{
@@ -3036,8 +3037,8 @@ export const api = {
           author: string;
         }>;
       }>(`/api/mentions?limit=${limit}`),
-    resolve: (conversationId: string, sequence: number): Promise<void> =>
-      request<{ resolved: boolean }>("/api/mentions/resolve", {
+    markRead: (conversationId: string, sequence: number): Promise<void> =>
+      request<{ read: boolean }>("/api/mentions/read", {
         method: "POST",
         body: JSON.stringify({ conversation_id: conversationId, sequence }),
       }).then(() => undefined),

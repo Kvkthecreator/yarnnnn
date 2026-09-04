@@ -272,7 +272,7 @@ def _conversation_write_client(auth: UserClient):
     return get_service_client()
 
 
-def app_for_lane(lane_meta: dict) -> str:
+def app_for_lane(lane_meta: dict, artifact_content: Optional[str] = None) -> str:
     """The app a lane belongs to — its stamp, else its artifact's layout.
 
     ADR-602 D7. The stamp (ADR-567 D4) is authoritative when present. Without
@@ -281,25 +281,50 @@ def app_for_lane(lane_meta: dict) -> str:
     pre-567 lane behaves like every other lane instead of reading as
     residentless.
 
-    Path-shaped, deliberately: reading the artifact's CONTENT here would make
-    a hot pure function do IO on every lane in a list. `.html` is Slides'
-    currency and `.md` is Text's — a coarse but honest split, and a wrong
-    guess is impossible for the two apps that have residents (both are
-    unambiguous by extension). Anything else returns "" and the precedence
-    continues exactly as before.
+    ⚠️ THE `.html` COLLISION (ADR-636 §9, operator-observed 2026-09-04).
+    This function used to end at `path.endswith(".html") -> "slides"`, on the
+    stated reasoning that *"a wrong guess is impossible for the two apps that
+    have residents (both are unambiguous by extension)"*. That was true when
+    ADR-602 D7 wrote it and false by ADR-627: **Slides, IMAGES and Blogger all
+    author `.html`**, so every unstamped image or post lane derived `slides`
+    and answered as **Editor**. Measured in production: 56 bound `.html` lanes
+    carry no `app` stamp, and 3 of them (2 `image`, 1 `article`) were
+    mis-derived — the member sees Designer in the URL, Editor on the reply.
+
+    So the extension is no longer allowed to answer for `.html`. The artifact's
+    own `data-template` is the authoritative type (ADR-473 D1 / ADR-459 — the
+    kind is lifted from content, never stored), and `app_for_layout` maps it to
+    its owner. `read_html` supplies that content; the caller passes it when it
+    has it, and passes nothing when it does not.
+
+    STILL PURE, and the IO stays the CALLER'S (the ADR-602 D7 constraint that
+    made this path-shaped in the first place). `artifact_content` is optional:
+    a lane LIST resolves 50 lanes without touching storage and simply declines
+    to guess, while a single lane's turn — which has already read its artifact
+    head — passes the bytes and gets the exact answer. Declining beats guessing:
+    an unstamped `.html` lane with no content in hand returns "" and falls to
+    the legacy stamp, which is how such a lane behaved before ADR-602 D7.
+
+    `.md` keeps its extension answer: Text is the only app that owns prose.
     """
     stamped = (lane_meta.get("app") or "").strip()
     if stamped:
         return stamped
     path = (lane_meta.get("artifact_path") or "").strip().lower()
     if path.endswith(".html"):
-        return "slides"
+        # The bytes answer, or nobody does. Three apps share this extension.
+        if not artifact_content:
+            return ""
+        import services.apps  # noqa: F401  (registration side-effect)
+        from services.authoring import app_for_layout, extract_template
+
+        return app_for_layout(extract_template(artifact_content)) or ""
     if path.endswith(".md"):
         return "text"
     return ""
 
 
-def _lane_agent(lane_meta: dict) -> Optional[str]:
+def _lane_agent(lane_meta: dict, artifact_content: Optional[str] = None) -> Optional[str]:
     """The lane's resident, DERIVED from the registration (ADR-597 D1). Pure-ish.
 
     A bound lane's resident is a fact about the APP, so it follows the app's
@@ -322,7 +347,7 @@ def _lane_agent(lane_meta: dict) -> Optional[str]:
     by asking the ARTIFACT what app owns its layout, which is the same
     question `build_studio_posture` already answers at turn time.
     """
-    app = app_for_lane(lane_meta)
+    app = app_for_lane(lane_meta, artifact_content)
     if app:
         # The package import IS the registration — load-bearing, never prune.
         import services.apps  # noqa: F401  (registration side-effect)
@@ -930,6 +955,47 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     return _lane_row_to_dict(created, list_participants(created["id"]))
 
 
+def _mark_visited(auth: UserClient, lane_id: str, rows: list[dict]) -> None:
+    """VISITING a conversation is reading it (ADR-637).
+
+    THE one place a mention discharges by being looked at — the Slack
+    partition, where an explicit gesture makes attention persist and never
+    what makes it go away. Advances the caller's per-conversation read cursor
+    to the highest sequence they can see, which is monotonic server-side, so
+    a racing dismiss can only agree with it.
+
+    Bound to the READ, not to a FE "I opened it" ping: the pre-637 design's
+    stale row survived a week of the member working in that very lane through
+    a connector, because nothing but a member-authored message counted. Every
+    door that reads the messages passes here.
+
+    Best-effort and silent: a cursor that fails to advance leaves the mention
+    listed (the honest degrade — it re-derives on the next visit), and must
+    never fail the read.
+
+    The cursor advances to the top of what was RETURNED, which the read caps
+    at 200 rows from the visibility floor. In a lane longer than that the
+    member has demonstrably not seen the tail, so under-advancing is the
+    correct answer, not a rounding error: a mention past the cap keeps
+    wanting them until a read reaches it.
+    """
+    if not rows:
+        return
+    try:
+        top = max(int(r.get("sequence_number") or 0) for r in rows)
+    except (TypeError, ValueError):
+        return
+    try:
+        from services.mentions import mark_read_up_to
+        from services.workspace_context import effective_workspace_id
+
+        ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
+        if ws:
+            mark_read_up_to(ws, auth.user_id, lane_id, top)
+    except Exception as exc:  # noqa: BLE001 — never fail the read
+        logger.warning("[MENTIONS] visit cursor not advanced for %s: %s", lane_id[:8], exc)
+
+
 @router.get("/lanes/{lane_id}/messages")
 async def lane_messages(lane_id: str, auth: UserClient) -> dict:
     lane = _get_lane(auth, lane_id)
@@ -939,13 +1005,14 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
     floor = int(lane.get("_visible_from_sequence") or 0)
     res = (
         auth.client.table("session_messages")
-        .select("id, role, content, metadata, created_at")
+        .select("id, role, content, metadata, created_at, sequence_number")
         .eq("session_id", lane_id)
         .gte("sequence_number", floor)
         .order("sequence_number")
         .limit(200)
         .execute()
     )
+    _mark_visited(auth, lane_id, res.data or [])
     return {
         "messages": [
             {
@@ -961,7 +1028,9 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
     }
 
 
-def _reconcile_cast_agent(cast: list[dict], lane_meta: dict) -> list[dict]:
+def _reconcile_cast_agent(
+    cast: list[dict], lane_meta: dict, artifact_content: Optional[str] = None
+) -> list[dict]:
     """The cast, with a SOLE stale agent re-seated onto the lane's derived resident.
 
     THE DEFECT THIS CLOSES (measured 2026-08-27, 40 of 78 live conversations).
@@ -1004,7 +1073,7 @@ def _reconcile_cast_agent(cast: list[dict], lane_meta: dict) -> list[dict]:
         ADR-460 D4 now-fact rule that ADR-597 established for the label,
         applied to the responder it already governs.
     """
-    resident = _lane_agent(lane_meta or {})
+    resident = _lane_agent(lane_meta or {}, artifact_content)
     if not resident:
         return cast
     agents = [p for p in cast if p.get("member_kind") == "agent" and p.get("agent_slug")]
@@ -1463,7 +1532,25 @@ def _turn_stream_response(
     # _lane_agent). Used as the responder fallback and as the pin-comparison
     # baseline below, so a registration change reaches a live app's TURN,
     # not just its label.
-    lane_agent = _lane_agent(lane_meta)
+    # ADR-636 §9 — three apps author `.html`, so an UNSTAMPED bound lane cannot
+    # be resolved by extension: `app_for_lane` needs the artifact's own
+    # `data-template`. One read, here, reused for the resident, the reconcile
+    # and the runner's job overlay — the turn already reads this file inside
+    # `build_lane_conventions`, so this is the same byte cost paid once earlier,
+    # not a new one per turn. Best-effort: an unreadable artifact degrades to
+    # the pre-ADR-602-D7 behaviour (fall to the legacy stamp), never a failure.
+    _lane_artifact = ""
+    if not lane_meta.get("app") and lane_meta.get("artifact_path"):
+        try:
+            from services.lane_runner import _read_workspace_file
+
+            _lane_artifact = _read_workspace_file(
+                auth.client, auth.user_id, lane_meta["artifact_path"]
+            )
+        except Exception:  # noqa: BLE001 — a guess is worse than declining
+            logger.warning("[LANE] artifact unreadable for app derivation")
+    lane_app = lane_meta.get("app") or app_for_lane(lane_meta, _lane_artifact)
+    lane_agent = _lane_agent(lane_meta, _lane_artifact)
 
     try:
         cast = list_participants(lane_id)
@@ -1490,7 +1577,7 @@ def _turn_stream_response(
     # `agent_slugs`, so addressing, the roster, the frame and the turn's
     # `agent_slug` stamp all speak of the same agent — reconciling after
     # would leave the responder right and the room's roster wrong.
-    cast = _reconcile_cast_agent(cast, lane_meta)
+    cast = _reconcile_cast_agent(cast, lane_meta, _lane_artifact)
     # ADR-605 mentions are NOT handled here — the stamp + attention routing
     # live at the ONE conversation-write chokepoint (`write_narrative_entry`
     # → `services/mentions.stamp_and_route_mentions`), so every writer of a
@@ -1716,7 +1803,9 @@ def _turn_stream_response(
                 # ADR-567 D4 — unless its binding app declares another job
                 # (radar → the pane posture).
                 artifact_path=lane_meta.get("artifact_path"),
-                app=lane_meta.get("app"),
+                # ADR-636 §9 — the DERIVED app, not the raw stamp: an unstamped
+                # image/post lane must carry its own job overlay, not Slides'.
+                app=lane_app or None,
                 # ADR-450 D3 / ADR-630 — a skill-bound lane's turns carry it.
                 skill=lane_meta.get("skill"),
                 derive_source=lane_meta.get("derive_source"),

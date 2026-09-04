@@ -350,11 +350,16 @@ export function FindConnectorModal({
                copy makes has to be kept where the credential is actually
                created. */
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              {/* The header already carries the server's name on this step, so
+                  the card states its ADDRESS — the thing the member is actually
+                  being asked to trust — rather than repeating the title. */}
               <div className="rounded-md border border-border/60 px-3 py-2">
-                <div className="text-sm font-medium">{picked?.title}</div>
-                <div className="truncate text-xs text-muted-foreground">
+                <div className="truncate text-sm">
                   {picked?.url.replace(/^https?:\/\//, '')}
                 </div>
+                {picked?.category && (
+                  <div className="text-xs text-muted-foreground">{picked.category}</div>
+                )}
               </div>
 
               <p className="mt-3 text-xs text-muted-foreground">

@@ -77,8 +77,19 @@ def test_derivation_behavior():
     # lane with no `app` stamp derived None, so the composer named the ENGINE:
     # "Message Claude Sonnet 4.6…" while Editor was authoring. ~35 such lanes
     # exist (ADR-597 D3 left them alone, correctly — this derives instead).
-    _assert(_lane_agent({"artifact_path": "/w/operation/deck.html"}) == "editor",
+    # ADR-636 §9 — the ARTIFACT names the app, not the extension. Slides,
+    # IMAGES and Blogger all author `.html`, so the old `.html -> slides`
+    # guess mis-derived every unstamped image/post lane (3 measured live).
+    # The bytes decide; with none in hand the derivation DECLINES.
+    _DECK = '<div data-template="deck">'
+    _assert(_lane_agent({"artifact_path": "/w/operation/deck.html"}, _DECK) == "editor",
             "a pre-567 BOUND deck derives its app from the artifact, not None")
+    _assert(_lane_agent({"artifact_path": "/w/operation/art.html"},
+                        '<div data-template="image">') == "designer",
+            "…and an IMAGE artifact derives Designer, never Slides' Editor")
+    _assert(_lane_agent({"artifact_path": "/w/operation/deck.html"}) is None,
+            "with no content in hand an unstamped .html DECLINES (a guess is "
+            "what shipped the defect)")
     _assert(_lane_agent({"artifact_path": "/w/notes.md"}) == "editor",
             "a pre-567 bound document derives Text's resident")
     _assert(_lane_agent({"app": "strings", "artifact_path": "/w/x.md"}) == "supervisor",

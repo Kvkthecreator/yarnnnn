@@ -2,12 +2,15 @@
 
 `GET /api/mentions` is a per-viewer DERIVATION over the conversation
 substrate (cast membership ∩ visibility window ∩ the write-time mention
-stamp) — no inbox table exists or may exist. `POST /api/mentions/resolve`
-advances the viewer's per-conversation resolution cursor
+stamp) — no inbox table exists or may exist. `POST /api/mentions/read`
+advances the viewer's per-conversation READ cursor
 (`member_state['mention_resolutions']` — presentation state, the ADR-407
-cursor precedent, never authorization). Two facts stay distinct (ADR-492
-§7): the bell's BADGE keys on the attention cursor; membership in this
-list keys on RESOLUTION, so a mention never silently clears by scroll-by.
+cursor precedent, never authorization).
+
+ADR-637: ONE cursor decides membership, and VISITING the conversation
+advances it (`GET /api/lanes/{id}/messages` calls the same seam). This
+endpoint is the second caller — dismissing from the queue without visiting.
+It is not the only way out, which is what the pre-637 design made it.
 
 Scope: (workspace, principal) like every member-experience read — the
 workspace resolves from the request, the principal is the caller.
@@ -50,7 +53,7 @@ async def list_my_mentions(auth: UserClient, limit: int = 20) -> dict:
         raise HTTPException(status_code=500, detail="mentions derivation failed")
 
 
-class ResolveMentionRequest(BaseModel):
+class MarkReadRequest(BaseModel):
     conversation_id: str
     sequence: int
 
@@ -58,20 +61,20 @@ class ResolveMentionRequest(BaseModel):
         extra = "forbid"
 
 
-@router.post("/mentions/resolve")
-async def resolve_mention(payload: ResolveMentionRequest, auth: UserClient) -> dict:
-    """Mark mentions in one conversation dealt-with up to a sequence.
+@router.post("/mentions/read")
+async def mark_mentions_read(payload: MarkReadRequest, auth: UserClient) -> dict:
+    """Advance the caller's read cursor for one conversation without visiting.
 
-    Monotonic — resolving an older mention never un-resolves a newer act.
+    Monotonic — marking an older point read never un-reads a newer act.
     """
     ws, principal = _scope(auth)
     try:
-        from services.mentions import resolve_mentions_up_to
+        from services.mentions import mark_read_up_to
 
-        resolve_mentions_up_to(ws, principal, payload.conversation_id, payload.sequence)
-        return {"resolved": True}
+        mark_read_up_to(ws, principal, payload.conversation_id, payload.sequence)
+        return {"read": True}
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
-        logger.warning("[MENTIONS] resolve failed: %s", e)
-        raise HTTPException(status_code=500, detail="mention resolve failed")
+        logger.warning("[MENTIONS] mark-read failed: %s", e)
+        raise HTTPException(status_code=500, detail="mention mark-read failed")
