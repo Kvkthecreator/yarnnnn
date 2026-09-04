@@ -177,6 +177,10 @@ built.
 > agent half shipped first as ADR-495 D3 addressing; the human half now lands as the write-time
 > stamp + per-viewer derivation + the wired `mentions` email kind, with resolution keyed exactly
 > as §7 below specifies: To-do membership on resolution, the unseen count on the cursor.)*
+>
+> *(2026-09-04: §7's split is AMENDED by [ADR-637](ADR-637-visiting-a-conversation-is-reading-it.md) —
+> To-do membership now keys on ONE read cursor that VISITING advances. The two facts survive,
+> but the partition moved: it is visit-vs-retain, not badge-vs-membership.)*
 
 ## 5. D4 — The comments inversion, ratified: binding-capable from birth
 
@@ -295,9 +299,11 @@ build must satisfy is recordable now: one scope per store (DP35 — `chat_sessio
 member-experience, which is why D2 says "not a flag on `chat_sessions`"); one grammar one owner
 (D1 — enforced at the contract level: one runner, one turn shape, one binding mechanism, whatever
 the table layout); append-only, no CAS precondition (ADR-406 appender rule); access by grant;
-mention resolution as an attributed state transition (D4) — To-do membership keys on *resolution*,
-the unseen count on the *cursor*; the two facts stay distinct so a mention never silently clears
-by scroll-by. ADR-408 D6's own revisit language ("sessions with N participant grants") is the
+mention resolution as an attributed state transition (D4) — To-do membership keys on the
+per-conversation *read cursor*, which VISITING advances, and the unseen count is recency over the
+same rows (AMENDED by ADR-637; the original split — membership on an explicit resolution, "so a
+mention never silently clears by scroll-by" — produced three rival cursors and a row that
+outlived a week of the viewer working in that very conversation). ADR-408 D6's own revisit language ("sessions with N participant grants") is the
 oldest sketch of this shape and remains a fair starting point.
 
 One sequencing guard rides here: the W0 instrument (`services/falsifiers.py`) is read and

@@ -6,6 +6,7 @@
 **Builds**: ADR-492 D3 (the mention split — content is Chat's, attention is the kernel's), closing the ADR-495 D6 standing gap ("a mention routing nowhere is theatre" — the routing now exists)
 **Amends**: ADR-593 D1 (the `mentions` kind flips declared-unwired → wired), ADR-489 D1 (mention-of-viewer is material to that viewer — the amendment ADR-492's header declared, landed here as the To-do source rather than a timeline weight row)
 **Preserves**: ADR-405 D5 (no subscription matrix — tags-as-routing refused, §5), ADR-410 (one derivation, N mounts; no inbox table), ADR-495 (species-blind cast; the visibility window is the read floor), ADR-593 D3 (one email chokepoint, fails closed), never-ambient (a human mention fires nothing)
+**Amended by ADR-637 (2026-09-04)**: D2's resolution model is superseded. VISITING a conversation discharges its mentions (one read cursor); the reply floor is deleted and `Done` becomes `Dismiss` — an alternative to visiting, never the only way out. The "never clears by scroll-by" rule below is no longer live.
 **Gate**: `api/test_adr605_mentions_attention.py`
 
 ---
@@ -70,6 +71,11 @@ IS the substrate (DP29 holds). The @token stays verbatim in the text.
 mentions from: cast membership ∩ the visibility window (ADR-495's read
 floor, applied to the viewer's own mentions like any other read) ∩ the D1
 stamp. No inbox table, no per-mention read flags (ADR-492 D3 verbatim).
+
+> **Superseded by ADR-637.** The two-cursor split below is replaced by ONE
+> read cursor advanced by visiting. Retained as the record of what was built
+> and why it was wrong: three clearing paths over one question, which
+> disagreed on a live row for a week.
 
 ADR-492 §7's two-facts rule is implemented literally:
 
