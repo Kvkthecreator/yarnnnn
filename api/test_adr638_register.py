@@ -1,4 +1,4 @@
-"""ADR-637 — the agent speaks the member's language, not ours.
+"""ADR-638 — the agent speaks the member's language, not ours.
 
 WHAT THIS GATE IS FOR
 ADR-365 ratified "register follows consumer" and 365b VALIDATED a structural
@@ -14,10 +14,10 @@ precedents — `toolLabels.ts` and the filesystem-model translation — are stil
 standing, since this rule is meaningless without them.
 
 ⚠️ WHAT IT CANNOT ASSERT: that the directive WORKS. Only an A/B can, and
-ADR-637 §7 records that as owed. A gate proving composition must never be
+ADR-638 §7 records that as owed. A gate proving composition must never be
 read as proving effect.
 
-Run: cd api && python3 test_adr637_register.py
+Run: cd api && python3 test_adr638_register.py
 """
 
 from __future__ import annotations
@@ -207,7 +207,7 @@ def test_connector_does_not_carry_it() -> None:
         "PARTICIPANT_FILESYSTEM_MODEL" in srv and "PARTICIPANT_FORMAT_DISCIPLINE" in srv,
     )
     check(
-        "…and does NOT carry the register clause (ADR-637 D2)",
+        "…and does NOT carry the register clause (ADR-638 D2)",
         "PARTICIPANT_REGISTER" not in srv,
         "that reader sits in someone else's client, whose host owns its voice; "
         "shipping ours would be yarnnn dictating tone to Claude Desktop",
@@ -216,7 +216,7 @@ def test_connector_does_not_carry_it() -> None:
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("ADR-637 — the agent speaks the member's language, not ours")
+    print("ADR-638 — the agent speaks the member's language, not ours")
     print("=" * 70)
     test_clause_is_composed()
     test_clause_reaches_the_composed_frame()

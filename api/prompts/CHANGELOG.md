@@ -17465,7 +17465,7 @@ The MCP gateway hit `/api/mcp/tools/slack/get_channel_history`; the Slack MCP se
 - Deprecated prompt or tool
 ```
 
-## [2026.09.04.1] - ADR-637 — the agent speaks the member's language
+## [2026.09.04.1] - ADR-638 — the agent speaks the member's language
 
 ### Added
 - `services/workspace_paths.py`: `PARTICIPANT_REGISTER` — the register clause, a
@@ -17487,6 +17487,6 @@ ADR-365 ratified and validated this rule in June 2026; it died with the steward
 (ADR-632) and the lane frame never carried one.
 
 ### Validated
-`scripts/operator/probe_adr637_register_ab.py`, 2 runs (3+6 trials/arm, Sonnet 5):
+`scripts/operator/probe_adr638_register_ab.py`, 2 runs (3+6 trials/arm, Sonnet 5):
 clause present 0.00 leaks/reply and 9/9 clean; stripped 2.08 and 1/9. Replies also
 fell 177 → 63 words with no length rule asked for.

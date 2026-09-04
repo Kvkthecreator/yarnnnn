@@ -492,7 +492,7 @@ what was made from what and to warn before a source is deleted."""
 PARTICIPANT_READ_BEFORE_WRITE = """\
 Read before writing: check what already exists before creating or overwriting."""
 
-#: THE REGISTER CLAUSE — ADR-365 restored (2026-09-04), ADR-637.
+#: THE REGISTER CLAUSE — ADR-365 restored (2026-09-04), ADR-638.
 #:
 #: ADR-365 ratified "register follows consumer" and 365b VALIDATED a structural
 #: directive at +49-79% operator readability (LLM-judge A/B, two runs). It lived

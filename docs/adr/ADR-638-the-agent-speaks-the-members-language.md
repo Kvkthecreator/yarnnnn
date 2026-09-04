@@ -1,9 +1,11 @@
-# ADR-637 — The agent speaks the member's language, not ours
+# ADR-638 — The agent speaks the member's language, not ours
 
-> **Status**: **Accepted + Implemented** (2026-09-04, operator-observed: *"the messages relayed by the agents are technical and not really using the apps' user facing terminology — it's referring to its own technical implementations"*). Gate: `api/test_adr637_register.py`.
+> **Status**: **Accepted + Implemented** (2026-09-04, operator-observed: *"the messages relayed by the agents are technical and not really using the apps' user facing terminology — it's referring to its own technical implementations"*). Gate: `api/test_adr638_register.py`.
 > **Date**: 2026-09-04
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Channel** (Axiom 6 — the cognitive consumer determines the channel's affordance, extended from syntax to diction). No Identity, Purpose or authority change.
+
+> **Numbering provenance (2026-09-04)**: first landed as ADR-638 after a same-day collision — a concurrent session had pushed [ADR-637](ADR-637-visiting-a-conversation-is-reading-it.md) (*visiting a conversation is reading it*) while this arc was in flight, and both claimed 637. That commit landed first, so it keeps the number and this one moved. The two are unrelated; nothing in either was rewritten. Renumbered before this ADR was referenced anywhere outside its own gate + probe.
 
 **Restores**: [ADR-365](ADR-365-register-follows-consumer.md) — *register follows consumer*, ratified 2026-06-24 and **empirically validated at +49–79% operator readability**. Its directive lived in the steward's frame and was **deleted with the steward** ([ADR-632](ADR-632-the-seat-retires.md)); the lane frame that replaced it never carried one. This ADR re-homes the validated rule onto the surface that now does the talking.
 
@@ -78,7 +80,7 @@ The seam is real and stated so a future session does not "fix" the omission: if 
 
 ## 7. Validated — the A/B, run (2026-09-04)
 
-The gate proves the clause is *composed*; only an experiment proves it *works*, and ADR-365's own history is why that distinction is enforced here: its first directive was ratified, shipped, and then **falsified**. So `api/scripts/operator/probe_adr637_register_ab.py` runs the same experiment on this surface — ARM A the live clause, ARM B the identical frame with it stripped, on the operator's own task shape (an artboard pass reported back, with the internal grammar deliberately handed to the model in the tool result).
+The gate proves the clause is *composed*; only an experiment proves it *works*, and ADR-365's own history is why that distinction is enforced here: its first directive was ratified, shipped, and then **falsified**. So `api/scripts/operator/probe_adr638_register_ab.py` runs the same experiment on this surface — ARM A the live clause, ARM B the identical frame with it stripped, on the operator's own task shape (an artboard pass reported back, with the internal grammar deliberately handed to the model in the tool result).
 
 | | mean leaks/reply | clean replies | mean words |
 |---|---|---|---|

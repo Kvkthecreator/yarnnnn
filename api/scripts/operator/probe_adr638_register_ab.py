@@ -1,6 +1,6 @@
-"""ADR-637 §7 — the A/B the gate cannot run.
+"""ADR-638 §7 — the A/B the gate cannot run.
 
-`test_adr637_register.py` proves the register clause is COMPOSED. It cannot
+`test_adr638_register.py` proves the register clause is COMPOSED. It cannot
 prove it WORKS. ADR-365's whole lesson is that this distinction is where prompt
 work goes wrong: its first directive was ratified, shipped, and then FALSIFIED
 by a controlled A/B (2.72 vs 2.60 jargon per 1000 chars — noise).
@@ -19,7 +19,7 @@ miss a real effect (D2 scored as noise on frequency and 365b later scored +49-79
 on an LLM judge over STRUCTURE). So a null result here is NOT proof the clause
 does nothing — it is proof the clause does not move THIS metric. Report both.
 
-Run: cd api && python3 scripts/operator/probe_adr637_register_ab.py [trials]
+Run: cd api && python3 scripts/operator/probe_adr638_register_ab.py [trials]
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ async def run(trials: int = 4) -> None:
     from services.model_router import route_completion
 
     print("=" * 72)
-    print("ADR-637 §7 — register A/B (ARM A = clause present, ARM B = stripped)")
+    print("ADR-638 §7 — register A/B (ARM A = clause present, ARM B = stripped)")
     print(f"{trials} trials/arm · leak markers counted, not judged")
     print("=" * 72)
 
