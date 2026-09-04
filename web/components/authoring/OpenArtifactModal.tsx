@@ -23,6 +23,7 @@ import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileText } from 'lucide-react';
 import { isArtifactCandidate, resolveSurfaceApplication } from '@/lib/file-types';
+import { servesArtifactIndex } from '@/lib/apps/registry';
 import { documentName } from '@/components/text/TextSurface';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { studioShapeStyle } from './studioShapes';
@@ -31,12 +32,10 @@ import { artifactNameFromPath, kindGuessFromPath } from './artifactNaming';
 /** A prose document names itself by its LEAF (ADR-571), not by its folder. */
 const isProsePath = (p: string) => /\.(md|markdown|txt)$/i.test(p);
 
-/** Apps whose artifacts appear in the served `/studio/artifacts` index — the
- *  HTML-authoring apps. A prose app (ADR-571) has no row there and scopes by
- *  the type registry alone. */
-// ADR-599: `docs` deleted with its app; `studio` renamed `slides`.
-// ADR-627: `blogger` joins — the publish medium's pane.
-const SERVED_INDEX_APPS = new Set(['slides', 'blogger', 'images']);
+// ADR-636 D3 — `SERVED_INDEX_APPS` is DELETED. Whether an app's artifacts
+// appear in the served `/studio/artifacts` index is `servesIndex` on the app's
+// own descriptor row, so a new app answers this by declaring itself once
+// rather than by someone remembering a set in a modal.
 
 interface OpenArtifactModalProps {
   open: boolean;
@@ -68,7 +67,7 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
     // lifted from `data-template`), so an app whose medium is PROSE has no
     // row in it. Such an app scopes by the type registry alone — which is
     // the stronger answer anyway (it is the same one `openPath` uses).
-    if (!SERVED_INDEX_APPS.has(appSlug)) {
+    if (!servesArtifactIndex(appSlug)) {
       setOwned(null);
       return;
     }

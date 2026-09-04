@@ -133,10 +133,21 @@ page = (WEB / "app" / "(authenticated)" / "blogger" / "page.tsx").read_text()
 check("the page is the thin Docs-shape wrapper (Studio parameterized)",
       "StudioSurface app={BLOGGER_APP}" in page)
 surface = (WEB / "components" / "authoring" / "StudioSurface.tsx").read_text()
-check("BLOGGER_APP is declared with the blogger slug",
-      "slug: 'blogger'" in surface and "'blogger'" in surface.split("interface AuthoringApp")[1].split("label:")[0])
-check("the type→app association carries blogger (artifacts open at the desk)",
-      "blogger: { surface: 'blogger'" in (WEB / "lib" / "file-types" / "index.ts").read_text())
+# ADR-636 D1 re-anchor: these two pinned the SPELLING of a hand-kept row
+# (`slug: 'blogger'` in a literal, `blogger: { surface: 'blogger'` in a hand
+# map) rather than the FACT. Both spellings are now derived from the one app
+# descriptor registry, so the assertions ask what actually matters: does the
+# app declare itself, and does its artifact route to its own pane. A gate that
+# pins a spelling pins the defect the moment the spelling is the thing improved.
+check("BLOGGER_APP is built from the app descriptor registry",
+      "BLOGGER_APP: AuthoringApp = authoringApp(\n  'blogger'," in surface)
+_reg = (WEB / "lib" / "apps" / "registry.ts").read_text()
+_blogger_row = _reg.split("  blogger: {", 1)[1].split("  },", 1)[0]
+check("blogger is declared in the app descriptor registry",
+      "slug: 'blogger'" in _blogger_row)
+check("the type→app association carries blogger (artifacts open at the pane)",
+      "ownsArtifactTypes: true" in _blogger_row
+      and "APP_DESCRIPTORS" in (WEB / "lib" / "file-types" / "index.ts").read_text())
 check("the launcher glyph resolves (icon_key mapped)",
       "newspaper: Newspaper" in (WEB / "lib" / "shell" / "surface-icons.tsx").read_text())
 check("the being's glyph resolves (AgentIcon mapped)",

@@ -229,6 +229,18 @@ The resolver decides *which* component renders. It does not impose layout, densi
 
 There is one resolver, one registry, one per-slot renderer (`MiddleResolver` / `ChromeRenderer` / `CockpitRenderer`). No dual paths, no legacy fallbacks past the kernel-default level. If the resolver doesn't dispatch a component, the operator sees the kernel default. There is no third option.
 
+### I4b — An app declares itself ONCE on each side of the wire (ADR-636)
+
+The backend states this rule in `api/services/apps/__init__.py`: *"The kernel never imports an app. Registration is the only direction."* The client obeys the same rule, through its own door.
+
+**`web/lib/apps/registry.ts` is that door.** One `AppDescriptor` per app — the client mirror of `register_app` — carrying only what the client alone knows: `slug`, `label`, `objectModel`, `artifactParam`, `ownsArtifactTypes`, `servesIndex`, `dimensionsFirst`. Every app-shaped client fact derives from it.
+
+**What may never live on that row:** the resident, the engine, the stage, the launcher tier, the Dock pin, or anything authority-shaped. Those are the server's and arrive on the roster. A client row naming a resident is ADR-562's deleted `web/lib/apps/authoring.ts` returning; a client row naming a stage forks ADR-592's one derivation; a client row naming authority is the ADR-460 D3.a cliff arriving through a config file. The gate enforces this as a key whitelist, not as prose.
+
+**Why a gate and not just a convention.** Before ADR-636 an app was re-declared by hand in six client places, and the only checks over them were NEGATIVE (*"APP_SURFACES no longer claims docs"*). A negative check catches a forgotten **deletion**; it cannot, by construction, catch a forgotten **addition**. The lists happened to agree — held by memory, not by construction. `api/test_adr636_app_declaration_parity.py` asserts the relation against `all_apps()` in both directions, so a registered app with no client row is red rather than a surface silently rendering another app's grammar.
+
+⭐ **A gate that pins a spelling pins the defect.** Landing this ADR turned three gates red because they asserted the literal text of the hand-kept rows (`slug: 'blogger'`, `return APP_SURFACES.text;`) rather than the fact underneath — they failed on the edit that removed the drift they existed to guard. All three were re-anchored to the fact. Assert what must be true, never how it is currently spelled.
+
 ### I5 — The seam respects the kernel/program boundary
 
 Per [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md) and [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md): kernel code never branches on `program_slug`. The compositor reads bundle manifests; consumers (the four tabs) read the resolved composition. If you ever find yourself writing `if (programSlug === 'alpha-trader') ...` in a tab component, you've broken the seam — the answer is to declare the variation in the manifest.

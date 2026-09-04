@@ -26,8 +26,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { ArrowLeft, Check, FileText, FolderOpen, Image as ImageIcon, Link2, Loader2, MoreHorizontal, Newspaper, Palette, PanelLeft, PanelRight, Plus, Presentation, Upload } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+// ADR-636 D1 — `Image`/`Newspaper`/`Presentation` are GONE from this import:
+// the three app glyphs now resolve through `resolveSurfaceIcon` off the served
+// row's `icon_key`, so this file no longer names an app's mark. (`Palette`
+// STAYS — the design-system picker uses it, a different noun and a correct use.)
+import { ArrowLeft, Check, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, PanelRight, Plus, Upload } from 'lucide-react';
+import { resolveApp } from '@/lib/apps/registry';
+import { resolveSurfaceIcon, type SurfaceIcon } from '@/lib/shell/surface-icons';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
@@ -298,17 +303,34 @@ export interface AuthoringApp {
    *  the app identity the kernel's type→app association keys on (ADR-473 D2).
    *  Which shapes this app offers and which artifacts are its own are both
    *  DERIVED from that association — never listed here (ADR-473 D3). */
-  slug: 'slides' | 'images' | 'blogger';
+  /** ADR-636 D3 — the closed union `'slides' | 'images' | 'blogger'` is
+   *  DELETED. A union is a fourth hand-kept app list wearing a type's
+   *  clothes: adding an app should not require editing a type, and the
+   *  parity gate (`test_adr636_app_declaration_parity.py`) checks membership
+   *  against the registered apps, which a union cannot do. */
+  slug: string;
   /** Operator-readable app name — the one fact the chrome shows (ADR-518 D7
-   *  retired the per-site slug ternaries in favor of this declaration). */
+   *  retired the per-site slug ternaries in favor of this declaration).
+   *
+   *  ADR-636 D1 — DERIVED from the app's descriptor row, not restated here. */
   label: string;
   /** The landing's one-line invitation, in the app's own voice (ADR-518 D7 —
    *  a writing app invites writing; a layout app invites shaping). */
   tagline: string;
-  /** The landing glyph — the same family the dock wears for this app
-   *  (lib/shell/surface-icons), declared here so the landing never falls to
-   *  another app's icon. */
-  icon: LucideIcon;
+  /** The landing glyph — RESOLVED, not declared (ADR-636 D1).
+   *
+   *  It was a second home for the app's mark, and the drift it caused is on
+   *  the record: ADR-602 D4 repaired a Slides that wore `Palette` on its
+   *  landing and `Presentation` in the launcher, so the app had two faces
+   *  depending on where a member met it. The surface row's `icon_key` is the
+   *  ONE home (ADR-297) and every rendering — Dock, launcher, this landing —
+   *  goes through `resolveSurfaceIcon`, so a re-icon moves all of them at
+   *  once. Built at construction from the slug, never restated per row.
+   *
+   *  Typed `SurfaceIcon` (a component taking only `className`) rather than
+   *  `LucideIcon`: that IS the contract both render sites use, and narrowing
+   *  it to lucide's own type would re-bind this row to one icon library. */
+  icon: SurfaceIcon;
   /** ADR-633 D2 — the app's PROPERTY MODEL: what the member is composing, and
    *  therefore which left rail mounts and which noun the chrome says.
    *
@@ -339,51 +361,65 @@ export interface AuthoringApp {
 
 // DOCS_APP was DELETED by ADR-599 D5 with its app; the writing medium's
 // future is a separate blogger-app arc.
-export const STUDIO_APP: AuthoringApp = {
-  // ADR-599 D4 — the full evolve: member-facing identity is Slides (slug,
-  // label, route); the component tree keeps its internal Studio name (D6).
-  slug: 'slides',
-  label: 'Slides',
-  tagline:
-    'Name a deck, then describe what you want in plain words — it takes shape live, slide by slide, pulling in your files, images, and data as it goes.',
-  // ADR-602 D4 — the PRESENTATION glyph, matching the launcher (`icon_key:
-  // presentation`, kernel_surfaces). The landing had kept `Palette` from
-  // before ADR-599 D4's icon pass, so the app wore two different faces
-  // depending on where a member met it; `palette` is now Designer's glyph,
-  // which would have read as the wrong agent's mark on the Slides door.
-  // (`Palette` the import STAYS — the design-system picker uses it, which is
-  // a different noun and a correct use.)
-  icon: Presentation,
-  // ADR-633 D2 — a deck is a SEQUENCE of pages: the page is the unit, the rail
-  // is the sequence (PagedNavigator), the noun is Slide. Unchanged behaviour,
-  // now declared rather than derived from `layout === 'deck'`.
-  objectModel: 'pages',
-};
-export const IMAGES_APP: AuthoringApp = {
-  slug: 'images',
-  label: 'Images',
-  tagline:
-    'Pick a size, name it, then describe the image in plain words — it renders live on the canvas.',
-  icon: ImageIcon,
-  // ADR-633 D2 — an artboard is a STACK: the layer is the unit, the rail is
-  // the stack (LayerTree, D4), the noun is Artboard. This is the row the
-  // derivation never named — it fell through the deck ternary onto the
-  // document branch, and nobody chose that.
-  objectModel: 'layers',
-  dimensionsFirst: true,
-};
+/**
+ * Build an authoring app row from its DESCRIPTOR (ADR-636 D1).
+ *
+ * `slug`, `label`, `objectModel` and `dimensionsFirst` come from the one
+ * registry the parity gate checks against `all_apps()`; the icon resolves
+ * through `resolveSurfaceIcon` off the served surface row's `icon_key`
+ * (ADR-297), so the landing wears the same mark as the Dock and the launcher.
+ *
+ * The TAGLINE stays a parameter: it is the app's own voice on its landing
+ * (ADR-518 D7 — a writing app invites writing; a layout app invites shaping),
+ * it exists nowhere else, and no gate can derive prose.
+ *
+ * An unregistered slug THROWS rather than defaulting. A plausible fallback is
+ * what `resident_for_app` refuses for the same reason (ADR-562, the ADR-548
+ * lesson): a degraded-but-plausible value hides the bug it should surface,
+ * and here it would silently render a new app with another app's grammar.
+ */
+function authoringApp(slug: string, tagline: string, iconKey: string): AuthoringApp {
+  const d = resolveApp(slug);
+  if (!d) {
+    throw new Error(
+      `No app descriptor for '${slug}' — declare it in lib/apps/registry.ts (ADR-636 D1).`,
+    );
+  }
+  return {
+    slug: d.slug,
+    label: d.label,
+    tagline,
+    icon: resolveSurfaceIcon(iconKey),
+    objectModel: d.objectModel,
+    dimensionsFirst: d.dimensionsFirst,
+  };
+}
+
+// ADR-599 D4 — the full evolve: member-facing identity is Slides (slug,
+// label, route); the component tree keeps its internal Studio name (D6).
+// ADR-602 D4 — the PRESENTATION glyph, matching the launcher. The landing had
+// kept `Palette` from before ADR-599 D4's icon pass, so the app wore two
+// different faces depending on where a member met it; `palette` is now
+// Designer's glyph, which would have read as the wrong agent's mark on the
+// Slides door. ADR-636 D1 — the key now resolves through the ONE registry, so
+// that pair cannot drift again.
+export const STUDIO_APP: AuthoringApp = authoringApp(
+  'slides',
+  'Name a deck, then describe what you want in plain words — it takes shape live, slide by slide, pulling in your files, images, and data as it goes.',
+  'presentation',
+);
+export const IMAGES_APP: AuthoringApp = authoringApp(
+  'images',
+  'Pick a size, name it, then describe the image in plain words — it renders live on the canvas.',
+  'image',
+);
 // ADR-627 — the publish medium's pane: the outward type (ADR-505 D2's merged
 // article/page, deleted by ADR-599 D5) returns as `post` under its own app.
-export const BLOGGER_APP: AuthoringApp = {
-  slug: 'blogger',
-  label: 'Blogger',
-  tagline:
-    'Name a post, then describe the piece in plain words — it takes shape live as bands of published prose, pulling in your files, images, and data as it goes.',
-  icon: Newspaper,
-  // ADR-633 D2 — a post is continuous prose: no page unit by derivation
-  // (ADR-546 D0), so neither rail mounts and the frame noun is Document.
-  objectModel: 'flow',
-};
+export const BLOGGER_APP: AuthoringApp = authoringApp(
+  'blogger',
+  'Name a post, then describe the piece in plain words — it takes shape live as bands of published prose, pulling in your files, images, and data as it goes.',
+  'newspaper',
+);
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
   const { get: getParam, set: setParam } = useSurfaceParam(app.slug);
@@ -4513,7 +4549,7 @@ const LEARN_TARGETS: Array<{
 
 /** A real render of the artifact, scaled down (the ADR-447 navigator
  *  technique): sandboxed srcDoc iframe, display-only. */
-function ArtifactThumb({ path, fallbackIcon: FallbackIcon }: { path: string; fallbackIcon: LucideIcon }) {
+function ArtifactThumb({ path, fallbackIcon: FallbackIcon }: { path: string; fallbackIcon: SurfaceIcon }) {
   const [doc, setDoc] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;

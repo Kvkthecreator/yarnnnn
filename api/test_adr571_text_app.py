@@ -153,7 +153,24 @@ const { transform } = require(process.argv[2]);
 const src = require('fs').readFileSync(process.argv[1], 'utf8');
 const js = transform(src, { transforms: ['typescript', 'imports'] }).code;
 const mod = { exports: {} };
-new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+// ADR-636 D1: `file-types` now derives its app map from `lib/apps/registry`,
+// so a `() => ({})` stub silently yields an EMPTY association and every
+// routing claim below degrades to the fallback — a false red, and (worse) a
+// shape that could go false-GREEN for a claim expecting the fallback. The
+// stub therefore RESOLVES real local modules through the same transpile.
+const _load = (spec) => {
+  if (!spec.startsWith('@/')) return {};
+  const fs = require('fs'); const path = require('path');
+  const base = path.join(process.argv[3], spec.slice(2));
+  const file = ['.ts', '.tsx', '/index.ts'].map((e) => base + e).find((f) => fs.existsSync(f));
+  if (!file) return {};
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require',
+    transform(fs.readFileSync(file, 'utf8'), { transforms: ['typescript', 'imports'] }).code
+  )(m, m.exports, _load);
+  return m.exports;
+};
+new Function('module', 'exports', 'require', js)(mod, mod.exports, _load);
 const { isArtifactCandidate, resolveSurfaceApplication } = mod.exports;
 const surfaceOf = (p) => (resolveSurfaceApplication(p) || {}).surface || null;
 const out = {
@@ -177,7 +194,7 @@ try:
             [
                 "node", "-e", _ROUTING_PROBE,
                 str(WEB / "lib" / "file-types" / "index.ts"),
-                str(WEB / "node_modules" / "sucrase"),
+                str(WEB / "node_modules" / "sucrase"), str(WEB),
             ],
             capture_output=True, text=True, timeout=30, check=True,
         ).stdout
@@ -361,7 +378,24 @@ const { transform } = require(process.argv[2]);
 const src = require('fs').readFileSync(process.argv[1], 'utf8');
 const js = transform(src, { transforms: ['typescript', 'imports'] }).code;
 const mod = { exports: {} };
-new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+// ADR-636 D1: `file-types` now derives its app map from `lib/apps/registry`,
+// so a `() => ({})` stub silently yields an EMPTY association and every
+// routing claim below degrades to the fallback — a false red, and (worse) a
+// shape that could go false-GREEN for a claim expecting the fallback. The
+// stub therefore RESOLVES real local modules through the same transpile.
+const _load = (spec) => {
+  if (!spec.startsWith('@/')) return {};
+  const fs = require('fs'); const path = require('path');
+  const base = path.join(process.argv[3], spec.slice(2));
+  const file = ['.ts', '.tsx', '/index.ts'].map((e) => base + e).find((f) => fs.existsSync(f));
+  if (!file) return {};
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require',
+    transform(fs.readFileSync(file, 'utf8'), { transforms: ['typescript', 'imports'] }).code
+  )(m, m.exports, _load);
+  return m.exports;
+};
+new Function('module', 'exports', 'require', js)(mod, mod.exports, _load);
 const M = mod.exports;
 const out = {};
 
@@ -424,7 +458,24 @@ const { transform } = require(process.argv[2]);
 const src = require('fs').readFileSync(process.argv[1], 'utf8');
 const js = transform(src, { transforms: ['typescript', 'imports'] }).code;
 const mod = { exports: {} };
-new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+// ADR-636 D1: `file-types` now derives its app map from `lib/apps/registry`,
+// so a `() => ({})` stub silently yields an EMPTY association and every
+// routing claim below degrades to the fallback — a false red, and (worse) a
+// shape that could go false-GREEN for a claim expecting the fallback. The
+// stub therefore RESOLVES real local modules through the same transpile.
+const _load = (spec) => {
+  if (!spec.startsWith('@/')) return {};
+  const fs = require('fs'); const path = require('path');
+  const base = path.join(process.argv[3], spec.slice(2));
+  const file = ['.ts', '.tsx', '/index.ts'].map((e) => base + e).find((f) => fs.existsSync(f));
+  if (!file) return {};
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require',
+    transform(fs.readFileSync(file, 'utf8'), { transforms: ['typescript', 'imports'] }).code
+  )(m, m.exports, _load);
+  return m.exports;
+};
+new Function('module', 'exports', 'require', js)(mod, mod.exports, _load);
 const { parseOutline, readingMinutes } = mod.exports;
 
 const doc = [
@@ -456,7 +507,7 @@ def _run_probe(script: str, target: Path) -> dict:
     try:
         return json.loads(
             subprocess.run(
-                ["node", "-e", script, str(target), str(WEB / "node_modules" / "sucrase")],
+                ["node", "-e", script, str(target), str(WEB / "node_modules" / "sucrase"), str(WEB)],
                 capture_output=True, text=True, timeout=30, check=True,
             ).stdout
         )
@@ -590,7 +641,7 @@ console.log(JSON.stringify({
 try:
     _r = json.loads(
         subprocess.run(
-            ["node", "-e", _RENDER_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _RENDER_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=120, check=True,
         ).stdout
     )
@@ -686,7 +737,7 @@ _c = _run_probe_web = None
 try:
     _c = json.loads(
         subprocess.run(
-            ["node", "-e", _CONFLICT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _CONFLICT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -784,7 +835,7 @@ _cm = _run_probe_cm = None
 try:
     _cm = json.loads(
         subprocess.run(
-            ["node", "-e", _CM_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _CM_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -960,7 +1011,7 @@ console.log(JSON.stringify(out));
 try:
     _d10 = json.loads(
         subprocess.run(
-            ["node", "-e", _CANVAS_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _CANVAS_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1030,7 +1081,24 @@ const { transform } = require(process.argv[2]);
 const js = transform(fs.readFileSync(WEB + '/components/text/markdownEdits.ts', 'utf8'),
   { transforms: ['typescript', 'imports'] }).code;
 const mod = { exports: {} };
-new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+// ADR-636 D1: `file-types` now derives its app map from `lib/apps/registry`,
+// so a `() => ({})` stub silently yields an EMPTY association and every
+// routing claim below degrades to the fallback — a false red, and (worse) a
+// shape that could go false-GREEN for a claim expecting the fallback. The
+// stub therefore RESOLVES real local modules through the same transpile.
+const _load = (spec) => {
+  if (!spec.startsWith('@/')) return {};
+  const fs = require('fs'); const path = require('path');
+  const base = path.join(process.argv[3], spec.slice(2));
+  const file = ['.ts', '.tsx', '/index.ts'].map((e) => base + e).find((f) => fs.existsSync(f));
+  if (!file) return {};
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require',
+    transform(fs.readFileSync(file, 'utf8'), { transforms: ['typescript', 'imports'] }).code
+  )(m, m.exports, _load);
+  return m.exports;
+};
+new Function('module', 'exports', 'require', js)(mod, mod.exports, _load);
 const M = mod.exports;
 const D = 'Hi\n\n';           // caret at 4 == a blank line at the end
 console.log(JSON.stringify({
@@ -1105,7 +1173,7 @@ console.log(JSON.stringify({
 try:
     _e = json.loads(
         subprocess.run(
-            ["node", "-e", _EMPTY_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _EMPTY_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -1230,7 +1298,24 @@ const { transform } = require(process.argv[2]);
 const js = transform(fs.readFileSync(WEB + '/components/text/markdownEdits.ts', 'utf8'),
   { transforms: ['typescript', 'imports'] }).code;
 const mod = { exports: {} };
-new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+// ADR-636 D1: `file-types` now derives its app map from `lib/apps/registry`,
+// so a `() => ({})` stub silently yields an EMPTY association and every
+// routing claim below degrades to the fallback — a false red, and (worse) a
+// shape that could go false-GREEN for a claim expecting the fallback. The
+// stub therefore RESOLVES real local modules through the same transpile.
+const _load = (spec) => {
+  if (!spec.startsWith('@/')) return {};
+  const fs = require('fs'); const path = require('path');
+  const base = path.join(process.argv[3], spec.slice(2));
+  const file = ['.ts', '.tsx', '/index.ts'].map((e) => base + e).find((f) => fs.existsSync(f));
+  if (!file) return {};
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require',
+    transform(fs.readFileSync(file, 'utf8'), { transforms: ['typescript', 'imports'] }).code
+  )(m, m.exports, _load);
+  return m.exports;
+};
+new Function('module', 'exports', 'require', js)(mod, mod.exports, _load);
 const M = mod.exports;
 
 const P = 'Hello there.';   // a FINISHED paragraph
@@ -1271,7 +1356,7 @@ console.log(JSON.stringify({
 try:
     _d11 = json.loads(
         subprocess.run(
-            ["node", "-e", _D11_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D11_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -1426,7 +1511,7 @@ console.log(JSON.stringify({
 try:
     _d12 = json.loads(
         subprocess.run(
-            ["node", "-e", _D12_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D12_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1530,7 +1615,7 @@ console.log(JSON.stringify({
 try:
     _d13 = json.loads(
         subprocess.run(
-            ["node", "-e", _D13_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D13_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1641,7 +1726,7 @@ console.log(JSON.stringify({
 try:
     _d14 = json.loads(
         subprocess.run(
-            ["node", "-e", _D14_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D14_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1775,7 +1860,7 @@ console.log(JSON.stringify({
 try:
     _d15 = json.loads(
         subprocess.run(
-            ["node", "-e", _D15_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D15_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1887,7 +1972,7 @@ console.log(JSON.stringify({
 try:
     _d17 = json.loads(
         subprocess.run(
-            ["node", "-e", _D17_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D17_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -2051,7 +2136,7 @@ console.log(JSON.stringify({
 try:
     _d18 = json.loads(
         subprocess.run(
-            ["node", "-e", _D18_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D18_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -2489,7 +2574,7 @@ console.log(JSON.stringify({
 try:
     _d20 = json.loads(
         subprocess.run(
-            ["node", "-e", _D20_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D20_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -2612,7 +2697,7 @@ console.log(JSON.stringify({
 try:
     _d20b = json.loads(
         subprocess.run(
-            ["node", "-e", _D20B_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _D20B_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -2786,7 +2871,7 @@ console.log(JSON.stringify({
 try:
     _ins = json.loads(
         subprocess.run(
-            ["node", "-e", _INSERT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _INSERT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -2915,7 +3000,7 @@ console.log(JSON.stringify(out));
 try:
     _jump = json.loads(
         subprocess.run(
-            ["node", "-e", _JUMP_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _JUMP_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
             capture_output=True, text=True, timeout=120, check=True,
         ).stdout
     )

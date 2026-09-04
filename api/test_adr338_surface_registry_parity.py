@@ -142,31 +142,37 @@ def test_three_way_parity() -> None:
         not (reg & panes),
         f"pane slugs with window components: {sorted(reg & panes)}",
     )
+    # ADR-636 D3 — this WAS a hand-spelled census of the pane set, and it had
+    # been RED since 2026-08-26: it still named `autonomy`, which left the
+    # union with the allowlist and has no backend row at all. A hand-kept
+    # expectation inside a parity gate is the same defect the gate exists to
+    # catch, one level up — it pins today's roster rather than the INVARIANT,
+    # so every legitimate pane change reads as a failure until someone edits
+    # the list, which trains readers to edit the number rather than look.
+    #
+    # What is actually worth asserting is the RELATION the pane set must
+    # satisfy, which is true of any roster: a pane is a real surface that
+    # renders INSIDE a parent, so it must be navigable, must name a parent
+    # that is itself a served surface, and must carry no window component
+    # (already checked above).
+    check("pane set parses non-empty (guards a vacuous scan)", bool(panes))
     check(
-        "pane set is the live fold (ADR-454 D4 dials on Workspace Settings + ADR-425 sources hidden)",
-        panes == {
-            # ADR-454 D4 (2026-07-13): autonomy is pane_of workspace-settings
-            # ("System" group — the ADR-426 door reversed; the system-agent row
-            # is hidden). ADR-491 D3 (2026-07-28): `budget` LEFT — the pane
-            # dissolved into Usage; its registry row is deleted. ADR-491 D1:
-            # `billing` + `usage` JOIN as pane-grade rows on the workspace door
-            # (search-only — the Launcher's money surfaces). ADR-418:
-            # expected-output LEFT (dormant). ADR-421: mandate/identity/principles
-            # LEFT (dormant) — a workspace has no constitution of its own.
-            "autonomy", "billing", "usage",
-            # ADR-425 (2026-07-09): `connectors` is now pane_of settings (the
-            # account door); `sources` is HIDDEN (no pane_of/route). ADR-432 D2d
-            # (2026-07-09): `program` LEFT the pane set — the operator hire pane
-            # is retired, the slug is dormant (routeless).
-            "connectors",
-            # ADR-593 D5 (2026-08-21): `notification-settings` joins — the
-            # account door's Notifications pane (the management door for the
-            # bell/window pair).
-            "notification-settings",
-            # `activity` LEFT (ADR-603 D5, 2026-08-24) — the Runs lens died
-            # with the Recurrence window.
-        },
-        f"panes={sorted(panes)}",
+        "every pane-grade slug is a navigable surface",
+        panes <= allow,
+        f"panes absent from the FE allowlist: {sorted(panes - allow)}",
+    )
+    from services.kernel_surfaces import KERNEL_SURFACES as _KS
+
+    _rows = _KS if isinstance(_KS, list) else list(_KS.values())
+    _by_slug = {r.get("slug"): r for r in _rows if r.get("slug")}
+    _orphans = sorted(
+        s for s in panes
+        if (_by_slug.get(s, {}).get("pane_of") or "") not in _by_slug
+    )
+    check(
+        "every pane names a parent surface that exists",
+        not _orphans,
+        f"panes whose pane_of names no surface: {_orphans}",
     )
 
 

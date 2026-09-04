@@ -46,6 +46,8 @@
  * does this file mean"; this one answers "what opens it".
  */
 
+import { APP_DESCRIPTORS } from '@/lib/apps/registry';
+
 /**
  * The viewers a file type can bind to. Each value names the renderer that
  * `FileBody` mounts for that type.
@@ -168,17 +170,41 @@ export interface SurfaceApplication {
  */
 const KIND_TO_APP = new Map<string, string>();
 
-/** The surfaces that can own an artifact type, by app slug (ADR-473 D2). */
-const APP_SURFACES: Record<string, SurfaceApplication> = {
-  // ADR-599 — `docs` is DELETED with its app (was `stage: internal`, ADR-592);
-  // a legacy `document`/`article` artifact falls back to DEFAULT_ARTIFACT_APP
-  // (Slides), which still renders it — the kernel CSS survives the type
-  // registry (creation stopped; reading did not).
-  slides: { surface: 'slides', param: 'file', label: 'Slides' }, // ADR-599 — Studio's full evolve
-  blogger: { surface: 'blogger', param: 'file', label: 'Blogger' }, // ADR-627 — the publish medium (`post`)
-  images: { surface: 'images', param: 'file', label: 'Images' },
-  text: { surface: 'text', param: 'file', label: 'Text' }, // ADR-571 — the prose app
-};
+/** The surfaces that can own an artifact type, by app slug (ADR-473 D2).
+ *
+ *  ADR-636 D3 — DERIVED from the app descriptor registry, not hand-kept. It
+ *  was a hand map, gated only by NEGATIVE checks ("no longer claims docs"),
+ *  which catch a forgotten deletion and never a forgotten addition; a new app
+ *  that forgot this row routed its own artifacts to Slides.
+ *
+ *  ADR-599 — `docs` is DELETED with its app (was `stage: internal`, ADR-592);
+ *  a legacy `document`/`article` artifact falls back to DEFAULT_ARTIFACT_APP
+ *  (Slides), which still renders it — the kernel CSS survives the type
+ *  registry (creation stopped; reading did not).
+ *
+ *  Only apps that OWN artifact types appear: `strings` is a registered app
+ *  whose material is declarations, addressed by `resolveDeclarationApplication`
+ *  by NAME (ADR-569's one-leaf-one-namespace rule), never by extension.
+ *
+ *  Derived LAZILY, on first consult rather than at module init. Both readers
+ *  call it at runtime, and a module-load-time derivation would make this
+ *  module's correctness depend on another module having finished loading —
+ *  a coupling that is invisible until something loads it in isolation
+ *  (`test_adr571_text_app.py` executes this file with a stubbed `require`, and
+ *  a top-level `Object.values(APP_DESCRIPTORS)` threw there before this was
+ *  made lazy). Memoized, so the derivation runs once.
+ */
+let _appSurfaces: Record<string, SurfaceApplication> | null = null;
+
+function appSurfaces(): Record<string, SurfaceApplication> {
+  if (_appSurfaces) return _appSurfaces;
+  _appSurfaces = Object.fromEntries(
+    Object.values(APP_DESCRIPTORS || {})
+      .filter((a) => a.ownsArtifactTypes)
+      .map((a) => [a.slug, { surface: a.slug, param: a.artifactParam, label: a.label }]),
+  );
+  return _appSurfaces;
+}
 
 /** The prose class the Text app owns (ADR-571 D2 / ADR-570 D4's format class). */
 const PROSE_EXT_RE = /\.(md|markdown|txt)$/i;
@@ -318,14 +344,14 @@ export function resolveSurfaceApplication(
   // neither opens in an editor. Preview stays one Open With away.
   const leaf = p.split('/').pop() || p;
   if (PROSE_EXT_RE.test(leaf) && !isArrival && !leaf.startsWith('_')) {
-    return APP_SURFACES.text;
+    return appSurfaces().text;
   }
   if (!isHtml || isArrival) return null;
   // ADR-473 D2: the OWNING app comes from the artifact's declared type. The
   // ADR-451 hardcode (every html → Studio) is replaced, not supplemented —
   // it would send an IMAGES stage into Studio.
   const app = appForKind(kind) ?? DEFAULT_ARTIFACT_APP;
-  return APP_SURFACES[app] ?? APP_SURFACES[DEFAULT_ARTIFACT_APP];
+  return appSurfaces()[app] ?? appSurfaces()[DEFAULT_ARTIFACT_APP];
 }
 
 /**

@@ -180,16 +180,20 @@ check(
 # THE POPULATION ASSERTION. Not the shape — the ADR-592 lesson is that a field
 # nothing declares is inert, and an identity check over zero declarations is
 # vacuous. Each app row must carry an explicit value.
+#
+# ADR-636 D1 re-anchor: the rows moved to `web/lib/apps/registry.ts` (the one
+# client mirror of `register_app`), so this reads them THERE. The assertion is
+# unchanged and still the point — what moved is where an app declares itself,
+# not whether it must.
 APP_MODELS = {
-    "STUDIO_APP": "pages",
-    "IMAGES_APP": "layers",
-    "BLOGGER_APP": "flow",
+    "slides": "pages",
+    "images": "layers",
+    "blogger": "flow",
 }
+REGISTRY = (REPO / "web" / "lib" / "apps" / "registry.ts").read_text()
 for app, expected in APP_MODELS.items():
-    m = re.search(
-        rf"export const {app}: AuthoringApp = \{{(.*?)\n\}};", SURFACE, re.DOTALL
-    )
-    check(m is not None, f"F1: cannot read the {app} row")
+    m = re.search(rf"^  {app}: \{{(.*?)^  \}},", REGISTRY, re.DOTALL | re.M)
+    check(m is not None, f"F1: cannot read the {app} descriptor row")
     if not m:
         continue
     body = m.group(1)
@@ -198,6 +202,13 @@ for app, expected in APP_MODELS.items():
         f"F1: {app} does not declare objectModel: '{expected}' — every app "
         f"declares explicitly; there is no implied value",
     )
+# And the field must stay REQUIRED at its new home (the shape check above
+# guards `AuthoringApp`; this guards the descriptor the rows now live on).
+check(
+    "objectModel?:" not in REGISTRY,
+    "F1: `objectModel` is OPTIONAL on AppDescriptor — a declaration with a "
+    "default is a derivation wearing a declaration's clothes",
+)
 
 # F1's second half: the value must never be back-derived from what it replaces.
 check(

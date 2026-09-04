@@ -64,9 +64,20 @@ def run() -> bool:
     # branch that RETURNS the surface, not the mere presence of the words —
     # a co-occurrence check cannot defend a specific site.
     ft = (root / "web/lib/file-types/index.ts").read_text()
+    # ADR-636 D1 re-anchor: the map is now DERIVED from the app descriptor
+    # registry, so the branch reads `appSurfaces().text` — same claiming site,
+    # same fact, one less hand-kept table. (The spelling `APP_SURFACES.text`
+    # was the map's name, not the claim; pinning it made this gate fail on the
+    # edit that removed the drift it was written to guard — exactly what §2
+    # below warns against two comments down.)
     _check(
         "the prose class routes to Text (the claiming branch, not a mention)",
-        "return APP_SURFACES.text;" in ft,
+        "return appSurfaces().text;" in ft,
+    )
+    _check(
+        "…and Text is declared as an artifact-owning app (the claim's source)",
+        "ownsArtifactTypes: true"
+        in (root / "web/lib/apps/registry.ts").read_text().split("  text: {", 1)[1].split("  },", 1)[0],
     )
 
     # ── §2 The pause (D2) → the DELETION (ADR-599 D5) ───────────────────
