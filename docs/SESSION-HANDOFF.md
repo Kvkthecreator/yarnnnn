@@ -4,6 +4,146 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part P — the two theses tested: skills discovery, and the Agents page (2026-09-04)
+
+Follow-up audit to ADR-639. Two rulings, each with a falsifier that was
+actually run. Capture:
+[`docs/analysis/skills-discovery-and-the-agents-page-2026-09-04.md`](analysis/skills-discovery-and-the-agents-page-2026-09-04.md).
+
+## Thesis A — "skills as files let agents compose documents in a rich way"
+
+**Ruling: discovery works; the composition claim is NOT supported.** Real
+`run_lane_turn` against live prod, 3 asks × 2 arms (ARM B = the identical
+frame with `skills_index_section` → `""`), n=6/arm on the one ask that does
+not saturate the round cap, plus a 3×2 clean-folder rerun.
+
+- **Discovery: real.** Skill body read in **6/10** ARM-A runs vs **1/10**
+  ARM-B. In a cold folder ARM A reaches the skill in 1 round, ARM B in 4.
+- **Composition quality: null.** Inline citations **p = 0.500** (exact
+  permutation, 924 splits); `derived_from` 2.00 vs **2.50** (against);
+  sources read identical; rounds identical. ⭐⭐⭐**Five runs produced
+  BYTE-IDENTICAL declarations with the index on and off** — same SHA-256 on
+  both `_standing.yaml` and `CONTRACT.md`.
+- ⭐⭐⭐**The measured effect is on the REFUSAL, not the output.** In the clean
+  folders ARM A wrote nothing in 2/3 runs because it *asked the member for the
+  cadence* — which is `declaring-standing-work` step 2 and its anti-pattern
+  *"a schedule tighter than anyone reads (every run spends the member's
+  balance)"*. ARM B guessed weekly and wrote, 3/3. That is the ADR-633 §5a
+  effect, and it protects spend rather than prose.
+- ⭐⭐⭐**The load-bearing mechanism is the MIRROR, not the index.** ARM B found
+  both skills by `ListFiles system/` in 3/3 cold runs. Do not propose saving
+  frame bytes by dropping the mirror and keeping the index — that is backwards.
+- **Argue the ceilings on rounds and refusals from here**, never on quality.
+
+## Thesis B — "evolve the Agents page in full"
+
+**Ruling: no evolution of shape. → ADR-640 (`test_adr640_no_agent_record.py`).**
+
+Six facts audited by counting callers. Three are already served (who · which
+app · what it learned). Two are derivable-but-unserved and now PERMITTED
+read-only (**craft**: skills whose `metadata.apps` meet the agent's apps —
+Designer 4 · Editor 10 · Blogger 7; **tending**: declarations whose
+`resolve_executor` is it — both live ones → `editor`). **The sixth is
+REFUSED and that refusal is the ADR.**
+
+⭐⭐⭐**A truthful per-agent history is not summable in the present tense.** The
+only agent-shaped join is lossy (162/200 ledger rows carry `session_id`) and
+**historically correct in the way that makes aggregation false**: 25 lanes
+truthfully read `app='text' agent='designer'`, all dated 08-14→20, because
+**ADR-602 moved Text to Editor on 08-24**. My first reading called them a
+stamping defect; they are nothing of the kind. "Designer — 25 documents" is
+true about August and false about now, and a roster has no honest place to say
+which.
+
+⭐**Citation hygiene**: `member:{id} via {model}` is cited **33× across 26
+files as "ADR-411 D4"** — and ADR-411 has **no numbered decisions**. It is
+ADR-408's rule, preserved by ADR-460. *A citation that resolves to a file but
+not to a decision reads as verified.* Owed, not swept.
+
+## OWED item 1 from Part O — SETTLED, and both hypotheses were wrong
+
+Not "writes only on change" and not "degrades silently". **The binding reads
+issues and PRs, never commits** (`platform_github_get_issues`), and
+`Kvkthecreator/yarnnnn` has had **no issue or PR since 2026-07-08** while
+committing to `main` daily — verified against the live GitHub API. The reach
+ran, hashed identical bytes, and correctly skipped.
+
+⭐⭐⭐**The real defect is the receipt, and it is structural.**
+`run_connector_capture` documents itself as *never raising*; the only handler
+in `_reach_connector_sources` is `except Exception`. **The failure mode the
+writer actually produces is unloggable by construction**, and its rich return
+(`paths_written` / `paths_skipped` / `error`) is discarded. That is why the
+04:26Z `standing-sweep` receipt says `status='success'`, 1,001 ms, with no
+field that could hold a reach outcome — a run whose sources all failed and one
+whose sources were all unchanged emit byte-identical receipts.
+⭐ *A `try/except Exception` around a function documented never to raise is not
+error handling; it is a comment that reads like error handling.*
+
+## Method findings worth carrying
+
+- **The first trial confirmed the thesis and was a false positive** (22 vs 5
+  citations → p = 0.500 by n=6). Distrust the confirming first run.
+- **The substrate is a craft-transmission channel** — every later trial read an
+  earlier ARM's output as an example. Scope every artifact per arm, or the null
+  result is manufactured.
+- **Score completion before speed** — ARM A "won" latency 3/3 by not finishing.
+- ⭐**A background job you stopped reading is not one that stopped — and
+  killing the parent does not reap the child.** A plausible `259 PASS / 108
+  FAIL` baseline was wrong: three stray `test_adr209_*` processes from aborted
+  runs were still writing revisions to the same prod workspace and reading each
+  other's. Check for CHILDREN, not just the driver.
+- ⭐⭐**Scope verification to what the change can reach.** This arc alters **no
+  runtime code** (three docs + one new gate), so a 367-gate sweep could not
+  regress anything and its reds are all environmental. Two sweeps were burned
+  before noticing. The 15 gates covering the touched surfaces were run
+  uncontested and all pass; **no full-sweep figure is claimed here, because
+  none was honestly obtained.**
+
+## Verification
+
+No runtime code changed (three docs + one new gate file), so verification is
+scoped to the surfaces the change reaches. **15/15 green, run uncontested:**
+
+```
+cd api && python3 test_adr640_no_agent_record.py    # NEW — every section falsified individually
+                  test_agent_registry.py            # 125/125
+                  test_adr639_standing_work.py   test_adr630_skills.py
+                  test_adr624_the_being_has_a_home.py   test_adr631_vocabulary.py
+                  test_adr618_standing_spend_gate.py    test_adr606_pane_sees_the_member.py
+                  test_adr636_app_declaration_parity.py test_adr632_the_seat_retires.py
+                  test_adr533_participant_contract.py   test_adr558_chat_is_engines.py
+                  test_adr614_cast_follows_the_registration.py
+                  test_adr612_agent_connector_opt_in.py test_claude_md_ratchet.py
+```
+
+ADR-640 gate falsification (each applied, observed red for the stated reason,
+reverted): a `last_active` key on `_agents_payload` → 2 red · `run_history` in
+`AGENT_ROW_KEYS` → red · a `.eq("agent",` on `execution_events` → red · an
+impure `resolve_executor` → red.
+
+## OWED
+
+1. **The reach receipt** — read `run_connector_capture`'s return into the sweep
+   receipt so "did not move" and "could not be read" stop looking identical
+   (ADR-594's seam).
+2. **The GitHub aperture** — issues+PRs cannot observe a commit-only repo.
+   Widen the binding, or surface the binding's own honest `reads` string at the
+   declaration door.
+3. **The `ADR-411 D4` phantom** — 33 sites, 26 files → cite ADR-408/460.
+4. **`operation/fundraising/market-sizing/`** — the probe moved the operator's
+   REAL `market-sizing-reference.md` into its own folder with a correct
+   monthly declaration (3 verified source URLs), now live (next run
+   2026-10-01). **Left deliberately**; keep or unwind is the operator's call.
+   All other probe artifacts removed (34 files, 6 index rows).
+5. **Orphan `tasks` rows** survive a deleted `_standing.yaml` — inert
+   (`_due_standing` skips them), hygiene only.
+6. **ADR-640 D2's two derived rows**, if wanted — one commit, both derivations
+   already pure.
+7. Carried from Part O, still open: `projection.ts`'s second CSV parser (2);
+   a Files door for declaring (3); blogger's standing leg (4).
+
+---
+
 # Part O — ADR-639: standing work is a kernel lane; strings + Supervisor dissolved (2026-09-04)
 
 The apps · agents · skills · envelope audit (operator: *"is the concept closer to
@@ -99,14 +239,13 @@ worktree (see the ledger entry for the counts). Pre-existing reds, untouched:
 
 ## OWED
 
-1. **The GitHub reach landed no fresh snapshot** on a standing run whose
-   newest landed file (2026-08-28) is a week past the 600s freshness floor:
-   `connection_row` is active, the selector is in the aperture, `[STANDING]
-   connector reach failed` did NOT log, yet `inbound/github/kvkthecreator-
-   yarnnnn/` still ends at 08-28. Either `run_connector_capture` writes only on
-   change (then the receipt should say so) or it degrades silently. Not this
-   arc's seam (ADR-594's); drive it: force a repo change, Run now, expect a new
-   landed file. Until then every run folds a stale source.
+1. ~~**The GitHub reach landed no fresh snapshot**~~ — **SETTLED in Part P**
+   (2026-09-04). Neither hypothesis was right: the binding reads issues and PRs,
+   never commits, and the repo has had no issue/PR since 2026-07-08 while
+   committing to `main` daily. The reach ran and correctly skipped an unchanged
+   snapshot. The real defect is the **receipt** — `except Exception` around a
+   writer documented never to raise — and the **aperture**. Both re-owed in
+   Part P.
 2. **`projection.ts` second CSV parser** — fold into `markdownEdits.parseCsv`
    with a `maxRows` option; then widen `test_adr571` 18L's sweep back to the whole
    components tree.
@@ -114,8 +253,12 @@ worktree (see the ledger entry for the counts). Pre-existing reds, untouched:
    "keep this current" seeded) — one commit if demand names it (ADR-639 D6).
 4. **Blogger's standing leg** — its own parser (a generator's `NO_CHANGE` means
    "no post this week"), riding `drain_due`; ADR-628 phase (b) conditions.
-5. **Drive `keeping-a-file-current`** as craft: did the skill change what the run
-   NOTICED and REFUSED (ADR-633 §5a's two questions), not whether it was read.
+5. ~~**Drive `keeping-a-file-current`** as craft~~ — **DONE in Part P**. Driven
+   as an A/B (index composed vs suppressed) across three asks. Answer: it
+   changed what the agent **REFUSED** (asked for the cadence rather than
+   guessing one that spends the balance) and did **not** measurably change what
+   it produced (five runs, byte-identical declarations across both arms;
+   citations p = 0.500).
 6. Absorbed from earlier Parts: OWED "strings ledger rows carry no
    `principal_id`" (already stamped — every `record_execution_event` in the
    standing module carries it; `test_adr445_principal_attribution` green) and
