@@ -91,7 +91,7 @@ print("\n§2 — agent_home_owner reads the home, and fails closed on malformed 
 check("owner of a memory file", agent_home_owner("agents/editor/memory/notes.md") == "editor")
 check(
     "owner survives the /workspace/ prefix",
-    agent_home_owner("/workspace/agents/supervisor/_autonomy.yaml") == "supervisor",
+    agent_home_owner("/workspace/agents/blogger/_autonomy.yaml") == "blogger",
 )
 check("a bare agents/ names nobody", agent_home_owner("agents/") is None)
 check("a leaf directly in agents/ names nobody", agent_home_owner("agents/editor") is None)
@@ -112,12 +112,12 @@ from services.primitives.workspace import (  # noqa: E402
 )
 
 editor = _Auth("agent:editor")
-supervisor = _Auth("specialist:supervisor")
+blogger = _Auth("specialist:blogger")
 sluggless = _Auth("agent:")
 member = _Auth("member:u-123 via anthropic/claude-sonnet-5")
 
 check("slug resolves from agent:", _caller_agent_slug(editor) == "editor")
-check("slug resolves from specialist:", _caller_agent_slug(supervisor) == "supervisor")
+check("slug resolves from specialist:", _caller_agent_slug(blogger) == "blogger")
 check("a sluggless agent identity resolves None", _caller_agent_slug(sluggless) is None)
 check("a member identity carries no agent slug", _caller_agent_slug(member) is None)
 
@@ -129,7 +129,7 @@ check(
 )
 check(
     "a being may NOT write ANOTHER being's memory",
-    _is_path_locked_for_principal(editor, "agents/supervisor/memory/notes.md"),
+    _is_path_locked_for_principal(editor, "agents/blogger/memory/notes.md"),
     "this is the gap ADR-624 D3 closes — agents/ was in no locked prefix set",
 )
 check(
@@ -139,7 +139,7 @@ check(
 )
 check(
     "a being may NOT write another's grant sidecar",
-    _is_path_locked_for_principal(editor, "agents/supervisor/_budget.yaml"),
+    _is_path_locked_for_principal(editor, "agents/blogger/_budget.yaml"),
 )
 check(
     "a sluggless agent-class caller is locked out of EVERY home (fail closed)",

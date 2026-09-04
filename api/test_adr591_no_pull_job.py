@@ -90,13 +90,14 @@ print("§3 the writer survives — and the D3 seam HAS its caller (ADR-594 D2)")
 check("3a the capture writer is invocable",
       callable(getattr(conn, "run_connector_capture", None)))
 
-# The seam ADR-591 D3 named is no longer unbuilt: a string's run reaches
+# The seam ADR-591 D3 named is no longer unbuilt: a standing run reaches
 # through the connection (aperture-intersected, freshness-floored) and then
-# reads what landed. The caller is Strings — a consumer — never a clock.
-STRINGS_SRC = (API / "services" / "strings.py").read_text()
-check("3b the seam's caller exists: strings invokes run_connector_capture",
+# reads what landed. The caller is the standing lane — a consumer's run on a
+# declaration — never a clock of its own (ADR-639).
+STRINGS_SRC = (API / "services" / "standing_work.py").read_text()
+check("3b the seam's caller exists: the standing run invokes run_connector_capture",
       "run_connector_capture" in STRINGS_SRC)
-check("3c strings is the ONLY production caller (a clock reappearing here "
+check("3c the standing run is the ONLY production caller (a clock reappearing here "
       "would be the pull job growing back)",
       "run_connector_capture" not in SCHED
       and "run_connector_capture" not in ROUTES)
@@ -132,9 +133,9 @@ print("§5 the spend guard survives in concept — the freshness floor")
 
 # The digest's `is_due` died with its only would-be consumer (ADR-594 D3).
 # Its JOB — "a caller in a loop must not multiply platform reads" — survives
-# as the strings-side freshness floor: a selector whose newest landed
+# as the standing-side freshness floor: a selector whose newest landed
 # snapshot is younger than the floor is READ, not re-reached.
-import services.strings as st  # noqa: E402
+import services.standing_work as st  # noqa: E402
 
 check("5a the freshness floor exists and is a real interval",
       isinstance(getattr(st, "_CONNECTOR_CAPTURE_MIN_INTERVAL_S", None), int)

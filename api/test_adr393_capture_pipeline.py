@@ -149,26 +149,39 @@ captures:
     # scoped to CAPTURE_KIND), so the two materializers write DISJOINT row sets
     # and can't clobber each other. This is the load-bearing correctness property
     # of reusing the shared `tasks` index (ADR-393 §4-Q2).
+    #
+    # ADR-639 D3 re-homed the slug-scoped writes (claim + record) into the ONE
+    # drain loop, `services/scheduling.py::claim_run` / `record_run`, which
+    # scope by their `kind` PARAMETER — so the invariant is asserted in two
+    # halves now: the shared functions kind-guard every slug-scoped write, and
+    # the capture adapters pass CAPTURE_KIND (never a bare literal, never
+    # nothing) into them.
     import services.capture.scheduling as _csched
     import services.capture.drainer as _cdrain
+    import services.scheduling as _sched
     cs_src = inspect.getsource(_csched)
     cd_src = inspect.getsource(_cdrain)
     both = cs_src + cd_src
     import re as _re10
-    # The DANGER is a user_id/slug-scoped write (update/delete) that omits kind —
-    # that could touch a same-named recurrence row. Every such write in the
-    # capture lane must ALSO carry .eq("kind", CAPTURE_KIND). (Writes scoped by a
-    # row `id` are safe by construction — the id came from a kind='capture' read;
-    # inserts are safe — they set kind=CAPTURE_KIND in the payload.)
-    # A capture write chains .eq("slug", ...) → assert each is kind-guarded too.
-    slug_scoped = len(_re10.findall(r'\.eq\(\s*"slug"', both))
-    kind_guarded = len(_re10.findall(r'\.eq\(\s*"kind",\s*CAPTURE_KIND\s*\)', both))
-    # Every capture insert carries kind in its payload dict.
+    loop_src = inspect.getsource(_sched.claim_run) + inspect.getsource(_sched.record_run)
+    slug_scoped = len(_re10.findall(r'\.eq\(\s*"slug"', loop_src))
+    kind_guarded = len(_re10.findall(r'\.eq\(\s*"kind",\s*kind\s*\)', loop_src))
+    # The capture half: no slug-scoped write of its own survives (the twins are
+    # deleted), every insert carries kind in its payload, and the adapters hand
+    # CAPTURE_KIND to the loop.
+    capture_slug_writes = len(_re10.findall(r'\.eq\(\s*"slug"', both))
     payload_kind = '"kind": CAPTURE_KIND' in both
+    passes_kind = (
+        _re10.search(r'record_run\([^)]*CAPTURE_KIND', both) is not None
+        and _re10.search(r'drain_due\(\s*client,\s*CAPTURE_KIND', both) is not None
+    )
     results.append(_check(
         "10. capture lane is kind-scoped (no clobber of same-named recurrence rows)",
-        slug_scoped > 0 and kind_guarded >= slug_scoped and payload_kind,
-        f"slug-scoped writes={slug_scoped}, kind-guards={kind_guarded}, payload-kind={payload_kind}",
+        slug_scoped > 0 and kind_guarded >= slug_scoped
+        and capture_slug_writes == 0 and payload_kind and passes_kind,
+        f"loop slug-scoped writes={slug_scoped}, kind-guards={kind_guarded}, "
+        f"capture-own slug writes={capture_slug_writes}, payload-kind={payload_kind}, "
+        f"passes CAPTURE_KIND={passes_kind}",
     ))
 
     passed = sum(1 for r in results if r)

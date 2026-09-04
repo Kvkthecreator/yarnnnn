@@ -154,11 +154,8 @@ def test_consumers_are_derived() -> None:
         )
     )
     check("at least one app owns artifact types (guards an empty scan)", bool(owners))
-    check(
-        "strings owns NO artifact type (its material is declarations, ADR-569)",
-        "strings" not in owners,
-        "a _string.yaml opens Strings by NAME, never because 'yaml opens Strings'",
-    )
+    # (ADR-639: the strings descriptor is DELETED with the app; the
+    # bidirectional parity above is what catches a phantom row now.)
 
     oam = code_only(read("components/authoring/OpenArtifactModal.tsx"))
     check(

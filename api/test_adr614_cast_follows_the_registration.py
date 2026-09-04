@@ -68,17 +68,21 @@ _assert([p.get("agent_slug") for p in out if p.get("member_kind") == "agent"] ==
 _assert(any(p.get("member_kind") == "human" for p in out),
         "the human participant survives reconciliation")
 
-# The 1-lane shape: ADR-610 deleted `keeper`; its character VANISHED.
-STRINGS = {"app": "strings", "artifact_path": "operation/notes.md"}
+# The 1-lane shape: ADR-610 deleted `keeper`, ADR-639 deleted `supervisor`
+# and the strings app; their characters VANISHED. Migration 252 re-stamps the
+# strings lanes `app: text` (their artifacts are prose), after which a stale
+# sole agent re-seats as Editor at read — the same mechanism, one deletion on.
+TEXT = {"app": "text", "artifact_path": "operation/notes.md"}
 from services.agents_registry import build_agent_posture, resolve_agent  # noqa: E402
-_assert(resolve_agent("keeper") is None, "`keeper` is a deleted being (ADR-610 D1)")
-_assert(build_agent_posture("keeper") == "",
-        "the deleted being composes NO character — the defect's real severity")
-out = _reconcile_cast_agent([HUMAN, _agent("keeper")], STRINGS)
-seated = [p.get("agent_slug") for p in out if p.get("member_kind") == "agent"]
-_assert(seated == ["supervisor"], f"a sole `keeper` answers as Supervisor (got {seated})")
-_assert(build_agent_posture(seated[0]) != "",
-        "and that being composes a real character (the turn is no longer blank)")
+for gone in ("keeper", "supervisor"):
+    _assert(resolve_agent(gone) is None, f"`{gone}` is a deleted agent")
+    _assert(build_agent_posture(gone) == "",
+            f"the deleted `{gone}` composes NO character — the defect's real severity")
+    out = _reconcile_cast_agent([HUMAN, _agent(gone)], TEXT)
+    seated = [p.get("agent_slug") for p in out if p.get("member_kind") == "agent"]
+    _assert(seated == ["editor"], f"a sole `{gone}` on a text lane answers as Editor (got {seated})")
+    _assert(build_agent_posture(seated[0]) != "",
+            "and that agent composes a real character (the turn is no longer blank)")
 
 print("2. the narrowing conditions hold")
 

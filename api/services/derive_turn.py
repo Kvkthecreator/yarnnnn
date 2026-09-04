@@ -2,13 +2,15 @@
 judgment call (ADR-580 D6).
 
 A standing lane revises a living file from fresh source material with one
-criterion-governed, tool-less LLM turn. Strings (a designated leaf from
-declared sources) is the live tenant; radar and the connector digest — the
-two earlier tenants — were both superseded as specializations of the
-maintained file (ADR-592 deleted radar; ADR-594 D3 folded the digest into an
-md string with connector sources). The turn's MECHANICS live here, and the
-lane keeps what is genuinely its own: input assembly, posture, placement,
-write confinement, and metering taxonomy.
+criterion-governed, tool-less LLM turn. Standing work
+(`services/standing_work.py` — a designated leaf kept from declared sources,
+ADR-639) is the live tenant; radar and the connector digest — the two earlier
+tenants — were both superseded as specializations of the maintained file
+(ADR-592 deleted radar; ADR-594 D3 folded the digest into a prose declaration
+with connector sources). The turn's MECHANICS live here; its SYSTEM PROMPT is
+the lane module's standing frame (`lane_runner.build_standing_frame`, ADR-639
+D1); the lane keeps what is genuinely its own: input assembly, the kernel
+job, placement, write confinement, and metering taxonomy.
 
 The turn is deliberately minimal:
 

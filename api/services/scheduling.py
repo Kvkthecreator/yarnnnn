@@ -418,3 +418,145 @@ __all__ = [
     "claim_task_run",
     "record_task_run",
 ]
+
+
+# =============================================================================
+# The ONE drain loop (ADR-639 D3) — every unattended kind rides it
+# =============================================================================
+#
+# Before ADR-639 the standing lane (strings) and the capture lane each carried a
+# byte-twin of this loop: kind-scoped CAS claim → run → record-in-finally. Two
+# copies of one mechanism is the second-home drift; ADR-603 D6 waited for a
+# "second declaration kind" to generalise and the second instance of the LOOP
+# had been here all along. The declaration SHAPE stays per kind (each kind
+# supplies its own discovery + run body); only the loop is shared.
+#
+# A kind supplies:
+#   due(client, now)        → list of (user_id, decl, original_next_run) — the
+#                             rows that should run now, already filtered for
+#                             paused / problem states; `original_next_run` is
+#                             the stored value the claim compares against
+#   run(client, user_id, decl) → {"success": bool, "error_reason"?: str, …}
+#   record(client, user_id, decl, last_run_at) → None — advances the row
+#
+# `decl` is any object with `.slug`, `.schedule`, `.paused`, `.paused_until`,
+# `.options` (what `compute_next_run_at` reads).
+
+#: How long a claimed row is held by its sentinel before another scheduler
+#: instance may reclaim it. Long enough for the slowest run; short enough that
+#: a crashed instance does not strand the row for a day.
+CLAIM_SENTINEL_HOURS = 2
+
+
+def claim_run(
+    client, user_id: str, slug: str, kind: str, original_next_run: Optional[str],
+    *, sentinel_hours: int = CLAIM_SENTINEL_HOURS,
+) -> bool:
+    """CAS atomic claim on ONE kind's index row.
+
+    Bumps `next_run_at` to a sentinel iff it still equals `original_next_run`,
+    so concurrent scheduler instances (and the manual Run-now door, ADR-618 D2)
+    cannot both execute one row. Kind-scoped so two kinds sharing a slug (an
+    authoring error) can never cross-claim. `None` for the baseline refuses:
+    there is nothing to compare against, and a caller that reads None as a
+    lost race would make a never-indexed declaration un-fireable by hand — the
+    caller decides what None means (ADR-618 D2).
+    """
+    if original_next_run is None:
+        return False
+    sentinel = (datetime.now(timezone.utc) + timedelta(hours=sentinel_hours)).isoformat()
+    try:
+        result = (
+            client.table("tasks")
+            .update({"next_run_at": sentinel})
+            .eq("user_id", user_id)
+            .eq("slug", slug)
+            .eq("kind", kind)
+            .eq("next_run_at", original_next_run)
+            .execute()
+        )
+        return bool(result.data)
+    except Exception as e:  # noqa: BLE001 — a failed claim is a skipped row
+        logger.warning("[DRAIN:%s] claim failed for %s/%s: %s", kind, user_id[:8], slug, e)
+        return False
+
+
+def record_run(
+    client, user_id: str, decl: Any, kind: str, *, last_run_at: datetime,
+    user_timezone: Optional[str] = None, market_context: Optional[dict] = None,
+) -> None:
+    """Advance `last_run_at` + `next_run_at` after a run (clears the sentinel).
+
+    Always writes `next_run_at` — the next scheduled time, or None — so a row
+    never stays stranded on its claim sentinel after a failed run.
+    """
+    if user_timezone is None:
+        from services.schedule_utils import get_workspace_timezone
+        user_timezone = get_workspace_timezone(client, user_id)
+    try:
+        next_run = compute_next_run_at(
+            decl, last_run_at=last_run_at, now=last_run_at,
+            user_timezone=user_timezone, market_context=market_context,
+        )
+    except ValueError as e:
+        logger.error("[DRAIN:%s] %s/%s schedule resolution failed: %s",
+                     kind, user_id[:8], decl.slug, e)
+        next_run = None
+    try:
+        (
+            client.table("tasks")
+            .update({
+                "last_run_at": last_run_at.isoformat(),
+                "next_run_at": next_run.isoformat() if next_run else None,
+            })
+            .eq("user_id", user_id).eq("slug", decl.slug).eq("kind", kind)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[DRAIN:%s] record run failed for %s/%s: %s",
+                       kind, user_id[:8], decl.slug, e)
+
+
+async def drain_due(
+    client, kind: str, *, due: Any, run: Any, record: Any,
+) -> tuple[int, int, int]:
+    """Run every due row of one kind: claim → run → record, each isolated.
+
+    Returns (found, succeeded, failed). A run that reports failure logs its
+    REASON here (ADR-618's named gap: a count cannot say `router_disabled`,
+    and that is what let production's one string fail four days running while
+    every log line looked ordinary). A raised run is a failure, never a
+    crashed tick. `record` runs in `finally` so a row is never left on its
+    claim sentinel.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        rows = await due(client, now)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[DRAIN:%s] due scan raised: %s", kind, e)
+        return 0, 0, 0
+
+    found = succeeded = failed = 0
+    for user_id, decl, original_next_run in rows:
+        found += 1
+        if not claim_run(client, user_id, decl.slug, kind, original_next_run):
+            logger.info("[DRAIN:%s] %s/%s already claimed by another instance; skipping",
+                        kind, user_id[:8], decl.slug)
+            continue
+        try:
+            result = await run(client, user_id, decl)
+            if result.get("success"):
+                succeeded += 1
+            else:
+                failed += 1
+                logger.error("[DRAIN:%s] run failed for %s/%s: %s", kind, user_id[:8],
+                             decl.slug, result.get("error_reason") or "unknown")
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            logger.exception("[DRAIN:%s] run raised for %s/%s: %s", kind, user_id[:8], decl.slug, e)
+        finally:
+            try:
+                record(client, user_id, decl, datetime.now(timezone.utc))
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[DRAIN:%s] record failed for %s/%s: %s", kind, user_id[:8], decl.slug, e)
+    return found, succeeded, failed

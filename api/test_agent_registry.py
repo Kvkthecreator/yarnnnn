@@ -136,16 +136,23 @@ for r in AGENTS.values():
            r["model"] in LANE_MODELS and not unpriced_lane_model(r["model"]))
     _check(f"model_for_agent('{r['slug']}') answers",
            model_for_agent(r["slug"]) == r["model"])
-# ADR-603 — Supervisor joins. ADR-627 — Blogger joins (the publish medium's
-# voice). The set is pinned deliberately (a new being is an ADR decision, not
-# a drive-by), and it is EDITED here when one lands — which is the point:
-# this line is where the roster's growth gets noticed.
-_check("the expected beings are exactly {blogger, designer, editor, supervisor}",
-       set(AGENTS) == {"blogger", "designer", "editor", "supervisor"})
-# ADR-610 — `keeper` is DELETED and must not return. Maintenance is the
-# steward's seat (judgment) and daemon work (mechanics); a being for it would
-# be authority on a being, the ADR-460 D3.a cliff.
-_check("the dissolved `keeper` being is not resurrected", "keeper" not in AGENTS)
+# ADR-627 — Blogger joins (the publish medium's voice). ADR-639 — Supervisor
+# LEAVES with the strings app (standing work is a kernel lane, not an app).
+# The set is pinned deliberately (a new agent is an ADR decision, not a
+# drive-by), and it is EDITED here when one lands or leaves — which is the
+# point: this line is where the roster's movement gets noticed.
+_check("the expected agents are exactly {blogger, designer, editor}",
+       set(AGENTS) == {"blogger", "designer", "editor"})
+# ADR-610 — `keeper` is DELETED; ADR-639 — `supervisor` is DELETED. Neither
+# may return: standing work's judgment is a skill, its mechanics a daemon, and
+# an agent for it would be authority on an agent, the ADR-460 D3.a cliff.
+_check("the dissolved `keeper` agent is not resurrected", "keeper" not in AGENTS)
+_check("the dissolved `supervisor` agent is not resurrected", "supervisor" not in AGENTS)
+from services.agents_registry import historical_agent_name  # noqa: E402
+_check("a retired slug still resolves the name it signed as (display only)",
+       historical_agent_name("supervisor") == "Supervisor"
+       and historical_agent_name("keeper") == "Keeper"
+       and historical_agent_name("editor") is None)
 # ADR-602 D1/D2 — the craft split, asserted as the RELATION not a spelling.
 _check("Editor serves BOTH authoring desks (slides + text)",
        set(_homes("editor")) == {"slides", "text"})
@@ -284,7 +291,6 @@ _check("IMAGES is promoted today (ADR-629; the fact this derivation reads)",
        _tier.get("images") == "primary")
 _check("Designer rises with its only desk (ADR-629)", is_promoted("designer"))
 _check("Editor is promoted (slides + text are both primary)", is_promoted("editor"))
-_check("Supervisor is promoted (strings is primary)", is_promoted("supervisor"))
 # ADR-627 D3 — beta is a launcher tile, so a member meets the desk in the
 # product's normal course; the being is promoted with it (derived).
 _check("Blogger is promoted (its desk is a beta tile)", is_promoted("blogger"))
@@ -318,8 +324,9 @@ _check("promotion never gates resolution (the being still answers)",
 # The payload is what the pane reads: an unpromoted being must not be served.
 import routes.lanes as _L  # noqa: E402
 _served = {b["slug"] for b in _L._agents_payload()}
-_check("the payload serves every promoted being (all four since ADR-629)",
-       {"blogger", "designer", "editor", "supervisor"} <= _served)
+_check("the payload serves every promoted agent (all three since ADR-639)",
+       {"blogger", "designer", "editor"} <= _served
+       and "supervisor" not in _served)
 # Fail CLOSED on the unhoused (ADR-602 D3 as amended 2026-08-24): a NON-offered
 # being with no desk is unreachable everywhere — a deleted app REGISTRATION
 # must withhold its orphaned resident, never leak it onto the pane. An OFFERED
@@ -335,7 +342,8 @@ finally:
     del _r.AGENTS["_orphan"], _r.AGENTS["_colleague"]
 # The apps payload obeys the exposure rule (ADR-592): `stage: internal` (or a
 # missing surface row — fail closed) means absent from the served envelope.
-# No live app is internal today (the supervisor app is DELETED, ADR-604 D3),
+# No live app is internal today (the supervisor app is DELETED, ADR-604 D3;
+# the strings app too, ADR-639),
 # so the filter is exercised by PROBE — a registered app with no surface row
 # must be withheld, or the check is green only because nothing tests it.
 import services.authoring as _authoring
@@ -344,17 +352,16 @@ try:
     _served_apps = {a["slug"] for a in _L._apps_payload()}
     _check("the apps payload withholds an app with no exposed surface (fail closed)",
            "_probe-internal" not in _served_apps
-           and {"slides", "text", "strings"} <= _served_apps)
+           and {"slides", "text", "images"} <= _served_apps)
 finally:
     _authoring._APP_REGISTRY.pop("_probe-internal", None)
-_check("no `supervisor` app survives to serve (ADR-604 D3 — strings is its desk)",
-       "supervisor" not in {a["slug"] for a in _L._apps_payload()})
+_check("no `supervisor` or `strings` app survives to serve (ADR-604 D3 · ADR-639 D4)",
+       not ({"supervisor", "strings"} & {a["slug"] for a in _L._apps_payload()}))
 
-print("8b. the desk's roles resolve to ONE being (ADR-604 seam, ADR-610 value)")
-_check("supervisor's home is strings — the voice (ADR-604 D1)",
-       _homes("supervisor") == ["strings"])
-_served2 = {b["slug"] for b in _L._agents_payload()}
-_check("the desk serves exactly one being", {"supervisor"} <= _served2)
+print("8b. a deleted agent serves nothing and nobody serves a deleted app (ADR-639 D4)")
+_check("a retired slug serves no app (no fallback)", _homes("supervisor") == [])
+_check("no live agent serves the deleted strings app",
+       not any("strings" in _homes(s) for s in AGENTS))
 
 # The desks payload — the app's OWN identity, so the pane can render the mark
 # the Dock renders. Derived from the surface rows: assert the icon_key and
@@ -385,21 +392,24 @@ _unknown = sorted({
 _check(f"every desk icon_key is known to resolveSurfaceIcon (unknown: {_unknown or 'none'})",
        not _unknown)
 
-# ADR-610 D2 — the voice/executor SEAM survives its second being's deletion.
-# Undeclared `standing_executor` must derive the resident, which is how every
-# other app has always worked. Asserted by DRIVING the resolver, not by
-# reading the registration: the fallback is the whole mechanism now.
+# ADR-610 D2 — the voice/executor SEAM survives its second being's deletion,
+# and ADR-639 its app's. Undeclared `standing_executor` must derive the
+# resident on EVERY app, which is how every app has always worked. Asserted by
+# DRIVING the resolver, not by reading the registration.
 import services.apps as _apps  # noqa: F401,E402
 from services.authoring import all_apps as _all_apps, standing_executor_for_app  # noqa: E402
-_check("strings declares NO standing_executor (ADR-610 — the being is gone)",
-       not (_all_apps()["strings"].get("standing_executor") or "").strip())
-_check("an undeclared executor derives the resident (the seam still works)",
-       standing_executor_for_app("strings") == "supervisor"
-       and standing_executor_for_app("strings") == _all_apps()["strings"]["resident"])
-# And the strings runtime resolves that same being for its unattended runs.
-from services.strings import resolve_strings_resident  # noqa: E402
-_check("the standing run resolves Supervisor's engine + character",
-       resolve_strings_resident()[1] == AGENTS["supervisor"]["posture"])
+_check("no app declares a standing_executor today (the seam is held, empty)",
+       not any((a.get("standing_executor") or "").strip() for a in _all_apps().values()))
+_check("an undeclared executor derives the resident, on every app",
+       all(standing_executor_for_app(s) == a["resident"] for s, a in _all_apps().items()))
+# And the standing run resolves the DERIVED app's resident for a kept prose
+# file (ADR-639 D3: prose → text → Editor), never a name of its own.
+from services.standing_work import StandingDecl, resolve_executor  # noqa: E402
+_slug, _model, _posture = resolve_executor(
+    StandingDecl(topic="t", slug="standing:t", target="notes.md", app="text"))
+_check("a kept prose file's run resolves Editor's engine + character",
+       _slug == "editor" and _posture == AGENTS["editor"]["posture"]
+       and _model == AGENTS["editor"]["model"])
 
 print("9. a bound lane names its RESIDENT, not its engine (ADR-602 D5)")
 # The bug: both authoring surfaces resolved the speaker through `agents` (the

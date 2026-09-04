@@ -1,90 +1,93 @@
-"""Strings — the maintained file, kept on a declared contract (ADR-569).
+"""Standing work — the maintained file, kept on a declared contract (ADR-639).
 
-The second member-facing manifestation of the ADR-564 frame (radar shipped
-first as its specialization — ADR-569 D1 re-reads `report.md` as a maintained
-file the APP designates). A STRING is the member's designation of ONE file in
-a folder as kept current: a declared contract (what it must stay true to),
-declared sources (where currency comes from), a cadence, and a standing
-writer that revises its head — while the member corrects it like any file,
-and every correction compounds (single-head-many-authors, ADR-384 D4).
+The kernel lane behind "keep this file current": a member DESIGNATES one file
+in a folder as kept current — a declared contract (what it must stay true
+to), declared sources (where currency comes from), a cadence — and a standing
+run revises its head, while the member corrects it like any file and every
+correction compounds (single-head-many-authors, ADR-384 D4).
 
-THE LAW (ADR-569 D1): un-designated files are NEVER a standing writer's
-target. Designation is the member's explicit act; authored artifacts stay
-current through reference (data-ref), never standing writes.
+THIS IS A LANE, NOT AN APP (ADR-639). The strings app, its pane and the
+Supervisor agent are DELETED. What a member declares lives beside the file;
+what runs it is this daemon; how it is done is a SKILL
+(`system/skills/keeping-a-file-current`, composed into the run by binding);
+who does it DERIVES from what the file is (the target's type → its app → that
+app's standing executor — ADR-603 D2, one derivation deeper). Nothing in that
+sentence is an agent, and no key here may name one.
 
-One folder holds ONE string (v1 — the radar single-declaration posture),
-declared by two files split on the ADR-564 D2 bright line:
+THE LAW (ADR-569 D1, unchanged): un-designated files are NEVER a standing
+writer's target. Designation is the member's explicit act; authored artifacts
+stay current through reference (data-ref), never standing writes.
 
-    _string.yaml    — pure machine config (ADR-254 underscore-yaml):
+One folder holds ONE declaration, split on the ADR-564 D2 bright line:
+
+    _standing.yaml  — pure machine config (ADR-254 underscore-yaml):
                         target: metrics.csv      # the designated leaf,
                                                  # folder-relative, ONE segment
+                        app: text                # OPTIONAL — explicit wins;
+                                                 # absent → derived from the
+                                                 # target's type (prose → text)
                         schedule: "0 13 * * *"   # UTC cron | @-semantic | list
                         paused: false
-                        sources:                 # HTTP pull (D4), or a
-                          - id: main             # connector slice (ADR-582
-                            url: https://…       # D6): {connector, selector}
-                                                 # reading LANDED snapshots
+                        sources:                 # HTTP pull, or a connector
+                          - id: main             # slice (ADR-582 D6 / 594 D2):
+                            url: https://…       # {connector, selector} reading
+                                                 # LANDED snapshots
                         shape:                   # structured formats only —
                           columns: [date, mrr]   # csv: required column set
                           # keys: [mrr, churn]   # json: required top-level keys
     CONTRACT.md     — what this file means and must stay true to (prose,
-                      operator/lane-authored, NEVER machine-parsed)
+                      member/lane-authored, NEVER machine-parsed)
 
-v1 designation scope (D1): ``md · csv · json · txt`` — formats whose
-unattended revision does not fight an authoring surface's editing model.
-Designating an authoring-app artifact (Studio html, Docs) is NAMED-DEFERRED,
-never silently allowed: a standing writer revising inside Studio's medium
-collides with its document model; if demand proves real, that collision gets
-its own discourse. The refusal here is the ``unsupported_format`` problem.
+`DECLARATION_KEYS` IS the parser's whitelist. It used to live in a thin rule
+module nothing read, and drifted from the one instance (it said `subject`;
+the file said `target`). A rule with no reader is prose.
 
-One run = fetch → parse → map → validate → write, at the depth the format
+Designation scope (D1): ``md · csv · json · txt`` — formats whose unattended
+revision does not fight an authoring surface's editing model. Designating an
+authoring-app artifact (a deck, an image stage, a post) is NAMED-DEFERRED,
+never silently allowed. The refusal here is the ``unsupported_format`` problem.
+
+One run = fetch → map/derive → validate → write, at the depth the format
 demands (D4):
 
     fetch    — HTTP pull of the declared sources (httpx, honest UA); each raw
                body retained as an immutable observation under inbound/web/
-               (the ADR-376/DP32 raw lane — the evidence the write CITES)
+               (the ADR-376/DP32 raw lane — the evidence the write CITES); a
+               connector source reaches-with-a-receipt through the ONE capture
+               writer and reads the landed snapshot (ADR-594 D2)
     map      — csv: parse + project to the declared columns; json: parse +
                require the declared keys; txt: passthrough; md: ONE bounded
-               judgment turn governed by CONTRACT.md (exactly radar's
-               criterion posture — the contract IS the criterion), returning
-               the full revised document or the exact token NO_CHANGE
+               judgment turn governed by CONTRACT.md, composed through the
+               lane module's standing frame (ADR-639 D1: the same commons
+               contract, citation rule, mandate head and character every lane
+               gets; the kernel JOB; the craft skill's body) — returning the
+               full revised document or the exact token NO_CHANGE
     validate — the machine-checkable half of the contract (``shape``). A
-               violating write is REFUSED into a LOUD repair state (D3 — the
-               ADR-567 D6 shape): no silent bad numbers, the app says so,
-               the lane repairs. Metered ``status='failed',
-               error_reason='shape_violation'`` — the app reads the ledger.
-    write    — CONFINED to the declared leaf ONLY (stricter than radar's
-               subtree rule — the ``_assert_hub_write`` shape, D3), via
-               write_revision(revision_kind='derivation',
-               derived_from=[raws]). History is the revision chain, never
-               the namespace (ADR-209). An unchanged pull is an honest
-               no-op: skipped/no_change, no manufactured revision.
+               violating write is REFUSED into a LOUD repair state: no silent
+               bad numbers. Metered ``status='failed',
+               error_reason='shape_violation'``.
+    write    — CONFINED to the declared leaf ONLY (the ``_assert_hub_write``
+               shape, D3), via write_revision(revision_kind='derivation',
+               derived_from=[raws]). History is the revision chain, never the
+               namespace (ADR-209). An unchanged pull is an honest no-op.
     meter    — two execution_events rows per run:
-               ``string-sweep:{topic}``  (mechanical fetch)
-               ``string-write:{topic}``  (the write step — mechanical for
+               ``standing-sweep:{topic}``  (mechanical fetch)
+               ``standing-write:{topic}``  (the write step — mechanical for
                structured formats, judgment for prose)
 
-Scheduling rides the thin ``tasks`` index with ``kind='string'`` (the ADR-393
-precedent, disjoint from 'radar'/'judgment'/'capture'): the tick discovers
-declarations, materializes the slice (``preserve_due_commitment`` applies by
-construction — b8ac1c7), claims via CAS, runs, records.
+Scheduling rides the thin ``tasks`` index with ``kind='standing'`` and the ONE
+drain loop in ``services/scheduling.py`` (ADR-639 D3 — capture rides the same
+loop): the tick discovers declarations, materializes the slice
+(``preserve_due_commitment`` applies by construction — b8ac1c7), claims via
+CAS, runs, records. The run is BOUNDED BY THE POOL before the fetch (ADR-618).
 
-The topic is the folder path relative to ``/workspace/`` (any meaning-folder
-— the designated file lives where it lives; the app's identity param and the
-Files association both carry it).
+The topic is the folder path relative to ``/workspace/`` (any meaning-folder —
+the designated file lives where it lives).
 
-Attribution: raws as ``system:strings`` observations; the leaf write as
-``system:strings`` with the face being Supervisor (ADR-460 D2 — the member
-reads "Supervisor"; authored_by stays the mechanism). This module deliberately
-carries no module-level ``services.*`` imports (the radar cycle-free property).
-
-ADR-604 opened the voice/executor split; ADR-610 closes it for this app.
-Strings is Supervisor's WHOLE: the bound-lane conversation about standing work
-AND the unattended runs. The runs still resolve the app's
-``standing_executor``, which is undeclared and therefore derives the resident —
-the seam survives, its second agent does not (maintenance is the steward's
-seat and daemon work, never an agent). Declared on the one registration in
-``services/apps/__init__.py`` (ADR-562).
+Attribution: raws as ``system:standing`` observations; the leaf write as
+``system:standing`` — machinery, no face (ADR-596 D1). Historical rows carry
+``system:strings`` and are display-resolved (ADR-639 D5). This module carries
+no module-level ``services.*`` imports (cycle-free).
 """
 
 from __future__ import annotations
@@ -98,12 +101,12 @@ import yaml as _yaml
 
 logger = logging.getLogger(__name__)
 
-STRING_KIND = "string"
+STANDING_KIND = "standing"
 
-#: String declarations live at {folder}/_string.yaml, any meaning-folder under
-#: /workspace/ — the designated file's own folder (ADR-569 D2).
+#: Declarations live at {folder}/_standing.yaml, any meaning-folder under
+#: /workspace/ — the designated file's own folder (ADR-569 D2 / ADR-639 D3).
 _WORKSPACE_PREFIX = "/workspace/"
-STRING_DECLARATION_LEAF = "_string.yaml"
+DECLARATION_LEAF = "_standing.yaml"
 CONTRACT_LEAF = "CONTRACT.md"
 
 #: The v1 designation scope (ADR-569 D1) — formats whose unattended revision
@@ -115,14 +118,32 @@ SUPPORTED_FORMATS = ("md", "csv", "json", "txt")
 _MAX_SOURCES_PROSE = 12
 _FETCH_TIMEOUT_S = 15.0
 _MAX_FETCH_CHARS = 500_000
-_USER_AGENT = "yarnnn-strings/1.0 (+https://yarnnn.com)"
+_USER_AGENT = "yarnnn-standing/1.0 (+https://yarnnn.com)"
 
-#: One bounded judgment turn for a prose string (the radar report ceiling).
-_STRING_MAX_TOKENS = 4096
+#: One bounded judgment turn for a prose declaration (the radar report ceiling).
+_STANDING_MAX_TOKENS = 4096
 _DERIVE_TIMEOUT_S = 120.0
 
-#: The empty-run sentinel the posture contracts (radar's, verbatim).
+#: The empty-run sentinel the OUTPUT CONTRACT names (radar's, verbatim). A
+#: machine contract — it is parsed — so it stays in code, not in the skill.
 NO_CHANGE_SENTINEL = "NO_CHANGE"
+
+#: The craft skill the run composes by binding (ADR-639 D2). A toolless turn
+#: cannot ReadFile, so the body is pushed, never indexed.
+KEEPING_SKILL = "keeping-a-file-current"
+
+#: The keys a declaration may carry — the parser's whitelist (ADR-639 D3).
+#: `app` is the executor field: an APP slug, never an agent's (ADR-603 D2 —
+#: authority attaches to declarations and gates, never to agents). No key here
+#: names an agent, ever; the gate asserts it against the live register.
+DECLARATION_KEYS = frozenset(
+    {"target", "app", "schedule", "sources", "shape", "paused", "paused_until"}
+)
+
+#: Which app a target's TYPE belongs to when the declaration names none —
+#: the ADR-602 D7 rule (the app follows the artifact) one layer up. Prose is
+#: Text's; structured formats run mechanically and need no executor.
+_APP_BY_FORMAT = {"md": "text", "txt": "text"}
 
 Schedule = Optional[Union[str, list[str]]]
 
@@ -133,14 +154,18 @@ Schedule = Optional[Union[str, list[str]]]
 
 
 @dataclass
-class StringDecl:
-    """One parsed string declaration. Structurally compatible with
+class StandingDecl:
+    """One parsed standing declaration. Structurally compatible with
     ``services.scheduling.compute_next_run_at`` (slug/schedule/paused/
     paused_until/options — the RadarHub precedent)."""
 
     topic: str  # folder path relative to /workspace/
-    slug: str  # "string:{topic}" — disjoint from radar/recurrence/capture slugs
+    slug: str  # "standing:{topic}" — disjoint from capture slugs
     target: str = ""  # the designated leaf, folder-relative (one segment)
+    #: The APP whose standing executor runs a prose declaration — explicit in
+    #: the file, else derived from the target's type (ADR-639 D3). None for a
+    #: structured target (mechanical; no executor). NEVER an agent slug.
+    app: Optional[str] = None
     schedule: Schedule = None
     paused: bool = False
     paused_until: Optional[datetime] = None
@@ -151,7 +176,7 @@ class StringDecl:
     user_id: Optional[str] = None
     #: A declaration that parses but cannot run — the LOUD half of D3. None
     #: when healthy. Values: missing_target | invalid_target |
-    #: unsupported_format | sources_invalid.
+    #: unsupported_format | sources_invalid | app_invalid.
     problem: Optional[str] = None
 
     @property
@@ -173,14 +198,14 @@ class StringDecl:
 
 
 def topic_from_declaration_path(path: str) -> Optional[str]:
-    """``/workspace/{folder...}/_string.yaml`` → the folder path relative to
-    ``/workspace/`` (the string's topic identifier). Pure. None for paths
+    """``/workspace/{folder...}/_standing.yaml`` → the folder path relative to
+    ``/workspace/`` (the declaration's topic identifier). Pure. None for paths
     outside the convention (including a declaration at the workspace root —
-    a string lives in a meaning-folder, not the root)."""
+    a declaration lives in a meaning-folder, not the root)."""
     p = (path or "").strip()
-    if not p.startswith(_WORKSPACE_PREFIX) or not p.endswith(f"/{STRING_DECLARATION_LEAF}"):
+    if not p.startswith(_WORKSPACE_PREFIX) or not p.endswith(f"/{DECLARATION_LEAF}"):
         return None
-    middle = p[len(_WORKSPACE_PREFIX):-(len(STRING_DECLARATION_LEAF) + 1)]
+    middle = p[len(_WORKSPACE_PREFIX):-(len(DECLARATION_LEAF) + 1)]
     parts = [s for s in middle.split("/") if s]
     return "/".join(parts) if parts else None
 
@@ -192,7 +217,7 @@ def _classify_target(target: str) -> Optional[str]:
     if not target:
         return "missing_target"
     if "/" in target or target.startswith("_") or target in (CONTRACT_LEAF,):
-        # One segment, in the string's own folder; never the machinery files.
+        # One segment, in the declaration's own folder; never the machinery files.
         return "invalid_target"
     ext = target.rsplit(".", 1)[-1].lower() if "." in target else ""
     if ext not in SUPPORTED_FORMATS:
@@ -213,6 +238,30 @@ def _is_connector_source(s: dict) -> bool:
     )
 
 
+def _derive_app(fmt: Optional[str]) -> Optional[str]:
+    """The app a target's type belongs to (ADR-639 D3). Pure."""
+    return _APP_BY_FORMAT.get(fmt or "")
+
+
+def _classify_app(app: Optional[str], fmt: Optional[str]) -> Optional[str]:
+    """The executor field, machine-checked. None = healthy; else `app_invalid`.
+
+    An explicit `app` must be a REGISTERED app — which is also how "never an
+    agent" is enforced without a second rule: `app: editor` is not an app,
+    so it is refused loudly rather than parked or honoured. A prose target
+    with no resolvable app cannot run (no executor); a structured target
+    needs none.
+    """
+    if app:
+        import services.apps  # noqa: F401  (registration side-effect — ADR-562)
+        from services.authoring import resolve_app
+
+        return None if resolve_app(app) else "app_invalid"
+    if fmt in ("md",) and _derive_app(fmt) is None:
+        return "app_invalid"
+    return None
+
+
 def _classify_sources(sources: list[dict], fmt: Optional[str]) -> Optional[str]:
     """Source rules (D4, amended by ADR-582 D6): HTTP pull OR a connector
     slice; structured formats map exactly ONE source to the leaf; prose folds
@@ -231,18 +280,20 @@ def _classify_sources(sources: list[dict], fmt: Optional[str]) -> Optional[str]:
     return None
 
 
-def parse_string_yaml(
+def parse_standing_yaml(
     content: str, *, topic: str, declaration_path: str, user_id: Optional[str] = None
-) -> Optional[StringDecl]:
-    """Parse one ``_string.yaml`` body. None on unparseable (the caller's 422
+) -> Optional[StandingDecl]:
+    """Parse one ``_standing.yaml`` body. None on unparseable (the caller's 422
     repair state); a PARSEABLE declaration that cannot run comes back with
-    ``problem`` set — visible, never silently dark (D3)."""
+    ``problem`` set — visible, never silently dark (D3). Unknown keys are
+    parked in ``options`` as inert residue: the parser cannot be talked into
+    reading a key `DECLARATION_KEYS` does not name."""
     if not content or not content.strip():
         return None
     try:
         parsed = _yaml.safe_load(_strip_tier_frontmatter(content))
     except _yaml.YAMLError as e:
-        logger.warning("[STRINGS] %s unparseable: %s", declaration_path, e)
+        logger.warning("[STANDING] %s unparseable: %s", declaration_path, e)
         return None
     if not isinstance(parsed, dict):
         return None
@@ -265,14 +316,12 @@ def parse_string_yaml(
     shape_raw = parsed.get("shape")
     shape = shape_raw if isinstance(shape_raw, dict) else {}
 
-    options = {
-        k: v for k, v in parsed.items()
-        if k not in {"target", "schedule", "paused", "paused_until", "sources", "shape"}
-    }
+    options = {k: v for k, v in parsed.items() if k not in DECLARATION_KEYS}
+    explicit_app = str(parsed.get("app") or "").strip() or None
 
-    decl = StringDecl(
+    decl = StandingDecl(
         topic=topic,
-        slug=f"string:{topic}",
+        slug=f"standing:{topic}",
         target=target,
         schedule=schedule,
         paused=bool(parsed.get("paused", False)),
@@ -283,7 +332,13 @@ def parse_string_yaml(
         declaration_path=declaration_path,
         user_id=user_id,
     )
-    decl.problem = _classify_target(target) or _classify_sources(sources, decl.format)
+    # Explicit wins; absent derives from the target's type (ADR-639 D3).
+    decl.app = explicit_app or _derive_app(decl.format)
+    decl.problem = (
+        _classify_target(target)
+        or _classify_sources(sources, decl.format)
+        or _classify_app(explicit_app, decl.format)
+    )
     return decl
 
 
@@ -308,8 +363,8 @@ def _coerce_datetime(v: Any) -> Optional[datetime]:
     return None
 
 
-def discover_strings(client, *, workspace_id: Optional[str] = None) -> dict[str, list[StringDecl]]:
-    """All string declarations, grouped by the OWNER user_id of their
+def discover_standing(client, *, workspace_id: Optional[str] = None) -> dict[str, list[StandingDecl]]:
+    """All standing declarations, grouped by the OWNER user_id of their
     workspace — the discover_radar_hubs shape verbatim (ADR-501 keying: the
     grouping key is the workspace's owner, resolved through the service
     client, never the file's author)."""
@@ -317,13 +372,13 @@ def discover_strings(client, *, workspace_id: Optional[str] = None) -> dict[str,
         q = (
             client.table("workspace_files")
             .select("user_id, workspace_id, path, content")
-            .like("path", f"{_WORKSPACE_PREFIX}%/{STRING_DECLARATION_LEAF}")
+            .like("path", f"{_WORKSPACE_PREFIX}%/{DECLARATION_LEAF}")
         )
         if workspace_id:
             q = q.eq("workspace_id", workspace_id)
         rows = q.execute().data or []
     except Exception as e:
-        logger.warning("[STRINGS] discovery scan failed: %s", e)
+        logger.warning("[STANDING] discovery scan failed: %s", e)
         return {}
 
     from services.workspace_context import acting_workspace_owner  # noqa: F401 (parity: the owner resolver below)
@@ -351,17 +406,17 @@ def discover_strings(client, *, workspace_id: Optional[str] = None) -> dict[str,
                 owner_of[ws] = row.get("user_id")
         return owner_of[ws]
 
-    by_user: dict[str, list[StringDecl]] = {}
+    by_user: dict[str, list[StandingDecl]] = {}
     for row in rows:
         path = row.get("path") or ""
         topic = topic_from_declaration_path(path)
         if topic is None:
-            logger.warning("[STRINGS] %s is not a string declaration path; skipping", path)
+            logger.warning("[STANDING] %s is not a declaration path; skipping", path)
             continue
         key = _owner(row)
         if not key:
             continue
-        decl = parse_string_yaml(
+        decl = parse_standing_yaml(
             row.get("content") or "",
             topic=topic,
             declaration_path=path,
@@ -378,7 +433,7 @@ def discover_strings(client, *, workspace_id: Optional[str] = None) -> dict[str,
 # ---------------------------------------------------------------------------
 
 
-def _assert_string_write(decl: StringDecl, path: str) -> None:
+def _assert_standing_write(decl: StandingDecl, path: str) -> None:
     """The standing writer revises ONLY the designated leaf — stricter than
     radar's subtree confinement, because designation is per-FILE (D1). A
     capability constraint asserted at the write site; raises rather than
@@ -386,21 +441,21 @@ def _assert_string_write(decl: StringDecl, path: str) -> None:
     call."""
     if path != decl.target_path:
         raise ValueError(
-            f"string write-confinement: {path!r} is not the designated leaf "
+            f"standing write-confinement: {path!r} is not the designated leaf "
             f"{decl.target_path!r} (un-designated files are never a standing "
             "writer's target — ADR-569 D1)"
         )
 
 
 # ---------------------------------------------------------------------------
-# Scheduling — the kind='string' slice of the tasks index (ADR-393 precedent)
+# Scheduling — the kind='standing' slice of the tasks index (ADR-393 precedent)
 # ---------------------------------------------------------------------------
 
 
-async def materialize_string_index(
-    client, user_id: str, decls: list[StringDecl], *, now: Optional[datetime] = None
+async def materialize_standing_index(
+    client, user_id: str, decls: list[StandingDecl], *, now: Optional[datetime] = None
 ) -> int:
-    """Sync the tasks index (kind='string' rows) against this user's strings.
+    """Sync the tasks index (kind='standing' rows) against this user's declarations.
     Idempotent; touches only its own kind. A declaration with a ``problem``
     gets NO row — it cannot run, and scheduling it would turn the loud repair
     state into a silent failure loop. Returns rows touched."""
@@ -418,12 +473,12 @@ async def materialize_string_index(
             client.table("tasks")
             .select("id, slug, last_run_at, next_run_at, kind")
             .eq("user_id", user_id)
-            .eq("kind", STRING_KIND)
+            .eq("kind", STANDING_KIND)
             .execute()
         )
         existing_by_slug = {r["slug"]: r for r in (existing.data or [])}
     except Exception as e:
-        logger.warning("[STRINGS_SCHED] index read failed for %s: %s", user_id[:8], e)
+        logger.warning("[STANDING_SCHED] index read failed for %s: %s", user_id[:8], e)
         return 0
 
     user_tz = get_workspace_timezone(client, user_id)
@@ -437,14 +492,14 @@ async def materialize_string_index(
                 decl, last_run_at=last_run_at, now=now, user_timezone=user_tz,
             )
         except ValueError as e:
-            logger.error("[STRINGS_SCHED] %s/%s schedule resolution failed: %s",
+            logger.error("[STANDING_SCHED] %s/%s schedule resolution failed: %s",
                          user_id[:8], slug, e)
             next_run = None
 
         # A due-but-unfired next_run_at is a COMMITMENT (b8ac1c7): this
         # materializer runs at the top of the drain tick, and the due scan
         # below must still find the stored time — without this, a never-run
-        # string created conversationally could never fire.
+        # declaration created conversationally could never fire.
         next_run = preserve_due_commitment(
             _parse_iso(existing_row.get("next_run_at") if existing_row else None),
             next_run, now=now, paused=decl.paused,
@@ -455,7 +510,7 @@ async def materialize_string_index(
             "user_id": user_id,
             "slug": slug,
             "status": "active",
-            "kind": STRING_KIND,
+            "kind": STANDING_KIND,
             "schedule": _json.dumps(decl.schedule) if isinstance(decl.schedule, list) else decl.schedule,
             "next_run_at": next_run.isoformat() if next_run else None,
             "declaration_path": decl.declaration_path,
@@ -468,27 +523,27 @@ async def materialize_string_index(
                 client.table("tasks").insert(row).execute()
             touched += 1
         except Exception as e:
-            logger.warning("[STRINGS_SCHED] upsert failed for %s/%s: %s", user_id[:8], slug, e)
+            logger.warning("[STANDING_SCHED] upsert failed for %s/%s: %s", user_id[:8], slug, e)
 
     for slug, existing_row in existing_by_slug.items():
         if slug not in by_slug:
             try:
                 client.table("tasks").delete().eq("id", existing_row["id"]).execute()
                 touched += 1
-                logger.info("[STRINGS_SCHED] dropped string row %s/%s (declaration gone or in repair)",
+                logger.info("[STANDING_SCHED] dropped row %s/%s (declaration gone or in repair)",
                             user_id[:8], slug)
             except Exception as e:
-                logger.warning("[STRINGS_SCHED] delete failed for %s/%s: %s", user_id[:8], slug, e)
+                logger.warning("[STANDING_SCHED] delete failed for %s/%s: %s", user_id[:8], slug, e)
 
     return touched
 
 
-def read_string_task_row(client, user_id: str, slug: str) -> Optional[dict]:
-    """This string's index row, or None when it has never been materialized.
+def read_standing_task_row(client, user_id: str, slug: str) -> Optional[dict]:
+    """This declaration's index row, or None when it has never been materialized.
 
     ADR-618 — the manual door needs the CURRENT `next_run_at` to take the same
     CAS claim the drain takes; the drain already holds it from its due-scan.
-    None means "not indexed yet" (a string declared since the last tick), which
+    None means "not indexed yet" (a declaration since the last tick), which
     the caller must treat as claimable rather than as a lost race — there is no
     scheduled run to collide with.
     """
@@ -498,91 +553,49 @@ def read_string_task_row(client, user_id: str, slug: str) -> Optional[dict]:
             .select("id, slug, next_run_at, last_run_at")
             .eq("user_id", user_id)
             .eq("slug", slug)
-            .eq("kind", STRING_KIND)
+            .eq("kind", STANDING_KIND)
             .limit(1)
             .execute()
         ).data or []
     except Exception as e:  # noqa: BLE001
-        logger.warning("[STRINGS] task-row read failed for %s: %s", slug, e)
+        logger.warning("[STANDING] task-row read failed for %s: %s", slug, e)
         return None
     return rows[0] if rows else None
 
 
-def claim_string_run(client, user_id: str, slug: str, original_next_run: Optional[str],
-                     *, sentinel_hours: int = 2) -> bool:
-    """CAS atomic claim, kind-scoped (the radar/capture mechanism verbatim)."""
-    if original_next_run is None:
-        return False
-    from datetime import timedelta
-    sentinel = (datetime.now(timezone.utc) + timedelta(hours=sentinel_hours)).isoformat()
-    try:
-        result = (
-            client.table("tasks")
-            .update({"next_run_at": sentinel})
-            .eq("user_id", user_id)
-            .eq("slug", slug)
-            .eq("kind", STRING_KIND)
-            .eq("next_run_at", original_next_run)
-            .execute()
-        )
-        return bool(result.data)
-    except Exception as e:
-        logger.warning("[STRINGS_SCHED] claim failed for %s/%s: %s", user_id[:8], slug, e)
-        return False
-
-
-def record_string_run(client, user_id: str, decl: StringDecl, *, last_run_at: datetime) -> None:
-    """Advance last_run_at + next_run_at post-run (clears the CAS sentinel)."""
-    from services.scheduling import compute_next_run_at
-    from services.schedule_utils import get_workspace_timezone
-
-    try:
-        next_run = compute_next_run_at(
-            decl, last_run_at=last_run_at, now=last_run_at,
-            user_timezone=get_workspace_timezone(client, user_id),
-        )
-    except ValueError:
-        next_run = None
-    try:
-        client.table("tasks").update({
-            "last_run_at": last_run_at.isoformat(),
-            "next_run_at": next_run.isoformat() if next_run else None,
-        }).eq("user_id", user_id).eq("slug", decl.slug).eq("kind", STRING_KIND).execute()
-    except Exception as e:
-        logger.warning("[STRINGS_SCHED] record run failed for %s/%s: %s", user_id[:8], decl.slug, e)
-
-
 # ---------------------------------------------------------------------------
-# The standing executor (ADR-562: declared in the app's registration)
+# The executor — DERIVED from what the file is (ADR-603 D2 / ADR-639 D3)
 # ---------------------------------------------------------------------------
 
 
-def resolve_strings_resident() -> tuple[str, str]:
-    """The standing writer's EXECUTOR — Supervisor today, derived, never assumed.
+def resolve_executor(decl: StandingDecl) -> tuple[str, str, str]:
+    """The agent whose model + character power this declaration's judgment
+    run: ``(slug, model, character)``.
 
-    ADR-604 D2 — the voice/executor split: the strings app's RESIDENT is
-    Supervisor (the conversation about standing work), but the unattended
-    runs resolve the app's ``standing_executor`` — the agent whose model +
-    posture power the writer and whose face the receipts wear (attribution
-    stays ``system:strings``, the ADR-596 D1 machinery-in-costume form).
-    Model + character come from the agent's row in the ONE register
-    (ADR-600). Returns ``(model, posture)``.
+    The declaration names an APP (explicit, or derived from the target's type
+    at parse time); the app's registration names its standing executor (else
+    its resident — ADR-604 D2's seam, ADR-610 D2's value); the register names
+    the engine. No step here reads an agent slug from the declaration, and the
+    gate asserts none can be written into one.
 
-    No plausible-default fallback: a strings app with no registered executor
-    is a bug that raises, not a reason to quietly pick an agent (the ADR-548
-    lesson `resident_for_declaration` already states).
+    No plausible-default fallback: a prose declaration whose app has no
+    registered executor is a bug that raises, never a reason to quietly pick
+    an agent (the ADR-548 lesson).
     """
     import services.apps  # noqa: F401  (registration side-effect — ADR-562)
     from services.agents_registry import get_agent
     from services.authoring import standing_executor_for_app
 
-    slug = standing_executor_for_app("strings")
+    slug = standing_executor_for_app(decl.app)
     if not slug:
-        raise KeyError("the strings app has no registered standing executor")
+        raise KeyError(
+            f"declaration {decl.slug!r} names app {decl.app!r}, which has no "
+            "registered standing executor"
+        )
     row = get_agent(slug)
     if row is None:  # a registration naming a ghost is a bug, not a fallback
-        raise KeyError(f"strings resident {slug!r} is not a kernel character")
-    return row["model"], row["posture"]
+        raise KeyError(f"executor {slug!r} for app {decl.app!r} is not a kernel agent")
+    return slug, row["model"], row["posture"]
 
 
 # ---------------------------------------------------------------------------
@@ -605,7 +618,7 @@ async def _fetch_source(url: str) -> str:
 #: ADR-594 D2 — the freshness floor, THE spend guard for connector reach
 #: (successor of the deleted digest's `is_due`): a selector whose newest
 #: landed snapshot is younger than this is read, not re-reached, so two
-#: strings sharing a selector cost one platform read per window.
+#: declarations sharing a selector cost one platform read per window.
 _CONNECTOR_CAPTURE_MIN_INTERVAL_S = 600
 
 
@@ -616,7 +629,7 @@ async def _reach_connector_sources(
     capture writer for this run's declared selectors (grouped per platform),
     which lands attributed observations at the fixed intake lane. The
     effective set is the intersection with the connection's aperture — a
-    string narrows the operator's consent, never widens it. Failure degrades
+    declaration narrows the operator's consent, never widens it. Failure degrades
     to the newest landed snapshot (stale-but-honest; the app states
     staleness); never raises."""
     from services.connectors import (
@@ -655,7 +668,7 @@ async def _reach_connector_sources(
                 client, user_id, row, observed_at=observed_at, selectors=stale,
             )
         except Exception as e:  # noqa: BLE001 — reach must not fail the run
-            logger.warning("[STRINGS] connector reach failed %s/%s: %s",
+            logger.warning("[STANDING] connector reach failed %s/%s: %s",
                            user_id[:8], plat, e)
 
 
@@ -679,7 +692,7 @@ async def _read_connector_source(
     try:
         body = await um.read(rel)
     except Exception as e:  # noqa: BLE001
-        logger.warning("[STRINGS] connector source read failed %s: %s", rel, e)
+        logger.warning("[STANDING] connector source read failed %s: %s", rel, e)
         return None, None
     if body is None:
         return None, None
@@ -702,8 +715,8 @@ def _retain_raw(client, user_id: str, *, source_id: str, url: str,
         user_id=user_id,
         path=path,
         content=truncated,
-        authored_by="system:strings",
-        message=f"raw string observation: {url} @ {observed_at}",
+        authored_by="system:standing",
+        message=f"raw standing observation: {url} @ {observed_at}",
         revision_kind="observation",
     )
     return path
@@ -782,179 +795,35 @@ def map_structured(raw: str, *, fmt: str, shape: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# The prose posture — the JOB overlay for an md string's judgment turn
+# The kernel JOB — what only the run can say (ADR-639 D1/D2)
 # ---------------------------------------------------------------------------
+#
+# The craft that used to live here as `_STANDING_RUN_POSTURE` (fold don't
+# append · preserve corrections · cite inline · name a source/contract
+# disagreement · NO_CHANGE honestly) is a SKILL now —
+# `keeping-a-file-current`, composed into the run by the lane module's
+# standing frame. The pane posture (`_STANDING_PANE_FRAME`, the three-file
+# lifecycle a colleague taught at the strings pane) is the
+# `declaring-standing-work` skill, offered in every lane's index. What stays
+# in code is the OUTPUT CONTRACT — the sentinel is parsed, so it is a machine
+# fact — and the per-run facts the frame cannot know.
 
-#: Composed at run time UNDER the executor's character (character first, job
-#: second — the lane_runner order). The CONTRACT rides the user message,
-#: exactly as radar's criterion does.
-#:
-#: ADR-610 — named for the JOB, not for an agent. The `keeper` being is
-#: dissolved; what was load-bearing in its character was job instruction all
-#: along (§3.2.1: rules of judgment belong to the contract and the job layer,
-#: never to a persona frame) and lives here.
-_STANDING_RUN_POSTURE = """THE STANDING-MAINTENANCE JOB — the maintained file "{target}" in {root}.
+_STANDING_JOB = """## This run
+A scheduled run fired in the member's workspace for the kept file "{target}"
+in {root}. Nobody is present; the file you return will be read later, and
+other artifacts cite it by reference. The message hands you THE CONTRACT
+(what this file means and must stay true to), THE CURRENT FILE (it may carry
+the member's own corrections), and THE FRESH SOURCE MATERIAL.
 
-A scheduled run fired in the member's workspace. Nobody is present; the file
-you keep will be read later, and other artifacts cite it by reference. You are
-handed THE CONTRACT (what this file means and must stay true to), THE CURRENT
-FILE (it may carry the member's own corrections — preserve them; they compound
-into every future run), and THE FRESH SOURCE MATERIAL (fetched just now from
-the declared sources).
-
-Return the FULL REVISED FILE: fold what the sources change into the current
-content, under the contract. Keeping is the job — fidelity over novelty; what
-the contract excludes stays out, however interesting.
-
-THE BAR
-- If the sources change nothing under the contract, reply with exactly:
-  NO_CHANGE
-  An unchanged file honestly reported beats a manufactured update — never pad.
-- The file is the current state, not a log — fold, don't append; prune what
-  has stopped being true.
-- Preserve the member's corrections and voice where the sources don't
-  contradict them; when they do, update the claim and cite why.
-- Every new claim cites its source url inline as a markdown link. NEVER
-  invent facts, numbers, or sources.
-- When a source and the contract genuinely disagree, say so plainly in the
-  file rather than papering over it — an honest contradiction the member can
-  see beats a smooth file that hides one.
-
-THE OUTPUT CONTRACT
-Return the full file's markdown and NOTHING else — or the exact token
-NO_CHANGE. No preamble, no code fence around the whole thing.
-"""
+## The output contract
+Return the full revised file and NOTHING else — or the exact token
+NO_CHANGE. No preamble, no code fence around the whole thing."""
 
 
-def build_standing_run_posture(decl: StringDecl) -> str:
-    """The prose run's derive posture — pure."""
-    return _STANDING_RUN_POSTURE.format(target=decl.target, root=decl.root)
-
-
-#: The PANE posture (ADR-569 D6, via ADR-567 D4's mechanism) — the job
-#: overlay for a lane bound to a maintained file's target leaf. The member
-#: and the app's VOICE run the string's lifecycle in conversation, and the
-#: voice works by writing the folder's files. ROLE-NEUTRAL deliberately
-#: (ADR-604): the job layer teaches the JOB and never claims an identity —
-#: the character layer names who speaks (Supervisor, ADR-604 D1). Since
-#: ADR-610 Supervisor is the runs' face too, but the frame stays role-neutral:
-#: a job frame naming its being is how the two layers start duplicating each
-#: other. Composed fresh per turn
-#: (derived-never-stored); the state block keeps the conversation honest
-#: against the substrate.
-_STANDING_PANE_FRAME = """THE STANDING-WORK PANE — you tend the maintained file in {root} with the member.
-
-A string runs a standing loop: on a schedule, its declared sources are pulled
-and the DESIGNATED file is revised under its contract (mechanically for
-csv/json/txt — fetch, map to the declared shape, validate, write; as a
-bounded judgment turn for md, governed by CONTRACT.md). At this app the
-member talks to you about that loop — designating the file, declaring its
-contract and sources, tuning it, and correcting the file. You act by WRITING
-THE FOLDER'S FILES; the kernel reads them (the declaration is discovered
-within ~5 minutes of landing; runs then fire on its schedule).
-
-THE LAW (never bend it): only the DESIGNATED target is a standing writer's
-target. One string per folder. v1 targets are md, csv, json or txt — an
-authoring artifact (a deck's html, a Docs document) is NOT designatable;
-it stays current by CITING a maintained file instead.
-
-THE THREE FILES (all inside {root}/)
-- CONTRACT.md — what the file means and must stay true to, in prose: for
-  structured formats, what each column/field means; for prose, its
-  conventions and voice. The member's declaration; you draft and revise it
-  FROM what they tell you. Ordinary markdown, no frontmatter, never
-  machine-parsed.
-- _string.yaml — machine config, STRICT YAML, nothing but these keys:
-    target: metrics.csv      # the designated leaf (md/csv/json/txt, this folder)
-    schedule: "0 13 * * *"   # UTC cron (or a list of crons)
-    paused: false
-    sources:
-      - id: short-slug       # kebab, unique
-        url: https://…       # http(s) endpoint; csv/json/txt: EXACTLY ONE source
-    shape:                   # structured formats only, optional but valuable
-      columns: [date, mrr]   # csv: the required columns (file is projected to them)
-      # keys: [mrr, churn]   # json: required top-level keys
-  NO prose, NO other keys. After writing it, READ IT BACK to confirm it
-  parses as clean YAML — a malformed declaration means the file silently
-  stops being kept, and repairing it is YOUR job at this app.
-- the target file — the standing run is its author; revise it directly only
-  when the member asks for a correction (their corrections compound — the
-  next run inherits the head).
-
-SETTING UP (when the state below shows no declaration yet)
-Ask what the file must stay true to and where currency comes from, in plain
-words. Then write CONTRACT.md first, then _string.yaml. Confirm what you set
-up: the contract in one sentence, the source(s), the cadence, the shape (for
-structured formats), and when the first run will fire. If the member names no
-cadence, daily is the default. NEVER invent source URLs — only endpoints the
-member names or that you know verifiably exist; when unsure, say so and ask.
-
-MANAGING (ongoing)
-Change the source, the cadence, the shape, pause/resume (`paused: true`),
-tighten the contract — each is an edit to the file that owns the fact,
-attributed to this conversation. Prefer EditFile for small changes. A run
-refused with a shape violation means the SOURCE and the declared shape
-disagree — read both, say which is wrong, and repair that one. When the
-member asks why the file reads as it does, answer from the contract — and
-offer to revise it if their intent has drifted from its text.
-
-THE CURRENT STATE (read fresh this turn)
-{state}"""
-
-
-def build_strings_pane_posture(
-    client: Any, user_id: str, target_path: str, head: str
-) -> str:
-    """The pane job overlay for a strings-bound lane (ADR-567 D4's mechanism,
-    ADR-569's branch). ``target_path`` is the lane's binding
-    (``{root}/{target-leaf}``); the root derives from it. Reads the folder's
-    pane files fresh — the state block lets the colleague answer from
-    substrate, not memory. ``head`` is the TARGET's current content, read once
-    by the lane kernel (ADR-606 D3) — the pane files (declaration + contract)
-    stay this builder's own reads because they are not the bound artifact."""
-    root = target_path.rsplit("/", 1)[0]
-    leaf = target_path.rsplit("/", 1)[-1]
-    topic = root[len(_WORKSPACE_PREFIX):] if root.startswith(_WORKSPACE_PREFIX) else root
-    decl = _read_file(client, user_id, f"{root}/{STRING_DECLARATION_LEAF}")
-    contract = _read_file(client, user_id, f"{root}/{CONTRACT_LEAF}")
-
-    lines: list[str] = []
-    if decl and decl.strip():
-        parsed = parse_string_yaml(
-            decl, topic=topic,
-            declaration_path=f"{root}/{STRING_DECLARATION_LEAF}",
-        )
-        if parsed is None:
-            lines.append(
-                "- _string.yaml EXISTS BUT DOES NOT PARSE — the standing loop "
-                "is dark until it is repaired. Read it, fix the YAML, write it "
-                "back."
-            )
-        elif parsed.problem is not None:
-            lines.append(
-                f"- _string.yaml parses but CANNOT RUN ({parsed.problem}) — "
-                f"repair the declaration:\n{decl.strip()}"
-            )
-        else:
-            lines.append(f"- _string.yaml (parses OK):\n{decl.strip()}")
-    else:
-        lines.append(
-            "- NO DECLARATION YET — nothing is being kept. The member picked "
-            f"the file '{leaf}'; set the string up with them (see SETTING UP)."
-        )
-    if contract and contract.strip():
-        lines.append(f"- CONTRACT.md:\n{contract.strip()}")
-    else:
-        lines.append("- No CONTRACT.md yet.")
-    if head and head.strip():
-        lines.append(
-            f"- {leaf} head: {len(head.splitlines())} lines, "
-            f"{len(head)} chars."
-        )
-    else:
-        lines.append(f"- {leaf} does not exist yet — the first run writes it.")
-
-    return _STANDING_PANE_FRAME.format(root=root, state="\n".join(lines))
+def build_standing_job(decl: StandingDecl) -> str:
+    """The run's job section — pure. The frame composes it under the
+    executor's character (character first, job second — the lane order)."""
+    return _STANDING_JOB.format(target=decl.target, root=decl.root)
 
 
 def _read_file(client, user_id: str, path: str) -> Optional[str]:
@@ -969,7 +838,7 @@ def _read_file(client, user_id: str, path: str) -> Optional[str]:
         ).data or []
         return rows[0].get("content") if rows else None
     except Exception as e:
-        logger.warning("[STRINGS] read failed for %s: %s", path, e)
+        logger.warning("[STANDING] read failed for %s: %s", path, e)
         return None
 
 
@@ -978,23 +847,23 @@ def _read_file(client, user_id: str, path: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
-    """One run of one string. Returns {success, slug, target_path?,
+async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
+    """One run of one declaration. Returns {success, slug, target_path?,
     no_change?, error_reason?, detail?}. Never raises past its own boundary —
-    the drainer records the run either way."""
+    the drain loop records the run either way."""
     from services.telemetry import record_execution_event
 
     started = datetime.now(timezone.utc)
     topic = decl.topic
 
-    # A declaration in a problem state never runs — the app already says so.
+    # A declaration in a problem state never runs — the pane already says so.
     if decl.problem is not None or decl.format is None:
         return {"success": False, "slug": decl.slug,
                 "error_reason": decl.problem or "unsupported_format"}
 
     # ── 0. THE BALANCE GATE (ADR-618) ────────────────────────────────────────
-    # A prose string's derive is METERED JUDGMENT SPEND, and until now the only
-    # thing standing between a declared string and an operator's balance was
+    # A prose declaration's derive is METERED JUDGMENT SPEND, and until ADR-618
+    # the only thing between a declared file and an operator's balance was
     # `AGENT_ENABLED` — which defaults ON. That is precisely the property the
     # scheduler cites for DELETING radar rather than hiding it ("a dormant
     # spend lane is precisely the ambiguity a future session would have to
@@ -1023,21 +892,21 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         from services.platform_limits import check_balance
         _balance_ok, _balance = check_balance(client, user_id)
     except Exception as e:  # noqa: BLE001
-        logger.warning("[STRINGS] balance check failed for %s (proceeding): %s",
+        logger.warning("[STANDING] balance check failed for %s (proceeding): %s",
                        topic, e)
         _balance_ok = True
     if not _balance_ok:
-        # A refusal is a RECORDED run, not a silent skip: the app must be able
-        # to say why nothing moved, and the drainer records either way.
+        # A refusal is a RECORDED run, not a silent skip: the pane must be able
+        # to say why nothing moved, and the drain loop records either way.
         record_execution_event(
-            client, user_id=user_id, slug=f"string-sweep:{topic}",
+            client, user_id=user_id, slug=f"standing-sweep:{topic}",
             mode="mechanical", trigger_type="scheduled",
             status="failed", error_reason="balance_exhausted",
-            error_detail="workspace balance is exhausted — the string did not run",
-            duration_ms=0, funnel_decision="string",
+            error_detail="workspace balance is exhausted — the run did not fire",
+            duration_ms=0, funnel_decision="standing",
             # ADR-445: every ledger row names its principal — the refusal row
-            # was the one string-lane site that did not (found by the ADR-445
-            # census once ADR-632 un-crashed it).
+            # was the one site that did not (found by the ADR-445 census once
+            # ADR-632 un-crashed it).
             principal_id=user_id,
         )
         return {"success": False, "slug": decl.slug,
@@ -1088,12 +957,12 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
     sweep_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
     sweep_ok = bool(bodies)
     record_execution_event(
-        client, user_id=user_id, slug=f"string-sweep:{topic}",
+        client, user_id=user_id, slug=f"standing-sweep:{topic}",
         mode="mechanical", trigger_type="scheduled",
         status="success" if sweep_ok else "failed",
         error_reason=None if sweep_ok else "no_sources_fetched",
         error_detail=("; ".join(errors)[:500] or None) if errors else None,
-        duration_ms=sweep_ms, funnel_decision="string",
+        duration_ms=sweep_ms, funnel_decision="standing",
         principal_id=user_id,
     )
     if not sweep_ok:
@@ -1111,10 +980,10 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
             # says why, the app reads the ledger, the lane repairs. No
             # silent bad numbers.
             record_execution_event(
-                client, user_id=user_id, slug=f"string-write:{topic}",
+                client, user_id=user_id, slug=f"standing-write:{topic}",
                 mode="mechanical", trigger_type="scheduled", status="failed",
                 error_reason="shape_violation", error_detail=str(e)[:500],
-                funnel_decision="string", principal_id=user_id,
+                funnel_decision="standing", principal_id=user_id,
             )
             return {"success": False, "slug": decl.slug,
                     "error_reason": "shape_violation", "detail": str(e)}
@@ -1126,7 +995,12 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         # kept current IS a judgment derive; the contract is its criterion).
         # The turn's mechanics (router gate → completion → fence strip →
         # honest no-change) are the shared bounded derive turn (ADR-580 D6).
+        # Its SYSTEM PROMPT is the lane module's standing frame (ADR-639 D1):
+        # the same commons contract, citation rule, mandate head and
+        # character every lane gets, the kernel job, and the craft skill's
+        # body — never a system string composed here.
         from services.derive_turn import run_bounded_derive_turn
+        from services.lane_runner import build_standing_frame
 
         contract = _read_file(client, user_id, decl.contract_path)
         def _source_label(s: dict) -> str:
@@ -1142,34 +1016,37 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
              "THERE IS NO CONTRACT DECLARED YET — hold a conservative bar: only "
              "clearly substantive updates on the file's own subject.\n\n")
             + (f"THE CURRENT FILE:\n\n{current}\n\n" if current
-               else "THE FILE DOES NOT EXIST YET — this is the string's first "
-                    "run. Write the baseline from the source material.\n\n")
+               else "THE FILE DOES NOT EXIST YET — this is the first run. Write "
+                    "the baseline from the source material.\n\n")
             + f"THE FRESH SOURCE MATERIAL (just fetched):\n\n{material}\n"
         )
-        resident_model, resident_character = resolve_strings_resident()
+        executor, executor_model, _character = resolve_executor(decl)
         turn = await run_bounded_derive_turn(
-            model=resident_model,
-            system=resident_character + "\n\n" + build_standing_run_posture(decl),
+            model=executor_model,
+            system=build_standing_frame(
+                client, user_id, model=executor_model, executor=executor,
+                job=build_standing_job(decl), skill=KEEPING_SKILL,
+            ),
             user_msg=user_msg,
-            max_tokens=_STRING_MAX_TOKENS,
+            max_tokens=_STANDING_MAX_TOKENS,
             timeout=_DERIVE_TIMEOUT_S,
             no_change_tokens=(NO_CHANGE_SENTINEL,),
         )
         if turn.status == "router_disabled":
             record_execution_event(
-                client, user_id=user_id, slug=f"string-write:{topic}",
+                client, user_id=user_id, slug=f"standing-write:{topic}",
                 mode="judgment", trigger_type="scheduled", status="skipped",
                 error_reason="router_disabled",
-                funnel_decision="string", principal_id=user_id,
+                funnel_decision="standing", principal_id=user_id,
             )
             return {"success": False, "slug": decl.slug, "error_reason": "router_disabled"}
         if turn.status == "raised":
-            logger.error("[STRINGS] derive failed for %s/%s: %s", user_id[:8], decl.slug, turn.error)
+            logger.error("[STANDING] derive failed for %s/%s: %s", user_id[:8], decl.slug, turn.error)
             record_execution_event(
-                client, user_id=user_id, slug=f"string-write:{topic}",
+                client, user_id=user_id, slug=f"standing-write:{topic}",
                 mode="judgment", trigger_type="scheduled", status="failed",
                 error_reason="derive_raised", error_detail=(turn.error or "")[:500],
-                funnel_decision="string", principal_id=user_id,
+                funnel_decision="standing", principal_id=user_id,
             )
             return {"success": False, "slug": decl.slug, "error_reason": "derive_raised"}
         write_mode = "judgment"
@@ -1177,10 +1054,10 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         usage = turn.usage
         if turn.status == "no_change":
             record_execution_event(
-                client, user_id=user_id, slug=f"string-write:{topic}",
+                client, user_id=user_id, slug=f"standing-write:{topic}",
                 mode="judgment", trigger_type="scheduled", status="skipped",
                 error_reason="no_change", model=ledger_model,
-                funnel_decision="string", principal_id=user_id, **usage,
+                funnel_decision="standing", principal_id=user_id, **usage,
             )
             return {"success": True, "slug": decl.slug, "no_change": True}
         text = turn.text
@@ -1191,17 +1068,17 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
     # An unchanged pull is an honest no-op — no manufactured revision.
     if current is not None and content == current:
         record_execution_event(
-            client, user_id=user_id, slug=f"string-write:{topic}",
+            client, user_id=user_id, slug=f"standing-write:{topic}",
             mode=write_mode, trigger_type="scheduled", status="skipped",
             error_reason="no_change", model=ledger_model,
-            duration_ms=write_ms, funnel_decision="string",
+            duration_ms=write_ms, funnel_decision="standing",
             principal_id=user_id, **usage,
         )
         return {"success": True, "slug": decl.slug, "no_change": True}
 
     # ── 3. place + cite — CONFINED to the designated leaf ONLY (D3) ───────
     path = decl.target_path
-    _assert_string_write(decl, path)
+    _assert_standing_write(decl, path)
 
     from services.authored_substrate import write_revision
     revision_id = write_revision(
@@ -1209,10 +1086,10 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         user_id=user_id,
         path=path,
         content=content,
-        # The face is Supervisor, the fact is the ledger (ADR-460 D2).
-        authored_by="system:strings",
-        message=f"Supervisor kept '{decl.target}' current "
-                f"(standing pull, {len(bodies)} source{'s' if len(bodies) != 1 else ''})",
+        # Machinery, no face (ADR-596 D1 / ADR-639 D5): the fact is the ledger.
+        authored_by="system:standing",
+        message=f"kept '{decl.target}' current "
+                f"(standing run, {len(bodies)} source{'s' if len(bodies) != 1 else ''})",
         revision_kind="derivation",
         derived_from=raw_paths,
     )
@@ -1222,53 +1099,48 @@ async def run_string_sweep(client, user_id: str, decl: StringDecl) -> dict:
         from services.primitives.workspace import _embed_workspace_file
         await _embed_workspace_file(client, user_id, path, content)
     except Exception as e:
-        logger.warning("[STRINGS] embed failed for %s: %s", path, e)
+        logger.warning("[STANDING] embed failed for %s: %s", path, e)
 
     # ── 5. meter ──────────────────────────────────────────────────────────
     record_execution_event(
-        client, user_id=user_id, slug=f"string-write:{topic}",
+        client, user_id=user_id, slug=f"standing-write:{topic}",
         mode=write_mode, trigger_type="scheduled", status="success",
         model=ledger_model, duration_ms=write_ms,
-        funnel_decision="string", principal_id=user_id, **usage,
+        funnel_decision="standing", principal_id=user_id, **usage,
     )
 
-    logger.info("[STRINGS] %s/%s → %s (rev %s)", user_id[:8], decl.slug, path, revision_id[:8])
+    logger.info("[STANDING] %s/%s → %s (rev %s)", user_id[:8], decl.slug, path, revision_id[:8])
     return {"success": True, "slug": decl.slug, "target_path": path,
             "revision_id": revision_id}
 
 
 # ---------------------------------------------------------------------------
-# Drainer — the scheduler-tick entry point
+# The scheduler-tick entry point — an ADAPTER on the one drain loop (ADR-639 D3)
 # ---------------------------------------------------------------------------
 
 
-async def drain_due_string_runs(client) -> tuple[int, int, int]:
-    """Discover strings, sync the kind='string' index, run due strings.
-    Returns (found, succeeded, failed). Zero strings declared → one LIKE
-    scan, nothing else."""
-    now = datetime.now(timezone.utc)
-    decls_by_user = discover_strings(client)
-
+async def _due_standing(client, now: datetime) -> list[tuple[str, StandingDecl, Optional[str]]]:
+    """Discover, sync the index, and return the rows due now — each with the
+    stored `next_run_at` the claim compares against. Paused and problem
+    declarations never reach the loop (a problem is a loud repair state, not
+    a failure to retry)."""
+    decls_by_user = discover_standing(client)
     for uid, decls in decls_by_user.items():
         try:
-            await materialize_string_index(client, uid, decls, now=now)
-        except Exception as e:
-            logger.warning("[STRINGS] materialize failed for %s: %s", uid[:8], e)
+            await materialize_standing_index(client, uid, decls, now=now)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[STANDING] materialize failed for %s: %s", uid[:8], e)
 
-    try:
-        due_rows = (
-            client.table("tasks")
-            .select("id, user_id, slug, next_run_at")
-            .eq("status", "active")
-            .eq("kind", STRING_KIND)
-            .lte("next_run_at", now.isoformat())
-            .execute()
-        ).data or []
-    except Exception as e:
-        logger.warning("[STRINGS] due query failed: %s", e)
-        return 0, 0, 0
+    due_rows = (
+        client.table("tasks")
+        .select("id, user_id, slug, next_run_at")
+        .eq("status", "active")
+        .eq("kind", STANDING_KIND)
+        .lte("next_run_at", now.isoformat())
+        .execute()
+    ).data or []
 
-    found = succeeded = failed = 0
+    out: list[tuple[str, StandingDecl, Optional[str]]] = []
     for row in due_rows:
         uid = row["user_id"]
         decl = next(
@@ -1276,55 +1148,46 @@ async def drain_due_string_runs(client) -> tuple[int, int, int]:
         )
         if decl is None or decl.paused or decl.problem is not None:
             continue
-        found += 1
+        out.append((uid, decl, row.get("next_run_at")))
+    return out
 
-        if not claim_string_run(client, uid, decl.slug, row.get("next_run_at")):
-            continue
-        try:
-            result = await run_string_sweep(client, uid, decl)
-            if result.get("success"):
-                succeeded += 1
-            else:
-                failed += 1
-                # ⭐ The reason was RIGHT HERE and thrown away. A failed run
-                # incremented a counter and logged nothing, so the tick's only
-                # trace was a count — and a count cannot say `router_disabled`.
-                # That is what let production's one string fail four days
-                # running while every log line looked ordinary.
-                logger.error(
-                    "[STRINGS] run failed for %s/%s: %s",
-                    uid[:8], decl.slug, result.get("error_reason") or "unknown",
-                )
-        except Exception as e:
-            failed += 1
-            logger.exception("[STRINGS] run raised for %s/%s: %s", uid[:8], decl.slug, e)
-        finally:
-            try:
-                record_string_run(client, uid, decl, last_run_at=datetime.now(timezone.utc))
-            except Exception as e:
-                logger.warning("[STRINGS] record run failed for %s/%s: %s", uid[:8], decl.slug, e)
 
-    return found, succeeded, failed
+def _record_standing(client, user_id: str, decl: StandingDecl, last_run_at: datetime) -> None:
+    from services.scheduling import record_run
+
+    record_run(client, user_id, decl, STANDING_KIND, last_run_at=last_run_at)
+
+
+async def drain_due_standing_work(client) -> tuple[int, int, int]:
+    """Discover declarations, sync the kind='standing' index, run the due ones
+    through the ONE drain loop. Returns (found, succeeded, failed). Zero
+    declarations → one LIKE scan, nothing else."""
+    from services.scheduling import drain_due
+
+    return await drain_due(
+        client, STANDING_KIND,
+        due=_due_standing, run=run_standing_sweep, record=_record_standing,
+    )
 
 
 __all__ = [
-    "STRING_KIND",
-    "STRING_DECLARATION_LEAF",
+    "STANDING_KIND",
+    "DECLARATION_LEAF",
     "CONTRACT_LEAF",
     "SUPPORTED_FORMATS",
     "NO_CHANGE_SENTINEL",
-    "StringDecl",
+    "KEEPING_SKILL",
+    "DECLARATION_KEYS",
+    "StandingDecl",
     "ShapeViolation",
     "topic_from_declaration_path",
-    "parse_string_yaml",
-    "discover_strings",
-    "materialize_string_index",
-    "claim_string_run",
-    "record_string_run",
-    "resolve_strings_resident",
+    "parse_standing_yaml",
+    "discover_standing",
+    "materialize_standing_index",
+    "read_standing_task_row",
+    "resolve_executor",
     "map_structured",
-    "build_standing_run_posture",
-    "build_strings_pane_posture",
-    "run_string_sweep",
-    "drain_due_string_runs",
+    "build_standing_job",
+    "run_standing_sweep",
+    "drain_due_standing_work",
 ]

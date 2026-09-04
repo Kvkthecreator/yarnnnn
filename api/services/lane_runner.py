@@ -552,8 +552,9 @@ def resolve_turn_reach(
     (`allowed_platforms`), so absence widens nothing beyond the grant.
 
     ⚠️ Unattended standing runs never reach this function — they execute via
-    `run_bounded_derive_turn`, toolless by construction. A clock plus a
-    credential stays impossible structurally, not by a default here.
+    `run_bounded_derive_turn` (services/standing_work.py), toolless by
+    construction; their frame is `build_standing_frame` below (ADR-639 D1). A
+    clock plus a credential stays impossible structurally, not by a default here.
     """
     from services.turn_reach import is_turn_reach_enabled
 
@@ -1304,6 +1305,115 @@ def build_lane_conventions(
         mandate_section=mandate_section,
         posture_section=posture_section,
         skills_section=skills_section,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The STANDING frame — the unattended run's system prompt (ADR-639 D1)
+# ---------------------------------------------------------------------------
+#
+# The standing run (services/standing_work.py — the kept file's judgment
+# derive) used to compose its own system string: the executor's character plus
+# a job posture, and nothing else. No commons contract, no citation rule, no
+# mandate head — the run lost each of those without anyone deciding it should,
+# because it was composed away from the one place this workspace tells a model
+# how it works. ADR-639 D1 brings it here.
+#
+# It is the lane frame MINUS what a toolless run and an absent principal make
+# false, and PLUS what only a run can carry:
+#   kept    — the commons contract, the citation rule, the mandate head, the
+#             executor's character (build_agent_posture — the same door every
+#             lane uses)
+#   removed — the tools line (there are none), the reach section (there is
+#             none — said affirmatively), the cast, the focus, the register
+#             clause (there is no reply — ADR-638 D2 scopes it to lanes), the
+#             skills INDEX (a door is useless to a caller with no ReadFile)
+#   added   — the kernel JOB (the per-run facts + the output contract) and the
+#             craft skill's BODY, composed by the push door because a toolless
+#             turn cannot pull it (ADR-630 D4)
+#
+# Ratcheted like the other two frames (test_adr639 §D1). Cache-marked like
+# every other (ADR-634): one round, so the marker costs ~25% on these few
+# thousand bytes against a message carrying up to 40K of material.
+
+_STANDING_FRAME = """You are {model_label}, working inside a YARNNN workspace on standing work {member} declared. Nobody is present this run.
+
+## The commons contract
+{commons_contract}
+
+- This run's revision attributes as standing work on {member}'s declaration, {attribution_rule}
+- {citation_rule} This run, the kernel records that edge for you from the sources below; cite them inline in the file itself.
+
+This run reaches nothing live: no tools, no connections, no files beyond what the message hands you. You answer once.
+{mandate_section}{posture_section}
+{job_section}
+
+{skill_section}"""
+
+
+def build_standing_frame(
+    client: Any,
+    user_id: str,
+    *,
+    model: str,
+    executor: str,
+    job: str,
+    skill: Optional[str] = None,
+    member_label: Optional[str] = None,
+) -> str:
+    """Compose the standing run's system prompt (ADR-639 D1).
+
+    ``executor`` is the agent slug the declaration DERIVED (never named —
+    ADR-603 D2); ``job`` is the kernel job section the run builds from its
+    declaration; ``skill`` is the craft skill whose BODY rides the frame.
+    Derived-never-stored, like the lane frame it sits beside.
+    """
+    from services.workspace_paths import (
+        CONSTITUTION_MANDATE_PATH,
+        PARTICIPANT_ATTRIBUTION_RULE,
+        PARTICIPANT_CITATION_RULE,
+        PARTICIPANT_COMMONS_CONTRACT,
+    )
+
+    label = LANE_MODELS.get(model, {}).get("label", model)
+    member = member_label or "the member"
+
+    mandate = _read_workspace_file(client, user_id, CONSTITUTION_MANDATE_PATH)
+    mandate_head = "\n".join(mandate.strip().splitlines()[:40]).strip()
+    mandate_section = (
+        f"\n## The workspace's mandate (read-only orientation)\n{mandate_head}\n"
+        if mandate_head else ""
+    )
+
+    from services.agents_registry import build_agent_posture
+    posture_section = build_agent_posture(executor)
+
+    skill_section = ""
+    if skill:
+        from services.skills import get_skill
+        row = get_skill(skill)
+        if row:
+            skill_section = (
+                f"## Skill in use: {row['title']}\n"
+                f"Follow {row['path']} while you work.\n\n"
+                f"{row['body'].strip()}"
+            )
+        else:
+            # Fail OPEN with a log line: the job section still carries the
+            # output contract, so a missing skill degrades craft, never
+            # correctness.
+            logger.warning("[STANDING] skill %r is not a kernel skill; frame carries no craft", skill)
+
+    return _STANDING_FRAME.format(
+        model_label=label,
+        member=member,
+        commons_contract=PARTICIPANT_COMMONS_CONTRACT,
+        attribution_rule=PARTICIPANT_ATTRIBUTION_RULE,
+        citation_rule=PARTICIPANT_CITATION_RULE,
+        mandate_section=mandate_section,
+        posture_section=posture_section,
+        job_section=job.strip(),
+        skill_section=skill_section,
     )
 
 

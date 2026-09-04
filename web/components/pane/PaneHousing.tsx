@@ -157,13 +157,12 @@ export function PaneHousing({
   }, [refreshLanes]);
 
   // ⭐ The binding is (APP, PATH) — never the path alone. Two apps may
-  // legitimately bind the SAME file: a `.md` is both Text's document and
-  // Strings' maintained file, and each opens its own lane with its own
-  // resident (Editor / Supervisor). Matching on path alone let whichever lane
-  // sorted first win, so the Strings pane adopted the Text lane and rendered
-  // "Editor" where Supervisor belonged — operator-observed 2026-08-28 on
-  // `operation/fundraising/application-copy-bank.md`, which really does carry
-  // one lane of each.
+  // legitimately bind the SAME file, each with its own lane and its own
+  // resident. Matching on path alone let whichever lane sorted first win, so
+  // one pane adopted another's lane and rendered the wrong colleague —
+  // operator-observed 2026-08-28 on `operation/fundraising/application-copy-
+  // bank.md`, which then carried a Text lane and a (since-deleted, ADR-639)
+  // Strings lane. The rule outlives its first example.
   //
   // Legacy tolerance: a lane created before ADR-567 D4 carries no `app`
   // stamp. Adopting one is better than orphaning a live thread, so an

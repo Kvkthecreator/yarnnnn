@@ -55,7 +55,7 @@ rows = ar.apps_for_agent("editor")
 _check("editor serves slides + text, as rich rows",
        {r["slug"] for r in rows} == {"slides", "text"} and all({"slug", "title", "icon_key", "route"} <= set(r) for r in rows),
        str(rows))
-_check("supervisor serves strings", [r["slug"] for r in ar.apps_for_agent("supervisor")] == ["strings"])
+_check("blogger serves blogger", [r["slug"] for r in ar.apps_for_agent("blogger")] == ["blogger"])
 _check("an unknown slug serves nothing (no fallback)", ar.apps_for_agent("nobody") == [])
 
 print("§2 the lanes envelope serves ONE roster, keyed `agents`, with `apps`")
@@ -69,14 +69,16 @@ for k in ('"homes"', '"home_titles"', '"desks"'):
     _check(f"no {k} key on the payload", k not in lanes_src)
 _check('`"apps": apps_for_agent(` is the relation', '"apps": apps_for_agent(r["slug"]),' in lanes_src)
 
-print("§3 the pane posture is named for the pane")
-from services import strings  # noqa: E402
+print("§3 no desk noun survives — and the standing lane carries no pane posture at all (ADR-639)")
+from services import standing_work  # noqa: E402
 
-_check("build_strings_pane_posture exists", hasattr(strings, "build_strings_pane_posture"))
-_check("build_strings_desk_posture is gone", not hasattr(strings, "build_strings_desk_posture"))
-_check("the frame heading says PANE", "THE STANDING-WORK PANE" in strings._STANDING_PANE_FRAME)
+for gone in ("build_strings_pane_posture", "build_strings_desk_posture", "_STANDING_PANE_FRAME",
+             "_STANDING_RUN_POSTURE", "build_standing_run_posture"):
+    _check(f"{gone} is gone (craft is a skill, ADR-639 D2)", not hasattr(standing_work, gone))
 apps_init = _read("api/services/apps/__init__.py")
-_check("strings registers through the pane posture", "build_strings_pane_posture" in apps_init and "desk_posture" not in apps_init)
+_check("no strings registration and no desk posture in the apps package",
+       "desk_posture" not in apps_init and 'register_app(\n    "strings"' not in apps_init
+       and '"strings",' not in apps_init.split("ADR-639")[-1])
 
 print("§4 no retired identifier survives in web")
 RETIRED_WEB = re.compile(r"\b(BeingIcon|DeskHousing|DeskActivityRail|DeskSurface|deskRoot|refreshDesk|ChatBeingChoice|setBeings|_beings_payload)\b")

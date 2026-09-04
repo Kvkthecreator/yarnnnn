@@ -709,9 +709,9 @@ export function TextEditor({
   useEffect(() => { void refreshLanes(); }, [refreshLanes]);
 
   // ⭐ The binding is (APP, PATH) — the same rule PaneHousing holds, and for
-  // the same reason: a `.md` is both Text's document and Strings' maintained
-  // file, so one path can carry two lanes with two residents. Matching on path
-  // alone let this editor adopt the Strings lane (Supervisor) and vice versa.
+  // the same reason: one path can carry two apps' lanes with two residents,
+  // and matching on path alone let this editor adopt another app's lane (the
+  // 2026-08-28 case; that app is since deleted, ADR-639, the rule stands).
   // Unstamped pre-ADR-567 lanes still match, but only after a correctly
   // stamped one fails to.
   const boundLane = useMemo(() => {

@@ -4,7 +4,7 @@ ADR-612. Three layers, each narrowing the one above:
 
     workspace  GRANT   which connectors exist here at all      (platform_connections)
     agent      OPT-IN  which of those THIS being works against (here)
-    declaration ASK    which slices THIS file pulls            (_string.yaml)
+    declaration ASK    which slices THIS file pulls            (_standing.yaml)
 
 ⭐ THE CLIFF TEST (ADR-596 D1 / ADR-460 D3.a). An opt-in is NOT authority on a
 being, because it can only ever NARROW what the workspace already granted, and

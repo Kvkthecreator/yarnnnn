@@ -77,8 +77,8 @@ CLASSIFICATION: dict[str, str] = {
     "services/judgment_log.py": "text-only-by-contract",        # judgment_log.md (was freddie_audit — ADR-632)
     "services/publish.py": "text-only-by-contract",             # the post artifact read at publish (ADR-628)
     "services/skills/__init__.py": "text-only-by-contract",     # SKILL.md + the kernel manifest yaml (ADR-630)
-    "services/strings.py": "text-only-by-contract",             # _string.yaml + contract leaves — declaration files, path-pinned
-    "routes/strings.py": "text-only-by-contract",               # the same declaration + contract leaves, read for the desk
+    "services/standing_work.py": "text-only-by-contract",       # _standing.yaml + contract leaves — declaration files, path-pinned
+    "routes/standing_work.py": "text-only-by-contract",         # the same declaration + contract leaves, read for the roster
     "services/review_policy.py": "text-only-by-contract",       # governance yaml
     "services/budget.py": "text-only-by-contract",              # governance/_budget.yaml
     "services/risk_gate.py": "text-only-by-contract",           # trader governance yaml

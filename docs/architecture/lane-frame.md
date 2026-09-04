@@ -15,7 +15,7 @@
 ## 1. What this frame is
 
 Every chat pane in the product — /chat, and the inner panes of Slides, Text,
-Images, Strings — runs on the **lane wire** (`POST /api/lanes/{id}/messages`) and
+Images, Blogger — runs on the **lane wire** (`POST /api/lanes/{id}/messages`) and
 gets its system prompt from **one composition function**, assembled fresh per turn,
 derived-never-stored. A lane's colleague knows four kinds of things, from four
 different mechanisms with four different lifetimes:
@@ -37,10 +37,8 @@ Plus the frame-level facts that belong to no app: the commons contract clauses
 
 - **The OBJECT comes from the substrate.** The pane's canvas and the colleague's
   posture are both projections of the same workspace files — the bound artifact's
-  head, and (for Strings) the pane files beside it. They converge because they
-  share a source of truth, not because anyone serialized a screen. This is why the
-  Strings pane's setup checklist and `build_strings_pane_posture`'s state block
-  agree without any wire between them.
+  head the kernel read once this turn. They converge because they share a source
+  of truth, not because anyone serialized a screen.
 - **The PLACE comes from a typed declaration.** `SurfaceFocus`
   (`web/lib/shell/useSurfaceFocus.tsx`): `{app, path, scope:
   document|page|container|block, id, pageIndex, label, excerpt, viewport}`. An app
@@ -85,6 +83,29 @@ below it is inferred — see §6.
 7b. **Skills index** (ADR-630) — every lane: one line per skill (path + description), kernel from code, member from one bounded query. Bodies never; the agent reads a skill when the index matches.
 8. **Cast section** (ADR-495 D3) — a fact about the conversation, composed in the
    frame, species-blind.
+
+## 3b. The standing frame — the unattended run's prompt (ADR-639 D1)
+
+The kept file's judgment run (`services/standing_work.py`) composes its system
+prompt in this SAME module: `build_standing_frame(client, user_id, *, model,
+executor, job, skill)`. It is the lane frame **minus what a toolless run and an
+absent principal make false** and **plus what only a run can carry**:
+
+| | lane frame | standing frame |
+|---|---|---|
+| commons contract · citation rule · mandate head | ✓ | ✓ (the run never had them before ADR-639) |
+| character (`build_agent_posture`) | the app's resident | the DERIVED executor (target type → app → `standing_executor_for_app`) |
+| tools line · reach section | ✓ | — (stated affirmatively: *this run reaches nothing live*) |
+| cast · focus · register clause | ✓ | — (no room, no member standing anywhere, no reply) |
+| skills INDEX | ✓ | — (a door is useless to a caller with no ReadFile) |
+| job overlay | the app's pane posture | the kernel JOB: the per-run facts + the output contract (the full file or exactly `NO_CHANGE`) |
+| skill body | by the `skill` binding (push) | `keeping-a-file-current`, pushed by slug |
+
+Ratcheted (`STANDING_FRAME_CEILING`, `test_adr639` §D1, 430 bytes at ship);
+cache-marked like every frame (ADR-634). Before ADR-639 the run composed
+`character + posture` away from this module and lost the mandate head and the
+citation rule without anyone deciding it should — the reason the frame has ONE
+home.
 
 ## 4. The registry door (what an app declares, and must)
 
@@ -165,3 +186,4 @@ if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
 | `api/test_adr609_anchored_edit.py` | the anchor resolves + CONFINES; the extent on the wire; Text's door; one clip marker |
 | `api/test_adr612_judged_gesture.py` | ONE judged-gesture producer per app; the selection anchor (no pointer); chip/label agreement |
 | `api/test_adr571_text_app.py` §2 | the registry dispatch mechanism; text's declared posture IS its builder |
+| `api/test_adr639_standing_work.py` §D1 | the standing frame composes the constants + character + job + skill body, carries no tools/reach/cast/focus/register/index, and the run calls it |

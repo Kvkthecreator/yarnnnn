@@ -66,12 +66,10 @@ export interface AppDescriptor {
   artifactParam: string;
   /** Does this app OWN artifact types — i.e. does a file route here?
    *
-   *  False for an app whose pane is not a document surface: `strings` is a
-   *  registered app (Supervisor's pane, ADR-604 D1) whose material is
-   *  declarations, addressed by `resolveDeclarationApplication`, not by the
-   *  type registry. Splitting these two mechanisms is deliberate — a
-   *  `_string.yaml` opens Strings by its NAME, never because "yaml opens
-   *  Strings" (ADR-569's one-leaf-one-namespace rule). */
+   *  True for every app today. The field exists for an app whose pane is
+   *  not a document surface (the deleted strings app was one — its material
+   *  was declarations, ADR-639 made it a kernel lane); a future such app
+   *  declares false and is addressed by name, never by extension. */
   ownsArtifactTypes: boolean;
   /** Do this app's artifacts appear in the served `/studio/artifacts` index?
    *
@@ -122,19 +120,10 @@ export const APP_DESCRIPTORS: Record<string, AppDescriptor> = {
     ownsArtifactTypes: true,
     servesIndex: true,
   },
-  // ADR-569 — the maintained file, kept under contract; ADR-604 D1 —
-  // Supervisor's pane. Its material is DECLARATIONS, not artifacts: it owns no
-  // document type and has no index row. `objectModel` still states the shape
-  // its pane composes (a continuous file), because the field is REQUIRED and a
-  // default is what ADR-633 D2 deleted.
-  strings: {
-    slug: 'strings',
-    label: 'Strings',
-    objectModel: 'flow',
-    artifactParam: 'file',
-    ownsArtifactTypes: false,
-    servesIndex: false,
-  },
+  // ADR-639 — the strings descriptor is DELETED with the app (standing work is
+  // a kernel lane; its roster is a Notifications pane). The parity gate
+  // (test_adr636) reads this table against the backend's `all_apps()` in
+  // both directions, so a row here for a lane with no app would be a phantom.
   // ADR-571 — the prose app (md · txt). Prose flows; no page unit.
   text: {
     slug: 'text',

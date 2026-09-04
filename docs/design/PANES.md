@@ -157,7 +157,7 @@ choice for the **session** only; their next visit forgot it.
 | **Studio** / Docs / IMAGES | slide strip (paged only) | the artifact | Properties · Chat |
 | **Text** | — (markdown has no navigator) | the document | Properties · Chat |
 | **Chat** | lane list | the conversation | — (the drill-in owns the pane) |
-| **Strings** (via `DeskHousing`) | roster of subjects | the lifecycle pane | the bound lane |
+| ~~Strings~~ | — | — | DELETED (ADR-639): standing work is a Notifications pane, not an app |
 | **Files** (via `SettingsPaneShell`) | explorer tree | the viewer | — |
 
 ## 7. The composer names a SPEAKER, never a subject

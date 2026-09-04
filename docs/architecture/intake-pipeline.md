@@ -87,8 +87,8 @@ CLAUDE.md).
 Consequences, stated so they are not rediscovered:
 
 - **`inbound/web/` is not "radar's directory."** It is the HTTP-fetch lane.
-  Radar and Strings are current tenants. Either could be deleted without the
-  lane moving.
+  Standing work (ADR-639; strings before it, radar before that) is the current
+  tenant. It could be deleted without the lane moving.
 - **Do not name a lane after its first consumer.** Name it after *how material
   arrives*. A constant named for its first feature hides the blast radius when
   the second arrives.
@@ -178,7 +178,7 @@ Whether a lane distils is a decision, and the reason must be stated:
 | `web` | **yes** | RSS/Atom is machine-shaped; unusable until distilled |
 | `uploads` | **yes** | `system:extract` → `derivation` (text out of blobs) |
 | `mcp` | **no** | an MCP write is already meaningful authored prose — there is nothing to distil |
-| `slack` / `notion` / `github` | **via Strings** (ADR-594 D3) | landed files are member-visible without any distil; a member who wants a maintained prose view designates an md string with `connector:` sources (the digest, generalized — ADR-580's module is superseded and deleted). Contract: [connectors.md](connectors.md) |
+| `slack` / `notion` / `github` | **via standing work** (ADR-594 D3 / ADR-639) | landed files are member-visible without any distil; a member who wants a maintained prose view declares a kept md file with `connector:` sources in its `_standing.yaml` (the digest, generalized — ADR-580's module is superseded and deleted). Contract: [connectors.md](connectors.md) |
 
 **`mcp` not deriving is correct.** The connector gap this table once named is
 closed by [ADR-580](../adr/ADR-580-the-connector-derive-step.md); the brief

@@ -38,8 +38,8 @@ fact; editability is a policy over it (`assert_editable`).
 HIREABILITY IS A FIELD (ADR-600 D2)
 `offered` answers ONE question: is this agent on the roster a member picks
 from? `offered: False` means its home is an app — met where it works, never
-invited (Editor/authoring · Designer/images · Supervisor/strings,
-ADR-602/604/610). `offered: True` is a colleague; today NOBODY is, per ADR-599 D1, which ADR-600 does not reopen.
+invited (Editor/authoring · Designer/images · Blogger/blogger,
+ADR-602/627/639). `offered: True` is a colleague; today NOBODY is, per ADR-599 D1, which ADR-600 does not reopen.
 `offered` is REACH, never authority — it says who may be invited, never what
 they may do.
 
@@ -53,7 +53,7 @@ row). **A session that adds an authority field to a row here has violated
 ADR-460.** `test_agent_registry.py` is that ratchet.
 
 SLUGS ARE DATA-COMPAT, NOT DISPLAY. `designer` rides ~65 live cast rows and
-lane stamps; `editor`/`supervisor` ride live apps. Display names may move;
+lane stamps; `editor`/`blogger` ride live apps. Display names may move;
 slugs must not, or every existing lane orphans.
 
 History (kept because the derivation is load-bearing): ADR-460 derived a base
@@ -149,57 +149,6 @@ AGENTS: dict[str, dict[str, Any]] = {
             "what you assumed."
         ),
     },
-    # The coordinator (ADR-603 D3): standing work — what runs, on what
-    # cadence, to keep what true. Its MATERIAL is declarations. Its pane is
-    # STRINGS (ADR-604 D1 — the dedicated `supervisor` app is deleted).
-    # ADR-610: it holds the app WHOLE — the conversation a member declares a
-    # contract in, and the face on that contract's run receipts. One pane, one
-    # contract, one name; the `keeper` executor agent is dissolved.
-    #
-    # ⚠️ IT AUTHORS DECLARATIONS; IT NEVER COMMANDS AGENTS. Supervisor holds
-    # no field and no primitive naming another agent: it writes a declaration
-    # that names an APP, and that app's resident does the work (ADR-603 D2 —
-    # the ADR-597 derivation, reused). "Supervisor hires Editor" would be
-    # authority over a AGENT and violates ADR-460 D3.a; "Supervisor writes a
-    # declaration naming an app" is authority over a DECLARATION, which is
-    # ADR-596 D2's own sentence. The row below is the same shape as every
-    # other agent's — gate-asserted against the identical whitelist.
-    #
-    # NOT Freddie (ADR-603 D3): no standing intent, no self-wake, no mandate,
-    # no autonomy dial. It acts when addressed, like every resident.
-    "supervisor": {
-        "slug": "supervisor",
-        "name": "Supervisor",
-        # Its home is the STRINGS pane (primary), so it appears on /agents —
-        # derived (ADR-602 D3), from the day ADR-604 re-registered the app.
-        "offered": False,
-        "kernel": True,
-        "blurb": "Looks after standing work — what runs, and when.",
-        "icon": "clipboard-list",
-        "model": "anthropic/claude-sonnet-5",
-        "token_profile": 4096,
-        "posture": (
-            "You are Supervisor — the member's partner in standing work: the "
-            "things that should keep happening without them having to ask "
-            "again. You work in declarations. A declaration names a subject "
-            "(the file or folder it keeps), a contract (what staying true "
-            "means for it), where its material comes from, how often it "
-            "runs, and which app does the work. Write and revise them with "
-            "the member, and read back plainly what stands today, what ran, "
-            "and what changed.\n\n"
-            "The contract is the part that matters most: without one, nobody "
-            "can say whether a run did its job. When a member asks for "
-            "something recurring, get the contract stated before the cadence "
-            "— vague standing work compounds into noise, and a schedule you "
-            "cannot evaluate is worse than none.\n\n"
-            "You do not do the work yourself and you do not instruct "
-            "colleagues. A declaration names an app; whoever works at that "
-            "pane does the work. Say what a declaration will cause, never "
-            "who you will tell. Prefer the smallest cadence that meets the "
-            "need — every run spends the member's money, so a weekly file "
-            "kept true beats a daily one nobody reads."
-        ),
-    },
     # The publish medium's voice (ADR-627 D2) — the BLOGGER pane. Not a second
     # pane on Editor, deliberately: Editor's contract is the member's document
     # in the member's voice (preserve their words; internal register), while
@@ -237,12 +186,19 @@ AGENTS: dict[str, dict[str, Any]] = {
             "what you assumed."
         ),
     },
-    # ADR-610 — the `keeper` row was HERE and is DELETED. Maintenance as a
-    # concept did not move onto another agent: its judgment half is the
-    # STEWARD's seat (attribution-integrity / commons-coherence, the four-field
-    # rules in orchestration.py) and its mechanical half is DAEMON work
-    # (reclaim_stale_locks, retention, the wake drain). Neither earns a
-    # character row. Do not reintroduce an agent for it.
+    # ADR-610 — the `keeper` row was HERE and is DELETED; ADR-639 — the
+    # `supervisor` row was HERE and is DELETED, with the strings app and its
+    # pane. Standing work is a KERNEL LANE, not an app: what a member declares
+    # lives beside the kept file, what runs it is a daemon
+    # (services/standing_work.py), how it is done is a skill
+    # (keeping-a-file-current · declaring-standing-work), and who does it
+    # DERIVES from what the file is (prose → text → Editor). ADR-610's own
+    # rule decided it: a being is someone a member MEETS; once declaring was
+    # craft any resident holds and the pane was gone, Supervisor was a name
+    # on a receipt — what Keeper had been. Neither earns a row. Do not
+    # reintroduce an agent for standing work; a proposal that answers "who
+    # keeps this current?" with a name has put authority on an agent
+    # (ADR-596 D2).
 }
 
 #: The keys a row may carry — identity + character + engine + reach. No
@@ -252,6 +208,23 @@ AGENT_ROW_KEYS = frozenset(
     {"slug", "name", "blurb", "icon", "model", "token_profile", "posture",
      "offered", "kernel"}
 )
+
+#: Retired agents, by the name each signed as (ADR-639 D4). A deleted slug
+#: still sits on the cast rows and transcript rows it joined (7 + 5 in
+#: production for `supervisor`, 1 for `keeper` — measured 2026-09-04); those
+#: rows are never rewritten (ADR-460 D2), so a transcript must still say
+#: "Supervisor" where Supervisor spoke. The `freddie:` display-resolution
+#: precedent, one hop further. DISPLAY ONLY: `resolve_agent` still answers
+#: None for these, so nothing routes a turn to a retired name.
+HISTORICAL_AGENT_NAMES: dict[str, str] = {
+    "keeper": "Keeper",          # ADR-610
+    "supervisor": "Supervisor",  # ADR-639
+}
+
+
+def historical_agent_name(slug: Optional[str]) -> Optional[str]:
+    """The display name a RETIRED slug signed as, or None. Pure."""
+    return HISTORICAL_AGENT_NAMES.get((slug or "").strip())
 
 
 def resolve_agent(slug: str) -> Optional[dict]:

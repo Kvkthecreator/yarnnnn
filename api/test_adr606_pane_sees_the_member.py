@@ -40,9 +40,10 @@ FOCUS_STORIES: dict[str, dict] = {
         "declares": "components/text/TextEditor.tsx",
     },
     "components/pane/PaneHousing.tsx": {
-        # The desk housing is a frame; the strings SURFACE above it owns the
-        # object in view and declares document-grain focus (ADR-522).
-        "declares": "components/strings/StringsSurface.tsx",
+        # The pane housing is a frame; the surface above it owns the object
+        # in view and declares document-grain focus (ADR-522). Text is its
+        # tenant since ADR-639 deleted the strings surface.
+        "declares": "components/text/TextEditor.tsx",
     },
     "components/chat-surface/ChatSurface.tsx": {
         # FOCUS-SILENCE: /chat is the workbench BESIDE the desks, not a desk —

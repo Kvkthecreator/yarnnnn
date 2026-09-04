@@ -180,6 +180,10 @@ export function formatAuthorLabel(authored_by: string | null | undefined): strin
       // ADR-486 D2 / ADR-489 D3 — the face is the resident, the fact is the
       // ledger: the standing Radar sweep's briefs read as its Researcher;
       // authored_by stays the mechanism ('system:radar').
+      // ADR-639 D5 — the kept file's standing run is machinery with NO face
+      // (its app and agent are deleted): the live prefix and the historical
+      // one both read as the work. Never rewritten on the rows.
+      if (authored_by === 'system:standing' || authored_by === 'system:strings') return 'Standing work';
       return authored_by === 'system:radar' ? 'Researcher' : 'System';
     default:
       return null;

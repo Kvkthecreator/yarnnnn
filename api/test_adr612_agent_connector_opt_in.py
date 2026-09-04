@@ -176,7 +176,7 @@ class _RlsBlindClient:
         return SimpleNamespace(data=[])
 
 
-_recorded = {"editor": [], "supervisor": ["github"]}
+_recorded = {"editor": [], "blogger": ["github"]}
 _svc_calls = []
 
 
@@ -211,7 +211,7 @@ try:
           len(_svc_calls) >= 1)
     # The discriminating case: [] and None must not be confused here, because
     # [] means "reaches nothing" and None means "reaches everything".
-    _sup = _ac_rls.opt_in_for(_RlsBlindClient(), "ws-1", "p-1", "supervisor")
+    _sup = _ac_rls.opt_in_for(_RlsBlindClient(), "ws-1", "p-1", "blogger")
     check("a scoped being reads its real subset through an RLS-blind caller",
           _sup == ["github"], f"got {_sup!r}")
     _absent = _ac_rls.opt_in_for(_RlsBlindClient(), "ws-1", "p-1", "nobody")
@@ -307,10 +307,10 @@ _derive_src = (ROOT / "services" / "derive_turn.py").read_text()
 check("the standing/derive path is toolless by construction",
       "No tools" in _derive_src
       and "lane_tools_openai" not in _derive_src)
-_strings_src = (ROOT / "services" / "strings.py").read_text()
-check("a strings run goes through the toolless derive path, not the lane",
-      "run_bounded_derive_turn" in _strings_src
-      and "lane_tools_openai" not in _strings_src)
+_standing_src = (ROOT / "services" / "standing_work.py").read_text()
+check("a standing run goes through the toolless derive path, not the lane",
+      "run_bounded_derive_turn" in _standing_src
+      and "lane_tools_openai" not in _standing_src)
 
 # ---------------------------------------------------------------------------
 print("6. the control reads as a toggle, not as deleted text")

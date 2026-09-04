@@ -57,7 +57,7 @@ for p in API.rglob("*.py"):
 check("the write verb has exactly ONE caller — the seam",
       _callers == ["services/publish.py"], f"callers={_callers}")
 _sched = (API / "jobs" / "unified_scheduler.py").read_text()
-_strings = (API / "services" / "strings.py").read_text()
+_strings = (API / "services" / "standing_work.py").read_text()
 check("no unattended module reaches the seam (phase (b) is NOT built)",
       "services.publish" not in _sched and "publish_post_to_wordpress" not in _sched
       and "services.publish" not in _strings and "publish_post_to_wordpress" not in _strings)
@@ -78,7 +78,7 @@ from services.platform_credentials import resolve_platform_credential  # noqa: E
 
 
 class _AgentAuth:
-    caller_identity = "system:strings-run"
+    caller_identity = "system:standing-run"
     is_agent = True
     user_id = None
     client = None

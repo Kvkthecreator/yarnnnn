@@ -90,11 +90,11 @@ check("1c radar stays DELETED (ADR-592 — the first specialization folded)",
 print("§2 one turn implementation — no lane calls the transport directly")
 # ═════════════════════════════════════════════════════════════════════════════
 
-strings_code = _code_only(API / "services" / "strings.py")
+strings_code = _code_only(API / "services" / "standing_work.py")
 strings_calls = _calls_in(ast.parse(strings_code))
-check("2a strings routes through the shared turn",
+check("2a the standing run routes through the shared turn",
       "run_bounded_derive_turn" in strings_calls)
-check("2b strings never calls the transport directly",
+check("2b the standing run never calls the transport directly",
       "route_completion" not in strings_calls)
 
 turn_code = _code_only(API / "services" / "derive_turn.py")

@@ -62,7 +62,6 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Cable,
   Loader2,
   Info,
   History,
@@ -1547,25 +1546,12 @@ export default function ContextPage() {
     // folder INSIDE it. The Explorer "New > Folder" grammar; the canvas menu
     // stays the sibling-level act.
     onNewFolder: (t: { path: string; name: string }) => openNewFolder(t),
-    // ADR-569 D7 — the Files door into the standing-work desk (doors-in-context,
-    // ADR-514: the gesture lives where the file does; the management does
-    // not). Offered on designatable files (the v1 md/csv/json/txt scope,
-    // machinery leaves excluded) and on folders (the desk asks for the leaf
-    // there). Optimistic beyond that — the desk is the authority and refuses
-    // loudly.
-    extraItemsFor: (t: { path: string; name: string; isFile: boolean }) => {
-      const leaf = t.name;
-      const designatable = t.isFile
-        ? /\.(md|csv|json|txt)$/i.test(leaf) && !leaf.startsWith('_') && leaf !== 'CONTRACT.md'
-        : !t.path.startsWith('/workspace/system');
-      if (!designatable) return [];
-      return [{
-        id: 'keep-current',
-        label: 'Keep this current…',
-        icon: <Cable className="w-3.5 h-3.5 text-muted-foreground" />,
-        onClick: () => navigateToSurface('strings', { file: t.path }),
-      }];
-    },
+    // ADR-639 — the "Keep this current…" door (ADR-569 D7) is DELETED with the
+    // Strings app. Its act — designating a file — survives as a CONVERSATION:
+    // every lane's skills index carries `declaring-standing-work`, so "keep
+    // this file current" said to any colleague writes the declaration beside
+    // the file. A door here that opens the file's Text pane with the ask
+    // seeded is one commit if demand names it (ADR-639 D6).
   }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs,
        handlersFor, openWith, openNewFolder, navigateToSurface, selection,
        trashSet, virtualRoot, syntheticNodeForPath]);

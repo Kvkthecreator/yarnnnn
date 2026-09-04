@@ -182,9 +182,8 @@ const KIND_TO_APP = new Map<string, string>();
  *  (Slides), which still renders it — the kernel CSS survives the type
  *  registry (creation stopped; reading did not).
  *
- *  Only apps that OWN artifact types appear: `strings` is a registered app
- *  whose material is declarations, addressed by `resolveDeclarationApplication`
- *  by NAME (ADR-569's one-leaf-one-namespace rule), never by extension.
+ *  Only apps that OWN artifact types appear (every app today, since ADR-639
+ *  deleted the declarations-only strings app).
  *
  *  Derived LAZILY, on first consult rather than at module init. Both readers
  *  call it at runtime, and a module-load-time derivation would make this
@@ -313,13 +312,13 @@ export function extractTemplate(content: string): string | null {
  * inert config for an app that no longer exists.
  */
 export function resolveDeclarationApplication(path: string): SurfaceApplication | null {
-  const rel = (path || '').toLowerCase().replace(/^\/workspace\//, '').replace(/^\//, '');
-  // ADR-569 — a string declaration ({folder}/_string.yaml, any meaning-folder)
-  // opens the standing-work desk on that folder. Same one-leaf-one-namespace rule:
-  // never "yaml opens Strings".
-  if (/\/_string\.yaml$/.test(rel)) {
-    return { surface: 'strings', param: 'file', label: 'Strings' };
-  }
+  // ADR-639 — the `_string.yaml` claim is GONE with the Strings app (the radar
+  // precedent above). A standing declaration ({folder}/_standing.yaml) opens
+  // in the raw view like every other machine-config file: the roster of what
+  // stands is the Notifications "Standing work" pane, and the declaration is
+  // authored in conversation (the `declaring-standing-work` skill). No leaf
+  // claims an app today; the resolver stays as the one door for the next one.
+  void path;
   return null;
 }
 

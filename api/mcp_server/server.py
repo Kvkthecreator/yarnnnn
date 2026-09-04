@@ -494,7 +494,7 @@ def _build_interop_instructions() -> str:
 
     ADR-617 D2 AMENDS that list. "Lane posture overlays" was one item covering
     two different things, and the split matters: a posture's TURN STATE (the
-    live outline, an inlined `_string.yaml`, the design-system roster) is
+    live outline, an inlined `_standing.yaml`, the design-system roster) is
     workspace-specific and stays withheld — it is also turn-scoped and would
     cost a DB read per call. A posture's FORMAT GRAMMAR is not intent at all;
     it is the same class as PARTICIPANT_FILESYSTEM_MODEL, which always ported.

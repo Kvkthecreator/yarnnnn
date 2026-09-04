@@ -95,7 +95,7 @@ def _test_path_grammar():
 
     # Structural: other inbound writers keep the shape.
     writers = {
-        "services/strings.py": r'inbound/web/\{[^}]+\}/\{[^}]+\}',
+        "services/standing_work.py": r'inbound/web/\{[^}]+\}/\{[^}]+\}',
         "services/primitives/track_web_sources.py": r'inbound/web/',
     }
     for rel_path, pattern in writers.items():

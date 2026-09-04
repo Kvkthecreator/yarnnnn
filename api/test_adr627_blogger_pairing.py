@@ -77,9 +77,12 @@ check("the app pins the being as resident",
       resident_for_app("blogger") == "blogger")
 check("the standing executor derives (a declaration naming `blogger` works)",
       standing_executor_for_app("blogger") == "blogger")
-from services.standing_declarations import resident_for_declaration  # noqa: E402
-check("…through the declaration door too (ADR-603 D2)",
-      resident_for_declaration("blogger") == "blogger")
+# ADR-639: the thin rule module is folded into the standing lane; a declaration
+# that names `app: blogger` derives Blogger through the same resolver the run uses.
+from services.standing_work import StandingDecl, resolve_executor  # noqa: E402
+check("…through the declaration door too (ADR-603 D2 / ADR-639 D3)",
+      resolve_executor(StandingDecl(topic="t", slug="standing:t", target="post.md",
+                                    app="blogger"))[0] == "blogger")
 
 print("3. the medium (ADR-627 D1)")
 post = resolve_layout("post")

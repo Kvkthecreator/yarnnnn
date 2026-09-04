@@ -86,12 +86,21 @@ MEMBER_SKILLS_PREFIX = "skills/"
 #: mirrored, so the per-load check is one small row, never eight reads.
 KERNEL_MANIFEST_PATH = f"{KERNEL_SKILLS_PREFIX}_manifest.yaml"
 KERNEL_SKILLS_AUTHOR = "system:kernel-skills"
-#: The KERNEL index's ceiling — our eight lines plus the head, and nothing
-#: else. It sits ~30 bytes under today's cost on purpose: this is the ratchet
-#: on OUR prose, so a longer description has to displace another one.
-#: Raising it needs the same evidence as adding a prompt instruction
-#: (DP22 / ADR-306).
-INDEX_CEILING = 3_000
+#: The KERNEL index's ceiling for a BOUND pane — the lines that apply to that
+#: pane plus the head, and nothing else. It sits ~70 bytes under the widest
+#: pane's cost on purpose: this is the ratchet on OUR prose, so a longer
+#: description has to displace another one. Raising it needs the same
+#: evidence as adding a prompt instruction (DP22 / ADR-306).
+#:
+#: RAISED 3,000 → 3,400 by ADR-639 (2026-09-04), with the receipt: a Text
+#: pane now applies NINE skills (the two standing-work skills join it), at
+#: 3,327 bytes — at 3,000 it withheld `writing-a-spec` and `writing-updates`
+#: by alphabetical accident, the exact outcome ADR-633's amendment named. The
+#: trade is the one the index exists to make: ~4,600 bytes of Python posture
+#: that composed into every strings-pane turn and every prose run left the
+#: frames; two ~340-byte discovery lines arrived. Measured at ship: text
+#: 3,327 · slides 2,659 · blogger 2,659 · images 1,647.
+INDEX_CEILING = 3_400
 #: The UNBOUND lane's ceiling — the open chat surface, which by construction
 #: filters nothing and therefore carries every kernel skill.
 #:
@@ -105,10 +114,24 @@ INDEX_CEILING = 3_000
 #: (at 9 skills: `writing-a-spec` and `writing-updates`), which is a worse
 #: outcome than the bytes it saves.
 #:
-#: Sized to hold today's nine with headroom for one more, so it is a real
-#: ratchet and not a blank cheque. Raising EITHER number needs the same
-#: evidence as adding a prompt instruction (DP22 / ADR-306).
-UNBOUND_INDEX_CEILING = 3_400
+#: Sized to hold today's ELEVEN with ~50 bytes to spare, so it is a real
+#: ratchet and not a blank cheque: a twelfth kernel skill tightens a
+#: description or brings its own receipt. Raising EITHER number needs the
+#: same evidence as adding a prompt instruction (DP22 / ADR-306).
+#:
+#: RAISED 3,400 → 4,000 by ADR-639 (2026-09-04), with the receipt the rule
+#: asks for: the tenth and eleventh skills (`keeping-a-file-current`,
+#: `declaring-standing-work`) arrive by moving ~4,600 bytes of Python posture
+#: OUT of the frames that composed it every turn (the strings pane posture,
+#: ~3,000 bytes on every strings-pane turn; the standing run posture, ~1,600
+#: on every prose run) into two discovery-grade lines the open lane now
+#: carries (~690 bytes). Net prose per turn falls; the open lane pays +690,
+#: and at 3,400 it withheld the eleventh skill by alphabetical accident — the
+#: exact outcome ADR-633's amendment raised this number to prevent. Measured
+#: at ship: 3,947 of 4,000 with all eleven listed. (The same audit found the
+#: budget loop reserving an overflow line for the LAST admission, which can
+#: never need one — fixed beside the raise, so the numbers are honest.)
+UNBOUND_INDEX_CEILING = 4_000
 #: The MEMBER index's allowance, enforced at composition. A separate number
 #: because it answers a different question: the kernel ceiling ratchets prose
 #: we write, this bounds prose members write. Sized for ~8 discovery-grade
@@ -351,8 +374,11 @@ Two budgets, enforced at composition.
         line = f"- {meta['path']} — {meta['description']}"
         # Reserve room for the overflow line this admission might force, so the
         # escape hatch can always be written (the member loop's discipline).
+        # The LAST admission reserves nothing: no line follows it, so no
+        # overflow line can be needed — reserving one anyway withheld an
+        # eleventh skill that fit (found 2026-09-04, ADR-639).
         remaining = len(_load_kernel()) - len(kept) - 1
-        reserve = len(_kernel_overflow_line(max(remaining, 1)).encode()) + 1
+        reserve = 0 if remaining <= 0 else len(_kernel_overflow_line(remaining).encode()) + 1
         if used + len(line.encode()) + 1 + reserve > ceiling:
             withheld_by_budget = len(kernel) - i
             break
@@ -374,8 +400,10 @@ Two budgets, enforced at composition.
     for m in members:
         line = f"- {m['path']} — {m['description']}"
         # Reserve room for the overflow line this admission might force, so
-        # the escape hatch can always be written.
-        reserve = len(_overflow_line(len(members) - shown - 1).encode()) + 1
+        # the escape hatch can always be written. The last admission reserves
+        # nothing (no line follows it).
+        _left = len(members) - shown - 1
+        reserve = 0 if _left <= 0 else len(_overflow_line(_left).encode()) + 1
         if used + len(line.encode()) + 1 + reserve > MEMBER_INDEX_ALLOWANCE:
             break
         lines.append(line)

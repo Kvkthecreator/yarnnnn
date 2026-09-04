@@ -4,6 +4,96 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part O — ADR-639: standing work is a kernel lane; strings + Supervisor dissolved (2026-09-04)
+
+The apps · agents · skills · envelope audit (operator: *"is the concept closer to
+just spinning up sub agents and skills"*) tested the thesis and found it HALF
+right: strings was SEVEN things wearing one name, and none of them dissolves
+into an agent. The full clean-up shipped in this arc — ADR-639 is the record.
+
+**What moved.** `services/strings.py` → `services/standing_work.py` (the
+maintained file, `_standing.yaml` + `CONTRACT.md`, `kind='standing'`,
+`system:standing`); the run's system prompt is `lane_runner.build_standing_frame`
+(the lane frame minus tools/reach/cast/focus/register/index, plus the kernel JOB
+and the `keeping-a-file-current` skill BODY); two kernel skills
+(`keeping-a-file-current` [text] · `declaring-standing-work` universal); ONE
+drain loop in `scheduling.py` (`claim_run` · `record_run` · `drain_due`) that
+capture rides too; `routes/standing_work.py` = roster + Pause + Run now at
+`/api/standing`; the Notifications **Standing work** pane. DELETED: the strings
+app/surface/pane (1,645 lines), `routes/strings.py`, `standing_declarations.py`
+(zero callers), the Supervisor row, the Files "Keep this current…" door, the
+steward fossil `StandingBand`, four gates whose subject is gone.
+
+## ⭐⭐⭐ Findings worth carrying
+
+- **The standing run composed a SECOND envelope** outside the one composition
+  site — no commons contract, no citation rule, no mandate head — and nobody
+  had decided that. A frame composed away from its module loses clauses silently.
+- **n=2 existed for the DRAINER, not the declaration.** Capture ran a byte-twin
+  loop on the same table since July; ADR-603 D6 waited for a "second kind" that
+  (blogger) has opposite cardinality and would have split the shape. Generalise
+  on the axis that has evidence.
+- **Three gate checks matched their own documentation** (a comment naming the
+  retired slug / glyph / file) before asserting the ROW. Assert the mechanism.
+- **The budget loop reserved an overflow line for the LAST admission**, which
+  can never need one — an eleventh skill that fit was withheld. Fixed beside the
+  ceiling raises (bound 3,000→3,400, open 3,400→4,000, both with the receipt).
+- **A widened sweep found a real second CSV parser** in
+  `web/components/workspace/viewers/projection.ts` (`parseCsv` + `splitCsvLine`).
+  ADR-571's ONE-parser law names it; recorded OWED, not asserted (a gate red on a
+  defect the arc does not fix teaches the wrong lesson).
+
+## Verification (the standing set at ship)
+
+```
+cd api && python3 test_adr639_standing_work.py          # new — D1..D5, every check falsified
+cd api && python3 test_adr630_skills.py                  # 11 kernel skills, every lane under its ceiling
+cd api && python3 test_agent_registry.py                 # {editor, designer, blogger}
+cd api && python3 test_adr632_the_seat_retires.py        # §5 ratchets (conventions 683/900)
+cd web && node_modules/.bin/next build                   # exit 0
+```
+34 affected gates re-anchored and green; full sweep diffed against a HEAD
+worktree (see the ledger entry for the counts). Pre-existing reds, untouched:
+`test_adr297` (sources/program parity + a raw anchor in StudioPublish),
+`test_adr573` §5 (CONNECTING.md verb roster), `test_voice_no_kernel_nouns_in_copy`
+(8 admin-page nouns).
+
+## Data + deploy sequence (ADR-639 §4)
+
+1. Migration **251** (`funnel_decision` gains `standing`) — APPLIED 2026-09-04
+   before the deploy (dry-run clean, then real).
+2. Code deployed (this Part's commit).
+3. Migration **252** (rename `_string.yaml` → `_standing.yaml` on files +
+   versions; re-key the one `tasks` row; re-stamp the strings lanes `app: text`)
+   — apply AFTER the API deploy is live: `scripts/db/run-migration.sh --dry-run`
+   then real. Measured before writing: 1 declaration · 1 index row · 2 revisions
+   · 18 ledger rows (untouched) · 7 cast rows (untouched).
+4. **Drive**: Run now on `operation/fundraising` (`POST
+   /api/standing/operation%2Ffundraising/run`, minted session) — the receipt must
+   carry `standing-write:`, `funnel_decision='standing'`, `system:standing`,
+   `derived_from=[the landed snapshot]`; the Standing work pane must list it.
+   The 04:00Z tick is the natural second drive.
+
+## OWED
+
+1. **Drive** (step 4 above) if this Part still says pending; then delete this line.
+2. **`projection.ts` second CSV parser** — fold into `markdownEdits.parseCsv`
+   with a `maxRows` option; then widen `test_adr571` 18L's sweep back to the whole
+   components tree.
+3. **A Files door for declaring** (right-click → open the file's Text pane with
+   "keep this current" seeded) — one commit if demand names it (ADR-639 D6).
+4. **Blogger's standing leg** — its own parser (a generator's `NO_CHANGE` means
+   "no post this week"), riding `drain_due`; ADR-628 phase (b) conditions.
+5. **Drive `keeping-a-file-current`** as craft: did the skill change what the run
+   NOTICED and REFUSED (ADR-633 §5a's two questions), not whether it was read.
+6. Absorbed from earlier Parts: OWED "strings ledger rows carry no
+   `principal_id`" (already stamped — every `record_execution_event` in the
+   standing module carries it; `test_adr445_principal_attribution` green) and
+   Part N items 3–4 (the blogger declaration is item 4 here; "supervisor-
+   scheduled publish" reads "a standing run's publish" — there is no Supervisor).
+
+---
+
 # Part N — the outbound seam DRIVEN: ADR-628 D6/D7/D8 (2026-09-03)
 
 `6b3565d` — the click-pass ADR-627/628 left owed since 09-01 ran, twice.

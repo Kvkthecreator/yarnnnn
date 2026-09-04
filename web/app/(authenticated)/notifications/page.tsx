@@ -11,11 +11,20 @@
  *
  * ADR-603 D5 (2026-08-24): the "Schedule" pane (Tune) is DELETED with the
  * recurrence concept it fronted — production counted 0 recurrence
- * declarations; retire-clean. Standing work is the standing declaration
- * (strings today), read at its own desk; run RECEIPTS surface here in the
- * Activity ledger (`invocation` kind over execution_events), which is
- * ADR-603's own sentence: "runs stop being a concept: receipts surface in
- * notifications." The `tune` pane key retires with the pane.
+ * declarations; retire-clean. Run RECEIPTS surface here in the Activity
+ * ledger (`invocation` kind over execution_events), which is ADR-603's own
+ * sentence: "runs stop being a concept: receipts surface in notifications."
+ * The `tune` pane key retires with the pane.
+ *
+ * ADR-639 (2026-09-04): "Standing work" (pane key `standing`) JOINS — the
+ * roster of files kept current + the two direct switches (Run now · Pause).
+ * Standing work is a kernel lane, not an app: its declaration lives beside
+ * the kept file, its run is a daemon, its craft is a skill, and this is where
+ * a member reads what stands (ADR-603 D4's lens, housed). The Strings app
+ * that carried it is deleted; /strings redirects here. The steward-era
+ * StandingBand (the Reviewer's standing intent, retired with ADR-632) is
+ * deleted from the To-do pane in the same change — "standing" means
+ * declarations now, and a fossil in that slot was the ambiguity itself.
  *
  * ADR-410 D5 (2026-07-06): the Activity pane re-mounts the SAME "what
  * happened" derivation the bell and the Home slot read — the workspace
@@ -29,13 +38,13 @@
  * SettingsPaneShell (Singular Implementation) in fullBleed mode.
  */
 
-import { ExternalLink, ClipboardCheck, ScrollText } from "lucide-react";
+import { ExternalLink, ClipboardCheck, ClipboardList, ScrollText } from "lucide-react";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { QueueBody } from "@/components/queue/QueueBody";
-import { StandingBand } from "@/components/queue/StandingBand";
 import { ActivityLedger } from "@/components/notifications/ActivityLedger";
 import { MentionQueue } from "@/components/notifications/MentionQueue";
+import { StandingWork } from "@/components/notifications/StandingWork";
 
 // ADR-346 label pass (2026-06-19): the act labels are plain operator words.
 // The pane KEYS (resolve/understand) are unchanged — they are URL params +
@@ -47,6 +56,7 @@ const PANE_GROUPS: PaneGroup[] = [
     panes: [
       { key: "resolve", label: "To do", icon: ClipboardCheck },
       { key: "understand", label: "Activity", icon: ScrollText },
+      { key: "standing", label: "Standing work", icon: ClipboardList },
     ],
   },
 ];
@@ -95,10 +105,6 @@ export default function OperationPage() {
               }
             />
             <div className="flex-1 overflow-y-auto p-6">
-              {/* ADR-350: the standing obligation (owed-vs-actual + the
-                  Reviewer's standing intent) renders above the discrete
-                  proposals — an unmet mandate is the deepest "to do". */}
-              <StandingBand />
               {/* ADR-605 — the To-do second source (ADR-492 D3): unresolved
                   mentions of the viewer, discharged by replying or by Done. */}
               <MentionQueue />
@@ -119,6 +125,21 @@ export default function OperationPage() {
             />
             <div className="flex-1 min-h-0">
               <ActivityLedger />
+            </div>
+          </div>
+        );
+      case "standing":
+        // Keep — what stands (ADR-639 D4): every declaration the kernel
+        // discovers, its cadence, its last run, and the two direct switches.
+        return (
+          <div className="flex h-full flex-col">
+            <PaneHeader
+              icon={ClipboardList}
+              title="Standing work"
+              subtitle="Files kept current while you are away — what stands, what ran, what changed."
+            />
+            <div className="flex-1 min-h-0">
+              <StandingWork />
             </div>
           </div>
         );

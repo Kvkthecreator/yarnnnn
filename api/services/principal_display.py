@@ -21,7 +21,9 @@ Display rules (operator-specified):
   human via their agent   → "Kevin via Claude Sonnet"    (hands; still the member)
   external LLM principal  → "Claude (via MCP)"           (a separate principal)
   steward                 → "Freddie"
-  system lanes            → as-is ("system:radar", "operator-proxy:…")
+  system lanes            → as-is ("system:radar", "operator-proxy:…"); the
+                            standing run (system:standing / historical
+                            system:strings) → "Standing work" (ADR-639 D5)
   unresolvable human      → "a workspace member"         (NEVER a UUID or email)
 
 The species distinction (ADR-460: the member's hands vs an external principal)
@@ -53,6 +55,14 @@ UNRESOLVED_MEMBER = "a workspace member"
 # ---------------------------------------------------------------------------
 # Species classification (the ADR-460 distinction, machine-legible)
 # ---------------------------------------------------------------------------
+
+#: The standing run's attribution — the live prefix (ADR-639) and the one it
+#: replaced (ADR-569's `system:strings`, on 2 historical revisions). One label
+#: for both: "Standing work" is what the rows are, and there is no longer a
+#: being to costume them.
+STANDING_WORK_AUTHORS = frozenset({"system:standing", "system:strings"})
+STANDING_WORK_LABEL = "Standing work"
+
 
 def classify_author(authored_by: Optional[str]) -> str:
     """The species of a stored principal string.
@@ -286,6 +296,12 @@ def display_author(
     if species == "system":
         if a.startswith("yarnnn:") and not a.startswith("yarnnn:mcp:"):
             return "YARNNN"
+        # ADR-639 D5 — the kept file's standing run is MACHINERY with no face:
+        # the app and the agent that once costumed it (strings / Supervisor)
+        # are deleted, so both the live prefix and the historical one render
+        # as the work, not a name. Never rewritten on the rows (ADR-460 D2).
+        if a in STANDING_WORK_AUTHORS:
+            return STANDING_WORK_LABEL
         # ADR-580 D4: a connector-derive revision composes the ratified
         # attribution sentence — `system:derive-{lane} on behalf of {owner}`
         # (intake-pipeline.md §3). The owner rides author_identity_uuid

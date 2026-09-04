@@ -3,7 +3,9 @@
 > **Status**: canon. Ratified with [ADR-582](../adr/ADR-582-the-connector-is-a-writer-not-a-pipeline.md)
 > (2026-08-19, the writer thesis), amended by ADR-591 (no clock) and
 > [ADR-594](../adr/ADR-594-the-connection-is-a-rail.md) (2026-08-21: fixed
-> landing grammar, the seam's first caller, the digest folded into Strings).
+> landing grammar, the seam's first caller, the digest folded into a standing declaration).
+> ADR-639 (2026-09-04): the Strings app is DELETED; the consumer is the standing run
+> (`services/standing_work.py`), same seam, same aperture law.
 > Composes with [intake-pipeline.md](intake-pipeline.md) (the cross-lane
 > contract).
 
@@ -41,7 +43,7 @@ solely as the `recommended` badge. The walk already skips honestly on empty
 | Selection (the aperture) | `platform_connections.landscape.selected_sources` — the ONE store |
 | Owner record | `platform_connections.connected_by` (ADR-580 D5) |
 | Per-platform specifics | one row in `services/connectors.py::CONNECTOR_CAPTURE_BINDINGS` |
-| The writer | `services/connectors.py::run_connector_capture(…, selectors=)` — invoked by a consumer (Strings), never by a clock |
+| The writer | `services/connectors.py::run_connector_capture(…, selectors=)` — invoked by a consumer (the standing run, ADR-639), never by a clock |
 
 There are **no per-connection settings** (ADR-594 D1): the destination dial
 was the last one and is deleted; `settings["connector"]` is an unread fossil
@@ -84,7 +86,7 @@ The connector never knows who reads its files. Current consumers:
 
 | Consumer | Opt-in | What it does |
 |---|---|---|
-| **Strings** (ADR-582 D6 + ADR-594 D2) | a `connector:` source in `_string.yaml` | the run reaches (aperture-intersected, freshness-floored), then the standing run folds the newest landed snapshot into the designated file, citing the landed path |
+| **Standing work** (ADR-582 D6 + ADR-594 D2; ADR-639) | a `connector:` source in `_standing.yaml` | the run reaches (aperture-intersected, freshness-floored), then folds the newest landed snapshot into the designated file, citing the landed path |
 | **Agent reach aperture** (ADR-576 D2) | automatic | the github selection bounds which repos platform tools answer about |
 
 The **digest** (ADR-580) is SUPERSEDED (ADR-594 D3): a prose leaf kept

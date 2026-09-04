@@ -7,8 +7,8 @@
  * a local const in `AgentsSurface.tsx`. The new-chat door now lists agents too,
  * and copying the map there would have made a SECOND place to remember when
  * the registry gains a row — the exact drift its own comment warns about:
- * Supervisor rendered the fallback Bot for a day because the registry said
- * `clipboard-list` and the map had three keys.
+ * Supervisor (since deleted, ADR-639) rendered the fallback Bot for a day
+ * because the registry said `clipboard-list` and the map had three keys.
  *
  * Mapped EXPLICITLY rather than resolved dynamically: lucide's dynamic import
  * pulls the whole icon set into the bundle, and an agent whose icon is missing
@@ -21,13 +21,13 @@
  * Add the row when the registry does.
  */
 
-import { Bot, ClipboardList, Feather, Palette, PenTool } from 'lucide-react';
+import { Bot, Feather, Palette, PenTool } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const BEING_ICONS: Record<string, React.ElementType> = {
   'pen-tool': PenTool,             // authoring — decks and prose (ADR-602 D4)
   palette: Palette,                // generation — the metered pipeline
-  'clipboard-list': ClipboardList, // the standing declaration — Supervisor's pane
+  // 'clipboard-list' — Supervisor's glyph, DELETED with the agent (ADR-639).
   feather: Feather,                // published prose — Blogger's pane (ADR-627)
 };
 

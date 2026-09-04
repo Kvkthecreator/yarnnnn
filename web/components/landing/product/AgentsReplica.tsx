@@ -9,10 +9,10 @@
  * "Lisa", a Thinker/Researcher/Designer roster — that ADR-599 deleted in
  * full. A replica of a deleted surface is fiction on the homepage.
  *
- * Faithful to the live pane (ADR-600 D6 / ADR-602 / ADR-610): agents
+ * Faithful to the live pane (ADR-600 D6 / ADR-602 / ADR-639): agents
  * sectioned by where they live — "In an app" (Editor across the authoring
- * apps, Supervisor over standing work), the honest "To work with" empty
- * state, and the
+ * apps, Designer in Images, Blogger in Blogger), the honest "To work with"
+ * empty state, and the
  * attribution promise footer. Animation: the agents reveal one by one, then
  * the footer — met where they work, not hired.
  */
@@ -31,15 +31,21 @@ const AGENTS = [
     apps: "In Slides, Text",
   },
   {
-    initial: "S",
-    name: "Supervisor",
-    blurb: "Looks after standing work — what runs, and when.",
-    apps: "In Strings",
+    initial: "D",
+    name: "Designer",
+    blurb: "Makes images.",
+    apps: "In Images",
+  },
+  {
+    initial: "B",
+    name: "Blogger",
+    blurb: "Writes posts for readers outside the workspace.",
+    apps: "In Blogger",
   },
 ];
 
 export function AgentsReplica({ className = "" }: { className?: string }) {
-  const step = useStagedLoop(3, 2400);
+  const step = useStagedLoop(4, 2400);
 
   return (
     <ProductWindow title="Agents" className={className}>
@@ -82,7 +88,7 @@ export function AgentsReplica({ className = "" }: { className?: string }) {
           {/* The attribution promise — verbatim product footer */}
           <p
             className={`flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground ${
-              step >= 2 ? reveal(true) : "opacity-0"
+              step >= 3 ? reveal(true) : "opacity-0"
             }`}
           >
             <Sparkles className="mt-0.5 h-3 w-3 shrink-0" />

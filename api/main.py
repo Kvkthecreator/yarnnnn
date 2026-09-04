@@ -72,7 +72,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, strings, mentions, attached_connectors
+from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, standing_work, mentions, attached_connectors
 from routes import agent_connectors
 from routes import publish  # ADR-628 phase (a) — the member-clicked outbound door
 
@@ -234,7 +234,7 @@ app.include_router(member_state.router, prefix="/api", tags=["member-state"])
 app.include_router(mentions.router, prefix="/api", tags=["mentions"])
 app.include_router(lanes.router, prefix="/api", tags=["lanes"])  # ADR-411 chat lanes
 app.include_router(agent_connectors.router, prefix="/api", tags=["agent-connectors"])
-app.include_router(strings.router, prefix="/api", tags=["strings"])  # ADR-569 maintained files
+app.include_router(standing_work.router, prefix="/api", tags=["standing"])  # ADR-639 standing work: the kept file
 app.include_router(studio.router, prefix="/api", tags=["studio"])  # ADR-440 the Studio
 app.include_router(images.router, prefix="/api", tags=["images"])  # ADR-474 IMAGES compose
 app.include_router(publish.router, prefix="/api", tags=["publish"])  # ADR-628 outbound

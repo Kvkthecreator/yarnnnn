@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.04.2] - Standing work is a kernel lane: the standing run composes through the lane module; craft is a skill (ADR-639)
+
+### Changed
+- `services/lane_runner.py` — NEW `build_standing_frame` + `_STANDING_FRAME`, beside `build_lane_conventions`: the unattended run's system prompt, composed from the SAME constants (commons contract, citation rule, mandate head) and the same character door (`build_agent_posture`), minus what a toolless run and an absent principal make false (no tools line, no reach section, no cast, no focus, no register clause, no skills index), plus the kernel JOB and the craft skill's BODY (push door — a toolless turn cannot ReadFile). Scaffold 430 bytes (ceiling 600, `test_adr639` §D1).
+- `services/standing_work.py` (was `services/strings.py`) — `_STANDING_RUN_POSTURE` (~1,600 bytes composed into every prose run) and `_STANDING_PANE_FRAME` (~3,000 bytes composed into every strings-pane turn) are DELETED. What stays in code is `_STANDING_JOB` (527 bytes): the per-run facts and the OUTPUT CONTRACT (return the full file or exactly `NO_CHANGE` — the sentinel is parsed, so it is a machine contract, not craft). The run's system prompt is `build_standing_frame(...)`; it never composes a string of its own.
+- `services/skills/keeping-a-file-current/SKILL.md` — NEW, `apps: [text]`. The run posture's craft as a skill: fold don't append, prune what stopped being true, preserve the member's corrections, cite each new claim inline, name a source/contract disagreement plainly, answer NO_CHANGE honestly. The standing run composes its body by binding; a Text turn on a kept file sees it in the index.
+- `services/skills/declaring-standing-work/SKILL.md` — NEW, universal. The pane posture's lifecycle as a skill: the three files, the strict `_standing.yaml` grammar (with the new optional `app` key), read-it-back, contract before cadence, never invent a source URL, pause/re-source/tighten, the law (only the designated target is ever a standing writer's target).
+- `services/apps/__init__.py` · `services/agents_registry.py` — the `strings` app registration and its pane posture, and the `supervisor` agent row, are DELETED (ADR-639 D4). No frame composes a Supervisor character anywhere.
+- Why: the standing run composed a SECOND envelope outside the one composition site (no commons contract, no citation rule, no mandate head — lost without a decision), the skills loader had no seam into it (ADR-630 §3 named and deferred exactly this), and the craft it needed lived as Python prose whose own comment called it "job instruction all along". Supervisor was a posture string with no mechanics; ADR-610's rule (a being is someone a member MEETS) retired it once declaring became craft any resident holds.
+- Expected behavior: a prose declaration's run now sees the workspace's mandate head and the citation rule, is told affirmatively that it reaches nothing live, and reads the craft from the same skill a Text turn would. Executor derives from the target's type (prose → text → Editor) — no run is ever attributed to or costumed as Supervisor. Ledger rows stamp `standing-write:` / `standing-sweep:` with `funnel_decision='standing'` (migration 251 carried the value BEFORE this deploy); the revision attributes `system:standing`, message "kept 'x.md' current (standing run, N sources)".
+- Index budgets, measured at ship with the two new skills: the BOUND ceiling (3,000) HELD on every pane — text 2,779 · slides 2,762 · blogger 2,762 · images 1,750. The OPEN lane's ceiling is RAISED 3,400 → 3,800 (measured 3,735 with all eleven listed): at 3,400 the open index withheld the eleventh skill by alphabetical accident — the outcome ADR-633's amendment sized that number to prevent — and the receipt for raising is the trade itself: ~4,600 bytes of always-composed Python posture leave the frames; two discovery-grade index lines (~680 bytes) arrive in the open lane. Net prose composed per turn falls.
+- Gates: `test_adr639_standing_work.py` (new) · `test_adr632_the_seat_retires.py` §5 ratchets unchanged (conventions scaffold 683/900, studio posture unchanged) · `test_adr630_skills.py` (11 kernel skills, every lane under its ceiling).
+
+---
+
 ## [2026.09.03.3] - Attached connectors reach the lane; the strip is named (ADR-635)
 
 ### Changed

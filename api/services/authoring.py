@@ -2390,12 +2390,14 @@ def register_app(
     value. When declared, the app's unattended runs resolve THIS agent's
     model + posture (and wear its face on receipts) while `resident` stays the
     conversation. Undeclared → the resident executes, so every app that does
-    not need the split is unchanged by construction. Today exactly one app
-    declares it today: NONE. ADR-610 dissolved the one executor agent that
-    filled it (strings → keeper), so strings derives its resident like every
-    other app. The FIELD stays: the seam is real — an agent that executed a
-    app's runs without speaking there would still be met on every receipt —
-    and a mechanism is not wrong because its first filling was.
+    not need the split is unchanged by construction. No app declares it today:
+    ADR-610 dissolved the one executor agent that filled it (strings → keeper),
+    and ADR-639 deleted the strings app itself — a standing declaration now
+    derives its app from the kept file's TYPE (prose → `text`), and this field
+    on THAT app answers who runs it. The FIELD stays: the seam is real — an
+    agent that executed an app's runs without speaking there would still be
+    met on every receipt — and a mechanism is not wrong because its first
+    filling was.
 
     ``posture`` (ADR-606 D3) — the app's JOB overlay for its bound pane: a
     callable ``(client, user_id, artifact_path, artifact) -> str`` composing

@@ -1,23 +1,24 @@
-'use client';
-
 /**
- * /strings — the STRINGS surface route (ADR-569).
+ * /strings → /notifications (Standing work) redirect stub (ADR-639).
  *
- * The maintained file, kept under contract: the member designates a file (the
- * designation is a "string"), declares what it must stay true to
- * (CONTRACT.md) and where currency comes from (_string.yaml), and the
- * standing loop keeps the head current while their corrections compound.
- * This window is the standing-work desk: the string roster + the composed view (file
- * canvas · what changed · setup · consumers) — a lazy projection over
- * substrate + ledger, never stored state.
+ * The Strings app is DELETED (ADR-569 → ADR-639) — its surface, router,
+ * service module and the Supervisor agent are gone. Standing work is a
+ * kernel lane: the declaration lives beside the kept file, the run is a
+ * daemon, the craft is a skill, and the roster + the two direct switches
+ * (Run now · Pause) live in the Notifications window's "Standing work" pane.
  *
- * Unveiled to primary + the Dock 2026-08-14, same day as the build (operator
- * decision — the Radar precedent). The D8 falsifiers stay armed as measures
- * of the standing loop, no longer as the unveil's gate.
+ * This stub preserves bookmarks and, more importantly, keeps the path
+ * AUTHENTICATED: middleware derives its protected set from the served
+ * surface roster, so a slug that leaves the roster leaves the gate with it,
+ * and a route that still rendered would serve 200 to logged-out visitors
+ * (the defect repaired 2026-08-20). Hand-listed in lib/supabase/middleware.ts.
+ *
+ * Pure server transport per ADR-308 — `redirect()`, never a client-side
+ * useEffect redirect (which would paint an orphaned frame inside the shell).
  */
 
-import StringsSurface from '@/components/strings/StringsSurface';
+import { redirect } from 'next/navigation';
 
-export default function StringsPage() {
-  return <StringsSurface />;
+export default function StringsRedirect() {
+  redirect('/notifications?notifications.pane=standing');
 }

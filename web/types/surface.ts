@@ -40,7 +40,9 @@ export type KernelSurfaceSlug =
   | 'slides'  // ADR-440 Studio → ADR-599 the full evolve: the dedicated deck app
   | 'blogger' // ADR-627 — the publish medium's desk (the outward type returns)
   | 'images'  // ADR-472 — the second authoring app (stages, rendered rasters)
-  | 'strings' // ADR-569 — the maintained file, kept under contract (search-only tier)
+  // ADR-639 (2026-09-04): the strings slug LEFT this union with its app — standing
+  // work is a kernel lane, its roster a Notifications pane; the route is a
+  // redirect stub hand-listed in middleware (the ADR-592 obligation).
   | 'text'    // ADR-571 — the prose app (md · txt), Editor beside the canvas
   // ADR-603 D5 (2026-08-24): `recurrence` + `activity` LEFT the union — the
   // window and its Runs lens are deleted (retire-clean, 0 live declarations);
@@ -115,7 +117,7 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // slug driving SURFACE_PREFIXES — protecting its route by accident rather
   // than by declaration. It is hand-listed in middleware's stub block, where
   // every other row-less stub lives.
-  'chat', 'text', 'slides', 'blogger', 'images', 'strings', 'billing', 'usage',
+  'chat', 'text', 'slides', 'blogger', 'images', 'billing', 'usage',
   'files', 'agents', 'queue', 'notifications',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).

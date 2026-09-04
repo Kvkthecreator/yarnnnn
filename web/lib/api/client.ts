@@ -477,75 +477,49 @@ export interface Participant {
   created_at?: string;
 }
 
-// ADR-569 — string shapes (mirror api/routes/strings.py). A STRING is the
-// member's designation of one file as kept current: {folder}/_string.yaml +
-// CONTRACT.md, the designated target leaf revised by the standing run.
-export interface StringSource {
+// ADR-639 — standing-work shapes (mirror api/routes/standing_work.py). A
+// STANDING DECLARATION is the member's designation of one file as kept
+// current: {folder}/_standing.yaml + CONTRACT.md, the designated target leaf
+// revised by the standing run. The roster is read; the two direct switches
+// (Run now · Pause) are the only writes. Creation is a conversation.
+export interface StandingSource {
   id: string;
   /** An HTTP pull source. Exactly one of `url` / `connector`+`selector`. */
   url?: string | null;
   /** A connector slice (ADR-582 D6 / ADR-594): reach with a receipt. */
   connector?: string | null;
   selector?: string | null;
-  /** ADR-595 D3 enrichment — the source as a party (pane view only; the
-   *  roster list leaves these unset). */
-  last_landed_at?: string | null;
-  last_landed_path?: string | null;
-  /** Connector sources: is the selector inside the connection's aperture?
-   *  null/undefined for HTTP sources. */
-  in_aperture?: boolean | null;
-  last_contributed_at?: string | null;
 }
 
-export interface StringSummary {
+export interface StandingLastRun {
+  status: string;
+  error_reason?: string | null;
+  at?: string | null;
+}
+
+export interface StandingSummary {
   topic: string; // the folder path relative to /workspace/
   declaration_path: string;
   target: string; // the designated leaf, folder-relative
   target_path?: string | null; // absolute, present once the file exists
   format?: 'md' | 'csv' | 'json' | 'txt' | null;
+  /** The app whose executor runs a prose declaration — explicit or derived
+   *  from the target's type (ADR-639 D3). Null for a structured target. */
+  app?: string | null;
   schedule?: string | string[] | null;
   paused: boolean;
-  sources: StringSource[];
-  /** ADR-569 D2 — what the file must stay true to (CONTRACT.md). */
-  contract?: string | null;
+  sources: StandingSource[];
   last_run_at?: string | null;
   next_run_at?: string | null;
-  /** Parseable-but-cannot-run (D3, served loudly): missing_target |
-   *  invalid_target | unsupported_format | sources_invalid. */
+  /** Parseable-but-cannot-run (served loudly): missing_target |
+   *  invalid_target | unsupported_format | sources_invalid | app_invalid. */
   problem?: string | null;
-  /** ADR-595 D1 as amended (2026-08-28) — FALSE while the folder holds no
-   *  `_string.yaml`. The app is ONE surface in both states: an undeclared
-   *  pane renders the same tabs with their existing empty states and a "not
-   *  kept yet" line above them, the way `problem`/`repair` already layer
-   *  above intact tabs. Optional so a pre-amendment payload reads as
-   *  declared, which is what every payload that omits it is. */
-  declared?: boolean;
+  /** The newest ledger row for this declaration (the write step preferred). */
+  last_run?: StandingLastRun | null;
 }
 
-export interface StringView extends StringSummary {
-  /** ADR-595 D1 — the tending surface never serves the maintained file's
-   *  contents. Head FACTS ride instead; reading happens through the Open
-   *  door at the file's own surface. */
-  head_updated_at?: string | null;
-  head_lines?: number | null;
-  head_bytes?: number | null;
-  /** The machine-checkable half of the contract (csv columns / json keys). */
-  shape: { columns?: string[]; keys?: string[] };
-  recent_runs: Array<{
-    slug: string;
-    status: string;
-    created_at?: string | null;
-    error_reason?: string | null;
-  }>;
-  /** The last write REFUSED (shape violation et al.) — read from the ledger,
-   *  cleared by the next success. */
-  repair?: { reason: string; detail?: string | null; at?: string | null } | null;
-  /** D5 — which files cite this leaf (derived at read time, never stored). */
-  consumers: string[];
-}
-
-/** A string topic is a meaning-folder path (ADR-565 D3) — encode each segment,
- *  keep the '/' separators so the server's `{topic:path}` param reads it. */
+/** A topic is a meaning-folder path — encode each segment, keep the '/'
+ *  separators so the server's `{topic:path}` param reads it. */
 const encodeTopic = (topic: string) =>
   topic.split("/").map(encodeURIComponent).join("/");
 
@@ -633,9 +607,8 @@ export const api = {
           /** ADR-567 D4 — WHICH APP this lane belongs to. Served since 567 but
            *  absent from this type until 2026-08-28, so `PaneHousing` could
            *  only match a bound lane on its PATH — and two apps may legitimately
-           *  bind the same file (a .md is both Text's document and Strings'
-           *  maintained file). The Strings pane then adopted the Text lane and
-           *  showed Editor where Supervisor belonged. */
+           *  bind the same file. One pane then adopted another's lane and
+           *  showed the wrong colleague (the 2026-08-28 defect). */
           app?: string | null;
           /** ADR-450 D3 / ADR-630 — the skill binding (null for plain chat lanes). */
           skill?: string | null;
@@ -812,31 +785,21 @@ export const api = {
       ),
   },
 
-  // ADR-569 — strings, the maintained file kept under contract. Declarations
-  // are conversational (the app's colleague authors them through its lane —
-  // no create route);
-  // these are the projections the app reads plus the direct switches.
-  strings: {
-    list: () => request<StringSummary[]>("/api/strings"),
-    /** The app view. Served for an UNDECLARED folder too (`declared: false`,
-     *  empty sources/schedule/runs) — ADR-595 D1 as amended: one surface in
-     *  both states, never a separate setup page. `target` carries a
-     *  designation-in-flight (the leaf picked before anything was written);
-     *  it is read only on the undeclared path. */
-    get: (topic: string, target?: string | null) =>
-      request<StringView>(
-        `/api/strings/${encodeTopic(topic)}` +
-          (target ? `?target=${encodeURIComponent(target)}` : ""),
-      ),
+  // ADR-639 — standing work: the kept file, a kernel lane (not an app).
+  // Declarations are conversational (any colleague authors them beside the
+  // file under `declaring-standing-work` — no create route); these are the
+  // roster the Notifications "Standing work" pane reads plus its two switches.
+  standing: {
+    list: () => request<StandingSummary[]>("/api/standing"),
     update: (topic: string, data: { paused?: boolean }) =>
-      request<StringSummary>(`/api/strings/${encodeTopic(topic)}`, {
+      request<StandingSummary>(`/api/standing/${encodeTopic(topic)}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
-    /** Run now — the manual fire (D7). */
+    /** Run now — the manual fire (takes the same claim as the scheduler, ADR-618 D2). */
     run: (topic: string) =>
       request<{ success: boolean; no_change?: boolean; error_reason?: string; detail?: string }>(
-        `/api/strings/${encodeTopic(topic)}/run`,
+        `/api/standing/${encodeTopic(topic)}/run`,
         { method: "POST" },
       ),
   },

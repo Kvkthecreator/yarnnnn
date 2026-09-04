@@ -155,15 +155,16 @@ async def materialize_capture_index(
     return touched
 
 
-async def get_due_captures(
-    client,
-    now: Optional[datetime] = None,
-) -> list[tuple[str, CaptureDeclaration]]:
-    """Return all due ``(user_id, CaptureDeclaration)`` pairs (kind='capture').
+async def due_captures(
+    client, now: Optional[datetime] = None,
+) -> list[tuple[str, CaptureDeclaration, Optional[str]]]:
+    """The due ``(user_id, declaration, stored next_run_at)`` triples of
+    kind='capture' — the shape the ONE drain loop consumes (ADR-639 D3).
 
-    Queries `tasks` for kind='capture' rows with next_run_at <= now AND active,
-    then re-reads each user's ``_captures.yaml`` (truth) and matches by slug.
-    Mirrors ``services.scheduling.get_due_recurrences`` capture-side.
+    Queries `tasks` for active capture rows with next_run_at <= now, then
+    re-reads each user's ``_captures.yaml`` (truth) and matches by slug. The
+    third element is the baseline the claim compares against — read here, in
+    the same scan, rather than re-read per row by the loop.
     """
     if now is None:
         now = datetime.now(timezone.utc)
@@ -186,7 +187,7 @@ async def get_due_captures(
     for row in due_rows:
         rows_by_user.setdefault(row["user_id"], []).append(row)
 
-    pairs: list[tuple[str, CaptureDeclaration]] = []
+    out: list[tuple[str, CaptureDeclaration, Optional[str]]] = []
     for user_id, user_rows in rows_by_user.items():
         declarations = walk_workspace_captures(client, user_id)
         by_slug = {d.slug: d for d in declarations}
@@ -201,99 +202,29 @@ async def get_due_captures(
                 continue
             if decl.paused:
                 continue
-            pairs.append((user_id, decl))
+            out.append((user_id, decl, row.get("next_run_at")))
 
-    return pairs
-
-
-def claim_capture_run(
-    client,
-    user_id: str,
-    slug: str,
-    original_next_run: Optional[str],
-    *,
-    sentinel_hours: int = 2,
-) -> bool:
-    """CAS atomic claim for a due capture row (kind-scoped). Same mechanism as
-    ``services.scheduling.claim_task_run`` but bounded to kind='capture' so a
-    recurrence and a same-named capture (authoring error) can't cross-claim."""
-    if original_next_run is None:
-        logger.warning(
-            "[CAPTURE_SCHED] refusing to claim %s/%s without baseline next_run_at",
-            user_id[:8], slug,
-        )
-        return False
-
-    from datetime import timedelta
-    sentinel = (datetime.now(timezone.utc) + timedelta(hours=sentinel_hours)).isoformat()
-    try:
-        result = (
-            client.table("tasks")
-            .update({"next_run_at": sentinel})
-            .eq("user_id", user_id)
-            .eq("slug", slug)
-            .eq("kind", CAPTURE_KIND)
-            .eq("next_run_at", original_next_run)
-            .execute()
-        )
-        return bool(result.data)
-    except Exception as e:
-        logger.warning("[CAPTURE_SCHED] claim failed for %s/%s: %s", user_id[:8], slug, e)
-        return False
+    return out
 
 
-def record_capture_run(
-    client,
-    user_id: str,
-    declaration: CaptureDeclaration,
-    *,
-    last_run_at: datetime,
-    user_timezone: Optional[str] = None,
-) -> None:
-    """Write last_run_at + recomputed next_run_at to the capture row post-run.
-
-    Always sets next_run_at (clears the CAS sentinel) — the next scheduled time,
-    or None. Honors ADR-270 fire_on_activation via compute_next_run_at's
-    last_run_at handling. Kind-scoped update so it never touches a recurrence row.
-    """
-    user_tz = user_timezone or get_workspace_timezone(client, user_id)
+def record_capture(client, user_id: str, declaration: CaptureDeclaration,
+                   last_run_at: datetime) -> None:
+    """The capture kind's `record` adapter for the ONE drain loop — the shared
+    ``record_run`` with the trader's market context (semantic schedules,
+    ADR-268). ``claim_capture_run`` / ``record_capture_run`` — this kind's
+    byte-twins of the loop's own functions — are DELETED (ADR-639 D3)."""
     from services.bundle_reader import get_market_context_for_user
-    market_context = get_market_context_for_user(user_id, client)
+    from services.scheduling import record_run
 
-    try:
-        next_run = compute_next_run_at(
-            declaration,
-            last_run_at=last_run_at,
-            now=last_run_at,
-            user_timezone=user_tz,
-            market_context=market_context,
-        )
-    except ValueError as e:
-        logger.error(
-            "[CAPTURE_SCHED] record_capture_run %s/%s schedule resolution failed: %s",
-            user_id[:8], declaration.slug, e,
-        )
-        next_run = None
-
-    update = {
-        "last_run_at": last_run_at.isoformat(),
-        "next_run_at": next_run.isoformat() if next_run else None,
-    }
-    try:
-        client.table("tasks").update(update).eq("user_id", user_id).eq(
-            "slug", declaration.slug
-        ).eq("kind", CAPTURE_KIND).execute()
-    except Exception as e:
-        logger.warning(
-            "[CAPTURE_SCHED] record_capture_run update failed for %s/%s: %s",
-            user_id[:8], declaration.slug, e,
-        )
+    record_run(
+        client, user_id, declaration, CAPTURE_KIND, last_run_at=last_run_at,
+        market_context=get_market_context_for_user(user_id, client),
+    )
 
 
 __all__ = [
     "CAPTURE_KIND",
     "materialize_capture_index",
-    "get_due_captures",
-    "claim_capture_run",
-    "record_capture_run",
+    "due_captures",
+    "record_capture",
 ]

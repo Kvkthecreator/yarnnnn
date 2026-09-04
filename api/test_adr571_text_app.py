@@ -2236,16 +2236,30 @@ check("18k a FAILED read inserts NOTHING and says so — writing a source note "
 # longer exists and read the removal as "a second parser was reintroduced"
 # (it wasn't — measured at clean HEAD). The LAW is unchanged and still held:
 # ONE quote-aware parser, in markdownEdits, and no surface declares its own.
-_strings_src = (WEB / "components" / "strings" / "StringsSurface.tsx").read_text(encoding="utf-8")
+# ⚠️ RE-ANCHORED 2026-09-04 (ADR-639): the strings surface is DELETED, so the
+# check now sweeps EVERY surface file rather than naming one consumer — a
+# second parser can reappear anywhere, and a site-specific assertion cannot
+# see a mount elsewhere (the ADR-616 lesson).
 _md_edits_src = (WEB / "components" / "text" / "markdownEdits.ts").read_text(encoding="utf-8")
+# Scope: the SURFACES (the text app and the panes beside it). The viewer
+# projector (`workspace/viewers/projection.ts`) carries its own bounded
+# line-split for table previews — found by this sweep on 2026-09-04 and
+# recorded in the handoff as owed to the ONE-parser law, not asserted here:
+# a gate that turns red on a defect it did not cause and this arc does not
+# fix would be ignored, which teaches the wrong lesson (the ADR-636 finding).
+_other_parsers = sorted(
+    str(f.relative_to(WEB)) for f in (WEB / "components").rglob("*.ts*")
+    if f.name != "markdownEdits.ts" and "node_modules" not in f.parts
+    and "viewers" not in f.parts
+    and re.search(r"function\s+parseCsv\b", f.read_text(encoding="utf-8"))
+)
 check("18L ONE CSV parser, not two. The shared quote-aware parser lives in "
       "markdownEdits (a naive split(',') makes \"Kim, Kevin\" two cells and "
       "shifts every later column silently); no other surface may declare its "
-      "own. Strings imports it IF it parses — today it renders row-count "
-      "summaries and parses nothing.",
+      "own.",
       re.search(r"export function parseCsv", _md_edits_src) is not None
-      and re.search(r"function\s+parseCsv", _strings_src) is None,
-      "a second CSV parser exists, or the shared one moved")
+      and not _other_parsers,
+      f"a second CSV parser exists ({_other_parsers}), or the shared one moved")
 
 
 # ── 19. ADR-575 — the surface HEARS other principals' writes ─────────────

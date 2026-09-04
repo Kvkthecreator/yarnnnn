@@ -155,33 +155,33 @@ async def run_unified_scheduler():
     # ---------------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # ADR-569/603 — the strings lane: standing declarations due on their
-    # schedule, bounded by the pool (ADR-618). Zero declarations → one LIKE
-    # scan → no-op. ADR-632 unwrapped it from the retired steward gate.
+    # ADR-639 — standing work: declarations due on their schedule, bounded by
+    # the pool (ADR-618), through the ONE drain loop capture rides too. Zero
+    # declarations → one LIKE scan → no-op. Not an app, not an agent — a
+    # kernel lane (ADR-639 D4).
     # -------------------------------------------------------------------------
     try:
-        from services.strings import drain_due_string_runs
-        s_found, s_succeeded, s_failed = await drain_due_string_runs(supabase)
+        from services.standing_work import drain_due_standing_work
+        s_found, s_succeeded, s_failed = await drain_due_standing_work(supabase)
         if s_found > 0:
             # ⭐ A FAILING LANE MUST NOT LOG LIKE A HEALTHY ONE (ADR-618's
             # named-but-unassigned gap). This line was INFO regardless of
             # outcome, so "0/1 succeeded, 1 failed" read exactly like a
-            # clean tick — and the ONLY string in production sat
+            # clean tick — and the ONLY declaration in production sat
             # `router_disabled` for four days, every run, in plain sight.
             # The scheduler never had MODEL_ROUTER_ENABLED (the CLAUDE.md
             # §5 env-drift class); the manual /run door is served by the
             # API, which does, so the lane looked alive from the surface.
             # Severity now follows the outcome. The per-run REASON is
-            # logged by the drain itself, at the failure branch that
-            # already holds it — a count alone cannot say WHY, and that is
-            # what cost the four days.
+            # logged by the drain loop itself, at the failure branch that
+            # already holds it — a count alone cannot say WHY.
             level = logger.info if s_failed == 0 else logger.error
             level(
-                f"[SCHED] strings: {s_succeeded}/{s_found} run(s) succeeded, "
+                f"[SCHED] standing work: {s_succeeded}/{s_found} run(s) succeeded, "
                 f"{s_failed} failed"
             )
     except Exception as exc:
-        logger.warning("[SCHED] strings lane raised: %s", exc)
+        logger.warning("[SCHED] standing lane raised: %s", exc)
 
     # -------------------------------------------------------------------------
     # Hourly: scheduler_heartbeat (ADR-072)

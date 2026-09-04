@@ -44,10 +44,9 @@ import ImagesPage from '@/app/(authenticated)/images/page';
 // redirect stub → /text. Reopening = flip the stage + restore this import.
 // ADR-592 — Radar is DELETED (the app, its router, its sweep lane). /radar is
 // an ADR-308 redirect stub → /files, where the briefs it authored remain.
-// ADR-569 — Strings: the maintained file, kept under contract (the second app on
-// the shared PaneHousing). Unveiled 2026-08-14 by operator decision (the
-// Radar precedent); shipped search-only for hours, primary since.
-import StringsPage from '@/app/(authenticated)/strings/page';
+// ADR-639 — Strings is DELETED (the app, its pane, the Supervisor agent).
+// Standing work is a kernel lane; its roster lives in Notifications. /strings
+// is an ADR-308 redirect stub there, hand-listed in middleware.
 // ADR-571 — Text: the prose app (md · txt). Docs-shaped, unveiled at birth by
 // operator direction ("a dedicated app. just like docs").
 import TextPage from '@/app/(authenticated)/text/page';
@@ -104,7 +103,6 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   slides: SlidesPage,  // ADR-440 Studio → ADR-599 — the dedicated deck app
   blogger: BloggerPage, // ADR-627 — the publish medium's pane (Studio-parameterized)
   images: ImagesPage,  // ADR-472 — the second authoring app (stages → rendered rasters)
-  strings: StringsPage,  // ADR-569 — the maintained file, kept under contract
   // ADR-603 D5 — `recurrence` left the registry (window deleted; stub route).
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.

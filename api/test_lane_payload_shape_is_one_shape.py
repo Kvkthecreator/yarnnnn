@@ -109,7 +109,7 @@ if _fn is not None:
     print("\n2. a cast passed in is carried through")
     cast = [
         {"member_kind": "human", "agent_slug": None},
-        {"member_kind": "agent", "agent_slug": "supervisor"},
+        {"member_kind": "agent", "agent_slug": "editor"},
     ]
     # Guarded, NOT called bare: against the pre-fix signature this raises
     # TypeError, and an unhandled raise here would abort the run and hide
@@ -126,10 +126,10 @@ if _fn is not None:
             "the cast reaches the payload verbatim (the parameter is real)")
     _assert(
         withcast is not None and any(
-            p.get("agent_slug") == "supervisor"
+            p.get("agent_slug") == "editor"
             for p in withcast.get("participants") or []
         ),
-        "the production shape that rendered wrong now carries `supervisor`",
+        "the production shape that rendered wrong now carries the agent",
     )
 
     # The two shapes must differ ONLY in the cast — a producer that also drops

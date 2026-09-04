@@ -1056,7 +1056,7 @@ def _reconcile_cast_agent(
     IMAGES lanes onto a prose voice, trading one wrong character for another.
     Reconciling against the lane's OWN derivation is context-correct by
     construction: a slides lane derives `editor`, an IMAGES lane derives
-    `designer`, a strings lane derives `supervisor` — one rule, no table to
+    `designer`, a text lane derives `editor` — one rule, no table to
     keep in sync with the next rename.
 
     DELIBERATELY NARROW — three conditions, each load-bearing:
@@ -1254,12 +1254,18 @@ def _fetch_history(
         except Exception as exc:  # noqa: BLE001 — a label never fails a turn
             logger.warning("[LANE] speaker labels unavailable: %s", exc)
     if tag_agents:
-        from services.agents_registry import resolve_agent
+        from services.agents_registry import historical_agent_name, resolve_agent
         for p in (cast or []):
             slug = p.get("agent_slug")
             if p.get("member_kind") == "agent" and slug:
                 # A deleted slug (ADR-599) falls back to itself, honestly.
-                agent_names[slug] = (resolve_agent(slug) or {}).get("name") or slug
+                # ADR-639 D4 — a RETIRED slug on a historical row still shows
+                # the name it signed as, never routes a turn (display only).
+                agent_names[slug] = (
+                    (resolve_agent(slug) or {}).get("name")
+                    or historical_agent_name(slug)
+                    or slug
+                )
 
     out: list[dict] = []
     for r in reversed(hist_res.data or []):
@@ -2276,7 +2282,8 @@ async def add_conversation_participant(
         #
         # Measured in production 2026-09-01 before this change: 74 agent cast
         # rows across the workspace, every one an `offered: False` agent
-        # (editor 36 · designer 33 · supervisor 5). Members chat with residents
+        # (editor 36 · designer 33 · supervisor 5 — the last a retired slug since
+        # ADR-639, re-seated at read). Members chat with residents
         # constantly. The refusal was not protecting an invariant — it was
         # contradicting the live product, and it was UNREACHABLE from the UI
         # besides (the add door listed `agents`, the offered roster, which is

@@ -76,37 +76,14 @@ from services.apps import text as text  # noqa: F401,E402  (registration side-ef
 # being (scout) with the colleague roster. `system:radar` attribution on the
 # briefs it already authored renders its stored slug — honest, un-aliased.
 
-from services.authoring import register_app as _register_app  # noqa: E402
-
-# strings (ADR-569) — the maintained file. Declared here for the same reason
-# as radar's row: `services/strings.py` deliberately carries no module-level
-# `services.*` imports (cycle-free), and every app's residency reads in one
-# list. The resident is IDENTITY only (ADR-562): the engine follows the
-# agent's row in `agents_registry.AGENTS`, never a caller-supplied model.
-# ADR-604 D1 — Strings is SUPERVISOR'S pane: the conversation is about
-# standing work (what runs, on what cadence, to keep what true).
-# ADR-610 — and the RUNS are Supervisor's too. `standing_executor` is left
-# UNDECLARED, so it derives the resident exactly as every other app does; the
-# `keeper` executor agent is dissolved (maintenance is the steward's seat and
-# daemon work, never an agent). The field itself survives deliberately — the
-# voice/executor seam is real, and a mechanism is not wrong because its first
-# filling was. One pane, one contract, one name.
-# ADR-606 D3 — the app's pane job overlay, declared here (not in the kernel
-# chain this door replaced) with a lazy body: `services/strings.py` stays
-# cycle-free of module-level `services.*` imports, so the import happens at
-# turn time, exactly where the lane kernel used to do it.
-def _strings_pane_posture(client, user_id, artifact_path, artifact):
-    from services.strings import build_strings_pane_posture
-
-    return build_strings_pane_posture(client, user_id, artifact_path, artifact)
-
-
-_register_app(
-    "strings",
-    resident="supervisor",
-    posture=_strings_pane_posture,
-)
-
-# The dedicated `supervisor` app is DELETED (ADR-604 D3, superseding ADR-603
-# D4): Supervisor's pane IS strings — a second app whose lens shows the same
-# declarations would be the ADR-562 second-home drift. Do not re-register it.
+# ADR-639 (2026-09-04) — STANDING WORK IS A KERNEL LANE, NOT AN APP. The
+# `strings` registration that stood here (ADR-569 → 604 → 610: the maintained
+# file's app, first Keeper's then Supervisor's pane) is DELETED with the app,
+# its pane and the Supervisor agent. What a member declares lives beside the
+# file (`{folder}/_standing.yaml` + CONTRACT.md); what runs it is
+# `services/standing_work.py` on the scheduler tick; how it is done is the
+# `keeping-a-file-current` skill; who does it DERIVES from the target's type
+# (prose → text → Editor) through `standing_executor_for_app` — no app row is
+# needed for a lane whose executor is another app's. Do not re-register it:
+# an app here is a PANE a member uses, and standing work has no pane of its
+# own (its roster and switches live in Notifications).

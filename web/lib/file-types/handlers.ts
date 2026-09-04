@@ -151,7 +151,8 @@ export function resolveHandlers(subject: HandlerSubject): Handler[] {
   const path = paths[0] ?? '';
   const handlers: Handler[] = [];
 
-  // Declaration claims outrank format claims (ADR-569: `_string.yaml` → Strings).
+  // Declaration claims outrank format claims (a named leaf opens its app by NAME;
+  // none is claimed today — ADR-639 retired the last one with the Strings app).
   const declared = resolveDeclarationApplication(path);
   if (declared) handlers.push(surfaceHandler(declared));
 

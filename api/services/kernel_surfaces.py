@@ -385,41 +385,16 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # history has to keep rendering a name, not a raw string.
     #
     # Reopening is a new decision recorded against ADR-592, not a tier flip.
-    # The dedicated `supervisor` surface row is DELETED (ADR-604 D3,
-    # superseding ADR-603 D4): Supervisor's pane IS strings, below — a second
-    # window over the same declarations is the ADR-562 second-home drift. It
-    # never had a route, so no middleware obligation to discharge.
-    {
-        # ADR-569 — Strings, the maintained file. The member DESIGNATES a
-        # file, declares its contract (CONTRACT.md) + sources + cadence
-        # ({folder}/_string.yaml), and the standing loop keeps the head
-        # current while member corrections compound (ADR-384 D4). The write
-        # is confined to the designated leaf ONLY — un-designated files are
-        # never a standing writer's target (the D1 law). Shared pane housing
-        # (D6, the ADR-518 move): string roster + the composed view (file
-        # canvas by format · what changed · setup · consumers), projected at
-        # read time.
-        #
-        # ADR-604 — this app is SUPERVISOR'S: the conversation is about
-        # standing work, so the bound lane carries the `supervisor` resident.
-        # ADR-610 — and so do the RUNS: `standing_executor` is undeclared and
-        # derives the resident. One surface, one colleague, one contract.
-        #
-        # launcher_tier started SEARCH-ONLY (D6 — registration ≠ unveil, the
-        # ADR-486 D7 rule). UNVEILED 2026-08-14, same day as the build
-        # (operator decision — "i do want it to be fully published").
-        "slug": "strings",
-        "stage": "primary",  # ADR-592 declared 2026-08-26 (was implied)
-        "launcher_tier": "primary",  # ADR-569 unveil 2026-08-14 (was search-only per D6)
-        "register": "application",
-        "title": "Strings",
-        "archetype": "dashboard",
-        "substrate_paths": [],  # strings are meaning-placed in the file's own folder
-        "icon_key": "cable",
-        "default_pinned": True,  # ships in the Dock with the other apps
-        "route": "/strings",
-        "summary": "Standing work in one place — files kept current on a declared contract and cadence. Supervisor is who you declare it with, and the hand that keeps each file true, your corrections compounding.",
-    },
+    # ADR-639 (2026-09-04) — the STRINGS row is DELETED, with the app, its
+    # pane and the Supervisor agent. Standing work is a kernel lane: the
+    # declaration lives beside the kept file, the run is a daemon, the craft
+    # is a skill, the executor derives from what the file is. Its roster and
+    # direct switches (Run now · Pause) are the Notifications window's
+    # "Standing work" pane; /strings is an ADR-308 redirect stub there,
+    # hand-listed in middleware (the ADR-592 obligation). `system:strings` on
+    # the revisions it authored is display-resolved ("Standing work"), never
+    # rewritten — the ruling made for `system:radar` above.
+    # (The dedicated `supervisor` row was already deleted by ADR-604 D3.)
     {
         # ADR-571 — Text, the dedicated surface for the prose currency
         # (.md/.txt), Docs-shaped: a landing of recent prose documents + a

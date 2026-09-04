@@ -274,10 +274,10 @@ check("5d no seeding exists anywhere in the routes",
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§6 apps consume LANDED files — Strings' connector source, driven")
+print("§6 the standing run consumes LANDED files — the connector source, driven")
 # ═════════════════════════════════════════════════════════════════════════════
 
-from services.strings import _classify_sources, _is_connector_source  # noqa: E402
+from services.standing_work import _classify_sources, _is_connector_source  # noqa: E402
 
 check("6a a connector source form is valid",
       _classify_sources([{"id": "standup", "connector": "slack",
@@ -291,7 +291,7 @@ check("6c the connector-source predicate needs BOTH platform and selector",
 
 def _drive_string_source():
     import services.workspace as ws
-    from services.strings import _read_connector_source
+    from services.standing_work import _read_connector_source
 
     class _UM:
         def __init__(self, client, uid):
@@ -320,11 +320,11 @@ def _drive_string_source():
 body, cited = _drive_string_source()
 check("6d the source resolves the LANDED snapshot (substrate, no HTTP, no API)",
       body == "landed snapshot body", str(body))
-check("6e the string cites the landed path as its raw (no re-retain)",
+check("6e the run cites the landed path as its raw (no re-retain)",
       cited == "/workspace/inbound/slack/c001/2026-08-19T01:00:00Z.md", str(cited))
 
 # The connector branch must never reach httpx or a platform tool.
-strings_src = _code_only(API / "services" / "strings.py")
+strings_src = _code_only(API / "services" / "standing_work.py")
 strings_tree = ast.parse(strings_src)
 rcs = next(n for n in ast.walk(strings_tree)
            if isinstance(n, ast.AsyncFunctionDef) and n.name == "_read_connector_source")

@@ -59,20 +59,20 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 // ORDER is meaning, not registry-declaration accident (the Dock renders `kept`
 // in its stored order, so this array IS the on-screen order):
 //
-//     Chat  │  Text  Slides  Strings  │  Files  Agents
-//     think     make (write · lay out)  keep     <-- the record -->
+//     Chat  │  Text  Slides  Blogger  Images  │  Files  Agents
+//     think     make (write · lay out · publish · compose)   <-- the record -->
 //
-// (Redrawn 2026-08-26. The previous diagram read `Chat │ Docs Studio Radar
-// Strings │ Files Agents` — THREE deleted slugs. Docs died with ADR-599,
-// Radar with ADR-592, and Studio evolved into Slides in ADR-599 D4. A comment
-// naming surfaces that no longer exist is worse than none: it is the map a
-// future session trusts.)
+// (Redrawn 2026-09-04. The previous diagram read `Chat │ Text Slides Strings
+// │ Files Agents` — Strings died with ADR-639 (standing work is a kernel
+// lane, its roster a Notifications pane, not a Dock app); earlier redraws
+// removed Docs (ADR-599), Radar (ADR-592) and Studio (→ Slides, ADR-599 D4).
+// A comment naming surfaces that no longer exist is worse than none: it is
+// the map a future session trusts.)
 //
-// Chat first (ADR-457's Think verb — the steward's voice + the activation
-// landing). Then the MAKERS (ADR-457 Make: Text writes, Slides lays out;
-// Images, their sibling canvas app, rejoins here when ADR-488 §5 re-unveils
-// it) and the KEEPER of standing work (Strings, ADR-569). Then what the making
-// settles into: the record (Files) and its residents (Agents).
+// Chat first (ADR-457's Think verb — the activation landing). Then the MAKERS
+// (ADR-457 Make: Text writes, Slides lays out, Blogger publishes, Images
+// composes). Then what the making settles into: the record (Files) and its
+// residents (Agents).
 //
 // ⚠️ THIS ARRAY MUST EQUAL THE DERIVED PINNED SET. It is a hand-kept copy of a
 // truth the backend already derives — `is_default_pinned()` over the ADR-592
@@ -94,7 +94,8 @@ export const DEFAULT_KEPT_SURFACES: string[] = [
   'images', // ADR-629 — ADR-488's unveil hold closed by operator ruling; badged beta
   // 'radar' — DELETED 2026-08-21 (ADR-592): the app is gone, not paused. A
   // persisted pin is dropped via DOCK_RETIRED_SLUGS so it renders no ghost icon.
-  'strings', // ADR-569 unveil (2026-08-14, operator decision) — the maintained file
+  // 'strings' — DELETED 2026-09-04 (ADR-639): same shape as radar. Standing
+  // work is a kernel lane whose roster is a Notifications pane, not a Dock app.
   'files',
   'agents',
 ];
@@ -248,7 +249,7 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
 // an operator whose Dock was CURATED and therefore never reseeded (the reseed
 // only fires on byte-equality with the previous default — the reason ADR-574's
 // Docs pause never took effect on a real pane).
-const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget', 'radar', 'docs']);
+const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget', 'radar', 'docs', 'strings']);
 
 function normalizeSlug(slug: string): string {
   return LEGACY_SLUG_ALIASES[slug] ?? slug;
@@ -665,13 +666,8 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // with it. The 2026-08-13 lesson it carried still stands for every surface
   // below: an unregistered slug takes the unconstrained miss-case, which reads
   // as permission (the 3f44a8f lesson).
-  // The standing-work pane (ADR-569). `topic` names the string's folder;
-  // `target` carries a designation-in-flight's leaf (the picked file before the
-  // declaration parses — a refresh must not lose it, or the unconfigured
-  // pane loses its lane binding). `file` is the delivered Files-association
-  // deep-link ("Keep this current…"), consumed into topic/target. Registered
-  // at birth — the unconstrained miss-case reads as permission (3f44a8f).
-  strings: ['topic', 'target', 'file', 'tab'],
+  // (ADR-639: the `strings` params LEFT with the app — its roster is the
+  // Notifications `pane=standing` view, addressed by that window's `pane`.)
 };
 
 // ----------------------------------------------------------------------------
@@ -757,11 +753,6 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // The app's `topic` is deliberately RESTORED (like `chat.lane` — the app
   // is a place you live in, and the folder roster sits right beside it); only
   // the delivered Files-association deep-link is an open act, not a posture.
-  // Same rule for the standing-work pane (ADR-569): `topic` + `target` restore (the
-  // designation-in-flight is a real place — losing `target` on refresh
-  // strands the unconfigured pane without its lane); the delivered `file`
-  // deep-link is an open act, not a posture.
-  strings: ['file'],
   // ADR-572 D9 — Text's document identity, missed when ADR-571 created the app.
   // `text.file` is the same shape as `docs.file` / `studio.file`: a specific
   // document you opened once, not a posture. Absent from this list it was

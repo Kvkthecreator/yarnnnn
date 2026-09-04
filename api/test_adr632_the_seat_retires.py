@@ -68,13 +68,13 @@ for dirpath, dirnames, filenames in os.walk(os.path.join(ROOT, "api")):
             hits.append(f"{os.path.relpath(p, ROOT)}: {m.group(0).strip()}")
 _check("zero imports of the retired stack in live code", not hits, "; ".join(hits[:5]))
 
-print("§3 the tick: no steward gate; strings + capture + skills unconditional")
+print("§3 the tick: no steward gate; standing work + capture + skills unconditional")
 sched = _read("api/jobs/unified_scheduler.py")
 _check("no agent_gating import", "agent_gating" not in sched)
 _check("no is_agent_enabled call", "is_agent_enabled(" not in sched)
 _check("no recurrence dispatch", "dispatch_due_invocations" not in sched and "cron_tick" not in sched)
 _check("no hook walker / queue drain / kernel mirrors", all(w not in sched for w in ("walk_hooks", "reclaim_stale_locks", "drain_all_users_with_pending", "mirror_schedule_index_for_all_users")))
-_check("strings lane runs", "drain_due_string_runs(" in sched)
+_check("standing lane runs", "drain_due_standing_work(" in sched)
 _check("capture lane runs behind its own flag", "is_capture_lane_enabled(" in sched and "drain_due_captures" in sched)
 _check("skills mirror runs", "mirror_kernel_skills_for_all_workspaces(" in sched)
 

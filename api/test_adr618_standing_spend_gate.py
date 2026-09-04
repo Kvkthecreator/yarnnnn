@@ -33,17 +33,17 @@ def check(label: str, ok, detail: str = "") -> None:
 
 
 import services.platform_limits as pl  # noqa: E402
-import services.strings as st  # noqa: E402
+import services.standing_work as st  # noqa: E402
 import services.telemetry as tel  # noqa: E402
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("§1 a string's run is bounded by the workspace pool")
+print("§1 a standing run is bounded by the workspace pool")
 # ═════════════════════════════════════════════════════════════════════════════
 
 
 def _decl():
-    return st.StringDecl(
-        topic="ops/x", slug="string:ops/x", target="x.md",
+    return st.StandingDecl(
+        topic="ops/x", slug="standing:ops/x", target="x.md", app="text",
         schedule={"type": "daily"}, sources=[{"id": "s", "url": "http://x"}],
     )
 
@@ -56,7 +56,7 @@ def _run_at_balance(balance: float):
     tel.record_execution_event = lambda *a, **k: events.append(k)
     try:
         out = asyncio.new_event_loop().run_until_complete(
-            st.run_string_sweep(object(), "u-1", _decl())
+            st.run_standing_sweep(object(), "u-1", _decl())
         )
     except Exception as exc:  # noqa: BLE001 — proceeding past the gate is the signal
         out = {"_proceeded": type(exc).__name__}
@@ -98,12 +98,12 @@ check("1d a funded pool proceeds past the gate",
 # Read off the parsed CALLS, not the source text — this module's own comments
 # name `check_draw` to explain why it is NOT used, so a substring check reads
 # the explanation as the violation. (It did: 1e failed on its own prose.)
-_SRC = (API / "services" / "strings.py").read_text()
+_SRC = (API / "services" / "standing_work.py").read_text()
 _st_tree = ast.parse(_SRC)
 _st_fn = next(
     (n for n in ast.walk(_st_tree)
      if isinstance(n, (ast.AsyncFunctionDef, ast.FunctionDef))
-     and n.name == "run_string_sweep"),
+     and n.name == "run_standing_sweep"),
     None,
 )
 _st_calls = {
@@ -131,7 +131,7 @@ _real_ree = tel.record_execution_event
 tel.record_execution_event = lambda *a, **k: _evs.append(k)
 try:
     _outE = asyncio.new_event_loop().run_until_complete(
-        st.run_string_sweep(object(), "u-1", _decl())
+        st.run_standing_sweep(object(), "u-1", _decl())
     )
 except Exception as exc:  # noqa: BLE001
     _outE = {"_proceeded": type(exc).__name__}
@@ -194,15 +194,15 @@ _real_svc = _sb.get_service_client
 _sb.get_service_client = lambda *a, **k: _SvcDouble()
 try:
     _rid = _tel.record_execution_event(
-        _RlsRefusingClient(), user_id="u-1", slug="string-sweep:probe",
+        _RlsRefusingClient(), user_id="u-1", slug="standing-sweep:probe",
         mode="mechanical", trigger_type="scheduled", status="success",
-        duration_ms=1, funnel_decision="string",
+        duration_ms=1, funnel_decision="standing",
     )
     check("1g an RLS-refusing caller still lands the ledger row",
           _rid is not None and len(_ins) == 1,
           f"rid={_rid!r} inserts={len(_ins)}")
     check("1h the row keeps its lane marker through the swap",
-          bool(_ins) and _ins[0].get("funnel_decision") == "string",
+          bool(_ins) and _ins[0].get("funnel_decision") == "standing",
           f"row={_ins[0] if _ins else None}")
 finally:
     _sb.get_service_client = _real_svc
@@ -211,12 +211,12 @@ finally:
 print("§2 the manual fire takes the same claim as the scheduled drain")
 # ═════════════════════════════════════════════════════════════════════════════
 
-_ROUTE = (API / "routes" / "strings.py").read_text()
+_ROUTE = (API / "routes" / "standing_work.py").read_text()
 _tree = ast.parse(_ROUTE)
 _fn = next(
     (n for n in ast.walk(_tree)
      if isinstance(n, (ast.AsyncFunctionDef, ast.FunctionDef))
-     and n.name == "run_string_now"),
+     and n.name == "run_standing_now"),
     None,
 )
 check("2a the manual-run route exists", _fn is not None)
@@ -230,14 +230,14 @@ if _fn is not None:
     # this route's prose, so a substring check would pass against a version
     # that only mentions the claim.
     check("2b it CLAIMS before running (no double-run/double-spend window)",
-          "claim_string_run" in _calls, f"calls={sorted(set(_calls))}")
+          "claim_run" in _calls, f"calls={sorted(set(_calls))}")
     check("2c it reads the current next_run_at to claim against",
-          "read_string_task_row" in _calls)
+          "read_standing_task_row" in _calls)
     # Ordering is the whole point: claiming after the sweep bounds nothing.
     _idx = {c: i for i, c in enumerate(_calls)}
     check("2d the claim precedes the sweep",
-          _idx.get("claim_string_run", 99) < _idx.get("run_string_sweep", -1),
-          f"claim@{_idx.get('claim_string_run')} sweep@{_idx.get('run_string_sweep')}")
+          _idx.get("claim_run", 99) < _idx.get("run_standing_sweep", -1),
+          f"claim@{_idx.get('claim_run')} sweep@{_idx.get('run_standing_sweep')}")
 
 # ⭐ A never-indexed string (declared since the last tick) has no row to claim
 # against — it must stay RUNNABLE. Reading `None` as a lost race would make a

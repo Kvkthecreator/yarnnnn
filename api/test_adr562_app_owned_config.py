@@ -55,16 +55,17 @@ print("\n── 1. one declaration per app ──")
 APPS = all_apps()
 # Re-anchored for ADR-599: `studio` renamed `slides` (the full evolve, D4);
 # `docs` DELETED with its app (D5 — was `stage: internal`); `radar` deleted
-# by ADR-592. ADR-604 D3 DELETED the `supervisor` app — Supervisor's desk is
-# strings. ADR-627 — `blogger` joins (the publish medium returns as a desk).
+# by ADR-592. ADR-604 D3 DELETED the `supervisor` app; ADR-639 DELETED the
+# `strings` app (standing work is a kernel lane, not an app). ADR-627 —
+# `blogger` joins (the publish medium returns as a pane).
 # Pinned deliberately: a new app is an ADR decision, and this line
 # is where its arrival gets noticed rather than absorbed silently.
-check("every live app is registered (slides · images · text · strings · blogger)",
-      set(APPS) == {"slides", "images", "text", "strings", "blogger"},
+check("every live app is registered (slides · images · text · blogger)",
+      set(APPS) == {"slides", "images", "text", "blogger"},
       f"registered={sorted(APPS)}")
 check("the deleted apps are NOT registered (radar — ADR-592; docs, studio — "
-      "ADR-599; supervisor — ADR-604 D3)",
-      not ({"radar", "docs", "studio", "supervisor"} & set(APPS)),
+      "ADR-599; supervisor — ADR-604 D3; strings — ADR-639)",
+      not ({"radar", "docs", "studio", "supervisor", "strings"} & set(APPS)),
       f"registered={sorted(APPS)}")
 
 # ADR-606 D3 widened the row by ONE declaration: `posture`, the app's pane
@@ -128,10 +129,10 @@ check("the kernel imports no app module (registration is one-directional)",
 _apps_init = (ROOT / "api" / "services" / "apps" / "__init__.py").read_text()
 check("the apps package registers every app at import (no router dependency)",
       "from services.apps import images" in _apps_init  # ADR-599: docs deleted
-      # ADR-606: the strings registration went multi-line (it now declares its
-      # pane posture too) — anchor on the call + the slug argument, not one
-      # spelling of their adjacency.
-      and re.search(r'_register_app\(\s*"strings"', _apps_init) is not None)
+      and "from services.apps import text" in _apps_init
+      and "from services.apps import blogger" in _apps_init
+      # ADR-639: the strings registration is DELETED — no app row for a lane.
+      and re.search(r'register_app\(\s*"strings"', _apps_init) is None)
 
 print("\n── 3. every declared resident is real ──")
 
@@ -278,8 +279,8 @@ from services.agents_registry import build_agent_posture  # noqa: E402
 # Re-anchored for ADR-599: Docs (the one renaming app) is deleted; no live
 # registration renames its resident today. The MECHANISM is exercised below
 # with a literal as_name — the overlay must still state the override.
-check("no live app renames its resident (slides/text/strings use the character's own name)",
-      not any((resolve_app(s) or {}).get("name") for s in ("slides", "text", "strings")))
+check("no live app renames its resident (slides/text/images use the character's own name)",
+      not any((resolve_app(s) or {}).get("name") for s in ("slides", "text", "images")))
 
 _docs_posture = build_agent_posture("designer", as_name="Writer")
 _studio_posture = build_agent_posture("designer", as_name="")
