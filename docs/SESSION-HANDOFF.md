@@ -4,6 +4,130 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part Q — what a skill is FOR: contract, not craft (2026-09-04)
+
+Direct sequel to Part P's Thesis A, which found the skills index had **no
+measurable effect on output quality** over three skills. That was real and
+incomplete: those three teach craft a frontier model already has. The operator
+asked whether to prune the weak skills and drop the index. Both steps run in
+full; the answer to both is **no**, and the second reversed the hypothesis the
+early evidence supported.
+
+Commits: `8c696ad` (code + capture) · `df797d2` (canon hardening).
+Capture: [`docs/analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md`](analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md).
+
+## Step 1 — which skills earn their bytes
+
+Real `run_lane_turn` against live prod, ARM A = live frame, ARM B = the same
+frame with `skills_index_section` → `""`. **One PRE-REGISTERED measure per
+skill**, taken from its own `SKILL.md` before any data existed; every other
+column printed *exploratory*.
+
+⭐⭐⭐ **A skill pays when it carries a right answer THE MODEL HAS NO PRIOR FOR
+— one of this workspace's own shapes.**
+
+| separates | null |
+|---|---|
+| `writing-a-spec` 7/7/7 sections vs 1/0/2 — **p=0.100**, the exact-permutation floor at n=3 | `reviewing-drafts` · `writing-updates` |
+| `deriving-a-design-system` 15/18/17 kernel CSS vars vs 7/0 — **p=0.100** | `comparing-options` · `summarizing-sources` |
+| `presenting-from-sources` CSV beside the deck | `keeping-a-file-current` · `declaring-standing-work` |
+
+⭐⭐⭐ **The failure is SILENT, which is why a skill can never be pruned on a
+quality score.** `design_systems.py` discovers a system BY the presence of
+`_design.yaml`; a folder without it is invisible to the platform while looking
+like a plausible folder of CSS. The skills worth keeping are precisely the ones
+whose absence a reader cannot see. **Nothing was deleted** — a null is an
+argument about the current engine, not the file, and `LANE_MODELS` makes a
+weaker one live.
+
+⚠️ **`composing-an-image` is NOT MEASURABLE unbound**, not null: it defers its
+token grammar to the pane posture, which `authoring.py` composes only for an
+artifact-bound lane. It read the skill and refused to invent a coordinate
+grammar — correct under a starved harness. **Owed: a bound-lane probe.**
+
+## Step 2 — the roster stays
+
+Three arms × four skills × three trials: full roster · a **360-byte pointer**
+("list `system/skills/` and read the one that matches", naming no skill) ·
+nothing.
+
+```
+A roster   3,312 B   reached the skill 100%   writing-a-spec 7/7 · 7/7 · 7/7
+T pointer    360 B   reached the skill  58%                  1/7 · 0/7 · 7/7
+B nothing      0 B   reached the skill  42%                  0/7 · 0/7 · 0/7
+```
+
+A vs T p=0.038; ⭐⭐⭐ **T vs B p=0.682 — the pointer is INDISTINGUISHABLE FROM
+NOTHING.** ARM T produced the contract exactly when it happened to read the
+skill. The roster buys the RELIABILITY of the read, and on a shape-carrying
+skill **the read IS the outcome**. Argue the ceilings on **reach-rate, never
+byte count** (receipt now lives on `INDEX_CEILING`).
+
+⚠️ **This inverted the early hypothesis.** An unaided arm really does find a
+skill by listing the folder — but only when the ask names the skill's own
+subject (*"make that a reusable thing"* → `creating-skills`). Generalising from
+that one case would have cut 3,000 bytes and taken contract compliance 100% →
+58%, silently.
+
+## What shipped
+
+`8c696ad` — the split + its consequence in the `services/skills/` docstring;
+the three-arm receipt on `INDEX_CEILING`; **new §"What makes a skill worth
+writing"** in `creating-skills/SKILL.md` (the actionable half, so the next
+author reads it before writing); CHANGELOG `[2026.09.04.3]`. Every composed
+index is **byte-identical** — edits touch bodies and comments, never a
+`description`.
+
+`df797d2` — canon hardened where a future session would read the stale claim:
+ADR-630 amendment banner (D6's *"unmeasured prose"* is now measured);
+**GLOSSARY's Skill row, which said "never contract" and read backwards**;
+`lane-frame.md` §7b gains the reach receipt; `agent-composition.md` §3.2.1
+flagged — CLAUDE.md sends every prompt-change session there and it predates
+skills, partitioning against a persona-frame in the deleted `api/agents/`;
+CLAUDE.md's protocol bullet names the skill as a destination.
+
+## Method findings (three arcs' worth, all the same shape)
+
+⭐⭐⭐ **A skill makes an agent do MORE — search for evidence, look for the
+referent, refuse to invent a grammar. An A/B that scores completion naively
+systematically penalises the arm that is behaving correctly.** Three of four
+harness defects did exactly this:
+- the **round cap measured itself** (`_LANE_MAX_ROUNDS=8`: the arm following
+  "evidence per criterion" ran out and scored 0 files against one that just
+  wrote — raised to 16 for the probe);
+- a **non-completion is not a zero** (two runs hunting a design system the
+  probe's own purge had deleted — *the treatment created the starvation*);
+- a skill **writes outside the run folder** (`skills/{name}/`), so its output
+  was neither captured nor purged and the control read it as an example;
+- **a shared parent folder is a shared example shelf** — an opaque name hides a
+  run from a sibling listing, not from the ROOT listing agents actually do.
+
+⭐⭐ **Distrust the confirming first trial.** Part P's 22-vs-5 citation gap
+reached p=0.500 by n=6. One pre-registered measure per arm, everything else
+labelled exploratory, is what stops that.
+
+## OWED (this Part)
+
+1. **`composing-an-image` in a BOUND Images lane** — the only kernel skill still
+   unmeasured, and the probe design that would do it is understood.
+2. **The nested-document / composite-artifact skill** the operator raised (a
+   document with a table, images, context-specific components). It is a
+   CONTRACT skill — the category with evidence — but needs a ruling first: the
+   *judgment* goes in the skill, the *tag vocabulary* stays in the posture
+   (ADR-601 D1), or it becomes a second home for a fact (the ADR-562 failure).
+3. **`agent-composition.md` §3.2.1 deserves a real re-cut** for the post-steward
+   frame; `df797d2` only flagged it. CLAUDE.md still routes every prompt-change
+   session there.
+4. Carried from Part P and still open: the reach receipt
+   (`_reach_connector_sources` catches an exception a never-raising writer
+   cannot throw) · the GitHub aperture (issues+PRs cannot observe a commit-only
+   repo) · the `ADR-411 D4` phantom citation (33 sites, 26 files → ADR-408/460)
+   · `operation/fundraising/market-sizing/` (a probe moved a REAL operator file
+   into it with a live monthly declaration — keep or unwind is the operator's
+   call) · ADR-640 D2's two derived rows, if wanted.
+
+---
+
 # Part P — the two theses tested: skills discovery, and the Agents page (2026-09-04)
 
 Follow-up audit to ADR-639. Two rulings, each with a falsifier that was
