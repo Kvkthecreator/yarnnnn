@@ -68,15 +68,45 @@ worktree (see the ledger entry for the counts). Pre-existing reds, untouched:
    — apply AFTER the API deploy is live: `scripts/db/run-migration.sh --dry-run`
    then real. Measured before writing: 1 declaration · 1 index row · 2 revisions
    · 18 ledger rows (untouched) · 7 cast rows (untouched).
-4. **Drive**: Run now on `operation/fundraising` (`POST
-   /api/standing/operation%2Ffundraising/run`, minted session) — the receipt must
-   carry `standing-write:`, `funnel_decision='standing'`, `system:standing`,
-   `derived_from=[the landed snapshot]`; the Standing work pane must list it.
-   The 04:00Z tick is the natural second drive.
+4. **DRIVEN 2026-09-04 04:26–04:28Z** (migration 252 applied 04:26Z; API deploy
+   `dep-dad4foajnfac73e74uag` live 04:25:37Z). `GET /api/standing` served the
+   roster with `app: text` DERIVED and the pre-rename `string-write` row as
+   `last_run` (the legacy prefix reads history). `POST …/run` → 200 in 47s,
+   `revision e55e09d8`, ledger `standing-sweep` (mechanical) + `standing-write`
+   (judgment, claude-sonnet-5, **$0.0829**, `funnel_decision='standing'`,
+   `principal_id=owner`); the revision is `system:standing` / `derivation` /
+   `derived_from=[inbound/github/…/2026-08-28T01:45:25Z.md]`, message *"kept
+   'application-copy-bank.md' current (standing run, 1 source)"*. The scheduler
+   cron ticks on the new code every minute (`_standing.yaml` LIKE-scan → index →
+   due scan → `[SCHED] tick complete`, no tracebacks). **Browser pass** (minted
+   link, isolated context): Notifications → Standing work renders the row
+   (target · cadence · next Sep 5 1:00 PM · 1 source · Run now · Pause · *"Ran —
+   the file was updated · Sep 4, 1:27 PM"*); the Dock shows no Strings.
+
+   **The craft, evaluated (ADR-633 §5a — noticed / refused, not "was it read").**
+   The old posture reported `no_change` on 09-03 and 09-04 04:01 against the
+   SAME landed snapshot; the new frame (skill body + contract + mandate head)
+   ADDED the one section CONTRACT.md names as the run's responsibility ("What's
+   been built"), which the file did not have at all, as 22 terse bullets with
+   11 inline citations to the repo's PRs — the contract's own shape ("briefly,
+   in the same voice, cite"). So the skill changed what the run NOTICED: the gap
+   between the contract's named section and the file. Two caveats, both honest:
+   (a) the material was **7 days stale** — the reach found the GitHub connection
+   active and the newest snapshot older than the freshness floor, yet no new
+   snapshot landed (see OWED 2); (b) some bullets restate PR-era claims that
+   canon has since retired (recurrences, `/schedule`) — the run is faithful to
+   its source, and the source is stale; that is (a) again, not the craft.
 
 ## OWED
 
-1. **Drive** (step 4 above) if this Part still says pending; then delete this line.
+1. **The GitHub reach landed no fresh snapshot** on a standing run whose
+   newest landed file (2026-08-28) is a week past the 600s freshness floor:
+   `connection_row` is active, the selector is in the aperture, `[STANDING]
+   connector reach failed` did NOT log, yet `inbound/github/kvkthecreator-
+   yarnnnn/` still ends at 08-28. Either `run_connector_capture` writes only on
+   change (then the receipt should say so) or it degrades silently. Not this
+   arc's seam (ADR-594's); drive it: force a repo change, Run now, expect a new
+   landed file. Until then every run folds a stale source.
 2. **`projection.ts` second CSV parser** — fold into `markdownEdits.parseCsv`
    with a `maxRows` option; then widen `test_adr571` 18L's sweep back to the whole
    components tree.
