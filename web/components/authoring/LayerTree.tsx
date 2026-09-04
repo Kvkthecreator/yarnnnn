@@ -33,22 +33,31 @@
  *
  * ── ORDER IS Z-DESCENDING ──────────────────────────────────────────────────
  * Top of stack first: the INVERSE of document order, and the convention every
- * compositor shares. A layer with no `data-z` sorts beneath those that have one
- * (the ADR-461 absence-default rule: a missing value degrades to natural
- * behaviour, never to zero).
+ * compositor shares. A layer with no z sorts beneath those that have one (the
+ * ADR-461 absence-default rule: a missing value degrades to natural behaviour,
+ * never to zero), and layers that SHARE a z hold document order — a tie is a
+ * legitimate authored state, not a defect to normalise.
+ *
+ * The z itself is read through `readMeasure`, the op module's one reader:
+ * `setMeasure` writes `data-z=""` as a bare presence marker with the number in
+ * `--yz`, so anything parsing the attribute reads a shape our own writer never
+ * produces.
  *
  * ── WHAT THIS COMPONENT DOES NOT OWN ───────────────────────────────────────
- * Nothing about how an object BEHAVES. Restacking writes through the existing
- * `nudgeZ`/`setGeometryMany`; selection is re-pointed by the parent, never
- * fabricated here (the canvas runtime is the only thing that can supply a
- * complete StudioSelection). This file is chrome — it decides what the member
- * is SHOWN and what it is CALLED, and nothing else (ADR-633 D1).
+ * Nothing about how an object BEHAVES. A drag hands the parent an ORDER — the
+ * artboard's ids, top of stack first — and the parent writes it as a dense z
+ * through `setGeometryMany`; this file never computes a depth (see
+ * `commitDrop`). Selection is re-pointed by the parent, never fabricated here
+ * (the canvas runtime is the only thing that can supply a complete
+ * StudioSelection). This file is chrome — it decides what the member is SHOWN
+ * and what it is CALLED, and nothing else (ADR-633 D1).
  *
  * Canonical reference: docs/adr/ADR-633-the-artboard-is-a-stack-of-layers.md
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import { readMeasure } from './artifactOps';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { readStageSize } from './stageGeometry';
 
@@ -122,10 +131,13 @@ export function readLayerTree(html: string, labelFor: (kind: string) => string):
     const blocks = Array.from(board.querySelectorAll(':scope > [data-block]'));
     const layers: LayerNode[] = blocks
       .map((el) => {
-        const rawZ = el.getAttribute('data-z');
-        const z = rawZ !== null && rawZ.trim() !== '' && Number.isFinite(Number(rawZ))
-          ? Number(rawZ)
-          : null;
+        // Through the op module's ONE reader: `setMeasure` writes `data-z=""`
+        // as a bare presence marker and puts the number in `--yz`, so parsing
+        // the attribute read a shape our own writer never produces — every
+        // layer an op had touched came back z=null and sank to the bottom of
+        // the rail. `readMeasure` prefers the var and honours a valued legacy
+        // attribute, so hand- and AI-authored markup reads the same.
+        const z = readMeasure(el, 'z', '--yz');
         const kind = el.getAttribute('data-block') ?? 'block';
         return {
           id: el.getAttribute('data-block-id') ?? '',
@@ -171,9 +183,11 @@ interface LayerTreeProps {
    *  — it never fabricates a StudioSelection (only the canvas runtime can
    *  supply kind/slide/slot/arrange). */
   onSelectLayer: (blockId: string, artboardIndex: number) => void;
-  /** Restack: move `blockId` to sit at `toZ`. One gesture, one revision,
-   *  through the geometry op the canvas already uses. */
-  onRestack: (blockId: string, toZ: number, artboardIndex: number) => void;
+  /** Restack: the artboard's layer ids in their NEW display order, top of
+   *  stack first. The rail hands over the whole ORDER, never one layer's new
+   *  depth — see `commitDrop` for why a per-layer z cannot express the move.
+   *  One gesture, one revision, through the geometry op the canvas uses. */
+  onRestack: (orderedIds: string[], artboardIndex: number) => void;
   /** Toggle a presence-token (ADR-633 D5). `null` clears it. */
   onToggleToken: (blockId: string, key: 'lock' | 'hide', value: 'on' | null) => void;
 }
@@ -225,23 +239,35 @@ export function LayerTree({
 
   /** Drop the dragged layer into display-gap `gap` on its own artboard.
    *
-   *  The rail shows z DESCENDING, so a drop at display index `g` on a stack of
-   *  N layers means "sit above the layer currently at g" — i.e. take the z of
-   *  the layer it displaces. Translating display order back to a z value is
-   *  this component's whole job at the seam; the WRITE is the shared op's. */
+   *  ⭐ THE RAIL HANDS OVER AN ORDER, NEVER A DEPTH. The first cut computed one
+   *  layer's new z arithmetically (`top - 1 - target`), which is only correct
+   *  when the stack's z values are a dense, unique `N-1 … 0` permutation.
+   *  Nothing makes them so: an agent authors z by INTENT (background 1, scrim
+   *  2, type 5), and the one production artboard carries 5 distinct values
+   *  across 10 layers with 7 of them tied. Against real bytes that arithmetic
+   *  dropped a layer in the wrong slot and inflated z toward the registry
+   *  ceiling until writes clamped and the rail stopped moving at all.
+   *
+   *  A tie is not a defect to repair — two layers CAN share a depth, and
+   *  document order breaks it (the stable sort above). But a member dragging a
+   *  row is stating a total order, and the only faithful way to record one is
+   *  to write it: renumber the artboard densely, top of stack first. Ties
+   *  collapse because the member just resolved them, not because we normalised
+   *  behind their back.
+   *
+   *  This component's whole job at the seam is turning the drop into that
+   *  ORDER; the WRITE — one revision, clamped from the served spec — is the
+   *  shared op's. */
   const commitDrop = useCallback(
     (board: ArtboardNode, gap: number) => {
       if (!drag) return;
       const from = board.layers.findIndex((l) => l.id === drag.id);
       if (from < 0 || gap === from || gap === from + 1) return; // no-op
-      const top = board.layers.length;
-      // Display index → z: the topmost row is the highest z. A stack of N
-      // renders z = N-1 … 0 top-to-bottom, so a drop at display gap `g` wants
-      // the z that position carries. Clamped into the registry's declared
-      // range (0..20) by the op, which owns the bounds.
-      const target = gap > from ? gap - 1 : gap;
-      const toZ = Math.max(0, top - 1 - target);
-      onRestack(drag.id, toZ, board.index);
+      const ids = board.layers.map((l) => l.id);
+      const [moved] = ids.splice(from, 1);
+      // Removing the dragged row shifts every later gap left by one.
+      ids.splice(gap > from ? gap - 1 : gap, 0, moved);
+      onRestack(ids, board.index);
       setDrag(null);
       setDropAt(null);
     },

@@ -1863,18 +1863,39 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       ...(sz ? { z: spec(sz) } : {}),
     };
   }, [vocabulary]);
-  // ADR-633 D4 — restack from the layer tree: an ABSOLUTE z (the drop's
-  // depth), where the block menu's Bring forward/backward nudge by ±1. Both
-  // doors write through `setMeasure` with the same served spec, so the clamp is
-  // the registry's in both — the tree never invents a bound.
+  // ADR-633 D4 — restack from the layer tree. The rail hands over the
+  // artboard's ids in their NEW order (top of stack first); this writes that
+  // order as a DENSE z per layer in ONE revision, through the same
+  // `setGeometryMany` the multi-select canvas drag uses.
+  //
+  // ⭐ A whole-artboard renumber, not a single write. Computing one layer's new
+  // z from its drop index assumes the stack is a dense unique permutation, and
+  // a real artboard is not — an agent authors z by intent, so ties and gaps are
+  // NORMAL. That arithmetic put layers in the wrong slot and walked z toward
+  // the registry ceiling until writes clamped silently. A member dragging a row
+  // states a total order; the only faithful record of one is to write it.
+  //
+  // The block menu's Bring forward/backward still NUDGE by ±1 (`nudgeZ`) — a
+  // relative act on one layer, which needs no order. Both doors clamp from the
+  // same served spec, so neither invents a bound.
   const handleRestack = useCallback(
-    (blockId: string, toZ: number) => {
-      const gz = geometrySpecs()?.z;
-      if (!gz) return; // no z in the served vocabulary — the path no-ops
+    (orderedIds: string[]) => {
+      const specs = geometrySpecs();
+      if (!specs?.z) return; // no z in the served vocabulary — the path no-ops
+      const top = orderedIds.length - 1;
       void applyOp(
-        (html) => setMeasure(html, blockId, 'z', toZ, gz),
-        `${app.label}: restack layer`,
-        blockId,
+        (html) =>
+          setGeometryMany(
+            html,
+            // Top of stack first → the highest z. Dense from the top so a deep
+            // stack cannot run past the registry's ceiling; `setGeometry`
+            // clamps again at the write and skips a byte-identical layer, so
+            // this is one revision naming only what actually moved.
+            orderedIds.map((blockId, i) => ({ blockId, geo: { z: Math.max(0, top - i) } })),
+            specs,
+          ),
+        `${app.label}: restack layers`,
+        orderedIds,
       );
     },
     [applyOp, app.label, geometrySpecs],
@@ -3339,18 +3360,39 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
    *  StudioSelection: kind/slot/arrange can only be supplied by the canvas
    *  runtime, and synthesizing a partial here would hand the toolbar a
    *  malformed selection (the rule stated at the reconciliation site above).
-   *  When nothing is selected yet, the artboard is selected instead and the
-   *  canvas re-points itself on the next projection. */
+   *
+   *  ⭐ The null branch is the ARTBOARD, never a no-op. `selection` starts null
+   *  and is reset to null on every file switch, so a `sel ? … : sel` update
+   *  swallowed the FIRST click on a freshly-opened file — the scroll and the
+   *  pane switch still fired, which read as a decorative rail. Anchoring on the
+   *  artboard is the honest minimum this site can supply on its own: it is the
+   *  frame the layer sits on, the ops resolve it, and the canvas re-points
+   *  itself at the block on the next projection. */
   const selectLayerFromTree = useCallback(
     (blockId: string, artboardIndex: number) => {
       setSelection((sel) =>
-        sel ? { ...sel, blockId } : sel,
+        sel
+          ? { ...sel, blockId }
+          : {
+              blockId,
+              blockKind: null,
+              // The SAME index-space rule `selectSlideFromNavigator` applies:
+              // a deck keys on slideIndex, everything else (images included,
+              // whose template is `image`) on pageIndex. Spelling one field
+              // unconditionally here would anchor the artboard in an index
+              // space the ops do not resolve for this template.
+              slideIndex: template === 'deck' ? artboardIndex : null,
+              pageIndex: template === 'deck' ? null : artboardIndex,
+              slot: null,
+              arrange: null,
+              text: '',
+            },
       );
       setEditingBlockId(null);
       setScrollToSlide((s) => ({ index: artboardIndex, nonce: (s?.nonce ?? 0) + 1 }));
       setActivePane('canvas');
     },
-    [],
+    [template],
   );
 
   // Drag-to-reorder a slide in the navigator (PowerPoint). One mechanical

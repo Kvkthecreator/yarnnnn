@@ -307,6 +307,127 @@ if TREE:
             f"composes the surface's shared ops through a callback",
         )
 
+    # ── D4, BEHAVIOURALLY ──────────────────────────────────────────────────
+    # ⭐ Every check above is a COMPOSITION check: it proves the rail is built
+    # from the right parts. They all passed at HEAD over an implementation that
+    # put dragged layers in the WRONG SLOT on every real artboard — because a
+    # drag was never executed, only grepped for. So the rules that decide
+    # whether reordering actually works are asserted by RUNNING them.
+    #
+    # The stack below is the one production artboard's real z distribution
+    # (`operation/untitled-image/image.html`): ten layers, five distinct z
+    # values, seven of them tied with another. An agent authors z by INTENT
+    # (background 1, scrim 2, type 5), so ties and gaps are the normal case,
+    # and drag math assuming a dense unique permutation is wrong against every
+    # file a member actually has.
+    PROD_STACK = [
+        ("bg-mascot", 1), ("scrim-grad", 2), ("top-stripe", 3), ("kicker-top", 4),
+        ("headline-main", 5), ("body-copy", 5), ("url-pill", 5),
+        ("kicker-right", 4), ("yarn-thread", 4), ("sub-right", 5),
+    ]
+
+    def displayed(stack):
+        # `readLayerTree`'s order: z-descending, STABLE, absence sorts last.
+        return sorted(
+            range(len(stack)),
+            key=lambda i: (-(stack[i][1] if stack[i][1] is not None else -1), i),
+        )
+
+    def dropped_order(stack, name, gap):
+        # `commitDrop`, ported: the rail hands the parent an ORDER, never a depth.
+        ids = [stack[i][0] for i in displayed(stack)]
+        frm = ids.index(name)
+        if gap in (frm, frm + 1):
+            return ids  # the component returns early — a no-op drag
+        moved = ids.pop(frm)
+        ids.insert(gap - 1 if gap > frm else gap, moved)
+        return ids
+
+    def shown_after(stack, ids):
+        # `handleRestack` writes a DENSE z, top of stack first; the rail then
+        # re-derives from those bytes. This round-trip is what the first cut
+        # failed: it is the only check that can see a wrong landing.
+        top = len(ids) - 1
+        written = {bid: max(0, top - i) for i, bid in enumerate(ids)}
+        after = [(n, written.get(n, z)) for n, z in stack]
+        return [after[i][0] for i in displayed(after)]
+
+    for _name, _gap in (
+        ("yarn-thread", 1), ("sub-right", 0), ("scrim-grad", 4),
+        ("headline-main", 10), ("bg-mascot", 0), ("url-pill", 7),
+    ):
+        _want = dropped_order(PROD_STACK, _name, _gap)
+        _got = shown_after(PROD_STACK, _want)
+        check(
+            _got == _want,
+            f"D4: dragging `{_name}` to slot {_gap} on the PRODUCTION stack lands a "
+            f"different order than the member dropped.\n      dropped: {_want}\n"
+            f"      shows:   {_got}",
+        )
+
+    # A dense renumber from the top can never exceed the registry ceiling. The
+    # per-layer arithmetic it replaced walked z upward on every drag until the
+    # writes clamped and the rail silently stopped moving anything at all.
+    _ceiling = STUDIO_MEASURES["z"]["max"]
+    check(
+        len(PROD_STACK) - 1 <= _ceiling,
+        f"D4: a dense renumber of {len(PROD_STACK)} layers needs z up to "
+        f"{len(PROD_STACK) - 1}, past the registry ceiling of {_ceiling}",
+    )
+
+    # The rail hands over an ORDER, never a depth. A `toZ`-shaped callback is
+    # the defect's signature: one layer's new depth cannot express a move on a
+    # stack that has ties.
+    check(
+        "orderedIds" in TREE and "toZ" not in TREE,
+        "D4: LayerTree still computes a per-layer `toZ` — a drop index cannot be "
+        "turned into one layer's z on a stack with ties or gaps; the rail hands "
+        "over the artboard's ORDER and the surface writes it densely",
+    )
+    check(
+        "setGeometryMany(" in SURFACE and "restack layers" in SURFACE,
+        "D4: `handleRestack` does not write the order through `setGeometryMany` — "
+        "a whole-artboard renumber is ONE revision through the shared op",
+    )
+
+    # ── ONE measure reader ─────────────────────────────────────────────────
+    # `setMeasure` writes `data-<key>=""` as a bare PRESENCE MARKER and puts the
+    # number in the CSS var. A consumer parsing the ATTRIBUTE therefore reads a
+    # shape our own writer never produces: it works on AI-authored markup and
+    # returns null the instant any op touches the block. That split stranded
+    # every restacked layer at the bottom of the rail.
+    OPS = (WEB / "artifactOps.ts").read_text()
+    check(
+        "export function readMeasure" in OPS,
+        "F3: no `readMeasure` in artifactOps — `setMeasure`'s inverse must exist "
+        "as ONE reader, or every consumer re-derives the marker/var split",
+    )
+    check(
+        "getAttribute('data-z')" not in TREE,
+        "F3: LayerTree parses `data-z` directly — that attribute is a PRESENCE "
+        "MARKER (`setMeasure` writes it empty); read z through `readMeasure`",
+    )
+    # Narrowly: no second PARSE of the var. `GEOMETRY_VARS` names the same
+    # strings for `returnToFlow`, which CLEARS them — a different act, and not
+    # a reader, so it is not the drift this guards.
+    check(
+        "match(/--yz" not in _strip_comments(OPS),
+        "F3: a raw `--yz` regex parse survives in artifactOps' CODE — "
+        "`readMeasure` is the one reader (it composes the served `cssVar`) and "
+        "`nudgeZ` calls it",
+    )
+
+    # ── The rail's click always lands (F2) ────────────────────────────────
+    # `selection` starts null and resets to null on every file switch, so a
+    # `sel ? … : sel` update swallowed the FIRST click on a freshly-opened file
+    # while the scroll and pane-switch still fired — which read as a decorative
+    # rail. The null branch must anchor the artboard.
+    check(
+        "sel ? { ...sel, blockId } : sel" not in SURFACE,
+        "F2: `selectLayerFromTree` still no-ops when nothing is selected — "
+        "`selection` starts null, so the first click on a layer is swallowed",
+    )
+
 # ── D5 — Turn into is withdrawn on an artboard ─────────────────────────────
 TAB = (WEB / "StudioDesignTab.tsx").read_text()
 check(

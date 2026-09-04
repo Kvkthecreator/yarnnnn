@@ -293,6 +293,15 @@ The gate fails if:
    position (ADR-544 §4.3, carried forward).
 7. **F7** — the kernel CSS loses the `.slide [data-block][data-z]` rule, or any
    shared module in D1's list acquires an app conditional.
+8. **F8** — a drag on the PRODUCTION stack (ten layers, five distinct z, seven
+   tied) lands a different order than the member dropped. Asserted by RUNNING
+   the ported drag math over those bytes and re-deriving the rail from the
+   result — a round-trip, because nothing less can see a wrong landing. The
+   rail computing a per-layer `toZ` at all is the defect's signature and fails
+   with it.
+9. **F9** — a consumer parses a measure ATTRIBUTE as a number, or a second
+   `--y<key>` parse appears beside `readMeasure`. The attribute is a presence
+   marker; the value is the var, and there is one reader.
 
 ---
 
@@ -387,6 +396,66 @@ revision followed, and no mechanism would make it (the run cited the photo it
 composed, which is content consumed — arguably the correct edge). ADR-630's
 loop is open by construction. Whether craft-applied belongs on that edge at all
 is a question for ADR-630, not this one.
+
+## 5b. Driven again — the rail's WRITE half was broken (2026-09-04)
+
+The §5a run confirmed the rail *reads* correctly and never exercised a drag.
+Audited against the same production artboard, three defects sat in the write
+half. All three are fixed; the gate now RUNS the drag rather than grepping for
+it (§5 F8/F9 below).
+
+**⭐⭐⭐ D4's restack assumed a stack shape no real artboard has.** `commitDrop`
+turned a drop index into one layer's new z arithmetically (`top - 1 - target`),
+which is correct only if the artboard's z values are a dense unique
+`N-1 … 0` permutation. The production artboard carries **5 distinct z values
+across 10 layers, 7 of them tied** — because an agent authors z by INTENT
+(background 1, scrim 2, type 5), not as a permutation. Ported and run against
+those bytes, **3 of 6 representative drags landed the layer in the wrong slot**,
+and each drag walked z upward until writes clamped at the registry's ceiling of
+20 and the rail silently stopped moving anything.
+
+The fix is not better arithmetic. **A tie is a legitimate authored state**, and
+a member dragging a row is stating a total order — so the rail now hands the
+surface the artboard's ids in their new order and `handleRestack` writes that
+order as a DENSE z through `setGeometryMany`, one revision. Ties collapse
+because the member just resolved them, not because we normalised behind their
+back. The block menu's Bring forward/backward still nudge by ±1: a relative act
+on one layer needs no order.
+
+**⭐⭐ The marker/var split had two readers, and one of them was wrong.**
+`setMeasure` writes `data-<key>=""` as a bare PRESENCE MARKER — the hook the
+kernel rule keys on — and puts the number in `--y<key>`. `readLayerTree` parsed
+the ATTRIBUTE. That works on AI-authored markup (which writes `data-z="5"`) and
+returns null **the instant any op touches the block**, so a restacked layer lost
+its z and sank to the bottom of the rail. This is what "reordering doesn't
+reflect" actually looked like. `readMeasure` is now `setMeasure`'s inverse and
+the one reader; `nudgeZ` composes it (it had a third parse of its own, defaulting
+to 0). A valued legacy attribute is honoured as a fallback so existing artifacts
+read correctly until an op rewrites them.
+
+**⭐ The rail's first click was swallowed.** `selectLayerFromTree` updated
+`sel ? {...sel, blockId} : sel`, and `selection` starts null and resets to null
+on every file switch. The scroll and the pane switch still fired, so a
+freshly-opened file's first layer click read as a decorative rail. The null
+branch now anchors the artboard, in the index space the template actually
+resolves (`pageIndex` for images, whose template is `image` — not `slideIndex`).
+
+**⭐⭐⭐ The lesson, and it is ADR-637's restated.** Every §5 falsifier passed at
+HEAD over this. They are COMPOSITION checks — they prove the rail is built from
+the right parts, and they cannot prove it WORKS. §5a compounded it: it confirmed
+the read half against a real file and recorded drag-to-restack as "unexercised",
+which is exactly where the defect was. *A gate that greps a gesture has not run
+it, and an unexercised half is where the bug is.*
+
+**Still unexercised, honestly:** `opacity`/`blend`/`lock`/`hide` remain as §5a
+left them — wired end-to-end and verified by reading the path, never clicked.
+Zero layers in production carry any of the four. Per §5a's own rule, that zero
+is not a verdict either way.
+
+**Noted, not fixed:** `readLayerTree` stamps one document-level stage size on
+every artboard row (the comment says why — refusing a second size authority).
+Unobservable at one artboard; the moment a second exists, both rows will claim
+the same dimensions. Consistent with §4's "multi-artboard is chrome-only here".
 
 ## 6. The one-line statement
 

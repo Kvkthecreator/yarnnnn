@@ -845,12 +845,38 @@ export function setGeometryMany(
   return changed ? { html: cur, landedId: landed } : null;
 }
 
+/** Read a measure off an element — THE one reader, paired with `setMeasure`
+ *  as its inverse.
+ *
+ *  ⭐ The value lives in the CSS VAR, never in the attribute. `setMeasure`
+ *  writes `data-<key>=""` as a bare PRESENCE MARKER and puts the number in
+ *  `--y<key>`; the attribute is the selector hook the kernel rule keys on
+ *  (`.slide [data-block][data-x][data-y]`), not a value. Anything that parses
+ *  `data-z="3"` as a number is reading a shape our own writer never produces:
+ *  it works on hand- or AI-authored markup and returns null the instant any op
+ *  touches the block. That split is exactly what stranded the layer rail, so
+ *  there is one reader and both doors call it.
+ *
+ *  Returns null when the measure is absent — the ADR-461 absence-default, which
+ *  every consumer resolves for itself (document order for z, in-flow for x/y).
+ *  A valued legacy attribute is honoured as a fallback so pre-existing
+ *  artifacts read correctly until an op rewrites them into marker form. */
+export function readMeasure(el: Element, key: string, cssVar: string): number | null {
+  const m = (el.getAttribute('style') || '').match(
+    new RegExp(`${cssVar.replace(/[-]/g, '\\$&')}:\\s*(-?\\d+(?:\\.\\d+)?)`),
+  );
+  if (m) return Number(m[1]);
+  const raw = el.getAttribute(`data-${key}`);
+  if (raw !== null && raw.trim() !== '' && Number.isFinite(Number(raw))) return Number(raw);
+  return null;
+}
+
 /** ADR-471 D-d — nudge a POSITIONED block's stacking order by ±1. Reads the
- *  current `--yz` off the element's own style (absence = 0, the document-order
- *  default), clamps from the SERVED spec, and writes through setMeasure (one
- *  revision, marker + value). Returns null for a non-positioned block — z
- *  orders positioned blocks; on a static block the kernel rule is inert and a
- *  write would be a lie the menu should not offer (the gate is target.positioned,
+ *  current z through `readMeasure` (absence = 0, the document-order default),
+ *  clamps from the SERVED spec, and writes through setMeasure (one revision,
+ *  marker + value). Returns null for a non-positioned block — z orders
+ *  positioned blocks; on a static block the kernel rule is inert and a write
+ *  would be a lie the menu should not offer (the gate is target.positioned,
  *  this is the op-side backstop). */
 export function nudgeZ(
   html: string,
@@ -861,9 +887,7 @@ export function nudgeZ(
   const doc = parse(html);
   const el = doc.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
   if (!el || !el.hasAttribute('data-x') || !el.hasAttribute('data-y')) return null;
-  const m = (el.getAttribute('style') || '').match(/--yz:\s*(-?\d+)/);
-  const current = m ? parseInt(m[1], 10) : 0;
-  return setMeasure(html, blockId, 'z', current + delta, spec);
+  return setMeasure(html, blockId, 'z', (readMeasure(el, 'z', spec.cssVar) ?? 0) + delta, spec);
 }
 
 /** ADR-466 D2 — bounded position: place a deck block at a point in its frame.
