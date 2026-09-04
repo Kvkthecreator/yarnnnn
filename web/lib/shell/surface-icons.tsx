@@ -157,3 +157,72 @@ export function resolveSurfaceIcon(iconKey: string): SurfaceIcon {
   // explicitly so launcher, dock, and page header all render the same face.
   return ICON_REGISTRY[iconKey] ?? Box;
 }
+
+/**
+ * The surface ACCENT — a glyph hue per surface, ADR-641.
+ *
+ * WHY THIS IS A SECOND MAP, NOT A FIELD ON ICON_REGISTRY
+ * `ICON_REGISTRY` is keyed by `icon_key`, and an icon_key is SHARED: `bell`
+ * dresses both Notifications and the alerts row, `message-circle` both Chat
+ * and the chat-drawer. A hue keyed on the glyph would paint every sharer the
+ * same, which is the opposite of "tell the apps apart". The accent is keyed
+ * on the SURFACE SLUG — the thing that actually has an identity.
+ *
+ * The pattern is `studioShapes.ts` (ADR-459), already ratified: a record of
+ * Tailwind color classes with a NEUTRAL fallback, so a surface with no row
+ * renders exactly as it does today rather than wrong. The kernel names the
+ * slot; the FE fills the value (ADR-222) — the same split the glyph itself
+ * follows, which is why the hue lives here and not in `kernel_surfaces.py`.
+ *
+ * ⚠️ ACCENT IS IDENTITY, NEVER STATE. The Dock says foregrounded with
+ * `bg-foreground text-background` and kept-not-open with `/50` opacity
+ * (TopBarSurface). A surface's hue must yield to those — see the call site,
+ * which drops the accent whenever the state treatment is carrying meaning.
+ * Two things speaking colour at once is the ADR-258 fault (a coloured bubble
+ * that also had to say approved/rejected) arriving in the Dock.
+ *
+ * ⚠️ Semantic hues are RESERVED. `--destructive` (the notification badge) and
+ * the amber attention rows mean *something is wrong / wants you*. No surface
+ * takes red or amber, or a quiet app starts reading as an alarm.
+ */
+const SURFACE_ACCENTS: Record<string, string> = {
+  // The four authoring apps. These are the rows the member actually needs to
+  // tell apart at a glance, and they inherit the hues their own artifacts
+  // already wear in Studio (`studioShapes.ts`) — a deck is amber in the
+  // artifact grid, so Slides is amber in the Dock. One object, one colour,
+  // which is the ADR-602 D4 lesson (Slides wore Palette in one place and
+  // Presentation in another) applied to hue instead of glyph.
+  // Slides is ORANGE, not the amber its artifacts wear in the Studio grid
+  // (`studioShapes.ts` deck → amber-500). The Dock sits inches from the
+  // AttentionCenter, whose alert rows are amber; an app permanently wearing
+  // the attention hue would read as "Slides needs you" forever. Orange is the
+  // nearest neighbour that keeps the deck legible against Images' rose and
+  // reads as identity rather than alarm. The two need not match exactly —
+  // `studioShapes` colours an ARTIFACT in a grid of artifacts, this colours an
+  // APP in a row of apps, and only the second one lives beside the alerts.
+  slides: 'text-orange-500',
+  images: 'text-rose-500',
+  text: 'text-sky-500',
+  blogger: 'text-emerald-500',
+  // Chat is where the member speaks — violet ties it to the agent accent the
+  // attribution dots already use (`authorAccent`, agent → violet-400).
+  chat: 'text-violet-500',
+  agents: 'text-violet-500',
+  // The record. Files is the substrate itself; teal reads as the member's own
+  // material (`authorAccent` member → teal-400).
+  files: 'text-teal-500',
+  connectors: 'text-cyan-500',
+};
+
+/**
+ * The Tailwind text-color class for a surface's glyph, or the neutral tone
+ * when nothing declares one. Keyed by SLUG (see the note above).
+ *
+ * An undeclared surface degrades to exactly today's rendering, so adding a
+ * surface never requires touching this table — a missing row is quiet, not
+ * wrong.
+ */
+export function resolveSurfaceAccent(slug: string | null | undefined): string {
+  if (!slug) return 'text-muted-foreground';
+  return SURFACE_ACCENTS[slug] ?? 'text-muted-foreground';
+}

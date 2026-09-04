@@ -64,7 +64,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { LayoutGrid } from 'lucide-react';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { isKernelSurfaceSlug } from '@/types/surface';
@@ -200,6 +200,7 @@ export function TopBarSurface() {
   // both kept and open-only segments).
   const renderDockIcon = (surface: Surface) => {
     const Icon = resolveSurfaceIcon(surface.icon_key);
+    const accent = resolveSurfaceAccent(surface.slug);
     const isForegrounded = foregrounded === surface.slug;
     const surfaceIsOpen = isOpen(surface.slug);
     const surfaceIsKept = isKept(surface.slug);
@@ -271,7 +272,22 @@ export function TopBarSurface() {
                 'text-muted-foreground/50 hover:bg-muted hover:text-foreground'
           )}
         >
-          <Icon className="h-4 w-4" />
+          <Icon
+            className={cn(
+              'h-4 w-4',
+              // ADR-641 — the accent says WHICH app; the button's own fill says
+              // WHAT STATE. Only one of them may speak at a time.
+              //   foregrounded    → the solid `bg-foreground text-background`
+              //                     slab IS the signal; a hue inside it would
+              //                     fight the inversion and read as a glitch.
+              //   kept + not-open → deliberately dimmed to `/50`; an accent at
+              //                     full chroma would make a closed app the
+              //                     loudest thing in the Dock.
+              // Open-and-backgrounded is the one cell with no state claim on
+              // the colour, so that is where identity gets it.
+              !isForegrounded && surfaceIsOpen && accent,
+            )}
+          />
         </button>
         {/* Open/foreground state is carried by the icon button's own fill
             (foregrounded → solid; kept-not-open → muted) — the prior tiny

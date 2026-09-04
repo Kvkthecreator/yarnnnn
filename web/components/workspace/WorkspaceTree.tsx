@@ -39,12 +39,15 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes } from 'lucide-react';
+// ADR-641: Folder · Bot · ListChecks · Settings · Upload · Boxes are gone with
+// the path-string glyph ladder in `folderIcon` — every glyph now resolves
+// through the root registry (`resolveRootIcon`), which owns its own imports.
+import { ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
 import { TILE_DRAG_MIME } from '@/components/workspace/FileTile';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
-import { resolveRootIcon } from '@/lib/workspace/root-icons';
+import { resolveRootIcon, resolveRootAccent } from '@/lib/workspace/root-icons';
 
 interface WorkspaceTreeProps {
   /**
@@ -418,28 +421,30 @@ function nodeContainsPath(node: WorkspaceTreeNode, targetPath: string): boolean 
  * rows.)
  */
 function folderIcon(node: WorkspaceTreeNode) {
-  const path = node.path.toLowerCase();
-
-  // ADR-422 D3: a ROOT node carries the kernel-named glyph (WORKSPACE_ROOTS
-  // in workspace_paths.py) — prefer it over the path-string guesses below, so
-  // constitution/governance/contract/inbound get their real glyph (before,
-  // they all fell to the generic folder). An unmapped root → generic folder
-  // (forward-compat with re-founding roots, ADR-388 §6).
-  if (node.icon_name) {
-    const RootIcon = resolveRootIcon(node.icon_name);
-    return <RootIcon className="w-3.5 h-3.5 text-muted-foreground" />;
-  }
-  // Virtual /explorer/* group nodes (no backend root behind them).
-  if (path === '/explorer/settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
-  if (path === '/explorer/context') return <Boxes className="w-3.5 h-3.5 text-sky-600" />;
-  if (path === '/explorer/outputs') return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
-  if (path === '/explorer/uploads' || path === '/workspace/uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
-  if (path === '/workspace/persona') return <Bot className="w-3.5 h-3.5 text-rose-500" />;
-  if (path === '/workspace/system') return <Settings className="w-3.5 h-3.5 text-zinc-500" />;
-  if (path === '/workspace/agents') return <Bot className="w-3.5 h-3.5 text-purple-500" />;
-  // Substrate folder children (ADR-320 topology).
-  if (path.includes('/agents/')) return <Bot className="w-3.5 h-3.5 text-purple-500" />;
-  if (path.includes('/operation/reports/')) return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
-  if (path.startsWith('/workspace/operation/')) return <Folder className="w-3.5 h-3.5 text-blue-500" />;
-  return <Folder className="w-3.5 h-3.5 text-muted-foreground" />;
+  // ADR-422 D3: every node the Files page builds carries the kernel-named
+  // glyph (`WORKSPACE_ROOTS[*].icon` in workspace_paths.py) — the roots, the
+  // merged Downloads node, the System-files disclosure, and the loose machine
+  // files. ADR-641 gives that glyph its accent from the same declaration.
+  //
+  // 2026-09-04 (ADR-641) — the path-string LADDER beneath this branch is
+  // DELETED. It guessed a glyph + hue off `/explorer/settings`,
+  // `/explorer/context`, `/explorer/outputs`, `/workspace/persona`,
+  // `/workspace/agents` and three more. Every arm was UNREACHABLE: this pane
+  // renders `treeNodes`, and all four nodes the Files page builds
+  // (`rootToNode`, the merged Downloads, the System-files disclosure, the
+  // loose machine files) set `icon_name`, so the branch above always won.
+  // (Two `/explorer/*` node paths DO survive — `/explorer/downloads` and
+  // `/explorer/system-files` — but both declare an icon, which is why they
+  // never reached the ladder either. The pane's other node sources,
+  // `virtualRoot` and `syntheticNodeForPath`, feed the CONTENT pane and the
+  // properties modal, never a tree row.)
+  //
+  // It was also the inversion ADR-641 records: the DEAD fallback carried the
+  // only hues in the spine while the LIVE registry rendered grey. An unmapped
+  // icon still degrades to the generic folder at a neutral tone
+  // (forward-compat, ADR-388 §6).
+  const RootIcon = resolveRootIcon(node.icon_name);
+  return (
+    <RootIcon className={cn('w-3.5 h-3.5', resolveRootAccent(node.icon_name))} />
+  );
 }

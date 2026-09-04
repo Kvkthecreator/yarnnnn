@@ -37,6 +37,10 @@
  * has ONE look everywhere and a re-icon moves every rendering at once. The
  * drift this prevents is on the record: ADR-602 D4 repaired a Slides that wore
  * Palette on its landing and Presentation in the launcher.
+ *
+ * Its ACCENT is not here either, for the same reason: `resolveSurfaceAccent`
+ * (ADR-641) sits beside the glyph resolver, keyed on the SLUG. A hue in this
+ * table would be the second home the note above exists to prevent.
  */
 
 /** How the member's object is shaped — ADR-633 D2. */

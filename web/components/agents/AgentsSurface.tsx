@@ -48,8 +48,9 @@ import { ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
 import { AgentIcon } from './AgentIcon';
+import { cn } from '@/lib/utils';
 
 // Provenance, rendered from the field. A member-authored agent simply lacks
 // the mark — there is no "yours" badge, because the member already knows.
@@ -73,7 +74,10 @@ function AppChip({ app }: { app: { slug: string; title: string; icon_key: string
   const Icon = app.icon_key ? resolveSurfaceIcon(app.icon_key) : null;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[11px] font-medium text-foreground/80">
-      {Icon ? <Icon className="h-3.5 w-3.5 text-muted-foreground" /> : null}
+      {/* ADR-641 — the chip carries the APP's own accent, the same hue that
+          app wears in the Dock and Launcher. On a row whose glyph says
+          "agent" (violet), the chips are what say WHICH apps. */}
+      {Icon ? <Icon className={cn('h-3.5 w-3.5', resolveSurfaceAccent(app.slug))} /> : null}
       {app.title}
     </span>
   );

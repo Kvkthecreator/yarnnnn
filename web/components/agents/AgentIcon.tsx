@@ -31,7 +31,26 @@ export const BEING_ICONS: Record<string, React.ElementType> = {
   feather: Feather,                // published prose — Blogger's pane (ADR-627)
 };
 
+/**
+ * The AGENT accent — ADR-641.
+ *
+ * ONE hue for the class, not one per agent. `authorAccent` (attribution.ts)
+ * already resolves an agent-authored revision to `violet-400`, so a member who
+ * sees a violet dot beside a file in Files meets the same violet on the agent's
+ * own row. Reusing it costs nothing and closes the drift; inventing a second
+ * agent palette here would make the roster and the attribution dots disagree
+ * about what an agent looks like.
+ *
+ * NOT keyed per-agent, and not keyed on the agent's APP. Since ADR-601 D1 an
+ * agent may serve several apps (Editor → Slides + Text), so an app-derived hue
+ * has no single answer for exactly the many-to-one case that ADR made free —
+ * it would have to pick one app and silently misname the others. The APP chips
+ * on the same row already carry the per-app hues (`resolveSurfaceAccent`);
+ * the glyph says "an agent", the chips say "these apps".
+ */
+const AGENT_ACCENT = 'text-violet-500';
+
 export function AgentIcon({ icon, className }: { icon: string; className?: string }) {
   const Glyph = BEING_ICONS[icon] ?? Bot;
-  return <Glyph className={cn('h-4 w-4 text-muted-foreground', className)} />;
+  return <Glyph className={cn('h-4 w-4', AGENT_ACCENT, className)} />;
 }

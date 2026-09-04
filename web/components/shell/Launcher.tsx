@@ -50,10 +50,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
-import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
 import { Z_LAUNCHER_OVERLAY } from '@/lib/shell/z-tiers';
 import { isKernelSurfaceSlug } from '@/types/surface';
 import { parseFileReference, toWorkspacePath } from '@/lib/interop/fileHandle';
+import { cn } from '@/lib/utils';
 
 interface LauncherProps {
   open: boolean;
@@ -357,6 +358,7 @@ export function Launcher({
               <div className="py-2">
                 {filtered.map((surface) => {
                   const Icon = resolveSurfaceIcon(surface.icon_key);
+                  const accent = resolveSurfaceAccent(surface.slug);
                   return (
                     <button
                       key={surface.slug}
@@ -364,8 +366,12 @@ export function Launcher({
                       onClick={() => navigate(surface)}
                       className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted/60"
                     >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <Icon className="h-4 w-4" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+                        {/* ADR-641 — the accent is the app's identity. The
+                            container keeps its neutral ground; only the glyph
+                            takes hue, so a row with no accent renders exactly
+                            as before. */}
+                        <Icon className={cn('h-4 w-4', accent)} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium">
@@ -409,6 +415,7 @@ export function Launcher({
                 </div>
                 {group.surfaces.map((surface) => {
                   const Icon = resolveSurfaceIcon(surface.icon_key);
+                  const accent = resolveSurfaceAccent(surface.slug);
                   return (
                     <button
                       key={surface.slug}
@@ -416,8 +423,12 @@ export function Launcher({
                       onClick={() => navigate(surface)}
                       className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted/60"
                     >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <Icon className="h-4 w-4" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+                        {/* ADR-641 — the accent is the app's identity. The
+                            container keeps its neutral ground; only the glyph
+                            takes hue, so a row with no accent renders exactly
+                            as before. */}
+                        <Icon className={cn('h-4 w-4', accent)} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium">
