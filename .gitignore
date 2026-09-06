@@ -110,3 +110,9 @@ api/.venv-mcp/
 # Local, uncommitted credential material (Phase 1 security purge, 2026-08-01)
 docs/database/ACCESS.local.md
 .secrets.local
+
+# Machine-local Claude Code settings
+.claude/settings.local.json
+
+# Staging area for files awaiting manual deletion
+_to_delete/

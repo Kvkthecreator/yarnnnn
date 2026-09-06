@@ -15,7 +15,7 @@ Claude in Chrome (visual browser automation). No APIs, no developer accounts. Re
 
 | Platform | Status | Method |
 |----------|--------|--------|
-| Twitter/X (@KVKitsme) | Signed in (Premium) | Claude navigates, types, posts (with Kevin's confirmation). Threads + Articles available. |
+| Twitter/X (@yarnnn___) | Signed in (Premium) | Claude navigates, types, posts (with Kevin's confirmation). Threads + Articles available. |
 | LinkedIn (yarnnn company page) | Signed in | Claude posts as company page via `linkedin.com/company/99368741/admin/dashboard/` |
 | Medium | Signed in | Import from blog URL preferred; manual compose also works |
 | Reddit | **Kevin posts manually** | Claude in Chrome blocked on Reddit. Claude drafts, Kevin pastes. |
@@ -124,6 +124,15 @@ For each platform:
 - **X/Twitter**: Navigate to `x.com/compose/post` → type tweet → verify character count (circle must be blue, not red) → click Post. For threads, use the "+" button to add tweets.
 - **X Articles**: Click "Articles" in X sidebar → "Write" button → type title → click "Start writing" body area → paste body via HTML ClipboardEvent in 2 chunks (Draft.js editor). `execCommand('insertText')` works for plain text but `\n\n` breaks paragraph separation and URLs auto-link/duplicate. Use HTML paste instead. Include "Originally published at yarnnn.com/blog/[slug]" at bottom. Save as draft; Kevin publishes.
 - **Medium**: Navigate to `medium.com/new-story` → type title → press Enter → click body area → paste body via HTML ClipboardEvent on the body `<p>` element (class `graf--p`). Paste in 2 chunks (first half, then cursor-to-end + second half). Saves as draft automatically. Kevin sets canonical URL on publish.
+- **Medium editor — two traps.** `shift+End` extends the selection to the END OF THE DOCUMENT, not
+  the end of the line; it destroyed a draft tail twice (recoverable with one `cmd+z`). Never use it.
+  To delete a block: click into it, press `End`, verify the caret with `getSelection()`
+  (`isCollapsed`, `anchorOffset === textContent.length`), then press `Backspace` exactly
+  `textContent.length` times. That removes the emptied block AND eats the last character of the
+  paragraph above — re-type it (always the closing period) and re-verify the tail.
+- **Medium import cleanup.** Importing from a blog URL brings in three things to remove every time:
+  the ` | yarnnn` suffix on the title, the yarnnn.com logo image, and one stray caption paragraph
+  per React embed (the caption text the embed flattens into).
 
 **Timing:** Blog commit first (push to deploy). LinkedIn + X tweet same session. X Article 3-7 days later. Medium within 1 week. Reddit when natural opportunity arises.
 
@@ -170,7 +179,11 @@ Each tweet must work in isolation. End with a question, not a CTA.
 
 **Cross-posting with threads**: For high-priority posts, publish BOTH a thread (day of blog publish, for engagement/reach) AND an X Article (3-7 days later, for depth/indexing/permanence). The thread hooks attention; the article captures readers who want the full argument without leaving X.
 
-**File location**: `posts/x-articles/` (create as needed, matching blog post slugs).
+**No stored file.** The X Article body is generated from `posts/<slug>.md` at paste time — it is
+97-99% the same text, so a stored copy is a second source of truth that silently drifts the first
+time the blog post is edited. Generate it: strip `<!-- embed:... -->` sentinels, rewrite any
+sentence that refers to a rendered card ("the card above", "the stepper"), flatten markdown tables
+to bulleted lists (they do not survive the paste), append the "Originally published at" line.
 
 ---
 
