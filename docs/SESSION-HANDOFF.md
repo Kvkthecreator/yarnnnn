@@ -170,9 +170,57 @@ that silently eats keystrokes.
 ask the decider, which composes that law **with** the grant — strictly more.
 `test_adr400`'s fixture, above. All re-pointed, none satisfied.
 
+## ✅ CLICK-PASSED live (2026-09-07, Render `dep-daf9ns942hec73d174pg`)
+
+```
+GET /workspace/file  system/skills/writing-a-spec/SKILL.md
+    → access {may_write:false, may_organize:false, may_edit_as_prose:false,
+              code:"system_managed", reason:"“SKILL.md” is used by the system…"}  ✅
+GET /workspace/tree  root=/workspace/governance
+    → both rows carry access; may_write TRUE (owner), may_organize FALSE
+      (machine leaf), may_edit_as_prose FALSE (not prose) — three DIFFERENT
+      answers on one row, which is the point ✅
+/text  system/skills/…/SKILL.md   canvas contenteditable="false", banner shows
+                                  the SERVER's sentence ✅ (screenshotted)
+/text  operation/engineering/ownership.md   editable, no banner ✅
+```
+
+⚠️ **`constitution/MANDATE.md` stays editable for the OWNER — correct, not a
+miss.** ADR-320 says constitution is the operator's own intent. The bug was
+never "the owner can edit it"; it was that Text could not tell the owner from
+anyone else.
+
+## ⚠️ ONE REGRESSION FOUND BY THE CLICK-PASS, FIXED, AWAITING ITS BUILD
+
+Right-click `governance/_autonomy.yaml` → Rename opened the RENAME MODAL where
+it used to explain the carve. The decision rode the row correctly (verified in
+the live React tree: both children carry `code:"machine_config"`) and was
+dropped one layer later — every organize verb REBUILDS its target at the
+menu/hook boundary, and a rebuilt object carries only the keys it was written
+with. The guard saw `access: undefined` → "unknown → offer the act".
+
+⭐⭐⭐ **A permission fact that is OPTIONAL BY DESIGN cannot be type-checked into
+place.** It must be optional (an undecorated row has to degrade to asking), so
+`tsc` is blind to a surface that forgets it and the server still refuses, so
+nothing errors. Only driving the gesture shows it. The FE has no equivalent of
+the backend's discovery ratchet.
+
+Fixed in `3774a5b`: `FileMenuTarget` — the ONE shape every file surface builds
+— gains the field; Files' four rebuild sites go through one `withAccess`
+helper; TextEditor + Studio's three artifact verbs pass the loaded decision.
+Studio's recents feed deliberately passes none (a revision list, not a tree
+row) with the reason in a comment.
+
+**VERIFY THIS FIRST NEXT SESSION**: the deployed bundle at the time of writing
+did NOT yet contain the `access:` spread (checked by scanning the loaded
+chunks), so the fix is untested on prod, not disproven. Re-run: right-click
+`governance/_autonomy.yaml` → Rename, expect *"It's a settings file the system
+needs in this exact place."*
+
 ## NEXT
 
-1. Click-pass on prod once `dep-daf9ns942hec73d174pg` is live: `/text` on
+1. The above.
+2. Old item, now stale — was: click-pass once `dep-daf9ns942hec73d174pg` is live: `/text` on
    `constitution/MANDATE.md` (banner + no caret), `/files` on `governance/`
    (menu still offers, dialog still explains), and a `system/skills/**`
    SKILL.md (must NOT route to Text at all).
