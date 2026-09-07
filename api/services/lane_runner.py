@@ -14,7 +14,7 @@ This module owns:
   mechanically from the registry's Anthropic-format definitions to the
   OpenAI format LiteLLM translates per provider. Executed through
   ``execute_primitive`` under the member's auth with the member-embodiment
-  attribution (``member:{user_id} via {model}`` — ADR-411 D4), so grants,
+  attribution (``member:{user_id} via {model}`` — ADR-408 D2 · ADR-460), so grants,
   gates, revision attribution, and the timeline apply for free.
 - The conventions projection (ADR-411 D6): an AGENTS.md-shaped system
   prompt composed at turn time from kernel constants + the workspace's
@@ -718,7 +718,7 @@ def lane_tools_openai(turn_reach: bool = False,
 
 
 # ---------------------------------------------------------------------------
-# Attribution (ADR-411 D4)
+# Attribution (ADR-408 D2 · ADR-460)
 # ---------------------------------------------------------------------------
 
 def lane_caller_identity(user_id: str, model: str) -> str:

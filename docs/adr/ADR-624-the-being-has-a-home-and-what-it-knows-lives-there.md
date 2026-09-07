@@ -170,7 +170,7 @@ agent home rather than admitted to all of them.
 **⚠️ Honestly recorded: today this rule binds almost nothing, and that is not a
 reason to skip it.** A lane's `caller_identity` is `member:{user_id} via
 {model}` (`lane_caller_identity`), which `_caller_class` maps to **`operator`**
-— a lane writes under the MEMBER's grant, per ADR-411 D4, not under a being's.
+— a lane writes under the MEMBER's grant, per ADR-408 D2 · ADR-460, not under a being's.
 So no live caller is `agent`-class-with-a-slug today. The guard is built now,
 before the writer, for the ADR-601 D3 reason its sibling `assert_editable` was:
 a protection written alongside the feature it constrains is one that feature's

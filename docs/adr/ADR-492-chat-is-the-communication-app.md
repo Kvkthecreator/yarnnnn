@@ -136,7 +136,7 @@ Invariants that cross the seam unchanged:
   three humans and four Agents exactly as in a solo lane. What varies is who *selects* the
   responder, never whether something speaks unaddressed.
 - **Attribution verbatim**: human turns as the member; engine turns as `member:{id} via {model}`
-  (ADR-411 D4); Agents are named hands, not principals (ADR-460 — the registry row has no field
+  (ADR-408 D2 · ADR-460); Agents are named hands, not principals (ADR-460 — the registry row has no field
   for consequential authority).
 - **No merge/CRDT** anxiety: rooms are append-only conversations; the Studio 409 problem does
   not exist here (three-axes §8 note, preserved).

@@ -69,7 +69,7 @@ def test_member_null_scopes_gets_agent_ceiling(stub_axes):
 
 
 def test_member_lane_caller_gets_agent_ceiling(stub_axes):
-    """ADR-411 D4 lane writes run under the member's grant → same ceiling."""
+    """ADR-408 D2 · ADR-460 lane writes run under the member's grant → same ceiling."""
     stub_axes["axes"] = {"read": None, "write": None, "role": "member"}
     auth = _auth("member:00000000-0000-0000-0000-000000000001 via anthropic/claude")
     assert wsp._is_path_locked_for_principal(auth, "/workspace/governance/_budget.yaml")

@@ -6,7 +6,7 @@
 
 **Status**: Superseded — was: Spec, ready to build. Implements the **ratified direction** of [ADR-457](../adr/ADR-457-think-and-make-the-service-model.md) **D3** (the verb) onto **D4** (the think-home convention). Sequenced as step 2 by [ADR-460](../adr/ADR-460-agents-one-concept-independent-facts-one-gate.md) §8 — after W0, before the Agent registry.
 **Date**: 2026-07-16
-**Relates to**: ADR-457 D3/D4/D8 · ADR-450 (DERIVE_RECIPES — the precedent this reuses and the seam it does **not** cross) · ADR-448 (`derived_from` — the reference edge) · ADR-423 (`revision_kind='derivation'`) · ADR-401 (the derive organ that never fired) · ADR-325 (embed as a gated primitive) · ADR-411 D4 (`member:` attribution) · ADR-307 (the one gate) · DP32 (retain + attribute + cite).
+**Relates to**: ADR-457 D3/D4/D8 · ADR-450 (DERIVE_RECIPES — the precedent this reuses and the seam it does **not** cross) · ADR-448 (`derived_from` — the reference edge) · ADR-423 (`revision_kind='derivation'`) · ADR-401 (the derive organ that never fired) · ADR-325 (embed as a gated primitive) · ADR-408 D2 · ADR-460 (`member:` attribution) · ADR-307 (the one gate) · DP32 (retain + attribute + cite).
 
 ---
 

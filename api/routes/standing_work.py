@@ -73,6 +73,12 @@ def _validate_topic(topic: str) -> str:
 class StandingSource(BaseModel):
     """One declared source — an HTTP pull (`url`) or a connector slice
     (`connector` + `selector`, ADR-582 D6 / ADR-594 D4). Both shapes served."""
+    #: What a connector slice actually CAPTURES — the binding's own `reads`
+    #: statement (services.connectors), surfaced at the declaration door so a
+    #: member can see that GitHub reads issue + pull-request activity, not a
+    #: commit log, BEFORE a run reports "no landed snapshot" (Part P owed 2).
+    #: Derived from the machinery that enacts it; never a parallel copy.
+    reads: Optional[str] = None
 
     id: str
     url: Optional[str] = None
@@ -252,6 +258,17 @@ def _last_runs(client, user_id: str, topics: list[str]) -> dict[str, LastRun]:
     return out
 
 
+def _connector_reads(platform: Optional[str]) -> Optional[str]:
+    """The capture binding's own statement of what it reads, for a connector
+    source — or None for an HTTP source / an unbound platform."""
+    if not platform:
+        return None
+    from services.connectors import CONNECTOR_CAPTURE_BINDINGS
+
+    binding = CONNECTOR_CAPTURE_BINDINGS.get(str(platform).strip().lower())
+    return (binding or {}).get("reads")
+
+
 def _summarize(client, user_id: str, decl, index_row: Optional[dict],
                last_run: Optional[LastRun]) -> StandingSummary:
     from services.standing_work import _read_file
@@ -274,6 +291,7 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict],
                 url=(str(s["url"]) if s.get("url") else None),
                 connector=(str(s["connector"]) if s.get("connector") else None),
                 selector=(str(s["selector"]) if s.get("selector") else None),
+                reads=_connector_reads(s.get("connector")),
             )
             for s in decl.sources
             if isinstance(s, dict) and s.get("id")

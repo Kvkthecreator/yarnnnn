@@ -30,7 +30,7 @@ LIVE_MALFORMED = [
     "probe via Claude Sonnet",
 ]
 
-# One representative of every live taxonomy class (ADR-209 + ADR-411 D4).
+# One representative of every live taxonomy class (ADR-209 + ADR-408 D2 · ADR-460).
 LIVE_VALID = [
     "operator",
     "operator-proxy:eval-suite",

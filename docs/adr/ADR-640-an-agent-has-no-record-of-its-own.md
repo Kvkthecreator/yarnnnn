@@ -59,7 +59,7 @@ launders history into a current claim.
 ### 2a. A citation-hygiene note found while writing this
 
 The `member:{id} via {model}` rule is cited **33 times across 26 files in the
-repo as "ADR-411 D4"** — `lane_runner.py:17` and `:721`,
+repo as "ADR-408 D2 · ADR-460"** — `lane_runner.py:17` and `:721`,
 `agents_registry.py:14`, `platform_credentials.py:56`, `authored_substrate.py`,
 `primitives/workspace.py`, four gates, and a dozen canon documents including
 ADR-460, ADR-501, ADR-566 and the ADR-LEDGER. **ADR-411 has no numbered
@@ -114,9 +114,11 @@ who was in it — a fact about the conversation, not a dossier on the agent.
 
 ## D2 — The two relations that ARE derivable stay derivable, and stay read-only
 
-The audit found two facts the page could honestly gain. Neither is built here;
-both are recorded as permitted, so a later commit does not have to re-litigate
-the cliff:
+The audit found two facts the page could honestly gain. **Both BUILT 2026-09-07**
+(`craft_for_agent` in `services/skills`, `_tending_by_agent` in `routes/lanes.py`,
+served on the agents payload as `craft` + `tending`; two read-only rows on the
+agent's page, each entry a Files door; gate §4). Recorded first as permitted, so the
+build did not have to re-litigate the cliff:
 
 - **the craft** — the skills whose `metadata.apps` intersect this agent's apps
   (or that declare none). Computed live: Designer 4 · Editor 10 · Blogger 7.

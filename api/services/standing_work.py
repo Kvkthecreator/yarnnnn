@@ -622,16 +622,44 @@ async def _fetch_source(url: str) -> str:
 _CONNECTOR_CAPTURE_MIN_INTERVAL_S = 600
 
 
+def _reach_outcome(res: dict) -> str:
+    """ONE word for what the capture did, so the sweep receipt can say it.
+
+    `captured` — new snapshots landed · `unchanged` — read, nothing moved (the
+    diff baseline matched) · `unreadable` — every selector's read failed ·
+    `nothing_selected` / `no_binding` — the aperture (or the platform) offers
+    nothing here. Before this the run threw the capture's return away, so
+    "did not move" and "could not be read" both surfaced downstream as the
+    same "no landed snapshot" (Part P owed 1).
+    """
+    if res.get("skipped"):
+        return str(res["skipped"])
+    if res.get("paths_written"):
+        return "captured"
+    if res.get("paths_skipped"):
+        return "unchanged"
+    if res.get("error") or not res.get("success", True):
+        return "unreadable"
+    return "empty"
+
+
 async def _reach_connector_sources(
     client, user_id: str, conn_sources: list[dict], *, observed_at: str,
-) -> None:
+) -> dict[str, dict]:
     """ADR-594 D2 — reach with a receipt: before reading, invoke the ONE
     capture writer for this run's declared selectors (grouped per platform),
     which lands attributed observations at the fixed intake lane. The
     effective set is the intersection with the connection's aperture — a
     declaration narrows the operator's consent, never widens it. Failure degrades
     to the newest landed snapshot (stale-but-honest; the app states
-    staleness); never raises."""
+    staleness); never raises.
+
+    Returns the RECEIPT, per platform: ``{outcome, paths_written, paths_skipped,
+    items, error}`` from the capture (see `_reach_outcome`), or ``{outcome:
+    "unconnected"}`` / ``{outcome: "fresh"}`` (the freshness floor held — read
+    the landed snapshot) / ``{outcome: "raised", error}``. The sweep names the
+    outcome in its own receipt so the ledger can tell a world that did not
+    move from a read that failed."""
     from services.connectors import (
         connection_row,
         read_landed_snapshots,
@@ -648,9 +676,11 @@ async def _reach_connector_sources(
 
     um = UserMemory(client, user_id)
     now = datetime.now(timezone.utc)
+    receipts: dict[str, dict] = {}
     for plat, sels in by_plat.items():
         row = connection_row(client, user_id, plat)
         if row is None:
+            receipts[plat] = {"outcome": "unconnected"}
             continue  # unconnected — the read step reports the honest empty
         stale: list[str] = []
         for sel in sels:
@@ -662,14 +692,24 @@ async def _reach_connector_sources(
                 continue  # the freshness floor — the receipt IS the guard
             stale.append(sel)
         if not stale:
+            receipts[plat] = {"outcome": "fresh", "selectors": list(sels)}
             continue
         try:
-            await run_connector_capture(
+            res = await run_connector_capture(
                 client, user_id, row, observed_at=observed_at, selectors=stale,
             )
+            receipts[plat] = {
+                "outcome": _reach_outcome(res),
+                "paths_written": list(res.get("paths_written") or []),
+                "paths_skipped": list(res.get("paths_skipped") or []),
+                "items": res.get("items", 0),
+                "error": res.get("error"),
+            }
         except Exception as e:  # noqa: BLE001 — reach must not fail the run
             logger.warning("[STANDING] connector reach failed %s/%s: %s",
                            user_id[:8], plat, e)
+            receipts[plat] = {"outcome": "raised", "error": repr(e)[:200]}
+    return receipts
 
 
 async def _read_connector_source(
@@ -923,11 +963,12 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
     raw_paths: list[str] = []
     errors: list[str] = []
     conn_sources = [s for s in decl.sources if _is_connector_source(s)]
+    reach: dict[str, dict] = {}
     if conn_sources:
         # The stamp must satisfy `connectors.parse_stamp` (it names the landed
         # file) — isoformat's microseconds/offset spelling would land
         # snapshots the shared reader then skips as unstamped.
-        await _reach_connector_sources(
+        reach = await _reach_connector_sources(
             client, user_id, conn_sources,
             observed_at=started.strftime("%Y-%m-%dT%H:%M:%SZ"),
         )
@@ -938,7 +979,14 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
                     client, user_id, str(s["connector"]), str(s["selector"]),
                 )
                 if landed is None:
-                    errors.append(f"{s.get('id')}: no landed snapshot")
+                    # Name WHY there is nothing to read: the reach receipt
+                    # says whether the world did not move, the read failed, the
+                    # connection is gone, or the aperture offers nothing.
+                    r = reach.get(str(s["connector"]).strip().lower()) or {}
+                    why = r.get("outcome") or "not attempted"
+                    if r.get("error"):
+                        why += f" ({str(r['error'])[:120]})"
+                    errors.append(f"{s.get('id')}: no landed snapshot — reach {why}")
                     continue
                 bodies.append((s, landed[:_MAX_FETCH_CHARS]))
                 raw_paths.append(landed_path)
@@ -966,7 +1014,8 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
         principal_id=user_id,
     )
     if not sweep_ok:
-        return {"success": False, "slug": decl.slug, "error_reason": "no_sources_fetched"}
+        return {"success": False, "slug": decl.slug, "error_reason": "no_sources_fetched",
+                "reach": reach, "errors": errors}
 
     current = _read_file(client, user_id, decl.target_path)
 

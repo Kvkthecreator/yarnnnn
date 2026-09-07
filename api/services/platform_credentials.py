@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 #: Caller-identity prefixes that mark an AGENT-shaped caller (ADR-577 D1.a).
 #: These are what `HeadlessAuth` actually stamps (`registry.py`: "specialist:{role}")
 #: and what agent dispatch paths carry — as opposed to a member's lane, which
-#: stamps `member:{id} via {model}` (ADR-411 D4) and IS the member's hands.
+#: stamps `member:{id} via {model}` (ADR-408 D2 · ADR-460) and IS the member's hands.
 #:
 #: ⚠️ Keyed on the caller identity, deliberately, because that is the fact the
 #: auth object CARRIES. ADR-566 keyed the same question on a `principal_grants`

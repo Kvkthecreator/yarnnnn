@@ -43,7 +43,7 @@ The altitude table drew three real distinctions. They survive — as **recurring
 | Cluster (the shape) | Attribution | Standing intent | Governance | Consequential authority | Cardinality | Chrome home |
 |---|---|---|---|---|---|---|
 | **The system agent** — Freddie | `agent:system-agent` / `freddie:` (internal `reviewer` slug, data-compat) | steward wake sources | **kernel constants** (no persona files, ADR-414 D2) | the steward dial (`governance/_autonomy.yaml`); substrate-family autonomous (ADR-408 D3) | exactly one per workspace | **the rail only** (chat drawer) + Workspace Settings → System Agent. Never a roster card |
-| **Member hands** — kernel agents + lanes | **`member:{id} via {model}`** (ADR-411 D4) — *not a principal* | **none** (addressed-only) | none | **none** — binds after-witness *as the member*, under the member's grant | zero-to-many per member | **`/chat`** (the lane) + **`/agents`** (the roster of who you can address) |
+| **Member hands** — kernel agents + lanes | **`member:{id} via {model}`** (ADR-408 D2 · ADR-460) — *not a principal* | **none** (addressed-only) | none | **none** — binds after-witness *as the member*, under the member's grant | zero-to-many per member | **`/chat`** (the lane) + **`/agents`** (the roster of who you can address) |
 | **Judgment agents** — hired persona / domain Agents | `agent:{slug}` — own principal, own grant row (ADR-414 D5) | own wake sources | the full ADR-383 file set (IDENTITY, MANDATE, principles) lives here | own witness dial; the Rung-2 exogenous clock for consequential action (ADR-380) | zero-to-many per workspace | **`/agents`** (as tenure-bearing, fiduciary Agents) |
 
 **Reading the clusters as facts, not rungs:**

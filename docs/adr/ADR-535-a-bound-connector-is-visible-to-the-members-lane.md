@@ -46,7 +46,7 @@ That reasoning is sound **for acquiring reach** and does not reach this decision
 
 Restated, not decided here (ADR-425): a `platform_connections` row is keyed `user_id`; `workspace_id` is vestigial-for-humans. The operator's Notion follows the operator across workspaces.
 
-This composes with **ADR-411 D4** — *"the lane's reach is exactly the member's reach"* — to fix the scope question with nothing left to choose:
+This composes with **ADR-408 D2 · ADR-460** — *"the lane's reach is exactly the member's reach"* — to fix the scope question with nothing left to choose:
 
 > A lane sees the bindings of **the member whose turn it is**, and no others.
 

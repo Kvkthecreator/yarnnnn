@@ -507,7 +507,7 @@ def _apps_payload() -> list[dict]:
     ]
 
 
-def _agents_payload() -> list[dict]:
+def _agents_payload(tending_by_slug: Optional[dict[str, list[dict]]] = None) -> list[dict]:
     """Every agent, FE-shaped, with provenance and the apps it works in.
 
     ADR-631 — ONE roster. Before it the envelope served two: `agents` (the
@@ -529,6 +529,7 @@ def _agents_payload() -> list[dict]:
     """
     import services.apps  # noqa: F401  (registration side-effect)
     from services.agents_registry import AGENTS, apps_for_agent, is_promoted
+    from services.skills import craft_for_agent
     from services.workspace_paths import agent_memory_root
 
     # ADR-602 D3 — an agent whose only app is unpromoted waits with it. Filtered
@@ -554,10 +555,47 @@ def _agents_payload() -> list[dict]:
             # face (the ADR-595 D1 law, one surface out). Absolute, because
             # that is the form the Files door takes.
             "memory_path": f"/workspace/{agent_memory_root(r['slug'])}",
+            # ADR-640 D2 — the two relations the kernel already DERIVES, served
+            # read-only. Neither is a record of what the agent has done (D1):
+            # `craft` is which kernel skills meet its apps (a presentation of
+            # `_applies_to`), `tending` is which standing declarations resolve
+            # to it (a presentation of `resolve_executor`, read ONCE in the
+            # envelope). Nothing here is settable from a surface.
+            "craft": craft_for_agent([a.get("slug") for a in apps_for_agent(r["slug"])]),
+            "tending": list((tending_by_slug or {}).get(r["slug"], [])),
         }
         for r in AGENTS.values()
         if is_promoted(r["slug"])
     ]
+
+
+def _tending_by_agent(auth: UserClient) -> dict[str, list[dict]]:
+    """ADR-640 D2 — the standing declarations each agent keeps current, from
+    the SAME discovery the drain runs and the SAME pure resolver the run
+    calls. One read per envelope; a declaration whose app has no executor is
+    a bug the resolver raises on, so it is skipped here rather than guessed
+    at. Presentation never fails the envelope: any failure is an empty map."""
+    try:
+        from services.standing_work import discover_standing, resolve_executor
+
+        by_user = discover_standing(
+            auth.client, workspace_id=getattr(auth, "workspace_id", None) or None,
+        )
+        out: dict[str, list[dict]] = {}
+        for decls in by_user.values():
+            for decl in decls:
+                if getattr(decl, "problem", None):
+                    continue
+                try:
+                    slug = resolve_executor(decl)[0]
+                except Exception:  # noqa: BLE001 — a broken declaration is the roster's to show
+                    continue
+                out.setdefault(slug, []).append(
+                    {"topic": decl.topic, "target_path": decl.target_path}
+                )
+        return out
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
@@ -624,7 +662,7 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # ADR-600 D6 / ADR-631 — every agent, with the apps it works in. ONE
         # roster: `offered` rides each row, so the door that lists candidates
         # filters it rather than reading a second key.
-        "agents": _agents_payload(),
+        "agents": _agents_payload(_tending_by_agent(auth)),
         # ADR-450 D5 / ADR-630: the Learn-from chooser payload — yarnnn's
         # skills, served on the capability envelope (no new endpoint).
         "skills": list_skills(),

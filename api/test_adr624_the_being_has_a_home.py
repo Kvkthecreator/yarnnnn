@@ -163,7 +163,7 @@ check(
 check(
     "a member's lane is not confined by the agent rule",
     not _is_path_locked_for_principal(member, "agents/editor/memory/notes.md"),
-    "ADR-411 D4 — the lane is the member's embodiment",
+    "ADR-408 D2 · ADR-460 — the lane is the member's embodiment",
 )
 
 # ---------------------------------------------------------------------------

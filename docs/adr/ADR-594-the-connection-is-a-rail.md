@@ -81,6 +81,15 @@ lanes (zero elsewhere — measured), and attributed chains are never re-homed.
 
 ### D2 — The seam's first caller: a string's run reaches through the connection
 
+> **Built through, 2026-09-07 (Part P owed 1 + 2).** The standing sweep now READS the capture's
+> return into its own receipt: `_reach_connector_sources` returns a per-platform receipt
+> (`captured` · `unchanged` · `unreadable` · `nothing_selected` · `no_binding` · `unconnected` ·
+> `fresh` · `raised`), and a source with no landed snapshot names it — *"no landed snapshot —
+> reach unreadable (…)"* — so the ledger can tell a world that did not move from a read that
+> failed. And the binding's own `reads` statement is served on every connector source of the
+> standing roster (`StandingSource.reads`), so a member sees that a GitHub slice is issue + PR
+> activity, not a commit log, before declaring against it.
+
 `run_connector_capture` gains a `selectors=` narrowing: the effective capture
 set is the **intersection** of the caller's ask with the connection's aperture
 (`landscape.selected_sources`) — a consumer can narrow the operator's consent,

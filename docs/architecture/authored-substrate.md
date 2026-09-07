@@ -360,7 +360,7 @@ The `authored_by` column is a structured string. The taxonomy maps to FOUNDATION
 | `specialist:<role>` | A specialist's style distillation | `specialist:writer` |
 | `freddie:<identity>` | The system agent occupying the seat (ADR-381; was `reviewer:`) | `freddie:human`, `freddie:ai-sonnet-v1` |
 | `dispatcher:<slot>` | Dispatcher-synthesized substrate filling a posture-cell contract (ADR-303 D2/D6) | `dispatcher:standing-intent` |
-| `member:<user_id> via <model>` | An Altitude-2 helper acting as the member's hands under their grant (ADR-411 D4) | `member:…  via GPT-4o mini` |
+| `member:<user_id> via <model>` | An Altitude-2 helper acting as the member's hands under their grant (ADR-408 D2 · ADR-460) | `member:…  via GPT-4o mini` |
 | `system:<actor>` | Deterministic system actors (reconciler, cleanup, capture, backfill) | `system:capture-slack`, `system:backfill-158` |
 
 The prefix is mandatory; the suffix is actor-specific. Primitive handlers set the prefix based on the invoking context; the suffix is resolved from model configuration or slug.

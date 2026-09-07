@@ -173,7 +173,7 @@ def run() -> bool:
         "platform_connections" in _src,
     )
     _check(
-        "…scoped to THIS member (ADR-425 + ADR-411 D4 — the lane's reach is the member's)",
+        "…scoped to THIS member (ADR-425 + ADR-408 D2 · ADR-460 — the lane's reach is the member's)",
         "user_id" in _src,
     )
     # Metadata only: no credential ever leaves the row, no provider is called.

@@ -4,6 +4,100 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part T — the owed list, closed (2026-09-07)
+
+Operator: *"lets do the remaining owed, pending items."* Six items, one commit
+each would have been ceremony; one commit, six receipts.
+
+## 1. `assembling-a-composite-document` — measured: NULL, rank 2
+
+Capture: [`analysis/assembling-a-composite-document-measured-2026-09-07.md`](analysis/assembling-a-composite-document-measured-2026-09-07.md).
+24-row CSV, the ask naming the subject word for word, ARM B = the slug
+withheld from the in-process kernel index, n=3/arm interleaved, purged after.
+
+```
+rows_copied_fraction   A 0.292/0.250/0.292 (0.278)   B 0.292/0.250/0.333 (0.292)   p = 0.500
+read the skill         A 0/3   B 0/3        provenance line (posture)   A 2/3   B 3/3
+```
+
+⭐⭐⭐ **The craft is the model's own.** Both arms wrote the same document to
+the paragraph: three Q3 rows under the provenance line, Q2 and the prior
+year in prose, a standup figure marked as *not* from the metrics file — the
+skill's step 5, done by an arm that never read the skill. And naming the
+subject did not reach the body (0/3): the description states the craft, so
+the lane conforms without reading (Part M, third sighting). `_INDEX_RANK` → 2
+(measured-null); kept, never pruned on a score. CHANGELOG `[2026.09.07.3]`.
+⚠️ My log filter (`grep -v "^\s+"`) erased every per-trial line; only the
+left-aligned summary survived. Filter tracebacks by token, not indentation.
+
+## 2. The reach receipt (Part P owed 1) — BUILT
+
+`_reach_connector_sources` returns a per-platform receipt (`captured` ·
+`unchanged` · `unreadable` · `nothing_selected` · `no_binding` ·
+`unconnected` · `fresh` · `raised`) and the sweep names it: *"no landed
+snapshot — reach unreadable (…)"*. The run's `no_sources_fetched` result
+carries `reach` + `errors`. "Did not move" and "could not be read" are now
+different strings on the ledger. ADR-594 D2 carries the note.
+
+## 3. The GitHub aperture (Part P owed 2) — the honest string at the door
+
+No commit tool exists (`platform_github_*`: issues · repos · readme ·
+metadata · releases), so the binding was NOT widened. `StandingSource.reads`
+serves the binding's own `reads` statement; the roster shows it per connector
+source; the declaring skill says to check it before declaring (no
+per-connector string duplicated into prose).
+
+## 4. The `ADR-411 D4` phantom — SWEPT
+
+33 sites / 26 files → `ADR-408 D2 · ADR-460` (the member-embodiment
+attribution is ADR-408 D2, preserved by ADR-460; ADR-411 has no numbered
+decisions). Lines that DESCRIBE the phantom (handoffs, ADR-640's finding, the
+analysis that found it) kept; ADR-411 gains a banner so the next reader
+learns why "D4" resolves to nothing.
+
+## 5. `agent-composition.md` §3.2.1 — RE-CUT
+
+Now a destination per KIND of fact (grammar → registries via the posture ·
+how an artifact works → the app's posture · the participant contract →
+kernel constants · reach → gates · craft with a contract → a skill · a
+program's judgment → its `principles.md`, vestigial · pedagogy → the guide ·
+anything a gate enforces → nothing), the diagnostic test, the evidence bar,
+and the two observed failures (a fact written twice drifts; a fact written
+nowhere an engine reads is a fact the engine does not have). The pre-ADR-632
+partition is kept verbatim as the historical record. CLAUDE.md's pointer
+dropped its warning.
+
+## 6. ADR-640 D2's two rows — BUILT
+
+`craft` (kernel skills whose apps meet the agent's: Designer 4 · Editor 11 ·
+Blogger 7, a presentation of `_applies_to`) and `tending` (declarations whose
+`resolve_executor` is the agent, read ONCE per envelope from the same
+discovery the drain runs) ride the agents payload; two read-only rows on the
+agent's page, every entry a Files door. Gate §5: both derivations asserted,
+no ledger read, and neither key is a request field on any route.
+
+## Verification
+
+```
+test_adr640 GREEN (§5 new) · test_adr639 · test_adr618 · test_adr630 (147) · test_author_grammar
+test_adr624 · test_claude_md_ratchet · probe/eval staleness gates · web build green · tsc clean
+BASELINE-RED, not this work's (identical at HEAD): test_adr535 (2/21) · test_adr501 (reads the
+deleted routes/radar.py). Recorded, not fixed — each needs its own ruling.
+```
+
+Click-pass (prod, after deploy): see the line appended below.
+
+## OWED
+
+1. `test_adr501_read_path_binding.py` reads `routes/radar.py`, deleted with
+   ADR-603 D5 — a gate that cannot run; re-point or retire with a ruling.
+2. `test_adr535_connector_visibility.py` 2/21 red at baseline — read the two.
+3. Carried from Part O (still open, untouched here): `projection.ts`'s second
+   CSV parser · a Files door for declaring · blogger's standing leg.
+4. `./relative` image paths in markdown — refused in D5; only if asked.
+
+---
+
 # Part S — composition-by-reference: Stage 1 answered, three decisions SHIPPED (2026-09-07)
 
 Commit `94aa578` (+ the docs commit that absorbs `docs/SESSION-NEXT-PROMPT.md`,

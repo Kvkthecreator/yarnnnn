@@ -186,6 +186,22 @@ export function StandingWork() {
                         </span>
                       )}
                     </p>
+                    {/* A connector slice captures what the CONNECTION reads, and
+                        the binding says so itself (`reads`, served) — shown here
+                        so a member sees that a GitHub slice is issue + PR
+                        activity, not a commit log, before a run says "no landed
+                        snapshot" (Part P owed 2). */}
+                    {row.sources.some((s) => s.connector) && (
+                      <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                        {row.sources.filter((s) => s.connector).map((s) => (
+                          <li key={s.id} className="truncate">
+                            <span className="font-medium text-foreground/70">{s.connector}</span>
+                            {s.selector ? ` · ${s.selector}` : ''}
+                            {s.reads ? ` — reads ${s.reads}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <button

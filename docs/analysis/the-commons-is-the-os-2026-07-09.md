@@ -235,7 +235,7 @@ This document does **not** make that call — it is the operator's. It only asse
 | yarnnn's Preview.app = the shipped viewer | `the-app-layer-and-the-desktop-2026-07-09.md` §7-8 · `web/components/workspace/FileBody.tsx` |
 | Three of four OS primitives held; the fourth is the powerbox | app-layer doc §5, §10 |
 | Moat-leak test; Higgsfield retracted as a competing commons | `docs/adr/ADR-420-*.md:4,22-32` |
-| "The lane's reach is exactly the member's reach" | ADR-411 D4 · `ADR-420:65` |
+| "The lane's reach is exactly the member's reach" | ADR-408 D2 · ADR-460 · `ADR-420:65` |
 | Housed generation stays attributed (`member:{id} via {model}` + provenance) | `ADR-420:82-84` · ADR-376 |
 | Apps deferred, demand-gated | ADR-380 §5 · ADR-382 precedent · app-layer doc §11 |
 

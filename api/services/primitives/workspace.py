@@ -2487,7 +2487,7 @@ def _caller_class(auth: Any) -> str:
     if caller_identity == "operator" or caller_identity.startswith("operator"):
         return "operator"
     if caller_identity.startswith("member:"):
-        # ADR-411 D4: a lane helper is the MEMBER's embodiment (ADR-408 D2)
+        # ADR-408 D2 · ADR-460: a lane helper is the MEMBER's embodiment (ADR-408 D2)
         # — it writes under the member's grant, so the class default is the
         # human default. The ADR-373 grant consult still narrows by the
         # member's principal_id, so a member-role grant bounds their lanes
@@ -2576,7 +2576,7 @@ def _is_foreign_agent_home(auth: Any, caller_class: str, path: str) -> bool:
 
     ⚠️ Binds almost nothing today, and that is not a reason to skip it: a
     lane's caller_identity is `member:{user_id} via {model}`, which
-    `_caller_class` maps to `operator` (ADR-411 D4 — a lane writes under the
+    `_caller_class` maps to `operator` (ADR-408 D2 · ADR-460 — a lane writes under the
     MEMBER's grant). So an agent writing its own memory is, today, a write the
     MEMBER makes. Built before the writer for the ADR-601 D3 reason its sibling
     `assert_editable` was: a protection written alongside the feature it

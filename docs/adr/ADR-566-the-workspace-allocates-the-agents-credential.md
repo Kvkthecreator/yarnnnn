@@ -105,7 +105,7 @@ Workspace Settings gains a **Connectors** pane. It is not the pane ADR-425 remov
 - **It does not add a field to any agent row or manifest** (ADR-460 D3.a). The gates that hold the cliff pass unchanged, and D4's gate asserts it from the new side.
 - **It does not grant any agent consequential authority.** Reach is not authority: every consequential act through an allocated credential passes the ADR-307 gate and lands in the queue under the witness dial. An agent with a workspace Slack credential can, today, propose a Slack write and not send one.
 - **It does not build the ADR-382 seat.** Lifecycle, trust model, per-seat substrate, and the validation clock stay deferred (§4 there). This ADR touches *reach*, which §4 never governed.
-- **It does not give a chat lane new reach.** A lane is the member's hands (ADR-411 D4) and stays exactly as scoped: ADR-535's `list_integrations` visibility, no `platform_*` tool on the lane surface. **`LANE_TOOL_NAMES` and `LANE_SURFACE_EXTRA` are unchanged.**
+- **It does not give a chat lane new reach.** A lane is the member's hands (ADR-408 D2 · ADR-460) and stays exactly as scoped: ADR-535's `list_integrations` visibility, no `platform_*` tool on the lane surface. **`LANE_TOOL_NAMES` and `LANE_SURFACE_EXTRA` are unchanged.**
 - **It does not un-pause ADR-420's connector breadth.** No new provider is acquired; this is about which store an existing provider's credential lives in.
 - **It does not move a human's connector.** ADR-425 D1 stands.
 - **No migration.** The column and the role constraint both already exist.

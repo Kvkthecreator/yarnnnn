@@ -507,6 +507,9 @@ export interface StandingSource {
   /** A connector slice (ADR-582 D6 / ADR-594): reach with a receipt. */
   connector?: string | null;
   selector?: string | null;
+  /** What the slice CAPTURES — the connection binding's own statement,
+   *  served from the machinery that enacts it (never a client copy). */
+  reads?: string | null;
 }
 
 export interface StandingLastRun {

@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.07.3] - `assembling-a-composite-document` measured null → rank 2; the declaring skill names what a slice reads
+
+### Changed
+- `services/skills/__init__.py::_INDEX_RANK` — `assembling-a-composite-document` → **2 (measured-null)**. It shipped rank 1 (unmeasured) on 2026-09-07; measured the same day. Composed index sizes move only in ORDER; no ceiling touched.
+- `services/skills/declaring-standing-work/SKILL.md` — one sentence in the tuning paragraph: a connector slice captures exactly what the CONNECTION reads (the roster and the connection's card state it; a GitHub slice is issue + PR activity, not a commit log), and a file that needs what the connection does not read has no source there. `description` unchanged, so every index is byte-identical.
+
+### Why
+**The measurement** (`docs/analysis/assembling-a-composite-document-measured-2026-09-07.md`). 24-row CSV + notes; the ask names the skill's subject word for word (*"a one-page report for the all-hands where the numbers matter as much as the words"*); ARM A = live index, ARM B = the slug withheld from the kernel index in-process; n=3/arm, interleaved, each in its own folder, purged after (18 rows → 0).
+
+```
+rows_copied_fraction (pre-registered, A<B):  A 0.292/0.250/0.292 (0.278)   B 0.292/0.250/0.333 (0.292)   p = 0.500
+read the skill:  A 0/3   B 0/3          provenance line (posture):  A 2/3   B 3/3
+```
+
+Both arms wrote the same document: a 3-row Q3 table under the provenance line, the quarter set against Q2 and the prior year in prose, and a standup figure explicitly marked as *not* from the metrics file. **The craft the skill teaches is the model's own.** The ask matched the description literally and the body was still read 0/3 — the Part M finding again (*the description already states the craft, so the lane conforms without reading it*). Its CONTRACT half — the provenance line — is the part that moved anything, and that now lives in `text_pane_posture` (`[2026.09.07.2]`, 3/3 vs 0/2).
+
+Kept, not pruned: a skill is never pruned on a quality score because its failure is silent — but the failure this one guards ("the whole table copied into prose") did not occur in the untreated arm either, so it earns the measured-null rank and no more.
+
+**The declaring skill.** Part P found that a GitHub slice cannot observe a commit-only repo: the binding reads issues + PRs. The `reads` statement is now served on the standing roster (`routes/standing_work.py::StandingSource.reads`) and the skill tells the declarer to check it before declaring — craft with its consequence, no per-connector string duplicated into prose.
+
+### Expected behavior
+Text lanes: `assembling-a-composite-document` still listed (the text index has room) but last in admission order; unbound lanes: it moves into the overflow count first if the roster grows. Declaring lanes: a member asked to keep a file current from a connector is told what the slice reads when it does not match the file's need.
+
+---
+
 ## [2026.09.07.2] - The Text posture carries the markdown reference forms
 
 ### Changed

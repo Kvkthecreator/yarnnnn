@@ -211,7 +211,7 @@ which derives every row from `agents_registry.AGENTS` + `apps_for_agent`.
 | what it has learned | `memory_path` → Files door (1 consumer) | **already served** |
 | with which craft | **nowhere for a member** — `list_skills()` drops `metadata.apps` | derivable, unserved |
 | tending which files | **nowhere** — `resolve_executor()` exists, has no reader outside the run | derivable, unserved |
-| with what receipts | attribution is `member:{id} via {model}` (ADR-411 D4) | **refused — see below** |
+| with what receipts | attribution is `member:{id} via {model}` (ADR-408 D2 · ADR-460) | **refused — see below** |
 
 Receipts against the live workspace (2026-09-04, `d5b9029b`):
 
@@ -256,7 +256,7 @@ So the ruling on each candidate door:
   sums an unrewritten ledger under a present-tense heading launders history
   into a current claim.
 
-  Beneath that, the deeper reason: ADR-411 D4 makes the member the author and
+  Beneath that, the deeper reason: ADR-408 D2 · ADR-460 makes the member the author and
   the engine the mechanism *on purpose* — the agent is a character worn by the
   member's hands. "What Designer did" is not a fact the substrate holds, and
   manufacturing one puts an actor where the canon has a costume.

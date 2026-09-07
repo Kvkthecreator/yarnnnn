@@ -25,7 +25,7 @@
   - **ADR-454 D1 / ADR-412 D3** — the two acting surfaces become three named acts; the
     surface set beneath them is explicitly open.
 - **Preserves**: ADR-310 (two doors, one moat) · ADR-413 (the invocation contract) · ADR-423
-  (`revision_kind`) · ADR-448 (the reference edge) · ADR-411 D4 (`member:` attribution) ·
+  (`revision_kind`) · ADR-448 (the reference edge) · ADR-408 D2 · ADR-460 (`member:` attribution) ·
   ADR-321/325 (embedding is an explicit primitive — **not** reversed here, see D4) · ADR-495
   (the conversation's one cast) · every ADR-457 falsifier that tests the desk-vs-hum thesis.
 

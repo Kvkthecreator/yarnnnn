@@ -114,6 +114,14 @@ type AgentRow = {
    *  contents: memory is ordinary substrate, so the page opens the Files door
    *  rather than hosting a second reading face (ADR-595 D1, one surface out). */
   memory_path?: string;
+  /** ADR-640 D2 — the CRAFT this agent can be met with: the kernel skills
+   *  whose apps meet its apps. Derived server-side from the same rule the
+   *  frame runs; read-only, never assigned. */
+  craft?: { slug: string; title: string; path: string }[];
+  /** ADR-640 D2 — the files this agent keeps current: the standing
+   *  declarations whose executor resolves to it. Derived from the same
+   *  discovery the drain runs; read-only. Not a history (D1). */
+  tending?: { topic: string; target_path?: string | null }[];
 };
 
 // The connector scoping control (ADR-612, defaults settled by ADR-615). Three
@@ -308,6 +316,57 @@ function AgentDetail({
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 text-muted-foreground">Runs on</dt>
             <dd className="break-all">{agent.model}</dd>
+          </div>
+        )}
+        {/* ADR-640 D2 — two relations the kernel DERIVES, stated read-only.
+            Neither is a record of what the agent has done: craft is which
+            skills meet its apps, tending is which files resolve to it. Each
+            entry is a DOOR into Files, never a viewer here (ADR-595 D1). */}
+        {agent.craft && agent.craft.length > 0 && (
+          <div className="flex gap-3">
+            <dt className="w-24 shrink-0 text-muted-foreground">Craft</dt>
+            <dd className="min-w-0 flex-1">
+              <ul className="flex flex-wrap gap-x-3 gap-y-1">
+                {agent.craft.map((c) => (
+                  <li key={c.slug}>
+                    <button
+                      type="button"
+                      onClick={() => navigateToSurface('files', { path: `/workspace/${c.path}` })}
+                      className="text-left underline underline-offset-2 hover:text-foreground"
+                    >
+                      {c.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                The skills whose apps meet {agent.name}&apos;s — offered in every chat
+                with them, readable as ordinary files.
+              </p>
+            </dd>
+          </div>
+        )}
+        {agent.tending && agent.tending.length > 0 && (
+          <div className="flex gap-3">
+            <dt className="w-24 shrink-0 text-muted-foreground">Keeps current</dt>
+            <dd className="min-w-0 flex-1">
+              <ul className="space-y-0.5">
+                {agent.tending.map((t) => (
+                  <li key={t.topic}>
+                    <button
+                      type="button"
+                      onClick={() => navigateToSurface('files', { path: t.target_path ?? `/workspace/${t.topic}` })}
+                      className="text-left underline underline-offset-2 hover:text-foreground break-all"
+                    >
+                      {t.target_path ? t.target_path.replace(/^\/workspace\//, '') : t.topic}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                Standing declarations whose runs {agent.name} performs, on their schedule.
+              </p>
+            </dd>
           </div>
         )}
         {/* ADR-624 D4 — what this agent has learned. The row is an ADDRESS and

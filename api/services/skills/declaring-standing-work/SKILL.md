@@ -41,7 +41,7 @@ Only the DESIGNATED target is ever a standing writer's target. One declaration p
 
 ## Managing
 
-Change a source, the cadence or the shape by editing the file that owns the fact (EditFile for small changes). Pause with `paused: true`. A run refused with a shape violation means the source and the declared shape disagree: read both, say which is wrong, repair that one. When the member asks why the file reads as it does, answer from the contract, and offer to revise it if their intent has drifted from its text.
+A connector slice captures exactly what that connection reads — the roster and the connection's card state it (a GitHub slice is issue and pull-request activity, not a commit log). A file that needs what the connection does not read has no source there; say so rather than declaring it. Change a source, the cadence or the shape by editing the file that owns the fact (EditFile for small changes). Pause with `paused: true`. A run refused with a shape violation means the source and the declared shape disagree: read both, say which is wrong, repair that one. When the member asks why the file reads as it does, answer from the contract, and offer to revise it if their intent has drifted from its text.
 
 ## Anti-patterns
 

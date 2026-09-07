@@ -11,7 +11,7 @@ ratchet, and a cast door that contradicted its own roster (ADR-600 Context).
 
 WHAT AN AGENT IS (ADR-460 → ADR-596, unchanged)
 A named, configured AGENT: identity ⊕ character ⊕ engine. It attributes as the
-member (`member:{id} via {model}` — ADR-411 D4), holds NO standing intent, and
+member (`member:{id} via {model}` — ADR-408 D2 · ADR-460), holds NO standing intent, and
 fires only when addressed.
 
 WHAT AN AGENT IS NOT

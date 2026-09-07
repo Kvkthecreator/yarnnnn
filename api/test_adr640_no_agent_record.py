@@ -59,6 +59,10 @@ HISTORY_WORDS = (
 ALLOWED_PAYLOAD_KEYS = {
     "slug", "name", "blurb", "icon", "offered", "kernel", "apps", "model",
     "memory_path",
+    # ADR-640 D2 (built 2026-09-07) — the two relations the kernel DERIVES:
+    # craft (skills whose apps meet the agent's) and tending (declarations
+    # whose executor resolves to it). Read-only presentations; §4 below.
+    "craft", "tending",
 }
 
 print("=" * 70)
@@ -188,6 +192,39 @@ from services.standing_work import DECLARATION_KEYS  # noqa: E402
 check("no DECLARATION_KEYS member is an agent slug",
       not (set(DECLARATION_KEYS) & set(AGENTS)),
       f"{sorted(set(DECLARATION_KEYS) & set(AGENTS))}")
+
+# ---------------------------------------------------------------------------
+print("\n§5 D2 (built) — the two derived rows are DERIVED, and settable from nowhere")
+# ---------------------------------------------------------------------------
+from services.skills import craft_for_agent  # noqa: E402
+from services.agents_registry import apps_for_agent  # noqa: E402
+
+_craft = {a: [c["slug"] for c in craft_for_agent([x["slug"] for x in apps_for_agent(a)])]
+          for a in ("designer", "editor", "blogger")}
+check("craft is a presentation of _applies_to: Designer's carries the images skill "
+      "and not the text-only spec skill; Editor's carries the spec skill",
+      "composing-an-image" in _craft["designer"] and "writing-a-spec" not in _craft["designer"]
+      and "writing-a-spec" in _craft["editor"],
+      str(_craft))
+check("craft is app-scoped, so the three rosters differ (many-to-one is free)",
+      len({tuple(v) for v in _craft.values()}) == 3, str({k: len(v) for k, v in _craft.items()}))
+_tending_src = lanes_src[lanes_src.index("def _tending_by_agent"):]
+_tending_src = _tending_src[:_tending_src.index("\ndef ") if "\ndef " in _tending_src else None]
+check("tending is derived through discover_standing + the PURE resolve_executor — "
+      "the same discovery the drain runs and the same resolver the run calls",
+      "discover_standing(" in _tending_src and "resolve_executor(decl)" in _tending_src,
+      "")
+check("tending reads no ledger — no execution_events / workspace_file_versions query",
+      not any(t in _tending_src for t in LEDGERS), "")
+# Settable from nowhere: no request model anywhere in routes/ accepts either key.
+_route_bodies = ""
+for f in os.listdir(os.path.join(API, "routes")):
+    if f.endswith(".py"):
+        _route_bodies += open(os.path.join(API, "routes", f), encoding="utf-8").read()
+_settable = re.findall(r"^\s+(craft|tending)\s*:\s*(?:Optional\[)?(?:list|dict|str)", _route_bodies, re.M)
+check("neither `craft` nor `tending` is a field on any request model (a door that "
+      "ASSIGNS a skill or a file to an agent is authority on an agent — ADR-596 D1)",
+      not _settable, str(_settable))
 
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 70)

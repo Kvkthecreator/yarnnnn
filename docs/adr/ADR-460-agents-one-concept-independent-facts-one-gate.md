@@ -57,7 +57,7 @@ A concept that is *partly* Identity, *partly* Mechanism, *partly* Trigger and *p
 
 ```python
 if caller_identity.startswith("member:"):
-    # ADR-411 D4: a lane helper is the MEMBER's embodiment (ADR-408 D2)
+    # ADR-408 D2 · ADR-460: a lane helper is the MEMBER's embodiment (ADR-408 D2)
     return "operator"
 ```
 

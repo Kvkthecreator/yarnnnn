@@ -432,6 +432,24 @@ def _applies_to(skill: dict, app: Optional[str], reach: Optional[set] = None) ->
 #: ⚠️ A slug moves between ranks only with a capture behind it. This table is
 #: the measurement's live home; adding a slug here on taste re-introduces the
 #: arbitrariness it exists to remove.
+def craft_for_agent(app_slugs) -> list[dict]:
+    """ADR-640 D2 — the CRAFT an agent can be met with: the kernel skills
+    whose `metadata.apps` meet the agent's apps, or that name none. A
+    presentation of `_applies_to`, which the frame already runs for every
+    bound lane — DERIVED and read-only; nothing assigns a skill to an agent
+    (that would be authority on an agent, refused by ADR-596 D1). An agent
+    with no apps works in open chat, where every skill is offered.
+    """
+    apps = [a for a in (app_slugs or []) if a]
+    out = []
+    for slug, meta in _load_kernel().items():
+        offered = (not apps) or any(_applies_to(meta, a) for a in apps)
+        if offered:
+            out.append({"slug": slug, "title": meta["title"], "path": meta["path"]})
+    out.sort(key=lambda r: _index_rank(_load_kernel()[r["slug"]]))
+    return out
+
+
 _INDEX_RANK: dict[str, int] = {
     # Rank 0 — separated in docs/analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md
     "writing-a-spec": 0,             # 7/7/7 sections vs 1/0/2, p=0.100
@@ -442,6 +460,14 @@ _INDEX_RANK: dict[str, int] = {
     "writing-updates": 2,
     "comparing-options": 2,
     "summarizing-sources": 2,
+    # Measured 2026-09-07 (24-row CSV, the ask naming the subject, n=3/arm):
+    # rows_copied 0.278 vs 0.292, p=0.500 — the craft ("carry the few figures
+    # the argument uses") is the model's own in BOTH arms, and the skill was
+    # read 0/3 even when the ask matched its description word for word. Its
+    # contract half (the provenance line) now lives in the Text posture,
+    # where it separated 3/3 vs 0/2. Kept (never pruned on a score), ranked
+    # measured-null: first to go under the byte budget.
+    "assembling-a-composite-document": 2,
 }
 
 

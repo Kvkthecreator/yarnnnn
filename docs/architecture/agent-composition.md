@@ -150,41 +150,67 @@ The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces t
 
 ---
 
-#### 3.2.1 Partition discipline: what belongs in `principles.md` vs. persona-frame
+#### 3.2.1 Partition discipline: where prompt prose goes
 
-> **⚠ 2026-09-04 — THIS SECTION PREDATES SKILLS, AND CLAUDE.md POINTS HERE.**
-> CLAUDE.md's prompt-change protocol sends every session here for *"where does
-> this prose go"*. The partition below names three destinations, and one of
-> them is gone: **the persona-frame** it partitions against lived in
-> `api/agents/freddie_agent.py`, and `api/agents/` **no longer exists**
-> (ADR-632 retired the steward). `_workspace_guide.md` is still live
-> (`services/workspace_guide.py`); `/workspace/persona/principles.md` is still
-> referenced by `judgment_log.py` and `conventions.py`, so treat it as
-> vestigial-but-present rather than deleted.
->
-> **There is also a destination this section never had, and it is the one with
-> measurements: a SKILL** (`api/services/skills/{slug}/SKILL.md`, ADR-630).
->
-> The test that belongs beside the partition below, until this section is
-> re-cut for the post-steward frame:
->
-> - **Grammar** (tags, attributes, the pane's vocabulary) → the app's
->   registries, derived by the posture. Never restated in prose. (ADR-601 D1)
-> - **The participant contract** (commons, citation, attribution, filesystem
->   model, register) → the kernel constants in `services/workspace_paths.py`.
->   (ADR-533 D1)
-> - **Reach** → the gates. Prose is not permission. (ADR-464 §3)
-> - **Craft — how a kind of work is done well** → a **skill**, and *only when
->   it carries a right answer the model has no prior for*: one of this
->   workspace's own shapes. Craft a frontier model already holds measures flat
->   in both arms of an A/B and is prose paid for in every turn.
->   ([`analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md`](../analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md);
->   the authoring test lives in `creating-skills/SKILL.md`.)
->
-> ⭐ The partition below is preserved verbatim as the record of the boundary it
-> governed. **Do not derive current placement from it without reading this
-> note** — it partitions against a frame that no longer exists, and it predates
-> the destination most new craft prose now belongs in.
+> **Re-cut 2026-09-07 for the post-steward frame (ADR-632).** CLAUDE.md's
+> prompt-change protocol sends every session here for *"where does this prose
+> go"*. The partition this section governed until 2026-09-02 was between a
+> program's `principles.md` and the steward's persona-frame in `api/agents/`;
+> that frame is DELETED, and the composition sites are now the lane frame
+> (`services/lane_runner.py::build_lane_conventions`), the app postures
+> (`register_app(posture=…)`), the kernel participant constants
+> (`services/workspace_paths.py`) and the skills (`services/skills/`). The
+> pre-ADR-632 text is preserved verbatim below as the historical record.
+
+**The one-line statement.** *A sentence goes where the fact it states is
+owned, and it is written once.* Grammar is owned by a registry, the contract
+by the kernel, reach by a gate, an artifact's working by its app, craft by a
+skill, and a program's judgment by its own file. The frame carries only what
+none of those can: the address (who is speaking to whom, under what grant).
+
+**The destinations, by the kind of fact.**
+
+| The fact is… | It lives in | Composed by | Evidence it belongs there |
+|---|---|---|---|
+| **Grammar** — the tags, attributes and block vocabulary of an app's artifact | the app's registries (`_blocks_grammar`, layouts, measures) | the app's posture, DERIVED — never restated in prose | ADR-601 D1; a skill that named a tag was a second home for a fact (Part Q) |
+| **How an app's artifact WORKS** — what the file format carries by reference, how a copy is made honest | the app's posture (`register_app(posture=…)`, ADR-606 D3) | the lane frame, for that app's bound lanes only | The Text lesson, 2026-09-07: markdown's three reference forms lived in three FE insert functions where no engine could read them; +584 B in `text_pane_posture` drove the provenance line 3/3 vs 0/2 |
+| **The participant contract** — commons, citation edge, attribution, filesystem model, register | the kernel constants in `services/workspace_paths.py` (ADR-533 D1, ADR-638) | every lane, every connector, the standing frame | ADR-617 D2: a rule about HOW A DOCUMENT WORKS is kernel-universal; ADR-638's register measured 0.00 vs 2.08 leaks/reply |
+| **Reach** — what a turn may touch | the gates (`resolve_turn_reach`, `lane_tool_names`, the grant) | the tool surface, and ONE derived sentence in the frame (ADR-585) | ADR-464 §3: prose is not permission |
+| **Craft** — how a kind of work is done well | a **skill** (`services/skills/{slug}/SKILL.md`, ADR-630), and ONLY when it carries a shape the model has no prior for: this workspace's own file, attribute or place | the index line in the frame; the body on demand (DP22) | `writing-a-spec` 7/7/7 vs 1/0/2 (p=0.100); craft a frontier model already holds measured flat in both arms (Part Q). A contract skill carries its CONSEQUENCE, not just its rule (Part R) |
+| **A program's rules of judgment** | the program's own `principles.md` (four-field shape below) | *no live composition site since ADR-632* — still read by `judgment_log.py` / `conventions.py`; vestigial-but-present | Retained as the record; a program that returns will need a site, not a rule |
+| **Substrate pedagogy** — what a kernel file is for | `_workspace_guide.md` (ADR-281) | the commons contract's pointer | The frame does not re-narrate what the guide teaches |
+| **Anything a gate enforces** | code | nothing — the tool result reports the refusal | A lock, a budget, a scope: no prose needed (ADR-352 moved asking from persuasion to the gate) |
+
+**The diagnostic test** (use this when uncertain): *Which of these would a
+reader have to open to check the sentence is true?* Put the sentence there.
+If the answer is "none — it is true of every turn regardless of app or
+program", it is a kernel constant; if "the app's registry", derive it; if
+"a gate", delete it; if "this workspace's own shape", it is a skill; if "the
+frame itself", it is the address and belongs in the frame — and only then.
+
+**The evidence bar is the same for every destination** (DP22, ADR-306; the
+Prompt Change Protocol in CLAUDE.md): a **repeated, observed failure** named
+in `api/prompts/CHANGELOG.md`, a size ratchet that is not raised to make room,
+and — for a frame or posture clause — an A/B whose null is stated before it
+runs. A composition gate proves a clause is COMPOSED; only a probe proves it
+WORKS (ADR-365 shipped a ratified directive an A/B later falsified).
+
+**Two failures this partition exists to prevent, both observed:**
+- *A fact written twice drifts.* `PARTICIPANT_ARTIFACT_CITATION_RULE` is the
+  `.html` citation grammar for every surface; the Studio posture carries the
+  same grammar with worked markup for its own lanes — the constant states the
+  form, the posture teaches the use, and a test pins that they agree.
+- *A fact written nowhere an engine reads is a fact the engine does not have.*
+  The three markdown reference forms were ruled (ADR-572 D17/D18), built
+  (three toolbar doors) and gated — and no lane knew them, because a toolbar
+  is not a composition site.
+
+##### Historical record — the pre-ADR-632 partition (`principles.md` vs. the persona-frame), verbatim
+
+> This is the boundary the section governed while the steward existed. It is
+> kept because bundle reference-workspaces and older ADRs cite it, and because
+> the four-field rule shape is still how a `principles.md` is written. **Do not
+> derive current placement from it** — the frame it partitions against is gone.
 
 
 > **⚠ ADR-414 amendment (2026-07-07):** the partition now applies **per altitude**. For the **system agent** (Freddie), *both sides collapse into the kernel*: its identity/mandate/principles are kernel constants (ADR-414 D2) — there is no seeded steward `principles.md` to partition against, and the persona-frame carries the steward self-model + action-grammar only. The partition below governs **Altitude-3 agents** (hired persona agents + user-authored domain Agents): *their* `agents/{slug}/principles.md` is the rule-set, *their* envelope carries the judgment load-out, and the frame stays minimal (DP22). Bundle-template edits therefore target the hired agent's home, never `/workspace/persona/`.
