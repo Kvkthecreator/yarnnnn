@@ -55,20 +55,28 @@ def test_at_rest_launcher() -> None:
     # its own bottom group (`notifications` tier) — it's the always-present
     # top-bar bell, so its at-rest primary tile was redundant. The Workspace
     # loop is now Home · Channels · Files · Agents.
+    # RULING 2026-09-07: this assertion pinned a hand-spelled primary roster
+    # ({home, chat, files}) that drifted for two months — `home` was DELETED by
+    # ADR-435, and the authoring apps (text/slides/images/blogger) plus `reach`
+    # (ADR-642) joined the tier. A frozen literal cannot survive a roster that
+    # churns by design (CLAUDE.md's own warning about this file's surface list).
+    #
+    # ADR-592 made `launcher_tier` DERIVED from the app's `stage`, so the
+    # contract worth asserting is the DERIVATION, in both directions — a
+    # one-directional check catches a forgotten deletion and never a forgotten
+    # addition (the ADR-636 lesson).
+    primary = {s for s, t in tiers.items() if t == "primary"}
+    staged_primary = {
+        e["slug"] for e in KERNEL_SURFACES
+        if e.get("route") and e.get("stage") == "primary"
+    }
     check(
-        # ADR-412 D3 (2026-07-06): Chat joins the primary tier — the lanes
-        # surface (Altitude 2's chrome home), a new capability's home, not a
-        # re-sort of the ADR-349 set.
-        # 2026-07-08 (operator focus): Agents LEAVES the primary loop → search-only
-        # (see test_agents_deferred_from_primary). A3 "hire an agent" is the
-        # deferred horizon (ADR-380 Rung-2 launch line); the launch AI surface is
-        # the A2 chat lanes.
-        # ADR-415 (2026-07-08): Channels DISSOLVED — its content re-homed to
-        # Activity + Workspace Settings. So the primary loop is Home · Chat · Files.
-        "primary == {home, chat, files}",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "files"},
-        str(sorted(s for s, t in tiers.items() if t == "primary")),
+        "primary tier is DERIVED from stage == primary (both directions, ADR-592)",
+        primary == staged_primary,
+        f"tier-primary={sorted(primary)} stage-primary={sorted(staged_primary)}",
     )
+    check("a deleted surface holds no tier (ADR-435 home, ADR-415 channels)",
+          not ({"home", "channels", "context", "feed"} & set(tiers)))
     # 2026-07-04 (operator re-sort, step 2): Notifications leaves the at-rest
     # launcher entirely — the top-bar bell is the always-present door, so any
     # launcher tile was redundant chrome. Search-only; summon by name.
@@ -101,20 +109,24 @@ def test_mirrors_and_setup_search_only() -> None:
           "feed" not in by_slug)
     # ADR-642 (2026-09-07): `queue` LEFT this loop — absorbed by Reach, which
     # is PRIMARY (the boundary's door earns a Dock pin, not a summon-by-name
-    # mirror). `recurrence` was deleted by ADR-603 D5 (baseline red; its own
-    # ruling).
+    # mirror).
+    #
+    # RULING 2026-09-07: the fronted-mirror loop is EMPTY. ADR-603 D5 retired
+    # `recurrence` (the last member of the set) on 2026-08-24 and this gate had
+    # asserted its tier ever since, red the whole time. A mirror must exist to
+    # be fronted; there is nothing to re-anchor onto. Setup below is the only
+    # surviving search-only-with-a-route contract this ADR still owns.
     check("queue is absorbed by Reach; reach is primary (ADR-642 D1/D4)",
           "queue" not in by_slug and by_slug.get("reach", {}).get("launcher_tier") == "primary")
-    for slug in ("recurrence",):
-        check(f"{slug} is search-only (fronted by Notifications)",
-              by_slug[slug].get("launcher_tier") == "search-only")
-        # Mirrors NOT deleted (ADR-346 D1) — still real windowed surfaces.
-        check(f"{slug} keeps its route (not deleted)", bool(by_slug[slug].get("route")))
-        check(f"{slug} stays window-grade (not absorbed)", not by_slug[slug].get("pane_of"))
-    # D5 — Setup off the launcher, route preserved (re-enterable).
-    check("setup is search-only (a motion you re-enter, D5)",
-          by_slug["setup"].get("launcher_tier") == "search-only")
-    check("setup keeps its route", bool(by_slug["setup"].get("route")))
+    check("no retired mirror slug is still served (ADR-603 D5 / ADR-642 D4)",
+          not ({"recurrence", "queue", "feed", "context"} & set(by_slug)))
+    # D5 asserted Setup stayed re-enterable (search-only, route preserved).
+    # RULING 2026-09-07: ADR-414 D4 made workspace genesis PURE — there is no
+    # setup motion to re-enter, and the slug went fully dormant (no route, no
+    # tier). D5 is SUPERSEDED, not re-anchored; what remains is that a dormant
+    # slug carries neither tier nor route (ADR-592's chrome rule).
+    check("setup is dormant, not a served surface (ADR-414 D4 supersedes D5)",
+          not by_slug["setup"].get("route") and not by_slug["setup"].get("launcher_tier"))
 
 
 def test_notifications_rename() -> None:
@@ -159,11 +171,18 @@ def test_agents_deferred_from_primary() -> None:
     # Freddie from this roster), and a second AI door beside /chat confused the
     # A2-hands-vs-A3-hire story. Roster stays URL-reachable + searchable; it just
     # leaves the launcher tiles + the dock. One-word revert re-surfaces A3.
-    print("\n[agents] deferred from the primary tier → search-only (2026-07-08)")
+    # RE-SURFACED 2026-07-16 (kernel_surfaces.py carries the full argument):
+    # both clauses of the 07-08 demotion inverted — hiring became the launch
+    # focus, and ADR-460 D1 dissolved the A2-vs-A3 ladder that made a second AI
+    # door confusing. This gate kept asserting the demotion, but `main()` called
+    # a function name that no longer existed, so it crashed before reaching this
+    # test and the drift stayed invisible for ~7 weeks. Assert the LIVE contract.
+    print("\n[agents] primary again (2026-07-16) — identity/capability, never authority")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    check("agents launcher_tier == search-only", by_slug["agents"].get("launcher_tier") == "search-only")
+    check("agents is primary (re-surfaced 2026-07-16, ADR-460 D1)",
+          by_slug["agents"].get("launcher_tier") == "primary")
     # NOT deleted — still a real windowed surface reachable by /agents.
     check("agents keeps its route (not deleted)", bool(by_slug["agents"].get("route")))
     check("agents stays window-grade", not by_slug["agents"].get("pane_of"))
@@ -188,7 +207,7 @@ def main() -> int:
     test_mirrors_and_setup_search_only()
     test_notifications_rename()
     test_bell_one_name()
-    test_agents_upgraded()
+    test_agents_deferred_from_primary()
     test_launcher_groups()
     print(f"\n{'=' * 60}")
     print(f"  {PASSED} passed, {FAILED} failed")

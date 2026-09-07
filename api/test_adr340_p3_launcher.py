@@ -40,8 +40,14 @@ def _read(rel: str) -> str:
 
 def test_registry_tiers() -> None:
     print("\n[registry] launcher_tier on every navigable kernel surface")
-    from services.kernel_surfaces import KERNEL_SURFACES
+    # ADR-592: `internal` rows are RETAINED in the raw KERNEL_SURFACES constant
+    # (hide-not-delete — the slug must still resolve for its redirect stub) and
+    # REMOVED by kernel_surface_entries(). The tier contract is about what a
+    # member can actually reach, so it reads the SERVED roster. Reading the raw
+    # constant is how `sources` looks like a violation while behaving correctly.
+    from services.kernel_surfaces import kernel_surface_entries
 
+    KERNEL_SURFACES = kernel_surface_entries()
     navigable = [e for e in KERNEL_SURFACES if e.get("route")]
     tiers = {e["slug"]: e.get("launcher_tier") for e in navigable}
 
@@ -64,9 +70,22 @@ def test_registry_tiers() -> None:
         # ADR-414 already removed Freddie from this roster); the launch AI surface
         # is the A2 chat lanes, not a second door.
         # ADR-415 (2026-07-08): Channels DISSOLVED. Home · Chat · Files.
-        "primary == the standing loop (home/chat/files)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "chat", "files"},
+        #
+        # RULING 2026-09-07: the literal stops here. `home` was DELETED by
+        # ADR-435 and the authoring apps + `reach` (ADR-642) joined the tier, so
+        # the set had drifted five members. CLAUDE.md's own warning applies to
+        # this file: "the surface roster churns fast — do not trust a surface
+        # list written here." ADR-592 made the tier DERIVED from `stage`; assert
+        # the derivation in BOTH directions instead (a one-directional check
+        # catches a forgotten deletion and never a forgotten addition).
+        "primary tier is DERIVED from stage == primary (both directions, ADR-592)",
+        {s for s, t in tiers.items() if t == "primary"}
+        == {e["slug"] for e in navigable if e.get("stage") == "primary"},
+        f'tier={sorted(s for s, t in tiers.items() if t == "primary")} '
+        f'stage={sorted(e["slug"] for e in navigable if e.get("stage") == "primary")}',
     )
+    check("a deleted surface holds no tier (ADR-435 home, ADR-415 channels)",
+          not ({"home", "channels", "context", "feed"} & set(tiers)))
     # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
     # + System Settings (account). The `configure` lump (ADR-347) is retired.
     check(
@@ -80,31 +99,53 @@ def test_registry_tiers() -> None:
     check("legacy `configure` lump retired", not any(t == "configure" for t in tiers.values()))
     check("Utilities tier dissolved (no member carries it)",
           not any(t == "utilities" for t in tiers.values()))
+    # RULING 2026-09-07: this hand-spelled literal drifted in BOTH directions —
+    # it named six slugs that no longer exist (`budget`/`autonomy`/`activity`
+    # dormant, `recurrence` retired by ADR-603 D5, `setup` by ADR-414 D4,
+    # `agents` re-promoted 2026-07-16) and missed three that do
+    # (`billing`/`notification-settings`/`usage`). Re-spelling it just resets
+    # the drift clock. ADR-592 made the tier DERIVED from `stage`, so assert the
+    # derivation and the two structural rules ADR-340 actually owns.
+    # ADR-592 governs APPS via `stage`; a PANE carries no stage and is
+    # search-only because of what it is — it is entered through its parent
+    # window, never browsed on its own. Those are the two populations, and the
+    # search-only tier is exactly their union.
+    search_only = {s for s, t in tiers.items() if t == "search-only"}
+    panes = {e["slug"] for e in KERNEL_SURFACES if e.get("route") and e.get("pane_of")}
+    # ADR-349 D4's two settings doors are the one intentional exception: they
+    # declare stage=search-only (unpromoted — no Dock tile) but carry their own
+    # dedicated tiers (`system-config` / `workspace-config`) so the launcher can
+    # group them as doors rather than list them among summon-by-name surfaces.
+    SETTINGS_DOORS = {"settings", "workspace-settings"}
+    staged_search = {
+        e["slug"] for e in KERNEL_SURFACES
+        if e.get("route") and not e.get("pane_of")
+        and e.get("stage") == "search-only"
+        and e["slug"] not in SETTINGS_DOORS
+    }
     check(
-        # ADR-349: the fronted mirrors (queue/recurrence), Setup, and all panes
-        # go search-only. Agents upgraded to primary (D3). ADR-385 follow-on
-        # (2026-06-30): `feed` (and `context`) deleted — the narrative is the
-        # Channels Flow pane; `/feed` is a next.config redirect, not a surface.
-        "search-only == mirrors + Setup + panes (the at-rest-hidden set)",
-        # 2026-07-04: notifications joins the set — the top-bar bell is its
-        # always-present door, so its at-rest launcher tile was deleted.
-        # 2026-07-08: `agents` joins (deferred from launch chrome — ADR-414 /
-        # commit 6d2d216). connectors/sources stay search-only panes (ADR-415
-        # re-homed them pane_of workspace-settings; panes are always search-only).
-        # ADR-418 (2026-07-08): `expected-output` LEFT (dormant, route="").
-        # ADR-421 (2026-07-08): `mandate`/`identity`/`principles` LEAVE too — a
-        # workspace has no constitution of its own; they went dormant (route=""),
-        # so they drop out of the navigable tier map (surfaced on the agent detail).
-        # ADR-432 D2d (2026-07-09): `program` LEAVES — the operator hire pane is
-        # retired; the slug went dormant (no route, no launcher_tier).
-        {s for s, t in tiers.items() if t == "search-only"}
-        # ADR-642 (2026-09-07): `queue` LEFT this set — absorbed by Reach
-        # (primary). The rest of this literal is stale on ADR-603/491/592
-        # deletions (baseline red) and awaits its own ruling.
-        == {"budget", "autonomy",
-            "connectors", "sources", "activity", "agents",
-            "recurrence", "setup", "notifications"},
+        "search-only == panes + stage-search-only apps (both directions, ADR-592)",
+        search_only == (panes | staged_search),
+        f"tier={sorted(search_only)} "
+        f"expected={sorted(panes | staged_search)}",
     )
+    check("every pane is search-only (a pane is entered through its window)",
+          panes <= search_only,
+          str(sorted(panes - search_only)))
+    # ADR-592: `internal` REMOVES the row from the served roster — that IS the
+    # hide, because nav is backend-driven. A row that declares `internal` and is
+    # still served contradicts its own declaration.
+    served_internal = {
+        e["slug"] for e in KERNEL_SURFACES
+        if e.get("route") and e.get("stage") == "internal"
+    }
+    check("no served row declares stage=internal (ADR-592: internal leaves the roster)",
+          not served_internal,
+          f"served but declared internal: {sorted(served_internal)}")
+    # And a retired/dormant slug carries no tier at all.
+    check("dormant + retired slugs hold no launcher tier",
+          not ({"recurrence", "setup", "queue", "program", "expected-output",
+                "mandate", "identity", "principles"} & set(tiers)))
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
     check("chrome entries carry no tier", all(not e.get("launcher_tier") for e in chrome))
 
@@ -126,16 +167,27 @@ def test_launcher_two_modes() -> None:
 
 
 def test_constitution_band_removed() -> None:
+    from services.kernel_surfaces import kernel_surface_entries
+
     # ADR-421 (2026-07-08): the Home constitution band (the mandate/principles/
     # identity mirror-link trio) is REMOVED — a workspace has no constitution of
     # its own (ADR-414 D6); those are per-agent, surfaced on the agent detail.
-    print("\n[band] Home constitution-link trio removed (ADR-421)")
-    src = _read("components/library/HomeHeader.tsx")
-    check("ConstitutionLinks component deleted", "function ConstitutionLinks" not in src)
-    for slug in ("mandate", "principles", "identity"):
-        check(f"band no longer links {slug}", f"slug: '{slug}'" not in src)
-    # The autonomy badge still resolves via the navigation-enactment verb.
-    check("autonomy badge → foregroundSurface('autonomy')", "foregroundSurface('autonomy')" in src)
+    # RULING 2026-09-07: ADR-435 DELETED the Home surface, and HomeHeader.tsx
+    # with it. `_read` returns "" for a missing file, so the three "deleted"
+    # checks below were passing VACUOUSLY against an empty string while the one
+    # positive check (the autonomy badge) failed — and `autonomy` is itself no
+    # longer a registry slug. A gate whose subject is deleted cannot be
+    # re-anchored; what it protected (no workspace-level constitution links) is
+    # now assertable against the roster itself, which is where the rule lives.
+    print("\n[band] no workspace-level constitution surface (ADR-421 + ADR-435)")
+    check("HomeHeader is gone with the Home surface (ADR-435)",
+          not (_WEB / "components/library/HomeHeader.tsx").exists())
+    # ADR-421 + ADR-414 D6: a workspace has no constitution of its own — these
+    # are per-agent and surfaced on the agent detail, so no slug may be served.
+    by_slug = {e["slug"] for e in kernel_surface_entries()}
+    for slug in ("mandate", "principles", "identity", "autonomy"):
+        check(f"`{slug}` is not a served surface (a workspace has no constitution)",
+              slug not in by_slug)
 
 
 def main() -> int:

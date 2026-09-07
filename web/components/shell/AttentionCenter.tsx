@@ -353,7 +353,7 @@ export function AttentionCenter() {
   // the bell + surface speak one language; pane keys unchanged). Billing
   // stays an account pane. Instead of the bare mirrors.
   const goTo = useCallback(
-    (target: 'resolve' | 'understand' | 'tune' | 'billing') => {
+    (target: 'resolve' | 'understand' | 'standing' | 'billing') => {
       setIsOpen(false);
       if (target === 'billing') {
         // ADR-491 D1 (2026-07-28) — billing re-homed to the WORKSPACE door
