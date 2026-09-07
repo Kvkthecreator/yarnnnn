@@ -283,8 +283,17 @@ async def export_png(
         raise HTTPException(status_code=413, detail="That export is too large.")
 
     leaf = artifact.rsplit("/", 1)[-1]
+    # ⭐ The SERVICE client for the write, never the member's JWT: a binary
+    # revision uploads to the PRIVATE `workspace-cas` bucket, and a member JWT
+    # is refused there (the compose handler's leaves learned this in prod on
+    # 2026-07-21 — 403 on every binary; `documents.upload` rides the service
+    # client for the same reason). The first click-pass of this door 500'd on
+    # exactly that, behind a CORS-less failure in the browser. The existence
+    # read above stays on the member's client: THAT is the authorization.
+    from services.supabase import get_service_client
+
     write_revision(
-        auth.client,
+        get_service_client(),
         user_id=auth.user_id,
         path=target,
         content_bytes=data,

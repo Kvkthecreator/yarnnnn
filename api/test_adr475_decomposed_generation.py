@@ -419,7 +419,11 @@ def run() -> bool:
     export_writes: list[dict] = []
 
     def _fake_export_write(_db, *, user_id, path, content_bytes=None, **kw):
-        export_writes.append({"path": path, "bytes": content_bytes, **kw})
+        # WHICH CLIENT reached the write — the same assertion surface the
+        # compose leaves carry above. The first version of this gate dropped
+        # `_db` and passed 58/58 against a handler that wrote with the member's
+        # JWT; the first click-pass of the door 500'd on the private CAS bucket.
+        export_writes.append({"client": _db, "path": path, "bytes": content_bytes, **kw})
         return "rev-export"
 
     prior_export_write = ri2.write_revision
@@ -450,6 +454,9 @@ def run() -> bool:
         )
         _check("…as the binary lane, typed image/png (ADR-427)",
                w.get("bytes") == png and w.get("content_type") == "image/png")
+        _check("…written with the SERVICE client — the private CAS bucket refuses a member JWT "
+               "(the compose leaves' 2026-07-21 lesson; this door's first click-pass repeated it)",
+               w.get("client") is service_client)
         _check("…attributed to the member who clicked", w.get("authored_by") == "operator")
 
         # The refusals — each named, none silent.
