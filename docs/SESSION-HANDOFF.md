@@ -77,6 +77,11 @@ sibling so the gate EXECUTES the precedence — a reordered spread is invisible
 to a substring check. Falsified against the pre-fix order: 27/28, exactly the
 reported-bug check goes red.
 
+**Verified fixed live** (Vercel, 14:22): `?reach.pane=crossed` holds and
+renders Crossed; a bare `/reach` still restores the remembered pane (no
+regression); and `?reach.pane=connected` beats a freshly-remembered `crossed`
+— the exact case that was broken. Web lane marked validated.
+
 **The lesson, and it is the arc's own:** three sessions of gates went green
 over this. A gate cannot see a wrong pane, and neither could tsc. Only the
 click found it — the same shape as ADR-641's "a colour decision has to be
