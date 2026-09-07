@@ -43,6 +43,21 @@ export interface FileMenuTarget {
   path: string;
   name: string;
   isFile: boolean;
+  /**
+   * ADR-643 D3 — the server's decision for this path, when the surface holds a
+   * row that carries one.
+   *
+   * ⚠️ OPTIONAL BY NECESSITY, which is exactly why it goes missing silently:
+   * an undecorated row must degrade to "ask the server", so `tsc` cannot
+   * report a surface that forgets to pass it. A forgotten decision reads as
+   * UNKNOWN, the guard offers the act, and the door refuses — safe, but the
+   * member gets a rename modal instead of a plain explanation.
+   *
+   * Declared HERE, on the shared target, rather than per surface: this is the
+   * one shape every file surface builds, so widening it is what makes carrying
+   * the decision the default instead of a thing four surfaces must remember.
+   */
+  access?: import('@/types').AccessDecision;
 }
 
 /**

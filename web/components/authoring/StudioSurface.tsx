@@ -3608,7 +3608,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // surface's only job is to follow the copy (onAfterMutate re-points ?file).
   const duplicateArtifact = useCallback(() => {
     if (!artifactPath) return;
-    organizeVerbs.onDuplicate({ path: artifactPath, name: artifactDisplayName });
+    organizeVerbs.onDuplicate({ path: artifactPath, name: artifactDisplayName, access: loadedFile?.access ?? undefined });
   }, [artifactPath, artifactDisplayName, organizeVerbs]);
 
   // ADR-447 Phase 4, re-addressed by ADR-511 Phase 2: "+ Add" in an empty
@@ -4518,9 +4518,9 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 copyLink: copyArtifactLink,
                 duplicate: () => void duplicateArtifact(),
                 move: () =>
-                  organizeVerbs.onMove({ path: artifactPath, name: artifactDisplayName }),
+                  organizeVerbs.onMove({ path: artifactPath, name: artifactDisplayName, access: loadedFile?.access ?? undefined }),
                 trash: () =>
-                  organizeVerbs.onDelete({ path: artifactPath, name: artifactDisplayName }),
+                  organizeVerbs.onDelete({ path: artifactPath, name: artifactDisplayName, access: loadedFile?.access ?? undefined }),
               }}
               // The File card renames IN PLACE (double-click the name) through
               // the SAME commit the crumb uses — one derivation (ADR-483), one
@@ -4981,6 +4981,11 @@ function StudioStart({
                 const ShapeIcon = shape.icon;
                 // The organize verbs act on the FILE — they get the raw leaf
                 // (Rename pre-fills the real name, the shared Files flow).
+                // ADR-643 D3 — no decision here, DELIBERATELY. The Studio
+                // recents feed is a revision list, not a tree row, so it
+                // carries no `access`. Absent reads as UNKNOWN: the verb is
+                // offered and the door explains. Wrong to synthesise one —
+                // a guessed decision is the mirror this ADR deleted, reborn.
                 const target = { path: r.path, name: baseName(r.path), isFile: true };
                 return (
                   <div

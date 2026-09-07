@@ -106,6 +106,7 @@ import { resolveDownload } from '@/lib/workspace/download';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
+type AccessDecision = import('@/types').AccessDecision;
 type FileClickIntent = import('@/types').FileClickIntent;
 
 const EXPLORER_ROOT_PATH = '/explorer';
@@ -1250,6 +1251,31 @@ export default function ContextPage() {
       setViewPath((prev) => (prev !== oldPath ? prev : newPath));
     },
   });
+  /**
+   * ADR-643 D3 — carry the served decision onto an organize target.
+   *
+   * ⭐⭐⭐ THE ONE BOUNDARY WHERE THE DECISION IS LOST. The menu speaks
+   * `{path, name, isFile}` and the organize hook speaks `{path, name,
+   * isFolder}`, so every verb REBUILDS its target here — and a rebuilt object
+   * carries only the keys it was written with. The decision rode the tree row
+   * and was dropped on the way to the guard, which then saw `access:
+   * undefined`, read it as "unknown → offer the act" and opened the rename
+   * modal on a machine-config file.
+   *
+   * Caught by the click-pass, not by a gate: the type is optional (it must be —
+   * an undecorated row has to degrade to asking), so `tsc` cannot see the
+   * omission and the server still refuses. **A permission fact that is
+   * OPTIONAL by design cannot be type-checked into place; only driving the
+   * gesture shows it missing.**
+   */
+  const withAccess = useCallback(
+    <T extends { path: string }>(t: T): T & { access?: AccessDecision } => {
+      const node = resolveNodeByPath(virtualRoot, t.path);
+      return node?.access ? { ...t, access: node.access } : t;
+    },
+    [virtualRoot],
+  );
+
   const openRename = organizeVerbs.onRename;
   const openMove = organizeVerbs.onMove;
   const handleTreeDelete = organizeVerbs.onDelete;
@@ -1403,7 +1429,7 @@ export default function ContextPage() {
     // them, rather than by teaching either side the other's spelling — the
     // Files browser is the only surface that holds both kinds.
     onRename: (t: { path: string; name: string; isFile: boolean }) =>
-      openRename({ path: t.path, name: t.name, isFolder: !t.isFile }),
+      openRename(withAccess({ path: t.path, name: t.name, isFolder: !t.isFile })),
     // MOVE — the verb the deleted selection chip used to carry.
     //
     // It takes the SET when the right-clicked file is part of a multi-selection,
@@ -1420,7 +1446,7 @@ export default function ContextPage() {
         setMoveSetOpen(true);
         return;
       }
-      openMove({ path: t.path, name: t.name, isFolder: !t.isFile });
+      openMove(withAccess({ path: t.path, name: t.name, isFolder: !t.isFile }));
     },
     // MOVE TO TRASH — the same scope rule as Move, and for the same reason
     // (2026-08-27). Until this branch existed, Move took the set and Trash did
@@ -1440,18 +1466,18 @@ export default function ContextPage() {
     onDelete: (t: { path: string; name: string; isFile: boolean }) => {
       if (selection.length > 1 && selection.includes(t.path)) {
         const targets = selection.map((p) => {
-          if (p === t.path) return { path: p, name: t.name, isFolder: !t.isFile };
+          if (p === t.path) return withAccess({ path: p, name: t.name, isFolder: !t.isFile });
           const n = resolveNodeByPath(virtualRoot, p) ?? syntheticNodeForPath(p);
-          return {
+          return withAccess({
             path: p,
             name: n?.name ?? p.split('/').filter(Boolean).pop() ?? p,
             isFolder: n?.type === 'folder',
-          };
+          });
         });
         void trashSet(targets);
         return;
       }
-      handleTreeDelete({ path: t.path, name: t.name, isFolder: !t.isFile });
+      handleTreeDelete(withAccess({ path: t.path, name: t.name, isFolder: !t.isFile }));
     },
     onShare: handleShare,
     // DOWNLOAD — save to the operator's computer (2026-08-20). It left the

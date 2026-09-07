@@ -1041,7 +1041,7 @@ export function TextEditor({
           )}
           <button
             type="button"
-            onClick={() => organizeVerbs.onRename?.({ path, name: leafOf(path) })}
+            onClick={() => organizeVerbs.onRename?.({ path, name: leafOf(path), access: file?.access ?? undefined })}
             title={`${relPath(path)} — click to rename`}
             className="flex min-w-0 items-center gap-1.5 truncate rounded px-1.5 py-0.5 font-medium text-foreground/90 hover:bg-muted/50"
           >
