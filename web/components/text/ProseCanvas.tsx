@@ -530,7 +530,13 @@ const livePreview = ViewPlugin.fromClass(
       // selected state, and a selection change alone moves no doc and no
       // viewport — so without it, dragging across a divider highlighted every
       // character around it and left the divider itself unchanged.
-      if (u.docChanged || u.viewportChanged || u.selectionSet) {
+      // ADR-590 D5: a reveal/collapse is an EFFECT with no doc or selection
+      // change of its own (the collapse-on-leave dispatch), and a revealed
+      // image line keeps its marks — so the pass must rebuild on those too.
+      const toggled = u.transactions.some((tr) =>
+        tr.effects.some((e) => e.is(revealFence) || e.is(collapseFence)),
+      );
+      if (u.docChanged || u.viewportChanged || u.selectionSet || toggled) {
         this.decorations = buildPreviewDecorations(u.view);
       }
     }
@@ -566,6 +572,16 @@ function buildPreviewDecorations(view: EditorView): DecorationSet {
         // own line treatment — an inline mark inside either has nothing to
         // attach to. Fences own their own rendering; this plugin stays out.
         if (node.name === 'FencedCode') return false;
+
+        // ⭐ ADR-590 D5 — a REVEALED image line is source ON PURPOSE: the
+        // member pressed "Edit image" to reach the path, and hiding the
+        // LinkMark/URL here left them "A laptop" with nothing to edit (the
+        // first click-pass). The figure's own field owns the rendered form;
+        // this pass stays out of the one line the member asked to see raw.
+        if (node.name === 'Image') {
+          const revealed = state.field(revealedFences, false);
+          if (revealed && revealed.has(doc.lineAt(node.from).number)) return false;
+        }
 
         // ⭐ ADR-575 D9 — a blockquote is a SET-ASIDE, not italics.
         //

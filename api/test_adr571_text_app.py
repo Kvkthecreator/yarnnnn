@@ -2116,6 +2116,20 @@ const out = {
   source_hidden: !html.includes('](marketing/assets/laptop.png)'),
   no_data_attrs: !/data-block|data-ref|data-mark/.test(html),
 };
+// The declared gesture (D3's rule, applied to the image): press "Edit image",
+// and the line must show its PATH — the whole point of revealing it. The first
+// click-pass showed "A laptop" with the URL still hidden by the preview pass.
+// AFTER the rendered-form checks above: the reveal replaces the figure, and the
+// first spelling of this probe measured the figure post-reveal and went red on
+// its own ordering.
+const editBtn = host.querySelector('figure.cm-mdImage .cm-mdImageEdit');
+let revealedText = null;
+if (editBtn) {
+  act(() => { editBtn.dispatchEvent(new dom.window.MouseEvent('mousedown', { bubbles: true, cancelable: true })); });
+  const open = host.querySelector('.cm-line.cm-mdFenceOpen');
+  revealedText = open ? open.textContent : null;
+}
+out.revealed_shows_path = !!revealedText && revealedText.includes('](marketing/assets/laptop.png)');
 process.stdout.write(JSON.stringify(out));
 """
 try:
@@ -2140,6 +2154,10 @@ check("17h1 the block form is a FIGURE: alt as its caption, and the shared edit 
       str(_d17h)[:300])
 check("17h2 the widget writes NOTHING into the document (ADR-456 D1 holds)",
       _d17h.get("no_data_attrs") is True, str(_d17h)[:300])
+check("17h3 pressing the figure's edit affordance reveals the line WITH its path — "
+      "a reveal that still hides the URL gives the member nothing to edit (the "
+      "first click-pass); the preview pass stays out of a revealed image line",
+      _d17h.get("revealed_shows_path") is True, str(_d17h)[:300])
 
 
 # ── 18. ADR-572 D18 — a CSV table is a SNAPSHOT, and the rows are in the file ──
