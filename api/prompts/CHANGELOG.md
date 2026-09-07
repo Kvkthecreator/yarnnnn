@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.07.4] - the cadence is read in the WORKSPACE's clock, not UTC
+
+### Changed
+- `services/skills/declaring-standing-work/SKILL.md` — the `schedule:` comment said `# UTC cron`. It has not been UTC since migration 247 (ADR-596 D4): a cron resolves against `workspaces.timezone`, UTC only as the fallback when none is declared. Corrected, and step 4 gains one line telling the agent to take a member's named time as their own clock and say which one it wrote.
+- Why (observed, not speculative): production's one standing declaration read `0 13 * * *` and fired at 04:00 UTC every day. Both are correct — the workspace is `Asia/Seoul` (UTC+9) — but nothing on the declaration, the roster or the pane said so, so the two numbers looked like a bug for a fortnight. An agent following the skill would have written 13:00 meaning UTC and silently produced a 9-hour shift.
+- Expected behavior: an agent writing a declaration states the clock when confirming the cadence. No change to how any schedule RESOLVES — `compute_next_run_at` was always right.
+- Size: +1 line of body. Index unchanged (the `description` is untouched), so no ceiling moves.
+- Gate: `test_adr630_skills.py` (index ceilings) + `test_adr639_standing_work.py` green.
+
+---
+
 ## [2026.09.07.3] - `assembling-a-composite-document` measured null → rank 2; the declaring skill names what a slice reads
 
 ### Changed

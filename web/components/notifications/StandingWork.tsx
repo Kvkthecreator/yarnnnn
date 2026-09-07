@@ -50,9 +50,19 @@ function runStatusLine(e: StandingLastRun): string {
   return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
 }
 
-function scheduleLine(s: StandingSummary['schedule']): string {
+/** The cadence, and the clock it is read in.
+ *
+ * A bare cron says nothing about its timezone, and the "next" beside it is
+ * rendered in the BROWSER's — so a Seoul workspace read from Seoul showed
+ * `0 13 * * *` next to a 1pm that agreed by luck, and read from anywhere else
+ * showed two times, one of which is nobody's. The schedule resolves against
+ * the WORKSPACE's clock (migration 247); name it. UTC is left unlabelled —
+ * it is the default and the label would be noise on every undeclared row.
+ */
+function scheduleLine(s: StandingSummary['schedule'], tz?: string | null): string {
   if (!s) return 'no cadence';
-  return Array.isArray(s) ? s.join(' · ') : String(s);
+  const cadence = Array.isArray(s) ? s.join(' · ') : String(s);
+  return tz && tz !== 'UTC' ? `${cadence} · ${tz}` : cadence;
 }
 
 export function StandingWork() {
@@ -170,7 +180,7 @@ export function StandingWork() {
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.topic}</p>
                     <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
-                        <CalendarClock className="h-3 w-3" /> {scheduleLine(row.schedule)}
+                        <CalendarClock className="h-3 w-3" /> {scheduleLine(row.schedule, row.timezone)}
                       </span>
                       {row.paused && (
                         <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground/70">

@@ -315,7 +315,10 @@ def compute_next_run_at(
       - recurrence's `paused_until` is in the future (still paused)
 
     Per ADR-268 §D3 the `schedule` field accepts:
-      - A plain UTC cron expression (existing path, unchanged).
+      - A plain cron expression, resolved against `user_timezone` — the
+        ACTING WORKSPACE's declared timezone (`workspaces.timezone`, migration
+        247), NOT UTC. UTC is only the fallback when no timezone is declared.
+        So `0 13 * * *` in an Asia/Seoul workspace fires at 04:00 UTC.
       - A @-prefixed semantic schedule (resolved via market_calendars).
       - A list of either of the above; next_run_at = min of each member's
         individually-resolved next time.

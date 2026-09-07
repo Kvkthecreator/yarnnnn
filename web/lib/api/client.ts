@@ -528,6 +528,10 @@ export interface StandingSummary {
    *  from the target's type (ADR-639 D3). Null for a structured target. */
   app?: string | null;
   schedule?: string | string[] | null;
+  /** The clock `schedule` is read in — the workspace's declared timezone
+   *  (migration 247), "UTC" when none is declared. A bare cron does not say
+   *  which clock it means, so the pane names it. */
+  timezone?: string | null;
   paused: boolean;
   sources: StandingSource[];
   last_run_at?: string | null;

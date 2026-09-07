@@ -26,7 +26,9 @@ One folder holds ONE declaration, split on the ADR-564 D2 bright line:
                         app: text                # OPTIONAL — explicit wins;
                                                  # absent → derived from the
                                                  # target's type (prose → text)
-                        schedule: "0 13 * * *"   # UTC cron | @-semantic | list
+                        schedule: "0 13 * * *"   # cron in the WORKSPACE's
+                                                 # timezone (mig 247) |
+                                                 # @-semantic | list
                         paused: false
                         sources:                 # HTTP pull, or a connector
                           - id: main             # slice (ADR-582 D6 / 594 D2):

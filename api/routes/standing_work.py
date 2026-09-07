@@ -113,6 +113,13 @@ class StandingSummary(BaseModel):
     #: (ADR-639 D3). None for a structured target (mechanical).
     app: Optional[str] = None
     schedule: Optional[Any] = None
+    #: The clock `schedule` is read in — the ACTING WORKSPACE's declared
+    #: timezone (`workspaces.timezone`, migration 247), "UTC" when none is
+    #: declared. Served because a bare cron does not say which clock it means:
+    #: `0 13 * * *` in an Asia/Seoul workspace fires at 04:00 UTC, and the pane
+    #: rendered the raw string beside a browser-local "next" — two times, one
+    #: of them nobody's.
+    timezone: str = "UTC"
     paused: bool = False
     sources: list[StandingSource] = []
     last_run_at: Optional[str] = None
@@ -270,8 +277,15 @@ def _connector_reads(platform: Optional[str]) -> Optional[str]:
 
 
 def _summarize(client, user_id: str, decl, index_row: Optional[dict],
-               last_run: Optional[LastRun]) -> StandingSummary:
+               last_run: Optional[LastRun],
+               tz: Optional[str] = None) -> StandingSummary:
     from services.standing_work import _read_file
+
+    # The workspace clock the cadence is read in. Resolved by the caller for a
+    # roster (one query for the whole list); resolved here for a single row.
+    if tz is None:
+        from services.schedule_utils import get_workspace_timezone
+        tz = get_workspace_timezone(client, user_id)
 
     target_head = (
         _read_file(client, user_id, decl.target_path) if decl.target else None
@@ -297,6 +311,7 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict],
             if isinstance(s, dict) and s.get("id")
             and (s.get("url") or (s.get("connector") and s.get("selector")))
         ],
+        timezone=tz,
         last_run_at=(index_row or {}).get("last_run_at"),
         next_run_at=(index_row or {}).get("next_run_at"),
         problem=decl.problem,
@@ -321,8 +336,11 @@ async def list_standing(auth: UserClient) -> list[StandingSummary]:
     )
     by_slug = _index_rows(auth.client, actor)
     last = _last_runs(auth.client, actor, [d.topic for d in decls])
+    # One clock for the whole roster — it is the WORKSPACE's, not per-row.
+    from services.schedule_utils import get_workspace_timezone
+    tz = get_workspace_timezone(auth.client, actor)
     return [
-        _summarize(auth.client, actor, d, by_slug.get(d.slug), last.get(d.topic))
+        _summarize(auth.client, actor, d, by_slug.get(d.slug), last.get(d.topic), tz)
         for d in decls
     ]
 

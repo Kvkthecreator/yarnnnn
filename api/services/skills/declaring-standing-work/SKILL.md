@@ -23,7 +23,7 @@ Only the DESIGNATED target is ever a standing writer's target. One declaration p
 
        target: notes.md            # the designated leaf, in this folder, one segment
        app: text                   # optional; omitted, the file's type decides who runs it
-       schedule: "0 13 * * *"      # UTC cron, or a list of crons; daily if the member names none
+       schedule: "0 13 * * *"      # cron in the WORKSPACE's timezone, or a list; daily if unnamed
        paused: false
        sources:
          - id: short-slug          # kebab, unique
@@ -36,6 +36,8 @@ Only the DESIGNATED target is ever a standing writer's target. One declaration p
          # keys: [mrr, churn]      # json: required top-level keys
 
    A csv, json or txt target takes exactly ONE source; prose folds up to twelve. Never invent a source URL. When unsure, say so and ask.
+
+   The cadence is read in the workspace's own timezone (Workspace Settings → General; UTC until the owner declares one), so "0 13 * * *" is 1pm where the workspace lives, not 1pm UTC. A member naming a time means their clock — take it as given and say which one you wrote.
 5. Read _standing.yaml back and confirm it parses. A malformed declaration means the file silently stops being kept.
 6. Confirm to the member in one line each: the contract, the source(s), the cadence, the shape if any, and when the first run fires.
 
