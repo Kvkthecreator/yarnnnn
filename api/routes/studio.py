@@ -488,6 +488,22 @@ async def set_default_design_system_route(
                 status_code=404, detail=f"Not a design system: {manifest}"
             )
 
+    # ADR-501 S1 (2026-09-07). A fixed CONFIG path is still a path, and a
+    # workspace-wide default every future artifact is born wearing is exactly
+    # the kind of act a narrowed grant should not carry. The consult reads the
+    # same one table as every other door.
+    from services.primitives.workspace import _is_path_locked_for_principal
+
+    if _is_path_locked_for_principal(auth, STUDIO_DEFAULTS_PATH):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Your grant in this workspace does not permit setting the "
+                "default design system. The workspace owner can widen it from "
+                "the Access pane."
+            ),
+        )
+
     # Read-modify-write the yaml so future keys survive a default change.
     rows = (
         auth.client.table("workspace_files")
@@ -1133,6 +1149,21 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
         raise HTTPException(
             status_code=403,
             detail="You can't create a file here — that location is managed by the system.",
+        )
+
+    # ADR-501 S1 (2026-09-07). `write_artifact` twelve hundred lines up already
+    # consults the principal; its CREATE twin did not — the same split ADR-501
+    # closed between the primitive path and the edit door, reopened one door
+    # over. `operator_can_organize` above is the placement law, not permission.
+    from services.primitives.workspace import _is_path_locked_for_principal
+
+    if _is_path_locked_for_principal(auth, path):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Your grant in this workspace does not permit writing {path}. "
+                "The workspace owner can widen it from the Access pane."
+            ),
         )
 
     # The DELIBERATE door's key, stepped past whatever is already there.

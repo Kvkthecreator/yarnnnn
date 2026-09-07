@@ -711,6 +711,56 @@ from services.workspace_paths import (
 )
 
 
+# =============================================================================
+# THE GRANT CONSULT ON THE ORGANIZE VERBS (ADR-501 S1, completed 2026-09-07)
+# =============================================================================
+#
+# ⭐⭐⭐ `operator_can_organize` IS NOT AN AUTHORIZATION CHECK. It is a
+# FILESYSTEM-INTEGRITY rule about path SHAPE — "may anyone hand-organize a file
+# in this position" — and it returns the SAME answer for every principal. It
+# carves `system/`, raw `inbound/` and `_*.yaml` machine leaves, and nothing
+# else. `constitution/` `persona/` `governance/` `contract/` all pass it,
+# because ADR-320 says those are the OPERATOR's own to reorganize.
+#
+# The per-principal question is a different one, and it has its own decider:
+# `_is_path_locked_for_principal` (class ceiling + grants, ADR-373/ADR-501).
+#
+# These verbs asked only the first question and then acted through the SERVICE
+# client, so RLS was no backstop either. Measured: a principal whose grant
+# resolves to the `agent` class (every `member` row, every `foreign-llm` row)
+# got WRITE=403 and TRASH=200 on all four of those roots. A principal who may
+# not WRITE a file could DESTROY it.
+#
+# ⚠️ NOT LATENT. The surrounding code assumes N=1 owner-only
+# (`primitives/workspace.py:2616` — "At N=1 (every live workspace) the only
+# grant rows are the owner's with NULL scopes"). `principal_grants` on
+# production holds 11 owner + 5 member + 11 foreign-llm + 1 viewer: sixteen
+# non-owner grants whose class is locked from four roots they could trash.
+#
+# ADR-501's own lesson reads "a permission fix must enumerate the doors, not
+# the deciders" — it then enumerated TWO doors (`edit_workspace_file`,
+# `write_artifact`) and shipped. These were the ones it missed. Enumeration is
+# a to-do list that expires silently; the durable fix is one decider every door
+# calls, which is the follow-on work this unblocks rather than replaces.
+def _assert_principal_may_organize(auth, path: str) -> None:
+    """Raise 403 unless this PRINCIPAL may mutate `path`.
+
+    Composes with `operator_can_organize`, never replaces it: the carve law
+    answers "is this position hand-organizable at all", this answers "may THIS
+    caller touch it". A door owes both questions.
+    """
+    from services.primitives.workspace import _is_path_locked_for_principal
+
+    if _is_path_locked_for_principal(auth, path):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Your grant in this workspace does not permit changing {path}. "
+                "The workspace owner can widen it from the Access pane."
+            ),
+        )
+
+
 @router.delete("/documents/{document_path:path}")
 async def delete_document(auth: UserClient, document_path: str):
     """Move a workspace file to Trash (the operator-facing 'Delete' verb).
@@ -736,6 +786,8 @@ async def delete_document(auth: UserClient, document_path: str):
             status_code=403,
             detail="This file is managed by the system and can't be moved to trash.",
         )
+
+    _assert_principal_may_organize(auth, document_path)
 
     result = auth.client.table("workspace_files") \
         .select("content, head_version_id") \
@@ -899,6 +951,8 @@ async def restore_trash_group(body: RestoreGroupRequest, auth: UserClient):
             status_code=403,
             detail="This folder is managed by the system and can't be restored from here.",
         )
+
+    _assert_principal_may_organize(auth, root)
     result = restore_group(
         get_service_client(),
         user_id=auth.user_id,
@@ -938,6 +992,8 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
             status_code=403,
             detail="This file is managed by the system and can't be restored from here.",
         )
+
+    _assert_principal_may_organize(auth, path)
 
     result = auth.client.table("workspace_files") \
         .select("content, lifecycle, head_version_id") \
@@ -1050,6 +1106,8 @@ async def permanent_delete_document(body: PermanentDeleteRequest, auth: UserClie
             status_code=403,
             detail="This file is managed by the system and can't be deleted from here.",
         )
+
+    _assert_principal_may_organize(auth, path)
     ws = _require_permadelete_authority(auth.user_id)
     service = get_service_client()
     _assert_archived_and_uncited(service, auth.user_id, ws, path)
@@ -1083,6 +1141,15 @@ async def empty_trash(auth: UserClient):
     for row in archived:
         path = row["path"]
         if not operator_can_organize(path):
+            continue
+        # ADR-501 S1 (2026-09-07): the same consult the single-file door owes.
+        # A LOOP skips rather than raising — emptying the trash must not 403 on
+        # one locked row and abandon the rest — but it must skip for the GRANT
+        # reason too, or a principal empties away what they may not write.
+        from services.primitives.workspace import _is_path_locked_for_principal
+
+        if _is_path_locked_for_principal(auth, path):
+            skipped.append(path.rsplit("/", 1)[-1])
             continue
         if list_dependents(service, user_id=auth.user_id, path=path, limit=1):
             skipped.append(path.rsplit("/", 1)[-1])
@@ -1349,6 +1416,8 @@ async def trash_folder_route(body: FolderTrashRequest, auth: UserClient):
             status_code=403,
             detail="This folder is managed by the system and can't be moved to trash.",
         )
+
+    _assert_principal_may_organize(auth, abs_path)
     try:
         result = trash_folder(
             get_service_client(),
@@ -1416,6 +1485,11 @@ async def move_folder_route(body: FolderMoveRequest, auth: UserClient):
             status_code=403,
             detail="Folders can't be moved into a system location.",
         )
+
+    # ADR-501 S1 (2026-09-07) — both ends, like the file verbs: a principal may
+    # neither take a folder they cannot touch nor put one where they cannot write.
+    _assert_principal_may_organize(auth, src)
+    _assert_principal_may_organize(auth, dst)
     if src == dst:
         raise HTTPException(status_code=400, detail="Source and destination are the same.")
     # A folder cannot be moved INSIDE itself — the fan would chase its own tail,
@@ -1551,6 +1625,12 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
             status_code=403,
             detail="You can't create a folder here — that location is managed by the system.",
         )
+
+    # ADR-501 S1 (2026-09-07). ADR-424 D2 says the operator does not ask
+    # permission to name a folder for their work — but "the operator" there is
+    # the OWNER. A member's grant can be narrower, and this writes a real row
+    # through write_revision. Checked on the same marker path the carve law used.
+    _assert_principal_may_organize(auth, marker_path)
 
     # Already a folder here? Either it holds files (it exists through them) or
     # it already carries a marker. Both are "already exists" — never re-create.
