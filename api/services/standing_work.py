@@ -368,8 +368,17 @@ def discover_standing(client, *, workspace_id: Optional[str] = None) -> dict[str
     workspace — the discover_radar_hubs shape verbatim (ADR-501 keying: the
     grouping key is the workspace's owner, resolved through the service
     client, never the file's author)."""
+    from services.workspace_context import live_files_filter
+
     try:
-        q = (
+        # NOT-IN-TRASH (2026-09-07). Discovery is a READER of the substrate, so
+        # it owes the same lifecycle predicate every other reader owes. Without
+        # it a declaration the member moved to Trash kept being discovered, and
+        # the sync below RE-CREATED its `tasks` row — the delete was undone by
+        # the next scheduler tick, so an unwanted job resurrected itself and
+        # went on spending. Observed on prod: `operation/fundraising` archived
+        # 02:22, its row rebuilt 02:30 with `last_run_at` cleared.
+        q = live_files_filter(
             client.table("workspace_files")
             .select("user_id, workspace_id, path, content")
             .like("path", f"{_WORKSPACE_PREFIX}%/{DECLARATION_LEAF}")

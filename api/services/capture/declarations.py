@@ -242,15 +242,20 @@ def walk_workspace_captures(client, user_id: str) -> list[CaptureDeclaration]:
     if client is None:
         return []
 
+    from services.workspace_context import live_files_filter
+
     try:
-        result = (
+        # NOT-IN-TRASH (2026-09-07) — the same predicate `discover_standing`
+        # owes, for the same reason: a reader that forgets it serves a trashed
+        # declaration as live, and the sync then RE-CREATES the `tasks` row the
+        # member deleted. Fixed in both discovery paths together; the two are
+        # the only writers into the `tasks` index.
+        result = live_files_filter(
             client.table("workspace_files")
             .select("content,updated_at")
             .eq("user_id", user_id)
             .eq("path", CAPTURES_PATH)
-            .limit(1)
-            .execute()
-        )
+        ).limit(1).execute()
     except Exception as e:
         logger.error("[CAPTURE] read failed for user=%s: %s", user_id[:8], e)
         return []

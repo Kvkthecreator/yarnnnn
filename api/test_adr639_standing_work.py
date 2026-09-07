@@ -74,26 +74,53 @@ def _calls(tree) -> set[str]:
 
 
 class FakeQuery:
-    def __init__(self, table, files):
-        self.table_name, self.files, self.path = table, files, None
+    """A `workspace_files` query that MODELS TRASH.
+
+    `files` maps path -> content for live rows; `archived` is the set of paths
+    sitting in Trash. A reader that forgets the not-in-Trash predicate gets the
+    archived rows back — the fake REFUSES to hide them for free, because a fake
+    that answers correctly whatever you ask cannot see a missing constraint
+    (the defect this models shipped under green gates).
+    """
+    def __init__(self, table, files, archived):
+        self.table_name, self.files, self.archived = table, files, archived
+        self.path = None
+        self.live_only = False
     def select(self, *a, **k): return self
     def limit(self, *a, **k): return self
     def order(self, *a, **k): return self
     def like(self, *a, **k): return self
     def in_(self, *a, **k): return self
     def lte(self, *a, **k): return self
+    def or_(self, clause, *a, **k):
+        # `live_files_filter` applies exactly this OR clause; seeing it is how
+        # the fake learns the caller asked for live rows only.
+        if "lifecycle" in str(clause):
+            self.live_only = True
+        return self
     def eq(self, key, val):
         if key == "path": self.path = val
         return self
+    def _rows(self):
+        paths = [self.path] if self.path is not None else list(self.files)
+        return [
+            {"path": p, "content": self.files[p],
+             "user_id": "u1", "workspace_id": "w1",
+             "lifecycle": "archived" if p in self.archived else "active"}
+            for p in paths
+            if p in self.files and not (self.live_only and p in self.archived)
+        ]
     def execute(self):
-        if self.table_name == "workspace_files" and self.path in self.files:
-            return SimpleNamespace(data=[{"content": self.files[self.path]}])
+        if self.table_name == "workspace_files":
+            return SimpleNamespace(data=self._rows())
         return SimpleNamespace(data=[])
 
 
 class FakeClient:
-    def __init__(self, files=None): self.files = files or {}
-    def table(self, name): return FakeQuery(name, self.files)
+    def __init__(self, files=None, archived=None):
+        self.files = files or {}
+        self.archived = set(archived or ())
+    def table(self, name): return FakeQuery(name, self.files, self.archived)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -405,6 +432,46 @@ check("system:strings (historical) → Standing work", display_author("system:st
 _attr = _read("web/lib/workspace/attribution.ts")
 check("the FE attribution table maps both prefixes to Standing work",
       "system:standing" in _attr and "system:strings" in _attr and "Standing work" in _attr)
+
+# ═══════════════════════════════════════════════════════════════════════════
+print("D6. a declaration in Trash is not discovered (2026-09-07)")
+# ═══════════════════════════════════════════════════════════════════════════
+# THE DEFECT THIS CLOSES, observed on production: `delete` archives (ADR-337
+# amended — one delete, one meaning: the row STAYS with lifecycle='archived' so
+# the file sits in Trash and restores in one act). Discovery selected on PATH
+# alone, so it kept reading the trashed declaration and the sync RE-CREATED its
+# `tasks` row. `operation/fundraising` was archived at 02:22 and its row was
+# rebuilt at 02:30 with `last_run_at` cleared — the member's delete was undone
+# by the next scheduler tick, and the job resurrected itself and went on
+# spending. A reader of the substrate owes the lifecycle predicate.
+from services.standing_work import discover_standing as _discover  # noqa: E402
+import services.capture.declarations as _capdecl  # noqa: E402
+
+_DECL = "target: notes.md\nschedule: \"0 13 * * *\"\npaused: false\n"
+_DECL_PATH = "/workspace/operation/probe/_standing.yaml"
+
+_live_client = FakeClient(files={_DECL_PATH: _DECL})
+_found_live = _discover(_live_client, workspace_id="w1")
+check("a live declaration IS discovered (the fixture is not vacuous)",
+      any(d.declaration_path == _DECL_PATH
+          for decls in _found_live.values() for d in decls))
+
+_trash_client = FakeClient(files={_DECL_PATH: _DECL}, archived={_DECL_PATH})
+_found_trash = _discover(_trash_client, workspace_id="w1")
+check("a declaration in Trash is NOT discovered",
+      not any(d.declaration_path == _DECL_PATH
+              for decls in _found_trash.values() for d in decls))
+
+# The capture walker is the only other writer into the `tasks` index and had
+# the same missing predicate — fixed in the same change, gated in the same way.
+_CAP = "captures:\n  - slug: c1\n    primitive: FetchSource\n    schedule: \"0 13 * * *\"\n"
+_CAP_PATH = _capdecl.CAPTURES_PATH
+
+check("a live _captures.yaml IS read (the fixture is not vacuous)",
+      len(_capdecl.walk_workspace_captures(FakeClient(files={_CAP_PATH: _CAP}), "u1")) > 0)
+check("a _captures.yaml in Trash is NOT read",
+      _capdecl.walk_workspace_captures(
+          FakeClient(files={_CAP_PATH: _CAP}, archived={_CAP_PATH}), "u1") == [])
 
 print()
 if FAILURES:
