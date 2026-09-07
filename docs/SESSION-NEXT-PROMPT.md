@@ -1,235 +1,192 @@
-# Carry-over prompt — is composition-by-reference substrate-native, or an artifact-app feature?
+# Carry-over prompt — composition-by-reference: Stage 1 answered, three decisions on the table
 
-> Paste the block below as the next session's opening prompt. Staged
-> deliberately: **Stage 1 is a narrow, falsifiable wedge with a measured
-> failure behind it. Stage 2 is the general thesis.** Do Stage 1 first and let
-> its answer constrain Stage 2 — the last three arcs all went wrong by letting
-> the broad question swallow the narrow one.
->
-> Written 2026-09-07, after the skills arc closed at `ce59554`.
+> Written 2026-09-07 after driving Stage 1 of the previous carry-over prompt
+> (`98a22b9`). **Nothing shipped this session** — this is a finding, with the
+> receipts, and the decisions it leaves. Paste the block below as the next
+> session's opening prompt.
 
 ---
 
 ## The prompt
 
-Continue the composition thread. **Do not take this prompt's summary as fact —
-front-load your own context first**, in this order:
+Continue the composition thread from the findings below. **Verify, don't
+trust** — front-load `docs/SESSION-HANDOFF.md` Part R, then
+`docs/adr/ADR-572-*.md` §D17/§D18 and `docs/adr/ADR-590-*.md` §1 before acting.
+A PARALLEL SESSION also commits here; check `git log --oneline -8` authorship.
 
-1. `docs/SESSION-HANDOFF.md` Part R (most recent), then Q and P.
-2. `docs/adr/ADR-448-the-reference-edge-derived-from-on-the-ledger.md` and
-   `docs/adr/ADR-357-citation-binds-to-source-not-internal-path.md` — the two
-   ADRs that already ratify most of the thesis below.
-3. `api/services/apps/text.py` (`build_text_posture` — read the docstring's
-   ADR-456 D1 "grade constraint" claim) beside
-   `api/services/authoring.py::_blocks_grammar` and `_POSTURE_FRAME`'s
-   §"Citing workspace objects".
-4. `git log --oneline -8` — a PARALLEL SESSION also commits here; check
-   authorship before assuming a change is yours to build on.
+### Stage 1 is answered: which render pass a Text document goes through
 
-### What is already true (verify, don't trust)
+**Neither pass is `projection.ts`.** A `.md` is drawn by exactly two things:
 
-Composition-by-reference is **not** missing. It exists at three layers, none
-app-specific in principle:
-
-- **Ledger** — `derived_from` is a real column (ADR-448), walkable by `trace`,
-  and warns before a source is deleted.
-- **Artifact** — `data-ref` (living path) + `data-ref-rev` (pin), resolved at
-  render by `web/components/workspace/viewers/projection.ts`, which flags a
-  dangling ref `data-ref-broken` rather than failing silently.
-- **Doctrine** — ADR-357 / DP31: a citation binds to the **Source**, never the
-  internal path; *"a claim with no resolvable Source does not ship."*
-
-So "make an image, save it, cite it from a deck" is already the design. The
-question is not whether composition should be first-class. It is **where the
-mechanism lives, and why one app is outside it**.
-
----
-
-## STAGE 1 — the wedge. Why does the document app carry no reference grammar?
-
-Measured 2026-09-07 (recorded in
-`docs/analysis/composing-an-image-in-a-bound-lane-2026-09-07.md`, postscript):
-
-```
-slides   _blocks_grammar carries data-ref   ✅
-images   _blocks_grammar carries data-ref   ✅
-blogger  _blocks_grammar carries data-ref   ✅
-text     posture is 1,344 B, NO data-ref, NO citation rule, NO block grammar
-         text also owns NO artifact layout at all (all_layouts(): deck→slides,
-         post→blogger, image→images)
-```
-
-And the consequence, observed in two bound Text drives on the same fixture (a
-notes file + a 3-row CSV, ask: *"write the Q3 platform review into the bound
-document"*):
-
-> **Both runs retyped the CSV's figures (1,850 / 2,310 / 3,040) into a markdown
-> table and cited the source file nowhere.** Neither reached the
-> `assembling-a-composite-document` skill from its index line.
-
-**⭐⭐⭐ PARTLY PRE-ANSWERED — verify this, it is the crux.** Read on
-2026-09-07:
-
-- **ADR-456 D1 is a FORMAT ruling, not a reference ruling.** It says HTML is
-  the sole canonical source for Studio artifacts and markdown is an interchange
-  projection. It says **nothing about citation or `data-ref`**. So
-  `text_pane_posture`'s *"no Studio machinery (ADR-456 D1's grade constraint)"*
-  cites a constraint about **block-grade editing machinery** — annotation-on-DOM,
-  block ids, arrangements — which is **orthogonal to whether a document cites
-  its sources**. If that holds, the exclusion is **inherited, not principled**,
-  and that is the finding.
-- **ADR-574's amendment banner on ADR-456 points the same way, harder**: it
-  records that any future HTML-native surface must ship a **server-side
-  `data-ref` projection** or inherit invisibility, because an exporter over
-  unresolved `data-ref` elements returns empty containers. Reference resolution
-  is treated there as a *platform* obligation, not an app's choice.
-
-**⚠️ AND THE SHARPEST FACT — the Text lane IS already told to cite.** Measured
-on the composed frame:
-
-```
-bound TEXT frame (12,048 B):  derived_from  ✅ present     data-ref  ❌ absent
-unbound lane frame:            derived_from  ✅ present     data-ref  ❌ absent
-PARTICIPANT_FILESYSTEM_MODEL:  mentions cite / data-ref / derived_from — NO
-```
-
-So the ledger-level citation rule (`derived_from`) reaches Text from the kernel
-commons contract **and the agent retyped the CSV anyway, twice.** That kills
-the simplest hypothesis ("it was never told") and makes the real question much
-better:
-
-> **Is `derived_from` the wrong grain for this failure?** `derived_from` cites
-> the file the DOCUMENT was made from. It cannot say *this number came from that
-> file* — it has no claim-level grain. `data-ref` does, because it is resolved
-> at render. A document that cites a CSV in `derived_from` and then retypes its
-> figures is **fully compliant with the rule it was given** and still drifts.
-
-⚠️ **Rule this before proposing anything.** Three distinct claims are in play
-and only one is obviously defensible:
-1. "A prose document has no arrangement/block grammar" — defensible (ADR-456).
-2. "A prose document may not cite its sources" — already FALSE (`derived_from`
-   is in the frame).
-3. "A prose document has no CLAIM-GRAIN citation" — TRUE today, and this is the
-   actual gap. Decide whether it should be.
-
-**Possible outcomes, all legitimate:**
-- a claim-grain citation available to Text (NOT the 18-kind block roster — that
-  would re-import the machinery ADR-456 excluded on purpose);
-- a deliberate "no", written down with its reason so it stops being re-litigated;
-- the finding is about the SKILL, not the frame: `assembling-a-composite-document`
-  already carries "name the source of every figure, inline" and neither drive
-  reached it. Reach, not doctrine, may be the whole defect.
-
-⭐⭐⭐ **ESTABLISH THIS BEFORE DESIGNING ANYTHING.** `projection.ts` is what
-makes `data-ref` live. **Find out which render pass a Text artifact goes
-through.** If Text documents are not projected, a `data-ref` in one is inert
-markup and a body-level rule is worse than useless — it would author a citation
-nothing resolves, which is exactly the "empty containers" failure ADR-574's
-banner describes. The answer to this one question decides whether Stage 1 is a
-frame change, a skill change, or nothing.
-
----
-
-## STAGE 2 — the thesis, constrained by whatever Stage 1 returns
-
-**Should composition-by-reference be substrate-native — a kernel fact every
-engine composes against — rather than a per-app authoring grammar?**
-
-"Every engine" means all of these, and they do not share a composition site
-today:
-
-| engine | how it composes | `derived_from` | `data-ref` |
+| surface | file | what it renders | since |
 |---|---|---|---|
-| bound lane (slides/images/blogger) | `lane_runner` + `_blocks_grammar` | ✅ | ✅ |
-| bound lane (**text**) | `lane_runner` + `text_pane_posture` | ✅ | ❌ |
-| open/unbound lane | `lane_runner`, no posture | ✅ | ❌ |
-| a standing run | `build_standing_frame` (toolless) | (verify) | (verify) |
-| an MCP connector | `mcp_composition.compose_*` | (verify — `trace` walks the edge) | (verify) |
-| an external LLM via MCP | the tool contracts only | (verify) | (verify) |
+| the editing canvas (the ONE surface) | `web/components/text/ProseCanvas.tsx` | headings, marks, lists, quotes, rules, links, `<table>` (D15), mermaid + code fences (ADR-590 D3) | ADR-572 D8, `f392323`, 2026-08-16 |
+| the reading face | `web/components/shared/MarkdownRenderer.tsx` via `ProseReader` | the same, plus `![alt](path)` resolved to a CAS URL (`MarkdownImage`) | demoted to **thumbnail + print only** by D8 |
 
-*(The first three rows were measured 2026-09-07; the last three were not — check
-them rather than inheriting the pattern.)* Note `PARTICIPANT_FILESYSTEM_MODEL`
-mentions **none** of `cite` / `data-ref` / `derived_from` — the commons contract
-carries the citation rule elsewhere in the kernel tail, so find where before
-proposing to add to it.
+`projection.ts` is imported only by the Studio/authoring tree (StudioSurface,
+StudioCanvas, FlowEditor, PagedNavigator, artifactOps). So the first falsifier
+in the old prompt **fired**: a `data-ref` inside a `.md` is inert markup, and a
+body-level `data-ref` rule for Text would author citations nothing resolves.
+That part of the old thesis is dead and should stay dead.
 
-**The specific sub-questions worth answering, in order:**
+### But the markdown grammar was already RULED — and it answers the "claim-grain" question
 
-1. **Is the participant contract the right home?** `PARTICIPANT_FILESYSTEM_MODEL`
-   and `PARTICIPANT_REGISTER` (ADR-533/638, `services/workspace_paths.py`) are
-   already kernel constants composed for every lane regardless of app. "Cite,
-   don't copy" is the same *kind* of fact as "this is your filesystem" — a
-   property of the commons, not of an app. **If it belongs anywhere kernel-level,
-   it is probably here.** Test that against ADR-533 D1's own boundary.
-2. **What does it cost?** The kernel tail composes into EVERY turn. DP22/ADR-306
-   says the prompt layer is ablated, not accreted, and adding is the last resort.
-   A clause here needs the same evidence as any prompt instruction: **a repeated,
-   observed failure** (the two Text drives are exactly one such observation —
-   n=2, same fixture, so treat it as a lead, not a proof).
-3. **Is the failure silent?** This is the arc's own test for whether a rule pays
-   (`api/services/skills/__init__.py` docstring). A retyped figure **looks
-   perfect** and drifts the moment the source moves — silent and functional,
-   which is the profile that argues for a contract rather than craft prose.
-4. **Does an external caller need it too?** ADR-623 established *"external must
-   never be better than internal"*. Check whether the inverse now holds: an MCP
-   connector writing a file gets the commons contract; does it get the citation
-   rule? If not, is that a gap or correct?
+ADR-572 D17/D18 (2026-08-17, `8a195db` + `931df22`) decided, kind by kind, what
+composition-by-reference looks like when the file is markdown, on the test
+*"does its content survive in the file"*:
 
-### What would FALSIFY the thesis
+| kind | markdown form | pin | ruling |
+|---|---|---|---|
+| image | `![alt](workspace/path.png)` | none — **the deliberate loss** (a moved image says "Image not found: path") | ✅ D17 |
+| diagram | a ```` ```mermaid ```` fence | the source IS the file | ✅ D17 |
+| table from CSV | rows written as GFM under `_From \`path\` · snapshot YYYY-MM-DD_` | the provenance LINE | ✅ D18 |
+| automatically-live table | a pointer (`<div data-ref>`) | — | ❌ refused: empty in the file, ADR-574's reason |
 
-State these before running anything, and mean them:
+So the claim-grain citation the old prompt was reaching for **exists in
+markdown and is the provenance line** — D18: *"Provenance in the file, not in
+a convention."* The two bound Text drives that retyped `1,850 / 2,310 / 3,040`
+into a table produced **exactly the shape the Text toolbar's own
+`csvToMarkdownTable` writes, minus the provenance line.** The defect is not
+that the agent copied (D18 says copy) — it is that nothing told it the copy
+must say where it came from.
 
-- **A Text artifact is not rendered through `projection.ts`** → a body-level
-  `data-ref` is inert; the edge belongs on the ledger only, and Stage 1's answer
-  is "the current state is correct". ⭐ Check this FIRST — it is the cheapest
-  falsifier and it invalidates the most work.
-- **The skill already says it and simply was not reached** (`assembling-a-
-  composite-document` step 3: *"Name the source of every figure, inline"*) →
-  the defect is REACH, which the skills arc already measured, and no doctrine
-  changes.
-- A Text document is never rendered through `projection.ts` → a body-level
-  citation grammar is inert; the edge belongs on the ledger only.
-- An A/B shows a lane cites its sources at the same rate with and without the
-  clause → it is prose we pay for in every turn (the exact null the skills arc
-  measured for craft skills).
-- The kernel tail is already at its ceiling → the clause has to displace
-  something, and what it displaces is the real decision.
+### What the engines are told, measured
 
-### Method (this is where the last four arcs actually went wrong)
+```
+text_pane_posture (composed, 1,349 B):
+  derived_from ✅     mermaid ✗   ![ ✗   csv ✗   snapshot ✗   "From `" ✗   data-ref ✗
+skills index for app=text (3,118 B): lists assembling-a-composite-document ✅
+  — its step 3 says "name the source of every figure, inline" but names NO shape
+lane_runner.py:        composes PARTICIPANT_CITATION_RULE (derived_from) only; "data-ref" absent
+build_standing_frame:  PARTICIPANT_CITATION_RULE only
+mcp_server/server.py:  PARTICIPANT_CITATION_RULE + PARTICIPANT_ARTIFACT_CITATION_RULE (.html);
+                       "![" / mermaid / snapshot: absent
+```
 
-- **Pre-register ONE measure per arm before running**; print everything else as
-  exploratory. A confirming first trial is the one to distrust — Part P's
-  22-vs-5 gap reached p=0.500 by n=6, and Part R's perfect 1.00-vs-0.00 trial 1
-  became p=0.200 by n=3.
-- **A rule makes an agent do MORE** (look for the source, refuse to assert). An
-  A/B that scores completion naively penalises the arm behaving correctly.
-  Score completion first; read the trace behind every zero.
-- **Score the artifact, not the prompt.** A scorer counting `data-block` in a
-  produced document found 21 kinds — they were in the skeleton's own stylesheet,
-  and 21 was the *slides* roster. Strip `<head>`/`<style>` before scoring, and
-  treat any count matching a roster you did not expect as a bug.
-- **Evaluate a per-app registry FOR THE APP IN QUESTION.** Last session ruled a
-  boundary from `_blocks_grammar` — correct for 3 apps, wrong for the 4th, which
-  was the one being scoped. Compose the posture for that app and grep it; it is
-  three lines.
-- **Isolate per run AND purge between runs.** The substrate leaks craft between
-  arms — anywhere the agent can write, another arm can read (including
-  `skills/`, which is outside any run folder).
-- **Scope verification to what the change can reach.** A full sweep on a
-  posture/docs change proves nothing and its reds are environmental. Check for
-  stray CHILD processes before trusting any sweep against the live workspace.
-- ⚠️ **macOS caches bytecode outside the repo** —
-  `~/Library/Caches/com.apple.python/<abs path>/`. `find -name __pycache__`
-  does not clear it, and a stale `.pyc` will make a correct source file import
-  as a falsified value. Falsify **in-process** (mutate + `try/finally`) rather
-  than by editing source.
+The engine census the old prompt asked for:
 
-### Also still open (unrelated to this thread; don't let them bundle)
+| engine | `derived_from` (ledger) | `.html` grammar (`data-ref`) | `.md` grammar (image-by-path · mermaid · snapshot+provenance) |
+|---|---|---|---|
+| bound lane — slides / images / blogger | ✅ | ✅ (`_POSTURE_FRAME` §Citing) | n/a |
+| bound lane — **text** | ✅ | ❌ (correct: inert) | **❌ nowhere** |
+| open lane | ✅ | ❌ | ❌ |
+| standing run | ✅ | ❌ | ❌ |
+| MCP connector | ✅ | ✅ (kernel constant, ADR-617 D2) | ❌ — and `marketing/` is almost entirely connector-authored `.md` |
+| the Text **toolbar** (a human's hand) | — | — | ✅ `insertImage` / `insertMermaid` / `insertCsvTable` — **the only home** |
 
-The composite-document skill is unmeasured and ranked 1 accordingly · the
-`agent-composition.md` §3.2.1 re-cut (df797d2 left a working decision table, so
-this is tidiness, not a hazard) · the standing run's reach receipt · the GitHub
-aperture · the `ADR-411 D4` phantom citation (33 sites / 26 files → ADR-408/460)
-· ADR-640 D2's two derived rows.
+**This is the Stage 2 answer.** Composition-by-reference *is* substrate-native
+at the ledger (`derived_from` reaches every engine). The in-document grammar is
+**per format**, and that is correct — the format decides what survives in the
+file. The asymmetry is that the `.html` grammar is a kernel constant every
+write-capable surface can be handed, while the `.md` grammar lives only in
+three FE insert functions. No engine can be told it because it is written
+nowhere an engine reads.
 
-**Pick up with Stage 1 and drive it rather than reading about it.**
+### The operator's live observation, reproduced on prod (2026-09-07)
+
+Driven on `/agents/_adr427-phase2-test/scratch.md` through CodeMirror's own
+input path (`execCommand('insertText')` — the DevTools keyboard tool scrambles
+markdown punctuation; the doc was restored to its original line afterwards):
+
+```
+```mermaid graph TD …```          → .cm-mdDiagram widget, <svg viewBox="0 0 111 174">, 2 nodes   ✅ renders
+_From `operation/q3.csv` …_ + GFM  → italic line + a real <table>                                    ✅ renders
+![laptop](marketing/assets/…png)   → the underlined word "laptop"; real <img> count: 0              ❌ NO picture
+```
+
+⭐⭐⭐ **The image door has never drawn a picture on the surface it was added
+to.** D8 (2026-08-16) collapsed Text to the CodeMirror canvas and demoted
+`MarkdownRenderer` to thumbnail + print. D17 (the NEXT day) shipped Insert →
+Image and gated it with **17g: "the renderer RESOLVES a workspace image path"**
+— asserting `MarkdownRenderer`, the surface the canvas no longer mounts.
+`ProseCanvas` has six widget classes (Bullet, Rule, TaskBox, Table, Mermaid,
+CodeLabel) and no image; the lezer `Image` node is treated as a link (marks
+hidden, text underlined). ADR-590's census of *"eleven rendered things"* has no
+image row, so the omission was never a decision. Three weeks, gate green.
+
+So "graphs" render; **"referring to a new sub-file" does not, for images** —
+and the agent side is worse: a Text lane is never told mermaid is the diagram
+form, so *"add a graph"* has no grammar at all, and a graph of DATA (bar/line)
+has no markdown form except mermaid's `xychart-beta` (mermaid 11.14 is
+bundled; untested here).
+
+**"Make an image in Images, put it in a Text doc" is unbuilt by name.** An
+artboard is `.html`; its raster leaves only as a browser download
+(`rasterExport.ts`), and ADR-475 §13 records posting it back as a
+`revision_kind="derivation"` as *"opt-in, not required, and not built at
+launch."* The generated LEAVES (`{artboard}/assets/*.png`, ADR-475) ARE real
+files and ARE citable by `![]()`; `/studio/citable` lists png/jpg/gif/webp/svg.
+
+A receipt on the other side: `operation/fundraising/market-sizing-reference.md`
+(a Text-lane write, 2026-08-18) carries a Source column for every figure. The
+agent cites the WORLD fine (DP31); it is a figure lifted from a WORKSPACE FILE
+it leaves unsourced.
+
+---
+
+## The three decisions, separable — do not bundle them
+
+**1. The canvas draws an image (FE defect).** ADR-590 D1 already states the
+rule (*rendered stays rendered*); this is the row its census missed. An
+`ImageWidget` beside `MermaidWidget`, resolving the path the way `MarkdownImage`
+does (per read, never stored — the CAS URL has a 1-hour TTL). The gate must
+**exercise the canvas** — mount `ProseCanvas` (or drive prod) and count real
+`<img>`s, not grep `MarkdownRenderer`. Recommend: fix, its own commit.
+
+**2. The engines are told the markdown grammar.** Three homes, in rising
+reach and rising cost:
+- (a) the composite-document skill only — zero frame bytes; reach measured
+  at 58% / 0-of-2 on this exact ask;
+- (b) `text_pane_posture` — text lanes only, ~300 B, the app's own job overlay
+  (ADR-606 D3: the posture is where an app says how its artifact works);
+- (c) a kernel constant (`PARTICIPANT_PROSE_CITATION_RULE`, sibling of the
+  artifact rule) composed into the Text posture + the standing frame + the
+  connector — ADR-617 D2's own argument (*"HOW A DOCUMENT WORKS, kernel-
+  universal"*) applies symmetrically, and the connector authors more `.md`
+  than any lane.
+Evidence bar (DP22/ADR-306): a repeated observed failure — n=2 on one
+fixture plus the operator's live report; **the failure is SILENT** (a retyped
+figure looks perfect and drifts when the source moves), which is the arc's own
+profile for a contract, not craft. Recommend (b) now with the shape stated
+(the three forms + the provenance line, ≤ 400 B), pre-registered A/B
+(`provenance_line_present` per figure-bearing document, n≥3/arm, purge
+between runs), and promote to (c) only if the connector shows the same
+failure in its own writes — measure `marketing/*.md` for unsourced figures
+first; that is one query.
+
+**3. Images → Text: the raster lands in the workspace.** ADR-475 §13's opt-in
+POST-back, unbuilt. Product decision, not a defect. If wanted: the export
+button gains "save to workspace" beside "download", landing
+`{artboard}/exports/{name}.png` as a derivation of the artboard's revision —
+then `![]()` and the picker reach it with nothing else built.
+
+### What would falsify decision 2
+
+- An A/B where the treated arm writes the provenance line at the same rate as
+  control → prose we pay for every turn; drop it.
+- The connector's `.md` writes already carry sources → (c) is unneeded; (b)
+  suffices.
+- A Text lane that is told the shape retypes a WHOLE CSV under a provenance
+  line → the skill's step 4 ("keep the document's numbers to the few the
+  argument uses") is the missing half, and it is craft, not contract.
+
+### Method notes from this drive
+
+- ⚠️ **The DevTools `type_text` tool drops/reorders markdown punctuation**
+  (`![`, `](`, backticks) in CodeMirror; drive the canvas with
+  `document.execCommand('insertText')` from `evaluate_script`. The prod bundle
+  does not expose `cmView`, so `view.dispatch` is not reachable.
+- Screenshots to the scratchpad are refused by the DevTools MCP (outside its
+  roots); take them inline.
+- A search for syntax (`![`, ```` ```mermaid ````) through the connector's
+  semantic `search` returns noise — enumerate with `list` and `open`.
+
+### Also still open (unrelated; keep them unbundled)
+
+The composite-document skill is unmeasured (rank 1) · `agent-composition.md`
+§3.2.1 re-cut · the standing run's reach receipt · the GitHub aperture · the
+`ADR-411 D4` phantom (33 sites / 26 files → ADR-408/460) · ADR-640 D2's two
+derived rows.
+
+**Pick up with decision 1 (a bug with a receipt) and the one query behind
+decision 2, and drive them rather than reading about them.**
