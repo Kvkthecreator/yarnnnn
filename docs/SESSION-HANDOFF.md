@@ -162,12 +162,12 @@ not the whole table) is unexercised by a 3-row fixture — carried in OWED.
    measure at 30).
 2. `./relative` image paths in markdown — refused in D5 (both faces fail
    alike); open it only if asked.
-2b. **Does the raster honour HIDDEN layers?** The exported artboard shows
-   "DON'T COPY PASTE FOR A LIVING" as its headline while the canvas's a11y
-   tree listed "WORK DIFFERENT" as the h1 and no such text. Could be a11y
-   omission (three rail rows are just "Heading") or the projection drawing a
-   layer the rail hides. One screenshot of the canvas beside the export
-   settles it — not chased here.
+2b. ✅ **CLOSED by observation.** The exported artboard's headline ("DON'T COPY
+   PASTE FOR A LIVING") is not in the canvas's a11y tree, which raised the
+   question of whether the raster draws a hidden layer. One screenshot of the
+   canvas: the same headline, same placement — the three rail rows named
+   "Heading" are those lines, and the a11y tree simply omits them. The export
+   matches the canvas; nothing to chase.
 3. Carried: `agent-composition.md` §3.2.1 re-cut · the standing run's reach
    receipt · the GitHub aperture · the `ADR-411 D4` phantom (33 sites) ·
    ADR-640 D2's two derived rows.
