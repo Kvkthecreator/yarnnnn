@@ -4,7 +4,7 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
-# Part U — ADR-642 Reach + Slack, the second outbound tenant (2026-09-07)
+# Part U (Reach) — ADR-642 Reach + Slack, the second outbound tenant (2026-09-07; the parallel session's Part U, the access decider, is below)
 
 Operator, after a strategic discourse (*am I steering wrong, given the labs'
 agents becoming the hands on Office/Figma?*): *"proceed with 2–3 … reach and
@@ -36,9 +36,16 @@ format for unattended work + a viewer), the interop face leads.
   **D8 read-back mechanized** (`matched|differs|unreadable` on the receipt).
   `SendToSlack` on the Text pane only. Two Slack writers PINNED (seam +
   the ADR-304 tool handler).
-- **`connector_does` writes from BOTH homes** — it said *"nothing — yarnnn
-  never writes to Slack"* beside the gated `platform_slack_send_to_channel`.
-  Driven on prod: Slack and Notion rows now state the gated proposal path.
+- **`connector_does` writes from the publish seam AND the LIVE surface** —
+  it said *"nothing — yarnnn never writes to Slack"*; my first fix read the
+  capability registry and claimed an agent proposal path, which the
+  operator's first click-pass falsified within the hour (the editor,
+  asked to send a doc to Slack: *"I cannot post"* — true; the lane composes
+  read rosters only; `write_slack` is a registry fossil of the deleted task
+  pipeline). Now derived from `turn_reach_tool_names`, driven both ways.
+  The lane frame names the member's door (CHANGELOG `[2026.09.07.6]`).
+  Scope legibility fixed the same pass: Connected = the viewer's account
+  connections; Leaving + Crossed = this workspace; each pane says so.
 - Fixed en route: `StudioPublish`'s raw `<a href>` to Connectors (the nav
   gate had been red on it since 2026-09-01) → `navigateToSurface`.
 

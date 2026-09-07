@@ -720,7 +720,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "arrow-left-right",
         "default_pinned": True,  # primary → pinned by derivation (ADR-592)
         "route": "/reach",
-        "summary": "What's connected, what's about to leave, and what crossed — every act signed.",
+        # Two scopes on one window, said plainly: connections are the VIEWER's
+        # (account-scoped, ADR-425/577 — reachable wherever they work; other
+        # members hold their own); what leaves and what crossed are THIS
+        # WORKSPACE's (substrate-scoped ledgers).
+        "summary": "Your connections, and what leaves or arrives in this workspace — every act signed.",
     },
     # The `activity` surface row (the Runs lens, pane_of recurrence) is
     # DELETED with its parent (ADR-603 D5 executed 2026-08-24). Run receipts

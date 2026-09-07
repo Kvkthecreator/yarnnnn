@@ -335,17 +335,43 @@ check("Reach mounts the boundary families only; To do mounts everything",
       and "<QueueBody />" in _notif)
 
 # ---------------------------------------------------------------------------
-print("D5. what a connection does derives from BOTH write paths")
+print("D5. what a connection does derives from the publish seam AND the LIVE tool surface")
+import services.turn_reach as _tr  # noqa: E402
 from services.connectors import connector_does  # noqa: E402
+from services.publish import PUBLISH_TARGETS, PUBLISH_VERBS  # noqa: E402
 
+check("every publish target names its door's verb", set(PUBLISH_VERBS) >= set(PUBLISH_TARGETS))
 _slack = connector_does("slack") or {}
 _wp = connector_does("wordpress") or {}
 _gh = connector_does("github") or {}
-check("Slack: the click AND the gated proposal are both named",
-      "your click" in _slack.get("writes", "") and "proposal" in _slack.get("writes", ""), _slack.get("writes"))
-check("…and the agents fact says where an agent's post goes", "proposal" in _slack.get("agents", ""), _slack.get("agents"))
-check("WordPress: the click alone", "publish" in _wp.get("writes", "") and "proposal" not in _wp.get("writes", ""), _wp.get("writes"))
+_notion = connector_does("notion") or {}
+check("Slack: the member's door is named — send a file, from the file's own pane, your click",
+      "send a file" in _slack.get("writes", "") and "your click" in _slack.get("writes", ""), _slack.get("writes"))
+check("…and NO agent proposal path is claimed: the lane composes read rosters only (the registry row is a fossil)",
+      "proposal" not in _slack.get("writes", "") and "cannot send" in _slack.get("agents", ""), _slack.get("agents"))
+# The falsifier: compose a write tool into the LIVE surface and the sentence
+# must flip on its own — proving the derivation reads the surface, not a
+# hand-kept "never".
+_orig_names = _tr.turn_reach_tool_names
+_tr.turn_reach_tool_names = lambda platforms=None: tuple(_orig_names(platforms)) + ("platform_slack_send_to_channel",)
+try:
+    _flipped = connector_does("slack") or {}
+finally:
+    _tr.turn_reach_tool_names = _orig_names
+check("…a write tool composed into the live surface names the proposal path (the derivation reads the surface)",
+      "proposal" in _flipped.get("writes", "") and "proposal" in _flipped.get("agents", ""), _flipped.get("writes"))
+check("WordPress: the click alone, and agents never publish",
+      "publish" in _wp.get("writes", "") and "proposal" not in _wp.get("writes", "") and "your click" in _wp.get("agents", ""), _wp.get("writes"))
+check("Notion: nothing — a registry write capability with no live loop is not a write path",
+      "never writes" in _notion.get("writes", ""), _notion.get("writes"))
 check("GitHub: never writes", "never writes" in _gh.get("writes", ""), _gh.get("writes"))
+_lane = (API / "services" / "lane_runner.py").read_text()
+check("the lane frame names the member's outbound doors from the seam's own roster (never a hand-kept list)",
+      "from services.publish import PUBLISH_TARGETS, PUBLISH_VERBS" in _lane
+      and "point them to that door" in _lane)
+check("Reach says whose each pane is: connections are the viewer's, the rest this workspace's",
+      "other members hold and see their own" in _read("app/(authenticated)/reach/page.tsx")
+      and "this workspace" in _read("app/(authenticated)/reach/page.tsx"))
 from routes.integrations import IntegrationResponse  # noqa: E402
 check("`does` rides the integrations LIST", "does" in IntegrationResponse.model_fields)
 check("…and the list handler fills it", "does=(None if attached else connector_does(platform))" in (API / "routes" / "integrations.py").read_text())

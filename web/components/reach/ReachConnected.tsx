@@ -182,7 +182,10 @@ export function ReachConnected() {
                         text={`${i.tools_exposed ?? 0} tool${i.tools_exposed === 1 ? '' : 's'} to your turns${i.category ? ` · ${i.category}` : ''}`}
                       />
                     )}
-                    {fresh && (
+                    {/* A connector that never captures (WordPress) has no
+                        "last read" — saying "not reading yet" there implies a
+                        read that is coming. Shown only where a capture exists. */}
+                    {fresh && !(i.does?.reads ?? '').startsWith('nothing') && (
                       <Fact
                         label="Last read"
                         text={
@@ -195,7 +198,9 @@ export function ReachConnected() {
                     )}
                     {readers.length > 0 && (
                       <div className="flex gap-2">
-                        <dt className="w-16 shrink-0 text-muted-foreground/60">Read by</dt>
+                        {/* The declarations are THIS WORKSPACE's (substrate);
+                            the connection is the viewer's (account). Say so. */}
+                        <dt className="w-16 shrink-0 text-muted-foreground/60" title="Standing declarations in this workspace that read through your connection">Read by</dt>
                         <dd className="flex flex-wrap gap-1">
                           {readers.map((d) => (
                             <button

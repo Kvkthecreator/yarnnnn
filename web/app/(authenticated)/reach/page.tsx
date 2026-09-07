@@ -68,7 +68,7 @@ export default function ReachPage() {
             <PaneHeader
               icon={Cable}
               title="Connected"
-              subtitle="Every connection you hold — where it points, what it reads, what it writes, and who reads through it."
+              subtitle="Your connections — held under your account, reachable wherever you work; other members hold and see their own. What each reads and writes, and who in this workspace reads through it."
               action={<DoorLink label="Manage connections" onClick={() => navigateToSurface('connectors')} />}
             />
             <div className="flex-1 overflow-y-auto p-6">

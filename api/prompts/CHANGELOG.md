@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.07.6] - the reach section names the member's outbound door; an agent asked to send says so and points there
+
+### Changed
+- `services/lane_runner.py` — every branch of `connector_reach_section` (scoped-to-nothing · unscoped · scoped · darkened) gains one sentence, DERIVED from `services/publish.py`'s `PUBLISH_TARGETS` + `PUBLISH_VERBS`: *"You cannot send or publish anywhere. {member} can — publish to WordPress · send a file to Slack — from the file's own pane: their click, receipted beside the file. Asked to send something out, say you cannot and point them to that door."* A third tenant names its door here the day it lands; nothing is hand-listed.
+- Expected behavior: asked "send this to my Slack channel", the editor still refuses (it holds no write tool — the lane composes read rosters only) but now names the Send to Slack door on the file's pane instead of sending the member to Settings.
+
+### Why
+**Observed on the first Reach click-pass (2026-09-07, operator screenshot).** In the Text pane the member asked the editor to send the open document to their Slack channel. The reply was truthful — *"my Slack access is read-only … no way to send a message out"* — and its remedy was wrong: *"worth checking Settings"*. The door exists (ADR-628 amendment 3, shipped the same morning) and it is the member's, on that very pane. The frame had no way to know it: reach prose described what the agent can READ and said nothing about what the member can SEND. ADR-638's register — name the THING — applies to the door as much as to the file.
+
+The same screenshot exposed the mirror defect on Reach: `connector_does` claimed *"an agent's Slack post goes out only through a proposal you approve"* — derived from the capability registry, which still carries `write_slack` for the task pipeline ADR-231 deleted. Corrected to derive from the LIVE lane surface (`turn_reach_tool_names`), so both faces now say the same true thing: the agent cannot send; the member can, from the file's pane.
+
+### Gate
+`test_adr535_connector_visibility.py` (drives all four reach states); `test_adr642_reach.py` D5 (the derivation reads the live surface — a composed write tool flips the sentence; none composed says "cannot"); the size ratchets `test_adr632_the_seat_retires.py` §5 + `test_adr630_skills.py`.
+
+---
+
 ## [2026.09.07.5] - the "scoped to no connections" clause was unreachable; the member got the darkened wording
 
 ### Changed

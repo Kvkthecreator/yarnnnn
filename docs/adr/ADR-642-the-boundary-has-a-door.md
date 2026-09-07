@@ -147,17 +147,32 @@ navigation caller — re-points to Reach. The `components/queue/` folder is NOT
 renamed: it is the proposal queue's body (ADR-307's `QUEUE` decision, the
 chat's `ProposalCard`), not the surface, and the concept outlives the door.
 
-### D5 — What a connection does is derived from BOTH write paths
+### D5 — What a connection does is derived from the publish seam AND the LIVE tool surface
 
 `connector_does` said *"nothing — yarnnn never writes to Slack"*, derived
-from the publish seam alone, while `platform_slack_send_to_channel` has been
-an agent write path since ADR-304 (gated → the proposal queue). The line was
-false before this ADR and would have become differently incomplete after it.
-The `writes` fact now derives from two homes and states both: the
-member-clicked publish target (`PUBLISH_TARGETS`) and the gated agent
-capability (`PLATFORM_TOOLS_BY_CAPABILITY`'s `write_{platform}`), and the
-`agents` fact says which applies. A fact written from one of two sources
-drifts on the second (the agent-composition.md §3.2.1 lesson).
+from the publish seam alone. The first cut of this ADR "fixed" it by also
+reading the capability registry (`PLATFORM_TOOLS_BY_CAPABILITY`'s
+`write_{platform}`) and produced *"an agent's Slack post goes out only
+through a proposal you approve"* — and the first click-pass falsified that
+within the hour: asked to send a document to Slack, the editor truthfully
+answered *"I cannot post — my Slack access is read-only."* The registry
+still carries `write_slack` for the task pipeline ADR-231 deleted; the
+lane — the only live tool surface — composes read rosters only
+(`turn_reach_tool_names`), and the standing lane is toolless.
+
+**A registry row is not a live path.** The `writes` fact derives from two
+homes, both live: the member-clicked publish target (`PUBLISH_TARGETS`, with
+the door's own verb from `PUBLISH_VERBS`) and whether a write tool for the
+platform is composed into a live tool loop. Today none is, so every
+first-party row says the agent cannot send and names the member's door; the
+day a write tool is composed, the sentence names the proposal path on its
+own. The `agents` fact says the same from the agent's side. The gate drives
+both branches by patching the live surface.
+
+**The mirror fix rides the lane frame** (CHANGELOG `[2026.09.07.6]`): the
+reach section now names the member's outbound doors, derived from the same
+roster, so an agent asked to send says it cannot and points to the door
+instead of to Settings.
 
 ### D6 — The Dock gains a pin, by generation
 

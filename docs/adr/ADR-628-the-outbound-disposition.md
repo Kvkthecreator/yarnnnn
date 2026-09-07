@@ -199,11 +199,14 @@ day one."*
 
 **What the seam gains** (`services/publish.py`, gate-pinned):
 
-- `PUBLISH_TARGETS` = `{wordpress, slack}`. `connector_does` derives its
-  writes fact from BOTH this set and the gated agent capability
-  (ADR-642 D5) — Slack is the first tenant that has both a member-clicked
-  publish path and an agent write path (`platform_slack_send_to_channel`,
-  gated → the proposal queue since ADR-304/307), and the copy must say so.
+- `PUBLISH_TARGETS` = `{wordpress, slack}`, with `PUBLISH_VERBS` naming each
+  door (publish · send a file). `connector_does` derives its writes fact
+  from this set AND the LIVE lane tool surface (ADR-642 D5, corrected on the
+  first click-pass): `platform_slack_send_to_channel` survives in the
+  capability registry from the deleted task pipeline, but no live tool loop
+  composes it, so no agent can post to Slack — the copy says so and names
+  the member's door. The lane frame says the same (CHANGELOG
+  `[2026.09.07.6]`).
 - **The composition contract, Slack edition (D6)**: a channel post IS
   prose. The composer takes a `.md`/`.txt` file — any other type is refused
   at the act, by extension, before composition (a `post` is WordPress's

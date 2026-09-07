@@ -86,6 +86,13 @@ _PLATFORM_DISPLAY = {
 }
 
 
+def platform_display_name(platform: str) -> str:
+    """The member-facing name of a platform slug (`wordpress` → WordPress) —
+    the one spelling the connectors page and the lane frame share."""
+    plat = (platform or "").strip().lower()
+    return _PLATFORM_DISPLAY.get(plat, plat)
+
+
 def connector_does(platform: str) -> Optional[dict]:
     """The three capability facts the detail page states — DERIVED from the
     machinery that enacts them, never a parallel copy that can drift:
@@ -108,18 +115,28 @@ def connector_does(platform: str) -> Optional[dict]:
     capture binding nor a publish target."""
     plat = (platform or "").strip().lower()
     binding = CONNECTOR_CAPTURE_BINDINGS.get(plat)
-    from services.publish import PUBLISH_TARGETS
+    from services.publish import PUBLISH_TARGETS, PUBLISH_VERBS
 
     can_export = plat in PUBLISH_TARGETS
-    # ADR-642 D5 — the writes fact has TWO homes, and reading one of them
-    # produced a false sentence ("yarnnn never writes to Slack") beside a
-    # live agent write path (`platform_slack_send_to_channel`, gated into
-    # the proposal queue since ADR-304/307). Both are read; the copy names
-    # whichever applies.
+    verb = PUBLISH_VERBS.get(plat, "publish")
+    # ADR-642 D5 — the writes fact has TWO homes: the member-clicked publish
+    # seam, and whether a WRITE tool for this platform is composed into a
+    # LIVE tool loop. ⚠️ Derived from the live lane surface, NOT the
+    # capability registry (corrected 2026-09-07 on the first Reach
+    # click-pass): the registry still carries `write_slack` for the DELETED
+    # task pipeline that consumed it, so a registry read said "an agent's
+    # post goes out through a proposal" while the lane — the only live tool
+    # surface — composes read rosters only (`turn_reach_tool_names`), and the
+    # editor truthfully answered "I cannot post". Today no write tool is
+    # composed anywhere; the day one is, this sentence flips on its own.
     try:
         from services.platform_tools import PLATFORM_TOOLS_BY_CAPABILITY
+        from services.turn_reach import turn_reach_tool_names
 
-        agent_writes = bool(PLATFORM_TOOLS_BY_CAPABILITY.get(f"write_{plat}"))
+        _live = set(turn_reach_tool_names((plat,)))
+        agent_writes = any(
+            t in _live for t in PLATFORM_TOOLS_BY_CAPABILITY.get(f"write_{plat}", [])
+        )
     except Exception:  # noqa: BLE001
         agent_writes = False
     if binding is None and not can_export and not agent_writes:
@@ -140,10 +157,15 @@ def connector_does(platform: str) -> Optional[dict]:
             else f"nothing — yarnnn never captures from {name}"
         ),
         "writes": (
-            f"when you send a file to {name} — your click, receipted beside the file; "
-            f"an agent's {name} post goes out only through a proposal you approve"
-            if (can_export and agent_writes)
-            else f"only when you publish to {name} — your action, never scheduled"
+            (
+                f"only when you {verb} to {name} from the file's own pane — your click, "
+                "receipted beside the file, never scheduled"
+                + (
+                    f"; an agent's {name} post goes out only through a proposal you approve"
+                    if agent_writes
+                    else ""
+                )
+            )
             if can_export
             else f"only through a proposal you approve — an agent's {name} post waits in your queue for the decision"
             if agent_writes
@@ -203,12 +225,18 @@ def connector_does(platform: str) -> Optional[dict]:
                     else "no direct platform access — agents read the landed capture files only"
                 )
             )
-            # ADR-642 D5 — the gated agent write, where one exists: never
-            # silent, never "never". It lands in the queue as a proposal.
+            # ADR-642 D5 — the write half, derived from the LIVE surface: a
+            # composed write tool lands in the queue as a proposal; with none
+            # composed an agent cannot send at all — and the door that can is
+            # NAMED, so "check Settings" is never the remedy an agent offers.
             + (
                 f". An agent's {name} post never goes out on its own — it lands in your queue as a proposal for your decision"
                 if agent_writes
-                else ""
+                else (
+                    f". It cannot {verb} there — that is your click, from the file's own pane"
+                    if (can_export and binding is not None)
+                    else ""
+                )
             )
         ),
     }

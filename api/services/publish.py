@@ -57,6 +57,11 @@ logger = logging.getLogger(__name__)
 #: defect) nor deny one the ADR-304 tool performs (the ADR-642 D5 defect).
 PUBLISH_TARGETS: frozenset[str] = frozenset({"wordpress", "slack"})
 
+#: The member's verb at each tenant's door — the door's own name, so the
+#: connectors copy and the lane frame name the same thing (ADR-638: name
+#: the THING). Every target has one; the ADR-628 gate asserts it.
+PUBLISH_VERBS: dict[str, str] = {"wordpress": "publish", "slack": "send a file"}
+
 
 class PublishError(Exception):
     """A publish act failed, with a member-readable reason."""

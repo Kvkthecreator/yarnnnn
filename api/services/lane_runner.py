@@ -1176,6 +1176,26 @@ def build_lane_conventions(
             "files into the commons, where you read them normally."
         )
 
+    # ADR-628 amendment 3 / ADR-642 (2026-09-07) — the OUTBOUND fact, stated
+    # for every reach state. Observed on the first Reach click-pass: asked to
+    # "send this to my Slack channel", the editor answered truthfully that it
+    # cannot post and offered "check Settings" — the wrong remedy, because the
+    # door exists and is the member's (Send to Slack on a prose file's pane,
+    # Publish on a post's). Derived from the seam's own roster, never a
+    # hand-kept list, so a third tenant names its door here the day it lands.
+    from services.connectors import platform_display_name
+    from services.publish import PUBLISH_TARGETS, PUBLISH_VERBS
+
+    _doors = " · ".join(
+        f"{PUBLISH_VERBS.get(p, 'publish')} to {platform_display_name(p)}"
+        for p in sorted(PUBLISH_TARGETS)
+    )
+    connector_reach_section += (
+        f" You cannot send or publish anywhere. {member} can — {_doors} — "
+        "from the file's own pane: their click, receipted beside the file. "
+        "Asked to send something out, say you cannot and point them to that door."
+    )
+
     if attached:
         # ADR-635 D5 — stated affirmatively, in the trio's register: which
         # servers, which tools, and which run now versus by proposal.

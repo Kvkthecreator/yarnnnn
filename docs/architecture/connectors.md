@@ -200,15 +200,18 @@ credential is the member's own (`platform_credentials`, which refuses agents
 stored on the connection — no per-connection settings survives here too),
 and every act appends a `_publish.yaml` receipt beside the artifact.
 **The seam is `services/publish.py`** — every member-clicked outbound
-platform write crosses it, gate-pinned. The ONE other outbound writer is
-the agent's audience send (`platform_slack_send_to_channel`, ADR-304),
-gated by ADR-307 into the proposal queue and executed by the member from
-there — receipted as a proposal, not a sidecar; the gate pins
+platform write crosses it, gate-pinned. The ONE other module that can
+write is the agent's audience send (`platform_slack_send_to_channel`,
+ADR-304, gated by ADR-307 into the proposal queue) — **but no live tool
+loop composes it** since the task pipeline it served was deleted: the lane
+composes read rosters only, the standing lane is toolless. The gate pins
 `post_message`'s caller set to exactly those two modules. An outbound-only
 connector (no capture binding) states its non-capture on the surface rather
-than omitting it, and a connector with BOTH write paths states both
-(ADR-642 D5 — `connector_does` derives its writes fact from the publish
-targets AND the gated agent capability, never one alone).
+than omitting it, and every row's writes fact derives from the publish
+targets AND the LIVE tool surface (ADR-642 D5, corrected on the first
+click-pass: a capability-registry read had claimed an agent proposal path
+that nothing live could take), so today each first-party row says the agent
+cannot send and names the member's door.
 
 **Slack, the second tenant, passed the ADR-420 §10 moat-leak test** where
 Notion-as-workspace would not: a channel message is delivery, not
