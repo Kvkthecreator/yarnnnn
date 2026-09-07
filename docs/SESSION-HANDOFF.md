@@ -77,6 +77,83 @@ on Crossed.
 
 ---
 
+# Part U — the access decision gets one decider (2026-09-07)
+
+Operator, on the audit: *"I just want to make sure our implementation doesn't
+result downstream, to create similar divergences. And thus, a more singular,
+long standing solution and conceptual framing that will be future proof."*
+
+The audit's four findings are symptoms. The subject is the recurrence, and it
+has a name.
+
+## The mechanism
+
+ADR-501 wrote the lesson down: *"a permission fix must enumerate the doors, not
+the deciders."* It enumerated the TWO doors it knew about and shipped.
+`test_adr570` then ratcheted those two BY NAME. **Enumeration is not a
+structure — it is a to-do list that expires silently**, and a hand-named
+ratchet cannot go red for a door nobody added to it. Seven more doors were
+written afterwards; the gate stayed green through all of them.
+
+⭐⭐ **A carve law is not an authorization check.** `operator_can_organize`
+looks like permission (bool on a path, callers raise 403) but is a
+filesystem-INTEGRITY rule about path SHAPE, identical for every principal.
+`constitution/` `persona/` `governance/` `contract/` all PASS it deliberately.
+A door asking only it has asked nothing about the caller.
+
+## Shipped
+
+| | |
+|---|---|
+| `151f71d` | ADR-501's sweep re-pointed at standing work (radar deleted) — 23/23, was 20/23 |
+| `a3b2ecb` | ADR-535 re-cut across all four reach states; found a branch that had **never executed** — 35/35, was 19/21 |
+| `940c400` | the audit |
+| `cf8bf18` | **D1** — 7 doors + 1 loop gained the consult; the ratchet DISCOVERS the roster |
+| `873e153` | **ADR-643** + ledger |
+| `3f9dffd` | **D2** — `services/access.py`; the stale N=1 premise corrected |
+
+⭐⭐⭐ **The discovery gate found FOUR doors the manual audit missed** —
+`move_folder_route` · `create_folder` · `create_artifact` ·
+`set_default_design_system_route` — on the commit that introduced it. If a
+future change adds a name to a literal roster in
+`test_adr501_every_door_asks.py`, the gate has been defeated: fix the door.
+
+⭐⭐ **Driving the decider found a bug reading it would not have.**
+`may_edit_as_prose` routed at the `write` verb, so a `.md` under raw `inbound/`
+reported EDITABLE, against ADR-422 D2. The FE's own `isArrival` check was right
+about that one; it is the `system/` carve it omits.
+
+## NEXT — D3, D4, D5 (rulings already taken)
+
+1. **D3** — serve `access_summary` on the file + tree payloads; **DELETE**
+   `web/lib/workspace/ownership.ts` and the three re-derivations in
+   `web/lib/file-types/index.ts` (`resolveSurfaceApplication`,
+   `isArtifactCandidate`) and `TextSurface.tsx:89`. Operator ruling: *server
+   decides, client is told*. ⚠️ Files' Windows-Explorer model (offer the verb,
+   explain the refusal) is PRESERVED — it was never the problem; only the
+   source of the explanation changes.
+2. **D4** — Text routes only prose AND renders read-only what the viewer cannot
+   write (operator ruling: *both*). AMENDS ADR-572 D8, does not overturn it:
+   still ONE canvas, still no modes, one state driven by the served decision.
+   `ProseCanvas` gains the `readOnly` it deliberately lacks.
+3. **D5** — `editable_prefixes` deleted or conjoined in `edit_workspace_file`
+   (it re-admits `/workspace/system/` one line after the carve law rejects it;
+   the refusal works today only by accident of `CALLER_WRITE_POLICY`).
+4. Then move the eight backend doors onto `resolve_access`, one per commit,
+   deleting each hand-composition as it moves (no shims).
+
+## Baseline-red, NOT this work (identical with changes stashed)
+
+`test_adr422_files_legibility` 1/23 · `test_adr386_member_lifecycle` 1/17 ·
+`test_folder_verbs_and_download` (script-style, collects 0 under pytest).
+
+## Still owed from Part T
+
+`projection.ts`'s second CSV parser · a Files door for declaring standing work ·
+blogger's standing leg · the `/images` export click-pass (item C, unrun).
+
+---
+
 # Part T — the owed list, closed (2026-09-07)
 
 Operator: *"lets do the remaining owed, pending items."* Six items, one commit
