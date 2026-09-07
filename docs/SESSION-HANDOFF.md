@@ -119,9 +119,16 @@ returns). Probe artifacts purged from the prod workspace (verified 0 remaining).
 2. **`agent-composition.md` §3.2.1 still needs its post-steward re-cut** (Part Q
    owed 3, untouched). CLAUDE.md routes every prompt-change session there.
 3. Carried, still open: the standing run's reach receipt · the GitHub aperture ·
-   the `ADR-411 D4` phantom (33 sites / 26 files → ADR-408/460) ·
-   `operation/fundraising/market-sizing/` (operator's call) · ADR-640 D2's two
-   derived rows, if wanted.
+   the `ADR-411 D4` phantom (33 sites / 26 files → ADR-408/460) · ADR-640 D2's
+   two derived rows, if wanted.
+4. ✅ **`operation/fundraising/market-sizing/` — CLOSED by observation
+   (2026-09-07).** There is no such folder. The live substrate holds
+   `operation/fundraising/market-sizing-reference.md` with its declaration at
+   `operation/fundraising/_standing.yaml` (the workspace's ONE standing
+   declaration), next run 2026-10-01. Parts P/Q described a probe folder that
+   does not exist — nothing to keep or unwind. ⚠️ *An owed item phrased from
+   what a probe was believed to have done outlived the thing it described;
+   the check was one query.*
 
 ---
 
@@ -243,9 +250,8 @@ labelled exploratory, is what stops that.
    (`_reach_connector_sources` catches an exception a never-raising writer
    cannot throw) · the GitHub aperture (issues+PRs cannot observe a commit-only
    repo) · the `ADR-411 D4` phantom citation (33 sites, 26 files → ADR-408/460)
-   · `operation/fundraising/market-sizing/` (a probe moved a REAL operator file
-   into it with a live monthly declaration — keep or unwind is the operator's
-   call) · ADR-640 D2's two derived rows, if wanted.
+   · ~~`operation/fundraising/market-sizing/`~~ (**CLOSED 2026-09-07 — no such
+   folder exists; see Part R owed 4**) · ADR-640 D2's two derived rows, if wanted.
 
 ---
 
@@ -375,7 +381,11 @@ impure `resolve_executor` → red.
    Widen the binding, or surface the binding's own honest `reads` string at the
    declaration door.
 3. **The `ADR-411 D4` phantom** — 33 sites, 26 files → cite ADR-408/460.
-4. **`operation/fundraising/market-sizing/`** — the probe moved the operator's
+4. ~~**`operation/fundraising/market-sizing/`**~~ — **CLOSED 2026-09-07: the
+   folder does not exist.** The file is at
+   `operation/fundraising/market-sizing-reference.md`, declared at
+   `operation/fundraising/_standing.yaml`. The original entry, preserved as
+   written: the probe moved the operator's
    REAL `market-sizing-reference.md` into its own folder with a correct
    monthly declaration (3 verified source URLs), now live (next run
    2026-10-01). **Left deliberately**; keep or unwind is the operator's call.
