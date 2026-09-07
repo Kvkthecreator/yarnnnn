@@ -225,8 +225,23 @@ row) with the reason in a comment.
 
 ⚠️ Vercel builds take ~12 min and the API deploys separately on Render. A
 click-pass run before the FE build lands reads as a defect in code that is
-correct — it cost two false diagnoses here. Check the bundle for a string
-unique to the commit before believing a UI result.
+correct — it cost two false diagnoses here.
+
+⭐⭐⭐ **Do NOT check "is it deployed" by curling the page and grepping its
+chunks.** A Next.js route lists **zero** `/_next/static/chunks/*.js` in its
+served HTML (they load dynamically), so that loop searches an EMPTY corpus and
+reports "not deployed" with total confidence. Mine ran 600s and said exactly
+that about code I had already driven working in the browser. Ask the browser
+instead:
+
+```js
+performance.getEntriesByType('resource')
+  .filter(e => /_next\/static\/chunks\/.*\.js$/.test(e.name))   // 48, vs curl's 0
+```
+
+then fetch those and grep. **A negative from a search is worthless until you
+know the corpus was non-empty** — and when a probe disagrees with a driven
+gesture, suspect the probe.
 
 ## THE RECEIPT THAT MATTERS
 
