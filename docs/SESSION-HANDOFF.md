@@ -130,7 +130,57 @@ future change adds a name to a literal roster in
 reported EDITABLE, against ADR-422 D2. The FE's own `isArrival` check was right
 about that one; it is the `system/` carve it omits.
 
-## NEXT — D3, D4, D5 (rulings already taken)
+## ADR-643 COMPLETE — D1 through D6 (`332bf1b`, `d3dd403`)
+
+**D3** — `access_summary` rides `/workspace/tree`, `/workspace/file` and
+`/workspace/roots`; `ownership.ts` and its three re-derivations DELETED.
+⚠️ An ABSENT decision reads as PERMITTED everywhere — offer the act, let the
+door explain (ADR-400 A1 preserved). `_access_or_none` degrades to `None` and
+the gate asserts it can never degrade to a permissive dict.
+
+**D4** — `isShapeCarved` adds the missing `system/` carve so
+`resolveSurfaceApplication`'s comment becomes true; `isTextEditable` is shared
+with the Recents filter that had the same omission. `ProseCanvas` gains
+`readOnly` on a CodeMirror **Compartment** (the extension list is memoised on
+`[]`, so a plain extension could not change without remounting and dropping the
+caret). Both `readOnly` and `editable` are set — the first alone leaves a caret
+that silently eats keystrokes.
+
+**D5** — `/workspace/system/` out of `editable_prefixes`.
+
+**D6** — all nine doors call `resolve_access` by verb.
+
+### ⭐⭐⭐ THE SAME SHAPE, THREE LEVELS UP, IN ONE ARC
+
+1. **The doors** — hand-composed, seven of nine asked half the question.
+2. **The gate's own roster** — `ROUTE_MODULES` was a literal 3-tuple, so
+   `routes/images.py` was never scanned and my falsifier for it passed GREEN.
+   Discovering the module list found two more live doors: `images.compose` and
+   `standing_work.update_standing` (a declaration schedules UNATTENDED spend).
+3. **The fixtures** — `test_adr400`'s `_Auth` carried no `caller_identity`, so
+   `_caller_class` resolved it to the **agent** class: the tests measured a
+   member's ceiling while claiming to assert the operator's reach. Invisible
+   while the door asked only the principal-blind carve law.
+
+**A discovery gate with a hand-listed corpus is a hand-listed gate.**
+
+### Three gates went red on the change that removed the drift they guarded
+
+`test_adr555` ×2 pinned the SPELLING `operator_can_organize(`; the doors now
+ask the decider, which composes that law **with** the grant — strictly more.
+`test_adr400`'s fixture, above. All re-pointed, none satisfied.
+
+## NEXT
+
+1. Click-pass on prod once `dep-daf9ns942hec73d174pg` is live: `/text` on
+   `constitution/MANDATE.md` (banner + no caret), `/files` on `governance/`
+   (menu still offers, dialog still explains), and a `system/skills/**`
+   SKILL.md (must NOT route to Text at all).
+2. The remaining hand-composition: `services/upload_tickets.py:119` still
+   calls `operator_can_organize` directly — it is a service, not a door, but it
+   answers a placement question and should ask the decider.
+
+## SUPERSEDED — the pre-D6 next-steps (rulings already taken)
 
 1. **D3** — serve `access_summary` on the file + tree payloads; **DELETE**
    `web/lib/workspace/ownership.ts` and the three re-derivations in
