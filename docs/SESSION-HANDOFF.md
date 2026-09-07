@@ -211,16 +211,40 @@ helper; TextEditor + Studio's three artifact verbs pass the loaded decision.
 Studio's recents feed deliberately passes none (a revision list, not a tree
 row) with the reason in a comment.
 
-**VERIFY THIS FIRST NEXT SESSION**: the deployed bundle at the time of writing
-did NOT yet contain the `access:` spread (checked by scanning the loaded
-chunks), so the fix is untested on prod, not disproven. Re-run: right-click
-`governance/_autonomy.yaml` → Rename, expect *"It's a settings file the system
-needs in this exact place."*
+**✅ VERIFIED LIVE** after its build landed:
+
+```
+/files governance → right-click _autonomy.yaml → Rename…
+   → “_autonomy.yaml” can’t be changed / “…is a settings file the system needs
+     in this exact place. Moving, renaming, or deleting it isn’t allowed.”
+     rename modal did NOT open ✅ (screenshotted)
+/files operation/engineering → right-click review-conventions.md → Rename…
+   → rename modal opens, no carve dialog ✅  (the non-vacuous twin: a blanket
+     refusal would have satisfied the check above and been wrong)
+```
+
+⚠️ Vercel builds take ~12 min and the API deploys separately on Render. A
+click-pass run before the FE build lands reads as a defect in code that is
+correct — it cost two false diagnoses here. Check the bundle for a string
+unique to the commit before believing a UI result.
+
+## THE RECEIPT THAT MATTERS
+
+Driven against REAL production grant rows, not a stub:
+
+```
+live grant classes:  mcp 12 · operator 11 · agent 6
+  agent  constitution/MANDATE.md   OLD trash=ALLOWED → NOW 403
+  agent  persona/IDENTITY.md       OLD trash=ALLOWED → NOW 403
+  mcp    constitution/MANDATE.md   OLD trash=ALLOWED → NOW 403
+  mcp    persona/IDENTITY.md       OLD trash=ALLOWED → NOW 403
+```
+
+**18 non-owner principals could destroy what they could not write.** Closed.
 
 ## NEXT
 
-1. The above.
-2. Old item, now stale — was: click-pass once `dep-daf9ns942hec73d174pg` is live: `/text` on
+1. Old item, now stale — was: click-pass once `dep-daf9ns942hec73d174pg` is live: `/text` on
    `constitution/MANDATE.md` (banner + no caret), `/files` on `governance/`
    (menu still offers, dialog still explains), and a `system/skills/**`
    SKILL.md (must NOT route to Text at all).
