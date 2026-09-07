@@ -4,6 +4,127 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part R — `composing-an-image` measured bound; the index admits by evidence (2026-09-07)
+
+Closes Part Q owed 1 and 2. Commit `9499432`. Capture:
+[`docs/analysis/composing-an-image-in-a-bound-lane-2026-09-07.md`](analysis/composing-an-image-in-a-bound-lane-2026-09-07.md).
+
+## 1 — the bound-lane probe (Part Q owed 1) — DONE
+
+Verified first that the missing piece was real: `studio_pane_posture` composes
+**17,475 bytes** carrying `data-x`/`data-z` for a bound lane and nothing
+unbound. Fixture built through production's own path (`build_skeleton` +
+`stage_root_attrs`), not hand-rolled.
+
+```
+             positioned_frac (pre-registered)      read the skill
+ARM A index  1.00 / 0.00 / 0.50   mean 0.500       3/3
+ARM B none   0.00 / 0.00 / 0.00   mean 0.000       0/3
+exact permutation p = 4/20 = 0.200
+```
+
+⭐⭐⭐ **Does NOT clear the n=3 floor of 0.100** — the floor needs perfect
+separation and **trial 2 broke it from the treated side**. All six runs
+completed (no exclusions — binding the lane removed probe 8's starvation).
+
+⭐⭐⭐ **Why it disobeyed a rule it had just read**: the agent stamps `data-z`
+exactly when layers OVERLAP and omits it otherwise. Coherent visual reasoning,
+and wrong — the rule serves the **layer rail**, not the picture. **A CONTRACT
+SKILL MUST CARRY ITS CONSEQUENCE, NOT JUST ITS RULE.** An unmotivated
+unconditional rule loses to visible local reasoning ~2/3 of the time. Step 2
+amended; the "layers stacked at the same `z`" anti-pattern DROPPED (it
+contradicts ADR-633 §5b — a tie is legitimate).
+
+⭐ **Discovery vs compliance are separate things and only the first is
+reliable.** 3/3 vs 0/3 reach, and the compliance gap still runs entirely in the
+skill's favour — but "directionally strong, not separated" is what the capture
+says, and the rank table says it too (`composing-an-image` is deliberately
+rank 1, not rank 0).
+
+## 2 — the index admits by EVIDENCE (unplanned, and the more useful half)
+
+Adding a twelfth skill **evicted `writing-a-spec`** — our best-evidenced skill
+(7/7/7 vs 1/0/2) — from the Text index. The budget admits alphabetically and
+truncates the tail.
+
+⭐⭐⭐ **`UNBOUND_INDEX_CEILING` had already been RAISED TWICE for exactly this**
+— its own comments say so ("drops real skills by ALPHABETICAL ACCIDENT";
+"withheld the eleventh skill by alphabetical accident"). A budget that evicts
+by alphabet evicts at random with respect to what the row is worth, and raising
+the ceiling buys one skill while leaving the next eviction just as arbitrary.
+
+`_INDEX_RANK` / `_index_rank`: measured-to-separate (0) → unmeasured (1) →
+measured-null (2), alphabet as tiebreak only. **No ceiling was raised.** Sizes:
+unbound 3,819/4,000 · text 3,199/3,400 · slides 2,762 · images 1,750 · blogger
+2,762. A slug moves rank only with a capture behind it.
+
+## 3 — the composite-document skill (Part Q owed 2) — SHIPPED UNMEASURED
+
+⭐⭐⭐ **The boundary ruling was made on the wrong posture, and this is the
+finding to carry.** I ruled it by reading `_blocks_grammar(app)` — 18 kinds
+with worked markup, so the skill could name no tag. **True of slides/images/
+blogger; FALSE of Text.** `text_pane_posture` is **1,347 bytes** of plain prose
+(*"No block grammar, no Studio machinery"*), and `all_layouts()` shows Text
+owns **no artifact layout at all** (deck→slides, post→blogger, image→images).
+**A posture read for one app was generalised to a registry of apps** — invisible
+because it ran the right direction for three of four, and the fourth was the
+one I scoped to.
+
+Rewritten for prose against the observed failure (two bound Text runs retyped a
+CSV's figures with the source uncited). **Ships at rank 1, unmeasured** — two
+drives that never reached it are evidence of the gap, not that the skill fills
+it.
+
+## Method findings
+
+- ⭐⭐⭐ **A scorer can read the PROMPT instead of the artifact.** My first pass
+  reported 21 `data-block` kinds in the output; they were in the skeleton's own
+  **stylesheet**, and 21 is the *slides* roster — which should have been the
+  tell. Sanity-check any count that matches a table you did not expect.
+- ⭐⭐⭐ **On macOS, clearing `__pycache__` in the tree does NOT clear Python's
+  bytecode cache.** It lives in `~/Library/Caches/com.apple.python/<abs path>/`.
+  A falsification edit's stale `.pyc` survived `find api -name __pycache__ -delete`
+  and made a correct source file (`0`) import as the falsified value (`2`) — the
+  AST literal and the runtime dict disagreed on a bare import. Verified by
+  comparing `ast.literal_eval` against the live object.
+- ⭐⭐ **A gate can assert a CENSUS while the code beside it proves truncation.**
+  `test_adr630` tested self-truncation with 20 fake skills **and** asserted the
+  real index lists every skill. Both could only hold while the roster fit; the
+  12th made the second false and the gate went red on correct code.
+- ⭐ **The confirming first trial did not replicate, for the third arc running.**
+  t1 was a perfect 1.00-vs-0.00 — exactly the shape that gets written up as
+  p=0.100 if the probe stops there.
+
+## Verification
+
+9/9 green, scoped to what the change reaches (no runtime path outside skills/
+index composition is touched):
+
+```
+cd api && python3 test_adr630_skills.py    # 147/147, incl. new §3a-rank
+  test_adr632_the_seat_retires · test_adr639_standing_work
+  test_adr640_no_agent_record  · test_agent_registry (125/125)
+  test_adr633_the_artboard_is_layers · test_adr606_pane_sees_the_member
+  test_adr636_app_declaration_parity · test_claude_md_ratchet
+```
+
+Ranking falsified in-process (demote `writing-a-spec` → evicted → restore →
+returns). Probe artifacts purged from the prod workspace (verified 0 remaining).
+
+## OWED (this Part)
+
+1. **Measure the composite-document skill** — needs an ask that names its
+   subject (neither drive reached it) plus an arm comparison. It is rank 1 until
+   then.
+2. **`agent-composition.md` §3.2.1 still needs its post-steward re-cut** (Part Q
+   owed 3, untouched). CLAUDE.md routes every prompt-change session there.
+3. Carried, still open: the standing run's reach receipt · the GitHub aperture ·
+   the `ADR-411 D4` phantom (33 sites / 26 files → ADR-408/460) ·
+   `operation/fundraising/market-sizing/` (operator's call) · ADR-640 D2's two
+   derived rows, if wanted.
+
+---
+
 # Part Q — what a skill is FOR: contract, not craft (2026-09-04)
 
 Direct sequel to Part P's Thesis A, which found the skills index had **no
