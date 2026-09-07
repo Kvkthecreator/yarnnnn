@@ -145,27 +145,40 @@ def _src(rel: str) -> str:
     return (API / rel).read_text()
 
 
-def test_radar_routes_are_owner_keyed():
-    src = _src("routes/radar.py")
+def test_standing_routes_are_owner_keyed():
+    """RE-POINTED 2026-09-07. This test read `routes/radar.py`, deleted with
+    ADR-603 D5 — a gate that could not run. The ADR-501 property is unchanged
+    and live: the successor owner-keyed surface is standing work, whose route
+    carries the radar seam verbatim (`_acting_owner` + a workspace-scoped
+    discovery keyed on the acting owner)."""
+    src = _src("routes/standing_work.py")
     assert "_acting_owner" in src
     # The scan is WORKSPACE-scoped and the lookup key is the acting owner
     # (ADR-501 + the Hat-B follow-on: keying discovery on the file's AUTHOR
-    # filed a member-authored hub under the member and hid an owner-authored
-    # one from them).
+    # filed a member-authored declaration under the member and hid an
+    # owner-authored one from them).
     assert "workspace_id=_acting_workspace(auth)" in src
     assert ".get(actor, [])" in src
     # No data query keys on the raw caller anymore.
     assert '.eq("user_id", auth.user_id)' not in src
-    assert "_read_declaration(auth.client, actor" in src  # the 409 guard sees the workspace
+    assert "_read_declaration(auth.client, actor" in src  # the guard sees the workspace
 
 
-def test_radar_discovery_groups_by_workspace_owner():
+def test_standing_discovery_groups_by_workspace_owner():
     """The grouping key must be the workspace's owner, not the file's author —
-    both the request path and the scheduler look up by that key."""
-    src = _src("services/radar.py")
+    both the request path and the scheduler look up by that key.
+
+    RE-POINTED 2026-09-07 from `services/radar.py` (deleted, ADR-603 D5) to its
+    named successor: `discover_standing`'s own docstring calls itself "the
+    discover_radar_hubs shape verbatim (ADR-501 keying)"."""
+    src = _src("services/standing_work.py")
     assert "workspace_id: Optional[str] = None" in src
     assert "acting_workspace_owner" in src or "owner_id" in src
-    assert 'by_user.setdefault(key, []).append(hub)' in src
+    assert "by_user.setdefault(key, []).append(decl)" in src
+    # The owner is resolved through the SERVICE client — `workspaces` RLS is
+    # owner-only, so a member's client cannot resolve its granted workspace's
+    # owner; the authorization already happened on the scan.
+    assert "get_service_client()" in src
 
 
 def test_http_edit_door_consults_the_principal_gate():
@@ -256,7 +269,10 @@ def test_acting_workspace_owner_takes_the_binding_and_service_client():
 
 def test_owner_keyed_routes_pass_the_binding():
     """Every acting_workspace_owner caller that HOLDS an auth must pass it."""
-    for rel in ("routes/radar.py", "routes/emissions.py", "routes/feed.py"):
+    # RE-POINTED 2026-09-07: radar.py and feed.py are deleted (ADR-603 D5).
+    # These are the live holders — a caller added here without the binding
+    # re-fails loudly.
+    for rel in ("routes/standing_work.py", "routes/emissions.py"):
         src = _src(rel)
         for idx in [i for i in range(len(src)) if src.startswith("acting_workspace_owner(", i)]:
             call = src[idx: idx + 220]
