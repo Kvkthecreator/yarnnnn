@@ -161,6 +161,15 @@ export async function rasterizeArtifactPng(content: string, artifactPath: string
       // a transparent stage exports on white rather than the page behind it.
       backgroundColor: '#ffffff',
       cacheBust: true,
+      // ⭐ The CLONE must not inherit the host's off-screen position. html-to-image
+      // copies the node's computed style onto the clone it draws inside an SVG
+      // foreignObject — including `position: fixed; left: -99999px` — so the
+      // whole stage rendered 99,999px outside the canvas and every export was a
+      // blank white PNG. Nobody saw it while the raster only ever left as a
+      // download; the first one that LANDED in the workspace (2026-09-07) was
+      // sampled: 0 non-white pixels of 291,600. These override the clone only;
+      // the live host stays off-screen.
+      style: { position: 'static', left: '0', top: '0' },
     });
   } finally {
     host.remove();
