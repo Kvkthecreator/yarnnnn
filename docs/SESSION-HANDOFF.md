@@ -4,6 +4,176 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part S — composition-by-reference: Stage 1 answered, three decisions SHIPPED (2026-09-07)
+
+Commit `94aa578` (+ the docs commit that absorbs `docs/SESSION-NEXT-PROMPT.md`,
+now deleted). Operator: *"aligned in full … delegate implementation details …
+singular streamlined discipline … can commit push to main with quick testing."*
+
+## What Stage 1 returned (drove it rather than reading about it)
+
+A `.md` never passes through `projection.ts` — it is drawn by `ProseCanvas`
+(the ONE surface since ADR-572 D8) and `MarkdownRenderer` (thumbnail + print
+only). So the old thesis's `data-ref`-for-Text half is DEAD: a `data-ref` in
+markdown is inert markup. **But ADR-572 D17/D18 had already ruled the markdown
+composition grammar** — image by workspace path, diagram as a mermaid fence,
+CSV as a GFM snapshot under `_From `path` · snapshot YYYY-MM-DD_` — and the
+two bound Text drives that "retyped the CSV" produced exactly the toolbar's own
+snapshot shape minus the provenance line. The claim-grain citation the carry-
+over prompt was reaching for existed; nothing told the lane.
+
+Measured: `text_pane_posture` (1,349 B) named none of the three forms; the
+lane frame, standing frame and connector carry only `derived_from`; the `.md`
+grammar lived in three FE insert functions where no engine could read it.
+Prod, reproduced through CodeMirror's own input path: mermaid ✅ svg · CSV
+snapshot ✅ table · `![laptop](…png)` ❌ underlined word, real `<img>` = 0.
+
+## The three decisions, each shipped with its receipt
+
+**1. The canvas draws the image (ADR-590 D5).** ⭐⭐⭐ D17 shipped Insert →
+Image ONE DAY after D8 made the canvas the only surface, and gated it (17g)
+against `MarkdownRenderer` — the face D8 had just demoted. Three weeks, gate
+green, no picture. ADR-590's own census of "eleven rendered things" had no
+image row. Now: `ImageWidget` (block figure with alt caption + the shared edit
+affordance; inline at text height), resolution moved to ONE function
+(`lib/workspace/imageUrl.ts`) both faces call, `blobUrl` gone from both. And
+**the reveal returns**: D3's `collapseFence` effect was never dispatched
+anywhere — an opened diagram stayed as source until reload. A revealed block
+now folds back when the caret leaves it (opening places the caret inside).
+Gate: 17g = the one resolver reached by both faces; **17h mounts the canvas**
+and counts the `<img>`. *A gate that names a component proves the component,
+not the surface.*
+
+**2. The posture carries the grammar — and it works.** +584 B, consequence
+stated (the line IS the citation; a `data-ref` in `.md` is inert). Driven on
+prod, same fixture and ask as the two failing runs, `run_lane_turn` with the
+real Editor engine, each trial in its own folder, purged after (18 rows → 0):
+
+```
+provenance_line_present   treated 3/3   control 0/2   → exact permutation p = 0.100 (the n=3 floor)
+t1–t3: rounds 4, figures 1,850/2,310/3,040 present, q3.csv named, skill NOT read
+```
+
+Receipt shape (t1): the table, then `_From `…/q3.csv` · snapshot 2026-09-07_`,
+the argument in prose around it. **Not promoted to a kernel constant** — the
+one query first: five connector-authored `marketing/strategy/*.md` read for
+the same failure; every figure-bearing one names its sources near the figures
+(the connector's host already does this). CHANGELOG `[2026.09.07.2]`; first
+posture byte ceiling (2,100; 1,933 at ship).
+
+**3. ADR-475 §13's opt-in, built.** `POST /api/images/export` lands the
+browser's raster at `{artboard folder}/exports/{stem}.png` as
+`revision_kind="derivation"` + `derived_from=[artboard]` — a STABLE path, so a
+re-export is a new revision and a document's `![alt](path)` keeps resolving.
+"Save PNG to workspace" beside "Download PNG"; one rasterizer feeds both. The
+server still never rasterizes. Executing gate in `test_adr475` (lands,
+derivation edge, binary lane, 422/404/403 refusals write nothing).
+
+## Method findings
+
+- ⭐⭐⭐ **A gate red at baseline hides the failure behind it.** `test_adr475`
+  was 0/1 at HEAD: the compose handler's draw gate 402'd the fake user, and
+  behind THAT sat ADR-568's keyless refusal (`no_provider_key`). Neither was
+  this arc's, both were stubbed where the handler reaches them; 58/58.
+- ⭐⭐ **A background shell is not your shell.** `pnpm` is not installed at all
+  (the build runs via `npm run build`), and `node` lives only in
+  `/opt/homebrew/bin` — the first background run reported "exit 0" for a build
+  that never started, and every node-mounted probe in two gates went red for
+  the same reason. `export PATH=/opt/homebrew/bin:$PATH` first; and a sweep
+  that fails everything is a broken sweep, again.
+- ⭐⭐ **The router flags live on Render, not in `.env`.** A laptop probe that
+  drives `run_lane_turn` needs `MODEL_ROUTER_ENABLED=1` + `LANES_ENABLED=1`
+  in-process, or every trial "fails" with a refusal that looks like a result.
+- ⭐ **The DevTools `type_text` tool scrambles markdown punctuation** in
+  CodeMirror; drive the canvas with `execCommand('insertText')` from
+  `evaluate_script`. The prod bundle hides `cmView`.
+- An object literal key cannot be a concatenated string. One syntax slip took
+  the build AND both canvas gates red at once; `tsc --noEmit` is the 30-second
+  check before a 6-minute build.
+
+## Verification
+
+```
+api: test_adr571 (277 ok, incl. 2d/2e/2f + 17g/17h/17h1/17h2) · test_adr590 (20/20)
+     test_adr475 (58/58, was 0/1) · test_adr472_endpoints_execute · test_adr632 (73)
+     test_adr630 (147) · test_adr606 · test_claude_md_ratchet · probe/eval staleness gates
+web: npm run build green (the mermaid/langium warning is pre-existing) · tsc clean
+prod: the posture drive above (3/3). CLICK-PASS: see below.
+```
+
+## ✅ CLICK-PASSED live (2026-09-07, prod, DevTools browser as the operator)
+
+Driven on `/agents/_adr427-phase2-test/scratch.md` (restored after) and the
+`operation/untitled-image/image.html` artboard:
+
+```
+canvas   ![A laptop](marketing/assets/…laptop.png)   → figure.cm-mdImage, <img> 864×1184 loaded, caption, edit affordance   ✅
+         ![ball](…yarnball…png) inside a sentence    → span.cm-mdImageInline, <img> 1254×1254 loaded                        ✅
+         source line hidden; mermaid svg + snapshot table still render beside them                                            ✅
+reveal   press "Edit image" → the line opens (cm-mdFenceOpen), figure count 0                                                ✅
+         ⚠️ first pass showed "A laptop" — the preview pass still hid the URL → fixed in 8f14a3c (17h3 asserts the path)
+collapse ArrowDown off the line → figure count 1, image still decoded                                                       ✅
+         re-verified on the 8f14a3c bundle: the open line reads `![…](operation/untitled-image/exports/image.png)` ✅, and
+         a real ArrowDown folds it back to the figure ✅ (a synthetic KeyboardEvent does NOT move CodeMirror's caret — use press_key)
+export   Export → "Save PNG to workspace" → "Saved to workspace ✓" in 2.5 s                                                   ✅
+         ⚠️ first pass: POST /api/images/export died CORS-less = an unhandled 500. The handler wrote the binary with the
+         member's JWT; the private CAS bucket refuses it (the compose leaves' 2026-07-21 lesson, and test_adr475's own
+         comment). Fixed in e6f6893 — service client for the write, the member's client for the existence read; the gate
+         now captures WHICH client reached the write (it had dropped `_db` and passed 58/58 against the defect).
+ledger   operation/untitled-image/exports/image.png · 98,022 B · image/png · head a4fc9fb9
+         revision_kind='derivation' · derived_from=['/workspace/operation/untitled-image/image.html'] · authored_by operator ✅
+loop     ![WORK DIFFERENT — exported from the artboard](operation/untitled-image/exports/image.png) in the Text doc
+         → figure 688×688 on the canvas, natural 2160×2160 (1080² at 2×)                                                    ✅
+```
+
+⭐⭐⭐ **The exported PNG was BLANK — and so was every "Download PNG" since
+2026-07-22.** The screenshot showed the figure's 688×688 box as white; the DOM
+said the image was decoded at 2160×2160 — and both were right: sampled in-page,
+**0 non-white pixels of 291,600**. Then the SHIPPED Download PNG on the pre-fix
+bundle, saved to `~/Downloads` and sampled with Pillow: **98,022 bytes, the same
+size, 0 non-white of 291,600.** The rasterizer snapshots a host pinned at
+`position:fixed; left:-99999px`, and html-to-image copies the host's computed
+style onto the clone it draws inside an SVG foreignObject — so the whole stage
+rendered 99,999px outside the canvas. Fixed in `861d176` (the clone gets
+`position:static` at 0,0; the live host stays off-screen). *Nobody could see it
+while the raster only ever left as a download — a stage with neither a receipt
+nor a refusal. Landing it in the workspace made it a file the substrate can
+show, and the first one it showed was empty.* Also a correction to my own
+read: I first called the white capture a "stale frame from a backgrounded tab".
+It was a true frame of a white image; the edit affordance is hover-only, which
+is why it appeared only in the third capture. **"Decoded" is not "shows
+something" — sample the pixels.**
+
+**After `861d176` (bundle `1e72c370`):** Save PNG → "Saved to workspace ✓" in
+5.0 s → head `5755a2ca`, `derivation`, parent `a4fc9fb9` (a re-export is a new
+REVISION of the same path ✅) → the Text doc's `![…](…/exports/image.png)` figure
+sampled in-page: **4,767,867 B · 2160×2160 · 274,679 of 291,600 non-white** ✅.
+Screenshot: the composed artboard, in the document, as a picture.
+
+The composite skill's craft question (copy the few figures the argument uses,
+not the whole table) is unexercised by a 3-row fixture — carried in OWED.
+
+## OWED (this Part)
+
+1. **Measure the composite-document skill** (still rank 1, unmeasured; the
+   posture now carries the shape, so the skill's remaining value is the
+   judgment — "keep the copy small" — which t1–t3 did NOT exercise: all three
+   copied the whole 3-row table, which is fine at 3 rows and is the thing to
+   measure at 30).
+2. `./relative` image paths in markdown — refused in D5 (both faces fail
+   alike); open it only if asked.
+2b. **Does the raster honour HIDDEN layers?** The exported artboard shows
+   "DON'T COPY PASTE FOR A LIVING" as its headline while the canvas's a11y
+   tree listed "WORK DIFFERENT" as the h1 and no such text. Could be a11y
+   omission (three rail rows are just "Heading") or the projection drawing a
+   layer the rail hides. One screenshot of the canvas beside the export
+   settles it — not chased here.
+3. Carried: `agent-composition.md` §3.2.1 re-cut · the standing run's reach
+   receipt · the GitHub aperture · the `ADR-411 D4` phantom (33 sites) ·
+   ADR-640 D2's two derived rows.
+
+---
+
 # Part R — `composing-an-image` measured bound; the index admits by evidence (2026-09-07)
 
 Closes Part Q owed 1 and 2. Commit `9499432`. Capture:

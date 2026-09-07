@@ -143,7 +143,12 @@ The server rasterizer (`POST /api/images/render`, `render.py`, the `RenderBacken
 > path is STABLE across re-exports (a new revision, never a second file), which is what lets a
 > markdown document cite it — `![alt](…/exports/x.png)` (ADR-572 D17) — and keep resolving. Why
 > now: until this, the artboard's raster never entered the workspace, so "make an image, put it in
-> a document" was unbuildable by construction. The server still never rasterizes (§13 stands).
+> a document" was unbuildable by construction. The server still never rasterizes (§13 stands). **And the first raster to land was BLANK** — as was
+> every Download PNG since this section shipped: the host is pinned at `position:fixed; left:-99999px`
+> and html-to-image copies that computed style onto the clone it draws, so the stage rendered 99,999px
+> off the canvas (sampled: 0 non-white pixels of 291,600, on both the saved file and a fresh download
+> from the pre-fix bundle). Fixed the same day (`861d176`, the clone is positioned on-canvas). A raster
+> that only ever left as a download had no receipt; the one that landed in the workspace did.
 
 **Built (2026-07-22): client-side PNG export, IMAGES only.** The premise that a rasterizer must run *inside* the sandboxed canvas iframe turned out false — the sandbox (`allow-scripts` only) is a boundary the parent cannot reach, but the parent does not need to reach it. Export re-projects the artifact into its OWN off-screen, un-sandboxed container (the exact technique `exportPrint` already uses for Print/PDF: `resolveArtifactHtml` resolves citations and strips executables, then the resolved body is mounted and rasterized). So there is no library inside the runtime and no security-boundary crossing.
 
