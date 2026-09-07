@@ -84,7 +84,7 @@ D8)."* `ProseCanvas` takes no `readOnly` prop. A grep for
 TypeScript `readonly` constructor modifiers. **Zero permission checks.**
 
 So the failure is: type into the canvas → autosave at 2s idle → 403 → a raw error
-string, work unsaveable. `studio.py:673` documents this exact shape as
+string, work unsaveable. `studio.py:690` documents this exact shape as
 already-fixed for Studio: *"a document created beside its source accepted typing
 and 403'd every save."* Reproduced verbatim in Text.
 
