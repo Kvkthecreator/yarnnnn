@@ -4,6 +4,142 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part W — the click-pass Reach was owed, and what looking found (2026-09-07)
+
+Parts U (Reach) and V both ended "⚠️ the browser click-pass is OWED — the
+Reach chrome has not been LOOKED AT." It has now. Two of the three owed
+items pass; looking found one real bug that no gate could have caught.
+
+## A — the two sessions reconcile
+
+`test_adr643_one_decider` (18, pytest-shaped — it prints nothing when run as
+a script, which is why it can look silent), `test_adr644` (53) and
+`test_adr642` (51) are **green together at one HEAD**, exit 0 each. They had
+never been run in one sitting after both sessions finished. No file overlap
+beyond the handoff and the ledger.
+
+Receipts re-verified, not taken on trust: `services/reach_status.py` and the
+`reach` kernel row exist; `queue/page.tsx` is a `redirect()` stub;
+`connector_does` survives only as its epitaph in two comments;
+`lane_runner.py:1117` calls `frame_paragraph(`; CLAUDE.md is 49,999 chars
+(50,662 BYTES — the ratchet measures chars, so "measure in chars" is load-
+bearing, not pedantry).
+
+## B — the click-pass
+
+**B1 · /reach × 3 panes × 2 themes — PASSES.** Connected shows the five
+expected rows; Slack's Agents line reads exactly *"read only — 2 read tools;
+cannot send"* and its Writes line names the member's door. WordPress renders
+a **fourth** phrasing — *"no reach — this connection carries only your own
+clicks"* — correctly, because it has no read tools at all: the structure is
+deriving per-connection prose, not filling a template. Leaving and Crossed
+render correctly in both themes; Crossed shows the three WordPress receipts
+with `publicly_readable: false` rendered as the amber member-legible sentence
+*"Live on the site, but no reader can reach it yet"*, and the uploads as
+arrivals. Direction markers (↗ LEFT cyan / ↙ ARRIVED teal) stay clear of the
+reserved red/amber.
+
+**B2 · the editor re-asked to send to Slack — PASSES.** Live on the deploy
+(API on `bafb6bc`, which carries 32fc0ed):
+
+> *"Sending has to happen from your side, in the Text pane's Send to Slack
+> action, not through me."*
+
+No "check Settings", no "steward" (a role ADR-632 retired). It names the
+member's actual door from its frame, without calling a tool first. The
+transcript still holds the pre-deploy answer directly above it — *"worth
+checking Settings … or asking your steward"* — so the same lane, same file,
+same question, is the before/after pair. ADR-644 verified end to end.
+
+**B3 · one real Slack send — NOT DONE.** Deliberately deferred: it posts to
+a real channel, and I have no standing authorization to publish outward on
+the operator's behalf. It needs the operator's own click (or an explicit
+instruction naming the channel).
+
+## The bug that looking found
+
+`/reach?reach.pane=crossed` cold-loaded onto **Leaving**, rewriting the
+address bar to `?reach.pane=leaving` under the member. Every shared or
+bookmarked pane deep-link was broken. `reconcileUrl` merged
+`{...incoming, ...remembered}` — the remembered pane outranked the link just
+pasted — while the capture block four lines above already stated the intended
+rule ("we must adopt it, not blow it away").
+
+It hid because the surfaces people actually share (Text, Images) carry their
+file in an EPHEMERAL key that is stripped from `remembered` before the merge:
+document links worked while every pane link silently did not. Verified live —
+`text.file` survived the same cold load that dropped `reach.pane`.
+
+Fixed at `4283039`, and the query half now agrees with the pathname half,
+which settled the same question on 2026-08-20 (the URL is EXPLICIT INTENT).
+The merge is extracted pure into `route-sync.resolveSurfaceParams` beside its
+sibling so the gate EXECUTES the precedence — a reordered spread is invisible
+to a substring check. Falsified against the pre-fix order: 27/28, exactly the
+reported-bug check goes red.
+
+**The lesson, and it is the arc's own:** three sessions of gates went green
+over this. A gate cannot see a wrong pane, and neither could tsc. Only the
+click found it — the same shape as ADR-641's "a colour decision has to be
+LOOKED AT" and yesterday's optional-permission-field regression.
+
+## C — the three baseline-red gates: RETIRE, with the drift derived away
+
+`aea2638`. The ruling: retire the recurrence assertions (ADR-603 D5 deleted
+the concept — a mirror must exist to be fronted, so there was nothing to
+re-anchor onto), and replace every hand-spelled roster literal with the
+ADR-592 derivation.
+
+Reading them showed the red was a **queue of stale slugs, not one**: at the
+pre-arc commit they failed on `queue`; re-anchoring that line only advanced
+the failure to `recurrence`. Behind it:
+
+- ADR-340's search-only set named **six** slugs that no longer exist and
+  missed **three** that do — drift in BOTH directions, which is exactly why a
+  one-directional check never caught it (the ADR-636 lesson, recurring).
+- ADR-349's `main()` called `test_agents_upgraded()`, a name that no longer
+  existed, so the gate **crashed before its last two tests** — hiding for ~7
+  weeks that `agents` was re-promoted to primary on 2026-07-16.
+- ADR-340's constitution-band block read `HomeHeader.tsx`, deleted with Home
+  by ADR-435. `_read` returns `""` for a missing file, so three "deleted"
+  checks passed **vacuously** while the one positive check failed.
+
+Two real defects fixed rather than asserted around: `AttentionCenter`'s
+`goTo` union still offered `'tune'`, a pane key ADR-639 renamed to
+`'standing'` (a silent no-op navigation had anything called it); and ADR-346
+asserted mounts that ADR-639/642 had replaced.
+
+Both new derivations are falsified in both directions — demote a tier while
+its stage stays primary → red; add a served primary-stage row with no tier →
+red (the direction the drift used).
+
+**`sources` (owed item 6) needs no ruling — it is already discharged.**
+It looked like an ADR-592 violation only because the gates read the raw
+`KERNEL_SURFACES` constant. `internal` rows are retained there BY DESIGN (the
+slug must resolve for its redirect stub) and removed by
+`kernel_surface_entries()`. `/sources` is already a redirect stub with no FE
+registry row, no slug in the union, no middleware line. The tier contract is
+about what a member can reach, so the gates now read the served roster.
+
+## Still owed
+
+1. **B3** — one real Slack send, to a channel the operator names (their click).
+2. The remote binding ADR (a file that knows its remote) — two tenants now.
+3. WordPress's D8 read-back (`read_post` behind the seam + a canary).
+4. ADR-635's distribution: registry publish, plugin-directory submission,
+   the attach click-pass (operator acts).
+5. Carried since Part O: `projection.ts`'s second CSV parser · a Files door
+   for declaring standing work · blogger's standing leg.
+
+## Baseline-red, NOT touched (pre-existing, verified by stash)
+
+`test_adr297_navigation_enactment` · `test_adr340_p2_settings_fold`
+(`autonomy`/`budget` panes deleted) · `test_adr422_files_legibility`. Same
+stale-roster family as the three above; each needs its own ruling. They were
+red before this session's first edit — confirmed by stashing and re-running,
+not assumed.
+
+---
+
 # Part V — ADR-644: one reach status (2026-09-07)
 
 Operator, after the Reach click-pass showed the surface and the editor
