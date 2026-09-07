@@ -85,7 +85,27 @@ BASELINE-RED, not this work's (identical at HEAD): test_adr535 (2/21) · test_ad
 deleted routes/radar.py). Recorded, not fixed — each needs its own ruling.
 ```
 
-Click-pass (prod, after deploy): see the line appended below.
+## ✅ CLICK-PASSED live (2026-09-07, after `cbcc73d`; Render `dep-daf29tnavr4c73blevbg` live, Vercel `main-app-59a52978`)
+
+```
+/agents            roster renders (Designer · Editor · Blogger) — the first snapshot caught the LOADING frame,
+                   whose copy is "Could not load this." (initial state null); the surface itself was fine
+/agents?agent=editor   Craft row: 11 skills in rank order (deriving-a-design-system · presenting-from-sources ·
+                   writing-a-spec · … · assembling-a-composite-document · comparing-options · …), each a Files door ✅
+                   "Keeps current" row ABSENT — correctly: the workspace holds ZERO declarations. The ledger shows
+                   `operation/fundraising/_standing.yaml` "retired at operator request" at 02:36:29 and a
+                   `_lifecycle-probe-2026-09-07/` declaration created/archived/cleaned at 02:48–02:49 — the
+                   PARALLEL SESSION is working the standing lifecycle on prod right now. `tasks` (kind=standing): 0 rows.
+                   The derivation is proven by gate §5; the row will appear with the next live declaration.
+roster reads line  no connector source is declared live, so nothing to see; composed locally through `_summarize`:
+                   github → "issue and pull-request activity (latest 50, all states) from each selected repo", url → null ✅
+```
+
+⚠️ **A loading state that reads as a failure.** `AgentsSurface` starts `agents` at
+`null` and renders "Could not load this." until the fetch resolves — the same
+sentence as a real failure. A snapshot taken on navigation read it as a defect
+for one round. Not changed here (it is a copy choice, and the fetch is fast);
+noted so the next click-pass waits a beat.
 
 ## OWED
 
