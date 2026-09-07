@@ -71,13 +71,21 @@ def test_mirrors_survive() -> None:
     # window mirror" contract below now covers queue + recurrence only; feed's
     # new shape is asserted by the ADR-370 gate (`/feed` → redirect stub →
     # /context?context.pane=flow; the `feed` slug maps to ContextPage).
-    for slug in ("queue", "recurrence"):
+    # ADR-642 (2026-09-07): `queue` LEFT this loop — the surface is ABSORBED by
+    # Reach (its body mounts on Reach → Leaving, boundary families only, and on
+    # Notifications → To do unfiltered; /queue is a redirect stub into that
+    # pane). `recurrence` was deleted by ADR-603 D5; this gate has been red on
+    # it since 2026-08-24 and needs its own ruling — not re-anchored here.
+    for slug in ("recurrence",):
         e = by_slug.get(slug)
         check(f"{slug} still registered as a navigable surface", bool(e and e.get("route")))
         check(f"{slug} NOT pane-grade (stays a window mirror, not absorbed)", e is not None and "pane_of" not in e)
+    check("queue is ABSORBED by Reach (ADR-642 D4): no roster row, a stub route",
+          "queue" not in by_slug and "reach" in by_slug
+          and "redirect(" in _read("app/(authenticated)/queue/page.tsx"))
 
     # The mirrors must NOT become redirect stubs — they keep their real bodies.
-    for slug in ("queue", "recurrence"):
+    for slug in ("recurrence",):
         src = _read(f"app/(authenticated)/{slug}/page.tsx")
         check(f"/{slug} is a real surface, not a redirect stub",
               "'use client'" in src and "redirect(" not in src,
@@ -89,7 +97,8 @@ def test_mirrors_survive() -> None:
     # `context`); the narrative is the Channels Flow pane and `/feed` is a
     # next.config redirect, so `feed` is no longer a registry slug.
     check("feed is no longer a registry slug (alias deleted, 2026-06-30)", "feed" not in by_slug)
-    check("queue is search-only (fronted by Notifications)", by_slug["queue"].get("launcher_tier") == "search-only")
+    # ADR-642: the queue slug is gone; Reach (its absorber) is PRIMARY.
+    check("reach is primary (absorbed the queue mirror, ADR-642)", by_slug.get("reach", {}).get("launcher_tier") == "primary")
     check("recurrence is search-only (fronted by Notifications)", by_slug["recurrence"].get("launcher_tier") == "search-only")
 
 

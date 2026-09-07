@@ -149,7 +149,10 @@ def test_kernel_surfaces_module() -> None:
         "agents",
         "setup",  # ADR-331 D1 — guided first-boot Sequence surface
         "program",
-        "queue",
+        # `queue` DELETED (ADR-642 D4, 2026-09-07) — the surface is ABSORBED
+        # by Reach (its body mounts on Reach → Leaving and Notifications → To
+        # do); /queue is a redirect stub hand-listed in middleware.
+        "reach",  # ADR-642 — the boundary's door: connected · leaving · crossed
         # `activity` DELETED with its parent window (ADR-603 D5)
         "sources",  # ADR-338 D4.1 — standing-watch drivers view
         # ADR-297 D19.4 (2026-05-22): settings + connectors promoted

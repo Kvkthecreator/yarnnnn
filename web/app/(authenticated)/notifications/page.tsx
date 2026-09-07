@@ -94,7 +94,9 @@ export default function OperationPage() {
               subtitle="What wants your decision — approve or reject below."
               action={
                 <div className="flex items-center gap-4">
-                  <MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />
+                  {/* ADR-642 D4 — the Queue surface is absorbed by Reach; what
+                      is about to LEAVE the workspace has its door there. */}
+                  <MirrorLink label="Open Reach" onClick={() => navigateToSurface("reach", { pane: "leaving" })} />
                   {/* ADR-593 D5 — the window finally links the settings that
                       govern what reaches its viewer. */}
                   <MirrorLink

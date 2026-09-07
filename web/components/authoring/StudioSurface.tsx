@@ -86,6 +86,7 @@ import { StudioDesignTab, kindTier, blockLabelMap, type StructVerb } from './Stu
 import { arityOf, scopeOf, spanShapeOf, unify, type SpanShape } from './selection';
 import { StudioShareExport } from './StudioShareExport';
 import { StudioPublish } from './StudioPublish';
+import { SendToSlack } from './SendToSlack';
 import { PagedNavigator } from './PagedNavigator';
 import { LayerTree } from './LayerTree';
 import { SelectionBreadcrumb } from './SelectionBreadcrumb';
@@ -3952,6 +3953,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 only the publish medium's pane carries an outbound door. */}
             {app.slug === 'blogger' && artifactPath && (
               <StudioPublish
+                artifactPath={artifactPath}
+                compact={!fullLabels}
+                coarsePointer={coarsePointer}
+              />
+            )}
+            {/* ADR-628 amendment 3 — the Text pane's boundary act: a prose
+                file to a Slack channel. App-scoped by MOUNT, like Publish
+                above: a post is WordPress's shape, prose is Slack's. */}
+            {app.slug === 'text' && artifactPath && (
+              <SendToSlack
                 artifactPath={artifactPath}
                 compact={!fullLabels}
                 coarsePointer={coarsePointer}

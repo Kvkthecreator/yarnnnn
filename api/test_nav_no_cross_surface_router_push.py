@@ -52,7 +52,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SURFACE_SLUGS = [
     "feed", "home", "recurrence", "budget", "autonomy", "expected-output",
     "mandate", "principles", "identity", "files", "agents", "setup", "program",
-    "queue", "notifications", "activity", "settings", "workspace-settings",
+    "queue", "reach", "notifications", "activity", "settings", "workspace-settings",  # ADR-642: reach joins; queue is now a stub
     "connectors", "sources",
     # legacy route aliases that still resolve to a surface (redirect stubs)
     "system", "team", "chat", "cadence", "operation", "context",

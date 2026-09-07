@@ -212,6 +212,9 @@ const SURFACE_ACCENTS: Record<string, string> = {
   // material (`authorAccent` member → teal-400).
   files: 'text-teal-500',
   connectors: 'text-cyan-500',
+  // ADR-642 — the boundary's door wears the connectors hue: the consent page
+  // and the surface that shows what crossed through it are one identity.
+  reach: 'text-cyan-500',
 };
 
 /**

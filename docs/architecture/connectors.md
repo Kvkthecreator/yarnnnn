@@ -132,6 +132,18 @@ only on the INBOUND side, where ADR-563 scope tiers are enforced per call.)
 Discovery failures RAISE and render scoped inside Scope; an empty landscape
 is only ever the honest success case.
 
+**The boundary's front door is Reach** ([ADR-642](../adr/ADR-642-the-boundary-has-a-door.md),
+2026-09-07) — a primary kernel surface on the Channel dimension. Its
+**Connected** pane lists every connection with the same `does` facts this
+page states (now served on the integrations LIST, not only the drill-in),
+the capture freshness, and which standing declarations read through it;
+its **Leaving** pane is the proposal queue filtered to the boundary families;
+its **Crossed** pane is the workspace timeline under its boundary lens. Reach
+LISTS and DOORS — every consent act (connect · select · aperture) stays
+here, on this page. The two pages are one identity (the cyan accent,
+ADR-641): Settings → Connectors is where the member decides; Reach is where
+they see what the decision does.
+
 ## 5a. Attached connectors — the directory is consumed; reach attaches under the member's grant (ADR-635)
 
 The hand-authored trio and WordPress are the connectors yarnnn wrote a client
@@ -179,15 +191,36 @@ paragraph.
 **Outbound** — content leaving the workspace for an external platform — is
 the THIRD disposition ([ADR-628](../adr/ADR-628-the-outbound-disposition.md)),
 and it is not a mirror of intake: an outbound act is irrevocable in the
-world. Phase (a) is live with WordPress as the first tenant: the publish is
-**member-clicked** (Blogger's Publish door), the credential is the member's
-own (`platform_credentials`, which refuses agents — ADR-577), the site is
-chosen **at the act** (never stored on the connection — no per-connection
-settings survives here too), and every act appends a `_publish.yaml` receipt
-beside the post. **The seam is `services/publish.py`** — every outbound
-platform write crosses it, gate-pinned. An outbound-only connector (no
-capture binding) states its non-capture on the surface rather than omitting
-it.
+world. Phase (a) is live with TWO tenants: **WordPress** (a `post` → a blog
+post; Blogger's Publish door; since 2026-09-01) and **Slack** (a prose
+`.md`/`.txt` file → one channel message; the Text pane's Send door; since
+2026-09-07, ADR-628 amendment 3). In both the act is **member-clicked**, the
+credential is the member's own (`platform_credentials`, which refuses agents
+— ADR-577), the destination (site · channel) is chosen **at the act** (never
+stored on the connection — no per-connection settings survives here too),
+and every act appends a `_publish.yaml` receipt beside the artifact.
+**The seam is `services/publish.py`** — every member-clicked outbound
+platform write crosses it, gate-pinned. The ONE other outbound writer is
+the agent's audience send (`platform_slack_send_to_channel`, ADR-304),
+gated by ADR-307 into the proposal queue and executed by the member from
+there — receipted as a proposal, not a sidecar; the gate pins
+`post_message`'s caller set to exactly those two modules. An outbound-only
+connector (no capture binding) states its non-capture on the surface rather
+than omitting it, and a connector with BOTH write paths states both
+(ADR-642 D5 — `connector_does` derives its writes fact from the publish
+targets AND the gated agent capability, never one alone).
+
+**Slack, the second tenant, passed the ADR-420 §10 moat-leak test** where
+Notion-as-workspace would not: a channel message is delivery, not
+accumulation — the file stays here, attributed; a copy goes where the team
+reads. Its composition contract takes prose only (a post is WordPress's
+shape), joins a public channel before posting (the install lacks
+`chat:write.public`; `join_channel`'s first caller), refuses a private
+channel the app is not in with the remedy named, maps Slack's refusal codes
+to member words, and **mechanizes the D8 read-back**: the stored message is
+read back at its `ts` and diffed — `read_back: matched | differs |
+unreadable` on the receipt. Phase (b)'s round-trip precondition is met for
+Slack; still owed for WordPress.
 
 **Composition is a CONTRACT, not a transform** (ADR-628 D6, 2026-09-03 — the
 drive). The seam resolves a post's content root (`<main>` → `<article>` →

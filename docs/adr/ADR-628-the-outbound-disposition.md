@@ -179,6 +179,85 @@ standing writes; a post produced from sources on a schedule must carry the
 same edge, or "what was this made from?" becomes unanswerable at the moment
 it becomes irrevocable.
 
+## Amendment — 2026-09-07: Slack, the second tenant; D8's read-back MECHANIZED
+
+**Disposition** (the first-paragraph rule): OUTBOUND, phase (a) — a
+member-clicked, receipted, irrevocable act through the one seam. Nothing here
+runs unattended; phase (b) stays SHUT (D8, restated below with what remains).
+
+**Why Slack, and not Notion.** ADR-420 §10's moat-leak test governs what
+yarnnn SEEDS as a first-party tenant: *does the platform accumulate the
+member's work on its own side?* Notion-as-workspace is named there as a
+competing commons; a channel message is delivery, not accumulation — the file
+stays here, attributed, and a copy goes where the team reads. Slack passes.
+It is also the connection every knowledge team already holds, the OAuth is
+the one-click gesture already shipped, and `chat:write` is already granted
+(the 2026 reality check D4 asked for, run: no scope widening, no re-consent).
+Operator ruling in the 2026-09-07 discourse: *"reach and outbound … can
+drastically feel different to the user, even our first real customer, from
+day one."*
+
+**What the seam gains** (`services/publish.py`, gate-pinned):
+
+- `PUBLISH_TARGETS` = `{wordpress, slack}`. `connector_does` derives its
+  writes fact from BOTH this set and the gated agent capability
+  (ADR-642 D5) — Slack is the first tenant that has both a member-clicked
+  publish path and an agent write path (`platform_slack_send_to_channel`,
+  gated → the proposal queue since ADR-304/307), and the copy must say so.
+- **The composition contract, Slack edition (D6)**: a channel post IS
+  prose. The composer takes a `.md`/`.txt` file — any other type is refused
+  at the act, by extension, before composition (a `post` is WordPress's
+  shape; a deck, a stage, a binary have no channel form) — strips
+  frontmatter and HTML, escapes what Slack requires escaped, and emits
+  mrkdwn (headings → bold lines, `**` → `*`, `*`/`_` → `_`, links →
+  `<url|text>`, bullets → `•`, tables → a code block, rules dropped, fenced
+  code kept verbatim). It REFUSES an empty result and a result over
+  `chat.postMessage`'s documented 40,000-character ceiling, with the count.
+  It records `folded` (over 4,000 characters Slack hides the rest behind
+  "Show more") — sent and readable-at-a-glance stay two facts (the D7
+  shape).
+- **Join before post.** The install carries `chat:write` but not
+  `chat:write.public`, so the app must be IN a channel to post there.
+  `join_channel` existed with zero callers; the seam is its first: a public
+  channel is joined at the act, a private channel the app is not in is
+  REFUSED with the remedy named (`/invite @yarnnn`). Slack's own refusals
+  (`msg_too_long`, `is_archived`, `restricted_action`, …) are mapped to
+  member-readable reasons, never surfaced raw.
+- **The channel is chosen AT THE ACT** (ADR-594 D1 — never stored on the
+  connection), from `conversations.list`, which now carries `is_member` so
+  the picker can say which private channels need the invite first.
+- **D8's read-back is MECHANIZED for this tenant.** After the post the seam
+  reads the stored message back (`conversations.history` at that exact
+  `ts`, inclusive) and diffs it against what was sent:
+  `read_back: matched | differs | unreadable`, with the sizes on a mismatch.
+  The receipt carries it. This is the round-trip D8 named as phase (b)'s
+  precondition — met for Slack, still owed for WordPress (its authenticated
+  read needs the encryption key that lives only on Render).
+- **The receipt** (`_publish.yaml` beside the file, the member's own
+  attributed write, `derived_from=[file]`): `platform: slack`, channel id
+  and name, `ts`, the permalink (`chat.getPermalink`, best-effort), `at`,
+  the character count, `folded`, `read_back`, `composer_version`.
+
+**The door**: `SendToSlack` on the Text pane only (app-scoped by MOUNT, the
+`StudioPublish` precedent) — the file's own pane, where the member stands on
+it (D2). Three connect states (not connected → Connectors; connected with no
+channels; the picker), the act, the receipt with the read-back verdict. The
+open chat still carries no publish verb (D5).
+
+**What phase (b) still needs**, so the bar does not drift with the second
+tenant: (1) the narrow non-agent identity `system:publish-{platform}` (D3);
+(2) a declaration contract that names the publish explicitly (D3); (3) the
+round-trip for WHICHEVER tenant a declaration would publish to — met for
+Slack by this amendment, unmet for WordPress. Receipts alone are not the bar.
+
+**Gate**: `test_adr628_outbound_publish.py` §8 — the Slack composer contract
+(a fixture carrying every rule, the refusal table), the seam DRIVEN with
+fakes (join-before-post on a public channel, the private-channel refusal, a
+platform refusal mapped, the read-back verdicts `matched` and `differs`, the
+receipt fields, `derived_from`), `post_message`'s caller set pinned to the
+seam + the ADR-304 tool handler and nothing else, the FE door on the Text
+pane alone.
+
 ## The disposition
 
 Canon recognizes two dispositions of platform reach, both **inward**:

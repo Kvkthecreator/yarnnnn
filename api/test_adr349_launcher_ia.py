@@ -99,7 +99,13 @@ def test_mirrors_and_setup_search_only() -> None:
     # mirror loop.
     check("feed is no longer a registry slug (alias deleted, 2026-06-30)",
           "feed" not in by_slug)
-    for slug in ("queue", "recurrence"):
+    # ADR-642 (2026-09-07): `queue` LEFT this loop — absorbed by Reach, which
+    # is PRIMARY (the boundary's door earns a Dock pin, not a summon-by-name
+    # mirror). `recurrence` was deleted by ADR-603 D5 (baseline red; its own
+    # ruling).
+    check("queue is absorbed by Reach; reach is primary (ADR-642 D1/D4)",
+          "queue" not in by_slug and by_slug.get("reach", {}).get("launcher_tier") == "primary")
+    for slug in ("recurrence",):
         check(f"{slug} is search-only (fronted by Notifications)",
               by_slug[slug].get("launcher_tier") == "search-only")
         # Mirrors NOT deleted (ADR-346 D1) — still real windowed surfaces.

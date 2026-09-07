@@ -119,6 +119,12 @@ class IntegrationResponse(BaseModel):
     server_url: Optional[str] = None
     category: Optional[str] = None
     tools_exposed: Optional[int] = None
+    # ADR-642 D2 — what this connection DOES (`connector_does`: reads ·
+    # writes · chat · agents), served on the LIST so a roster can say what
+    # each row reads and writes without a drill-in per row. Derived from the
+    # machinery that enacts it, never a copy. Absent on attached connectors
+    # (their aperture is the fact; `tools_exposed` carries it).
+    does: Optional[dict] = None
 
 
 class IntegrationListResponse(BaseModel):
@@ -160,6 +166,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                 max_synced[p] = ts
 
         from services.attached_connectors import is_attached_platform
+        from services.connectors import connector_does
 
         integrations = []
         for row in result.data or []:
@@ -183,6 +190,8 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                     sum(1 for m in aperture.values() if m in ("direct", "propose"))
                     if attached else None
                 ),
+                # ADR-642 D2 — the roster says what each row reads and writes.
+                does=(None if attached else connector_does(platform)),
             ))
 
         return IntegrationListResponse(integrations=integrations)

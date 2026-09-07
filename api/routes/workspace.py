@@ -12,6 +12,7 @@ All paths are relative to the user's workspace scope in workspace_files table.
 
 import logging
 import re
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -222,6 +223,11 @@ class TimelineEntry(BaseModel):
     # Axiom 9 rendering-weight taxonomy. The bell mounts material only; the
     # workbench defaults to material + routine.
     weight: str = "material"           # material | routine | housekeeping
+    # ADR-642 D2 — under the BOUNDARY lens, a `_publish.yaml` revision row
+    # carries the receipt it appended (platform · url · status ·
+    # publicly_readable · read_back · …), parsed from the sidecar at read
+    # time. Absent on every other row and under every other lens.
+    receipt: Optional[dict] = None
 
 
 class WorkspaceTimelineResponse(BaseModel):
@@ -1290,9 +1296,54 @@ def _write_regions_to_zones(regions: list[str]) -> list[str]:
     return sorted(zones, key=lambda z: GROUP_ORDER.get(z, 99))
 
 
+#: ADR-642 D2 — the proposal families that CROSS the boundary. A `substrate`
+#: proposal is a workspace write awaiting witness; it never leaves.
+BOUNDARY_PROPOSAL_FAMILIES: tuple[str, ...] = ("external-write", "capital")
+
+#: ADR-642 D2 — the receipt keys a boundary row carries. A whitelist, so a
+#: sidecar's growth never widens the payload by accident.
+_RECEIPT_KEYS: tuple[str, ...] = (
+    "platform", "url", "status", "publicly_readable", "read_back",
+    "read_back_detail", "channel", "site_id", "at", "folded", "chars",
+)
+
+
+def _parse_at(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def receipt_for_revision(receipts: list[dict], at: Optional[str]) -> Optional[dict]:
+    """The sidecar entry a `_publish.yaml` revision APPENDED: the newest
+    entry whose `at` is not after the revision's own (a few seconds' slack —
+    the entry is stamped before the write lands), else the last one. Pure."""
+    if not receipts:
+        return None
+    rev_at = _parse_at(at)
+    chosen: Optional[dict] = None
+    if rev_at is not None:
+        for r in receipts:
+            r_at = _parse_at(r.get("at"))
+            if r_at is None:
+                continue
+            if r_at <= rev_at + timedelta(seconds=5):
+                if chosen is None or (_parse_at(chosen.get("at")) or r_at) <= r_at:
+                    chosen = r
+    if chosen is None:
+        chosen = receipts[-1]
+    return {k: chosen[k] for k in _RECEIPT_KEYS if k in chosen}
+
+
 @router.get("/workspace/timeline", response_model=WorkspaceTimelineResponse)
 async def get_workspace_timeline(
-    auth: UserClient, limit: int = 40, before: Optional[str] = None
+    auth: UserClient,
+    limit: int = 40,
+    before: Optional[str] = None,
+    lens: Optional[str] = None,
 ) -> WorkspaceTimelineResponse:
     """The workspace's shared timeline — what happened, by whom (ADR-408 D5.1,
     ADR-407 Phase 4b).
@@ -1310,6 +1361,14 @@ async def get_workspace_timeline(
     from services.workspace_context import substrate_scope_filter
 
     limit = max(1, min(limit, 100))
+    # ADR-642 D2 — the BOUNDARY lens: the same three ledgers, filtered at the
+    # query to the acts that crossed the workspace boundary. Arrived = a
+    # retained raw observation (`revision_kind='observation'` — capture and
+    # standing retention alike, one predicate); left = a `_publish.yaml`
+    # receipt row (a member-clicked publish) or a decided proposal of a
+    # boundary family. No invocation or membership rows. A lens, never a
+    # second log (Axiom 9).
+    boundary = (lens or "").strip().lower() == "boundary"
     col, val = substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
     entries: list[TimelineEntry] = []
     page_full = False
@@ -1321,22 +1380,29 @@ async def get_workspace_timeline(
             .select("path, authored_by, author_identity_uuid, message, revision_kind, created_at")
             .eq(col, val)
         )
+        if boundary:
+            q = q.or_("revision_kind.eq.observation,path.like.*/_publish.yaml")
         if before:
             q = q.lt("created_at", before)
         rows = q.order("created_at", desc=True).limit(limit).execute().data or []
         page_full = page_full or len(rows) >= limit
         for r in rows:
             at = r.get("created_at") or ""
+            path = r.get("path") or ""
+            is_receipt = boundary and path.endswith("/_publish.yaml")
             entries.append(TimelineEntry(
                 kind="revision",
-                id=f"revision:{r.get('path') or ''}:{at}",
+                id=f"revision:{path}:{at}",
                 at=at,
                 actor=r.get("authored_by"),
                 actor_id=r.get("author_identity_uuid"),
-                title=r.get("path") or "substrate change",
+                title=path or "substrate change",
                 detail=r.get("message"),
                 path=r.get("path"),
-                weight=classify_weight(
+                # A publish receipt is never housekeeping AT THE BOUNDARY —
+                # the underscore-file rule that hides it in Activity is the
+                # ADR-642 §2 defect this lens exists to correct.
+                weight="material" if is_receipt else classify_weight(
                     "revision",
                     path=r.get("path"),
                     revision_kind=r.get("revision_kind"),
@@ -1346,6 +1412,8 @@ async def get_workspace_timeline(
         logger.warning("[TIMELINE] revisions read failed: %s", e)
 
     # 2. Invocations — who ran what. No cost fields (dollars stay internal).
+    # Not a boundary act (a run is HOW something crossed, never the crossing);
+    # under the lens the query is not made.
     try:
         q = (
             auth.client.table("execution_events")
@@ -1354,7 +1422,7 @@ async def get_workspace_timeline(
         )
         if before:
             q = q.lt("created_at", before)
-        rows = q.order("created_at", desc=True).limit(limit).execute().data or []
+        rows = [] if boundary else (q.order("created_at", desc=True).limit(limit).execute().data or [])
         page_full = page_full or len(rows) >= limit
         for r in rows:
             at = r.get("created_at") or ""
@@ -1385,6 +1453,10 @@ async def get_workspace_timeline(
             .select("id, primitive, family, status, source, approved_by, created_at, approved_at")
             .eq(col, val)
         )
+        if boundary:
+            # Decided boundary proposals only: a pending one has not crossed
+            # (it is Reach's Leaving pane), a substrate one never leaves.
+            q = q.in_("family", list(BOUNDARY_PROPOSAL_FAMILIES)).neq("status", "pending")
         if before:
             q = q.lt("created_at", before)
         rows = q.order("created_at", desc=True).limit(limit).execute().data or []
@@ -1419,7 +1491,7 @@ async def get_workspace_timeline(
         from services.workspace_context import effective_workspace_id
 
         ws_for_grants = val if col == "workspace_id" else effective_workspace_id(auth.user_id)
-        if ws_for_grants:
+        if ws_for_grants and not boundary:  # a joining member is not a boundary act
             q = (
                 get_service_client().table("principal_grants")
                 .select("principal_id, role, status, created_at")
@@ -1450,7 +1522,45 @@ async def get_workspace_timeline(
         logger.warning("[TIMELINE] membership read failed: %s", e)
 
     entries.sort(key=lambda e: e.at or "", reverse=True)
-    return WorkspaceTimelineResponse(entries=entries[:limit], has_more=page_full)
+    entries = entries[:limit]
+
+    # ADR-642 D2 — under the boundary lens, a `_publish.yaml` row carries the
+    # receipt it appended. The sidecars are read ONCE for the page (one
+    # `in_` query over the distinct paths, bounded by the page), parsed, and
+    # each revision row is matched to the newest entry not after its own
+    # timestamp. Whitelisted keys only; a failure leaves the rows receipt-less
+    # (unresolved, served as such) rather than dropping them.
+    if boundary:
+        sidecars = sorted({
+            e.path for e in entries
+            if e.kind == "revision" and e.path and e.path.endswith("/_publish.yaml")
+        })
+        if sidecars:
+            try:
+                import yaml
+
+                res = (
+                    auth.client.table("workspace_files")
+                    .select("path, content")
+                    .eq(col, val)
+                    .in_("path", sidecars)
+                    .execute()
+                )
+                by_path: dict[str, list[dict]] = {}
+                for r in res.data or []:
+                    try:
+                        loaded = yaml.safe_load(r.get("content") or "")
+                    except Exception:  # noqa: BLE001
+                        loaded = None
+                    if isinstance(loaded, list):
+                        by_path[r["path"]] = [x for x in loaded if isinstance(x, dict)]
+                for e in entries:
+                    if e.kind == "revision" and e.path in by_path:
+                        e.receipt = receipt_for_revision(by_path[e.path], e.at)
+            except Exception as ex:  # noqa: BLE001
+                logger.warning("[TIMELINE] boundary receipts unresolved: %s", ex)
+
+    return WorkspaceTimelineResponse(entries=entries, has_more=page_full)
 
 
 @router.patch("/workspace", response_model=WorkspaceIdentityResponse)

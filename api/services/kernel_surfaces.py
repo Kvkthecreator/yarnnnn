@@ -694,19 +694,33 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # body over the same action_proposals — ADR-307 one gate, one queue
         # preserved). Queue stays the complete decide mirror, reachable +
         # searchable; the Attention bell + Operation are now the default route in.
-        "slug": "queue",
-        # ADR-592 declared 2026-08-26 (was implied). Reachable + searchable by
-        # design — Notifications' To-do pane is the default route in.
-        "stage": "search-only",
-        "launcher_tier": "search-only",  # ADR-349 — fronted by Notifications (To do pane); summon by name (was utilities, ADR-346)
-        "register": "application",  # ADR-309 two-register model
-        "title": "Queue",
-        "archetype": "queue",
-        "substrate_paths": [],  # action_proposals DB table (pending state)
-        "icon_key": "inbox",
-        "default_pinned": False,
-        "route": "/queue",  # _route_status: NEW in Phase 2 — extracts proposal queue from /work or /agents context
-        "summary": "Pending proposals awaiting Reviewer or operator decision.",
+        # ADR-642 (2026-09-07) — REACH: the boundary's door. The Channel
+        # dimension (Axiom 6) had five pieces and no front door: connections
+        # under Settings, the proposal queue as a search-only mirror, publish
+        # receipts hidden as housekeeping in Activity, the standing roster's
+        # reach receipts in their own pane. One surface, three questions —
+        # what is connected · what is about to leave · what crossed — every
+        # row DERIVED (DP29) from the connection rows, the standing roster,
+        # the proposal ledger and the workspace timeline under a boundary
+        # lens. A kernel surface, not an app (ADR-639 D4's cut: it owns no
+        # file type, so no AppDescriptor, no posture, no object model).
+        # ABSORBS the `queue` row that stood here: the proposal body mounts
+        # on its Leaving pane filtered to the two boundary families, and
+        # unfiltered on Notifications → To do (one body, three mounts,
+        # ADR-346). /queue is an ADR-308 redirect stub into that pane,
+        # hand-listed in middleware (the ADR-592 obligation); `queue` joins
+        # DOCK_RETIRED_SLUGS so a persisted open entry renders no ghost.
+        "slug": "reach",
+        "stage": "primary",
+        "launcher_tier": "primary",
+        "register": "application",
+        "title": "Reach",
+        "archetype": "dashboard",  # composition over the connection rows + action_proposals + the timeline's boundary lens
+        "substrate_paths": [],
+        "icon_key": "arrow-left-right",
+        "default_pinned": True,  # primary → pinned by derivation (ADR-592)
+        "route": "/reach",
+        "summary": "What's connected, what's about to leave, and what crossed — every act signed.",
     },
     # The `activity` surface row (the Runs lens, pane_of recurrence) is
     # DELETED with its parent (ADR-603 D5 executed 2026-08-24). Run receipts

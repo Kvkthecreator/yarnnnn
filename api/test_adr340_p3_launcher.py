@@ -98,9 +98,12 @@ def test_registry_tiers() -> None:
         # ADR-432 D2d (2026-07-09): `program` LEAVES — the operator hire pane is
         # retired; the slug went dormant (no route, no launcher_tier).
         {s for s, t in tiers.items() if t == "search-only"}
+        # ADR-642 (2026-09-07): `queue` LEFT this set — absorbed by Reach
+        # (primary). The rest of this literal is stale on ADR-603/491/592
+        # deletions (baseline red) and awaits its own ruling.
         == {"budget", "autonomy",
             "connectors", "sources", "activity", "agents",
-            "queue", "recurrence", "setup", "notifications"},
+            "recurrence", "setup", "notifications"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
     check("chrome entries carry no tier", all(not e.get("launcher_tier") for e in chrome))

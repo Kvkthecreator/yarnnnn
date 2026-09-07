@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 interface StudioPublishProps {
   /** Workspace path of the post artifact (any spelling — server normalizes). */
@@ -53,6 +54,7 @@ export function StudioPublish({
     | { kind: 'error'; message: string }
   >({ kind: 'idle' });
   const menuRef = useRef<HTMLDivElement>(null);
+  const { navigateToSurface } = useSurfacePreferences();
 
   // The ShareExport click-away grammar (outclick + Escape + in-frame press).
   useEffect(() => {
@@ -167,12 +169,17 @@ export function StudioPublish({
                   Connect WordPress once, and every post can publish to your own
                   blog — your account, your name, your click.
                 </p>
-                <a
-                  href="/connectors"
+                {/* ADR-297 D19 — cross-surface navigation rides the window
+                    manager, never a raw anchor. (Was a raw anchor to the
+                    Connectors route since 2026-09-01 — the nav gate had been
+                    red on it.) */}
+                <button
+                  type="button"
+                  onClick={() => navigateToSurface('connectors')}
                   className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 >
                   Connect WordPress →
-                </a>
+                </button>
               </div>
             )}
 

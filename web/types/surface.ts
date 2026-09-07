@@ -79,7 +79,13 @@ export type KernelSurfaceSlug =
   | 'files'
   | 'agents'
   | 'program'
-  | 'queue'
+  // ADR-642 (2026-09-07): the queue slug LEFT this union — the surface is
+  // ABSORBED by Reach (its body mounts on the Leaving pane, filtered to the
+  // boundary families, and on Notifications → To do unfiltered). Its route
+  // is a redirect stub into that pane, hand-listed in middleware (the
+  // ADR-592 obligation). Slug not quoted here — the parity gate reads
+  // quoted names from this union up to the first semicolon.
+  | 'reach'  // ADR-642 — the boundary's door: connected · leaving · crossed
   | 'notifications'  // ADR-346/349 — the operating-work composition (was 'operation')
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
@@ -117,8 +123,10 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // slug driving SURFACE_PREFIXES — protecting its route by accident rather
   // than by declaration. It is hand-listed in middleware's stub block, where
   // every other row-less stub lives.
+  // ADR-642: `queue` LEFT (absorbed by Reach; /queue is a stub into its
+  // Leaving pane, hand-listed in middleware); `reach` joins.
   'chat', 'text', 'slides', 'blogger', 'images', 'billing', 'usage',
-  'files', 'agents', 'queue', 'notifications',
+  'files', 'agents', 'reach', 'notifications',
   // ADR-425 D2: `sources` LEFT the allowlist (hidden, redirect-stub only).
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).
   // ADR-593 D5: `notification-settings` joins — the account door's

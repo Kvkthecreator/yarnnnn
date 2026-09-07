@@ -91,7 +91,7 @@ def _grep(pattern: str, *paths: str) -> list[str]:
 # real route) + the legacy/stub routes that resolve to a surface.
 KERNEL_SLUGS = [
     "feed", "recurrence", "cadence", "mandate", "home", "delegation", "autonomy",  # ADR-312 D1: cockpit→home; 2026-06-03: cadence→recurrence (cadence kept as redirect stub)
-    "principles", "identity", "queue", "activity", "program",
+    "principles", "identity", "queue", "reach", "activity", "program",  # ADR-642: reach joins; queue is now a stub
     "pace", "agents", "context", "files", "settings", "connectors",
     "desktop",
     # ADR-309: `brand` removed — Identity owns Brand; /brand is a server

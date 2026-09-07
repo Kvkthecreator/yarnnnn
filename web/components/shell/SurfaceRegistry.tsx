@@ -65,7 +65,11 @@ import TextPage from '@/app/(authenticated)/text/page';
 // ADR-308 redirect stubs. Their FIRST-CLASS door stays the Home
 // constitution band (ADR-312 D5) — HomeHeader consumes the cards
 // directly, independent of these (now-deleted) page routes.
-import QueuePage from '@/app/(authenticated)/queue/page';
+// ADR-642 (2026-09-07) — the Queue surface is ABSORBED by Reach: the
+// proposal body mounts on Reach's Leaving pane (boundary families only) and
+// on Notifications → To do (everything). /queue is an ADR-308 redirect stub
+// into that pane, hand-listed in middleware.
+import ReachPage from '@/app/(authenticated)/reach/page';
 // ADR-346 (2026-06-19) — the Operation composition window (Decide · Read ·
 // Tune). Window-grade (no pane_of) like Home; its panes reuse mirror bodies.
 import NotificationsPage from '@/app/(authenticated)/notifications/page';
@@ -109,7 +113,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // /brand is a server redirect → /identity (ADR-308).
   // ADR-341 (2026-06-18): mandate/principles/identity are pane-grade under
   // workspace-settings; no window component (resolve to undefined here).
-  queue: QueuePage,
+  reach: ReachPage,  // ADR-642 — the boundary's door (absorbs the queue surface)
   notifications: NotificationsPage,  // ADR-346/349 — the operating-work composition (was 'operation')
   agents: AgentsPage,
   files: FilesPage,

@@ -120,6 +120,11 @@ class SlackAPIClient:
                 "name": ch.get("name") or ch.get("name_normalized"),
                 "is_private": ch.get("is_private", False),
                 "is_archived": ch.get("is_archived", False),
+                # ADR-628 amendment 3 — the install has `chat:write` but not
+                # `chat:write.public`, so whether the app is IN a channel
+                # decides whether it can post there. The publish picker says
+                # which private channels need the invite first.
+                "is_member": bool(ch.get("is_member", False)),
             }
             for ch in data.get("channels", [])
             if isinstance(ch, dict) and ch.get("id")
@@ -440,6 +445,58 @@ class SlackAPIClient:
             bot_token=bot_token,
             json=payload,
         )
+
+    async def get_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        ts: str,
+    ) -> Optional[dict[str, Any]]:
+        """The ONE message at `ts` in `channel_id`, as Slack stores it — or
+        None when unreadable (ADR-628 D8, the read-back half of a publish).
+
+        `conversations.history` bounded to exactly that timestamp, inclusive.
+        Returns the raw message dict so the caller can diff `text` against
+        what it sent.
+        """
+        data = await self._request_with_retry(
+            "get",
+            f"{SLACK_API_BASE}/conversations.history",
+            bot_token=bot_token,
+            params={
+                "channel": channel_id,
+                "latest": ts,
+                "oldest": ts,
+                "inclusive": "true",
+                "limit": 1,
+            },
+        )
+        if not data.get("ok"):
+            logger.warning(f"[SLACK_API] get_message error: {data.get('error')}")
+            return None
+        for m in data.get("messages", []) or []:
+            if isinstance(m, dict) and m.get("ts") == ts:
+                return m
+        return None
+
+    async def get_permalink(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_ts: str,
+    ) -> Optional[str]:
+        """A message's permalink (chat.getPermalink), or None. Best-effort:
+        a publish receipt without a link is still a receipt."""
+        data = await self._request_with_retry(
+            "get",
+            f"{SLACK_API_BASE}/chat.getPermalink",
+            bot_token=bot_token,
+            params={"channel": channel_id, "message_ts": message_ts},
+        )
+        if not data.get("ok"):
+            return None
+        link = data.get("permalink")
+        return str(link) if link else None
 
 
 # Singleton

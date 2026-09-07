@@ -576,6 +576,26 @@ export const api = {
         /** Absent = unresolved, never a silent "fine". */
         publicly_readable?: boolean;
       }>("/api/publish/wordpress", { method: "POST", body: JSON.stringify(data) }),
+    // ADR-628 amendment 3 — Slack, the second tenant. The channel is chosen
+    // AT THE ACT; `is_member` false on a private channel means the app needs
+    // the invite first. The receipt carries the D8 read-back verdict.
+    slackChannels: () =>
+      request<{
+        connected: boolean;
+        channels: Array<{ id: string; name: string; is_private: boolean; is_member: boolean }>;
+      }>("/api/publish/slack/channels"),
+    slack: (data: { path: string; channel_id: string }) =>
+      request<{
+        success: boolean;
+        channel: string;
+        url?: string | null;
+        ts: string;
+        status: string;
+        chars: number;
+        folded: boolean;
+        read_back: "matched" | "differs" | "unreadable";
+        read_back_detail?: string;
+      }>("/api/publish/slack", { method: "POST", body: JSON.stringify(data) }),
   },
 
   lanes: {
@@ -1950,7 +1970,10 @@ export const api = {
     // kind of act. Powers the Home Timeline slot, the bell's ACTIVITY
     // (ADR-410 D1), and the Notifications workbench (ADR-410 D5 — `before`
     // is the full-history paging cursor the endpoint already supports).
-    timeline: (limit: number = 40, before?: string) =>
+    // ADR-642 D2 — `lens: 'boundary'` filters at the query to the acts that
+    // crossed the workspace boundary (observations · publish receipts ·
+    // decided boundary proposals); publish rows then carry `receipt`.
+    timeline: (limit: number = 40, before?: string, lens?: 'boundary') =>
       request<{
         entries: Array<{
           kind: 'revision' | 'invocation' | 'proposal' | 'membership';
@@ -1979,10 +2002,26 @@ export const api = {
           // rendering-weight taxonomy). Bell mounts material only; the
           // workbench defaults to material + routine.
           weight?: 'material' | 'routine' | 'housekeeping';
+          // ADR-642 D2 — under the boundary lens, a publish-receipt row
+          // carries the receipt it appended (parsed from the sidecar at read
+          // time). Absent on every other row and under every other lens.
+          receipt?: {
+            platform?: string;
+            url?: string | null;
+            status?: string | null;
+            publicly_readable?: boolean | null;
+            read_back?: 'matched' | 'differs' | 'unreadable' | null;
+            read_back_detail?: string | null;
+            channel?: string | null;
+            site_id?: string | null;
+            at?: string | null;
+            folded?: boolean | null;
+            chars?: number | null;
+          } | null;
         }>;
         has_more: boolean;
       }>(
-        `/api/workspace/timeline?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}`,
+        `/api/workspace/timeline?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}${lens ? `&lens=${lens}` : ''}`,
       ),
 
     // ADR-373 D2: the workspace's principals — WHO can write here, and WHAT
@@ -2488,6 +2527,9 @@ export const api = {
           server_url?: string | null;
           category?: string | null;
           tools_exposed?: number | null;
+          // ADR-642 D2 — what this connection DOES (reads · writes · chat ·
+          // agents), derived server-side; absent on attached connectors.
+          does?: { reads: string; writes: string; chat?: string; agents: string } | null;
         }>;
       }>("/api/integrations"),
 

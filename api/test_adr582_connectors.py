@@ -463,10 +463,14 @@ check("7m does.reads comes from the binding row itself (one home)",
 from services.publish import PUBLISH_TARGETS  # noqa: E402
 
 _wp_does = connector_does("wordpress") or {}
-check("7n does.writes follows the publish seam (wordpress publishes; "
-      "slack + github never write)",
+# Re-anchored 2026-09-07 (ADR-628 amendment 3 + ADR-642 D5): Slack is the
+# SECOND publish target, and its writes fact derives from BOTH homes — the
+# member-clicked seam AND the gated agent capability (`write_slack`, ADR-304)
+# the old sentence denied. GitHub still never writes.
+check("7n does.writes follows the publish seam (wordpress + slack publish; "
+      "github never writes)",
       "wordpress" in PUBLISH_TARGETS
-      and "slack" not in PUBLISH_TARGETS
+      and "slack" in PUBLISH_TARGETS
       and "publish" in _wp_does.get("writes", "")
       and "never writes" in _slack_does.get("writes", "")
       and "never writes" in _gh_does.get("writes", ""),

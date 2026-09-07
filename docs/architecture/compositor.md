@@ -58,6 +58,18 @@ is neither register — it is the window manager's own framing.
 > chrome and not a rail. The `Viewing:`/`surfaceOverride` binding described below died
 > with the drawer. Read the FE `SurfaceRegistry` + `kernel_surfaces.py` for the live set.
 
+> **ADR-642 (2026-09-07) — Reach joins the live set as a PRIMARY kernel surface** (the
+> boundary's door: Connected · Leaving · Crossed), and the `queue` surface is ABSORBED
+> (its body mounts on Reach → Leaving, boundary families only, and on Notifications →
+> To do unfiltered; `/queue` is a redirect stub into that pane, hand-listed in
+> middleware). Adding a kernel surface is the four-file lockstep the ADR-338 parity
+> gate binds: the `KERNEL_SURFACES` row ↔ the `KernelSurfaceSlug` union ↔ the
+> `KERNEL_SURFACE_SLUGS` array ↔ the `KERNEL_SURFACE_REGISTRY` entry — plus, for a
+> primary row, `DEFAULT_KEPT_SURFACES` (asserted equal to the ADR-592 derivation) and a
+> Dock reseed generation; for a retired slug, `DOCK_RETIRED_SLUGS` and the stub +
+> middleware pair. A kernel surface that owns no file type has NO `AppDescriptor` row
+> (ADR-636 governs apps; ADR-639 D4 / ADR-642 D1 are the precedents).
+
 **Chat is the command rail, not an overlay (ADR-316).** The chat-drawer
 chrome lives in the `main-rail` region — a flex sibling of `SurfaceViewport`
 inside `main` that *reduces* the surface area when open, never occluding it.

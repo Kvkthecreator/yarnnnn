@@ -164,9 +164,12 @@ def test_every_roster_surface_is_gated() -> None:
     # The eight this bug was about, named explicitly so a regression that
     # re-drops any of them says WHICH — the class recurred eight times before
     # anyone noticed, so the gate names them rather than counting.
+    # `queue` stays in this list on purpose: since ADR-642 it is a redirect
+    # STUB (hand-listed in middleware), and a stub is still an authenticated
+    # destination. `reach` joins as the surface that absorbed it.
     for slug in [
         "images", "radar", "strings", "text",
-        "notifications", "queue", "billing", "usage",
+        "notifications", "queue", "billing", "usage", "reach",
     ]:
         _assert(
             any(f"/{slug}".startswith(p) for p in protected),

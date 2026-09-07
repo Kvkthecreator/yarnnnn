@@ -111,7 +111,18 @@ def connector_does(platform: str) -> Optional[dict]:
     from services.publish import PUBLISH_TARGETS
 
     can_export = plat in PUBLISH_TARGETS
-    if binding is None and not can_export:
+    # ADR-642 D5 — the writes fact has TWO homes, and reading one of them
+    # produced a false sentence ("yarnnn never writes to Slack") beside a
+    # live agent write path (`platform_slack_send_to_channel`, gated into
+    # the proposal queue since ADR-304/307). Both are read; the copy names
+    # whichever applies.
+    try:
+        from services.platform_tools import PLATFORM_TOOLS_BY_CAPABILITY
+
+        agent_writes = bool(PLATFORM_TOOLS_BY_CAPABILITY.get(f"write_{plat}"))
+    except Exception:  # noqa: BLE001
+        agent_writes = False
+    if binding is None and not can_export and not agent_writes:
         return None
     name = _PLATFORM_DISPLAY.get(plat, plat)
     try:
@@ -129,8 +140,13 @@ def connector_does(platform: str) -> Optional[dict]:
             else f"nothing — yarnnn never captures from {name}"
         ),
         "writes": (
-            f"only when you publish to {name} — your action, never scheduled"
+            f"when you send a file to {name} — your click, receipted beside the file; "
+            f"an agent's {name} post goes out only through a proposal you approve"
+            if (can_export and agent_writes)
+            else f"only when you publish to {name} — your action, never scheduled"
             if can_export
+            else f"only through a proposal you approve — an agent's {name} post waits in your queue for the decision"
+            if agent_writes
             else f"nothing — yarnnn never writes to {name}"
         ),
         # ADR-585: chat turn reach — the member's OWN connection, inside their
@@ -173,16 +189,26 @@ def connector_does(platform: str) -> Optional[dict]:
         # toolless by construction (`run_bounded_derive_turn`), so a scoped
         # being gains no reach when nobody is present.
         "agents": (
-            # ADR-628 D5 — agents cannot publish, structurally: the credential
-            # path refuses agent callers (ADR-577) and the publish door is a
-            # member surface act. Stated where the connection is granted.
-            f"agents never publish to {name} — publishing is your click, with your credential"
-            if binding is None
-            else (
-                f"an agent you scope to {name} reads it while you're working with it — "
-                "never on its own schedule, where it reads landed files only"
-                if reach_on
-                else "no direct platform access — agents read the landed capture files only"
+            (
+                # ADR-628 D5 — agents cannot publish, structurally: the
+                # credential path refuses agent callers (ADR-577) and the
+                # publish door is a member surface act. Stated where the
+                # connection is granted.
+                f"agents never publish to {name} — publishing is your click, with your credential"
+                if binding is None
+                else (
+                    f"an agent you scope to {name} reads it while you're working with it — "
+                    "never on its own schedule, where it reads landed files only"
+                    if reach_on
+                    else "no direct platform access — agents read the landed capture files only"
+                )
+            )
+            # ADR-642 D5 — the gated agent write, where one exists: never
+            # silent, never "never". It lands in the queue as a proposal.
+            + (
+                f". An agent's {name} post never goes out on its own — it lands in your queue as a proposal for your decision"
+                if agent_writes
+                else ""
             )
         ),
     }

@@ -66,14 +66,28 @@ function rowLabel(p: QueueProposal): string {
   return prim.charAt(0).toUpperCase() + prim.slice(1);
 }
 
-export function QueueBody() {
+interface QueueBodyProps {
+  /** ADR-642 D2 — which families this mount shows. Notifications → To do
+   *  mounts it unfiltered (everything awaiting the viewer); Reach → Leaving
+   *  mounts the two that CROSS the boundary (external-write · capital). A
+   *  `substrate` proposal is a workspace write awaiting witness — it never
+   *  leaves, so it never shows on the boundary. Default: every family. */
+  families?: readonly QueueFamily[];
+}
+
+const ALL_FAMILIES: readonly QueueFamily[] = ['capital', 'external-write', 'substrate'];
+
+export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
   const [proposals, setProposals] = useState<QueueProposal[] | null>(null);
   const [occupant, setOccupant] = useState<Occupant | null>(null);
 
   const load = useCallback(async () => {
     try {
       const r = await api.proposals.list('pending', 100);
-      setProposals((r.proposals as unknown as QueueProposal[]) ?? []);
+      const rows = ((r.proposals as unknown as QueueProposal[]) ?? []).filter((p) =>
+        families.includes(p.family as QueueFamily),
+      );
+      setProposals(rows);
       const occ = r.current_occupant as Occupant | Record<string, never>;
       setOccupant('occupant' in occ ? (occ as Occupant) : null);
     } catch {

@@ -221,10 +221,19 @@ intake wasn't running.
 the workspace for an external platform; ADR-628, canonical home
 [connectors.md §6](connectors.md)). It is neither of the two above: not
 standing, not transient-inward — a **member-clicked, receipted, irrevocable**
-act through the one seam `services/publish.py` (WordPress first tenant,
-Blogger's Publish door). Named here so the first-paragraph declaration rule
-covers all three; the detail lives with the connectors canon, not this
+act through the one seam `services/publish.py` (two tenants: WordPress,
+Blogger's Publish door, since 2026-09-01; Slack, the Text pane's Send door,
+since 2026-09-07 — ADR-628 amendment 3, which also mechanizes the D8
+read-back for that tenant). Named here so the first-paragraph declaration
+rule covers all three; the detail lives with the connectors canon, not this
 pipeline (intake remains inbound-only).
+
+**All three dispositions have ONE door since 2026-09-07 — Reach**
+([ADR-642](../adr/ADR-642-the-boundary-has-a-door.md)): a kernel surface
+on the Channel dimension presenting what is connected, what is about to
+leave (the boundary proposal families) and what crossed (the workspace
+timeline under its boundary lens: observations in, publish receipts and
+decided boundary proposals out). It adds no mechanism; it presents these.
 
 **What turn reach does NOT dissolve.** The two inbound dispositions stay distinct
 where it counts: a turn's read is transient and dies with the turn, so nothing

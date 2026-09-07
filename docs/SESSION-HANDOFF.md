@@ -4,6 +4,79 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part U — ADR-642 Reach + Slack, the second outbound tenant (2026-09-07)
+
+Operator, after a strategic discourse (*am I steering wrong, given the labs'
+agents becoming the hands on Office/Figma?*): *"proceed with 2–3 … reach and
+outbound can drastically 'feel different to the user, even our first real
+customer' from day one."* Distribution (ADR-635 owed) deliberately follows.
+
+## The read that produced it
+
+Axiom-0 census of the live roster: five What-surfaces, one Who, one When,
+one How, **zero Where at the front door**. ESSENCE's moat sentence is a
+Channel claim. Since 2026-07-09 commits touching the studio apps outnumber
+the interop face ~4:1 — the summer built five What-surfaces on the one
+altitude the OS analysis (§4, same day) said not to. Not a wrong vision; a
+drifted roadmap. The apps FREEZE at reference depth (the agent-native
+format for unattended work + a viewer), the interop face leads.
+
+## Shipped
+
+- **ADR-642** — `reach`, PRIMARY kernel surface, cyan. Connected (integrations
+  LIST now serves `does` + capture freshness + which declarations read the
+  connection) · Leaving (`QueueBody families={['external-write','capital']}`)
+  · Crossed (`GET /workspace/timeline?lens=boundary`, receipts parsed from
+  the sidecar, material). `queue` absorbed: stub → `/reach?reach.pane=leaving`,
+  middleware, `DOCK_RETIRED_SLUGS`, To-do escape hatch re-pointed. Dock:
+  `DEFAULT_KEPT_SURFACES` +reach and a reseed generation.
+- **ADR-628 amendment 3** — Slack in `services/publish.py`: prose only
+  (by extension, before the read), mrkdwn contract, join-before-post
+  (`join_channel`'s FIRST caller — it had none), refusal codes mapped,
+  **D8 read-back mechanized** (`matched|differs|unreadable` on the receipt).
+  `SendToSlack` on the Text pane only. Two Slack writers PINNED (seam +
+  the ADR-304 tool handler).
+- **`connector_does` writes from BOTH homes** — it said *"nothing — yarnnn
+  never writes to Slack"* beside the gated `platform_slack_send_to_channel`.
+  Driven on prod: Slack and Notion rows now state the gated proposal path.
+- Fixed en route: `StudioPublish`'s raw `<a href>` to Connectors (the nav
+  gate had been red on it since 2026-09-01) → `navigateToSurface`.
+
+## Verification
+
+```
+test_adr642 (51) · test_adr628 (74, §8 new) · 592 (43) · 636 · 641 · 338 · 297_phase1 · 297_nav ·
+nav_no_cross · auth surface + page · 582 · 639 · 635 (89) · 577 · 427 · 494 · 576 — all GREEN
+next build exit 0 (/reach 10 kB, /queue a 414 B stub) · routes gated locally (307 → login; API 401)
+DRIVEN on prod (read-only, service client): boundary lens 40 rows — 3 WordPress receipts attached
+(material), uploads/captures as arrivals (routine); no lens → 0 receipts, invocations back.
+BASELINE-RED, untouched: test_adr346/349/340 on ADR-603's `recurrence` (their queue lines re-anchored).
+```
+
+⚠️ **The browser click-pass is OWED.** The chrome-devtools profile was held by
+a parallel session's Chrome (pid 75971, 13:28, `--remote-debugging-pipe`);
+a fresh profile has no session; the CLI is not installed. The composer's
+heading bug (`*H*` re-read as italic → `_H_`) was caught by the gate's
+fixture, not by eyes — the Reach chrome itself has not been LOOKED AT
+(ADR-641's lesson). First thing next session: open `/reach` on the deploy in
+both themes, all three panes; then the Text pane → Send to Slack… against a
+real channel (needs Render's key; local cannot decrypt) and read the receipt
+on Crossed.
+
+## OWED
+
+1. The click-pass above (Reach × 3 panes × 2 themes; one real Slack send).
+2. The remote binding ADR (a file that knows its remote) — now has a second
+   tenant to bind to.
+3. WordPress's read-back (D8 still unmet for it); phase (b)'s narrow identity.
+4. ADR-635's distribution: registry publish, plugin-directory submission,
+   the attach click-pass.
+5. `test_adr346/349/340`: retire or re-anchor on ADR-603 with a ruling.
+6. `sources` (ADR-335 bundle watches, hidden since ADR-425): delete or
+   re-home — a separate ruling (ADR-642 §4).
+
+---
+
 # Part T — the owed list, closed (2026-09-07)
 
 Operator: *"lets do the remaining owed, pending items."* Six items, one commit

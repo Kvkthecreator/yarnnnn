@@ -56,6 +56,22 @@ for p in API.rglob("*.py"):
         _callers.append(rel)
 check("the write verb has exactly ONE caller — the seam",
       _callers == ["services/publish.py"], f"callers={_callers}")
+# Amendment 3 — Slack has TWO writers by design, and the set is PINNED so a
+# third cannot grow: the member-clicked seam, and the agent's audience send
+# (ADR-304, gated into the proposal queue by ADR-307 — receipted as a
+# proposal, not a sidecar). The scheduler and the standing lane are not on
+# the list, which is phase (b) staying shut.
+_slack_callers = []
+for p in API.rglob("*.py"):
+    rel = str(p.relative_to(API))
+    if rel.startswith(("venv", "test_")) or "__pycache__" in rel:
+        continue
+    src = p.read_text(errors="ignore")
+    if "post_message(" in src and "slack_client" in src and rel != "integrations/core/slack_client.py":
+        _slack_callers.append(rel)
+check("Slack's write verb has exactly TWO callers — the seam + the ADR-304 tool handler",
+      sorted(_slack_callers) == ["services/platform_tools.py", "services/publish.py"],
+      f"callers={sorted(_slack_callers)}")
 _sched = (API / "jobs" / "unified_scheduler.py").read_text()
 _strings = (API / "services" / "standing_work.py").read_text()
 check("no unattended module reaches the seam (phase (b) is NOT built)",
@@ -249,11 +265,11 @@ import services.authored_substrate as _sub  # noqa: E402
 
 _orig_cp, _orig_wr = _wpc.create_post, _sub.write_revision
 _orig_ls = _wpc.list_sites
-_orig_tok = _pub._decrypted_wordpress_token
+_orig_tok = _pub._decrypted_token  # ADR-628 amendment 3: ONE token path, keyed by platform
 _wpc.create_post = _fake_create_post
 _wpc.list_sites = _fake_list_sites
 _sub.write_revision = _fake_write_revision
-_pub._decrypted_wordpress_token = lambda auth: "tok"
+_pub._decrypted_token = lambda auth, platform: "tok"
 try:
     receipt = asyncio.run(_pub.publish_post_to_wordpress(
         _MemberAuth(_store), path="operation/p/post.html", site_id="9", status="draft"))
@@ -261,7 +277,7 @@ finally:
     _wpc.create_post = _orig_cp
     _wpc.list_sites = _orig_ls
     _sub.write_revision = _orig_wr
-    _pub._decrypted_wordpress_token = _orig_tok
+    _pub._decrypted_token = _orig_tok
 
 check("the act returns the receipt row (platform, url, status)",
       receipt.get("platform") == "wordpress"
@@ -306,8 +322,8 @@ check("the facts: publishes on your click · never captures · agents never",
       "publish" in _does.get("writes", "")
       and "never captures" in _does.get("reads", "")
       and "your click" in _does.get("agents", ""))
-check("the seam's target roster is the one home",
-      PUBLISH_TARGETS == frozenset({"wordpress"}))
+check("the seam's target roster is the one home (two tenants since amendment 3)",
+      PUBLISH_TARGETS == frozenset({"wordpress", "slack"}))
 
 print("7. the FE door (blogger-only mount, three connect states)")
 _surface = (ROOT / "web" / "components" / "authoring" / "StudioSurface.tsx").read_text()
@@ -323,6 +339,174 @@ check("the copy states the phase (a) bound: never on a schedule",
       "publishes on a schedule" in _pub_fe)
 check("the api client carries the two verbs",
       "wordpressSites" in (ROOT / "web" / "lib" / "api" / "client.ts").read_text())
+
+print("8. Slack — the second tenant (amendment 3): the contract, the seam driven, the read-back")
+from services.publish import (  # noqa: E402
+    SLACK_FOLD_THRESHOLD, SLACK_TEXT_CEILING, compose_slack_message, list_slack_channels,
+)
+
+_md = (
+    "---\ntitle: probe\n---\n"
+    "# Weekly brief\n\n"
+    "Some **bold** and *italic* and ~~gone~~ text with a [link](https://x.test/a) and `code`.\n\n"
+    "## Numbers\n\n"
+    "- one\n- two <b>html</b> & more\n\n"
+    "| a | b |\n|---|---|\n| 1 | 2 |\n\n"
+    "---\n\n"
+    "```\nraw **stays**\n```\n\n"
+    "![chart](operation/chart.png)\n"
+)
+_msg = compose_slack_message(_md)
+_t = _msg["text"]
+check("the H1 leads as a bold line and leaves the body",
+      _t.startswith("*Weekly brief*") and _t.count("Weekly brief") == 1, _t[:60])
+check("frontmatter never crosses", "title: probe" not in _t)
+check("bold / italic / strike take their mrkdwn forms",
+      "*bold*" in _t and "_italic_" in _t and "~gone~" in _t, _t)
+check("a link takes the <url|text> form", "<https://x.test/a|link>" in _t)
+check("a heading becomes a bold line", "*Numbers*" in _t)
+check("bullets take the glyph", "• one" in _t and "• two" in _t)
+check("html is dropped and the ampersand escaped (Slack requires it)",
+      "<b>" not in _t and "&amp; more" in _t, _t)
+check("a table becomes a code block (Slack renders none)", "```\n| a | b |" in _t)
+check("a rule vanishes", "\n---\n" not in _t)
+check("fenced code crosses VERBATIM", "raw **stays**" in _t)
+check("a workspace image keeps only its alt (Slack cannot reach the substrate)",
+      "_chart_" in _t and "operation/chart.png" not in _t)
+check("chars + folded are reported", _msg["chars"] == len(_t) and _msg["folded"] is False)
+for _label, _src in (("an empty file", ""), ("frontmatter only", "---\na: 1\n---\n"), ("whitespace", "  \n\n ")):
+    try:
+        compose_slack_message(_src)
+        check(f"{_label} is refused", False)
+    except PublishError as e:
+        check(f"{_label} is refused, with a reason", bool(str(e)))
+try:
+    compose_slack_message("x" * (SLACK_TEXT_CEILING + 1))
+    check("over the ceiling is refused", False)
+except PublishError as e:
+    check("over the ceiling is refused, with the count", f"{SLACK_TEXT_CEILING:,}" in str(e), str(e))
+check("a long message is FOLDED, not refused (sent ≠ read at a glance)",
+      compose_slack_message("y" * (SLACK_FOLD_THRESHOLD + 1))["folded"] is True)
+
+
+class _FakeSlack:
+    def __init__(self, *, private=False, member=False, join_ok=True, post_error=None, stored=None):
+        self.calls: list = []
+        self.sent = ""
+        self.private, self.member, self.join_ok = private, member, join_ok
+        self.post_error, self.stored = post_error, stored
+
+    async def get_channel_info(self, token, channel_id):
+        self.calls.append("info")
+        return {"ok": True, "channel": {"id": channel_id, "name": "general",
+                                        "is_private": self.private, "is_member": self.member}}
+
+    async def join_channel(self, token, channel_id):
+        self.calls.append("join")
+        return self.join_ok
+
+    async def post_message(self, bot_token, channel_id, text, blocks=None, thread_ts=None):
+        self.calls.append("post")
+        self.sent = text
+        if self.post_error:
+            return {"ok": False, "error": self.post_error}
+        return {"ok": True, "ts": "1725700000.000100", "channel": channel_id}
+
+    async def get_message(self, token, channel_id, ts):
+        self.calls.append("read")
+        return {"ts": ts, "text": self.stored if self.stored is not None else self.sent}
+
+    async def get_permalink(self, token, channel_id, ts):
+        return "https://slack.test/archives/C1/p1"
+
+
+import integrations.core.slack_client as _slc  # noqa: E402
+
+_orig_get = _slc.get_slack_client
+_orig_tok2 = _pub._decrypted_token
+_store2 = {
+    "/workspace/operation/brief/brief.md": {"content": _md},
+    "/workspace/operation/brief/deck.html": {"content": "<html><main>x</main></html>"},
+}
+_pub._decrypted_token = lambda auth, platform: "tok"
+_sub.write_revision = _fake_write_revision
+try:
+    try:
+        asyncio.run(_pub.publish_file_to_slack(_MemberAuth(_store2), path="operation/brief/deck.html", channel_id="C1"))
+        check("a non-prose file is refused", False)
+    except PublishError as e:
+        check("a non-prose file is refused BY EXTENSION, before the read", "prose" in str(e), str(e))
+
+    fake = _FakeSlack(private=False, member=False)
+    _slc.get_slack_client = lambda: fake
+    _captured.clear()
+    r = asyncio.run(_pub.publish_file_to_slack(_MemberAuth(_store2), path="operation/brief/brief.md", channel_id="C1"))
+    check("JOIN before post on a public channel the app is not in (join_channel's first caller)",
+          fake.calls[:3] == ["info", "join", "post"], str(fake.calls))
+    check("D8: the stored message is read back and MATCHED",
+          r.get("read_back") == "matched" and "read" in fake.calls, str(r))
+    check("the receipt names the tenant, the channel, the link, the composer",
+          r.get("platform") == "slack" and r.get("channel") == "#general"
+          and (r.get("url") or "").startswith("https://") and r.get("composer_version") == 1
+          and r.get("status") == "posted", str(r))
+    check("the receipt sidecar is _publish.yaml beside the FILE, derived_from it",
+          _captured.get("path") == "/workspace/operation/brief/_publish.yaml"
+          and _captured.get("derived_from") == ["/workspace/operation/brief/brief.md"],
+          str(_captured.get("path")))
+    check("…and the sidecar body carries the read-back verdict",
+          "read_back: matched" in (_captured.get("content") or ""))
+
+    fake = _FakeSlack(private=True, member=False)
+    _slc.get_slack_client = lambda: fake
+    try:
+        asyncio.run(_pub.publish_file_to_slack(_MemberAuth(_store2), path="operation/brief/brief.md", channel_id="C2"))
+        check("a private channel the app is not in is refused", False)
+    except PublishError as e:
+        check("a private channel the app is not in is REFUSED, with the invite named, nothing posted",
+              "/invite" in str(e) and "post" not in fake.calls, str(e))
+
+    fake = _FakeSlack(member=True, post_error="msg_too_long")
+    _slc.get_slack_client = lambda: fake
+    try:
+        asyncio.run(_pub.publish_file_to_slack(_MemberAuth(_store2), path="operation/brief/brief.md", channel_id="C1"))
+        check("a platform refusal is refused", False)
+    except PublishError as e:
+        check("a platform refusal is mapped to the member's words, never raw",
+              "too long" in str(e) and "msg_too_long" not in str(e), str(e))
+
+    fake = _FakeSlack(member=True, stored="something else")
+    _slc.get_slack_client = lambda: fake
+    r = asyncio.run(_pub.publish_file_to_slack(_MemberAuth(_store2), path="operation/brief/brief.md", channel_id="C1"))
+    check("D8: a stored message that DIFFERS is reported as such, with the sizes",
+          r.get("read_back") == "differs" and "chars" in (r.get("read_back_detail") or ""), str(r))
+
+    class _ListSlack:
+        async def list_channels(self, token, limit=200):
+            return [
+                {"id": "C1", "name": "general", "is_private": False, "is_archived": False, "is_member": True},
+                {"id": "C9", "name": "old", "is_private": False, "is_archived": True, "is_member": True},
+            ]
+
+    _slc.get_slack_client = lambda: _ListSlack()
+    chans = asyncio.run(list_slack_channels(_MemberAuth(_store2)))
+    check("the picker drops archived channels and carries is_member",
+          [c["id"] for c in (chans or [])] == ["C1"] and chans[0]["is_member"] is True, str(chans))
+finally:
+    _slc.get_slack_client = _orig_get
+    _pub._decrypted_token = _orig_tok2
+    _sub.write_revision = _orig_wr
+
+check("the agents-refusal is structural for Slack too (executed)",
+      resolve_platform_credential(_AgentAuth(), "slack") is None)
+_surface2 = (ROOT / "web" / "components" / "authoring" / "StudioSurface.tsx").read_text()
+check("SendToSlack mounts on the Text pane alone (app-scoped by MOUNT)",
+      "app.slug === 'text' && artifactPath && (" in _surface2 and _surface2.count("<SendToSlack") == 1)
+_slack_fe = (ROOT / "web" / "components" / "authoring" / "SendToSlack.tsx").read_text()
+check("the door renders the three connect states + the read-back verdict",
+      "Connect Slack" in _slack_fe and "'ready'" in _slack_fe and "readBack === 'differs'" in _slack_fe)
+check("the copy states the phase (a) bound: never on a schedule", "on a schedule" in _slack_fe)
+check("the api client carries the two Slack verbs",
+      "slackChannels" in (ROOT / "web" / "lib" / "api" / "client.ts").read_text())
 
 print()
 if FAILED:

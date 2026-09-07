@@ -59,20 +59,22 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 // ORDER is meaning, not registry-declaration accident (the Dock renders `kept`
 // in its stored order, so this array IS the on-screen order):
 //
-//     Chat  │  Text  Slides  Blogger  Images  │  Files  Agents
-//     think     make (write · lay out · publish · compose)   <-- the record -->
+//     Chat  │  Text  Slides  Blogger  Images  │  Files  Agents  Reach
+//     think     make (write · lay out · publish · compose)   <-- the record, its residents, its boundary -->
 //
-// (Redrawn 2026-09-04. The previous diagram read `Chat │ Text Slides Strings
-// │ Files Agents` — Strings died with ADR-639 (standing work is a kernel
-// lane, its roster a Notifications pane, not a Dock app); earlier redraws
-// removed Docs (ADR-599), Radar (ADR-592) and Studio (→ Slides, ADR-599 D4).
-// A comment naming surfaces that no longer exist is worse than none: it is
-// the map a future session trusts.)
+// (Redrawn 2026-09-07 for ADR-642: +Reach. Redrawn 2026-09-04: the previous
+// diagram read `Chat │ Text Slides Strings │ Files Agents` — Strings died
+// with ADR-639 (standing work is a kernel lane, its roster a Notifications
+// pane, not a Dock app); earlier redraws removed Docs (ADR-599), Radar
+// (ADR-592) and Studio (→ Slides, ADR-599 D4). A comment naming surfaces
+// that no longer exist is worse than none: it is the map a future session
+// trusts.)
 //
 // Chat first (ADR-457's Think verb — the activation landing). Then the MAKERS
 // (ADR-457 Make: Text writes, Slides lays out, Blogger publishes, Images
-// composes). Then what the making settles into: the record (Files) and its
-// residents (Agents).
+// composes). Then what the making settles into: the record (Files), its
+// residents (Agents), and its boundary (Reach — what is connected, what is
+// about to leave, what crossed; ADR-642).
 //
 // ⚠️ THIS ARRAY MUST EQUAL THE DERIVED PINNED SET. It is a hand-kept copy of a
 // truth the backend already derives — `is_default_pinned()` over the ADR-592
@@ -98,6 +100,7 @@ export const DEFAULT_KEPT_SURFACES: string[] = [
   // work is a kernel lane whose roster is a Notifications pane, not a Dock app.
   'files',
   'agents',
+  'reach', // ADR-642 — the boundary's door (connected · leaving · crossed); primary → pinned by derivation
 ];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
@@ -249,7 +252,10 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
 // an operator whose Dock was CURATED and therefore never reseeded (the reseed
 // only fires on byte-equality with the previous default — the reason ADR-574's
 // Docs pause never took effect on a real pane).
-const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget', 'radar', 'docs', 'strings']);
+// `queue` (ADR-642, 2026-09-07): the surface is ABSORBED by Reach. It was never
+// pinned (search-only), but a persisted `open`/`foregrounded` entry from a
+// summon-by-name session would render a dead icon — same protection.
+const DOCK_RETIRED_SLUGS = new Set<string>(['system-agent', 'budget', 'radar', 'docs', 'strings', 'queue']);
 
 function normalizeSlug(slug: string): string {
   return LEGACY_SLUG_ALIASES[slug] ?? slug;
@@ -355,6 +361,16 @@ const DOCK_RESEED_GENERATIONS: Array<{ keyPrefix: string; previous: string[] }> 
   {
     keyPrefix: 'yarnnn:shell:dock-reseed-2026-08-17-docs-paused:',
     previous: ['chat', 'docs', 'text', 'studio', 'radar', 'strings', 'files', 'agents'],
+  },
+  // 2026-09-07 — +reach (ADR-642, the boundary's door; primary → pinned by
+  // derivation). An un-curated Dock converges to Chat · Text · Slides ·
+  // Blogger · Images · Files · Agents · Reach in one read; a curated Dock is
+  // left alone, as always — this is an ADD, which is what a generation is
+  // for (a hide or a deletion is DOCK_RETIRED_SLUGS' job, per the note
+  // below).
+  {
+    keyPrefix: 'yarnnn:shell:dock-reseed-2026-09-07-reach:',
+    previous: ['chat', 'text', 'slides', 'blogger', 'images', 'files', 'agents'],
   },
   // ADR-592 (2026-08-21) — NO generation for the Docs hide + Radar deletion,
   // deliberately. A reseed only fires on byte-equality with `previous`, which
