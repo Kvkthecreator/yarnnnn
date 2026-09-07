@@ -68,7 +68,7 @@ import {
   type WindowState,
   type WindowStateMap,
 } from './surface-preferences';
-import { resolveForegroundPathname } from './route-sync';
+import { resolveForegroundPathname, resolveSurfaceParams } from './route-sync';
 import { WINDOW_Z_MAX } from './z-tiers';
 
 // ---------------------------------------------------------------------------
@@ -536,8 +536,27 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         }
       }
 
-      // Priority (low→high): incoming URL deep-link < remembered (WindowState)
+      // Priority (low→high): remembered (WindowState) < incoming URL deep-link
       // < just-delivered (this navigation's params).
+      //
+      // 2026-09-07 — the first two were the other way round, and it broke every
+      // shared deep-link whose key is not document-identity. Cold-loading
+      // `?reach.pane=crossed` landed on Leaving with the URL REWRITTEN to
+      // `?reach.pane=leaving`, because the remembered pane outranked the link
+      // the member had just pasted. The capture block above already says the
+      // rule ("a cold-load shared deep-link is a source on read; we must adopt
+      // it, not blow it away") — the merge order defeated it.
+      //
+      // It stayed invisible because the surfaces people actually share
+      // (Text/Images) carry their file in an EPHEMERAL key, stripped from
+      // `remembered` a few lines below, so those links worked while every pane
+      // link silently did not.
+      //
+      // This also makes the query half agree with the pathname half, which
+      // settled the same question on 2026-08-20: the URL is EXPLICIT INTENT and
+      // deliberately outranks the remembered posture. A link the member typed
+      // or pasted is a statement; remembered state is only a default for when
+      // they said nothing.
       //
       // 2026-07-16 — the merged set is filtered to the keys the surface OWNS
       // (normalizeWindowParams). getWindowStates already scrubs `remembered` on
@@ -558,11 +577,10 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
           windowStatesRef.current[foregroundSlug]?.params,
         ) ?? {};
       const merged: Record<string, string> =
-        normalizeWindowParams(foregroundSlug, {
-          ...incoming,
-          ...remembered,
-          ...(deliverParams || {}),
-        }) ?? {};
+        normalizeWindowParams(
+          foregroundSlug,
+          resolveSurfaceParams(remembered, incoming, deliverParams),
+        ) ?? {};
       for (const [k, v] of Object.entries(merged)) {
         if (v != null && v !== '') url.searchParams.set(scopeParamKey(foregroundSlug, k), v);
       }

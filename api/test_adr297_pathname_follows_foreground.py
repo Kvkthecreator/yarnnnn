@@ -71,6 +71,11 @@ def _strip_types(ts: str) -> str:
     # `: RouteSurfaceEntry[]` are consumed before the bare `: string`.
     out = out.replace("(s: RouteSurfaceEntry): string", "(s)")
     out = re.sub(r"(\w+):\s*RouteSurfaceEntry\[\]", r"\1", out)
+    # Record<string, string> params (resolveSurfaceParams) — before the bare
+    # `: string` rule, which would otherwise eat the inner type arguments and
+    # leave `Record<, >` behind.
+    out = re.sub(r"(\w+)\??:\s*Record<[^>]*>", r"\1", out)
+    out = re.sub(r"\):\s*Record<[^>]*>\s*\{", ") {", out)
     out = re.sub(r"(\w+):\s*string\b", r"\1", out)
     out = re.sub(r"\):\s*string \| null \{", ") {", out)
     out = re.sub(r"\):\s*string \{", ") {", out)
@@ -298,12 +303,74 @@ def test_the_withdrawal_is_recorded() -> None:
     )
 
 
+def test_the_query_half_agrees() -> None:
+    """The QUERY half of the same contract (2026-09-07).
+
+    The pathname half (above) settled that the URL is EXPLICIT INTENT and
+    outranks the remembered posture. The query half was decided the other way:
+    reconcileUrl spread `remembered` OVER `incoming`, so a cold-loaded
+    `?reach.pane=crossed` was REWRITTEN to the last-visited pane. Driven in the
+    browser 2026-09-07: /reach?reach.pane=crossed landed on Leaving with the URL
+    changed under it.
+
+    It hid because the surfaces people actually share (Text/Images) carry their
+    file in an EPHEMERAL key, stripped from `remembered` before this merge — so
+    document deep-links worked while every pane deep-link silently did not.
+
+    Executed, not grepped: a reordered object spread is invisible to a substring
+    check.
+    """
+    print("\n[5] the query half agrees with the pathname half (deep-links win)")
+
+    out = _run_node(
+        """
+const m = (rem, inc, del) => resolveSurfaceParams(rem, inc, del);
+console.log(JSON.stringify({
+  // THE REPORTED BUG: a pasted pane deep-link against a remembered pane.
+  pasted_pane_beats_remembered: m({pane: 'leaving'}, {pane: 'crossed'}),
+  // With no deep-link, the remembered posture still supplies the default.
+  remembered_when_url_is_silent: m({pane: 'leaving'}, {}),
+  // A just-delivered param (an in-app navigate) still outranks both.
+  delivered_beats_both: m({pane: 'leaving'}, {pane: 'crossed'}, {pane: 'connected'}),
+  // Keys the URL does not mention are preserved from memory, not dropped.
+  disjoint_keys_merge: m({path: '/workspace/a'}, {pane: 'crossed'}),
+}));
+"""
+    )
+
+    _assert(
+        out["pasted_pane_beats_remembered"] == {"pane": "crossed"},
+        "a pasted deep-link OUTRANKS the remembered pane (the reported bug)",
+    )
+    _assert(
+        out["remembered_when_url_is_silent"] == {"pane": "leaving"},
+        "a silent URL still falls back to the remembered pane (no regression)",
+    )
+    _assert(
+        out["delivered_beats_both"] == {"pane": "connected"},
+        "a just-delivered param still outranks both (in-app navigate wins)",
+    )
+    _assert(
+        out["disjoint_keys_merge"] == {"path": "/workspace/a", "pane": "crossed"},
+        "keys the URL omits are preserved from memory, not dropped",
+    )
+
+    # The merge must route through the extracted function — an inline spread
+    # would drift from what this gate executes (the sibling's whole lesson).
+    prefs = PREFS.read_text()
+    _assert(
+        "resolveSurfaceParams(remembered, incoming, deliverParams)" in prefs,
+        "reconcileUrl routes its merge through the extracted resolveSurfaceParams",
+    )
+
+
 if __name__ == "__main__":
     print("ADR-297 D19.2 withdrawal — the pathname follows the foreground")
     test_the_operator_gesture()
     test_the_guards_hold()
     test_the_two_rules_agree()
     test_the_withdrawal_is_recorded()
+    test_the_query_half_agrees()
 
     print(f"\n{'='*60}")
     print(f"pathname-follows-foreground gate: {_passed} passed, {_failed} failed")

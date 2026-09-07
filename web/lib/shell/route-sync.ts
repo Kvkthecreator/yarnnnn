@@ -86,3 +86,32 @@ export function resolveForegroundPathname(
   if (currentPathname.startsWith(target + '/')) return currentPathname;
   return target;
 }
+
+/**
+ * The QUERY half of the same cold-load contract (2026-09-07).
+ *
+ * `resolveForegroundPathname` above settled the pathname question on
+ * 2026-08-20: the URL is EXPLICIT INTENT and deliberately outranks the
+ * remembered posture. The query half was decided the other way — the merge in
+ * reconcileUrl spread `remembered` OVER `incoming` — so a cold-loaded
+ * `?reach.pane=crossed` was rewritten to whatever pane the member last
+ * visited. Both halves cannot hold: a URL the reload trusts for its path and
+ * discards for its query is not shareable.
+ *
+ * It hid for weeks because the surfaces people actually share (Text, Images)
+ * carry their file in an EPHEMERAL key, which is stripped from `remembered`
+ * before this merge — so document links worked while every pane link did not.
+ *
+ * Extracted pure so a gate EXECUTES the precedence rather than grepping for a
+ * spread order (a reordered spread is invisible to a substring check — the
+ * same discipline as its sibling above).
+ *
+ * Priority (low→high): remembered < incoming URL deep-link < just-delivered.
+ */
+export function resolveSurfaceParams(
+  remembered: Record<string, string>,
+  incoming: Record<string, string>,
+  delivered?: Record<string, string>,
+): Record<string, string> {
+  return { ...remembered, ...incoming, ...(delivered || {}) };
+}
