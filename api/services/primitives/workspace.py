@@ -2613,11 +2613,21 @@ def _is_foreign_agent_home(auth: Any, caller_class: str, path: str) -> bool:
 #     root is NOT in the granted region set (a NARROWING within the class
 #     ceiling that the owner issued).
 #
-# At N=1 (every live workspace) the only grant rows are the owner's with NULL
-# scopes, so EVERY caller hits the fall-through branch — byte-identical to the
-# pre-consult gate. The grant-honored branch is exercised only once a narrowing
-# grant row exists (a scoped member / foreign-llm — the post-launch additive
-# case, ADR-373 D4).
+# ⚠️ N=1 IS NO LONGER TRUE (corrected 2026-09-07, ADR-643).
+#
+# This paragraph used to read "At N=1 (every live workspace) the only grant
+# rows are the owner's with NULL scopes, so EVERY caller hits the fall-through
+# branch", and reasoning downstream INHERITED that as a live fact — an audit
+# graded a real hole "latent" on the strength of it.
+#
+# `principal_grants` on production, queried 2026-09-07: 11 owner · 5 member ·
+# 11 foreign-llm · 1 viewer. Sixteen non-owner rows. Their scopes are still
+# NULL, so they DO take the fall-through branch — but they fall through to
+# their own CLASS default (`member`/`foreign-llm` → `agent`/`mcp`, locked from
+# governance/ contract/ constitution/ persona/ system/), NOT to the owner's.
+# The gate is live for them today, and any judgement of the form "this can
+# only bite once a narrowing grant exists" is stale: re-take it against the
+# real table (ADR-643 D5).
 
 #: Per-request memo of (principal_id, workspace_id) → grant scopes (or None).
 #: The gate runs on every consequential write; this avoids a duplicate DB
