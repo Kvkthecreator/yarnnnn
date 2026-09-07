@@ -88,9 +88,14 @@ def main() -> int:
     )
     _check("the upload handler is readable", bool(handler))
     body = handler.group(0) if handler else ""
+    # RE-POINTED 2026-09-07 (ADR-643 D2). This pinned the SPELLING
+    # `operator_can_organize`, which was the whole authorization the door had.
+    # It now asks the DECIDER, which composes that carve law with the
+    # per-principal grant — strictly more, not less. Asserting the old name
+    # would demand the door go back to asking half the question.
     _check(
-        "D4 [FALSIFIER]: the upload door calls operator_can_organize",
-        "operator_can_organize(" in body,
+        "D4 [FALSIFIER]: the upload door AUTHORIZES its destination",
+        "resolve_access(" in body or "operator_can_organize(" in body,
     )
     _check(
         "D4 [FALSIFIER]: …and refuses with 403, not a silent redirect",
@@ -106,9 +111,12 @@ def main() -> int:
         r"async def create_artifact\([\s\S]*?(?=\n@router|\Z)", studio_route
     )
     create_body = create.group(0) if create else ""
+    # RE-POINTED 2026-09-07 (ADR-643 D2): the door asks the DECIDER, which
+    # composes the carve law with the per-principal grant. Pinning the old
+    # spelling would demand it go back to asking half the question.
     _check(
-        "D2 [FALSIFIER]: create_artifact asks the organize predicate",
-        "operator_can_organize(" in create_body,
+        "D2 [FALSIFIER]: create_artifact AUTHORIZES the placement",
+        "resolve_access(" in create_body or "operator_can_organize(" in create_body,
     )
     _check(
         "D2 [FALSIFIER]: …and no longer fences creation to the region",

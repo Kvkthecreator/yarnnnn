@@ -1,6 +1,7 @@
 # ADR-643 — An access decision has one decider
 
-**Status**: Accepted. D1 implemented (`cf8bf18`); D2–D5 sequenced below.
+**Status**: Accepted + Implemented (2026-09-07). D1 `cf8bf18` · D2 `3f9dffd` ·
+D3+D4+D5 `332bf1b` · the door migration, below.
 **Date**: 2026-09-07
 **Supersedes**: nothing. Completes ADR-501 S1 and closes the recurrence its own
 lesson could not stop.
@@ -205,6 +206,49 @@ verbatim in Text.
   grant table, starting with `primitives/workspace.py:2616`.
 
 ---
+
+### D6 — Every door calls the decider, and the roster is discovered too
+
+The eight hand-compositions are gone. `documents.py` keeps one thin raise-
+wrapper (`_assert_may`) so the 403 body is written once; every door names its
+verb: `trash` · `restore` · `destroy` · `move` · `create` · `write`. The
+refusal now carries the decider's own sentence, so the operator reads the SAME
+words at Files, at Text and in an API error for one file.
+
+The folder PRIMITIVES were already correct and are untouched: `DeleteFolder`,
+`MoveFolder` and `Restore` are in `_PATH_ADDRESSED_QUEUEABLE`, so
+`permission.py` consults for them.
+
+⭐⭐⭐ **The gate's own roster was the next instance of the same bug.**
+`ROUTE_MODULES` was a literal three-tuple, so `routes/images.py` — which
+mutates through `write_revision` — was never scanned, and a falsifier that
+removed its consult passed GREEN. Discovering the module list found two more
+live doors: `images.compose` (a compose REWRITES the stage) and
+`standing_work.update_standing` (a declaration schedules UNATTENDED spend under
+ADR-618, which makes it one of the sharper writes to leave unasked).
+
+**A discovery gate with a hand-listed corpus is a hand-listed gate.** That is
+the third time this shape appeared in one arc, each a level up from the last:
+the doors, then the gate's modules, then the fixtures below.
+
+### What the migration cost, recorded
+
+Three gates went red on the change that removed the drift they guarded, and
+each was re-pointed rather than satisfied:
+
+- `test_adr555` ×2 pinned the SPELLING `operator_can_organize(` at the upload
+  and studio create doors. Those doors now ask the decider, which composes that
+  carve law **with** the grant — strictly more. Asserting the old name would
+  have demanded they go back to asking half the question.
+- `test_adr400`'s `_Auth` fake carried no `caller_identity`, so `_caller_class`
+  resolved it to the **agent** class and the tests measured a member's ceiling
+  while claiming to assert the operator's reach. It went unnoticed while
+  `move_document` asked only the principal-blind carve law; the moment the door
+  consulted the principal, the fixture's silence became a wrong answer.
+
+⚠️ **A fixture that leaves blank what production always stamps is the ADR-636
+lesson inverted** — and it fails in the more dangerous direction, because a
+too-restrictive fake makes a permission gate look stricter than it is.
 
 ## Consequences
 

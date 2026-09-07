@@ -39,7 +39,15 @@ from pathlib import Path
 API = Path(__file__).parent
 
 #: Modules serving HTTP routes that can mutate workspace substrate.
-ROUTE_MODULES = ("routes/documents.py", "routes/workspace.py", "routes/studio.py")
+#: DISCOVERED, not hand-listed (2026-09-07). A literal tuple here is the same
+#: defect this file exists to prevent, one level up: `routes/images.py` mutates
+#: substrate and was absent, so a falsifier that removed its consult passed
+#: green. Every route module is scanned; the ones with no mutating call simply
+#: contribute no doors.
+def _route_modules() -> list[str]:
+    routes = API / "routes"
+    return sorted(f"routes/{f.name}" for f in routes.glob("*.py")
+                  if f.name != "__init__.py")
 
 #: Calls that MUTATE the substrate. A handler reaching any of these is a door.
 MUTATING_CALLS = frozenset({
@@ -54,7 +62,15 @@ MUTATING_CALLS = frozenset({
 #: written once. A gate that only accepted the raw call would push doors to
 #: copy-paste the consult, which is the drift this whole file exists to stop.
 CONSULT = "_is_path_locked_for_principal"
-CONSULT_WRAPPERS = frozenset({"_assert_principal_may_organize"})
+CONSULT_WRAPPERS = frozenset({
+    # ADR-643 D2 — THE decider. A door calling this has asked the whole
+    # question (carve law + grant) in one call, which is the shape every door
+    # is being moved to; the two below are documents.py's thin raise-wrappers
+    # around it, named so the 403 body is written once.
+    "resolve_access",
+    "_assert_principal_may_organize",
+    "_assert_may",
+})
 DELEGATE = "execute_primitive"
 
 #: ARGUED exemptions. Each needs a reason a reviewer can check — never a skip
@@ -93,7 +109,7 @@ def _called_names(node) -> set[str]:
 
 def _discover_doors() -> list[tuple[str, str, set[str]]]:
     doors = []
-    for mod in ROUTE_MODULES:
+    for mod in _route_modules():
         for name, node in _handlers(mod):
             calls = _called_names(node)
             if calls & MUTATING_CALLS:
@@ -188,8 +204,8 @@ def test_the_destructive_verbs_specifically():
     for n in ast.walk(tree):
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in want:
             calls = _called_names(n)
-            seen[n.name] = (
-                CONSULT in calls or "_assert_principal_may_organize" in calls
+            seen[n.name] = bool(
+                CONSULT in calls or (calls & CONSULT_WRAPPERS)
             )
     missing = sorted(want - set(seen))
     assert not missing, f"handler(s) vanished or renamed: {missing}"

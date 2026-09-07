@@ -341,7 +341,12 @@ async def upload_documents(
         if ".." in dest:
             raise HTTPException(status_code=422, detail="Invalid destination.")
         # Authorize the folder itself (a probe leaf, as every organize gate does).
-        if not operator_can_organize(f"/workspace/{dest}/x"):
+        # ADR-643 D2 — the placement question, asked of the decider. The `/x`
+        # probe stands: a folder is DERIVED (ADR-588), so there is no row, and
+        # the question is always about a hypothetical child.
+        from services.access import resolve_access
+
+        if not resolve_access(auth, f"/workspace/{dest}/x", "create").allowed:
             raise HTTPException(
                 status_code=403,
                 detail="You can't add files here — that location is managed by the system.",
@@ -742,14 +747,32 @@ from services.workspace_paths import (
 # `write_artifact`) and shipped. These were the ones it missed. Enumeration is
 # a to-do list that expires silently; the durable fix is one decider every door
 # calls, which is the follow-on work this unblocks rather than replaces.
-def _assert_principal_may_organize(auth, path: str) -> None:
-    """Raise 403 unless this PRINCIPAL may mutate `path`.
+def _assert_may(auth, path: str, verb: str) -> None:
+    """Raise 403 unless this principal may perform `verb` on `path`.
 
-    Composes with `operator_can_organize`, never replaces it: the carve law
-    answers "is this position hand-organizable at all", this answers "may THIS
-    caller touch it". A door owes both questions.
+    ⭐⭐⭐ ONE DECIDER (ADR-643 D2). Every door here used to hand-compose the
+    same two questions — the carve law, then the grant — and they diverged: of
+    nine doors, seven asked only the first, which is a path-SHAPE rule
+    identical for every principal, and then acted through the SERVICE client so
+    RLS was no backstop. A member who could not WRITE `constitution/MANDATE.md`
+    could TRASH it.
+
+    Now a door names its VERB and honours the answer. It cannot accidentally
+    ask a smaller question, because there is only one question.
+
+    The refusal carries the decider's own sentence, so the operator reads the
+    SAME words here that Files and Text show for the same file.
     """
-    from services.primitives.workspace import _is_path_locked_for_principal
+    from services.access import resolve_access
+
+    decision = resolve_access(auth, path, verb)
+    if not decision.allowed:
+        raise HTTPException(status_code=403, detail=decision.reason)
+
+
+def _assert_principal_may_organize(auth, path: str) -> None:
+    """Back-compat shim for the trash-shaped verbs. Prefer `_assert_may`."""
+    _assert_may(auth, path, "trash")
 
     if _is_path_locked_for_principal(auth, path):
         raise HTTPException(
@@ -781,13 +804,9 @@ async def delete_document(auth: UserClient, document_path: str):
     if not document_path.startswith("/"):
         document_path = "/" + document_path
 
-    if not operator_can_organize(document_path):
-        raise HTTPException(
-            status_code=403,
-            detail="This file is managed by the system and can't be moved to trash.",
-        )
-
-    _assert_principal_may_organize(auth, document_path)
+    # ADR-643 D2 — ONE question, asked once. The carve law + the grant, in
+    # the decider's own order, with the decider's own sentence on refusal.
+    _assert_may(auth, document_path, "trash")
 
     result = auth.client.table("workspace_files") \
         .select("content, head_version_id") \
@@ -946,13 +965,7 @@ async def restore_trash_group(body: RestoreGroupRequest, auth: UserClient):
 
     root = body.root if body.root.startswith("/") else "/" + body.root
     root = root.rstrip("/")
-    if not operator_can_organize(root):
-        raise HTTPException(
-            status_code=403,
-            detail="This folder is managed by the system and can't be restored from here.",
-        )
-
-    _assert_principal_may_organize(auth, root)
+    _assert_may(auth, root, "restore")
     result = restore_group(
         get_service_client(),
         user_id=auth.user_id,
@@ -987,13 +1000,7 @@ async def restore_document(body: RestoreRequest, auth: UserClient):
     path = body.path
     if not path.startswith("/"):
         path = "/" + path
-    if not operator_can_organize(path):
-        raise HTTPException(
-            status_code=403,
-            detail="This file is managed by the system and can't be restored from here.",
-        )
-
-    _assert_principal_may_organize(auth, path)
+    _assert_may(auth, path, "restore")
 
     result = auth.client.table("workspace_files") \
         .select("content, lifecycle, head_version_id") \
@@ -1101,13 +1108,7 @@ async def permanent_delete_document(body: PermanentDeleteRequest, auth: UserClie
     from services.permanent_delete import permanently_delete_file
 
     path = body.path if body.path.startswith("/") else "/" + body.path
-    if not operator_can_organize(path):
-        raise HTTPException(
-            status_code=403,
-            detail="This file is managed by the system and can't be deleted from here.",
-        )
-
-    _assert_principal_may_organize(auth, path)
+    _assert_may(auth, path, "destroy")
     ws = _require_permadelete_authority(auth.user_id)
     service = get_service_client()
     _assert_archived_and_uncited(service, auth.user_id, ws, path)
@@ -1195,16 +1196,12 @@ async def move_document(body: MoveRequest, auth: UserClient):
     src = body.path if body.path.startswith("/") else "/" + body.path
     dst = body.new_path if body.new_path.startswith("/") else "/" + body.new_path
 
-    if not operator_can_organize(src):
-        raise HTTPException(
-            status_code=403,
-            detail="This file is managed by the system and can't be moved or renamed.",
-        )
-    if not operator_can_organize(dst):
-        raise HTTPException(
-            status_code=403,
-            detail="Files can't be moved into a system location or renamed to a machine-config name.",
-        )
+    # ADR-643 D2 — both ends. The MoveFile primitive below consults the
+    # principal too (it is `_PATH_ADDRESSED_QUEUEABLE`); asking here as well is
+    # not redundant, it is the door refusing BEFORE the act rather than
+    # discovering the refusal inside it, with a sentence the operator can read.
+    _assert_may(auth, src, "move")
+    _assert_may(auth, dst, "create")
     if src == dst:
         raise HTTPException(status_code=400, detail="Source and destination are the same.")
 
@@ -1304,11 +1301,7 @@ async def duplicate_document(body: DuplicateRequest, auth: UserClient):
     """
     src = body.path if body.path.startswith("/") else "/" + body.path
 
-    if not operator_can_organize(src):
-        raise HTTPException(
-            status_code=403,
-            detail="This file is managed by the system and can't be duplicated.",
-        )
+    _assert_may(auth, src, "create")
 
     from services.primitives.registry import execute_primitive
     result = await execute_primitive(auth, "DuplicateFile", {
@@ -1411,13 +1404,7 @@ async def trash_folder_route(body: FolderTrashRequest, auth: UserClient):
     from services.folder_organize import trash_folder, FolderTooLarge
 
     abs_path = body.path if body.path.startswith("/") else "/" + body.path
-    if not operator_can_organize(abs_path):
-        raise HTTPException(
-            status_code=403,
-            detail="This folder is managed by the system and can't be moved to trash.",
-        )
-
-    _assert_principal_may_organize(auth, abs_path)
+    _assert_may(auth, abs_path, "trash")
     try:
         result = trash_folder(
             get_service_client(),
@@ -1475,21 +1462,10 @@ async def move_folder_route(body: FolderMoveRequest, auth: UserClient):
     src, _ = normalize_folder(body.path)
     dst, _ = normalize_folder(body.new_path)
 
-    if not operator_can_organize(src):
-        raise HTTPException(
-            status_code=403,
-            detail="This folder is managed by the system and can't be moved or renamed.",
-        )
-    if not operator_can_organize(dst):
-        raise HTTPException(
-            status_code=403,
-            detail="Folders can't be moved into a system location.",
-        )
-
-    # ADR-501 S1 (2026-09-07) — both ends, like the file verbs: a principal may
-    # neither take a folder they cannot touch nor put one where they cannot write.
-    _assert_principal_may_organize(auth, src)
-    _assert_principal_may_organize(auth, dst)
+    # ADR-643 D2 — both ends, one question each: a principal may neither take a
+    # folder they cannot touch nor put one where they cannot write.
+    _assert_may(auth, src, "move")
+    _assert_may(auth, dst, "create")
     if src == dst:
         raise HTTPException(status_code=400, detail="Source and destination are the same.")
     # A folder cannot be moved INSIDE itself — the fan would chase its own tail,
@@ -1620,11 +1596,7 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
     # The operator's organize reach is the create reach (ADR-424 D2). A folder
     # under system/ / inbound/ / a machine-config leaf is refused honestly.
     # Checked on the marker path — the row this route actually writes.
-    if not operator_can_organize(marker_path):
-        raise HTTPException(
-            status_code=403,
-            detail="You can't create a folder here — that location is managed by the system.",
-        )
+    _assert_may(auth, marker_path, "create")
 
     # ADR-501 S1 (2026-09-07). ADR-424 D2 says the operator does not ask
     # permission to name a folder for their work — but "the operator" there is

@@ -1143,28 +1143,14 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     # inventing an app-named root, not about confining work to `operation/`. A
     # deck in `the-acme-deal/` satisfies D6 exactly. The region survives as the
     # DEFAULT home (ADR-549 D3's third rung), not as a gate.
-    from services.workspace_paths import operator_can_organize
+    # ADR-643 D2 — ONE question. `write_artifact` twelve hundred lines up
+    # consulted the principal and its CREATE twin did not; both now ask the
+    # same decider with their own verb, so the pair cannot drift again.
+    from services.access import resolve_access
 
-    if not operator_can_organize(path):
-        raise HTTPException(
-            status_code=403,
-            detail="You can't create a file here — that location is managed by the system.",
-        )
-
-    # ADR-501 S1 (2026-09-07). `write_artifact` twelve hundred lines up already
-    # consults the principal; its CREATE twin did not — the same split ADR-501
-    # closed between the primitive path and the edit door, reopened one door
-    # over. `operator_can_organize` above is the placement law, not permission.
-    from services.primitives.workspace import _is_path_locked_for_principal
-
-    if _is_path_locked_for_principal(auth, path):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                f"Your grant in this workspace does not permit writing {path}. "
-                "The workspace owner can widen it from the Access pane."
-            ),
-        )
+    _create = resolve_access(auth, path, "create")
+    if not _create.allowed:
+        raise HTTPException(status_code=403, detail=_create.reason)
 
     # The DELIBERATE door's key, stepped past whatever is already there.
     path = _redirect_to_free_key(auth, path, req.template, req.name)

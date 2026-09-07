@@ -18,7 +18,27 @@ from fastapi import HTTPException
 
 
 class _Auth:
+    """The OPERATOR at a browser door.
+
+    ⚠️ `caller_identity` is REQUIRED (added 2026-09-07, ADR-643 D2). ADR-400's
+    scope rules are about the operator — "constitution prose → operation is now
+    ALLOWED (it's the operator's)" — and without this field `_caller_class`
+    resolves the fake to the `agent` class, which is correctly LOCKED from
+    `constitution/`. The tests below then measured the member's ceiling while
+    claiming to assert the operator's reach.
+
+    It went unnoticed while `move_document` asked only the carve law, which is
+    principal-blind. The moment the door consulted the principal, the fixture's
+    silence became a wrong answer — the same shape as the ADR-636 lesson that a
+    fixture must not stamp what production leaves blank, inverted: here it left
+    blank what production always stamps.
+    """
+
     user_id = "user-1234"
+    caller_identity = "operator"
+    workspace_id = None
+    freddie_caller = False
+
     class client:  # noqa: N801
         pass
 

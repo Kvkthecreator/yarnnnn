@@ -111,6 +111,16 @@ async def compose(req: ComposeRequest, auth: UserClient) -> dict:
             status_code=403,
             detail=f"IMAGES stages live under {STUDIO_ARTIFACT_REGION} (ADR-440 D6).",
         )
+    # ADR-643 D2 — a compose REWRITES the stage, so it owes the same question
+    # every other write owes. The region check above is placement, not
+    # permission: `operation/` is inside every class's ceiling, so it says
+    # nothing about a member narrowed to a folder within it.
+    from services.access import resolve_access
+
+    _write = resolve_access(auth, path, "write")
+    if not _write.allowed:
+        raise HTTPException(status_code=403, detail=_write.reason)
+
     brief = (req.brief or "").strip()
     if not brief:
         raise HTTPException(status_code=422, detail="A brief is required to compose")
@@ -273,8 +283,14 @@ async def export_png(
     # The same organize gate every member-named destination passes (ADR-555):
     # a door that accepts what the substrate would refuse is the ADR-549 F1
     # defect. An artboard under a system root cannot land an export beside it.
-    if not operator_can_organize(target):
-        raise HTTPException(status_code=403, detail="You can't save an export here — that location is managed by the system.")
+    # ADR-643 D2 — one question, and the door gains the principal half it never
+    # had: an export is a WRITE beside the artboard, so a member whose grant
+    # does not reach that folder must not land one there.
+    from services.access import resolve_access
+
+    _export = resolve_access(auth, target, "create")
+    if not _export.allowed:
+        raise HTTPException(status_code=403, detail=_export.reason)
 
     data = await file.read()
     if not data.startswith(_PNG_MAGIC):

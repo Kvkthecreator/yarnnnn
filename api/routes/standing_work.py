@@ -368,6 +368,16 @@ async def update_standing(topic: str, request: UpdateStandingRequest, auth: User
     # fire_on_activation is consume-on-first-update (the radar lesson: a
     # re-emitted create-time flag kept a never-run declaration permanently
     # armed through every pause/resume).
+    # ADR-643 D2 — editing a standing declaration rewrites a real file, so the
+    # door asks before composing. A declaration schedules UNATTENDED spend
+    # (ADR-618), which makes this one of the sharper writes in the substrate to
+    # leave unasked.
+    from services.access import resolve_access
+
+    _edit = resolve_access(auth, _decl_path(topic), "write")
+    if not _edit.allowed:
+        raise HTTPException(status_code=403, detail=_edit.reason)
+
     new_content = compose_standing_yaml(
         target=str(parsed.get("target") or ""),
         app=(str(parsed.get("app")).strip() if parsed.get("app") else None),
