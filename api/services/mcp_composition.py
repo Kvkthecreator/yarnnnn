@@ -2111,6 +2111,9 @@ async def compose_request_upload(
             workspace_id=getattr(auth, "workspace_id", None),
             filename=filename,
             minted_by=principal,
+            # ADR-643 D2 — the connected principal, so the destination check is
+            # this caller's, not "anyone's". An MCP client is class `mcp`.
+            auth=auth,
             destination=destination,
             declared_bytes=size_bytes,
         )

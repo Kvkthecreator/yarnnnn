@@ -74,6 +74,7 @@ def mint_upload_ticket(
     workspace_id: Optional[str],
     filename: str,
     minted_by: str,
+    auth: Any = None,
     destination: Optional[str] = None,
     declared_bytes: Optional[int] = None,
 ) -> dict:
@@ -114,14 +115,35 @@ def mint_upload_ticket(
     if dest:
         if ".." in dest:
             raise TicketError("invalid_destination", "Invalid destination folder.")
+        # ADR-643 D2 — the decider, not the carve law alone.
+        #
+        # ⚠️ A TICKET IS A WRITE CAPABILITY. `operator_can_organize` is a
+        # path-SHAPE rule identical for every principal, so a connected foreign
+        # LLM (class `mcp`, locked from governance/ contract/ constitution/
+        # persona/ system/) could mint a ticket into a folder it may not write,
+        # and redeem it. The `/x` probe stands — a folder is DERIVED (ADR-588),
+        # so the question is about a hypothetical child.
+        #
+        # `auth` is optional so the internal callers that already resolved the
+        # principal upstream keep working; when it is absent the shape carve
+        # still applies, which is exactly today's behaviour and never more.
         from services.workspace_paths import operator_can_organize
 
-        if not operator_can_organize(f"/workspace/{dest}/x"):
-            raise TicketError(
-                "destination_denied",
+        probe = f"/workspace/{dest}/x"
+        denied_reason = None
+        if auth is not None:
+            from services.access import resolve_access
+
+            decision = resolve_access(auth, probe, "create")
+            if not decision.allowed:
+                denied_reason = decision.reason
+        elif not operator_can_organize(probe):
+            denied_reason = (
                 f"Files can't be added to `{dest}` — that location is managed by "
-                "the system. Choose a folder you author into.",
+                "the system. Choose a folder you author into."
             )
+        if denied_reason:
+            raise TicketError("destination_denied", denied_reason)
 
     token = secrets.token_urlsafe(32)
     expires = _now() + timedelta(seconds=TICKET_TTL_SECONDS)
