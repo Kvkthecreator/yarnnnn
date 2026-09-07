@@ -139,28 +139,75 @@ def run() -> bool:
         ),
     )
 
-    print("\n── 3. ⚠️  D3 — the frame STATES ITS OWN EDGE (the ungated half) ──")
+    print("\n── 3. ⚠️  D3 — the frame STATES ITS OWN EDGE (all four reach states) ──")
     # The frame previously asserted a CLOSED WORLD ("you read this member's
     # commons and the open web"). D2 falsifies that sentence. Left standing it
     # is the Scout bug inverted: prose DENYING a surface the model holds.
-    for _agent in (None, "scout"):
-        _sec = _tools_section(_frame(_agent))
-        _label = _agent or "agentless"
+    #
+    # RE-CUT 2026-09-07. This section asserted one literal sentence — "cannot
+    # read through it" — against whichever branch the deployment default
+    # happened to take. ADR-615 landed reach and moved that default, so the
+    # check went RED against prose that was live-CORRECT: the lane now holds
+    # nine platform_* read tools, and telling it otherwise would be the very
+    # hallucination-one-rung-off this section exists to prevent. The pinned
+    # sentence had become the defect (Part Q: a gate that pins a spelling pins
+    # the defect).
+    #
+    # `resolve_turn_reach` documents FOUR states. Each states a DIFFERENT true
+    # edge, so the invariant is not one sentence — it is that every state names
+    # the inventory tool, states its own edge truthfully, and never denies a
+    # binding it can see. Drive all four; the pre-615 sentence survives as the
+    # assertion for the two states where it is still true.
+    import services.lane_runner as _lr
+
+    _REACH_STATES = (
+        # (label, (has_reach, platforms), must-contain, must-NOT-contain)
+        # ⚠️ The two no-reach states must NOT render the same prose. They were
+        # identical until 2026-09-07 because the branch guard keyed on `_reach`
+        # (unreachable as True with empty platforms), so scoped-to-nothing got
+        # the darkened wording and was offered a remedy that does not apply.
+        ("darkened", (False, None),
+         ("cannot read through", "paste it"), ("on your agent page",)),
+        ("scoped-to-nothing", (False, ()),
+         ("cannot read through", "scoped you to no connections",
+          "widen your connections on your agent page"),
+         ("connect in settings",)),
+        ("unscoped", (True, None),
+         ("read through",), ("cannot read through",)),
+        ("scoped-to-slack", (True, ("slack",)),
+         ("you can read through", "slack"), ("cannot read through",)),
+    )
+
+    for _label, _state, _must, _must_not in _REACH_STATES:
+        _orig = _lr.resolve_turn_reach
+        _lr.resolve_turn_reach = lambda *a, **k: _state
+        try:
+            _sec = _tools_section(_frame(None))
+        finally:
+            _lr.resolve_turn_reach = _orig
+        # Collapse the wrap: the fact is the sentence, not where it breaks.
+        _low = " ".join(_sec.lower().split())
         _check(
             f"[{_label}] the frame NAMES the inventory tool",
             "list_integrations" in _sec,
         )
-        # ⚠️ Without this clause a model that can SEE a Notion binding infers it
-        # can READ Notion, and hallucinates one rung above what it holds.
-        # Naming a capability's edge is part of granting it.
-        _check(
-            f"[{_label}] …and states the EDGE — cannot read through it",
-            "cannot read through it" in _sec.lower()
-            or "cannot read through" in _sec.lower(),
-        )
+        # ⚠️ Without an edge clause a model that can SEE a Notion binding infers
+        # what it may DO with it, and hallucinates one rung above what it holds.
+        # Naming a capability's edge is part of granting it — in BOTH directions:
+        # a lane WITH reach that is told it cannot read will refuse work it can do.
+        for _frag in _must:
+            _check(
+                f"[{_label}] …states its own edge: {_frag!r}",
+                _frag in _low,
+            )
+        for _frag in _must_not:
+            _check(
+                f"[{_label}] …and does not state an edge it does not have: {_frag!r}",
+                _frag not in _low,
+            )
         _check(
             f"[{_label}] …and does not claim the connector is absent",
-            "no live" not in _sec.lower(),
+            "no live" not in _low,
         )
 
     print("\n── 4. the metadata boundary is real ──")

@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.07.5] - the "scoped to no connections" clause was unreachable; the member got the darkened wording
+
+### Changed
+- `services/lane_runner.py` — the ADR-612 D3 branch guard now keys on the PLATFORMS tuple (`_reach_plats is not None and not _reach_plats`) instead of on `_reach`.
+- Expected behavior: a member who scopes an agent to NO connection now gets the clause written for exactly that case — *"You have no platform reach in this workspace: {member} scoped you to no connections… they can widen your connections on your agent page"* — instead of the deployment-darkened clause, which offers *"they can paste it, or export and drop the files into the commons"* and never names the one remedy that applies. No other reach state changes; the frame's other three branches are byte-identical.
+
+### Why
+**Observed in the gate, not speculated.** `test_adr535_connector_visibility.py` was 2/21 red at baseline. Re-cutting it to drive all four documented reach states showed the two no-reach states rendering the SAME paragraph, which sent me to the guard.
+
+The branch required `(True, ())`. `resolve_turn_reach`'s own docstring declares that state impossible — *"`(True, ())` is unreachable and deliberately so: an agent scoped to no platform has nothing to reach"* — and the function returns `(False, ())` there. So the guard asked a question that could not separate the two states it was written to separate, and the branch had never executed. The distinguishing fact is the platforms tuple: `()` scoped-to-nothing versus `None` darkened.
+
+The prose being withheld is the honest one. A member who deliberately narrowed an agent was told connections are unreadable in general — false — and offered a workaround for a limit they themselves set and can lift in one click.
+
+### Gate
+`test_adr535_connector_visibility.py` re-cut: 35/35 (was 19/21). Its D3 section now drives all four reach states by stubbing `resolve_turn_reach`, asserting each states its OWN true edge and does not state one it lacks. The pinned literal `"cannot read through it"` is gone: ADR-615 gave the lane nine `platform_*` read tools, so that sentence became FALSE for the two reach-bearing states and the gate was red against live-correct prose. Falsified: reverting the guard re-fails the two scoped-to-nothing assertions; claiming "cannot read through" in the scoped branch re-fails the scoped-to-slack pair.
+
+---
+
 ## [2026.09.07.4] - the cadence is read in the WORKSPACE's clock, not UTC
 
 ### Changed

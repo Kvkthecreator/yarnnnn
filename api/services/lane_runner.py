@@ -1108,12 +1108,24 @@ def build_lane_conventions(
     # way. Without reach the model must not infer it from the inventory; with
     # reach it must know the bound (the MEMBER's own connections, read-only,
     # transient) rather than guess at more.
-    if _reach and _reach_plats is not None and not _reach_plats:
+    if _reach_plats is not None and not _reach_plats:
         # ADR-612 D3 — an explicit empty opt-in. The member scoped this one to
         # NO platform, so it holds no platform_* tool at all. Said plainly:
         # the honest-absence branch below would tell it connections are
         # unreadable in general, which is false and would have it offering
         # remedies ("connect in Settings") for a limit the member set here.
+        #
+        # ⚠️ KEYED ON THE PLATFORMS, NOT ON `_reach` (2026-09-07). This read
+        # `_reach and _reach_plats is not None and not _reach_plats` — a state
+        # `resolve_turn_reach` documents as UNREACHABLE ("`(True, ())` is
+        # unreachable and deliberately so"). Scoped-to-nothing returns
+        # `(False, ())`, so the guard never fired and this branch was dead: a
+        # member who scoped an agent to no connection got the DARKENED wording
+        # below, which offers "paste it, or export and drop the files in" and
+        # never names the one remedy that applies — widening the scope on the
+        # agent's own page. The two no-reach states are told apart by the
+        # PLATFORMS tuple (`()` scoped-to-nothing vs `None` darkened); reading
+        # `_reach` asked a question that cannot separate them.
         connector_reach_section = (
             f"You have no platform reach in this workspace: {member} scoped "
             "you to no connections. list_integrations still tells you what "
