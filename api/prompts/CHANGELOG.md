@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.07.1] - `composing-an-image` measured bound; the index admits by evidence
+
+### Changed
+- `services/skills/composing-an-image/SKILL.md` — step 2 now carries the CONSEQUENCE of the `data-z` rule (an unstamped layer sorts by document order, so the member's layer rail has no authored value to move), not just the rule. The "Layers stacked at the same `z`" anti-pattern is REMOVED: it contradicts ADR-633 §5b, which ruled a tie legitimate (production's own artboard carries 5 distinct z across 10 layers).
+- `services/skills/assembling-a-composite-document/SKILL.md` — NEW, `text`-scoped, **UNMEASURED** (rank 1). A prose document that has to carry figures: what earns a table, and keeping every number traceable to the file it came from. ⚠️ Its first draft was written against the 18-kind block grammar and was WRONG — `text_pane_posture` is a plain-prose posture (1,347 B, *"No block grammar, no Studio machinery"*), and Text owns no artifact layout at all; the block roster belongs to slides/images/blogger. Rewritten for prose against an observed failure: two bound Text runs retyped a CSV's figures into a markdown table with the source uncited, and neither reached the skill from its index line.
+- `services/skills/__init__.py` — the index now admits kernel skills by EVIDENCE rank (`_INDEX_RANK` / `_index_rank`), alphabetical only as a tiebreak. The docstring's ⚠️ on `composing-an-image` is replaced with the measured result.
+- `test_adr630_skills.py` — new §3a-rank (with an in-process falsification: demote `writing-a-spec` → it is evicted → restore → it returns). Two assertions in §3/§3b that read "the index lists every kernel skill" are corrected to the invariant they meant — every skill is LISTED **or** COUNTED, with the ListFiles that reaches it.
+
+### Why
+**The bound-lane probe (the Part Q owed item).** `composing-an-image` defers its token grammar to the pane posture, which composes only for an artifact-bound lane, so the earlier probe could not score it. Re-run bound (n=3/arm, one pre-registered measure — the fraction of blocks carrying all three of `data-x`/`data-y`/`data-z`):
+
+```
+ARM A (index)   1.00 / 0.00 / 0.50     read the skill 3/3
+ARM B (none)    0.00 / 0.00 / 0.00     read the skill 0/3
+```
+
+Discovery is total; compliance is not. **p = 0.200 — it does NOT clear the n=3 floor of 0.100**, because trial 2 read the skill and stamped nothing. The trace says why: the agent stamps `data-z` exactly when layers OVERLAP and omits it otherwise — coherent visual reasoning, and wrong, because the rule serves the layer rail rather than the picture. **A contract skill must carry its consequence, not just its rule**; an unmotivated unconditional rule loses to visible local reasoning. That is the amendment.
+
+**The ranking.** The index is a byte budget with a truncating tail, so something decides which skill loses its line — and it was the directory alphabet. `UNBOUND_INDEX_CEILING` has been raised TWICE to undo the result (its own comments name both occasions), and the twelfth skill reproduced it a third time by evicting `writing-a-spec`, the skill with the strongest measured evidence in the set (7/7/7 vs 1/0/2). Raising the ceiling again buys one skill and leaves the next eviction just as arbitrary. Ordering by evidence makes the budget shed measured-null rows first — and because a withheld row is a REACH loss (100% listed vs 58% via ListFiles), that is the same argument the ceilings themselves now carry. **No ceiling was raised.**
+
+### Expected behavior
+Bound Images lanes: the `data-z` rule is now motivated, so expect stamping on non-overlapping layers where the agent previously skipped it. Bound Text lanes: `writing-a-spec` and `deriving-a-design-system` are listed ahead of the craft skills, and the new composite-document skill is offered; `summarizing-sources` and `writing-updates` move into the overflow count (still mirrored, still reachable by ListFiles). Composed sizes, all under ceiling and none raised: unbound 3,819/4,000 · text 3,199 · slides 2,762 · images 1,750 · blogger 2,762.
+
+Capture: `docs/analysis/composing-an-image-in-a-bound-lane-2026-09-07.md`.
+
+---
+
 ## [2026.09.04.3] - What a skill is FOR: contract, not craft (measured)
 
 ### Changed

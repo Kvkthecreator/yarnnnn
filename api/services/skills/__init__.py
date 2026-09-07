@@ -34,10 +34,27 @@ the ones worth keeping are precisely the ones whose absence a reader cannot
 see. Prune on "does a frontier model already know this", never on "did the
 output look worse".
 
-⚠️ A skill that DEFERS to the pane posture (`composing-an-image`: *"the pane
-posture owns the token grammar"*) cannot be evaluated in an unbound lane — it
-was given craft rules pointing at a grammar the turn never carried, and
-correctly refused to invent one. Bind the lane before measuring it.
+⚠️ A skill that DEFERS to the pane posture cannot be evaluated in an unbound
+lane — it is given craft rules pointing at a grammar the turn never carried.
+`composing-an-image` was re-run BOUND on 2026-09-07 (see
+docs/analysis/composing-an-image-in-a-bound-lane-2026-09-07.md), and the result
+splits the two halves of what a skill does:
+
+  discovery    TOTAL — read 3/3 with the index, 0/3 without.
+  compliance   UNRELIABLE — `data-z` on every layer (the pre-registered
+               measure) ran 1.00 / 0.00 / 0.50 against 0.00 / 0.00 / 0.00.
+               Direction never reversed, but p=0.200 does NOT clear the n=3
+               floor of 0.100, because trial 2 read the skill and obeyed
+               nothing. Do not cite this skill as separating.
+
+⭐⭐⭐ WHY IT LOST: the agent stamped `data-z` exactly when layers OVERLAPPED and
+omitted it otherwise — coherent visual reasoning, and wrong, because the rule
+serves the LAYER RAIL rather than the picture (ADR-633: unstamped layers sort
+by document order, so the member's restack has no authored value to move). The
+skill stated the rule without its consequence. A CONTRACT SKILL MUST CARRY ITS
+CONSEQUENCE, NOT JUST ITS RULE — an unmotivated unconditional rule loses to
+visible local reasoning. That is the generalisable finding; the skill was
+amended accordingly.
 
 Two homes, one file shape (the Agent Skills convention: a folder holding
 `SKILL.md` with `name` + `description` frontmatter; ADR-254 names it as an
@@ -383,6 +400,63 @@ def _applies_to(skill: dict, app: Optional[str], reach: Optional[set] = None) ->
     return True
 
 
+#: WHAT THE BUDGET EVICTS, when it must evict something.
+#:
+#: The admission loop below is a byte budget with a truncating tail, so
+#: SOMETHING decides which skill loses its index line. Until 2026-09-07 that
+#: was the alphabet — `_load_kernel()` walks the directory `sorted()`, and the
+#: loop kept the head. This ceiling has been RAISED TWICE to work around the
+#: result (see UNBOUND_INDEX_CEILING's own notes: "drops real skills by
+#: ALPHABETICAL ACCIDENT (at 9 skills: `writing-a-spec` and `writing-updates`)"
+#: and "at 3,400 it withheld the eleventh skill by alphabetical accident"), and
+#: a twelfth skill reproduced it a third time — evicting `writing-a-spec`, the
+#: skill with the STRONGEST measured evidence we have (7/7/7 prescribed
+#: sections vs 1/0/2, p=0.100).
+#:
+#: ⭐⭐⭐ A budget that evicts by alphabet evicts at random with respect to what
+#: the row is WORTH. Raising the ceiling each time buys one more skill and
+#: leaves the next eviction just as arbitrary. So the order is now EVIDENCE,
+#: coarsest first — and because a withheld row is a REACH loss (measured: an
+#: index row 100% vs a pointer 58%, ADR-630 / the 2026-09-04 capture), this is
+#: the same argument the ceilings themselves are now made to carry.
+#:
+#: Rank 0 — MEASURED to separate: the skill carries one of this workspace's own
+#:          shapes and an A/B says its absence changes the artifact. Never the
+#:          row that loses, because its failure is SILENT and functional.
+#: Rank 1 — unmeasured: the honest default. A new skill lands here.
+#: Rank 2 — MEASURED null: a strong model already holds this craft, so an agent
+#:          that reaches it by ListFiles instead loses least. Kept in the
+#:          roster (a null is an argument about the current engine, not the
+#:          file — `LANE_MODELS` makes a weaker one live), but first to go.
+#:
+#: ⚠️ A slug moves between ranks only with a capture behind it. This table is
+#: the measurement's live home; adding a slug here on taste re-introduces the
+#: arbitrariness it exists to remove.
+_INDEX_RANK: dict[str, int] = {
+    # Rank 0 — separated in docs/analysis/what-a-skill-is-for-contract-vs-craft-2026-09-04.md
+    "writing-a-spec": 0,             # 7/7/7 sections vs 1/0/2, p=0.100
+    "deriving-a-design-system": 0,   # 15/18/17 kernel CSS vars vs 7/0, p=0.100
+    "presenting-from-sources": 0,    # the CSV beside the deck
+    # Rank 2 — measured flat in the same capture (and its predecessor).
+    "reviewing-drafts": 2,
+    "writing-updates": 2,
+    "comparing-options": 2,
+    "summarizing-sources": 2,
+}
+
+
+def _index_rank(meta: dict) -> tuple[int, str]:
+    """Admission order: evidence first, then the alphabet as a stable tiebreak.
+
+    `composing-an-image` is deliberately ABSENT from the table (rank 1). It was
+    measured bound on 2026-09-07 and did NOT clear the n=3 floor (p=0.200,
+    direction never reversed) — "directionally strong, not separated" is not
+    rank 0, and claiming otherwise here would be the post-hoc promotion the
+    pre-registration discipline exists to prevent.
+    """
+    return (_INDEX_RANK.get(meta.get("name", ""), 1), meta.get("name", ""))
+
+
 def skills_index_section(
     member_skills: Optional[list[dict]] = None,
     app: Optional[str] = None,
@@ -400,7 +474,10 @@ Two budgets, enforced at composition.
     gives for skill BODIES.
     """
     lines = [_INDEX_HEAD]
-    kernel = [m for m in _load_kernel().values() if _applies_to(m, app, reach)]
+    kernel = sorted(
+        (m for m in _load_kernel().values() if _applies_to(m, app, reach)),
+        key=_index_rank,
+    )
     # Two ways a kernel line can be withheld, ONE escape hatch.
     #
     # (1) SCOPE — the skill declares `apps` and this lane is not one of them.

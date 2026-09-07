@@ -92,7 +92,21 @@ try:
     _check("the truncated count is truthful", bool(_m) and _shown + int(_m.group(1)) == 20, f"shown={_shown} +{_m.group(1) if _m else '?'} != 20")
 finally:
     sk._load_kernel = _real_loader
-_check("index lists every kernel path", all(sk.kernel_skill_path(s) in idx for s in K))
+# Every kernel skill is either LISTED or COUNTED — never silently absent.
+# ⚠️ This was `all(... in idx ...)` until 2026-09-07, i.e. "the index lists
+# every skill". That is a CENSUS, not an invariant: the block above proves
+# truncation is designed behaviour (20 fake skills, self-truncating), so the
+# claim could only hold while the roster happened to fit. The twelfth skill
+# made it false and the gate went red on correct code. The invariant is that
+# nothing VANISHES — listed, or named in the overflow count with the ListFiles
+# that reaches it.
+_listed = [s for s in K if sk.kernel_skill_path(s) in idx]
+_ovf = __import__("re").search(r"…and (\d+) more under system/skills/", idx)
+_check("every kernel skill is listed or counted",
+       len(_listed) + (int(_ovf.group(1)) if _ovf else 0) == len(K),
+       f"listed={len(_listed)} + overflow={_ovf.group(1) if _ovf else 0} != {len(K)}")
+_check("if any is withheld, the way to reach it is stated",
+       not _ovf or "ListFiles system/skills/" in idx)
 _check("index carries descriptions, never bodies", "## Steps" not in idx and "Quality bar" not in idx)
 # A member description is written FOR DISCOVERY (the kernel's average is ~330
 # bytes and creating-skills tells members to write the same way), so the index
@@ -119,6 +133,39 @@ _check("an unbounded skill count is a bounded frame", len(_flood.encode()) == le
 _one = sk.skills_index_section([{"path": "skills/s0/SKILL.md", "description": _REAL_DESC, "title": "t"}])
 _check("one member skill is admitted, not dropped", "\n- skills/s0/SKILL.md" in _one)
 
+print("\u00a73a-rank what the budget EVICTS is decided by evidence, not the alphabet")
+# The admission loop truncates, so SOMETHING chooses the loser. Until
+# 2026-09-07 it was the directory alphabet, and this ceiling had been raised
+# TWICE to undo the result (see UNBOUND_INDEX_CEILING's own notes). A twelfth
+# skill reproduced it a third time, evicting `writing-a-spec` — the skill with
+# the strongest measured evidence in the set.
+_check("the rank table is keyed on real skills",
+       set(sk._INDEX_RANK) <= set(K), str(set(sk._INDEX_RANK) - set(K)))
+_check("measured-to-separate skills rank above measured-null ones",
+       max(sk._INDEX_RANK[n] for n in ("writing-a-spec", "deriving-a-design-system", "presenting-from-sources"))
+       < min(sk._INDEX_RANK[n] for n in ("reviewing-drafts", "writing-updates", "comparing-options", "summarizing-sources")))
+_check("an unranked skill sits between them (the honest default)",
+       sk._index_rank({"name": "not-a-real-skill"})[0] == 1)
+# The ORDER is what the budget consumes, so assert on the composed index: a
+# rank-0 skill that applies to a pane is never the row that loses.
+for _a in ("text", "slides", "images", "blogger", None):
+    _ix = sk.skills_index_section(app=_a)
+    _r0 = [n for n, r in sk._INDEX_RANK.items() if r == 0 and sk._applies_to(K[n], _a, None)]
+    _check(f"{_a or 'unbound'}: every applicable measured skill is listed",
+           all(sk.kernel_skill_path(n) in _ix for n in _r0),
+           str([n for n in _r0 if sk.kernel_skill_path(n) not in _ix]))
+# Falsification: the ranking must be what does this, not the alphabet. Demote
+# the best-evidenced skill and it must actually fall out of the full pane.
+_saved = dict(sk._INDEX_RANK)
+try:
+    sk._INDEX_RANK["writing-a-spec"] = 2
+    _check("demoting a skill really evicts it (the rank is load-bearing)",
+           sk.kernel_skill_path("writing-a-spec") not in sk.skills_index_section(app="text"))
+finally:
+    sk._INDEX_RANK.clear(); sk._INDEX_RANK.update(_saved)
+_check("...and restoring it brings it back",
+       sk.kernel_skill_path("writing-a-spec") in sk.skills_index_section(app="text"))
+
 print("\u00a73b the index is SCOPED BY APP \u2014 a pane is not offered another pane's craft")
 _K = sk._load_kernel()
 _scoped = {n: m for n, m in _K.items() if m.get("apps")}
@@ -132,7 +179,17 @@ _check("an images pane is NOT offered the deck skill", "system/skills/presenting
 _check("scoping SHRINKS a bound pane's index", len(_images.encode()) < len(_open.encode()), f"{len(_images.encode())} !< {len(_open.encode())}")
 # The open surface is where a member goes for any kind of work: narrowing it
 # would hide work that has no other door.
-_check("an unbound lane is offered every skill", all(sk.kernel_skill_path(n) in _open for n in _K))
+# The open surface NARROWS BY NOTHING BUT BYTES: no skill is filtered out of
+# it by scope (that is the promise — "any kind of work"), and whatever the
+# budget cannot fit is counted rather than dropped. Asserting instead that the
+# open lane LISTS all of them re-states the census fixed above.
+_open_listed = [n for n in _K if sk.kernel_skill_path(n) in _open]
+_open_ovf = __import__("re").search(r"…and (\d+) more under system/skills/", _open)
+_check("an unbound lane FILTERS no skill by scope",
+       len(_open_listed) + (int(_open_ovf.group(1)) if _open_ovf else 0) == len(_K),
+       f"listed={len(_open_listed)} + overflow={_open_ovf.group(1) if _open_ovf else 0} != {len(_K)}")
+_check("an unbound lane is offered at least as much as any bound one",
+       len(_open_listed) >= max(len([n for n in _K if sk.kernel_skill_path(n) in sk.skills_index_section(app=a)]) for a in ("slides", "images", "text", "blogger")))
 # Hidden is never silent \u2014 the count and the way to reach them are stated.
 _check("what is hidden is named, with the way to reach it", "more under system/skills/" in _images and "ListFiles system/skills/" in _images)
 _check("the hidden count is what was actually withheld", f"and {len(_K) - _images.count(chr(10) + '- system/')} more" in _images)
