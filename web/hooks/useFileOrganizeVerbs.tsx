@@ -34,15 +34,24 @@
 
 import { useCallback, useState } from 'react';
 import { api, APIError } from '@/lib/api/client';
-import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { RenameModal } from '@/components/workspace/RenameModal';
-import type { WorkspaceTreeNode } from '@/types';
+import type { AccessDecision, WorkspaceTreeNode } from '@/types';
 
 export interface FileOrganizeTarget {
   path: string;
   name: string;
+  /**
+   * ADR-643 D3 — the server's decision for this path, when the caller holds a
+   * node that carries one. The client does NOT re-derive the rule; it either
+   * has the answer or lets the backend give it.
+   *
+   * ⚠️ Absent means UNKNOWN, never "allowed": the guard below offers the act
+   * and the door refuses. That is the ADR-400 A1 Windows-Explorer model, which
+   * this preserves exactly — only the SOURCE of the explanation moved.
+   */
+  access?: AccessDecision;
   /**
    * True when the target is a FOLDER (2026-08-21). A folder verb is a FAN-OUT
    * over the subtree, not one act — since ADR-588 a folder is a marker row plus
@@ -125,14 +134,28 @@ export function useFileOrganizeVerbs(
   // which read as "No folders to move into." instead of the picker's "Looking…".
   // Deleting the copy fixes both.
 
-  // Pre-empt the obvious carve (system/ + machine-config) with a plain,
-  // macOS-style modal before we call the backend. Returns true if blocked.
-  // inbound/uploads/ is NOT a carve (ADR-422 D2) — the operator owns uploads.
+  // Pre-empt a refusal the server has ALREADY told us about, with a plain,
+  // macOS-style modal, before we call the backend. Returns true if blocked.
+  //
+  // ADR-643 D3 — this used to re-derive the carve law in TypeScript. It now
+  // reads the decision the payload carried. Two consequences worth stating:
+  //
+  //  1. It is STRICTLY MORE ACCURATE. The mirror could only ever express the
+  //     carve law, which is a path-SHAPE rule identical for every principal —
+  //     so it told a member they could trash `constitution/MANDATE.md`, true
+  //     for the owner and false for them. The decision knows who is asking.
+  //  2. An UNKNOWN decision offers the act. That is not a regression: it is
+  //     the pre-empt declining to guess, and the door still fails closed.
   const carveGuard = useCallback(
-    async (path: string): Promise<boolean> => {
-      if (operatorCanOrganize(path)) return false;
-      const { title, body } = organizeBlockedReason(path);
-      await confirm({ title, body, confirmLabel: 'OK', cancelLabel: '' });
+    async (t: Pick<FileOrganizeTarget, 'path' | 'access'>): Promise<boolean> => {
+      const decision = t.access;
+      if (!decision || decision.may_organize) return false;
+      await confirm({
+        title: `“${t.path.split('/').pop() || 'This item'}” can’t be changed`,
+        body: decision.reason ?? 'This item is managed by the system.',
+        confirmLabel: 'OK',
+        cancelLabel: '',
+      });
       return true;
     },
     [confirm],
@@ -140,7 +163,7 @@ export function useFileOrganizeVerbs(
 
   const onRename = useCallback(
     async (t: FileOrganizeTarget) => {
-      if (await carveGuard(t.path)) return;
+      if (await carveGuard(t)) return;
       setRenameTarget(t);
     },
     [carveGuard],
@@ -152,7 +175,7 @@ export function useFileOrganizeVerbs(
   // the browser, capped at 5, and recorded no origin at all).
   const onDuplicate = useCallback(
     async (t: FileOrganizeTarget) => {
-      if (await carveGuard(t.path)) return;
+      if (await carveGuard(t)) return;
       try {
         const r = await runAction(() => api.documents.duplicate(t.path), {
           pending: 'Duplicating…',
@@ -219,7 +242,7 @@ export function useFileOrganizeVerbs(
 
   const onMove = useCallback(
     async (t: FileOrganizeTarget) => {
-      if (await carveGuard(t.path)) return;
+      if (await carveGuard(t)) return;
       setMoveTarget(t);
     },
     [carveGuard],
@@ -303,7 +326,7 @@ export function useFileOrganizeVerbs(
    */
   const onDeleteFolder = useCallback(
     async (t: FileOrganizeTarget) => {
-      if (await carveGuard(t.path)) return;
+      if (await carveGuard(t)) return;
       let pre: { count: number; locked: string[]; too_large: boolean } | null = null;
       try {
         pre = await api.documents.folderPreflight(t.path);
@@ -351,7 +374,7 @@ export function useFileOrganizeVerbs(
   const onDelete = useCallback(
     async (t: FileOrganizeTarget) => {
       if (t.isFolder) return onDeleteFolder(t);
-      if (await carveGuard(t.path)) return;
+      if (await carveGuard(t)) return;
       // ADR-448: the load-bearing check — if other files were made FROM this one
       // (the derived_from reference edge), say so before the operator confirms.
       // A warning, never a block: delete stays reversible trash, and dependents
@@ -430,11 +453,18 @@ export function useFileOrganizeVerbs(
 
       // The carve, pre-empted for the SET rather than per member: a blocked
       // member is dropped from the act and counted, never a modal per file.
-      const eligible = targets.filter((t) => operatorCanOrganize(t.path));
+      // ADR-643 D3 — the served decision, with UNKNOWN counting as eligible:
+      // an undecorated member is offered and the door answers for it.
+      const eligible = targets.filter((t) => !t.access || t.access.may_organize);
       let locked = targets.length - eligible.length;
       if (!eligible.length) {
-        const { title, body } = organizeBlockedReason(targets[0]?.path ?? '');
-        await confirm({ title, body, confirmLabel: 'OK', cancelLabel: '' });
+        const blocked = targets.find((t) => t.access?.reason);
+        await confirm({
+          title: `“${blocked?.name ?? targets[0]?.name ?? 'These items'}” can’t be changed`,
+          body: blocked?.access?.reason ?? 'These items are managed by the system.',
+          confirmLabel: 'OK',
+          cancelLabel: '',
+        });
         return { trashed, failed, locked };
       }
 
@@ -499,7 +529,11 @@ export function useFileOrganizeVerbs(
       <MoveToFolderModal
         target={moveTarget}
         roots={providedRoots}
-        canOrganize={operatorCanOrganize}
+        // ADR-643 D3 — the picker reads `may_place` off each row (served by
+        // `/workspace/roots` and the tree). This prop is the LAST resort for a
+        // row that arrived without one: unknown offers the destination, and
+        // the create door refuses if it must.
+        canPlace={(node) => node.may_place !== false}
         onClose={() => setMoveTarget(null)}
         onMove={async (destFolder) => {
           const t = moveTarget;

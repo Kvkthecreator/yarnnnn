@@ -74,7 +74,6 @@ import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { api, APIError } from '@/lib/api/client';
-import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import {
@@ -1743,7 +1742,9 @@ export default function ContextPage() {
               onMoveByDrag={commitMove}
               // ADR-555 D3 — an OS file dropped on a folder row imports THERE.
               onDropFiles={(files, folder) => openUpload(files, folder)}
-              canOrganize={operatorCanOrganize}
+              // ADR-643 D3 — the served decision, off the row. Unknown reads
+              // as permitted: the drop is offered and the door answers.
+              canOrganize={(node) => node.may_place !== false}
             />
           </div>
         ) : (
@@ -1825,7 +1826,11 @@ export default function ContextPage() {
             // files are actually looked at, so drag lived only in the tree.
             // The SAME handlers the tree uses — one move path, one import path.
             dnd={{
-              canOrganize: operatorCanOrganize,
+              // ADR-643 D3 — two DIFFERENT questions, and the mirror could
+              // only ever answer one: may I pick this file UP (its own
+              // decision) versus may I put something DOWN here (the folder's).
+              canOrganize: (node) => node.access?.may_organize !== false,
+              canPlace: (node) => node.may_place !== false,
               dropTarget: listingDropTarget,
               setDropTarget: setListingDropTarget,
               onDropPath: commitMove,
@@ -1971,7 +1976,7 @@ export default function ContextPage() {
       <MoveToFolderModal
         target={moveSetOpen ? { path: selection[0] ?? '', name: `${selection.length} files` } : null}
         roots={treeNodes}
-        canOrganize={operatorCanOrganize}
+        canPlace={(node) => node.may_place !== false}
         onClose={() => setMoveSetOpen(false)}
         onMove={async (destFolder) => {
           const paths = selection;

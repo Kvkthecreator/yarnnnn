@@ -30,7 +30,6 @@
  * immutability is the stronger thing to know.
  */
 
-import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { authorClass } from '@/lib/workspace/attribution';
 
 export type FileLegibilityState =
@@ -64,26 +63,35 @@ function toRel(path: string): string {
 
 /**
  * Classify a file node into its legibility state. Folders return 'operator'
- * (they carry no not-editable affordance today). Derived from path +
- * authored_by only — no new backend data.
+ * (they carry no not-editable affordance today).
+ *
+ * ADR-643 D3: the machine-config / raw-intake half now reads the SERVED
+ * decision rather than re-deriving it from the path. `access` is optional —
+ * an undecorated row simply falls through to the authored_by half, which is
+ * what it always did.
  */
 export function fileLegibilityState(node: {
   type: 'file' | 'folder';
   path: string;
   authored_by?: string | null;
+  access?: { code: string | null } | null;
 }): FileLegibilityState {
   if (node.type !== 'file') return 'operator';
 
-  // machine-config wins: the operator can't organize it (system/ + _*.yaml/json).
-  // operatorCanOrganize also returns false for inbound/ — so check raw-intake
-  // FIRST by path, then fall to machine-config for the remaining non-organizable
-  // set. (Ordering matters: an inbound file is non-organizable AND under inbound/;
-  // it should read as raw-intake, not machine-config.)
-  // inbound/uploads/ is the HUMAN upload lane (ADR-395) — organizable, operator-
-  // owned, NOT an immutable record. Only NON-upload inbound/ is raw-intake.
-  const rel = toRel(node.path);
-  if (rel.startsWith('inbound/') && !rel.startsWith('inbound/uploads/')) return 'raw-intake';
-  if (!operatorCanOrganize(node.path)) return 'machine-config';
+  // ADR-643 D3 — the server already classified this path AND said why, so the
+  // class reads straight off the served `code`. This used to re-derive it, and
+  // needed a careful comment about ORDERING (an inbound file is both
+  // non-organizable and under inbound/, so the path checks had to run in the
+  // right sequence to avoid calling it machine-config). The decider answers
+  // with one code, so there is no order to get wrong.
+  //
+  // `inbound/uploads/` — the HUMAN upload lane (ADR-395), organizable and
+  // operator-owned — is not raw-intake, and the decider knows that; the client
+  // no longer has to remember the exception.
+  if (node.access?.code === 'raw_intake') return 'raw-intake';
+  if (node.access?.code === 'machine_config' || node.access?.code === 'system_managed') {
+    return 'machine-config';
+  }
 
   if (AGENT_AUTHOR_CLASSES.has(authorClass(node.authored_by))) {
     return 'agent-authored';

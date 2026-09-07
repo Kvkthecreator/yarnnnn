@@ -144,6 +144,16 @@ export function TextEditor({
     reloadKey,
   });
 
+  /**
+   * ADR-643 D4 — may THIS viewer type here? Served per row by the decider.
+   *
+   * ⚠️ `undefined` means the decision did not arrive, and reads as EDITABLE —
+   * the canvas opens, the save door refuses if it must. Defaulting to
+   * read-only would lock every document on a transient decoration failure,
+   * which is a far worse failure than the one this prevents.
+   */
+  const readOnly = file?.access ? file.access.may_edit_as_prose === false : false;
+
   const [text, setText] = useState('');
   const [baseline, setBaseline] = useState('');
   const [saving, setSaving] = useState(false);
@@ -1247,6 +1257,16 @@ export function TextEditor({
             </p>
           )}
 
+          {/* ADR-643 D4 — say WHY before the member reaches for the keyboard.
+              Neutral, not destructive: this is a fact about the document, not
+              an error. The sentence is the server's — the same words Files
+              uses for the same file, because both read one decider. */}
+          {readOnly && !loading && (
+            <p className="border-b border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+              {file?.access?.reason ?? 'This document can’t be edited here.'}
+            </p>
+          )}
+
           {loading ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening…
@@ -1287,6 +1307,7 @@ export function TextEditor({
                 onSelectionChange={onCanvasSelection}
                 handleRef={(h) => { canvasRef.current = h; }}
                 zoom={zoom}
+                readOnly={readOnly}
               />
               {slashOpen && slashCoords && (
                 <SlashMenu

@@ -48,6 +48,11 @@ class FileResponse(BaseModel):
     # ADR-406 D2: the head revision this content reflects — the editor holds
     # it as the base and sends it back on save (optimistic concurrency).
     head_version_id: Optional[str] = None
+    # ADR-643 D3: this VIEWER's decision about this path — `may_write` ·
+    # `may_organize` · `may_edit_as_prose` · `reason` · `code`. The client
+    # reads it; it never re-derives the rule. Optional because a decoration
+    # failure must degrade to "ask the server", never to a 500 on a read.
+    access: Optional[dict] = None
 
 
 class FileEditRequest(BaseModel):
@@ -663,6 +668,96 @@ async def get_domain_entities(
 # GET /workspace/tree — File/folder tree (legacy, used by file viewer)
 # =============================================================================
 
+# =============================================================================
+# ADR-643 D3 — the client is TOLD the decision, never re-derives it
+# =============================================================================
+#
+# ⭐⭐⭐ A MIRROR THAT MUST BE MAINTAINED IS A DIVERGENCE WITH A SCHEDULE.
+#
+# `web/lib/workspace/ownership.ts` was a faithful line-for-line mirror of the
+# carve law, and it was not the problem. The problem is that a mirror can only
+# ever be faithful to the rule as it stood when someone last looked — and three
+# OTHER client sites hand-rebuilt fragments of the same rule beside it, one of
+# them COMMENTING that it "mirrors the member write door exactly" while
+# implementing two of that door's three carves.
+#
+# A served decision cannot drift from the decider, because it IS the decider's
+# output. That is the whole reason the TypeScript goes away rather than being
+# kept in sync (operator ruling 2026-09-07: "server decides, client is told").
+#
+# ⚠️ This does NOT change what Files OFFERS. The Windows-Explorer model —
+# present the verb, explain the refusal in plain words — is ADR-400 A1's and
+# stands untouched. Only the SOURCE of the explanation moves.
+def _may_place(auth, folder: str) -> bool:
+    """May this principal create something in `folder` (ADR-643 D3)?
+
+    A folder is DERIVED (ADR-588 — one exists iff a file exists under its
+    prefix), so there is no row to carry a decision and the question must be
+    asked about a hypothetical child. `/x` is the FE's own long-standing probe
+    shape, kept so the two sides ask the identical question.
+
+    Degrades to True on failure — deliberately, and safely: this gates only
+    whether a destination is OFFERED. The create itself passes through the
+    door's own consult, which fails closed. Degrading to False would hide
+    every legitimate destination on a transient error.
+    """
+    from services.access import resolve_access
+
+    try:
+        return resolve_access(auth, f"{folder.rstrip('/')}/x", "create").allowed
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[WORKSPACE_API] placement decision failed for %s: %s", folder, exc)
+        return True
+
+
+def _access_or_none(auth, path: str) -> Optional[dict]:
+    """The viewer's decision for one path, or None if it could not be taken.
+
+    None means "the client does not know" — it then asks the server the way it
+    always did, and the server still refuses. It NEVER means "allowed": a
+    client reading a missing decision as permission would turn a decoration
+    failure into a permission failure.
+    """
+    from services.access import access_summary
+
+    try:
+        return access_summary(auth, path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[WORKSPACE_API] access decision failed for %s: %s", path, exc)
+        return None
+
+
+def _decorate_access(auth, nodes: list[dict]) -> list[dict]:
+    """Attach `access` to every FILE node in a tree, in place, recursively.
+
+    A FILE gets the full decision. A FOLDER gets `may_place` only: a folder is
+    DERIVED (ADR-588 — one exists iff a file exists under its prefix), so its
+    own permissions are its members', and answering for a prefix would invent a
+    fact the substrate does not hold. What a folder legitimately answers is
+    whether the viewer may put something IN it — the drop-target and
+    destination-picker question, asked with the `/x` probe the FE already uses.
+
+    Never raises. A decoration failure degrades to an undecorated node — the
+    client then falls back to asking, and the server still refuses. A listing
+    must not 500 because one path confused the decider.
+    """
+    for node in nodes or []:
+        kids = node.get("children")
+        if kids:
+            _decorate_access(auth, kids)
+        if node.get("type") != "file":
+            # A FOLDER gets the placement answer only — "may I put something
+            # here" — never a file's decision. Its own permissions are its
+            # members' (ADR-588: a folder is derived), and answering for a
+            # prefix would invent a fact the substrate does not hold.
+            node["may_place"] = _may_place(auth, node["path"])
+            continue
+        decision = _access_or_none(auth, node["path"])
+        if decision is not None:
+            node["access"] = decision
+    return nodes
+
+
 @router.get("/workspace/tree")
 async def get_workspace_tree(
     auth: UserClient,
@@ -811,7 +906,12 @@ async def get_workspace_tree(
 
         # Build tree from flat paths
         tree = _build_tree(rows, root)
-        return tree
+        # ADR-643 D3 — every file node carries the viewer's own decision, so
+        # the client never re-derives the rule. Decorated HERE rather than in
+        # `_build_tree` because the builder is a pure function of rows and has
+        # no auth; threading a principal through it would make a presentation
+        # helper a permission site.
+        return _decorate_access(auth, tree)
 
     except Exception as e:
         logger.error(f"[WORKSPACE_API] Tree query failed: {e}")
@@ -913,6 +1013,18 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
                     # ADR-588: a marker alone is enough to exist (an empty
                     # folder is a real folder), even at file_count 0.
                     "exists": count > 0 or name in marker_segs,
+                    # ADR-643 D3 — may THIS viewer put something here? The
+                    # placement question the folder pickers ask, answered by
+                    # the decider instead of re-derived on the client. The
+                    # `/x` probe is the FE's own existing convention: a folder
+                    # is DERIVED (ADR-588), so the question is always about a
+                    # hypothetical child, never the prefix itself.
+                    #
+                    # ⭐ The served answer is strictly better than the mirror
+                    # it replaces: the TypeScript could only ever express the
+                    # carve law, so it told a MEMBER they could create in
+                    # `constitution/` — true for the owner, false for them.
+                    "may_place": _may_place(auth, f"/workspace/{name}"),
                     "_order": meta["order"],
                 }
             )
@@ -1024,6 +1136,7 @@ async def get_workspace_file(
             content_url=content_url,
             metadata=row.get("metadata"),
             head_version_id=row.get("head_version_id"),
+            access=_access_or_none(auth, row["path"]),
         )
 
     except HTTPException:
@@ -3062,8 +3175,21 @@ async def edit_workspace_file(
     from services.workspace_paths import is_prose_document, operator_can_organize
 
     editable_prose = is_prose_document(path) and operator_can_organize(path)
+    # ⭐⭐⭐ `/workspace/system/` IS GONE FROM THIS LIST (ADR-643 D5).
+    #
+    # This list is OR'd with `editable_prose` below, so a `system/` path that
+    # the carve law had just rejected was re-admitted one line later. The write
+    # was still refused — but only because `CALLER_WRITE_POLICY` happens to
+    # lock `system/` for every caller class, an accident this door did not
+    # rely on deliberately. **A refusal that works by accident is not a
+    # decision**, and any grant row with explicit `write_scopes` naming
+    # `system/` would have flipped the per-principal gate to its allow-list
+    # branch and made this entry live.
+    #
+    # The three files it named (awareness.md, notes.md, style.md) are
+    # kernel-tended. A writer that genuinely needs them holds a named grant;
+    # it does not ride a prefix list.
     editable_prefixes = [
-        "/workspace/system/",     # awareness.md, notes.md, style.md
         "/workspace/uploads/",
         "/workspace/operation/reports/",    # per-recurrence outputs + _feedback.md + _run_log.md (ADR-231 D2)
         "/workspace/context/",    # accumulated context domains (entities, _tracker.md, _feedback.md)

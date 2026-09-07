@@ -507,6 +507,36 @@ export interface JobsStatusResponse {
 // Workspace Explorer (ADR-152)
 // =============================================================================
 
+/**
+ * The server's access decision for one path (ADR-643 D3).
+ *
+ * ⭐⭐⭐ THE CLIENT IS TOLD, IT NEVER RE-DERIVES. `web/lib/workspace/ownership.ts`
+ * was a faithful mirror of the backend carve law and it still went wrong,
+ * because a mirror can only ever be faithful to the rule as it stood when
+ * someone last looked — and three other sites hand-rebuilt fragments of the
+ * same rule beside it, one COMMENTING that it "mirrors the member write door
+ * exactly" while implementing two of that door's three carves.
+ *
+ * A served decision cannot drift from the decider, because it IS the decider's
+ * output (`api/services/access.py`).
+ *
+ * ⚠️ `undefined` means THE CLIENT DOES NOT KNOW — never "allowed". Treat a
+ * missing decision the way the client always behaved: offer the act, let the
+ * server answer. It fails closed there.
+ */
+export interface AccessDecision {
+  /** May this viewer change the file's content. */
+  may_write: boolean;
+  /** May this viewer move / rename / trash it. */
+  may_organize: boolean;
+  /** May this viewer open it in the prose editor and type (ADR-643 D4). */
+  may_edit_as_prose: boolean;
+  /** One sentence for a person, already in the operator's words. Null if allowed. */
+  reason: string | null;
+  /** `system_managed` | `raw_intake` | `machine_config` | `grant` | `not_prose`. */
+  code: string | null;
+}
+
 export interface WorkspaceTreeNode {
   name: string;
   path: string;
@@ -514,6 +544,14 @@ export interface WorkspaceTreeNode {
   updated_at?: string;
   summary?: string;
   children?: WorkspaceTreeNode[];
+  /** ADR-643 D3 — this viewer's decision. FILE nodes only; see AccessDecision. */
+  access?: AccessDecision;
+  /**
+   * ADR-643 D3 — may this viewer create something in this FOLDER. Folder nodes
+   * and root rows only: a folder is DERIVED (ADR-588), so it has no decision of
+   * its own, but "may I put something here" is a real question about it.
+   */
+  may_place?: boolean;
   // ADR-209 head-revision attribution — populated by the tree endpoint
   // when head_version_id FK resolves (may be undefined for files that
   // predate ADR-209 Phase 2 or haven't been attributed yet).
@@ -575,6 +613,16 @@ export interface WorkspaceFile {
   /** ADR-406 D2: the head revision this content reflects — hold it as the
    *  editing base and send it back via editFile's expectedHeadVersionId. */
   head_version_id?: string | null;
+  /**
+   * ADR-643 D3 — this viewer's decision for this path, served by the decider
+   * (`api/services/access.py`). The editor reads `may_edit_as_prose` to decide
+   * whether to accept a keystroke.
+   *
+   * ⚠️ `undefined` means UNKNOWN, never "allowed" — the client offers the act
+   * and the door refuses. Optional because a decoration failure must degrade
+   * to asking, never to a 500 on a read.
+   */
+  access?: AccessDecision | null;
 }
 
 /** ADR-209 Phase 4 + ADR-266 D7: minimal revision metadata surfaced in

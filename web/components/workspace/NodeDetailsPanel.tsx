@@ -39,7 +39,6 @@ import {
   formatAuthorLabelOrSystem as formatAuthorLabel,
   authorAccent,
 } from '@/lib/workspace/attribution';
-import { operatorCanOrganize, organizeBlockedReason } from '@/lib/workspace/ownership';
 import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
 import { resolveHandlers } from '@/lib/file-types/handlers';
 import { CopyField } from '@/components/workspace/CopyField';
@@ -216,7 +215,9 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
     return () => { cancelled = true; };
   }, [node.path]);
 
-  const canOrganize = operatorCanOrganize(node.path);
+  // ADR-643 D3 — the served decision. Unknown reads as permitted: Get Info
+  // then describes what the operator may TRY, and the door answers honestly.
+  const canOrganize = node.access?.may_organize !== false;
   const kind = describeKind(node.path);
   // ADR-587: the file's NAME, not the folder it sits in. This row previously
   // stripped the filename (`replace(/\/[^/]*$/, '')`) and rendered the parent
@@ -266,7 +267,7 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
         ) : (
           <span className="inline-flex flex-col gap-0.5">
             <span className="text-[11px] text-foreground/80">read it · edit via chat</span>
-            <span className="text-[10px] text-muted-foreground">{organizeBlockedReason(node.path).body}</span>
+            <span className="text-[10px] text-muted-foreground">{node.access?.reason ?? 'This item is managed by the system.'}</span>
           </span>
         )}
       </PropRow>

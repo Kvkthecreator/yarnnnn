@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, FolderOpen, Loader2, MoreHorizontal, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { isTextEditable } from '@/lib/file-types';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
@@ -87,7 +88,11 @@ export default function TextSurface() {
           const p = r.path || '';
           const leaf = leafOf(p);
           if (!PROSE_RE.test(leaf) || leaf.startsWith('_') || seen.has(p)) continue;
-          if (p.includes('/inbound/')) continue; // arrivals are records, not documents
+          // ADR-643 D4 — the same carve set the Text door composes. This
+          // filtered arrivals but not `system/`, so a mirrored kernel
+          // SKILL.md could surface here as a Recents card and open in a
+          // canvas that refused every save.
+          if (!isTextEditable(p)) continue;
           seen.add(p);
           rows.push(r);
         }

@@ -37,14 +37,22 @@ interface MoveToFolderModalProps {
    *  nothing until the first Move-open, and gets an honest "Looking…" while it
    *  loads instead of a premature "no folders". */
   roots?: WorkspaceTreeNode[];
-  /** True iff the operator may organize into this destination path. */
-  canOrganize: (path: string) => boolean;
+  /**
+   * True iff THIS VIEWER may create something in this destination (ADR-643 D3).
+   *
+   * Takes the NODE, not a path: the answer rides the row as `may_place`, served
+   * by the decider. It used to take a path and re-derive the carve law in
+   * TypeScript, which could only express a path-SHAPE rule — so it offered a
+   * member `constitution/` as a destination, true for the owner and false for
+   * them.
+   */
+  canPlace: (node: WorkspaceTreeNode) => boolean;
   onClose: () => void;
   /** Called with the chosen destination FOLDER path. */
   onMove: (destFolder: string) => void | Promise<void>;
 }
 
-export function MoveToFolderModal({ target, roots, canOrganize, onClose, onMove }: MoveToFolderModalProps) {
+export function MoveToFolderModal({ target, roots, canPlace, onClose, onMove }: MoveToFolderModalProps) {
   // The file's current parent — moving there is a no-op, so reject it.
   const currentParent = useMemo(
     () => (target ? target.path.slice(0, target.path.lastIndexOf('/')) : null),
@@ -68,11 +76,27 @@ export function MoveToFolderModal({ target, roots, canOrganize, onClose, onMove 
   const isInsideSelf = (path: string) =>
     !!selfPrefix && (path === target.path.replace(/\/+$/, '') || path.startsWith(selfPrefix));
 
-  // A folder is selectable iff the operator can organize into it, it's not the
+  // ADR-643 D3 — the destinations THIS VIEWER may not place into, gathered
+  // from the rows the picker was handed. `canConfirm` is given only a path by
+  // `WorkspacePicker`, and widening that contract to pass a node would push a
+  // permission concern into a generic picker; a path set keeps the knowledge
+  // here, where the rows are.
+  const blocked = useMemo(() => {
+    const out = new Set<string>();
+    const walk = (nodes?: WorkspaceTreeNode[]) => {
+      for (const n of nodes ?? []) {
+        if (n.type === 'folder' && !canPlace(n)) out.add(n.path);
+        walk(n.children);
+      }
+    };
+    walk(roots);
+    return out;
+  }, [roots, canPlace]);
+
+  // A folder is selectable iff this viewer may place into it, it's not the
   // target's current parent, and it is not the target itself or inside it.
-  // Probe organize-reach with a synthetic child path.
   const folderSelectable = (node: WorkspaceTreeNode) =>
-    canOrganize(`${node.path}/x`) && node.path !== currentParent && !isInsideSelf(node.path);
+    canPlace(node) && node.path !== currentParent && !isInsideSelf(node.path);
 
   return (
     <WorkspacePickerModal
@@ -89,12 +113,12 @@ export function MoveToFolderModal({ target, roots, canOrganize, onClose, onMove 
           ? `${target.isFolder ? 'The folder' : 'The file'} is already here`
           : isInsideSelf(node.path)
             ? 'A folder can’t be moved inside itself'
-            : !canOrganize(`${node.path}/x`)
+            : !canPlace(node)
               ? 'This folder is managed by the system'
               : undefined
       }
       canConfirm={(sel) =>
-        sel !== currentParent && canOrganize(`${sel}/x`) && !isInsideSelf(sel)
+        sel !== currentParent && !blocked.has(sel) && !isInsideSelf(sel)
       }
       footerHint={(sel) =>
         sel ? (

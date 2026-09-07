@@ -66,18 +66,66 @@ def test_inbound_normalization_matches_backend():
 
 # ── FE-mirror agreement: the carve constant is documented as shared ──────────
 
-def test_fe_mirror_carve_documented():
-    """The FE mirror (web/lib/workspace/ownership.ts) must carve inbound/ too —
-    a guard so a future edit to the backend carve remembers the FE lockstep.
-    We can't run TS here; we assert the FE file names the inbound/ carve (the
-    SAME lockstep the system/ + machine-config carves already have)."""
+def test_the_carve_reaches_the_client_without_a_mirror():
+    """RE-POINTED 2026-09-07 (ADR-643 D3). This asserted that
+    `web/lib/workspace/ownership.ts` carved `inbound/` too — a guard so a
+    future edit to the backend carve remembered the FE lockstep.
+
+    ⭐⭐⭐ THE MIRROR IS DELETED, AND THE LOCKSTEP IT GUARDED IS NOW STRUCTURAL.
+    The client no longer re-derives the carve law at all: the server serves its
+    decision per row (`services/access.py` → `access.code`) and the FE reads
+    it. A served decision cannot fall out of lockstep, because it IS the
+    decider's output — which is a stronger guarantee than this test could give,
+    since a mirror is only ever faithful to the rule as it stood when someone
+    last looked.
+
+    So the property to guard changed shape: the RAW-INTAKE distinction must
+    still survive the trip to the client, and it must still spare the human
+    upload lane (ADR-395). Asserted by EXECUTION rather than by grepping a
+    TypeScript file.
+    """
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from services import access
+    from services.primitives import workspace as wsp
+
+    auth = SimpleNamespace(
+        user_id="u1", principal_id="u1", workspace_id="w1",
+        caller_identity="operator", freddie_caller=False, client=None,
+    )
+    with patch.object(
+        wsp, "_lookup_grant_axes",
+        lambda a: {"read": None, "write": None, "role": "owner"},
+    ):
+        raw = access.access_summary(auth, "/workspace/inbound/slack/a.md")
+        upload = access.access_summary(auth, "/workspace/inbound/uploads/kv/note.md")
+
+    assert raw["code"] == "raw_intake", (
+        "the inbound/ carve no longer reaches the client as `raw_intake` — "
+        "ADR-422 D2's distinction is invisible to every surface that reads it"
+    )
+    assert raw["may_organize"] is False
+    assert raw["reason"], "a raw-intake refusal owes the member a sentence"
+    # The twin that makes the above non-vacuous: a blanket inbound/ refusal
+    # would satisfy it and be wrong (ADR-395 — the operator owns their uploads).
+    assert upload["may_organize"] is True, (
+        "inbound/uploads/ is the HUMAN raw lane and stays organizable"
+    )
+
+
+def test_the_deleted_mirror_stays_deleted():
+    """⚠️ A re-added `ownership.ts` would be a second source of truth about a
+    rule the client is now TOLD. If someone needs a client-side answer, they
+    need a served field, not a copy of the rule."""
     import os
+
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     fe = os.path.join(here, "web", "lib", "workspace", "ownership.ts")
-    with open(fe, encoding="utf-8") as f:
-        src = f.read()
-    assert "inbound/" in src, "FE ownership.ts must carve inbound/ (ADR-422 D2 lockstep)"
-    assert "ADR-422" in src, "FE ownership.ts must cite ADR-422 for the inbound/ carve"
+    assert not os.path.exists(fe), (
+        "web/lib/workspace/ownership.ts is back — the client re-deriving the "
+        "carve law is exactly what ADR-643 D3 deleted; serve a field instead"
+    )
 
 
 def test_fe_legibility_helper_exists():

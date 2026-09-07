@@ -247,3 +247,104 @@ def test_the_singularity_check_is_not_vacuous():
         "the literal extraction can no longer see a hard-coded root, so the "
         "singularity check above is vacuous"
     )
+
+
+# ---------------------------------------------------------------------------
+# 6. D3 — the decision is SERVED, so the client need not re-derive it
+# ---------------------------------------------------------------------------
+
+def test_the_tree_and_file_payloads_carry_the_decision():
+    """Wiring, by AST — a decider nothing calls is a decider nothing uses."""
+    import ast
+    import pathlib
+
+    src = pathlib.Path(__file__).parent.joinpath("routes/workspace.py").read_text()
+    tree = ast.parse(src)
+
+    def calls(fn_name):
+        for n in ast.walk(tree):
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == fn_name:
+                out = set()
+                for c in ast.walk(n):
+                    if isinstance(c, ast.Call):
+                        f = c.func
+                        out.add(f.id if isinstance(f, ast.Name) else getattr(f, "attr", ""))
+                return out
+        raise AssertionError(f"{fn_name} not found")
+
+    assert "_decorate_access" in calls("get_workspace_tree"), (
+        "the tree no longer decorates its nodes — the client is back to "
+        "guessing, which is what ADR-643 D3 deleted the TS mirror to prevent"
+    )
+    assert "_access_or_none" in calls("get_workspace_file"), (
+        "GET /workspace/file no longer serves `access`, so the Text editor "
+        "cannot know whether to accept a keystroke (ADR-643 D4)"
+    )
+    assert "_may_place" in calls("get_workspace_roots"), (
+        "the roots payload no longer answers the placement question, so the "
+        "folder pickers have nothing to read"
+    )
+
+
+def test_the_served_summary_degrades_to_unknown_never_to_allowed():
+    """⚠️ THE SAFETY DIRECTION. A decoration failure must produce NO decision,
+    which the client reads as "ask the server" — never a decision that says
+    yes. `_access_or_none` returning `{}` or a permissive dict would turn a
+    logging failure into a permission failure."""
+    import ast
+    import pathlib
+
+    src = pathlib.Path(__file__).parent.joinpath("routes/workspace.py").read_text()
+    tree = ast.parse(src)
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_access_or_none":
+            handlers = [h for h in ast.walk(n) if isinstance(h, ast.ExceptHandler)]
+            assert handlers, "_access_or_none no longer degrades at all"
+            for h in handlers:
+                returns = [r for r in ast.walk(ast.Module(body=h.body, type_ignores=[]))
+                           if isinstance(r, ast.Return)]
+                assert returns, "the handler swallows without returning"
+                for r in returns:
+                    assert isinstance(r.value, ast.Constant) and r.value.value is None, (
+                        "a failed decision must degrade to None (unknown), never "
+                        "to a dict the client could read as permission"
+                    )
+            return
+    raise AssertionError("_access_or_none not found")
+
+
+# ---------------------------------------------------------------------------
+# 7. D5 — the composition is not re-admitted by a prefix
+# ---------------------------------------------------------------------------
+
+def test_system_is_not_re_admitted_by_the_prefix_list():
+    """⭐⭐⭐ `editable_prefixes` used to name `/workspace/system/` and be OR'd
+    with the carve law, re-admitting one line after the rejection. The write
+    was still refused, but only because CALLER_WRITE_POLICY happens to lock
+    system/ for every class — **a refusal that works by accident is not a
+    decision**, and an explicit `write_scopes` grant naming system/ would have
+    made it live."""
+    import pathlib
+
+    src = pathlib.Path(__file__).parent.joinpath("routes/workspace.py").read_text()
+    start = src.index("editable_prefixes = [")
+    listing = src[start:src.index("]", start)]
+    assert "/workspace/system/" not in listing, (
+        "`/workspace/system/` is back in editable_prefixes — the kernel root "
+        "is the declared operator write-lock (ADR-320), and this list is OR'd "
+        "with the carve law that rejects it"
+    )
+
+
+def test_the_prefix_check_is_not_vacuous():
+    """The twin: the list must still hold the entries it legitimately carries,
+    or the check above passes over a list someone emptied."""
+    import pathlib
+
+    src = pathlib.Path(__file__).parent.joinpath("routes/workspace.py").read_text()
+    start = src.index("editable_prefixes = [")
+    listing = src[start:src.index("]", start)]
+    assert "/workspace/uploads/" in listing and "/workspace/context/" in listing, (
+        "editable_prefixes lost its legitimate entries, so the system/ check "
+        "above is asserting over nothing"
+    )

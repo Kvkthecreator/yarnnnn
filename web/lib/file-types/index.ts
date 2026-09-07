@@ -279,14 +279,54 @@ export function knownKind(path: string): string | undefined {
  *  now qualifies: the Text app claims the class by EXTENSION, so no content
  *  read is needed for it, but it must pass this gate to reach the claim at
  *  all — `openPath` consults `resolveSurfaceApplication` only past here. */
+/**
+ * The SHAPE carves that are true for every principal (ADR-643 D4).
+ *
+ * ⚠️ This is deliberately the WEAK half of the access rule, and it is here
+ * only because routing runs on a bare path — the decision rides a ROW, and
+ * `resolveSurfaceApplication` is called during listing construction, before a
+ * row's decision is in hand. The per-principal question is answered by the
+ * server and read by the editor (`access.may_edit_as_prose`), which is what
+ * renders a canvas read-only.
+ *
+ * ⭐⭐⭐ THE `system/` CARVE IS THE POINT. This function's comment used to claim
+ * its exclusions "mirror the member write door exactly" while implementing two
+ * of that door's THREE carves — so twelve mirrored `system/skills/…/SKILL.md`
+ * files and three kernel prose files routed to an always-editable canvas that
+ * 403'd every save. Adding the third carve is what makes the claim true.
+ */
+export function isShapeCarved(p: string): boolean {
+  const rel = p.replace(/^\/+/, '').replace(/^workspace\//, '');
+  if (rel.startsWith('system/')) return true;
+  // ADR-422 D2 — raw intake is retained exactly as it arrived. The human
+  // upload lane (ADR-395) is NOT carved: the operator owns what they uploaded.
+  if (rel.startsWith('inbound/') && !rel.startsWith('inbound/uploads/')) return true;
+  return false;
+}
+
+/**
+ * May this path open in the Text editor AT ALL (ADR-643 D4)?
+ *
+ * The SHAPE half only — format class plus the carves true for everyone.
+ * Whether THIS VIEWER may type is `access.may_edit_as_prose`, served per row.
+ * Exported so no caller re-spells the rule: TextSurface's Recents filter had
+ * its own copy, and it omitted the same `system/` carve the router did.
+ */
+export function isTextEditable(path: string): boolean {
+  const leaf = (path.split('/').pop() || path).toLowerCase();
+  return PROSE_EXT_RE.test(leaf) && !leaf.startsWith('_') && !isShapeCarved(path);
+}
+
 export function isArtifactCandidate(path: string, contentType?: string): boolean {
   const p = path.toLowerCase();
   const t = (contentType || '').toLowerCase();
   const isHtml = p.endsWith('.html') || p.endsWith('.htm') || t.includes('text/html');
-  const isArrival = p.includes('/inbound/') || p.startsWith('inbound/');
+  // ADR-643 D4 — the SAME carve set the write door composes, `system/`
+  // included. (`isShapeCarved` covers the arrival check this line used to
+  // spell out inline.)
   const leaf = p.split('/').pop() || p;
   const isProse = PROSE_EXT_RE.test(leaf) && !leaf.startsWith('_');
-  return (isHtml || isProse) && !isArrival;
+  return (isHtml || isProse) && !isShapeCarved(p);
 }
 
 /** The artifact's declared document type — its root `data-template` (ADR-459
@@ -335,17 +375,17 @@ export function resolveSurfaceApplication(
   // (inbound/): a retained observation is a record to preview, not an
   // authoring canvas (ADR-451 D1).
   const isHtml = p.endsWith('.html') || p.endsWith('.htm') || t.includes('text/html');
-  const isArrival = p.includes('/inbound/') || p.startsWith('inbound/');
+  const carved = isShapeCarved(p);
   // ADR-571 D2 — the PROSE class is claimed by the Text app, the same way
   // .html is claimed by an authoring app. The two exclusions mirror the
   // member write door exactly (ADR-570 D4): an arrival is a retained
   // observation, and an `_`-prefixed leaf is machine-tended state, so
   // neither opens in an editor. Preview stays one Open With away.
   const leaf = p.split('/').pop() || p;
-  if (PROSE_EXT_RE.test(leaf) && !isArrival && !leaf.startsWith('_')) {
+  if (PROSE_EXT_RE.test(leaf) && !carved && !leaf.startsWith('_')) {
     return appSurfaces().text;
   }
-  if (!isHtml || isArrival) return null;
+  if (!isHtml || carved) return null;
   // ADR-473 D2: the OWNING app comes from the artifact's declared type. The
   // ADR-451 hardcode (every html → Studio) is replaced, not supplemented —
   // it would send an IMAGES stage into Studio.

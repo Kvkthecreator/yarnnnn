@@ -56,7 +56,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { EditorSelection, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
+import { Compartment, EditorSelection, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -1580,9 +1580,27 @@ export function ProseCanvas({
   handleRef,
   zoom = 1,
   className,
+  readOnly = false,
 }: {
   value: string;
   onChange: (next: string) => void;
+  /**
+   * ADR-643 D4 — refuse keystrokes this viewer's grant does not permit.
+   *
+   * ⭐⭐ THIS AMENDS ADR-572 D8, IT DOES NOT OVERTURN IT. There is still ONE
+   * canvas and there are still no MODES: the member never toggles anything,
+   * and nothing is hidden behind a state the surface does not open in. This is
+   * a fact ABOUT THE FILE, served per viewer (`access.may_edit_as_prose`),
+   * exactly like the content itself.
+   *
+   * Why it must exist: the canvas is a CONTINUOUS affordance. Before this, a
+   * member could open a kernel document, type into it, and learn two seconds
+   * later at autosave that every keystroke was refused — a raw error string
+   * after the work. An organize verb at least fails once, immediately, with a
+   * sentence. `studio.py` records this same split-brain as already-fixed for
+   * Studio; it was reproduced here verbatim.
+   */
+  readOnly?: boolean;
   /** The `/` run behind the caret, or null when there is none (D14). */
   onSlashRun?: (run: SlashRun | null) => void;
   /**
@@ -1599,6 +1617,11 @@ export function ProseCanvas({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  // ADR-643 D4 — read-only rides a COMPARTMENT, not the extension list. The
+  // list is memoised on `[]` so the EditorState survives parent re-renders
+  // (rebuilding it drops the caret); a compartment lets the decision change
+  // when the viewer opens a different file WITHOUT remounting the view.
+  const readOnlyComp = useRef(new Compartment());
   // The change handler is read through a ref so the extension list stays
   // stable — rebuilding the EditorState on every render would drop the caret.
   const onChangeRef = useRef(onChange);
@@ -1650,6 +1673,14 @@ export function ProseCanvas({
       imageField,
       collapseOnLeave,
       PROSE_THEME,
+      // Both flags, deliberately: `readOnly` refuses transactions, `editable`
+      // drops `contenteditable` so the browser gives no caret at all. Setting
+      // only the first leaves a blinking caret that silently eats keystrokes,
+      // which is the confusion this is meant to end.
+      readOnlyComp.current.of([
+        EditorState.readOnly.of(false),
+        EditorView.editable.of(true),
+      ]),
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       EditorView.updateListener.of((u) => {
@@ -1879,6 +1910,22 @@ export function ProseCanvas({
    * compare against what this canvas last emitted rather than against the doc,
    * so an echo of our own text is recognised and ignored.
    */
+  // ADR-643 D4 — reconfigure the read-only compartment when the decision
+  // changes. It changes when the viewer opens a DIFFERENT file, and the view
+  // is mounted once for the surface's lifetime, so this cannot be a mount-time
+  // constant: a canvas that read the flag only at mount would stay editable
+  // after navigating from a writable document to a kernel one.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: readOnlyComp.current.reconfigure([
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
+      ]),
+    });
+  }, [readOnly]);
+
   // External changes (a load, a lane write, a conflict resolution) are pushed
   // in as a transaction — never by recreating the state, which would lose the
   // caret and the undo history.

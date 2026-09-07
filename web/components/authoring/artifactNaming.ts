@@ -1,4 +1,3 @@
-import { operatorCanOrganize } from '@/lib/workspace/ownership';
 
 /**
  * artifactNaming — the FE mirror of ADR-459 D2's naming rule.
@@ -68,7 +67,19 @@ export function isArtifactRegion(folder: string): boolean {
  *  the call sites, so the create-placement gate has ONE home to change if the
  *  law moves again — the fence has now moved twice. */
 export function canCreateFileIn(folder: string): boolean {
-  return operatorCanOrganize(`${folder.replace(/\/+$/, '')}/x`);
+  // ADR-643 D3 — the ONE place a path-shape probe survives on the client.
+  //
+  // This is asked while the operator TYPES a destination that may not exist
+  // yet, so there is no row to carry a decision and nothing to ask the server
+  // about. It is deliberately the WEAK half of the rule: the shape carves that
+  // are true for everyone, never the per-principal question. The create door
+  // consults the principal (`_assert_principal_may_organize`) and refuses if
+  // it must, so the worst this can do is offer a destination that is then
+  // honestly declined — the Windows-Explorer model, not a permission decision.
+  const rel = folder.replace(/^\/+/, '').replace(/^workspace\//, '').replace(/\/+$/, '');
+  if (rel.startsWith('system/') || rel === 'system') return false;
+  if (rel.startsWith('inbound/') && !rel.startsWith('inbound/uploads/')) return false;
+  return true;
 }
 
 /**

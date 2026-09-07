@@ -101,7 +101,13 @@ interface WorkspaceTreeProps {
    */
   onDropFiles?: (files: File[], folder: { path: string; name: string }) => void;
   /** True iff the operator may organize `path` — gates droppable. */
-  canOrganize?: (path: string) => boolean;
+  /**
+   * ADR-643 D3 — may this viewer place something in this folder row? The tree
+   * asks ONLY the drop-target question, so it takes the NODE and reads the
+   * served `may_place`. It used to take a path and probe a re-derived carve
+   * law with a synthetic `${path}/x` child.
+   */
+  canOrganize?: (node: WorkspaceTreeNode) => boolean;
 }
 
 /**
@@ -238,7 +244,7 @@ export function WorkspaceTree({ nodes, viewPath, onNavigate, verbs, onMoveByDrag
 }
 
 interface DndBundle {
-  canOrganize: (path: string) => boolean;
+  canOrganize: (node: WorkspaceTreeNode) => boolean;
   dropTarget: string | null;
   setDropTarget: (path: string | null) => void;
   onDrop: (fromPath: string, destFolder: string) => void;
@@ -287,7 +293,7 @@ function TreeItem({ node, depth, shownFolder, onNavigate, onContextMenu, dnd }: 
   // organize into it — probed with a synthetic child path. There is no
   // `draggable` half any more: the tree holds no files, so it is a
   // destination only.
-  const isDropTarget = !!dnd && dnd.canOrganize(`${node.path}/x`);
+  const isDropTarget = !!dnd && dnd.canOrganize(node);
   const isDropHover = !!dnd && dnd.dropTarget === node.path;
 
   const dropProps = isDropTarget && dnd

@@ -50,7 +50,6 @@ import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { relPath as workspaceRelPath } from '@/lib/interop/fileHandle';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
-import { operatorCanOrganize } from '@/lib/workspace/ownership';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import type { WorkspaceTreeNode, WorkspaceFile, FileClickIntent } from '@/types';
@@ -117,7 +116,14 @@ interface ContentViewerProps {
  * object rather than a closure per row.
  */
 export interface ListingDnd {
-  canOrganize: (path: string) => boolean;
+  /**
+   * ADR-643 D3 — reads the served facts off the row. Two DIFFERENT questions:
+   * may I pick this file UP (its own decision) versus may I put something DOWN
+   * in this folder (the folder's `may_place`). The deleted TypeScript mirror
+   * could only ever answer one of them, with a path-shape rule.
+   */
+  canOrganize: (node: DndChild) => boolean;
+  canPlace: (node: DndChild) => boolean;
   dropTarget: string | null;
   setDropTarget: (path: string | null) => void;
   onDropPath: (fromPath: string, destFolder: string) => void;
@@ -137,11 +143,19 @@ export interface ListingDnd {
  *  thing being moved) but a drop target cannot, and a fan-out that chases its
  *  own tail is the wrong thing to discover by accident. When the drag path grows
  *  a containment guard, this line comes off. */
-function tileDnd(dnd: ListingDnd, child: { path: string; type?: string }) {
+type DndChild = {
+  path: string;
+  type?: string;
+  // ADR-643 D3 — the served facts the two drag questions read.
+  access?: { may_organize: boolean } | null;
+  may_place?: boolean;
+};
+
+function tileDnd(dnd: ListingDnd, child: DndChild) {
   const isFolder = child.type === 'folder';
   return {
-    draggable: !isFolder && dnd.canOrganize(child.path),
-    droppable: isFolder && dnd.canOrganize(`${child.path}/x`),
+    draggable: !isFolder && dnd.canOrganize(child),
+    droppable: isFolder && dnd.canPlace(child),
     isDropTarget: dnd.dropTarget === child.path,
     setDropTarget: dnd.setDropTarget,
     onDropPath: dnd.onDropPath,
@@ -454,7 +468,9 @@ const formatHeadAuthor = formatAuthorLabel;
 // operator can organize (the shared mirror of the backend gate). Optimistic:
 // the backend is authoritative; the button just doesn't offer a verb that will
 // always 403 (system/ + machine-config).
-const isOperatorDeletable = operatorCanOrganize;
+// ADR-643 D3 — the served decision; unknown reads as permitted (offer the
+// act, let the door answer).
+const isOperatorDeletable = (node: DndChild) => node.access?.may_organize !== false;
 
 function FileView({
   path,
@@ -514,7 +530,9 @@ function FileView({
     }
   };
 
-  const isDeletable = isOperatorDeletable(path);
+  // ADR-643 D3 — the viewer's own row carries the decision. `file` is the
+  // fetched payload, which now serves `access` (FileResponse).
+  const isDeletable = isOperatorDeletable({ path, access: file?.access ?? null });
 
   if (loading) {
     return (
