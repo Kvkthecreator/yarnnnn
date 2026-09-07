@@ -135,6 +135,16 @@ The server rasterizer (`POST /api/images/render`, `render.py`, the `RenderBacken
 
 **The moat survives the deletion, which is why it is safe.** D5 argued render must be server-side so "this PNG is a derivation of revision X" is a *fact*, not a client's *claim*. But the provenance was always in the **composition**, not the export: `trace` walks the layered, attributed source; the flat PNG is a convenience artifact for the outside world (Instagram does not read our ledger). A client-side download therefore loses nothing the moat depends on. If a member ever wants the *export itself* recorded, the browser can POST the bytes back as a `revision_kind="derivation"` — the same write the server path did, sourced from the client — but that is opt-in, not required, and not built at launch.
 
+> **Built 2026-09-07.** The opt-in is `POST /api/images/export`: the browser rasterizes as
+> before, and a second Export action — *Save PNG to workspace* beside *Download PNG* — POSTs the
+> same bytes back. They land through `write_revision` at **`{artboard folder}/exports/{stem}.png`**
+> as `revision_kind="derivation"` with `derived_from=[the artboard]`, so `trace` walks from the flat
+> picture to the layered source and Files warns before the artboard is deleted from under it. The
+> path is STABLE across re-exports (a new revision, never a second file), which is what lets a
+> markdown document cite it — `![alt](…/exports/x.png)` (ADR-572 D17) — and keep resolving. Why
+> now: until this, the artboard's raster never entered the workspace, so "make an image, put it in
+> a document" was unbuildable by construction. The server still never rasterizes (§13 stands).
+
 **Built (2026-07-22): client-side PNG export, IMAGES only.** The premise that a rasterizer must run *inside* the sandboxed canvas iframe turned out false — the sandbox (`allow-scripts` only) is a boundary the parent cannot reach, but the parent does not need to reach it. Export re-projects the artifact into its OWN off-screen, un-sandboxed container (the exact technique `exportPrint` already uses for Print/PDF: `resolveArtifactHtml` resolves citations and strips executables, then the resolved body is mounted and rasterized). So there is no library inside the runtime and no security-boundary crossing.
 
 The canvas-taint problem is solved without depending on bucket CORS: a cited raster binary resolves to a cross-origin Supabase *signed URL* (`projection.resolveOne`), and drawing a cross-origin image onto a canvas taints it. The export pass **re-fetches every such `<img>`/`background-image` as a blob and swaps it for a same-origin `data:` URI before rasterizing** — a `fetch()` carries the signed URL fine, and a data URI never taints. (SVG/CSV citations already resolve to data URIs upstream.) The rasterizer is `html-to-image` (`toPng`, `pixelRatio: 2` at the stage's `data-w`/`data-h`), dynamically imported so it stays out of the initial bundle. Files: `web/components/workspace/viewers/rasterExport.ts`, wired through `exportVerbs.exportPng` (present only when `app.slug === 'images'`).

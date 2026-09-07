@@ -112,6 +112,31 @@ check(
     "2c the posture forbids Studio machinery (plain markdown, whole writes)",
     "no HTML" in _posture and "no block ids" in _posture,
 )
+# ADR-572 D17/D18 ruled how markdown refers to things — image by path, a
+# mermaid fence, a CSV as a snapshot under a provenance line — and shipped
+# them as TOOLBAR doors. Nothing told the LANE. Measured 2026-09-07: two bound
+# Text runs retyped a CSV's figures with the source uncited — the toolbar's own
+# snapshot shape minus the one line that makes it a citation (the `.html`
+# grammar is a kernel constant; the `.md` grammar lived in three FE functions).
+check(
+    "2d the posture teaches the THREE markdown reference forms — image by "
+    "workspace path, a mermaid fence, a CSV snapshot under a provenance line "
+    "(ADR-572 D17/D18) — with the consequence stated, not just the rule",
+    all(s in _posture for s in ("![alt](", "```mermaid", "_From `", "snapshot", "IS the citation")),
+)
+check(
+    "2e the posture refuses the HTML citation — a data-ref in a .md is inert "
+    "(no projection pass ever reads one; ADR-590 D5)",
+    "data-ref" in _posture and "inert" in _posture,
+)
+# The posture's first byte ceiling. Ratchet, not a budget to grow into: raising
+# it needs the same evidence as adding a bullet (CLAUDE.md, Prompt Change
+# Protocol). Measured 1,933 at ship (2026-09-07, empty head).
+TEXT_POSTURE_CEILING = 2_100
+check(
+    f"2f the posture stays under its ceiling ({len(_posture)} <= {TEXT_POSTURE_CEILING})",
+    len(_posture) <= TEXT_POSTURE_CEILING,
+)
 
 
 # ── 3. the surface is navigable, BE and FE agree ─────────────────────────
@@ -2030,12 +2055,91 @@ check("17f BOTH doors RENDER the new kinds — the toolbar and `/` are two doors
       f"toolbar={sorted(_toolbar_kinds)} slash={sorted(_slash_kinds)}")
 
 _renderer = (WEB / "components" / "shared" / "MarkdownRenderer.tsx").read_text(encoding="utf-8")
-check("17g the renderer RESOLVES a workspace image path — the CAS serving URL "
-      "is minted with a 1-hour TTL (ADR-427 D4), so it cannot be written into "
-      "the document; the `.md` keeps the portable PATH and the viewer mints "
-      "its own access per read",
-      "MarkdownImage" in _renderer and "blobUrl" in _renderer,
-      "an image path would render as a broken <img>")
+_resolver = (WEB / "lib" / "workspace" / "imageUrl.ts").read_text(encoding="utf-8")
+_canvas_src = (WEB / "components" / "text" / "ProseCanvas.tsx").read_text(encoding="utf-8")
+# ⭐ ADR-590 D5 — this check used to assert `MarkdownImage` + `blobUrl` in
+# MarkdownRenderer, and it was GREEN for three weeks while the canvas — the ONE
+# surface since D8, demoted the renderer to thumbnail + print the day before
+# D17 shipped — drew no image at all (prod-verified 2026-09-07: `<img>` count
+# 0). A gate that names a component proves the component, not the surface.
+# So: ONE resolver, reached by BOTH faces, and the canvas is MOUNTED in 17h.
+check("17g ONE resolver for a workspace image path (the CAS serving URL is "
+      "minted per read, ADR-427 D4 — the `.md` keeps the portable PATH), "
+      "REACHED by both faces and defined in neither",
+      "export async function resolveWorkspaceImageUrl" in _resolver
+      and "blobUrl" in _resolver
+      and "resolveWorkspaceImageUrl" in _renderer and "blobUrl" not in _renderer
+      and "resolveWorkspaceImageUrl" in _canvas_src and "blobUrl" not in _canvas_src,
+      "resolution is duplicated or one face does not reach it")
+
+_IMAGE_PROBE = r"""
+const fs = require('fs'); const path = require('path');
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+require.extensions['.tsx'] = require.extensions['.ts'] = function (m, f) {
+  m._compile(transform(fs.readFileSync(f,'utf8'),{transforms:['typescript','jsx','imports'],jsxRuntime:'automatic',production:true}).code, f);
+};
+const Module = require('module'); const orig = Module._resolveFilename;
+Module._resolveFilename = function (r, ...a) {
+  if (r.startsWith('@/')) { const b = path.join(WEB, r.slice(2));
+    for (const e of ['', '.tsx', '.ts']) { try { return orig.call(this, b + e, ...a); } catch (x) {} } }
+  return orig.call(this, r, ...a);
+};
+const { JSDOM } = require(WEB + '/node_modules/jsdom');
+const dom = new JSDOM('<!doctype html><body><div id="h"></div></body>', { pretendToBeVisual: true });
+const def = (k, v) => Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+for (const k of ['window','document','HTMLElement','Element','Node','Range','DOMParser',
+                 'getComputedStyle','requestAnimationFrame','cancelAnimationFrame','MutationObserver'])
+  def(k, dom.window[k]);
+def('navigator', dom.window.navigator);
+def('ResizeObserver', class { observe(){} unobserve(){} disconnect(){} });
+const React = require(WEB + '/node_modules/react');
+const { ProseCanvas } = require(WEB + '/components/text/ProseCanvas.tsx');
+const host = dom.window.document.getElementById('h');
+// The D17 insert shape (an image on its own line) AND an image inside a
+// sentence — both must draw a picture; neither may leak a data-* into the doc.
+const src = '# Title\n\n![A laptop](marketing/assets/laptop.png)\n\nSee the ![icon](marketing/assets/icon.png) inline.\n';
+const { createRoot } = require(WEB + '/node_modules/react-dom/client');
+def('IS_REACT_ACT_ENVIRONMENT', true);
+const { act } = require(WEB + '/node_modules/react');
+act(() => { createRoot(host).render(React.createElement(ProseCanvas, { value: src, onChange: () => {} })); });
+const html = host.innerHTML;
+const content = host.querySelector('.cm-content');
+const imgs = Array.from(content.querySelectorAll('img')).filter((i) => !i.classList.contains('cm-widgetBuffer'));
+const out = {
+  block_figure: !!host.querySelector('figure.cm-mdImage'),
+  inline_span: !!host.querySelector('span.cm-mdImage.cm-mdImageInline'),
+  real_imgs: imgs.length,
+  alts: imgs.map((i) => i.getAttribute('alt')),
+  caption: (host.querySelector('.cm-mdImageCaption') || {}).textContent || null,
+  edit_affordance: !!host.querySelector('figure.cm-mdImage .cm-mdImageEdit'),
+  source_hidden: !html.includes('](marketing/assets/laptop.png)'),
+  no_data_attrs: !/data-block|data-ref|data-mark/.test(html),
+};
+process.stdout.write(JSON.stringify(out));
+"""
+try:
+    _d17h = json.loads(
+        subprocess.run(
+            ["node", "-e", _IMAGE_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            capture_output=True, text=True, timeout=180, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gate
+    _d17h = {"error": str(exc)}
+check("17h the CANVAS draws the image — a real <img> for the block form and "
+      "the inline form, the source line hidden behind it (ADR-590 D5; the "
+      "surface, not the component)",
+      _d17h.get("real_imgs") == 2 and _d17h.get("block_figure") is True
+      and _d17h.get("inline_span") is True and _d17h.get("source_hidden") is True,
+      str(_d17h)[:300])
+check("17h1 the block form is a FIGURE: alt as its caption, and the shared edit "
+      "affordance (D3's declared gesture, never the caret)",
+      _d17h.get("caption") == "A laptop" and _d17h.get("edit_affordance") is True
+      and _d17h.get("alts") == ["A laptop", "icon"],
+      str(_d17h)[:300])
+check("17h2 the widget writes NOTHING into the document (ADR-456 D1 holds)",
+      _d17h.get("no_data_attrs") is True, str(_d17h)[:300])
 
 
 # ── 18. ADR-572 D18 — a CSV table is a SNAPSHOT, and the rows are in the file ──

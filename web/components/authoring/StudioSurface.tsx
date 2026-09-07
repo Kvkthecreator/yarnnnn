@@ -3576,6 +3576,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     await exportArtifactPng(file.content, artifactPath, artifactDisplayName);
   }, [file, artifactPath]);
 
+  // ADR-475 §13's opt-in, built (2026-09-07): the same raster, landed IN the
+  // workspace beside the artboard as a derivation of it. Resolves to the path
+  // so the Export panel can say where it went — and how a document cites it.
+  const savePng = useCallback(async () => {
+    if (!file?.content || !artifactPath) throw new Error('No artifact open');
+    const { saveArtifactPng } = await import(
+      '@/components/workspace/viewers/rasterExport'
+    );
+    return saveArtifactPng(file.content, artifactPath);
+  }, [file, artifactPath]);
+
   // The AI-native reference (ADR-512 D5): the canonical yarnnn://workspace/…
   // handle any connected LLM resolves with the interop `open` verb (the
   // exact-version read) — complementing the /s/{token} membership link
@@ -3951,6 +3962,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               print={() => void exportPrint()}
               copyAiRef={copyAiReference}
               exportPng={app.slug === 'images' ? exportPng : undefined}
+              savePng={app.slug === 'images' ? savePng : undefined}
               compact={!fullLabels}
               coarsePointer={coarsePointer}
             />

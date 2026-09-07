@@ -44,6 +44,11 @@ at all. **The reveal rule is not uniform, and nobody decided that it should not 
 | ` ```mermaid ` fence | **never rendered** | — |
 | ` ``` ` code fence | **never rendered** | — |
 
+> **A twelfth row, found 2026-09-07 (D5):** `![alt](path)` — **never rendered.** The image door
+> shipped one day after D8 (ADR-572 D17) and was gated against the reading face D8 had just
+> demoted to thumbnail + print, so this census — written from what the canvas drew — could not
+> see it. The line rendered as its alt text, underlined, with the link marks hidden.
+
 ADR-572 D14.a settled this question once, against the Obsidian compromise D13 had shipped:
 
 > *"The operator drove it and rejected it: **'i don't want the hashtags visible.'** On a surface
@@ -167,6 +172,47 @@ as the canvas's contract:
 > the edit (D3's diagram is the only such case).
 
 New widgets are held to it by gate, not by memory.
+
+### D5 — An image renders as the picture, and a revealed block returns (2026-09-07)
+
+The operator, driving the Text app: *"composition (now just referring) new sub files doesn't seem
+to work at the moment."* Reproduced on production through CodeMirror's own input path: a
+` ```mermaid ` fence rendered to an SVG, a CSV snapshot under its provenance line rendered as a
+real table, and `![laptop](marketing/assets/…png)` rendered as the underlined word *laptop* — real
+`<img>` count **0**.
+
+**Why nobody saw it.** ADR-572 D8 (`f392323`, 2026-08-16) collapsed Text to this one canvas and
+left `MarkdownRenderer` drawing only the landing thumbnail and Print/PDF. D17 (`8a195db`, the next
+day) shipped Insert → Image and gated it with **17g: "the renderer RESOLVES a workspace image
+path"** — asserting the component the member no longer types in. `ProseCanvas` had six widget
+classes and no image; the lezer `Image` node fell through to the link rule. §1's census above
+listed eleven rendered things and had no image row, so the omission was never a decision. Three
+weeks under a green gate. *A gate that names a component proves the component, not the surface.*
+
+**Decision — the image is a widget under D1's rule.** `![alt](path)` on its own line (the D17
+insert) renders as a figure: the picture, its alt as a caption, and the same edit affordance the
+diagram carries. An image inside a sentence renders inline at text height. Pure decoration by the
+test every widget here passes — built from the source each update, no id, never serialized; delete
+the class and the file is unchanged.
+
+**One resolver, two faces.** The path→URL resolution D17 wrote inside `MarkdownRenderer` moves to
+`lib/workspace/imageUrl.ts` and both faces call it. Two copies would be two chances to reproduce
+the drift this decision corrects. The reading face's "Image not found: *path*" is the canvas's
+too — the path named, never a broken glyph.
+
+**The reveal returns.** D3 shipped `revealFence` and a `collapseFence` effect that nothing
+dispatched: a diagram opened for editing stayed as source until reload — the source leaking
+through the document, reached by a declared gesture and then never undone. Now opening a block
+places the caret inside it, and the caret **leaving** the block folds the source back into its
+rendering. One reveal mechanism, one return, both widgets. D4's contract stands unchanged.
+
+**Refused here:** the pin. Markdown has nowhere to keep a revision id (D17's "deliberate loss"),
+so a moved image still says "not found" and names the path. **Refused:** resolving `./relative`
+paths — D17 cites by workspace path; a relative path fails the same way on both faces, which is
+the honest asymmetry-free answer until it is asked for.
+
+**Gate:** `test_adr571_text_app.py` §17g now asserts the ONE resolver is reached by both faces,
+and §17h **mounts the canvas** and counts the rendered `<img>` — the surface, not the component.
 
 ## 4. Refusals (what this ADR does not open)
 

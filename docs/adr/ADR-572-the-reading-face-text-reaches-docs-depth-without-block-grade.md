@@ -705,6 +705,12 @@ one structural reason is worth keeping visible.
 
 ### D17 — The media kinds markdown carries natively (and the ones it cannot)
 
+> **⚠️ Amended by [ADR-590 D5](ADR-590-the-rendered-face-is-the-editing-surface.md) (2026-09-07):**
+> the Image row below shipped the DOOR and the reading face's resolver, and gate 17g asserted that
+> resolver — in `MarkdownRenderer`, which D8 had demoted to thumbnail + print the day before. The
+> canvas never drew an inserted image (prod-verified: `<img>` count 0). D5 adds the canvas widget,
+> moves resolution to ONE shared function, and re-points the gate at the surface.
+
 Operator: *"can't we have similar other format types like images, gallery,
 table csv, component alike? check studio apps to infer what i mean."*
 

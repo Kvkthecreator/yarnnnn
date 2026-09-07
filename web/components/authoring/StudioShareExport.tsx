@@ -47,6 +47,10 @@ interface StudioShareExportProps {
   /** ADR-475 §13 — the IMAGES app's raster projection. Undefined for Studio,
    *  whose boundary projection is Print/PDF. */
   exportPng?: () => Promise<void>;
+  /** ADR-475 §13's opt-in, built (2026-09-07): the SAME raster landed IN the
+   *  workspace beside the artboard, as a derivation of it, so a document can
+   *  refer to the picture by path. Resolves to the path it landed at. */
+  savePng?: () => Promise<string>;
   /** COMPACT (2026-08-12) — the boundary acts drop their text labels and keep
    *  their glyphs at the ladder's narrow rungs. Same grammar and same reason as
    *  StudioToolbar's `compact`: the header row cannot scroll (its panels are
@@ -63,6 +67,7 @@ export function StudioShareExport({
   print,
   copyAiRef,
   exportPng,
+  savePng,
   compact = false,
   coarsePointer = false,
 }: StudioShareExportProps) {
@@ -126,6 +131,22 @@ export function StudioShareExport({
     }
   }, [exportPng]);
 
+  const [saveState, setSaveState] = useState<'idle' | 'working' | 'saved' | 'error'>('idle');
+  const [savedPath, setSavedPath] = useState<string | null>(null);
+  const runSavePng = useCallback(async () => {
+    if (!savePng) return;
+    setSaveState('working');
+    try {
+      const path = await savePng();
+      setSavedPath(path);
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 6000);
+    } catch {
+      setSaveState('error');
+      setTimeout(() => setSaveState('idle'), 3000);
+    }
+  }, [savePng]);
+
   // StudioToolbar's btn/panel grammar; panels anchor RIGHT (the cluster sits
   // at the row's right edge — a left-anchored panel would overflow the window).
   const btn =
@@ -188,6 +209,23 @@ export function StudioShareExport({
                       : 'Download PNG'}
                 </button>
               )}
+              {savePng && (
+                <button
+                  type="button"
+                  className={act}
+                  onClick={runSavePng}
+                  disabled={saveState === 'working'}
+                  title="Rasterize this stage and save the PNG beside the artboard, as a derivation of it — a document can then refer to it by path"
+                >
+                  {saveState === 'working'
+                    ? 'Saving…'
+                    : saveState === 'saved'
+                      ? 'Saved to workspace ✓'
+                      : saveState === 'error'
+                        ? 'Save failed — retry'
+                        : 'Save PNG to workspace'}
+                </button>
+              )}
               <button
                 type="button"
                 className={act}
@@ -210,7 +248,9 @@ export function StudioShareExport({
             </div>
             <p className="text-[10px] leading-snug text-muted-foreground">
               {exportPng
-                ? 'The PNG is a flat projection — the composition stays the source (trace walks its layers). A deck prints one slide per page.'
+                ? saveState === 'saved' && savedPath
+                  ? `Saved to ${savedPath} — refer to it from a document as ![alt](${savedPath}).`
+                  : 'The PNG is a flat projection — the composition stays the source (trace walks its layers). Save lands it beside the artboard so a document can refer to it.'
                 : 'A deck prints one slide per page. Markdown export arrives with the interchange wave (ADR-456 W4).'}
             </p>
           </div>

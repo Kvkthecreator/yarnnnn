@@ -76,6 +76,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags } from '@lezer/highlight';
 import { FACE, HEADING_SCALE, MARK_OPACITY, TABLE } from '@/components/text/readingFace';
 import { cn } from '@/lib/utils';
+import { resolveWorkspaceImageUrl } from '@/lib/workspace/imageUrl';
 
 /**
  * The document reading face, expressed as syntax highlighting.
@@ -313,7 +314,7 @@ const PROSE_THEME = EditorView.theme({
   // The edit affordance — the DECLARED gesture that reaches a diagram's
   // source. Quiet until the diagram is hovered, so it does not compete with
   // the picture it sits on.
-  '.cm-mdDiagramEdit': {
+  '.cm-mdDiagramEdit, .cm-mdImageEdit': {
     position: 'absolute',
     top: '6px',
     right: '6px',
@@ -329,7 +330,32 @@ const PROSE_THEME = EditorView.theme({
     opacity: '0',
     transition: 'opacity 120ms',
   },
-  '.cm-mdDiagram:hover .cm-mdDiagramEdit, .cm-mdDiagramEdit:focus': { opacity: '1' },
+  '.cm-mdDiagram:hover .cm-mdDiagramEdit, .cm-mdDiagramEdit:focus, .cm-mdImage:hover .cm-mdImageEdit, .cm-mdImageEdit:focus': {
+    opacity: '1',
+  },
+  // ── ADR-590 D5: the image ───────────────────────────────────────────────
+  // A block image is a figure: the picture, its alt as a caption, the shared
+  // edit affordance. An inline image sits in the line at text height.
+  '.cm-mdImage': { position: 'relative', margin: '1em 0', display: 'block' },
+  '.cm-mdImage img': { display: 'block', maxWidth: '100%', height: 'auto', borderRadius: '4px' },
+  '.cm-mdImageInline': { display: 'inline-block', verticalAlign: 'middle', margin: '0 0.15em' },
+  '.cm-mdImageInline img': { display: 'inline', maxHeight: '1.6em', width: 'auto', borderRadius: '2px' },
+  '.cm-mdImageCaption': {
+    fontFamily: FACE.ui,
+    fontSize: '12px',
+    color: 'var(--muted-foreground, #666)',
+    marginTop: '0.4em',
+  },
+  // The reading face's own "not found" shape: the PATH named, never a broken glyph.
+  '.cm-mdImageMissing': {
+    display: 'inline-block',
+    fontFamily: FACE.mono,
+    fontSize: FACE.codeSize,
+    padding: '2px 8px',
+    border: '1px dashed var(--border, rgba(128,128,128,0.4))',
+    borderRadius: '4px',
+    color: 'var(--muted-foreground, #666)',
+  },
   // A mermaid fence the member OPENED reads as source, deliberately — this is
   // the one place source is meant to be visible, and it should look like it.
   '.cm-line.cm-mdFenceOpen': {
@@ -1094,7 +1120,12 @@ class MermaidWidget extends WidgetType {
     // ⭐ D3 — the DECLARED gesture. Caret entry does nothing; this does.
     edit.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      view.dispatch({ effects: revealFence.of(this.line) });
+      // Land the caret on the fence's first body line: the reveal is keyed to
+      // the caret being INSIDE the block (D5 — leaving it folds the source
+      // back into the picture), so opening it must put the caret there.
+      const body = view.state.doc.line(Math.min(this.line + 1, view.state.doc.lines));
+      view.dispatch({ effects: revealFence.of(this.line), selection: { anchor: body.from } });
+      view.focus();
     });
     wrap.appendChild(edit);
 
@@ -1239,6 +1270,215 @@ const fenceField = StateField.define<DecorationSet>({
   },
   provide: (f) => EditorView.decorations.from(f),
 });
+
+// ── ADR-590 D5: the image — the row ADR-572 D17 shipped and ADR-590's census missed ──
+/**
+ * A rendered image.
+ *
+ * ADR-572 D17 (2026-08-17) shipped Insert → Image writing `![alt](path)` and
+ * gated it against `MarkdownRenderer` — one day after D8 had made this canvas
+ * the ONE surface and left that renderer drawing only the thumbnail and print.
+ * ADR-590's census of "eleven rendered things" then had no image row. So the
+ * image door never drew a picture on the surface it was added to: the line
+ * rendered as its alt text with the link marks hidden (verified on prod,
+ * 2026-09-07 — real `<img>` count 0). This widget is that row.
+ *
+ * The URL is resolved by the SAME function the reading face uses
+ * (`lib/workspace/imageUrl.ts`), per mount, never stored — the CAS serving
+ * URL expires (ADR-427 D4) and the `.md` keeps only the portable path.
+ *
+ * Shape: an image on its own line (the D17 insert) is a block FIGURE — the
+ * picture, its alt as a caption, and the shared edit affordance; an image
+ * inside a sentence is an inline replacement at text height. Both are pure
+ * decoration under D1's test: built from the source each update, no id, never
+ * serialized — delete this class and the file is unchanged.
+ *
+ * Reveal follows D3's diagram rule exactly: a picture cannot carry an edit to
+ * its path, so the block form carries the declared affordance and the caret
+ * does nothing. A failed resolve shows the reading face's own "Image not
+ * found: <path>" — the path named, never a broken glyph.
+ */
+class ImageWidget extends WidgetType {
+  constructor(
+    private readonly src: string,
+    private readonly alt: string,
+    /** Line the image sits on — the key the edit affordance reveals. */
+    private readonly line: number,
+    private readonly block: boolean,
+  ) {
+    super();
+  }
+
+  eq(other: ImageWidget) {
+    return (
+      other.src === this.src && other.alt === this.alt
+      && other.line === this.line && other.block === this.block
+    );
+  }
+
+  toDOM(view: EditorView) {
+    const document = view.dom.ownerDocument;
+    const wrap = document.createElement(this.block ? 'figure' : 'span');
+    wrap.className = this.block ? 'cm-mdImage' : 'cm-mdImage cm-mdImageInline';
+
+    if (this.block) {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'cm-mdImageEdit';
+      edit.textContent = 'Edit image';
+      edit.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const l = view.state.doc.line(this.line);
+        view.dispatch({ effects: revealFence.of(this.line), selection: { anchor: Math.min(l.from + 2, l.to) } });
+        view.focus();
+      });
+      wrap.appendChild(edit);
+    }
+
+    const img = document.createElement('img');
+    img.alt = this.alt;
+    wrap.appendChild(img);
+
+    if (this.block && this.alt) {
+      const cap = document.createElement('figcaption');
+      cap.className = 'cm-mdImageCaption';
+      cap.textContent = this.alt;
+      wrap.appendChild(cap);
+    }
+
+    void resolveWorkspaceImageUrl(this.src).then(
+      (url) => { img.src = url; },
+      () => {
+        const missing = document.createElement('span');
+        missing.className = 'cm-mdImageMissing';
+        missing.textContent = `Image not found: ${this.src}`;
+        img.replaceWith(missing);
+      },
+    );
+    return wrap;
+  }
+
+  ignoreEvent() {
+    // The edit button is the widget's own; a click on the picture must not map
+    // to a document position behind it (D1 — no incidental reveal).
+    return true;
+  }
+}
+
+function buildImageDecorations(state: EditorState): DecorationSet {
+  const doc = state.doc;
+  const revealed = state.field(revealedFences);
+  const out: Array<{ from: number; to: number; deco: Decoration }> = [];
+
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.name !== 'Image') return;
+      // `![alt](url)` parses as LinkMark "![" · alt · LinkMark "]" · LinkMark
+      // "(" · URL · LinkMark ")". The alt is what sits between the first two
+      // marks; the URL node is the path.
+      const marks: Array<{ from: number; to: number }> = [];
+      let url = '';
+      const cur = node.node.cursor();
+      if (cur.firstChild()) {
+        do {
+          if (cur.name === 'LinkMark') marks.push({ from: cur.from, to: cur.to });
+          else if (cur.name === 'URL') url = doc.sliceString(cur.from, cur.to).trim();
+        } while (cur.nextSibling());
+      }
+      if (!url) return false;
+      const alt = marks.length >= 2 ? doc.sliceString(marks[0].to, marks[1].from).trim() : '';
+      const line = doc.lineAt(node.from);
+      const whole = line.text.trim() === doc.sliceString(node.from, node.to).trim();
+
+      if (whole && revealed.has(line.number)) {
+        // Opened for editing: the raw line, marked the way an open fence is.
+        out.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-mdFenceOpen' }) });
+        return false;
+      }
+      if (whole) {
+        out.push({
+          from: line.from,
+          to: line.to,
+          deco: Decoration.replace({ widget: new ImageWidget(url, alt, line.number, true), block: true }),
+        });
+      } else {
+        out.push({
+          from: node.from,
+          to: node.to,
+          deco: Decoration.replace({ widget: new ImageWidget(url, alt, line.number, false) }),
+        });
+      }
+      return false;
+    },
+  });
+
+  out.sort((a, b2) => a.from - b2.from || a.to - b2.to);
+  const b = new RangeSetBuilder<Decoration>();
+  for (const r of out) b.add(r.from, r.to, r.deco);
+  return b.finish();
+}
+
+const imageField = StateField.define<DecorationSet>({
+  create: (state) => buildImageDecorations(state),
+  update(deco, tr) {
+    const toggled = tr.effects.some((e) => e.is(revealFence) || e.is(collapseFence));
+    if (!tr.docChanged && !toggled) return deco.map(tr.changes);
+    return buildImageDecorations(tr.state);
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/**
+ * The source range a revealed block occupies — the fence from its opening
+ * ``` to its closing one, or the image's single line.
+ */
+function revealedBlockRange(state: EditorState, line: number): { from: number; to: number } | null {
+  if (line < 1 || line > state.doc.lines) return null;
+  const l = state.doc.line(line);
+  let range: { from: number; to: number } | null = null;
+  syntaxTree(state).iterate({
+    from: l.from,
+    to: l.to,
+    enter(node) {
+      if (node.name !== 'FencedCode' && node.name !== 'Image') return;
+      range = { from: state.doc.lineAt(node.from).from, to: state.doc.lineAt(node.to).to };
+      return false;
+    },
+  });
+  return range ?? { from: l.from, to: l.to };
+}
+
+/**
+ * ⭐ ADR-590 D5 — a revealed block RETURNS to its rendering when the caret
+ * leaves it.
+ *
+ * D3 shipped the reveal (`revealFence`) and a `collapseFence` effect that
+ * nothing ever dispatched: a diagram opened for editing stayed as source until
+ * the page reloaded, which is the "source leaking through the document" D14.a
+ * exists to stop — reached by a declared gesture, but never undone. The rule
+ * D4 states is "rendered is rendered"; an open block is the one sanctioned
+ * exception, and it ends when the member's attention does. The caret leaving
+ * the block is that moment. Dispatched off the update tick, as every reactive
+ * dispatch inside a view plugin must be.
+ */
+const collapseOnLeave = ViewPlugin.fromClass(
+  class {
+    update(u: ViewUpdate) {
+      if (!u.selectionSet && !u.docChanged) return;
+      const revealed = u.state.field(revealedFences);
+      if (!revealed.size) return;
+      const head = u.state.selection.main.head;
+      const gone: number[] = [];
+      revealed.forEach((line) => {
+        const r = revealedBlockRange(u.state, line);
+        if (!r || head < r.from || head > r.to) gone.push(line);
+      });
+      if (!gone.length) return;
+      const view = u.view;
+      setTimeout(() => view.dispatch({ effects: gone.map((n) => collapseFence.of(n)) }), 0);
+    }
+  },
+);
 
 export interface ProseCanvasHandle {
   /** [from, to) of the current selection, in source offsets. */
@@ -1388,6 +1628,11 @@ export function ProseCanvas({
       // the table is one (block decorations may not come from a plugin).
       revealedFences,
       fenceField,
+      // ⭐ ADR-590 D5 — an image renders as the picture (the census row D17
+      // shipped and never drew), and a revealed block folds back when the
+      // caret leaves it. Same StateField shape, for the same reason.
+      imageField,
+      collapseOnLeave,
       PROSE_THEME,
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),

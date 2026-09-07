@@ -1109,6 +1109,33 @@ export const api = {
       ),
   },
 
+  // IMAGES endpoints (ADR-475). Compose is reached server-side (a lane, or the
+  // brief door); the one client act is the raster POST-back (§13, built
+  // 2026-09-07): the browser rasterizes the stage it displays and lands the
+  // PNG beside the artboard as a DERIVATION of it — so a document can refer to
+  // the picture by path. Multipart, like `documents.upload`: a Blob does not
+  // ride JSON.
+  images: {
+    exportPng: async (png: Blob, artifactPath: string) => {
+      const headers = await getAuthHeaders();
+      delete (headers as Record<string, string>)["Content-Type"];
+      const formData = new FormData();
+      formData.append("file", png, "export.png");
+      formData.append("path", artifactPath);
+      const response = await fetch(`${API_BASE_URL}/api/images/export`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: formData,
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new APIError(response.status, response.statusText, data);
+      }
+      return response.json() as Promise<{ success: boolean; path: string }>;
+    },
+  },
+
   // Document endpoints (ADR-249: persistent uploads → /workspace/uploads/*.md)
   documents: {
     // List workspace uploads

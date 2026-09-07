@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.07.2] - The Text posture carries the markdown reference forms
+
+### Changed
+- `services/apps/text.py::build_text_posture` — ONE new bullet (+584 B; the posture composes at 1,933 B with an empty head): markdown refers to three things by keeping their content IN the file — an image by workspace path (`![alt](path)`, never a URL or base64), a diagram as a ```mermaid fence, and figures from a CSV as a real markdown table under a provenance line (`_From `path` · snapshot YYYY-MM-DD_`). The bullet carries the CONSEQUENCE, not just the rule (the Part R lesson): the line IS the citation, so no figure appears without its source and the next reader knows where to refresh it. It also states that an HTML citation (`data-ref`) is inert in a `.md` — the one form a lane that has seen the Studio grammar might reach for.
+- `test_adr571_text_app.py` — §2d/2e assert the three forms + the refusal are composed; §2f adds the posture's first byte ceiling (2,100; measured 1,933 at ship).
+
+### Why
+**A repeated, observed failure — n=2 on one fixture plus the operator's live report.** Two bound Text runs (2026-09-07, `docs/analysis/composing-an-image-in-a-bound-lane-2026-09-07.md` postscript) asked to *"write the Q3 platform review into the bound document"* both retyped the CSV's figures (1,850 / 2,310 / 3,040) into a markdown table and cited the source file nowhere. That is EXACTLY the shape the Text toolbar's own `csvToMarkdownTable` writes — ADR-572 D18 ruled that a CSV in markdown is a SNAPSHOT — minus the provenance line D18 makes the snapshot honest with. Measured before this change: the posture named none of `mermaid` / `![` / `csv` / `snapshot`; the lane frame, the standing frame and the connector carry only `derived_from`; the `.md` grammar lived in three FE insert functions where no engine could read it. The `.html` grammar, by contrast, is a kernel constant (`PARTICIPANT_ARTIFACT_CITATION_RULE`, ADR-617 D2) handed to every write-capable surface.
+
+**Why the posture and not a kernel constant.** ADR-606 D3: the posture is where an app says how its artifact works, and Text is the only app whose artifact is `.md`. The promotion test was run first: five connector-authored `marketing/strategy/*.md` were read for the same failure and every figure-bearing one names its sources near the figures (the connector's host already does this). No evidence for a kernel clause; a clause in every turn needs one.
+
+**Why it is not the skill's job.** `assembling-a-composite-document` step 3 says *"name the source of every figure, inline"* and neither drive reached it (the index reaches a skill when the ask names its subject; "write the review" does not). The skill keeps the JUDGMENT (what earns a table, keep the copy small); the posture carries the SHAPE — the same partition Part Q settled for the block grammar, applied to the one app it was mis-applied to.
+
+**The failure is silent** — a retyped figure looks perfect and drifts the moment the source moves — which is the arc's own profile for a contract rather than craft (`services/skills/__init__.py` docstring).
+
+### Expected behavior
+Bound Text lanes: a document that lifts figures from a CSV writes them under the `_From … · snapshot …_` line; asked for a diagram, the lane writes a mermaid fence rather than a table or an HTML chart; asked to place an image, it writes `![alt](workspace/path)`. Validation: driven on prod against the same fixture as the two failing runs (see the handoff Part S for the receipt). Unbound lanes, Slides/Images/Blogger: byte-identical.
+
+---
+
 ## [2026.09.07.1] - `composing-an-image` measured bound; the index admits by evidence
 
 ### Changed

@@ -119,6 +119,18 @@ def run() -> bool:
 
     sub.write_revision = _fake_write
 
+    # The compose handler consults the draw gate (ADR-445 §9 / ADR-491) with
+    # the auth's client before any model work. This gate's auth is a FAKE with
+    # no ledger behind it, so the real gate answered "balance exhausted" and
+    # the handler 402'd before a single check ran — the gate had been red at
+    # baseline since the draw gate landed. What this file tests is that the
+    # handler EXECUTES and lands N+1 revisions, not the member's balance; the
+    # draw gate has its own gate. Stubbed at the module the handler imports
+    # from (function-local import → the module attribute is what it reaches).
+    import services.platform_limits as pl
+    prior_check_draw = pl.check_draw
+    pl.check_draw = lambda *_a, **_k: (True, None, {})
+
     # The SERVICE client — a distinct sentinel object, so "which client did
     # this write use?" is answerable by identity rather than by inspection.
     class _ServiceClient:
@@ -150,6 +162,13 @@ def run() -> bool:
     req = ri.ComposeRequest(
         path=path, brief="a launch ad for our vitamin C serum: bright, clinical"
     )
+
+    # ADR-568 D1 — the keyless default REFUSES (no_provider_key) rather than
+    # degrading to a placeholder, so a gate with no key must choose the offline
+    # stub explicitly. It used to be chosen for it; that degrade was the defect
+    # ADR-568 removed, and this gate went red behind the draw-gate 402 above.
+    from services.apps.images.generate import get_backend, set_backend
+    set_backend(StubBackend())
 
     # ── 1. THE HANDLER EXECUTES ──────────────────────────────────────────
     try:
@@ -384,10 +403,81 @@ def run() -> bool:
 
     # Render-to-raster REMOVED (2026-07-22): the server render path (a headless
     # browser rasterizing the composition) never ran in production — the Render
-    # container has no Chrome, so /images/render only ever 503'd. Export is a
-    # CLIENT-SIDE fast-follow (the browser rasterizes the stage it already
-    # displays); the composition stays the traceable source either way. See
-    # ADR-475 §13. No server render endpoint, seam, or gate remains.
+    # container has no Chrome, so /images/render only ever 503'd. Rasterizing
+    # is CLIENT-SIDE (the browser rasterizes the stage it already displays);
+    # the composition stays the traceable source either way. See ADR-475 §13.
+    # No server render endpoint, seam, or gate remains.
+
+    # ── §13's opt-in, BUILT (2026-09-07): the raster POST-back ─────────────
+    # The browser's PNG lands beside the artboard as a DERIVATION of it. The
+    # handler is CALLED (the 2026-07-20 lesson), with the write captured where
+    # the route binds the name — `routes.images.write_revision` — because a
+    # patch on `services.authored_substrate` never reaches a name imported at
+    # module load.
+    import routes.images as ri2
+
+    export_writes: list[dict] = []
+
+    def _fake_export_write(_db, *, user_id, path, content_bytes=None, **kw):
+        export_writes.append({"path": path, "bytes": content_bytes, **kw})
+        return "rev-export"
+
+    prior_export_write = ri2.write_revision
+    ri2.write_revision = _fake_export_write
+
+    class _Upload:
+        def __init__(self, data: bytes):
+            self._d = data
+
+        async def read(self) -> bytes:
+            return self._d
+
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+    try:
+        res = asyncio.run(ri2.export_png(auth, file=_Upload(png), path=path))
+        _check("POST /images/export EXECUTES and lands the raster", res.get("success") is True)
+        w = export_writes[-1] if export_writes else {}
+        _check(
+            "…at a STABLE path beside the artboard — {folder}/exports/{stem}.png, so a "
+            "re-export is a new revision of the same file and a citing document keeps resolving",
+            w.get("path") == f"{STUDIO_ARTIFACT_REGION}gate-ad/exports/image.png"
+            and res.get("path") == w.get("path", "")[len("/workspace/"):],
+        )
+        _check(
+            "…as a DERIVATION citing the artboard (revision_kind + derived_from — the edge "
+            "`trace` walks and the Files delete-warning reads)",
+            w.get("revision_kind") == "derivation" and w.get("derived_from") == [path],
+        )
+        _check("…as the binary lane, typed image/png (ADR-427)",
+               w.get("bytes") == png and w.get("content_type") == "image/png")
+        _check("…attributed to the member who clicked", w.get("authored_by") == "operator")
+
+        # The refusals — each named, none silent.
+        from fastapi import HTTPException
+
+        def _status(coro) -> int:
+            try:
+                asyncio.run(coro)
+                return 200
+            except HTTPException as e:
+                return e.status_code
+
+        _check("a non-PNG body is REFUSED (422), never landed as a mislabelled blob",
+               _status(ri2.export_png(auth, file=_Upload(b"not a png"), path=path)) == 422)
+        _check("an artboard the caller cannot see is NOT FOUND (404)",
+               _status(ri2.export_png(auth, file=_Upload(png), path=f"{STUDIO_ARTIFACT_REGION}nope/image.html")) == 404)
+        _check("a path that is not an artboard is REFUSED (422)",
+               _status(ri2.export_png(auth, file=_Upload(png), path="operation/notes.md")) == 422)
+        sys_path = "/workspace/system/skills/x/image.html"
+        store[sys_path] = {"path": sys_path, "content": stage_html}
+        _check("an export beside a SYSTEM-managed artboard is REFUSED by the organize gate (403)",
+               _status(ri2.export_png(auth, file=_Upload(png), path=sys_path)) == 403)
+        _check("…and the refusals wrote NOTHING", len(export_writes) == 1)
+        _check("export_path_for is the one naming rule (stem, not filename; exports/ beside)",
+               ri2.export_path_for("/workspace/a/b/hero.image.html") == "/workspace/a/b/exports/hero.image.png")
+    finally:
+        ri2.write_revision = prior_export_write
+        pl.check_draw = prior_check_draw
 
     return _summary()
 

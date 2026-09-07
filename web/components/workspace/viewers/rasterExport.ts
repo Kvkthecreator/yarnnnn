@@ -10,8 +10,17 @@
  *
  * The moat is untouched: provenance lives in the composition (`trace` walks the
  * layered source), not in the flat PNG. A client download loses nothing the
- * moat depends on. Recording the export itself as a `revision_kind="derivation"`
- * is the opt-in follow-on named in §13; it is not built here.
+ * moat depends on.
+ *
+ * TWO destinations for the same raster (2026-09-07, the §13 opt-in built):
+ *   - `exportArtifactPng` — a browser download, for the outside world;
+ *   - `saveArtifactPng`   — the SAME bytes POSTed back and landed beside the
+ *     artboard as a `revision_kind="derivation"` citing it, so a markdown
+ *     document can refer to the picture by path (`![alt](…/exports/x.png)`,
+ *     ADR-572 D17). Before this the artboard's raster never entered the
+ *     workspace at all, and "make an image, put it in a document" was
+ *     unbuildable by construction.
+ * One rasterizer feeds both; the destination is the only difference.
  *
  * Why not go through the canvas iframe: the Studio canvas is sandboxed
  * `allow-scripts` only (a deliberate security boundary — the parent cannot
@@ -110,18 +119,14 @@ function downloadDataUri(dataUri: string, filename: string): void {
 }
 
 /**
- * Rasterize the artifact at `artifactPath` (its `content` HTML) to a PNG and
- * download it. Renders at the stage's real dimensions × 2 for a crisp export.
+ * Rasterize the artifact at `artifactPath` (its `content` HTML) to a PNG data
+ * URI at the stage's real dimensions × 2 (a crisp export). The ONE rasterizer;
+ * `exportArtifactPng` and `saveArtifactPng` only differ in where it goes.
  *
  * @param content       the artifact's authored HTML
  * @param artifactPath  its workspace path (for citation resolution)
- * @param filename      the download name (without extension is fine)
  */
-export async function exportArtifactPng(
-  content: string,
-  artifactPath: string,
-  filename: string,
-): Promise<void> {
+export async function rasterizeArtifactPng(content: string, artifactPath: string): Promise<string> {
   // Resolve citations + strip executables (no `pointer` — we want the clean
   // rendered artifact, not the edit runtime). Same call `exportPrint` makes.
   const projected = await resolveArtifactHtml(content, artifactPath, {});
@@ -148,7 +153,7 @@ export async function exportArtifactPng(
     await inlineRasterSources(host);
     // Give re-inlined images a tick to decode before the snapshot.
     await new Promise((r) => setTimeout(r, 50));
-    const dataUri = await toPng(host, {
+    return await toPng(host, {
       width,
       height,
       pixelRatio: 2,
@@ -157,8 +162,31 @@ export async function exportArtifactPng(
       backgroundColor: '#ffffff',
       cacheBust: true,
     });
-    downloadDataUri(dataUri, filename);
   } finally {
     host.remove();
   }
+}
+
+/** Rasterize and hand the PNG to the browser as a download (the outside world). */
+export async function exportArtifactPng(
+  content: string,
+  artifactPath: string,
+  filename: string,
+): Promise<void> {
+  downloadDataUri(await rasterizeArtifactPng(content, artifactPath), filename);
+}
+
+/**
+ * Rasterize and land the PNG IN the workspace, beside the artboard, as a
+ * derivation of it (ADR-475 §13, built). Returns the path it landed at —
+ * stable across re-exports (`{artboard folder}/exports/{artboard}.png`), so a
+ * second export is a new REVISION of the same file, never a second file, and a
+ * document citing it keeps resolving.
+ */
+export async function saveArtifactPng(content: string, artifactPath: string): Promise<string> {
+  const dataUri = await rasterizeArtifactPng(content, artifactPath);
+  const blob = await (await fetch(dataUri)).blob();
+  const { api } = await import('@/lib/api/client');
+  const res = await api.images.exportPng(blob, artifactPath);
+  return res.path;
 }

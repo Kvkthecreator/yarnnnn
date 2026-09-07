@@ -12,6 +12,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { isFetchableImageSrc, resolveWorkspaceImageUrl } from '@/lib/workspace/imageUrl';
 import { cn } from '@/lib/utils';
 
 interface MarkdownRendererProps {
@@ -94,51 +95,33 @@ function linkifySubstrateRefs(content: string): string {
     .join('');
 }
 
-/** Renders mermaid code blocks as SVG diagrams */
 /**
  * An `<img>` whose `src` may be a workspace path (ADR-572 D17).
  *
- * Markdown's own image syntax with a substrate path — `![alt](notes/x.png)` —
- * is the only image form that keeps the file portable: the path is text a
- * connector reads, rewrites and round-trips. What it is NOT is fetchable, so
- * the viewer resolves it here.
- *
- * The URL is minted, never stored: `GET /workspace/file` returns a CAS serving
- * URL with a 1-hour TTL (ADR-427 D4), so baking one into the document would
- * write a capability that expires — a file that renders today and 404s
- * tomorrow. Resolution belongs to the reader, per read.
+ * Resolution lives in ONE place — `lib/workspace/imageUrl.ts` — because the
+ * editing canvas (`ProseCanvas`) draws the same image and must not drift from
+ * this face (ADR-590 D5). This component only owns the reading face's three
+ * states: resolving, resolved, and "Image not found: <path>" (the path named
+ * rather than a broken glyph, so the member can see WHICH file is missing while
+ * the source stays valid markdown).
  */
 function MarkdownImage({ src, alt, ...props }: { src: string; alt: string }) {
   const [resolved, setResolved] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  // Anything with a scheme (https:, data:, blob:) is already fetchable.
-  const isExternal = /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//');
+  const external = isFetchableImageSrc(src);
 
   useEffect(() => {
-    if (isExternal || !src) return;
+    if (external || !src) return;
     let cancelled = false;
     setFailed(false);
-    const path = src.startsWith('/workspace/') ? src : `/workspace/${src.replace(/^\/+/, '')}`;
-    import('@/lib/api/client')
-      .then(({ api }) => api.workspace.getFile(path))
-      .then(async (f) => {
-        const url = (f as { content_url?: string | null }).content_url;
-        if (!url) throw new Error('no content_url');
-        // An already-minted CAS URL is usable as-is; the legacy
-        // `?storage_path=` shape needs the authenticated exchange.
-        if (!/[?&]storage_path=/.test(url)) return url;
-        const { api } = await import('@/lib/api/client');
-        return (await api.documents.blobUrl(url)).url;
-      })
+    resolveWorkspaceImageUrl(src)
       .then((url) => { if (!cancelled) setResolved(url); })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, [src, isExternal]);
+  }, [src, external]);
 
-  if (isExternal) return <img src={src} alt={alt} {...props} />;
+  if (external) return <img src={src} alt={alt} {...props} />;
   if (failed) {
-    // Name the path rather than showing a broken glyph — the member can see
-    // WHICH file is missing, and the source is still valid markdown.
     return (
       <span className="inline-block rounded border border-dashed border-border px-2 py-1 text-xs text-muted-foreground">
         Image not found: <span className="font-mono">{src}</span>
@@ -151,6 +134,7 @@ function MarkdownImage({ src, alt, ...props }: { src: string; alt: string }) {
   return <img src={resolved} alt={alt} {...props} />;
 }
 
+/** Renders mermaid code blocks as SVG diagrams */
 function MermaidBlock({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string | null>(null);

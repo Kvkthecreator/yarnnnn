@@ -30,6 +30,15 @@ def build_text_posture(artifact_path: str, head: str) -> str:
     refined conversationally, written whole and honestly. No block grammar,
     no Studio machinery (ADR-456 D1's grade constraint).
 
+    It DOES carry the three markdown reference forms (ADR-572 D17/D18 — image
+    by path, mermaid fence, CSV snapshot under a provenance line). Measured
+    2026-09-07: this posture named none of them and two bound runs retyped a
+    CSV's figures with the source uncited — the toolbar's own snapshot shape
+    minus the one line that makes it a citation. The `.html` citation grammar
+    is a kernel constant every surface is handed; the `.md` grammar lived only
+    in three FE insert functions, where no engine could read it. Here is where
+    an app says how its artifact works (ADR-606 D3).
+
     Pure since ADR-606 D3: ``head`` is the artifact's current head, read ONCE
     by the lane kernel — this builder's private re-read (a second round-trip
     for the same bytes every turn) is deleted, the same fix the studio path
@@ -62,6 +71,15 @@ def build_text_posture(artifact_path: str, head: str) -> str:
         "- Write the document as plain markdown, WHOLE and honest — no HTML,"
         " no block ids, no data-* attributes, no Studio machinery. Prose"
         " documents are .md (the format discipline).",
+        "- Markdown refers to three things by keeping their content IN the"
+        " file: an image by its workspace path — `![alt](marketing/assets/"
+        "hero.png)`, never a URL or base64; a diagram as a ```mermaid fence,"
+        " which renders as the diagram; figures from a CSV as a real markdown"
+        " table under a provenance line — `_From `operation/q3.csv` ·"
+        " snapshot 2026-09-07_`. That line IS the citation: it names the file"
+        " and the day the rows were read, so no figure appears without its"
+        " source and the next reader knows where to refresh it. An HTML"
+        " citation (data-ref) is inert in a .md — never write one.",
         "- Write ONLY this document unless the member asks otherwise. When"
         " you author content FROM another file, cite it (derived_from).",
         "- The member edits the same document directly in their editor, and"
